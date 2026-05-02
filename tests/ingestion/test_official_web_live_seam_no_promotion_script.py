@@ -7,6 +7,7 @@ from unittest.mock import patch
 
 from scripts.official_web_live_seam_no_promotion import (
     assert_seam_report,
+    build_collector_command,
     build_parser,
     build_seam_report,
     extract_last_json_object,
@@ -104,6 +105,30 @@ INFO CheerioCrawler: Queue head still returned requests {"requests":[{"id":"abc"
         self.assertIn("where site_id = $1", node_code)
         self.assertIn("normalized_canonical_url = $2", node_code)
 
+    def test_build_collector_command_locks_seeded_target_candidate(self) -> None:
+        args = build_parser().parse_args(
+            [
+                "--site-id",
+                "muc_public",
+                "--target-id",
+                "campus-services-contact-directory",
+                "--target-url",
+                "https://www.muc.edu.cn/",
+                "--host",
+                "www.muc.edu.cn",
+            ]
+        )
+
+        command = build_collector_command(
+            args=args,
+            local_run_id="owrun_consumer_live_test",
+            output_root=Path("/tmp/owrun"),
+            target_seed={"targetCandidateId": "owcand_exact"},
+        )
+
+        self.assertIn("--target-candidate-id", command)
+        self.assertEqual(command[command.index("--target-candidate-id") + 1], "owcand_exact")
+
     def test_build_seam_report_includes_target_first_proof_fields(self) -> None:
         with TemporaryDirectory() as temp_dir:
             output_root = Path(temp_dir)
@@ -153,7 +178,68 @@ INFO CheerioCrawler: Queue head still returned requests {"requests":[{"id":"abc"
                 drain_result={"processed": 1},
                 event_id="owevt_current",
                 execution_report={
-                    "consumerCandidateReview": {"counts": {"candidate_count": 1}},
+                    "consumerCandidateReview": {
+                        "counts": {
+                            "candidate_count": 1,
+                            "selected_write_ready_count": 1,
+                        },
+                        "selectedWrite": {
+                            "decision": "dry_run_ready",
+                            "reason": "machine_field_review_passed",
+                            "ready_record_count": 1,
+                            "blocked_record_count": 0,
+                            "pending_record_count": 0,
+                            "rejected_record_count": 0,
+                            "preview_records": [
+                                {
+                                    "candidate_key": "owcand_contact_home",
+                                    "field_status": {
+                                        "organization_name": "present",
+                                        "phone": "present",
+                                        "source_url": "present",
+                                        "source_version_evidence": "present",
+                                        "email": "source_not_provided",
+                                    },
+                                    "optional_fields": ["email"],
+                                    "required_fields": [
+                                        "organization_name",
+                                        "phone",
+                                        "source_url",
+                                        "source_version_evidence",
+                                    ],
+                                    "source_ref": {
+                                        "raw_asset_id": "owasset_contact",
+                                        "raw_version_id": "owver_contact",
+                                    },
+                                    "target_collection": "contact_directory",
+                                    "target_corpus": "campus_services",
+                                }
+                            ],
+                        },
+                        "targetFieldReviews": [
+                            {
+                                "status": "ready_for_selected_write",
+                                "summary": {
+                                    "candidateKey": "owcand_contact_home",
+                                    "fieldStatus": {
+                                        "organization_name": "present",
+                                        "phone": "present",
+                                        "source_url": "present",
+                                        "source_version_evidence": "present",
+                                        "email": "source_not_provided",
+                                    },
+                                    "readyForSelectedWrite": True,
+                                    "requiredFields": [
+                                        "organization_name",
+                                        "phone",
+                                        "source_url",
+                                        "source_version_evidence",
+                                    ],
+                                    "selectedWriteTarget": "campus_services/contact_directory",
+                                },
+                            }
+                        ],
+                    },
                     "coverage": {
                         "targetFamilyCounts": {"contact_directory_candidate": 1},
                         "targetLineageIssues": [],
@@ -168,6 +254,12 @@ INFO CheerioCrawler: Queue head still returned requests {"requests":[{"id":"abc"
                         "target_materialization_policy_counts": {"candidate_only": 1},
                     },
                     "status": "staged",
+                    "releaseTasks": {
+                        "admittedCount": 0,
+                        "enabled": False,
+                        "reason": "release_task_store_not_configured",
+                        "taskIds": [],
+                    },
                 },
                 execution_report_path=execution_report_path,
                 local_run_id="owrun_consumer_live_20260501T000000Z",
@@ -208,6 +300,19 @@ INFO CheerioCrawler: Queue head still returned requests {"requests":[{"id":"abc"
                 {"candidate_only": 1},
             )
             self.assertEqual(report["consumer"]["target_lineage_issues"], [])
+            self.assertEqual(
+                report["consumer"]["selected_write"]["decision"],
+                "dry_run_ready",
+            )
+            self.assertEqual(report["consumer"]["selected_write_ready_count"], 1)
+            self.assertEqual(
+                report["consumer"]["target_field_reviews"][0]["status"],
+                "ready_for_selected_write",
+            )
+            self.assertEqual(
+                report["consumer"]["release_tasks"]["reason"],
+                "release_task_store_not_configured",
+            )
             self.assertEqual(report["app_api"]["target_attempt_count"], 1)
             self.assertEqual(
                 report["app_api"]["target_job_ids"],
@@ -242,6 +347,56 @@ INFO CheerioCrawler: Queue head still returned requests {"requests":[{"id":"abc"
         }
 
         with self.assertRaisesRegex(RuntimeError, "target attempts"):
+            assert_seam_report(report)
+
+    def test_assert_seam_report_requires_machine_selected_write_field_review(self) -> None:
+        report = {
+            "app_api": {
+                "db_run": {
+                    "ingestion_dispatch_status": "dispatched",
+                    "ingestion_execution_error_code": None,
+                    "ingestion_execution_status": "staged",
+                },
+                "target_attempt_count": 1,
+                "target_attempt_ids": ["attempt-1"],
+                "target_attempts": [
+                    {
+                        "candidateId": "owcand_contact_home",
+                        "jobId": "owtarget_contact",
+                        "normalizedCanonicalUrl": "https://www.muc.edu.cn/",
+                    }
+                ],
+                "target_job_ids": ["owtarget_contact"],
+            },
+            "collector": {
+                "retained_source_truth_pages": 1,
+                "status": "completed",
+            },
+            "consumer": {
+                "error_is_null": True,
+                "import_is_null": True,
+                "promotion_decision": "staged",
+                "selected_write": {
+                    "decision": "dry_run_ready",
+                    "preview_records": [],
+                    "ready_record_count": 1,
+                },
+                "selected_write_ready_count": 1,
+                "release_tasks": {
+                    "admittedCount": 0,
+                    "enabled": False,
+                    "reason": "release_task_store_not_configured",
+                    "taskIds": [],
+                },
+                "status": "staged",
+                "target_family_counts": {"contact_directory_candidate": 1},
+                "target_field_reviews": [],
+                "target_lineage_issues": [],
+                "target_materialization_policy_counts": {"candidate_only": 1},
+            },
+        }
+
+        with self.assertRaisesRegex(RuntimeError, "target field reviews"):
             assert_seam_report(report)
 
 

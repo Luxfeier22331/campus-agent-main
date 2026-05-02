@@ -78,33 +78,11 @@ def main(argv: Sequence[str] | None = None) -> None:
         target_seed = seed_target_workset(repo_root, args, output_root=output_root)
         collector_result = run_json_command(
             repo_root,
-            (
-                "pnpm",
-                "--dir",
-                "apps/official-web-collector",
-                "crawl",
-                "--",
-                "--site-id",
-                args.site_id,
-                "--run-intent",
-                "hot",
-                "--trigger-type",
-                "manual",
-                "--host",
-                args.host,
-                "--max-pages-per-host",
-                str(args.max_pages_per_host),
-                "--max-total-pages",
-                str(args.max_total_pages),
-                "--crawl-run-id",
-                local_run_id,
-                "--scheduler-run-key",
-                f"manual-consumer-live-{local_run_id}",
-                "--trace-id",
-                f"trace-{local_run_id}",
-                "--disable-conditional-headers",
-                "--output-dir",
-                str(output_root / "collector-output"),
+            build_collector_command(
+                args=args,
+                local_run_id=local_run_id,
+                output_root=output_root,
+                target_seed=target_seed,
             ),
             env=collector_env,
             log_path=output_root / "collector.log",
@@ -458,6 +436,47 @@ def seed_target_workset(
     )
 
 
+def build_collector_command(
+    *,
+    args: argparse.Namespace,
+    local_run_id: str,
+    output_root: Path,
+    target_seed: Mapping[str, object],
+) -> tuple[str, ...]:
+    command: list[str] = [
+        "pnpm",
+        "--dir",
+        "apps/official-web-collector",
+        "crawl",
+        "--",
+        "--site-id",
+        str(args.site_id),
+        "--run-intent",
+        "hot",
+        "--trigger-type",
+        "manual",
+        "--host",
+        str(args.host),
+        "--max-pages-per-host",
+        str(args.max_pages_per_host),
+        "--max-total-pages",
+        str(args.max_total_pages),
+        "--crawl-run-id",
+        local_run_id,
+        "--scheduler-run-key",
+        f"manual-consumer-live-{local_run_id}",
+        "--trace-id",
+        f"trace-{local_run_id}",
+        "--disable-conditional-headers",
+        "--output-dir",
+        str(output_root / "collector-output"),
+    ]
+    target_candidate_id = str(target_seed.get("targetCandidateId") or "").strip()
+    if target_candidate_id:
+        command.extend(("--target-candidate-id", target_candidate_id))
+    return tuple(command)
+
+
 def load_env_file(path: Path) -> dict[str, str]:
     if not path.exists():
         return {}
@@ -705,10 +724,19 @@ def _object_list(value: object) -> list[object]:
 def _target_report_fields(execution_report: dict[str, object]) -> dict[str, object]:
     replay = _object_mapping(execution_report.get("replay"))
     coverage = _object_mapping(execution_report.get("coverage"))
+    consumer_candidate_review = _object_mapping(execution_report.get("consumerCandidateReview"))
+    consumer_candidate_review_counts = _object_mapping(consumer_candidate_review.get("counts"))
     target_lineage_issues = _object_list(
         coverage.get("targetLineageIssues") or replay.get("target_lineage_issues")
     )
     return {
+        "selected_write": _object_mapping(consumer_candidate_review.get("selectedWrite")),
+        "selected_write_ready_count": consumer_candidate_review_counts.get(
+            "selected_write_ready_count"
+        ),
+        "target_field_reviews": _object_list(
+            consumer_candidate_review.get("targetFieldReviews")
+        ),
         "target_family_counts": _int_mapping(
             coverage.get("targetFamilyCounts") or replay.get("target_family_counts")
         ),
@@ -791,6 +819,7 @@ def build_seam_report(
                 .get("counts", {})
                 .get("candidate_count")
             ),
+            "release_tasks": _object_mapping(execution_report.get("releaseTasks")),
             **target_report,
         },
     }
@@ -846,6 +875,47 @@ def assert_seam_report(report: dict[str, object]) -> None:
         raise RuntimeError("consumer target materialization policy counts are missing")
     if consumer.get("target_lineage_issues"):
         raise RuntimeError("consumer reported target lineage issues")
+    selected_write = _object_mapping(consumer.get("selected_write"))
+    target_field_reviews = _object_list(consumer.get("target_field_reviews"))
+    if selected_write.get("decision") == "dry_run_ready":
+        if int(consumer.get("selected_write_ready_count") or 0) < 1:
+            raise RuntimeError("consumer selected-write ready count is missing")
+        if not target_field_reviews:
+            raise RuntimeError("consumer target field reviews are missing")
+        ready_reviews = [
+            review
+            for review in target_field_reviews
+            if isinstance(review, dict) and review.get("status") == "ready_for_selected_write"
+        ]
+        if not ready_reviews:
+            raise RuntimeError("consumer target field reviews did not mark a ready record")
+        for review in ready_reviews:
+            summary = _object_mapping(review.get("summary"))
+            field_status = _object_mapping(summary.get("fieldStatus"))
+            required_fields = [
+                str(field_name)
+                for field_name in _object_list(summary.get("requiredFields"))
+                if str(field_name).strip()
+            ]
+            if not field_status or not required_fields:
+                raise RuntimeError("consumer target field reviews lack field status denominator")
+            missing_required = [
+                field_name
+                for field_name in required_fields
+                if str(field_status.get(field_name) or "") != "present"
+            ]
+            if missing_required:
+                raise RuntimeError("consumer target field reviews have missing required fields")
+        preview_records = _object_list(selected_write.get("preview_records"))
+        if not preview_records:
+            raise RuntimeError("consumer selected-write preview records are missing")
+        for record in preview_records:
+            if not isinstance(record, dict):
+                raise RuntimeError("consumer selected-write preview record is invalid")
+            if not _object_mapping(record.get("field_status")):
+                raise RuntimeError("consumer selected-write preview records lack field status")
+            if not _object_list(record.get("required_fields")):
+                raise RuntimeError("consumer selected-write preview records lack required fields")
 
 
 def write_json(path: Path, payload: object) -> None:

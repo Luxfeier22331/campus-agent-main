@@ -157,6 +157,7 @@ export interface OfficialWebResolvePlanInput {
 	now: string;
 	runIntent: OfficialWebRunIntent;
 	siteId: string;
+	targetCandidateIds?: string[];
 	traceId?: string;
 }
 

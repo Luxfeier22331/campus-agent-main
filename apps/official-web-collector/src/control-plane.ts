@@ -102,6 +102,7 @@ export function createOfficialWebControlPlaneClient(
 					now: payload.now,
 					runIntent: payload.runIntent,
 					siteId: payload.siteId,
+					targetCandidateIds: payload.targetCandidateIds ?? [],
 				},
 				traceId: payload.traceId,
 				fetchImplementation,

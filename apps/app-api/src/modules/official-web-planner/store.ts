@@ -163,6 +163,14 @@ export function createPgOfficialWebPlannerStore(env: Env): OfficialWebPlannerSto
 							"request_failed",
 						]),
 					];
+					if (filters.targetCandidateIds.length > 0) {
+						repairConditions.push(
+							inArray(
+								officialWebTargetPageAttempts.candidateId,
+								filters.targetCandidateIds,
+							),
+						);
+					}
 
 					const rows = await db
 						.select({
@@ -224,6 +232,11 @@ export function createPgOfficialWebPlannerStore(env: Env): OfficialWebPlannerSto
 
 				if (filters.hostFilter.length > 0) {
 					conditions.push(inArray(officialWebTargetJobCandidates.sourceHost, filters.hostFilter));
+				}
+				if (filters.targetCandidateIds.length > 0) {
+					conditions.push(
+						inArray(officialWebTargetJobCandidates.candidateId, filters.targetCandidateIds),
+					);
 				}
 
 				const rows = await db

@@ -59,6 +59,7 @@ export interface OfficialWebPlannerResolvePayload {
 	now?: unknown;
 	runIntent?: unknown;
 	siteId?: unknown;
+	targetCandidateIds?: unknown;
 }
 
 export interface NormalizedOfficialWebPlannerFilters {
@@ -68,6 +69,7 @@ export interface NormalizedOfficialWebPlannerFilters {
 	now: string;
 	runIntent: OfficialWebRunIntent;
 	siteId: string;
+	targetCandidateIds: string[];
 }
 
 export interface OfficialWebPlannerStore {
@@ -179,6 +181,37 @@ function normalizeHostFilter(value: unknown): string[] {
 	return [...new Set(normalizedHosts)];
 }
 
+function normalizeStringList(value: unknown, field: string): string[] {
+	if (value == null) {
+		return [];
+	}
+	if (!Array.isArray(value)) {
+		throw new AppApiRouteError({
+			code: "validation_failed",
+			details: { field },
+			message: `${field} must be an array of non-empty strings.`,
+			retryable: false,
+			status: 422,
+		});
+	}
+
+	const normalizedValues = value.map((item, index) => {
+		const normalized = normalizeString(item);
+		if (!normalized) {
+			throw new AppApiRouteError({
+				code: "validation_failed",
+				details: { field: `${field}[${index}]` },
+				message: `${field} entries must be non-empty strings.`,
+				retryable: false,
+				status: 422,
+			});
+		}
+		return normalized;
+	});
+
+	return [...new Set(normalizedValues)];
+}
+
 function normalizeIsoTimestamp(value: unknown, field: string): string {
 	const normalized = normalizeString(value);
 	if (!normalized) {
@@ -227,6 +260,7 @@ function normalizeResolvePayload(
 		now: payload.now == null ? new Date().toISOString() : normalizeIsoTimestamp(payload.now, "now"),
 		runIntent,
 		siteId,
+		targetCandidateIds: normalizeStringList(payload.targetCandidateIds, "targetCandidateIds"),
 	};
 }
 

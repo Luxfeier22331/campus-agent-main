@@ -112,6 +112,7 @@ describe("official web planner route", () => {
 					now: "2026-03-30T09:00:00.000Z",
 					runIntent: "hot",
 					siteId: "www_muc_edu_cn",
+					targetCandidateIds: ["owcand_news"],
 				}),
 				headers: {
 					authorization: "Bearer trusted-collector-token",
@@ -142,6 +143,7 @@ describe("official web planner route", () => {
 				now: "2026-03-30T09:00:00.000Z",
 				runIntent: "hot",
 				siteId: "www_muc_edu_cn",
+				targetCandidateIds: ["owcand_news"],
 			},
 			principal: {
 				kind: "service",

@@ -135,6 +135,7 @@ describe("official-web control plane client", () => {
 			now: "2026-03-29T08:00:01.000Z",
 			runIntent: "baseline",
 			siteId: "campus_public",
+			targetCandidateIds: ["owcand_target"],
 			traceId: "trace_01JQ",
 		});
 		const heartbeat = await client.sendHeartbeat({
@@ -237,6 +238,7 @@ describe("official-web control plane client", () => {
 			now: "2026-03-29T08:00:01.000Z",
 			runIntent: "baseline",
 			siteId: "campus_public",
+			targetCandidateIds: ["owcand_target"],
 		});
 		expect(fetchImplementation).toHaveBeenNthCalledWith(
 			3,

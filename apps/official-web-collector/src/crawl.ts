@@ -68,6 +68,7 @@ export interface CrawlSiteOptions {
 	collectorVersion?: string;
 	outputDir?: string;
 	hostFilter?: string[];
+	targetCandidateIds?: string[];
 	maxPagesPerHost?: number;
 	maxTotalPages?: number;
 	artifactStore?: OfficialWebArtifactStore;
@@ -174,6 +175,7 @@ export async function crawlSite(
 				now: new Date().toISOString(),
 				runIntent: plan.runIntent,
 				siteId: plan.siteId,
+				targetCandidateIds: options.targetCandidateIds ?? [],
 				traceId: options.traceId,
 			})
 		: {

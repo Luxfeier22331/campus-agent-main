@@ -95,7 +95,37 @@ describe("official web planner service", () => {
 			now: "2026-05-01T09:00:00.000Z",
 			runIntent: "hot",
 			siteId: "muc_public",
+			targetCandidateIds: [],
 		});
+	});
+
+	it("forwards target candidate filters for exclusive dry-run worksets", async () => {
+		const candidate = buildTargetCandidate({
+			targetCandidateId: "owcand_requested",
+		});
+		const store: OfficialWebPlannerStore = {
+			listDuePages: vi.fn().mockResolvedValue([candidate]),
+		};
+		const service = buildOfficialWebPlannerService({ store });
+
+		await service.resolve({
+			payload: {
+				hostFilter: ["www.muc.edu.cn"],
+				maxPagesPerHost: 1,
+				maxTotalPages: 1,
+				now: "2026-05-01T09:00:00.000Z",
+				runIntent: "hot",
+				siteId: "muc_public",
+				targetCandidateIds: ["owcand_requested"],
+			},
+			principal: collectorPrincipal,
+		});
+
+		expect(store.listDuePages).toHaveBeenCalledWith(
+			expect.objectContaining({
+				targetCandidateIds: ["owcand_requested"],
+			}),
+		);
 	});
 
 	it("rejects non-canonical target family names before returning a workset", async () => {
