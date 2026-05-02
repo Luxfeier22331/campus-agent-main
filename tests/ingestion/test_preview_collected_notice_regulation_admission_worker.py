@@ -100,8 +100,8 @@ class PreviewCollectedNoticeRegulationAdmissionWorkerTests(unittest.TestCase):
 
             build_preview.assert_called_once()
             self.assertEqual(
-                build_preview.call_args.kwargs["owner_text_execution_report_path"],
-                owner_text_report_path,
+                build_preview.call_args.kwargs["owner_text_execution_report_paths"],
+                (owner_text_report_path,),
             )
             self.assertEqual(
                 {
@@ -120,6 +120,98 @@ class PreviewCollectedNoticeRegulationAdmissionWorkerTests(unittest.TestCase):
             self.assertEqual(payload["downstream_admitted"], 1)
             self.assertEqual(payload["rejected_deferred_count"], 2)
             self.assertEqual(payload["candidate_count"], 3)
+
+    def test_main_accepts_multiple_owner_text_execution_reports(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            tmp_path = Path(tmpdir)
+            output_dir = tmp_path / "phase-06-r1"
+            searchable_path = tmp_path / "searchable.json"
+            multimodal_path = tmp_path / "multimodal.json"
+            queue_trace_path = tmp_path / "queue-trace.json"
+            owner_text_report_path_a = tmp_path / "owner-text-report-a.json"
+            owner_text_report_path_b = tmp_path / "owner-text-report-b.json"
+            searchable_path.write_text('{"units":[]}\n', encoding="utf-8")
+            multimodal_path.write_text('{"candidates":[]}\n', encoding="utf-8")
+            queue_trace_path.write_text('{"trace_rows":[]}\n', encoding="utf-8")
+            owner_text_report_path_a.write_text(
+                '{"attempt_results":[{"status":"succeeded","source_notice_id":"481"}]}\n',
+                encoding="utf-8",
+            )
+            owner_text_report_path_b.write_text(
+                '{"attempt_results":[{"status":"succeeded","source_notice_id":"477"}]}\n',
+                encoding="utf-8",
+            )
+            fake_preview = CollectedNoticeRegulationAdmissionPreview(
+                admission_manifest={
+                    "schema_version": "collected_notice_consumer_admission.v1",
+                    "mode": "dry_run",
+                    "write_enabled": False,
+                    "target": "regulation",
+                    "counts": {
+                        "entry_count": 2,
+                        "downstream_admitted": 2,
+                        "needs_multimodal": 0,
+                    },
+                },
+                candidate_audit={
+                    "schema_version": "collected_notice_regulation_candidate_audit.v1",
+                    "candidate_count": 2,
+                    "class_counts": {"institutional_rules_candidate": 2},
+                },
+                rejected_deferred_source_report={
+                    "schema_version": "collected_notice_regulation_rejected_deferred.v1",
+                    "entry_count": 0,
+                },
+                source_to_searchable_trace={
+                    "schema_version": "collected_notice_regulation_source_trace.v1",
+                    "entry_count": 2,
+                },
+            )
+
+            with (
+                patch(
+                    "campus_ingestion_worker.preview_collected_notice_regulation_admission."
+                    "load_worker_env"
+                ),
+                patch(
+                    "campus_ingestion_worker.preview_collected_notice_regulation_admission."
+                    "build_collected_notice_regulation_admission_preview_from_paths",
+                    return_value=fake_preview,
+                ) as build_preview,
+                patch(
+                    "campus_ingestion_worker.preview_collected_notice_regulation_admission."
+                    "build_runtime_object_store",
+                    return_value=object(),
+                ),
+                redirect_stdout(StringIO()) as stdout,
+            ):
+                worker.main(
+                    [
+                        "--searchable-notice-preview-path",
+                        str(searchable_path),
+                        "--multimodal-candidate-inventory-path",
+                        str(multimodal_path),
+                        "--queue-consume-trace-path",
+                        str(queue_trace_path),
+                        "--output-dir",
+                        str(output_dir),
+                        "--owner-text-execution-report-path",
+                        str(owner_text_report_path_a),
+                        "--owner-text-execution-report-path",
+                        str(owner_text_report_path_b),
+                    ]
+                )
+
+            build_preview.assert_called_once()
+            self.assertEqual(
+                build_preview.call_args.kwargs["owner_text_execution_report_paths"],
+                (owner_text_report_path_a, owner_text_report_path_b),
+            )
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(
+                payload["owner_text_execution_report_paths"],
+                [str(owner_text_report_path_a), str(owner_text_report_path_b)],
+            )
 
 
 if __name__ == "__main__":
