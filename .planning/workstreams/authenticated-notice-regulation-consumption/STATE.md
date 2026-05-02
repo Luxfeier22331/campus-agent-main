@@ -17,7 +17,7 @@ updated: 2026-05-02
 **Progress:** 13/13 phases complete
 **Last Activity:** 2026-05-02
 **Last Activity Description:** Added historical selected regulation canonical
-backfill so Phase 9/11 cohorts can be rebuilt through current v2 cleaning before
+backfill so Phase 9/11 cohorts can be rebuilt through current cleaning before
 RAG release.
 
 ## Current Slice
@@ -60,7 +60,7 @@ RAG release.
   - query serving / RAG release / Qdrant alias / public-chat citation 均保持关闭
 - `Phase 12` 已完成：
   - collected-notice regulation canonical cleaner 升级到
-    `collected_notice_regulation_canonical_cleaning_v2`
+    `collected_notice_regulation_canonical_cleaning_v9`
   - 619 类 OCR soft-wrap 与中文可读性标点在 materialization 入库前修复
   - selected materialization execute 强制 `normalization_quality=passed`
   - document-units metadata 写入 normalizer / cleaning policy / schema / quality provenance
@@ -68,9 +68,9 @@ RAG release.
     不进入 index 或 alias publish
 - `Phase 13` 已完成实现：
   - first-batch historical cohort 从 admission manifest + source owner text 重建
-    v2 canonical materialization preview
+    current canonical materialization preview
   - manual-review cohort 从 explicit resolution + owner-text execution report 重建
-    v2 canonical materialization preview
+    current canonical materialization preview
   - 旧 Phase 6R/Phase 9/Phase 11 normalized dry-run JSON 不再作为 backfill
     canonical text input
   - 新增 worker CLI
@@ -86,7 +86,7 @@ RAG release.
 - Phase 11 新 materialized targets 尚未经过 RAG release lane；不能把 target
   registry row 视为已可检索
 - Phase 9 / Phase 11 既有 target artifacts 需要在目标 operator 环境运行
-  Phase 13 worker `--execute` 后，才能确认 registry/object-store runtime truth 已满足 v2
+  Phase 13 worker `--execute` 后，才能确认 registry/object-store runtime truth 已满足 current
   cleaning provenance
 - `scoped_rules` 默认 query allowlist 仍关闭；只有显式 internal path 可消费其
   retrieval-ready data-plane
@@ -148,7 +148,7 @@ RAG release.
 
 ## Session Continuity
 
-**Stopped At:** Phase 12 completed; existing Phase 9/11 regulation artifacts need v2
+**Stopped At:** Phase 12 completed; existing Phase 9/11 regulation artifacts need current
 selected re-materialization before new RAG release. Phase 13 implementation now
 provides that backfill path; execute it in the operator environment before RAG
 release admission.

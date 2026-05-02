@@ -112,6 +112,7 @@ def backfill_collected_notice_regulation_canonical(
             )
         manual_review = _build_and_materialize_manual_review(
             candidate_audit=request.manual_review_candidate_audit,
+            source_admission_manifest=request.first_batch_admission_manifest,
             owner_text_execution_report=request.manual_review_owner_text_execution_report,
             resolutions=request.manual_review_resolutions,
             env=env,
@@ -225,6 +226,7 @@ def _build_and_materialize_first_batch(
 def _build_and_materialize_manual_review(
     *,
     candidate_audit: Mapping[str, Any],
+    source_admission_manifest: Mapping[str, Any],
     owner_text_execution_report: Mapping[str, Any],
     resolutions: Mapping[str, object],
     env: Mapping[str, str],
@@ -235,7 +237,10 @@ def _build_and_materialize_manual_review(
     generated_at: str,
 ) -> dict[str, Any]:
     admission = build_manual_review_regulation_admission(
-        candidate_audit=candidate_audit,
+        candidate_audit=_enrich_manual_review_candidate_audit(
+            candidate_audit=candidate_audit,
+            source_admission_manifest=source_admission_manifest,
+        ),
         owner_text_execution_report=owner_text_execution_report,
         resolutions=resolutions,
         generated_at=generated_at,
@@ -277,6 +282,41 @@ def _build_and_materialize_manual_review(
     artifacts["manual_review_resolved_admission_manifest"] = admission["admission_manifest"]
     artifacts["manual_review_resolved_candidate_audit"] = admission["candidate_audit"]
     return artifacts
+
+
+def _enrich_manual_review_candidate_audit(
+    *,
+    candidate_audit: Mapping[str, Any],
+    source_admission_manifest: Mapping[str, Any],
+) -> dict[str, Any]:
+    admission_by_notice = {
+        str(entry.get("source_notice_id") or "").strip(): entry
+        for entry in _mapping_rows(source_admission_manifest.get("entries"))
+        if str(entry.get("source_notice_id") or "").strip()
+    }
+    if not admission_by_notice:
+        return dict(candidate_audit)
+    enriched = dict(candidate_audit)
+    candidates: list[dict[str, Any]] = []
+    for row in _mapping_rows(candidate_audit.get("candidates")):
+        candidate = dict(row)
+        source_notice_id = str(candidate.get("source_notice_id") or "").strip()
+        admission_entry = admission_by_notice.get(source_notice_id)
+        if admission_entry is not None:
+            for field_name in (
+                "source_notice_release_time",
+                "notice_release_time",
+                "published_at",
+                "published_date",
+                "body_excerpt",
+            ):
+                if not str(candidate.get(field_name) or "").strip() and str(
+                    admission_entry.get(field_name) or ""
+                ).strip():
+                    candidate[field_name] = admission_entry.get(field_name)
+        candidates.append(candidate)
+    enriched["candidates"] = candidates
+    return enriched
 
 
 def _materialize_backfill_batch(

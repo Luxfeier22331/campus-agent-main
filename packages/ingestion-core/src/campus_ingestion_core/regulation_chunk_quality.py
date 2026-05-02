@@ -9,6 +9,57 @@ _TOP_LEVEL_HEADING_RE = re.compile(r"^[一二三四五六七八九十百千万�
 _SUBSECTION_HEADING_RE = re.compile(
     r"^[（(][一二三四五六七八九十百千万〇零两0-9]+[)）][、.]?[^。；]{0,60}$"
 )
+_SUBSECTION_LABEL_RE = re.compile(
+    r"^[（(][一二三四五六七八九十百千万〇零两0-9]+[)）][、.]?"
+)
+_HTML_TAG_RE = re.compile(r"<\s*/?\s*[A-Za-z][^>]*>")
+_PUBLICATION_IMPRINT_RE = re.compile(
+    r"^(?:中央民族大学[^\n。；：:]{0,40}(?:办公室|学院|研究院|中心)|"
+    r"\d{4}年\d{1,2}月\d{1,2}日(?:印发|发布)?)$",
+    re.MULTILINE,
+)
+_FORM_ATTACHMENT_HEADING_RE = re.compile(
+    r"^(?:附(?:件|表)\s*\d*\s*)?[^。\n]{0,80}(?:申请表|审批表|登记表|汇总表|信息表)\s*$"
+)
+_SUPPLEMENTARY_ATTACHMENT_LINE_RE = re.compile(
+    r"^(?:附(?:件|表))\s*[：:：]?\s*(?:[一二三四五六七八九十百千万〇零两]|\d+)?(?:[.．、]\s*)?.*$"
+)
+_FORM_ATTACHMENT_MARKERS = (
+    "申请人基本信息",
+    "申请人承诺",
+    "学院意见",
+    "审批意见",
+    "姓名 |",
+    "身份证号",
+    "申请人签字",
+    "制表",
+)
+_SUPPLEMENTARY_ATTACHMENT_MARKERS = (
+    "一级指标",
+    "二级指标",
+    "评价指标",
+    "评价内容",
+    "考评类别",
+    "计分事项",
+    "查阅材料",
+    "参考指标",
+    "分数",
+    "备注",
+    "学院 |",
+    "专业 |",
+    "年级 |",
+    "学号 |",
+    "姓名 |",
+    "指导教师",
+    "本人签名",
+    "评阅意见",
+    "答辩小组",
+    "开题答辩",
+    "使用授权书",
+    "任务书",
+    "封面",
+    "诚信承诺书",
+)
 _GENERATED_AT_LIKE_RE = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:")
 _STRUCTURAL_MARKER_RE = re.compile(
     r"(^|\n)\s*(第[一二三四五六七八九十百千万〇零两0-9]+[章节条]|"
@@ -62,13 +113,51 @@ def section_path_contains_body_text(
         if not _looks_like_body_text(normalized_item):
             continue
         compact_item = _compact_text(normalized_item)
-        if compact_item and (
-            compact_item == normalized_display
-            or compact_item in normalized_display
-            or normalized_display in compact_item
-        ):
+        if compact_item:
             return True
     return False
+
+
+def contains_html_tag(text: str) -> bool:
+    return _HTML_TAG_RE.search(text) is not None
+
+
+def contains_publication_imprint(text: str) -> bool:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return any(_PUBLICATION_IMPRINT_RE.match(line) is not None for line in lines)
+
+
+def contains_form_tail_marker(text: str) -> bool:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    for index, line in enumerate(lines):
+        if _FORM_ATTACHMENT_HEADING_RE.match(line) is None:
+            if _SUPPLEMENTARY_ATTACHMENT_LINE_RE.match(line) is None:
+                continue
+            tail_preview = "\n".join(lines[index : index + 40])
+            marker_count = sum(
+                1 for marker in _SUPPLEMENTARY_ATTACHMENT_MARKERS if marker in tail_preview
+            )
+            table_like_line_count = sum(1 for item in lines[index : index + 40] if "|" in item)
+            if marker_count >= 3 or table_like_line_count >= 2:
+                return True
+            continue
+        tail_preview = "\n".join(lines[index : index + 24])
+        marker_count = sum(1 for marker in _FORM_ATTACHMENT_MARKERS if marker in tail_preview)
+        if marker_count >= 2:
+            return True
+    return False
+
+
+def section_path_contains_body_like_item(section_path: Sequence[object]) -> bool:
+    return any(_looks_like_body_text(str(item or "").strip()) for item in section_path)
+
+
+def section_path_depth_exceeds(section_path: Sequence[object], *, max_depth: int) -> bool:
+    return len([item for item in section_path if str(item or "").strip()]) > max_depth
+
+
+def section_path_has_long_segment(section_path: Sequence[object], *, max_chars: int) -> bool:
+    return any(len(str(item or "").strip()) > max_chars for item in section_path)
 
 
 def header_duplicates_display_text(*, chunk_text: str, display_text: str) -> bool:
@@ -109,6 +198,17 @@ def header_token_ratio_at_least(
     return header_tokens / denominator >= threshold
 
 
+def header_dominance_is_blocking_quality_gap(
+    *,
+    metadata: Mapping[str, object],
+    threshold: float,
+) -> bool:
+    if not header_token_ratio_at_least(metadata=metadata, threshold=threshold):
+        return False
+    display_text = str(metadata.get("display_text") or "").strip()
+    return not _is_short_answer_fragment(display_text)
+
+
 def page_anchor_is_fabricated(anchor: Mapping[str, object], metadata: Mapping[str, object]) -> bool:
     if anchor.get("page_start") != 1 or anchor.get("page_end") != 1:
         return False
@@ -139,9 +239,81 @@ def _looks_like_body_text(text: str) -> bool:
     if len(normalized) < 12:
         return False
     article_match = _ARTICLE_LABEL_RE.match(normalized)
-    if article_match is not None and normalized[article_match.end() :].strip():
+    if article_match is not None:
+        article_body = normalized[article_match.end() :].strip()
+        if not article_body:
+            return False
+        if any(marker in article_body for marker in ("。", "；", ";", "：", ":")):
+            return True
+        if len(article_body) <= 32 and not _contains_body_sentence_marker(article_body):
+            return False
+        return (
+            len(article_body) > 32
+            or article_body.startswith(("为", "根据", "本办法"))
+            or _contains_body_sentence_marker(article_body)
+        )
+    subsection_match = _SUBSECTION_LABEL_RE.match(normalized)
+    if subsection_match is not None:
+        body = normalized[subsection_match.end() :].strip()
+        if not body:
+            return False
+        if any(marker in body for marker in ("。", "；", ";")):
+            return True
+        if body.endswith(("：", ":")) and _contains_body_sentence_marker(body):
+            return True
+        if len(body) > 28 and _contains_body_sentence_marker(body):
+            return True
+        return len(body) > 45
+    if looks_like_structural_heading(normalized):
+        return False
+    if any(marker in normalized for marker in ("。", "；", ";")):
         return True
-    return any(marker in normalized for marker in ("。", "；", "，", "制定", "根据", "适用"))
+    return len(normalized) > 45 and _contains_body_sentence_marker(normalized)
+
+
+def _contains_body_sentence_marker(text: str) -> bool:
+    return any(
+        marker in text
+        for marker in (
+            "制定",
+            "根据",
+            "适用",
+            "应",
+            "须",
+            "需",
+            "由",
+            "负责",
+            "按照",
+            "不得",
+            "可以",
+            "给予",
+            "认定",
+            "下列",
+            "违反",
+            "遵守",
+        )
+    )
+
+
+def _is_short_answer_fragment(text: str) -> bool:
+    normalized = text.strip()
+    if not normalized:
+        return False
+    if len(normalized) > 28:
+        return False
+    return (
+        _SUBSECTION_LABEL_RE.match(normalized) is not None
+        or normalized.endswith(("；", ";"))
+        or _looks_like_short_academic_subject(normalized)
+    )
+
+
+def _looks_like_short_academic_subject(text: str) -> bool:
+    if len(text) < 2 or len(text) > 16:
+        return False
+    if any(punctuation in text for punctuation in "，。；：,.，;:/\\()（）[]【】"):
+        return False
+    return text.endswith(("学", "专业", "方向"))
 
 
 def _strip_markdown_heading(text: str) -> str:
@@ -155,13 +327,20 @@ def _compact_text(text: str) -> str:
 __all__ = [
     "REGULATION_BODY_ROLES",
     "REGULATION_TITLE_ROLES",
+    "contains_form_tail_marker",
+    "contains_html_tag",
+    "contains_publication_imprint",
+    "header_dominance_is_blocking_quality_gap",
     "header_duplicates_display_text",
     "header_token_ratio_at_least",
     "is_regulation_body_role",
     "is_regulation_title_role",
     "looks_like_structural_heading",
     "page_anchor_is_fabricated",
+    "section_path_contains_body_like_item",
     "section_path_contains_body_text",
+    "section_path_depth_exceeds",
+    "section_path_has_long_segment",
     "should_skip_regulation_structural_unit",
     "source_notice_release_time_is_generated_at",
     "title_text_is_duplicated",

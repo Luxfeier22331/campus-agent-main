@@ -25,7 +25,7 @@ updated: 2026-05-02
   显式 target resolution 写入 target materialization，但未打开 RAG release 或
   query serving。Phase 12 将 canonical cleaning 前移到 materialization；Phase 13
   增加历史 selected cohort backfill，使 Phase 9/11 既有 regulation notices 可先重建
-  v2 canonical artifacts，再进入独立 RAG release lane。
+  current canonical artifacts，再进入独立 RAG release lane。
 
 ## Closeout Evidence
 

@@ -1,6 +1,6 @@
 ---
 doc_type: state
-status: active
+status: completed
 workstream: historical-regulation-canonical-chunk-backfill
 created: 2026-05-02
 updated: 2026-05-02
@@ -12,81 +12,73 @@ updated: 2026-05-02
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** Phase 5 completed; ingestion-layer rework implemented, rerun required
+**Status:** Completed
+**Current Phase:** Phase 36 chunk quality accepted and later-release handoff ready
 **Last Activity:** 2026-05-02
-**Last Activity Description:** Implemented ingestion-layer fixes for the chunk
-quality blockers found in Phase 5. The historical cohort must now rerun
-canonical backfill, Phase 0 planning, Phase 4 chunk preparation and Phase 5
-quality review before any later-release handoff can be generated.
+**Last Activity Description:** Completed the historical all-regulation v9 rerun:
+42 targets were canonicalized with current regulation cleaner v9, admitted to
+chunk-only processing, prepared into chunk evidence, independently audited for
+object-store key compliance plus chunk quality residuals, and accepted into a
+later-release handoff manifest. Object-store canonical/document-units keys were
+checked against the ADR-0002 regulation document artifact path. No embedding,
+index, release admission, candidate enqueue, candidate processor or alias
+publish was run.
 
 ## Current Slice
 
-Completed runtime evidence:
+Latest completed evidence:
 
-- Phase 0 inventory/classification/preflight:
-  `./evidence/phase-00-chunk-only-boundary-and-inventory/`
-- Phase 4 target-limited chunk preparation:
-  `./evidence/phase-04-chunk-preparation-batch/`
+- Canonical backfill:
+  `./evidence/phase-40-canonical-backfill-all-regulations-v9/canonical-backfill-report.json`
+- Chunk-only boundary and inventory:
+  `./evidence/phase-41-chunk-only-boundary-and-inventory-all-regulations-v9/`
+- Chunk preparation:
+  `./evidence/phase-42-chunk-preparation-all-regulations-v9/chunk-preparation-batch-report.json`
+- Final quality audit:
+  `./evidence/phase-42-chunk-preparation-all-regulations-v9/final-quality-audit.json`
+- Chunk quality acceptance and handoff:
+  `./evidence/phase-36-chunk-quality-acceptance-and-handoff/`
 
-Current batch result:
+Latest batch result:
 
-- 10 targets admitted to chunk, 0 rejected, 0 needs recovery.
-- 2 `institutional_rules` targets and 8 `scoped_rules` targets.
-- Canonical provenance preflight passed for all 10 targets.
-- Chunk preparation prepared 216 document-units into 302 chunks.
-- `institutional_rules` validation passed with 2 documents, 65 units and 79
-  chunks.
-- `scoped_rules` validation passed with 8 documents, 151 units and 223 chunks.
-- Serving closed assertion remains false for query serving, RAG release,
+- 42 targets canonicalized with
+  `collected_notice_regulation_canonical_cleaning_v9`.
+- 42 targets admitted to chunk, 0 rejected, 0 needs recovery.
+- 29 `institutional_rules` targets and 13 `scoped_rules` targets.
+- Chunk preparation prepared 42 documents into 1773 chunks.
+- `overall_verdict=passed`; `blocked_target_count=0`;
+  `failed_collections=[]`.
+- Final audit scanned 1773 chunks and found 0 HTML residual chunks, 0
+  publication-imprint chunks, 0 form-tail marker chunks, 0 body-like
+  `section_path` chunks, 0 deep `section_path` chunks and 0 coarse
+  token-guardrail chunks.
+- Final audit found 0 document metric failures and 0 object-store key failures.
+- Phase 36 chunk quality acceptance is `passed` and the handoff status is
+  `ready_for_separate_release_lane_decision`.
+- Serving-closed assertions remain false for query serving, RAG release,
   candidate enqueue, candidate processor, release admission, embedding, index
   release and alias publish.
 
-Remaining slice:
+Object-store naming/path result:
 
-- rerun canonical backfill so historical `document-units` are regenerated with
-  the fixed regulation unit contract;
-- rerun Phase 0 planning/preflight and Phase 4 chunk preparation against the
-  regenerated registry/object-store truth;
-- rerun Phase 5 quality review and require all blocking gap counters to be zero;
-- only after all targets are accepted, write a later-release handoff manifest.
-  Do not generate embeddings, release admission, index release or aliases in
-  this workstream.
+- Current derived bucket: `campus-rag-derived`.
+- Current regulation artifact template:
+  `regulations/documents/{institutional_rules|scoped_rules}/{title_slug}--{docid8}/current-effective/undated/{canonical.md|document-units.jsonl}`.
+- 84 latest canonical/document-units object keys were checked against that
+  template: 84 passed, 0 failed.
+- `{title_slug}` currently allows CJK human-readable title characters under
+  ADR-0002 and existing object-store tests. These regulation paths are compliant
+  with the current repo convention; changing to ASCII-only would require a
+  separate object-key migration decision.
 
-Chunk quality review evidence:
+Current stop point:
 
-- `./evidence/phase-05-chunk-quality-review-closeout/chunk-quality-review.json`
-- `./evidence/phase-05-chunk-quality-review-closeout/chunk-quality-gap-audit.json`
-- `overall_verdict=needs_rework`
-- 5 accepted targets, 5 needs-rework targets, 0 rejected targets.
-- 22 heading-only body chunks block release handoff.
-- 10 title chunks repeat the title line; this is a non-blocking review note.
-- Embedding and sparse vector counts remain zero.
-
-Extended gap audit result:
-
-- `overall_verdict=blocking_gaps_found`
-- 232 body chunks have `section_path` polluted with article/body text.
-- 206 chunks duplicate answer-bearing body text through contextual headers.
-- 246 chunks have header tokens dominating display text.
-- 3 documents are too coarse at document-units level and rely on token guardrail
-  splitting.
-- 8 scoped-rule targets carry backfill runtime as `source_notice_release_time`.
-- 10 targets have non-informative page anchors and normalization-quality
-  `unit_count` mismatch.
-
-Implemented rework:
-
-- regulation article rows now carry `article_label` instead of placing full
-  article body text into `section_path`;
-- structural heading rows are marked non-answer-bearing and skipped by
-  regulation chunk preparation;
-- regulation title chunks no longer receive contextual headers that duplicate
-  the title;
-- institutional/scoped chunk-prep validation now blocks heading-only body
-  chunks, body text in section paths, header/body duplicates, title duplicates,
-  header-dominant chunks, coarse token-guardrail chunks, fabricated page anchors
-  and generated-at release times.
+- This workstream has completed historical stock canonical/document-units/chunk
+  preparation and chunk quality acceptance for the current cohort.
+- A later-release handoff manifest has been generated, but it is only an input
+  for a separate release-lane decision.
+- Any later embedding/index/release work must begin from an explicit new
+  release phase; this historical backfill did not open serving.
 
 ## Decisions Locked
 
@@ -105,8 +97,14 @@ Implemented rework:
 
 ## Known Inputs
 
-- Phase 13 canonical backfill evidence:
-  `.planning/workstreams/authenticated-notice-regulation-consumption/evidence/phase-13-historical-regulation-canonical-backfill/`
+- Latest all-regulation v9 canonical backfill evidence:
+  `./evidence/phase-40-canonical-backfill-all-regulations-v9/`
+- Latest all-regulation v9 chunk-only inventory evidence:
+  `./evidence/phase-41-chunk-only-boundary-and-inventory-all-regulations-v9/`
+- Latest all-regulation v9 chunk preparation evidence:
+  `./evidence/phase-42-chunk-preparation-all-regulations-v9/`
+- Latest chunk quality acceptance and handoff evidence:
+  `./evidence/phase-36-chunk-quality-acceptance-and-handoff/`
 - Current regulation RAG release lane evidence:
   `.planning/workstreams/regulation-rag-release-lane/evidence/`
 - Promotion quality gate evidence:
@@ -134,5 +132,6 @@ with these flags:
 
 ## Session Continuity
 
-**Stopped At:** Phase 5 quality review found release-blocking heading-only body chunks
-**Resume File:** `./evidence/phase-05-chunk-quality-review-closeout/chunk-quality-review.json`
+**Stopped At:** Phase 36 chunk quality accepted and later-release handoff ready;
+release work remains intentionally unopened
+**Resume File:** `./evidence/phase-36-chunk-quality-acceptance-and-handoff/later-release-handoff.json`

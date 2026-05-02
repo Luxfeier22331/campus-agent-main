@@ -29,12 +29,69 @@ _STRUCTURAL_BLOCK_START_RE = re.compile(
     re.MULTILINE,
 )
 _ARTICLE_LABEL_RE = re.compile(rf"^(?P<label>第[{_CHINESE_NUMBER}]+条)")
+_ARTICLE_HEADING_LEAF_RE = re.compile(
+    rf"^第[{_CHINESE_NUMBER}]+条\s*(?P<body>[^。；，,：:]{{1,30}})$"
+)
+_ARTICLE_HEADING_KEYWORDS = (
+    "条件",
+    "材料",
+    "程序",
+    "政策",
+    "标准",
+    "要求",
+    "范围",
+    "对象",
+    "资格",
+    "办法",
+    "原则",
+    "职责",
+    "纪律",
+    "监督",
+    "附则",
+    "类型",
+)
+_ARTICLE_BODY_VERB_MARKERS = (
+    "应",
+    "须",
+    "需",
+    "由",
+    "负责",
+    "符合",
+    "适用",
+    "执行",
+    "遵守",
+    "不得",
+    "可以",
+    "按照",
+    "根据",
+)
+_BODY_LIST_ITEM_MARKERS = (
+    *_ARTICLE_BODY_VERB_MARKERS,
+    "认定",
+    "给予",
+    "下列",
+    "违反",
+    "处理",
+)
 _CHAPTER_OR_SECTION_HEADING_RE = re.compile(rf"^第[{_CHINESE_NUMBER}]+[章节][^。；]*$")
 _TOP_LEVEL_HEADING_RE = re.compile(rf"^(?P<label>[{_CHINESE_NUMBER}]+、)[^。；]{{1,60}}$")
 _SUBSECTION_HEADING_RE = re.compile(
     rf"^(?P<label>[（(][{_CHINESE_NUMBER}]+[)）][、.]?)[^。；]{{0,60}}$"
 )
+_SUBSECTION_LABEL_RE = re.compile(rf"^(?P<label>[（(][{_CHINESE_NUMBER}]+[)）][、.]?)")
 _NUMERIC_ITEM_RE = re.compile(r"^(?P<label>[0-9]+[.、])")
+_POLICY_DOC_NO_RE = re.compile(
+    r"^[\u4e00-\u9fffA-Za-z]{2,20}[〔（(\[]\d{4}[〕）)\]]\d{1,8}号$"
+)
+_EDITION_NOTE_RE = re.compile(r"^[（(][^（）()]{0,12}(?:试行|修订|暂行|草案)[）)]$")
+_IMPRINT_DATE_LINE_RE = re.compile(r"^\d{4}年\d{1,2}月\d{1,2}日(?:印发|发布|公布|施行)?$")
+_SHORT_CONTEXT_HEADING_RE = re.compile(
+    r"^[^\n。；;,，]{0,24}(?:包括|如下|义务|权利|职责|条件|材料|范围|对象|类型|奖项)[：:]$"
+)
+_BARE_ATTACHMENT_MARKER_RE = re.compile(r"^(?:附件|附表)\s*\d*$")
+_SHORT_SUBSECTION_LIST_HEADING_RE = re.compile(
+    rf"^[（(][{_CHINESE_NUMBER}]+[)）][、.]?\s*[^\n。；;,，]{{1,24}}[；;]$"
+)
 _STRUCTURAL_HEADING_RE = re.compile(
     rf"^(?:第[{_CHINESE_NUMBER}]+[章节][^。；]*|[{_CHINESE_NUMBER}]+、[^。；]{{1,60}}|[（(][{_CHINESE_NUMBER}]+[)）][、.]?[^。；]{{0,60}})$"
 )
@@ -119,6 +176,12 @@ def serialize_document_units(
     source_notice_id = source_notice_ids[0] if source_notice_ids else ""
     source_document_id = source_document_ids[0] if source_document_ids else ""
     source_notice_document_id = f"notice:muc_internal_portal:{source_notice_id}"
+    source_attachment_document_id = _resolve_source_attachment_document_id(
+        document=document,
+        source_document_id=source_document_id,
+    )
+    semantic_owner_kind = "attachment_document" if source_attachment_document_id else "notice_body"
+    semantic_owner_document_id = source_attachment_document_id or source_notice_document_id
     normalization_quality = _normalization_quality(document)
     normalizer_version = str(
         normalization_quality.get("normalizer_version") or REGULATION_CANONICAL_NORMALIZER_VERSION
@@ -130,9 +193,9 @@ def serialize_document_units(
         "source_notice_ids": source_notice_ids,
         "source_document_ids": source_document_ids,
         "source_notice_document_id": source_notice_document_id,
-        "semantic_owner_document_id": source_document_id or source_notice_document_id,
-        "semantic_owner_kind": "attachment_document" if source_document_id else "notice_body",
-        "source_attachment_document_id": source_document_id,
+        "semantic_owner_document_id": semantic_owner_document_id,
+        "semantic_owner_kind": semantic_owner_kind,
+        "source_attachment_document_id": source_attachment_document_id,
         "regulation_title_normalized": title,
         "source_title_literal": title,
         "semantic_content_hash": semantic_content_hash,
@@ -161,6 +224,8 @@ def serialize_document_units(
             "content_kind": "scoped_rule",
             "document_nature": _resolve_scoped_rule_document_nature(document),
             "source_notice_release_time": _resolve_source_notice_release_time(document),
+            "cycle_year": _resolve_cycle_year(document),
+            "school_unit_name": _resolve_school_unit_name(document),
         }
     rows = [
         _document_unit_row(
@@ -290,6 +355,8 @@ def _split_structural_region(text: str) -> tuple[str, ...]:
     first_line = lines[first_line_index].strip()
     remainder = "\n".join(lines[first_line_index + 1 :]).strip()
     if _ARTICLE_LABEL_RE.match(first_line):
+        if _looks_like_article_heading_leaf(first_line) and remainder:
+            return (first_line, *_split_blank_blocks(remainder))
         return (normalized,)
     if _looks_like_first_batch_structural_heading(first_line) and remainder:
         return (first_line, *_split_blank_blocks(remainder))
@@ -302,6 +369,8 @@ def _split_blank_blocks(text: str) -> tuple[str, ...]:
 
 def _looks_like_first_batch_structural_heading(text: str) -> bool:
     normalized = text.strip()
+    if _looks_like_body_list_item(normalized):
+        return False
     return bool(
         _CHAPTER_OR_SECTION_HEADING_RE.match(normalized)
         or _TOP_LEVEL_HEADING_RE.match(normalized)
@@ -310,7 +379,14 @@ def _looks_like_first_batch_structural_heading(text: str) -> bool:
 
 
 def _resolve_scoped_rule_document_nature(document: Mapping[str, Any]) -> str:
-    del document
+    value = str(document.get("document_nature") or "").strip()
+    if value:
+        return value
+    target_hints = document.get("target_hints")
+    if isinstance(target_hints, Mapping):
+        value = str(target_hints.get("document_nature") or "").strip()
+        if value:
+            return value
     return "time_bound_operational_rule"
 
 
@@ -320,16 +396,41 @@ def _resolve_first_batch_block_structure(
     current_section_path: tuple[str, ...],
 ) -> dict[str, Any]:
     first_line = next((line.strip() for line in text.splitlines() if line.strip()), "")
+    if _POLICY_DOC_NO_RE.match(first_line):
+        return {
+            "row_type": "heading",
+            "section_path": current_section_path,
+            "article_label": None,
+            "provision_label": None,
+            "next_section_path": current_section_path,
+        }
+    if _is_non_contextual_heading_line(first_line):
+        return {
+            "row_type": "heading",
+            "section_path": current_section_path,
+            "article_label": None,
+            "provision_label": None,
+            "next_section_path": current_section_path,
+        }
     article_match = _ARTICLE_LABEL_RE.match(first_line)
     if article_match is not None:
         article_label = article_match.group("label").strip()
         article_body = first_line[article_match.end() :].strip()
+        current_article_scope = _drop_trailing_transient_context(current_section_path)
+        if article_body and _looks_like_article_heading_leaf(first_line):
+            return {
+                "row_type": "heading",
+                "section_path": current_article_scope,
+                "article_label": article_label,
+                "provision_label": None,
+                "next_section_path": (*current_article_scope, first_line),
+            }
         return {
             "row_type": "paragraph" if article_body else "heading",
-            "section_path": current_section_path,
+            "section_path": current_article_scope,
             "article_label": article_label,
             "provision_label": None,
-            "next_section_path": current_section_path,
+            "next_section_path": current_article_scope,
         }
     if _CHAPTER_OR_SECTION_HEADING_RE.match(first_line) or _TOP_LEVEL_HEADING_RE.match(first_line):
         return {
@@ -339,18 +440,34 @@ def _resolve_first_batch_block_structure(
             "provision_label": None,
             "next_section_path": (first_line,),
         }
+    body_list_match = _body_list_item_match(first_line)
+    if body_list_match is not None:
+        return {
+            "row_type": "paragraph",
+            "section_path": current_section_path,
+            "article_label": None,
+            "provision_label": body_list_match.group("label").strip(),
+            "next_section_path": current_section_path,
+        }
     subsection_match = _SUBSECTION_HEADING_RE.match(first_line)
     if subsection_match is not None:
+        parent_path = _drop_trailing_transient_context(current_section_path)
         return {
             "row_type": "heading",
-            "section_path": (*current_section_path, first_line)
-            if current_section_path
-            else (first_line,),
+            "section_path": (*parent_path, first_line) if parent_path else (first_line,),
             "article_label": None,
             "provision_label": None,
-            "next_section_path": (*current_section_path, first_line)
-            if current_section_path
-            else (first_line,),
+            "next_section_path": (*parent_path, first_line) if parent_path else (first_line,),
+        }
+    if _is_short_context_heading_line(first_line):
+        parent_path = _drop_trailing_transient_context(current_section_path)
+        section_path = (*parent_path, first_line) if parent_path else (first_line,)
+        return {
+            "row_type": "heading",
+            "section_path": section_path,
+            "article_label": None,
+            "provision_label": None,
+            "next_section_path": section_path,
         }
     numeric_item = _NUMERIC_ITEM_RE.match(first_line)
     if numeric_item is not None:
@@ -370,12 +487,127 @@ def _resolve_first_batch_block_structure(
     }
 
 
+def _is_non_contextual_heading_line(text: str) -> bool:
+    normalized = text.strip()
+    return (
+        _POLICY_DOC_NO_RE.match(normalized) is not None
+        or _EDITION_NOTE_RE.match(normalized) is not None
+        or _IMPRINT_DATE_LINE_RE.match(normalized) is not None
+        or _BARE_ATTACHMENT_MARKER_RE.match(normalized) is not None
+    )
+
+
+def _is_short_context_heading_line(text: str) -> bool:
+    normalized = text.strip()
+    return (
+        _SHORT_CONTEXT_HEADING_RE.match(normalized) is not None
+    )
+
+
+def _looks_like_article_heading_leaf(text: str) -> bool:
+    match = _ARTICLE_HEADING_LEAF_RE.match(text.strip())
+    if match is None:
+        return False
+    body = match.group("body").strip()
+    return bool(
+        body
+        and len(body) <= 12
+        and not any(marker in body for marker in _ARTICLE_BODY_VERB_MARKERS)
+        and any(body.endswith(keyword) for keyword in _ARTICLE_HEADING_KEYWORDS)
+    )
+
+
+def _drop_trailing_article_heading(section_path: tuple[str, ...]) -> tuple[str, ...]:
+    if section_path and _looks_like_article_heading_leaf(section_path[-1]):
+        return section_path[:-1]
+    return section_path
+
+
+def _drop_trailing_transient_context(section_path: tuple[str, ...]) -> tuple[str, ...]:
+    pruned = _drop_trailing_article_heading(section_path)
+    pruned = _drop_trailing_short_context_heading(pruned)
+    return _drop_trailing_same_level_subsection(pruned)
+
+
+def _drop_trailing_same_level_subsection(section_path: tuple[str, ...]) -> tuple[str, ...]:
+    pruned = section_path
+    while pruned and _SUBSECTION_HEADING_RE.match(pruned[-1]):
+        pruned = pruned[:-1]
+    return pruned
+
+
+def _drop_trailing_short_context_heading(section_path: tuple[str, ...]) -> tuple[str, ...]:
+    pruned = section_path
+    while pruned and _is_short_context_heading_line(pruned[-1]):
+        pruned = pruned[:-1]
+    return pruned
+
+
+def _body_list_item_match(text: str) -> re.Match[str] | None:
+    match = _SUBSECTION_LABEL_RE.match(text.strip())
+    if match is not None and _looks_like_body_list_item(text):
+        return match
+    return None
+
+
+def _looks_like_body_list_item(text: str) -> bool:
+    normalized = text.strip()
+    match = _SUBSECTION_LABEL_RE.match(normalized)
+    if match is None:
+        return False
+    body = normalized[match.end("label") :].strip()
+    if not body:
+        return False
+    if normalized.endswith(("；", ";", "。", "，", ",", "：", ":")) and (
+        len(body) > 18 or any(marker in body for marker in _BODY_LIST_ITEM_MARKERS)
+    ):
+        return True
+    if len(body) > 18 and any(marker in body for marker in _BODY_LIST_ITEM_MARKERS):
+        return True
+    return len(body) > 28
+
+
 def _resolve_source_notice_release_time(document: Mapping[str, Any]) -> str:
     for field_name in ("source_notice_release_time", "notice_release_time", "published_date"):
         value = str(document.get(field_name) or "").strip()
         if value:
             return value
     return "unknown"
+
+
+def _resolve_cycle_year(document: Mapping[str, Any]) -> str | None:
+    for value in (
+        document.get("cycle_year"),
+        _target_hint_value(document, "cycle_year"),
+        document.get("source_notice_release_time"),
+        document.get("notice_release_time"),
+        document.get("published_date"),
+        document.get("title"),
+    ):
+        match = re.search(r"(?:19|20)\d{2}", str(value or ""))
+        if match is not None:
+            return match.group(0)
+    return None
+
+
+def _resolve_school_unit_name(document: Mapping[str, Any]) -> str | None:
+    for value in (
+        document.get("school_unit_name"),
+        _target_hint_value(document, "school_unit_name"),
+        document.get("issuing_org"),
+        document.get("title"),
+    ):
+        normalized = str(value or "").strip()
+        if normalized:
+            return normalized
+    return None
+
+
+def _target_hint_value(document: Mapping[str, Any], key: str) -> object:
+    target_hints = document.get("target_hints")
+    if not isinstance(target_hints, Mapping):
+        return None
+    return target_hints.get(key)
 
 
 def _normalization_quality(document: Mapping[str, Any]) -> dict[str, Any]:
@@ -387,6 +619,26 @@ def _normalization_quality(document: Mapping[str, Any]) -> dict[str, Any]:
             "reason_codes": ["missing_normalization_quality"],
         }
     return dict(quality)
+
+
+def _resolve_source_attachment_document_id(
+    *,
+    document: Mapping[str, Any],
+    source_document_id: str,
+) -> str:
+    if not source_document_id:
+        return ""
+    source_scope = document.get("source_scope")
+    source_surface = (
+        str(source_scope.get("source_surface") or "").strip()
+        if isinstance(source_scope, Mapping)
+        else ""
+    )
+    if source_surface == "notice_body":
+        return ""
+    if source_document_id.startswith(("notice_attachment:", "file-release:")):
+        return source_document_id
+    return ""
 
 
 def _source_url(document: Mapping[str, Any]) -> str:

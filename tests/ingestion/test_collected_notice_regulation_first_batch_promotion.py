@@ -14,6 +14,9 @@ from campus_ingestion_core.collected_notice_regulation_first_batch_promotion imp
     harden_first_batch_regulation_registry_provenance,
     materialize_first_batch_regulation_selection,
 )
+from campus_ingestion_core.collected_notice_regulation_text_normalization import (
+    REGULATION_CANONICAL_NORMALIZER_VERSION,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord
 
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
@@ -70,6 +73,278 @@ class CollectedNoticeRegulationFirstBatchPromotionTests(unittest.TestCase):
                 and row["metadata"]["section_path"] == [row["clean_text"]]
                 for row in body_rows
             )
+        )
+
+    def test_notice_body_source_document_keeps_notice_body_lineage(self) -> None:
+        document = _target_document(
+            source_notice_id="191705",
+            collection="institutional_rules",
+            canonical_markdown=(
+                "# 重要通知--中央民族大学丰台校区就医管理办法（暂行）\n\n"
+                "1、增加中国航天科工集团七三一医院为丰台校区合同医院。\n\n"
+                "2、为保证就医需求，目前在丰台校区内暂设立临时医疗点。"
+            ),
+        )
+        document["source_document_ids"] = ["notice:muc_internal_portal:191705"]
+        document["source_scope"] = {
+            "source_channel": "authenticated_notice_portal",
+            "source_surface": "notice_body",
+            "source_corpus": "campus_notices",
+            "source_collection": "internal_notice",
+        }
+
+        import_input = build_document_import_input(document)
+        rows = [
+            json.loads(line)
+            for line in import_input.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+
+        first_metadata = rows[0]["metadata"]
+        self.assertEqual(first_metadata["semantic_owner_kind"], "notice_body")
+        self.assertEqual(
+            first_metadata["semantic_owner_document_id"],
+            "notice:muc_internal_portal:191705",
+        )
+        self.assertEqual(first_metadata["source_attachment_document_id"], "")
+
+    def test_scoped_rule_document_units_mark_doc_number_and_article_title_as_non_answer_bearing(
+        self,
+    ) -> None:
+        document = _target_document(
+            source_notice_id="481",
+            collection="scoped_rules",
+            canonical_markdown=(
+                "# 中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）\n\n"
+                "民大校发（2021）148号\n\n"
+                "第一章 总 则\n\n"
+                "第五条 报考条件\n\n"
+                "申请者应符合学校规定的政治素质、学业水平和推荐免试资格要求。"
+            ),
+        )
+
+        import_input = build_document_import_input(document)
+        rows = [
+            json.loads(line)
+            for line in import_input.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+
+        doc_number = next(row for row in rows if row["clean_text"] == "民大校发（2021）148号")
+        self.assertEqual(doc_number["row_type"], "heading")
+        self.assertFalse(doc_number["metadata"]["is_answer_bearing"])
+
+        article_title = next(row for row in rows if row["clean_text"] == "第五条 报考条件")
+        self.assertEqual(article_title["row_type"], "heading")
+        self.assertFalse(article_title["metadata"]["is_answer_bearing"])
+        self.assertEqual(article_title["metadata"]["article_label"], "第五条")
+
+        answer_row = next(
+            row
+            for row in rows
+            if row["clean_text"] == "申请者应符合学校规定的政治素质、学业水平和推荐免试资格要求。"
+        )
+        self.assertEqual(answer_row["row_type"], "paragraph")
+        self.assertTrue(answer_row["metadata"]["is_answer_bearing"])
+
+    def test_article_short_sentence_remains_answer_bearing_when_not_title_phrase(self) -> None:
+        document = _target_document(
+            source_notice_id="481",
+            collection="scoped_rules",
+            canonical_markdown=(
+                "# 测试规章 481\n\n"
+                "第五条 本办法由研究生院负责解释\n\n"
+                "第六条 申请者应符合学校规定条件"
+            ),
+        )
+
+        import_input = build_document_import_input(document)
+        rows = [
+            json.loads(line)
+            for line in import_input.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+
+        article_rows = [
+            row
+            for row in rows
+            if row["clean_text"] in {"第五条 本办法由研究生院负责解释", "第六条 申请者应符合学校规定条件"}
+        ]
+        self.assertEqual(len(article_rows), 2)
+        self.assertTrue(all(row["row_type"] == "paragraph" for row in article_rows))
+        self.assertTrue(all(row["metadata"]["is_answer_bearing"] for row in article_rows))
+
+    def test_document_units_mark_tiny_layout_fragments_as_non_answer_bearing(self) -> None:
+        document = _target_document(
+            source_notice_id="620",
+            collection="scoped_rules",
+            canonical_markdown=(
+                "# 中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法\n\n"
+                "（试行）\n\n"
+                "第一章 总则\n\n"
+                "第一条 推荐类型\n\n"
+                "（一） 普通免试生；\n\n"
+                "申请者应符合学校推荐免试资格要求。\n\n"
+                "一类奖项包括：\n\n"
+                "国家级竞赛奖项。\n\n"
+                "义务：\n\n"
+                "合作单位应提供必要实践条件。\n\n"
+                "附件\n\n"
+                "附件1\n\n"
+                "2026年3月24日印发"
+            ),
+        )
+
+        import_input = build_document_import_input(document)
+        rows = [
+            json.loads(line)
+            for line in import_input.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+        rows_by_text = {row["clean_text"]: row for row in rows}
+
+        for text in (
+            "（试行）",
+            "第一条 推荐类型",
+            "一类奖项包括：",
+            "义务：",
+            "附件",
+            "附件1",
+            "2026年3月24日印发",
+        ):
+            self.assertEqual(rows_by_text[text]["row_type"], "heading")
+            self.assertFalse(rows_by_text[text]["metadata"]["is_answer_bearing"])
+
+        self.assertEqual(rows_by_text["（一） 普通免试生；"]["row_type"], "paragraph")
+        self.assertTrue(rows_by_text["（一） 普通免试生；"]["metadata"]["is_answer_bearing"])
+        self.assertTrue(rows_by_text["申请者应符合学校推荐免试资格要求。"]["metadata"]["is_answer_bearing"])
+        self.assertTrue(rows_by_text["国家级竞赛奖项。"]["metadata"]["is_answer_bearing"])
+        self.assertEqual(
+            rows_by_text["国家级竞赛奖项。"]["metadata"]["section_path"][-1],
+            "一类奖项包括：",
+        )
+        self.assertEqual(
+            rows_by_text["合作单位应提供必要实践条件。"]["metadata"]["section_path"][-1],
+            "义务：",
+        )
+
+    def test_document_units_do_not_accumulate_replaced_short_context_headings(
+        self,
+    ) -> None:
+        document = _target_document(
+            source_notice_id="623",
+            collection="scoped_rules",
+            canonical_markdown=(
+                "# 测试规章 623\n\n"
+                "第三章 遴选资格和条件\n\n"
+                "一类奖项包括：\n\n"
+                "国家级竞赛奖项。\n\n"
+                "二类奖项包括：\n\n"
+                "省部级竞赛奖项。\n\n"
+                "（二）普通类专业学生的奖项要求\n\n"
+                "在校期间至少获得一类奖项 1 项或二类奖项 3 项。"
+            ),
+        )
+
+        import_input = build_document_import_input(document)
+        rows = [
+            json.loads(line)
+            for line in import_input.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+        rows_by_text = {row["clean_text"]: row for row in rows}
+
+        self.assertEqual(
+            rows_by_text["国家级竞赛奖项。"]["metadata"]["section_path"],
+            ["第三章 遴选资格和条件", "一类奖项包括："],
+        )
+        self.assertEqual(
+            rows_by_text["省部级竞赛奖项。"]["metadata"]["section_path"],
+            ["第三章 遴选资格和条件", "二类奖项包括："],
+        )
+        self.assertEqual(
+            rows_by_text["（二）普通类专业学生的奖项要求"]["metadata"]["section_path"],
+            ["第三章 遴选资格和条件", "（二）普通类专业学生的奖项要求"],
+        )
+        self.assertEqual(
+            rows_by_text["在校期间至少获得一类奖项 1 项或二类奖项 3 项。"][
+                "metadata"
+            ]["section_path"],
+            ["第三章 遴选资格和条件", "（二）普通类专业学生的奖项要求"],
+        )
+
+    def test_document_units_do_not_accumulate_body_list_items_in_section_path(self) -> None:
+        document = _target_document(
+            source_notice_id="621",
+            collection="scoped_rules",
+            canonical_markdown=(
+                "# 测试规章 621\n\n"
+                "一、导师职责\n\n"
+                "（一）应遵守学校纪律要求；\n\n"
+                "（二）应完成培养指导任务；\n\n"
+                "导师应定期检查学生培养进展。"
+            ),
+        )
+
+        import_input = build_document_import_input(document)
+        rows = [
+            json.loads(line)
+            for line in import_input.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+        rows_by_text = {row["clean_text"]: row for row in rows}
+
+        self.assertEqual(
+            rows_by_text["（一）应遵守学校纪律要求；"]["metadata"]["section_path"],
+            ["一、导师职责"],
+        )
+        self.assertEqual(
+            rows_by_text["（二）应完成培养指导任务；"]["metadata"]["section_path"],
+            ["一、导师职责"],
+        )
+        self.assertNotIn(
+            "（一）应遵守学校纪律要求；",
+            rows_by_text["导师应定期检查学生培养进展。"]["metadata"]["section_path"],
+        )
+        self.assertEqual(
+            rows_by_text["导师应定期检查学生培养进展。"]["metadata"]["section_path"],
+            ["一、导师职责"],
+        )
+
+    def test_document_units_do_not_promote_body_intro_sentence_with_comma_to_section_path(
+        self,
+    ) -> None:
+        document = _target_document(
+            source_notice_id="622",
+            collection="institutional_rules",
+            canonical_markdown=(
+                "# 测试规章 622\n\n"
+                "第四章 处理\n\n"
+                "（一）被认定为有违反立德树人规范行为的导师，给予下列处理：\n\n"
+                "1、暂停研究生指导和教学工作。\n\n"
+                "2、本年度综合考核不合格。"
+            ),
+        )
+
+        import_input = build_document_import_input(document)
+        rows = [
+            json.loads(line)
+            for line in import_input.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+        rows_by_text = {row["clean_text"]: row for row in rows}
+
+        self.assertEqual(
+            rows_by_text["（一）被认定为有违反立德树人规范行为的导师，给予下列处理："]["row_type"],
+            "paragraph",
+        )
+        self.assertEqual(
+            rows_by_text["1、暂停研究生指导和教学工作。"]["metadata"]["section_path"],
+            ["第四章 处理"],
+        )
+        self.assertNotIn(
+            "（一）被认定为有违反立德树人规范行为的导师，给予下列处理：",
+            rows_by_text["2、本年度综合考核不合格。"]["metadata"]["section_path"],
         )
 
     def test_selection_requires_downstream_ready_candidates_and_passed_consistency(self) -> None:
@@ -277,7 +552,7 @@ class CollectedNoticeRegulationFirstBatchPromotionTests(unittest.TestCase):
         self.assertEqual(first_row["metadata"]["source_notice_ids"], ["594"])
         self.assertEqual(
             first_row["metadata"]["normalizer_version"],
-            "collected_notice_regulation_canonical_cleaning_v2",
+            REGULATION_CANONICAL_NORMALIZER_VERSION,
         )
         self.assertEqual(
             first_row["metadata"]["cleaning_policy_version"],
@@ -319,6 +594,12 @@ class CollectedNoticeRegulationFirstBatchPromotionTests(unittest.TestCase):
             scoped_first_row["metadata"]["source_notice_release_time"],
             "2024-11-16 18:58:28",
         )
+        self.assertEqual(
+            scoped_first_row["metadata"]["document_nature"],
+            "annual_cycle_rule",
+        )
+        self.assertEqual(scoped_first_row["metadata"]["cycle_year"], "2024")
+        self.assertEqual(scoped_first_row["metadata"]["school_unit_name"], "新闻与传播学院")
 
     def test_execute_rejects_selected_document_without_passed_normalization_quality(self) -> None:
         institutional = _materialization_report(
@@ -584,12 +865,15 @@ def _target_document(
             "soft_wrap_repair_count": 0,
             "soft_wrap_residue_count": 0,
             "readability_normalization_count": 0,
-            "normalizer_version": "collected_notice_regulation_canonical_cleaning_v2",
+            "normalizer_version": REGULATION_CANONICAL_NORMALIZER_VERSION,
             "quality_verdict": quality_verdict,
             "reason_codes": [] if quality_verdict == "passed" else ["soft_wrap_residue"],
         },
         "source_notice_ids": [source_notice_id],
         "source_notice_release_time": "2024-11-16 18:58:28",
+        "document_nature": "annual_cycle_rule" if collection == "scoped_rules" else None,
+        "cycle_year": "2024" if collection == "scoped_rules" else None,
+        "school_unit_name": "新闻与传播学院" if collection == "scoped_rules" else None,
         "source_document_ids": [f"file-release:muc_internal_portal:{source_notice_id}"],
         "source_urls": [f"https://my.muc.edu.cn/file/{source_notice_id}.pdf"],
         "source_scope": {

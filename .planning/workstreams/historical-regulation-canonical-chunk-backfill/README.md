@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-05-02
 updated: 2026-05-02
 ---
@@ -14,10 +14,12 @@ chunk 质量验收 / handoff 之后，不进入 RAG release lane。
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 5 chunk quality review closeout`
-- current focus: 对已经生成的 historical target-limited chunk evidence 做统一质量验收；
-  在验收前不进入 embedding、index、release admission 或 alias publish
+- status: `completed`
+- current phase: `Phase 36 chunk quality accepted and later-release handoff ready`
+- current focus: 42 个已采集 historical regulation targets 已完成 current
+  canonical v9、document-units、chunk preparation、final chunk-quality audit
+  与 later-release handoff；当前停在 handoff decision，不进入 embedding、
+  index、release admission 或 alias publish
 
 ## Boundary
 
@@ -45,6 +47,20 @@ historical notice source truth
 - 不切 serving alias
 - 不修复或推进既有 candidate store 状态
 - 不使用新 notice 的即时动态更新流程
+
+## Object Store Naming And Path
+
+当前 regulation canonical/document-units artifacts 写入 `campus-rag-derived`，
+路径遵循 ADR-0002 的 document-oriented artifact contract：
+
+```text
+regulations/documents/{institutional_rules|scoped_rules}/{title_slug}--{docid8}/current-effective/undated/{canonical.md|document-units.jsonl}
+```
+
+本轮 v9 42 篇 regulation 共 84 个 canonical/document-units object key 已按该模板检查通过。
+`{title_slug}` 当前允许保留 CJK 人类可读标题段；这符合现有 object-store contract，
+不是 ASCII-only slug 违规。若未来要改成 ASCII-only，需要单独做 object-key migration
+决策，而不是在本 workstream 内把历史 regulation artifact 视为不合规。
 
 ## Why This Workstream Exists
 
@@ -83,3 +99,19 @@ historical notice source truth
 - `./phases/phase-00-chunk-only-boundary-and-inventory/PLAN.md`
 - `./phases/phase-04-chunk-preparation-batch/PLAN.md`
 - `./phases/phase-05-chunk-quality-review-closeout/PLAN.md`
+
+## Latest Execution Evidence
+
+- `./evidence/phase-40-canonical-backfill-all-regulations-v9/`
+- `./evidence/phase-41-chunk-only-boundary-and-inventory-all-regulations-v9/`
+- `./evidence/phase-42-chunk-preparation-all-regulations-v9/`
+- `./evidence/phase-42-chunk-preparation-all-regulations-v9/final-quality-audit.json`
+- `./evidence/phase-36-chunk-quality-acceptance-and-handoff/`
+
+## Superseded Evidence
+
+- `./evidence/phase-26-canonical-backfill-all-regulations-v5/` was a 10-document
+  default-parameter rerun and is not authoritative for the 42-document cohort.
+- `./evidence/phase-27-*` through `./evidence/phase-39-*` were superseded by
+  the v9 rerun after attachment/table/template-tail validation was added to the
+  canonical/chunk quality gate.

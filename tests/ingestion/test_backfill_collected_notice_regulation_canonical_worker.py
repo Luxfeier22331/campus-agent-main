@@ -5,18 +5,19 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from tests.ingestion.test_collected_notice_regulation_canonical_backfill import (
+    _FakeObjectStore,
+    _first_batch_admission_manifest,
     _historical_first_batch_candidate_audit,
     _historical_source_objects,
     _object_store_env,
 )
-from tests.ingestion.test_collected_notice_regulation_canonical_backfill import (
-    _first_batch_admission_manifest,
-    _FakeObjectStore,
-)
 from tests.ingestion.test_collected_notice_regulation_manual_review_admission import (
     _candidate_audit as _manual_review_candidate_audit,
+)
+from tests.ingestion.test_collected_notice_regulation_manual_review_admission import (
     _owner_text_report,
 )
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
@@ -27,6 +28,11 @@ worker = importlib.import_module(
 
 
 class BackfillCollectedNoticeRegulationCanonicalWorkerTests(unittest.TestCase):
+    def test_parser_supports_disabling_manual_review_branch(self) -> None:
+        args = worker.build_parser().parse_args(["--no-manual-review"])
+
+        self.assertTrue(args.no_manual_review)
+
     def test_worker_writes_phase13_evidence_without_opening_rag_release(self) -> None:
         with TemporaryDirectory() as tmpdir:
             root = Path(tmpdir)
@@ -77,6 +83,53 @@ class BackfillCollectedNoticeRegulationCanonicalWorkerTests(unittest.TestCase):
                 )
             )
             self.assertEqual(persisted["normalization_quality"]["verdict"], "passed")
+
+    def test_worker_can_skip_manual_review_branch_for_offline_admission(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            input_dir = root / "inputs"
+            output_dir = root / "phase-13"
+            input_dir.mkdir()
+            candidate_path = input_dir / "candidate-audit.json"
+            manifest_path = input_dir / "admission-manifest.json"
+            owner_text_path = input_dir / "owner-text-report.json"
+            _write_json(candidate_path, {"candidates": []})
+            _write_json(manifest_path, {"entries": []})
+            _write_json(owner_text_path, {"attempt_results": []})
+
+            with patch(
+                "campus_ingestion_worker.backfill_collected_notice_regulation_canonical."
+                "backfill_collected_notice_regulation_canonical",
+                return_value={
+                    "mode": "execute",
+                    "write_enabled": True,
+                    "selected_notice_ids": ["477"],
+                    "selected_target_document_ids": ["doc-477"],
+                    "materialized_document_count": 1,
+                    "query_serving_opened": False,
+                    "rag_release_opened": False,
+                },
+            ) as backfill:
+                report = worker.backfill_collected_notice_regulation_canonical_from_paths(
+                    request=worker.CollectedNoticeRegulationCanonicalBackfillWorkerRequest(
+                        first_batch_candidate_audit_path=candidate_path,
+                        first_batch_admission_manifest_path=manifest_path,
+                        manual_review_candidate_audit_path=candidate_path,
+                        manual_review_owner_text_execution_report_path=owner_text_path,
+                        output_dir=output_dir,
+                        first_batch_notice_ids=("477",),
+                        manual_review_resolutions={},
+                        execute=True,
+                    ),
+                    env={},
+                    object_store=object(),
+                    document_registry=object(),
+                    raw_asset_registry=object(),
+                )
+
+            self.assertEqual(report["selected_notice_ids"], ["477"])
+            core_request = backfill.call_args.kwargs["request"]
+            self.assertEqual(core_request.manual_review_resolutions, {})
 
 
 def _write_json(path: Path, payload: object) -> None:

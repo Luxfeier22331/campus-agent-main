@@ -3,6 +3,9 @@ from __future__ import annotations
 import hashlib
 import unittest
 
+from campus_ingestion_core.collected_notice_regulation_text_normalization import (
+    REGULATION_CANONICAL_NORMALIZER_VERSION,
+)
 from campus_ingestion_core.historical_regulation_chunk_backfill import (
     build_historical_regulation_chunk_backfill_evidence,
 )
@@ -137,7 +140,7 @@ class HistoricalRegulationChunkBackfillPlanTest(unittest.TestCase):
             "document_units_object_key": units_key,
             "document_units_sha256": units_sha256,
             "cleaning_policy_version": f"{collection}_cleaning_v1",
-            "normalizer_version": "collected_notice_regulation_canonical_cleaning_v2",
+            "normalizer_version": REGULATION_CANONICAL_NORMALIZER_VERSION,
             "normalization_quality": {
                 "quality_verdict": "passed",
                 "source_notice_ids": [notice_id],

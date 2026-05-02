@@ -1,12 +1,24 @@
 ---
 doc_type: phase_plan
-status: completed_needs_rework
+status: completed_superseded
 workstream: historical-regulation-canonical-chunk-backfill
 phase: phase-05-chunk-quality-review-closeout
 created: 2026-05-02
 updated: 2026-05-02
 ---
 # Phase 5: Chunk Quality Review Closeout
+
+## Supersession Note
+
+This target-limited review found the original chunk-quality blockers. It has
+been superseded by the all-regulation v9 rerun under
+`../../evidence/phase-40-canonical-backfill-all-regulations-v9/`,
+`../../evidence/phase-41-chunk-only-boundary-and-inventory-all-regulations-v9/`,
+`../../evidence/phase-42-chunk-preparation-all-regulations-v9/` and
+`../../evidence/phase-36-chunk-quality-acceptance-and-handoff/`, where 42
+targets passed chunk preparation, final quality audit and later-release handoff.
+Keep this plan as the historical finding that triggered the ingestion-layer
+fixes, not as the current workstream state.
 
 ## Goal
 

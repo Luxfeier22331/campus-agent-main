@@ -135,7 +135,7 @@
   `regulations/scoped_rules` 发布 retrieval-ready alias 但仍不在默认 query allowlist；
   Phase 11 又将 `481` / `619` 两条 resolved manual-review rows 写入 target
   materialization；Phase 12/13 已补齐 canonical cleaning hardening 与历史 selected
-  regulation backfill 入口，使 Phase 9/11 cohort 可先重建 v2 canonical artifacts，再进入
+  regulation backfill 入口，使 Phase 9/11 cohort 可先重建 current canonical artifacts，再进入
   独立 RAG release lane；新 target 尚未进入 RAG release / serving admission；
   public-chat citation 继续关闭。auth-dependent `file_release owner recovery` 仍由独立
   workstream 管理，不混入本线。

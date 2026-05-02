@@ -42,7 +42,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--manual-review-materialization-path",
-        default=str(DEFAULT_PHASE_13_DIR / "manual-review/materialization.execute.json"),
+        default=None,
     )
     parser.add_argument("--output-dir", default=str(DEFAULT_OUTPUT_DIR))
     parser.add_argument(
@@ -58,10 +58,14 @@ def main(argv: Sequence[str] | None = None) -> None:
     object_store_settings = ObjectStoreSettings.from_env()
     evidence = build_historical_regulation_chunk_backfill_evidence(
         phase13_report=_load_json_object(Path(args.phase13_report_path)),
-        materialization_reports={
-            "first-batch": _load_json_object(Path(args.first_batch_materialization_path)),
-            "manual-review": _load_json_object(Path(args.manual_review_materialization_path)),
-        },
+        materialization_reports=_load_materialization_reports(
+            first_batch_path=Path(args.first_batch_materialization_path),
+            manual_review_path=(
+                Path(args.manual_review_materialization_path)
+                if args.manual_review_materialization_path
+                else None
+            ),
+        ),
         registry=build_document_registry_from_env(prefer_operator=True),
         object_store=S3ObjectStoreWriter(object_store_settings),
         bucket_derived=object_store_settings.bucket_derived,
@@ -119,6 +123,17 @@ def _load_json_object(path: Path) -> dict[str, Any]:
     if not isinstance(payload, Mapping):
         raise ValueError(f"{path} must contain a JSON object")
     return dict(payload)
+
+
+def _load_materialization_reports(
+    *,
+    first_batch_path: Path,
+    manual_review_path: Path | None,
+) -> dict[str, dict[str, Any]]:
+    reports = {"first-batch": _load_json_object(first_batch_path)}
+    if manual_review_path is not None:
+        reports["manual-review"] = _load_json_object(manual_review_path)
+    return reports
 
 
 def _write_json(path: Path, payload: object) -> None:

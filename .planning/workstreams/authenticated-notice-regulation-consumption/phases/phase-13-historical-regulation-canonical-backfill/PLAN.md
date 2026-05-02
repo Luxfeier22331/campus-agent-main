@@ -63,7 +63,7 @@ The phase is intentionally upstream of chunking and RAG release:
 Phase 13 is complete when:
 
 - selected historical regulation targets have been rebuilt through
-  `collected_notice_regulation_canonical_cleaning_v2`;
+  `collected_notice_regulation_canonical_cleaning_v9`;
 - document-units carry `normalizer_version`, `cleaning_policy_version`,
   `document_units_schema_version` and `normalization_quality=passed`;
 - no selected target is admitted to RAG release from stale canonical artifacts;

@@ -45,7 +45,7 @@ updated: 2026-05-02
 6. 新的 manual-review write gate 只能推进显式 resolved 的 `481` / `619`，
    并证明 query serving / RAG release 仍关闭。
 7. 历史 selected regulation notices 必须先通过 current canonical cleaning
-   backfill，生成带 v2 cleaning provenance 的 canonical artifacts，再进入 chunk /
+   backfill，生成带 current cleaning provenance 的 canonical artifacts，再进入 chunk /
    RAG release 消费。
 
 ## Closeout Evidence

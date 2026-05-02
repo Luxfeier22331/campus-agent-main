@@ -46,6 +46,11 @@ serving release.
   normalization quality evidence.
 - Chunk preparation must consume current canonical/document-units artifacts from
   ingestion truth, not stale dry-run materialization JSON.
+- Regulation canonical/document-units object keys must follow the ADR-0002
+  derived document path:
+  `regulations/documents/{collection}/{title_slug}--{docid8}/{revision_track}/{year}/{artifact}`.
+  Current `{title_slug}` may retain CJK human-readable title characters; it is
+  not an ASCII-only slug unless a future object-key migration changes the ADR.
 - Chunk preparation follows the repo term `split -> cleanup -> chunk ->
   validation`; it does not perform embedding, indexing or alias publish.
 - Chunk reports must include document identity, target collection, document hash,
@@ -54,8 +59,9 @@ serving release.
   text, contextual headers duplicate answer-bearing body text, title chunks
   duplicate the title, body chunks are only structural headings, header tokens
   dominate display text, token guardrail splitting masks coarse document-units,
-  page anchors are fabricated, or scoped-rule release time is backfill runtime
-  instead of source notice release time.
+  HTML/table markup remains, publication-imprint or form/table tail artifacts
+  remain, page anchors are fabricated, or scoped-rule release time is backfill
+  runtime instead of source notice release time.
 - The workstream must emit a serving-closed assertion after every runtime batch:
   `query_serving_opened=false`, `rag_release_opened=false`,
   `candidate_enqueue_opened=false`, `candidate_processor_opened=false`,
@@ -74,6 +80,11 @@ serving release.
 - Reader/preview assets, if generated, exist only as audit or human-review
   support, not as proof of RAG serving.
 - Chunk preparation completes with auditable quality evidence.
+- Canonical/document-units object-store paths are checked against the current
+  regulation document artifact contract.
+- Final quality audit independently scans emitted chunks for HTML residuals,
+  publication-imprint tails, form/table tails, polluted `section_path`,
+  excessive `section_path` depth and coarse token-guardrail splits.
 - No dynamic candidate enqueue, embedding, index write or alias publish happens
   in this workstream.
 - The downstream release lane can later consume an explicit quality-accepted

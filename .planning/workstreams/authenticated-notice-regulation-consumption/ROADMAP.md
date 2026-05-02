@@ -19,10 +19,10 @@ manual-review second-batch selected materialization。Phase 10
 chunk-prepared、Qdrant released、gated-reader-ready 状态；`institutional_rules`
 进入默认 query-serving allowlist，`scoped_rules` 保持 explicit/internal only。
 Phase 11 将 `481` / `619` 写入 target materialization，但不打开 RAG release。
-本轮 hardening 已补齐 regulation canonical cleaning v2 边界：清洗在 target
+本轮 hardening 已补齐 regulation canonical cleaning v9 边界：清洗在 target
 materialization 入库前完成，RAG release 只校验并消费 canonical artifacts。
 Phase 13 已补齐历史 selected regulation backfill 入口：Phase 9/11 既有历史
-cohort 可统一从 source owner text 重建 v2 canonical artifacts，再交给独立 RAG
+cohort 可统一从 source owner text 重建 current canonical artifacts，再交给独立 RAG
 release lane。
 
 ## Phases
@@ -39,7 +39,7 @@ release lane。
 - [x] **Phase 10: Regulation Serving Admission** — 对 first-batch regulation targets 执行 provenance hardening、chunk preparation、Qdrant release alias、gated reader asset publish、retrieval smoke 与 admission guard 更新；保持 public-chat citation 关闭。
 - [x] **Phase 11: Second-Batch Manual-Review Admission** — 对已 owner-text ready 且显式人工 resolution 的 `481` / `619` 建立 selected materialization gate；写入 target artifacts，并证明 serving / RAG release 仍关闭。
 - [x] **Phase 12: Regulation Canonical Cleaning Hardening** — 将 regulation wrapper/page artifact/soft-wrap/readable punctuation 清洗前移并固化在 target materialization；selected execute 拒绝非 passed quality，RAG preparation 缺清洗 provenance 时 fail closed。
-- [x] **Phase 13: Historical Regulation Canonical Backfill** — 为 Phase 9/11 已采集 selected regulation cohort 增加 canonical backfill 路径，从 admission/source owner text 重建 v2 canonical artifacts，保持 query serving / RAG release 关闭。
+- [x] **Phase 13: Historical Regulation Canonical Backfill** — 为 Phase 9/11 已采集 selected regulation cohort 增加 canonical backfill 路径，从 admission/source owner text 重建 current canonical artifacts，保持 query serving / RAG release 关闭。
 
 ## Phase 9: First-Batch Regulation Promotion Write Gate
 
@@ -147,7 +147,7 @@ resolution 推进到 selected target materialization，同时保持 serving 与 
 **Result:**
 
 - `normalize_regulation_owner_text` 升级为
-  `collected_notice_regulation_canonical_cleaning_v2`
+  `collected_notice_regulation_canonical_cleaning_v9`
 - canonical cleaning 覆盖通知壳移除、页码 artifact 移除、OCR soft-wrap repair、
   中文语境标点/括号归一
 - materialization execute 对 selected documents 强制 `normalization_quality=passed`

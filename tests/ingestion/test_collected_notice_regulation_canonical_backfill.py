@@ -9,13 +9,20 @@ from campus_ingestion_core.collected_notice_regulation_canonical_backfill import
     CollectedNoticeRegulationCanonicalBackfillRequest,
     backfill_collected_notice_regulation_canonical,
 )
+from campus_ingestion_core.collected_notice_regulation_text_normalization import (
+    REGULATION_CANONICAL_NORMALIZER_VERSION,
+)
 
 from tests.ingestion.test_collected_notice_regulation_first_batch_promotion import (
     _candidate_audit as _first_batch_candidate_audit,
+)
+from tests.ingestion.test_collected_notice_regulation_first_batch_promotion import (
     _source_ref as _first_batch_source_ref,
 )
 from tests.ingestion.test_collected_notice_regulation_manual_review_admission import (
     _candidate_audit as _manual_review_candidate_audit,
+)
+from tests.ingestion.test_collected_notice_regulation_manual_review_admission import (
     _owner_text_report,
 )
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
@@ -31,7 +38,9 @@ class CollectedNoticeRegulationCanonicalBackfillTests(unittest.TestCase):
         report = backfill_collected_notice_regulation_canonical(
             request=CollectedNoticeRegulationCanonicalBackfillRequest(
                 first_batch_candidate_audit=_historical_first_batch_candidate_audit(),
-                first_batch_admission_manifest=_first_batch_admission_manifest(("594", "620")),
+                first_batch_admission_manifest=_first_batch_admission_manifest(
+                    ("594", "620", "481")
+                ),
                 manual_review_candidate_audit=_manual_review_candidate_audit(),
                 manual_review_owner_text_execution_report=_owner_text_report(),
                 manual_review_resolutions={
@@ -75,13 +84,18 @@ class CollectedNoticeRegulationCanonicalBackfillTests(unittest.TestCase):
             metadata = first_row["metadata"]
             self.assertEqual(
                 metadata["normalizer_version"],
-                "collected_notice_regulation_canonical_cleaning_v2",
+                REGULATION_CANONICAL_NORMALIZER_VERSION,
             )
             self.assertEqual(metadata["normalization_quality"]["quality_verdict"], "passed")
             self.assertEqual(
                 metadata["cleaning_policy_version"],
                 f"{record.collection}_cleaning_v1",
             )
+            if "481" in metadata["source_notice_ids"]:
+                self.assertEqual(
+                    metadata["source_notice_release_time"],
+                    "2024-01-09 13:55:34",
+                )
 
 
 def _first_batch_admission_manifest(notice_ids: tuple[str, ...]) -> dict[str, object]:
@@ -94,6 +108,13 @@ def _first_batch_admission_manifest(notice_ids: tuple[str, ...]) -> dict[str, ob
     entries = [copy.deepcopy(selected[notice_id]) for notice_id in notice_ids]
     for entry in entries:
         entry["target"] = "regulation"
+        if entry["source_notice_id"] == "481":
+            entry["published_at"] = "2024-01-09 13:55:34"
+            entry["body_excerpt"] = (
+                "中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）\n"
+                "发布时间：2024-01-09 13:55:34\n"
+                "第一条 为测试历史规章 canonical 回填，制定本办法。"
+            )
     return {
         "schema_version": "collected_notice_consumer_admission.v1",
         "mode": "dry_run",

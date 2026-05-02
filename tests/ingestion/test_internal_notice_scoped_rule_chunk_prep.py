@@ -462,6 +462,50 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
             self.assertEqual(validation["generated_at_release_time_count"], 1)
             self.assertEqual(validation["failed_document_ids"], [scoped_record.document_id])
 
+    def test_prepare_scoped_rule_chunks_blocks_html_and_body_like_section_path(self) -> None:
+        scoped_record = _record(
+            document_id="institutional_regulation:muc:历史专项规则:html-section-path",
+            version_id="sha256:scoped:html-section-path",
+            units_key="regulations/documents/scoped_rules/html-section-path/document-units.jsonl",
+        )
+        object_store = _FakeObjectStore(
+            objects={
+                (
+                    "campus-rag-derived",
+                    scoped_record.document_units_object_key or "",
+                ): _scoped_rule_rows(
+                    document_id=scoped_record.document_id,
+                    version_id=scoped_record.version_id,
+                    title="历史专项规则",
+                    document_nature="time_bound_operational_rule",
+                    source_notice_ids=("351907",),
+                    source_notice_release_time="2026-04-01 12:00",
+                    cycle_year="2026",
+                    school_unit_name="新闻与传播学院",
+                    body_blocks=(
+                        "## （一）应遵守学校纪律要求；",
+                        "申请者应按要求提交材料。<table><tr><td>材料</td></tr></table>",
+                    ),
+                )
+            }
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            report = prepare_scoped_rule_chunks(
+                records=(scoped_record,),
+                object_store=object_store,
+                output_dir=Path(temp_dir),
+            )
+
+            self.assertFalse(report.passed)
+            validation = json.loads(
+                Path(report.validation_summary_path).read_text(encoding="utf-8")
+            )
+            self.assertFalse(validation["passed"])
+            self.assertEqual(validation.get("html_tag_chunk_count"), 1)
+            self.assertGreaterEqual(validation.get("body_like_section_path_chunk_count"), 1)
+            self.assertEqual(validation["failed_document_ids"], [scoped_record.document_id])
+
 
 if __name__ == "__main__":
     unittest.main()

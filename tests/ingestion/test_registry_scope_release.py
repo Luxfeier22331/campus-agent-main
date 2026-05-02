@@ -7,10 +7,16 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
+from campus_ingestion_core.collected_notice_regulation_text_normalization import (
+    REGULATION_CANONICAL_NORMALIZER_VERSION,
+)
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.index_release import IndexReleaseManifest, resolve_alias_target
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk
+from campus_ingestion_core.registry_scope_chunk_preparation import (
+    prepare_registry_scope_chunks,
+)
 from campus_ingestion_core.registry_scope_release import (
     audit_published_scope_release,
     publish_scope_release,
@@ -22,9 +28,6 @@ from campus_ingestion_core.registry_scope_release_support import (
 from campus_ingestion_core.regulation_rag_release_admission import (
     build_regulation_rag_release_admission_manifest,
     write_regulation_rag_release_admission_manifest,
-)
-from campus_ingestion_core.registry_scope_chunk_preparation import (
-    prepare_registry_scope_chunks,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 from qdrant_client import QdrantClient
@@ -457,7 +460,7 @@ class RegistryScopeReleaseTest(unittest.TestCase):
                         "root_unit_id": f"{record.document_id}:root",
                         "cleaning_policy_version": "institutional_rules_cleaning_v1",
                         "chunk_policy_version": "institutional_rules_semantic_v1",
-                        "normalizer_version": "collected_notice_regulation_canonical_cleaning_v2",
+                        "normalizer_version": REGULATION_CANONICAL_NORMALIZER_VERSION,
                         "normalization_quality": {
                             "quality_verdict": "passed",
                             "cleaning_policy_version": "institutional_rules_cleaning_v1",

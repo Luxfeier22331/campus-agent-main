@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import Counter
 from collections.abc import Mapping
 from pathlib import Path
@@ -28,6 +29,11 @@ TARGET_CLASS_BY_COLLECTION = {
     INSTITUTIONAL_TARGET_COLLECTION: REGULATION_CLASS_INSTITUTIONAL,
     SCOPED_TARGET_COLLECTION: REGULATION_CLASS_SCOPED,
 }
+_RELEASE_TIME_TEXT_RE = re.compile(
+    r"(?:发布时间|发布日期|发布日|发文时间)\s*[:：]?\s*"
+    r"(?P<value>\d{4}[-/年]\d{1,2}[-/月]\d{1,2}日?"
+    r"(?:\s+\d{1,2}:\d{2}(?::\d{2})?)?)"
+)
 
 
 def build_manual_review_regulation_admission_from_paths(
@@ -206,6 +212,10 @@ def _resolved_admission_entry(
         target_collection=target_collection,
     )
     owner_text_recovery = _owner_text_recovery(candidate=candidate, owner_text_result=owner_text_result)
+    source_notice_release_time = _resolve_source_notice_release_time(
+        candidate=candidate,
+        owner_text_result=owner_text_result,
+    )
     reason_codes = tuple(
         dict.fromkeys(
             (
@@ -234,6 +244,7 @@ def _resolved_admission_entry(
         "source_object_refs": list(candidate.get("source_object_refs") or ()),
         "consumption_class": "downstream_admitted",
         "regulation_admission_class": TARGET_CLASS_BY_COLLECTION[target_collection],
+        "source_notice_release_time": source_notice_release_time,
         "target": REGULATION_TARGET,
         "target_surface": f"regulations/{target_collection}",
         "target_collection": target_collection,
@@ -299,6 +310,7 @@ def _candidate_row_from_entry(entry: Mapping[str, Any]) -> dict[str, Any]:
         "cycle_year": entry.get("cycle_year"),
         "applicability_status": entry.get("applicability_status"),
         "promotion_disposition": entry.get("promotion_disposition"),
+        "source_notice_release_time": entry.get("source_notice_release_time"),
         "recommended_query_surface": entry.get("recommended_query_surface"),
         "duplicate_primary_source_notice_id": entry.get("duplicate_primary_source_notice_id"),
         "duplicate_primary_searchable_unit_id": entry.get(
@@ -371,6 +383,48 @@ def _owner_text_recovery(
         "source_notice_id": owner_text_result.get("source_notice_id"),
         "written_refs": {key: dict(ref) for key, ref in refs.items() if isinstance(ref, Mapping)},
     }
+
+
+def _resolve_source_notice_release_time(
+    *,
+    candidate: Mapping[str, Any],
+    owner_text_result: Mapping[str, Any],
+) -> str:
+    for source in (candidate, owner_text_result):
+        for field_name in (
+            "source_notice_release_time",
+            "notice_release_time",
+            "published_at",
+            "published_date",
+        ):
+            value = str(source.get(field_name) or "").strip()
+            if value:
+                return value
+    for field_name in ("body_excerpt", "title", "owner_text_excerpt"):
+        value = str(candidate.get(field_name) or "").strip()
+        if not value:
+            continue
+        match = _RELEASE_TIME_TEXT_RE.search(value)
+        if match is not None:
+            return _normalize_release_time(match.group("value"))
+    return "unknown"
+
+
+def _normalize_release_time(value: str) -> str:
+    normalized = value.strip()
+    normalized = normalized.replace("年", "-").replace("月", "-").replace("日", "")
+    normalized = normalized.replace("/", "-")
+    date_part, separator, time_part = normalized.partition(" ")
+    date_values = date_part.split("-")
+    if len(date_values) == 3 and all(part.isdigit() for part in date_values):
+        date_part = "-".join(
+            (
+                date_values[0].zfill(4),
+                date_values[1].zfill(2),
+                date_values[2].zfill(2),
+            )
+        )
+    return f"{date_part}{separator}{time_part}".strip()
 
 
 def _site_id(candidate: Mapping[str, Any]) -> str:

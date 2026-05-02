@@ -46,6 +46,7 @@ class CollectedNoticeRegulationManualReviewAdmissionTests(unittest.TestCase):
         self.assertEqual(by_notice["481"]["consumption_class"], "downstream_admitted")
         self.assertEqual(by_notice["481"]["regulation_admission_class"], "scoped_rules_candidate")
         self.assertEqual(by_notice["481"]["target_collection"], "scoped_rules")
+        self.assertEqual(by_notice["481"]["source_notice_release_time"], "2024-01-09 13:55:34")
         self.assertNotIn("481", by_notice["481"]["target_identity_preview"])
         self.assertEqual(
             by_notice["481"]["manual_review_resolution"]["source_admission_class"],
@@ -61,7 +62,33 @@ class CollectedNoticeRegulationManualReviewAdmissionTests(unittest.TestCase):
             row["source_notice_id"]: row for row in result["candidate_audit"]["candidates"]
         }
         self.assertEqual(audit_by_notice["481"]["owner_text_status"], "ready")
+        self.assertEqual(
+            audit_by_notice["481"]["source_notice_release_time"],
+            "2024-01-09 13:55:34",
+        )
         self.assertEqual(audit_by_notice["619"]["target_collection"], "institutional_rules")
+
+    def test_resolution_recovers_release_time_from_body_excerpt_when_structured_field_missing(
+        self,
+    ) -> None:
+        audit = _candidate_audit()
+        candidate_481 = audit["candidates"][0]
+        candidate_481.pop("published_at", None)
+        candidate_481["body_excerpt"] = (
+            "中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）\n"
+            "发布时间：2024-01-09 13:55:34\n"
+            "第一条 为测试人工复核规章准入，制定本办法。"
+        )
+
+        result = build_manual_review_regulation_admission(
+            candidate_audit=audit,
+            owner_text_execution_report=_owner_text_report(),
+            resolutions={"481": {"target_collection": "scoped_rules"}},
+            generated_at="2026-05-02T00:00:00+00:00",
+        )
+
+        entry = result["admission_manifest"]["entries"][0]
+        self.assertEqual(entry["source_notice_release_time"], "2024-01-09 13:55:34")
 
     def test_resolution_requires_manual_review_and_ready_owner_text(self) -> None:
         audit = _candidate_audit()
@@ -107,6 +134,7 @@ def _manual_candidate(*, notice_id: str, title: str) -> dict[str, object]:
         "source_document_id": f"file-release:muc_internal_portal:{notice_id}",
         "searchable_unit_id": f"searchable:file_release:muc_internal_portal:{notice_id}",
         "title": title,
+        "published_at": "2024-01-09 13:55:34" if notice_id == "481" else None,
         "regulation_title_normalized": title,
         "issuing_org": "中央民族大学",
         "candidate_key": None,
@@ -201,9 +229,9 @@ def object_store_with_manual_review_sources() -> FakeObjectStore:
 
 __all__ = [
     "FakeObjectStore",
-    "object_store_with_manual_review_sources",
     "_candidate_audit",
     "_owner_text_report",
+    "object_store_with_manual_review_sources",
 ]
 
 

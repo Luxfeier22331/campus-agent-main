@@ -3,12 +3,34 @@ from __future__ import annotations
 import unittest
 
 from campus_ingestion_core.object_store import (
+    build_document_artifact_key,
     build_official_web_run_artifact_key,
     build_reader_asset_artifact_key,
 )
 
 
 class ObjectStoreKeyBuilderTest(unittest.TestCase):
+    def test_build_regulation_document_artifact_key_uses_current_document_path_contract(
+        self,
+    ) -> None:
+        key = build_document_artifact_key(
+            corpus="regulations",
+            collection="institutional_rules",
+            document_id="institutional_regulation:muc:中央民族大学党建经费管理办法:b77c7a48bd4e",
+            revision_track="current-effective",
+            version_id="sha256:sample",
+            filename="canonical.md",
+            title="中央民族大学党建经费管理办法",
+            year=None,
+        )
+
+        self.assertEqual(
+            key,
+            "regulations/documents/institutional_rules/"
+            "中央民族大学党建经费管理办法--b77c7a48/"
+            "current-effective/undated/canonical.md",
+        )
+
     def test_build_reader_asset_artifact_key_uses_document_prefix(self) -> None:
         key = build_reader_asset_artifact_key(
             corpus="curriculum",

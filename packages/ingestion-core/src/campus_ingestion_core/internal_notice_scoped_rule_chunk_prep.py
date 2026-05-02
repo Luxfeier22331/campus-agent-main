@@ -11,13 +11,19 @@ from typing import Any, Protocol
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 from campus_ingestion_core.regulation_chunk_quality import (
+    contains_form_tail_marker,
+    contains_html_tag,
+    contains_publication_imprint,
+    header_dominance_is_blocking_quality_gap,
     header_duplicates_display_text,
-    header_token_ratio_at_least,
     is_regulation_body_role,
     is_regulation_title_role,
     looks_like_structural_heading,
     page_anchor_is_fabricated,
+    section_path_contains_body_like_item,
     section_path_contains_body_text,
+    section_path_depth_exceeds,
+    section_path_has_long_segment,
     source_notice_release_time_is_generated_at,
     title_text_is_duplicated,
     token_guardrail_indicates_coarse_unit,
@@ -46,6 +52,8 @@ _FRONT_MATTER_LEAK_MARKERS = (
     "source_attachment_ref_id:",
 )
 _SHORT_BODY_TOKEN_THRESHOLD = 40
+_MAX_SECTION_PATH_DEPTH = 3
+_MAX_SECTION_PATH_SEGMENT_CHARS = 60
 
 
 class ScopedRuleChunkPrepObjectStore(Protocol):
@@ -74,6 +82,12 @@ class ScopedRuleChunkPrepDocumentReport:
     short_body_chunk_count: int
     heading_only_body_chunk_count: int
     section_path_body_text_chunk_count: int
+    html_tag_chunk_count: int
+    form_tail_marker_chunk_count: int
+    body_like_section_path_chunk_count: int
+    deep_section_path_chunk_count: int
+    long_section_path_segment_chunk_count: int
+    publication_imprint_chunk_count: int
     header_body_duplicate_chunk_count: int
     title_duplicate_chunk_count: int
     header_dominant_chunk_count: int
@@ -128,6 +142,12 @@ class ScopedRuleChunkPrepValidationReport:
     short_body_chunk_count: int
     heading_only_body_chunk_count: int
     section_path_body_text_chunk_count: int
+    html_tag_chunk_count: int
+    form_tail_marker_chunk_count: int
+    body_like_section_path_chunk_count: int
+    deep_section_path_chunk_count: int
+    long_section_path_segment_chunk_count: int
+    publication_imprint_chunk_count: int
     header_body_duplicate_chunk_count: int
     title_duplicate_chunk_count: int
     header_dominant_chunk_count: int
@@ -241,6 +261,12 @@ def build_scoped_rule_chunk_prep_validation_report(
     short_body_chunk_count = 0
     heading_only_body_chunk_count = 0
     section_path_body_text_chunk_count = 0
+    html_tag_chunk_count = 0
+    form_tail_marker_chunk_count = 0
+    body_like_section_path_chunk_count = 0
+    deep_section_path_chunk_count = 0
+    long_section_path_segment_chunk_count = 0
+    publication_imprint_chunk_count = 0
     header_body_duplicate_chunk_count = 0
     title_duplicate_chunk_count = 0
     header_dominant_chunk_count = 0
@@ -264,6 +290,14 @@ def build_scoped_rule_chunk_prep_validation_report(
         short_body_chunk_count += item.report.short_body_chunk_count
         heading_only_body_chunk_count += item.report.heading_only_body_chunk_count
         section_path_body_text_chunk_count += item.report.section_path_body_text_chunk_count
+        html_tag_chunk_count += item.report.html_tag_chunk_count
+        form_tail_marker_chunk_count += item.report.form_tail_marker_chunk_count
+        body_like_section_path_chunk_count += item.report.body_like_section_path_chunk_count
+        deep_section_path_chunk_count += item.report.deep_section_path_chunk_count
+        long_section_path_segment_chunk_count += (
+            item.report.long_section_path_segment_chunk_count
+        )
+        publication_imprint_chunk_count += item.report.publication_imprint_chunk_count
         header_body_duplicate_chunk_count += item.report.header_body_duplicate_chunk_count
         title_duplicate_chunk_count += item.report.title_duplicate_chunk_count
         header_dominant_chunk_count += item.report.header_dominant_chunk_count
@@ -290,6 +324,12 @@ def build_scoped_rule_chunk_prep_validation_report(
         short_body_chunk_count=short_body_chunk_count,
         heading_only_body_chunk_count=heading_only_body_chunk_count,
         section_path_body_text_chunk_count=section_path_body_text_chunk_count,
+        html_tag_chunk_count=html_tag_chunk_count,
+        form_tail_marker_chunk_count=form_tail_marker_chunk_count,
+        body_like_section_path_chunk_count=body_like_section_path_chunk_count,
+        deep_section_path_chunk_count=deep_section_path_chunk_count,
+        long_section_path_segment_chunk_count=long_section_path_segment_chunk_count,
+        publication_imprint_chunk_count=publication_imprint_chunk_count,
         header_body_duplicate_chunk_count=header_body_duplicate_chunk_count,
         title_duplicate_chunk_count=title_duplicate_chunk_count,
         header_dominant_chunk_count=header_dominant_chunk_count,
@@ -463,6 +503,37 @@ def _build_document_report(
             display_text=str(chunk.metadata.get("display_text") or ""),
         )
     )
+    html_tag_chunk_count = sum(1 for chunk in chunks if contains_html_tag(chunk.text))
+    form_tail_marker_chunk_count = sum(
+        1 for chunk in chunks if contains_form_tail_marker(chunk.text)
+    )
+    body_like_section_path_chunk_count = sum(
+        1
+        for chunk in chunks
+        if is_regulation_body_role(chunk.metadata.get("content_role"))
+        and section_path_contains_body_like_item(_resolve_chunk_section_path(chunk))
+    )
+    deep_section_path_chunk_count = sum(
+        1
+        for chunk in chunks
+        if is_regulation_body_role(chunk.metadata.get("content_role"))
+        and section_path_depth_exceeds(
+            _resolve_chunk_section_path(chunk),
+            max_depth=_MAX_SECTION_PATH_DEPTH,
+        )
+    )
+    long_section_path_segment_chunk_count = sum(
+        1
+        for chunk in chunks
+        if is_regulation_body_role(chunk.metadata.get("content_role"))
+        and section_path_has_long_segment(
+            _resolve_chunk_section_path(chunk),
+            max_chars=_MAX_SECTION_PATH_SEGMENT_CHARS,
+        )
+    )
+    publication_imprint_chunk_count = sum(
+        1 for chunk in chunks if contains_publication_imprint(chunk.text)
+    )
     header_body_duplicate_chunk_count = sum(
         1
         for chunk in chunks
@@ -484,7 +555,10 @@ def _build_document_report(
     header_dominant_chunk_count = sum(
         1
         for chunk in chunks
-        if header_token_ratio_at_least(metadata=chunk.metadata, threshold=0.75)
+        if header_dominance_is_blocking_quality_gap(
+            metadata=chunk.metadata,
+            threshold=0.75,
+        )
     )
     fabricated_page_anchor_chunk_count = sum(
         1 for chunk in chunks if page_anchor_is_fabricated(chunk.anchor, chunk.metadata)
@@ -523,6 +597,18 @@ def _build_document_report(
         issues.append("heading_only_body_chunk")
     if section_path_body_text_chunk_count:
         issues.append("section_path_body_text")
+    if html_tag_chunk_count:
+        issues.append("html_tag_residue")
+    if form_tail_marker_chunk_count:
+        issues.append("form_tail_marker_residue")
+    if body_like_section_path_chunk_count:
+        issues.append("body_like_section_path")
+    if deep_section_path_chunk_count:
+        issues.append("deep_section_path")
+    if long_section_path_segment_chunk_count:
+        issues.append("long_section_path_segment")
+    if publication_imprint_chunk_count:
+        issues.append("publication_imprint_residue")
     if header_body_duplicate_chunk_count:
         issues.append("header_body_duplicate")
     if title_duplicate_chunk_count:
@@ -548,6 +634,12 @@ def _build_document_report(
             "front_matter_leak",
             "heading_only_body_chunk",
             "section_path_body_text",
+            "html_tag_residue",
+            "form_tail_marker_residue",
+            "body_like_section_path",
+            "deep_section_path",
+            "long_section_path_segment",
+            "publication_imprint_residue",
             "header_body_duplicate",
             "title_duplicate",
             "header_dominant",
@@ -578,6 +670,12 @@ def _build_document_report(
         short_body_chunk_count=short_body_chunk_count,
         heading_only_body_chunk_count=heading_only_body_chunk_count,
         section_path_body_text_chunk_count=section_path_body_text_chunk_count,
+        html_tag_chunk_count=html_tag_chunk_count,
+        form_tail_marker_chunk_count=form_tail_marker_chunk_count,
+        body_like_section_path_chunk_count=body_like_section_path_chunk_count,
+        deep_section_path_chunk_count=deep_section_path_chunk_count,
+        long_section_path_segment_chunk_count=long_section_path_segment_chunk_count,
+        publication_imprint_chunk_count=publication_imprint_chunk_count,
         header_body_duplicate_chunk_count=header_body_duplicate_chunk_count,
         title_duplicate_chunk_count=title_duplicate_chunk_count,
         header_dominant_chunk_count=header_dominant_chunk_count,

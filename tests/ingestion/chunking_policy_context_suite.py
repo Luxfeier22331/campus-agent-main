@@ -137,6 +137,43 @@ class ChunkingPolicyContextTest(_ChunkingPolicyTestCase):
         self.assertEqual(assembly.header_mode, "title_only")
         self.assertLess(assembly.header_token_count / assembly.total_token_count, 0.75)
 
+    def test_regulation_tiny_provision_context_uses_detail_only_header(
+        self,
+    ) -> None:
+        context_plan = build_chunk_text_context_from_context_module(
+            anchor={
+                "section_path": [
+                    "二、研究生支教团成员的报名选拔条件",
+                    "（一）基本资格",
+                    "（二）品行要求",
+                    "（三）志愿服务要求",
+                    "（四）学习成绩要求",
+                ],
+                "provision_label": "1.",
+            },
+            metadata={
+                "title": "中央民族大学招募选拔 “中国青年志愿者扶贫接力计划研究生支教团”成员规定",
+                "content_role": "scoped_rule_body",
+            },
+        )
+
+        assembly = assemble_chunk_text_from_context_module(
+            display_text="1. 无不及格课程；",
+            context_plan=context_plan,
+            chunk_profile=ChunkProfile(
+                chunk_size=240,
+                max_chunk_size=340,
+                chunk_overlap=40,
+                min_chunk_size=40,
+                final_text_aware=True,
+                safety_margin=8,
+            ),
+        )
+
+        self.assertEqual(assembly.header_mode, "detail_only")
+        self.assertLess(assembly.header_token_count / assembly.total_token_count, 0.75)
+        self.assertIn("1. 无不及格课程；", assembly.text)
+
     def test_normalize_article_body_structure_keeps_soft_wrap_recoveries_as_single_body_lines(
         self,
     ) -> None:

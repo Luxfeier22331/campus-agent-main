@@ -8,6 +8,7 @@ _PROTECTED_SPAN_RE = re.compile(
     r"https?://[^\s<>'\"，,。；;：:！）)]+"
     r"|www\.[^\s<>'\"，,。；;：:！）)]+"
     r"|[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+    r"|\b\d{1,2}:\d{2}(?:-\d{1,2}:\d{2})?\b"
     r"|\b(?:doc_id|sha256|source_artifact_id|source_pdf|version_id|rawAssetId|rawVersionId)"
     r":[A-Za-z0-9_./:-]+"
 )

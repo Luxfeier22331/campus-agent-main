@@ -235,6 +235,11 @@ def build_parser() -> argparse.ArgumentParser:
         default=[],
         help="Manual review resolution in notice_id=target_collection form.",
     )
+    parser.add_argument(
+        "--no-manual-review",
+        action="store_true",
+        help="Skip the legacy manual-review branch; use first-batch admission as the sole input.",
+    )
     parser.add_argument("--execute", action="store_true")
     return parser
 
@@ -247,11 +252,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         if args.first_batch_notice_id
         else DEFAULT_FIRST_BATCH_SELECTED_NOTICE_IDS
     )
-    manual_review_resolutions = (
-        _parse_resolutions(args.manual_review_resolution)
-        if args.manual_review_resolution
-        else dict(DEFAULT_MANUAL_REVIEW_RESOLUTIONS)
-    )
+    if args.no_manual_review:
+        manual_review_resolutions = {}
+    else:
+        manual_review_resolutions = (
+            _parse_resolutions(args.manual_review_resolution)
+            if args.manual_review_resolution
+            else dict(DEFAULT_MANUAL_REVIEW_RESOLUTIONS)
+        )
     report = backfill_collected_notice_regulation_canonical_from_paths(
         request=CollectedNoticeRegulationCanonicalBackfillWorkerRequest(
             first_batch_candidate_audit_path=Path(args.first_batch_candidate_audit_path),
@@ -311,8 +319,8 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
 
 
 __all__ = [
-    "CollectedNoticeRegulationCanonicalBackfillWorkerRequest",
     "PHASE_13_ID",
+    "CollectedNoticeRegulationCanonicalBackfillWorkerRequest",
     "backfill_collected_notice_regulation_canonical_from_paths",
     "build_parser",
     "build_runtime_document_registry",

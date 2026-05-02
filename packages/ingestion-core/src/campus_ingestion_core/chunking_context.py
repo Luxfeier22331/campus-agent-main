@@ -157,6 +157,9 @@ def build_chunk_text_context(
         _append_header_variant(
             variants, mode="compact_identity", base_line=compact_identity, doc_no_line=doc_no_line
         )
+        _append_header_variant(
+            variants, mode="detail_only", base_line=detail_label, doc_no_line=None
+        )
     _append_header_variant(
         variants,
         mode="title_only",
@@ -272,6 +275,7 @@ def _select_header_variant_for_display(
         "compact_path": 1,
         "full_path": 2,
         "title_only": 3,
+        "detail_only": 4,
         "required": 4,
     }
     selected = min(
@@ -292,7 +296,18 @@ def _select_header_variant_for_display(
         and _header_ratio(selected) >= 0.75
         and _header_ratio(title_only) < _header_ratio(selected)
     ):
-        return title_only
+        selected = title_only
+    detail_only = next(
+        (item for item in fitting_variants if item[0].mode == "detail_only"),
+        None,
+    )
+    if (
+        detail_only is not None
+        and selected[0].mode != "detail_only"
+        and _header_ratio(selected) >= 0.75
+        and _header_ratio(detail_only) < _header_ratio(selected)
+    ):
+        return detail_only
     return selected
 
 
