@@ -734,9 +734,7 @@ def _target_report_fields(execution_report: dict[str, object]) -> dict[str, obje
         "selected_write_ready_count": consumer_candidate_review_counts.get(
             "selected_write_ready_count"
         ),
-        "target_field_reviews": _object_list(
-            consumer_candidate_review.get("targetFieldReviews")
-        ),
+        "target_field_reviews": _object_list(consumer_candidate_review.get("targetFieldReviews")),
         "target_family_counts": _int_mapping(
             coverage.get("targetFamilyCounts") or replay.get("target_family_counts")
         ),
