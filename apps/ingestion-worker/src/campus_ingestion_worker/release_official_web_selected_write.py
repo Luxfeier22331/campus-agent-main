@@ -19,16 +19,19 @@ from campus_ingestion_core import (
 from campus_ingestion_core.contact_directory_projection import (
     CONTACT_DIRECTORY_COLLECTION,
     CONTACT_DIRECTORY_CORPUS,
+    CONTACT_DIRECTORY_PROJECTION_FILENAME,
     CONTACT_DIRECTORY_PROJECTION_SCHEMA_VERSION,
     assert_contact_directory_projection_release_ready,
     write_contact_directory_projection_release,
 )
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
+from campus_ingestion_core.object_store import build_index_release_artifact_key
 from campus_ingestion_core.official_web_release_task import OfficialWebReleaseTask
 from campus_ingestion_core.service_guide_projection import (
     OFFICIAL_WEB_CURATED_SERVICE_GUIDE_SOURCE_FAMILY,
     SERVICE_GUIDE_COLLECTION,
     SERVICE_GUIDE_CORPUS,
+    SERVICE_GUIDE_PROJECTION_FILENAME,
     SERVICE_GUIDE_PROJECTION_SCHEMA_VERSION,
     assert_service_guide_projection_release_ready,
     write_service_guide_projection_release,
@@ -290,6 +293,18 @@ def _release_contact_directory_candidates(
         "conflict_records": [],
         "manual_review_sources": [],
     }
+    bundle = _merge_current_projection_bundle(
+        current_bundle=_load_current_projection_bundle(
+            object_store=object_store,
+            bucket=derived_bucket,
+            corpus=CONTACT_DIRECTORY_CORPUS,
+            collection=CONTACT_DIRECTORY_COLLECTION,
+            filename=CONTACT_DIRECTORY_PROJECTION_FILENAME,
+        ),
+        new_bundle=bundle,
+        records_field="contact_records",
+        id_field="contact_id",
+    )
     assert_contact_directory_projection_release_ready(bundle)
     report = write_contact_directory_projection_release(
         bundle=bundle,
@@ -345,6 +360,18 @@ def _release_service_guide_candidates(
         "conflict_records": [],
         "manual_review_sources": [],
     }
+    bundle = _merge_current_projection_bundle(
+        current_bundle=_load_current_projection_bundle(
+            object_store=object_store,
+            bucket=derived_bucket,
+            corpus=SERVICE_GUIDE_CORPUS,
+            collection=SERVICE_GUIDE_COLLECTION,
+            filename=SERVICE_GUIDE_PROJECTION_FILENAME,
+        ),
+        new_bundle=bundle,
+        records_field="service_guide_records",
+        id_field="service_id",
+    )
     assert_service_guide_projection_release_ready(bundle)
     report = write_service_guide_projection_release(
         bundle=bundle,
@@ -374,6 +401,168 @@ def _release_service_guide_candidates(
     )
 
 
+def _load_current_projection_bundle(
+    *,
+    object_store: OfficialWebSelectedWriteObjectStore,
+    bucket: str,
+    corpus: str,
+    collection: str,
+    filename: str,
+) -> dict[str, object] | None:
+    key = build_index_release_artifact_key(
+        corpus=corpus,
+        collection=collection,
+        release_id="current",
+        filename=filename,
+    )
+    try:
+        payload = json.loads(object_store.get_bytes(bucket=bucket, key=key).decode("utf-8"))
+    except Exception as exc:
+        if _is_missing_object_error(exc):
+            return None
+        raise OfficialWebSelectedWriteReleaseError(
+            code="current_projection_read_failed",
+            message=f"failed to read current {corpus}/{collection} projection: {exc}",
+        ) from exc
+    if not isinstance(payload, dict):
+        raise OfficialWebSelectedWriteReleaseError(
+            code="invalid_current_projection",
+            message=f"current {corpus}/{collection} projection must be a JSON object.",
+        )
+    return payload
+
+
+def _is_missing_object_error(exc: Exception) -> bool:
+    if isinstance(exc, KeyError | FileNotFoundError):
+        return True
+    response = getattr(exc, "response", None)
+    if not isinstance(response, Mapping):
+        return False
+    error = response.get("Error")
+    if not isinstance(error, Mapping):
+        return False
+    return str(error.get("Code") or "").strip() in {
+        "404",
+        "NoSuchKey",
+        "NotFound",
+    }
+
+
+def _merge_current_projection_bundle(
+    *,
+    current_bundle: Mapping[str, object] | None,
+    new_bundle: dict[str, object],
+    records_field: str,
+    id_field: str,
+) -> dict[str, object]:
+    new_records = [
+        {**record, "release_record_state": "newly_selected"}
+        for record in _mapping_list(new_bundle.get(records_field))
+    ]
+    new_bundle = {
+        **new_bundle,
+        records_field: new_records,
+        "release_record_lineage": _release_record_lineage(new_records),
+    }
+    if current_bundle is None:
+        return new_bundle
+    if current_bundle.get("schema_version") != new_bundle.get("schema_version"):
+        raise OfficialWebSelectedWriteReleaseError(
+            code="current_projection_schema_mismatch",
+            message="current projection schema does not match selected-write projection schema.",
+        )
+    current_records = _mapping_list(current_bundle.get(records_field))
+    replacement_ids = {str(record.get(id_field) or "").strip() for record in new_records}
+    replacement_inventory_ids = _record_inventory_ids(new_records)
+    carried_records = [
+        {**record, "release_record_state": "carried_forward"}
+        for record in current_records
+        if str(record.get(id_field) or "").strip() not in replacement_ids
+        and not (_record_inventory_ids([record]) & replacement_inventory_ids)
+    ]
+    merged_records = [*carried_records, *new_records]
+    return {
+        **new_bundle,
+        "source_families": _unique_strings(
+            [
+                *_string_list(current_bundle.get("source_families")),
+                *_string_list(new_bundle.get("source_families")),
+            ]
+        ),
+        "source_documents": _merge_source_documents(
+            current_bundle.get("source_documents"),
+            new_bundle.get("source_documents"),
+        ),
+        records_field: merged_records,
+        "release_record_lineage": _release_record_lineage(merged_records),
+        "conflict_records": [
+            *_mapping_list(current_bundle.get("conflict_records")),
+            *_mapping_list(new_bundle.get("conflict_records")),
+        ],
+        "manual_review_sources": [
+            *_mapping_list(current_bundle.get("manual_review_sources")),
+            *_mapping_list(new_bundle.get("manual_review_sources")),
+        ],
+    }
+
+
+def _release_record_lineage(records: Sequence[Mapping[str, object]]) -> dict[str, int]:
+    counts = {"carried_forward": 0, "newly_selected": 0}
+    for record in records:
+        state = str(record.get("release_record_state") or "").strip()
+        if state in counts:
+            counts[state] += 1
+    return counts
+
+
+def _merge_source_documents(
+    current_value: object,
+    new_value: object,
+) -> list[dict[str, object]]:
+    documents_by_title: dict[str, dict[str, object]] = {}
+    for document in [*_mapping_list(current_value), *_mapping_list(new_value)]:
+        title = str(document.get("title") or "").strip()
+        if not title:
+            continue
+        existing = documents_by_title.get(title)
+        if existing is None:
+            documents_by_title[title] = {
+                **document,
+                "source_refs": _string_list(document.get("source_refs")),
+            }
+            continue
+        existing["source_refs"] = _unique_strings(
+            [
+                *_string_list(existing.get("source_refs")),
+                *_string_list(document.get("source_refs")),
+            ]
+        )
+    return list(documents_by_title.values())
+
+
+def _mapping_list(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+    return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def _record_inventory_ids(records: Sequence[Mapping[str, object]]) -> set[str]:
+    inventory_ids: set[str] = set()
+    for record in records:
+        for source_ref in _string_list(record.get("source_refs")):
+            inventory_id = _official_web_inventory_id_from_source_ref(source_ref)
+            if inventory_id:
+                inventory_ids.add(inventory_id)
+    return inventory_ids
+
+
+def _official_web_inventory_id_from_source_ref(source_ref: str) -> str:
+    parts = source_ref.split(":", 2)
+    if len(parts) < 3 or parts[0] != "official_web":
+        return ""
+    return parts[1].strip()
+
+
 def _contact_record_from_candidate(
     *,
     candidate: dict[str, object],
@@ -393,10 +582,17 @@ def _contact_record_from_candidate(
             "source_ref": source_ref,
         },
     )
+    selected_write_field_review = _selected_write_field_review(selected_write_task)
     return {
         "contact_id": contact_id,
         "display_name": display_name,
-        "aliases": _unique_strings([display_name, *_string_list(typed_candidate.get("aliases"))]),
+        "aliases": _unique_strings(
+            [
+                display_name,
+                _target_label(selected_write_task),
+                *_string_list(typed_candidate.get("aliases")),
+            ]
+        ),
         "contact_group": "official_web",
         "department": display_name,
         "phones": [
@@ -420,6 +616,8 @@ def _contact_record_from_candidate(
         "location_refs": [
             {
                 "label": "办公地点",
+                "location_ref": location,
+                "address_text": location,
                 "location": location,
                 "source_refs": [source_ref],
             }
@@ -427,6 +625,7 @@ def _contact_record_from_candidate(
         ],
         "source_refs": [source_ref],
         "extraction_status": "ready",
+        **selected_write_field_review,
     }
 
 
@@ -472,10 +671,17 @@ def _service_guide_record_from_candidate(
         responsible_offices=responsible_offices,
         source_ref=source_ref,
     )
+    selected_write_field_review = _selected_write_field_review(selected_write_task)
     return {
         "service_id": service_id,
         "display_name": display_name,
-        "aliases": _unique_strings([display_name, *_string_list(typed_candidate.get("aliases"))]),
+        "aliases": _unique_strings(
+            [
+                display_name,
+                _target_label(selected_write_task),
+                *_string_list(typed_candidate.get("aliases")),
+            ]
+        ),
         "category": "campus_service",
         "campus_scope": "all",
         "audience": ["unknown"],
@@ -520,6 +726,7 @@ def _service_guide_record_from_candidate(
         "contact_refs": contact_refs,
         "eligibility_notes": [],
         "extraction_status": "ready",
+        **selected_write_field_review,
     }
 
 
@@ -671,6 +878,33 @@ def _source_document(*, selected_write_task: dict[str, object]) -> dict[str, obj
         "title": selected_write_task.get("inventoryId") or selected_write_task.get("inventory_id"),
         "source_refs": _string_list(evidence.get("sourceUrls")),
     }
+
+
+def _selected_write_field_review(selected_write_task: dict[str, object]) -> dict[str, object]:
+    evidence = _evidence(selected_write_task)
+    return {
+        "field_status": {
+            str(key).strip(): str(value).strip()
+            for key, value in _object_mapping(
+                evidence.get("fieldStatus") or evidence.get("field_status")
+            ).items()
+            if str(key).strip() and str(value).strip()
+        },
+        "required_fields": _string_list(
+            evidence.get("requiredFields") or evidence.get("required_fields")
+        ),
+        "optional_fields": _string_list(
+            evidence.get("optionalFields") or evidence.get("optional_fields")
+        ),
+    }
+
+
+def _target_label(selected_write_task: dict[str, object]) -> str:
+    return str(
+        _evidence(selected_write_task).get("targetLabel")
+        or _evidence(selected_write_task).get("target_label")
+        or ""
+    ).strip()
 
 
 def _candidate_source_ref(

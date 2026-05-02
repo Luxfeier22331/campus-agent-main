@@ -20,9 +20,9 @@
 			"materialization_policy": "candidate_only",
 			"review_policy": "selected_write_requires_review",
 			"inventory_only": false,
-			"release_blockers": ["no_preview_evidence", "field_completeness_unverified"],
+			"release_blockers": ["no_preview_evidence", "machine_field_review_pending"],
 			"preview_status": "candidate",
-			"notes": "Homepage footer currently exposes campus addresses and the main switchboard phone. Treat as a candidate contact-directory seed, not a complete department phone book."
+			"notes": "Homepage footer currently exposes campus addresses and main switchboard phone facts. Treat as a source-faithful contact-directory candidate; do not infer a complete department phone book."
 		},
 		{
 			"inventory_id": "muc-information-disclosure-contact",
@@ -41,9 +41,9 @@
 			"materialization_policy": "candidate_only",
 			"review_policy": "selected_write_requires_review",
 			"inventory_only": false,
-			"release_blockers": ["no_preview_evidence", "field_completeness_unverified"],
+			"release_blockers": ["no_preview_evidence", "machine_field_review_pending"],
 			"preview_status": "candidate",
-			"notes": "Information disclosure contact page publishes address, phone and fax. Email and office hours remain optional source_not_provided fields unless the source later publishes them."
+			"notes": "Information disclosure contact page publishes address, phone and fax. Retain only source-provided contact facts; absent optional facts remain source_not_provided."
 		},
 		{
 			"inventory_id": "muc-information-disclosure-application-process",
@@ -75,7 +75,7 @@
 			"materialization_policy": "candidate_only",
 			"review_policy": "selected_write_requires_review",
 			"inventory_only": false,
-			"release_blockers": ["no_preview_evidence", "field_completeness_unverified"],
+			"release_blockers": ["no_preview_evidence", "machine_field_review_pending"],
 			"preview_status": "candidate",
 			"notes": "Public information-disclosure application guide. It supports informational service-guide answers only, not transactional submission."
 		},
@@ -109,7 +109,7 @@
 			"materialization_policy": "candidate_only",
 			"review_policy": "selected_write_requires_review",
 			"inventory_only": false,
-			"release_blockers": ["no_preview_evidence", "field_completeness_unverified"],
+			"release_blockers": ["no_preview_evidence", "machine_field_review_pending"],
 			"preview_status": "candidate",
 			"notes": "Adjacent information-disclosure application form download page. It contributes material evidence, but remains selected-write blocked until the full service-guide denominator is source-backed."
 		},
@@ -143,7 +143,7 @@
 			"materialization_policy": "candidate_only",
 			"review_policy": "selected_write_requires_review",
 			"inventory_only": false,
-			"release_blockers": ["no_preview_evidence", "field_completeness_unverified"],
+			"release_blockers": ["no_preview_evidence", "machine_field_review_pending"],
 			"preview_status": "candidate",
 			"notes": "Information technology service page describes campus card issuance, password change, loss reporting, card replacement and related service contacts. It supports informational service-guide answers only."
 		},

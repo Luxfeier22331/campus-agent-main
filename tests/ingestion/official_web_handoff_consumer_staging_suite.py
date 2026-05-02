@@ -465,6 +465,95 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             "muc-it-student-campus-card-service-guide",
         )
 
+    def test_machine_field_review_uses_typed_candidate_not_unscoped_evidence_for_optional_fields(
+        self,
+    ) -> None:
+        review = build_consumer_candidate_review_report(
+            replay_report={
+                "site_id": "muc_public",
+                "crawl_run_id": "owrun_campus_card_footer_location",
+                "documents": [],
+                "consumer_candidate_pages": [
+                    {
+                        "candidate_key": "owcand_campus_card_footer_location",
+                        "consumer_family": "service_guide_candidate",
+                        "materialization_policy": "candidate_only",
+                        "selected_write_target": "campus_services/service_guide",
+                        "review_policy": "selected_write_requires_review",
+                        "title": "学生校园卡服务",
+                        "normalized_canonical_url": "https://met.muc.edu.cn/info/1027/1127.htm",
+                        "matched_evidence": ["service_process", "phone", "location"],
+                        "raw_asset_id": "owasset_campus_card",
+                        "raw_version_id": "owver_campus_card",
+                        "target_id": "campus-services-service-guide",
+                        "target_job_id": "owtarget_muc_public_service",
+                        "typed_candidate_schema_version": "official_web_service_guide_candidate.v1",
+                        "typed_candidate": {
+                            "service_name": "学生校园卡服务",
+                            "process_steps": ["校园卡丢失后，请通过民大通APP挂失。"],
+                            "materials": [],
+                            "responsible_office": [],
+                            "entry_points": ["民大通APP"],
+                            "contacts": {
+                                "phones": ["010-68933381"],
+                                "emails": [],
+                                "locations": [],
+                                "office_hours": [],
+                            },
+                            "source_url": "https://met.muc.edu.cn/info/1027/1127.htm",
+                        },
+                        "evidence_spans": [
+                            {
+                                "evidence_type": "location",
+                                "row_id": "footer-1",
+                                "text": "北京市海淀区中关村南大街27号",
+                            }
+                        ],
+                        "quality_gate": {"decision": "pass"},
+                    }
+                ],
+            },
+            target_inventory_manifest={
+                "schema_version": "official_web_target_inventory.v1",
+                "site_id": "muc_public",
+                "inventory_version": "test_target_inventory_v4",
+                "entries": [
+                    {
+                        "inventory_id": "muc-it-student-campus-card-service-guide",
+                        "admission_target_id": "campus-services-service-guide",
+                        "source_urls": ["https://met.muc.edu.cn/info/1027/1127.htm"],
+                        "required_fields": [
+                            "service_name",
+                            "process_steps",
+                            "source_url",
+                            "source_version_evidence",
+                        ],
+                        "optional_fields": [
+                            "service_entry",
+                            "required_materials",
+                            "responsible_office",
+                            "phone",
+                            "location",
+                            "office_hours",
+                        ],
+                        "optional_evidence": [
+                            "service_entry",
+                            "service_material",
+                            "phone",
+                            "location",
+                            "office_hours",
+                        ],
+                        "required_evidence": ["service_process"],
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(
+            review["candidates"][0]["field_status"]["location"],
+            "source_not_provided",
+        )
+
     def test_selected_write_candidate_without_target_inventory_fails_closed(
         self,
     ) -> None:
@@ -836,6 +925,7 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
                         {
                             "inventory_id": "campus-public-contact",
                             "admission_target_id": "campus-services-contact-directory",
+                            "target_label": "校园公共联系方式",
                             "source_urls": ["https://www.example.edu/contact"],
                             "required_fields": [
                                 "organization_name",
@@ -882,6 +972,7 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             self.assertEqual(review["selectedWrite"]["decision"], "dry_run_ready")
             self.assertEqual(review["counts"]["selected_write_ready_count"], 1)
             self.assertEqual(review["candidates"][0]["review_verdict"], "pending_review")
+            self.assertEqual(review["candidates"][0]["target_label"], "校园公共联系方式")
             self.assertTrue(review["candidates"][0]["ready_for_selected_write"])
             self.assertEqual(
                 review["candidates"][0]["admission_action"],
@@ -890,6 +981,42 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             self.assertEqual(
                 review["selectedWrite"]["preview_records"][0]["target_collection"],
                 "contact_directory",
+            )
+            self.assertEqual(
+                review["selectedWrite"]["preview_records"][0]["field_status"],
+                {
+                    "organization_name": "present",
+                    "phone": "present",
+                    "email": "present",
+                    "location": "present",
+                    "office_hours": "present",
+                    "source_url": "present",
+                    "source_version_evidence": "present",
+                },
+            )
+            self.assertEqual(
+                review["selectedWrite"]["preview_records"][0]["required_fields"],
+                [
+                    "organization_name",
+                    "phone",
+                    "email",
+                    "location",
+                    "office_hours",
+                    "source_url",
+                    "source_version_evidence",
+                ],
+            )
+            self.assertEqual(
+                review["selectedWrite"]["preview_records"][0]["required_evidence"],
+                ["phone", "email", "location", "office_hours"],
+            )
+            self.assertEqual(
+                review["selectedWrite"]["preview_records"][0]["inventory_id"],
+                "campus-public-contact",
+            )
+            self.assertEqual(
+                review["selectedWrite"]["preview_records"][0]["target_label"],
+                "校园公共联系方式",
             )
             tasks = release_task_store.list_tasks()
             self.assertEqual(len(tasks), 1)
@@ -911,6 +1038,7 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
                     )
                 ],
             )
+            self.assertEqual(tasks[0].input_ref["targetLabel"], "校园公共联系方式")
             self.assertIsNone(execution_report["import"])
             self.assertEqual(execution_report["promotion"]["decision"], "staged")
 

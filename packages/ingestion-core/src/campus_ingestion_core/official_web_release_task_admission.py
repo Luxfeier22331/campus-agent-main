@@ -15,6 +15,7 @@ _SELECTED_WRITE_TASK_TYPE_BY_TARGET = {
     "campus_services/contact_directory": "official_web_selected_write_contact_directory",
     "campus_services/service_guide": "official_web_selected_write_service_guide",
 }
+_SELECTED_WRITE_ADMISSION_POLICY_VERSION = "official_web_selected_write_release_task_admission.v4"
 
 
 def build_stable_reference_release_task_from_gate(
@@ -138,10 +139,13 @@ def build_selected_write_release_task_from_candidate(
             candidate.get("typed_candidate_schema_version")
         ),
     }
+    target_label = _optional_text(candidate.get("target_label") or candidate.get("targetLabel"))
+    if target_label is not None:
+        evidence["targetLabel"] = target_label
     return build_official_web_release_task(
         input_ref=_release_input_ref(
             evidence=evidence,
-            policy_version="official_web_selected_write_release_task_admission.v1",
+            policy_version=_SELECTED_WRITE_ADMISSION_POLICY_VERSION,
         ),
         inventory_id=_optional_text(candidate.get("inventory_id")) or candidate_key,
         job_id=_required_text(candidate.get("target_job_id"), "target_job_id"),
@@ -149,7 +153,10 @@ def build_selected_write_release_task_from_candidate(
         publish_alias=False,
         run_id=_required_text(run_id, "run_id"),
         selected_write_target=selected_write_target,
-        task_id=_selected_write_task_id(candidate_key=candidate_key),
+        task_id=_selected_write_task_id(
+            candidate_key=candidate_key,
+            policy_version=_SELECTED_WRITE_ADMISSION_POLICY_VERSION,
+        ),
         task_type=task_type,
     )
 
@@ -201,8 +208,8 @@ def _release_input_ref(
     return payload
 
 
-def _selected_write_task_id(*, candidate_key: str) -> str:
-    digest = hashlib.sha256(candidate_key.encode("utf-8")).hexdigest()[:24]
+def _selected_write_task_id(*, candidate_key: str, policy_version: str) -> str:
+    digest = hashlib.sha256(f"{policy_version}:{candidate_key}".encode()).hexdigest()[:24]
     return f"owrelease_selected_write_{digest}"
 
 

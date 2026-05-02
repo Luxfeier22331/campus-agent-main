@@ -114,6 +114,10 @@ class OfficialWebReleaseTaskAdmissionTest(unittest.TestCase):
         self.assertEqual(task.input_ref["fieldStatus"]["phone"], "present")
         self.assertEqual(task.input_ref["fieldStatus"]["email"], "source_not_provided")
         self.assertEqual(
+            task.input_ref["policyVersion"],
+            "official_web_selected_write_release_task_admission.v4",
+        )
+        self.assertEqual(
             task.input_ref["requiredEvidence"],
             ["phone"],
         )

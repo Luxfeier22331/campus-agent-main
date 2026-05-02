@@ -17,7 +17,7 @@
 			"review_policy": "selected_write_requires_review",
 			"materialization_policy": "candidate_only",
 			"inventory_only": false,
-			"notes": "Targeted public-web evidence for phone, email, office location, and office-hour lookup."
+			"notes": "Targeted public-web evidence for source-faithful contact lookup. Phone is release-blocking evidence; email, location and office hours are retained only when the source provides them."
 		},
 		{
 			"target_id": "campus-services-service-guide",
@@ -39,7 +39,7 @@
 			"review_policy": "selected_write_requires_review",
 			"materialization_policy": "candidate_only",
 			"inventory_only": false,
-			"notes": "Targeted public-web evidence for informational service-guide answers, not transactional submission."
+			"notes": "Targeted public-web evidence for source-faithful informational service-guide answers, not transactional submission. Process evidence is release-blocking; entry, material, contact, location and office-hour evidence are retained only when the source provides them."
 		},
 		{
 			"target_id": "official-web-stable-reference",
@@ -48,7 +48,7 @@
 			"selected_write_target": "official_web/stable_reference",
 			"source_hosts": ["www.muc.edu.cn", "xxgk.muc.edu.cn"],
 			"url_hints": ["about", "intro", "leader", "gk", "jj", "jgsz"],
-			"title_hints": ["学校简介", "学校概况", "现任领导", "机构设置"],
+			"title_hints": ["学校简介", "学校概况", "现任领导", "机构设置", "学院简介", "部门简介"],
 			"required_evidence": ["stable_reference"],
 			"optional_evidence": [],
 			"retention_policy": "retain_source_truth",

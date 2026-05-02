@@ -28,12 +28,11 @@ It resolves the distinction between:
 
 ## Contact Directory Denominator
 
-The current family-level admission evidence remains:
+The current family-level selected-write denominator is source-backed contact evidence, with
+`phone` as the required evidence field:
 
-- `phone`
-- `email`
-- `location`
-- `office_hours`
+- required: `phone`
+- optional when the source provides it: `email`, `location`, `office_hours`
 
 The structured projection must also preserve:
 
@@ -45,24 +44,20 @@ The structured projection must also preserve:
 Selected-write readiness requires:
 
 - all target inventory `required_fields` are marked `present`
-- all family-level required evidence is marked `present`, unless this workstream explicitly changes
-  the tracked denominator config in the same phase
+- all configured `required_evidence` is marked `present`
 - source object keys, raw asset id and raw version id are present
 
-If a public page lacks `email` or `office_hours`, that target is not silently relaxed. It remains
-`blocked_fields` until the source gap is accepted as a tracked denominator change or another
-source-backed page supplies the missing evidence.
+If a public page lacks `email`, `location` or `office_hours`, the candidate may still be released
+when required phone evidence and source lineage are present. The missing optional fields must be
+preserved as source-not-provided gaps instead of being fabricated or filled from unrelated pages.
 
 ## Service Guide Denominator
 
-The current family-level admission evidence remains:
+The current family-level selected-write denominator requires a source-backed process description:
 
-- `service_process`
-- `service_entry`
-- `service_material`
-- `phone`
-- `location`
-- `office_hours`
+- required: `service_process`
+- optional when the source provides it: `service_entry`, `service_material`, `phone`, `location`,
+  `office_hours`
 
 The structured projection must also preserve:
 
@@ -75,13 +70,12 @@ The structured projection must also preserve:
 Selected-write readiness requires:
 
 - all target inventory `required_fields` are marked `present`
-- all family-level required evidence is marked `present`, unless this workstream explicitly changes
-  the tracked denominator config in the same phase
+- all configured `required_evidence` is marked `present`
 - source object keys, raw asset id and raw version id are present
 
-If a public page describes a service but omits materials, office hours or contact method, that target
-is blocked for selected-write. It may remain inventory evidence, but it cannot become current
-service-guide truth without a denominator change or additional source evidence.
+If a public page describes a service but omits materials, office hours or contact method, the
+candidate may still be released only when its configured required fields and process evidence pass.
+Missing optional fields must remain explicit gaps in the release evidence and projection.
 
 ## Machine Review Semantics
 
@@ -90,7 +84,8 @@ service-guide truth without a denominator change or additional source evidence.
 For contact directory and service guide targets, review is machine-generated field review:
 
 - ingestion-worker derives `field_status` from target inventory `required_fields`
-- ingestion-worker checks family-level required evidence from the denominator configs
+- ingestion-worker checks required evidence from the denominator configs and treats optional
+  evidence as source-preserved enrichment
 - ingestion-worker reports `targetFieldReviews` to app-api through the existing internal callback
 - app-api stores the sanitized summary in
   `official_web.target_artifact_verification_summaries`
@@ -104,8 +99,9 @@ not modeled as an approval queue for candidates that fail deterministic checks.
 
 - Missing source lineage blocks selected-write.
 - Missing target inventory `required_fields` blocks selected-write.
-- Missing family-level required evidence blocks selected-write unless the denominator config is
-  changed explicitly.
+- Missing configured required evidence blocks selected-write.
+- Missing optional evidence must be recorded as source-not-provided and must not block release by
+  itself.
 - Ambiguous ownership blocks selected-write.
 - Duplicate facts from conflicting pages block selected-write until a deterministic source priority
   is documented.

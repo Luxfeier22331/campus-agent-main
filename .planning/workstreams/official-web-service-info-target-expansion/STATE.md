@@ -12,7 +12,7 @@ created: 2026-05-02
 **Status:** Completed
 **Current Phase:** Phase 7 - Closeout
 **Last Activity:** 2026-05-02
-**Last Activity Description:** Service-info target expansion closed fail-closed
+**Last Activity Description:** Service-info target expansion closed with selected-write runtime proof
 
 ## Progress
 
@@ -21,8 +21,10 @@ created: 2026-05-02
 
 ## Current Slice
 
-Closed. Current real official-web service-info targets are source-backed but blocked by denominator
-field gaps, so no current structured projection write was performed.
+Closed. Three source-backed official-web service-info targets were admitted through machine field
+review, released through ingestion-owned selected-write tasks and verified through structured
+runtime lookup. Remaining retained candidates stay fail-closed until preview evidence and required
+fields are present.
 
 ## Blockers
 
@@ -30,11 +32,10 @@ field gaps, so no current structured projection write was performed.
 
 ## Risks
 
-- Source pages may not contain office hours, handling channels or material lists. Those gaps must
-  become blocked candidates, not broader crawl.
-- Existing denominator configs require `email` / `office_hours` for contact and service process,
-  entry, material, phone, location and office hours for service guide. Phase work must either
-  satisfy those fields or explicitly change tracked denominator config; prose cannot relax them.
+- Source pages may not contain office hours, handling channels or material lists. Optional gaps must
+  remain source-not-provided fields; required gaps must remain blocked candidates, not broader crawl.
+- Denominator config is the enforcement source of truth. Prose cannot relax configured
+  `required_fields` or `required_evidence`.
 - Existing official-web registry state is dirty in the current worktree. This workstream should not
   revert unrelated registry or implementation changes.
 

@@ -20,7 +20,7 @@ information.
 
 - status: `completed`
 - current phase: `Phase 7`
-- current slice: closeout
+- current slice: selected-write release and runtime proof closed
 - active implementation: none
 - owner: Codex session
 
@@ -31,6 +31,12 @@ The desired path is:
 `downstream field gap -> explicit official-web target candidate -> field denominator gate ->
 no-promotion preview -> machine field review summary -> ingestion-owned selected-write release task
 -> current structured projection -> app-api/panel/operator-safe consumption`
+
+Current released projections from this workstream:
+
+- `muc-main-homepage-contact` for `campus_services/contact_directory`
+- `muc-information-disclosure-contact` for `campus_services/contact_directory`
+- `muc-it-student-campus-card-service-guide` for `campus_services/service_guide`
 
 The initial downstream surfaces are:
 

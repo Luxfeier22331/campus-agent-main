@@ -920,6 +920,209 @@ class OfficialWebProjectionCoreReplayTest(unittest.TestCase):
             )
             self.assertEqual(candidate["quality_gate"], {"decision": "pass", "reason_codes": []})
 
+    def test_service_guide_candidate_keeps_process_text_out_of_materials_and_entry_refs(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            service_match = _target_match(
+                consumer_family="service_guide_candidate",
+                materialization_policy="candidate_only",
+                selected_write_target="campus_services/service_guide",
+                target_id="muc-it-student-campus-card-service-guide",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "sourceChannel": "official_web",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_campus_card_service",
+                    "collectionMode": "target-workset",
+                    "generatedAt": "2026-05-01T09:00:00.000Z",
+                    "pages": [
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_campus_card",
+                            raw_version_id="owver_campus_card",
+                            normalized_canonical_url="https://met.example.edu/card-service",
+                            page_family="article_detail",
+                            target_matches=[service_match],
+                        ),
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="met.example.edu",
+                raw_asset_id="owasset_campus_card",
+                raw_version_id="owver_campus_card",
+                normalized_canonical_url="https://met.example.edu/card-service",
+                page_title="学生校园卡服务",
+                page_family="article_detail",
+                target_matches=[service_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_campus_card",
+                        raw_version_id="owver_campus_card",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="学生校园卡服务",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_campus_card",
+                        raw_version_id="owver_campus_card",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="服务说明：校园卡丢失后，请立即通过圈存机或民大通APP挂失，也可携带身份证到校园卡管理中心前台现场办理。",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_campus_card",
+                        raw_version_id="owver_campus_card",
+                        row_id="p-2",
+                        row_index=2,
+                        block_order=2,
+                        block_role="paragraph",
+                        text="服务说明：校园卡损坏或丢失后，可通过自助补卡机补办新卡。",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_campus_card",
+                        raw_version_id="owver_campus_card",
+                        row_id="p-3",
+                        row_index=3,
+                        block_order=3,
+                        block_role="paragraph",
+                        text="系统会同步相关个人信息到校园卡系统。",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_campus_card",
+                        raw_version_id="owver_campus_card",
+                        row_id="p-4",
+                        row_index=4,
+                        block_order=4,
+                        block_role="paragraph",
+                        text="咨询电话：010-68933381、010-83878225。",
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+
+            candidate = report.consumer_candidate_pages[0]
+            typed_candidate = candidate["typed_candidate"]
+            self.assertEqual(typed_candidate["materials"], [])
+            self.assertEqual(
+                typed_candidate["entry_points"],
+                ["圈存机", "民大通APP", "校园卡管理中心前台", "自助补卡机"],
+            )
+            self.assertTrue(
+                any("服务说明：校园卡丢失后" in step for step in typed_candidate["process_steps"])
+            )
+            self.assertEqual(
+                typed_candidate["contacts"]["phones"],
+                ["010-68933381", "010-83878225"],
+            )
+            self.assertEqual(candidate["quality_gate"], {"decision": "pass", "reason_codes": []})
+
+    def test_service_guide_download_page_does_not_satisfy_process_evidence(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            service_match = _target_match(
+                consumer_family="service_guide_candidate",
+                materialization_policy="candidate_only",
+                selected_write_target="campus_services/service_guide",
+                target_id="muc-information-disclosure-application-form-download",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "sourceChannel": "official_web",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_form_download",
+                    "collectionMode": "target-workset",
+                    "generatedAt": "2026-05-01T09:00:00.000Z",
+                    "pages": [
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_form_download",
+                            raw_version_id="owver_form_download",
+                            normalized_canonical_url="https://xxgk.example.edu/info/1007/1114.htm",
+                            page_family="article_detail",
+                            target_matches=[service_match],
+                        ),
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="xxgk.example.edu",
+                raw_asset_id="owasset_form_download",
+                raw_version_id="owver_form_download",
+                normalized_canonical_url="https://xxgk.example.edu/info/1007/1114.htm",
+                page_title="中央民族大学依申请公开信息申请表、审批表下载",
+                page_family="article_detail",
+                target_matches=[service_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_form_download",
+                        raw_version_id="owver_form_download",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学依申请公开信息申请表、审批表下载",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_form_download",
+                        raw_version_id="owver_form_download",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="中央民族大学依申请公开信息审批表",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_form_download",
+                        raw_version_id="owver_form_download",
+                        row_id="p-2",
+                        row_index=2,
+                        block_order=2,
+                        block_role="paragraph",
+                        text="中央民族大学信息公开申请表",
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+
+            candidate = report.consumer_candidate_pages[0]
+            self.assertEqual(candidate["typed_candidate"]["process_steps"], [])
+            self.assertEqual(
+                candidate["quality_gate"],
+                {"decision": "reject", "reason_codes": ["missing_required_evidence"]},
+            )
+
     def test_target_workset_missing_lineage_fails_projection_admission(
         self,
     ) -> None:

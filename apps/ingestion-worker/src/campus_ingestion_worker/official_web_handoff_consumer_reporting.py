@@ -428,6 +428,9 @@ def _build_consumer_candidate_review_entry(
         "target_declaration_version": optional_text(candidate.get("target_declaration_version")),
         "target_id": optional_text(candidate.get("target_id")),
         "target_job_id": optional_text(candidate.get("target_job_id")),
+        "target_label": optional_text(target_inventory_entry.get("target_label"))
+        if target_inventory_entry is not None
+        else None,
         "review_policy": require_text(candidate.get("review_policy"), "review_policy"),
         "title": require_text(candidate.get("title"), "title"),
         "normalized_canonical_url": require_text(
@@ -645,12 +648,6 @@ def _field_status_for_required_field(
         )
     if field_name == "source_url":
         return "present" if optional_text(candidate.get("normalized_canonical_url")) else "missing"
-    if field_name in {"phone", "location", "email"} and _evidence_span_present(
-        candidate=candidate,
-        evidence_type=field_name,
-    ):
-        return "present"
-
     for field_path in _FIELD_ALIASES.get(field_name, (field_name,)):
         if _is_present_value(_lookup_field_path(typed_candidate, field_path)):
             return "present"
@@ -1039,11 +1036,30 @@ def _selected_write_preview_record(candidate: dict[str, object]) -> dict[str, ob
     target_corpus, target_collection = selected_write_target.split("/", 1)
     return {
         "candidate_key": require_text(candidate.get("candidate_key"), "candidate_key"),
+        "field_status": dict(candidate.get("field_status"))
+        if isinstance(candidate.get("field_status"), dict)
+        else {},
+        "inventory_id": optional_text(candidate.get("inventory_id")),
+        "matched_evidence": normalize_string_list(candidate.get("matched_evidence")),
+        "normalized_canonical_url": require_text(
+            candidate.get("normalized_canonical_url"),
+            "normalized_canonical_url",
+        ),
+        "optional_evidence": normalize_string_list(candidate.get("optional_evidence")),
+        "optional_fields": normalize_string_list(candidate.get("optional_fields")),
+        "ready_for_selected_write": bool(candidate.get("ready_for_selected_write")),
+        "required_evidence": normalize_string_list(candidate.get("required_evidence")),
+        "required_fields": normalize_string_list(candidate.get("required_fields")),
+        "review_verdict": require_text(candidate.get("review_verdict"), "review_verdict"),
+        "selected_write_target": selected_write_target,
+        "source_ref": candidate.get("source_ref"),
+        "target_id": optional_text(candidate.get("target_id")),
+        "target_job_id": optional_text(candidate.get("target_job_id")),
+        "target_label": optional_text(candidate.get("target_label")),
         "target_corpus": target_corpus,
         "target_collection": target_collection,
         "typed_candidate_schema_version": candidate.get("typed_candidate_schema_version"),
         "typed_candidate": candidate.get("typed_candidate"),
-        "source_ref": candidate.get("source_ref"),
     }
 
 

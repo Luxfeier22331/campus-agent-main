@@ -54,9 +54,36 @@ _OFFICE_HOURS_RE = re.compile(r"(?:办公时间|办理时间|服务时间|开放
 _SELECTED_WRITE_SUPPRESSION_RE = re.compile(
     r"(采购|招标|中标|中选|比选|竞价|结果公示|公示期|公开招聘|招聘启事|新闻|通知|公告)"
 )
-_SERVICE_PROCESS_RE = re.compile(r"(办理流程|流程|步骤|申请|补办|挂失|办理|报销|预约)")
+_SERVICE_PROCESS_RE = re.compile(
+    r"(办理流程|工作流程|流程|步骤|受理|审核|答复|提交|补正|办理|补办|挂失|解挂|报销|预约|"
+    r"申请人|承办部门|工作日|领取|发放|携带|支付)"
+)
 _SERVICE_ENTRY_RE = re.compile(r"(入口|系统|APP|小程序|自助|线下|窗口|前台)", re.IGNORECASE)
 _SERVICE_MATERIAL_RE = re.compile(r"(材料|申请表|证明|身份证|证件|附件)")
+_SERVICE_EXPLANATION_PREFIX_RE = re.compile(r"^\s*(?:服务说明|业务说明|说明)[:：]")
+_SERVICE_MATERIAL_DECLARATION_RE = re.compile(
+    r"(?:申请材料|所需材料|办理材料|提交材料|材料清单|需提交|须提交|需提供|须提供|请提供)"
+)
+_SERVICE_MATERIAL_ITEM_RE = re.compile(
+    r"(身份证|学生证|有效证件|申请表|证明材料|证明|复印件|照片|附件)"
+)
+_SERVICE_URL_RE = re.compile(r"https?://[^\s，。；;）)]+", re.IGNORECASE)
+_SERVICE_APP_RE = re.compile(
+    r"(?:可登录|可通过|登录|通过|使用|打开|下载)?(?P<label>[\u4e00-\u9fffA-Za-z0-9]{1,24}APP)",
+    re.IGNORECASE,
+)
+_SERVICE_MINIPROGRAM_RE = re.compile(
+    r"(?:可登录|可通过|登录|通过|使用|打开)?(?P<label>[\u4e00-\u9fffA-Za-z0-9]{1,24}小程序)"
+)
+_SERVICE_SYSTEM_RE = re.compile(
+    r"(?:可登录|可通过|登录|通过|使用|进入|打开)?(?P<label>[\u4e00-\u9fffA-Za-z0-9]{2,30}系统)"
+)
+_SERVICE_SYSTEM_ENTRY_SIGNAL_RE = re.compile(r"(登录|访问|进入|使用|通过|入口|办理入口)")
+_SERVICE_SYSTEM_NON_ENTRY_RE = re.compile(r"(同步|推送|更新|生成).*系统")
+_SERVICE_SELF_SERVICE_MACHINE_RE = re.compile(r"(自助补卡机|圈存机|自助服务机|自助终端|自助机)")
+_SERVICE_OFFLINE_ENTRY_RE = re.compile(
+    r"(?:到|至|前往|在)(?P<label>[^，。；;\n]{2,36}(?:前台|窗口))"
+)
 _RESPONSIBLE_OFFICE_RE = re.compile(
     r"(?:由)?(?P<office>[\u4e00-\u9fff（）()]{2,30}?"
     r"(?:办公室|承办部门|部门|处|中心|单位|学院))"
@@ -440,13 +467,14 @@ def _build_typed_candidate(
     title: str,
 ) -> tuple[str, dict[str, object], dict[str, object], list[dict[str, object]]]:
     main_lines = _main_content_lines(blocks)
-    lines = _candidate_content_lines(blocks=blocks, consumer_family=consumer_family)
+    candidate_blocks = _candidate_content_blocks(blocks=blocks, consumer_family=consumer_family)
+    lines = _block_lines(candidate_blocks)
     page_text = "\n".join(lines)
     phones = _unique(_PHONE_RE.findall(page_text))
     emails = _unique(_EMAIL_RE.findall(page_text))
     locations = _extract_locations(lines)
     office_hours = _unique(match.strip() for match in _OFFICE_HOURS_RE.findall(page_text))
-    evidence_spans = _build_evidence_spans(blocks)
+    evidence_spans = _build_evidence_spans(candidate_blocks)
     suppressed = _selected_write_suppressed(title=title, lines=main_lines)
 
     if consumer_family == "contact_directory_candidate":
@@ -472,9 +500,9 @@ def _build_typed_candidate(
         )
 
     if consumer_family == "service_guide_candidate":
-        process_steps = _matching_lines(lines, _SERVICE_PROCESS_RE)
-        materials = _matching_lines(lines, _SERVICE_MATERIAL_RE)
-        entry_points = _matching_lines(lines, _SERVICE_ENTRY_RE)
+        process_steps = _extract_service_process_steps(lines)
+        materials = _extract_service_materials(lines)
+        entry_points = _extract_service_entry_points(lines)
         responsible_office = _extract_responsible_offices(lines)
         typed_candidate = {
             "service_name": title,
@@ -497,7 +525,7 @@ def _build_typed_candidate(
             _quality_gate(
                 suppressed=suppressed,
                 has_identity=bool(title.strip()),
-                has_required_evidence=bool(process_steps or materials or entry_points),
+                has_required_evidence=bool(process_steps),
                 has_source=bool(normalized_canonical_url.strip()),
             ),
             evidence_spans,
@@ -540,32 +568,42 @@ def _quality_gate(
 
 
 def _main_content_lines(blocks: list[dict[str, object]]) -> list[str]:
-    lines: list[str] = []
-    for block in blocks:
-        if not bool(block.get("isMainContent")) and block.get("blockRole") != "title":
-            continue
-        text = _normalize_block_text(block)
-        if text:
-            lines.append(text)
-    return lines
+    return _block_lines(_main_content_blocks(blocks))
 
 
-def _candidate_content_lines(
+def _main_content_blocks(blocks: list[dict[str, object]]) -> list[dict[str, object]]:
+    return [
+        block
+        for block in blocks
+        if bool(block.get("isMainContent")) or block.get("blockRole") == "title"
+    ]
+
+
+def _candidate_content_blocks(
     *,
     blocks: list[dict[str, object]],
     consumer_family: str,
-) -> list[str]:
+) -> list[dict[str, object]]:
     if consumer_family != "contact_directory_candidate":
-        return _main_content_lines(blocks)
-    lines: list[str] = []
+        return _main_content_blocks(blocks)
+    candidate_blocks: list[dict[str, object]] = []
     for block in blocks:
         text = _normalize_block_text(block)
         if not text:
             continue
         if bool(block.get("isMainContent")) or block.get("blockRole") == "title":
-            lines.append(text)
+            candidate_blocks.append(block)
             continue
         if _has_contact_directory_signal(text):
+            candidate_blocks.append(block)
+    return candidate_blocks
+
+
+def _block_lines(blocks: list[dict[str, object]]) -> list[str]:
+    lines: list[str] = []
+    for block in blocks:
+        text = _normalize_block_text(block)
+        if text:
             lines.append(text)
     return lines
 
@@ -614,6 +652,108 @@ def _clean_responsible_office(value: str) -> str:
     normalized = value.strip(" ，,。；;：:")
     normalized = re.sub(r"^(?:并由|由|经)", "", normalized)
     return normalized.strip()
+
+
+def _extract_service_materials(lines: list[str]) -> list[str]:
+    materials: list[str] = []
+    for line in lines:
+        if _SERVICE_EXPLANATION_PREFIX_RE.search(line):
+            continue
+        if not _SERVICE_MATERIAL_DECLARATION_RE.search(line):
+            continue
+        fragment = _material_fragment(line)
+        matches = _SERVICE_MATERIAL_ITEM_RE.findall(fragment)
+        materials.extend(matches)
+    return _unique(materials)
+
+
+def _extract_service_process_steps(lines: list[str]) -> list[str]:
+    return _unique(line for line in lines if _is_service_process_line(line))
+
+
+def _is_service_process_line(line: str) -> bool:
+    normalized = line.strip()
+    if not normalized:
+        return False
+    if _is_service_material_only_line(normalized):
+        return False
+    return bool(_SERVICE_PROCESS_RE.search(normalized))
+
+
+def _is_service_material_only_line(line: str) -> bool:
+    normalized = line.strip()
+    if not normalized:
+        return False
+    if _SERVICE_MATERIAL_DECLARATION_RE.search(normalized):
+        return False
+    if _SERVICE_PROCESS_RE.search(normalized) and not re.search(
+        r"(申请表|审批表|下载)", normalized
+    ):
+        return False
+    return bool(
+        re.fullmatch(
+            r"[\u4e00-\u9fffA-Za-z0-9（）()《》、，, -]*(?:申请表|审批表|表格|下载)[\u4e00-\u9fffA-Za-z0-9（）()《》、，, -]*",
+            normalized,
+        )
+    )
+
+
+def _material_fragment(line: str) -> str:
+    normalized = line.strip()
+    for separator in ("：", ":", "包括", "包含"):
+        if separator in normalized:
+            normalized = normalized.split(separator, 1)[1]
+            break
+    return normalized
+
+
+def _extract_service_entry_points(lines: list[str]) -> list[str]:
+    entries: list[str] = []
+    for line in lines:
+        if not _SERVICE_ENTRY_RE.search(line) and not _SERVICE_URL_RE.search(line):
+            continue
+        entries.extend(_SERVICE_URL_RE.findall(line))
+        entries.extend(_SERVICE_SELF_SERVICE_MACHINE_RE.findall(line))
+        for pattern in (_SERVICE_APP_RE, _SERVICE_MINIPROGRAM_RE, _SERVICE_OFFLINE_ENTRY_RE):
+            for match in pattern.finditer(line):
+                entries.append(_clean_service_entry_label(match.group("label")))
+        if _SERVICE_SYSTEM_ENTRY_SIGNAL_RE.search(line) and not _SERVICE_SYSTEM_NON_ENTRY_RE.search(
+            line
+        ):
+            for match in _SERVICE_SYSTEM_RE.finditer(line):
+                entries.append(_clean_service_entry_label(match.group("label")))
+    return _unique(entry for entry in entries if entry)
+
+
+def _clean_service_entry_label(value: str) -> str:
+    normalized = re.sub(r"\s+", "", value).strip(" ，,。；;：:（）()")
+    for separator in ("或", "、", "/"):
+        if separator in normalized:
+            normalized = normalized.split(separator)[-1]
+    while True:
+        for prefix in (
+            "请立即通过",
+            "请通过",
+            "可登录",
+            "可通过",
+            "可使用",
+            "登录",
+            "通过",
+            "使用",
+            "打开",
+            "下载",
+            "进入",
+            "到",
+            "至",
+            "前往",
+            "在",
+        ):
+            if normalized.startswith(prefix):
+                normalized = normalized[len(prefix) :]
+                break
+        else:
+            break
+    return normalized.strip(" ，,。；;：:（）()")
 
 
 def _selected_write_suppressed(*, title: str, lines: list[str]) -> bool:

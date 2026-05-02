@@ -11,14 +11,17 @@ updated: 2026-05-02
 
 ## Goal
 
-Prove service-guide candidates remain no-promotion until the full service denominator is present.
+Prove service-guide candidates remain no-promotion until required source-backed process evidence
+and lineage are present. Optional entry, material, contact, location and office-hour facts are
+retained only when the source page provides them.
 
 ## Tasks
 
 1. Keep the information-disclosure workflow page as a retained service candidate.
 2. Add the application form download page as a source-backed material candidate.
-3. Require service process, entry, material, phone, location and office hours.
-4. Verify missing service fields block selected-write.
+3. Require service process and source lineage.
+4. Verify missing optional service fields are recorded as `source_not_provided`, not treated as
+   selected-write blockers.
 
 ## Verification
 

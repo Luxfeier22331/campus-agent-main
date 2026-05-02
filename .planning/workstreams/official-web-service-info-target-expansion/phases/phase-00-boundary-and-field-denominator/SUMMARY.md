@@ -13,13 +13,12 @@ updated: 2026-05-02
 
 - Service-info expansion is limited to `campus_services/contact_directory` and
   `campus_services/service_guide`.
-- `contact_directory_candidate` keeps the configured family denominator:
-  `phone`, `email`, `location`, `office_hours`.
-- `service_guide_candidate` keeps the configured family denominator:
-  `service_process`, `service_entry`, `service_material`, `phone`, `location`,
-  `office_hours`.
-- Target inventory rows may add target-specific structured fields, but they may not relax
-  family-level required evidence without changing the tracked denominator config in the same phase.
+- `contact_directory_candidate` requires source-backed `phone` evidence. `email`, `location` and
+  `office_hours` are optional source-provided facts.
+- `service_guide_candidate` requires source-backed `service_process` evidence. `service_entry`,
+  `service_material`, `phone`, `location` and `office_hours` are optional source-provided facts.
+- Target inventory rows may add target-specific structured fields, but they may not treat optional
+  source-not-provided facts as release-blocking completeness gaps.
 - `selected_write_requires_review` means ingestion-owned machine field review for this workstream,
   reported through `targetFieldReviews`; it is not a default human approval queue.
 
