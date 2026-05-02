@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 # Product Runtime Architecture
 
@@ -43,6 +43,8 @@ model`
 - `apps/app-api` 是 shared product/control-plane backend
 - `apps/supervisor-api` 是 Docker-first internal execution engine
 - panel 不读数据库、不读 telemetry sink、不绕过 `app-api`
+- ingestion/release task state machine 不属于 product runtime；它属于 offline data
+  plane
 
 补充结论：
 
@@ -69,6 +71,8 @@ model`
 - `apps/app-api`
   - 已同时承担 product backend 与 selected operator control-plane backend
   - `official_web` control plane 已是 accepted runtime domain，不再是旁路后台
+  - `official_web` control plane 不包括 release task claim / lease / retry /
+    dead-letter / publish 状态机；这些状态属于 ingestion data plane
   - `authenticated_notice_processing` operator projection 已是 accepted app-owned
     read-only panel domain；它只展示处理状态，不成为 collector scheduler、queue
     mutation API 或对象存储浏览器
@@ -120,6 +124,9 @@ model`
 - `operator.request_projection`
 - selected operator control-plane domains，例如 `official_web`
 - selected operator-safe processing projections，例如 `authenticated_notice_processing`
+- `official_web` 中只拥有 collector command ingress、operator-safe projection/query 与
+  stable-reference approve/reject ledger；不拥有 selected-write admission/task truth、
+  executor read route 或 executor callback route
 - route exposure inventory 必须显式区分 `browser-surface`、`operator-via-panel`、
   `machine-internal`、`collector-machine` 与 `system`；新增 route 时必须同步 caller
   class 与 admission rule
@@ -153,6 +160,24 @@ surface capability policy 的长期 owner 固定为 `apps/app-api`。
   bridge circuit breaker、metrics 与 graceful drain；它不拥有 product-level 用户限流或
   browser-facing capability policy
 - 不承担 browser-facing product backend 责任
+
+## App-api / Ingestion Boundary
+
+产品 runtime 与 offline data plane 的分界固定为：
+
+`app-api operator/collector control plane -> ingestion-worker release task runtime`
+
+固定规则：
+
+- `apps/app-api` 可以接收 collector lifecycle command、维护 crawl-run ledger、物化
+  operator-safe projections，并记录 stable-reference release gate approve/reject ledger
+- `apps/app-api` 不提供 official-web release executor read/callback routes
+- `apps/app-api` 不保存 contact/service selected-write admission 或 task truth
+- `packages/ingestion-core` 定义 release task contract 与状态推进
+- `apps/ingestion-worker` 执行 release task，负责 claim、lease、retry、
+  dead-letter、materialize、publish 与失败状态
+- `apps/protected-panel-web` 不调用 release task mutation；它只展示 app-api/operator
+  projection 或未来 ingestion 投影后的 read model
 
 ### Docker Execution Runtime Boundary
 

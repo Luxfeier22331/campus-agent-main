@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 # Retrieval Serving Architecture
 
@@ -37,8 +37,9 @@ truth。
 - 顶层产品入口不先判 retrieval `scope`
 - 只有当 supervisor 已把请求路由到 knowledge-family path 后，`requested_scope`、version
   mode、retrieval planning 才开始成立
-- `service_status_lookup`、`campus_notice_discover/get`、`place_lookup` 这类结构化
-  capability 不应再被误读成 retrieval scope 的旁支
+- `service_status_lookup`、`campus_notice_discover`、internal selected notice resolve
+  (`payload_kind=campus_notice_get`) 与 `place_lookup` 这类结构化 capability 不应再被误读成
+  retrieval scope 的旁支
 
 ## Accepted Retrieval Model
 
@@ -132,6 +133,83 @@ serving truth 不写死在 supervisor、API shell 或 env 默认值里。
 - serving alias / release manifest
 - current query-enabled scope
 - explicit authz projection
+
+## Incremental RAG Release Lane
+
+对 regulation、official web stable reference、curriculum 等 canonical document scope，RAG
+更新长期不通过 query-time live fetch 或文档站 publish side effect 完成，而通过独立 release lane
+完成。
+
+固定 lifecycle：
+
+- `rag_release_candidate`
+- `candidate batch`
+- `release admission`
+- `chunk/index release`
+- `retrieval acceptance`
+- `serving alias publish`
+- `post-publish audit`
+
+固定规则：
+
+- canonical document materialization、reader asset publish 与 RAG release candidate
+  creation 可以在同一上游 admission 后触发，但三者 status 必须分离
+- `pending` candidate 只说明 canonical document 发生了可索引变更；它不是 query-serving
+  证据，也不能被 runtime retrieval 直接消费
+- release lane 不做正文清洗；regulation canonical markdown / document-units 必须已在
+  ingestion materialization 阶段完成清洗并带 provenance。缺失当前
+  normalizer / cleaning policy / quality passed 证据时，candidate 必须落入 preparation
+  failure，不得 index 或 publish alias
+- 对 query-enabled regulation scope，chunk/index release 前必须存在
+  `regulation_rag_release_admission.v1` scope-level manifest。manifest 必须精确绑定
+  `document_id`、`revision_track`、`version_id`、`content_hash`、
+  `document_units_object_key`、`document_units_sha256`、`cleaning_policy_version`、
+  `chunk_profile_version`、runtime profile identity 与 reader current version id。
+  缺失或不匹配时，candidate 必须进入 `release_admission_blocked`，不得调用 chunk
+  preparation、embedding、index release 或 alias publish。
+- `release_admission_blocked` 是 fail-closed terminal status，用来表示 canonical
+  已变更但 release 证据不完整；它不是 preparation failure，也不能被 worker 自动降级为
+  search-only。
+- release executor 的成功结果必须携带 admission manifest proof；candidate processor
+  在写入 `serving_published` 前必须再次确认 proof，避免自定义 executor 或直接 CLI
+  绕过 admission gate。
+- 对早于当前 cleaner 的 historical regulation artifacts，RAG release 不做就地修补；
+  这些 document 必须先经过 ingestion canonical backfill，产出当前 provenance 后才能被
+  release lane 继续处理
+- periodic worker 处理 pending candidates，可以小批量运行；nightly reconciliation 负责发现
+  missed changed / withdrawn / deleted documents
+- selected worker 入口可以按 `candidate_id` 处理人工挑选的 pending candidates；scheduled
+  入口默认扫描 pending candidates，但仍必须遵守 runtime profile 的 retrieval/query enablement
+  gate
+- `regulations/scoped_rules` 这类 retrieval-ready 但默认 query-disabled profile 必须落入
+  non-serving terminal status，例如 `not_query_enabled`，不得调用 index release executor
+- incremental decision 必须使用 document identity、document version/hash、chunk
+  profile identity、embedding/runtime profile identity 与 visibility/authz carrier；
+  profile 变化必须让旧 candidate / cache 失效
+- unchanged document 可以跳过 re-embedding，但 release manifest 必须仍能解释 skip reason
+  与被复用的 prior release / point provenance
+- changed document 使用 upsert/new release plan；withdrawn/deleted document 使用 explicit
+  delete/tombstone plan；no-longer-current historical / search-only document 如果不是
+  withdrawn/deleted，必须进入 `held_search_only` 等 non-serving terminal status，不得误触
+  current alias cleanup
+- release acceptance 通过前，只能写 candidate/run status；不得切换 serving alias 或扩大
+  runtime profile allowlist
+- 发现已切换 alias 但缺少 matching release admission manifest 的 query-enabled
+  regulation release 时，必须执行 containment：仅当 alias 当前仍指向指定 suspect
+  physical collection 时才允许 unpublish/rollback，防止误伤后续已修复 release。
+- alias publish 后必须执行 drift guard 与 payload/index audit；失败时进入 repair backlog，
+  并保留可回滚 current pointer
+
+operator-facing status 必须拆开表达：
+
+- `documentSiteStatus`
+- `ragPreparationStatus`
+- `ragIndexStatus`
+- `ragServingStatus`
+- `ragVerificationStatus`
+
+这些状态可以从 ingestion/app-api projection 聚合展示，但 retrieval serving truth 仍由 release
+manifest、current pointer 与 runtime profile 决定。
 
 ## Release Safety And Tuning
 

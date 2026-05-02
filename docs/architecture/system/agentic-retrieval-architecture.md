@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-20
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 # Agentic Retrieval Architecture
 
@@ -65,8 +65,9 @@ architecture，不得把它误读成当前已开放产品 truth。
 
 同时固定保留一个并列结论：
 
-- `service_status_lookup`、`transport_schedule_lookup`、`campus_notice_discover/ge
-  t` 这类结构化 runtime capability 不属于 agentic retrieval 本身
+- `service_status_lookup`、`transport_schedule_lookup`、`campus_notice_discover`
+  与 internal selected notice resolve（`payload_kind=campus_notice_get`）这类结构化
+  runtime capability 不属于 agentic retrieval 本身
 - 它们应通过 projection-backed internal query service + domain-agent tool adapter
   提供，而不是伪装成 retrieval step
 - `rag-agent` 可以消费这些 domain-agent 产出的 bounded context projection，但不能代持它们的

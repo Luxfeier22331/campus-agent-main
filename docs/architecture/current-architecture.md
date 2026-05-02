@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 # 当前架构
 
@@ -40,6 +40,9 @@ model`
 
 `collector -> app-api official_web control plane -> ingestion-worker`
 
+`ingestion-worker -> ingestion-core release task -> source truth / projection /
+document/index release`
+
 关键约束：
 
 - browser 不直打 `apps/supervisor-api`
@@ -59,6 +62,9 @@ model`
 - Python bridge 返回 private `AgentResponse`；public `SupervisorResponse`
   finalization 与 response observability projection 由 Go `apps/supervisor-api` 执行
 - online query path 与 offline data plane 持续分层
+- `apps/app-api` 不拥有 official-web selected-write / release task state machine；
+  claim、lease、retry、dead-letter、materialize、publish 与失败状态属于
+  `packages/ingestion-core` / `apps/ingestion-worker`
 - 本文列出的当前 browser surfaces 只描述当前 merged truth，不定义长期“哪个入口应作为产品首页”
 
 ## 当前 Serving Surface
@@ -134,6 +140,9 @@ model`
 - 拥有 Better Auth email/password、password reset 与 Turnstile-backed auth admission
   hardening
 - 承接 `official_web` control plane
+- 对 `official_web`，只拥有 collector command ingress、crawl-run ledger、operator
+  projection/query 与 stable-reference release gate approve/reject ledger；不拥有
+  selected-write admission/task truth 或 release executor callback surface
 - 承接 authenticated notice processing 的 operator-safe projection ingest 与 list/detail
   query；不暴露 raw notice content、OCR payload、附件字节、对象存储路径或 queue mutation
   action
@@ -156,8 +165,9 @@ model`
   落入 bridge contract；当前 runtime 默认只发出 `single_handoff` plan。受控开启
   `SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED=true` 且 workflow run store ready 后，
   可执行首条真实 `multi_step` path：selected notice context + knowledge follow-through
-  触发 `notice-agent campus_notice_get -> rag-agent retrieval.query`，并将 notice step
-  输出以 bounded internal workflow context projection 传给 RAG step
+  触发 notice-agent internal selected notice resolve
+  (`payload_kind=campus_notice_get`) -> `rag-agent retrieval.query`，并将 notice
+  step 输出以 bounded internal workflow context projection 传给 RAG step
 - 拥有 deterministic runtime policy；当前实现位于
   `apps/supervisor-api/internal/runtimepolicy`，负责 product scope gate、
   approval / reject gate、context follow-up preflight、query-enabled scope
@@ -196,6 +206,8 @@ model`
 
 - offline ingestion/data-plane executor
 - 承接 source-truth / projection / chunk / index write path
+- 拥有 official-web release task runtime；从 ingestion-owned task payload 推进
+  selected-write / stable-reference release，不通过 app-api executor route 回写状态
 - 拥有 ingestion run-level telemetry adapter，输出 canonicalize / chunk / embedding /
   index release / publish / audit 的 sanitized started/completed/failed run event；
   export failure 不让 ingestion job 失败

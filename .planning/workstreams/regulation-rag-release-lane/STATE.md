@@ -13,17 +13,18 @@ updated: 2026-05-02
 ## Current Position
 
 **Status:** Active
-**Current Phase:** Phase 8 release admission hardening
+**Current Phase:** Phase 8 release admission hardening completed
 **Last Activity:** 2026-05-02
 **Last Activity Description:** Query-enabled regulation release was hardened with
-scope-level release admission. The Phase 13 institutional release is now treated
-as suspect until a matching `regulation_rag_release_admission.v1` manifest proves
-the current canonical, reader, chunk, qrels/eval and authz evidence.
+scope-level release admission. The suspect Phase 13 `institutional_rules`
+release was contained, admitted, force-reenqueued and replayed through the
+candidate processor. The current serving alias now points at an admitted release.
 
 ## Progress
 
-**Phases Complete:** 8
-**Current Plan:** Phase 8 implementation and containment verification
+**Phases Complete:** 9
+**Current Plan:** Continue expanding admitted regulation serving cohorts after
+Phase 8 closeout
 
 ## Current Slice
 
@@ -48,6 +49,22 @@ Phase 8 hardening changes the serving rule:
 - missing or mismatched admission proof yields `release_admission_blocked`
 - suspect release containment must use expected-current alias matching before
   unpublishing or rollback
+- unchanged `serving_published` candidates can be force-reenqueued only through
+  the explicit release-policy replay path; the replay stays auditable with
+  `candidate_reason=forced_release_policy_reenqueue`
+
+Phase 8 closeout evidence proved:
+
+- suspect alias `institutional_rules__r20260502_020250_873774_266f68e9` was
+  contained with expected-current alias matching
+- reader assets, chunk preparation and release admission were generated for the
+  two current `institutional_rules` documents
+- the two unchanged `serving_published` candidates were force-reenqueued and then
+  processed through `campus-ingestion-process-regulation-rag-release-candidates`
+- final alias target is `institutional_rules__r20260502_030502_882844_ba991c97`
+  with 79 points
+- final candidate store status is 2 `institutional_rules:serving_published` and
+  8 `scoped_rules:not_query_enabled`
 
 Phase 6 canary cohort evidence previously proved:
 
@@ -82,6 +99,9 @@ Phase 6 canary cohort evidence previously proved:
   coverage and authz deny evidence.
 - `serving_published` without matching admission proof is not accepted release truth;
   it must be contained and replayed after admission.
+- Forced reenqueue is an operator replay control for policy/admission gate changes;
+  it must not be used as a normal incremental update bypass or to skip release
+  admission.
 
 ## Verification
 
@@ -119,6 +139,16 @@ Phase 6 canary cohort evidence previously proved:
     tests.ingestion.test_scope_alias \
     tests.ingestion.test_scope_alias_worker
   ```
+
+  Runtime closeout evidence:
+
+  - `./evidence/phase-08-release-admission-hardening/suspect-release-containment-report.json`
+  - `./evidence/phase-08-release-admission-hardening/institutional-reader-publish-report.json`
+  - `./evidence/phase-08-release-admission-hardening/institutional-chunk-preparation-report.json`
+  - `./evidence/phase-08-release-admission-hardening/institutional-release-admission-report.json`
+  - `./evidence/phase-08-release-admission-hardening/institutional-force-reenqueue-report.json`
+  - `./evidence/phase-08-release-admission-hardening/institutional-process-forced-candidates-report.json`
+  - `./evidence/phase-08-release-admission-hardening/institutional-final-candidate-alias-state.json`
 
 - Phase 6 canary focused command:
 
@@ -164,6 +194,6 @@ Known unrelated dirty-worktree blockers:
 
 ## Session Continuity
 
-**Stopped At:** Phase 8 hardening implemented locally; full lint/commit intentionally
-not covered in this slice
+**Stopped At:** Phase 8 hardening and admitted institutional replay completed
+locally; full lint/commit intentionally not covered in this slice
 **Resume File:** `./phases/phase-08-release-admission-hardening/PLAN.md`

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-22
+updated: 2026-05-02
 ---
 # Official Web Serving And News Retrieval Strategy
 
@@ -152,7 +152,9 @@ runtime 消费，而不是并行再开一条 `rag-agent` generic retrieval surfa
   命名隐式决定
 - future public notice runtime 的 query seam 必须继续是 projection-backed：
   - `campus_notice_discover` 读取 notice card / summary projection
-  - `campus_notice_get` 读取 canonical notice body projection
+  - internal selected notice resolve（`payload_kind=campus_notice_get`）只读取
+    selected notice card / bounded context projection 与 display policy，不作为
+    body-serving tool
   - `article_detail` 继续是正文主 owner，`listing_page` 只提供 discovery / recency signal
   - 不得直接把 `fresh_news` collection alias 当成 discover/get 的 runtime query seam
 

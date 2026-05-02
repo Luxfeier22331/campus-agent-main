@@ -130,11 +130,15 @@
 ### Active
 
 - [ ] Phase 1000 `Curriculum 结构化证据契约与 Semester Facts 修复` 已完成 closeout；curriculum 线当前不再是 active implementation lane，若后续触碰旧 planning/docs，只允许把 historical artifact pointer 收敛到 `.tmp/evals/curriculum-plan-live-gate-accept-phase1000`
-- [x] authenticated-notice regulation downstream consumption 已完成 Phase 10 serving
-  admission：`regulations/institutional_rules` 进入默认 query-serving，
+- [x] authenticated-notice regulation downstream consumption 已完成 Phase 11 manual-review
+  selected materialization：Phase 10 已让 `regulations/institutional_rules` 进入默认 query-serving，
   `regulations/scoped_rules` 发布 retrieval-ready alias 但仍不在默认 query allowlist；
-  public-chat citation 继续关闭。auth-dependent `file_release owner recovery`
-  仍由独立 workstream 管理，不混入本线。
+  Phase 11 又将 `481` / `619` 两条 resolved manual-review rows 写入 target
+  materialization；Phase 12/13 已补齐 canonical cleaning hardening 与历史 selected
+  regulation backfill 入口，使 Phase 9/11 cohort 可先重建 v2 canonical artifacts，再进入
+  独立 RAG release lane；新 target 尚未进入 RAG release / serving admission；
+  public-chat citation 继续关闭。auth-dependent `file_release owner recovery` 仍由独立
+  workstream 管理，不混入本线。
 - [ ] staging@ayafeed.com 的项目隔离一级子域部署基线已经成立；`campus-api-staging`、`campus-chat-staging`、`campus-panel-staging` 当前 truth 稳定，后续 release hardening 已收口为 Phase 1002 `Worker 部署与发布硬化收口`
 - [ ] `shared product surfaces acceptance / hardening` 已在 `Phase I` closeout 之后继续 reopen 到 `Phase J` Turnstile posture productization：固定方向是 always-on verification、Cloudflare-managed adaptive interactive challenge only on elevated risk，以及 local / staging / prod runtime posture seam；`Phase K` 的 mature auth shell local cutover 已完成，但 workstream 当前仍只剩 `Phase J` 真实 staging 浏览器 closeout blocker；它继续只覆盖 shared backend、public chat 与 protected panel，不改 panel Access model
 - [ ] `official_web/fresh_news` / `official_web/news_archive` 的 repo-level runtime opening criteria 已在 Phase 1003 冻结；后续 opening execution / acceptance 已下调到 backlog `999.4`，当前只保留 `stable_reference` 与 default-off news contract，不在 active implementation lane
@@ -159,7 +163,7 @@
 ## Constraints
 
 - **Architecture**: `supervisor` 必须是唯一入口协调层，`agent` 作为稳定能力边界存在，不能退回成旧 `campusRAG` 的扁平 tool 模式 — 这是仓库长期架构和当前 supervisor 设计的核心前提
-- **Scope**: serving surface 由 runtime profile 显式控制；当前开放 `student_rules` 与 `curriculum_plan`，`campus_services` 保持 `offline_preparation` — 避免再次把运行策略写死在 supervisor、API shell 或 worker 默认值里
+- **Scope**: serving surface 由 runtime profile 显式控制；当前默认 query-enabled surface 是 `regulations/student_rules`、`regulations/institutional_rules`、`curriculum/curriculum_plan` 与 `official_web/stable_reference`，`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled，`campus_services` 保持 `offline_preparation` — 避免再次把运行策略写死在 supervisor、API shell 或 worker 默认值里
 - **Contracts**: handoff 必须通过 `packages/contracts` 中的 schema 完成，不让 AgentOS / retrieval / infra 类型渗透进共享 contract — 这是未来可替换 agent / retrieval 的基础
 - **Runtime Boundary**: runtime、transport、deterministic routing/policy gate、audit projection、default agent delegate registry 与 public response finalization 留在 `apps/`；private injected-delegate dispatch helper 也已内联到 `apps/supervisor-agent-worker` — 避免 standalone core package 冒充长期 supervisor truth
 - **Product Identity**: product-layer auth/session/principal mapping 固定留在 `apps/app-api`；`apps/supervisor-api` 只做 internal execution caller admission，并消费显式 `actor` — 避免 execution engine 重新长出产品身份语义

@@ -30,7 +30,8 @@ For execute smoke and projection reporting:
 - matching `APP_API_INTERNAL_SHARED_SECRET` in `apps/app-api`
 
 If the app-api projection callback variables are missing and the smoke is run
-with `--require-processing-projection`, the smoke returns `verdict=blocked`
+with `--require-processing-projection` or
+`--require-run-processing-projection`, the smoke returns `verdict=blocked`
 before mutating the ingest queue.
 
 ## Selected Notice Smoke
@@ -62,6 +63,7 @@ uv run --all-packages python -m campus_ingestion_worker.smoke_authenticated_noti
   --execute \
   --require-downstream-materialization \
   --require-processing-projection \
+  --require-run-processing-projection \
   --expected-notice-id 355867 \
   --expected-candidate-kind transport_schedule \
   --expected-target-surface campus_services \
@@ -76,6 +78,7 @@ Passing evidence must show:
 - queue job status is `succeeded`
 - downstream materialization status is `completed`
 - processing projection report status is `reported`
+- run-processing projection report status is `reported`
 - expected notice verdict is `passed`
 - `medium_or_higher_finding_count` is `0`
 
@@ -95,6 +98,30 @@ uv run --all-packages python -m campus_ingestion_worker.backfill_authenticated_n
 `queue-records.json` may be either a list of persisted
 `NoticeIngestQueueRecord.to_persisted_payload()` objects or an object containing
 `records` / `queue_records`.
+
+## Run-Level Historical Backfill
+
+Use this lane when the operator question is about a collector run or queue run
+as a whole, not about a single notice id.
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.backfill_authenticated_notice_run_processing_projection \
+  --queue-records-path <queue-records.json> \
+  --trace-path <authenticated-notice-run-queue-consume.trace.json> \
+  --collector-run-token 20260428T181953007Z \
+  --output-path .planning/workstreams/authenticated-notice-run-level-operator-view/evidence/run-backfill-20260428T181953007Z.json
+```
+
+Expected real sample posture for collector run token `20260428T181953007Z`:
+
+- queue terminal state: `succeeded`
+- lifecycle status: `succeeded`
+- source-truth-only downstream status: `skipped_source_truth_only`
+- imported notice count: `282`
+- attachment fetch-status record count: `305`
+
+Run-level backfill must not be used to create or overwrite notice-level
+processing records. It writes only the app-api run-processing projection.
 
 ## Freshness Policy
 
@@ -123,6 +150,8 @@ curl -H "authorization: Bearer <operator-token>" \
 
 - If app-api has no record, check the smoke/backfill report for
   `processing_projection_report.status`.
+- If the run-level panel has no record, check
+  `run_processing_projection_report.status`.
 - If the report is `blocked`, configure the app-api projection callback
   variables and rerun.
 - If queue consume succeeded but projection reporting failed, retry only the

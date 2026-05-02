@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 # Official Web Architecture
 
@@ -32,15 +32,18 @@ updated: 2026-05-01
 
 `external scheduler -> official-web collector -> object storage + app-api
 official_web control plane -> app-api ledger/outbox/read model ->
-ingestion-worker -> document/chunk/index`
+ingestion-worker -> release task state machine -> document/chunk/index /
+structured projection -> app-api operator-safe projection -> protected panel`
 
 关键边界：
 
 - collector 负责 crawl / fetch / normalize / upload / report
 - `apps/app-api` 负责 admission、crawl-run ledger、artifact refs、operator query 与
-  ingestion handoff
-- `apps/ingestion-worker` 继续只是 offline executor
+  ingestion handoff；它还接收 ingestion worker 上报的 redacted release task projection
+- `apps/ingestion-worker` 是 offline executor，负责 release task claim /
+  lease / retry / materialize / index / publish
 - protected panel 通过 `apps/app-api` 消费 `official_web` operator surfaces
+  与 release task projection read model
 - collector 写入 source bucket 的对象同时包含 page-level
   `capture/`、`provider/`、`source-truth/` artifacts；如后续 materialize source-side
   projection artifact，则继续写入同一 source prefix 下的
@@ -82,9 +85,13 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 - collector 只能附加 consumer match metadata 和 retained/rejected counters，不直接写
   downstream read model
 - ingestion staging 负责 replay、candidate review report、selected-write dry-run
-  gate 与 no-promotion proof
+  admission 与 no-promotion proof；contact/service 的 current read model 写入必须再经过
+  ingestion-owned release task state machine 与 ingestion-worker selected-write executor；
+  app-api 只暴露已入库 projection、release task operator-safe projection 与 stable-reference
+  operator release gate command ledger
 - selected write 必须有 source refs、matched evidence、review verdict 或等价的
-  deterministic extraction evidence
+  deterministic extraction evidence，并且只能写显式 `selected_write_target` 对应的
+  structured projection
 - listing pages 默认只作 discovery；除非自身命中 stable/contact/service denominator，否则不作为
   answer-bearing source-truth
 
@@ -131,8 +138,8 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 - 当前 legacy cleanup decision 使用 `legacy_contract_excluded`
 - projection drain 遇到 `legacy_contract_excluded` run 时只消费 outbox event，不
   materialize operator projection，不 dispatch ingestion handoff
-- ingestion selected-write gate 即使收到带有 legacy exclusion 的 handoff payload，也
-  必须 fail closed，不得产出 ready selected-write record
+- ingestion selected-write release task admission 即使收到带有 legacy exclusion 的 handoff
+  payload，也必须 fail closed，不得产出 ready selected-write task
 - 本地 `.tmp` / collector `.tmp` 证据目录可以删除；PG source ledger 与对象存储 source-truth 不因
   cleanup CLI 自动删除
 
@@ -157,11 +164,13 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 - artifact refs
 - operator list / detail query
 - ingestion handoff dispatch
+- release task operator-safe projection ingest/read
 
 它不负责：
 
 - collector 内部 frontier / parser 代码结构
 - downstream document splitting / chunking 逻辑
+- release task claim、lease、retry、dead-letter、publish 或 selected-write task mutation
 
 ## Operator Surface
 

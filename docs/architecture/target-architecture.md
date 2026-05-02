@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 # 目标架构
 
@@ -71,6 +71,8 @@ raw/source-truth/projection/document/chunk/index`
 - `packages/contracts` 不泄漏具体 runtime、vendor、infra 类型
 - online query path 与 offline data plane 不混层
 - serving surface 由 runtime profile / explicit policy 控制，而不是硬编码在 entry shell
+- canonical document 的 reader publish 与 RAG query-serving 是两条独立 release
+  lane；文档站可见不等于 retrieval alias 已切换或 RAG 已可服务
 - surface capability allowlist 由 shared `app-api` / product runtime policy
   拥有，而不是由 agent 或 browser surface 自行推断
 - 当前 target architecture 不默认接纳开放域 generalist / web capability 进入主 campus path
@@ -475,6 +477,24 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 - 版本选择发生在 retrieval 之前，不让回答层事后补救
 - 多来源等价内容归并为逻辑 document version，而不是并列候选
 - candidate set 与最终 answer-bearing evidence 必须继续分层
+- canonical document admission 只能生成 RAG release candidate，不能直接改变
+  query-serving alias；RAG release candidate 必须经过 chunk/index、acceptance 与
+  serving alias publish 后才进入可检索状态
+- query-enabled regulation scope 的 RAG release candidate 必须先通过
+  `regulation_rag_release_admission.v1` scope-level manifest；该 manifest 绑定当前
+  document identity/version/hash、document-units hash、cleaning/chunk/runtime profile
+  identity、reader current version 与 qrels/authz 检查结果。缺失或不匹配时只能进入
+  `release_admission_blocked`，不得 embedding、index 或切 alias
+- RAG release lane 必须支持增量更新：用 document identity、version/hash 与 runtime
+  profile identity 判断 unchanged / changed / deleted / withdrawn，不靠定时全量重建或
+  文档站发布状态反推 RAG 状态
+- historical / search-only regulation candidate 如果不是 withdrawn / deleted，不得误触
+  current alias cleanup；它必须进入 non-serving terminal status，例如 `held_search_only`
+- serving alias 只能由通过 retrieval acceptance 的 release 切换；失败 release 必须保留旧
+  current pointer，并产出可观测 repair backlog
+- 对已发布但缺少 admission proof 的 regulation release，目标态处理是 fail-closed
+  containment：只有当 alias 仍指向指定 suspect physical collection 时才允许解除或回滚，
+  然后重新生成 canonical/reader/chunk/qrels/admission 证据后再发布
 - freshness-sensitive / live-assisted query 必须显式进入 planner
   branch，不得继续压扁成普通当前版本查询
 - query activity、step outcome 与 supporting evidence summary 必须成为长期 observability
@@ -485,6 +505,9 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 - raw asset、source truth、declared projection、document truth、chunk/index 持续分层
 - source truth 是 canonical shared upstream
 - 一份 source truth 可以 fan-out 到多份 collection / corpus
+- canonical document artifacts 可以 fan-out 到 reader asset lane 与 RAG release lane；
+  reader asset、document-units、chunks、index release 与 serving alias 继续各自持有
+  独立 truth
 - 后续 replay / rebuild 从 source truth 继续，而不是返回 raw 重消费
 - 对象存储始终被视为独立 `S3-compatible object storage` 边界
 
@@ -503,6 +526,9 @@ projection 与 release verdict 仍由 `packages/evals` 拥有。
 - planner-first agentic retrieval
 - explicit historical / as-of / compare query
 - freshness-sensitive / live-assisted retrieval
+- regulation 之外更多 document family 的增量 RAG release lane rollout、scheduled
+  reconciliation、rollback/current-pointer automation 与 operator-safe status projection
+  扩面
 - restricted document rollout
 - 更完整的 identity / authz / memory productization
 - operator observability / audit control plane

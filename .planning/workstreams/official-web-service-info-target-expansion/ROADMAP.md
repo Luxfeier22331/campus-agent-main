@@ -20,7 +20,7 @@ Future phases remain `OUTLINE.md` until the previous phase is summarized.
 
 ## Phase Status
 
-- [ ] **Phase 0: Boundary And Field Denominator** - Freeze surfaces, field requirements, non-goals
+- [x] **Phase 0: Boundary And Field Denominator** - Freeze surfaces, field requirements, non-goals
   and ownership boundaries.
 - [ ] **Phase 1: Source Target Gap Inventory** - Compare current inventory/read models against the
   field denominator and nominate only source-backed target candidates.

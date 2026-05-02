@@ -64,7 +64,8 @@
 ## Current Serving Constraints
 
 - 当前 query-serving scope 由 collection runtime profile 决定；默认开放
-  `regulations/student_rules` 与 `curriculum/curriculum_plan`
+  `regulations/student_rules`、`regulations/institutional_rules`、
+  `curriculum/curriculum_plan` 与 `official_web/stable_reference`
 - 已冻结但未放开的 corpus 应通过显式 fail-closed 路径返回，而不是在 agent 内静默扩面
 - 不要在此目录自行维护 query-enabled scope truth；范围判断以 supervisor 与 runtime profile 为准
 - 不要在此目录提前引入多 corpus fan-out 或并行检索逻辑

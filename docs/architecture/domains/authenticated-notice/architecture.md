@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 # Authenticated Notice Source Architecture
 
@@ -253,9 +253,10 @@ projection、查询 read model 与 notice tool runtime 是四个不同语义：
   answerability、target surface 与 consumption status
 - notice read model：notice tool 查询使用的 PG 查询视图 / 索引，不重新分类、不拥有
   source truth
-- notice query runtime：执行 `campus_notice_discover` / `campus_notice_get`，只读取
-  projection/read-model 与 canonical body，不承担留档；当前 repo 仅落成 package-level
-  backing query service，不等于打开 panel/chatbot serving
+- notice query runtime：执行 `campus_notice_discover` / internal selected notice
+  resolve（`payload_kind=campus_notice_get`），只读取 projection/read-model、
+  selected card、bounded context 与 display policy，不承担留档，也不作为默认正文读取器；
+  当前 repo 仅落成 package-level backing query service，不等于打开 panel/chatbot serving
 
 在长期 supervisor-led multi-agent workflow 中，`notice-agent` 的 query-time 输出必须先收敛为
 bounded notice projection，例如 `CanonicalNoticeContext`、`NoticeCardSet` 或
@@ -907,6 +908,40 @@ canonical upstream provenance 保留。
   `requires_multimodal_processing` 或 fail-closed no-adoption reason
 - 不得把这类 parent notice body 直接 promote 成 regulation 正文
 
+## Regulation RAG Release Status Boundary
+
+authenticated notice source channel 只拥有 regulation promotion 的 upstream
+provenance 与 operator-safe downstream projection，不拥有 RAG serving alias truth。
+
+固定规则：
+
+- semantic owner 解析通过后，`regulations/*` materialization 可以生成 canonical target
+  document 与 `rag_release_candidate`
+- production 入队依赖显式 candidate store：materialization 只有在注入
+  `rag_release_candidate` store 或配置 operator Postgres candidate store URL 时才写入
+  release lane；本地 fixture replay 可以注入 in-memory store 观察行为，但不把 replay
+  自动提升为发布 truth
+- `rag_release_candidate` 只表示 regulation target document 有待 RAG release lane
+  处理；它不是 RAG 已可检索，也不是 document site 已发布
+- document site reader publish、RAG chunk/index release 与 retrieval serving alias
+  publish 必须保持独立状态；不能用任何一个状态反推另一个状态
+- 历史、年度、窗口期或 scoped-only 规则可以保留 reader/search-only status，但不得因此自动进入
+  current query-serving alias
+- authenticated notice operator projection 可以展示 compact downstream status，但只能
+  来自 sanitized release/candidate/audit summary，不暴露 raw notice body、OCR
+  payload、object key、release operations path 或 backend-native index payload
+
+面向 panel 的 regulation downstream status 至少应能区分：
+
+- `documentSiteStatus`
+- `ragPreparationStatus`
+- `ragIndexStatus`
+- `ragServingStatus`
+- `ragVerificationStatus`
+
+这些字段回答的是“该 notice 派生 regulation 的下游推进状态”，不是 source-truth 是否存在、
+collector 是否成功或用户是否有权限查看原始 notice。
+
 消费层固定不使用 `multimodal_processing_required` 作为 consumption status：
 
 - source-truth attachment classification 的 `multimodal_processing_required` 只说明
@@ -952,6 +987,15 @@ canonical upstream provenance 保留。
 - downstream `regulations/institutional_rules` 与 `regulations/scoped_rules`
   materializer 只读 configured projection truth；未配置 projection store 时 fail
   closed，不得回退到 source-truth inventory 或空内存 projection
+- downstream regulation materialization、document reader publish 与 RAG release
+  admission 必须分离。materializer 只能生成 canonical document 与 RAG candidate；
+  query-enabled `regulations/institutional_rules` 进入 RAG 前还必须生成
+  `regulation_rag_release_admission.v1`，证明当前 canonical 清洗、reader current
+  version、chunk profile、qrels/eval 与 authz deny case 已完成并与 exact document
+  identity/version/hash 匹配。
+- 对 `regulations/scoped_rules`，当前 runtime profile 保持 `query_enabled_by_default=false`；
+  candidate 只能进入 `not_query_enabled` / `held_search_only` 等 non-serving 状态，不能借
+  regulation admission manifest 打开 query-serving。
 - owner/source relation 不完整的条目写入 `semantic_owner=authority_pending`，由
   processing gap audit 暴露，不伪装成 ready target
 - 不属于当前 admitted lane 的硬性 no-adoption reason 写入
@@ -1107,28 +1151,40 @@ query-serving。
 这些 worker CLI 属于 source-channel operations truth，不是对象存储浏览器、审批系统或产品
 panel。
 
-当前已经单独打开的 protected-panel 可见面只覆盖 authenticated notice processing
-operator projection：
+当前已经单独打开的 protected-panel 可见面覆盖两类 authenticated notice operator-safe
+projection：
 
 `apps/ingestion-worker -> apps/app-api -> apps/protected-panel-web`
 
 固定边界：
 
-- ingestion worker 只上报 sanitized processing snapshot，不把 queue/source-handoff/object
-  store/operations 目录暴露给 panel
+- ingestion worker 只上报 sanitized notice-level processing snapshot 与 run-level processing
+  snapshot，不把 queue/source-handoff/object store/operations 目录暴露给 panel
 - `apps/app-api` 拥有 `operator.authenticated_notice_processing_projection` 与
-  `operator.authenticated_notice_processing_event_projection`，并提供 operator list/detail
-  API
+  `operator.authenticated_notice_processing_event_projection`，用于回答单个 notice 的
+  collect/enqueue/consume/downstream/tool readiness 状态
+- `apps/app-api` 拥有 `operator.authenticated_notice_run_processing_projection` 与
+  `operator.authenticated_notice_run_processing_event_projection`，用于回答 collector
+  run / replay batch / queue run 的整体处理状态
 - protected panel 只读取 app-api projection，不直接读取 ingestion queue、object-store、
   operations 目录或 raw logs
-- 该 projection 只解释 collect/enqueue/consume/downstream/tool readiness 状态；它不是
-  collector scheduler、heartbeat truth、retry/cancel/re-enqueue action surface，也不改变
-  source-truth 或 downstream release truth
+- 这些 projection 只解释处理状态；它们不是 collector scheduler、heartbeat truth、
+  retry/cancel/re-enqueue action surface，也不改变 source-truth 或 downstream
+  release truth
+- run-level projection 必须与 per-notice projection 保持分离；collector run
+  `source_truth_only` 的导入规模来自 sanitized import summary，例如
+  `notice_count` / `attachment_fetch_status_record_count`，而不是把整批 run 伪装成单个
+  notice processing record
 - regulation audit / cleanup 可以通过 timeline payload 暴露 compact evidence，例如
   `auditRunId`、`cleanupRunId`、`cleanupDisposition`、
   `postgresExactRemaining`、`objectStoreExactKeysRemaining` 与
   `qdrantResidueCount`；不得暴露 bucket、object key、backup path、operations path 或
   raw source/provider payload
+- regulation RAG release lane 可以通过 timeline payload 暴露 compact downstream
+  status，例如 `documentSiteStatus`、`ragPreparationStatus`、`ragIndexStatus`、
+  `ragServingStatus` 与
+  `ragVerificationStatus`；不得把 backend-native vector payload、raw chunk text、
+  release object key 或 retrieval trace dump 暴露给 panel
 
 如果后续需要 product/API scheduler、collector heartbeat 或写操作型 ingestion handoff，长期规则固定为：
 

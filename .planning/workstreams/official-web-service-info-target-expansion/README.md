@@ -19,9 +19,9 @@ information.
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 0`
-- current slice: boundary and downstream field denominator
-- active implementation: planning only
+- current phase: `Phase 1`
+- current slice: target inventory and denominator alignment
+- active implementation: source target gap inventory
 - owner: Codex session
 
 ## Target Shape
@@ -48,7 +48,7 @@ The initial downstream surfaces are:
 ## Phase Plans
 
 - Phase 0: `./phases/phase-00-boundary-and-field-denominator/PLAN.md`
-- Phase 1: `./phases/phase-01-source-target-gap-inventory/OUTLINE.md`
+- Phase 1: `./phases/phase-01-source-target-gap-inventory/PLAN.md`
 - Phase 2: `./phases/phase-02-extraction-quality-and-machine-review-gate/OUTLINE.md`
 - Phase 3: `./phases/phase-03-contact-directory-preview/OUTLINE.md`
 - Phase 4: `./phases/phase-04-service-guide-preview/OUTLINE.md`

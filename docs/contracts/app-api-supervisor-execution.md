@@ -2,7 +2,7 @@
 doc_type: contract
 status: active
 created: 2026-03-28
-updated: 2026-04-30
+updated: 2026-05-02
 ---
 # App API Supervisor Execution Contract
 
@@ -314,7 +314,7 @@ product/control-plane endpoint。
   suspension summary
 - `campus_notice_discover` 与 internal selected notice resolve
   (`payload_kind=campus_notice_get`) 已具备 Go-owned PG read-model 与
-  S3-compatible canonical body query runtime；notice 请求使用
+  S3-compatible source-backed bounded context query runtime；notice 请求使用
   `payload + access_context` envelope 以在 Go 内执行 restricted notice fail-close
   authorization
 - Python orchestration 仅在配置 `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` 与

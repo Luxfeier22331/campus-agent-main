@@ -15,10 +15,11 @@ registry”推进到“下游 RAG 可检索”的独立 release lane。它不重
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 8 release admission hardening`
+- current phase: `Phase 8 release admission hardening completed`
 - current focus: query-enabled regulation release 已改为 admission-manifest
-  fail-closed；此前 Phase 13 的 `institutional_rules` release 在补齐 matching
-  admission proof 前按 suspect release 处理
+  fail-closed；Phase 13 的 suspect `institutional_rules` release 已完成
+  containment、admission、force reenqueue 和 processor replay，当前 alias 指向
+  admitted release
 
 ## Why This Workstream Exists
 
@@ -64,3 +65,4 @@ release admission -> acceptance -> serving alias`
 - `./phases/phase-07-phase13-backfill-release-admission/PLAN.md`
 - `./phases/phase-07-phase13-backfill-release-admission/SUMMARY.md`
 - `./phases/phase-08-release-admission-hardening/PLAN.md`
+- `./phases/phase-08-release-admission-hardening/SUMMARY.md`

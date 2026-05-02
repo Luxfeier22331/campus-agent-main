@@ -939,6 +939,104 @@ updated: 2026-05-01
 - event projection 只解释 operator timeline，不作为 ingestion retry / cancellation
   command source
 
+## `operator.authenticated_notice_run_processing_projection`
+
+用途：
+
+- protected panel `通知 run 处理` 的 canonical read model
+- authenticated notice collector run / replay batch / queue run 的 operator-safe
+  status projection
+
+最小列：
+
+- `run_processing_id`
+- `run_key`
+- `source_channel`
+- `source_surface`
+- `site_id`
+- `collector_run_token`
+- `run_id`
+- `replay_batch_id` nullable
+- `enqueue_source` nullable
+- `lifecycle_status`
+- `latest_stage`
+- `latest_queue_status`
+- `queue_job_count`
+- `queue_status_counts_json`
+- `attempt_count`
+- `source_truth_json`
+- `child_task_summary_json`
+- `downstream_json`
+- `job_summaries_json`
+- `timeline_json`
+- `last_error_code` nullable
+- `last_error_message` nullable
+- `first_observed_at`
+- `last_observed_at`
+- `projected_at`
+- `producer_version`
+- `redaction_version`
+
+最小索引：
+
+- `(collector_run_token, projected_at)`
+- `(run_id, projected_at)`
+- `(site_id, lifecycle_status, projected_at)`
+- `(latest_queue_status, projected_at)`
+
+规则：
+
+- `run_processing_id` 是 run snapshot 幂等键，不是 queue row 的替代主键
+- 这张表只服务 app-api operator list/detail；不改变 source-truth、queue、release 或
+  downstream read-model truth
+- run-level projection 只回答 collector run / replay batch / queue run 的整体状态，不承载
+  单个 notice 的 effective processing 详情
+- `source_truth_json` 可保存 `selectedNoticeCount`、`importedNoticeCount`、
+  `attachmentFetchStatusRecordCount`、`rawUploadedCount`、`rawReusedCount` 与少量 title/id
+  samples；不得保存 raw source object refs
+- `downstream_json` 可保存 candidate kind、target surface、materialized release
+  count 与 status summary；source-truth-only run 可显示 `skipped_source_truth_only`
+- `job_summaries_json` 只保存 job id、run id、queue status、attempt count、selected/imported
+  count、updated timestamp 与 normalized error 信息
+- first release 是 read-only projection；retry、cancel、re-enqueue 不是这张表或 panel
+  surface 的职责
+
+## `operator.authenticated_notice_run_processing_event_projection`
+
+用途：
+
+- authenticated notice run-processing detail timeline 的 idempotent event projection
+- 后续 run-level freshness / reconciliation diagnostics 的 operator-safe event source
+
+最小列：
+
+- `event_id`
+- `run_processing_id`
+- `run_key`
+- `collector_run_token`
+- `run_id`
+- `job_id` nullable
+- `stage`
+- `status`
+- `occurred_at`
+- `summary`
+- `payload_json`
+- `projected_at`
+
+最小索引：
+
+- `(run_processing_id, occurred_at)`
+- `(collector_run_token, occurred_at)`
+
+规则：
+
+- `event_id` 可由 upstream event id 传入；缺省时由 run snapshot identity、stage、status、
+  occurred time 与 ordinal 派生
+- `payload_json` 只允许 compact reason code、count 与 typed status，不允许 raw logs、
+  source file path、object-store locator、backup path、OCR/provider payload 或 raw stack
+- event projection 只解释 run-level operator timeline，不作为 ingestion retry /
+  cancellation command source
+
 ## `operator.metric_rollup`
 
 用途：
@@ -1148,6 +1246,8 @@ updated: 2026-05-01
 - `operator.trace_backlink_projection`
 - `operator.authenticated_notice_processing_projection`
 - `operator.authenticated_notice_processing_event_projection`
+- `operator.authenticated_notice_run_processing_projection`
+- `operator.authenticated_notice_run_processing_event_projection`
 
 只服务：
 
@@ -1158,6 +1258,7 @@ updated: 2026-05-01
 - panel sampled grade summary
 - panel-safe trace / issue deep links
 - panel authenticated notice processing status / timeline
+- panel authenticated notice run processing status / timeline
 - pagination / filtering / detail view
 
 不服务：

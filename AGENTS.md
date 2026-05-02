@@ -7,9 +7,11 @@
 - 当前主路径是 `supervisor-api -> supervisor-agent-worker -> agent -> retrieval-core`
 - 架构目标是 `supervisor-led multi-agent orchestration`，不是继续把 RAG 建模成入口 agent 直接调用的扁平
   tool
-- 当前 accepted merged truth 已具备 `student_rules` 与 `curriculum_plan` 两条受控
-  query-serving surface，以及 `public-chat-web`、`protected-panel-web`、`app-api` 三个
-  Worker app 的前向产品形态；但它仍不是完整产品实现
+- 当前 accepted merged truth 已具备 `regulations/student_rules`、
+  `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
+  `official_web/stable_reference` 四条默认 query-enabled surface，以及
+  `public-chat-web`、`protected-panel-web`、`app-api` 三个 Worker app 的前向产品形态；
+  但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
 - runtime 选择尚未 repo-wide 冻结；当前已明确冻结 `apps/app-api = Worker`，以及
   `apps/supervisor-api = Docker-first internal execution service`；这不等于提前冻结
