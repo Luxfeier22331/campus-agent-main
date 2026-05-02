@@ -724,6 +724,202 @@ class OfficialWebProjectionCoreReplayTest(unittest.TestCase):
             )
             self.assertNotIn("public_notice_inventory", json.dumps(asdict(report)))
 
+    def test_target_workset_contact_candidate_uses_footer_contact_facts(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            contact_match = _target_match(
+                consumer_family="contact_directory_candidate",
+                materialization_policy="candidate_only",
+                selected_write_target="campus_services/contact_directory",
+                target_id="campus-services-contact-directory",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "sourceChannel": "official_web",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_footer_contact",
+                    "collectionMode": "target-workset",
+                    "generatedAt": "2026-05-01T09:00:00.000Z",
+                    "pages": [
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_footer_contact",
+                            raw_version_id="owver_footer_contact",
+                            normalized_canonical_url="https://www.example.edu/",
+                            page_family="generic_content_page",
+                            target_matches=[contact_match],
+                        ),
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_footer_contact",
+                raw_version_id="owver_footer_contact",
+                normalized_canonical_url="https://www.example.edu/",
+                page_title="中央民族大学",
+                page_family="generic_content_page",
+                target_matches=[contact_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_footer_contact",
+                        raw_version_id="owver_footer_contact",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_footer_contact",
+                        raw_version_id="owver_footer_contact",
+                        row_id="nav-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="link",
+                        text="通知公告",
+                        is_main_content=False,
+                        is_navigation=True,
+                        is_boilerplate=True,
+                    ),
+                    _block(
+                        raw_asset_id="owasset_footer_contact",
+                        raw_version_id="owver_footer_contact",
+                        row_id="footer-address",
+                        row_index=2,
+                        block_order=2,
+                        block_role="list_item",
+                        text="海淀校区：北京市海淀区中关村南大街27号 丰台校区：北京市丰台区魏各庄路27号",
+                        is_main_content=False,
+                        is_boilerplate=True,
+                    ),
+                    _block(
+                        raw_asset_id="owasset_footer_contact",
+                        raw_version_id="owver_footer_contact",
+                        row_id="footer-phone",
+                        row_index=3,
+                        block_order=3,
+                        block_role="paragraph",
+                        text="电话：010-68932442",
+                        is_main_content=False,
+                        is_boilerplate=True,
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+
+            self.assertEqual(report.counts["consumer_candidate_pages"], 1)
+            candidate = report.consumer_candidate_pages[0]
+            self.assertEqual(candidate["typed_candidate"]["phones"], ["010-68932442"])
+            self.assertIn(
+                "海淀校区：北京市海淀区中关村南大街27号",
+                candidate["typed_candidate"]["locations"],
+            )
+            self.assertIn(
+                "丰台校区：北京市丰台区魏各庄路27号",
+                candidate["typed_candidate"]["locations"],
+            )
+            self.assertEqual(candidate["quality_gate"], {"decision": "pass", "reason_codes": []})
+
+    def test_service_guide_candidate_extracts_responsible_offices(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            service_match = _target_match(
+                consumer_family="service_guide_candidate",
+                materialization_policy="candidate_only",
+                selected_write_target="campus_services/service_guide",
+                target_id="campus-services-service-guide",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "sourceChannel": "official_web",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_service_office",
+                    "collectionMode": "target-workset",
+                    "generatedAt": "2026-05-01T09:00:00.000Z",
+                    "pages": [
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_service_office",
+                            raw_version_id="owver_service_office",
+                            normalized_canonical_url="https://www.example.edu/info/1007/1113.htm",
+                            page_family="article_detail",
+                            target_matches=[service_match],
+                        ),
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_service_office",
+                raw_version_id="owver_service_office",
+                normalized_canonical_url="https://www.example.edu/info/1007/1113.htm",
+                page_title="中央民族大学信息公开依申请公开工作流程",
+                page_family="article_detail",
+                target_matches=[service_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_service_office",
+                        raw_version_id="owver_service_office",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学信息公开依申请公开工作流程",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_service_office",
+                        raw_version_id="owver_service_office",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="学校信息公开办公室负责初步审核，并由具体承办部门负责审核申请人提出的学校信息公开申请。",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_service_office",
+                        raw_version_id="owver_service_office",
+                        row_id="p-2",
+                        row_index=2,
+                        block_order=2,
+                        block_role="paragraph",
+                        text="申请人应提交申请材料，学校在15个工作日内作出答复。",
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+
+            candidate = report.consumer_candidate_pages[0]
+            self.assertEqual(
+                candidate["typed_candidate"]["responsible_office"],
+                ["学校信息公开办公室", "具体承办部门"],
+            )
+            self.assertEqual(candidate["quality_gate"], {"decision": "pass", "reason_codes": []})
+
     def test_target_workset_missing_lineage_fails_projection_admission(
         self,
     ) -> None:

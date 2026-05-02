@@ -46,6 +46,10 @@ from campus_ingestion_core.official_web_projection_units import (
 _PHONE_RE = re.compile(r"(?<!\d)(?:0\d{2,3}[-\s]?)?\d{7,8}(?!\d)")
 _EMAIL_RE = re.compile(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}", re.IGNORECASE)
 _LOCATION_RE = re.compile(r"(?:办公地点|办理地点|地点|地址)[:：]\s*([^，。；;\n]+)")
+_CAMPUS_ADDRESS_RE = re.compile(
+    r"(?P<label>(?:海淀|丰台|海南)校区)[:：]\s*"
+    r"(?P<address>.*?)(?=\s*(?:海淀|丰台|海南)校区[:：]|$)"
+)
 _OFFICE_HOURS_RE = re.compile(r"(?:办公时间|办理时间|服务时间|开放时间)[:：]\s*([^。；;\n]+)")
 _SELECTED_WRITE_SUPPRESSION_RE = re.compile(
     r"(采购|招标|中标|中选|比选|竞价|结果公示|公示期|公开招聘|招聘启事|新闻|通知|公告)"
@@ -53,6 +57,11 @@ _SELECTED_WRITE_SUPPRESSION_RE = re.compile(
 _SERVICE_PROCESS_RE = re.compile(r"(办理流程|流程|步骤|申请|补办|挂失|办理|报销|预约)")
 _SERVICE_ENTRY_RE = re.compile(r"(入口|系统|APP|小程序|自助|线下|窗口|前台)", re.IGNORECASE)
 _SERVICE_MATERIAL_RE = re.compile(r"(材料|申请表|证明|身份证|证件|附件)")
+_RESPONSIBLE_OFFICE_RE = re.compile(
+    r"(?:由)?(?P<office>[\u4e00-\u9fff（）()]{2,30}?"
+    r"(?:办公室|承办部门|部门|处|中心|单位|学院))"
+    r"(?:负责|统一答复|初步审核|审核)"
+)
 _TARGET_WORKSET_COLLECTION_MODE = "target-workset"
 _TARGET_CONSUMER_FAMILIES = frozenset(
     {
@@ -430,14 +439,15 @@ def _build_typed_candidate(
     normalized_canonical_url: str,
     title: str,
 ) -> tuple[str, dict[str, object], dict[str, object], list[dict[str, object]]]:
-    lines = _main_content_lines(blocks)
+    main_lines = _main_content_lines(blocks)
+    lines = _candidate_content_lines(blocks=blocks, consumer_family=consumer_family)
     page_text = "\n".join(lines)
     phones = _unique(_PHONE_RE.findall(page_text))
     emails = _unique(_EMAIL_RE.findall(page_text))
-    locations = _unique(match.strip() for match in _LOCATION_RE.findall(page_text))
+    locations = _extract_locations(lines)
     office_hours = _unique(match.strip() for match in _OFFICE_HOURS_RE.findall(page_text))
     evidence_spans = _build_evidence_spans(blocks)
-    suppressed = bool(_SELECTED_WRITE_SUPPRESSION_RE.search(f"{title}\n{page_text}"))
+    suppressed = _selected_write_suppressed(title=title, lines=main_lines)
 
     if consumer_family == "contact_directory_candidate":
         typed_candidate = {
@@ -465,10 +475,12 @@ def _build_typed_candidate(
         process_steps = _matching_lines(lines, _SERVICE_PROCESS_RE)
         materials = _matching_lines(lines, _SERVICE_MATERIAL_RE)
         entry_points = _matching_lines(lines, _SERVICE_ENTRY_RE)
+        responsible_office = _extract_responsible_offices(lines)
         typed_candidate = {
             "service_name": title,
             "process_steps": process_steps,
             "materials": materials,
+            "responsible_office": responsible_office,
             "entry_points": entry_points,
             "contacts": {
                 "phones": phones,
@@ -538,6 +550,79 @@ def _main_content_lines(blocks: list[dict[str, object]]) -> list[str]:
     return lines
 
 
+def _candidate_content_lines(
+    *,
+    blocks: list[dict[str, object]],
+    consumer_family: str,
+) -> list[str]:
+    if consumer_family != "contact_directory_candidate":
+        return _main_content_lines(blocks)
+    lines: list[str] = []
+    for block in blocks:
+        text = _normalize_block_text(block)
+        if not text:
+            continue
+        if bool(block.get("isMainContent")) or block.get("blockRole") == "title":
+            lines.append(text)
+            continue
+        if _has_contact_directory_signal(text):
+            lines.append(text)
+    return lines
+
+
+def _has_contact_directory_signal(text: str) -> bool:
+    return bool(
+        _PHONE_RE.search(text)
+        or _EMAIL_RE.search(text)
+        or _LOCATION_RE.search(text)
+        or _CAMPUS_ADDRESS_RE.search(text)
+        or _OFFICE_HOURS_RE.search(text)
+    )
+
+
+def _extract_locations(lines: list[str]) -> list[str]:
+    locations: list[str] = []
+    for line in lines:
+        for match in _LOCATION_RE.findall(line):
+            normalized = match.strip()
+            if normalized:
+                locations.append(normalized)
+        for match in _CAMPUS_ADDRESS_RE.finditer(line):
+            label = match.group("label").strip()
+            address = _clean_campus_address(match.group("address"))
+            if label and address:
+                locations.append(f"{label}：{address}")
+    return _unique(locations)
+
+
+def _clean_campus_address(value: str) -> str:
+    normalized = re.sub(r"\s+", " ", value).strip()
+    return normalized.strip(" ，,。；;")
+
+
+def _extract_responsible_offices(lines: list[str]) -> list[str]:
+    offices: list[str] = []
+    for line in lines:
+        for match in _RESPONSIBLE_OFFICE_RE.finditer(line):
+            office = _clean_responsible_office(match.group("office"))
+            if office:
+                offices.append(office)
+    return _unique(offices)
+
+
+def _clean_responsible_office(value: str) -> str:
+    normalized = value.strip(" ，,。；;：:")
+    normalized = re.sub(r"^(?:并由|由|经)", "", normalized)
+    return normalized.strip()
+
+
+def _selected_write_suppressed(*, title: str, lines: list[str]) -> bool:
+    if _SELECTED_WRITE_SUPPRESSION_RE.search(title):
+        return True
+    non_boilerplate_text = "\n".join(lines[:3])
+    return bool(_SELECTED_WRITE_SUPPRESSION_RE.search(non_boilerplate_text))
+
+
 def _build_evidence_spans(blocks: list[dict[str, object]]) -> list[dict[str, object]]:
     spans: list[dict[str, object]] = []
     for block in blocks:
@@ -553,6 +638,14 @@ def _build_evidence_spans(blocks: list[dict[str, object]]) -> list[dict[str, obj
                     "evidence_type": "location",
                     "row_id": row_id,
                     "text": location.strip(),
+                }
+            )
+        for location in _extract_locations([text]):
+            spans.append(
+                {
+                    "evidence_type": "location",
+                    "row_id": row_id,
+                    "text": location,
                 }
             )
         for email in _EMAIL_RE.findall(text):

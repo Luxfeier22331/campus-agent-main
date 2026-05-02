@@ -1,0 +1,19 @@
+{
+	"corpus": "official_web",
+	"collection": "stable_reference",
+	"chunk_profile_version": "official_web_semantic_v2",
+	"structured_input": "document_units_jsonl",
+	"runtime_defaults": {
+		"strategy_name": "official_web_stable_reference_semantic_v2",
+		"chunk_size": 260,
+		"max_chunk_size": 360,
+		"chunk_overlap": 48,
+		"min_chunk_size": 48
+	},
+	"cleaning_policy_version": "official_web_cleaning_v2",
+	"notes": [
+		"Chunk stable official-web reference pages from source-truth-preserving document_units.jsonl.",
+		"Keep institutional overview, organization, and long-lived explanatory pages compact enough for citation-grounded RAG answers.",
+		"This profile backs the query-serving official_web/stable_reference scope and must stay aligned with runtime-profile.json."
+	]
+}
