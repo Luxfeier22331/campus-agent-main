@@ -235,6 +235,33 @@ func TestLookupServiceGuideReadsPostgresReadModelWithoutProjectionPath(t *testin
 	}
 }
 
+func TestLookupServiceGuideLoadsOnlyCurrentPointerRelease(t *testing.T) {
+	store := &fakeServiceGuideReadModelStore{
+		bundle:    mustProjectionBundle(t, serviceGuideTransportReservationProjectionFixture()),
+		releaseID: "service-guide-current-release",
+	}
+	runtime := NewRuntime(Options{
+		ServiceGuideReadModelStore: store,
+		TrustedTimeRFC3339:         "2026-04-27T10:30:00+08:00",
+	})
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"地铁接驳车预约入口在哪里",
+		"guide_focus":"entry",
+		"temporal_query":{"mode":"current"},
+		"campus_scope":"fengtai",
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if len(store.loadedReleaseIDs) != 1 || store.loadedReleaseIDs[0] != "service-guide-current-release" {
+		t.Fatalf("loadedReleaseIDs = %#v, want current pointer release only", store.loadedReleaseIDs)
+	}
+}
+
 func TestLookupServiceGuideResolvesCampusCardLostFullGuide(t *testing.T) {
 	runtime := newRuntimeWithServiceGuideReadModel(
 		t,
@@ -428,6 +455,7 @@ type fakeServiceGuideReadModelStore struct {
 	releaseID          string
 	bundle             projectionBundle
 	loadCount          int
+	loadedReleaseIDs   []string
 	projectionReady    bool
 	projectionReadySet bool
 	projectionReadyErr error
@@ -456,8 +484,9 @@ func (s *fakeServiceGuideReadModelStore) ProjectionReady(context.Context) (bool,
 
 func (s *fakeServiceGuideReadModelStore) LoadBundleForRelease(
 	_ context.Context,
-	_ string,
+	releaseID string,
 ) (projectionBundle, error) {
 	s.loadCount++
+	s.loadedReleaseIDs = append(s.loadedReleaseIDs, releaseID)
 	return s.bundle, nil
 }

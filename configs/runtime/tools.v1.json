@@ -108,7 +108,7 @@
 				"strict": false
 			},
 			"runtime_posture": "closed",
-			"description": "Deprecated body-serving notice get; selected notice resolution is an internal query function."
+			"description": "Closed legacy notice get; selected notice resolution is an internal query function."
 		},
 		{
 			"name": "retrieval.query",

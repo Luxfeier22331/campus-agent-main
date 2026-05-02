@@ -263,6 +263,32 @@ func TestLookupContactDirectoryReadsPostgresReadModelWithoutProjectionPath(t *te
 	}
 }
 
+func TestLookupContactDirectoryLoadsOnlyCurrentPointerRelease(t *testing.T) {
+	store := &fakeContactDirectoryReadModelStore{
+		bundle:    mustProjectionBundle(t, contactDirectoryProjectionFixture()),
+		releaseID: "contact-directory-current-release",
+	}
+	runtime := NewRuntime(Options{
+		ContactDirectoryReadModelStore: store,
+		TrustedTimeRFC3339:             "2026-04-27T10:30:00+08:00",
+	})
+
+	response := runtime.LookupContactDirectory(context.Background(), []byte(`{
+		"query_text":"研究生院招生办公室电话是多少",
+		"contact_focus":"phone",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(contactDirectoryResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if len(store.loadedReleaseIDs) != 1 || store.loadedReleaseIDs[0] != "contact-directory-current-release" {
+		t.Fatalf("loadedReleaseIDs = %#v, want current pointer release only", store.loadedReleaseIDs)
+	}
+}
+
 func newRuntimeWithContactDirectoryReadModel(
 	t *testing.T,
 	payload string,
@@ -281,6 +307,7 @@ type fakeContactDirectoryReadModelStore struct {
 	releaseID          string
 	bundle             projectionBundle
 	loadCount          int
+	loadedReleaseIDs   []string
 	projectionReady    bool
 	projectionReadySet bool
 	projectionReadyErr error
@@ -309,8 +336,9 @@ func (s *fakeContactDirectoryReadModelStore) ProjectionReady(context.Context) (b
 
 func (s *fakeContactDirectoryReadModelStore) LoadBundleForRelease(
 	_ context.Context,
-	_ string,
+	releaseID string,
 ) (projectionBundle, error) {
 	s.loadCount++
+	s.loadedReleaseIDs = append(s.loadedReleaseIDs, releaseID)
 	return s.bundle, nil
 }
