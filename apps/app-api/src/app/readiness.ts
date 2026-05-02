@@ -11,13 +11,14 @@ function formatRuntimeDependencyFailure(error: unknown): string {
 export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntimeReadinessResult> {
 	const dependencies: AppRuntimeReadinessResult["dependencies"] = {
 		auth: "not_ready",
+		authShellOrigin: "configured",
 		database: "not_ready",
 		officialWebHandoff:
 			env.APP_API_OFFICIAL_WEB_HANDOFF_URL?.trim() && env.APP_API_OFFICIAL_WEB_HANDOFF_TOKEN?.trim()
 				? "configured"
 				: "not_configured",
 		operatorBridge: "configured",
-		publicChatOrigin: "configured",
+		publicChatCompatibilityOrigin: "configured",
 		supervisorApi: "not_ready",
 	};
 	const failed: AppRuntimeReadinessResult["failed"] = {};
@@ -35,6 +36,7 @@ export async function defaultRuntimeReadinessProbe(env: Env): Promise<AppRuntime
 			endUserEmailAllowlist: config.endUserEmailAllowlist,
 			endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
 			environment: config.environment,
+			authShellOrigin: config.authShellOrigin,
 			publicChatOrigin: config.publicChatOrigin,
 			resendApiKey: config.resendApiKey,
 			resendFetch: fetch,

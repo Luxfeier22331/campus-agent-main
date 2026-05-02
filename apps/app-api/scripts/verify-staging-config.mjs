@@ -30,6 +30,11 @@ expectContains(
 	'PUBLIC_CHAT_WEB_ORIGIN = "https://campus-chat-staging.ayafeed.com"',
 	"Missing staging public chat origin.",
 );
+expectContains(
+	source,
+	'AUTH_SHELL_ORIGIN = "https://hub-staging.muc.wiki"',
+	"Missing staging auth shell origin.",
+);
 expectContains(source, 'APP_API_ENVIRONMENT = "staging"', "Missing APP_API_ENVIRONMENT=staging.");
 expectContains(source, 'SENTRY_ENVIRONMENT = "staging"', "Missing SENTRY_ENVIRONMENT=staging.");
 expectContains(

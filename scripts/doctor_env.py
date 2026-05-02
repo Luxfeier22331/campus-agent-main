@@ -20,6 +20,7 @@ from campus_shared.provider_config import (
 )
 
 from scripts.doctor_env_parse import read_bool_env, read_capability_set
+from scripts.doctor_env_worker_staging_specs import WORKER_STAGING_SURFACE_SPECS
 from scripts.env_sync import parse_env_file
 
 _SURFACE_SPECS = {
@@ -281,57 +282,7 @@ _SURFACE_SPECS = {
         },
         "files": {},
     },
-    "worker-staging": {
-        "providers": {},
-        "required_settings": {
-            "staging_access_policy_aud": ("STAGING_ACCESS_POLICY_AUD",),
-            "staging_access_team_domain": ("STAGING_ACCESS_TEAM_DOMAIN",),
-            "staging_supervisor_api_base_url": ("STAGING_SUPERVISOR_API_BASE_URL",),
-        },
-        "optional_settings": {
-            "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),
-            "staging_app_api_operator_database_url": (
-                "STAGING_APP_API_OPERATOR_DATABASE_URL",
-                "STAGING_APP_API_MANAGEMENT_DATABASE_URL",
-            ),
-            "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
-        },
-        "files": {},
-    },
-    "worker-staging-app-api": {
-        "providers": {},
-        "required_settings": {
-            "staging_supervisor_api_base_url": ("STAGING_SUPERVISOR_API_BASE_URL",),
-        },
-        "optional_settings": {
-            "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),
-            "staging_app_api_operator_database_url": (
-                "STAGING_APP_API_OPERATOR_DATABASE_URL",
-                "STAGING_APP_API_MANAGEMENT_DATABASE_URL",
-            ),
-            "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
-        },
-        "files": {},
-    },
-    "worker-staging-public-chat-web": {
-        "providers": {},
-        "required_settings": {},
-        "optional_settings": {
-            "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
-        },
-        "files": {},
-    },
-    "worker-staging-protected-panel-web": {
-        "providers": {},
-        "required_settings": {
-            "staging_access_policy_aud": ("STAGING_ACCESS_POLICY_AUD",),
-            "staging_access_team_domain": ("STAGING_ACCESS_TEAM_DOMAIN",),
-        },
-        "optional_settings": {
-            "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
-        },
-        "files": {},
-    },
+    **WORKER_STAGING_SURFACE_SPECS,
 }
 
 

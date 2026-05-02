@@ -127,6 +127,53 @@ class CheckWorkerSecretPresenceTest(unittest.TestCase):
                 payload["apps"]["apps/public-chat-web"]["required_secrets"], ["SENTRY_DSN"]
             )
 
+    def test_default_worker_secret_audit_includes_hub_web(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            for app_path in (
+                "apps/app-api",
+                "apps/hub-web",
+                "apps/public-chat-web",
+                "apps/protected-panel-web",
+            ):
+                _write(
+                    repo_root / app_path / "wrangler.toml",
+                    "\n".join(
+                        [
+                            f'name = "{Path(app_path).name}"',
+                            "",
+                            "[env.staging.secrets]",
+                            'required = ["SENTRY_DSN"]',
+                        ]
+                    )
+                    + "\n",
+                )
+
+            def fake_run(command: list[str], **_: object) -> subprocess.CompletedProcess[str]:
+                return subprocess.CompletedProcess(
+                    command,
+                    0,
+                    stdout=json.dumps([{"name": "SENTRY_DSN"}]),
+                    stderr="",
+                )
+
+            status = collect_worker_secret_presence(
+                repo_root=repo_root,
+                env_name="staging",
+                run_command=fake_run,
+            )
+
+            self.assertTrue(status["overall_ready"])
+            self.assertEqual(
+                sorted(status["apps"].keys()),
+                [
+                    "apps/app-api",
+                    "apps/hub-web",
+                    "apps/protected-panel-web",
+                    "apps/public-chat-web",
+                ],
+            )
+
     def test_collect_worker_secret_presence_strips_ansi_noise_and_keeps_audit_command(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"

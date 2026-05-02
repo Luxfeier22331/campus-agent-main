@@ -11,6 +11,7 @@ This directory currently contains two aligned artifacts:
 
 This app is the shared product backend behind:
 
+- `apps/hub-web`
 - `apps/public-chat-web`
 - `apps/protected-panel-web`
 
@@ -189,6 +190,7 @@ Environment:
 - `AUTH_RESET_EMAIL_FROM`
 - `AUTH_RESET_EMAIL_REPLY_TO`
 - `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET`
+- `AUTH_SHELL_ORIGIN`
 - `PUBLIC_CHAT_WEB_ORIGIN`
 - `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST`
 - `APP_API_END_USER_EMAIL_ALLOWLIST`
@@ -213,7 +215,7 @@ Environment:
 
 Local development:
 
-- `pnpm dev` runs `wrangler dev -e local`
+- `pnpm dev` runs `wrangler dev -e local --ip 127.0.0.1 --port 27031`
 - the local Worker runtime expects the `APP_API_DB` Hyperdrive binding from
   `wrangler.toml` `env.local`
 - put local Wrangler / Drizzle process env in `apps/app-api/.env`
@@ -241,9 +243,12 @@ Deployment minimum gate:
 - `APP_API_DB_FRESH.connectionString` should resolve from a caching-disabled
   Hyperdrive binding in deployed envs so auth-sensitive read-after-write paths
   stay fresh
-- `PUBLIC_CHAT_WEB_ORIGIN` must exactly match the deployed `public-chat-web`
-  origin because Better Auth keeps origin / CSRF checks enabled for proxied
-  `/api/auth/*`
+- `AUTH_SHELL_ORIGIN` should point at the deployed `hub-web` account browser
+  shell. If omitted, app-api falls back to `PUBLIC_CHAT_WEB_ORIGIN` for legacy
+  local/dev compatibility.
+- `PUBLIC_CHAT_WEB_ORIGIN` remains the deployed public-chat compatibility origin
+  and trusted Better Auth origin while chat-local auth URLs are kept as bounded
+  redirects/shims.
 - `AUTH_TURNSTILE_SECRET_KEY` must be present or the captcha-gated sign-in /
   sign-up / request-password-reset surface remains not ready
 - `RESEND_API_KEY` and `AUTH_RESET_EMAIL_FROM` must both be present or password
@@ -270,8 +275,9 @@ Deployment minimum gate:
 - `SUPERVISOR_API_ACCESS_CLIENT_ID` and `SUPERVISOR_API_ACCESS_CLIENT_SECRET`
   are optional, and are sent only when the supervisor machine ingress is
   protected by Cloudflare Access service-token authentication
-- password reset callback is frozen to the same-site public auth family and
-  resolves only to `PUBLIC_CHAT_WEB_ORIGIN` `/reset-password`
+- password reset callback is frozen to `AUTH_SHELL_ORIGIN`
+  `/account/reset-password`; the Better Auth token URL remains under the
+  same-site app-api auth endpoint and carries that callback URL.
 
 Local commands:
 

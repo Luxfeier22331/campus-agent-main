@@ -501,6 +501,7 @@ describe("public chat web worker shell", () => {
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		expect(wranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "campus-chat-staging.ayafeed.com"');
 		expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
+		expect(wranglerConfig).toContain('HUB_WEB_BASE_URL = "https://hub-staging.muc.wiki"');
 		expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
 		expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(wranglerConfig).not.toContain("SENTRY_RELEASE = ");
@@ -547,6 +548,26 @@ describe("public chat web worker shell", () => {
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
 			"verify-staging-config.mjs",
 		);
+	});
+
+	it("redirects chat-local auth browser routes to hub account routes with explicit return_to", async () => {
+		const response = await worker.fetch(
+			new Request("https://chat.example.com/login?return_to=%2Fchat%2Fconv_01HQ"),
+			{
+				APP_API_BASE_URL: "https://app-api.internal",
+				ASSETS: {
+					fetch: async () => new Response("ok", { status: 200 }),
+				},
+				HUB_WEB_BASE_URL: "https://hub.muc.wiki",
+				PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+			},
+		);
+
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe(
+			"https://hub.muc.wiki/account/login?return_to=%2Fchat%2Fconv_01HQ",
+		);
+		expect(readPublicChatSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
 	});
 
 	it("declares required secrets for local and staging worker environments", () => {

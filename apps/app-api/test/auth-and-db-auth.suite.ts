@@ -38,6 +38,7 @@ export function registerAppApiAuthConfigSuite() {
 			} as never);
 
 			expect(config.baseURL).toBe("https://chat.example.com");
+			expect(config.trustedOrigins).toEqual(["https://chat.example.com"]);
 			expect(config.basePath).toBe("/api/auth");
 			expect(config.emailAndPassword).toMatchObject({
 				autoSignIn: true,
@@ -70,6 +71,25 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.emailAndPassword.onPasswordReset).toEqual(expect.any(Function));
 		});
 
+		it("can move the browser auth shell origin to hub while retaining public-chat as a trusted compatibility origin", () => {
+			const config = buildBetterAuthConfig({
+				appName: "campus-agent-app-api",
+				authShellOrigin: "https://hub.muc.wiki",
+				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
+				environment: "production",
+				publicChatOrigin: "https://chat.example.com",
+				authResetEmailFrom: "Campus Agent <auth@example.com>",
+				authTurnstileSecretKey: "turnstile_secret_key",
+				resendApiKey: "resend_test_key",
+				endUserEmailDomainAllowlist: ["muc.edu.cn"],
+				endUserEmailAllowlist: ["help_bot@outlook.com"],
+				database: {} as never,
+			} as never);
+
+			expect(config.baseURL).toBe("https://hub.muc.wiki");
+			expect(config.trustedOrigins).toEqual(["https://hub.muc.wiki", "https://chat.example.com"]);
+		});
+
 		it("sends password reset and password-changed mail through Resend without exposing a repo-owned parallel auth path", async () => {
 			const resendFetch = vi.fn().mockResolvedValue(
 				new Response(JSON.stringify({ id: "email_01HQ" }), {
@@ -81,6 +101,7 @@ export function registerAppApiAuthConfigSuite() {
 			);
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
+				authShellOrigin: "https://hub.muc.wiki",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
 				publicChatOrigin: "https://chat.example.com",
@@ -137,6 +158,9 @@ export function registerAppApiAuthConfigSuite() {
 			expect(firstPayload.html).toContain(
 				"https://chat.example.com/api/auth/reset-password/reset_token_01HQ",
 			);
+			expect(firstPayload.html).toContain(
+				"callbackURL=https%3A%2F%2Fhub.muc.wiki%2Faccount%2Freset-password",
+			);
 			expect(firstPayload.text).toContain("Campus Agent");
 
 			const secondPayload = JSON.parse(String(resendFetch.mock.calls[1]?.[1]?.body ?? "{}")) as {
@@ -149,32 +173,32 @@ export function registerAppApiAuthConfigSuite() {
 			});
 		});
 
-		it("freezes reset redirect targets to /reset-password on the public chat origin", () => {
+		it("freezes reset redirect targets to /account/reset-password on the auth shell origin", () => {
 			expect(
 				resolvePasswordResetRedirectTarget({
-					publicChatOrigin: "https://chat.example.com",
-					redirectTo: "/reset-password",
+					authShellOrigin: "https://hub.muc.wiki",
+					redirectTo: "/account/reset-password",
 				}),
-			).toBe("https://chat.example.com/reset-password");
+			).toBe("https://hub.muc.wiki/account/reset-password");
 
 			expect(
 				resolvePasswordResetRedirectTarget({
-					publicChatOrigin: "https://chat.example.com",
-					redirectTo: "https://chat.example.com/reset-password",
+					authShellOrigin: "https://hub.muc.wiki",
+					redirectTo: "https://hub.muc.wiki/account/reset-password",
 				}),
-			).toBe("https://chat.example.com/reset-password");
+			).toBe("https://hub.muc.wiki/account/reset-password");
 
 			expect(() =>
 				resolvePasswordResetRedirectTarget({
-					publicChatOrigin: "https://chat.example.com",
-					redirectTo: "https://chat.example.com/chat",
+					authShellOrigin: "https://hub.muc.wiki",
+					redirectTo: "https://hub.muc.wiki/chat",
 				}),
 			).toThrowError(/reset-password/i);
 
 			expect(() =>
 				resolvePasswordResetRedirectTarget({
-					publicChatOrigin: "https://chat.example.com",
-					redirectTo: "https://evil.example.com/reset-password",
+					authShellOrigin: "https://hub.muc.wiki",
+					redirectTo: "https://evil.example.com/account/reset-password",
 				}),
 			).toThrowError(/reset-password/i);
 		});

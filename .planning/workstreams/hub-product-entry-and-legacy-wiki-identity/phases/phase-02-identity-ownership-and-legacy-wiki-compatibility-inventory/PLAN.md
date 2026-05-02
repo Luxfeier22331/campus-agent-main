@@ -3,7 +3,7 @@ doc_type: phase_plan
 workstream: hub-product-entry-and-legacy-wiki-identity
 phase: 02
 phase_name: Identity Ownership And Legacy Wiki Compatibility Inventory
-status: pending
+status: completed
 created: 2026-05-02
 updated: 2026-05-02
 ---
@@ -56,11 +56,14 @@ or media migration inventory.
    - app-api importing MediaWiki password hashes
    - supervisor-api or agents reading MediaWiki identity state
    - hub reading MediaWiki database tables directly
-4. Define cookie and session posture for `hub.muc.wiki`:
+4. Record the frozen cookie and session posture for `hub.muc.wiki`:
    - cookie names must not collide with MediaWiki cookies
-   - app cookies should be scoped to `hub.muc.wiki` unless an explicit
-     cross-subdomain decision exists
-   - SameSite and Secure posture must be documented before Phase 4
+   - app cookies are scoped to `hub.muc.wiki`
+   - no `.muc.wiki` cross-subdomain auth cookie by default
+   - no shared MediaWiki cookie domain/name/session
+   - `Secure`
+   - `HttpOnly` for server auth cookies
+   - `SameSite=Lax`
 5. Define account-link metadata shape at planning level only if this phase
    admits account-link metadata:
    - app user id

@@ -22,6 +22,10 @@ supporting architecture。
 
 产品/runtime 主链路固定为：
 
+`browser -> hub-web -> app launcher / account shell`
+
+`hub-web same-site allowlisted /api/* -> app-api`
+
 `browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker
 private bridge`
 
@@ -37,6 +41,8 @@ model`
 - 当前已落地的 public/protected/docs surface 是 shared `app-api` 前面的并列 browser surface
 - Worker surface 到 `app-api` 的长期调用形态是 Cloudflare Worker `APP_API` Service Binding；
   `APP_API_BASE_URL` / `PANEL_RUNTIME_API_BASE_URL` 只是构造内部 `Request` URL 的 origin
+- `apps/hub-web` 是 app-set product entry surface；它拥有平面入口、route shell 与 account
+  browser shell，但不拥有 backend truth
 - `apps/public-chat-web` 与 `apps/public-docs` 都是 public-facing surface，但它们的内部 IA
   不自动升级成整个产品的顶层 IA
 - `apps/public-docs` 是独立 docs-first browser surface
@@ -59,6 +65,11 @@ model`
 
 - `public-chat-web`
   - 当前是最成熟的公开助理入口，不再以旧 `public-consumer-chat` 为 forward truth
+- `hub-web`
+  - 当前是 `hub.muc.wiki/[slug]` app-set entry surface
+  - 使用 Cloudflare Worker + Vite React SPA + TanStack Router
+  - 只通过 allowlisted same-site app-api seams 消费 `/api/me` 与必要 auth endpoints
+  - legacy Wiki 只作为 external-link card 指向 `https://muc.wiki`
 - `public-docs`
   - 已是正式公开文档站 app；当前 docs shell 已落地，并通过 Worker `APP_API` Service
     Binding 消费 shared app-api 的 same-site `/api/docs/*` control-plane
@@ -98,7 +109,25 @@ model`
 
 - public chat UI
 - same-site `/api/*` seam into `apps/app-api`
+- chat-local auth browser routes are bounded compatibility redirects/shims to
+  hub account routes with explicit `return_to`
 - 不拥有 auth/session/conversation truth
+
+### `apps/hub-web`
+
+- flat app launcher for `hub.muc.wiki/[slug]`
+- account shell routes:
+  - `/account`
+  - `/account/login`
+  - `/account/register`
+  - `/account/forgot-password`
+  - `/account/reset-password`
+- same-site allowlisted auth and `/api/me` seams into `apps/app-api` via Worker
+  Service Binding
+- fail-closed unknown slug handling
+- no generic app-api proxy
+- no MediaWiki page/content/upload proxy
+- no auth/session/principal backend ownership
 
 ### `apps/public-docs`
 
@@ -252,11 +281,13 @@ minimal operator context -> runtime APIs`
 
 public auth family 的 runtime/product posture 固定为：
 
-- `public-chat-web` 拥有 `/login`、`/register`、`/forgot-password`、`/reset-password`
-  这组 browser route shell
+- `hub-web` 拥有 `/account/login`、`/account/register`、`/account/forgot-password`、
+  `/account/reset-password` 这组 public account browser shell
+- `public-chat-web` 的 `/login`、`/register`、`/forgot-password`、`/reset-password`
+  只保留为 bounded compatibility redirects/shims，不再定义 account shell ownership
 - `app-api` 通过现有 auth provider / plugin 拥有最终 auth admission 与 server-side
   verification
-- auth family 的 human verification transport 固定走 same-site `public-chat-web ->
+- auth family 的 human verification transport 固定走 same-site `hub-web ->
   /api/auth/* -> app-api`
 
 长期 abuse-control 规则固定为：

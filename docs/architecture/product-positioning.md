@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-04-23
+updated: 2026-05-02
 ---
 # Product Positioning
 
@@ -104,6 +104,10 @@ truth 为基础，持续承接高频校园问答、校园服务发现与后续�
 - 当前 merged truth 仍是“chat 为最成熟公开入口、docs 为已独立落地 surface、其他入口尚未 rollout”
 - 这不等于长期产品必须维持“chat 作为唯一总入口”的 IA 真相
 - docs shell 自己的首页、collection 入口或局部导航，不自动上升为整个产品的顶层入口架构
+- `hub.muc.wiki/[slug]` 是新的 app-set product entry surface；它提供平面入口、
+  账号壳与跨 surface 导航，但不改变 query-serving truth 或 capability opening truth
+- 既有 `muc.wiki` MediaWiki 继续作为 sibling legacy service 运营；hub 只提供外部链接卡片，
+  不替代、代理、镜像或迁移 MediaWiki 页面内容、上传媒体或账号
 
 ## 长期产品形态
 

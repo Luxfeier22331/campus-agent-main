@@ -1,7 +1,7 @@
 ---
 doc_type: state
 workstream: hub-product-entry-and-legacy-wiki-identity
-status: active
+status: completed
 created: 2026-05-02
 updated: 2026-05-02
 ---
@@ -10,48 +10,55 @@ updated: 2026-05-02
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** Phase 1
-**Current Phase Name:** Product Hub Boundary And IA Freeze
-**Current Plan:** `./phases/phase-01-product-hub-boundary-and-ia-freeze/PLAN.md`
+**Status:** Completed
+**Current Phase:** Phase 8 complete
+**Current Phase Name:** Documentation, Guardrails And Acceptance
+**Current Plan:** `ROADMAP.md`
 **Total Phases:** 8
-**Progress:** 0/8 phases complete
+**Progress:** 8/8 phases complete
 **Last Activity:** 2026-05-02
-**Last Activity Description:** Reviewed and tightened workstream scope after
-live MediaWiki read-only inventory; initial MediaWiki posture is
-external-link-only, and content/uploaded-media/account migration are explicitly
-out of scope.
+**Last Activity Description:** Implemented `apps/hub-web` as the
+`hub.muc.wiki/[slug]` product entry surface, relocated the public account shell
+into hub, converted public-chat auth URLs into hub redirects, documented the
+legacy MediaWiki external-link posture, and added guardrails against generic
+app-api proxying or MediaWiki identity leakage.
 
-## Current Slice
+## Completed Result
 
-The next step is Phase 1 execution:
-
-- confirm route namespace and app launcher IA
-- freeze `muc.wiki` as legacy MediaWiki sibling service
-- define hub account shell ownership
-- identify architecture docs to update before implementation
-- decide whether `hub.muc.wiki/wiki` is intentionally omitted in favor of an
-  external `muc.wiki` card
-- keep legacy Wiki page content and uploaded media outside hub scope
-
-## Key Decisions Already Assumed
-
-- `hub.muc.wiki/[slug]` is path-based.
-- `muc.wiki` is an existing MediaWiki service and is not replaced by this
-  workstream.
-- Existing MediaWiki page content and uploaded media remain in the legacy
-  `muc.wiki` service.
-- Existing MediaWiki user system must be considered for compatibility.
-- New campus-agent app-set canonical identity remains app-api-owned.
-- Initial MediaWiki runtime posture is external-link-only.
-- Account-link metadata and login federation are later candidates, not default
-  runtime behavior.
-- Direct password migration and account migration are out of scope for this
-  workstream.
-- MediaWiki local upload storage is legacy service implementation detail, not
-  repo object-storage, ingestion or retrieval truth.
-- Phase 6 linkage runtime may only proceed if Phase 2 explicitly admits
-  account-link metadata; otherwise Phase 6 records a no-op/defer decision.
+- `apps/hub-web` is a Cloudflare Worker + Vite React SPA surface using TanStack
+  React Router, Tailwind and lucide icons.
+- Hub route namespace is implemented for `/`, `/account`, `/account/login`,
+  `/account/register`, `/account/forgot-password`, `/account/reset-password`,
+  `/chat`, `/docs`, `/map`, `/services`, `/notices` and `/panel`.
+- Hub launcher uses a typed manifest with `available`, `preview`, `gated` and
+  `external_legacy` states.
+- Legacy Wiki is exposed only as `legacy-wiki` external card linking to
+  `https://muc.wiki`; `/wiki` remains intentionally absent.
+- Hub Worker only forwards allowlisted same-site app-api seams through `APP_API`
+  Service Binding:
+  - `/api/me`
+  - `/api/auth/sign-in/email`
+  - `/api/auth/sign-up/email`
+  - `/api/auth/sign-out`
+  - `/api/auth/get-session`
+  - `/api/auth/request-password-reset`
+  - `/api/auth/reset-password`
+- Hub unknown API paths and unknown slugs fail closed.
+- Hub account shell contains real email/password, password recovery, reset and
+  Turnstile-backed forms that call app-api auth endpoints; hub does not create
+  an auth backend or database.
+- Hub Worker CSP admits Cloudflare Turnstile challenge script/frame origins, and
+  staging deploy/preflight requires a real hub-scoped Turnstile sitekey supplied
+  outside tracked config.
+- `apps/app-api` can use `AUTH_SHELL_ORIGIN` for Better Auth browser shell
+  origin while retaining `PUBLIC_CHAT_WEB_ORIGIN` as a trusted compatibility
+  origin.
+- `apps/app-api` readiness now reports auth shell origin and public-chat
+  compatibility origin as separate configured dependencies.
+- `apps/public-chat-web` keeps auth-family URLs only as bounded redirects/shims
+  to hub account routes with explicit `return_to`.
+- MediaWiki compatibility remains `external_link_only`; account-link metadata
+  and login federation are deferred/no-op gates for this workstream.
 
 ## MediaWiki Live Inventory Snapshot
 
@@ -71,28 +78,39 @@ Read-only inspection through Windows OpenSSH alias `wiki` on 2026-05-02 found:
 This inventory is only for identity compatibility planning. It is not a content
 or media migration inventory.
 
-## Blockers
+## Deferred / No-op Decisions
 
-- Need final decision during Phase 2 on whether MediaWiki compatibility remains
-  external-link-only or admits account-link metadata planning.
-- Need cookie domain/name/SameSite posture decision before relocating account
-  shell routes to hub.
-- Need Phase 7 decision before any MediaWiki login federation work.
+- Phase 6 account-link metadata runtime is not implemented because Phase 2 kept
+  initial MediaWiki compatibility as `external_link_only`.
+- Phase 7 legacy Wiki login federation is not implemented. Any future federation
+  must reopen a dedicated workstream and use explicit MediaWiki auth extension /
+  federation protocol; direct cookie/session/password-hash reuse remains
+  forbidden.
+- MediaWiki content, uploaded media and account migration remain out of scope.
 
-## Verification Plan
+## Verification
 
-Planning-level verification:
+Latest focused verification:
 
 ```bash
-pnpm docs:lint
-pnpm yaml:lint
-git diff --check
+pnpm --filter hub-web typecheck
+pnpm --filter hub-web test
+pnpm --filter hub-web test:worker
+pnpm --filter hub-web build
+STAGING_HUB_AUTH_TURNSTILE_SITE_KEY=0x4AAAAAAAstagingWidget pnpm --filter hub-web build:staging
+STAGING_HUB_AUTH_TURNSTILE_SITE_KEY=0x4AAAAAAAstagingWidget pnpm --filter hub-web deploy:verify-config:staging
+pnpm --filter app-api exec vitest run -c vitest.node.config.mts test/auth-and-db.test.ts
+pnpm --filter app-api exec vitest run -c vitest.node.config.mts test/worker.test.ts -t "declares the staging custom domain|serves healthz and readyz|fails readyz closed when runtime probes"
+pnpm --filter public-chat-web exec vitest run test/public-chat-auth-regressions.test.ts test/public-chat-route-entry-parity.test.ts test/public-chat-sidebar-parity.test.ts
+pnpm --filter public-chat-web exec vitest run test/worker.test.ts -t "declares the staging custom domain|redirects chat-local auth browser routes"
+uv run --all-packages python -m unittest tests.test_check_worker_secret_presence tests.test_doctor_env tests.test_workspace_layout
 ```
 
-Future implementation verification will include focused `hub-web`, `app-api`,
-public-chat redirect and browser smoke lanes after Phase 3+.
+Repository-level docs/lint verification is tracked in the closing session notes.
 
-## Session Continuity
+## Reopen Rule
 
-**Stopped At:** Workstream reviewed; Phase 1 and Phase 2 plans tightened.
-**Resume File:** `./phases/phase-01-product-hub-boundary-and-ia-freeze/PLAN.md`
+Reopen only if `hub.muc.wiki/[slug]` route namespace, hub implementation
+substrate, account shell ownership, app-api auth origin policy, MediaWiki
+external-link-only posture, or generic proxy / identity-leak guardrails are
+explicitly changed.

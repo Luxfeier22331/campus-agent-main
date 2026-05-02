@@ -114,7 +114,7 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "LLM_API_KEY=shared-llm-secret",
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
                         "SUPERVISOR_API_QUEUE_CAPACITY=24",
                         "SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000",
@@ -202,7 +202,7 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "LLM_API_KEY=shared-llm-secret",
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
                         "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=true",
                     ]
@@ -234,7 +234,7 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "LLM_API_KEY=shared-llm-secret",
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
                         "SUPERVISOR_API_OPEN_CAPABILITIES=campus_services",
                     ]
@@ -266,7 +266,7 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "LLM_API_KEY=shared-llm-secret",
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
                         "SUPERVISOR_API_OPEN_CAPABILITIES=notice",
                         "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret",
@@ -655,6 +655,30 @@ class DoctorEnvTest(unittest.TestCase):
 
             self.assertTrue(status["overall_ready"])
             self.assertEqual(status["settings"]["required"], {})
+            self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
+
+    def test_collect_env_doctor_status_reports_hub_worker_staging_requirements(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            repo_root.mkdir(parents=True)
+
+            with patch.dict(
+                os.environ,
+                {
+                    "STAGING_HUB_AUTH_TURNSTILE_SITE_KEY": "0x4AAAAAAAstagingWidget",
+                },
+                clear=True,
+            ):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root, surface="worker-staging-hub-web"
+                )
+
+            self.assertTrue(status["overall_ready"])
+            self.assertTrue(
+                status["settings"]["required"]["staging_hub_auth_turnstile_site_key"][
+                    "present"
+                ]
+            )
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 
     def test_collect_env_doctor_status_reports_panel_worker_staging_requirements(self) -> None:

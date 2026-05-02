@@ -1,0 +1,50 @@
+{
+	"name": "hub-web",
+	"version": "0.1.0",
+	"private": true,
+	"type": "module",
+	"description": "Cloudflare Worker runtime shell for the hub product entry surface.",
+	"packageManager": "pnpm@10.26.1",
+	"scripts": {
+		"build": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite build",
+		"build:staging": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=staging XDG_CONFIG_HOME=./.wrangler-home node ../../scripts/run-worker-staging-build.mjs SENTRY_DSN -- vite build",
+		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite --host 127.0.0.1 --port 27012 --strictPort",
+		"deploy": "pnpm build && pnpm deploy:verify-config && node ../../scripts/run-wrangler-command.mjs deploy --config dist/hub_web/wrangler.json",
+		"deploy:check-secrets:staging": "uv run --all-packages python ../../scripts/check_worker_secret_presence.py --app apps/hub-web --env staging",
+		"deploy:preflight:staging": "node ../../scripts/run-worker-staging-preflight.mjs --app apps/hub-web",
+		"deploy:verify-config": "node ../../scripts/verify-worker-deploy-config.mjs dist/hub_web/wrangler.json APP_API=app-api",
+		"deploy:verify-config:staging": "node ./scripts/verify-staging-config.mjs",
+		"deploy:staging": "pnpm deploy:preflight:staging && node ./scripts/deploy-staging.mjs",
+		"preview": "pnpm build && WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite preview",
+		"test": "pnpm run test:node",
+		"test:node": "vitest run -c vitest.config.mts",
+		"test:worker": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.worker.config.mts",
+		"typecheck": "tsc --noEmit"
+	},
+	"dependencies": {
+		"@radix-ui/react-slot": "^1.2.4",
+		"@sentry/cloudflare": "^10.46.0",
+		"@tanstack/react-router": "^1.132.23",
+		"better-auth": "^1.5.6",
+		"clsx": "^2.1.1",
+		"lucide-react": "^1.7.0",
+		"react": "^19.2.0",
+		"react-dom": "^19.2.0",
+		"tailwind-merge": "^3.5.0"
+	},
+	"devDependencies": {
+		"@cloudflare/vite-plugin": "^1.15.3",
+		"@cloudflare/vitest-pool-workers": "^0.13.4",
+		"@cloudflare/workers-types": "^4.20260317.1",
+		"@tailwindcss/vite": "^4.2.2",
+		"@types/node": "^24.12.0",
+		"@types/react": "^19.2.7",
+		"@types/react-dom": "^19.2.3",
+		"@vitejs/plugin-react": "^5.1.1",
+		"tailwindcss": "^4.2.2",
+		"typescript": "^5.8.2",
+		"vite": "^8.0.3",
+		"vitest": "^4.1.0",
+		"wrangler": "^4.78.0"
+	}
+}

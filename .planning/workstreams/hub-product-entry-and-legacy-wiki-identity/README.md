@@ -18,17 +18,21 @@ proxying.
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 1 next`
-- current focus: freeze product hub boundary, route namespace, account shell
-  ownership, legacy MediaWiki external-link posture, and identity compatibility
-  guardrails
+- status: `completed`
+- current phase: `Phase 8 complete`
+- current focus: closed; reopen only if hub route namespace, account shell
+  ownership, app-api auth origin policy, MediaWiki external-link-only posture or
+  generic proxy / identity-leak guardrails are explicitly changed
 
 ## Boundary
 
 - `apps/hub-web` serves `hub.muc.wiki/[slug]` as the new app-set entry shell.
+- `apps/hub-web` is a Cloudflare Worker + Vite React SPA surface.
 - `muc.wiki` remains the existing MediaWiki service.
 - `apps/app-api` remains canonical product identity / session / principal owner.
+- Hub calls `apps/app-api` through Worker `APP_API` Service Binding for
+  explicitly admitted same-site API seams; it does not expose a generic
+  `/api/*` proxy or become a second backend.
 - `apps/supervisor-api` and domain agents do not read MediaWiki sessions or
   become identity owners.
 - MediaWiki identity starts as external-link-only compatibility. Account linking

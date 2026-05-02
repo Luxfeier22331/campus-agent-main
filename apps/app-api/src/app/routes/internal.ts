@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { Hono } from "hono";
 
-import { type Env, readPublicChatOrigin, resolveEnvironment } from "../../config";
+import { type Env, readAuthShellOrigin, resolveEnvironment } from "../../config";
 import { withRuntimeDatabase } from "../../db/runtime";
 import {
 	AppApiRouteError,
@@ -281,8 +281,8 @@ export function registerInternalRoutes(input: {
 			});
 		}
 
-		const publicChatOrigin = readPublicChatOrigin(input.env);
-		const signInRequest = new Request(new URL("/api/auth/sign-in/email", publicChatOrigin), {
+		const authShellOrigin = readAuthShellOrigin(input.env);
+		const signInRequest = new Request(new URL("/api/auth/sign-in/email", authShellOrigin), {
 			body: JSON.stringify({
 				email,
 				password,
@@ -290,8 +290,8 @@ export function registerInternalRoutes(input: {
 			}),
 			headers: {
 				"content-type": "application/json",
-				origin: publicChatOrigin,
-				referer: `${publicChatOrigin.replace(/\/$/, "")}/login`,
+				origin: authShellOrigin,
+				referer: `${authShellOrigin.replace(/\/$/, "")}/account/login`,
 			},
 			method: "POST",
 		});

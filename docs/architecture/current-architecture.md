@@ -28,6 +28,10 @@ updated: 2026-05-02
 
 当前接受的主拓扑固定为：
 
+`browser -> hub-web -> app launcher / account shell`
+
+`hub-web same-site allowlisted /api/* -> app-api`
+
 `browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker
 private bridge -> agent`
 
@@ -46,8 +50,10 @@ document/index release`
 关键约束：
 
 - browser 不直打 `apps/supervisor-api`
+- hub 是 product entry surface，不是第二个 product backend、generic app-api proxy
+  或 MediaWiki proxy
 - panel 不绕过 `apps/app-api`
-- public chat / docs / panel 到 `apps/app-api` 的 Worker-to-Worker 调用走 `APP_API`
+- hub / public chat / docs / panel 到 `apps/app-api` 的 Worker-to-Worker 调用走 `APP_API`
   Service Binding；`https://app-api.internal` 是内部 Request construction origin
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
 - `campus-api-staging.ayafeed.com` 如存在，只表示 app-api staging machine / ops
@@ -102,11 +108,23 @@ document/index release`
 
 ## 当前 App 边界
 
+### `apps/hub-web`
+
+- public-facing Worker web surface for `hub.muc.wiki/[slug]`
+- 拥有 app launcher、`/account` account shell 与 admitted app entry route shell
+- 通过 allowlisted same-site seam 与 Worker `APP_API` Service Binding 调用 `apps/app-api`
+  的 `/api/me` 与必要 auth endpoints
+- 不开放 generic `/api/*` proxy；未知 slug fail-closed
+- `legacy-wiki` 只是指向 `https://muc.wiki` 的 external legacy card；`/wiki`
+  不是 internal hub slug
+- 不代理、镜像、迁移或重新服务 MediaWiki 页面内容、上传媒体或账号
+- 不拥有 auth/session/principal truth；canonical identity 仍属于 `apps/app-api`
+
 ### `apps/public-chat-web`
 
 - public-facing Worker web surface
-- 正式拥有 public auth family route
-  shell：`/login`、`/register`、`/forgot-password`、`/reset-password`
+- 当前保留 `/login`、`/register`、`/forgot-password`、`/reset-password`
+  作为 bounded compatibility redirects/shims 到 hub account routes
 - 只负责 browser route shell 与 chat UI
 - auth family 通过 same-site seam 将 Turnstile verification transport 到
   `apps/app-api`

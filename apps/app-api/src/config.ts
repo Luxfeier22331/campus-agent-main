@@ -17,6 +17,7 @@ export interface Env {
 	APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN?: string;
 	APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN?: string;
 	BETTER_AUTH_SECRET?: string;
+	AUTH_SHELL_ORIGIN?: string;
 	AUTH_TURNSTILE_SECRET_KEY?: string;
 	RESEND_API_KEY?: string;
 	AUTH_RESET_EMAIL_FROM?: string;
@@ -53,6 +54,7 @@ export interface AppApiConfig {
 	appName: string;
 	environment: AppApiEnvironment;
 	betterAuthSecret: string;
+	authShellOrigin: string;
 	authTurnstileSecretKey: string;
 	resendApiKey: string;
 	authResetEmailFrom: string;
@@ -192,6 +194,17 @@ export function readPublicChatOrigin(env: Pick<Env, "PUBLIC_CHAT_WEB_ORIGIN">): 
 	return new URL(origin).origin;
 }
 
+export function readAuthShellOrigin(
+	env: Pick<Env, "AUTH_SHELL_ORIGIN" | "PUBLIC_CHAT_WEB_ORIGIN">,
+): string {
+	const origin = env.AUTH_SHELL_ORIGIN?.trim() || env.PUBLIC_CHAT_WEB_ORIGIN?.trim();
+	if (!origin) {
+		throw new Error("AUTH_SHELL_ORIGIN or PUBLIC_CHAT_WEB_ORIGIN is required.");
+	}
+
+	return new URL(origin).origin;
+}
+
 function readRequiredTrimmedValue(value: string | null | undefined, key: string): string {
 	const normalized = value?.trim();
 	if (!normalized) {
@@ -236,6 +249,7 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 	return {
 		appName: resolveAppName(env),
 		environment: resolveEnvironment(env),
+		authShellOrigin: readAuthShellOrigin(env),
 		betterAuthSecret,
 		authTurnstileSecretKey,
 		resendApiKey,

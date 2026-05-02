@@ -16,6 +16,7 @@ export interface Env {
 	AUTH_TURNSTILE_APPEARANCE?: string;
 	AUTH_TURNSTILE_EXECUTION?: string;
 	AUTH_TURNSTILE_SITE_KEY?: string;
+	HUB_WEB_BASE_URL?: string;
 	PUBLIC_CHAT_APP_NAME?: string;
 	PUBLIC_CHAT_HOSTNAME?: string;
 	SENTRY_DSN?: string;
@@ -52,6 +53,12 @@ const JSON_HEADERS = {
 } as const;
 
 const LEGACY_CHAT_PREVIEW_PATH_PREFIX = "/chat/replatform-preview";
+const PUBLIC_CHAT_AUTH_REDIRECTS = new Map([
+	["/login", "/account/login"],
+	["/register", "/account/register"],
+	["/forgot-password", "/account/forgot-password"],
+	["/reset-password", "/account/reset-password"],
+]);
 const SENSITIVE_EVENT_FIELDS = new Set(["authorization", "cookie", "prompt", "transcript"]);
 
 interface AppApiRuntimeProbeResult {
@@ -174,6 +181,11 @@ const worker = {
 			return proxyToAppApi(request, env);
 		}
 
+		const authRedirect = resolveHubAuthRedirect(url, env);
+		if (authRedirect && (request.method === "GET" || request.method === "HEAD")) {
+			return responseWithPublicChatSecurityHeaders(Response.redirect(authRedirect, 302));
+		}
+
 		if (
 			(request.method === "GET" || request.method === "HEAD") &&
 			url.pathname.startsWith(LEGACY_CHAT_PREVIEW_PATH_PREFIX)
@@ -238,6 +250,26 @@ function redirectToCanonicalChatRoute(url: URL): Response {
 	redirectUrl.pathname = "/chat";
 
 	return responseWithPublicChatSecurityHeaders(Response.redirect(redirectUrl.toString(), 302));
+}
+
+function resolveHubAuthRedirect(url: URL, env: Env): string | null {
+	const targetPath = PUBLIC_CHAT_AUTH_REDIRECTS.get(url.pathname);
+	if (!targetPath) {
+		return null;
+	}
+
+	const hubOrigin = new URL(env.HUB_WEB_BASE_URL?.trim() || "https://hub.muc.wiki").origin;
+	const redirectUrl = new URL(targetPath, hubOrigin);
+	const returnTo = url.searchParams.get("return_to")?.trim() || "/chat";
+	redirectUrl.searchParams.set("return_to", normalizeReturnToPath(returnTo));
+	return redirectUrl.toString();
+}
+
+function normalizeReturnToPath(value: string): string {
+	if (!value.startsWith("/") || value.startsWith("//")) {
+		return "/chat";
+	}
+	return value;
 }
 
 function getMissingRuntimeConfig(env: Env): string[] {

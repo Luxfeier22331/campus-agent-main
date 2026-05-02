@@ -68,10 +68,11 @@ type AppRuntimeDependencyName = "auth" | "database" | "supervisorApi";
 export interface AppRuntimeReadinessResult {
 	dependencies: {
 		auth: "ready" | "not_ready";
+		authShellOrigin: "configured";
 		database: "ready" | "not_ready";
 		officialWebHandoff: "configured" | "not_configured";
 		operatorBridge: "configured";
-		publicChatOrigin: "configured";
+		publicChatCompatibilityOrigin: "configured";
 		supervisorApi: "ready" | "not_ready";
 	};
 	failed: Partial<Record<AppRuntimeDependencyName, string>>;

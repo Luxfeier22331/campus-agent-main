@@ -85,10 +85,11 @@ function createRuntimeReadinessResult() {
 	return {
 		dependencies: {
 			auth: "ready",
+			authShellOrigin: "configured",
 			database: "ready",
 			officialWebHandoff: "not_configured",
 			operatorBridge: "configured",
-			publicChatOrigin: "configured",
+			publicChatCompatibilityOrigin: "configured",
 			supervisorApi: "ready",
 		},
 		failed: {},
@@ -132,6 +133,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain("[[env.staging.hyperdrive]]");
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
+		expect(stagingVarsBlock).toContain('AUTH_SHELL_ORIGIN = "https://hub-staging.muc.wiki"');
 		expect(stagingVarsBlock).toContain(
 			'PUBLIC_CHAT_WEB_ORIGIN = "https://campus-chat-staging.ayafeed.com"',
 		);
@@ -187,6 +189,7 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_MANAGEMENT_DATABASE_URL");
+		expect(runWithStagingDbEnvSource).toContain("https://hub-staging.muc.wiki");
 		expect(runWithStagingDbEnvSource).toContain("https://campus-chat-staging.ayafeed.com");
 		expect(stagingPreflightSource).toContain("STAGING_SUPERVISOR_API_BASE_URL");
 		expect(stagingPreflightSource).toContain('new URL("/healthz", baseUrl)');
@@ -231,7 +234,7 @@ describe("app-api worker foundation", () => {
 
 	it("points the local smoke supervisor upstream at the docker-first supervisor-api port", () => {
 		expect(localSmokeWranglerConfig).toContain(
-			'SUPERVISOR_API_BASE_URL = "http://127.0.0.1:18080"',
+			'SUPERVISOR_API_BASE_URL = "http://127.0.0.1:27051"',
 		);
 		expect(localSmokeWranglerConfig).not.toContain("127.0.0.1:8081");
 	});
@@ -279,10 +282,11 @@ describe("app-api worker foundation", () => {
 			status: "ready",
 			dependencies: {
 				auth: "ready",
+				authShellOrigin: "configured",
 				database: "ready",
 				officialWebHandoff: "not_configured",
 				operatorBridge: "configured",
-				publicChatOrigin: "configured",
+				publicChatCompatibilityOrigin: "configured",
 				supervisorApi: "ready",
 			},
 			preflight: {
@@ -354,10 +358,11 @@ describe("app-api worker foundation", () => {
 			runtimeReadinessProbe: vi.fn().mockResolvedValue({
 				dependencies: {
 					auth: "not_ready",
+					authShellOrigin: "configured",
 					database: "ready",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
-					publicChatOrigin: "configured",
+					publicChatCompatibilityOrigin: "configured",
 					supervisorApi: "not_ready",
 				},
 				failed: {
@@ -395,10 +400,11 @@ describe("app-api worker foundation", () => {
 			runtimeReadinessProbe: vi.fn().mockResolvedValue({
 				dependencies: {
 					auth: "ready",
+					authShellOrigin: "configured",
 					database: "ready",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
-					publicChatOrigin: "configured",
+					publicChatCompatibilityOrigin: "configured",
 					supervisorApi: "ready",
 				},
 				failed: {},

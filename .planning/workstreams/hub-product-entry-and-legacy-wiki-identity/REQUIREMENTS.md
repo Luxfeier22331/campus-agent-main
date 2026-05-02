@@ -20,6 +20,10 @@ existing `muc.wiki` deployment.
 - Establish `hub.muc.wiki/[slug]` as the flat app entry model:
   - `/`
   - `/account`
+  - `/account/login`
+  - `/account/register`
+  - `/account/forgot-password`
+  - `/account/reset-password`
   - `/chat`
   - `/docs`
   - `/map`
@@ -60,8 +64,23 @@ existing `muc.wiki` deployment.
 ## Functional Requirements
 
 - Hub route namespace must be path-based under `hub.muc.wiki/[slug]`.
+- `/` is the launcher/home route.
+- `/:slug` is the app entry route family.
+- `/wiki` is intentionally not a hub app slug; legacy Wiki is only an external
+  card.
 - The repo-owned hub surface is `apps/hub-web`; using another existing surface
   requires an explicit architecture decision before implementation.
+- `apps/hub-web` runtime and build stack are fixed as Cloudflare Worker + Vite
+  React SPA.
+- Hub UI stack should reuse the public-facing React/Tailwind/Radix/lucide
+  conventions already used by `apps/public-chat-web`.
+- Hub browser routing is TanStack React Router. Changing router libraries
+  requires an explicit architecture decision before Phase 3 implementation.
+- Hub must not use Next.js, Rspress, React Admin, MUI panel shell or Cloudflare
+  Pages as the default implementation substrate.
+- Hub same-site API routes must be allowlisted one-by-one and call
+  `apps/app-api` through Worker `APP_API` Service Binding. Public URLs such as
+  `APP_API_BASE_URL` are not the product contract for Worker-to-Worker calls.
 - Hub app launcher must show capability availability from a controlled manifest
   or app-api policy projection, not from UI-only claims.
 - Account shell must consume app-api auth routes and `/api/me`.
@@ -82,6 +101,43 @@ existing `muc.wiki` deployment.
   domain, name prefix and SameSite posture must be documented before Phase 4.
 - `hub.muc.wiki/[slug]` must not mount unknown slugs to app-api by default;
   unsupported slugs fail closed to a controlled not-found page.
+- Hub Worker routes are limited to static asset delivery, SPA route fallback and
+  narrow allowlisted same-site API seams to app-api.
+- Phase 3 starts with a repo-owned typed static app launcher manifest. App-api
+  policy projection is a later enhancement, not a Phase 3 blocker.
+- Hub app launcher manifest fields are:
+  - `slug`
+  - `label`
+  - `href`
+  - `state`
+  - `auth_required`
+  - `external`
+  - `capability_key`
+- Initial entry states are:
+  - `/account`: `available`
+  - `/chat`: `available`
+  - `/docs`: `available`
+  - `/panel`: `gated`
+  - `/map`: `preview`
+  - `/services`: `preview`
+  - `/notices`: `preview`
+  - legacy Wiki external card: `external_legacy`
+- Hub account routes are:
+  - `/account`
+  - `/account/login`
+  - `/account/register`
+  - `/account/forgot-password`
+  - `/account/reset-password`
+- Public-chat auth routes remain as bounded redirects or compatibility shims
+  during migration. They should redirect to hub account routes with explicit
+  `return_to` handling rather than relying on cross-subdomain cookie sharing.
+- Hub auth cookie posture is:
+  - scoped to `hub.muc.wiki`
+  - no `.muc.wiki` cross-subdomain auth cookie by default
+  - no shared cookie domain/name/session with MediaWiki
+  - `Secure`
+  - `HttpOnly` for server auth cookies
+  - `SameSite=Lax`
 
 ## Success Criteria
 
@@ -89,9 +145,13 @@ existing `muc.wiki` deployment.
   `hub.muc.wiki/[slug]` product hub.
 - `apps/hub-web` has an explicit boundary and does not duplicate app-api auth
   backend.
+- `apps/hub-web` technology choice is frozen as Worker + Vite React SPA and is
+  aligned with existing public Worker surfaces.
 - Public account shell routes are defined under hub.
 - Chat/docs/map/services/notices/panel entry states are controlled and do not
   overstate unopened capabilities.
+- Launcher manifest, route behavior and account redirect policy are frozen
+  before implementation.
 - MediaWiki identity strategy is frozen as compatibility-first, while content
   and media migration remain explicitly out of scope.
 - The initial MediaWiki runtime posture is external-link-only unless a later
@@ -114,3 +174,11 @@ existing `muc.wiki` deployment.
 - Better Auth OAuth Provider can expose OAuth/OIDC-style provider flows for
   trusted clients:
   <https://www.better-auth.com/docs/plugins/oauth-provider>
+- Cloudflare Workers Vite plugin supports Worker applications with Vite-based
+  development/build flow:
+  <https://developers.cloudflare.com/workers/vite-plugin/>
+- Cloudflare Service Bindings provide Worker-to-Worker calls without using the
+  public internet as the service contract:
+  <https://developers.cloudflare.com/workers/runtime-apis/bindings/service-bindings/>
+- Cloudflare Workers static assets support SPA routing behavior:
+  <https://developers.cloudflare.com/workers/static-assets/routing/single-page-application/>
