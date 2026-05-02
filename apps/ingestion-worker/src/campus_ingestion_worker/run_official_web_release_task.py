@@ -82,6 +82,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--derived-bucket")
     parser.add_argument("--declarations-path")
     parser.add_argument("--reset-index", action="store_true")
+    parser.add_argument("--task-id")
     parser.add_argument(
         "--task-type",
         action="append",
@@ -111,15 +112,25 @@ def run_official_web_release_task_once(
     declarations_path: Path | None = None,
     reset_index: bool = False,
     lease_seconds: int = DEFAULT_OFFICIAL_WEB_RELEASE_TASK_LEASE_SECONDS,
+    task_id: str = "",
     task_types: Sequence[str] = (),
     now: Callable[[], object] | None = None,
 ) -> OfficialWebReleaseTaskRunResult | None:
-    task = release_store.claim_next_task(
-        worker_id=worker_id,
-        lease_seconds=lease_seconds,
-        now=_now(now),
-        task_types=task_types,
-    )
+    normalized_task_id = str(task_id or "").strip()
+    if normalized_task_id:
+        task = release_store.claim_task(
+            normalized_task_id,
+            worker_id=worker_id,
+            lease_seconds=lease_seconds,
+            now=_now(now),
+        )
+    else:
+        task = release_store.claim_next_task(
+            worker_id=worker_id,
+            lease_seconds=lease_seconds,
+            now=_now(now),
+            task_types=task_types,
+        )
     if task is None:
         return None
     _report_task(projection_reporter, task)
@@ -409,6 +420,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         if args.declarations_path
         else None,
         reset_index=args.reset_index,
+        task_id=args.task_id or "",
     )
     print(json.dumps(None if result is None else asdict(result), ensure_ascii=False, indent=2))
 

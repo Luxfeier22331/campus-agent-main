@@ -54,6 +54,15 @@ class OfficialWebReleaseTaskStore(Protocol):
 
     def get_task(self, task_id: str) -> OfficialWebReleaseTask | None: ...
 
+    def claim_task(
+        self,
+        task_id: str,
+        *,
+        worker_id: str,
+        lease_seconds: int = DEFAULT_OFFICIAL_WEB_RELEASE_TASK_LEASE_SECONDS,
+        now: datetime | None = None,
+    ) -> OfficialWebReleaseTask | None: ...
+
     def claim_next_task(
         self,
         *,
@@ -155,6 +164,33 @@ class InMemoryOfficialWebReleaseTaskStore:
     def get_task(self, task_id: str) -> OfficialWebReleaseTask | None:
         with self._lock:
             return self._tasks_by_id.get(str(task_id or "").strip())
+
+    def claim_task(
+        self,
+        task_id: str,
+        *,
+        worker_id: str,
+        lease_seconds: int = DEFAULT_OFFICIAL_WEB_RELEASE_TASK_LEASE_SECONDS,
+        now: datetime | None = None,
+    ) -> OfficialWebReleaseTask | None:
+        timestamp = now or utc_now()
+        normalized_task_id = str(task_id or "").strip()
+        with self._lock:
+            selected = self._tasks_by_id.get(normalized_task_id)
+            if selected is None:
+                return None
+            if selected.status not in {
+                "queued",
+                "failed_retryable",
+            } and not selected.is_lease_expired(now=timestamp):
+                return None
+            claimed = selected.claim(
+                worker_id=worker_id,
+                lease_seconds=lease_seconds,
+                now=timestamp,
+            )
+            self._tasks_by_id[claimed.task_id] = claimed
+            return claimed
 
     def claim_next_task(
         self,
@@ -370,6 +406,42 @@ class PostgresOfficialWebReleaseTaskStore:
     def get_task(self, task_id: str) -> OfficialWebReleaseTask | None:
         with _postgres_connection(self.database_url) as conn, conn.cursor() as cursor:
             cursor.execute(f"{self._select_query()} where task_id = %s", (str(task_id),))
+            row = cursor.fetchone()
+        return None if row is None else _task_from_row(row)
+
+    def claim_task(
+        self,
+        task_id: str,
+        *,
+        worker_id: str,
+        lease_seconds: int = DEFAULT_OFFICIAL_WEB_RELEASE_TASK_LEASE_SECONDS,
+        now: datetime | None = None,
+    ) -> OfficialWebReleaseTask | None:
+        del now
+        table_sql = _qualified_table_sql(self.table_name)
+        query = f"""
+            update {table_sql}
+            set
+                status = 'claimed',
+                attempt_count = attempt_count + 1,
+                lease_owner = %s,
+                lease_expires_at = now() + (%s * interval '1 second'),
+                updated_at = now()
+            where task_id = %s
+                and (
+                    status in ('queued', 'failed_retryable')
+                    or (
+                        status in ('claimed', 'running')
+                        and (lease_expires_at is null or lease_expires_at <= now())
+                    )
+                )
+            returning {self._returning_columns()}
+        """
+        with (
+            _postgres_connection(self.database_url, autocommit=False) as conn,
+            conn.cursor() as cursor,
+        ):
+            cursor.execute(query, (str(worker_id), int(lease_seconds), str(task_id)))
             row = cursor.fetchone()
         return None if row is None else _task_from_row(row)
 
