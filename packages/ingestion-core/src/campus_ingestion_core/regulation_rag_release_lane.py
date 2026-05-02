@@ -113,6 +113,7 @@ class RagReleaseCandidateEnqueueReport:
     created_count: int
     skipped_unchanged_count: int
     candidate_ids: tuple[str, ...]
+    forced_reenqueue_count: int = 0
 
 
 @dataclass(frozen=True, slots=True)
@@ -340,10 +341,12 @@ def enqueue_regulation_rag_release_candidates_for_records(
     records: Sequence[DocumentRegistryRecord],
     runtime_profile: CollectionRuntimeProfile,
     now: datetime | None = None,
+    force: bool = False,
 ) -> RagReleaseCandidateEnqueueReport:
     runtime_now = _iso(now)
     candidate_ids: list[str] = []
     skipped_unchanged_count = 0
+    forced_reenqueue_count = 0
     for record in records:
         runtime_profile_identity = _runtime_profile_identity(runtime_profile)
         existing = store.latest_candidate_for_document(
@@ -357,14 +360,24 @@ def enqueue_regulation_rag_release_candidates_for_records(
             and existing.document_hash == record.content_hash
             and existing.status == "serving_published"
         ):
-            candidate = _candidate_from_record(
-                record=record,
-                runtime_profile=runtime_profile,
-                now=runtime_now,
-                status="skipped_unchanged",
-                last_release_id=existing.last_release_id,
-            )
-            skipped_unchanged_count += 1
+            if force:
+                candidate = _candidate_from_record(
+                    record=record,
+                    runtime_profile=runtime_profile,
+                    now=runtime_now,
+                    status="pending",
+                    candidate_reason="forced_release_policy_reenqueue",
+                )
+                forced_reenqueue_count += 1
+            else:
+                candidate = _candidate_from_record(
+                    record=record,
+                    runtime_profile=runtime_profile,
+                    now=runtime_now,
+                    status="skipped_unchanged",
+                    last_release_id=existing.last_release_id,
+                )
+                skipped_unchanged_count += 1
         else:
             candidate = _candidate_from_record(
                 record=record,
@@ -378,6 +391,7 @@ def enqueue_regulation_rag_release_candidates_for_records(
         created_count=len(candidate_ids) - skipped_unchanged_count,
         skipped_unchanged_count=skipped_unchanged_count,
         candidate_ids=tuple(candidate_ids),
+        forced_reenqueue_count=forced_reenqueue_count,
     )
 
 
@@ -390,6 +404,7 @@ def enqueue_regulation_rag_release_candidates_for_registry_delta(
     changed_document_ids: Sequence[str],
     runtime_profile: CollectionRuntimeProfile | None = None,
     now: datetime | None = None,
+    force: bool = False,
 ) -> RagReleaseCandidateEnqueueReport:
     resolved_profile = runtime_profile or load_runtime_profile(corpus, collection)
     changed_ids = tuple(
@@ -410,6 +425,7 @@ def enqueue_regulation_rag_release_candidates_for_registry_delta(
         records=tuple(sorted(records, key=lambda item: item.document_id)),
         runtime_profile=resolved_profile,
         now=now,
+        force=force,
     )
 
 
@@ -773,6 +789,7 @@ def _candidate_from_record(
     now: str,
     status: RagReleaseCandidateStatus,
     last_release_id: str | None = None,
+    candidate_reason: str | None = None,
 ) -> RagReleaseCandidate:
     runtime_profile_identity = _runtime_profile_identity(runtime_profile)
     candidate_id = _candidate_id(record, runtime_profile_identity, status)
@@ -803,7 +820,7 @@ def _candidate_from_record(
         visibility_level=record.visibility_level,
         visibility_scope=record.visibility_scope,
         entitlement_groups=tuple(record.entitlement_groups),
-        candidate_reason=_candidate_reason(record),
+        candidate_reason=candidate_reason or _candidate_reason(record),
         status=status,
         cleanup_disposition="none",
         created_at=now,

@@ -69,6 +69,7 @@ campus-ingestion-run-official-web-university-collection = "campus_ingestion_work
 campus-ingestion-materialize-curriculum-program-semester-facts = "campus_ingestion_worker.materialize_curriculum_program_semester_facts:main"
 campus-ingestion-publish-document-reader-assets = "campus_ingestion_worker.publish_document_reader_assets:main"
 campus-ingestion-release-registry-scope = "campus_ingestion_worker.release_registry_scope:main"
+campus-ingestion-scope-alias = "campus_ingestion_worker.scope_alias:main"
 campus-ingestion-enqueue-regulation-rag-release-candidates = "campus_ingestion_worker.enqueue_regulation_rag_release_candidates:main"
 campus-ingestion-process-regulation-rag-release-candidates = "campus_ingestion_worker.process_regulation_rag_release_candidates:main"
 campus-ingestion-generate-regulation-rag-release-selected-replay = "campus_ingestion_worker.generate_regulation_rag_release_selected_replay:main"

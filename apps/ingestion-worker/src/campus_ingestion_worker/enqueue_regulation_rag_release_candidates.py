@@ -49,6 +49,14 @@ def build_parser() -> argparse.ArgumentParser:
         type=Path,
         help="Optional path to write the enqueue report JSON.",
     )
+    parser.add_argument(
+        "--force",
+        action="store_true",
+        help=(
+            "Reenqueue unchanged serving-published candidates after a release policy "
+            "or admission gate change."
+        ),
+    )
     return parser
 
 
@@ -63,6 +71,7 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     created_count = 0
     skipped_unchanged_count = 0
+    forced_reenqueue_count = 0
     candidate_ids: list[str] = []
     collection_reports: dict[str, dict[str, object]] = {}
 
@@ -73,14 +82,17 @@ def main(argv: Sequence[str] | None = None) -> None:
             corpus=args.corpus,
             collection=collection,
             changed_document_ids=tuple(document_ids),
+            force=args.force,
         )
         created_count += report.created_count
         skipped_unchanged_count += report.skipped_unchanged_count
+        forced_reenqueue_count += report.forced_reenqueue_count
         candidate_ids.extend(report.candidate_ids)
         collection_reports[collection] = {
             "selected_document_ids": list(document_ids),
             "created_count": report.created_count,
             "skipped_unchanged_count": report.skipped_unchanged_count,
+            "forced_reenqueue_count": report.forced_reenqueue_count,
             "candidate_ids": list(report.candidate_ids),
         }
 
@@ -89,6 +101,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         "corpus": args.corpus,
         "created_count": created_count,
         "skipped_unchanged_count": skipped_unchanged_count,
+        "forced_reenqueue_count": forced_reenqueue_count,
         "candidate_ids": candidate_ids,
         "selected_documents_by_collection": {
             collection: len(document_ids)
