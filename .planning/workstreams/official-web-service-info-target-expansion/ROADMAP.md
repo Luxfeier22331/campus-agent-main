@@ -22,19 +22,19 @@ Future phases remain `OUTLINE.md` until the previous phase is summarized.
 
 - [x] **Phase 0: Boundary And Field Denominator** - Freeze surfaces, field requirements, non-goals
   and ownership boundaries.
-- [ ] **Phase 1: Source Target Gap Inventory** - Compare current inventory/read models against the
+- [x] **Phase 1: Source Target Gap Inventory** - Compare current inventory/read models against the
   field denominator and nominate only source-backed target candidates.
-- [ ] **Phase 2: Extraction Quality And Machine Review Gate** - Define deterministic field review,
+- [x] **Phase 2: Extraction Quality And Machine Review Gate** - Define deterministic field review,
   blocker taxonomy and `selected_write_requires_review` machine semantics before previews.
-- [ ] **Phase 3: Contact Directory Preview** - Run no-promotion preview for accepted contact
+- [x] **Phase 3: Contact Directory Preview** - Run no-promotion preview for accepted contact
   directory candidates and record source lineage plus machine field review verdicts.
-- [ ] **Phase 4: Service Guide Preview** - Run no-promotion preview for accepted service guide
+- [x] **Phase 4: Service Guide Preview** - Run no-promotion preview for accepted service guide
   candidates and record source lineage plus machine field review verdicts.
-- [ ] **Phase 5: Selected-Write Release Handoff** - Prepare ingestion-worker release task inputs
+- [x] **Phase 5: Selected-Write Release Handoff** - Prepare ingestion-worker release task inputs
   for ready candidates without moving mutation into app-api.
-- [ ] **Phase 6: Runtime Consumption Verification** - Verify `contact_directory_lookup` and
+- [x] **Phase 6: Runtime Consumption Verification** - Verify `contact_directory_lookup` and
   `service_guide_lookup` consume released projections through app-api/supervisor paths.
-- [ ] **Phase 7: Closeout** - Record accepted targets, blocked targets, verification evidence and
+- [x] **Phase 7: Closeout** - Record accepted targets, blocked targets, verification evidence and
   reopen rules.
 
 ## Implementation Dependency

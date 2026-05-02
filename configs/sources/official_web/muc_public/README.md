@@ -37,8 +37,9 @@ Host rollout split:
 
 - `university_core`: school-level entry surfaces. Current first-pass set is
   `www.muc.edu.cn`, `news.muc.edu.cn`, and `xxgk.muc.edu.cn`.
-- `university_support`: school-level support surfaces kept behind the daily
-  baseline lane. Current set is `lib.muc.edu.cn` and `xiaoyou.muc.edu.cn`.
+- `university_support`: school-level support surfaces kept behind target-first
+  consumer lanes. Current set is `lib.muc.edu.cn`, `met.muc.edu.cn`, and
+  `xiaoyou.muc.edu.cn`.
 - `college`: college or institute-owned hosts. These are enabled source hosts
   but should be validated one host at a time before widening recurring lanes.
 - `topic`: topic or campaign hosts. These are also one-host-at-a-time rollout
@@ -49,7 +50,8 @@ Host rollout split:
 Current scheduler lanes:
 
 - `consumer-candidate-hot`: enabled bounded `hot` lane for contact, service
-  guide, and stable-reference candidates on university-level surfaces.
+  guide, and stable-reference candidates on university-level surfaces,
+  including target-first information-technology service pages.
 - `consumer-stable-baseline`: enabled daily `baseline` lane for school-level
   core/support consumer candidates. Broad news crawl is not part of default
   recovery.

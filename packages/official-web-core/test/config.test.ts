@@ -35,8 +35,9 @@ function writeMinimalConsumerDenominator(siteRoot: string): void {
 						],
 						title_keywords: ["联系", "联系我们", "联系方式"],
 						path_patterns: ["contact", "lianxi"],
-						required_evidence: ["phone", "email", "location", "office_hours"],
-						minimum_matched_evidence_count: 2,
+						required_evidence: ["phone"],
+						optional_evidence: ["email", "location", "office_hours"],
+						minimum_matched_evidence_count: 1,
 						requires_keyword_or_path_match: true,
 						negative_patterns: ["采购", "招标", "中标", "通知", "公告"],
 						selected_write_target: "campus_services/contact_directory",
@@ -50,15 +51,15 @@ function writeMinimalConsumerDenominator(siteRoot: string): void {
 						page_families: ["article_detail", "directory_page", "generic_content_page"],
 						title_keywords: ["办理", "申请", "指南", "服务"],
 						path_patterns: ["service", "guide", "apply"],
-						required_evidence: [
-							"service_process",
+						required_evidence: ["service_process"],
+						optional_evidence: [
 							"service_entry",
 							"service_material",
 							"phone",
 							"location",
 							"office_hours",
 						],
-						minimum_matched_evidence_count: 2,
+						minimum_matched_evidence_count: 1,
 						requires_keyword_or_path_match: true,
 						negative_patterns: ["采购", "招标", "中标", "通知", "公告"],
 						selected_write_target: "campus_services/service_guide",
@@ -128,6 +129,7 @@ function writeMinimalTargetSourceMap(siteRoot: string): void {
 						url_hints: ["contact"],
 						title_hints: ["Contact"],
 						required_evidence: ["phone"],
+						optional_evidence: ["email", "location", "office_hours"],
 						retention_policy: "retain_source_truth",
 						review_policy: "selected_write_requires_review",
 						materialization_policy: "candidate_only",
@@ -162,7 +164,9 @@ function writeMinimalTargetInventory(siteRoot: string): void {
 						source_hosts: ["www.example.edu"],
 						source_urls: ["https://www.example.edu/contact"],
 						required_fields: ["office_name", "phone", "source_url", "source_version_evidence"],
-						required_evidence: ["phone", "location"],
+						optional_fields: ["location"],
+						required_evidence: ["phone"],
+						optional_evidence: ["email", "location", "office_hours"],
 						materialization_policy: "candidate_only",
 						review_policy: "selected_write_requires_review",
 						inventory_only: false,
@@ -224,8 +228,8 @@ describe("official-web-core config loading", () => {
 		expect(config.site.sourceChannel).toBe("official_web");
 		expect(config.site.allowedHosts).not.toContain("my.muc.edu.cn");
 		expect(config.site.allowedHosts).not.toContain("service.muc.edu.cn");
-		expect(config.hosts.hosts.filter((item) => item.enabled)).toHaveLength(33);
-		expect(config.seeds.seeds).toHaveLength(33);
+		expect(config.hosts.hosts.filter((item) => item.enabled)).toHaveLength(34);
+		expect(config.seeds.seeds).toHaveLength(34);
 		expect(config.projectionDeclarations.declarations.length).toBeGreaterThan(0);
 		expect(
 			config.projectionDeclarations.declarations.find(
@@ -251,11 +255,23 @@ describe("official-web-core config loading", () => {
 			consumerFamily: "contact_directory_candidate",
 			inventoryOnly: false,
 			materializationPolicy: "candidate_only",
+			optionalEvidence: ["email", "location", "office_hours"],
+			requiredEvidence: ["phone"],
 			retentionPolicy: "retain_source_truth",
 			reviewPolicy: "selected_write_requires_review",
 			selectedWriteTarget: "campus_services/contact_directory",
+			sourceHosts: ["www.muc.edu.cn", "xxgk.muc.edu.cn", "lib.muc.edu.cn", "met.muc.edu.cn"],
 			titleHints: ["联系", "联系我们", "联系方式", "电话", "办公地点"],
 			urlHints: ["contact", "lianxi", "lxwm", "bgs", "office"],
+		});
+		expect(config.targetSourceMap.targets[1]).toMatchObject({
+			consumerFamily: "service_guide_candidate",
+			optionalEvidence: ["service_entry", "service_material", "phone", "location", "office_hours"],
+			requiredEvidence: ["service_process"],
+			selectedWriteTarget: "campus_services/service_guide",
+			sourceHosts: ["www.muc.edu.cn", "xxgk.muc.edu.cn", "lib.muc.edu.cn", "met.muc.edu.cn"],
+			titleHints: expect.arrayContaining(["校园卡", "一卡通"]),
+			urlHints: expect.arrayContaining(["fwzn", "xsfw"]),
 		});
 		expect(config.targetSourceMap.targets[3]).toMatchObject({
 			consumerFamily: "notice_news_candidate",
@@ -265,18 +281,36 @@ describe("official-web-core config loading", () => {
 			reviewPolicy: "inventory_only",
 			selectedWriteTarget: "",
 		});
-		expect(config.targetInventory.inventoryVersion).toBe("muc_public_target_inventory_v1");
+		expect(config.targetInventory.inventoryVersion).toBe("muc_public_target_inventory_v3");
 		expect(config.targetInventory.entries.map((entry) => entry.inventoryId)).toEqual([
 			"muc-main-homepage-contact",
+			"muc-information-disclosure-contact",
 			"muc-information-disclosure-application-process",
+			"muc-information-disclosure-application-form-download",
+			"muc-it-student-campus-card-service-guide",
 			"muc-school-introduction-reference",
 		]);
 		expect(config.targetInventory.entries[0]).toMatchObject({
 			admissionTargetId: "campus-services-contact-directory",
 			consumerFamily: "contact_directory_candidate",
+			optionalEvidence: ["email", "location", "office_hours"],
+			optionalFields: ["email", "location", "office_hours"],
 			previewStatus: "candidate",
+			requiredEvidence: ["phone"],
 			releaseBlockers: expect.arrayContaining(["no_preview_evidence"]),
 			sourceUrls: ["https://www.muc.edu.cn/"],
+		});
+		expect(
+			config.targetInventory.entries.find(
+				(entry) => entry.inventoryId === "muc-it-student-campus-card-service-guide",
+			),
+		).toMatchObject({
+			admissionTargetId: "campus-services-service-guide",
+			consumerFamily: "service_guide_candidate",
+			optionalEvidence: ["service_entry", "service_material", "phone", "location", "office_hours"],
+			requiredEvidence: ["service_process"],
+			sourceHosts: ["met.muc.edu.cn"],
+			sourceUrls: ["https://met.muc.edu.cn/info/1027/1127.htm"],
 		});
 		expect(config.hosts.hosts.find((item) => item.host === "www.muc.edu.cn")).toMatchObject({
 			hostGroup: "university_core",
@@ -291,13 +325,13 @@ describe("official-web-core config loading", () => {
 		expect(plan.crawlRunId).toBe("muc_public-TEST");
 		expect(plan.runIntent).toBe("baseline");
 		expect(plan.schedulerPolicyVersion).toBe("muc_public_scheduler_v1");
-		expect(plan.enabledHosts).toHaveLength(33);
+		expect(plan.enabledHosts).toHaveLength(34);
 		expect(plan.enabledHosts.find((item) => item.host === "www.muc.edu.cn")).toMatchObject({
 			hostGroup: "university_core",
 			ownerLabel: "学校主页",
 			rolloutOrder: 10,
 		});
-		expect(plan.seeds).toHaveLength(33);
+		expect(plan.seeds).toHaveLength(34);
 		expect(plan.requiredArtifacts).toEqual([
 			"crawl-run.json",
 			"host-summary.json",

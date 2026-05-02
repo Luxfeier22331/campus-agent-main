@@ -684,6 +684,54 @@ def _assert_selected_write_release_task(task: OfficialWebReleaseTask) -> None:
         )
     _require_text(_selected_write_target_from_task(task), "selectedWriteTarget")
     _require_text(task.job_id, "jobId")
+    _assert_machine_field_review_ready(task.input_ref)
+
+
+def _assert_machine_field_review_ready(input_ref: Mapping[str, object]) -> None:
+    field_status = _object_mapping(input_ref.get("fieldStatus") or input_ref.get("field_status"))
+    if not field_status:
+        raise OfficialWebSelectedWriteReleaseError(
+            code="missing_machine_field_review",
+            message="selected-write task evidence must include fieldStatus.",
+        )
+    required_fields = _string_list(
+        input_ref.get("requiredFields") or input_ref.get("required_fields")
+    )
+    optional_fields = _string_list(
+        input_ref.get("optionalFields") or input_ref.get("optional_fields")
+    )
+    missing_required = [
+        field_name
+        for field_name in required_fields
+        if str(field_status.get(field_name) or "").strip() != "present"
+    ]
+    if missing_required:
+        raise OfficialWebSelectedWriteReleaseError(
+            code="machine_field_review_not_ready",
+            message=(
+                "selected-write task required fieldStatus is not ready: "
+                + ", ".join(sorted(missing_required))
+            ),
+        )
+    unsupported_optional = [
+        field_name
+        for field_name in optional_fields
+        if str(field_status.get(field_name) or "").strip()
+        not in {"present", "source_not_provided", "not_applicable"}
+    ]
+    if unsupported_optional:
+        raise OfficialWebSelectedWriteReleaseError(
+            code="machine_field_review_not_ready",
+            message=(
+                "selected-write task optional fieldStatus is not ready: "
+                + ", ".join(sorted(unsupported_optional))
+            ),
+        )
+    if not required_fields:
+        raise OfficialWebSelectedWriteReleaseError(
+            code="missing_machine_field_review_required_fields",
+            message="selected-write task evidence must include requiredFields.",
+        )
 
 
 def _selected_write_task_from_release_task(task: OfficialWebReleaseTask) -> dict[str, object]:

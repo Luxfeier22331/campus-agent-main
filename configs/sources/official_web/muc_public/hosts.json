@@ -135,6 +135,31 @@
 			}
 		},
 		{
+			"host": "met.muc.edu.cn",
+			"public_kind": "directory_site",
+			"host_group": "university_support",
+			"owner_label": "信息化建设管理处",
+			"rollout_order": 45,
+			"enabled": true,
+			"seed_urls": ["https://met.muc.edu.cn/"],
+			"allowed_path_prefixes": ["/"],
+			"denied_path_patterns": [
+				"^/search",
+				"^/login",
+				"^/logout",
+				"^/views/search/",
+				"^/aop_component/",
+				"\\.(pdf|doc|docx|xls|xlsx|ppt|pptx|zip|rar)$"
+			],
+			"query_param_allowlist": [],
+			"max_depth": 4,
+			"max_pages_per_run": 120,
+			"max_concurrency": 1,
+			"min_delay_ms": 1200,
+			"respect_robots": true,
+			"explicit_sitemaps": []
+		},
+		{
 			"host": "xiaoyou.muc.edu.cn",
 			"public_kind": "content_site",
 			"host_group": "university_support",

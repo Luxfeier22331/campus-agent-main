@@ -1,7 +1,7 @@
 {
 	"schema_version": "official_web_target_inventory.v1",
 	"site_id": "muc_public",
-	"inventory_version": "muc_public_target_inventory_v1",
+	"inventory_version": "muc_public_target_inventory_v3",
 	"entries": [
 		{
 			"inventory_id": "muc-main-homepage-contact",
@@ -13,20 +13,37 @@
 			"selected_write_target": "campus_services/contact_directory",
 			"source_hosts": ["www.muc.edu.cn"],
 			"source_urls": ["https://www.muc.edu.cn/"],
-			"required_fields": [
-				"organization_name",
-				"phone",
-				"location",
-				"source_url",
-				"source_version_evidence"
-			],
-			"required_evidence": ["phone", "location"],
+			"required_fields": ["organization_name", "phone", "source_url", "source_version_evidence"],
+			"optional_fields": ["email", "location", "office_hours"],
+			"required_evidence": ["phone"],
+			"optional_evidence": ["email", "location", "office_hours"],
 			"materialization_policy": "candidate_only",
 			"review_policy": "selected_write_requires_review",
 			"inventory_only": false,
 			"release_blockers": ["no_preview_evidence", "field_completeness_unverified"],
 			"preview_status": "candidate",
 			"notes": "Homepage footer currently exposes campus addresses and the main switchboard phone. Treat as a candidate contact-directory seed, not a complete department phone book."
+		},
+		{
+			"inventory_id": "muc-information-disclosure-contact",
+			"admission_target_id": "campus-services-contact-directory",
+			"target_label": "中央民族大学信息公开联系方式",
+			"consumer_family": "contact_directory_candidate",
+			"owner_surface": "contact_directory_lookup",
+			"owner_agent_or_runtime": "campus-services-agent",
+			"selected_write_target": "campus_services/contact_directory",
+			"source_hosts": ["xxgk.muc.edu.cn"],
+			"source_urls": ["https://xxgk.muc.edu.cn/xxgk/lxfs.htm"],
+			"required_fields": ["organization_name", "phone", "source_url", "source_version_evidence"],
+			"optional_fields": ["email", "location", "office_hours"],
+			"required_evidence": ["phone"],
+			"optional_evidence": ["email", "location", "office_hours"],
+			"materialization_policy": "candidate_only",
+			"review_policy": "selected_write_requires_review",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "field_completeness_unverified"],
+			"preview_status": "candidate",
+			"notes": "Information disclosure contact page publishes address, phone and fax. Email and office hours remain optional source_not_provided fields unless the source later publishes them."
 		},
 		{
 			"inventory_id": "muc-information-disclosure-application-process",
@@ -38,21 +55,97 @@
 			"selected_write_target": "campus_services/service_guide",
 			"source_hosts": ["xxgk.muc.edu.cn"],
 			"source_urls": ["https://xxgk.muc.edu.cn/info/1007/1113.htm"],
-			"required_fields": [
-				"service_name",
-				"process_steps",
+			"required_fields": ["service_name", "process_steps", "source_url", "source_version_evidence"],
+			"optional_fields": [
+				"service_entry",
 				"required_materials",
 				"responsible_office",
-				"source_url",
-				"source_version_evidence"
+				"phone",
+				"location",
+				"office_hours"
 			],
-			"required_evidence": ["service_process", "service_material", "location"],
+			"required_evidence": ["service_process"],
+			"optional_evidence": [
+				"service_entry",
+				"service_material",
+				"phone",
+				"location",
+				"office_hours"
+			],
 			"materialization_policy": "candidate_only",
 			"review_policy": "selected_write_requires_review",
 			"inventory_only": false,
 			"release_blockers": ["no_preview_evidence", "field_completeness_unverified"],
 			"preview_status": "candidate",
 			"notes": "Public information-disclosure application guide. It supports informational service-guide answers only, not transactional submission."
+		},
+		{
+			"inventory_id": "muc-information-disclosure-application-form-download",
+			"admission_target_id": "campus-services-service-guide",
+			"target_label": "中央民族大学依申请公开信息申请表下载",
+			"consumer_family": "service_guide_candidate",
+			"owner_surface": "service_guide_lookup",
+			"owner_agent_or_runtime": "campus-services-agent",
+			"selected_write_target": "campus_services/service_guide",
+			"source_hosts": ["xxgk.muc.edu.cn"],
+			"source_urls": ["https://xxgk.muc.edu.cn/info/1007/1114.htm"],
+			"required_fields": ["service_name", "process_steps", "source_url", "source_version_evidence"],
+			"optional_fields": [
+				"service_entry",
+				"required_materials",
+				"responsible_office",
+				"phone",
+				"location",
+				"office_hours"
+			],
+			"required_evidence": ["service_process"],
+			"optional_evidence": [
+				"service_entry",
+				"service_material",
+				"phone",
+				"location",
+				"office_hours"
+			],
+			"materialization_policy": "candidate_only",
+			"review_policy": "selected_write_requires_review",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "field_completeness_unverified"],
+			"preview_status": "candidate",
+			"notes": "Adjacent information-disclosure application form download page. It contributes material evidence, but remains selected-write blocked until the full service-guide denominator is source-backed."
+		},
+		{
+			"inventory_id": "muc-it-student-campus-card-service-guide",
+			"admission_target_id": "campus-services-service-guide",
+			"target_label": "中央民族大学学生校园卡服务",
+			"consumer_family": "service_guide_candidate",
+			"owner_surface": "service_guide_lookup",
+			"owner_agent_or_runtime": "campus-services-agent",
+			"selected_write_target": "campus_services/service_guide",
+			"source_hosts": ["met.muc.edu.cn"],
+			"source_urls": ["https://met.muc.edu.cn/info/1027/1127.htm"],
+			"required_fields": ["service_name", "process_steps", "source_url", "source_version_evidence"],
+			"optional_fields": [
+				"service_entry",
+				"required_materials",
+				"responsible_office",
+				"phone",
+				"location",
+				"office_hours"
+			],
+			"required_evidence": ["service_process"],
+			"optional_evidence": [
+				"service_entry",
+				"service_material",
+				"phone",
+				"location",
+				"office_hours"
+			],
+			"materialization_policy": "candidate_only",
+			"review_policy": "selected_write_requires_review",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "field_completeness_unverified"],
+			"preview_status": "candidate",
+			"notes": "Information technology service page describes campus card issuance, password change, loss reporting, card replacement and related service contacts. It supports informational service-guide answers only."
 		},
 		{
 			"inventory_id": "muc-school-introduction-reference",
@@ -72,6 +165,8 @@
 				"source_version_evidence"
 			],
 			"required_evidence": ["stable_reference"],
+			"optional_evidence": [],
+			"optional_fields": [],
 			"materialization_policy": "release_gate_required",
 			"review_policy": "release_gate_required",
 			"inventory_only": false,

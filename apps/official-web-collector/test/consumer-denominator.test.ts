@@ -52,6 +52,42 @@ const SAMPLE_SERVICE_GUIDE_PAGE_HTML = `
 </html>
 `.trim();
 
+const SAMPLE_INFORMATION_DISCLOSURE_CONTACT_HTML = `
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <title>联系方式 - 中央民族大学信息公开</title>
+  </head>
+  <body>
+    <main>
+      <h1>联系方式</h1>
+      <p>地址：北京市海淀区中关村南大街27号 中央民族大学 100081</p>
+      <p>电话：010-68932551</p>
+      <p>传真：010-68933983</p>
+    </main>
+  </body>
+</html>
+`.trim();
+
+const SAMPLE_STUDENT_CAMPUS_CARD_SERVICE_HTML = `
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <title>学生校园卡服务 - 信息化建设管理处</title>
+  </head>
+  <body>
+    <main>
+      <h1>学生校园卡服务</h1>
+      <p>服务名称：领取新卡。根据领取通知，学院新生负责人带有效证件和领卡说明领取。</p>
+      <p>服务名称：挂失。校园卡丢失后，请立即通过圈存机或民大通APP“我的一卡通”模块进行挂失。</p>
+      <p>服务名称：校园卡补办。校园卡损坏或丢失后，先将卡挂失，挂失后可以到自助补卡机上进行补卡。</p>
+      <p>服务名称：交易流水查询。用户可持有效证件到校园卡管理中心前台进行查询和咨询。</p>
+      <p>校园卡管理中心位置：海淀校区在中慧楼2层，电话：010-68933381。丰台校区在智慧中心一层，电话：010-83878225。</p>
+    </main>
+  </body>
+</html>
+`.trim();
+
 const SAMPLE_PROCUREMENT_NOTICE_HTML = `
 <!doctype html>
 <html lang="zh-CN">
@@ -65,6 +101,22 @@ const SAMPLE_PROCUREMENT_NOTICE_HTML = `
       <p>项目地点：海淀校区家属区。</p>
       <p>联系电话：010-68933381。</p>
       <p>本公示期为三个工作日。</p>
+    </main>
+  </body>
+</html>
+`.trim();
+
+const SAMPLE_SERVICE_MATERIAL_PAGE_HTML = `
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <title>依申请公开信息申请表下载 - Campus public</title>
+  </head>
+  <body>
+    <main>
+      <h1>依申请公开信息申请表下载</h1>
+      <p>申请人可下载中央民族大学依申请公开信息申请表和审批表。</p>
+      <p>附件：中央民族大学依申请公开信息申请表。</p>
     </main>
   </body>
 </html>
@@ -179,6 +231,98 @@ describe("official web consumer denominator", () => {
 				(item) => item.consumerFamily === "service_guide_candidate",
 			)?.matchedEvidence,
 		).toContain("service_process");
+	});
+
+	it("retains service material pages as source-truth candidates without making material release-blocking", () => {
+		const { configRoot } = writeTestConfigRoot({
+			consumerDenominatorEnforcementMode: "retain_matching_only",
+		});
+		const bundle = loadOfficialWebConfig("campus_public", { configRoot });
+		const page = createCollectedPageArtifactForTest({
+			configRoot,
+			crawlRunId: "owrun_consumer_service_material",
+			requestedUrl: "https://www.example.edu/apply-form.htm",
+			finalUrl: "https://www.example.edu/apply-form.htm",
+			declaredCanonicalUrl: null,
+			responseBody: SAMPLE_SERVICE_MATERIAL_PAGE_HTML,
+			fetchedAt: "2026-05-01T10:00:00.000Z",
+		});
+
+		const evaluation = evaluateOfficialWebConsumerDenominator({
+			consumerDenominator: bundle.consumerDenominator,
+			page,
+		});
+
+		const serviceMatch = evaluation.consumerMatches.find(
+			(item) => item.consumerFamily === "service_guide_candidate",
+		);
+		expect(evaluation.retentionDecision).toBe("retain_source_truth");
+		expect(serviceMatch?.matchedEvidence).toEqual(["service_material"]);
+		expect(
+			bundle.consumerDenominator.consumerFamilies.find(
+				(item) => item.consumerFamily === "service_guide_candidate",
+			)?.requiredEvidence,
+		).toEqual(["service_process"]);
+	});
+
+	it("classifies information-disclosure contact pages as contact candidates", () => {
+		const { configRoot } = writeTestConfigRoot({
+			consumerDenominatorEnforcementMode: "retain_matching_only",
+		});
+		const bundle = loadOfficialWebConfig("campus_public", { configRoot });
+		const page = createCollectedPageArtifactForTest({
+			configRoot,
+			crawlRunId: "owrun_consumer_xxgk_contact",
+			requestedUrl: "https://www.example.edu/xxgk/lxfs.htm",
+			finalUrl: "https://www.example.edu/xxgk/lxfs.htm",
+			declaredCanonicalUrl: null,
+			responseBody: SAMPLE_INFORMATION_DISCLOSURE_CONTACT_HTML,
+			fetchedAt: "2026-05-01T10:00:00.000Z",
+		});
+
+		const evaluation = evaluateOfficialWebConsumerDenominator({
+			consumerDenominator: bundle.consumerDenominator,
+			page,
+		});
+		const contactMatch = evaluation.consumerMatches.find(
+			(item) => item.consumerFamily === "contact_directory_candidate",
+		);
+
+		expect(evaluation.retentionDecision).toBe("retain_source_truth");
+		expect(contactMatch?.matchedEvidence).toEqual(["phone", "location"]);
+	});
+
+	it("classifies student campus-card service pages as service-guide candidates", () => {
+		const { configRoot } = writeTestConfigRoot({
+			consumerDenominatorEnforcementMode: "retain_matching_only",
+		});
+		const bundle = loadOfficialWebConfig("campus_public", { configRoot });
+		const page = createCollectedPageArtifactForTest({
+			configRoot,
+			crawlRunId: "owrun_consumer_campus_card",
+			requestedUrl: "https://www.example.edu/info/1027/1127.htm",
+			finalUrl: "https://www.example.edu/info/1027/1127.htm",
+			declaredCanonicalUrl: null,
+			responseBody: SAMPLE_STUDENT_CAMPUS_CARD_SERVICE_HTML,
+			fetchedAt: "2026-05-01T10:00:00.000Z",
+		});
+
+		const evaluation = evaluateOfficialWebConsumerDenominator({
+			consumerDenominator: bundle.consumerDenominator,
+			page,
+		});
+		const serviceMatch = evaluation.consumerMatches.find(
+			(item) => item.consumerFamily === "service_guide_candidate",
+		);
+
+		expect(evaluation.retentionDecision).toBe("retain_source_truth");
+		expect(serviceMatch?.matchedEvidence).toEqual([
+			"service_process",
+			"service_entry",
+			"service_material",
+			"phone",
+			"location",
+		]);
 	});
 
 	it("does not classify procurement notices as selected-write contact or service candidates", () => {

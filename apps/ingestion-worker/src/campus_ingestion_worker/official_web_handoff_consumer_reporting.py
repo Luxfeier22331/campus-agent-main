@@ -264,7 +264,8 @@ def build_consumer_candidate_review_report(
     selected_write_pending = [
         candidate
         for candidate in selected_write_candidates
-        if candidate["review_verdict"] in {"pending_review", "needs_more_evidence"}
+        if not candidate["ready_for_selected_write"]
+        and candidate["review_verdict"] in {"pending_review", "needs_more_evidence"}
     ]
     selected_write_blocked = [
         candidate
@@ -383,14 +384,29 @@ def _build_consumer_candidate_review_entry(
     )
     typed_candidate_schema_version = optional_text(candidate.get("typed_candidate_schema_version"))
     required_fields = _target_inventory_required_fields(target_inventory_entry)
+    optional_fields = _target_inventory_optional_fields(target_inventory_entry)
+    required_evidence = _target_inventory_required_evidence(target_inventory_entry)
+    optional_evidence = _target_inventory_optional_evidence(target_inventory_entry)
+    blocking_review_fields = _target_inventory_review_fields(
+        required_fields=required_fields,
+        required_evidence=required_evidence,
+    )
+    optional_review_fields = _target_inventory_review_fields(
+        required_fields=optional_fields,
+        required_evidence=optional_evidence,
+    )
+    review_fields = _unique_strings([*blocking_review_fields, *optional_review_fields])
     field_status = _field_status_for_required_fields(
         candidate=candidate,
-        required_fields=required_fields,
+        optional_fields=optional_review_fields,
+        required_fields=review_fields,
         typed_candidate=typed_candidate,
     )
     ready_for_selected_write = (
         _ready_for_selected_write(
             admission_action=admission_action,
+            field_status=field_status,
+            required_fields=blocking_review_fields,
             review_verdict=review_verdict,
             quality_gate=quality_gate,
             typed_candidate=typed_candidate,
@@ -431,7 +447,10 @@ def _build_consumer_candidate_review_entry(
         "inventory_id": optional_text(target_inventory_entry.get("inventory_id"))
         if target_inventory_entry is not None
         else None,
-        "required_fields": required_fields,
+        "optional_evidence": optional_evidence,
+        "optional_fields": optional_review_fields,
+        "required_evidence": required_evidence,
+        "required_fields": blocking_review_fields,
         "field_status": field_status,
         "typed_candidate_schema_version": typed_candidate_schema_version,
         "typed_candidate": typed_candidate,
@@ -449,6 +468,8 @@ def _build_consumer_candidate_review_entry(
             quality_gate=quality_gate,
             review_verdict=review_verdict,
             run_excluded=run_excluded,
+            required_fields=blocking_review_fields,
+            field_status=field_status,
             typed_candidate=typed_candidate,
             typed_candidate_schema_version=typed_candidate_schema_version,
         ),
@@ -511,6 +532,50 @@ def _target_inventory_required_fields(
     return normalize_string_list(target_inventory_entry.get("required_fields"))
 
 
+def _target_inventory_optional_fields(
+    target_inventory_entry: dict[str, object] | None,
+) -> list[str]:
+    if target_inventory_entry is None:
+        return []
+    return normalize_string_list(target_inventory_entry.get("optional_fields"))
+
+
+def _target_inventory_required_evidence(
+    target_inventory_entry: dict[str, object] | None,
+) -> list[str]:
+    if target_inventory_entry is None:
+        return []
+    return normalize_string_list(target_inventory_entry.get("required_evidence"))
+
+
+def _target_inventory_optional_evidence(
+    target_inventory_entry: dict[str, object] | None,
+) -> list[str]:
+    if target_inventory_entry is None:
+        return []
+    return normalize_string_list(target_inventory_entry.get("optional_evidence"))
+
+
+def _target_inventory_review_fields(
+    *,
+    required_fields: list[str],
+    required_evidence: list[str],
+) -> list[str]:
+    fields: list[str] = []
+    for field_name in [*required_fields, *required_evidence]:
+        if field_name not in fields:
+            fields.append(field_name)
+    return fields
+
+
+def _unique_strings(values: list[str]) -> list[str]:
+    result: list[str] = []
+    for value in values:
+        if value not in result:
+            result.append(value)
+    return result
+
+
 _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "authoritative_source_url": ("source_url",),
     "email": ("emails", "contacts.emails"),
@@ -524,7 +589,10 @@ _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "release_scope": ("release_scope",),
     "required_materials": ("required_materials", "materials"),
     "responsible_office": ("responsible_office",),
+    "service_entry": ("entry_points",),
+    "service_material": ("required_materials", "materials"),
     "service_name": ("service_name",),
+    "service_process": ("process_steps",),
     "source_url": ("source_url",),
 }
 
@@ -532,17 +600,34 @@ _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
 def _field_status_for_required_fields(
     *,
     candidate: dict[str, object],
+    optional_fields: list[str],
     required_fields: list[str],
     typed_candidate: dict[object, object],
 ) -> dict[str, str]:
+    optional_field_set = set(optional_fields)
     return {
-        field_name: _field_status_for_required_field(
-            candidate=candidate,
+        field_name: _normalize_optional_field_status(
             field_name=field_name,
-            typed_candidate=typed_candidate,
+            optional_field_set=optional_field_set,
+            status=_field_status_for_required_field(
+                candidate=candidate,
+                field_name=field_name,
+                typed_candidate=typed_candidate,
+            ),
         )
         for field_name in required_fields
     }
+
+
+def _normalize_optional_field_status(
+    *,
+    field_name: str,
+    optional_field_set: set[str],
+    status: str,
+) -> str:
+    if field_name in optional_field_set and status == "missing":
+        return "source_not_provided"
+    return status
 
 
 def _field_status_for_required_field(
@@ -592,6 +677,8 @@ def _is_present_value(value: object) -> bool:
 
 
 def _evidence_span_present(*, candidate: dict[str, object], evidence_type: str) -> bool:
+    if not isinstance(candidate.get("evidence_spans"), list):
+        return False
     for span in require_object_list(candidate.get("evidence_spans"), "evidence_spans"):
         if optional_text(span.get("evidence_type")) == evidence_type and optional_text(
             span.get("text")
@@ -613,7 +700,10 @@ def _target_field_review_record(
         "ready_for_selected_write"
         if bool(candidate.get("ready_for_selected_write"))
         else "blocked_fields"
-        if any(str(value) in {"missing", "ambiguous"} for value in field_status.values())
+        if _has_blocking_field_status(
+            field_status=field_status,
+            required_fields=normalize_string_list(candidate.get("required_fields")),
+        )
         else "pending_review"
     )
     return {
@@ -633,6 +723,9 @@ def _target_field_review_record(
                 "normalized_canonical_url",
             ),
             "readyForSelectedWrite": bool(candidate.get("ready_for_selected_write")),
+            "optionalEvidence": normalize_string_list(candidate.get("optional_evidence")),
+            "optionalFields": normalize_string_list(candidate.get("optional_fields")),
+            "requiredEvidence": normalize_string_list(candidate.get("required_evidence")),
             "requiredFields": normalize_string_list(candidate.get("required_fields")),
             "reviewVerdict": require_text(candidate.get("review_verdict"), "review_verdict"),
             "selectedWriteTarget": candidate.get("selected_write_target"),
@@ -760,7 +853,9 @@ def _candidate_admission_action(
 def _candidate_blocked_reason(
     *,
     admission_action: str,
+    field_status: dict[str, str],
     quality_gate: dict[object, object],
+    required_fields: list[str],
     review_verdict: str,
     run_excluded: bool,
     typed_candidate: dict[object, object],
@@ -772,13 +867,17 @@ def _candidate_blocked_reason(
         return "inventory_only_until_runtime_admission"
     if admission_action == "release_gate_required":
         return "release_gate_required_before_current_truth"
-    if review_verdict == "approved" and str(quality_gate.get("decision") or "") != "pass":
-        return "approved_candidate_failed_quality_gate"
-    if review_verdict == "approved" and (not typed_candidate_schema_version or not typed_candidate):
-        return "approved_candidate_missing_typed_candidate"
+    if not required_fields:
+        return "target_inventory_required_fields_missing"
+    if str(quality_gate.get("decision") or "") != "pass":
+        return "machine_review_candidate_failed_quality_gate"
+    if not typed_candidate_schema_version or not typed_candidate:
+        return "machine_review_candidate_missing_typed_candidate"
+    if _has_blocking_field_status(field_status=field_status, required_fields=required_fields):
+        return "machine_field_review_blocked"
     if review_verdict == "needs_more_evidence":
         return "review_marked_needs_more_evidence"
-    return "reviewed_extraction_required_before_selected_write"
+    return "machine_field_review_required_before_selected_write"
 
 
 def _build_selected_write_admission_preview(
@@ -817,7 +916,9 @@ def _build_selected_write_admission_preview(
     else:
         decision = "dry_run_ready" if blocked_count == 0 and ready_count > 0 else "blocked"
         reason = (
-            "all_candidates_reviewed" if decision == "dry_run_ready" else "review_manifest_required"
+            "machine_field_review_passed"
+            if decision == "dry_run_ready"
+            else "machine_field_review_blocked"
         )
     return {
         "decision": decision,
@@ -891,6 +992,8 @@ def _candidate_review_verdict(
 def _ready_for_selected_write(
     *,
     admission_action: str,
+    field_status: dict[str, str],
+    required_fields: list[str],
     review_verdict: str,
     quality_gate: dict[object, object],
     typed_candidate: dict[object, object],
@@ -898,10 +1001,26 @@ def _ready_for_selected_write(
 ) -> bool:
     return (
         admission_action == "selected_write_review_required"
-        and review_verdict == "approved"
+        and review_verdict not in {"rejected", "needs_more_evidence"}
         and str(quality_gate.get("decision") or "") == "pass"
         and bool(typed_candidate_schema_version)
         and bool(typed_candidate)
+        and bool(field_status)
+        and bool(required_fields)
+        and all(field_status.get(field_name) == "present" for field_name in required_fields)
+    )
+
+
+def _has_blocking_field_status(
+    *,
+    field_status: dict[str, object],
+    required_fields: list[str],
+) -> bool:
+    if not required_fields:
+        return True
+    return any(
+        str(field_status.get(field_name) or "missing") in {"missing", "ambiguous"}
+        for field_name in required_fields
     )
 
 

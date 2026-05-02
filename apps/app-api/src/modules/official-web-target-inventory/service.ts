@@ -24,7 +24,8 @@ export type OfficialWebTargetInventoryFieldStatus =
 	| "ambiguous"
 	| "missing"
 	| "not_applicable"
-	| "present";
+	| "present"
+	| "source_not_provided";
 
 export interface OfficialWebTargetInventoryRecord {
 	admissionTargetId: string;
@@ -33,8 +34,11 @@ export interface OfficialWebTargetInventoryRecord {
 	id: string;
 	inventoryId: string;
 	ownerSurface: string;
+	optionalEvidence: string[];
+	optionalFields: string[];
 	previewEvidence: OfficialWebTargetInventoryPreviewEvidence | null;
 	releaseBlockers: string[];
+	requiredEvidence: string[];
 	requiredFields: string[];
 	reviewState: OfficialWebTargetInventoryReviewState;
 	selectedWriteTarget: string;
@@ -142,8 +146,11 @@ function mapReportEntryToRecord(entry: {
 	fieldStatus: Record<string, OfficialWebTargetInventoryFieldStatus>;
 	inventoryId: string;
 	ownerSurface: string;
+	optionalEvidence: string[];
+	optionalFields: string[];
 	previewEvidence: OfficialWebTargetInventoryPreviewEvidence | null;
 	releaseBlockers: string[];
+	requiredEvidence: string[];
 	requiredFields: string[];
 	reviewState: OfficialWebTargetInventoryReviewState;
 	selectedWriteTarget: string;

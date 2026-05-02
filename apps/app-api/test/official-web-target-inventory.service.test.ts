@@ -44,6 +44,8 @@ describe("official web target inventory service", () => {
 						ownerSurface: "service_guide_lookup",
 						previewStatus: "candidate",
 						releaseBlockers: ["no_preview_evidence"],
+						optionalEvidence: ["service_material"],
+						optionalFields: ["required_materials"],
 						requiredEvidence: ["service_process"],
 						requiredFields: ["service_name", "source_url"],
 						selectedWriteTarget: "campus_services/service_guide",
@@ -74,9 +76,13 @@ describe("official web target inventory service", () => {
 					id: "test-service-guide",
 					inventoryId: "test-service-guide",
 					fieldStatus: {
+						required_materials: "source_not_provided",
+						service_process: "missing",
 						service_name: "missing",
 						source_url: "missing",
 					},
+					optionalEvidence: ["service_material"],
+					optionalFields: ["required_materials"],
 					releaseBlockers: ["no_preview_evidence"],
 					reviewState: "candidate",
 				},
@@ -122,6 +128,8 @@ describe("official web target inventory service", () => {
 						ownerSurface: "service_guide_lookup",
 						previewStatus: "candidate",
 						releaseBlockers: ["no_preview_evidence"],
+						optionalEvidence: ["service_material"],
+						optionalFields: ["required_materials"],
 						requiredEvidence: ["service_process"],
 						requiredFields: ["service_name", "source_url"],
 						selectedWriteTarget: "campus_services/service_guide",
@@ -152,7 +160,7 @@ describe("official web target inventory service", () => {
 				appApiRunId: "owrun_preview",
 				targetAttemptId: "owattempt_preview",
 			},
-			releaseBlockers: ["missing_service_name", "missing_source_url"],
+			releaseBlockers: ["missing_service_name", "missing_source_url", "missing_service_process"],
 			reviewState: "blocked_fields",
 		});
 		expect(result.summary.countsByReviewState).toEqual({ blocked_fields: 1 });
@@ -164,6 +172,7 @@ describe("official web target inventory service", () => {
 				listFieldStatus: async () => ({
 					"test-service-guide": {
 						process_steps: "present",
+						service_process: "present",
 						service_name: "present",
 						source_url: "present",
 					},
@@ -200,6 +209,8 @@ describe("official web target inventory service", () => {
 						ownerSurface: "service_guide_lookup",
 						previewStatus: "candidate",
 						releaseBlockers: ["no_preview_evidence"],
+						optionalEvidence: ["service_material"],
+						optionalFields: ["required_materials"],
 						requiredEvidence: ["service_process"],
 						requiredFields: ["service_name", "process_steps", "source_url"],
 						selectedWriteTarget: "campus_services/service_guide",
@@ -228,9 +239,13 @@ describe("official web target inventory service", () => {
 		expect(result.entries[0]).toMatchObject({
 			fieldStatus: {
 				process_steps: "present",
+				required_materials: "source_not_provided",
+				service_process: "present",
 				service_name: "present",
 				source_url: "present",
 			},
+			optionalEvidence: ["service_material"],
+			optionalFields: ["required_materials"],
 			inventoryId: "test-service-guide",
 			releaseBlockers: [],
 			reviewState: "ready_for_selected_write",

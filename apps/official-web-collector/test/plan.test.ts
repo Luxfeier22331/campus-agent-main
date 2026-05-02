@@ -12,8 +12,8 @@ describe("official-web-collector plan shell", () => {
 		expect(plan.siteId).toBe("muc_public");
 		expect(plan.crawlRunId).toBe("muc_public-TEST");
 		expect(plan.runIntent).toBe("baseline");
-		expect(plan.enabledHosts).toHaveLength(33);
-		expect(plan.seeds).toHaveLength(33);
+		expect(plan.enabledHosts).toHaveLength(34);
+		expect(plan.seeds).toHaveLength(34);
 		expect(plan.entryHost).toBe("www.muc.edu.cn");
 	});
 

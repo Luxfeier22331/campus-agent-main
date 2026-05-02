@@ -190,6 +190,7 @@ export function loadOfficialWebConfig(
 				titleKeywords: asStringArray(item.title_keywords),
 				pathPatterns: asStringArray(item.path_patterns),
 				requiredEvidence: asStringArray(item.required_evidence).map(asConsumerRequiredEvidence),
+				optionalEvidence: asStringArray(item.optional_evidence).map(asConsumerRequiredEvidence),
 				minimumMatchedEvidenceCount:
 					item.minimum_matched_evidence_count == null
 						? 1
@@ -270,7 +271,9 @@ function loadTargetInventoryEntry(item: Record<string, unknown>) {
 		previewStatus: asString(item.preview_status),
 		releaseBlockers: asStringArray(item.release_blockers),
 		requiredEvidence: asStringArray(item.required_evidence).map(asConsumerRequiredEvidence),
+		optionalEvidence: asStringArray(item.optional_evidence).map(asConsumerRequiredEvidence),
 		requiredFields: asStringArray(item.required_fields),
+		optionalFields: asStringArray(item.optional_fields),
 		selectedWriteTarget: asString(item.selected_write_target),
 		sourceHosts: asStringArray(item.source_hosts).map((host) => host.toLowerCase()),
 		sourceUrls: asStringArray(item.source_urls),
@@ -300,6 +303,7 @@ function loadTargetSourceMapTarget(item: Record<string, unknown>) {
 				? asStringArray(item.title_keywords)
 				: asStringArray(item.title_hints),
 		requiredEvidence: asStringArray(item.required_evidence).map(asConsumerRequiredEvidence),
+		optionalEvidence: asStringArray(item.optional_evidence).map(asConsumerRequiredEvidence),
 		retentionPolicy,
 		reviewPolicy: asString(
 			item.review_policy ?? defaultReviewPolicyForConsumerFamily(consumerFamily),

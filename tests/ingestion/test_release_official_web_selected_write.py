@@ -66,15 +66,64 @@ def _selected_write_task(
         if selected_write_target == "campus_services/service_guide"
         else "official_web_selected_write_contact_directory"
     )
-    return {
-        "createdAt": "2026-05-01T08:00:00+00:00",
-        "inputRef": {
+    input_ref: dict[str, object]
+    if selected_write_target == "campus_services/service_guide":
+        input_ref = {
+            "fieldStatus": {
+                "process_steps": "present",
+                "required_materials": "source_not_provided",
+                "service_entry": "source_not_provided",
+                "service_material": "source_not_provided",
+                "service_name": "present",
+                "service_process": "present",
+                "source_url": "present",
+                "source_version_evidence": "present",
+            },
+            "optionalEvidence": ["service_entry", "service_material"],
+            "optionalFields": ["service_entry", "required_materials", "service_material"],
             "policyVersion": "official_web_selected_write_admission.v1",
+            "requiredEvidence": ["service_process"],
+            "requiredFields": [
+                "service_name",
+                "process_steps",
+                "source_url",
+                "source_version_evidence",
+                "service_process",
+            ],
             "sourceObjectKeys": [
                 "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json"
             ],
             "sourceUrls": ["https://www.muc.edu.cn/"],
-        },
+        }
+    else:
+        input_ref = {
+            "fieldStatus": {
+                "email": "source_not_provided",
+                "location": "present",
+                "office_hours": "source_not_provided",
+                "organization_name": "present",
+                "phone": "present",
+                "source_url": "present",
+                "source_version_evidence": "present",
+            },
+            "optionalEvidence": ["email", "location", "office_hours"],
+            "optionalFields": ["email", "location", "office_hours"],
+            "policyVersion": "official_web_selected_write_admission.v1",
+            "requiredEvidence": ["phone"],
+            "requiredFields": [
+                "organization_name",
+                "phone",
+                "source_url",
+                "source_version_evidence",
+            ],
+            "sourceObjectKeys": [
+                "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json"
+            ],
+            "sourceUrls": ["https://www.muc.edu.cn/"],
+        }
+    return {
+        "createdAt": "2026-05-01T08:00:00+00:00",
+        "inputRef": input_ref,
         "inventoryId": "muc-main-homepage-contact",
         "jobId": "owtarget_contact",
         "runId": "owrun_contact",
@@ -199,6 +248,22 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
         with TemporaryDirectory() as temp_dir:
             task = {**_selected_write_task(), "taskType": "official_web_stable_reference"}
             with self.assertRaisesRegex(Exception, "unsupported selected-write release task type"):
+                release_official_web_selected_write(
+                    release_task=task,
+                    object_store=_FakeObjectStore(),
+                    derived_object_store=_FakeObjectStore(),
+                    projection_reporter=_FakeProjectionReporter(),
+                    structured_projection_publisher=_FakeStructuredProjectionPublisher(),
+                    work_dir=Path(temp_dir),
+                )
+
+    def test_fails_closed_for_selected_write_task_without_machine_field_status(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            task = _selected_write_task()
+            input_ref = dict(task["inputRef"])
+            input_ref.pop("fieldStatus")
+            task = {**task, "inputRef": input_ref}
+            with self.assertRaisesRegex(Exception, "fieldStatus"):
                 release_official_web_selected_write(
                     release_task=task,
                     object_store=_FakeObjectStore(),

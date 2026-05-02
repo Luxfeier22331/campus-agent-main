@@ -23,7 +23,8 @@ export type OfficialWebTargetInventoryFieldStatus =
 	| "ambiguous"
 	| "missing"
 	| "not_applicable"
-	| "present";
+	| "present"
+	| "source_not_provided";
 
 export interface OfficialWebTargetInventoryPreviewEvidence {
 	appApiRunId: string;
@@ -44,8 +45,11 @@ export interface OfficialWebTargetInventoryReportEntry {
 	fieldStatus: Record<string, OfficialWebTargetInventoryFieldStatus>;
 	inventoryId: string;
 	ownerSurface: string;
+	optionalEvidence: string[];
+	optionalFields: string[];
 	previewEvidence: OfficialWebTargetInventoryPreviewEvidence | null;
 	releaseBlockers: string[];
+	requiredEvidence: string[];
 	requiredFields: string[];
 	reviewState: OfficialWebTargetInventoryReviewState;
 	selectedWriteTarget: string;
@@ -71,6 +75,8 @@ export interface OfficialWebTargetInventoryManifestEntry {
 	owner_surface: string;
 	preview_status: string;
 	release_blockers: string[];
+	optional_evidence?: OfficialWebConsumerRequiredEvidence[];
+	optional_fields?: string[];
 	required_evidence: OfficialWebConsumerRequiredEvidence[];
 	required_fields: string[];
 	selected_write_target: string;
@@ -104,10 +110,38 @@ function normalizeFieldStatus(
 	fieldStatus: Record<string, OfficialWebTargetInventoryFieldStatus> | undefined,
 ): Record<string, OfficialWebTargetInventoryFieldStatus> {
 	const normalized: Record<string, OfficialWebTargetInventoryFieldStatus> = {};
-	for (const fieldName of entry.requiredFields) {
+	for (const fieldName of blockingReviewFields(entry)) {
 		normalized[fieldName] = fieldStatus?.[fieldName] ?? "missing";
 	}
+	for (const fieldName of optionalReviewFields(entry)) {
+		if (fieldName in normalized) {
+			continue;
+		}
+		normalized[fieldName] = fieldStatus?.[fieldName] ?? "source_not_provided";
+	}
 	return normalized;
+}
+
+function uniqueFields(fields: string[]): string[] {
+	const unique: string[] = [];
+	for (const fieldName of fields) {
+		if (!unique.includes(fieldName)) {
+			unique.push(fieldName);
+		}
+	}
+	return unique;
+}
+
+function blockingReviewFields(entry: OfficialWebTargetInventoryEntry): string[] {
+	const requiredEvidence =
+		entry.materializationPolicy === "candidate_only" ? entry.requiredEvidence : [];
+	return uniqueFields([...entry.requiredFields, ...requiredEvidence]);
+}
+
+function optionalReviewFields(entry: OfficialWebTargetInventoryEntry): string[] {
+	const optionalEvidence =
+		entry.materializationPolicy === "candidate_only" ? entry.optionalEvidence : [];
+	return uniqueFields([...entry.optionalFields, ...optionalEvidence]);
 }
 
 function previewLineageBlockers(evidence: OfficialWebTargetInventoryPreviewEvidence): string[] {
@@ -134,9 +168,11 @@ function previewLineageBlockers(evidence: OfficialWebTargetInventoryPreviewEvide
 
 function fieldBlockers(
 	fieldStatus: Record<string, OfficialWebTargetInventoryFieldStatus>,
+	blockingFields: string[],
 ): string[] {
 	const blockers: string[] = [];
-	for (const [fieldName, status] of Object.entries(fieldStatus)) {
+	for (const fieldName of blockingFields) {
+		const status = fieldStatus[fieldName] ?? "missing";
 		if (status === "missing" || status === "ambiguous") {
 			blockers.push(`${status}_${fieldName}`);
 		}
@@ -169,7 +205,7 @@ function buildEntryReport(
 			reviewState = "blocked_lineage";
 			releaseBlockers = lineageBlockers;
 		} else {
-			const missingFields = fieldBlockers(normalizedFieldStatus);
+			const missingFields = fieldBlockers(normalizedFieldStatus, blockingReviewFields(entry));
 			if (missingFields.length > 0) {
 				reviewState = "blocked_fields";
 				releaseBlockers = missingFields;
@@ -191,8 +227,11 @@ function buildEntryReport(
 		fieldStatus: normalizedFieldStatus,
 		inventoryId: entry.inventoryId,
 		ownerSurface: entry.ownerSurface,
+		optionalEvidence: entry.optionalEvidence,
+		optionalFields: entry.optionalFields,
 		previewEvidence: evidence,
 		releaseBlockers,
+		requiredEvidence: entry.requiredEvidence,
 		requiredFields: entry.requiredFields,
 		reviewState,
 		selectedWriteTarget: entry.selectedWriteTarget,
@@ -216,6 +255,8 @@ export function normalizeOfficialWebTargetInventoryManifest(
 			ownerSurface: entry.owner_surface,
 			previewStatus: entry.preview_status,
 			releaseBlockers: entry.release_blockers,
+			optionalEvidence: entry.optional_evidence ?? [],
+			optionalFields: entry.optional_fields ?? [],
 			requiredEvidence: entry.required_evidence,
 			requiredFields: entry.required_fields,
 			selectedWriteTarget: entry.selected_write_target,

@@ -18,8 +18,9 @@
 			],
 			"title_keywords": ["联系", "联系我们", "联系方式", "电话", "办公地点"],
 			"path_patterns": ["contact", "lianxi", "lxwm", "bgs", "office"],
-			"required_evidence": ["phone", "email", "location", "office_hours"],
-			"minimum_matched_evidence_count": 2,
+			"required_evidence": ["phone"],
+			"optional_evidence": ["email", "location", "office_hours"],
+			"minimum_matched_evidence_count": 1,
 			"requires_keyword_or_path_match": true,
 			"negative_patterns": [
 				"采购",
@@ -47,15 +48,15 @@
 			"page_families": ["article_detail", "directory_page", "generic_content_page"],
 			"title_keywords": ["办理", "申请", "补办", "挂失", "指南", "服务", "入口"],
 			"path_patterns": ["service", "guide", "card", "apply", "ywzn", "bszn"],
-			"required_evidence": [
-				"service_process",
+			"required_evidence": ["service_process"],
+			"optional_evidence": [
 				"service_entry",
 				"service_material",
 				"phone",
 				"location",
 				"office_hours"
 			],
-			"minimum_matched_evidence_count": 2,
+			"minimum_matched_evidence_count": 1,
 			"requires_keyword_or_path_match": true,
 			"negative_patterns": [
 				"采购",
@@ -84,6 +85,7 @@
 			"title_keywords": ["学校简介", "学校概况", "现任领导", "机构设置", "学院简介", "部门简介"],
 			"path_patterns": ["about", "intro", "leader", "gk", "jj", "jgsz"],
 			"required_evidence": ["stable_reference"],
+			"optional_evidence": [],
 			"minimum_matched_evidence_count": 1,
 			"requires_keyword_or_path_match": false,
 			"negative_patterns": ["新闻", "通知", "公告", "讲座", "活动", "公示"],
@@ -99,6 +101,7 @@
 			"title_keywords": ["新闻", "通知", "公告", "讲座", "活动", "公示"],
 			"path_patterns": ["news", "info", "tzgg", "xwdt"],
 			"required_evidence": ["notice_news"],
+			"optional_evidence": [],
 			"minimum_matched_evidence_count": 1,
 			"requires_keyword_or_path_match": false,
 			"negative_patterns": [],

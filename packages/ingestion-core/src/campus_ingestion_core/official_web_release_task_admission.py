@@ -72,8 +72,42 @@ def build_selected_write_release_task_from_candidate(
         candidate.get("candidate_key") or candidate.get("candidateKey"),
         "candidate_key",
     )
+    field_status = _mapping(
+        candidate.get("field_status") or candidate.get("fieldStatus"),
+        "field_status",
+    )
+    if not field_status:
+        raise ValueError("field_status must contain at least one item")
+    required_fields = _required_string_list(
+        candidate.get("required_fields") or candidate.get("requiredFields"),
+        "required_fields",
+    )
+    required_evidence = _string_list(
+        candidate.get("required_evidence") or candidate.get("requiredEvidence")
+    )
+    optional_fields = _string_list(
+        candidate.get("optional_fields") or candidate.get("optionalFields")
+    )
+    optional_evidence = _string_list(
+        candidate.get("optional_evidence") or candidate.get("optionalEvidence")
+    )
+    _assert_selected_write_field_status_ready(
+        field_status=field_status,
+        optional_fields=optional_fields,
+        required_fields=required_fields,
+    )
+    source_ref = _mapping(candidate.get("source_ref") or {}, "source_ref")
+    _required_text(
+        source_ref.get("raw_asset_id") or source_ref.get("rawAssetId"),
+        "source_ref.raw_asset_id",
+    )
+    _required_text(
+        source_ref.get("raw_version_id") or source_ref.get("rawVersionId"),
+        "source_ref.raw_version_id",
+    )
     evidence = {
         "candidateKey": candidate_key,
+        "fieldStatus": dict(field_status),
         "inventoryId": _optional_text(candidate.get("inventory_id")),
         "matchedEvidence": _string_list(
             candidate.get("matched_evidence") or candidate.get("matchedEvidence")
@@ -82,10 +116,14 @@ def build_selected_write_release_task_from_candidate(
             candidate.get("normalized_canonical_url") or candidate.get("normalizedCanonicalUrl"),
             "normalized_canonical_url",
         ),
+        "requiredEvidence": required_evidence,
+        "requiredFields": required_fields,
+        "optionalEvidence": optional_evidence,
+        "optionalFields": optional_fields,
         "reviewVerdict": _optional_text(candidate.get("review_verdict")),
         "selectedWriteTarget": selected_write_target,
         "sourceObjectKeys": _required_string_list(source_object_keys, "source_object_keys"),
-        "sourceRef": _mapping(candidate.get("source_ref") or {}, "source_ref"),
+        "sourceRef": source_ref,
         "sourceUrls": [
             _required_text(
                 candidate.get("normalized_canonical_url")
@@ -166,6 +204,30 @@ def _release_input_ref(
 def _selected_write_task_id(*, candidate_key: str) -> str:
     digest = hashlib.sha256(candidate_key.encode("utf-8")).hexdigest()[:24]
     return f"owrelease_selected_write_{digest}"
+
+
+def _assert_selected_write_field_status_ready(
+    *,
+    field_status: Mapping[str, Any],
+    optional_fields: Sequence[str],
+    required_fields: Sequence[str],
+) -> None:
+    missing_required = [
+        field_name
+        for field_name in required_fields
+        if str(field_status.get(field_name) or "").strip() != "present"
+    ]
+    if missing_required:
+        raise ValueError("field_status must be present for every required selected-write field")
+    optional_field_set = set(optional_fields)
+    unsupported_optional = [
+        field_name
+        for field_name in optional_field_set
+        if str(field_status.get(field_name) or "").strip()
+        not in {"present", "source_not_provided", "not_applicable"}
+    ]
+    if unsupported_optional:
+        raise ValueError("field_status contains unsupported optional selected-write field status")
 
 
 def _mapping(value: Any, field_name: str) -> Mapping[str, Any]:

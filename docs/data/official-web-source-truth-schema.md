@@ -62,8 +62,8 @@ upstream，而不是让 downstream 永远依赖某个 parser 的原始输出或�
 - target-source-map 是采集准入 contract，不是 page source-truth 本身。它的 runtime
   model 使用 camelCase 字段：`targetId`、`consumerFamily`、`ownerSurface`、
   `selectedWriteTarget`、`sourceHosts`、`urlHints`、`titleHints`、
-  `requiredEvidence`、`retentionPolicy`、`reviewPolicy`、`materializationPolicy`、
-  `inventoryOnly`。
+  `requiredEvidence`、`optionalEvidence`、`retentionPolicy`、`reviewPolicy`、
+  `materializationPolicy`、`inventoryOnly`。
 - repo-tracked `target-source-map.json` 继续使用 snake_case 输入字段；其中
   `url_hints` / `title_hints` 是 pre-fetch eligibility hints，`retention_policy` /
   `review_policy` / `materialization_policy` / `inventory_only` 冻结 target 的下游语义。
@@ -249,9 +249,17 @@ source-truth pipeline:
 
 - `consumer_matches` 记录命中的 downstream candidate family、owner surface、materialization
   policy、matched evidence、selected write target 与 review policy
+- `matched_evidence` 可以来自该 family 的 required 或 optional evidence；它只说明 retained
+  source-truth 的来源理由，不等同于 selected-write readiness
 - `consumer_retention_decision` 允许 `retain_source_truth`、`discovery_only`、`reject`
 - `consumer_rejection_reason` 只用于 run audit 与 rule tuning
 - 下游是否写 current read model 由 ingestion selected-write/release gate 决定，不由这些字段直接决定
+
+selected-write 机器评审使用独立 field status：
+
+- required 字段/证据缺失记录为 `missing` 并阻塞 release
+- optional 字段/证据缺失记录为 `source_not_provided`，保留为 operator 可见事实，但不阻塞
+  release
 
 `discovery_method` 允许值固定为：
 

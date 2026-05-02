@@ -159,12 +159,12 @@ function matchConsumerFamily(
 	if (!rule.pageFamilies.includes(page.pageManifest.pageFamily)) {
 		return null;
 	}
-	const negativeMatches = matchedRegexes(rule.negativePatterns, pageText, normalizedUrl);
+	const titleText = buildConsumerTitleText(page);
+	const negativeMatches = matchedRegexes(rule.negativePatterns, titleText, normalizedUrl);
 	if (negativeMatches.length > 0) {
 		return null;
 	}
 
-	const titleText = buildConsumerTitleText(page);
 	const matchedKeywords = rule.titleKeywords.filter((keyword) => titleText.includes(keyword));
 	const matchedPatterns = matchedRegexes(rule.pathPatterns, normalizedUrl);
 	const matchedEvidence = resolveMatchedEvidence(rule, page, pageText);
@@ -222,10 +222,10 @@ function resolveMatchedEvidence(
 	) {
 		availableEvidence.add("office_hours");
 	}
-	if (/(办理流程|流程|步骤|申请|补办|挂失|办理|报销|预约)/u.test(pageText)) {
+	if (/(办理流程|流程|步骤|补办|挂失|报销|预约)/u.test(pageText)) {
 		availableEvidence.add("service_process");
 	}
-	if (/(入口|系统|APP|小程序|自助|线下|窗口|前台)/iu.test(pageText)) {
+	if (/(入口|系统|\bAPP\b|小程序|自助|线下|窗口|前台)/iu.test(pageText)) {
 		availableEvidence.add("service_entry");
 	}
 	if (/(材料|申请表|证明|身份证|证件|附件)/u.test(pageText)) {
@@ -238,7 +238,9 @@ function resolveMatchedEvidence(
 		availableEvidence.add("notice_news");
 	}
 
-	return rule.requiredEvidence.filter((item) => availableEvidence.has(item));
+	return [...rule.requiredEvidence, ...rule.optionalEvidence].filter((item) =>
+		availableEvidence.has(item),
+	);
 }
 
 function isStableReferenceCandidate(

@@ -122,7 +122,7 @@ export function OfficialWebTargetInventoryListPage() {
 		>
 			<Stack spacing={2}>
 				<OfficialWebTargetInventoryContractNotice />
-				<PanelResponsiveDatagrid minWidth={1560}>
+				<PanelResponsiveDatagrid minWidth={1760}>
 					<Datagrid
 						bulkActionButtons={false}
 						empty={<OfficialWebTargetInventoryEmpty />}
@@ -146,9 +146,27 @@ export function OfficialWebTargetInventoryListPage() {
 						<TextField label="消费面" source="ownerSurface" />
 						<TextField label="写入目标" source="selectedWriteTarget" />
 						<FunctionField
+							label="必需证据"
+							render={(record: OfficialWebTargetInventoryRecord) =>
+								renderList(record.requiredEvidence)
+							}
+						/>
+						<FunctionField
+							label="可选证据"
+							render={(record: OfficialWebTargetInventoryRecord) =>
+								renderList(record.optionalEvidence)
+							}
+						/>
+						<FunctionField
 							label="必需字段"
 							render={(record: OfficialWebTargetInventoryRecord) =>
 								renderList(record.requiredFields)
+							}
+						/>
+						<FunctionField
+							label="可选字段"
+							render={(record: OfficialWebTargetInventoryRecord) =>
+								renderList(record.optionalFields)
 							}
 						/>
 						<FunctionField

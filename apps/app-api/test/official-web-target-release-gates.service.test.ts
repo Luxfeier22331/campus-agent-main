@@ -48,6 +48,8 @@ const previewedStableReferenceEntry: OfficialWebTargetInventoryRecord = {
 	id: "muc-school-introduction-reference",
 	inventoryId: "muc-school-introduction-reference",
 	ownerSurface: "official_web/stable_reference",
+	optionalEvidence: [],
+	optionalFields: [],
 	previewEvidence: {
 		appApiRunId: "owrun_school_intro",
 		currentTruthImportWasNull: true,
@@ -61,6 +63,7 @@ const previewedStableReferenceEntry: OfficialWebTargetInventoryRecord = {
 		targetJobId: "owtarget_school_intro",
 	},
 	releaseBlockers: ["release_gate_not_reviewed"],
+	requiredEvidence: ["stable_reference"],
 	requiredFields: [
 		"reference_title",
 		"normalized_content_summary",

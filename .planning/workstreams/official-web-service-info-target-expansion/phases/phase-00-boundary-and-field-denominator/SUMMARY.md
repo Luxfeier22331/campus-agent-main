@@ -46,6 +46,4 @@ updated: 2026-05-02
   passed.
 - `pnpm exec markdownlint-cli2 ".planning/workstreams/official-web-service-info-target-expansion/**/*.md" ".planning/workstreams/official-web-service-info-target-expansion/*.md"`
   passed.
-
-Repo-wide `pnpm docs:lint` is currently blocked by an unrelated existing MD013 long-line finding in
-`docs/architecture/system/retrieval-serving-architecture.md`.
+- `pnpm docs:lint` passed after closeout.

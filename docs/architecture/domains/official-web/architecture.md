@@ -107,6 +107,7 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 - `source_hosts`
 - `url_hints` / `title_hints`
 - `required_evidence`
+- `optional_evidence`
 - `retention_policy`
 - `review_policy`
 - `materialization_policy`
@@ -116,11 +117,17 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 
 - target source map 是采集准入与运营评审提示，不是 current read model
 - 它必须与 `consumer-denominator.json` 的 family / owner / selected-write target 保持一致
+- `required_evidence` 表示 selected-write release-blocking denominator；
+  `optional_evidence` 表示允许以 `source_not_provided` 暴露给 operator 的 source-backed
+  optional denominator
 - `hosts.json` / `seeds.json` 是 source capability registry；target source map 才是
   target-first collection declaration
 - 不在 target source map 中的 broad crawl 证据不得自动进入 projection drain、handoff 或
   selected-write
 - news / notice 类 target 当前保持 inventory-only，不打开 `fresh_news` 或 `news_archive`
+- 服务信息扩面必须继续以具体 URL 为单位 admission；当前已 admission 的 support host
+  包括 `met.muc.edu.cn`，但只用于信息化服务指南/联系方式等 target-first 页面，不代表恢复
+  host-wide broad crawl。
 
 ### Legacy Broad Crawl Cleanup
 

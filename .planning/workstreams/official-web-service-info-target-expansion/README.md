@@ -18,10 +18,10 @@ information.
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 1`
-- current slice: target inventory and denominator alignment
-- active implementation: source target gap inventory
+- status: `completed`
+- current phase: `Phase 7`
+- current slice: closeout
+- active implementation: none
 - owner: Codex session
 
 ## Target Shape
@@ -49,12 +49,18 @@ The initial downstream surfaces are:
 
 - Phase 0: `./phases/phase-00-boundary-and-field-denominator/PLAN.md`
 - Phase 1: `./phases/phase-01-source-target-gap-inventory/PLAN.md`
-- Phase 2: `./phases/phase-02-extraction-quality-and-machine-review-gate/OUTLINE.md`
-- Phase 3: `./phases/phase-03-contact-directory-preview/OUTLINE.md`
-- Phase 4: `./phases/phase-04-service-guide-preview/OUTLINE.md`
-- Phase 5: `./phases/phase-05-selected-write-release-handoff/OUTLINE.md`
-- Phase 6: `./phases/phase-06-runtime-consumption-verification/OUTLINE.md`
-- Phase 7: `./phases/phase-07-closeout/OUTLINE.md`
+- Phase 2: `./phases/phase-02-extraction-quality-and-machine-review-gate/PLAN.md`
+- Phase 3: `./phases/phase-03-contact-directory-preview/PLAN.md`
+- Phase 4: `./phases/phase-04-service-guide-preview/PLAN.md`
+- Phase 5: `./phases/phase-05-selected-write-release-handoff/PLAN.md`
+- Phase 6: `./phases/phase-06-runtime-consumption-verification/PLAN.md`
+- Phase 7: `./phases/phase-07-closeout/PLAN.md`
+
+## Closeout
+
+- Target gap inventory: `./TARGET-GAP-INVENTORY.md`
+- Machine review gate: `./MACHINE-REVIEW-GATE.md`
+- Closeout: `./CLOSEOUT.md`
 
 ## Boundary Notes
 

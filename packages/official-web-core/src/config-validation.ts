@@ -32,6 +32,15 @@ function ensureSameSet(left: string[], right: string[], fieldName: string): void
 	}
 }
 
+function ensureNoOverlap(left: string[], right: string[], fieldName: string): void {
+	const rightSet = new Set(right);
+	for (const item of left) {
+		if (rightSet.has(item)) {
+			throw new Error(`${fieldName} must not overlap`);
+		}
+	}
+}
+
 function validateRegexList(values: string[], fieldName: string): void {
 	for (const value of values) {
 		try {
@@ -371,6 +380,15 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 			`consumerDenominator ${rule.consumerFamily}.requiredEvidence`,
 		);
 		ensureUnique(
+			rule.optionalEvidence,
+			`consumerDenominator ${rule.consumerFamily}.optionalEvidence`,
+		);
+		ensureNoOverlap(
+			rule.requiredEvidence,
+			rule.optionalEvidence,
+			`consumerDenominator ${rule.consumerFamily} requiredEvidence and optionalEvidence`,
+		);
+		ensureUnique(
 			rule.negativePatterns,
 			`consumerDenominator ${rule.consumerFamily}.negativePatterns`,
 		);
@@ -463,6 +481,22 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 		ensureUnique(target.urlHints, `targetSourceMap ${target.targetId}.urlHints`);
 		ensureUnique(target.titleHints, `targetSourceMap ${target.targetId}.titleHints`);
 		ensureUnique(target.requiredEvidence, `targetSourceMap ${target.targetId}.requiredEvidence`);
+		ensureUnique(target.optionalEvidence, `targetSourceMap ${target.targetId}.optionalEvidence`);
+		ensureNoOverlap(
+			target.requiredEvidence,
+			target.optionalEvidence,
+			`targetSourceMap ${target.targetId} requiredEvidence and optionalEvidence`,
+		);
+		ensureSameSet(
+			target.requiredEvidence,
+			consumerRule.requiredEvidence,
+			`targetSourceMap ${target.targetId} requiredEvidence must match consumer denominator`,
+		);
+		ensureSameSet(
+			target.optionalEvidence,
+			consumerRule.optionalEvidence,
+			`targetSourceMap ${target.targetId} optionalEvidence must match consumer denominator`,
+		);
 		if (target.inventoryOnly) {
 			if (target.selectedWriteTarget) {
 				throw new Error(
@@ -501,6 +535,13 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 			if (!consumerRule.requiredEvidence.includes(evidence)) {
 				throw new Error(
 					`targetSourceMap ${target.targetId} requiredEvidence must be allowed by consumer denominator`,
+				);
+			}
+		}
+		for (const evidence of target.optionalEvidence) {
+			if (!consumerRule.optionalEvidence.includes(evidence)) {
+				throw new Error(
+					`targetSourceMap ${target.targetId} optionalEvidence must be allowed by consumer denominator`,
 				);
 			}
 		}
@@ -543,7 +584,19 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 		ensureUnique(entry.sourceHosts, `targetInventory ${entry.inventoryId}.sourceHosts`);
 		ensureUnique(entry.sourceUrls, `targetInventory ${entry.inventoryId}.sourceUrls`);
 		ensureUnique(entry.requiredFields, `targetInventory ${entry.inventoryId}.requiredFields`);
+		ensureUnique(entry.optionalFields, `targetInventory ${entry.inventoryId}.optionalFields`);
+		ensureNoOverlap(
+			entry.requiredFields,
+			entry.optionalFields,
+			`targetInventory ${entry.inventoryId} requiredFields and optionalFields`,
+		);
 		ensureUnique(entry.requiredEvidence, `targetInventory ${entry.inventoryId}.requiredEvidence`);
+		ensureUnique(entry.optionalEvidence, `targetInventory ${entry.inventoryId}.optionalEvidence`);
+		ensureNoOverlap(
+			entry.requiredEvidence,
+			entry.optionalEvidence,
+			`targetInventory ${entry.inventoryId} requiredEvidence and optionalEvidence`,
+		);
 		ensureUnique(entry.releaseBlockers, `targetInventory ${entry.inventoryId}.releaseBlockers`);
 
 		const admissionTarget = targetSourceMapById.get(entry.admissionTargetId);
@@ -621,6 +674,23 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 				);
 			}
 		}
+		for (const evidence of entry.optionalEvidence) {
+			if (!admissionTarget.optionalEvidence.includes(evidence)) {
+				throw new Error(
+					`targetInventory ${entry.inventoryId} optionalEvidence must be allowed by admission target`,
+				);
+			}
+		}
+		ensureSameSet(
+			entry.requiredEvidence,
+			admissionTarget.requiredEvidence,
+			`targetInventory ${entry.inventoryId} requiredEvidence must match admission target`,
+		);
+		ensureSameSet(
+			entry.optionalEvidence,
+			admissionTarget.optionalEvidence,
+			`targetInventory ${entry.inventoryId} optionalEvidence must match admission target`,
+		);
 		if (entry.previewStatus === "ready_for_selected_write" && entry.releaseBlockers.length > 0) {
 			throw new Error(
 				`targetInventory ${entry.inventoryId} ready_for_selected_write cannot have releaseBlockers`,

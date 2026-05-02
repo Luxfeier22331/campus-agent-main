@@ -4,6 +4,7 @@ import unittest
 from datetime import UTC, datetime
 
 from campus_ingestion_core.official_web_release_task_admission import (
+    build_selected_write_release_task_from_candidate,
     build_stable_reference_release_task_from_gate,
 )
 from campus_ingestion_core.official_web_release_task_store import (
@@ -63,6 +64,84 @@ class OfficialWebReleaseTaskAdmissionTest(unittest.TestCase):
                     "runId": "owrun_001",
                     "status": "rejected",
                 }
+            )
+
+    def test_builds_selected_write_release_task_only_after_machine_field_review(self) -> None:
+        task = build_selected_write_release_task_from_candidate(
+            {
+                "candidate_key": "owcand_contact_ready",
+                "field_status": {
+                    "email": "source_not_provided",
+                    "location": "present",
+                    "office_hours": "source_not_provided",
+                    "organization_name": "present",
+                    "phone": "present",
+                    "source_url": "present",
+                    "source_version_evidence": "present",
+                },
+                "inventory_id": "muc-main-homepage-contact",
+                "matched_evidence": ["phone", "location"],
+                "normalized_canonical_url": "https://www.muc.edu.cn/",
+                "ready_for_selected_write": True,
+                "optional_evidence": ["email", "location", "office_hours"],
+                "optional_fields": ["email", "location", "office_hours"],
+                "required_evidence": ["phone"],
+                "required_fields": [
+                    "organization_name",
+                    "phone",
+                    "source_url",
+                    "source_version_evidence",
+                ],
+                "review_verdict": "pending_review",
+                "selected_write_target": "campus_services/contact_directory",
+                "source_ref": {
+                    "raw_asset_id": "owasset_contact",
+                    "raw_version_id": "owver_contact",
+                    "normalized_canonical_url": "https://www.muc.edu.cn/",
+                },
+                "target_job_id": "owtarget_contact",
+                "typed_candidate_schema_version": "official_web_contact_directory_candidate.v1",
+            },
+            run_id="owrun_contact",
+            source_object_keys=[
+                "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json"
+            ],
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+
+        self.assertEqual(task.task_type, "official_web_selected_write_contact_directory")
+        self.assertEqual(task.inventory_id, "muc-main-homepage-contact")
+        self.assertEqual(task.input_ref["fieldStatus"]["phone"], "present")
+        self.assertEqual(task.input_ref["fieldStatus"]["email"], "source_not_provided")
+        self.assertEqual(
+            task.input_ref["requiredEvidence"],
+            ["phone"],
+        )
+        self.assertEqual(
+            task.input_ref["optionalEvidence"],
+            ["email", "location", "office_hours"],
+        )
+
+    def test_rejects_selected_write_release_task_without_field_review(self) -> None:
+        with self.assertRaisesRegex(ValueError, "field_status"):
+            build_selected_write_release_task_from_candidate(
+                {
+                    "candidate_key": "owcand_contact_ready",
+                    "inventory_id": "muc-main-homepage-contact",
+                    "normalized_canonical_url": "https://www.muc.edu.cn/",
+                    "ready_for_selected_write": True,
+                    "selected_write_target": "campus_services/contact_directory",
+                    "source_ref": {
+                        "raw_asset_id": "owasset_contact",
+                        "raw_version_id": "owver_contact",
+                        "normalized_canonical_url": "https://www.muc.edu.cn/",
+                    },
+                    "target_job_id": "owtarget_contact",
+                },
+                run_id="owrun_contact",
+                source_object_keys=[
+                    "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json"
+                ],
             )
 
         with self.assertRaisesRegex(ValueError, "stable-reference"):

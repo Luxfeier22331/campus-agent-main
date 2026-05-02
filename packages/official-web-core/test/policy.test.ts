@@ -251,7 +251,7 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 					sourceHosts: ["www.example.edu"],
 					urlHints: ["contact"],
 					titleHints: ["联系"],
-					requiredEvidence: ["phone"],
+					requiredEvidence: ["phone", "email", "location", "office_hours"],
 					retentionPolicy: "retain_source_truth",
 					reviewPolicy: "selected_write_requires_review",
 					materializationPolicy: "candidate_only",
@@ -276,8 +276,8 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 					ownerSurface: "contact_directory_lookup",
 					previewStatus: "candidate",
 					releaseBlockers: ["no_preview_evidence"],
-					requiredEvidence: ["phone"],
-					requiredFields: ["phone", "source_url"],
+					requiredEvidence: ["phone", "email", "location", "office_hours"],
+					requiredFields: ["phone", "email", "location", "office_hours", "source_url"],
 					selectedWriteTarget: "campus_services/contact_directory",
 					sourceHosts: ["www.example.edu"],
 					sourceUrls: ["https://www.example.edu/contact"],
@@ -665,6 +665,38 @@ describe("official-web-core policy", () => {
 
 		expect(() => officialWebCore.validateOfficialWebConfig(hostDriftBundle)).toThrowError(
 			/references unavailable host/u,
+		);
+	});
+
+	it("rejects target-source-map required evidence drift from consumer denominator", () => {
+		const bundle = officialWebCore.loadOfficialWebConfig("muc_public");
+		const contactTarget = bundle.targetSourceMap.targets.find(
+			(target) => target.targetId === "campus-services-contact-directory",
+		);
+		if (!contactTarget) {
+			throw new Error("contact target is required");
+		}
+		contactTarget.requiredEvidence = ["phone", "location"];
+		contactTarget.optionalEvidence = ["email", "office_hours"];
+
+		expect(() => officialWebCore.validateOfficialWebConfig(bundle)).toThrowError(
+			/requiredEvidence must match consumer denominator/u,
+		);
+	});
+
+	it("rejects target inventory required evidence drift from admission target", () => {
+		const bundle = officialWebCore.loadOfficialWebConfig("muc_public");
+		const contactEntry = bundle.targetInventory.entries.find(
+			(entry) => entry.inventoryId === "muc-main-homepage-contact",
+		);
+		if (!contactEntry) {
+			throw new Error("contact inventory entry is required");
+		}
+		contactEntry.requiredEvidence = ["phone", "location"];
+		contactEntry.optionalEvidence = ["email", "office_hours"];
+
+		expect(() => officialWebCore.validateOfficialWebConfig(bundle)).toThrowError(
+			/requiredEvidence must be allowed by admission target/u,
 		);
 	});
 });

@@ -229,6 +229,7 @@ export interface OfficialWebConsumerFamilyRule {
 	titleKeywords: string[];
 	pathPatterns: string[];
 	requiredEvidence: OfficialWebConsumerRequiredEvidence[];
+	optionalEvidence: OfficialWebConsumerRequiredEvidence[];
 	minimumMatchedEvidenceCount: number;
 	requiresKeywordOrPathMatch: boolean;
 	negativePatterns: string[];
@@ -255,6 +256,7 @@ export interface OfficialWebTargetSourceMapTarget {
 	urlHints: string[];
 	titleHints: string[];
 	requiredEvidence: OfficialWebConsumerRequiredEvidence[];
+	optionalEvidence: OfficialWebConsumerRequiredEvidence[];
 	retentionPolicy: OfficialWebTargetRetentionPolicy;
 	reviewPolicy: string;
 	materializationPolicy: OfficialWebConsumerMaterializationPolicy;
@@ -281,7 +283,9 @@ export interface OfficialWebTargetInventoryEntry {
 	previewStatus: string;
 	releaseBlockers: string[];
 	requiredEvidence: OfficialWebConsumerRequiredEvidence[];
+	optionalEvidence: OfficialWebConsumerRequiredEvidence[];
 	requiredFields: string[];
+	optionalFields: string[];
 	selectedWriteTarget: string;
 	sourceHosts: string[];
 	sourceUrls: string[];

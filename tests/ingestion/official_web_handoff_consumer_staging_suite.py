@@ -168,11 +168,25 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
                         "required_fields": [
                             "service_name",
                             "process_steps",
-                            "required_materials",
-                            "responsible_office",
                             "source_url",
                             "source_version_evidence",
                         ],
+                        "optional_fields": [
+                            "service_entry",
+                            "required_materials",
+                            "responsible_office",
+                            "phone",
+                            "location",
+                            "office_hours",
+                        ],
+                        "optional_evidence": [
+                            "service_entry",
+                            "service_material",
+                            "phone",
+                            "location",
+                            "office_hours",
+                        ],
+                        "required_evidence": ["service_process"],
                     }
                 ],
             },
@@ -188,8 +202,14 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             {
                 "service_name": "present",
                 "process_steps": "present",
+                "service_process": "present",
+                "service_entry": "source_not_provided",
+                "service_material": "present",
                 "required_materials": "present",
-                "responsible_office": "missing",
+                "responsible_office": "source_not_provided",
+                "phone": "source_not_provided",
+                "location": "source_not_provided",
+                "office_hours": "source_not_provided",
                 "source_url": "present",
                 "source_version_evidence": "present",
             },
@@ -202,7 +222,7 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
                     "jobId": "owtarget_muc_public_service",
                     "runId": "owrun_field_review",
                     "sourceHandoffId": None,
-                    "status": "blocked_fields",
+                    "status": "ready_for_selected_write",
                     "summary": {
                         "schemaVersion": "official_web_target_field_review.v1",
                         "candidateKey": candidate_key,
@@ -210,15 +230,31 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
                         "fieldStatus": candidate["field_status"],
                         "inventoryId": "muc-information-disclosure-application-process",
                         "normalizedCanonicalUrl": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
-                        "readyForSelectedWrite": False,
+                        "optionalEvidence": [
+                            "service_entry",
+                            "service_material",
+                            "phone",
+                            "location",
+                            "office_hours",
+                        ],
+                        "optionalFields": [
+                            "service_entry",
+                            "required_materials",
+                            "responsible_office",
+                            "phone",
+                            "location",
+                            "office_hours",
+                            "service_material",
+                        ],
+                        "readyForSelectedWrite": True,
                         "requiredFields": [
                             "service_name",
                             "process_steps",
-                            "required_materials",
-                            "responsible_office",
                             "source_url",
                             "source_version_evidence",
+                            "service_process",
                         ],
+                        "requiredEvidence": ["service_process"],
                         "reviewVerdict": "pending_review",
                         "selectedWriteTarget": "campus_services/service_guide",
                         "sourceRef": {
@@ -231,6 +267,251 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
                     },
                 }
             ],
+        )
+
+    def test_machine_field_review_marks_complete_candidate_ready_without_manual_approval(
+        self,
+    ) -> None:
+        candidate_key = "owcand_machine_ready_contact"
+
+        review = build_consumer_candidate_review_report(
+            replay_report={
+                "site_id": "muc_public",
+                "crawl_run_id": "owrun_machine_ready",
+                "documents": [],
+                "consumer_candidate_pages": [
+                    {
+                        "candidate_key": candidate_key,
+                        "consumer_family": "contact_directory_candidate",
+                        "materialization_policy": "candidate_only",
+                        "selected_write_target": "campus_services/contact_directory",
+                        "review_policy": "selected_write_requires_review",
+                        "title": "联系我们",
+                        "normalized_canonical_url": "https://www.muc.edu.cn/",
+                        "matched_evidence": ["phone", "location"],
+                        "raw_asset_id": "owasset_contact",
+                        "raw_version_id": "owver_contact",
+                        "target_id": "campus-services-contact-directory",
+                        "target_job_id": "owtarget_muc_public_contact",
+                        "typed_candidate_schema_version": "official_web_contact_directory_candidate.v1",
+                        "typed_candidate": {
+                            "display_name": "中央民族大学",
+                            "phones": ["010-68932442"],
+                            "emails": [],
+                            "locations": ["北京市海淀区中关村南大街27号"],
+                            "office_hours": [],
+                            "source_url": "https://www.muc.edu.cn/",
+                        },
+                        "quality_gate": {"decision": "pass"},
+                    }
+                ],
+            },
+            target_inventory_manifest={
+                "schema_version": "official_web_target_inventory.v1",
+                "site_id": "muc_public",
+                "inventory_version": "test_target_inventory_v2",
+                "entries": [
+                    {
+                        "inventory_id": "muc-main-homepage-contact",
+                        "admission_target_id": "campus-services-contact-directory",
+                        "source_urls": ["https://www.muc.edu.cn/"],
+                        "required_fields": [
+                            "organization_name",
+                            "phone",
+                            "source_url",
+                            "source_version_evidence",
+                        ],
+                        "optional_fields": ["email", "location", "office_hours"],
+                        "optional_evidence": ["email", "location", "office_hours"],
+                        "required_evidence": ["phone"],
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(review["selectedWrite"]["decision"], "dry_run_ready")
+        self.assertEqual(review["selectedWrite"]["reason"], "machine_field_review_passed")
+        self.assertEqual(review["counts"]["selected_write_ready_count"], 1)
+        self.assertEqual(review["counts"]["selected_write_pending_count"], 0)
+        self.assertEqual(review["candidates"][0]["review_verdict"], "pending_review")
+        self.assertTrue(review["candidates"][0]["ready_for_selected_write"])
+        self.assertEqual(
+            review["candidates"][0]["field_status"],
+            {
+                "organization_name": "present",
+                "phone": "present",
+                "source_url": "present",
+                "source_version_evidence": "present",
+                "email": "source_not_provided",
+                "location": "present",
+                "office_hours": "source_not_provided",
+            },
+        )
+        self.assertEqual(
+            review["targetFieldReviews"][0]["status"],
+            "ready_for_selected_write",
+        )
+
+    def test_machine_field_review_marks_campus_card_service_ready_with_optional_gaps(
+        self,
+    ) -> None:
+        candidate_key = "owcand_campus_card_service"
+
+        review = build_consumer_candidate_review_report(
+            replay_report={
+                "site_id": "muc_public",
+                "crawl_run_id": "owrun_campus_card_service",
+                "documents": [],
+                "consumer_candidate_pages": [
+                    {
+                        "candidate_key": candidate_key,
+                        "consumer_family": "service_guide_candidate",
+                        "materialization_policy": "candidate_only",
+                        "selected_write_target": "campus_services/service_guide",
+                        "review_policy": "selected_write_requires_review",
+                        "title": "学生校园卡服务",
+                        "normalized_canonical_url": "https://met.muc.edu.cn/info/1027/1127.htm",
+                        "matched_evidence": [
+                            "service_process",
+                            "service_entry",
+                            "service_material",
+                            "phone",
+                            "location",
+                        ],
+                        "raw_asset_id": "owasset_campus_card",
+                        "raw_version_id": "owver_campus_card",
+                        "target_id": "campus-services-service-guide",
+                        "target_job_id": "owtarget_muc_public_service",
+                        "typed_candidate_schema_version": "official_web_service_guide_candidate.v1",
+                        "typed_candidate": {
+                            "service_name": "学生校园卡服务",
+                            "process_steps": [
+                                "校园卡丢失后，请立即通过圈存机或民大通APP挂失。",
+                                "校园卡损坏或丢失后，先将卡挂失，再到自助补卡机补卡。",
+                            ],
+                            "materials": ["有效证件"],
+                            "responsible_office": [],
+                            "entry_points": ["民大通APP", "圈存机", "自助补卡机"],
+                            "contacts": {
+                                "phones": ["010-68933381", "010-83878225"],
+                                "emails": [],
+                                "locations": ["海淀校区中慧楼2层", "丰台校区智慧中心一层"],
+                                "office_hours": [],
+                            },
+                            "source_url": "https://met.muc.edu.cn/info/1027/1127.htm",
+                        },
+                        "quality_gate": {"decision": "pass"},
+                    }
+                ],
+            },
+            target_inventory_manifest={
+                "schema_version": "official_web_target_inventory.v1",
+                "site_id": "muc_public",
+                "inventory_version": "test_target_inventory_v3",
+                "entries": [
+                    {
+                        "inventory_id": "muc-it-student-campus-card-service-guide",
+                        "admission_target_id": "campus-services-service-guide",
+                        "source_urls": ["https://met.muc.edu.cn/info/1027/1127.htm"],
+                        "required_fields": [
+                            "service_name",
+                            "process_steps",
+                            "source_url",
+                            "source_version_evidence",
+                        ],
+                        "optional_fields": [
+                            "service_entry",
+                            "required_materials",
+                            "responsible_office",
+                            "phone",
+                            "location",
+                            "office_hours",
+                        ],
+                        "optional_evidence": [
+                            "service_entry",
+                            "service_material",
+                            "phone",
+                            "location",
+                            "office_hours",
+                        ],
+                        "required_evidence": ["service_process"],
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(review["selectedWrite"]["decision"], "dry_run_ready")
+        self.assertEqual(review["selectedWrite"]["reason"], "machine_field_review_passed")
+        self.assertEqual(review["counts"]["selected_write_ready_count"], 1)
+        self.assertEqual(
+            review["candidates"][0]["field_status"],
+            {
+                "service_name": "present",
+                "process_steps": "present",
+                "service_process": "present",
+                "service_entry": "present",
+                "service_material": "present",
+                "required_materials": "present",
+                "responsible_office": "source_not_provided",
+                "phone": "present",
+                "location": "present",
+                "office_hours": "source_not_provided",
+                "source_url": "present",
+                "source_version_evidence": "present",
+            },
+        )
+        self.assertEqual(
+            review["targetFieldReviews"][0]["summary"]["inventoryId"],
+            "muc-it-student-campus-card-service-guide",
+        )
+
+    def test_selected_write_candidate_without_target_inventory_fails_closed(
+        self,
+    ) -> None:
+        review = build_consumer_candidate_review_report(
+            replay_report={
+                "site_id": "muc_public",
+                "crawl_run_id": "owrun_missing_inventory",
+                "documents": [],
+                "consumer_candidate_pages": [
+                    {
+                        "candidate_key": "owcand_missing_inventory",
+                        "consumer_family": "contact_directory_candidate",
+                        "materialization_policy": "candidate_only",
+                        "selected_write_target": "campus_services/contact_directory",
+                        "review_policy": "selected_write_requires_review",
+                        "title": "联系我们",
+                        "normalized_canonical_url": "https://www.muc.edu.cn/",
+                        "matched_evidence": ["phone", "email", "location", "office_hours"],
+                        "raw_asset_id": "owasset_contact",
+                        "raw_version_id": "owver_contact",
+                        "target_id": "campus-services-contact-directory",
+                        "target_job_id": "owtarget_muc_public_contact",
+                        "typed_candidate_schema_version": "official_web_contact_directory_candidate.v1",
+                        "typed_candidate": {
+                            "display_name": "中央民族大学",
+                            "phones": ["010-68932442"],
+                            "emails": ["webmaster@muc.edu.cn"],
+                            "locations": ["北京市海淀区中关村南大街27号"],
+                            "office_hours": ["周一至周五 8:00-17:00"],
+                            "source_url": "https://www.muc.edu.cn/",
+                        },
+                        "quality_gate": {"decision": "pass"},
+                    }
+                ],
+            },
+            target_inventory_manifest={
+                "schema_version": "official_web_target_inventory.v1",
+                "site_id": "muc_public",
+                "inventory_version": "test_target_inventory_v2",
+                "entries": [],
+            },
+        )
+
+        self.assertEqual(review["selectedWrite"]["decision"], "blocked")
+        self.assertEqual(
+            review["candidates"][0]["blocked_reason"],
+            "target_inventory_required_fields_missing",
         )
 
     def test_stable_reference_document_reports_target_inventory_field_status(
@@ -486,7 +767,7 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             )
             self.assertEqual(execution_report["promotion"]["decision"], "staged")
 
-    def test_consume_handoff_record_marks_approved_typed_candidate_selected_write_dry_run_ready(
+    def test_consume_handoff_record_marks_machine_reviewed_candidate_selected_write_dry_run_ready(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -495,7 +776,6 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             execution_root_dir = root / "executions"
             record_path = inbox_dir / "owevt_completed_reviewed_candidate.json"
             declarations_path = root / "projection-declarations.json"
-            review_manifest_path = root / "consumer-review-manifest.json"
             _write_json(declarations_path, _declarations_payload())
 
             consumer_matches = [
@@ -510,7 +790,7 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
                     "targetDeclarationVersion": "test_target_inventory_v1",
                     "targetId": "campus-services-contact-directory",
                     "targetJobId": "owtarget_contact_reviewed",
-                    "matchedEvidence": ["phone", "location"],
+                    "matchedEvidence": ["phone", "email", "location", "office_hours"],
                     "matchedKeywords": ["联系我们"],
                     "matchedPatterns": [],
                 }
@@ -521,29 +801,6 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
                 raw_version_id="owver_contact_reviewed",
                 normalized_canonical_url="https://www.example.edu/contact",
                 consumer_matches=consumer_matches,
-            )
-            candidate_key = _expected_candidate_key(
-                consumer_family="contact_directory_candidate",
-                normalized_canonical_url="https://www.example.edu/contact",
-                raw_version_id="owver_contact_reviewed",
-                selected_write_target="campus_services/contact_directory",
-            )
-            _write_json(
-                review_manifest_path,
-                {
-                    "schema_version": "official_web_selected_write_review_manifest.v1",
-                    "site_id": "campus_public",
-                    "run_id": "owrun_projection_reviewed_candidate",
-                    "verdicts": [
-                        {
-                            "candidate_key": candidate_key,
-                            "verdict": "approved",
-                            "reviewed_by": "ops@example.com",
-                            "reviewed_at": "2026-05-01T10:00:00+00:00",
-                            "notes": "source-backed contact directory candidate",
-                        }
-                    ],
-                },
             )
             _write_json(
                 record_path,
@@ -558,7 +815,10 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
                 _standard_bundle_objects(
                     bundle=bundle,
                     page_title="联系我们",
-                    paragraph_text="办公地点：中慧楼二层，联系电话：010-68933381。",
+                    paragraph_text=(
+                        "办公地点：中慧楼二层，联系电话：010-68933381，"
+                        "邮箱：webmaster@example.edu。办公时间：周一至周五 8:00-17:00。"
+                    ),
                     consumer_matches=consumer_matches,
                 )
             )
@@ -566,21 +826,50 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             raw_asset_registry = InMemoryRawAssetRegistry()
             release_task_store = InMemoryOfficialWebReleaseTaskStore()
 
-            result = consume_handoff_record(
-                record_path=record_path,
-                settings=OfficialWebHandoffConsumerSettings(
-                    inbox_dir=inbox_dir,
-                    execution_root_dir=execution_root_dir,
-                    source_bucket="campus-rag-source",
-                ),
-                object_store=object_store,
-                declarations_path=declarations_path,
-                document_registry=document_registry,
-                raw_asset_registry=raw_asset_registry,
-                derived_object_store=object_store,
-                consumer_review_manifest_path=review_manifest_path,
-                release_task_store=release_task_store,
-            )
+            with patch(
+                "campus_ingestion_worker.official_web_handoff_consumer_runtime._read_target_inventory_manifest_if_present",
+                return_value={
+                    "schema_version": "official_web_target_inventory.v1",
+                    "site_id": "campus_public",
+                    "inventory_version": "test_target_inventory_v2",
+                    "entries": [
+                        {
+                            "inventory_id": "campus-public-contact",
+                            "admission_target_id": "campus-services-contact-directory",
+                            "source_urls": ["https://www.example.edu/contact"],
+                            "required_fields": [
+                                "organization_name",
+                                "phone",
+                                "email",
+                                "location",
+                                "office_hours",
+                                "source_url",
+                                "source_version_evidence",
+                            ],
+                            "required_evidence": [
+                                "phone",
+                                "email",
+                                "location",
+                                "office_hours",
+                            ],
+                        }
+                    ],
+                },
+            ):
+                result = consume_handoff_record(
+                    record_path=record_path,
+                    settings=OfficialWebHandoffConsumerSettings(
+                        inbox_dir=inbox_dir,
+                        execution_root_dir=execution_root_dir,
+                        source_bucket="campus-rag-source",
+                    ),
+                    object_store=object_store,
+                    declarations_path=declarations_path,
+                    document_registry=document_registry,
+                    raw_asset_registry=raw_asset_registry,
+                    derived_object_store=object_store,
+                    release_task_store=release_task_store,
+                )
 
             self.assertEqual(result.status, "staged")
             self.assertEqual(
@@ -592,7 +881,7 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             review = execution_report["consumerCandidateReview"]
             self.assertEqual(review["selectedWrite"]["decision"], "dry_run_ready")
             self.assertEqual(review["counts"]["selected_write_ready_count"], 1)
-            self.assertEqual(review["candidates"][0]["review_verdict"], "approved")
+            self.assertEqual(review["candidates"][0]["review_verdict"], "pending_review")
             self.assertTrue(review["candidates"][0]["ready_for_selected_write"])
             self.assertEqual(
                 review["candidates"][0]["admission_action"],
@@ -606,7 +895,7 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             self.assertEqual(len(tasks), 1)
             self.assertEqual(tasks[0].status, "queued")
             self.assertEqual(tasks[0].task_type, "official_web_selected_write_contact_directory")
-            self.assertEqual(tasks[0].inventory_id, review["candidates"][0]["candidate_key"])
+            self.assertEqual(tasks[0].inventory_id, "campus-public-contact")
             self.assertEqual(tasks[0].job_id, "owtarget_contact_reviewed")
             self.assertEqual(tasks[0].run_id, "owrun_projection_reviewed_candidate")
             self.assertEqual(
