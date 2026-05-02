@@ -8,8 +8,8 @@
 	"scripts": {
 		"build": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite build",
 		"build:staging": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 CLOUDFLARE_ENV=staging XDG_CONFIG_HOME=./.wrangler-home node ../../scripts/run-worker-staging-build.mjs SENTRY_DSN -- vite build",
-		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite",
-		"dev:live-smoke": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 PUBLIC_CHAT_LIVE_SMOKE=1 XDG_CONFIG_HOME=./.wrangler-home vite --host 127.0.0.1 --port 5173 --strictPort",
+		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vite --host 127.0.0.1 --port 27011 --strictPort",
+		"dev:live-smoke": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 PUBLIC_CHAT_LIVE_SMOKE=1 XDG_CONFIG_HOME=./.wrangler-home vite --host 127.0.0.1 --port 27011 --strictPort",
 		"deploy": "pnpm build && pnpm deploy:verify-config && node ../../scripts/run-wrangler-command.mjs deploy --config dist/public_chat_web/wrangler.json",
 		"deploy:check-secrets:staging": "uv run --all-packages python ../../scripts/check_worker_secret_presence.py --app apps/public-chat-web --env staging",
 		"deploy:preflight:staging": "node ../../scripts/run-worker-staging-preflight.mjs --app apps/public-chat-web",

@@ -76,7 +76,7 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         self.assertEqual(artifact["env"]["CAMPUS_SHARED_POSTGRES_URL"], "<redacted>")
         self.assertEqual(
             artifact["env"]["SUPERVISOR_AGENT_WORKER_BASE_URL"],
-            "http://127.0.0.1:18081",
+            "http://127.0.0.1:27052",
         )
 
     def test_process_smoke_configures_go_readyz_prompt_gate_for_mock_runtime(self) -> None:
@@ -428,7 +428,7 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         self.assertIn("s3-smoke-object-store", notice_discover_processes)
         self.assertEqual(
             notice_discover_processes["supervisor-api"].env["OBJECT_STORE_ENDPOINT"],
-            "http://127.0.0.1:18082",
+            "http://127.0.0.1:27061",
         )
         self.assertIn("campus_notice_discover", notice_discover.expected_body_tokens)
         self.assertIn("direct_runtime", notice_discover.expected_body_tokens)
@@ -445,7 +445,7 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         self.assertIn("s3-smoke-object-store", notice_processes)
         self.assertEqual(
             notice_processes["supervisor-api"].env["OBJECT_STORE_ENDPOINT"],
-            "http://127.0.0.1:18082",
+            "http://127.0.0.1:27061",
         )
         self.assertIn("campus_notice_get", notice_get.expected_body_tokens)
         multi_step_processes = {process.label: process for process in multi_step_notice.processes}
@@ -471,7 +471,7 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             multi_step_processes["supervisor-agent-worker"].env[
                 "SUPERVISOR_STRUCTURED_QUERY_BASE_URL"
             ],
-            "http://127.0.0.1:18080",
+            "http://127.0.0.1:27051",
         )
         self.assertEqual(
             multi_step_processes["supervisor-agent-worker"].env[

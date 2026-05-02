@@ -3,12 +3,12 @@ import http from "node:http";
 import { exportJWK, generateKeyPair, SignJWT } from "jose";
 
 const DEFAULT_HOST = "127.0.0.1";
-const DEFAULT_PORT = 9798;
+const DEFAULT_PORT = 27062;
 const DEFAULT_AUDIENCE = "panel-local-smoke";
 const DEFAULT_EMAIL = "ops@example.com";
 const DEFAULT_NAME = "Local Smoke Operator";
 const DEFAULT_SUBJECT = "operator-local-smoke";
-const DEFAULT_REDIRECT = "http://127.0.0.1:5174/observability/overview";
+const DEFAULT_REDIRECT = "http://127.0.0.1:27021/observability/overview";
 const TOKEN_TTL_SECONDS = 30 * 60;
 const LOCAL_REDIRECT_HOSTS = new Set(["127.0.0.1", "localhost"]);
 

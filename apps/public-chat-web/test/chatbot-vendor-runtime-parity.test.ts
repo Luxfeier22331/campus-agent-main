@@ -81,7 +81,8 @@ describe("chatbot vendor runtime parity", () => {
 	it("declares a canonical live-smoke dev path that boots app-api as an auxiliary worker", () => {
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("PUBLIC_CHAT_LIVE_SMOKE=1");
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--host 127.0.0.1");
-		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--port 5173");
+		expect(packageManifest.scripts?.dev).toContain("--port 27011");
+		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--port 27011");
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--strictPort");
 		expect(viteConfigSource).toContain("PUBLIC_CHAT_LIVE_SMOKE");
 		expect(viteConfigSource).toContain("liveSmokePublicChatConfigPath");
@@ -92,7 +93,7 @@ describe("chatbot vendor runtime parity", () => {
 		expect(liveSmokeWranglerConfig).toContain("[secrets]");
 		expect(liveSmokeWranglerConfig).toContain("required = []");
 		expect(liveSmokeWranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
-		expect(liveSmokeWranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "127.0.0.1:5173"');
+		expect(liveSmokeWranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "127.0.0.1:27011"');
 		expect(liveSmokeWranglerConfig).toContain(
 			'AUTH_TURNSTILE_SITE_KEY = "1x00000000000000000000AA"',
 		);
@@ -106,7 +107,7 @@ describe("chatbot vendor runtime parity", () => {
 		expect(viteConfigSource).toContain("../app-api/.env");
 		expect(viteConfigSource).toContain("liveSmokeSupervisorApiBaseUrl");
 		expect(viteConfigSource).toContain("process.env.SUPERVISOR_API_BASE_URL");
-		expect(viteConfigSource).toContain("http://127.0.0.1:18080");
+		expect(viteConfigSource).toContain("http://127.0.0.1:27051");
 	});
 
 	it("keeps runtime vendor imports on donor specifiers and resolves them through exact compat seams", () => {

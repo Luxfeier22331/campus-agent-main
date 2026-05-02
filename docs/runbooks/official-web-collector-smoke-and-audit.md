@@ -212,7 +212,7 @@ uv run --all-packages campus-ingestion-official-web-handoff-dev
 然后在另一终端临时覆盖 `app-api` handoff env 再 drain：
 
 ```bash
-APP_API_OFFICIAL_WEB_HANDOFF_URL=http://127.0.0.1:8789/api/official-web/ \
+APP_API_OFFICIAL_WEB_HANDOFF_URL=http://127.0.0.1:27041/api/official-web/ \
 handoffs \
 APP_API_OFFICIAL_WEB_HANDOFF_TOKEN=replace-with-local-official-web- \
 handoff-secret \

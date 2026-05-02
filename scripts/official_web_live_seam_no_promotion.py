@@ -170,8 +170,8 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--target-url", default="https://xxgk.muc.edu.cn/info/1007/1113.htm")
     parser.add_argument("--max-pages-per-host", type=int, default=6)
     parser.add_argument("--max-total-pages", type=int, default=6)
-    parser.add_argument("--app-api-port", type=int, default=8787)
-    parser.add_argument("--handoff-port", type=int, default=8789)
+    parser.add_argument("--app-api-port", type=int, default=27031)
+    parser.add_argument("--handoff-port", type=int, default=27041)
     parser.add_argument("--output-root", type=Path, default=Path("var/official-web-live-seam"))
     return parser
 

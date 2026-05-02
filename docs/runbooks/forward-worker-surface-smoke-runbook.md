@@ -110,7 +110,7 @@ pnpm --dir apps/public-chat-web dev:live-smoke
 
 约束：
 
-- 这条命令固定监听 `<http://127.0.0.1:5173`>
+- 这条命令固定监听 `<http://127.0.0.1:27011`>
 - 它通过 Cloudflare Vite plugin 的 `auxiliaryWorkers` 带起 shared `apps/app-api`
 - `app-api` 使用 [wrangler.local-smoke.toml](/home/reptilian/code/campus-agent/app
   s/app-api/wrangler.local-smoke.toml) 注册为本地 `app-api` Worker，保证

@@ -81,13 +81,13 @@ class OfficialWebHandoffReceiverSettings:
 @dataclass(frozen=True, slots=True)
 class OfficialWebHandoffServerSettings:
     host: str = "127.0.0.1"
-    port: int = 8789
+    port: int = 27041
 
     @classmethod
     def from_env(cls) -> OfficialWebHandoffServerSettings:
         return cls(
             host=os.getenv("INGESTION_WORKER_HTTP_HOST", "127.0.0.1"),
-            port=int(os.getenv("INGESTION_WORKER_HTTP_PORT", "8789")),
+            port=int(os.getenv("INGESTION_WORKER_HTTP_PORT", "27041")),
         )
 
 

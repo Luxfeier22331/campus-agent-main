@@ -31,7 +31,7 @@
 		"docs:export-public-sync-manifest:staging": "node ./scripts/run-with-staging-db-env.mjs pnpm exec tsx ./scripts/export-public-docs-sync-manifest.ts",
 		"db:adopt-shared": "node ./scripts/run-with-local-env.mjs node ./scripts/adopt-shared-database.mjs",
 		"projection:drain": "node ./scripts/run-with-local-env.mjs node ./scripts/trigger-local-scheduled-drain.mjs",
-		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home node ./scripts/run-with-local-env.mjs wrangler dev -e local",
+		"dev": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home node ./scripts/run-with-local-env.mjs wrangler dev -e local --ip 127.0.0.1 --port 27031",
 		"deploy": "node ../../scripts/run-wrangler-command.mjs deploy",
 		"deploy:check-secrets:staging": "uv run --all-packages python ../../scripts/check_worker_secret_presence.py --app apps/app-api --env staging",
 		"deploy:preflight:staging": "node ../../scripts/run-worker-staging-preflight.mjs --app apps/app-api",

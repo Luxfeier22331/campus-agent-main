@@ -6,7 +6,7 @@ repo_root="$(cd "${script_dir}/../.." && pwd)"
 compose_file="${SUPERVISOR_RUNTIME_COMPOSE_FILE:-${repo_root}/infra/local/docker-compose.supervisor-runtime.yml}"
 compose_project_name="${SUPERVISOR_RUNTIME_COMPOSE_PROJECT_NAME:-campus-supervisor-runtime-local}"
 compose_parallel_limit="${SUPERVISOR_RUNTIME_COMPOSE_PARALLEL_LIMIT:-1}"
-api_host_port="${SUPERVISOR_API_HOST_PORT:-18080}"
+api_host_port="${SUPERVISOR_API_HOST_PORT:-27051}"
 
 require_command() {
   local command_name="$1"
@@ -153,7 +153,7 @@ const bridgeSharedSecret =
   "supervisor-agent-worker-local-placeholder";
 const bridgeBaseUrl =
   process.env.SUPERVISOR_AGENT_WORKER_BASE_URL?.trim() ||
-  "http://supervisor-agent-worker:18081";
+  "http://supervisor-agent-worker:27052";
 
 resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
 resolved.set("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", bridgeSharedSecret);

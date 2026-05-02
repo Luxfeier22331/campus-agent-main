@@ -16,7 +16,7 @@ services:
         max-file: "3"
     environment:
       SUPERVISOR_AGENT_WORKER_HOST: 0.0.0.0
-      SUPERVISOR_AGENT_WORKER_PORT: 18081
+      SUPERVISOR_AGENT_WORKER_PORT: 27052
       SUPERVISOR_AGENT_WORKER_SHARED_SECRET: ${SUPERVISOR_AGENT_WORKER_SHARED_SECRET:?set SUPERVISOR_AGENT_WORKER_SHARED_SECRET}
       AGENT_RUNTIME_PROVIDER: ${AGENT_RUNTIME_PROVIDER:-mock-runtime}
       PROMPT_RUNTIME_PROVIDER: ${PROMPT_RUNTIME_PROVIDER:-}
@@ -63,7 +63,7 @@ services:
         - CMD
         - python
         - -c
-        - import os,sys,urllib.request;req=urllib.request.Request("http://127.0.0.1:18081/internal/bridge/healthz",headers={"x-supervisor-bridge-auth":os.environ.get("SUPERVISOR_AGENT_WORKER_SHARED_SECRET","")});sys.exit(0 if urllib.request.urlopen(req, timeout=2).status==200 else 1)
+        - import os,sys,urllib.request;req=urllib.request.Request("http://127.0.0.1:27052/internal/bridge/healthz",headers={"x-supervisor-bridge-auth":os.environ.get("SUPERVISOR_AGENT_WORKER_SHARED_SECRET","")});sys.exit(0 if urllib.request.urlopen(req, timeout=2).status==200 else 1)
       interval: 10s
       timeout: 5s
       retries: 12
@@ -155,10 +155,10 @@ services:
       OBJECT_STORE_SECRET_KEY: ${OBJECT_STORE_SECRET_KEY:-}
       OBJECT_STORE_REGION: ${OBJECT_STORE_REGION:-us-east-1}
       OBJECT_STORE_BUCKET_DERIVED: ${OBJECT_STORE_BUCKET_DERIVED:-campus-rag-derived}
-      SUPERVISOR_AGENT_WORKER_BASE_URL: http://supervisor-agent-worker:18081
+      SUPERVISOR_AGENT_WORKER_BASE_URL: http://supervisor-agent-worker:27052
       SUPERVISOR_AGENT_WORKER_SHARED_SECRET: ${SUPERVISOR_AGENT_WORKER_SHARED_SECRET:?set SUPERVISOR_AGENT_WORKER_SHARED_SECRET}
     ports:
-      - "${SUPERVISOR_API_HOST_PORT:-18080}:8000"
+      - "${SUPERVISOR_API_HOST_PORT:-27051}:8000"
     healthcheck:
       test:
         - CMD-SHELL

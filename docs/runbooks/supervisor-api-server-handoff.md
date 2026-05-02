@@ -61,16 +61,16 @@ docker build -f apps/supervisor-api/Dockerfile -t campus-supervisor-api:local .
 
 ```bash
 COMPOSE_PROJECT_NAME=campus-supervisor-runtime \
-SUPERVISOR_API_HOST_PORT=18080 \
+SUPERVISOR_API_HOST_PORT=27051 \
 docker compose -f infra/local/docker-compose.supervisor-runtime.yml up -d --build
 ```
 
 1. health/readiness checks
 
 ```bash
-curl -sS -i http://127.0.0.1:18080/healthz
-curl -sS -i http://127.0.0.1:18080/readyz
-curl -sS -i http://127.0.0.1:18080/metrics
+curl -sS -i http://127.0.0.1:27051/healthz
+curl -sS -i http://127.0.0.1:27051/readyz
+curl -sS -i http://127.0.0.1:27051/metrics
 ```
 
 1. smoke

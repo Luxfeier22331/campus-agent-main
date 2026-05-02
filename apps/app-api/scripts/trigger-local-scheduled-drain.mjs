@@ -10,7 +10,7 @@ function parseBaseUrl(argv) {
 		return rawValue;
 	}
 
-	return process.env.APP_API_BASE_URL?.trim() || "http://127.0.0.1:8787";
+	return process.env.APP_API_BASE_URL?.trim() || "http://127.0.0.1:27031";
 }
 
 async function main() {

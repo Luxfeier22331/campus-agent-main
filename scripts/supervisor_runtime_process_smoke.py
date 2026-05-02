@@ -74,11 +74,11 @@ def build_process_smoke_plan(
     output_dir: Path,
     profile: str = "closed_gate",
     api_host: str = "127.0.0.1",
-    api_port: int = 18080,
+    api_port: int = 27051,
     worker_host: str = "127.0.0.1",
-    worker_port: int = 18081,
+    worker_port: int = 27052,
     object_store_host: str = "127.0.0.1",
-    object_store_port: int = 18082,
+    object_store_port: int = 27061,
 ) -> ProcessSmokePlan:
     api_secret = os.getenv("API_WORKER_SHARED_SECRET", "supervisor-api-local-placeholder")
     bridge_secret = os.getenv(
@@ -749,8 +749,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--profile", default="closed_gate")
-    parser.add_argument("--api-port", type=int, default=18080)
-    parser.add_argument("--worker-port", type=int, default=18081)
+    parser.add_argument("--api-port", type=int, default=27051)
+    parser.add_argument("--worker-port", type=int, default=27052)
     parser.add_argument("--timeout-seconds", type=float, default=45.0)
     parser.add_argument(
         "--startup-timeout-seconds",

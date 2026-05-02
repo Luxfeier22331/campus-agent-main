@@ -11,7 +11,7 @@ from urllib.parse import unquote, urlparse
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(description="Serve a minimal S3-compatible smoke endpoint.")
     parser.add_argument("--host", default="127.0.0.1")
-    parser.add_argument("--port", type=int, default=18082)
+    parser.add_argument("--port", type=int, default=27061)
     return parser
 
 

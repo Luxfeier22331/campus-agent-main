@@ -241,7 +241,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_OTEL_SERVICE_NAME", "custom-supervisor-api")
 	t.Setenv("SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS", "750")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED", "true")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_URL", "http://app-api:8787/api/internal/execution/audit-events")
+	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_URL", "http://app-api:27031/api/internal/execution/audit-events")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", "audit-secret")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", "250")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY", "16")
@@ -294,7 +294,7 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.OTelServiceName != "custom-supervisor-api" ||
 		cfg.OTelExportTimeoutMS != 750 ||
 		!cfg.ExecutionAuditEnabled ||
-		cfg.ExecutionAuditURL != "http://app-api:8787/api/internal/execution/audit-events" ||
+		cfg.ExecutionAuditURL != "http://app-api:27031/api/internal/execution/audit-events" ||
 		cfg.ExecutionAuditSharedSecret != "audit-secret" ||
 		cfg.ExecutionAuditTimeoutMS != 250 ||
 		cfg.ExecutionAuditQueueCapacity != 16 ||

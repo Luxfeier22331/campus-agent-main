@@ -19,7 +19,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("host.docker.internal", script)
         self.assertIn("read -r -d '' env_key", script)
         self.assertIn('"SUPERVISOR_AGENT_WORKER_BASE_URL"', script)
-        self.assertIn('"http://supervisor-agent-worker:18081"', script)
+        self.assertIn('"http://supervisor-agent-worker:27052"', script)
         self.assertNotIn("eval ", script)
         self.assertIn("SUPERVISOR_RUNTIME_COMPOSE_PARALLEL_LIMIT", script)
         self.assertIn('COMPOSE_PARALLEL_LIMIT="${compose_parallel_limit}"', script)

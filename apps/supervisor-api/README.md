@@ -258,7 +258,7 @@ export SUPERVISOR_API_OTEL_ENABLED=false
 export SUPERVISOR_API_OTEL_SAMPLE_RATIO=1
 export SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION=supervisor-api-otel-attrs-v1
 export SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=false
-export SUPERVISOR_API_EXECUTION_AUDIT_URL=http://127.0.0.1:8787/api/internal/execution/audit-events
+export SUPERVISOR_API_EXECUTION_AUDIT_URL=http://127.0.0.1:27031/api/internal/execution/audit-events
 export SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET=app-api-internal-secret
 export SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS=500
 export SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY=128
@@ -275,7 +275,7 @@ export SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS=2
 export SUPERVISOR_API_BRIDGE_RETRY_BASE_MS=50
 export SUPERVISOR_API_INTENT_POLICY_PATH=
 export SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH=
-export SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081
+export SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052
 export SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
 export SUPERVISOR_AGENT_WORKER_TIMEOUT_MS=35000
 export SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS=500
@@ -327,7 +327,7 @@ not use Docker or Wrangler.
 Docker smoke:
 
 ```bash
-docker run --rm -p 18080:8000 campus-supervisor-api:local
+docker run --rm -p 27051:8000 campus-supervisor-api:local
 ```
 
 `docker run` 单容器只验证 `supervisor-api` 自身监听和 `/healthz` 路径；它不会覆盖
@@ -348,9 +348,9 @@ Smoke artifacts default to:
 Expected behavior:
 
 ```bash
-curl http://127.0.0.1:18080/healthz
-curl -i http://127.0.0.1:18080/readyz
-curl http://127.0.0.1:18080/metrics
+curl http://127.0.0.1:27051/healthz
+curl -i http://127.0.0.1:27051/readyz
+curl http://127.0.0.1:27051/metrics
 curl -i -H 'content-type: application/json' \
   -H 'x-worker-origin-auth: worker-secret' \
   -d @<(cat <<'JSON'
@@ -372,7 +372,7 @@ curl -i -H 'content-type: application/json' \
 }
 JSON
 ) \
-  http://127.0.0.1:18080/api/v1/answer
+  http://127.0.0.1:27051/api/v1/answer
 ```
 
 Detailed local smoke / cutover / runback steps:

@@ -256,13 +256,13 @@ class OfficialWebHandoffReceiverTest(unittest.TestCase):
     def test_server_settings_read_host_and_port_from_env(self) -> None:
         env = os.environ | {
             "INGESTION_WORKER_HTTP_HOST": "0.0.0.0",
-            "INGESTION_WORKER_HTTP_PORT": "8789",
+            "INGESTION_WORKER_HTTP_PORT": "27041",
         }
         with patch.dict(os.environ, env, clear=True):
             settings = OfficialWebHandoffServerSettings.from_env()
 
         self.assertEqual(settings.host, "0.0.0.0")
-        self.assertEqual(settings.port, 8789)
+        self.assertEqual(settings.port, 27041)
 
 
 if __name__ == "__main__":

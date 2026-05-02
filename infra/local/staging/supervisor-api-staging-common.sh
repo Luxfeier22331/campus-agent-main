@@ -225,7 +225,7 @@ const bridgeSharedSecret =
   "";
 const bridgeBaseUrl =
   process.env.SUPERVISOR_AGENT_WORKER_BASE_URL?.trim() ||
-  "http://supervisor-agent-worker:18081";
+  "http://supervisor-agent-worker:27052";
 resolved.set("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", bridgeSharedSecret);
 resolved.set("SUPERVISOR_AGENT_WORKER_BASE_URL", bridgeBaseUrl);
 
