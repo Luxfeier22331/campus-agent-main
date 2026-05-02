@@ -69,6 +69,8 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
             )
 
         self.assertEqual(report["errors"], [])
+        self.assertEqual(report["selected_notice_ids"], [])
+        self.assertNotIn("selected_notices", report)
         entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
         self.assertEqual(len(entries), 1)
         entry = entries[0]
@@ -282,6 +284,11 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
 
         self.assertEqual(first_report["errors"], [])
         self.assertEqual(selected_report["errors"], [])
+        self.assertEqual(selected_report["selected_notice_ids"], ["355120"])
+        self.assertEqual(
+            selected_report["selected_notices"],
+            [{"notice_id": "355120", "title": "第二条历史通知"}],
+        )
         self.assertEqual(
             tuple(
                 entry.notice_id

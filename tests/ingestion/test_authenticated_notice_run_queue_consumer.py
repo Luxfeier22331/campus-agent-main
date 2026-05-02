@@ -724,6 +724,54 @@ class AuthenticatedNoticeRunQueueConsumerTest(unittest.TestCase):
         self.assertEqual(snapshot["queueStatusCounts"]["succeeded"], 1)
         self.assertEqual(snapshot["producerVersion"], "test.run@1")
 
+    def test_source_truth_only_selected_run_reports_operator_processing_projection(self) -> None:
+        bundle_bytes = support._json_bytes([{"notice_id": "355959", "title": "岗位聘用通知"}])
+        manifest_bytes = support._json_bytes(
+            {"run_id": "run-001", "filters": {"selected_notice_ids": ["355959"]}}
+        )
+        store = InMemoryNoticeIngestQueueStore()
+        job = support._job(
+            run_id="muc_internal_portal:notice:20260428T180931937Z:canary:355959",
+            bundle_sha=support._sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=support._sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        store.enqueue(job)
+        reporter = support._RecordingProcessingProjectionReporter()
+
+        consume_authenticated_notice_ingest_queue(
+            queue_store=store,
+            object_store=support._ObjectStore(
+                {
+                    ("campus-rag-source", job.bundle_object_key): bundle_bytes,
+                    ("campus-rag-source", job.manifest_object_key): manifest_bytes,
+                }
+            ),
+            run_ref_resolver=support._resolver_for(job),
+            importer=support._RecordingImporter(
+                {
+                    "notice_count": 1,
+                    "selected_notice_ids": ["355959"],
+                    "source_truth_only": True,
+                }
+            ),
+            processing_projection_reporter=reporter,
+            processing_projection_producer_version="test@source-truth-only",
+            mode="execute",
+            worker_id="worker-a",
+            site_id="muc_internal_portal",
+            source_home_url="https://my.muc.edu.cn",
+            source_truth_only=True,
+        )
+
+        self.assertEqual(len(reporter.calls), 1)
+        snapshot = reporter.calls[0][0]
+        self.assertEqual(snapshot["noticeId"], "355959")
+        self.assertEqual(snapshot["lifecycleStatus"], "imported")
+        self.assertEqual(snapshot["materializationStatus"], "skipped_source_truth_only")
+        self.assertEqual(snapshot["producerVersion"], "test@source-truth-only")
+
     def test_downstream_request_invokes_typed_materializer_for_selected_notice_replay(
         self,
     ) -> None:

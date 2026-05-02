@@ -26,6 +26,7 @@ from campus_ingestion_core.collected_notice_ingest_queue_postgres import (
 
 from campus_ingestion_worker.authenticated_notice_processing_projection_reporting import (
     build_processing_projection_reporter_from_env,
+    build_run_processing_projection_reporter_from_env,
 )
 from campus_ingestion_worker.authenticated_notice_typed_downstream_materialization import (
     materialize_authenticated_notice_typed_downstream,
@@ -68,6 +69,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--require-processing-projection",
         action="store_true",
         help="Fail smoke unless the consumer reports app-api authenticated notice projection.",
+    )
+    parser.add_argument(
+        "--require-run-processing-projection",
+        action="store_true",
+        help="Fail smoke unless the consumer reports app-api authenticated notice run projection.",
     )
     parser.add_argument("--expected-notice-id")
     parser.add_argument("--expected-candidate-kind")
@@ -124,6 +130,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     findings.extend(child_task_contract["findings"])
     if args.execute:
         processing_projection_reporter = build_processing_projection_reporter_from_env(env)
+        run_processing_projection_reporter = build_run_processing_projection_reporter_from_env(env)
         if args.require_processing_projection and processing_projection_reporter is None:
             findings.append(
                 {
@@ -133,6 +140,30 @@ def main(argv: Sequence[str] | None = None) -> None:
                         "INGESTION_WORKER_APP_API_BASE_URL and "
                         "INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET are required "
                         "when --require-processing-projection is set"
+                    ),
+                }
+            )
+            report = _build_report(
+                args=args,
+                mode=mode,
+                enqueue_plan=enqueue_plan,
+                queue_write_summary=queue_write_summary,
+                consume_summary=consume_summary,
+                post_run_audit=post_run_audit,
+                child_task_contract=child_task_contract,
+                findings=findings,
+            )
+            _write_report(report, output_dir=output_dir)
+            return
+        if args.require_run_processing_projection and run_processing_projection_reporter is None:
+            findings.append(
+                {
+                    "severity": "high",
+                    "code": "app_api_run_projection_callback_missing",
+                    "message": (
+                        "INGESTION_WORKER_APP_API_BASE_URL and "
+                        "INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET are required "
+                        "when --require-run-processing-projection is set"
                     ),
                 }
             )
@@ -168,6 +199,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             env=env,
             require_media_gate=args.require_media_gate,
             processing_projection_reporter=processing_projection_reporter,
+            run_processing_projection_reporter=run_processing_projection_reporter,
             typed_downstream_materializer=materialize_authenticated_notice_typed_downstream,
             media_gate_evidence_dir=(
                 Path(args.media_gate_evidence_dir) if args.media_gate_evidence_dir else None
@@ -217,6 +249,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             consume_files=consume_files,
             require_downstream_materialization=args.require_downstream_materialization,
             require_processing_projection=args.require_processing_projection,
+            require_run_processing_projection=args.require_run_processing_projection,
             expected_notice_id=args.expected_notice_id,
             expected_candidate_kind=args.expected_candidate_kind,
             expected_target_surface=args.expected_target_surface,
@@ -330,6 +363,7 @@ def _post_run_audit(
     consume_files: Mapping[str, Path],
     require_downstream_materialization: bool,
     require_processing_projection: bool = False,
+    require_run_processing_projection: bool = False,
     expected_notice_id: str | None = None,
     expected_candidate_kind: str | None = None,
     expected_target_surface: str | None = None,
@@ -399,6 +433,22 @@ def _post_run_audit(
                 "message": "consumer did not report authenticated notice processing projection",
             }
         )
+    run_processing_projection_report = (
+        first_trace_row.get("run_processing_projection_report")
+        if isinstance(first_trace_row.get("run_processing_projection_report"), Mapping)
+        else {}
+    )
+    if (
+        require_run_processing_projection
+        and run_processing_projection_report.get("status") != "reported"
+    ):
+        findings.append(
+            {
+                "severity": "high",
+                "code": "run_processing_projection_not_reported",
+                "message": "consumer did not report authenticated notice run processing projection",
+            }
+        )
     expected_notice = _expected_notice_summary(
         downstream_materialization=downstream_materialization,
         expected_notice_id=expected_notice_id,
@@ -430,6 +480,7 @@ def _post_run_audit(
         },
         "downstream_materialization": downstream_materialization,
         "processing_projection_report": processing_projection_report,
+        "run_processing_projection_report": run_processing_projection_report,
         "expected_notice": expected_notice,
         "evidence_files": evidence_files,
         "findings": findings,
@@ -551,7 +602,11 @@ def _verdict(findings: Sequence[Mapping[str, Any]]) -> str:
     medium_or_higher = [item for item in findings if item.get("severity") in {"medium", "high"}]
     if not medium_or_higher:
         return "passed"
-    if any(item.get("code") == "app_api_projection_callback_missing" for item in medium_or_higher):
+    callback_missing_codes = {
+        "app_api_projection_callback_missing",
+        "app_api_run_projection_callback_missing",
+    }
+    if any(item.get("code") in callback_missing_codes for item in medium_or_higher):
         return "blocked"
     return "failed"
 

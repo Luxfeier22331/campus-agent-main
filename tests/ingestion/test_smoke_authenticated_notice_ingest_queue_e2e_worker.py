@@ -416,6 +416,76 @@ class SmokeAuthenticatedNoticeIngestQueueE2EWorkerTest(unittest.TestCase):
                 "reported",
             )
 
+    def test_execute_can_require_run_processing_projection(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "smoke"
+            queue_store = _QueueStore({"job-001": _queue_record("job-001", "succeeded")})
+            run_reporter = object()
+            with (
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e."
+                    "load_worker_env"
+                ),
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e."
+                    "resolve_authenticated_notice_collector_run_refs",
+                    return_value=_run_refs(),
+                ),
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e."
+                    "build_notice_ingest_queue_store_from_env",
+                    return_value=queue_store,
+                ),
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e."
+                    "execute_authenticated_notice_run_enqueue_plan",
+                    return_value={"enqueued_jobs": [{"job_id": "job-001"}]},
+                ),
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e."
+                    "build_object_store_from_env",
+                    return_value=object(),
+                ),
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e."
+                    "build_run_processing_projection_reporter_from_env",
+                    return_value=run_reporter,
+                ),
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e."
+                    "consume_authenticated_notice_ingest_queue",
+                    return_value=_consume_result(run_processing_projection_status="reported"),
+                ) as consume,
+                redirect_stdout(StringIO()) as stdout,
+            ):
+                worker.main(
+                    [
+                        "--run-id",
+                        "run-001",
+                        "--site-id",
+                        "muc_internal_portal",
+                        "--source-home-url",
+                        "https://my.muc.edu.cn",
+                        "--execute",
+                        "--require-run-processing-projection",
+                        "--output-dir",
+                        str(output_dir),
+                    ]
+                )
+
+            self.assertEqual(consume.call_args.kwargs["run_processing_projection_reporter"], run_reporter)
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["verdict"], "passed")
+            report = json.loads(
+                (output_dir / "authenticated-notice-ingest-queue-e2e-smoke.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                report["post_run_audit"]["run_processing_projection_report"]["status"],
+                "reported",
+            )
+
     def test_execute_reports_missing_app_api_projection_callback_as_blocked(self) -> None:
         with TemporaryDirectory() as tmpdir:
             output_dir = Path(tmpdir) / "smoke"
@@ -481,6 +551,58 @@ class SmokeAuthenticatedNoticeIngestQueueE2EWorkerTest(unittest.TestCase):
             )
             self.assertEqual(report["findings"][0]["code"], "app_api_projection_callback_missing")
 
+    def test_execute_reports_missing_app_api_run_projection_callback_as_blocked(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            output_dir = Path(tmpdir) / "smoke"
+            with (
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e."
+                    "load_worker_env"
+                ),
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e."
+                    "resolve_authenticated_notice_collector_run_refs",
+                    return_value=_run_refs(),
+                ),
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e."
+                    "build_run_processing_projection_reporter_from_env",
+                    return_value=None,
+                ),
+                patch(
+                    "campus_ingestion_worker.smoke_authenticated_notice_ingest_queue_e2e."
+                    "build_notice_ingest_queue_store_from_env"
+                ) as build_store,
+                redirect_stdout(StringIO()) as stdout,
+            ):
+                worker.main(
+                    [
+                        "--run-id",
+                        "run-001",
+                        "--site-id",
+                        "muc_internal_portal",
+                        "--source-home-url",
+                        "https://my.muc.edu.cn",
+                        "--execute",
+                        "--require-run-processing-projection",
+                        "--output-dir",
+                        str(output_dir),
+                    ]
+                )
+
+            build_store.assert_not_called()
+            payload = json.loads(stdout.getvalue())
+            self.assertEqual(payload["verdict"], "blocked")
+            report = json.loads(
+                (output_dir / "authenticated-notice-ingest-queue-e2e-smoke.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            self.assertEqual(
+                report["findings"][0]["code"],
+                "app_api_run_projection_callback_missing",
+            )
+
 
 def _run_refs():
     from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
@@ -508,6 +630,7 @@ class _ConsumeResult:
         failed_count: int,
         downstream_status: str = "skipped_source_truth_only",
         processing_projection_status: str | None = None,
+        run_processing_projection_status: str | None = None,
     ) -> None:
         self.queue_consume = {
             "mode": "execute",
@@ -560,6 +683,16 @@ class _ConsumeResult:
                         if processing_projection_status is not None
                         else {}
                     ),
+                    **(
+                        {
+                            "run_processing_projection_report": {
+                                "status": run_processing_projection_status,
+                                "snapshot_count": 1,
+                            }
+                        }
+                        if run_processing_projection_status is not None
+                        else {}
+                    ),
                 }
             ]
         }
@@ -579,12 +712,14 @@ def _consume_result(
     failed_count: int = 0,
     downstream_status: str = "skipped_source_truth_only",
     processing_projection_status: str | None = None,
+    run_processing_projection_status: str | None = None,
 ):
     return _ConsumeResult(
         completed_count=completed_count,
         failed_count=failed_count,
         downstream_status=downstream_status,
         processing_projection_status=processing_projection_status,
+        run_processing_projection_status=run_processing_projection_status,
     )
 
 

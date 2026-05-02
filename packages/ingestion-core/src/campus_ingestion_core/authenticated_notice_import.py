@@ -579,6 +579,11 @@ def import_authenticated_notice_export(
         "write_plan": dry_run_report["write_plan"],
         "errors": list(stats.errors),
     }
+    if selected_notice_ids:
+        result["selected_notices"] = _selected_notice_summaries(
+            prepared=prepared,
+            selected_notice_ids=selected_notice_ids,
+        )
     if projection_store is not None:
         result["consumption_projection_entry_count"] = len(projection_entries)
         typed_materialization = _typed_materialization_candidate_summary(projection_entries)
@@ -603,6 +608,25 @@ def import_authenticated_notice_export(
         fetch_status_store.upsert_many(fetch_status_records)
         result["attachment_fetch_status_record_count"] = len(fetch_status_records)
     return result
+
+
+def _selected_notice_summaries(
+    *,
+    prepared: AuthenticatedNoticeBundleImportResult,
+    selected_notice_ids: tuple[str, ...],
+) -> list[dict[str, str]]:
+    selected = {notice_id for notice_id in selected_notice_ids if notice_id}
+    summaries: list[dict[str, str]] = []
+    for notice_import in prepared.notice_imports:
+        notice_id = str(notice_import.notice_id).strip()
+        if not notice_id or (selected and notice_id not in selected):
+            continue
+        title = str(notice_import.document_import.title or "").strip()
+        item = {"notice_id": notice_id}
+        if title:
+            item["title"] = title
+        summaries.append(item)
+    return summaries
 
 
 def _prepare_notice_import(

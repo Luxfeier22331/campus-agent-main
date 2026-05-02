@@ -552,7 +552,7 @@ def failed_report(
 
 
 def import_result_summary(result: Mapping[str, Any]) -> dict[str, Any]:
-    return {
+    summary = {
         key: result[key]
         for key in (
             "mode",
@@ -568,6 +568,44 @@ def import_result_summary(result: Mapping[str, Any]) -> dict[str, Any]:
         )
         if key in result
     }
+    selected_notice_ids = _string_list(result.get("selected_notice_ids"))
+    if selected_notice_ids:
+        summary["selected_notice_ids"] = list(selected_notice_ids)
+    selected_notices = _selected_notice_summaries(result.get("selected_notices"))
+    if selected_notices:
+        summary["selected_notices"] = selected_notices
+    return summary
+
+
+def _selected_notice_summaries(value: object) -> list[dict[str, str]]:
+    if isinstance(value, str | bytes) or not isinstance(value, Sequence):
+        return []
+    summaries: list[dict[str, str]] = []
+    seen: set[str] = set()
+    for item in value:
+        if not isinstance(item, Mapping):
+            continue
+        notice_id = _optional_text(item.get("notice_id") or item.get("noticeId"))
+        if not notice_id or notice_id in seen:
+            continue
+        summary = {"notice_id": notice_id}
+        title = _optional_text(item.get("title"))
+        if title:
+            summary["title"] = title
+        summaries.append(summary)
+        seen.add(notice_id)
+    return summaries
+
+
+def _string_list(value: object) -> tuple[str, ...]:
+    if isinstance(value, str | bytes) or not isinstance(value, Sequence):
+        return ()
+    return tuple(dict.fromkeys(item for item in (_optional_text(item) for item in value) if item))
+
+
+def _optional_text(value: object) -> str | None:
+    text = str(value or "").strip()
+    return text or None
 
 
 def downstream_materialization_summary(
