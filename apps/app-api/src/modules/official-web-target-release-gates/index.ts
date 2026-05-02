@@ -2,7 +2,6 @@ export {
 	buildOfficialWebTargetReleaseGateService,
 	type OfficialWebTargetReleaseGateCreatePayload,
 	type OfficialWebTargetReleaseGateDecision,
-	type OfficialWebTargetReleaseGateExecutionStatusPayload,
 	type OfficialWebTargetReleaseGateRecord,
 	type OfficialWebTargetReleaseGateService,
 	type OfficialWebTargetReleaseGateServiceDependencies,

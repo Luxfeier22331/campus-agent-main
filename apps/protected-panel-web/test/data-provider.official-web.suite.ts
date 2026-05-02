@@ -4,6 +4,14 @@ import { protectedPanelDataProvider } from "../src/panel/data-provider";
 import { createJsonResponse } from "./data-provider.test-support";
 
 export function registerDataProviderOfficialWebSuite() {
+	it("does not expose selected-write admission, intervention, approve, or queue helpers", () => {
+		const provider = protectedPanelDataProvider as Record<string, unknown>;
+		expect("getOfficialWebSelectedWriteAdmission" in provider).toBe(false);
+		expect("recordOfficialWebSelectedWriteIntervention" in provider).toBe(false);
+		expect("createOfficialWebSelectedWriteGate" in provider).toBe(false);
+		expect("requestOfficialWebSelectedWriteExecution" in provider).toBe(false);
+	});
+
 	it("maps official web target inventory filters onto the protected app-api projection seam", async () => {
 		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			createJsonResponse({
@@ -138,6 +146,145 @@ export function registerDataProviderOfficialWebSuite() {
 		});
 		expect(fetchSpy).toHaveBeenCalledWith(
 			"/api/official-web/target-jobs?limit=20&siteId=muc_public&status=active&targetId=campus-services-contact-directory",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
+	it("maps official web release task filters onto the protected app-api projection seam", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				page: {
+					nextCursor: null,
+				},
+				tasks: [
+					{
+						attemptCount: 1,
+						createdAt: "2026-05-01T08:00:00.000Z",
+						freshnessStatus: "fresh",
+						id: "owrelease_contact",
+						inputSummary: {
+							sourceObjectCount: 1,
+						},
+						inventoryId: "muc-main-homepage-contact",
+						jobId: "owtarget_contact",
+						lastErrorCode: null,
+						lastErrorMessage: null,
+						latestStage: "published",
+						lifecycleStatus: "published",
+						maxAttempts: 3,
+						observedAgeSeconds: 0,
+						outputSummary: {
+							recordCount: 1,
+							releaseId: "release_contact",
+						},
+						producerVersion: "test@1",
+						projectedAt: "2026-05-01T08:03:00.000Z",
+						redactionVersion: "official_web_release_task_redaction.v1",
+						runId: "owrun_contact",
+						schemaVersion: "official_web_release_task_projection.v1",
+						selectedWriteTarget: "campus_services/contact_directory",
+						sourceChannel: "official_web",
+						staleAfterSeconds: 1800,
+						staleReasonCode: null,
+						taskId: "owrelease_contact",
+						taskType: "official_web_selected_write_contact_directory",
+						timeline: [],
+						updatedAt: "2026-05-01T08:03:00.000Z",
+					},
+				],
+			}),
+		);
+
+		const response = await protectedPanelDataProvider.getList("officialWebReleaseTasks", {
+			filter: {
+				inventoryId: "muc-main-homepage-contact",
+				q: "contact",
+				selectedWriteTarget: "campus_services/contact_directory",
+				status: "published",
+				taskType: "official_web_selected_write_contact_directory",
+			},
+			meta: undefined,
+			pagination: {
+				page: 1,
+				perPage: 20,
+			},
+			signal: undefined,
+			sort: {
+				field: "projectedAt",
+				order: "DESC",
+			},
+		});
+
+		expect(response.data[0]).toMatchObject({
+			id: "owrelease_contact",
+			lifecycleStatus: "published",
+			taskId: "owrelease_contact",
+		});
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/official-web/release-tasks?limit=20&inventoryId=muc-main-homepage-contact&q=contact&selectedWriteTarget=campus_services%2Fcontact_directory&status=published&taskType=official_web_selected_write_contact_directory",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
+	it("loads official web release task detail through the protected app-api projection seam", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				task: {
+					attemptCount: 1,
+					createdAt: "2026-05-01T08:00:00.000Z",
+					freshnessStatus: "fresh",
+					id: "owrelease_contact",
+					inputSummary: {},
+					inventoryId: "muc-main-homepage-contact",
+					jobId: "owtarget_contact",
+					lastErrorCode: null,
+					lastErrorMessage: null,
+					latestStage: "published",
+					lifecycleStatus: "published",
+					maxAttempts: 3,
+					observedAgeSeconds: 0,
+					outputSummary: {
+						releaseId: "release_contact",
+					},
+					producerVersion: "test@1",
+					projectedAt: "2026-05-01T08:03:00.000Z",
+					redactionVersion: "official_web_release_task_redaction.v1",
+					runId: "owrun_contact",
+					schemaVersion: "official_web_release_task_projection.v1",
+					selectedWriteTarget: "campus_services/contact_directory",
+					sourceChannel: "official_web",
+					staleAfterSeconds: 1800,
+					staleReasonCode: null,
+					taskId: "owrelease_contact",
+					taskType: "official_web_selected_write_contact_directory",
+					timeline: [],
+					updatedAt: "2026-05-01T08:03:00.000Z",
+				},
+			}),
+		);
+
+		const response = await protectedPanelDataProvider.getOne("officialWebReleaseTasks", {
+			id: "owrelease/contact",
+			meta: undefined,
+			signal: undefined,
+		});
+
+		expect(response.data).toMatchObject({
+			id: "owrelease_contact",
+			taskId: "owrelease_contact",
+		});
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/official-web/release-tasks/owrelease%2Fcontact",
 			expect.objectContaining({
 				headers: {
 					accept: "application/json",

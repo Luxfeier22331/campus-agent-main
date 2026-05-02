@@ -11,3 +11,7 @@ export function buildOfficialWebSiteShowPath(siteId: Identifier): string {
 export function buildOfficialWebTargetJobShowPath(jobId: Identifier): string {
 	return `/officialWebTargetJobs/${encodeURIComponent(String(jobId))}/show`;
 }
+
+export function buildOfficialWebReleaseTaskShowPath(taskId: Identifier): string {
+	return `/officialWebReleaseTasks/${encodeURIComponent(String(taskId))}/show`;
+}

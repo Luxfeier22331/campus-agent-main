@@ -29,6 +29,8 @@ import {
 	getAuthenticatedNoticeRunProcessingList,
 } from "./authenticated-notice-run-processing";
 import {
+	getOfficialWebReleaseTaskDetail,
+	getOfficialWebReleaseTaskList,
 	getOfficialWebRunDetail,
 	getOfficialWebRunList,
 	getOfficialWebSiteDetail,
@@ -84,6 +86,9 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 				params,
 			)) as unknown as GetListResult<RecordType>;
 		}
+		if (resource === "officialWebReleaseTasks") {
+			return (await getOfficialWebReleaseTaskList(params)) as unknown as GetListResult<RecordType>;
+		}
 		if (resource === "officialWebSites") {
 			return (await getOfficialWebSiteList(params.signal)) as unknown as GetListResult<RecordType>;
 		}
@@ -128,6 +133,17 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 			const items = await Promise.all(
 				params.ids.map((id) =>
 					getOfficialWebTargetJobDetail(id, params.signal).then((result) => result.data),
+				),
+			);
+
+			return {
+				data: items,
+			} as unknown as GetManyResult<RecordType>;
+		}
+		if (resource === "officialWebReleaseTasks") {
+			const items = await Promise.all(
+				params.ids.map((id) =>
+					getOfficialWebReleaseTaskDetail(id, params.signal).then((result) => result.data),
 				),
 			);
 
@@ -194,6 +210,12 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 		}
 		if (resource === "officialWebTargetJobs") {
 			return (await getOfficialWebTargetJobDetail(
+				params.id,
+				params.signal,
+			)) as unknown as GetOneResult<RecordType>;
+		}
+		if (resource === "officialWebReleaseTasks") {
+			return (await getOfficialWebReleaseTaskDetail(
 				params.id,
 				params.signal,
 			)) as unknown as GetOneResult<RecordType>;

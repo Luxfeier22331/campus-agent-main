@@ -261,6 +261,58 @@ export function registerOperatorRoutes(input: {
 		});
 	});
 
+	input.app.get("/api/operator/official-web/release-tasks", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse(
+			await scope.resolveOfficialWebReleaseTaskProcessingQueryService().list({
+				filters: {
+					cursor: c.req.query("cursor") ?? null,
+					inventoryId: c.req.query("inventoryId") ?? null,
+					jobId: c.req.query("jobId") ?? null,
+					limit: parseLimit(c.req.query("limit")),
+					q: c.req.query("q") ?? null,
+					runId: c.req.query("runId") ?? null,
+					selectedWriteTarget: c.req.query("selectedWriteTarget") ?? null,
+					status: c.req.query("status") ?? null,
+					taskType: c.req.query("taskType") ?? null,
+					updatedAfter: c.req.query("updatedAfter") ?? null,
+					updatedBefore: c.req.query("updatedBefore") ?? null,
+				},
+				principal: resolved.principal,
+			}),
+		);
+	});
+
+	input.app.get("/api/operator/official-web/release-tasks/:id", async (c) => {
+		const scope = input.createRequestScope();
+		const resolved = await requireOperatorPrincipal({
+			env: input.env,
+			getPrincipal: input.getPrincipal,
+			request: c.req.raw,
+			scope,
+		});
+		if (resolved.response) {
+			return resolved.response;
+		}
+
+		return jsonResponse({
+			task: await scope.resolveOfficialWebReleaseTaskProcessingQueryService().getById({
+				id: c.req.param("id"),
+				principal: resolved.principal,
+			}),
+		});
+	});
+
 	input.app.get("/api/operator/intent/timeseries", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await requireOperatorPrincipal({

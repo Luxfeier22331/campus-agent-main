@@ -82,6 +82,21 @@ export function appendOfficialWebTargetInventoryFilters(
 	appendOptionalQueryParam(query, "siteId", filter?.siteId);
 }
 
+export function appendOfficialWebReleaseTaskFilters(
+	query: URLSearchParams,
+	filter: GetListParams["filter"],
+) {
+	appendOptionalQueryParam(query, "inventoryId", filter?.inventoryId);
+	appendOptionalQueryParam(query, "jobId", filter?.jobId);
+	appendOptionalQueryParam(query, "q", filter?.q);
+	appendOptionalQueryParam(query, "runId", filter?.runId);
+	appendOptionalQueryParam(query, "selectedWriteTarget", filter?.selectedWriteTarget);
+	appendOptionalQueryParam(query, "status", filter?.status);
+	appendOptionalQueryParam(query, "taskType", filter?.taskType);
+	appendOptionalQueryParam(query, "updatedAfter", filter?.updatedAfter);
+	appendOptionalQueryParam(query, "updatedBefore", filter?.updatedBefore);
+}
+
 export function appendAuthenticatedNoticeProcessingFilters(
 	query: URLSearchParams,
 	filter: GetListParams["filter"],

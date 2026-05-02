@@ -61,7 +61,7 @@ function OfficialWebTargetInventoryContractNotice() {
 	return (
 		<Alert severity="info">
 			目标清单来自 app-api 的 official-web operator 投影，用于审阅页面级采集目标、字段缺口和
-			selected-write 准入状态。
+			selected-write readiness；具体 release task 状态由 ingestion 投影承载。
 		</Alert>
 	);
 }
@@ -90,6 +90,14 @@ function renderFieldStatus(record: OfficialWebTargetInventoryRecord) {
 	return Object.entries(record.fieldStatus)
 		.map(([field, status]) => `${field}:${status}`)
 		.join(", ");
+}
+
+function OfficialWebSelectedWriteCell({ record }: { record: OfficialWebTargetInventoryRecord }) {
+	if (record.reviewState !== "ready_for_selected_write") {
+		return <Typography color="text.secondary">-</Typography>;
+	}
+
+	return <Typography variant="body2">等待 ingestion release 投影</Typography>;
 }
 
 export function OfficialWebTargetInventoryListPage() {
@@ -156,6 +164,12 @@ export function OfficialWebTargetInventoryListPage() {
 						<FunctionField
 							label="来源 URL"
 							render={(record: OfficialWebTargetInventoryRecord) => renderList(record.sourceUrls)}
+						/>
+						<FunctionField
+							label="选择写"
+							render={(record: OfficialWebTargetInventoryRecord) => (
+								<OfficialWebSelectedWriteCell record={record} />
+							)}
 						/>
 					</Datagrid>
 				</PanelResponsiveDatagrid>

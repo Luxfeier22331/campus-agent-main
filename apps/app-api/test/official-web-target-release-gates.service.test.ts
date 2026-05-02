@@ -9,7 +9,6 @@ import type {
 } from "../src/modules/official-web-target-inventory";
 import {
 	buildOfficialWebTargetReleaseGateService,
-	type OfficialWebTargetReleaseGateRecord,
 	type OfficialWebTargetReleaseGateStore,
 } from "../src/modules/official-web-target-release-gates";
 
@@ -78,28 +77,6 @@ const previewedStableReferenceEntry: OfficialWebTargetInventoryRecord = {
 function createReleaseGateStore(): OfficialWebTargetReleaseGateStore {
 	return {
 		getReleaseGateById: vi.fn(),
-		updateReleaseGateExecutionStatus: vi.fn(
-			async (input): Promise<OfficialWebTargetReleaseGateRecord> => ({
-				createdAt: "2026-05-01T08:00:00.000Z",
-				decidedAt: "2026-05-01T08:00:00.000Z",
-				decidedBy: "ops@example.com",
-				decision: "approved",
-				errorJson: input.errorJson,
-				evidenceJson: {
-					inventoryId: "muc-school-introduction-reference",
-				},
-				executionJson: input.executionJson,
-				inventoryId: "muc-school-introduction-reference",
-				jobId: "owtarget_school_intro",
-				notes: "reviewed against preview evidence",
-				publishAlias: false,
-				releaseId: input.releaseId,
-				runId: "owrun_school_intro",
-				status: input.status,
-				summaryId: null,
-				updatedAt: input.updatedAt,
-			}),
-		),
 		upsertReleaseGate: vi.fn(async (record) => record),
 	};
 }
@@ -183,43 +160,5 @@ describe("official web target release gate service", () => {
 			status: 409,
 		});
 		expect(store.upsertReleaseGate).not.toHaveBeenCalled();
-	});
-
-	it("updates executor progress from trusted internal callbacks", async () => {
-		const store = createReleaseGateStore();
-		const service = buildOfficialWebTargetReleaseGateService({
-			inventoryService: createInventoryService(previewedStableReferenceEntry),
-			now: () => new Date("2026-05-01T08:10:00.000Z"),
-			store,
-		});
-
-		await expect(
-			service.updateReleaseGateExecutionStatus({
-				payload: {
-					execution: {
-						indexName: "official_web_stable_reference__r20260501_081000",
-						publishAlias: false,
-					},
-					status: "indexed",
-					updatedAt: "2026-05-01T08:11:00.000Z",
-				},
-				releaseId: "owrelease_muc_school_introduction_reference_owrun_school_intro",
-			}),
-		).resolves.toMatchObject({
-			releaseGate: {
-				releaseId: "owrelease_muc_school_introduction_reference_owrun_school_intro",
-				status: "indexed",
-			},
-		});
-		expect(store.updateReleaseGateExecutionStatus).toHaveBeenCalledWith({
-			errorJson: null,
-			executionJson: {
-				indexName: "official_web_stable_reference__r20260501_081000",
-				publishAlias: false,
-			},
-			releaseId: "owrelease_muc_school_introduction_reference_owrun_school_intro",
-			status: "indexed",
-			updatedAt: "2026-05-01T08:11:00.000Z",
-		});
 	});
 });

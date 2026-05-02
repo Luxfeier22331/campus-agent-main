@@ -1,3 +1,4 @@
+import AssignmentTurnedInOutlinedIcon from "@mui/icons-material/AssignmentTurnedInOutlined";
 import FindInPageOutlinedIcon from "@mui/icons-material/FindInPageOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
 import LanguageOutlinedIcon from "@mui/icons-material/LanguageOutlined";
@@ -14,6 +15,8 @@ import { AuthenticatedNoticeProcessingShowPage } from "./authenticated-notices/p
 import { AuthenticatedNoticeRunProcessingListPage } from "./authenticated-notices/run-processing-list";
 import { AuthenticatedNoticeRunProcessingShowPage } from "./authenticated-notices/run-processing-show";
 import { protectedPanelDataProvider } from "./data-provider";
+import { OfficialWebReleaseTaskShowPage } from "./official-web/release-task-show";
+import { OfficialWebReleaseTasksListPage } from "./official-web/release-tasks-list";
 import { OfficialWebRunShowPage } from "./official-web/run-show";
 import { OfficialWebRunsListPage } from "./official-web/runs-list";
 import { OfficialWebSiteShowPage } from "./official-web/site-show";
@@ -97,6 +100,14 @@ export function ProtectedPanelAdminApp() {
 				name="officialWebTargetInventory"
 				options={{ label: PANEL_COPY.menu.officialWebTargetInventory }}
 				recordRepresentation="inventoryId"
+			/>
+			<Resource
+				icon={AssignmentTurnedInOutlinedIcon}
+				list={OfficialWebReleaseTasksListPage}
+				name="officialWebReleaseTasks"
+				options={{ label: PANEL_COPY.menu.officialWebReleaseTasks }}
+				recordRepresentation="taskId"
+				show={OfficialWebReleaseTaskShowPage}
 			/>
 			<Resource
 				icon={TravelExploreOutlinedIcon}

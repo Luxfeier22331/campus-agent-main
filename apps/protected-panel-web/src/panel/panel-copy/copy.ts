@@ -32,6 +32,7 @@ export const PANEL_COPY = {
 		officialWebSites: "官网站点",
 		officialWebTargetJobs: "官网目标任务",
 		officialWebTargetInventory: "官网目标清单",
+		officialWebReleaseTasks: "官网发布任务",
 		officialWebRuns: "采集运行",
 		jobs: "任务",
 		operations: "操作",
@@ -550,6 +551,7 @@ export const PANEL_COPY = {
 		officialWebSites: "暂无官网站点。",
 		officialWebTargetInventory: "暂无官网目标清单。",
 		officialWebTargetJobs: "暂无官网目标任务。",
+		officialWebReleaseTasks: "暂无官网发布任务。",
 	},
 	domainStatus: {
 		blocked: "阻塞",

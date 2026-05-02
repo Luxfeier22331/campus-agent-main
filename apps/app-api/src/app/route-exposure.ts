@@ -149,6 +149,18 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/operator/official-web/release-tasks",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/official-web/release-tasks/:id",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
 		path: "/api/operator/cost/summary",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
@@ -383,19 +395,13 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "POST",
-		path: "/api/internal/official-web/runs/:runId/ingestion-execution",
-		callerClass: "machine-internal",
-		admission: "x-app-internal-auth",
-	},
-	{
-		method: "GET",
-		path: "/api/internal/official-web/target-release-gates/:releaseId",
+		path: "/api/internal/operator/official-web/release-task-snapshots",
 		callerClass: "machine-internal",
 		admission: "x-app-internal-auth",
 	},
 	{
 		method: "POST",
-		path: "/api/internal/official-web/target-release-gates/:releaseId/execution-status",
+		path: "/api/internal/official-web/runs/:runId/ingestion-execution",
 		callerClass: "machine-internal",
 		admission: "x-app-internal-auth",
 	},

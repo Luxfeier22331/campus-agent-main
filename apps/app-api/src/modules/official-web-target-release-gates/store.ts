@@ -52,21 +52,6 @@ export function createPgOfficialWebTargetReleaseGateStore(
 			return rows[0] ? toReleaseGateRecord(rows[0]) : null;
 		},
 
-		async updateReleaseGateExecutionStatus(input) {
-			const db = await getDb();
-			const rows = await db
-				.update(officialWebTargetReleaseGates)
-				.set({
-					errorJson: input.errorJson,
-					executionJson: input.executionJson,
-					status: input.status,
-					updatedAt: new Date(input.updatedAt),
-				})
-				.where(eq(officialWebTargetReleaseGates.releaseId, input.releaseId))
-				.returning();
-			return rows[0] ? toReleaseGateRecord(rows[0]) : null;
-		},
-
 		async upsertReleaseGate(record) {
 			const now = new Date(record.decidedAt);
 			const db = await getDb();

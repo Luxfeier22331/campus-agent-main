@@ -33,6 +33,15 @@ interface AuthenticatedNoticeRunJobSummaryJson {
 	updatedAt?: string | null;
 }
 
+interface OfficialWebReleaseTaskTimelineEventJson {
+	eventId?: string | null;
+	stage: string;
+	status: string;
+	occurredAt: string;
+	summary: string;
+	payload?: Record<string, unknown> | null;
+}
+
 interface RequestAuditDiagnosticsJson {
 	aclAnomalyCode: string | null;
 	bridgeDurationMs?: number | null;
@@ -341,6 +350,91 @@ export const officialWebSiteProjection = operator.table(
 		latestRunStatusProjectedAtIndex: index(
 			"operator_official_web_site_projection_status_projected_at_idx",
 		).on(table.latestRunStatus, table.projectedAt),
+	}),
+);
+
+export const officialWebReleaseTaskProjection = operator.table(
+	"official_web_release_task_projection",
+	{
+		taskId: text("task_id").primaryKey(),
+		taskType: text("task_type").notNull(),
+		sourceChannel: text("source_channel").notNull(),
+		inventoryId: text("inventory_id").notNull(),
+		jobId: text("job_id").notNull(),
+		runId: text("run_id").notNull(),
+		selectedWriteTarget: text("selected_write_target"),
+		lifecycleStatus: text("lifecycle_status").notNull(),
+		latestStage: text("latest_stage").notNull(),
+		attemptCount: integer("attempt_count").notNull().default(0),
+		maxAttempts: integer("max_attempts").notNull().default(3),
+		inputSummaryJson: jsonb("input_summary_json")
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		outputSummaryJson: jsonb("output_summary_json")
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		timelineJson: jsonb("timeline_json")
+			.$type<OfficialWebReleaseTaskTimelineEventJson[]>()
+			.notNull()
+			.default([]),
+		lastErrorCode: text("last_error_code"),
+		lastErrorMessage: text("last_error_message"),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+		producerVersion: text("producer_version").notNull(),
+		redactionVersion: text("redaction_version").notNull(),
+	},
+	(table) => ({
+		inventoryProjectedAtIndex: index("operator_ow_release_task_inventory_projected_idx").on(
+			table.inventoryId,
+			table.projectedAt,
+		),
+		jobProjectedAtIndex: index("operator_ow_release_task_job_projected_idx").on(
+			table.jobId,
+			table.projectedAt,
+		),
+		runProjectedAtIndex: index("operator_ow_release_task_run_projected_idx").on(
+			table.runId,
+			table.projectedAt,
+		),
+		statusProjectedAtIndex: index("operator_ow_release_task_status_projected_idx").on(
+			table.lifecycleStatus,
+			table.projectedAt,
+		),
+		targetProjectedAtIndex: index("operator_ow_release_task_target_projected_idx").on(
+			table.selectedWriteTarget,
+			table.projectedAt,
+		),
+	}),
+);
+
+export const officialWebReleaseTaskEventProjection = operator.table(
+	"official_web_release_task_event_projection",
+	{
+		eventId: text("event_id").primaryKey(),
+		taskId: text("task_id").notNull(),
+		inventoryId: text("inventory_id").notNull(),
+		jobId: text("job_id").notNull(),
+		runId: text("run_id").notNull(),
+		stage: text("stage").notNull(),
+		status: text("status").notNull(),
+		occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+		summary: text("summary").notNull(),
+		payloadJson: jsonb("payload_json").$type<Record<string, unknown>>().notNull().default({}),
+		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		taskOccurredAtIndex: index("operator_ow_release_task_event_task_occurred_idx").on(
+			table.taskId,
+			table.occurredAt,
+		),
+		runOccurredAtIndex: index("operator_ow_release_task_event_run_occurred_idx").on(
+			table.runId,
+			table.occurredAt,
+		),
 	}),
 );
 

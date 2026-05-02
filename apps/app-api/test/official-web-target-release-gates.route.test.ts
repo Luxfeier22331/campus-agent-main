@@ -60,8 +60,6 @@ describe("official web target release gate routes", () => {
 				},
 			}),
 			getReleaseGateById: vi.fn(),
-			getReleaseGateForExecution: vi.fn(),
-			updateReleaseGateExecutionStatus: vi.fn(),
 		};
 		const app = createApp(env, {
 			getPrincipal: vi.fn().mockResolvedValue(principal),
@@ -102,25 +100,13 @@ describe("official web target release gate routes", () => {
 		});
 	});
 
-	it("accepts trusted internal executor status callbacks", async () => {
+	it("does not expose release gate executor status callbacks from app-api", async () => {
 		const service: OfficialWebTargetReleaseGateService = {
 			createReleaseGate: vi.fn(),
 			getReleaseGateById: vi.fn().mockResolvedValue({
 				releaseGate: {
 					releaseId: "owrelease_muc_school_introduction_reference_owrun_school_intro",
 					status: "approved",
-				},
-			}),
-			getReleaseGateForExecution: vi.fn().mockResolvedValue({
-				releaseGate: {
-					releaseId: "owrelease_muc_school_introduction_reference_owrun_school_intro",
-					status: "approved",
-				},
-			}),
-			updateReleaseGateExecutionStatus: vi.fn().mockResolvedValue({
-				releaseGate: {
-					releaseId: "owrelease_muc_school_introduction_reference_owrun_school_intro",
-					status: "indexed",
 				},
 			}),
 		};
@@ -146,35 +132,13 @@ describe("official web target release gate routes", () => {
 			),
 		);
 
-		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toEqual({
-			releaseGate: {
-				releaseId: "owrelease_muc_school_introduction_reference_owrun_school_intro",
-				status: "indexed",
-			},
-		});
-		expect(service.updateReleaseGateExecutionStatus).toHaveBeenCalledWith({
-			payload: {
-				execution: { indexName: "official_web_stable_reference__r20260501_081000" },
-				status: "indexed",
-				updatedAt: "2026-05-01T08:11:00.000Z",
-			},
-			releaseId: "owrelease_muc_school_introduction_reference_owrun_school_intro",
-		});
+		expect(response.status).toBe(404);
 	});
 
-	it("lets trusted internal executors read approved release gate state", async () => {
+	it("does not expose release gate executor read routes from app-api", async () => {
 		const service: OfficialWebTargetReleaseGateService = {
 			createReleaseGate: vi.fn(),
 			getReleaseGateById: vi.fn(),
-			getReleaseGateForExecution: vi.fn().mockResolvedValue({
-				releaseGate: {
-					publishAlias: false,
-					releaseId: "owrelease_muc_school_introduction_reference_owrun_school_intro",
-					status: "approved",
-				},
-			}),
-			updateReleaseGateExecutionStatus: vi.fn(),
 		};
 		const app = createApp(env, {
 			officialWebTargetReleaseGateService: service,
@@ -191,25 +155,13 @@ describe("official web target release gate routes", () => {
 			),
 		);
 
-		expect(response.status).toBe(200);
-		await expect(response.json()).resolves.toEqual({
-			releaseGate: {
-				publishAlias: false,
-				releaseId: "owrelease_muc_school_introduction_reference_owrun_school_intro",
-				status: "approved",
-			},
-		});
-		expect(service.getReleaseGateForExecution).toHaveBeenCalledWith({
-			releaseId: "owrelease_muc_school_introduction_reference_owrun_school_intro",
-		});
+		expect(response.status).toBe(404);
 	});
 
-	it("fails closed when internal executor callback lacks trusted auth", async () => {
+	it("does not treat removed release executor callback as an auth-gated app-api surface", async () => {
 		const service: OfficialWebTargetReleaseGateService = {
 			createReleaseGate: vi.fn(),
 			getReleaseGateById: vi.fn(),
-			getReleaseGateForExecution: vi.fn(),
-			updateReleaseGateExecutionStatus: vi.fn(),
 		};
 		const app = createApp(env, {
 			officialWebTargetReleaseGateService: service,
@@ -231,7 +183,6 @@ describe("official web target release gate routes", () => {
 			),
 		);
 
-		expect(response.status).toBe(401);
-		expect(service.updateReleaseGateExecutionStatus).not.toHaveBeenCalled();
+		expect(response.status).toBe(404);
 	});
 });

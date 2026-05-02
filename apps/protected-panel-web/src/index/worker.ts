@@ -99,6 +99,11 @@ const STATIC_PROXY_ROUTES = [
 		targetPath: "/api/operator/official-web/target-inventory",
 	},
 	{
+		identityMessage: OFFICIAL_WEB_IDENTITY_MESSAGE,
+		path: "/api/official-web/release-tasks",
+		targetPath: "/api/operator/official-web/release-tasks",
+	},
+	{
 		identityMessage: AUTHENTICATED_NOTICE_IDENTITY_MESSAGE,
 		path: "/api/authenticated-notices/processing",
 		targetPath: "/api/operator/authenticated-notices/processing",
@@ -142,6 +147,11 @@ const PREFIX_PROXY_ROUTES = [
 		targetPrefix: "/api/operator/official-web/target-inventory/",
 	},
 	{
+		identityMessage: OFFICIAL_WEB_IDENTITY_MESSAGE,
+		prefix: "/api/official-web/release-tasks/",
+		targetPrefix: "/api/operator/official-web/release-tasks/",
+	},
+	{
 		identityMessage: AUTHENTICATED_NOTICE_IDENTITY_MESSAGE,
 		prefix: "/api/authenticated-notices/processing/",
 		targetPrefix: "/api/operator/authenticated-notices/processing/",
@@ -168,6 +178,10 @@ function matchProxyRoute(
 	  }
 	| "not_found"
 	| null {
+	if (request.method === "POST") {
+		return null;
+	}
+
 	if (request.method !== "GET") {
 		return null;
 	}

@@ -238,6 +238,58 @@ export interface OfficialWebTargetJobRecord extends RawOfficialWebTargetJobRecor
 	job?: RawOfficialWebTargetJobRecord;
 }
 
+export interface OfficialWebReleaseTaskTimelineEvent {
+	eventId?: string | null;
+	occurredAt: string;
+	payload?: Record<string, unknown>;
+	stage: string;
+	status: string;
+	summary: string;
+}
+
+export interface RawOfficialWebReleaseTaskRecord {
+	attemptCount: number;
+	createdAt: string;
+	freshnessStatus: "fresh" | "stale" | "unknown";
+	id: string;
+	inputSummary: Record<string, unknown>;
+	inventoryId: string;
+	jobId: string;
+	lastErrorCode: string | null;
+	lastErrorMessage: string | null;
+	latestStage: string;
+	lifecycleStatus: string;
+	maxAttempts: number;
+	observedAgeSeconds: number | null;
+	outputSummary: Record<string, unknown>;
+	producerVersion: string;
+	projectedAt: string;
+	redactionVersion: string;
+	runId: string;
+	schemaVersion: string;
+	selectedWriteTarget: string | null;
+	sourceChannel: string;
+	staleAfterSeconds: number;
+	staleReasonCode: string | null;
+	taskId: string;
+	taskType: string;
+	timeline: OfficialWebReleaseTaskTimelineEvent[];
+	updatedAt: string;
+}
+
+export interface OfficialWebReleaseTaskRecord extends RawOfficialWebReleaseTaskRecord {}
+
+export interface RawOfficialWebReleaseTaskListResponse {
+	page: {
+		nextCursor: string | null;
+	};
+	tasks: RawOfficialWebReleaseTaskRecord[];
+}
+
+export interface RawOfficialWebReleaseTaskDetailResponse {
+	task: RawOfficialWebReleaseTaskRecord;
+}
+
 export interface RawOfficialWebTargetJobListResponse {
 	jobs: RawOfficialWebTargetJobRecord[];
 	page: {
@@ -354,6 +406,15 @@ export function normalizeOfficialWebTargetInventoryRecord(
 	return {
 		...input,
 		id: input.id || input.inventoryId,
+	};
+}
+
+export function normalizeOfficialWebReleaseTaskRecord(
+	input: RawOfficialWebReleaseTaskRecord,
+): OfficialWebReleaseTaskRecord {
+	return {
+		...input,
+		id: input.id || input.taskId,
 	};
 }
 

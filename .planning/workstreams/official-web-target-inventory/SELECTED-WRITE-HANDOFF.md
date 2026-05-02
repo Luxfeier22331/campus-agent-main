@@ -2,17 +2,18 @@
 doc_type: handoff
 status: active
 created: 2026-05-01
-updated: 2026-05-01
+updated: 2026-05-02
 ---
 
 <!-- markdownlint-disable MD013 -->
 
 # Selected-Write Handoff
 
-This workstream does not promote current read-model truth.
+This inventory workstream does not promote current read-model truth by itself.
 
-Future selected-write/release work may start only from inventory rows whose operator projection is
-`ready_for_selected_write`.
+Selected-write/release work may start only from inventory rows whose operator projection is
+`ready_for_selected_write`. Machine admission, claim, retry, dead-letter and publish state belong
+to the ingestion release task state machine, not app-api.
 
 Required release evidence for each row:
 
@@ -46,23 +47,31 @@ Current target-field review flow:
 - `release_gate_required` targets with complete preview lineage and complete fields stay `previewed`
   with `release_gate_not_reviewed`; they do not become `ready_for_selected_write`.
 
-Known current blockers:
+Implemented release split:
 
-- contact/service extraction may still leave semantic fields missing, for example
-  `responsible_office`, `location`, `office_hours` or `required_materials`.
-- `official_web/stable_reference` now has an explicit app-api release gate and ingestion-worker
-  executor. The operator approves/rejects the previewed inventory row through app-api; the executor
-  reads that gate through the internal app-api route, imports only the matching target document with
-  `scope_refresh = None`, and then runs registry release with `publishAlias = false` by default.
+- `official_web/stable_reference` keeps an explicit app-api release gate as an operator
+  approve/reject command ledger. The ingestion release task state machine consumes a task payload
+  with the gate evidence, imports only the matching target document with `scope_refresh = None`,
+  and then runs registry release with `publishAlias = false` by default.
+- `campus_services/contact_directory` and `campus_services/service_guide` use ingestion-owned
+  selected-write release tasks. The task replays the source-truth bundle, filters the matching typed
+  candidate by `jobId`, `selectedWriteTarget` and `sourceUrls`, and writes only the target
+  structured projection current read model.
 - existing preview runs before this callback change need a rerun or explicit review summary write
   before app-api can show non-default field status.
 
 Stable-reference release flow:
 
 - operator route: `POST /api/operator/official-web/target-inventory/:inventoryId/release-gates`
-- internal executor read: `GET /api/internal/official-web/target-release-gates/:releaseId`
-- internal executor callback:
-  `POST /api/internal/official-web/target-release-gates/:releaseId/execution-status`
-- worker CLI: `campus-ingestion-release-official-web-target --release-id <releaseId>`
-- default executor status progression: `running -> materialized -> indexed`; if `publishAlias` is
-  explicitly approved, final status becomes `published`.
+- operator read: `GET /api/operator/official-web/target-release-gates/:releaseId`
+- ingestion worker CLI:
+  `campus-ingestion-release-official-web-target --release-task-path <release-task.json>`
+- default ingestion task status progression: `queued -> claimed -> running -> materialized ->
+  indexed`; if `publishAlias` is explicitly approved, final status becomes `published`.
+
+Contact/service selected-write flow:
+
+- worker CLI:
+  `campus-ingestion-release-official-web-selected-write --release-task-path <release-task.json>`
+- default ingestion task status progression: `queued -> claimed -> running -> materialized ->
+  published`

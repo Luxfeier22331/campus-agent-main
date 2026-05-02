@@ -6,14 +6,7 @@ import type {
 } from "../official-web-target-inventory";
 
 export type OfficialWebTargetReleaseGateDecision = "approved" | "rejected";
-export type OfficialWebTargetReleaseGateStatus =
-	| "approved"
-	| "failed"
-	| "indexed"
-	| "materialized"
-	| "published"
-	| "rejected"
-	| "running";
+export type OfficialWebTargetReleaseGateStatus = "approved" | "rejected";
 
 export interface OfficialWebTargetReleaseGateRecord {
 	createdAt: string;
@@ -40,22 +33,8 @@ export interface OfficialWebTargetReleaseGateCreatePayload {
 	publishAlias?: unknown;
 }
 
-export interface OfficialWebTargetReleaseGateExecutionStatusPayload {
-	error?: unknown;
-	execution?: unknown;
-	status?: unknown;
-	updatedAt?: unknown;
-}
-
 export interface OfficialWebTargetReleaseGateStore {
 	getReleaseGateById(releaseId: string): Promise<OfficialWebTargetReleaseGateRecord | null>;
-	updateReleaseGateExecutionStatus(input: {
-		errorJson: Record<string, unknown> | null;
-		executionJson: Record<string, unknown> | null;
-		releaseId: string;
-		status: OfficialWebTargetReleaseGateStatus;
-		updatedAt: string;
-	}): Promise<OfficialWebTargetReleaseGateRecord | null>;
 	upsertReleaseGate(
 		record: OfficialWebTargetReleaseGateRecord,
 	): Promise<OfficialWebTargetReleaseGateRecord>;
@@ -71,13 +50,6 @@ export interface OfficialWebTargetReleaseGateService {
 		principal: ResolvedAppPrincipal;
 		releaseId: string;
 	}): Promise<{ releaseGate: OfficialWebTargetReleaseGateRecord }>;
-	getReleaseGateForExecution(input: {
-		releaseId: string;
-	}): Promise<{ releaseGate: OfficialWebTargetReleaseGateRecord }>;
-	updateReleaseGateExecutionStatus(input: {
-		payload: OfficialWebTargetReleaseGateExecutionStatusPayload;
-		releaseId: string;
-	}): Promise<{ releaseGate: OfficialWebTargetReleaseGateRecord }>;
 }
 
 export interface OfficialWebTargetReleaseGateServiceDependencies {
@@ -89,16 +61,6 @@ export interface OfficialWebTargetReleaseGateServiceDependencies {
 type ReleaseGateReviewableEntry = OfficialWebTargetInventoryRecord & {
 	previewEvidence: NonNullable<OfficialWebTargetInventoryRecord["previewEvidence"]>;
 };
-
-const RELEASE_GATE_EXECUTION_STATUSES = new Set<OfficialWebTargetReleaseGateStatus>([
-	"approved",
-	"failed",
-	"indexed",
-	"materialized",
-	"published",
-	"rejected",
-	"running",
-]);
 
 function ensureOperatorPrincipal(principal: ResolvedAppPrincipal): void {
 	if (!principal.permissions.operator) {
@@ -124,58 +86,6 @@ function normalizeDecision(value: unknown): OfficialWebTargetReleaseGateDecision
 		code: "validation_failed",
 		details: { field: "decision" },
 		message: "decision must be approved or rejected.",
-		retryable: false,
-		status: 422,
-	});
-}
-
-function normalizeStatus(value: unknown): OfficialWebTargetReleaseGateStatus {
-	const normalized = normalizeOptionalString(value);
-	if (
-		normalized &&
-		RELEASE_GATE_EXECUTION_STATUSES.has(normalized as OfficialWebTargetReleaseGateStatus)
-	) {
-		return normalized as OfficialWebTargetReleaseGateStatus;
-	}
-	throw new AppApiRouteError({
-		code: "validation_failed",
-		details: { field: "status" },
-		message:
-			"status must be one of: approved, rejected, running, materialized, indexed, published, failed.",
-		retryable: false,
-		status: 422,
-	});
-}
-
-function normalizeUpdatedAt(value: unknown, fallbackNow: Date): string {
-	const normalized = normalizeOptionalString(value);
-	if (!normalized) {
-		return fallbackNow.toISOString();
-	}
-	const parsed = new Date(normalized);
-	if (Number.isNaN(parsed.valueOf())) {
-		throw new AppApiRouteError({
-			code: "validation_failed",
-			details: { field: "updatedAt" },
-			message: "updatedAt must be a valid ISO timestamp.",
-			retryable: false,
-			status: 422,
-		});
-	}
-	return parsed.toISOString();
-}
-
-function normalizeRecordJson(value: unknown, fieldName: string): Record<string, unknown> | null {
-	if (value == null) {
-		return null;
-	}
-	if (value && typeof value === "object" && !Array.isArray(value)) {
-		return value as Record<string, unknown>;
-	}
-	throw new AppApiRouteError({
-		code: "validation_failed",
-		details: { field: fieldName },
-		message: `${fieldName} must be an object when provided.`,
 		retryable: false,
 		status: 422,
 	});
@@ -368,38 +278,6 @@ export function buildOfficialWebTargetReleaseGateService(
 				throw notFound("");
 			}
 			const releaseGate = await dependencies.store.getReleaseGateById(releaseId);
-			if (!releaseGate) {
-				throw notFound(releaseId);
-			}
-			return { releaseGate };
-		},
-
-		async getReleaseGateForExecution(input) {
-			const releaseId = normalizeOptionalString(input.releaseId);
-			if (!releaseId) {
-				throw notFound("");
-			}
-			const releaseGate = await dependencies.store.getReleaseGateById(releaseId);
-			if (!releaseGate) {
-				throw notFound(releaseId);
-			}
-			return { releaseGate };
-		},
-
-		async updateReleaseGateExecutionStatus(input) {
-			const releaseId = normalizeOptionalString(input.releaseId);
-			if (!releaseId) {
-				throw notFound("");
-			}
-			const status = normalizeStatus(input.payload.status);
-			const updatedAt = normalizeUpdatedAt(input.payload.updatedAt, now());
-			const releaseGate = await dependencies.store.updateReleaseGateExecutionStatus({
-				errorJson: normalizeRecordJson(input.payload.error, "error"),
-				executionJson: normalizeRecordJson(input.payload.execution, "execution"),
-				releaseId,
-				status,
-				updatedAt,
-			});
 			if (!releaseGate) {
 				throw notFound(releaseId);
 			}

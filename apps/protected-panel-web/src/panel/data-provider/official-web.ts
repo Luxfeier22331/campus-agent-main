@@ -2,6 +2,7 @@ import type { GetListParams, Identifier } from "react-admin";
 
 import { fetchJson } from "../http";
 import {
+	normalizeOfficialWebReleaseTaskRecord,
 	normalizeOfficialWebRunDetailRecord,
 	normalizeOfficialWebRunRecord,
 	normalizeOfficialWebSiteDetailRecord,
@@ -9,10 +10,13 @@ import {
 	normalizeOfficialWebTargetInventoryRecord,
 	normalizeOfficialWebTargetJobDetailRecord,
 	normalizeOfficialWebTargetJobRecord,
+	type OfficialWebReleaseTaskRecord,
 	type OfficialWebRunRecord,
 	type OfficialWebSiteRecord,
 	type OfficialWebTargetInventoryRecord,
 	type OfficialWebTargetJobRecord,
+	type RawOfficialWebReleaseTaskDetailResponse,
+	type RawOfficialWebReleaseTaskListResponse,
 	type RawOfficialWebRunDetailResponse,
 	type RawOfficialWebRunListResponse,
 	type RawOfficialWebSiteDetailResponse,
@@ -23,6 +27,7 @@ import {
 } from "../types";
 import { getSequentialCursorList } from "./cursor";
 import {
+	appendOfficialWebReleaseTaskFilters,
 	appendOfficialWebRunFilters,
 	appendOfficialWebTargetInventoryFilters,
 	appendOfficialWebTargetJobFilters,
@@ -100,6 +105,51 @@ export async function getOfficialWebTargetJobDetail(
 
 	return {
 		data: normalizeOfficialWebTargetJobDetailRecord(payload.targetJob),
+	};
+}
+
+export async function getOfficialWebReleaseTaskList(params: GetListParams): Promise<{
+	data: OfficialWebReleaseTaskRecord[];
+	pageInfo: {
+		hasNextPage: boolean;
+		hasPreviousPage: boolean;
+	};
+}> {
+	return getSequentialCursorList<
+		RawOfficialWebReleaseTaskListResponse,
+		RawOfficialWebReleaseTaskListResponse["tasks"][number],
+		OfficialWebReleaseTaskRecord
+	>({
+		buildQuery(query) {
+			appendOfficialWebReleaseTaskFilters(query, params.filter);
+		},
+		cursorFilter: params.filter,
+		normalizeRecord: normalizeOfficialWebReleaseTaskRecord,
+		page: params.pagination?.page,
+		perPage: params.pagination?.perPage,
+		resource: "officialWebReleaseTasks",
+		resourceLabel: "official web release task",
+		responseItems(payload) {
+			return payload.tasks;
+		},
+		signal: params.signal,
+		sourcePath: "/api/official-web/release-tasks",
+	});
+}
+
+export async function getOfficialWebReleaseTaskDetail(
+	id: Identifier,
+	signal?: AbortSignal,
+): Promise<{ data: OfficialWebReleaseTaskRecord }> {
+	const payload = await fetchJson<RawOfficialWebReleaseTaskDetailResponse>(
+		`/api/official-web/release-tasks/${encodePathIdentifier(id)}`,
+		{
+			signal,
+		},
+	);
+
+	return {
+		data: normalizeOfficialWebReleaseTaskRecord(payload.task),
 	};
 }
 

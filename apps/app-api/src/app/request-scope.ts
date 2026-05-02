@@ -33,6 +33,14 @@ import {
 	createPgOfficialWebQueryStore,
 } from "../modules/official-web-query";
 import {
+	buildOfficialWebReleaseTaskProcessingCommandService,
+	createPgOfficialWebReleaseTaskProcessingCommandStore,
+} from "../modules/official-web-release-task-processing-command";
+import {
+	buildOfficialWebReleaseTaskProcessingQueryService,
+	createPgOfficialWebReleaseTaskProcessingQueryStore,
+} from "../modules/official-web-release-task-processing-query";
+import {
 	buildOfficialWebTargetInventoryService,
 	createPgOfficialWebTargetInventoryFieldStatusStore,
 	createPgOfficialWebTargetInventoryPreviewEvidenceStore,
@@ -92,6 +100,10 @@ export function createRequestScopeFactory(input: {
 			let docsService = input.dependencies.docsService ?? null;
 			let officialWebCommandService = input.dependencies.officialWebCommandService ?? null;
 			let officialWebQueryService = input.dependencies.officialWebQueryService ?? null;
+			let officialWebReleaseTaskProcessingCommandService =
+				input.dependencies.officialWebReleaseTaskProcessingCommandService ?? null;
+			let officialWebReleaseTaskProcessingQueryService =
+				input.dependencies.officialWebReleaseTaskProcessingQueryService ?? null;
 			let officialWebTargetInventoryService =
 				input.dependencies.officialWebTargetInventoryService ?? null;
 			let officialWebTargetJobService = input.dependencies.officialWebTargetJobService ?? null;
@@ -269,6 +281,34 @@ export function createRequestScopeFactory(input: {
 				return officialWebQueryService;
 			}
 
+			function resolveOfficialWebReleaseTaskProcessingCommandService() {
+				if (officialWebReleaseTaskProcessingCommandService) {
+					return officialWebReleaseTaskProcessingCommandService;
+				}
+
+				officialWebReleaseTaskProcessingCommandService =
+					buildOfficialWebReleaseTaskProcessingCommandService({
+						store: createPgOfficialWebReleaseTaskProcessingCommandStore(input.env, {
+							getDb: runtime.getFreshDb,
+						}),
+					});
+				return officialWebReleaseTaskProcessingCommandService;
+			}
+
+			function resolveOfficialWebReleaseTaskProcessingQueryService() {
+				if (officialWebReleaseTaskProcessingQueryService) {
+					return officialWebReleaseTaskProcessingQueryService;
+				}
+
+				officialWebReleaseTaskProcessingQueryService =
+					buildOfficialWebReleaseTaskProcessingQueryService({
+						store: createPgOfficialWebReleaseTaskProcessingQueryStore(input.env, {
+							getDb: runtime.getDb,
+						}),
+					});
+				return officialWebReleaseTaskProcessingQueryService;
+			}
+
 			function resolveOperatorQueryService() {
 				if (operatorQueryService) {
 					return operatorQueryService;
@@ -329,6 +369,8 @@ export function createRequestScopeFactory(input: {
 				resolveDocsService,
 				resolveOfficialWebCommandService,
 				resolveOfficialWebQueryService,
+				resolveOfficialWebReleaseTaskProcessingCommandService,
+				resolveOfficialWebReleaseTaskProcessingQueryService,
 				resolveOfficialWebTargetInventoryService,
 				resolveOfficialWebTargetJobService,
 				resolveOfficialWebTargetReleaseGateService,

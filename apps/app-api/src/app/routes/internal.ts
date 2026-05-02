@@ -22,6 +22,7 @@ import {
 import { assertNoForbiddenAuthenticatedNoticeProcessingFields } from "../../modules/authenticated-notice-processing-command";
 import { assertNoForbiddenAuthenticatedNoticeRunProcessingFields } from "../../modules/authenticated-notice-run-processing-command";
 import type { OfficialWebExecutionStatusService } from "../../modules/official-web-execution";
+import { assertNoForbiddenOfficialWebReleaseTaskProcessingFields } from "../../modules/official-web-release-task-processing-command";
 import { readJsonRequestBody, resolveWaitUntil } from "../request-utils";
 import { internalAuthRequiredResponse, serviceCredentialRequiredResponse } from "../responses";
 import type { AppRequestScope } from "../types";
@@ -186,6 +187,21 @@ export function registerInternalRoutes(input: {
 		},
 	);
 
+	input.app.post("/api/internal/operator/official-web/release-task-snapshots", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		const payload = await readJsonRequestBody(c.req.raw);
+		assertNoForbiddenOfficialWebReleaseTaskProcessingFields(payload);
+		return jsonResponse(
+			await scope.resolveOfficialWebReleaseTaskProcessingCommandService().ingestSnapshots({
+				payload,
+			}),
+		);
+	});
+
 	input.app.post("/api/internal/execution/audit-events", async (c) => {
 		const scope = input.createRequestScope();
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
@@ -307,36 +323,6 @@ export function registerInternalRoutes(input: {
 			}),
 		);
 	});
-
-	input.app.get("/api/internal/official-web/target-release-gates/:releaseId", async (c) => {
-		if (!hasTrustedInternalRequest(c.req.raw, input.env)) {
-			return internalAuthRequiredResponse();
-		}
-		const scope = input.createRequestScope();
-
-		return jsonResponse(
-			await scope.resolveOfficialWebTargetReleaseGateService().getReleaseGateForExecution({
-				releaseId: c.req.param("releaseId"),
-			}),
-		);
-	});
-
-	input.app.post(
-		"/api/internal/official-web/target-release-gates/:releaseId/execution-status",
-		async (c) => {
-			if (!hasTrustedInternalRequest(c.req.raw, input.env)) {
-				return internalAuthRequiredResponse();
-			}
-			const scope = input.createRequestScope();
-
-			return jsonResponse(
-				await scope.resolveOfficialWebTargetReleaseGateService().updateReleaseGateExecutionStatus({
-					payload: await readJsonRequestBody(c.req.raw),
-					releaseId: c.req.param("releaseId"),
-				}),
-			);
-		},
-	);
 
 	input.app.post("/api/internal/operator/trace-backlinks", async (c) => {
 		const scope = input.createRequestScope();
