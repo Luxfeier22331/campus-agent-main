@@ -17,6 +17,7 @@ Current runtime truth:
 
 - serving stage: `offline_preparation`
 - query enabled: `false`
+- structured query enabled: `true` via `contact_directory_lookup`
 - serving alias: `contact_directory`
 - collection prefix: `contact_directory`
 - release manifests:
@@ -46,5 +47,6 @@ Current structured projection:
 - data contract:
   `docs/data/campus-services-contact-directory-source-truth-schema.md`
 
-This projection does not open `contact_directory_lookup`; it only prepares the
-normalized source truth for a later runtime gate.
+This projection opens only the typed structured runtime path for
+`contact_directory_lookup`. It does not open retrieval or add
+`contact_directory` to the default query-serving alias surface.

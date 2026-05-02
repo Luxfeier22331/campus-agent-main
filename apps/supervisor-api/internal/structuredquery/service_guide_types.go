@@ -30,6 +30,7 @@ type serviceGuideResult struct {
 	ClarificationReason    string                  `json:"clarification_reason,omitempty"`
 	FailCloseReason        string                  `json:"fail_close_reason,omitempty"`
 	MatchedServiceCategory string                  `json:"matched_service_category,omitempty"`
+	FieldStatus            map[string]string       `json:"field_status,omitempty"`
 }
 
 type serviceGuideServiceRef struct {
@@ -102,6 +103,7 @@ type serviceGuideRecord struct {
 	ContactRefs      []serviceGuideContactRecord  `json:"contact_refs"`
 	EligibilityNotes []string                     `json:"eligibility_notes"`
 	ExtractionStatus string                       `json:"extraction_status"`
+	FieldStatus      map[string]string            `json:"field_status"`
 }
 
 type serviceGuideSectionRecord struct {

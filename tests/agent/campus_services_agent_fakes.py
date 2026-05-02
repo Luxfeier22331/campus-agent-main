@@ -70,6 +70,7 @@ class FakeCampusServicesQueryService:
             queried_time_anchor="2026-04-25T10:30:00+08:00",
             effective_from="2018-09-01T00:00:00+08:00",
             effective_until="2099-12-31T23:59:59+08:00",
+            field_status={"contact": "source_not_provided"},
             matched_service_category="student_housing",
         )
 
@@ -148,6 +149,7 @@ class FakeCampusServicesQueryService:
             ),
             source_refs=("handbook:contact-directory:2026#page=261",),
             queried_time_anchor="2026-04-27T10:30:00+08:00",
+            field_status={"office_hours": "source_not_provided"},
         )
 
 

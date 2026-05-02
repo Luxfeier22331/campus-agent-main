@@ -125,6 +125,139 @@ func TestLookupServiceGuideReturnsPublicMedicalRequiredMaterials(t *testing.T) {
 	}
 }
 
+func TestLookupServiceGuideDoesNotFilterUnknownAudienceOfficialWebRecord(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		`{
+			"schema_version":"campus_services_service_guide_projection.v1",
+			"generated_at":"2026-05-02T12:00:00+08:00",
+			"source_families":["official_web_curated_service_guide_v1"],
+			"service_guide_records":[
+				{
+					"service_id":"service:official-web:campus-card",
+					"display_name":"学生校园卡服务",
+					"aliases":["中央民族大学学生校园卡服务"],
+					"category":"campus_service",
+					"campus_scope":"all",
+					"audience":["unknown"],
+					"effective_from":"2026-05-02T00:00:00+08:00",
+					"effective_until":"9999-12-31T23:59:59+08:00",
+					"source_refs":["official_web:muc-it-student-campus-card-service-guide:owver"],
+					"guide_sections":[
+						{
+							"section_id":"service:official-web:campus-card:section:procedure",
+							"section_type":"procedure",
+							"title":"学生校园卡服务",
+							"content":"校园卡丢失后可通过民大通APP挂失。",
+							"order":1,
+							"source_refs":["official_web:muc-it-student-campus-card-service-guide:owver"]
+						}
+					],
+					"materials":[],
+					"entry_refs":[],
+					"office_hours":[],
+					"contact_refs":[
+						{
+							"contact_id":"service:official-web:campus-card:contact:1",
+							"label":"学生校园卡服务",
+							"department":"学生校园卡服务",
+							"phone":"010-68933381",
+							"email":"",
+							"location_ref":"",
+							"source_refs":["official_web:muc-it-student-campus-card-service-guide:owver"]
+						}
+					],
+					"eligibility_notes":[],
+					"extraction_status":"ready"
+				}
+			],
+			"conflict_records":[],
+			"manual_review_sources":[]
+		}`,
+		"2026-05-02T12:45:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"中央民族大学学生校园卡服务电话是多少",
+		"guide_focus":"contact",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if len(result.ContactRefs) != 1 || result.ContactRefs[0].Phone != "010-68933381" {
+		t.Fatalf("contact_refs = %#v", result.ContactRefs)
+	}
+}
+
+func TestLookupServiceGuideMatchesOfficialWebProcedureLanguage(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		`{
+			"schema_version":"campus_services_service_guide_projection.v1",
+			"generated_at":"2026-05-02T12:00:00+08:00",
+			"source_families":["official_web_curated_service_guide_v1"],
+			"service_guide_records":[
+				{
+					"service_id":"service:official-web:campus-card",
+					"display_name":"学生校园卡服务",
+					"aliases":["中央民族大学学生校园卡服务"],
+					"category":"campus_service",
+					"campus_scope":"all",
+					"audience":["unknown"],
+					"effective_from":"2026-05-02T00:00:00+08:00",
+					"effective_until":"9999-12-31T23:59:59+08:00",
+					"source_refs":["official_web:muc-it-student-campus-card-service-guide:owver"],
+					"guide_sections":[
+						{
+							"section_id":"service:official-web:campus-card:section:procedure",
+							"section_type":"procedure",
+							"title":"学生校园卡服务",
+							"content":"校园卡丢失后，为避免损失，请立即通过圈存机或民大通APP我的一卡通模块进行挂失。",
+							"order":1,
+							"source_refs":["official_web:muc-it-student-campus-card-service-guide:owver"]
+						}
+					],
+					"materials":[],
+					"entry_refs":[],
+					"office_hours":[],
+					"contact_refs":[
+						{
+							"contact_id":"service:official-web:campus-card:contact:1",
+							"label":"学生校园卡服务",
+							"department":"学生校园卡服务",
+							"phone":"010-68933381",
+							"email":"",
+							"location_ref":"",
+							"source_refs":["official_web:muc-it-student-campus-card-service-guide:owver"]
+						}
+					],
+					"eligibility_notes":[],
+					"extraction_status":"ready"
+				}
+			],
+			"conflict_records":[],
+			"manual_review_sources":[]
+		}`,
+		"2026-05-02T12:50:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"校园卡丢了怎么挂失，电话是多少",
+		"guide_focus":"contact",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+}
+
 func TestLookupServiceGuideUsesDedicatedReadModelStore(t *testing.T) {
 	runtime := newRuntimeWithServiceGuideReadModel(
 		t,
@@ -388,10 +521,15 @@ func TestLookupServiceGuideRejectsInvalidTemporalQuery(t *testing.T) {
 	}
 }
 
-func TestLookupServiceGuideFailsClosedWhenRequestedFocusIsNotBackedBySource(t *testing.T) {
+func TestLookupServiceGuideFailsClosedWhenRequestedFocusWasNotProvidedBySource(t *testing.T) {
 	runtime := newRuntimeWithServiceGuideReadModel(
 		t,
-		serviceGuidePublicMedicalProjectionFixture(),
+		strings.Replace(
+			serviceGuidePublicMedicalProjectionFixture(),
+			`"extraction_status":"ready"`,
+			`"field_status":{"contact":"source_not_provided"},"extraction_status":"ready"`,
+			1,
+		),
 		"2026-04-25T10:30:00+08:00",
 	)
 
@@ -406,8 +544,11 @@ func TestLookupServiceGuideFailsClosedWhenRequestedFocusIsNotBackedBySource(t *t
 	if result.Outcome != "temporarily_unverifiable" {
 		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
 	}
-	if result.FailCloseReason != "source_truth_unavailable" {
-		t.Fatalf("fail_close_reason = %q, want source_truth_unavailable", result.FailCloseReason)
+	if result.FailCloseReason != "field_not_provided_by_source" {
+		t.Fatalf("fail_close_reason = %q, want field_not_provided_by_source", result.FailCloseReason)
+	}
+	if result.FieldStatus["contact"] != "source_not_provided" {
+		t.Fatalf("field_status = %#v", result.FieldStatus)
 	}
 }
 

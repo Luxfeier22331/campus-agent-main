@@ -8,6 +8,7 @@ Current runtime truth:
 - serving stage: `offline_preparation`
 - retrieval enabled: `false`
 - query enabled by default: `false`
+- structured query enabled: `true` via `transport_schedule_lookup`
 - source channel: `authenticated_notice_portal`
 - release artifacts:
   `campus_services/releases/transport_schedule/{release_id}/...`
@@ -16,8 +17,8 @@ Current runtime truth:
 
 `transport_schedule` owns the normalized projection used by
 `transport_schedule_lookup`. It is not a generic retrieval collection and must
-not be exposed as a query-serving alias until the release-gate regression and
-eval evidence are available.
+not be exposed as a query-serving alias. The opened runtime surface is the typed
+structured lookup backed by the current projection pointer.
 
 The production path consumes ready
 `campus_services/service_status_candidate` entries from

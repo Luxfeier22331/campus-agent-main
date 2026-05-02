@@ -61,6 +61,7 @@ ToolFailCloseReason = Literal[
     "source_conflict",
     "privacy_policy_restricted",
     "stable_contact_unavailable",
+    "field_not_provided_by_source",
 ]
 ServiceGuideFocus = Literal[
     "overview",
@@ -222,6 +223,7 @@ ALLOWED_TOOL_FAIL_CLOSE_REASONS = (
     "source_conflict",
     "privacy_policy_restricted",
     "stable_contact_unavailable",
+    "field_not_provided_by_source",
 )
 ALLOWED_SERVICE_GUIDE_FOCUSES = (
     "overview",

@@ -260,6 +260,7 @@ def _service_guide_result_from_dict(
         clarification_reason=_string(body.get("clarification_reason")),
         fail_close_reason=_string(body.get("fail_close_reason")),
         matched_service_category=_string(body.get("matched_service_category")),
+        field_status=_string_mapping(body.get("field_status")),
     )
 
 
@@ -300,6 +301,7 @@ def _contact_directory_result_from_dict(
         effective_until=_string(body.get("effective_until")),
         clarification_reason=_string(body.get("clarification_reason")),
         fail_close_reason=_string(body.get("fail_close_reason")),
+        field_status=_string_mapping(body.get("field_status")),
     )
 
 
@@ -615,3 +617,14 @@ def _string(value: object) -> str:
 
 def _string_tuple(value: object) -> tuple[str, ...]:
     return tuple(_string(item) for item in _list(value) if _string(item))
+
+
+def _string_mapping(value: object) -> dict[str, str]:
+    item = _dict(value)
+    if item is None:
+        return {}
+    return {
+        _string(key): _string(raw_value)
+        for key, raw_value in item.items()
+        if _string(key) and _string(raw_value)
+    }

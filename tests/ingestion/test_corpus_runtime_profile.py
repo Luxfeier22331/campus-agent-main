@@ -163,6 +163,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.query_enabled_by_default)
+        self.assertFalse(profile.structured_query_enabled)
         self.assertFalse(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ())
         self.assertEqual(profile.retrieval_top_k, 3)
@@ -172,6 +173,28 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.chunk_profile_version, "service_catalog_semantic_v1")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "service_catalog")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "service_catalog")
+
+    def test_load_service_guide_runtime_profile(self) -> None:
+        profile = load_runtime_profile("campus_services", "service_guide")
+
+        self.assertEqual(profile.corpus, "campus_services")
+        self.assertEqual(profile.collection, "service_guide")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertTrue(profile.structured_query_enabled)
+        self.assertEqual(profile.structured_query_tools, ("service_guide_lookup",))
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ())
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertIsNone(profile.no_hit_min_top_score)
+        self.assertIsNone(profile.no_hit_min_score_gap)
+        self.assertEqual(profile.cleaning_policy_version, "service_guide_projection_v1")
+        self.assertEqual(profile.chunk_profile_version, "service_guide_projection_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "service_guide")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "service_guide")
 
     def test_load_service_catalog_chunk_profile(self) -> None:
         profile = load_chunk_profile("campus_services", "service_catalog")
@@ -183,6 +206,36 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.cleaning_policy_version, "service_catalog_cleaning_v1")
         self.assertEqual(profile.runtime_defaults.strategy_name, "service_catalog_structure_v1")
 
+    def test_load_service_status_runtime_profile(self) -> None:
+        profile = load_runtime_profile("campus_services", "service_status")
+
+        self.assertEqual(profile.corpus, "campus_services")
+        self.assertEqual(profile.collection, "service_status")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertTrue(profile.structured_query_enabled)
+        self.assertEqual(profile.structured_query_tools, ("service_status_lookup",))
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ())
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.cleaning_policy_version, "service_status_projection_v1")
+        self.assertEqual(profile.chunk_profile_version, "service_status_projection_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "service_status")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "service_status")
+
+    def test_load_service_status_chunk_profile(self) -> None:
+        profile = load_chunk_profile("campus_services", "service_status")
+
+        self.assertEqual(profile.corpus, "campus_services")
+        self.assertEqual(profile.collection, "service_status")
+        self.assertEqual(profile.chunk_profile_version, "service_status_projection_v1")
+        self.assertEqual(profile.structured_input, "service_status_projection_json")
+        self.assertEqual(profile.cleaning_policy_version, "service_status_projection_v1")
+        self.assertEqual(profile.runtime_defaults.strategy_name, "service_status_projection_v1")
+
     def test_load_contact_directory_runtime_profile(self) -> None:
         profile = load_runtime_profile("campus_services", "contact_directory")
 
@@ -193,6 +246,8 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.query_enabled_by_default)
+        self.assertTrue(profile.structured_query_enabled)
+        self.assertEqual(profile.structured_query_tools, ("contact_directory_lookup",))
         self.assertFalse(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ())
         self.assertEqual(profile.retrieval_top_k, 3)
@@ -223,6 +278,8 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.query_enabled_by_default)
+        self.assertTrue(profile.structured_query_enabled)
+        self.assertEqual(profile.structured_query_tools, ("transport_schedule_lookup",))
         self.assertEqual(profile.cleaning_policy_version, "transport_schedule_projection_v1")
         self.assertEqual(profile.chunk_profile_version, "transport_schedule_projection_v1")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "transport_schedule")
@@ -478,6 +535,23 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
                 ("regulations", "student_rules"),
             ),
         )
+
+    def test_structured_query_tools_have_explicit_runtime_profile_opening(self) -> None:
+        profiles = {
+            tool: load_runtime_profile(corpus, collection)
+            for tool, corpus, collection in (
+                ("service_status_lookup", "campus_services", "service_status"),
+                ("service_guide_lookup", "campus_services", "service_guide"),
+                ("contact_directory_lookup", "campus_services", "contact_directory"),
+                ("transport_schedule_lookup", "campus_services", "transport_schedule"),
+            )
+        }
+
+        for tool_name, profile in profiles.items():
+            self.assertTrue(profile.structured_query_enabled, tool_name)
+            self.assertIn(tool_name, profile.structured_query_tools)
+            self.assertFalse(profile.retrieval_enabled, tool_name)
+            self.assertFalse(profile.query_enabled_by_default, tool_name)
 
 
 if __name__ == "__main__":

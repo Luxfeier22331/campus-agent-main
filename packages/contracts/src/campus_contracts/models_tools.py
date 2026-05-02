@@ -275,6 +275,7 @@ class ContactDirectoryLookupResult:
         default="", compare=False
     )
     fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
+    field_status: dict[str, str] = field(default_factory=dict, compare=False)
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():
@@ -504,6 +505,7 @@ class ServiceGuideLookupResult:
     clarification_reason: ServiceGuideClarificationReason | str = field(default="", compare=False)
     fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
     matched_service_category: str = ""
+    field_status: dict[str, str] = field(default_factory=dict, compare=False)
 
     def __post_init__(self) -> None:
         if not self.service_query.strip():

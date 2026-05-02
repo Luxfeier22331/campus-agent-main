@@ -14,6 +14,7 @@ Current runtime truth:
 
 - serving stage: `offline_preparation`
 - query enabled: `false`
+- structured query enabled: `true` via `service_guide_lookup`
 - serving alias: `service_guide`
 - collection prefix: `service_guide`
 - release manifests: `campus_services/releases/service_guide/{release_id}/...`
@@ -38,4 +39,6 @@ Current structured projection:
 `service_guide` is the read-only owner for campus service guide facts:
 procedures, required materials, entry explanations, office hours, contact refs,
 eligibility notes and source refs. It does not own transaction submission,
-booking, payment, work-order creation or route planning.
+booking, payment, work-order creation or route planning. It opens only the typed
+structured runtime path for `service_guide_lookup`; retrieval and default
+query-serving aliases remain closed.

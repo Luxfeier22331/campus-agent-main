@@ -50,6 +50,8 @@ class CollectionRuntimeProfile:
     chunk_profile_version: str
     retrieval_enabled: bool
     query_enabled_by_default: bool
+    structured_query_enabled: bool = False
+    structured_query_tools: tuple[str, ...] = ()
     source_ocr_provider: str | None = None
     source_ocr_model: str | None = None
     source_parser_version: str | None = None
@@ -169,6 +171,13 @@ class CollectionRuntimeProfile:
             raise ValueError("no_hit_min_score_gap must be between zero and one")
         if not self.embedding_query_instruction.strip():
             raise ValueError("embedding_query_instruction is required")
+        if self.structured_query_enabled and not self.structured_query_tools:
+            raise ValueError(
+                "structured_query_tools must not be empty when structured_query_enabled is true"
+            )
+        for tool_name in self.structured_query_tools:
+            if not tool_name.strip():
+                raise ValueError("structured_query_tools must not contain empty values")
 
 
 @dataclass(frozen=True, slots=True)
@@ -254,6 +263,10 @@ def load_runtime_profile(
         ),
         retrieval_enabled=bool(payload.get("retrieval_enabled")),
         query_enabled_by_default=bool(payload.get("query_enabled_by_default")),
+        structured_query_enabled=bool(payload.get("structured_query_enabled", False)),
+        structured_query_tools=tuple(
+            str(item) for item in list(payload.get("structured_query_tools") or [])
+        ),
         supports_freshness_sensitive_queries=bool(
             payload.get("supports_freshness_sensitive_queries", False)
         ),

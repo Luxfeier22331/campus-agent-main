@@ -191,6 +191,10 @@ class CampusServicesAgentTest(unittest.TestCase):
             query_service.last_service_guide_query.payload.service_query,
             "宿舍入住怎么办理",
         )
+        self.assertEqual(
+            response.agent_observability.safe_details["field_status"],
+            {"contact": "source_not_provided"},
+        )
 
     def test_contact_directory_payload_routes_through_internal_query_service(self) -> None:
         query_service = FakeCampusServicesQueryService()
@@ -217,6 +221,10 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertEqual(
             query_service.last_contact_directory_query.payload.query_text,
             "研究生院招生办公室电话是多少",
+        )
+        self.assertEqual(
+            response.agent_observability.safe_details["field_status"],
+            {"office_hours": "source_not_provided"},
         )
 
     def test_contact_directory_all_contacts_response_combines_available_fact_groups(self) -> None:
@@ -737,6 +745,7 @@ class CampusServicesAgentTest(unittest.TestCase):
                 "queried_time_anchor": "2026-04-25T10:30:00+08:00",
                 "effective_from": "2018-09-01T00:00:00+08:00",
                 "effective_until": "2099-12-31T23:59:59+08:00",
+                "field_status": {"contact": "source_not_provided"},
                 "matched_service_category": "student_housing",
             }
         )
@@ -764,6 +773,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("access_context", transport.calls[0][2])
         self.assertEqual(result.outcome, "resolved_current")
         self.assertEqual(result.resolved_service.display_name, "公寓楼新生办理入住手续流程")
+        self.assertEqual(result.field_status, {"contact": "source_not_provided"})
         self.assertEqual(result.matched_service_category, "student_housing")
 
     def test_http_query_service_posts_contact_directory_payload_and_decodes_result(self) -> None:
@@ -793,6 +803,7 @@ class CampusServicesAgentTest(unittest.TestCase):
                 ],
                 "source_refs": ["handbook:contact-directory:2026#page=261"],
                 "queried_time_anchor": "2026-04-27T10:30:00+08:00",
+                "field_status": {"office_hours": "source_not_provided"},
             }
         )
         query_service = CampusServicesHTTPQueryService(
@@ -820,6 +831,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertEqual(result.outcome, "resolved_current")
         self.assertEqual(result.resolved_contact.display_name, "研究生院招生办公室")
         self.assertEqual(result.contact_points[0].value, "010-68930001")
+        self.assertEqual(result.field_status, {"office_hours": "source_not_provided"})
 
     def test_http_query_service_decodes_service_guide_materials_and_fail_close_reason(
         self,
@@ -880,7 +892,8 @@ class CampusServicesAgentTest(unittest.TestCase):
                 "guide_focus": "contact",
                 "outcome": "temporarily_unverifiable",
                 "queried_time_anchor": "2026-04-26T10:30:00+08:00",
-                "fail_close_reason": "source_truth_unavailable",
+                "fail_close_reason": "field_not_provided_by_source",
+                "field_status": {"contact": "source_not_provided"},
             }
         )
         fail_close_query_service = CampusServicesHTTPQueryService(
@@ -899,7 +912,25 @@ class CampusServicesAgentTest(unittest.TestCase):
         )
 
         self.assertEqual(fail_close_result.outcome, "temporarily_unverifiable")
-        self.assertEqual(fail_close_result.fail_close_reason, "source_truth_unavailable")
+        self.assertEqual(fail_close_result.fail_close_reason, "field_not_provided_by_source")
+        self.assertEqual(fail_close_result.field_status, {"contact": "source_not_provided"})
+
+    def test_agent_response_explains_field_not_provided_by_source(self) -> None:
+        response = campus_services_tool_adapter._service_guide_response(
+            ServiceGuideLookupResult(
+                service_query="公费医疗报销联系电话是多少",
+                guide_focus="contact",
+                outcome="temporarily_unverifiable",
+                fail_close_reason="field_not_provided_by_source",
+                field_status={"contact": "source_not_provided"},
+            )
+        )
+
+        self.assertIn("来源页面没有提供", response.answer_text)
+        self.assertEqual(
+            response.agent_observability.safe_details["field_status"],
+            {"contact": "source_not_provided"},
+        )
 
 
 if __name__ == "__main__":

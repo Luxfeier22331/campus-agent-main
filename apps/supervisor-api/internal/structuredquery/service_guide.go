@@ -88,6 +88,14 @@ func (r *Runtime) lookupServiceGuide(ctx context.Context, request serviceGuideRe
 		return failClosedServiceGuide(request, timeAnchor, "current_state_unverifiable")
 	}
 	if !serviceGuideFocusBackedByRecord(record, request.GuideFocus) {
+		if serviceGuideFocusNotProvidedBySource(record, request.GuideFocus) {
+			return failClosedServiceGuideForRecord(
+				request,
+				record,
+				timeAnchor,
+				"field_not_provided_by_source",
+			)
+		}
 		return failClosedServiceGuide(request, timeAnchor, "source_truth_unavailable")
 	}
 	body := serviceGuideResultFromRecord(request, record, timeAnchor)

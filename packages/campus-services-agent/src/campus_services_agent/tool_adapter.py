@@ -175,7 +175,8 @@ def _service_guide_response(result: ServiceGuideLookupResult) -> AgentResponse:
         return AgentResponse(
             target="campus-services-agent",
             status="no_answer",
-            answer_text="当前还不能稳定确认这项办理指南。",
+            answer_text=_field_not_provided_text(result, "办理指南")
+            or "当前还不能稳定确认这项办理指南。",
             confidence="low",
             result=result,
             agent_observability=_agent_observability("service_guide_lookup", result),
@@ -462,7 +463,8 @@ def _contact_directory_response(result: ContactDirectoryLookupResult) -> AgentRe
         return AgentResponse(
             target="campus-services-agent",
             status="no_answer",
-            answer_text="当前还不能稳定确认这项联系方式。",
+            answer_text=_field_not_provided_text(result, "联系方式")
+            or "当前还不能稳定确认这项联系方式。",
             confidence="low",
             result=result,
             agent_observability=_agent_observability("contact_directory_lookup", result),
@@ -608,6 +610,19 @@ def _contact_directory_hours_text(hours) -> str:
     return " ".join(parts).strip()
 
 
+def _field_not_provided_text(result, label: str) -> str:
+    if str(getattr(result, "fail_close_reason", "") or "") != "field_not_provided_by_source":
+        return ""
+    field_status = getattr(result, "field_status", {}) or {}
+    missing_fields = [
+        str(field_name)
+        for field_name, status in field_status.items()
+        if str(status) == "source_not_provided"
+    ]
+    suffix = "：" + "、".join(missing_fields) if missing_fields else ""
+    return f"来源页面没有提供这项{label}字段{suffix}。"
+
+
 def _transport_operational_suffix(result: TransportScheduleLookupResult) -> str:
     comments = tuple(
         dict.fromkeys(
@@ -671,6 +686,7 @@ def _agent_observability(tool_name: str, result) -> AgentObservability:
             source_ref_count=source_ref_count,
             access_decision="allowed",
             failure_class=failure_class,
+            field_status=getattr(result, "field_status", {}) or {},
         ),
     )
 
@@ -683,6 +699,7 @@ def _agent_safe_details(
     source_ref_count: int,
     access_decision: str,
     failure_class: str,
+    field_status: dict[str, str],
 ) -> dict[str, object]:
     result_guardrail: dict[str, object] = {
         "schema_version": "agent-result-guardrail-v1",
@@ -692,7 +709,7 @@ def _agent_safe_details(
     }
     if failure_class:
         result_guardrail["failure_class"] = failure_class
-    return {
+    details = {
         "result_type": result_type,
         "agent_execution_projection": {
             "schema_version": "agent-execution-projection-v1",
@@ -703,6 +720,9 @@ def _agent_safe_details(
         },
         "result_guardrail": result_guardrail,
     }
+    if field_status:
+        details["field_status"] = dict(field_status)
+    return details
 
 
 def _source_ref_count(result) -> int:
@@ -782,6 +802,7 @@ def _error_response(
                 source_ref_count=0,
                 access_decision=access_decision,
                 failure_class=failure_class,
+                field_status={},
             ),
         ),
     )

@@ -40,6 +40,7 @@ func contactDirectoryResultFromRecord(
 			filteredLocations,
 			filteredHours,
 		),
+		FieldStatus: normalizedFieldStatus(record.FieldStatus),
 	}
 	return result
 }
@@ -71,6 +72,32 @@ func contactDirectoryFocusSatisfied(result contactDirectoryResult) bool {
 		return true
 	}
 	return false
+}
+
+func contactDirectoryFocusNotProvidedBySource(record contactDirectoryRecord, focus string) bool {
+	for _, fieldName := range contactDirectoryFocusFieldNames(focus) {
+		if strings.TrimSpace(record.FieldStatus[fieldName]) == "source_not_provided" {
+			return true
+		}
+	}
+	return false
+}
+
+func contactDirectoryFocusFieldNames(focus string) []string {
+	switch focus {
+	case "phone":
+		return []string{"phone"}
+	case "email":
+		return []string{"email"}
+	case "location":
+		return []string{"location"}
+	case "office_hours":
+		return []string{"office_hours"}
+	case "contact_person":
+		return []string{"contact_person"}
+	default:
+		return nil
+	}
 }
 
 func filterContactPointsByChannel(
@@ -384,6 +411,23 @@ func failClosedContactDirectory(
 		Outcome:           "temporarily_unverifiable",
 		QueriedTimeAnchor: timeAnchor,
 		FailCloseReason:   reason,
+	}
+	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+}
+
+func failClosedContactDirectoryForRecord(
+	request contactDirectoryRequest,
+	record contactDirectoryRecord,
+	timeAnchor string,
+	reason string,
+) Response {
+	body := contactDirectoryResult{
+		QueryText:         request.QueryText,
+		ContactFocus:      request.ContactFocus,
+		Outcome:           "temporarily_unverifiable",
+		QueriedTimeAnchor: timeAnchor,
+		FailCloseReason:   reason,
+		FieldStatus:       normalizedFieldStatus(record.FieldStatus),
 	}
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 }

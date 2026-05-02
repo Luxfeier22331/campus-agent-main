@@ -143,6 +143,7 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             queried_time_anchor="2026-04-25T10:30:00+08:00",
             effective_from="2018-09-01T00:00:00+08:00",
             effective_until="2099-12-31T23:59:59+08:00",
+            field_status={"contact": "source_not_provided"},
             matched_service_category="student_housing",
         )
 
@@ -154,6 +155,7 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             tuple(asdict(result)["source_refs"]),
             ("handbook:student_rules:pages:252-255#page=253",),
         )
+        self.assertEqual(asdict(result)["field_status"], {"contact": "source_not_provided"})
 
     def test_service_guide_result_requires_fail_close_reason(self) -> None:
         with self.assertRaisesRegex(
@@ -206,11 +208,24 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
                 ),
             ),
             source_refs=("handbook:student_rules:pages:261-261#page=261",),
+            field_status={"email": "source_not_provided"},
         )
 
         self.assertEqual(asdict(payload)["contact_focus"], "phone")
         self.assertEqual(asdict(result)["resolved_contact"]["display_name"], "招生办公室")
         self.assertEqual(asdict(result)["contact_points"][0]["channel_type"], "phone")
+        self.assertEqual(asdict(result)["field_status"], {"email": "source_not_provided"})
+
+    def test_field_not_provided_by_source_is_canonical_fail_close_reason(self) -> None:
+        result = ServiceGuideLookupResult(
+            service_query="公费医疗报销联系电话是多少",
+            guide_focus="contact",
+            outcome="temporarily_unverifiable",
+            fail_close_reason="field_not_provided_by_source",
+            field_status={"contact": "source_not_provided"},
+        )
+
+        self.assertEqual(result.fail_close_reason, "field_not_provided_by_source")
 
     def test_contact_directory_result_requires_fail_close_reason(self) -> None:
         with self.assertRaisesRegex(

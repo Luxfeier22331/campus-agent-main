@@ -18,6 +18,7 @@ func serviceGuideResultFromRecord(
 		EffectiveFrom:          record.EffectiveFrom,
 		EffectiveUntil:         record.EffectiveUntil,
 		MatchedServiceCategory: record.Category,
+		FieldStatus:            normalizedFieldStatus(record.FieldStatus),
 	}
 	if request.GuideFocus == "required_materials" || request.GuideFocus == "full_guide" {
 		result.RequiredMaterials = serviceGuideMaterials(record.Materials)
@@ -61,6 +62,36 @@ func serviceGuideFocusBackedByRecord(record serviceGuideRecord, focus string) bo
 			len(record.EligibilityNotes) > 0
 	default:
 		return false
+	}
+}
+
+func serviceGuideFocusNotProvidedBySource(record serviceGuideRecord, focus string) bool {
+	for _, fieldName := range serviceGuideFocusFieldNames(focus) {
+		if strings.TrimSpace(record.FieldStatus[fieldName]) == "source_not_provided" {
+			return true
+		}
+	}
+	return false
+}
+
+func serviceGuideFocusFieldNames(focus string) []string {
+	switch focus {
+	case "overview":
+		return []string{"overview"}
+	case "procedure":
+		return []string{"procedure", "process_steps", "service_process"}
+	case "required_materials":
+		return []string{"required_materials", "service_material", "materials"}
+	case "entry":
+		return []string{"entry", "service_entry"}
+	case "office_hours":
+		return []string{"office_hours"}
+	case "contact":
+		return []string{"contact", "phone", "email", "location"}
+	case "eligibility":
+		return []string{"eligibility"}
+	default:
+		return nil
 	}
 }
 
@@ -240,4 +271,40 @@ func failClosedServiceGuide(
 		FailCloseReason:   reason,
 	}
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+}
+
+func failClosedServiceGuideForRecord(
+	request serviceGuideRequest,
+	record serviceGuideRecord,
+	timeAnchor string,
+	reason string,
+) Response {
+	body := serviceGuideResult{
+		ServiceQuery:      request.ServiceQuery,
+		GuideFocus:        request.GuideFocus,
+		Outcome:           "temporarily_unverifiable",
+		QueriedTimeAnchor: timeAnchor,
+		FailCloseReason:   reason,
+		FieldStatus:       normalizedFieldStatus(record.FieldStatus),
+	}
+	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+}
+
+func normalizedFieldStatus(value map[string]string) map[string]string {
+	if len(value) == 0 {
+		return nil
+	}
+	normalized := map[string]string{}
+	for key, item := range value {
+		key = strings.TrimSpace(key)
+		item = strings.TrimSpace(item)
+		if key == "" || item == "" {
+			continue
+		}
+		normalized[key] = item
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
 }
