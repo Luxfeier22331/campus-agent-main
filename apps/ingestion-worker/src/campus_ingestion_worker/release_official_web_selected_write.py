@@ -456,6 +456,13 @@ def _service_guide_record_from_candidate(
     responsible_offices = _string_list(typed_candidate.get("responsible_office"))
     contacts = _object_mapping(typed_candidate.get("contacts"))
     office_hours = _string_list(contacts.get("office_hours"))
+    contact_refs = _service_guide_contact_refs(
+        contacts=contacts,
+        display_name=display_name,
+        responsible_offices=responsible_offices,
+        service_id=service_id,
+        source_ref=source_ref,
+    )
     guide_sections = _service_guide_sections(
         service_id=service_id,
         display_name=display_name,
@@ -510,18 +517,7 @@ def _service_guide_record_from_candidate(
             }
             for index, hours in enumerate(office_hours, start=1)
         ],
-        "contact_refs": [
-            {
-                "contact_id": f"{service_id}:contact:{index}",
-                "label": office,
-                "department": office,
-                "phone": "",
-                "email": "",
-                "location_ref": "",
-                "source_refs": [source_ref],
-            }
-            for index, office in enumerate(responsible_offices, start=1)
-        ],
+        "contact_refs": contact_refs,
         "eligibility_notes": [],
         "extraction_status": "ready",
     }
@@ -596,6 +592,38 @@ def _service_guide_sections(
             "source_refs": [source_ref],
         }
     ]
+
+
+def _service_guide_contact_refs(
+    *,
+    contacts: Mapping[str, object],
+    display_name: str,
+    responsible_offices: list[str],
+    service_id: str,
+    source_ref: str,
+) -> list[dict[str, object]]:
+    phones = _string_list(contacts.get("phones"))
+    emails = _string_list(contacts.get("emails"))
+    locations = _string_list(contacts.get("locations"))
+    contact_count = max(len(responsible_offices), len(phones), len(emails), len(locations))
+    return [
+        {
+            "contact_id": f"{service_id}:contact:{index}",
+            "label": _indexed_value(responsible_offices, offset) or display_name,
+            "department": _indexed_value(responsible_offices, offset) or display_name,
+            "phone": _indexed_value(phones, offset),
+            "email": _indexed_value(emails, offset),
+            "location_ref": _indexed_value(locations, offset),
+            "source_refs": [source_ref],
+        }
+        for offset, index in enumerate(range(1, contact_count + 1))
+    ]
+
+
+def _indexed_value(values: list[str], offset: int) -> str:
+    if offset < len(values):
+        return values[offset]
+    return ""
 
 
 def _matching_selected_write_candidates(

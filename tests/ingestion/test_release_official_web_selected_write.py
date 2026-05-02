@@ -310,6 +310,12 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
                             "selected_write_target": "campus_services/service_guide",
                             "target_job_id": "owtarget_contact",
                             "typed_candidate": {
+                                "contacts": {
+                                    "emails": ["xxgk@example.edu.cn"],
+                                    "locations": ["办公楼101室"],
+                                    "office_hours": ["工作日 8:30-11:30"],
+                                    "phones": ["010-68930000"],
+                                },
                                 "entry_points": ["https://www.muc.edu.cn/"],
                                 "materials": ["申请表"],
                                 "process_steps": ["申请人提交申请", "学校信息公开办公室受理"],
@@ -352,6 +358,10 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
             record = bundle["service_guide_records"][0]
             self.assertEqual(record["display_name"], "中央民族大学信息公开申请")
             self.assertEqual(record["materials"][0]["name"], "申请表")
+            self.assertEqual(record["contact_refs"][0]["phone"], "010-68930000")
+            self.assertEqual(record["contact_refs"][0]["email"], "xxgk@example.edu.cn")
+            self.assertEqual(record["contact_refs"][0]["location_ref"], "办公楼101室")
+            self.assertEqual(record["office_hours"][0]["label"], "工作日 8:30-11:30")
 
 
 if __name__ == "__main__":
