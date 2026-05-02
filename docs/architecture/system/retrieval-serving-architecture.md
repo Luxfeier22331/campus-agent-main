@@ -181,8 +181,9 @@ serving truth 不写死在 supervisor、API shell 或 env 默认值里。
 - selected worker 入口可以按 `candidate_id` 处理人工挑选的 pending candidates；scheduled
   入口默认扫描 pending candidates，但仍必须遵守 runtime profile 的 retrieval/query enablement
   gate
-- `regulations/scoped_rules` 这类 retrieval-ready 但默认 query-disabled profile 必须落入
-  non-serving terminal status，例如 `not_query_enabled`，不得调用 index release executor
+- `regulations/scoped_rules` 这类院级/专项 regulation holding collection 当前必须停在
+  canonical/chunk-only non-serving；不得进入 RAG release candidate、不得调用 index release
+  executor，也不得作为 document-site read-model scope 发布
 - incremental decision 必须使用 document identity、document version/hash、chunk
   profile identity、embedding/runtime profile identity 与 visibility/authz carrier；
   profile 变化必须让旧 candidate / cache 失效

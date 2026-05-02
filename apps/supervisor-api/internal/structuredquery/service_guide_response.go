@@ -74,6 +74,46 @@ func serviceGuideFocusNotProvidedBySource(record serviceGuideRecord, focus strin
 	return false
 }
 
+func serviceGuideMissingRequestedField(record serviceGuideRecord, request serviceGuideRequest) string {
+	if request.GuideFocus != "contact" && request.GuideFocus != "office_hours" {
+		return ""
+	}
+	for _, fieldName := range serviceGuideRequestedFieldNames(request) {
+		if strings.TrimSpace(record.FieldStatus[fieldName]) == "source_not_provided" {
+			return fieldName
+		}
+	}
+	return ""
+}
+
+func serviceGuideRequestedFieldNames(request serviceGuideRequest) []string {
+	query := normalizeSearchText(request.ServiceQuery)
+	switch request.GuideFocus {
+	case "office_hours":
+		return []string{"office_hours"}
+	case "contact":
+		fields := []string{}
+		if strings.Contains(query, "电话") || strings.Contains(query, "热线") {
+			fields = append(fields, "phone")
+		}
+		if strings.Contains(query, "邮箱") || strings.Contains(query, "邮件") || strings.Contains(query, "email") {
+			fields = append(fields, "email")
+		}
+		if strings.Contains(query, "地点") ||
+			strings.Contains(query, "地址") ||
+			strings.Contains(query, "位置") ||
+			strings.Contains(query, "在哪") {
+			fields = append(fields, "location")
+		}
+		if strings.Contains(query, "时间") || strings.Contains(query, "办公") {
+			fields = append(fields, "office_hours")
+		}
+		return fields
+	default:
+		return nil
+	}
+}
+
 func serviceGuideFocusFieldNames(focus string) []string {
 	switch focus {
 	case "overview":

@@ -53,7 +53,9 @@ APP_API_SERVICE_GUIDE_TEST_COMMAND = (
     "run",
     "-c",
     "vitest.node.config.mts",
-    "test/chat-command.service.test.ts",
+    "test/chat-command.service.core.structured.test.ts",
+    "-t",
+    "renders campus-services answers from structured tool facts and safe source categories",
 )
 
 
@@ -82,6 +84,7 @@ class ServiceGuideLookupReleaseGateReport:
 
 
 IntentRunner = Callable[[tuple[IntentCase, ...]], IntentEvalReport]
+RuntimeSmokeRunner = Callable[[Path], dict[str, object]]
 
 
 class CommandRunner(Protocol):
@@ -123,13 +126,15 @@ def run_service_guide_lookup_release_gate(
     source_truth_manifest_path: Path = DEFAULT_SOURCE_TRUTH_MANIFEST,
     command_runner: CommandRunner | None = None,
     intent_runner: IntentRunner | None = None,
+    include_runtime_smoke: bool = False,
+    runtime_smoke_runner: RuntimeSmokeRunner | None = None,
 ) -> ServiceGuideLookupReleaseGateReport:
     output_dir.mkdir(parents=True, exist_ok=True)
     projection_dir = output_dir / "projection"
     resolved_command_runner = command_runner or _run_command
     resolved_intent_runner = intent_runner or _run_intent_cases
 
-    checks = (
+    checks = [
         _run_projection_eval_check(
             output_dir=projection_dir,
             source_truth_manifest_path=source_truth_manifest_path,
@@ -156,11 +161,18 @@ def run_service_guide_lookup_release_gate(
             command_runner=resolved_command_runner,
             cwd=REPO_ROOT,
         ),
-    )
+    ]
+    if include_runtime_smoke:
+        checks.append(
+            _run_selected_write_runtime_smoke_check(
+                output_dir=output_dir / "selected-write-runtime-smoke",
+                runtime_smoke_runner=runtime_smoke_runner or _run_selected_write_runtime_smoke,
+            )
+        )
     report = ServiceGuideLookupReleaseGateReport(
         passed=all(check.passed for check in checks),
         output_path=output_dir / DEFAULT_REPORT_NAME,
-        checks=checks,
+        checks=tuple(checks),
     )
     report.output_path.write_text(
         json.dumps(_report_payload(report), ensure_ascii=False, indent=2) + "\n",
@@ -247,6 +259,50 @@ def _run_command_check(
     )
 
 
+def _run_selected_write_runtime_smoke_check(
+    *,
+    output_dir: Path,
+    runtime_smoke_runner: RuntimeSmokeRunner,
+) -> ReleaseGateCheck:
+    try:
+        payload = runtime_smoke_runner(output_dir)
+    except Exception as exc:
+        return ReleaseGateCheck(
+            check_id="selected_write_runtime_smoke",
+            passed=False,
+            summary={"error": str(exc), "output_dir": str(output_dir)},
+        )
+    projection = payload.get("projection") if isinstance(payload.get("projection"), dict) else {}
+    probes = payload.get("probes") if isinstance(payload.get("probes"), dict) else {}
+    failed_probe_ids = probes.get("failed_probe_ids") if isinstance(probes, dict) else []
+    summary = {
+        "output_dir": str(output_dir),
+        "release_id": str(projection.get("release_id") or ""),
+        "service_guide_records": int(projection.get("service_guide_records") or 0),
+        "conflict_records": int(projection.get("conflict_records") or 0),
+        "manual_review_sources": int(projection.get("manual_review_sources") or 0),
+        "failed_probe_ids": failed_probe_ids if isinstance(failed_probe_ids, list) else [],
+    }
+    return ReleaseGateCheck(
+        check_id="selected_write_runtime_smoke",
+        passed=payload.get("passed") is True,
+        summary=summary,
+    )
+
+
+def _run_selected_write_runtime_smoke(output_dir: Path) -> dict[str, object]:
+    from scripts.service_guide_selected_write_runtime_smoke import (
+        build_service_guide_selected_write_runtime_smoke_plan,
+        run_service_guide_selected_write_runtime_smoke,
+    )
+
+    plan = build_service_guide_selected_write_runtime_smoke_plan(
+        repo_root=REPO_ROOT,
+        output_dir=output_dir,
+    )
+    return run_service_guide_selected_write_runtime_smoke(plan)
+
+
 def _run_intent_cases(cases: tuple[IntentCase, ...]) -> IntentEvalReport:
     return run_intent_cases(cases, runner="supervisor-api-go")
 
@@ -307,6 +363,14 @@ def build_parser() -> argparse.ArgumentParser:
     )
     accept_parser.add_argument("--verbose", action="store_true")
     accept_parser.add_argument("--log-jsonl")
+    accept_parser.add_argument(
+        "--include-runtime-smoke",
+        action="store_true",
+        help=(
+            "Also run the read-only selected-write runtime smoke against local "
+            "Postgres current service_guide projection."
+        ),
+    )
     return parser
 
 
@@ -319,6 +383,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = run_service_guide_lookup_release_gate(
         output_dir=Path(args.output_dir),
         source_truth_manifest_path=Path(args.source_truth_manifest),
+        include_runtime_smoke=bool(args.include_runtime_smoke),
     )
     if args.verbose:
         print(
@@ -336,6 +401,7 @@ __all__ = [
     "SUPERVISOR_GO_SERVICE_GUIDE_TEST_COMMAND",
     "CommandResult",
     "ReleaseGateCheck",
+    "RuntimeSmokeRunner",
     "ServiceGuideLookupReleaseGateReport",
     "main",
     "run_service_guide_lookup_release_gate",

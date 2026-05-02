@@ -98,8 +98,9 @@ updated: 2026-04-23
 - 当前 query-enabled scope 是 `regulations/student_rules`、
   `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
   `official_web/stable_reference`
-- `regulations/scoped_rules` 当前已具备 retrieval-ready serving alias，但
-  `query_enabled_by_default=false`，不属于默认 query-enabled scope
+- `regulations/scoped_rules` 当前只作为院级/专项 regulation canonical/chunk-only
+  non-serving holding collection；不属于默认 query-enabled scope，也不得进入当前
+  document-site read-model 或 RAG release candidate
 - `campus_services/*` 当前仍是 `offline_preparation`
 - 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed
   bridge，不应误读成长期最终 serving scope

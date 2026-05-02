@@ -2,6 +2,7 @@ package structuredquery
 
 import (
 	"context"
+	"fmt"
 	"strings"
 	"testing"
 )
@@ -190,6 +191,212 @@ func TestLookupServiceGuideDoesNotFilterUnknownAudienceOfficialWebRecord(t *test
 	}
 	if len(result.ContactRefs) != 1 || result.ContactRefs[0].Phone != "010-68933381" {
 		t.Fatalf("contact_refs = %#v", result.ContactRefs)
+	}
+}
+
+func TestLookupServiceGuideFailsClosedForPhoneQueryWhenOnlyDepartmentProvided(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		`{
+			"schema_version":"campus_services_service_guide_projection.v1",
+			"generated_at":"2026-05-02T12:00:00+08:00",
+			"source_families":["official_web_curated_service_guide_v1"],
+			"service_guide_records":[
+				{
+					"service_id":"service:official-web:information-disclosure",
+					"display_name":"中央民族大学信息公开依申请公开工作流程",
+					"aliases":["信息公开申请流程"],
+					"category":"campus_service",
+					"campus_scope":"all",
+					"audience":["unknown"],
+					"effective_from":"2026-05-02T00:00:00+08:00",
+					"effective_until":"9999-12-31T23:59:59+08:00",
+					"source_refs":["official_web:muc-information-disclosure-application-process:owver"],
+					"guide_sections":[
+						{
+							"section_id":"service:official-web:information-disclosure:section:procedure",
+							"section_type":"procedure",
+							"title":"信息公开申请流程",
+							"content":"学校信息公开办公室负责初步审核。",
+							"order":1,
+							"source_refs":["official_web:muc-information-disclosure-application-process:owver"]
+						},
+						{
+							"section_id":"service:official-web:information-disclosure:section:contact",
+							"section_type":"contact",
+							"title":"负责部门",
+							"content":"学校信息公开办公室",
+							"order":2,
+							"source_refs":["official_web:muc-information-disclosure-application-process:owver"]
+						}
+					],
+					"materials":[],
+					"entry_refs":[],
+					"office_hours":[],
+					"contact_refs":[
+						{
+							"contact_id":"service:official-web:information-disclosure:contact:1",
+							"label":"学校信息公开办公室",
+							"department":"学校信息公开办公室",
+							"phone":"",
+							"email":"",
+							"location_ref":"",
+							"source_refs":["official_web:muc-information-disclosure-application-process:owver"]
+						}
+					],
+					"eligibility_notes":[],
+					"field_status":{"phone":"source_not_provided","email":"source_not_provided","location":"source_not_provided"},
+					"extraction_status":"ready"
+				}
+			],
+			"conflict_records":[],
+			"manual_review_sources":[]
+		}`,
+		"2026-05-02T20:45:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"信息公开申请联系电话是多少",
+		"guide_focus":"contact",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "field_not_provided_by_source" {
+		t.Fatalf("fail_close_reason = %q, want field_not_provided_by_source", result.FailCloseReason)
+	}
+	if result.FieldStatus["phone"] != "source_not_provided" {
+		t.Fatalf("field_status = %#v", result.FieldStatus)
+	}
+}
+
+func TestLookupServiceGuideFailsClosedForRequestedMissingFields(t *testing.T) {
+	fixture := `{
+		"schema_version":"campus_services_service_guide_projection.v1",
+		"generated_at":"2026-05-02T12:00:00+08:00",
+		"source_families":["official_web_curated_service_guide_v1"],
+		"service_guide_records":[
+			{
+				"service_id":"service:official-web:information-disclosure",
+				"display_name":"中央民族大学信息公开依申请公开工作流程",
+				"aliases":["信息公开申请流程"],
+				"category":"campus_service",
+				"campus_scope":"all",
+				"audience":["unknown"],
+				"effective_from":"2026-05-02T00:00:00+08:00",
+				"effective_until":"9999-12-31T23:59:59+08:00",
+				"source_refs":["official_web:muc-information-disclosure-application-process:owver"],
+				"guide_sections":[
+					{
+						"section_id":"service:official-web:information-disclosure:section:procedure",
+						"section_type":"procedure",
+						"title":"信息公开申请流程",
+						"content":"学校信息公开办公室负责初步审核。",
+						"order":1,
+						"source_refs":["official_web:muc-information-disclosure-application-process:owver"]
+					},
+					{
+						"section_id":"service:official-web:information-disclosure:section:contact",
+						"section_type":"contact",
+						"title":"负责部门",
+						"content":"学校信息公开办公室",
+						"order":2,
+						"source_refs":["official_web:muc-information-disclosure-application-process:owver"]
+					}
+				],
+				"materials":[],
+				"entry_refs":[],
+				"office_hours":[],
+				"contact_refs":[
+					{
+						"contact_id":"service:official-web:information-disclosure:contact:1",
+						"label":"学校信息公开办公室",
+						"department":"学校信息公开办公室",
+						"phone":"",
+						"email":"",
+						"location_ref":"",
+						"source_refs":["official_web:muc-information-disclosure-application-process:owver"]
+					}
+				],
+				"eligibility_notes":[],
+				"field_status":{
+					"phone":"source_not_provided",
+					"email":"source_not_provided",
+					"location":"source_not_provided",
+					"office_hours":"source_not_provided",
+					"service_entry":"source_not_provided",
+					"required_materials":"source_not_provided",
+					"service_material":"source_not_provided"
+				},
+				"extraction_status":"ready"
+			}
+		],
+		"conflict_records":[],
+		"manual_review_sources":[]
+	}`
+	cases := []struct {
+		name        string
+		query       string
+		focus       string
+		fieldStatus string
+	}{
+		{
+			name:        "email contact query",
+			query:       "信息公开申请邮箱是多少",
+			focus:       "contact",
+			fieldStatus: "email",
+		},
+		{
+			name:        "location contact query",
+			query:       "信息公开申请办公地点在哪里",
+			focus:       "contact",
+			fieldStatus: "location",
+		},
+		{
+			name:        "office hours focus",
+			query:       "信息公开申请办公时间是什么",
+			focus:       "office_hours",
+			fieldStatus: "office_hours",
+		},
+		{
+			name:        "entry focus",
+			query:       "信息公开申请入口在哪里",
+			focus:       "entry",
+			fieldStatus: "service_entry",
+		},
+		{
+			name:        "required materials focus",
+			query:       "信息公开申请需要哪些材料",
+			focus:       "required_materials",
+			fieldStatus: "required_materials",
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			runtime := newRuntimeWithServiceGuideReadModel(t, fixture, "2026-05-02T20:45:00+08:00")
+
+			response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+				"service_query":`+fmt.Sprintf("%q", tc.query)+`,
+				"guide_focus":`+fmt.Sprintf("%q", tc.focus)+`,
+				"temporal_query":{"mode":"current"},
+				"audience":"student"
+			}`))
+
+			result := response.Body.(serviceGuideResult)
+			if result.Outcome != "temporarily_unverifiable" {
+				t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+			}
+			if result.FailCloseReason != "field_not_provided_by_source" {
+				t.Fatalf("fail_close_reason = %q, want field_not_provided_by_source", result.FailCloseReason)
+			}
+			if result.FieldStatus[tc.fieldStatus] != "source_not_provided" {
+				t.Fatalf("field_status = %#v", result.FieldStatus)
+			}
+		})
 	}
 }
 
