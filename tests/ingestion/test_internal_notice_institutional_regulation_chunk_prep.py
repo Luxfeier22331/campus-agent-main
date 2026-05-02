@@ -158,6 +158,18 @@ def _override_first_row_metadata(
     return "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows).encode("utf-8")
 
 
+def _pollute_first_body_section_path(payload: bytes, *, section_path_text: str) -> bytes:
+    rows = [json.loads(line) for line in payload.decode("utf-8").splitlines() if line.strip()]
+    for row in rows:
+        metadata = dict(row.get("metadata") or {})
+        if metadata.get("content_role") != "regulation_body":
+            continue
+        row["anchor"] = {**dict(row.get("anchor") or {}), "section_path": [section_path_text]}
+        row["metadata"] = {**metadata, "section_path": [section_path_text]}
+        break
+    return "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows).encode("utf-8")
+
+
 class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
     def test_prepare_institutional_regulation_chunks_ignores_source_notice_records(
         self,
@@ -258,6 +270,53 @@ class InstitutionalRegulationChunkPrepTest(unittest.TestCase):
                     for chunk in chunks
                 )
             )
+            title_chunks = [
+                chunk
+                for chunk in chunks
+                if chunk["metadata"].get("content_role") == "regulation_title"
+            ]
+            self.assertEqual(len(title_chunks), 1)
+            self.assertEqual(
+                title_chunks[0]["text"],
+                "中央民族大学关于学生使用人工智能的指导意见",
+            )
+            self.assertTrue(all("标题：" not in chunk["text"] for chunk in title_chunks))
+
+    def test_prepare_institutional_regulation_chunks_blocks_polluted_section_path(
+        self,
+    ) -> None:
+        projected = _projected_document()
+        polluted_payload = _pollute_first_body_section_path(
+            projected.document_units_bytes,
+            section_path_text="第一条 为规范学生使用人工智能，制定本指导意见。",
+        )
+        record = _record(
+            projected=projected,
+            units_key=(
+                "regulations/documents/institutional_rules/"
+                "guidance-2026-polluted-section-path/document-units.jsonl"
+            ),
+        )
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", record.document_units_object_key or ""): polluted_payload,
+            }
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            report = prepare_institutional_regulation_chunks(
+                records=(record,),
+                object_store=object_store,
+                output_dir=Path(temp_dir),
+            )
+
+            self.assertFalse(report.passed)
+            validation = json.loads(
+                Path(report.validation_summary_path).read_text(encoding="utf-8")
+            )
+            self.assertFalse(validation["passed"])
+            self.assertEqual(validation["section_path_body_text_chunk_count"], 1)
+            self.assertEqual(validation["failed_document_ids"], [record.document_id])
 
     def test_prepare_institutional_regulation_chunks_flags_invalid_attachment_owner_lineage(
         self,

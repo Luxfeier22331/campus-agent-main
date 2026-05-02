@@ -4,6 +4,9 @@ import copy
 import json
 import unittest
 
+from campus_ingestion_core.collected_notice_regulation_first_batch_documents import (
+    build_document_import_input,
+)
 from campus_ingestion_core.collected_notice_regulation_first_batch_promotion import (
     FIRST_BATCH_SELECTION_SCHEMA_VERSION,
     PHASE_09_ID,
@@ -17,6 +20,58 @@ from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryR
 
 
 class CollectedNoticeRegulationFirstBatchPromotionTests(unittest.TestCase):
+    def test_scoped_rule_document_units_split_non_article_chinese_heading_structure(
+        self,
+    ) -> None:
+        document = _target_document(
+            source_notice_id="620",
+            collection="scoped_rules",
+            canonical_markdown=(
+                "# 测试规章 620\n\n"
+                "一、招募对象\n\n"
+                "申请者须符合学校研究生支教团选拔条件，并按要求提交材料。\n\n"
+                "（一）报名条件\n\n"
+                "申请者应具有良好政治素质、学业成绩和志愿服务经历。\n\n"
+                "（二）选拔程序\n\n"
+                "学院完成资格审查后，学校统一组织面试并公示结果。\n\n"
+                "二、组织管理\n\n"
+                "入选成员应按学校统一安排完成培训、派遣和服务期管理。"
+            ),
+        )
+
+        import_input = build_document_import_input(document)
+        rows = [
+            json.loads(line)
+            for line in import_input.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+
+        body_rows = [row for row in rows if row["unit_type"] == "scoped_rule_body"]
+        self.assertGreaterEqual(len(body_rows), 5)
+        top_heading = next(row for row in body_rows if row["clean_text"] == "一、招募对象")
+        self.assertEqual(top_heading["row_type"], "heading")
+        self.assertFalse(top_heading["metadata"]["is_answer_bearing"])
+        self.assertEqual(top_heading["metadata"]["section_path"], ["一、招募对象"])
+        subsection_heading = next(row for row in body_rows if row["clean_text"] == "（一）报名条件")
+        self.assertEqual(
+            subsection_heading["metadata"]["section_path"],
+            ["一、招募对象", "（一）报名条件"],
+        )
+        self.assertTrue(
+            any(
+                row["clean_text"] == "申请者应具有良好政治素质、学业成绩和志愿服务经历。"
+                and row["metadata"]["section_path"] == ["一、招募对象", "（一）报名条件"]
+                for row in body_rows
+            )
+        )
+        self.assertFalse(
+            any(
+                row["metadata"]["is_answer_bearing"]
+                and row["metadata"]["section_path"] == [row["clean_text"]]
+                for row in body_rows
+            )
+        )
+
     def test_selection_requires_downstream_ready_candidates_and_passed_consistency(self) -> None:
         selection = build_first_batch_regulation_selection(
             candidate_audit=_candidate_audit(),
@@ -249,6 +304,21 @@ class CollectedNoticeRegulationFirstBatchPromotionTests(unittest.TestCase):
         self.assertEqual(len(materialized["document_units_sha256"]), 64)
         self.assertFalse(report["query_serving_opened"])
         self.assertFalse(report["rag_release_opened"])
+
+        scoped_record = registry.current_version(
+            "institutional_regulation:muc:620",
+            preferred_revision_tracks=("current-effective",),
+        )
+        self.assertIsNotNone(scoped_record)
+        scoped_rows = object_store.get_bytes(
+            bucket="campus-rag-derived",
+            key=scoped_record.document_units_object_key or "",
+        )
+        scoped_first_row = json.loads(scoped_rows.decode("utf-8").splitlines()[0])
+        self.assertEqual(
+            scoped_first_row["metadata"]["source_notice_release_time"],
+            "2024-11-16 18:58:28",
+        )
 
     def test_execute_rejects_selected_document_without_passed_normalization_quality(self) -> None:
         institutional = _materialization_report(
@@ -483,6 +553,7 @@ def _target_document(
     source_notice_id: str,
     collection: str,
     quality_verdict: str = "passed",
+    canonical_markdown: str | None = None,
 ) -> dict[str, object]:
     title = f"测试规章 {source_notice_id}"
     content_role_prefix = "regulation" if collection == "institutional_rules" else "scoped_rule"
@@ -496,7 +567,8 @@ def _target_document(
         "candidate_key": f"candidate:{source_notice_id}",
         "title": title,
         "issuing_org": "中央民族大学",
-        "canonical_markdown": f"# {title}\n\n第一条 为测试第一批规章提升，制定本办法。\n\n第二条 本办法用于验证 selected write gate。\n",
+        "canonical_markdown": canonical_markdown
+        or f"# {title}\n\n第一条 为测试第一批规章提升，制定本办法。\n\n第二条 本办法用于验证 selected write gate。\n",
         "normalization_quality": {
             "target_collection": collection,
             "target_document_id": f"institutional_regulation:muc:{source_notice_id}",
@@ -517,6 +589,7 @@ def _target_document(
             "reason_codes": [] if quality_verdict == "passed" else ["soft_wrap_residue"],
         },
         "source_notice_ids": [source_notice_id],
+        "source_notice_release_time": "2024-11-16 18:58:28",
         "source_document_ids": [f"file-release:muc_internal_portal:{source_notice_id}"],
         "source_urls": [f"https://my.muc.edu.cn/file/{source_notice_id}.pdf"],
         "source_scope": {

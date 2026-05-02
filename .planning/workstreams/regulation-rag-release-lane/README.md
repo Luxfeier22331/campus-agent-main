@@ -12,6 +12,10 @@ updated: 2026-05-02
 registry”推进到“下游 RAG 可检索”的独立 release lane。它不重新定义
 `regulations/*` promotion eligibility，也不把文档站发布等同于 RAG serving。
 
+历史存量 regulation 的 canonical/chunk-only backfill 不属于本 workstream 的执行入口；
+该批处理由 `historical-regulation-canonical-chunk-backfill` 承接，且在 chunk 质量统一验收前
+不得进入 candidate enqueue、embedding、index release 或 alias publish。
+
 ## Current Status
 
 - status: `active`
@@ -47,6 +51,7 @@ release admission -> acceptance -> serving alias`
 - `docs/architecture/domains/authenticated-notice/architecture.md`
 - `.planning/workstreams/authenticated-notice-regulation-consumption/README.md`
 - `.planning/workstreams/notice-derived-regulation-consumption-quality-gate/README.md`
+- `.planning/workstreams/historical-regulation-canonical-chunk-backfill/README.md`
 
 ## Native Planning Truth
 

@@ -139,6 +139,7 @@ class CollectedNoticeRegulationMaterializationPreviewTests(unittest.TestCase):
         scoped_doc = preview.scoped_rules_materialization["documents"][0]
         self.assertEqual(institutional_doc["target_collection"], "institutional_rules")
         self.assertEqual(scoped_doc["target_collection"], "scoped_rules")
+        self.assertEqual(scoped_doc["source_notice_release_time"], "2024-11-16 18:58:28")
         self.assertNotIn("594", institutional_doc["target_document_id"])
         self.assertNotIn("现印发", institutional_doc["canonical_markdown_preview"])
         self.assertNotIn("》的通知", institutional_doc["canonical_markdown_preview"])

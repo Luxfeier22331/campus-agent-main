@@ -74,6 +74,9 @@ def build_chunk_text_context(
 ) -> ChunkTextContextPlan:
     resolved_anchor = anchor or {}
     resolved_metadata = metadata or {}
+    content_role = _normalize_context_text(resolved_metadata.get("content_role"))
+    if content_role in {"regulation_title", "scoped_rule_title"}:
+        return ChunkTextContextPlan()
     title_text = _normalize_context_text(resolved_metadata.get("title"))
     policy_doc_no = _normalize_context_text(resolved_metadata.get("policy_doc_no"))
     preface_text = _normalize_context_text(resolved_metadata.get("preface_text"))
@@ -264,7 +267,6 @@ def _select_header_variant_for_display(
         return None
     if display_token_count >= 120:
         return fitting_variants[0]
-
     short_display_mode_order = {
         "compact_identity": 0,
         "compact_path": 1,
@@ -272,7 +274,7 @@ def _select_header_variant_for_display(
         "title_only": 3,
         "required": 4,
     }
-    return min(
+    selected = min(
         fitting_variants,
         key=lambda item: (
             short_display_mode_order.get(item[0].mode, 99),
@@ -280,6 +282,25 @@ def _select_header_variant_for_display(
             item[3],
         ),
     )
+    title_only = next(
+        (item for item in fitting_variants if item[0].mode == "title_only"),
+        None,
+    )
+    if (
+        title_only is not None
+        and selected[0].mode != "title_only"
+        and _header_ratio(selected) >= 0.75
+        and _header_ratio(title_only) < _header_ratio(selected)
+    ):
+        return title_only
+    return selected
+
+
+def _header_ratio(item: tuple[ChunkHeaderVariant, str, int, int]) -> float:
+    _, _, header_tokens, total_tokens = item
+    if total_tokens <= 0:
+        return 0.0
+    return header_tokens / total_tokens
 
 
 def _normalize_context_text(value: object) -> str | None:

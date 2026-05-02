@@ -119,6 +119,22 @@ def _versioned_candidate_document() -> InternalNoticeRegulationCandidateArtifact
 
 
 class InternalNoticeRegulationProjectionTest(unittest.TestCase):
+    def test_article_blocks_use_article_anchor_not_body_section_path(self) -> None:
+        projected = build_internal_notice_regulation_projected_document(
+            candidate_document=_versioned_candidate_document()
+        )
+        rows = [
+            json.loads(line)
+            for line in projected.document_units_bytes.decode("utf-8").splitlines()
+            if line.strip()
+        ]
+
+        body_row = rows[1]
+        self.assertEqual(body_row["metadata"]["content_role"], "regulation_body")
+        self.assertEqual(body_row["anchor"].get("article_label"), "第一条")
+        self.assertNotIn("section_path", body_row["anchor"])
+        self.assertNotIn("为规范学生使用人工智能", " ".join(body_row["metadata"]["section_path"]))
+
     def test_projected_document_units_preserve_regulation_structure_in_anchor(self) -> None:
         projected = build_internal_notice_regulation_projected_document(
             candidate_document=_candidate_document()

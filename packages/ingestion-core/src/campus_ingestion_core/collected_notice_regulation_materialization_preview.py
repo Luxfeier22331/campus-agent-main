@@ -233,6 +233,7 @@ def _build_preview_document(
     target_document_id = _target_document_id(primary)
     source_notice_ids = sorted({str(entry.get("source_notice_id") or "") for entry in entries})
     source_document_ids = sorted({str(entry.get("source_document_id") or "") for entry in entries})
+    source_notice_release_time = _source_notice_release_time(entries)
     return {
         "schema_version": "collected_notice_regulation_target_document_preview.v1",
         "generated_at": generated_at,
@@ -277,6 +278,7 @@ def _build_preview_document(
             "changed": _canonical_markdown(title=title, body=legacy_body) != canonical_markdown,
         },
         "source_notice_ids": source_notice_ids,
+        "source_notice_release_time": source_notice_release_time,
         "source_document_ids": source_document_ids,
         "source_urls": sorted(
             {str(entry.get("source_url") or "") for entry in entries if entry.get("source_url")}
@@ -296,6 +298,15 @@ def _build_preview_document(
             "query_serving_enabled": False,
         },
     }
+
+
+def _source_notice_release_time(entries: Sequence[Mapping[str, Any]]) -> str:
+    for entry in entries:
+        for field_name in ("source_notice_release_time", "notice_release_time", "published_at"):
+            value = str(entry.get(field_name) or "").strip()
+            if value:
+                return value
+    return "unknown"
 
 
 def _duplicate_report(

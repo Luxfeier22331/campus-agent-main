@@ -23,9 +23,20 @@ PHASE_09_ID = "phase-09-first-batch-regulation-promotion-write-gate"
 _TARGET_IMPORT_SOURCE = "collected_notice_regulation_first_batch_promotion"
 _TARGET_SOURCE_CHANNEL = "authenticated_notice_portal"
 _DOCUMENT_UNITS_SCHEMA_VERSION = "document_units_jsonl"
-_ARTICLE_OR_CHAPTER_RE = re.compile(
-    r"(?=^第[一二三四五六七八九十百千万0-9]+[章节条][^\n]*)",
+_CHINESE_NUMBER = "一二三四五六七八九十百千万〇零两0-9"
+_STRUCTURAL_BLOCK_START_RE = re.compile(
+    rf"(?=^(?:第[{_CHINESE_NUMBER}]+[章节条]|[{_CHINESE_NUMBER}]+、|[（(][{_CHINESE_NUMBER}]+[)）]))",
     re.MULTILINE,
+)
+_ARTICLE_LABEL_RE = re.compile(rf"^(?P<label>第[{_CHINESE_NUMBER}]+条)")
+_CHAPTER_OR_SECTION_HEADING_RE = re.compile(rf"^第[{_CHINESE_NUMBER}]+[章节][^。；]*$")
+_TOP_LEVEL_HEADING_RE = re.compile(rf"^(?P<label>[{_CHINESE_NUMBER}]+、)[^。；]{{1,60}}$")
+_SUBSECTION_HEADING_RE = re.compile(
+    rf"^(?P<label>[（(][{_CHINESE_NUMBER}]+[)）][、.]?)[^。；]{{0,60}}$"
+)
+_NUMERIC_ITEM_RE = re.compile(r"^(?P<label>[0-9]+[.、])")
+_STRUCTURAL_HEADING_RE = re.compile(
+    rf"^(?:第[{_CHINESE_NUMBER}]+[章节][^。；]*|[{_CHINESE_NUMBER}]+、[^。；]{{1,60}}|[（(][{_CHINESE_NUMBER}]+[)）][、.]?[^。；]{{0,60}})$"
 )
 
 
@@ -110,8 +121,7 @@ def serialize_document_units(
     source_notice_document_id = f"notice:muc_internal_portal:{source_notice_id}"
     normalization_quality = _normalization_quality(document)
     normalizer_version = str(
-        normalization_quality.get("normalizer_version")
-        or REGULATION_CANONICAL_NORMALIZER_VERSION
+        normalization_quality.get("normalizer_version") or REGULATION_CANONICAL_NORMALIZER_VERSION
     )
     cleaning_policy_version = f"{target_collection}_cleaning_v1"
     common_metadata = {
@@ -150,7 +160,7 @@ def serialize_document_units(
         collection_metadata = {
             "content_kind": "scoped_rule",
             "document_nature": _resolve_scoped_rule_document_nature(document),
-            "source_notice_release_time": str(document.get("generated_at") or "unknown"),
+            "source_notice_release_time": _resolve_source_notice_release_time(document),
         }
     rows = [
         _document_unit_row(
@@ -165,17 +175,23 @@ def serialize_document_units(
                 **common_metadata,
                 **collection_metadata,
                 "content_role": title_content_role,
-                "section_path": [title],
+                "section_path": [],
+                "is_answer_bearing": True,
             },
         )
     ]
+    current_section_path: tuple[str, ...] = ()
     for offset, chunk in enumerate(body_chunks, start=2):
-        heading = chunk.splitlines()[0].strip() if chunk.splitlines() else title
+        structure = _resolve_first_batch_block_structure(
+            chunk, current_section_path=current_section_path
+        )
+        current_section_path = structure["next_section_path"]
         rows.append(
             _document_unit_row(
                 document_id=target_document_id,
                 version_id=version_id,
                 index=offset,
+                row_type=structure["row_type"],
                 unit_type=body_unit_type,
                 text=chunk,
                 title=title,
@@ -184,7 +200,10 @@ def serialize_document_units(
                     **common_metadata,
                     **collection_metadata,
                     "content_role": body_content_role,
-                    "section_path": [title, heading],
+                    "section_path": list(structure["section_path"]),
+                    "article_label": structure["article_label"],
+                    "provision_label": structure["provision_label"],
+                    "is_answer_bearing": structure["row_type"] != "heading",
                 },
             )
         )
@@ -201,28 +220,41 @@ def _document_unit_row(
     title: str,
     source_url: str,
     metadata: Mapping[str, Any],
+    row_type: str | None = None,
 ) -> dict[str, Any]:
     row_id = f"{document_id}:unit-{index:04d}"
-    section_path = list(metadata.get("section_path") or [title])
+    raw_section_path = metadata.get("section_path")
+    section_path = (
+        list(raw_section_path)
+        if isinstance(raw_section_path, list)
+        else ([title] if index == 1 else [])
+    )
+    anchor: dict[str, Any] = {"section_path": section_path} if section_path else {}
+    article_label = str(metadata.get("article_label") or "").strip()
+    if article_label:
+        anchor["article_label"] = article_label
+    provision_label = str(metadata.get("provision_label") or "").strip()
+    if provision_label:
+        anchor["provision_label"] = provision_label
     return {
         "doc_id": document_id,
         "version_id": version_id,
         "chunk_id": row_id,
         "row_id": row_id,
-        "row_type": "paragraph" if index > 1 else "heading",
+        "row_type": row_type or ("paragraph" if index > 1 else "heading"),
         "clean_text": text.strip(),
         "source_pdf": source_url.rsplit("/", 1)[-1] if source_url else "source.pdf",
         "source_url": source_url,
         "source": {"id": source_url},
-        "page_start": 1,
-        "page_end": 1,
+        "page_start": None,
+        "page_end": None,
         "entitlement_groups": ["campus_members"],
         "visibility_scope": "campus",
         "visibility_level": "restricted",
         "policy_projection_version": DEFAULT_POLICY_PROJECTION_VERSION,
         "unit_type": unit_type,
         "root_unit_id": row_id,
-        "anchor": {"section_path": section_path, "page_start": 1, "page_end": 1},
+        "anchor": anchor,
         "metadata": dict(metadata),
     }
 
@@ -235,24 +267,115 @@ def _canonical_body_chunks(canonical_markdown: str) -> tuple[str, ...]:
         body = canonical_markdown.strip()
     if not body:
         return ()
-    starts = [match.start() for match in _ARTICLE_OR_CHAPTER_RE.finditer(body)]
+    starts = [match.start() for match in _STRUCTURAL_BLOCK_START_RE.finditer(body)]
     if not starts:
-        return (body,)
+        return tuple(_split_blank_blocks(body)) or (body,)
     chunks: list[str] = []
+    prefix = body[: starts[0]].strip()
+    chunks.extend(_split_blank_blocks(prefix))
     for index, start in enumerate(starts):
         end = starts[index + 1] if index + 1 < len(starts) else len(body)
-        chunk = body[start:end].strip()
-        if chunk:
-            chunks.append(chunk)
-    prefix = body[: starts[0]].strip()
-    if prefix and chunks:
-        chunks[0] = f"{prefix}\n\n{chunks[0]}"
+        chunks.extend(_split_structural_region(body[start:end].strip()))
     return tuple(chunks)
+
+
+def _split_structural_region(text: str) -> tuple[str, ...]:
+    normalized = text.strip()
+    if not normalized:
+        return ()
+    lines = normalized.splitlines()
+    first_line_index = next((index for index, line in enumerate(lines) if line.strip()), None)
+    if first_line_index is None:
+        return ()
+    first_line = lines[first_line_index].strip()
+    remainder = "\n".join(lines[first_line_index + 1 :]).strip()
+    if _ARTICLE_LABEL_RE.match(first_line):
+        return (normalized,)
+    if _looks_like_first_batch_structural_heading(first_line) and remainder:
+        return (first_line, *_split_blank_blocks(remainder))
+    return tuple(_split_blank_blocks(normalized)) or (normalized,)
+
+
+def _split_blank_blocks(text: str) -> tuple[str, ...]:
+    return tuple(chunk.strip() for chunk in re.split(r"\n{2,}", text.strip()) if chunk.strip())
+
+
+def _looks_like_first_batch_structural_heading(text: str) -> bool:
+    normalized = text.strip()
+    return bool(
+        _CHAPTER_OR_SECTION_HEADING_RE.match(normalized)
+        or _TOP_LEVEL_HEADING_RE.match(normalized)
+        or _SUBSECTION_HEADING_RE.match(normalized)
+    )
 
 
 def _resolve_scoped_rule_document_nature(document: Mapping[str, Any]) -> str:
     del document
     return "time_bound_operational_rule"
+
+
+def _resolve_first_batch_block_structure(
+    text: str,
+    *,
+    current_section_path: tuple[str, ...],
+) -> dict[str, Any]:
+    first_line = next((line.strip() for line in text.splitlines() if line.strip()), "")
+    article_match = _ARTICLE_LABEL_RE.match(first_line)
+    if article_match is not None:
+        article_label = article_match.group("label").strip()
+        article_body = first_line[article_match.end() :].strip()
+        return {
+            "row_type": "paragraph" if article_body else "heading",
+            "section_path": current_section_path,
+            "article_label": article_label,
+            "provision_label": None,
+            "next_section_path": current_section_path,
+        }
+    if _CHAPTER_OR_SECTION_HEADING_RE.match(first_line) or _TOP_LEVEL_HEADING_RE.match(first_line):
+        return {
+            "row_type": "heading",
+            "section_path": (first_line,),
+            "article_label": None,
+            "provision_label": None,
+            "next_section_path": (first_line,),
+        }
+    subsection_match = _SUBSECTION_HEADING_RE.match(first_line)
+    if subsection_match is not None:
+        return {
+            "row_type": "heading",
+            "section_path": (*current_section_path, first_line)
+            if current_section_path
+            else (first_line,),
+            "article_label": None,
+            "provision_label": None,
+            "next_section_path": (*current_section_path, first_line)
+            if current_section_path
+            else (first_line,),
+        }
+    numeric_item = _NUMERIC_ITEM_RE.match(first_line)
+    if numeric_item is not None:
+        return {
+            "row_type": "paragraph",
+            "section_path": current_section_path,
+            "article_label": None,
+            "provision_label": numeric_item.group("label").strip(),
+            "next_section_path": current_section_path,
+        }
+    return {
+        "row_type": "paragraph",
+        "section_path": current_section_path,
+        "article_label": None,
+        "provision_label": None,
+        "next_section_path": current_section_path,
+    }
+
+
+def _resolve_source_notice_release_time(document: Mapping[str, Any]) -> str:
+    for field_name in ("source_notice_release_time", "notice_release_time", "published_date"):
+        value = str(document.get(field_name) or "").strip()
+        if value:
+            return value
+    return "unknown"
 
 
 def _normalization_quality(document: Mapping[str, Any]) -> dict[str, Any]:

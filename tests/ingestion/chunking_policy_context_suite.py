@@ -107,6 +107,36 @@ class ChunkingPolicyContextTest(_ChunkingPolicyTestCase):
         self.assertIn("章节：借阅须知", assembly.text)
         self.assertNotIn("校园服务 > 图书馆 > 借阅须知", assembly.text)
 
+    def test_regulation_short_clause_context_avoids_header_dominant_chunk(
+        self,
+    ) -> None:
+        context_plan = build_chunk_text_context_from_context_module(
+            anchor={
+                "section_path": ["第六章 附 则"],
+                "article_label": "第十七条",
+            },
+            metadata={
+                "title": "中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）",
+                "content_role": "scoped_rule_body",
+            },
+        )
+
+        assembly = assemble_chunk_text_from_context_module(
+            display_text="第十七条 本办法自发布之日起施行。",
+            context_plan=context_plan,
+            chunk_profile=ChunkProfile(
+                chunk_size=240,
+                max_chunk_size=340,
+                chunk_overlap=32,
+                min_chunk_size=40,
+                final_text_aware=True,
+                safety_margin=16,
+            ),
+        )
+
+        self.assertEqual(assembly.header_mode, "title_only")
+        self.assertLess(assembly.header_token_count / assembly.total_token_count, 0.75)
+
     def test_normalize_article_body_structure_keeps_soft_wrap_recoveries_as_single_body_lines(
         self,
     ) -> None:

@@ -48,6 +48,7 @@ from campus_ingestion_core.process_shared import (
     _ChunkMember,
     _CollectionChunkStrategy,
 )
+from campus_ingestion_core.regulation_chunk_quality import should_skip_regulation_structural_unit
 from campus_ingestion_core.sparse import SparseEmbeddingModel
 
 _DEFAULT_COLLECTION_CHUNK_STRATEGY = _CollectionChunkStrategy(
@@ -58,6 +59,13 @@ _DEFAULT_COLLECTION_CHUNK_STRATEGY = _CollectionChunkStrategy(
     should_skip_unit=should_skip_generic_unit,
     postprocess_candidates=postprocess_default_chunk_candidates,
 )
+
+
+def should_skip_regulation_unit(unit, table_roots_with_semantic_units: set[str]) -> bool:
+    if should_skip_generic_unit(unit, table_roots_with_semantic_units):
+        return True
+    return should_skip_regulation_structural_unit(text=unit.text, metadata=unit.metadata)
+
 
 _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = {
     ("regulations", "student_rules"): _CollectionChunkStrategy(
@@ -97,7 +105,7 @@ _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = 
         load_structured_units=load_default_structured_units,
         build_unit_pieces=build_default_unit_pieces,
         resolve_unit_chunk_profile=resolve_institutional_regulation_unit_chunk_profile,
-        should_skip_unit=should_skip_generic_unit,
+        should_skip_unit=should_skip_regulation_unit,
         postprocess_candidates=postprocess_institutional_regulation_chunk_candidates,
     ),
     ("regulations", "scoped_rules"): _CollectionChunkStrategy(
@@ -105,7 +113,7 @@ _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = 
         load_structured_units=load_default_structured_units,
         build_unit_pieces=build_default_unit_pieces,
         resolve_unit_chunk_profile=resolve_scoped_rule_unit_chunk_profile,
-        should_skip_unit=should_skip_generic_unit,
+        should_skip_unit=should_skip_regulation_unit,
         postprocess_candidates=postprocess_scoped_rule_chunk_candidates,
     ),
 }
