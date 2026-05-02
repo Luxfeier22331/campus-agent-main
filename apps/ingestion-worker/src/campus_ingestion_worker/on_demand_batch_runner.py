@@ -10,6 +10,8 @@ from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any
 
+from campus_ingestion_core.official_web_release_task import OFFICIAL_WEB_RELEASE_TASK_TYPES
+
 from campus_ingestion_worker import on_demand_batch_runner_support as support
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.resource_profile import (
@@ -22,6 +24,8 @@ from campus_ingestion_worker.resource_profile import (
 
 ON_DEMAND_BATCH_REPORT_SCHEMA_VERSION = "campus_ingestion_on_demand_batch.v1"
 SubprocessResult = support.SubprocessResult
+_TIME_PEAK_RSS_MARKER = support._TIME_PEAK_RSS_MARKER
+_parse_timed_stderr = support.parse_timed_stderr
 
 
 @dataclass(frozen=True, slots=True)
@@ -129,6 +133,7 @@ def run_official_web_handoff_batch(
     limit: int = 20,
     force: bool = False,
     promote: bool = False,
+    admit_release_tasks: bool = False,
     policy: OnDemandBatchPolicy | None = None,
 ) -> dict[str, Any]:
     runtime_policy = policy or load_batch_policy()
@@ -141,6 +146,8 @@ def run_official_web_handoff_batch(
         args.append("--force")
     if promote:
         args.append("--promote")
+    if admit_release_tasks:
+        args.append("--admit-release-tasks")
     return _run_steps(
         batch_kind="official_web_handoffs",
         policy=runtime_policy,
@@ -148,6 +155,44 @@ def run_official_web_handoff_batch(
             IngestionBatchStep(
                 name="consume_handoffs",
                 module="campus_ingestion_worker.official_web_handoff_consumer",
+                args=tuple(args),
+            ),
+        ),
+    )
+
+
+def run_official_web_release_task_batch(
+    *,
+    worker_id: str = "official-web-release-task-runner",
+    lease_seconds: int = 300,
+    work_dir: str = "./var/official-web-release-tasks",
+    task_types: Sequence[str] = (),
+    declarations_path: str | None = None,
+    reset_index: bool = False,
+    policy: OnDemandBatchPolicy | None = None,
+) -> dict[str, Any]:
+    runtime_policy = policy or load_batch_policy()
+    args: list[str] = [
+        "--worker-id",
+        worker_id,
+        "--lease-seconds",
+        str(lease_seconds),
+        "--work-dir",
+        work_dir,
+    ]
+    if declarations_path:
+        args.extend(("--declarations-path", declarations_path))
+    if reset_index:
+        args.append("--reset-index")
+    for task_type in task_types:
+        args.extend(("--task-type", task_type))
+    return _run_steps(
+        batch_kind="official_web_release_tasks",
+        policy=runtime_policy,
+        steps=(
+            IngestionBatchStep(
+                name="run_release_task",
+                module="campus_ingestion_worker.run_official_web_release_task",
                 args=tuple(args),
             ),
         ),
@@ -478,7 +523,25 @@ def build_parser() -> argparse.ArgumentParser:
     official.add_argument("--limit", type=support.positive_int, default=20)
     official.add_argument("--force", action="store_true")
     official.add_argument("--promote", action="store_true")
+    official.add_argument("--admit-release-tasks", action="store_true")
     support.add_common_runtime_args(official)
+
+    release_tasks = subparsers.add_parser(
+        "official-web-release-tasks",
+        help="Claim and execute one queued official_web release task.",
+    )
+    release_tasks.add_argument("--worker-id", default="official-web-release-task-runner")
+    release_tasks.add_argument("--lease-seconds", type=support.positive_int, default=300)
+    release_tasks.add_argument("--work-dir", default="./var/official-web-release-tasks")
+    release_tasks.add_argument(
+        "--task-type",
+        action="append",
+        choices=sorted(OFFICIAL_WEB_RELEASE_TASK_TYPES),
+        default=[],
+    )
+    release_tasks.add_argument("--declarations-path")
+    release_tasks.add_argument("--reset-index", action="store_true")
+    support.add_common_runtime_args(release_tasks)
 
     multimodal = subparsers.add_parser(
         "internal-notice-multimodal-drain",
@@ -580,6 +643,17 @@ def main(argv: Sequence[str] | None = None) -> None:
                 limit=args.limit,
                 force=args.force,
                 promote=args.promote,
+                admit_release_tasks=bool(args.admit_release_tasks),
+                policy=policy,
+            )
+        elif args.batch_kind == "official-web-release-tasks":
+            report = run_official_web_release_task_batch(
+                worker_id=args.worker_id,
+                lease_seconds=args.lease_seconds,
+                work_dir=args.work_dir,
+                task_types=tuple(args.task_type or ()),
+                declarations_path=args.declarations_path,
+                reset_index=bool(args.reset_index),
                 policy=policy,
             )
         elif args.batch_kind == "internal-notice-multimodal-drain":
@@ -783,6 +857,7 @@ __all__ = [
     "run_batch_step",
     "run_internal_notice_multimodal_drain_batch",
     "run_official_web_handoff_batch",
+    "run_official_web_release_task_batch",
     "run_wechat_public_notice_batch",
 ]
 

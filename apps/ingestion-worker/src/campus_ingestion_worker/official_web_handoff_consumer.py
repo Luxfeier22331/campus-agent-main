@@ -11,6 +11,9 @@ from campus_ingestion_core import (
     replay_official_web_source_truth_local,
     validate_official_web_projection_output,
 )
+from campus_ingestion_core.official_web_release_task_store import (
+    build_official_web_release_task_store_from_env,
+)
 
 from campus_ingestion_worker import official_web_handoff_consumer_runtime as _runtime
 from campus_ingestion_worker.env_bootstrap import load_worker_env
@@ -53,6 +56,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--promote", action="store_true", default=None)
     parser.add_argument("--declarations-path")
     parser.add_argument("--consumer-review-manifest-path")
+    parser.add_argument("--admit-release-tasks", action="store_true")
     return parser
 
 
@@ -69,6 +73,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         else None,
         consumer_review_manifest_path=Path(args.consumer_review_manifest_path).resolve()
         if args.consumer_review_manifest_path
+        else None,
+        release_task_store=build_official_web_release_task_store_from_env()
+        if args.admit_release_tasks
         else None,
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))

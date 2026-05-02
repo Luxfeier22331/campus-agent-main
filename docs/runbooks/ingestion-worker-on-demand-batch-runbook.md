@@ -176,6 +176,77 @@ worktree `.env` 或命令级 env 中使用这些 override：
 - `INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL`
 - `INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL`
 
+## Official Web Release Tasks
+
+official_web 的 selected-write / stable-reference release task 属于 ingestion data
+plane。`apps/app-api` 只接收 worker 上报的 redacted operator projection；不提供 claim /
+lease / retry / publish mutation。
+
+本地或服务器按需执行 handoff replay 时，如果要把已通过 selected-write review 的 candidate
+转成 release task，在 handoff consumer 加 admission flag：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
+  official-web-handoffs \
+  --limit 20 \
+  --admit-release-tasks \
+  --report-path .tmp/ingestion-reports/official-web-handoffs.json
+```
+
+稳定参考面 release gate 已经由 eval/release gate 产出批准文件时，使用 ingestion-worker
+入口显式 admission：
+
+```bash
+uv run --all-packages campus-ingestion-admit-official-web-release-gate \
+  --release-gate-path /path/to/official-web-release-gate.json
+```
+
+执行已入队 task 使用独立 release task batch。它每次 claim 一个 task，推进 state
+machine，并在配置 callback 后把 operator-safe snapshot 上报给 app-api：
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.on_demand_batch_runner \
+  official-web-release-tasks \
+  --worker-id official-web-release-task-runner \
+  --work-dir ./var/official-web-release-tasks \
+  --report-path .tmp/ingestion-reports/official-web-release-task.json
+```
+
+等价的 operator shell：
+
+```bash
+scripts/run-official-web-release-tasks.sh
+```
+
+生产/本地 env 至少需要：
+
+- `OFFICIAL_WEB_RELEASE_TASK_DATABASE_URL` 或 shared `CAMPUS_SHARED_POSTGRES_URL`
+- `OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_URL` 或
+  `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` / `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
+- `OBJECT_STORE_ENDPOINT` / `OBJECT_STORE_ACCESS_KEY` / `OBJECT_STORE_SECRET_KEY`
+- `INGESTION_WORKER_APP_API_BASE_URL`
+- `INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET`
+
+命令级 override 示例：
+
+- `env/commands/official-web-handoff-consumer.env.example`
+- `env/commands/official-web-release-task.env.example`
+
+如果只想先验证 admission，不执行 release task，运行 handoff consumer 时不要加
+`--admit-release-tasks`。如果只想验证 task state machine，不回写 app-api，可留空
+`INGESTION_WORKER_APP_API_BASE_URL` / `INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET`；
+此时 app-api / panel 不会看到新的 projection。
+
+本地 app-api 已启动时，可跑 release task projection smoke。它会创建一条本地 smoke
+task、通过 ingestion-worker runner 推进、上报 projection，再从 app-api operator read
+route 读回：
+
+```bash
+uv run --all-packages python -m scripts.official_web_release_task_local_smoke \
+  --app-api-base-url http://127.0.0.1:8787 \
+  --app-api-internal-shared-secret "$INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET"
+```
+
 ## Authenticated Notice Closeout
 
 ### Ingest Queue Contract

@@ -222,6 +222,7 @@ Optional CLI args:
 - `--limit`
 - `--force`
 - `--promote`
+- `--admit-release-tasks`
 - `--declarations-path`
 
 Command override example:
@@ -250,10 +251,76 @@ Behavior:
 - Calls back into `app-api` `POST
   /api/internal/official-web/runs/:runId/ingestion-execution` when the optional
   callback env is configured
+- When `--admit-release-tasks` is set, converts ready selected-write candidate
+  reviews into ingestion-owned release task rows. Without that flag it only
+  reports `releaseTasks.disabledReason=release_task_store_not_configured`.
 - Updates each inbox record with `processingStatus`, `processingAttemptCount`,
   `processedAt`, `lastError`, `executionReportPath`, `projectionOutputDir`, and
   `replayInputDir`
 - `processingStatus` now distinguishes `staged`, `promoted`, and `failed`
+
+### `campus-ingestion-admit-official-web-release-gate`
+
+Admits an approved `official_web/stable_reference` release gate into the
+ingestion-owned release task store.
+
+Required env:
+
+- `OFFICIAL_WEB_RELEASE_TASK_DATABASE_URL` or `CAMPUS_SHARED_POSTGRES_URL`
+
+Required CLI args:
+
+- `--release-gate-path`
+
+Behavior:
+
+- Fails closed unless the gate is approved and targets
+  `official_web/stable_reference`
+- Creates an idempotent queued `official_web_stable_reference` task
+- Does not execute the task and does not call app-api
+
+### `campus-ingestion-run-official-web-release-task`
+
+Claims and executes one queued ingestion-owned `official_web` release task.
+
+Required env:
+
+- `OBJECT_STORE_ENDPOINT`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+- `OFFICIAL_WEB_RELEASE_TASK_DATABASE_URL` or `CAMPUS_SHARED_POSTGRES_URL`
+- `OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_URL` or operator shared DB env
+
+Optional env:
+
+- `INGESTION_WORKER_APP_API_BASE_URL`
+- `INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET`
+
+Optional CLI args:
+
+- `--worker-id`
+- `--lease-seconds`
+- `--work-dir`
+- `--task-type`
+- `--declarations-path`
+- `--reset-index`
+
+Behavior:
+
+- Claims one queued task via the release task state machine
+- Dispatches stable-reference tasks to `release_official_web_target`
+- Dispatches selected-write tasks to `release_official_web_selected_write`
+- Marks materialized / indexed / published / failed state in the task store
+- Reports redacted operator snapshots to app-api only when callback env is
+  configured
+
+Local integration smoke:
+
+```bash
+uv run --all-packages python -m scripts.official_web_release_task_local_smoke \
+  --app-api-base-url http://127.0.0.1:8787 \
+  --app-api-internal-shared-secret "$INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET"
+```
 
 ### `campus-ingestion-import-official-web-projection`
 

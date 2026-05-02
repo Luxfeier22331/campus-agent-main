@@ -26,6 +26,7 @@ PREFLIGHT_SCHEMA_VERSION = "campus_ingestion_worker_deployment_preflight.v1"
 SUPPORTED_BATCH_KINDS = (
     "internal-notice-multimodal-drain",
     "official-web-handoffs",
+    "official-web-release-tasks",
     "authenticated-notice-closeout",
     "wechat-public-notices",
     "wechat-public-notice-multimodal-drain",
@@ -215,6 +216,17 @@ def _check_batch_specific_dirs(
                 path=Path(
                     _env_text(env, "INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_EXECUTION_ROOT_DIR")
                     or "./var/official-web-handoff-executions"
+                ),
+            )
+        )
+    if "official-web-release-tasks" in batch_kinds:
+        checks.append(
+            _check_writable_dir(
+                name="official_web_release_task_work_dir_writable",
+                path=Path(
+                    _env_text(env, "INGESTION_ON_DEMAND_OFFICIAL_WEB_RELEASE_TASK_WORK_DIR")
+                    or _env_text(env, "INGESTION_WORKER_OFFICIAL_WEB_RELEASE_TASK_WORK_DIR")
+                    or "./var/official-web-release-tasks"
                 ),
             )
         )

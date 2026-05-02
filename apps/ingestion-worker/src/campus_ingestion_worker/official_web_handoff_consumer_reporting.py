@@ -315,7 +315,7 @@ def build_consumer_candidate_review_report(
                 str(candidate["materialization_policy"]) for candidate in candidates
             ),
         },
-        "selectedWrite": _build_selected_write_gate_report(
+        "selectedWrite": _build_selected_write_admission_preview(
             candidate_count=len(selected_write_candidates),
             ready_count=len(selected_write_ready),
             rejected_count=len(selected_write_rejected),
@@ -781,7 +781,7 @@ def _candidate_blocked_reason(
     return "reviewed_extraction_required_before_selected_write"
 
 
-def _build_selected_write_gate_report(
+def _build_selected_write_admission_preview(
     *,
     candidate_count: int,
     ready_count: int,

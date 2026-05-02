@@ -5,7 +5,7 @@ import io
 import json
 import sys
 import unittest
-from unittest.mock import patch
+from unittest.mock import ANY, patch
 
 runner = importlib.import_module("campus_ingestion_worker.on_demand_batch_runner")
 
@@ -65,6 +65,7 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
                 limit=7,
                 force=True,
                 promote=True,
+                admit_release_tasks=True,
             )
 
         step = run_step.call_args.args[0]
@@ -72,10 +73,59 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
         self.assertEqual(step.module, "campus_ingestion_worker.official_web_handoff_consumer")
         self.assertEqual(
             step.args,
-            ("--event-id", "evt-1", "--limit", "7", "--force", "--promote"),
+            (
+                "--event-id",
+                "evt-1",
+                "--limit",
+                "7",
+                "--force",
+                "--promote",
+                "--admit-release-tasks",
+            ),
         )
         self.assertEqual(report["status"], "succeeded")
         self.assertEqual(report["batch_kind"], "official_web_handoffs")
+
+    def test_official_web_release_task_batch_builds_runner_step(self) -> None:
+        with patch(
+            "campus_ingestion_worker.on_demand_batch_runner.run_batch_step",
+            return_value={"name": "run_release_task", "status": "succeeded"},
+        ) as run_step:
+            report = runner.run_official_web_release_task_batch(
+                worker_id="ow-release-worker",
+                lease_seconds=120,
+                work_dir="/tmp/official-web-release-tasks",
+                task_types=(
+                    "official_web_selected_write_contact_directory",
+                    "official_web_selected_write_service_guide",
+                ),
+                declarations_path="/tmp/declarations.json",
+                reset_index=True,
+            )
+
+        step = run_step.call_args.args[0]
+        self.assertEqual(step.name, "run_release_task")
+        self.assertEqual(step.module, "campus_ingestion_worker.run_official_web_release_task")
+        self.assertEqual(
+            step.args,
+            (
+                "--worker-id",
+                "ow-release-worker",
+                "--lease-seconds",
+                "120",
+                "--work-dir",
+                "/tmp/official-web-release-tasks",
+                "--declarations-path",
+                "/tmp/declarations.json",
+                "--reset-index",
+                "--task-type",
+                "official_web_selected_write_contact_directory",
+                "--task-type",
+                "official_web_selected_write_service_guide",
+            ),
+        )
+        self.assertEqual(report["status"], "succeeded")
+        self.assertEqual(report["batch_kind"], "official_web_release_tasks")
 
     def test_authenticated_notice_closeout_batch_can_plan_run_validate_and_promote(self) -> None:
         with patch(
@@ -433,6 +483,47 @@ class OnDemandBatchRunnerTest(unittest.TestCase):
         self.assertEqual(raised.exception.code, 1)
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["status"], "failed")
+
+    def test_cli_routes_official_web_release_task_batch(self) -> None:
+        with (
+            patch("campus_ingestion_worker.on_demand_batch_runner.load_worker_env"),
+            patch(
+                "campus_ingestion_worker.on_demand_batch_runner.run_official_web_release_task_batch",
+                return_value={
+                    "schema_version": runner.ON_DEMAND_BATCH_REPORT_SCHEMA_VERSION,
+                    "batch_kind": "official_web_release_tasks",
+                    "status": "succeeded",
+                    "steps": [],
+                },
+            ) as run_batch,
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            runner.main(
+                [
+                    "official-web-release-tasks",
+                    "--worker-id",
+                    "ow-release-worker",
+                    "--lease-seconds",
+                    "120",
+                    "--work-dir",
+                    "/tmp/official-web-release-tasks",
+                    "--task-type",
+                    "official_web_selected_write_contact_directory",
+                    "--reset-index",
+                ]
+            )
+
+        run_batch.assert_called_once_with(
+            worker_id="ow-release-worker",
+            lease_seconds=120,
+            work_dir="/tmp/official-web-release-tasks",
+            task_types=("official_web_selected_write_contact_directory",),
+            declarations_path=None,
+            reset_index=True,
+            policy=ANY,
+        )
+        payload = json.loads(stdout.getvalue())
+        self.assertEqual(payload["batch_kind"], "official_web_release_tasks")
 
     def test_cli_requires_consumer_admission_manifest_for_internal_notice_drain(self) -> None:
         with (

@@ -73,6 +73,35 @@ class IngestionWorkerDeploymentPreflightTest(unittest.TestCase):
             check_by_name["wechat_public_notice_multimodal_runtime"]["status"], "passed"
         )
 
+    def test_static_preflight_passes_for_official_web_release_tasks(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            work_dir = root / "official-web-release-tasks"
+            report = preflight.run_deployment_preflight(
+                batch_kinds=("official-web-release-tasks",),
+                env={
+                    "CAMPUS_SHARED_POSTGRES_URL": "postgresql://localhost:5432/campus_dev",
+                    "CAMPUS_SHARED_POSTGRES_OPERATOR_URL": (
+                        "postgresql://localhost:5432/campus_dev"
+                    ),
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "INGESTION_WORKER_OFFICIAL_WEB_RELEASE_TASK_WORK_DIR": str(work_dir),
+                },
+                live=False,
+                lock_dir=root / "locks",
+                report_dir=root / "reports",
+            )
+
+        self.assertEqual(report["status"], "passed")
+        check_by_name = {check["name"]: check for check in report["checks"]}
+        self.assertEqual(
+            check_by_name["official_web_release_task_work_dir_writable"]["status"], "passed"
+        )
+
     def test_static_preflight_fails_when_required_batch_env_is_missing(self) -> None:
         with TemporaryDirectory() as temp_dir:
             report = preflight.run_deployment_preflight(

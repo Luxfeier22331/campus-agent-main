@@ -7,6 +7,9 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
+from campus_ingestion_core.official_web_release_task_store import (
+    InMemoryOfficialWebReleaseTaskStore,
+)
 from campus_ingestion_worker.official_web_handoff_consumer_reporting import (
     build_consumer_candidate_review_report,
 )
@@ -411,6 +414,10 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
                     "materializationPolicy": "candidate_only",
                     "selectedWriteTarget": "campus_services/contact_directory",
                     "reviewPolicy": "selected_write_requires_review",
+                    "targetCandidateId": "owcand_contact_reviewed",
+                    "targetDeclarationVersion": "test_target_inventory_v1",
+                    "targetId": "campus-services-contact-directory",
+                    "targetJobId": "owtarget_contact_reviewed",
                     "matchedEvidence": ["phone", "location"],
                     "matchedKeywords": ["联系我们"],
                     "matchedPatterns": [],
@@ -499,6 +506,10 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
                     "materializationPolicy": "candidate_only",
                     "selectedWriteTarget": "campus_services/contact_directory",
                     "reviewPolicy": "selected_write_requires_review",
+                    "targetCandidateId": "owcand_contact_reviewed",
+                    "targetDeclarationVersion": "test_target_inventory_v1",
+                    "targetId": "campus-services-contact-directory",
+                    "targetJobId": "owtarget_contact_reviewed",
                     "matchedEvidence": ["phone", "location"],
                     "matchedKeywords": ["联系我们"],
                     "matchedPatterns": [],
@@ -553,6 +564,7 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             )
             document_registry = InMemoryDocumentRegistry()
             raw_asset_registry = InMemoryRawAssetRegistry()
+            release_task_store = InMemoryOfficialWebReleaseTaskStore()
 
             result = consume_handoff_record(
                 record_path=record_path,
@@ -567,6 +579,7 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
                 raw_asset_registry=raw_asset_registry,
                 derived_object_store=object_store,
                 consumer_review_manifest_path=review_manifest_path,
+                release_task_store=release_task_store,
             )
 
             self.assertEqual(result.status, "staged")
@@ -588,6 +601,26 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             self.assertEqual(
                 review["selectedWrite"]["preview_records"][0]["target_collection"],
                 "contact_directory",
+            )
+            tasks = release_task_store.list_tasks()
+            self.assertEqual(len(tasks), 1)
+            self.assertEqual(tasks[0].status, "queued")
+            self.assertEqual(tasks[0].task_type, "official_web_selected_write_contact_directory")
+            self.assertEqual(tasks[0].inventory_id, review["candidates"][0]["candidate_key"])
+            self.assertEqual(tasks[0].job_id, "owtarget_contact_reviewed")
+            self.assertEqual(tasks[0].run_id, "owrun_projection_reviewed_candidate")
+            self.assertEqual(
+                tasks[0].selected_write_target,
+                "campus_services/contact_directory",
+            )
+            self.assertEqual(
+                tasks[0].input_ref["sourceObjectKeys"],
+                [
+                    _bundle_key(
+                        site_id="campus_public",
+                        run_id="owrun_projection_reviewed_candidate",
+                    )
+                ],
             )
             self.assertIsNone(execution_report["import"])
             self.assertEqual(execution_report["promotion"]["decision"], "staged")

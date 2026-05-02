@@ -7,6 +7,7 @@ REPO_ROOT = Path(__file__).resolve().parents[1]
 RUN_SCRIPT = REPO_ROOT / "scripts/run-internal-notice-multimodal-drain.sh"
 RUN_BATCH_SCRIPT = REPO_ROOT / "scripts/run-ingestion-worker-batch.sh"
 RUN_OFFICIAL_WEB_SCRIPT = REPO_ROOT / "scripts/run-official-web-handoffs.sh"
+RUN_OFFICIAL_WEB_RELEASE_TASKS_SCRIPT = REPO_ROOT / "scripts/run-official-web-release-tasks.sh"
 RUN_CLOSEOUT_SCRIPT = REPO_ROOT / "scripts/run-authenticated-notice-closeout.sh"
 RUN_WECHAT_SCRIPT = REPO_ROOT / "scripts/run-wechat-public-notices.sh"
 SERVICE_UNIT = REPO_ROOT / "infra/local/systemd/campus-ingestion-internal-notice.service"
@@ -48,6 +49,9 @@ class IngestionWorkerOnDemandOpsTest(unittest.TestCase):
         script = RUN_SCRIPT.read_text(encoding="utf-8")
         batch_script = RUN_BATCH_SCRIPT.read_text(encoding="utf-8")
         official_web_script = RUN_OFFICIAL_WEB_SCRIPT.read_text(encoding="utf-8")
+        official_web_release_tasks_script = RUN_OFFICIAL_WEB_RELEASE_TASKS_SCRIPT.read_text(
+            encoding="utf-8"
+        )
         closeout_script = RUN_CLOSEOUT_SCRIPT.read_text(encoding="utf-8")
         wechat_script = RUN_WECHAT_SCRIPT.read_text(encoding="utf-8")
 
@@ -77,6 +81,14 @@ class IngestionWorkerOnDemandOpsTest(unittest.TestCase):
             batch_script.index("batch_command=("),
         )
         self.assertIn("official-web-handoffs", official_web_script)
+        self.assertIn("INGESTION_ON_DEMAND_OFFICIAL_WEB_ADMIT_RELEASE_TASKS", official_web_script)
+        self.assertIn("--admit-release-tasks", official_web_script)
+        self.assertIn("official-web-release-tasks", official_web_release_tasks_script)
+        self.assertIn(
+            "INGESTION_ON_DEMAND_OFFICIAL_WEB_RELEASE_TASK_WORK_DIR",
+            official_web_release_tasks_script,
+        )
+        self.assertIn("--task-type", official_web_release_tasks_script)
         self.assertIn("authenticated-notice-closeout", closeout_script)
         self.assertIn("wechat-public-notices", wechat_script)
         self.assertIn("wechat-public-notice-multimodal-drain", wechat_script)

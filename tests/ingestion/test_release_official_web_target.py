@@ -22,19 +22,12 @@ class _FakeObjectStore:
         self.objects[(bucket, key)] = data
 
 
-class _FakeAppApiClient:
-    def __init__(self, release_gate: dict[str, object]) -> None:
-        self.release_gate = release_gate
-        self.status_updates: list[tuple[str, dict[str, object]]] = []
+class _FakeProjectionReporter:
+    def __init__(self) -> None:
+        self.snapshots: list[dict[str, object]] = []
 
-    def get_release_gate(self, *, release_id: str) -> dict[str, object]:
-        self.status_updates.append(("get", {"release_id": release_id}))
-        return self.release_gate
-
-    def update_release_gate_execution_status(
-        self, *, release_id: str, payload: dict[str, object]
-    ) -> None:
-        self.status_updates.append((release_id, payload))
+    def report(self, *, snapshot: dict[str, object]) -> None:
+        self.snapshots.append(snapshot)
 
 
 @dataclass(frozen=True)
@@ -62,10 +55,10 @@ def _write_json(path: Path, payload: object) -> None:
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
 
 
-def _release_gate() -> dict[str, object]:
+def _release_task() -> dict[str, object]:
     return {
-        "decision": "approved",
-        "evidenceJson": {
+        "createdAt": "2026-05-01T08:00:00+00:00",
+        "inputRef": {
             "sourceObjectKeys": [
                 "official_web/muc_public/runs/owrun_school_intro/source-truth-bundle.json"
             ],
@@ -74,9 +67,11 @@ def _release_gate() -> dict[str, object]:
         "inventoryId": "muc-school-introduction-reference",
         "jobId": "owtarget_school_intro",
         "publishAlias": False,
-        "releaseId": "owrelease_muc_school_introduction_reference_owrun_school_intro",
         "runId": "owrun_school_intro",
-        "status": "approved",
+        "status": "claimed",
+        "taskId": "owrelease_muc_school_introduction_reference_owrun_school_intro",
+        "taskType": "official_web_stable_reference",
+        "updatedAt": "2026-05-01T08:00:00+00:00",
     }
 
 
@@ -100,7 +95,7 @@ class ReleaseOfficialWebTargetTest(unittest.TestCase):
                     ).encode("utf-8")
                 }
             )
-            client = _FakeAppApiClient(_release_gate())
+            reporter = _FakeProjectionReporter()
             document_registry = object()
             raw_asset_registry = object()
 
@@ -194,12 +189,12 @@ class ReleaseOfficialWebTargetTest(unittest.TestCase):
                 ) as release_registry_scope,
             ):
                 result = release_official_web_target(
-                    release_id="owrelease_muc_school_introduction_reference_owrun_school_intro",
-                    app_api_client=client,
+                    release_task=_release_task(),
                     object_store=object_store,
                     derived_object_store=object_store,
                     document_registry=document_registry,
                     raw_asset_registry=raw_asset_registry,
+                    projection_reporter=reporter,
                     work_dir=root / "release",
                 )
 
@@ -212,6 +207,7 @@ class ReleaseOfficialWebTargetTest(unittest.TestCase):
                 preparation_run_id="owrelease_muc_school_introduction_reference_owrun_school_intro",
                 registry=document_registry,
                 object_store=object_store,
+                official_web_min_release_documents=1,
             )
             filtered_report = json.loads(
                 (kwargs["projection_output_dir"] / "projection-report.json").read_text(
@@ -229,14 +225,12 @@ class ReleaseOfficialWebTargetTest(unittest.TestCase):
                 acceptance_case_path=None,
                 reset_index=False,
                 publish_alias=False,
+                official_web_min_release_documents=1,
             )
             self.assertEqual(result.status, "indexed")
+            self.assertEqual(result.document_ids, ("doc_target",))
             self.assertEqual(
-                [
-                    payload.get("status")
-                    for _, payload in client.status_updates
-                    if "status" in payload
-                ],
+                [snapshot["status"] for snapshot in reporter.snapshots],
                 ["running", "materialized", "indexed"],
             )
 

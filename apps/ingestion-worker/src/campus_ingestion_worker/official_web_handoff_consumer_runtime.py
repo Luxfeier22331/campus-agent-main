@@ -18,6 +18,10 @@ from campus_ingestion_core.campusrag_ingestion_reporting import (
     write_import_report,
 )
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
+from campus_ingestion_core.official_web_release_task_admission import (
+    admit_selected_write_release_tasks_from_review,
+)
+from campus_ingestion_core.official_web_release_task_store import OfficialWebReleaseTaskStore
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
 from campus_ingestion_core.source_handoff_store import SourceHandoffStore
 
@@ -82,6 +86,7 @@ def consume_official_web_handoffs(
     consumer_review_manifest_path: Path | None = None,
     status_reporter: OfficialWebExecutionStatusReporter | None = None,
     source_handoff_store: SourceHandoffStore | None = None,
+    release_task_store: OfficialWebReleaseTaskStore | None = None,
 ) -> OfficialWebHandoffConsumeBatchReport:
     runtime_settings = resolve_runtime_settings(settings=settings, promote_import=promote_import)
     runtime_object_store = object_store or S3ObjectStoreAdmin(ObjectStoreSettings.from_env())
@@ -113,6 +118,7 @@ def consume_official_web_handoffs(
             consumer_review_manifest_path=consumer_review_manifest_path,
             status_reporter=runtime_status_reporter,
             source_handoff_store=source_handoff_store,
+            release_task_store=release_task_store,
         )
         for record_path in record_paths
     ]
@@ -146,6 +152,7 @@ def consume_handoff_record(
     consumer_review_manifest_path: Path | None = None,
     status_reporter: OfficialWebExecutionStatusReporter | None = None,
     source_handoff_store: SourceHandoffStore | None = None,
+    release_task_store: OfficialWebReleaseTaskStore | None = None,
 ) -> OfficialWebHandoffConsumeResult:
     record = read_json(record_path)
     event_id = require_text(record.get("eventId"), "eventId")
@@ -319,6 +326,12 @@ def consume_handoff_record(
         execution_report["chunkAudit"] = asdict(chunk_audit_report)
         execution_report["coverage"] = coverage_report
         execution_report["consumerCandidateReview"] = consumer_candidate_review_report
+        execution_report["releaseTasks"] = _admit_selected_write_release_tasks(
+            release_task_store=release_task_store,
+            review_report=consumer_candidate_review_report,
+            run_id=run_id,
+            source_object_keys=[bundle_key],
+        )
         execution_report["promotion"] = promotion_report
         if not settings.promote_import or not promotion_report["eligible"]:
             staged_error = None
@@ -484,6 +497,34 @@ def _execution_ref(
 def _run_admission_decision_from_payload(payload: dict[str, object]) -> dict[str, object] | None:
     decision = payload.get("runAdmissionDecision") or payload.get("run_admission_decision")
     return decision if isinstance(decision, dict) else None
+
+
+def _admit_selected_write_release_tasks(
+    *,
+    release_task_store: OfficialWebReleaseTaskStore | None,
+    review_report: dict[str, object],
+    run_id: str,
+    source_object_keys: list[str],
+) -> dict[str, object]:
+    if release_task_store is None:
+        return {
+            "admittedCount": 0,
+            "enabled": False,
+            "reason": "release_task_store_not_configured",
+            "taskIds": [],
+        }
+    admitted = admit_selected_write_release_tasks_from_review(
+        release_task_store=release_task_store,
+        review_report=review_report,
+        run_id=run_id,
+        source_object_keys=source_object_keys,
+    )
+    return {
+        "admittedCount": len(admitted),
+        "enabled": True,
+        "reason": "selected_write_admitted" if admitted else "no_selected_write_ready_records",
+        "taskIds": [task.task_id for task in admitted],
+    }
 
 
 def _mark_canonical_step_passed(
