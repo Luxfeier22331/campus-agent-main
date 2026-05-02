@@ -130,6 +130,8 @@ class IndexReleaseManifest:
     chunk_quality_status: str = ""
     qrels_coverage_status: str = "not_applicable"
     release_metadata_consistency_status: str = ""
+    release_admission_manifest_key: str | None = None
+    release_admission_status: str = ""
     post_publish_audit_status: str = ""
     post_publish_audit_summary_object_key: str | None = None
 
@@ -269,6 +271,8 @@ def build_index_release_manifest(
     chunk_quality_status: str = "",
     qrels_coverage_status: str = "not_applicable",
     release_metadata_consistency_status: str = "",
+    release_admission_manifest_key: str | None = None,
+    release_admission_status: str = "",
 ) -> IndexReleaseManifest:
     if not chunks:
         raise ValueError("chunks must not be empty")
@@ -389,6 +393,8 @@ def build_index_release_manifest(
         chunk_quality_status=chunk_quality_status,
         qrels_coverage_status=qrels_coverage_status,
         release_metadata_consistency_status=release_metadata_consistency_status,
+        release_admission_manifest_key=release_admission_manifest_key,
+        release_admission_status=release_admission_status,
     )
 
 
@@ -550,6 +556,8 @@ def build_release_metadata_payload(
         "chunk_quality_status": manifest.chunk_quality_status,
         "qrels_coverage_status": manifest.qrels_coverage_status,
         "release_metadata_consistency_status": manifest.release_metadata_consistency_status,
+        "release_admission_manifest_key": manifest.release_admission_manifest_key,
+        "release_admission_status": manifest.release_admission_status,
     }
 
 
@@ -558,11 +566,17 @@ def validate_scope_release(
     corpus: str,
     collection: str,
     chunks: Sequence[IndexableChunk],
+    official_web_min_release_documents: int | None = None,
 ) -> IndexReleaseValidationResult:
     if collection == "curriculum_plan":
         return _validate_curriculum_release(chunks)
     if corpus == "official_web":
-        return _validate_official_web_release(chunks)
+        return _validate_official_web_release(
+            chunks,
+            min_release_documents=(
+                official_web_min_release_documents or _OFFICIAL_WEB_MIN_RELEASE_DOCUMENTS
+            ),
+        )
     return _validate_default_release(chunks)
 
 
@@ -584,7 +598,11 @@ def _validate_default_release(chunks: Sequence[IndexableChunk]) -> IndexReleaseV
 
 def _validate_official_web_release(
     chunks: Sequence[IndexableChunk],
+    *,
+    min_release_documents: int,
 ) -> IndexReleaseValidationResult:
+    if min_release_documents < 1:
+        raise ValueError("official_web min release documents must be at least 1")
     token_counts = [int(chunk.metadata.get("final_token_count") or 0) for chunk in chunks]
     page_family_counts = _count_by_value(
         str(chunk.metadata.get("page_family") or "unknown") for chunk in chunks
@@ -606,7 +624,8 @@ def _validate_official_web_release(
     summary = {
         "chunk_count": len(chunks),
         "document_count": document_count,
-        "documents_below_minimum": 1 if document_count < _OFFICIAL_WEB_MIN_RELEASE_DOCUMENTS else 0,
+        "minimum_document_count": min_release_documents,
+        "documents_below_minimum": 1 if document_count < min_release_documents else 0,
         "disallowed_page_family_chunks": disallowed_page_family_chunks,
         "audit_only_chunks": audit_only_chunks,
         "non_promotable_serving_intent_chunks": non_promotable_serving_intent_chunks,

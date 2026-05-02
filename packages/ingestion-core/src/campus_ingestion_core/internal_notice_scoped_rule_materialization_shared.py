@@ -68,6 +68,9 @@ class InternalNoticeScopedRuleMaterializationReport:
     source_document_ids: tuple[str, ...]
     raw_asset_id: str
     raw_version_id: str
+    rag_release_candidate_created_count: int = 0
+    rag_release_candidate_skipped_unchanged_count: int = 0
+    rag_release_candidate_ids: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

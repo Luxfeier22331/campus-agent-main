@@ -16,6 +16,16 @@ from campus_ingestion_core.registry_scope_release import (
     publish_scope_release,
     release_registry_scope,
 )
+from campus_ingestion_core.registry_scope_release_support import (
+    release_payload_mismatch_issues,
+)
+from campus_ingestion_core.regulation_rag_release_admission import (
+    build_regulation_rag_release_admission_manifest,
+    write_regulation_rag_release_admission_manifest,
+)
+from campus_ingestion_core.registry_scope_chunk_preparation import (
+    prepare_registry_scope_chunks,
+)
 from campus_ingestion_core.settings import ObjectStoreSettings
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
@@ -125,6 +135,39 @@ def _make_record(
     )
 
 
+def _make_regulation_record(
+    *,
+    document_id: str = "institutional-rule:001",
+    version_id: str = "regver:001",
+    object_key: str = (
+        "regulations/documents/institutional_rules/rule-001/"
+        "current-effective/2026/document-units.jsonl"
+    ),
+) -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id=document_id,
+        revision_track="current-effective",
+        version_id=version_id,
+        source_uri=f"authenticated_notice:policy-regulation:{document_id}",
+        content_hash=f"sha256:{document_id}",
+        corpus="regulations",
+        collection="institutional_rules",
+        cleaning_policy_version="institutional_rules_cleaning_v1",
+        entitlement_groups=("campus_members",),
+        visibility_scope="campus",
+        visibility_level="restricted",
+        status="active",
+        ingestion_timestamp="2026-05-02T10:00:00+00:00",
+        parser_version="institutional_regulation_materialization_v1",
+        embedding_model="mock-embedding-8d",
+        source_channel="authenticated_notice_portal",
+        is_current=True,
+        document_units_object_key=object_key,
+        processed_object_keys=(object_key,),
+        import_source="authenticated_notice_regulation_materialization",
+    )
+
+
 def _make_indexable_chunk(
     *,
     record: DocumentRegistryRecord,
@@ -161,6 +204,17 @@ def _make_indexable_chunk(
 
 
 class RegistryScopeReleaseTest(unittest.TestCase):
+    def test_release_payload_audit_allows_missing_none_metadata(self) -> None:
+        issues = release_payload_mismatch_issues(
+            payloads=({"release_id": "r20260502"},),
+            expected_release_metadata={
+                "release_id": "r20260502",
+                "reranker_top_n": None,
+            },
+        )
+
+        self.assertEqual(issues, ())
+
     def test_post_publish_audit_includes_payload_filter_index_audit(self) -> None:
         class _FakeRemoteQdrant:
             def get_aliases(self):
@@ -359,6 +413,168 @@ class RegistryScopeReleaseTest(unittest.TestCase):
                     qdrant_client=QdrantClient(location=":memory:"),
                     publish_alias=True,
                 )
+
+    def test_release_registry_scope_requires_admission_for_query_enabled_regulation(self) -> None:
+        record = _make_regulation_record()
+
+        with self.assertRaisesRegex(ValueError, "release admission manifest key is required"):
+            release_registry_scope(
+                corpus="regulations",
+                collection="institutional_rules",
+                preparation_run_id="prep-001",
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "EMBEDDING_PROVIDER": "mock",
+                    "EMBEDDING_MODEL": "mock-embedding-8d",
+                    "SPARSE_PROVIDER": "mock",
+                },
+                registry=InMemoryDocumentRegistry((record,)),
+                object_store=_FakeObjectStore(),
+                qdrant_client=QdrantClient(location=":memory:"),
+                publish_alias=True,
+            )
+
+    def test_release_registry_scope_allows_query_enabled_regulation_with_matching_admission(
+        self,
+    ) -> None:
+        record = _make_regulation_record()
+        document_units_bytes = (
+            json.dumps(
+                {
+                    "doc_id": record.document_id,
+                    "version_id": record.version_id,
+                    "chunk_id": f"{record.document_id}:unit:0001",
+                    "clean_text": "第一条 为规范学生社团管理，制定本办法。",
+                    "anchor": {"section_path": ["第一章 总则"]},
+                    "acl": {"level": "restricted", "allow_groups": ["campus_members"]},
+                    "metadata": {
+                        "unit_type": "article",
+                        "chunk_lane": "formal_regulation",
+                        "promotion_class": "formal_regulation",
+                        "root_unit_id": f"{record.document_id}:root",
+                        "cleaning_policy_version": "institutional_rules_cleaning_v1",
+                        "chunk_policy_version": "institutional_rules_semantic_v1",
+                        "normalizer_version": "collected_notice_regulation_canonical_cleaning_v2",
+                        "normalization_quality": {
+                            "quality_verdict": "passed",
+                            "cleaning_policy_version": "institutional_rules_cleaning_v1",
+                        },
+                    },
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+        registry = InMemoryDocumentRegistry((record,))
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", record.document_units_object_key or ""): document_units_bytes
+            }
+        )
+        env = {
+            "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+            "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+            "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+            "EMBEDDING_PROVIDER": "mock",
+            "EMBEDDING_MODEL": "mock-embedding-8d",
+            "SPARSE_PROVIDER": "mock",
+        }
+        preparation_report = prepare_registry_scope_chunks(
+            corpus="regulations",
+            collection="institutional_rules",
+            preparation_run_id="prep-001",
+            env=env,
+            registry=registry,
+            object_store=object_store,
+            require_current_cleaning_provenance=True,
+        )
+        preparation_manifest = json.loads(
+            object_store.objects[
+                ("campus-rag-derived", preparation_report.manifest_object_key)
+            ].decode("utf-8")
+        )
+        admission_manifest = build_regulation_rag_release_admission_manifest(
+            admission_run_id="admit-001",
+            corpus="regulations",
+            collection="institutional_rules",
+            records=(record,),
+            runtime_profile=load_runtime_profile("regulations", "institutional_rules"),
+            preparation_manifest=SimpleNamespace(
+                documents=[
+                    SimpleNamespace(**document)
+                    for document in preparation_manifest["documents"]
+                ]
+            ),
+            admitted_at="2026-05-02T10:00:00+00:00",
+        )
+        admission_key = write_regulation_rag_release_admission_manifest(
+            writer=object_store,
+            bucket="campus-rag-derived",
+            manifest=admission_manifest,
+        )
+
+        report = release_registry_scope(
+            corpus="regulations",
+            collection="institutional_rules",
+            preparation_run_id="prep-001",
+            release_admission_manifest_key=admission_key,
+            env=env,
+            registry=registry,
+            object_store=object_store,
+            qdrant_client=QdrantClient(location=":memory:"),
+            publish_alias=False,
+        )
+
+        self.assertEqual(report.release_admission_status, "")
+        self.assertIsNone(report.published_at)
+
+        with TemporaryDirectory() as temp_dir:
+            qrels_path = Path(temp_dir) / "regulation-qrels.json"
+            qrels_path.write_text(
+                json.dumps(
+                    {
+                        "cases": [
+                            {
+                                "case_id": "institutional-rule-smoke",
+                                "corpus": "regulations",
+                                "collection": "institutional_rules",
+                                "query": "学生社团管理办法",
+                                "entitlement_groups": ["campus_members"],
+                                "visibility_level": "restricted",
+                                "visibility_scope": "campus",
+                            }
+                        ]
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            published_report = release_registry_scope(
+                corpus="regulations",
+                collection="institutional_rules",
+                preparation_run_id="prep-001",
+                release_admission_manifest_key=admission_key,
+                env={
+                    **env,
+                    "EMBEDDING_PROVIDER": "mock",
+                    "EMBEDDING_MODEL": "mock-embedding-8d",
+                    "INGESTION_EMBEDDING_MODEL": "mock-embedding-8d",
+                    "QDRANT_URL": ":memory:",
+                },
+                registry=registry,
+                object_store=object_store,
+                qdrant_client=QdrantClient(location=":memory:"),
+                publish_alias=True,
+                acceptance_case_path=str(qrels_path),
+                qrels_coverage_issues=(),
+            )
+
+        self.assertEqual(published_report.release_admission_status, "passed")
+        self.assertEqual(published_report.release_admission_manifest_key, admission_key)
 
     def test_release_registry_scope_writes_manifest_without_publishing_alias(self) -> None:
         with TemporaryDirectory() as temp_dir:

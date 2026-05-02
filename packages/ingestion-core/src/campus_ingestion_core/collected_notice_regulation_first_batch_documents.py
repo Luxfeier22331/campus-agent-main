@@ -9,6 +9,9 @@ from typing import Any
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
 from campus_ingestion_core.campusrag_ingestion_support import DocumentImportInput
+from campus_ingestion_core.collected_notice_regulation_text_normalization import (
+    REGULATION_CANONICAL_NORMALIZER_VERSION,
+)
 from campus_ingestion_core.internal_notice_regulation_projection import (
     build_institutional_regulation_version_id,
 )
@@ -19,13 +22,19 @@ PHASE_09_ID = "phase-09-first-batch-regulation-promotion-write-gate"
 
 _TARGET_IMPORT_SOURCE = "collected_notice_regulation_first_batch_promotion"
 _TARGET_SOURCE_CHANNEL = "authenticated_notice_portal"
+_DOCUMENT_UNITS_SCHEMA_VERSION = "document_units_jsonl"
 _ARTICLE_OR_CHAPTER_RE = re.compile(
     r"(?=^第[一二三四五六七八九十百千万0-9]+[章节条][^\n]*)",
     re.MULTILINE,
 )
 
 
-def build_document_import_input(document: Mapping[str, Any]) -> DocumentImportInput:
+def build_document_import_input(
+    document: Mapping[str, Any],
+    *,
+    promotion_phase_id: str = PHASE_09_ID,
+    import_source: str = _TARGET_IMPORT_SOURCE,
+) -> DocumentImportInput:
     target_collection = _required_text(document.get("target_collection"), "target_collection")
     title = _required_text(document.get("title"), "title")
     target_document_id = _required_text(document.get("target_document_id"), "target_document_id")
@@ -56,12 +65,12 @@ def build_document_import_input(document: Mapping[str, Any]) -> DocumentImportIn
         "status": "active",
     }
     return DocumentImportInput(
-        source_label=f"{PHASE_09_ID}:{target_document_id}",
+        source_label=f"{promotion_phase_id}:{target_document_id}",
         document_units_bytes=document_units_bytes,
         provider_response_bytes=None,
         canonical_markdown_bytes=canonical_markdown.encode("utf-8"),
         metadata=metadata,
-        import_source=_TARGET_IMPORT_SOURCE,
+        import_source=import_source,
         revision_track="current-effective",
         source_channel=_TARGET_SOURCE_CHANNEL,
         is_current=True,
@@ -99,6 +108,12 @@ def serialize_document_units(
     source_notice_id = source_notice_ids[0] if source_notice_ids else ""
     source_document_id = source_document_ids[0] if source_document_ids else ""
     source_notice_document_id = f"notice:muc_internal_portal:{source_notice_id}"
+    normalization_quality = _normalization_quality(document)
+    normalizer_version = str(
+        normalization_quality.get("normalizer_version")
+        or REGULATION_CANONICAL_NORMALIZER_VERSION
+    )
+    cleaning_policy_version = f"{target_collection}_cleaning_v1"
     common_metadata = {
         "title": title,
         "promotion_source_collection": "authenticated_documents/file_release_source",
@@ -111,6 +126,10 @@ def serialize_document_units(
         "regulation_title_normalized": title,
         "source_title_literal": title,
         "semantic_content_hash": semantic_content_hash,
+        "normalizer_version": normalizer_version,
+        "cleaning_policy_version": cleaning_policy_version,
+        "document_units_schema_version": _DOCUMENT_UNITS_SCHEMA_VERSION,
+        "normalization_quality": normalization_quality,
     }
     if target_collection == INSTITUTIONAL_TARGET_COLLECTION:
         title_unit_type = "regulation_title"
@@ -234,6 +253,17 @@ def _canonical_body_chunks(canonical_markdown: str) -> tuple[str, ...]:
 def _resolve_scoped_rule_document_nature(document: Mapping[str, Any]) -> str:
     del document
     return "time_bound_operational_rule"
+
+
+def _normalization_quality(document: Mapping[str, Any]) -> dict[str, Any]:
+    quality = document.get("normalization_quality")
+    if not isinstance(quality, Mapping):
+        return {
+            "quality_verdict": "unknown",
+            "normalizer_version": REGULATION_CANONICAL_NORMALIZER_VERSION,
+            "reason_codes": ["missing_normalization_quality"],
+        }
+    return dict(quality)
 
 
 def _source_url(document: Mapping[str, Any]) -> str:

@@ -260,6 +260,69 @@ class AuthenticatedNoticeProcessingProjectionTest(unittest.TestCase):
             "regulations/institutional_rules",
         )
 
+    def test_builds_regulation_rag_release_status_downstream_projection(self) -> None:
+        bundle_bytes = support._json_bytes([{"notice_id": "188889"}])
+        manifest_bytes = support._json_bytes({"run_id": "run-003"})
+        job = support._job(
+            run_id="run-003",
+            bundle_sha=support._sha(bundle_bytes),
+            bundle_size=len(bundle_bytes),
+            manifest_sha=support._sha(manifest_bytes),
+            manifest_size=len(manifest_bytes),
+        )
+        record = build_notice_ingest_queue_record(job)
+        trace_row = {
+            "status": "completed",
+            "import_result": {
+                "selected_notices": [
+                    {
+                        "notice_id": "188889",
+                        "title": "中央民族大学采购工作管理办法",
+                    }
+                ],
+                "selected_notice_ids": ["188889"],
+            },
+            "downstream_materialization": {
+                "status": "completed",
+                "typed_materialization": {
+                    "status": "completed",
+                    "materialized_releases": [
+                        {
+                            "candidate_kind": "regulation",
+                            "collection": "institutional_rules",
+                            "corpus": "regulations",
+                            "current": True,
+                            "document_site_status": "published",
+                            "notice_ids": ["188889"],
+                            "rag_index_status": "indexed",
+                            "rag_preparation_status": "completed",
+                            "rag_serving_status": "serving_published",
+                            "rag_verification_status": "passed",
+                            "release_id": "regulation-institutional-rules-run-003",
+                        }
+                    ],
+                },
+            },
+        }
+
+        snapshots = build_authenticated_notice_processing_snapshots(
+            record=record,
+            trace_row=trace_row,
+            projected_at="2026-05-01T09:30:01.000Z",
+            producer_version="test@1",
+        )
+
+        self.assertEqual(
+            snapshots[0]["downstream"]["ragReleaseStatus"],
+            {
+                "documentSiteStatus": "published",
+                "ragIndexStatus": "indexed",
+                "ragPreparationStatus": "completed",
+                "ragServingStatus": "serving_published",
+                "ragVerificationStatus": "passed",
+            },
+        )
+
     def test_builds_operator_visible_regulation_audit_cleanup_timeline_payload(self) -> None:
         bundle_bytes = support._json_bytes([{"notice_id": "186977"}])
         manifest_bytes = support._json_bytes({"run_id": "run-004"})

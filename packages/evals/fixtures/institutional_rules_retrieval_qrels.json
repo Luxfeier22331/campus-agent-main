@@ -8,35 +8,23 @@
 		"fusion": "rrf"
 	},
 	"coverage_scenarios": {
-		"institutional_policy_title": ["institutional-procurement-title"],
-		"effective_date": ["institutional-procurement-effective-date"],
-		"authz_denied": ["institutional-ai-guidance-authz-deny"],
-		"version_locked": ["institutional-ai-guidance-title-version"],
+		"institutional_policy_title": [
+			"institutional-graduate-employment-reward-title",
+			"institutional-student-association-management-title"
+		],
+		"effective_date": ["institutional-graduate-employment-reward-effective-scope"],
+		"authz_denied": ["institutional-student-association-management-authz-deny"],
+		"version_locked": [
+			"institutional-graduate-employment-reward-title",
+			"institutional-student-association-management-title"
+		],
 		"no_hit": ["no-hit-impossible-institutional-rule"]
 	},
 	"cases": [
 		{
-			"case_id": "institutional-procurement-title",
-			"split": "smoke",
-			"query": "中央民族大学采购工作管理办法",
-			"request_overrides": {
-				"entitlement_groups": ["campus_members"],
-				"visibility_scope": "campus",
-				"visibility_level": "restricted"
-			},
-			"expected_sources": [
-				{
-					"doc_id": "institutional_regulation:muc:中央民族大学采购工作管理办法:219ecb636aaf",
-					"version_id": "sha256:77dc1a8d41d6a6e8d137d7e1f68608ab8b2009f059e69852adae6acd99d03e09:effective-2021年3月1日:revision-修订",
-					"grade": 2,
-					"rationale": "标题精确问法应命中采购工作管理办法当前制度正文。"
-				}
-			]
-		},
-		{
-			"case_id": "institutional-procurement-effective-date",
+			"case_id": "institutional-graduate-employment-reward-title",
 			"split": "release_gate",
-			"query": "中央民族大学采购工作管理办法什么时候开始施行",
+			"query": "中央民族大学毕业生就业奖励办法",
 			"request_overrides": {
 				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
@@ -44,17 +32,17 @@
 			},
 			"expected_sources": [
 				{
-					"doc_id": "institutional_regulation:muc:中央民族大学采购工作管理办法:219ecb636aaf",
-					"version_id": "sha256:77dc1a8d41d6a6e8d137d7e1f68608ab8b2009f059e69852adae6acd99d03e09:effective-2021年3月1日:revision-修订",
+					"doc_id": "institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7",
+					"version_id": "sha256:33bce1e9bd2424dba77eab3385d52fa3bb21489d9673a61f94ecb7bd2e9e86f4:effective-undated:revision-none",
 					"grade": 2,
-					"rationale": "生效日期问法应仍回到同一 current-effective 制度正文。"
+					"rationale": "Phase 13 回填的制度标题问法应命中毕业生就业奖励办法当前正文。"
 				}
 			]
 		},
 		{
-			"case_id": "institutional-ai-guidance-title-version",
-			"split": "smoke",
-			"query": "中央民族大学关于学生使用人工智能的指导意见2026版",
+			"case_id": "institutional-student-association-management-title",
+			"split": "release_gate",
+			"query": "中央民族大学学生社团管理办法",
 			"request_overrides": {
 				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
@@ -62,22 +50,40 @@
 			},
 			"expected_sources": [
 				{
-					"doc_id": "institutional_regulation:muc:中央民族大学关于学生使用人工智能的指导意见:60410b2486e0",
-					"version_id": "sha256:54a9780979aa46f22715f422b3b46c56673d68c9a83bc4597a5ab30905e6eed9:effective-undated:revision-2026版",
+					"doc_id": "institutional_regulation:muc:中央民族大学学生社团管理办法:7da72ac3d796",
+					"version_id": "sha256:5c66a76ef416c5e1b632eea6ebdfcf7a3befe171a4761196ba5e7bb99f698136:effective-undated:revision-none",
 					"grade": 2,
-					"rationale": "版本化标题问法应命中 2026版 指导意见正文。"
+					"rationale": "Phase 13 回填的制度标题问法应命中学生社团管理办法当前正文。"
 				}
 			]
 		},
 		{
-			"case_id": "institutional-ai-guidance-authz-deny",
+			"case_id": "institutional-graduate-employment-reward-effective-scope",
+			"split": "release_gate",
+			"query": "中央民族大学毕业生就业奖励办法适用于2019届及以后毕业生吗",
+			"request_overrides": {
+				"entitlement_groups": ["campus_members"],
+				"visibility_scope": "campus",
+				"visibility_level": "restricted"
+			},
+			"expected_sources": [
+				{
+					"doc_id": "institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7",
+					"version_id": "sha256:33bce1e9bd2424dba77eab3385d52fa3bb21489d9673a61f94ecb7bd2e9e86f4:effective-undated:revision-none",
+					"grade": 2,
+					"rationale": "适用届别问法应回到毕业生就业奖励办法正文。"
+				}
+			]
+		},
+		{
+			"case_id": "institutional-student-association-management-authz-deny",
 			"split": "regression_locked",
-			"query": "中央民族大学关于学生使用人工智能的指导意见2026版",
+			"query": "中央民族大学学生社团管理办法",
 			"expected_sources": [],
 			"forbidden_sources": [
 				{
-					"doc_id": "institutional_regulation:muc:中央民族大学关于学生使用人工智能的指导意见:60410b2486e0",
-					"version_id": "sha256:54a9780979aa46f22715f422b3b46c56673d68c9a83bc4597a5ab30905e6eed9:effective-undated:revision-2026版",
+					"doc_id": "institutional_regulation:muc:中央民族大学学生社团管理办法:7da72ac3d796",
+					"version_id": "sha256:5c66a76ef416c5e1b632eea6ebdfcf7a3befe171a4761196ba5e7bb99f698136:effective-undated:revision-none",
 					"grade": 1,
 					"rationale": "没有 campus_members entitlement 时不应召回 restricted institutional regulation。"
 				}

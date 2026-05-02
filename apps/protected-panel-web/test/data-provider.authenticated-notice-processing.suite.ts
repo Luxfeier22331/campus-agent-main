@@ -19,6 +19,13 @@ const notice = {
 	downstream: {
 		candidateKind: "transport_schedule",
 		releaseId: "transport-schedule-run-001-job-001",
+		ragReleaseStatus: {
+			documentSiteStatus: "not_applicable",
+			ragIndexStatus: "not_applicable",
+			ragPreparationStatus: "not_applicable",
+			ragServingStatus: "not_serving",
+			ragVerificationStatus: "not_applicable",
+		},
 		targetSurface: "campus_services",
 		toolReady: true,
 	},
@@ -103,6 +110,9 @@ export function registerDataProviderAuthenticatedNoticeProcessingSuite() {
 			noticeId: "355867",
 			readModelCounts: {
 				scheduledDepartures: 49,
+			},
+			ragReleaseStatus: {
+				ragServingStatus: "not_serving",
 			},
 			toolReady: true,
 		});

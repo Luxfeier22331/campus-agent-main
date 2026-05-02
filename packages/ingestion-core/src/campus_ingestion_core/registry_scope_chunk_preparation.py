@@ -15,6 +15,9 @@ from campus_ingestion_core.authenticated_notice_closeout_store import (
     CloseoutStore,
     build_authenticated_notice_closeout_store_from_env,
 )
+from campus_ingestion_core.collected_notice_regulation_text_normalization import (
+    REGULATION_CANONICAL_NORMALIZER_VERSION,
+)
 from campus_ingestion_core.corpus_profiles import load_chunk_profile, load_runtime_profile
 from campus_ingestion_core.index_release import IndexReleaseValidationResult, validate_scope_release
 from campus_ingestion_core.models import DocumentRegistryRecord
@@ -145,6 +148,8 @@ def prepare_registry_scope_chunks(
     registry: DocumentRegistry | None = None,
     object_store: RegistryScopePreparationObjectStore | None = None,
     closeout_store: CloseoutStore | None = None,
+    official_web_min_release_documents: int | None = None,
+    require_current_cleaning_provenance: bool = False,
 ) -> RegistryScopeChunkPreparationReport:
     source = dict(env if env is not None else os.environ)
     runtime_profile = load_runtime_profile(corpus, collection)
@@ -185,6 +190,12 @@ def prepare_registry_scope_chunks(
             document_units_sha256_by_record_key[_record_key(record)] = hash_bytes(
                 document_units_bytes
             )
+            if require_current_cleaning_provenance:
+                _assert_current_cleaning_provenance(
+                    record=record,
+                    runtime_cleaning_policy_version=runtime_profile.cleaning_policy_version,
+                    document_units_bytes=document_units_bytes,
+                )
             document_chunks = build_indexable_chunks_from_jsonl(
                 record=record,
                 structured_jsonl_bytes=document_units_bytes,
@@ -206,6 +217,7 @@ def prepare_registry_scope_chunks(
         collection=collection,
         chunks=tuple(chunks),
         documents_without_chunks=tuple(documents_without_chunks),
+        official_web_min_release_documents=official_web_min_release_documents,
     )
     prepared_at = datetime.now(UTC).isoformat()
     manifest = build_chunk_preparation_manifest(
@@ -633,6 +645,7 @@ def _validate_prepared_scope(
     collection: str,
     chunks: Sequence[IndexableChunk],
     documents_without_chunks: Sequence[str],
+    official_web_min_release_documents: int | None = None,
 ) -> IndexReleaseValidationResult:
     if not chunks:
         return IndexReleaseValidationResult(
@@ -643,7 +656,12 @@ def _validate_prepared_scope(
                 "documents_without_chunks_count": len(documents_without_chunks),
             },
         )
-    base_validation = validate_scope_release(corpus=corpus, collection=collection, chunks=chunks)
+    base_validation = validate_scope_release(
+        corpus=corpus,
+        collection=collection,
+        chunks=chunks,
+        official_web_min_release_documents=official_web_min_release_documents,
+    )
     token_counts = [int(chunk.metadata.get("final_token_count") or 0) for chunk in chunks]
     invalid_token_count_chunks = [
         chunk.chunk_id for chunk in chunks if int(chunk.metadata.get("final_token_count") or 0) <= 0
@@ -778,6 +796,60 @@ def _hash_document_units_bytes(
     if not record.document_units_object_key:
         return ""
     return hash_bytes(object_store.get_bytes(bucket=bucket, key=record.document_units_object_key))
+
+
+def _assert_current_cleaning_provenance(
+    *,
+    record: DocumentRegistryRecord,
+    runtime_cleaning_policy_version: str,
+    document_units_bytes: bytes,
+) -> None:
+    if record.corpus != "regulations" or record.collection not in {
+        "institutional_rules",
+        "scoped_rules",
+    }:
+        return
+    rows = _document_unit_payloads(document_units_bytes)
+    if not rows:
+        raise ValueError(f"{record_label(record)} has no document-units rows")
+    for row in rows:
+        metadata = row.get("metadata")
+        if not isinstance(metadata, Mapping):
+            raise ValueError(f"{record_label(record)} is missing document-units metadata")
+        if str(metadata.get("normalizer_version") or "") != REGULATION_CANONICAL_NORMALIZER_VERSION:
+            raise ValueError(
+                "canonical cleaning provenance failed for "
+                f"{record_label(record)}: normalizer_version must be "
+                f"{REGULATION_CANONICAL_NORMALIZER_VERSION}"
+            )
+        quality = metadata.get("normalization_quality")
+        if not isinstance(quality, Mapping) or str(quality.get("quality_verdict") or "") != "passed":
+            raise ValueError(
+                "canonical cleaning provenance failed for "
+                f"{record_label(record)}: normalization quality must be passed"
+            )
+        metadata_cleaning_policy = str(
+            metadata.get("cleaning_policy_version")
+            or quality.get("cleaning_policy_version")
+            or record.cleaning_policy_version
+        )
+        if metadata_cleaning_policy != runtime_cleaning_policy_version:
+            raise ValueError(
+                "canonical cleaning provenance failed for "
+                f"{record_label(record)}: cleaning policy must match runtime profile"
+            )
+
+
+def _document_unit_payloads(document_units_bytes: bytes) -> tuple[Mapping[str, Any], ...]:
+    rows: list[Mapping[str, Any]] = []
+    for line in document_units_bytes.decode("utf-8").splitlines():
+        if not line.strip():
+            continue
+        payload = json.loads(line)
+        if not isinstance(payload, Mapping):
+            raise ValueError("document-units row must be a JSON object")
+        rows.append(payload)
+    return tuple(rows)
 
 
 __all__ = [

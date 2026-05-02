@@ -76,6 +76,7 @@ function ProcessingShowContent() {
 		"objectStoreExactKeysRemaining",
 	);
 	const qdrantResidueCount = latestTimelinePayloadValue(record, "qdrantResidueCount");
+	const ragReleaseStatus = record.ragReleaseStatus;
 
 	return (
 		<PanelPage>
@@ -191,6 +192,26 @@ function ProcessingShowContent() {
 								<FieldRow
 									label="物化状态"
 									value={record.materializationStatus || PANEL_COPY.notAvailable}
+								/>
+								<FieldRow
+									label="文档站状态"
+									value={ragReleaseStatus?.documentSiteStatus || PANEL_COPY.notAvailable}
+								/>
+								<FieldRow
+									label="RAG 准备"
+									value={ragReleaseStatus?.ragPreparationStatus || PANEL_COPY.notAvailable}
+								/>
+								<FieldRow
+									label="RAG 索引"
+									value={ragReleaseStatus?.ragIndexStatus || PANEL_COPY.notAvailable}
+								/>
+								<FieldRow
+									label="RAG Serving"
+									value={ragReleaseStatus?.ragServingStatus || PANEL_COPY.notAvailable}
+								/>
+								<FieldRow
+									label="RAG 验证"
+									value={ragReleaseStatus?.ragVerificationStatus || PANEL_COPY.notAvailable}
 								/>
 								<FieldRow label="Admission" value={admissionClass || PANEL_COPY.notAvailable} />
 								<FieldRow

@@ -3,62 +3,62 @@
 	"source_fixture": "institutional_rules_retrieval_qrels.json",
 	"corpus": "regulations",
 	"collection": "institutional_rules",
-	"gate_policy": "doc-level publish smoke gate; formal benchmark qrels remain in institutional_rules_retrieval_qrels.json",
+	"gate_policy": "current operator registry release gate; legacy canaries must not block alias publish unless their current-effective documents are present",
 	"cases": [
 		{
-			"case_id": "institutional-procurement-title",
+			"case_id": "institutional-graduate-employment-reward-title",
 			"corpus": "regulations",
 			"collection": "institutional_rules",
-			"query": "中央民族大学采购工作管理办法",
+			"query": "中央民族大学毕业生就业奖励办法",
 			"top_k": 3,
 			"expected_document_ids": [
-				"institutional_regulation:muc:中央民族大学采购工作管理办法:219ecb636aaf"
+				"institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7"
 			],
 			"expected_version_ids": [
-				"sha256:77dc1a8d41d6a6e8d137d7e1f68608ab8b2009f059e69852adae6acd99d03e09:effective-2021年3月1日:revision-修订"
+				"sha256:33bce1e9bd2424dba77eab3385d52fa3bb21489d9673a61f94ecb7bd2e9e86f4:effective-undated:revision-none"
 			],
 			"entitlement_groups": ["campus_members"],
 			"visibility_level": "restricted",
 			"visibility_scope": "campus"
 		},
 		{
-			"case_id": "institutional-procurement-effective-date",
+			"case_id": "institutional-student-association-management-title",
 			"corpus": "regulations",
 			"collection": "institutional_rules",
-			"query": "中央民族大学采购工作管理办法什么时候开始施行",
+			"query": "中央民族大学学生社团管理办法",
 			"top_k": 3,
 			"expected_document_ids": [
-				"institutional_regulation:muc:中央民族大学采购工作管理办法:219ecb636aaf"
-			],
-			"entitlement_groups": ["campus_members"],
-			"visibility_level": "restricted",
-			"visibility_scope": "campus"
-		},
-		{
-			"case_id": "institutional-ai-guidance-title-version",
-			"corpus": "regulations",
-			"collection": "institutional_rules",
-			"query": "中央民族大学关于学生使用人工智能的指导意见2026版",
-			"top_k": 3,
-			"expected_document_ids": [
-				"institutional_regulation:muc:中央民族大学关于学生使用人工智能的指导意见:60410b2486e0"
+				"institutional_regulation:muc:中央民族大学学生社团管理办法:7da72ac3d796"
 			],
 			"expected_version_ids": [
-				"sha256:54a9780979aa46f22715f422b3b46c56673d68c9a83bc4597a5ab30905e6eed9:effective-undated:revision-2026版"
+				"sha256:5c66a76ef416c5e1b632eea6ebdfcf7a3befe171a4761196ba5e7bb99f698136:effective-undated:revision-none"
 			],
 			"entitlement_groups": ["campus_members"],
 			"visibility_level": "restricted",
 			"visibility_scope": "campus"
 		},
 		{
-			"case_id": "institutional-ai-guidance-authz-deny",
+			"case_id": "institutional-graduate-employment-reward-effective-scope",
 			"corpus": "regulations",
 			"collection": "institutional_rules",
-			"query": "中央民族大学关于学生使用人工智能的指导意见2026版",
+			"query": "中央民族大学毕业生就业奖励办法适用于2019届及以后毕业生吗",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7"
+			],
+			"entitlement_groups": ["campus_members"],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-student-association-management-authz-deny",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学学生社团管理办法",
 			"top_k": 3,
 			"expected_no_hit": true,
 			"forbidden_document_ids": [
-				"institutional_regulation:muc:中央民族大学关于学生使用人工智能的指导意见:60410b2486e0"
+				"institutional_regulation:muc:中央民族大学学生社团管理办法:7da72ac3d796"
 			]
 		},
 		{

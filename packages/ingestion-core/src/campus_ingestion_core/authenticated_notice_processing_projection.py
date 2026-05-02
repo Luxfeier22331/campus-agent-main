@@ -267,7 +267,7 @@ def _downstream_summary(
 ) -> dict[str, Any] | None:
     if not release and not candidate_kind:
         return None
-    return {
+    summary = {
         "targetSurface": _target_surface(candidate_kind, release=release),
         "candidateKind": candidate_kind,
         "releaseId": _optional_text(release.get("release_id")) if release else None,
@@ -275,6 +275,34 @@ def _downstream_summary(
         "toolReady": _tool_ready(candidate_kind=candidate_kind, release=release, counts=counts),
         "readModelCounts": dict(counts),
     }
+    rag_release_status = _rag_release_status(release=release)
+    if rag_release_status is not None:
+        summary["ragReleaseStatus"] = rag_release_status
+    return summary
+
+
+def _rag_release_status(*, release: Mapping[str, Any]) -> dict[str, str] | None:
+    fields = {
+        "documentSiteStatus": _first_text(
+            release,
+            "documentSiteStatus",
+            "document_site_status",
+        ),
+        "ragPreparationStatus": _first_text(
+            release,
+            "ragPreparationStatus",
+            "rag_preparation_status",
+        ),
+        "ragIndexStatus": _first_text(release, "ragIndexStatus", "rag_index_status"),
+        "ragServingStatus": _first_text(release, "ragServingStatus", "rag_serving_status"),
+        "ragVerificationStatus": _first_text(
+            release,
+            "ragVerificationStatus",
+            "rag_verification_status",
+        ),
+    }
+    filtered = {key: value for key, value in fields.items() if value}
+    return filtered or None
 
 
 def _lifecycle_status(
@@ -434,6 +462,10 @@ def _first_present(mapping: Mapping[str, Any], *keys: str) -> object:
         if key in mapping:
             return mapping[key]
     return None
+
+
+def _first_text(mapping: Mapping[str, Any], *keys: str) -> str | None:
+    return _optional_text(_first_present(mapping, *keys))
 
 
 def _bool(value: object) -> bool:

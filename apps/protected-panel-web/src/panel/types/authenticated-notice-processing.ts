@@ -7,6 +7,14 @@ export interface AuthenticatedNoticeProcessingTimelineEvent {
 	summary: string;
 }
 
+export interface AuthenticatedNoticeRagReleaseStatus {
+	documentSiteStatus?: string;
+	ragIndexStatus?: string;
+	ragPreparationStatus?: string;
+	ragServingStatus?: string;
+	ragVerificationStatus?: string;
+}
+
 export interface RawAuthenticatedNoticeProcessingRecord {
 	attemptCount: number;
 	candidateKind: string | null;
@@ -47,7 +55,9 @@ export interface RawAuthenticatedNoticeProcessingRecord {
 }
 
 export interface AuthenticatedNoticeProcessingRecord
-	extends RawAuthenticatedNoticeProcessingRecord {}
+	extends RawAuthenticatedNoticeProcessingRecord {
+	ragReleaseStatus: AuthenticatedNoticeRagReleaseStatus | null;
+}
 
 export interface RawAuthenticatedNoticeProcessingListResponse {
 	notices: RawAuthenticatedNoticeProcessingRecord[];
@@ -63,8 +73,31 @@ export interface RawAuthenticatedNoticeProcessingDetailResponse {
 export function normalizeAuthenticatedNoticeProcessingRecord(
 	input: RawAuthenticatedNoticeProcessingRecord,
 ): AuthenticatedNoticeProcessingRecord {
+	const ragReleaseStatus = readRagReleaseStatus(input.downstream);
 	return {
 		...input,
 		id: input.id || input.noticeId,
+		ragReleaseStatus,
 	};
+}
+
+function readRagReleaseStatus(
+	downstream: Record<string, unknown> | null,
+): AuthenticatedNoticeRagReleaseStatus | null {
+	const value = downstream?.ragReleaseStatus;
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return null;
+	}
+	const record = value as Record<string, unknown>;
+	return {
+		documentSiteStatus: readOptionalString(record.documentSiteStatus),
+		ragIndexStatus: readOptionalString(record.ragIndexStatus),
+		ragPreparationStatus: readOptionalString(record.ragPreparationStatus),
+		ragServingStatus: readOptionalString(record.ragServingStatus),
+		ragVerificationStatus: readOptionalString(record.ragVerificationStatus),
+	};
+}
+
+function readOptionalString(value: unknown): string | undefined {
+	return typeof value === "string" && value.trim() ? value : undefined;
 }

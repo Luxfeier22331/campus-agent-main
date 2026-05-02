@@ -207,9 +207,9 @@ class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
         dataset = load_retrieval_qrels_dataset(INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH)
         cases = {case.case_id: case for case in dataset.cases}
 
-        self.assertIn("institutional-procurement-title", cases)
-        self.assertIn("institutional-ai-guidance-title-version", cases)
-        self.assertIn("institutional-ai-guidance-authz-deny", cases)
+        self.assertIn("institutional-graduate-employment-reward-title", cases)
+        self.assertIn("institutional-student-association-management-title", cases)
+        self.assertIn("institutional-student-association-management-authz-deny", cases)
         self.assertIn("no-hit-impossible-institutional-rule", cases)
         self.assertTrue(
             all(
@@ -220,13 +220,17 @@ class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
             )
         )
         self.assertEqual(
-            cases["institutional-ai-guidance-title-version"].request_overrides[
+            cases["institutional-graduate-employment-reward-title"].request_overrides[
                 "entitlement_groups"
             ],
             ["campus_members"],
         )
-        self.assertFalse(cases["institutional-ai-guidance-authz-deny"].expected_sources)
-        self.assertTrue(cases["institutional-ai-guidance-authz-deny"].forbidden_sources)
+        self.assertFalse(
+            cases["institutional-student-association-management-authz-deny"].expected_sources
+        )
+        self.assertTrue(
+            cases["institutional-student-association-management-authz-deny"].forbidden_sources
+        )
 
     def test_institutional_rules_qrels_expected_doc_ids_align_with_eval_manifest(self) -> None:
         dataset = load_retrieval_qrels_dataset(INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH)

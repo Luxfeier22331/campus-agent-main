@@ -220,8 +220,69 @@ class CollectedNoticeRegulationFirstBatchPromotionTests(unittest.TestCase):
         )
         first_row = json.loads(rows.decode("utf-8").splitlines()[0])
         self.assertEqual(first_row["metadata"]["source_notice_ids"], ["594"])
+        self.assertEqual(
+            first_row["metadata"]["normalizer_version"],
+            "collected_notice_regulation_canonical_cleaning_v2",
+        )
+        self.assertEqual(
+            first_row["metadata"]["cleaning_policy_version"],
+            "institutional_rules_cleaning_v1",
+        )
+        self.assertEqual(
+            first_row["metadata"]["normalization_quality"]["quality_verdict"],
+            "passed",
+        )
+        by_document_id = {
+            item["target_document_id"]: item for item in report["materialized_documents"]
+        }
+        materialized = by_document_id["institutional_regulation:muc:594"]
+        self.assertEqual(materialized["normalization_quality"]["quality_verdict"], "passed")
+        self.assertEqual(
+            materialized["canonical_markdown_object_key"],
+            selected_record.canonical_markdown_object_key,
+        )
+        self.assertEqual(
+            materialized["document_units_object_key"],
+            selected_record.document_units_object_key,
+        )
+        self.assertEqual(len(materialized["canonical_markdown_sha256"]), 64)
+        self.assertEqual(len(materialized["document_units_sha256"]), 64)
         self.assertFalse(report["query_serving_opened"])
         self.assertFalse(report["rag_release_opened"])
+
+    def test_execute_rejects_selected_document_without_passed_normalization_quality(self) -> None:
+        institutional = _materialization_report(
+            target_collection="institutional_rules",
+            documents=[
+                _target_document(
+                    source_notice_id="594",
+                    collection="institutional_rules",
+                    quality_verdict="flagged_manual_review",
+                )
+            ],
+        )
+        scoped = _materialization_report(
+            target_collection="scoped_rules",
+            documents=[_target_document(source_notice_id="620", collection="scoped_rules")],
+        )
+
+        with self.assertRaisesRegex(ValueError, "normalization quality must be passed"):
+            materialize_first_batch_regulation_selection(
+                selection=build_first_batch_regulation_selection(
+                    candidate_audit=_candidate_audit(),
+                    consistency_report=_consistency_report(),
+                    institutional_materialization=institutional,
+                    scoped_materialization=scoped,
+                    selected_notice_ids=("594", "620"),
+                ),
+                institutional_materialization=institutional,
+                scoped_materialization=scoped,
+                registry=InMemoryDocumentRegistry(),
+                raw_asset_registry=InMemoryRawAssetRegistry(),
+                object_store=_FakeObjectStore(_source_ref_objects()),
+                execute=True,
+                env=_object_store_env(),
+            )
 
     def test_execute_rejects_unexpected_existing_target_id_collision(self) -> None:
         registry = InMemoryDocumentRegistry(
@@ -417,7 +478,12 @@ def _materialization_report(
     }
 
 
-def _target_document(*, source_notice_id: str, collection: str) -> dict[str, object]:
+def _target_document(
+    *,
+    source_notice_id: str,
+    collection: str,
+    quality_verdict: str = "passed",
+) -> dict[str, object]:
     title = f"测试规章 {source_notice_id}"
     content_role_prefix = "regulation" if collection == "institutional_rules" else "scoped_rule"
     return {
@@ -431,6 +497,25 @@ def _target_document(*, source_notice_id: str, collection: str) -> dict[str, obj
         "title": title,
         "issuing_org": "中央民族大学",
         "canonical_markdown": f"# {title}\n\n第一条 为测试第一批规章提升，制定本办法。\n\n第二条 本办法用于验证 selected write gate。\n",
+        "normalization_quality": {
+            "target_collection": collection,
+            "target_document_id": f"institutional_regulation:muc:{source_notice_id}",
+            "source_notice_ids": [source_notice_id],
+            "title": title,
+            "wrapper_removed": True,
+            "suspicious_prefix": False,
+            "title_occurrence_count": 2,
+            "chapter_count": 0,
+            "article_count": 2,
+            "page_artifact_count": 0,
+            "unit_count": 2,
+            "soft_wrap_repair_count": 0,
+            "soft_wrap_residue_count": 0,
+            "readability_normalization_count": 0,
+            "normalizer_version": "collected_notice_regulation_canonical_cleaning_v2",
+            "quality_verdict": quality_verdict,
+            "reason_codes": [] if quality_verdict == "passed" else ["soft_wrap_residue"],
+        },
         "source_notice_ids": [source_notice_id],
         "source_document_ids": [f"file-release:muc_internal_portal:{source_notice_id}"],
         "source_urls": [f"https://my.muc.edu.cn/file/{source_notice_id}.pdf"],

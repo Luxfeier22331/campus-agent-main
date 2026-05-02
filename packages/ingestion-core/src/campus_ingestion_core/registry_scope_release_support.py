@@ -56,7 +56,11 @@ def release_payload_mismatch_issues(
     expected_release_metadata: Mapping[str, object],
 ) -> tuple[str, ...]:
     issues: list[str] = []
-    required_fields = tuple(expected_release_metadata)
+    required_fields = tuple(
+        field
+        for field, expected_value in expected_release_metadata.items()
+        if expected_value is not None
+    )
     for index, payload in enumerate(payloads, start=1):
         missing = [field for field in required_fields if field not in payload]
         if missing:

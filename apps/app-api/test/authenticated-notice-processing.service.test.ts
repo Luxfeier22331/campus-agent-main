@@ -98,4 +98,35 @@ describe("authenticated notice processing command service", () => {
 			}),
 		).toThrow(/timeline\[0\]\.payload\.bucket is not allowed/);
 	});
+
+	it("preserves operator-safe regulation RAG lane status in downstream summary", () => {
+		const snapshot = normalizeAuthenticatedNoticeProcessingSnapshot({
+			...regulationCleanupSnapshot,
+			current: true,
+			downstream: {
+				candidateKind: "regulation",
+				current: true,
+				ragReleaseStatus: {
+					documentSiteStatus: "published",
+					ragIndexStatus: "indexed",
+					ragPreparationStatus: "completed",
+					ragServingStatus: "serving_published",
+					ragVerificationStatus: "passed",
+				},
+				targetSurface: "regulations/institutional_rules",
+				toolReady: false,
+			},
+			releaseId: "regulation-institutional-rules-run-003",
+			targetSurface: "regulations/institutional_rules",
+		});
+
+		expect(snapshot.downstream?.ragReleaseStatus).toEqual({
+			documentSiteStatus: "published",
+			ragIndexStatus: "indexed",
+			ragPreparationStatus: "completed",
+			ragServingStatus: "serving_published",
+			ragVerificationStatus: "passed",
+		});
+		expect(JSON.stringify(snapshot)).not.toMatch(/objectKey|bucket|ocrPayload|rawBody/);
+	});
 });

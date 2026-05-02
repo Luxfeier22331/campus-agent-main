@@ -80,6 +80,14 @@ from campus_ingestion_core.registry import (
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
+from campus_ingestion_core.regulation_rag_release_lane import (
+    DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_MANAGEMENT_ENV_KEY,
+    DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY,
+    RagReleaseCandidateEnqueueReport,
+    RegulationRagReleaseCandidateStore,
+    build_regulation_rag_release_candidate_store_from_env,
+    enqueue_regulation_rag_release_candidates_for_registry_delta,
+)
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 
@@ -105,6 +113,7 @@ def materialize_scoped_rules_from_internal_notice_scope(
     raw_asset_registry: RawAssetRegistry | None = None,
     source_truth_inventory_store: AuthenticatedNoticeSourceTruthInventoryStore | None = None,
     consumption_projection_store: NoticeConsumptionProjectionStore | None = None,
+    rag_release_candidate_store: RegulationRagReleaseCandidateStore | None = None,
 ) -> InternalNoticeScopedRuleMaterializationReport:
     source = dict(env if env is not None else os.environ)
     runtime_request = request or InternalNoticeRegulationPromotionRequest()
@@ -192,6 +201,12 @@ def materialize_scoped_rules_from_internal_notice_scope(
         if selected_request
         else None,
     )
+    rag_release_report = _enqueue_rag_release_candidates(
+        store=rag_release_candidate_store,
+        registry=runtime_registry,
+        source=source,
+        stats_document_ids=(*stats.created_document_ids, *stats.updated_document_ids),
+    )
     return InternalNoticeScopedRuleMaterializationReport(
         scoped_rule_candidate_count=len(candidates),
         materialized_document_count=len(documents),
@@ -212,6 +227,9 @@ def materialize_scoped_rules_from_internal_notice_scope(
         ),
         raw_asset_id=raw_asset_record.raw_asset_id,
         raw_version_id=raw_asset_record.raw_version_id,
+        rag_release_candidate_created_count=rag_release_report.created_count,
+        rag_release_candidate_skipped_unchanged_count=rag_release_report.skipped_unchanged_count,
+        rag_release_candidate_ids=rag_release_report.candidate_ids,
     )
 
 
@@ -573,6 +591,62 @@ def _build_selected_scope_preserve_predicate(
 ) -> Callable[[DocumentRegistryRecord], bool]:
     materialized_document_id_set = set(materialized_document_ids)
     return lambda record: record.document_id not in materialized_document_id_set
+
+
+def _enqueue_rag_release_candidates(
+    *,
+    store: RegulationRagReleaseCandidateStore | None,
+    registry: DocumentRegistry,
+    source: Mapping[str, str],
+    stats_document_ids: Sequence[str],
+) -> RagReleaseCandidateEnqueueReport:
+    changed_document_ids = tuple(
+        dict.fromkeys(
+            str(document_id).strip()
+            for document_id in stats_document_ids
+            if str(document_id).strip()
+        )
+    )
+    if not changed_document_ids:
+        return RagReleaseCandidateEnqueueReport(
+            created_count=0,
+            skipped_unchanged_count=0,
+            candidate_ids=(),
+        )
+    runtime_store = store or _optional_rag_release_candidate_store(source)
+    if runtime_store is None:
+        return RagReleaseCandidateEnqueueReport(
+            created_count=0,
+            skipped_unchanged_count=0,
+            candidate_ids=(),
+        )
+    return enqueue_regulation_rag_release_candidates_for_registry_delta(
+        store=runtime_store,
+        registry=registry,
+        corpus=_TARGET_SCOPE[0],
+        collection=_TARGET_SCOPE[1],
+        changed_document_ids=changed_document_ids,
+        runtime_profile=load_runtime_profile(*_TARGET_SCOPE),
+    )
+
+
+def _optional_rag_release_candidate_store(
+    source: Mapping[str, str],
+) -> RegulationRagReleaseCandidateStore | None:
+    if not any(
+        str(source.get(key) or "").strip()
+        for key in (
+            DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY,
+            DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_MANAGEMENT_ENV_KEY,
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL",
+        )
+    ):
+        return None
+    return build_regulation_rag_release_candidate_store_from_env(
+        dict(source),
+        prefer_operator=True,
+    )
 
 
 def _build_scoped_rule_projection_metadata(

@@ -48,6 +48,8 @@ class ReleaseRegistryScopeWorkerCliTest(unittest.TestCase):
                     "official_web",
                     "--collection",
                     "muc_public_pages",
+                    "--release-admission-manifest-key",
+                    "official_web/operations/admit/release-admission.json",
                     "--reset-index",
                     "--no-publish-alias",
                 ]
@@ -55,6 +57,10 @@ class ReleaseRegistryScopeWorkerCliTest(unittest.TestCase):
 
         self.assertEqual(release_scope.call_args.kwargs["corpus"], "official_web")
         self.assertEqual(release_scope.call_args.kwargs["collection"], "muc_public_pages")
+        self.assertEqual(
+            release_scope.call_args.kwargs["release_admission_manifest_key"],
+            "official_web/operations/admit/release-admission.json",
+        )
         self.assertTrue(release_scope.call_args.kwargs["reset_index"])
         self.assertFalse(release_scope.call_args.kwargs["publish_alias"])
         payload = json.loads(stdout.getvalue())

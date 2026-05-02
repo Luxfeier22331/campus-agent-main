@@ -54,6 +54,10 @@ from campus_ingestion_core.registry_scope_common import (
     record_label,
     select_releasable_registry_records,
 )
+from campus_ingestion_core.regulation_rag_release_admission import (
+    assert_regulation_rag_release_admission_allows_release,
+    require_regulation_rag_release_admission_key,
+)
 from campus_ingestion_core.registry_scope_release_support import (
     build_fallback_retrieval_settings as _build_fallback_retrieval_settings,
 )
@@ -132,6 +136,8 @@ class RegistryScopeReleaseReport:
     embedding_cache_hit_count: int = 0
     embedding_cache_miss_count: int = 0
     embedding_provider_call_count: int = 0
+    release_admission_manifest_key: str | None = None
+    release_admission_status: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -152,7 +158,9 @@ def release_registry_scope(
     reset_index: bool = False,
     preparation_run_id: str | None = None,
     acceptance_case_path: str | None = None,
+    release_admission_manifest_key: str | None = None,
     qrels_coverage_issues: Sequence[str] | None = None,
+    official_web_min_release_documents: int | None = None,
 ) -> RegistryScopeReleaseReport:
     source = dict(env if env is not None else os.environ)
     runtime_profile = load_runtime_profile(corpus, collection)
@@ -170,6 +178,14 @@ def release_registry_scope(
     runtime_qdrant_client = qdrant_client or _build_qdrant_client(
         RetrievalSettings.from_env(source),
         source=source,
+    )
+    resolved_release_admission_manifest_key = require_regulation_rag_release_admission_key(
+        corpus=corpus,
+        collection=collection,
+        runtime_profile=runtime_profile,
+        publish_alias=publish_alias,
+        explicit_key=release_admission_manifest_key,
+        env=source,
     )
     if reset_index:
         reset_index_binding(
@@ -189,6 +205,17 @@ def release_registry_scope(
         collection=collection,
         preparation_run_id=preparation_run_id,
         records=records,
+        object_store=runtime_object_store,
+        bucket=object_store_settings.bucket_derived,
+    )
+    release_admission = assert_regulation_rag_release_admission_allows_release(
+        corpus=corpus,
+        collection=collection,
+        runtime_profile=runtime_profile,
+        publish_alias=publish_alias,
+        manifest_key=resolved_release_admission_manifest_key,
+        records=records,
+        preparation_manifest=preparation_manifest,
         object_store=runtime_object_store,
         bucket=object_store_settings.bucket_derived,
     )
@@ -252,12 +279,17 @@ def release_registry_scope(
         upsert_batch_size=_read_qdrant_upsert_batch_size(source),
         acceptance_case_path=acceptance_case_path,
         qrels_coverage_issues=qrels_coverage_issues,
+        official_web_min_release_documents=official_web_min_release_documents,
         retrieval_settings=(
             RetrievalSettings.from_env(source)
             if publish_alias and _requires_release_retrieval_acceptance(runtime_profile)
             else None
         ),
         embedding_cache_stats=embedding_cache_stats,
+        release_admission_manifest_key=resolved_release_admission_manifest_key,
+        release_admission_status=(
+            release_admission.admission_status if release_admission is not None else ""
+        ),
     )
 
 
@@ -279,8 +311,11 @@ def publish_scope_release(
     document_units_sha256_by_key: dict[str, str] | None = None,
     acceptance_case_path: str | None = None,
     qrels_coverage_issues: Sequence[str] | None = None,
+    official_web_min_release_documents: int | None = None,
     retrieval_settings: RetrievalSettings | None = None,
     embedding_cache_stats: EmbeddingCacheStats | None = None,
+    release_admission_manifest_key: str | None = None,
+    release_admission_status: str = "",
 ) -> RegistryScopeReleaseReport:
     if not records:
         raise ValueError(f"records must not be empty for {corpus}/{collection}")
@@ -302,7 +337,12 @@ def publish_scope_release(
         qdrant_client=qdrant_client,
         alias_name=binding.alias_name,
     )
-    validation = validate_scope_release(corpus=corpus, collection=collection, chunks=tuple(chunks))
+    validation = validate_scope_release(
+        corpus=corpus,
+        collection=collection,
+        chunks=tuple(chunks),
+        official_web_min_release_documents=official_web_min_release_documents,
+    )
     chunk_budget = _resolve_release_chunk_quality_budget(
         corpus=corpus,
         collection=collection,
@@ -349,6 +389,8 @@ def publish_scope_release(
         chunk_quality_status=quality_gate.chunk_quality_status,
         qrels_coverage_status=quality_gate.qrels_coverage_status,
         release_metadata_consistency_status=quality_gate.release_metadata_consistency_status,
+        release_admission_manifest_key=release_admission_manifest_key,
+        release_admission_status=release_admission_status,
     )
     if (
         publish_alias
@@ -471,6 +513,8 @@ def publish_scope_release(
             chunk_quality_status=quality_gate.chunk_quality_status,
             qrels_coverage_status=quality_gate.qrels_coverage_status,
             release_metadata_consistency_status=quality_gate.release_metadata_consistency_status,
+            release_admission_manifest_key=release_admission_manifest_key,
+            release_admission_status=release_admission_status,
         )
         acceptance_artifacts = write_index_release_artifacts(
             writer=object_store,
@@ -533,6 +577,8 @@ def publish_scope_release(
         chunk_quality_status=prepublish_manifest.chunk_quality_status,
         qrels_coverage_status=prepublish_manifest.qrels_coverage_status,
         release_metadata_consistency_status=prepublish_manifest.release_metadata_consistency_status,
+        release_admission_manifest_key=release_admission_manifest_key,
+        release_admission_status=release_admission_status,
     )
     alias_published = False
     try:
@@ -627,6 +673,8 @@ def _build_release_report(
         embedding_cache_hit_count=cache_stats.hit_count,
         embedding_cache_miss_count=cache_stats.miss_count,
         embedding_provider_call_count=cache_stats.provider_call_count,
+        release_admission_manifest_key=manifest.release_admission_manifest_key,
+        release_admission_status=manifest.release_admission_status,
     )
 
 

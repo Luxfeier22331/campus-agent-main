@@ -74,6 +74,77 @@ class ScopeAliasTest(unittest.TestCase):
         )
         self.assertTrue(qdrant_client.collection_exists("muc_public_pages__r20260404_184508"))
 
+    def test_contain_unadmitted_regulation_alias_unpublishes_matching_suspect_release(
+        self,
+    ) -> None:
+        qdrant_client = QdrantClient(location=":memory:")
+        qdrant_client.create_collection(
+            collection_name="institutional_rules__r20260502_020250_873774_266f68e9",
+            vectors_config=qdrant_models.VectorParams(
+                size=1, distance=qdrant_models.Distance.COSINE
+            ),
+        )
+        qdrant_client.update_collection_aliases(
+            [
+                qdrant_models.CreateAliasOperation(
+                    create_alias=qdrant_models.CreateAlias(
+                        collection_name="institutional_rules__r20260502_020250_873774_266f68e9",
+                        alias_name="institutional_rules",
+                    )
+                )
+            ]
+        )
+
+        report = set_scope_release_alias(
+            corpus="regulations",
+            collection="institutional_rules",
+            qdrant_client=qdrant_client,
+            physical_collection_name=None,
+            expected_current_physical_collection_name=(
+                "institutional_rules__r20260502_020250_873774_266f68e9"
+            ),
+            action_reason="unadmitted_release_containment",
+        )
+
+        self.assertEqual(report.action, "unpublish")
+        self.assertEqual(report.action_reason, "unadmitted_release_containment")
+        self.assertEqual(
+            report.previous_physical_collection_name,
+            "institutional_rules__r20260502_020250_873774_266f68e9",
+        )
+        self.assertIsNone(
+            resolve_alias_target(qdrant_client=qdrant_client, alias_name="institutional_rules")
+        )
+
+    def test_containment_refuses_when_alias_no_longer_matches_expected_release(self) -> None:
+        qdrant_client = QdrantClient(location=":memory:")
+        qdrant_client.create_collection(
+            collection_name="institutional_rules__newer_release",
+            vectors_config=qdrant_models.VectorParams(
+                size=1, distance=qdrant_models.Distance.COSINE
+            ),
+        )
+        qdrant_client.update_collection_aliases(
+            [
+                qdrant_models.CreateAliasOperation(
+                    create_alias=qdrant_models.CreateAlias(
+                        collection_name="institutional_rules__newer_release",
+                        alias_name="institutional_rules",
+                    )
+                )
+            ]
+        )
+
+        with self.assertRaisesRegex(ValueError, "alias target mismatch"):
+            set_scope_release_alias(
+                corpus="regulations",
+                collection="institutional_rules",
+                qdrant_client=qdrant_client,
+                physical_collection_name=None,
+                expected_current_physical_collection_name="institutional_rules__suspect",
+                action_reason="unadmitted_release_containment",
+            )
+
 
 if __name__ == "__main__":
     unittest.main()
