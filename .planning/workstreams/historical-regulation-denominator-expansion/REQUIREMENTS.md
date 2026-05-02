@@ -1,8 +1,8 @@
 ---
 doc_type: requirements
-status: active
+status: completed
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-03
 ---
 # Historical Regulation Denominator Expansion Requirements
 
@@ -20,6 +20,9 @@ then stop at canonical/document-units/chunk quality evidence.
   `campus-rag-derived`.
 - Chunk-only preparation and quality audit for `institutional_rules` and
   `scoped_rules`.
+- Downstream consumption eligibility only for school-level
+  `institutional_rules`; `scoped_rules` remains canonical/chunk-only
+  non-serving evidence.
 
 ## Non-Goals
 
@@ -28,6 +31,8 @@ then stop at canonical/document-units/chunk quality evidence.
 - Do not create embeddings, indexes, release manifests or aliases.
 - Do not mutate serving profile or query allowlist.
 - Do not treat reader/document-site readiness as RAG serving readiness.
+- Do not publish `scoped_rules` to the document site or enqueue it for RAG
+  release consumption.
 - Do not promote wrapper notices or incomplete owner-text notices.
 
 ## Functional Requirements
@@ -44,6 +49,16 @@ then stop at canonical/document-units/chunk quality evidence.
   `regulations/documents/{collection}/...`.
 - Scoped rule document-units must preserve `document_nature`,
   `source_notice_release_time`, `cycle_year` and `school_unit_name` when known.
+- Scoped rule records must be classified as `chunk_only_non_serving` for this
+  historical workstream even when canonical/chunk preparation passes.
+- School-level inventory must explicitly separate校级 `institutional_rules`
+  ready candidates from院级/专项 `scoped_rules` non-serving evidence before any
+  future document-site or RAG decision.
+- Inventory must preserve historical manual decisions for known operator
+  exclusions, incomplete owner-text records and duplicate survivor mapping.
+- School-level owner-text recovery audit must block wrapper/summary notices
+  when the already-collected bundle has no captured attachment, link or complete
+  owner-text body; it must not fabricate canonical content from wrapper notices.
 - Chunk preparation must consume registry-backed current document-units.
 - Every phase must emit serving-closed and candidate-store-noop assertions.
 
@@ -56,3 +71,11 @@ then stop at canonical/document-units/chunk quality evidence.
 - Final audit reports zero object-store key failures.
 - Evidence contains no embedding, index, release admission, alias publish or
   candidate queue artifacts.
+- Phase 05 inventory identifies only school-level `institutional_rules` records
+  as downstream-eligible; `scoped_rules` and recovery/hold records remain
+  downstream-ineligible.
+- Phase 06 owner-text recovery audit emits source-candidate evidence or blocked
+  evidence only; zero source candidates means zero additional canonical/chunk
+  admissions.
+- Closeout records the completed canonical/document-units/chunk counts and keeps
+  publication/RAG serving counts separate from chunk-quality counts.

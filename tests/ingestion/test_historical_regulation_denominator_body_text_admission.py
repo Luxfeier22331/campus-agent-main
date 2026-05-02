@@ -117,6 +117,51 @@ class HistoricalRegulationDenominatorBodyTextAdmissionTest(unittest.TestCase):
                 object_store=_FakeObjectStore(),
             )
 
+    def test_uses_candidate_owner_title_instead_of_noisy_notice_title(self) -> None:
+        object_store = _FakeObjectStore()
+
+        result = build_historical_regulation_body_text_owner_admission(
+            ready_candidates={
+                "records": [
+                    {
+                        "source_notice_id": "191705",
+                        "title": "中央民族大学丰台校区就医管理办法（暂行）",
+                        "source_title_literal": "重要通知--中央民族大学丰台校区就医管理办法（暂行）",
+                        "target_collection": "institutional_rules",
+                        "status": "ready_for_canonical_chunk_v9",
+                    }
+                ]
+            },
+            normalized_notice_bundle=[
+                _normalized_notice(
+                    notice_id="191705",
+                    title="重要通知--中央民族大学丰台校区就医管理办法（暂行）",
+                    organization_name="校医院",
+                    release_time="2021-09-01 10:00",
+                    html=(
+                        "<p>中央民族大学丰台校区就医管理办法（暂行）</p>"
+                        "<p>第一条 为规范丰台校区就医管理，制定本办法。</p>"
+                    ),
+                )
+            ],
+            object_store=object_store,
+            generated_at="2026-05-02T00:00:00+00:00",
+        )
+
+        entry = result["admission_manifest"]["entries"][0]
+        self.assertEqual(entry["title"], "中央民族大学丰台校区就医管理办法（暂行）")
+        self.assertEqual(
+            entry["regulation_title_normalized"],
+            "中央民族大学丰台校区就医管理办法（暂行）",
+        )
+        self.assertNotIn("重要通知", entry["target_identity_preview"])
+
+        ref = entry["owner_text_recovery"]["written_refs"]["searchable_merge_input"]
+        payload = json.loads(
+            object_store.get_bytes(bucket=ref["bucket"], key=ref["key"]).decode("utf-8")
+        )
+        self.assertEqual(payload["title"], "中央民族大学丰台校区就医管理办法（暂行）")
+
 
 def _normalized_notice(
     *,

@@ -81,12 +81,8 @@ from campus_ingestion_core.registry import (
     build_raw_asset_registry_from_env,
 )
 from campus_ingestion_core.regulation_rag_release_lane import (
-    DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_MANAGEMENT_ENV_KEY,
-    DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY,
     RagReleaseCandidateEnqueueReport,
     RegulationRagReleaseCandidateStore,
-    build_regulation_rag_release_candidate_store_from_env,
-    enqueue_regulation_rag_release_candidates_for_registry_delta,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 
@@ -600,52 +596,11 @@ def _enqueue_rag_release_candidates(
     source: Mapping[str, str],
     stats_document_ids: Sequence[str],
 ) -> RagReleaseCandidateEnqueueReport:
-    changed_document_ids = tuple(
-        dict.fromkeys(
-            str(document_id).strip()
-            for document_id in stats_document_ids
-            if str(document_id).strip()
-        )
-    )
-    if not changed_document_ids:
-        return RagReleaseCandidateEnqueueReport(
-            created_count=0,
-            skipped_unchanged_count=0,
-            candidate_ids=(),
-        )
-    runtime_store = store or _optional_rag_release_candidate_store(source)
-    if runtime_store is None:
-        return RagReleaseCandidateEnqueueReport(
-            created_count=0,
-            skipped_unchanged_count=0,
-            candidate_ids=(),
-        )
-    return enqueue_regulation_rag_release_candidates_for_registry_delta(
-        store=runtime_store,
-        registry=registry,
-        corpus=_TARGET_SCOPE[0],
-        collection=_TARGET_SCOPE[1],
-        changed_document_ids=changed_document_ids,
-        runtime_profile=load_runtime_profile(*_TARGET_SCOPE),
-    )
-
-
-def _optional_rag_release_candidate_store(
-    source: Mapping[str, str],
-) -> RegulationRagReleaseCandidateStore | None:
-    if not any(
-        str(source.get(key) or "").strip()
-        for key in (
-            DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY,
-            DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_MANAGEMENT_ENV_KEY,
-            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
-            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL",
-        )
-    ):
-        return None
-    return build_regulation_rag_release_candidate_store_from_env(
-        dict(source),
-        prefer_operator=True,
+    del store, registry, source, stats_document_ids
+    return RagReleaseCandidateEnqueueReport(
+        created_count=0,
+        skipped_unchanged_count=0,
+        candidate_ids=(),
     )
 
 

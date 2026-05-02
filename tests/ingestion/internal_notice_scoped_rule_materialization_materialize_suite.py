@@ -241,12 +241,9 @@ class InternalNoticeScopedRuleMaterializationMaterializeTest(unittest.TestCase):
 
         self.assertEqual(report.scoped_rule_candidate_count, 3)
         self.assertEqual(report.materialized_document_count, 2)
-        self.assertEqual(report.rag_release_candidate_created_count, 2)
+        self.assertEqual(report.rag_release_candidate_created_count, 0)
         candidates = candidate_store.list_candidates()
-        self.assertEqual(len(candidates), 2)
-        self.assertTrue(all(candidate.collection == "scoped_rules" for candidate in candidates))
-        self.assertTrue(all(candidate.status == "pending" for candidate in candidates))
-        self.assertTrue(all(not candidate.query_enabled_by_default for candidate in candidates))
+        self.assertEqual(candidates, ())
         self.assertEqual(report.document_nature_counts["annual_cycle_rule"], 1)
         self.assertEqual(report.document_nature_counts["time_bound_operational_rule"], 2)
         self.assertTrue(

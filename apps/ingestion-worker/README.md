@@ -318,7 +318,7 @@ Local integration smoke:
 
 ```bash
 uv run --all-packages python -m scripts.official_web_release_task_local_smoke \
-  --app-api-base-url http://127.0.0.1:8787 \
+  --app-api-base-url http://127.0.0.1:27031 \
   --app-api-internal-shared-secret "$INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET"
 ```
 

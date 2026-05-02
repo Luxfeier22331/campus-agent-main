@@ -19,6 +19,7 @@ from campus_ingestion_core.registry import DocumentRegistry
 
 HISTORICAL_REGULATION_CHUNK_BACKFILL_SCHEMA_VERSION = "historical_regulation_chunk_backfill.v1"
 DEFAULT_HISTORICAL_REGULATION_CHUNK_BACKFILL_PHASE = "phase-00-chunk-only-boundary-and-inventory"
+DOWNSTREAM_CONSUMPTION_ELIGIBLE_COLLECTIONS = frozenset({"institutional_rules"})
 
 
 class HistoricalRegulationBackfillObjectStore(Protocol):
@@ -401,6 +402,16 @@ def _build_chunk_preparation_batch_report(
         "target_count": len(target_records),
         "blocked_target_count": len(blocked_targets),
         "blocked_targets": [dict(target) for target in blocked_targets],
+        "document_site_eligible_count": sum(
+            1
+            for record in target_records
+            if record.collection in DOWNSTREAM_CONSUMPTION_ELIGIBLE_COLLECTIONS
+        ),
+        "rag_consumption_eligible_count": sum(
+            1
+            for record in target_records
+            if record.collection in DOWNSTREAM_CONSUMPTION_ELIGIBLE_COLLECTIONS
+        ),
         "prepared_document_count": sum(
             int(report.get("prepared_document_count") or 0) for report in collection_reports
         ),
@@ -618,11 +629,25 @@ def _build_classification_record(record: Mapping[str, Any]) -> dict[str, Any]:
         classification = "reject"
     else:
         classification = "needs_recovery"
+    target_collection = str(record["target_collection"])
+    downstream_eligible = (
+        classification == "admit_to_chunk"
+        and target_collection in DOWNSTREAM_CONSUMPTION_ELIGIBLE_COLLECTIONS
+    )
     return {
         "source_notice_ids": list(record.get("source_notice_ids") or ()),
-        "target_collection": record["target_collection"],
+        "target_collection": target_collection,
         "target_document_id": record["target_document_id"],
         "classification": classification,
+        "document_site_eligible": downstream_eligible,
+        "rag_consumption_eligible": downstream_eligible,
+        "downstream_consumption_status": (
+            "eligible_after_release_gate"
+            if downstream_eligible
+            else "chunk_only_non_serving"
+            if classification == "admit_to_chunk" and target_collection == "scoped_rules"
+            else "not_ready_for_downstream_consumption"
+        ),
         "reason_codes": list(issues or ("ready_for_chunk_preparation",)),
     }
 
@@ -663,6 +688,25 @@ def _build_classification_report(
                 key=lambda item: item[0],
             )
         ),
+        "downstream_eligible_counts": {
+            "document_site": sum(
+                1 for record in records if bool(record.get("document_site_eligible"))
+            ),
+            "rag_consumption": sum(
+                1 for record in records if bool(record.get("rag_consumption_eligible"))
+            ),
+            **{
+                collection: sum(
+                    1
+                    for record in records
+                    if str(record.get("target_collection") or "") == collection
+                    and bool(record.get("rag_consumption_eligible"))
+                )
+                for collection in sorted(
+                    set(DOWNSTREAM_CONSUMPTION_ELIGIBLE_COLLECTIONS) | {"scoped_rules"}
+                )
+            },
+        },
         "records": [dict(record) for record in records],
     }
 

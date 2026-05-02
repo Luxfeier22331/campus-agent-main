@@ -9,9 +9,7 @@ _TOP_LEVEL_HEADING_RE = re.compile(r"^[一二三四五六七八九十百千万�
 _SUBSECTION_HEADING_RE = re.compile(
     r"^[（(][一二三四五六七八九十百千万〇零两0-9]+[)）][、.]?[^。；]{0,60}$"
 )
-_SUBSECTION_LABEL_RE = re.compile(
-    r"^[（(][一二三四五六七八九十百千万〇零两0-9]+[)）][、.]?"
-)
+_SUBSECTION_LABEL_RE = re.compile(r"^[（(][一二三四五六七八九十百千万〇零两0-9]+[)）][、.]?")
 _HTML_TAG_RE = re.compile(r"<\s*/?\s*[A-Za-z][^>]*>")
 _PUBLICATION_IMPRINT_RE = re.compile(
     r"^(?:中央民族大学[^\n。；：:]{0,40}(?:办公室|学院|研究院|中心)|"
@@ -65,6 +63,11 @@ _STRUCTURAL_MARKER_RE = re.compile(
     r"(^|\n)\s*(第[一二三四五六七八九十百千万〇零两0-9]+[章节条]|"
     r"[一二三四五六七八九十百千万〇零两0-9]+、)"
 )
+_ENUMERATED_ITEM_LABEL_RE = re.compile(
+    r"(^|\n)\s*((?:\d+[.．、])|(?:[（(]\d+[)）])|"
+    r"(?:[（(][一二三四五六七八九十百千万〇零两]+[)）][、.]?))"
+)
+_MEANINGFUL_OVERLAP_LINE_MIN_CHARS = 18
 
 REGULATION_TITLE_ROLES = frozenset({"regulation_title", "scoped_rule_title"})
 REGULATION_BODY_ROLES = frozenset({"regulation_body", "scoped_rule_body"})
@@ -234,6 +237,26 @@ def token_guardrail_indicates_coarse_unit(metadata: Mapping[str, object]) -> boo
     return not (metadata.get("article_label") or metadata.get("provision_label"))
 
 
+def chunk_has_coarse_provision_label(metadata: Mapping[str, object]) -> bool:
+    display_text = str(metadata.get("display_text") or "")
+    labels = _enumerated_item_labels(display_text)
+    if len(labels) < 2:
+        return False
+    provision_label = str(metadata.get("provision_label") or "").strip()
+    if not provision_label:
+        return True
+    return "-" not in provision_label
+
+
+def adjacent_chunks_have_meaningful_overlap(
+    left_metadata: Mapping[str, object],
+    right_metadata: Mapping[str, object],
+) -> bool:
+    return bool(
+        _meaningful_display_lines(left_metadata) & _meaningful_display_lines(right_metadata)
+    )
+
+
 def _looks_like_body_text(text: str) -> bool:
     normalized = text.strip()
     if len(normalized) < 12:
@@ -305,6 +328,7 @@ def _is_short_answer_fragment(text: str) -> bool:
         _SUBSECTION_LABEL_RE.match(normalized) is not None
         or normalized.endswith(("；", ";"))
         or _looks_like_short_academic_subject(normalized)
+        or _looks_like_short_field_answer(normalized)
     )
 
 
@@ -316,6 +340,17 @@ def _looks_like_short_academic_subject(text: str) -> bool:
     return text.endswith(("学", "专业", "方向"))
 
 
+def _looks_like_short_field_answer(text: str) -> bool:
+    if "：" not in text and ":" not in text:
+        return False
+    field_name, value = re.split(r"[：:]", text, maxsplit=1)
+    normalized_field = field_name.strip()
+    normalized_value = value.strip()
+    if normalized_field not in {"招生专业", "选拔对象", "招生方向"}:
+        return False
+    return _looks_like_short_academic_subject(normalized_value)
+
+
 def _strip_markdown_heading(text: str) -> str:
     return re.sub(r"^\s*#+\s*", "", text.strip())
 
@@ -324,9 +359,33 @@ def _compact_text(text: str) -> str:
     return re.sub(r"\s+", "", text.strip())
 
 
+def _enumerated_item_labels(text: str) -> list[str]:
+    labels: list[str] = []
+    for match in _ENUMERATED_ITEM_LABEL_RE.finditer(text):
+        label = match.group(2).strip()
+        if label and (not labels or labels[-1] != label):
+            labels.append(label)
+    return labels
+
+
+def _meaningful_display_lines(metadata: Mapping[str, object]) -> set[str]:
+    display_text = str(metadata.get("display_text") or "")
+    return {
+        compact
+        for compact in (_compact_overlap_line(line) for line in display_text.splitlines())
+        if len(compact) >= _MEANINGFUL_OVERLAP_LINE_MIN_CHARS
+    }
+
+
+def _compact_overlap_line(text: str) -> str:
+    return _compact_text(text).strip("，。；;:：、")
+
+
 __all__ = [
     "REGULATION_BODY_ROLES",
     "REGULATION_TITLE_ROLES",
+    "adjacent_chunks_have_meaningful_overlap",
+    "chunk_has_coarse_provision_label",
     "contains_form_tail_marker",
     "contains_html_tag",
     "contains_publication_imprint",

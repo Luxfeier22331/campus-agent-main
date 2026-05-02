@@ -143,6 +143,12 @@ markdown 与 document-units，再进入 reader publish 或 RAG release。backfil
 canonical artifacts / registry truth，不打开 query serving、RAG release alias 或 public
 citation。
 
+历史 regulation denominator 扩面时，校级/院级边界必须在 data plane 中显式保留：
+`regulations/institutional_rules` 是唯一可在后续显式 gate 中进入 document-site/RAG
+consumption 的 regulation target；`regulations/scoped_rules` 只允许生成
+canonical/document-units/chunk-only audit evidence，不进入 document-site read-model、RAG
+release candidate、embedding/index 或 serving alias。
+
 ## Offline Release Task Boundary
 
 对于 `official_web` 这类需要从 preview / candidate 推进到 current read model 的 source channel，

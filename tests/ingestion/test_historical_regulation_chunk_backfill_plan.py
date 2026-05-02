@@ -77,6 +77,66 @@ class HistoricalRegulationChunkBackfillPlanTest(unittest.TestCase):
         )
         self.assertNotIn("process-regulation-rag-release", evidence["chunk_only_execution_plan_md"])
 
+    def test_scoped_rules_are_chunk_only_and_not_downstream_eligible(self) -> None:
+        canonical = b"# School scoped regulation\n\nArticle one."
+        units = b'{"unit_type":"article","text":"Article one."}\n'
+        record = self._record(
+            document_id="institutional_regulation:muc:scoped:abc123",
+            collection="scoped_rules",
+            content_hash=hashlib.sha256(canonical).hexdigest(),
+            canonical_key="regulations/documents/scoped_rules/scoped/canonical.md",
+            units_key="regulations/documents/scoped_rules/scoped/document-units.jsonl",
+        )
+
+        evidence = build_historical_regulation_chunk_backfill_evidence(
+            phase13_report={"selected_notice_ids": ["354006"]},
+            materialization_reports={
+                "denominator-expansion": {
+                    "materialized_documents": [
+                        self._materialized_document(
+                            notice_id="354006",
+                            collection="scoped_rules",
+                            document_id=record.document_id,
+                            content_hash=record.content_hash,
+                            canonical_key=record.canonical_markdown_object_key,
+                            canonical_sha256=hashlib.sha256(canonical).hexdigest(),
+                            units_key=record.document_units_object_key,
+                            units_sha256=hashlib.sha256(units).hexdigest(),
+                        )
+                    ]
+                }
+            },
+            registry=InMemoryDocumentRegistry((record,)),
+            object_store=_FakeObjectStore(
+                {
+                    record.canonical_markdown_object_key: canonical,
+                    record.document_units_object_key: units,
+                }
+            ),
+            bucket_derived="campus-rag-derived",
+            preparation_run_id_prefix="phase0",
+        )
+
+        classification = evidence["classification_report"]["records"][0]
+        self.assertEqual(classification["classification"], "admit_to_chunk")
+        self.assertEqual(
+            classification["downstream_consumption_status"],
+            "chunk_only_non_serving",
+        )
+        self.assertFalse(classification["document_site_eligible"])
+        self.assertFalse(classification["rag_consumption_eligible"])
+        self.assertEqual(
+            evidence["classification_report"]["downstream_eligible_counts"],
+            {
+                "document_site": 0,
+                "rag_consumption": 0,
+                "institutional_rules": 0,
+                "scoped_rules": 0,
+            },
+        )
+        self.assertIn("`scoped_rules`", evidence["chunk_only_execution_plan_md"])
+        self.assertIn("Do not run candidate enqueue", evidence["chunk_only_execution_plan_md"])
+
     def test_missing_current_registry_record_needs_recovery(self) -> None:
         canonical = b"# Central regulation\n"
         units = b'{"unit_type":"article","text":"Article one."}\n'

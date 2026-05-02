@@ -1,22 +1,23 @@
 ---
 doc_type: state
-status: active
+status: completed
 workstream: historical-regulation-denominator-expansion
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-03
 ---
 # Historical Regulation Denominator Expansion State
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** Phase 05 operator review and handoff
-**Last Activity:** 2026-05-02
-**Last Activity Description:** Executed Phase 01-04 for the 9 ready historical
-regulation notices. Canonical normalization, document-units materialization,
-chunk-only preparation, object-store key audit and closed-serving assertions now
-pass. No embedding, candidate enqueue/processor, release admission, index
-release or alias publish was opened.
+**Status:** Completed
+**Current Phase:** Phase 07 closeout
+**Last Activity:** 2026-05-03
+**Last Activity Description:** Closed out the denominator expansion workstream
+after confirming Phase 01-04 canonical/document-units/chunk quality, Phase 05
+school-level inventory and Phase 06 owner-text recovery audit. No additional
+canonical/chunk admissions were created after Phase 06. No embedding, candidate
+enqueue/processor, release admission, index release, alias publish, document-site
+publish or query serving was opened.
 
 ## Current Denominator
 
@@ -38,6 +39,21 @@ Ready IDs:
 - `186977`
 - `186957`
 
+Downstream-eligible ready IDs:
+
+- `191705`
+
+Chunk-only non-serving scoped ready IDs:
+
+- `354006`
+- `353963`
+- `351907`
+- `196411`
+- `191176`
+- `187004`
+- `186977`
+- `186957`
+
 Recovery/block IDs:
 
 - `355282`
@@ -52,7 +68,133 @@ Recovery/block IDs:
 
 This workstream must stop at canonical/document-units/chunk quality. It must not
 open candidate enqueue, candidate processor, embedding, index release, release
-admission or alias publish.
+admission or alias publish. It also must not publish `scoped_rules` to document
+site/read-model or enqueue `scoped_rules` for RAG release.
+
+Closeout result:
+
+- completed canonical/document-units/chunk notice-derived regulations: 9
+- `institutional_rules`: 1
+- `scoped_rules`: 8
+- chunks prepared: 172
+- document-site/RAG downstream-eligible under current policy: 1
+- blocked owner-source records: 3
+- hold records: 4
+
+Combined with the completed `historical-regulation-canonical-chunk-backfill`
+workstream, the repo now has 51 notice-derived regulation artifacts that have
+completed canonical/document-units/chunk quality:
+
+- `institutional_rules`: 30
+- `scoped_rules`: 21
+- total chunks: 1945
+
+These counts are chunk-quality counts, not publication counts. A separate
+release gate is still required before document-site or RAG consumption.
+
+Backlog handoff:
+
+- `.planning/todos/pending/2026-05-03-recover-blocked-school-level-notice-regulation-owner-sources.md`
+  captures the three校级 blocked owner-source records for future human recovery:
+  `355282`, `187233` and `177880`.
+
+## Phase 05 School-Level Inventory
+
+Evidence root:
+
+```text
+.planning/workstreams/historical-regulation-denominator-expansion/evidence/phase-05-school-level-inventory/
+```
+
+Actual run command:
+
+```bash
+uv run --all-packages campus-ingestion-audit-historical-regulation-school-level-inventory
+```
+
+Inventory result:
+
+- input notice count: 16
+- school-level ready for canonical/chunk: 1
+- scoped rule chunk-only non-serving: 8
+- wrapper needs owner-text recovery: 1
+- wrapper summary backlog: 2
+- operator excluded hold: 1
+- duplicate hold: 1
+- not regulation-like hold: 2
+
+School-level ready ID:
+
+- `191705`
+
+Scoped chunk-only non-serving IDs:
+
+- `354006`
+- `353963`
+- `351907`
+- `196411`
+- `191176`
+- `187004`
+- `186977`
+- `186957`
+
+Recovery/backlog IDs:
+
+- `355282`
+- `187233`
+- `177880`
+
+Hold IDs:
+
+- `351704`
+- `351699`
+- `351119`
+- `191177`
+
+Important path/classification checks:
+
+- `191705` targets `regulations/documents/institutional_rules/中央民族大学丰台校区就医管理办法-暂行--88e8a049/current-effective/undated/`
+- `187233` remains `wrapper_needs_owner_text_recovery`, but its future target
+  path is校级 `institutional_rules`, not `scoped_rules`.
+- `191176` is the survivor for duplicate `191177`; `191177` remains hold.
+
+## Phase 06 School-Level Owner-Text Recovery Audit
+
+Evidence root:
+
+```text
+.planning/workstreams/historical-regulation-denominator-expansion/evidence/phase-06-school-level-owner-text-recovery/
+```
+
+Actual run command:
+
+```bash
+uv run --all-packages campus-ingestion-audit-historical-regulation-school-level-owner-recovery
+```
+
+Recovery audit result:
+
+- target notice IDs: `355282`, `187233`, `177880`
+- source candidate notice IDs: none
+- blocked notice IDs: `355282`, `187233`, `177880`
+- canonical/chunk ready notice IDs: none
+- `blocked_no_owner_source`: 2
+- `blocked_incomplete_owner_text`: 1
+
+Per-target findings:
+
+- `355282`: blocked, notice body is wrapper/summary for
+  `中央民族大学关于学生使用人工智能的指导意见（2026版）`; no captured
+  attachment or link.
+- `187233`: blocked, body contains procurement revision notice and procurement
+  notes, not complete `中央民族大学采购工作管理办法` owner text.
+- `177880`: blocked, notice body is summary for
+  `中央民族大学学生申诉管理办法`; no captured attachment or link.
+
+This means Phase 06 adds no new canonical/document-units/chunk target. These
+three records require a future external owner source before they can be admitted.
+The future human recovery task is tracked in
+`.planning/todos/pending/2026-05-03-recover-blocked-school-level-notice-regulation-owner-sources.md`.
 
 ## Latest Execution Evidence
 
@@ -75,7 +217,7 @@ Final quality audit:
 - normalization failed/flagged document count: 0
 - chunk preparation overall verdict: `passed`
 - prepared document count: 9
-- total chunk count: 165
+- total chunk count: 172
 - object-store key checked count: 27
 - object-store key failed count: 0
 - candidate store mutated: false
@@ -89,8 +231,8 @@ Final quality audit:
 
 Chunk validation:
 
-- `institutional_rules`: passed, 1 document, 8 units, 8 chunks, 0 failed docs
-- `scoped_rules`: passed, 8 documents, 205 units, 157 chunks, 0 failed docs
+- `institutional_rules`: passed, 1 document, 9 units, 9 chunks, 0 failed docs
+- `scoped_rules`: passed, 8 documents, 205 units, 163 chunks, 0 failed docs
 
 Notable fixes made during execution:
 
@@ -123,4 +265,22 @@ Actual run14 evidence command:
 
 ```bash
 uv run --all-packages campus-ingestion-backfill-historical-regulation-denominator-expansion --execute
+```
+
+Phase 05 inventory verification:
+
+```bash
+uv run --all-packages python -m unittest tests.ingestion.test_historical_regulation_school_level_inventory tests.ingestion.test_audit_historical_regulation_school_level_inventory_worker
+```
+
+Phase 06 owner-text recovery verification:
+
+```bash
+uv run --all-packages python -m unittest tests.ingestion.test_historical_regulation_school_level_owner_recovery tests.ingestion.test_audit_historical_regulation_school_level_owner_recovery_worker
+```
+
+Closeout evidence:
+
+```text
+.planning/workstreams/historical-regulation-denominator-expansion/evidence/phase-07-closeout/closeout-summary.json
 ```

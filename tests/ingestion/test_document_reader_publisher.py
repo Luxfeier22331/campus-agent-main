@@ -162,6 +162,30 @@ class DocumentReaderPublisherTest(unittest.TestCase):
                 records=(record,),
             )
 
+    def test_publish_document_reader_assets_rejects_scoped_rules_by_default(self) -> None:
+        record = _make_scoped_rule_record()
+        object_store = FakeObjectStore(
+            {
+                ("campus-rag-derived", record.canonical_markdown_object_key or ""): (
+                    "# 学院招生实施细则\n\n第一条 本细则适用于学院招生。"
+                ).encode(),
+                ("campus-rag-derived", record.document_units_object_key or ""): (
+                    _document_units_jsonl(record, "学院招生实施细则")
+                ).encode(),
+            }
+        )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "unsupported document reader scope: regulations/scoped_rules",
+        ):
+            publish_document_reader_assets(
+                bucket_derived="campus-rag-derived",
+                generated_at="2026-05-02T00:00:00+00:00",
+                object_store=object_store,
+                records=(record,),
+            )
+
     def test_publish_document_reader_assets_skips_invalid_course_map_surface(self) -> None:
         record = _make_record(
             document_id="curriculum:invalid-course-map-surface",
@@ -260,6 +284,36 @@ def _make_internal_notice_record() -> DocumentRegistryRecord:
             "campus_notices/documents/internal_notice/187233/canonical.md"
         ),
         import_source="authenticated_notice_source_projection",
+    )
+
+
+def _make_scoped_rule_record() -> DocumentRegistryRecord:
+    return DocumentRegistryRecord(
+        document_id="institutional_regulation:muc:scoped-rule",
+        revision_track="current-effective",
+        version_id="sha256:scoped-rule:current-effective",
+        source_uri="campus-agent://regulations/scoped_rules/scoped-rule",
+        content_hash="sha256:scoped-rule",
+        corpus="regulations",
+        collection="scoped_rules",
+        entitlement_groups=("campus_members",),
+        visibility_level="restricted",
+        visibility_scope="campus",
+        status="active",
+        ingestion_timestamp="2026-05-02T00:00:00+00:00",
+        parser_version="scoped_rules_test",
+        embedding_model="Qwen3-Embedding-4B",
+        source_channel="authenticated_notice_portal",
+        is_current=True,
+        published_date="2026-05-01",
+        document_units_object_key=(
+            "regulations/documents/scoped_rules/scoped-rule/current-effective/2026/"
+            "document-units.jsonl"
+        ),
+        canonical_markdown_object_key=(
+            "regulations/documents/scoped_rules/scoped-rule/current-effective/2026/canonical.md"
+        ),
+        import_source="test",
     )
 
 

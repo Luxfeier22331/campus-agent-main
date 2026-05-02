@@ -23,6 +23,7 @@ from campus_ingestion_core.curriculum_chunk_units import (
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process_shared import StructuredUnit
+from campus_ingestion_core.regulation_chunking import build_regulation_unit_pieces
 
 _OFFICIAL_WEB_SKIPPED_CONTENT_ROLES = frozenset(
     {"source_attribution", "boilerplate", "media_caption"}
@@ -518,6 +519,7 @@ __all__ = [
     "build_generic_runtime_chunk_profile",
     "build_handbook_chunk_profile",
     "build_official_web_runtime_chunk_profile",
+    "build_regulation_unit_pieces",
     "derive_internal_notice_document_title",
     "is_curriculum_course_map_section_unit",
     "load_curriculum_runtime_structured_units",

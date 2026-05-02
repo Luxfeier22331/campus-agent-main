@@ -5,12 +5,15 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, Protocol
 
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 from campus_ingestion_core.regulation_chunk_quality import (
+    adjacent_chunks_have_meaningful_overlap,
+    chunk_has_coarse_provision_label,
     contains_form_tail_marker,
     contains_html_tag,
     contains_publication_imprint,
@@ -96,6 +99,8 @@ class InstitutionalRegulationChunkPrepDocumentReport:
     header_dominant_chunk_count: int
     fabricated_page_anchor_chunk_count: int
     coarse_token_guardrail_chunk_count: int
+    coarse_provision_label_chunk_count: int
+    adjacent_body_overlap_chunk_count: int
     passed: bool
     issues: tuple[str, ...]
     document_units_path: str
@@ -154,6 +159,8 @@ class InstitutionalRegulationChunkPrepValidationReport:
     header_dominant_chunk_count: int
     fabricated_page_anchor_chunk_count: int
     coarse_token_guardrail_chunk_count: int
+    coarse_provision_label_chunk_count: int
+    adjacent_body_overlap_chunk_count: int
     failed_document_ids: tuple[str, ...]
 
 
@@ -275,6 +282,8 @@ def build_institutional_regulation_chunk_prep_validation_report(
     header_dominant_chunk_count = 0
     fabricated_page_anchor_chunk_count = 0
     coarse_token_guardrail_chunk_count = 0
+    coarse_provision_label_chunk_count = 0
+    adjacent_body_overlap_chunk_count = 0
 
     for item in prepared_documents:
         unit_type_counts.update(item.report.unit_type_counts)
@@ -295,15 +304,15 @@ def build_institutional_regulation_chunk_prep_validation_report(
         form_tail_marker_chunk_count += item.report.form_tail_marker_chunk_count
         body_like_section_path_chunk_count += item.report.body_like_section_path_chunk_count
         deep_section_path_chunk_count += item.report.deep_section_path_chunk_count
-        long_section_path_segment_chunk_count += (
-            item.report.long_section_path_segment_chunk_count
-        )
+        long_section_path_segment_chunk_count += item.report.long_section_path_segment_chunk_count
         publication_imprint_chunk_count += item.report.publication_imprint_chunk_count
         header_body_duplicate_chunk_count += item.report.header_body_duplicate_chunk_count
         title_duplicate_chunk_count += item.report.title_duplicate_chunk_count
         header_dominant_chunk_count += item.report.header_dominant_chunk_count
         fabricated_page_anchor_chunk_count += item.report.fabricated_page_anchor_chunk_count
         coarse_token_guardrail_chunk_count += item.report.coarse_token_guardrail_chunk_count
+        coarse_provision_label_chunk_count += item.report.coarse_provision_label_chunk_count
+        adjacent_body_overlap_chunk_count += item.report.adjacent_body_overlap_chunk_count
 
     return InstitutionalRegulationChunkPrepValidationReport(
         schema_version=_SCHEMA_VERSION,
@@ -334,6 +343,8 @@ def build_institutional_regulation_chunk_prep_validation_report(
         header_dominant_chunk_count=header_dominant_chunk_count,
         fabricated_page_anchor_chunk_count=fabricated_page_anchor_chunk_count,
         coarse_token_guardrail_chunk_count=coarse_token_guardrail_chunk_count,
+        coarse_provision_label_chunk_count=coarse_provision_label_chunk_count,
+        adjacent_body_overlap_chunk_count=adjacent_body_overlap_chunk_count,
         failed_document_ids=tuple(sorted(failed_document_ids)),
     )
 
@@ -564,6 +575,20 @@ def _build_document_report(
         if is_regulation_body_role(chunk.metadata.get("content_role"))
         and token_guardrail_indicates_coarse_unit(chunk.metadata)
     )
+    coarse_provision_label_chunk_count = sum(
+        1
+        for chunk in chunks
+        if is_regulation_body_role(chunk.metadata.get("content_role"))
+        and chunk_has_coarse_provision_label(chunk.metadata)
+    )
+    body_chunks = [
+        chunk for chunk in chunks if is_regulation_body_role(chunk.metadata.get("content_role"))
+    ]
+    adjacent_body_overlap_chunk_count = sum(
+        1
+        for left, right in pairwise(body_chunks)
+        if adjacent_chunks_have_meaningful_overlap(left.metadata, right.metadata)
+    )
     issues: list[str] = []
     if not chunks:
         issues.append("no_chunks_emitted")
@@ -605,6 +630,10 @@ def _build_document_report(
         issues.append("fabricated_page_anchor")
     if coarse_token_guardrail_chunk_count:
         issues.append("coarse_token_guardrail")
+    if coarse_provision_label_chunk_count:
+        issues.append("coarse_provision_label")
+    if adjacent_body_overlap_chunk_count:
+        issues.append("adjacent_body_overlap")
     passed = not any(
         issue
         in {
@@ -628,6 +657,8 @@ def _build_document_report(
             "header_dominant",
             "fabricated_page_anchor",
             "coarse_token_guardrail",
+            "coarse_provision_label",
+            "adjacent_body_overlap",
         }
         for issue in issues
     )
@@ -662,6 +693,8 @@ def _build_document_report(
         header_dominant_chunk_count=header_dominant_chunk_count,
         fabricated_page_anchor_chunk_count=fabricated_page_anchor_chunk_count,
         coarse_token_guardrail_chunk_count=coarse_token_guardrail_chunk_count,
+        coarse_provision_label_chunk_count=coarse_provision_label_chunk_count,
+        adjacent_body_overlap_chunk_count=adjacent_body_overlap_chunk_count,
         passed=passed,
         issues=tuple(issues),
         document_units_path=str(document_units_path.relative_to(relative_root)),

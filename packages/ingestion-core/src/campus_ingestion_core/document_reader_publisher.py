@@ -23,7 +23,6 @@ _DEFAULT_DOCUMENT_READER_SCOPES = frozenset(
     {
         ("curriculum", "curriculum_plan"),
         ("regulations", "institutional_rules"),
-        ("regulations", "scoped_rules"),
         ("regulations", "student_rules"),
     }
 )

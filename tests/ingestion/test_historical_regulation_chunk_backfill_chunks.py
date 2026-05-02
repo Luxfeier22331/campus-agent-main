@@ -78,6 +78,8 @@ class HistoricalRegulationChunkBackfillChunksTest(unittest.TestCase):
 
         batch = evidence["chunk_preparation_batch_report"]
         self.assertEqual(batch["target_count"], 2)
+        self.assertEqual(batch["document_site_eligible_count"], 1)
+        self.assertEqual(batch["rag_consumption_eligible_count"], 1)
         self.assertEqual(batch["prepared_document_count"], 2)
         self.assertEqual(batch["total_chunk_count"], 7)
         self.assertEqual(batch["overall_verdict"], "passed")
@@ -134,11 +136,17 @@ def _classification_record(
     *,
     classification: str,
 ) -> dict[str, object]:
+    is_downstream_eligible = record.collection == "institutional_rules"
     return {
         "target_collection": record.collection,
         "target_document_id": record.document_id,
         "classification": classification,
         "reason_codes": ["ready_for_chunk_preparation"],
+        "document_site_eligible": is_downstream_eligible,
+        "rag_consumption_eligible": is_downstream_eligible,
+        "downstream_consumption_status": (
+            "eligible_after_release_gate" if is_downstream_eligible else "chunk_only_non_serving"
+        ),
     }
 
 

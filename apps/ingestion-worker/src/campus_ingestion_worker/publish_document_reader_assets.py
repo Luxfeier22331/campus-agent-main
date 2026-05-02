@@ -19,6 +19,13 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_SCOPES = ("regulations/student_rules", "curriculum/curriculum_plan")
+DOCUMENT_SITE_ALLOWED_SCOPES = frozenset(
+    {
+        ("curriculum", "curriculum_plan"),
+        ("regulations", "institutional_rules"),
+        ("regulations", "student_rules"),
+    }
+)
 
 
 class DryRunObjectStore:
@@ -85,6 +92,8 @@ def _select_records(*, registry, scopes: tuple[str, ...]) -> tuple[DocumentRegis
     records: list[DocumentRegistryRecord] = []
     for scope in scopes:
         corpus, collection = _parse_scope(scope)
+        if (corpus, collection) not in DOCUMENT_SITE_ALLOWED_SCOPES:
+            continue
         runtime_profile = load_runtime_profile(corpus, collection)
         allowed_revision_tracks = set(runtime_profile.serving_revision_tracks)
         records.extend(

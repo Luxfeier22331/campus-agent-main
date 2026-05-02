@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections import Counter
 from collections.abc import Mapping, Sequence
 from typing import Any
@@ -50,6 +51,8 @@ SCOPED_RULE_TITLE_MARKERS = (
     "免试攻读研究生",
     "学院",
 )
+DOWNSTREAM_CONSUMPTION_ELIGIBLE_COLLECTIONS = ("institutional_rules",)
+_QUOTE_TITLE_RE = re.compile(r"《([^》]{2,200})》")
 
 
 def build_historical_regulation_denominator_expansion_audit(
@@ -59,9 +62,7 @@ def build_historical_regulation_denominator_expansion_audit(
     wrapper_follow_up_manifest: Mapping[str, Any] | None = None,
     completed_v9_admission_manifest: Mapping[str, Any] | None = None,
     generated_at: str | None = None,
-    generated_by: str = (
-        "campus_ingestion_core.historical_regulation_denominator_expansion"
-    ),
+    generated_by: str = ("campus_ingestion_core.historical_regulation_denominator_expansion"),
 ) -> dict[str, Any]:
     timestamp = generated_at or utc_now()
     notices = _notice_rows(batch_config)
@@ -86,6 +87,12 @@ def build_historical_regulation_denominator_expansion_audit(
     )
     ready_records = [
         record for record in records if record["status"] == READY_FOR_CANONICAL_CHUNK_V9
+    ]
+    downstream_eligible_records = [
+        record
+        for record in ready_records
+        if bool(record.get("rag_consumption_eligible"))
+        and bool(record.get("document_site_eligible"))
     ]
     recovery_records = [
         record
@@ -115,10 +122,16 @@ def build_historical_regulation_denominator_expansion_audit(
         "source_shape_counts": dict(sorted(source_shape_counts.items())),
         "target_collection_counts": dict(sorted(target_collection_counts.items())),
         "ready_notice_ids": [str(record["source_notice_id"]) for record in ready_records],
+        "downstream_eligible_notice_ids": [
+            str(record["source_notice_id"]) for record in downstream_eligible_records
+        ],
         "recovery_notice_ids": [str(record["source_notice_id"]) for record in recovery_records],
         "records": records,
         "policy": {
             "ready_status": READY_FOR_CANONICAL_CHUNK_V9,
+            "downstream_consumption_eligible_collections": list(
+                DOWNSTREAM_CONSUMPTION_ELIGIBLE_COLLECTIONS
+            ),
             "ready_requires": [
                 "cohort_a_body_text_baseline",
                 "body_text_source_shape",
@@ -149,29 +162,39 @@ def _build_record(
     completed_ids: set[str],
 ) -> dict[str, Any]:
     notice_id = _required_text(notice.get("notice_id"), "notice_id")
-    title = _required_text(notice.get("notice_title"), "notice_title")
+    source_title = _required_text(notice.get("notice_title"), "notice_title")
+    title = _effective_regulation_title(source_title)
     source_shape = str(notice.get("source_shape") or "").strip()
     status, reason_codes = _classify_notice(
         notice_id=notice_id,
-        title=title,
+        title=source_title,
         source_shape=source_shape,
         cohort_a_ids=cohort_a_ids,
         wrapper_ids=wrapper_ids,
         completed_ids=completed_ids,
     )
     target_collection = (
-        _infer_target_collection(title=title)
-        if status == READY_FOR_CANONICAL_CHUNK_V9
-        else ""
+        _infer_target_collection(title=title) if status == READY_FOR_CANONICAL_CHUNK_V9 else ""
     )
+    downstream_eligible = target_collection in DOWNSTREAM_CONSUMPTION_ELIGIBLE_COLLECTIONS
     duplicate_survivor = DUPLICATE_SURVIVOR_BY_NOTICE_ID.get(notice_id, "")
     return {
         "source_notice_id": notice_id,
         "title": title,
+        "source_title_literal": source_title,
         "source_shape": source_shape,
         "status": status,
         "target_collection": target_collection,
         "target_surface": f"regulations/{target_collection}" if target_collection else "",
+        "document_site_eligible": downstream_eligible,
+        "rag_consumption_eligible": downstream_eligible,
+        "downstream_consumption_status": (
+            "eligible_after_release_gate"
+            if downstream_eligible
+            else "chunk_only_non_serving"
+            if target_collection == "scoped_rules"
+            else "not_ready_for_downstream_consumption"
+        ),
         "reason_codes": reason_codes,
         "duplicate_survivor_notice_id": duplicate_survivor,
         "already_in_completed_v9_cohort": notice_id in completed_ids,
@@ -220,6 +243,26 @@ def _infer_target_collection(*, title: str) -> str:
     if any(marker in title for marker in SCOPED_RULE_TITLE_MARKERS):
         return "scoped_rules"
     return "institutional_rules"
+
+
+def _effective_regulation_title(title: str) -> str:
+    for value in (_extract_quoted_title(title), title):
+        cleaned = _strip_title_noise(value)
+        if cleaned:
+            return cleaned
+    return _strip_title_noise(title)
+
+
+def _extract_quoted_title(value: str) -> str:
+    match = _QUOTE_TITLE_RE.search(value)
+    return match.group(1).strip() if match is not None else ""
+
+
+def _strip_title_noise(value: str) -> str:
+    cleaned = str(value or "").strip()
+    cleaned = re.sub(r"^\s*附件\s*\d*\s*[:：、.-]?\s*", "", cleaned)
+    cleaned = re.sub(r"^重要通知[-—–_ ]*", "", cleaned)
+    return cleaned.strip()
 
 
 def _notice_rows(batch_config: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:

@@ -43,7 +43,34 @@ class HistoricalRegulationDenominatorExpansionTests(unittest.TestCase):
                 "186957",
             ],
         )
+        self.assertEqual(
+            audit["target_collection_counts"],
+            {"institutional_rules": 1, "scoped_rules": 8},
+        )
+        self.assertEqual(
+            audit["downstream_eligible_notice_ids"],
+            ["191705"],
+        )
+        self.assertEqual(
+            audit["policy"]["downstream_consumption_eligible_collections"],
+            ["institutional_rules"],
+        )
         self.assertEqual(by_notice["354006"]["target_collection"], "scoped_rules")
+        self.assertEqual(
+            by_notice["354006"]["downstream_consumption_status"], "chunk_only_non_serving"
+        )
+        self.assertFalse(by_notice["354006"]["document_site_eligible"])
+        self.assertFalse(by_notice["354006"]["rag_consumption_eligible"])
+        self.assertEqual(by_notice["191705"]["target_collection"], "institutional_rules")
+        self.assertEqual(
+            by_notice["191705"]["title"],
+            "中央民族大学丰台校区就医管理办法（暂行）",
+        )
+        self.assertEqual(
+            by_notice["191705"]["downstream_consumption_status"], "eligible_after_release_gate"
+        )
+        self.assertTrue(by_notice["191705"]["document_site_eligible"])
+        self.assertTrue(by_notice["191705"]["rag_consumption_eligible"])
         self.assertEqual(by_notice["187233"]["status"], "needs_owner_text_recovery")
         self.assertIn("body_text_not_complete_owner_policy", by_notice["187233"]["reason_codes"])
         self.assertEqual(by_notice["191176"]["status"], "ready_for_canonical_chunk_v9")
@@ -74,22 +101,82 @@ class HistoricalRegulationDenominatorExpansionTests(unittest.TestCase):
 
 def _run14_batch_config() -> dict[str, object]:
     notices = [
-        ("355282", "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知", "wrapper_notice_likely_external_canonical_text"),
-        ("354006", "中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则", "body_contains_substantial_policy_text"),
-        ("353963", "中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则", "body_is_policy_text"),
-        ("351907", "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则", "body_is_policy_text"),
-        ("351704", "关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知", "wrapper_notice_likely_external_canonical_text"),
-        ("351699", "关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知", "wrapper_notice_likely_external_canonical_text"),
-        ("351119", "关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知", "wrapper_notice_likely_external_canonical_text"),
-        ("196411", "中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则", "body_contains_substantial_policy_text"),
-        ("191705", "重要通知--中央民族大学丰台校区就医管理办法（暂行）", "body_contains_substantial_policy_text"),
-        ("191177", "生命与环境科学学院关于2021年暑假期间实验室安全管理规定", "body_contains_substantial_policy_text"),
-        ("191176", "生命与环境科学学院关于2021年暑假期间实验室安全管理规定", "body_contains_substantial_policy_text"),
-        ("187233", "关于修订《中央民族大学采购工作管理办法》的通知", "body_contains_substantial_policy_text"),
+        (
+            "355282",
+            "关于发布《中央民族大学关于学生使用人工智能的指导意见（2026版）》的通知",
+            "wrapper_notice_likely_external_canonical_text",
+        ),
+        (
+            "354006",
+            "中央民族大学中华民族共同体学院 2026年“英才计划”硕博连读研究生招生实施细则",
+            "body_contains_substantial_policy_text",
+        ),
+        (
+            "353963",
+            "中央民族大学新闻与传播学院 2026年“英才计划”硕博连读研究生招生实施细则",
+            "body_is_policy_text",
+        ),
+        (
+            "351907",
+            "新闻与传播学院推荐2026届本科生免试攻读研究生工作实施细则",
+            "body_is_policy_text",
+        ),
+        (
+            "351704",
+            "关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知",
+            "wrapper_notice_likely_external_canonical_text",
+        ),
+        (
+            "351699",
+            "关于发布《中央民族大学新一轮本科教育教学审核评估应知应会手册》的通知",
+            "wrapper_notice_likely_external_canonical_text",
+        ),
+        (
+            "351119",
+            "关于《<中央民族大学差旅费管理办法>（民大校发〔2025〕104号）》发布实施的通知",
+            "wrapper_notice_likely_external_canonical_text",
+        ),
+        (
+            "196411",
+            "中央民族大学民族学与社会学学院2022年硕博连读博士研究生招生实施细则",
+            "body_contains_substantial_policy_text",
+        ),
+        (
+            "191705",
+            "重要通知--中央民族大学丰台校区就医管理办法（暂行）",
+            "body_contains_substantial_policy_text",
+        ),
+        (
+            "191177",
+            "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+            "body_contains_substantial_policy_text",
+        ),
+        (
+            "191176",
+            "生命与环境科学学院关于2021年暑假期间实验室安全管理规定",
+            "body_contains_substantial_policy_text",
+        ),
+        (
+            "187233",
+            "关于修订《中央民族大学采购工作管理办法》的通知",
+            "body_contains_substantial_policy_text",
+        ),
         ("187004", "历史文化学院2021年硕博连读博士研究生 招生实施细则", "body_is_policy_text"),
-        ("186977", "药学院2021年硕博连读博士研究生招生实施细则", "body_contains_substantial_policy_text"),
-        ("186957", "中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则", "body_contains_substantial_policy_text"),
-        ("177880", "关于印发实施《中央民族大学学生申诉管理办法》的通知", "wrapper_or_summary_notice"),
+        (
+            "186977",
+            "药学院2021年硕博连读博士研究生招生实施细则",
+            "body_contains_substantial_policy_text",
+        ),
+        (
+            "186957",
+            "中央民族大学民族学与社会学学院2021年硕博连读博士研究生招生实施细则",
+            "body_contains_substantial_policy_text",
+        ),
+        (
+            "177880",
+            "关于印发实施《中央民族大学学生申诉管理办法》的通知",
+            "wrapper_or_summary_notice",
+        ),
     ]
     return {
         "batch_id": "run14-policy-regulation-expanded-v1",

@@ -6,7 +6,7 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import call, patch
+from unittest.mock import patch
 
 from campus_ingestion_core.regulation_rag_release_lane import (
     RagReleaseCandidateEnqueueReport,
@@ -100,50 +100,35 @@ class EnqueueRegulationRagReleaseCandidatesWorkerCliTest(unittest.TestCase):
             ):
                 build_registry.return_value = object()
                 build_store.return_value = object()
-                enqueue.side_effect = (
-                    RagReleaseCandidateEnqueueReport(
-                        created_count=1,
-                        skipped_unchanged_count=0,
-                        candidate_ids=("candidate-institutional",),
-                    ),
-                    RagReleaseCandidateEnqueueReport(
-                        created_count=1,
-                        skipped_unchanged_count=0,
-                        candidate_ids=("candidate-scoped",),
-                    ),
+                enqueue.return_value = RagReleaseCandidateEnqueueReport(
+                    created_count=1,
+                    skipped_unchanged_count=0,
+                    candidate_ids=("candidate-institutional",),
                 )
 
                 worker.main(["--from-materialization-report", str(report_path)])
 
-        enqueue.assert_has_calls(
-            [
-                call(
-                    store=build_store.return_value,
-                    registry=build_registry.return_value,
-                    corpus="regulations",
-                    collection="institutional_rules",
-                    changed_document_ids=("institutional-doc",),
-                    force=False,
-                ),
-                call(
-                    store=build_store.return_value,
-                    registry=build_registry.return_value,
-                    corpus="regulations",
-                    collection="scoped_rules",
-                    changed_document_ids=("scoped-doc",),
-                    force=False,
-                ),
-            ]
+        enqueue.assert_called_once_with(
+            store=build_store.return_value,
+            registry=build_registry.return_value,
+            corpus="regulations",
+            collection="institutional_rules",
+            changed_document_ids=("institutional-doc",),
+            force=False,
         )
         payload = json.loads(stdout.getvalue())
-        self.assertEqual(payload["created_count"], 2)
+        self.assertEqual(payload["created_count"], 1)
         self.assertEqual(
             payload["selected_documents_by_collection"],
-            {"institutional_rules": 1, "scoped_rules": 1},
+            {"institutional_rules": 1},
+        )
+        self.assertEqual(
+            payload["excluded_documents_by_collection"],
+            {"scoped_rules": 1},
         )
         self.assertEqual(
             payload["candidate_ids"],
-            ["candidate-institutional", "candidate-scoped"],
+            ["candidate-institutional"],
         )
 
     def test_main_force_reenqueue_passes_force_flag_and_reports_count(self) -> None:

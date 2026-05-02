@@ -16,6 +16,7 @@ from campus_ingestion_core.regulation_rag_release_lane import (
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 REGULATION_COLLECTION_ORDER = ("institutional_rules", "scoped_rules")
+RAG_RELEASE_ELIGIBLE_COLLECTIONS = frozenset({"institutional_rules"})
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -96,6 +97,16 @@ def main(argv: Sequence[str] | None = None) -> None:
             "candidate_ids": list(report.candidate_ids),
         }
 
+    eligible_selected_by_collection = {
+        collection: tuple(document_ids)
+        for collection, document_ids in selected_by_collection.items()
+        if collection in RAG_RELEASE_ELIGIBLE_COLLECTIONS
+    }
+    excluded_selected_by_collection = {
+        collection: tuple(document_ids)
+        for collection, document_ids in selected_by_collection.items()
+        if collection not in RAG_RELEASE_ELIGIBLE_COLLECTIONS
+    }
     payload = {
         "schema_version": "regulation_rag_release_candidate_enqueue.v1",
         "corpus": args.corpus,
@@ -105,7 +116,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         "candidate_ids": candidate_ids,
         "selected_documents_by_collection": {
             collection: len(document_ids)
-            for collection, document_ids in _ordered_collection_items(selected_by_collection)
+            for collection, document_ids in _ordered_collection_items(
+                eligible_selected_by_collection
+            )
+        },
+        "excluded_documents_by_collection": {
+            collection: len(document_ids)
+            for collection, document_ids in _ordered_collection_items(
+                excluded_selected_by_collection,
+                eligible_only=False,
+            )
         },
         "collections": collection_reports,
     }
@@ -151,16 +171,20 @@ def _collect_selected_documents(
 
 def _ordered_collection_items(
     selected_by_collection: Mapping[str, Sequence[str]],
+    *,
+    eligible_only: bool = True,
 ) -> tuple[tuple[str, tuple[str, ...]], ...]:
     known = [
         (collection, tuple(selected_by_collection[collection]))
         for collection in REGULATION_COLLECTION_ORDER
         if collection in selected_by_collection
+        and (not eligible_only or collection in RAG_RELEASE_ELIGIBLE_COLLECTIONS)
     ]
     other = [
         (collection, tuple(document_ids))
         for collection, document_ids in sorted(selected_by_collection.items())
         if collection not in REGULATION_COLLECTION_ORDER
+        and (not eligible_only or collection in RAG_RELEASE_ELIGIBLE_COLLECTIONS)
     ]
     return tuple(known + other)
 

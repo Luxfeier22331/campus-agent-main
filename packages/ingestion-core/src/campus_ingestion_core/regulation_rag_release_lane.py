@@ -41,6 +41,7 @@ DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY = (
 DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_TABLE = (
     "ingestion_projection.regulation_rag_release_candidate"
 )
+REGULATION_RAG_RELEASE_ELIGIBLE_COLLECTIONS = frozenset({"institutional_rules"})
 
 RagReleaseCandidateStatus = Literal[
     "pending",
@@ -343,11 +344,23 @@ def enqueue_regulation_rag_release_candidates_for_records(
     now: datetime | None = None,
     force: bool = False,
 ) -> RagReleaseCandidateEnqueueReport:
+    if (
+        runtime_profile.collection not in REGULATION_RAG_RELEASE_ELIGIBLE_COLLECTIONS
+        or not runtime_profile.query_enabled_by_default
+    ):
+        return RagReleaseCandidateEnqueueReport(
+            created_count=0,
+            skipped_unchanged_count=0,
+            candidate_ids=(),
+            forced_reenqueue_count=0,
+        )
     runtime_now = _iso(now)
     candidate_ids: list[str] = []
     skipped_unchanged_count = 0
     forced_reenqueue_count = 0
     for record in records:
+        if record.collection not in REGULATION_RAG_RELEASE_ELIGIBLE_COLLECTIONS:
+            continue
         runtime_profile_identity = _runtime_profile_identity(runtime_profile)
         existing = store.latest_candidate_for_document(
             document_id=record.document_id,
@@ -948,6 +961,7 @@ def _resolve_candidate_store_database_url(
 
 
 __all__ = [
+    "REGULATION_RAG_RELEASE_ELIGIBLE_COLLECTIONS",
     "InMemoryRegulationRagReleaseCandidateStore",
     "PostgresRegulationRagReleaseCandidateStore",
     "RagReleaseCandidate",

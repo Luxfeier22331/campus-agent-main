@@ -1,8 +1,8 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-03
 ---
 # Workstream: Historical Regulation Denominator Expansion
 
@@ -15,11 +15,14 @@ updated: 2026-05-02
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 01-04 canonical/document-units/chunk-only backfill`
-- current focus: run14 denominator audit 已识别 9 个 ready candidates 与 7 个
-  recovery/block candidates；当前执行 9 个 ready candidates 的 body-text
-  admission、canonical materialization 与 chunk-only preparation
+- status: `completed`
+- completed phase: `Phase 07 closeout`
+- closeout: run14 已采集 regulation-like notices 已完成扩大面收口。9 条进入
+  canonical/document-units/chunk 质量口径，其中仅 `191705` 是校级
+  `institutional_rules`，可作为后续显式 document-site / RAG release gate
+  候选；8 条院级/专项规则保留为 `scoped_rules` chunk-only non-serving
+  evidence。`355282`、`187233`、`177880` 因无 captured owner source / 完整
+  owner text 继续 blocked，不进入 canonical/chunk。
 
 ## Boundary
 
@@ -33,6 +36,14 @@ run14 already-collected normalized notice bundle
 -> document-units
 -> chunk preparation and quality evidence
 ```
+
+下游消费基调：
+
+- `regulations/institutional_rules` 是校级 regulation；完成质量验证后，只有它可以在后续显式
+  release gate 中进入文档站或 RAG consumption
+- `regulations/scoped_rules` 是院级/专项 regulation holding collection；本 workstream
+  只允许生成 canonical/document-units/chunk-only 质量证据，不进入文档站、RAG
+  release candidate、embedding/index 或 serving alias
 
 明确不做：
 
@@ -57,3 +68,9 @@ run14 already-collected normalized notice bundle
   `./evidence/phase-00-denominator-audit/`
 - body-text admission / canonical / chunk evidence:
   `./evidence/phase-01-04-canonical-chunk-backfill/`
+- school-level inventory:
+  `./evidence/phase-05-school-level-inventory/`
+- school-level owner-text recovery audit:
+  `./evidence/phase-06-school-level-owner-text-recovery/`
+- closeout:
+  `./evidence/phase-07-closeout/`

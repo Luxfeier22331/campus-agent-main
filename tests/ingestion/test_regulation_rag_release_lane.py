@@ -46,9 +46,9 @@ class RegulationRagReleaseLaneTest(unittest.TestCase):
         self.assertEqual(candidate.ragPreparationStatus, "pending")
         self.assertEqual(candidate.ragServingStatus, "not_serving")
 
-    def test_query_disabled_scoped_rule_is_held_without_release_runner(self) -> None:
+    def test_query_disabled_scoped_rule_is_not_enqueued_for_rag_release(self) -> None:
         store = InMemoryRegulationRagReleaseCandidateStore()
-        enqueue_regulation_rag_release_candidates_for_records(
+        report = enqueue_regulation_rag_release_candidates_for_records(
             store=store,
             records=(self._record(collection="scoped_rules"),),
             runtime_profile=self._profile(
@@ -57,17 +57,10 @@ class RegulationRagReleaseLaneTest(unittest.TestCase):
             now=self._now(),
         )
 
-        report = process_pending_regulation_rag_release_candidates(
-            store=store,
-            release_executor=self._unexpected_release_executor,
-            now=self._now(),
-        )
-
-        self.assertEqual(report.processed_count, 1)
-        candidate = store.list_candidates()[0]
-        self.assertEqual(candidate.status, "not_query_enabled")
-        self.assertEqual(candidate.ragServingStatus, "not_serving")
-        self.assertEqual(candidate.ragVerificationStatus, "not_applicable")
+        self.assertEqual(report.created_count, 0)
+        self.assertEqual(report.skipped_unchanged_count, 0)
+        self.assertEqual(report.candidate_ids, ())
+        self.assertEqual(store.list_candidates(), ())
 
     def test_unchanged_candidate_skips_reembedding(self) -> None:
         store = InMemoryRegulationRagReleaseCandidateStore()
@@ -320,7 +313,7 @@ class RegulationRagReleaseLaneTest(unittest.TestCase):
             now=self._now(),
         )
 
-        self.assertEqual(len(store.list_candidates()), 3)
+        self.assertEqual(len(store.list_candidates()), 1)
         self.assertNotIn(
             "negative-source-truth-notice",
             {candidate.document_id for candidate in store.list_candidates()},
@@ -338,7 +331,7 @@ class RegulationRagReleaseLaneTest(unittest.TestCase):
             now=self._now(),
         )
 
-        self.assertEqual(report.processed_count, 3)
+        self.assertEqual(report.processed_count, 1)
         candidates = {candidate.document_id: candidate for candidate in store.list_candidates()}
         self.assertEqual(
             candidates["current-institutional-rule"].status,
@@ -348,20 +341,8 @@ class RegulationRagReleaseLaneTest(unittest.TestCase):
             candidates["current-institutional-rule"].ragServingStatus,
             "serving_published",
         )
-        self.assertEqual(candidates["current-scoped-rule"].status, "not_query_enabled")
-        self.assertEqual(candidates["current-scoped-rule"].ragServingStatus, "not_serving")
-        self.assertEqual(
-            candidates["historical-scoped-rule-186977"].status,
-            "held_search_only",
-        )
-        self.assertEqual(
-            candidates["historical-scoped-rule-186977"].cleanup_disposition,
-            "none",
-        )
-        self.assertEqual(
-            candidates["historical-scoped-rule-186977"].ragServingStatus,
-            "not_serving",
-        )
+        self.assertNotIn("current-scoped-rule", candidates)
+        self.assertNotIn("historical-scoped-rule-186977", candidates)
 
     def test_phase_6_selected_replay_evidence_matches_real_sample_expectations(self) -> None:
         evidence_path = (

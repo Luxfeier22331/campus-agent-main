@@ -63,6 +63,7 @@ _SCHEMA_VERSION = "internal_notice_regulation_document_site_publish.v1"
 _INSTITUTIONAL_SCOPE = ("regulations", "institutional_rules")
 _SCOPED_RULES_SCOPE = ("regulations", "scoped_rules")
 _TARGET_SCOPES = (_INSTITUTIONAL_SCOPE, _SCOPED_RULES_SCOPE)
+_DOCUMENT_SITE_PUBLISH_SCOPES = (_INSTITUTIONAL_SCOPE,)
 
 
 @dataclass(frozen=True, slots=True)
@@ -232,11 +233,16 @@ def publish_internal_notice_regulation_document_site(
         scopes=_TARGET_SCOPES,
     )
     target_scope_snapshot_document_counts = _count_records_by_scope(target_records)
+    reader_records = _select_current_target_records(
+        registry=runtime_document_registry,
+        scopes=_DOCUMENT_SITE_PUBLISH_SCOPES,
+    )
+    reader_publish_scope_document_counts = _count_records_by_scope(reader_records)
     reader_report = publish_document_reader_assets(
         bucket_derived=settings.bucket_derived,
         generated_at=utc_now(),
         object_store=runtime_object_store,
-        records=target_records,
+        records=reader_records,
     )
     docs_read_model_manifest_path = request.output_dir / "docs-read-model-manifest.json"
     _write_json(docs_read_model_manifest_path, reader_report.manifest)
@@ -263,6 +269,7 @@ def publish_internal_notice_regulation_document_site(
             "/".join(_SCOPED_RULES_SCOPE): scoped_report.materialized_document_count,
         },
         "target_scope_snapshot_document_counts": target_scope_snapshot_document_counts,
+        "reader_publish_scope_document_counts": reader_publish_scope_document_counts,
         "docs_read_model_manifest_path": str(docs_read_model_manifest_path),
         "docs_read_model_scope_write_mode": (
             "replace_manifest_scopes_with_full_current_target_snapshot"

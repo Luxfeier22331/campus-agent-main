@@ -3,6 +3,8 @@ from __future__ import annotations
 import unittest
 
 from campus_ingestion_core.regulation_chunk_quality import (
+    adjacent_chunks_have_meaningful_overlap,
+    chunk_has_coarse_provision_label,
     contains_form_tail_marker,
     contains_publication_imprint,
     header_dominance_is_blocking_quality_gap,
@@ -11,6 +13,49 @@ from campus_ingestion_core.regulation_chunk_quality import (
 
 
 class RegulationChunkQualityTest(unittest.TestCase):
+    def test_chunk_has_coarse_provision_label_flags_multi_item_single_label(self) -> None:
+        self.assertTrue(
+            chunk_has_coarse_provision_label(
+                {
+                    "display_text": "1. 第一项要求。\n2. 第二项要求。",
+                    "provision_label": "1.",
+                }
+            )
+        )
+
+    def test_chunk_has_coarse_provision_label_allows_item_range(self) -> None:
+        self.assertFalse(
+            chunk_has_coarse_provision_label(
+                {
+                    "display_text": "1. 第一项要求。\n2. 第二项要求。",
+                    "provision_label": "1.-2.",
+                }
+            )
+        )
+
+    def test_chunk_has_coarse_provision_label_flags_parent_label_for_multi_items(self) -> None:
+        self.assertTrue(
+            chunk_has_coarse_provision_label(
+                {
+                    "display_text": "1. 第一项要求。\n2. 第二项要求。",
+                    "provision_label": "（二）",
+                }
+            )
+        )
+
+    def test_adjacent_chunks_have_meaningful_overlap_flags_repeated_body_line(self) -> None:
+        self.assertTrue(
+            adjacent_chunks_have_meaningful_overlap(
+                {
+                    "display_text": (
+                        "2. 至少获得1项省部级及以上科研成果。\n"
+                        "3. 以排名前3发明人获得至少1项授权专利。"
+                    )
+                },
+                {"display_text": ("3. 以排名前3发明人获得至少1项授权专利。\n4. 其他科研成果。")},
+            )
+        )
+
     def test_section_path_contains_body_text_flags_stale_list_item_even_when_display_differs(
         self,
     ) -> None:
@@ -106,6 +151,20 @@ class RegulationChunkQualityTest(unittest.TestCase):
             )
         )
 
+    def test_header_dominance_allows_short_contextualized_major_field(self) -> None:
+        self.assertFalse(
+            header_dominance_is_blocking_quality_gap(
+                metadata={
+                    "section_path": ["一、招生专业"],
+                    "display_text": "招生专业：新闻传播学",
+                    "header_token_count": 34,
+                    "display_token_count": 10,
+                    "final_token_count": 44,
+                },
+                threshold=0.75,
+            )
+        )
+
     def test_contains_publication_imprint_allows_office_address_line(self) -> None:
         self.assertFalse(
             contains_publication_imprint(
@@ -118,18 +177,14 @@ class RegulationChunkQualityTest(unittest.TestCase):
     def test_contains_publication_imprint_flags_plain_issuer_line(self) -> None:
         self.assertTrue(
             contains_publication_imprint(
-                "中央民族大学本科教学管理办法 / 附则\n"
-                "中央民族大学校长办公室"
+                "中央民族大学本科教学管理办法 / 附则\n中央民族大学校长办公室"
             )
         )
 
     def test_contains_form_tail_marker_flags_flattened_information_table_tail(self) -> None:
         self.assertTrue(
             contains_form_tail_marker(
-                "附表 1\n"
-                "新生学费库数据信息表\n"
-                "姓名 | 学号 | 身份证号 | 学院 | 专业名称\n"
-                "| | | | |"
+                "附表 1\n新生学费库数据信息表\n姓名 | 学号 | 身份证号 | 学院 | 专业名称\n| | | | |"
             )
         )
 

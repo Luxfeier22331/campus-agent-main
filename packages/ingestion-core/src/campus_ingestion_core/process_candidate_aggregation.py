@@ -51,15 +51,15 @@ def short_textual_group_is_satisfied(candidate: _ChunkCandidate) -> bool:
 
 
 def build_aggregated_anchor(members: Sequence[_ChunkMember]) -> dict[str, object]:
-    aggregated_anchor = dict(members[0].unit.anchor)
+    aggregated_anchor = build_member_anchor(members[0])
     page_starts = [
         value
-        for value in (as_int(member.unit.anchor.get("page_start")) for member in members)
+        for value in (as_int(build_member_anchor(member).get("page_start")) for member in members)
         if value is not None
     ]
     page_ends = [
         value
-        for value in (as_int(member.unit.anchor.get("page_end")) for member in members)
+        for value in (as_int(build_member_anchor(member).get("page_end")) for member in members)
         if value is not None
     ]
     if page_starts:
@@ -67,7 +67,7 @@ def build_aggregated_anchor(members: Sequence[_ChunkMember]) -> dict[str, object
     if page_ends:
         aggregated_anchor["page_end"] = max(page_ends)
     common_section_path = common_section_path_tuple(
-        normalize_section_path(member.unit.anchor) for member in members
+        normalize_section_path(build_member_anchor(member)) for member in members
     )
     if common_section_path:
         aggregated_anchor["section_path"] = list(common_section_path)
@@ -204,8 +204,9 @@ def build_member_display_text(member: _ChunkMember) -> str:
 
 
 def resolve_member_label(member: _ChunkMember) -> str | None:
+    anchor = build_member_anchor(member)
     for field_name in ("article_label", "provision_label"):
-        label = normalize_anchor_label(member.unit.anchor, field_name)
+        label = normalize_anchor_label(anchor, field_name)
         if label is not None:
             return label
     return None
@@ -214,12 +215,16 @@ def resolve_member_label(member: _ChunkMember) -> str | None:
 def collect_member_labels(members: Sequence[_ChunkMember], field_name: str) -> list[str]:
     labels: list[str] = []
     for member in members:
-        value = member.unit.anchor.get(field_name)
+        value = build_member_anchor(member).get(field_name)
         if isinstance(value, str):
             normalized = value.strip()
             if normalized:
                 labels.append(normalized)
     return labels
+
+
+def build_member_anchor(member: _ChunkMember) -> dict[str, object]:
+    return {**dict(member.unit.anchor), **dict(member.piece.anchor)}
 
 
 def collapse_label_range(labels: Sequence[str]) -> str:
@@ -308,6 +313,7 @@ __all__ = [
     "build_curriculum_aggregated_display_text",
     "build_curriculum_member_display_text",
     "build_institutional_regulation_aggregated_anchor",
+    "build_member_anchor",
     "collect_member_labels",
     "common_section_path_tuple",
     "header_ratio",

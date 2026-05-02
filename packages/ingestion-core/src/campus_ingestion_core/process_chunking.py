@@ -26,6 +26,7 @@ from campus_ingestion_core.process_loading import (
     build_generic_runtime_chunk_profile,
     build_handbook_chunk_profile,
     build_official_web_runtime_chunk_profile,
+    build_regulation_unit_pieces,
     load_curriculum_runtime_structured_units,
     load_default_structured_units,
     load_internal_notice_structured_units,
@@ -103,7 +104,7 @@ _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = 
     ("regulations", "institutional_rules"): _CollectionChunkStrategy(
         build_chunk_profile=build_generic_runtime_chunk_profile,
         load_structured_units=load_default_structured_units,
-        build_unit_pieces=build_default_unit_pieces,
+        build_unit_pieces=build_regulation_unit_pieces,
         resolve_unit_chunk_profile=resolve_institutional_regulation_unit_chunk_profile,
         should_skip_unit=should_skip_regulation_unit,
         postprocess_candidates=postprocess_institutional_regulation_chunk_candidates,
@@ -111,7 +112,7 @@ _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = 
     ("regulations", "scoped_rules"): _CollectionChunkStrategy(
         build_chunk_profile=build_generic_runtime_chunk_profile,
         load_structured_units=load_default_structured_units,
-        build_unit_pieces=build_default_unit_pieces,
+        build_unit_pieces=build_regulation_unit_pieces,
         resolve_unit_chunk_profile=resolve_scoped_rule_unit_chunk_profile,
         should_skip_unit=should_skip_regulation_unit,
         postprocess_candidates=postprocess_scoped_rule_chunk_candidates,
@@ -265,8 +266,13 @@ def build_chunk_candidates(
         if collection_chunk_strategy.should_skip_unit(unit, table_roots_with_semantic_units):
             continue
         pieces = collection_chunk_strategy.build_unit_pieces(unit, resolved_chunk_profile)
-        context_plan = build_chunk_text_context(anchor=unit.anchor, metadata=unit.metadata)
         for piece in pieces:
+            candidate_anchor = {**dict(unit.anchor), **dict(piece.anchor)}
+            candidate_metadata = {**dict(unit.metadata), **dict(piece.metadata)}
+            context_plan = build_chunk_text_context(
+                anchor=candidate_anchor,
+                metadata=candidate_metadata,
+            )
             chunk_assembly = build_chunk_text(
                 unit=unit,
                 piece=piece,
@@ -282,13 +288,13 @@ def build_chunk_candidates(
                     root_unit_id=piece.root_unit_id,
                     source_chunk_id=unit.source_chunk_id,
                     visibility_level=unit.visibility_level,
-                    anchor=dict(unit.anchor),
+                    anchor=candidate_anchor,
                     metadata={
                         "strategy_name": resolved_chunk_profile.strategy_name,
                         "split_strategy": resolved_chunk_profile.split_strategy,
                         "chunk_policy_version": resolved_chunk_profile.chunk_policy_version,
                         "cleaning_policy_version": resolved_chunk_profile.cleaning_policy_version,
-                        **dict(unit.metadata),
+                        **candidate_metadata,
                     },
                     piece=piece,
                     chunk_assembly=chunk_assembly,
