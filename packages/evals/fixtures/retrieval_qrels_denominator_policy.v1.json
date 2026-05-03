@@ -39,7 +39,7 @@
 		},
 		"regulations/institutional_rules": {
 			"fixture": "institutional_rules_retrieval_qrels.json",
-			"min_case_count": 5,
+			"min_case_count": 33,
 			"required_classes": ["positive", "no_hit", "forbidden", "version_locked", "authz"],
 			"required_scenarios": [
 				"institutional_policy_title",

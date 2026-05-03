@@ -190,6 +190,19 @@ class RetrievalHandbookQrelsFixtureTest(unittest.TestCase):
 
 
 class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
+    RELEASE_30_REPORT_PATH = (
+        INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH.parents[4]
+        / ".planning"
+        / "workstreams"
+        / "regulation-rag-release-lane"
+        / "evidence"
+        / "phase-09-institutional-30-release"
+        / "release-admission.report.json"
+    )
+    RELEASE_30_READER_MANIFEST_PATH = RELEASE_30_REPORT_PATH.parent / (
+        "institutional-reader-manifest.json"
+    )
+
     def test_load_institutional_rules_retrieval_qrels_dataset_reads_baseline(self) -> None:
         dataset = load_retrieval_qrels_dataset(INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH)
 
@@ -201,26 +214,77 @@ class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
         self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
         self.assertEqual(dataset.baseline["fusion"], "rrf")
-        self.assertGreaterEqual(len(dataset.cases), 4)
+        self.assertGreaterEqual(len(dataset.cases), 32)
+
+    def test_institutional_rules_qrels_cover_all_released_institutional_titles(
+        self,
+    ) -> None:
+        dataset = load_retrieval_qrels_dataset(INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH)
+        release_docs = self._load_release_30_documents()
+        title_cases = {
+            case.query: case
+            for case in dataset.cases
+            if case.expected_sources
+            and case.case_id.startswith("institutional-title-exact-")
+        }
+
+        self.assertEqual(len(release_docs), 30)
+        self.assertEqual(set(title_cases), {item["title"] for item in release_docs})
+        for item in release_docs:
+            case = title_cases[item["title"]]
+            self.assertEqual(case.split, "release_gate")
+            self.assertEqual(
+                case.request_overrides,
+                {
+                    "entitlement_groups": ["campus_members"],
+                    "visibility_scope": "campus",
+                    "visibility_level": "restricted",
+                },
+            )
+            self.assertEqual(len(case.expected_sources), 1)
+            expected = case.expected_sources[0]
+            self.assertEqual(expected.doc_id, item["document_id"])
+            self.assertEqual(expected.version_id, item["version_id"])
+            self.assertIsNone(expected.chunk_id)
+
+    def test_institutional_rules_eval_manifest_covers_release_30_current_versions(
+        self,
+    ) -> None:
+        manifest = json.loads(INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH.read_text())
+        release_docs = self._load_release_30_documents()
+        manifest_by_doc_id = {item["document_id"]: item for item in manifest["documents"]}
+
+        self.assertEqual(set(manifest_by_doc_id), {item["document_id"] for item in release_docs})
+        for item in release_docs:
+            manifest_item = manifest_by_doc_id[item["document_id"]]
+            self.assertEqual(manifest_item["version_id"], item["version_id"])
+            self.assertEqual(manifest_item["title"], item["title"])
+            self.assertEqual(manifest_item["entitlement_groups"], ["campus_members"])
+            self.assertEqual(manifest_item["visibility_scope"], "campus")
+            self.assertEqual(manifest_item["visibility_level"], "restricted")
 
     def test_institutional_rules_qrels_cover_authz_version_and_no_hit(self) -> None:
         dataset = load_retrieval_qrels_dataset(INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH)
         cases = {case.case_id: case for case in dataset.cases}
+        title_cases = [
+            case
+            for case in dataset.cases
+            if case.case_id.startswith("institutional-title-exact-")
+        ]
 
-        self.assertIn("institutional-graduate-employment-reward-title", cases)
-        self.assertIn("institutional-student-association-management-title", cases)
-        self.assertIn("institutional-student-association-management-authz-deny", cases)
-        self.assertIn("no-hit-impossible-institutional-rule", cases)
+        self.assertEqual(len(title_cases), 30)
         self.assertTrue(
             all(
                 source.version_id is not None
-                for case in dataset.cases
-                if case.expected_sources
+                for case in title_cases
                 for source in case.expected_sources
             )
         )
+        self.assertIn("institutional-graduate-employment-reward-effective-scope", cases)
+        self.assertIn("institutional-student-association-management-authz-deny", cases)
+        self.assertIn("no-hit-impossible-institutional-rule", cases)
         self.assertEqual(
-            cases["institutional-graduate-employment-reward-title"].request_overrides[
+            cases["institutional-graduate-employment-reward-effective-scope"].request_overrides[
                 "entitlement_groups"
             ],
             ["campus_members"],
@@ -264,3 +328,21 @@ class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
             resolve_retrieval_fixture_manifest_path(INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH),
             INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
         )
+
+    def _load_release_30_documents(self) -> list[dict[str, str]]:
+        release_payload = json.loads(self.RELEASE_30_REPORT_PATH.read_text(encoding="utf-8"))
+        reader_payload = json.loads(
+            self.RELEASE_30_READER_MANIFEST_PATH.read_text(encoding="utf-8")
+        )
+        reader_titles = {
+            str(item.get("document_id") or item.get("docId")): item["title"]
+            for item in reader_payload["documents"]
+        }
+        return [
+            {
+                "document_id": item["document_id"],
+                "version_id": item["version_id"],
+                "title": reader_titles[item["document_id"]],
+            }
+            for item in release_payload["admission_manifest"]["documents"]
+        ]

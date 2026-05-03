@@ -2,7 +2,7 @@
 doc_type: roadmap
 status: completed
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-03
 ---
 # Regulation RAG Release Lane Roadmap
 
@@ -31,6 +31,15 @@ updated: 2026-05-02
 - [x] **Phase 7: Phase 13 Backfill Release Admission** - 将 Phase 13 historical
   regulation canonical backfill 的 10 个 targets 统一入队，修复 post-publish audit
   对 null release metadata 的误判，并完成真实 release lane 重放。
+- [x] **Phase 8: Release Admission Hardening** - 为 query-enabled regulation release
+  增加 scope-level admission manifest、candidate admission proof、alias containment
+  与 forced policy replay，完成 suspect institutional release containment/replay。
+- [x] **Phase 9: Institutional 30 Release** - 只针对校级 `institutional_rules`
+  当前 scope 扩展到 30 条制度，完成 reader/chunk/admission/candidate/release/alias
+  全链路发布；院级 `scoped_rules` 不进入默认 query-serving。
+- [x] **Phase 10: Institutional RAG Consumption Acceptance** - 为 30 条校级
+  `institutional_rules` 补齐 33 条 qrels、live retrieval、answer source-identity
+  contract 与 evidence handoff，确认可进入下游 RAG 消费。
 
 ## Exit Criteria
 
@@ -38,4 +47,4 @@ updated: 2026-05-02
 - `scoped_rules` 仍保持 explicit/internal posture，除非 runtime profile 显式打开。
 - historical / search-only scoped-rule 不进入 current RAG alias。
 - 失败 release 不切 alias，operator 能看到 repair reason。
-- docs lint、focused Python/TS tests 与 selected canary evidence 通过。
+- focused Python tests、JSON evidence、candidate store 与 alias 状态验证通过。

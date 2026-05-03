@@ -1,9 +1,9 @@
 ---
 doc_type: state
-status: active
+status: completed
 workstream: regulation-rag-release-lane
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-03
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -12,23 +12,61 @@ updated: 2026-05-02
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** Phase 8 release admission hardening completed
-**Last Activity:** 2026-05-02
-**Last Activity Description:** Query-enabled regulation release was hardened with
-scope-level release admission. The suspect Phase 13 `institutional_rules`
-release was contained, admitted, force-reenqueued and replayed through the
-candidate processor. The current serving alias now points at an admitted release.
+**Status:** Completed
+**Current Phase:** Phase 10 institutional RAG consumption acceptance completed
+**Last Activity:** 2026-05-03
+**Last Activity Description:** The already released 30校级
+`institutional_rules` documents were validated for downstream RAG consumption
+with 33 version-locked qrels, live retrieval evidence and answer source-identity
+contract evidence.
 
 ## Progress
 
-**Phases Complete:** 9
-**Current Plan:** Continue expanding admitted regulation serving cohorts after
-Phase 8 closeout
+**Phases Complete:** 11
+**Current Plan:** Keep this lane closed unless a new regulation query-enabled
+surface or release-policy drift is explicitly admitted.
 
 ## Current Slice
 
-Phase 7 Phase 13 backfill release evidence proved:
+Phase 10 institutional RAG consumption acceptance proved:
+
+- `institutional_rules_retrieval_qrels.json` now covers all 30 released校级
+  institutional titles, plus one semantic release-gate case, one authz-deny
+  guard and one no-hit guard
+- `retrieval-eval-manifest.v1.json` now anchors all 30 released document ids,
+  current version ids, titles and restricted campus-member visibility metadata
+- live retrieval against alias `institutional_rules` returned `doc_hit@1=1.0`,
+  `doc_hit@3=1.0` and `forbidden_hit_rate=0.0` across 33 cases
+- the authz-deny and no-hit cases returned no retrieved sources as expected
+- answer-quality contract now supports required/forbidden source title and URL
+  identity checks
+- institutional answer-consumption evidence passed 3 deterministic cases and
+  rejects `scoped_rules` reader paths / scoped-rule promotion URLs as acceptable
+  institutional evidence
+- qdrant client compatibility was fixed for release guard `get_collection`
+  calls on versions that reject `timeout` as an unknown keyword argument
+
+Phase 9 institutional 30 release evidence proved:
+
+- the operator registry contains 30 releasable current `regulations/institutional_rules`
+  records
+- reader publish, chunk preparation and release admission were generated for the
+  full current institutional scope
+- chunk preparation produced 30 documents and 1402 chunks
+- the first processor replay correctly failed closed because the release-gate
+  fixture still locked two case `expected_version_ids` to pre-cleaning hashes
+- after refreshing `institutional_rules_release_acceptance.v1.json` and
+  `institutional_rules_retrieval_qrels.json` to the current operator registry
+  version ids, the processor published one collection-scope release and copied
+  terminal status to all 30 candidates
+- final alias target is `institutional_rules__r20260503_040442_379305_7ac37b80`
+  with 1402 points
+- final selected candidate status is 30 `serving_published`; preparation,
+  indexing and verification statuses are all completed/passed for the selected
+  candidate set
+- `scoped_rules` remains outside default query-serving
+
+Earlier Phase 7 Phase 13 backfill release evidence proved:
 
 - Phase 13 materialization report produced 10 RAG release candidates:
   2 `institutional_rules` and 8 `scoped_rules`
@@ -102,8 +140,61 @@ Phase 6 canary cohort evidence previously proved:
 - Forced reenqueue is an operator replay control for policy/admission gate changes;
   it must not be used as a normal incremental update bypass or to skip release
   admission.
+- 校级 `institutional_rules` is the only regulation notice-derived scope currently
+  admitted to default RAG query-serving;院级 `scoped_rules` remains excluded from
+  document-site/RAG default consumption until separately admitted.
 
 ## Verification
+
+- Phase 10 institutional RAG consumption evidence:
+
+  - `./evidence/phase-10-institutional-rag-consumption/retrieval-live-run.json`
+  - `./evidence/phase-10-institutional-rag-consumption/retrieval-benchmark-summary.json`
+  - `./evidence/phase-10-institutional-rag-consumption/institutional-answer-quality-observations.json`
+  - `./evidence/phase-10-institutional-rag-consumption/answer-quality-contract/profile-report.json`
+
+- Phase 10 focused verification:
+
+  ```bash
+  uv run --all-packages python -m campus_evals.retrieval_live_benchmark \
+    --qrels packages/evals/fixtures/institutional_rules_retrieval_qrels.json \
+    --output .planning/workstreams/regulation-rag-release-lane/evidence/phase-10-institutional-rag-consumption/retrieval-live-run.json \
+    --format json \
+    --top-k 3
+
+  uv run --all-packages python -m campus_evals.answer_quality_contract accept \
+    --cases-path packages/evals/fixtures/institutional_rules_answer_quality_cases.v1.json \
+    --observations-path .planning/workstreams/regulation-rag-release-lane/evidence/phase-10-institutional-rag-consumption/institutional-answer-quality-observations.json \
+    --output-dir .planning/workstreams/regulation-rag-release-lane/evidence/phase-10-institutional-rag-consumption/answer-quality-contract \
+    --json
+  ```
+
+- Phase 9 institutional 30 release evidence:
+
+  - `./evidence/phase-09-institutional-30-release/institutional-reader-publish-report.json`
+  - `./evidence/phase-09-institutional-30-release/chunk-preparation.report.json`
+  - `./evidence/phase-09-institutional-30-release/release-admission.report.json`
+  - `./evidence/phase-09-institutional-30-release/institutional-force-reenqueue-report.json`
+  - `./evidence/phase-09-institutional-30-release/institutional-process-release-report.json`
+  - `./evidence/phase-09-institutional-30-release/institutional-force-reenqueue-after-acceptance-refresh-report.json`
+  - `./evidence/phase-09-institutional-30-release/institutional-process-release-after-acceptance-refresh-report.json`
+  - `./evidence/phase-09-institutional-30-release/institutional-final-candidate-alias-state.json`
+
+- Phase 9 focused verification:
+
+  ```bash
+  jq empty \
+    packages/evals/fixtures/institutional_rules_release_acceptance.v1.json \
+    packages/evals/fixtures/institutional_rules_retrieval_qrels.json \
+    .planning/workstreams/regulation-rag-release-lane/evidence/phase-09-institutional-30-release/*.json
+
+  uv run --all-packages python -m unittest \
+    tests.ingestion.test_admit_regulation_rag_release_worker \
+    tests.ingestion.test_process_regulation_rag_release_candidates_worker \
+    tests.ingestion.test_index_release_acceptance \
+    tests.evals.retrieval_benchmark_qrels_module_and_handbook_suite \
+    -v
+  ```
 
 - Phase 7 focused replay and regression evidence:
 
@@ -194,6 +285,8 @@ Known unrelated dirty-worktree blockers:
 
 ## Session Continuity
 
-**Stopped At:** Phase 8 hardening and admitted institutional replay completed
-locally; full lint/commit intentionally not covered in this slice
-**Resume File:** `./phases/phase-08-release-admission-hardening/PLAN.md`
+**Stopped At:** Phase 10 institutional RAG consumption acceptance completed.
+Reopen only for new admitted regulation query-serving scope, release-policy
+drift, candidate lifecycle drift, alias/acceptance regression or product-path
+runtime E2E admission.
+**Resume File:** `./phases/phase-10-institutional-rag-consumption/PLAN.md`

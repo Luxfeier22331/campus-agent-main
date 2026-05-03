@@ -70,6 +70,78 @@ class AnswerQualityContractSuite(unittest.TestCase):
         self.assertEqual(payload["profile_id"], "answer_quality_contract")
         self.assertEqual(payload["summary"]["failed"], 0)
 
+    def test_evaluator_enforces_required_and_forbidden_source_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cases_path = Path(tmpdir) / "cases.json"
+            cases_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "case_family": "answer_quality_contract.v1",
+                        "cases": [
+                            {
+                                "case_id": "institutional-rules-source-identity",
+                                "split": "release_gate",
+                                "surface": "rag_regulation_answer",
+                                "required_facts": ["学生社团"],
+                                "forbidden_claims": [],
+                                "requires_source_url": True,
+                                "requires_source_title": True,
+                                "required_source_titles": ["中央民族大学学生社团管理办法"],
+                                "required_source_url_fragments": [
+                                    "/docs/regulations/institutional_rules/"
+                                ],
+                                "forbidden_source_title_fragments": [
+                                    "历史文化学院2021年硕博连读博士研究生"
+                                ],
+                                "forbidden_source_url_fragments": [
+                                    "/docs/regulations/scoped_rules/",
+                                    "campusrag://promotion/internal_notice_scoped_rules/",
+                                ],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            case_set = load_answer_quality_cases(cases_path)
+
+        scoped_source_report = evaluate_answer_quality_cases(
+            case_set.cases,
+            {
+                "institutional-rules-source-identity": AnswerQualityObservation(
+                    case_id="institutional-rules-source-identity",
+                    answer_text="学生社团应按制度要求接受管理。",
+                    source_urls=(
+                        "campusrag://promotion/internal_notice_scoped_rules/notice:muc_internal_portal:187004",
+                    ),
+                    source_titles=("历史文化学院2021年硕博连读博士研究生 招生实施细则",),
+                )
+            },
+        )
+        missing_institutional_report = evaluate_answer_quality_cases(
+            case_set.cases,
+            {
+                "institutional-rules-source-identity": AnswerQualityObservation(
+                    case_id="institutional-rules-source-identity",
+                    answer_text="学生社团应按制度要求接受管理。",
+                    source_urls=("/docs/regulations/institutional_rules/other",),
+                    source_titles=("其他来源",),
+                )
+            },
+        )
+
+        self.assertEqual(
+            scoped_source_report.results[0].failure_class,
+            "forbidden_source_title_present",
+        )
+        self.assertEqual(
+            missing_institutional_report.results[0].failure_class,
+            "required_source_title_missing",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -2,7 +2,7 @@
 doc_type: index
 status: completed
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-03
 ---
 # Workstream: Regulation RAG Release Lane
 
@@ -18,12 +18,11 @@ registry”推进到“下游 RAG 可检索”的独立 release lane。它不重
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 8 release admission hardening completed`
-- current focus: query-enabled regulation release 已改为 admission-manifest
-  fail-closed；Phase 13 的 suspect `institutional_rules` release 已完成
-  containment、admission、force reenqueue 和 processor replay，当前 alias 指向
-  admitted release
+- status: `completed`
+- current phase: `Phase 10 institutional RAG consumption acceptance completed`
+- current focus: 30 条校级 `institutional_rules` 已完成 RAG release 与下游消费验收；
+  33 条 retrieval qrels、live retrieval、answer source-identity contract 均已落证据；
+  `scoped_rules` 继续保持 chunk/retrieval-ready 但不默认 query-serving
 
 ## Why This Workstream Exists
 
@@ -71,3 +70,7 @@ release admission -> acceptance -> serving alias`
 - `./phases/phase-07-phase13-backfill-release-admission/SUMMARY.md`
 - `./phases/phase-08-release-admission-hardening/PLAN.md`
 - `./phases/phase-08-release-admission-hardening/SUMMARY.md`
+- `./phases/phase-09-institutional-30-release/PLAN.md`
+- `./phases/phase-09-institutional-30-release/SUMMARY.md`
+- `./phases/phase-10-institutional-rag-consumption/PLAN.md`
+- `./phases/phase-10-institutional-rag-consumption/SUMMARY.md`

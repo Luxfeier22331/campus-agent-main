@@ -204,6 +204,10 @@ def _read_collection_metadata_payload(
         collection_info = get_collection(collection_name=collection_name, timeout=timeout_seconds)
     except TypeError:
         collection_info = get_collection(collection_name)
+    except AssertionError as exc:
+        if "Unknown arguments" not in str(exc):
+            raise
+        collection_info = get_collection(collection_name)
     for field_name in ("metadata", "payload"):
         value = getattr(collection_info, field_name, None)
         if isinstance(value, Mapping):

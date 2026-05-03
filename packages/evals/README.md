@@ -63,6 +63,11 @@ Evaluation helpers for campus-agent v2.
   `campus_evals.benchmark.validate_default_query_enabled_qrels_coverage()` 固定
   检查；它要求每个公开检索 scope 至少覆盖 positive、no-hit、forbidden 与 version
   locked 类样本，`institutional_rules` 还必须覆盖 authz case
+- `institutional_rules` qrels 当前固定覆盖 30 条已发布校级制度 title-exact
+  release-gate case，另加 semantic、authz-deny 与 no-hit guard；eval manifest 使用
+  `configs/ingestion/regulations/institutional_rules/retrieval-eval-manifest.v1.json`
+  锚定 30 条 current document/version truth，院级 `scoped_rules` 不得作为
+  institutional qrels truth 或默认消费来源
 - chunk 质量抽查由 `campus_evals.retrieval_chunk_quality.evaluate_chunk_quality()`
   固定表达；它检查 chunk 必备 traceability 字段、`root_unit_id` /
   `chunk_policy_version` provenance、重复 chunk id 与 token budget
@@ -137,7 +142,11 @@ Evaluation helpers for campus-agent v2.
 - answer-quality contract eval 固定在
   `packages/evals/fixtures/answer_quality_cases.v1.json` 与
   `campus_evals.answer_quality_contract`；它作为 answer contract 的确定性外壳，检查
-  required facts、forbidden claims 与 title/source URL，不替代后续 domain golden dataset
+  required facts、forbidden claims 与 title/source URL，不替代后续 domain golden dataset；
+  institutional regulation consumption 使用
+  `institutional_rules_answer_quality_cases.v1.json` 额外检查 required / forbidden
+  source title and URL identity，确保校级制度回答不能由 `scoped_rules` 路径或
+  scoped-rule promotion URL 满足
 - campus-services / notice tool-family denominator 固定在
   `packages/evals/fixtures/tool_family_denominators.v1.json` 与
   `campus_evals.tool_family_denominator`；它覆盖 `service_status_lookup`、
@@ -350,6 +359,9 @@ retrieval benchmark CLI：
 - `uv run --all-packages python -m campus_evals.retrieval_benchmark --qrels
   packages/evals/fixtures/curriculum_plan_retrieval_qrels.json --results
   <run-results.json>`
+- `uv run --all-packages python -m campus_evals.retrieval_live_benchmark --qrels
+  packages/evals/fixtures/institutional_rules_retrieval_qrels.json --output
+  <institutional-live-run.json> --format json --top-k 3`
 - `run-results.json` 输入形状为 `{"schema_version": 1, "cases": [{"case_id": "...",
   "retrieved_sources": [{"doc_id": "...", "version_id": "...", "chunk_id":
   "...", "score": 0.9}]}]}`

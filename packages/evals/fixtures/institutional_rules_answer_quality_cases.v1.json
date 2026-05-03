@@ -1,0 +1,54 @@
+{
+	"schema_version": 1,
+	"case_family": "answer_quality_contract.v1",
+	"cases": [
+		{
+			"case_id": "institutional-answer-student-association-management",
+			"split": "release_gate",
+			"surface": "rag_regulation_answer",
+			"required_facts": ["学生社团", "校级", "管理"],
+			"forbidden_claims": ["历史文化学院2021年硕博连读博士研究生", "院级", "scoped_rules"],
+			"requires_source_url": true,
+			"requires_source_title": true,
+			"required_source_titles": ["中央民族大学学生社团管理办法"],
+			"required_source_url_fragments": ["/docs/regulations/institutional_rules/"],
+			"forbidden_source_title_fragments": ["历史文化学院2021年硕博连读博士研究生"],
+			"forbidden_source_url_fragments": [
+				"/docs/regulations/scoped_rules/",
+				"campusrag://promotion/internal_notice_scoped_rules/"
+			]
+		},
+		{
+			"case_id": "institutional-answer-undergraduate-status-management",
+			"split": "release_gate",
+			"surface": "rag_regulation_answer",
+			"required_facts": ["本科学生", "学籍", "管理"],
+			"forbidden_claims": ["研究生招生", "院级", "scoped_rules"],
+			"requires_source_url": true,
+			"requires_source_title": true,
+			"required_source_titles": ["中央民族大学本科学生学籍管理办法"],
+			"required_source_url_fragments": ["/docs/regulations/institutional_rules/"],
+			"forbidden_source_title_fragments": ["历史文化学院2021年硕博连读博士研究生"],
+			"forbidden_source_url_fragments": [
+				"/docs/regulations/scoped_rules/",
+				"campusrag://promotion/internal_notice_scoped_rules/"
+			]
+		},
+		{
+			"case_id": "institutional-answer-undergraduate-course-assessment",
+			"split": "release_gate",
+			"surface": "rag_regulation_answer",
+			"required_facts": ["本科课程", "考核", "管理"],
+			"forbidden_claims": ["学院招生", "院级", "scoped_rules"],
+			"requires_source_url": true,
+			"requires_source_title": true,
+			"required_source_titles": ["中央民族大学本科课程考核管理办法"],
+			"required_source_url_fragments": ["/docs/regulations/institutional_rules/"],
+			"forbidden_source_title_fragments": ["历史文化学院2021年硕博连读博士研究生"],
+			"forbidden_source_url_fragments": [
+				"/docs/regulations/scoped_rules/",
+				"campusrag://promotion/internal_notice_scoped_rules/"
+			]
+		}
+	]
+}

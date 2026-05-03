@@ -3,26 +3,82 @@
 	"source_fixture": "institutional_rules_retrieval_qrels.json",
 	"corpus": "regulations",
 	"collection": "institutional_rules",
-	"gate_policy": "current operator registry release gate; legacy canaries must not block alias publish unless their current-effective documents are present",
+	"gate_policy": "current operator registry release gate; all 30校级 institutional_rules title cases plus authz/no-hit guards must pass before alias publish",
 	"cases": [
 		{
-			"case_id": "institutional-graduate-employment-reward-title",
+			"case_id": "institutional-title-exact-ff711d1185f9",
 			"corpus": "regulations",
 			"collection": "institutional_rules",
-			"query": "中央民族大学毕业生就业奖励办法",
+			"query": "中央民族大学丰台校区就医管理办法（暂行）",
 			"top_k": 3,
 			"expected_document_ids": [
-				"institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7"
+				"institutional_regulation:muc:中央民族大学丰台校区就医管理办法-暂行:ff711d1185f9"
 			],
 			"expected_version_ids": [
-				"sha256:33bce1e9bd2424dba77eab3385d52fa3bb21489d9673a61f94ecb7bd2e9e86f4:effective-undated:revision-none"
+				"sha256:2162cb0d7461352edce991fd4a2dbff029a7f39f6ff9593d5ac87eb9a1d32ce0:effective-undated:revision-none"
 			],
-			"entitlement_groups": ["campus_members"],
+			"entitlement_groups": [
+				"campus_members"
+			],
 			"visibility_level": "restricted",
 			"visibility_scope": "campus"
 		},
 		{
-			"case_id": "institutional-student-association-management-title",
+			"case_id": "institutional-title-exact-b77c7a48bd4e",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学党建经费管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学党建经费管理办法:b77c7a48bd4e"
+			],
+			"expected_version_ids": [
+				"sha256:f730cd20057a8136a04cf93616a7560eff7b1157a2e71e5614f994904d1b4e0b:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-1e01c3039c8d",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学全面落实研究生导师立德树人职责实施细则",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学全面落实研究生导师立德树人职责实施细则:1e01c3039c8d"
+			],
+			"expected_version_ids": [
+				"sha256:eace28fdf366f69dbfe9e14d71429db776dba5ec7bdd0449787780ebb9e0a6ed:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-81401d3a02d6",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学学生公费医疗管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学学生公费医疗管理办法:81401d3a02d6"
+			],
+			"expected_version_ids": [
+				"sha256:40ec4f26b9a80f5ebdb8a1e9e7b9d108403226828f802f70f69afe84eed26184:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-7da72ac3d796",
 			"corpus": "regulations",
 			"collection": "institutional_rules",
 			"query": "中央民族大学学生社团管理办法",
@@ -31,9 +87,461 @@
 				"institutional_regulation:muc:中央民族大学学生社团管理办法:7da72ac3d796"
 			],
 			"expected_version_ids": [
-				"sha256:5c66a76ef416c5e1b632eea6ebdfcf7a3befe171a4761196ba5e7bb99f698136:effective-undated:revision-none"
+				"sha256:37579e7cd17f162ee54b24e6dec7a822570196e2f2486790859edb66dab028a6:effective-undated:revision-none"
 			],
-			"entitlement_groups": ["campus_members"],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-40d4d65809c5",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学学费、住宿费收费管理规定",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学学费-住宿费收费管理规定:40d4d65809c5"
+			],
+			"expected_version_ids": [
+				"sha256:d17bedf45b136f70789350d21993c199e4e52c54378719a7628908b1b8a4d695:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-5b5031b8ed6c",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学学院党政联席会议议事规则",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学学院党政联席会议议事规则:5b5031b8ed6c"
+			],
+			"expected_version_ids": [
+				"sha256:1dd4c2a699b7a6eba38cba2a6974ba5f55914ddcb1d77d709aa8eed4eb72c2da:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-dd45733dd289",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学学院党组织会议议事规则",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学学院党组织会议议事规则:dd45733dd289"
+			],
+			"expected_version_ids": [
+				"sha256:a5e5524c3a0bada4f2db62ff95e386c1224655186ac6cec242f821e3f3fdd6e9:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-eb0066364e4f",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学强基计划学生本研衔接转段工作办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学强基计划学生本研衔接转段工作办法:eb0066364e4f"
+			],
+			"expected_version_ids": [
+				"sha256:12ed3c18fb6467b0314677a3c4ca7dddd05f68b1d142e90ff8989e34dfbde837:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-e47ee9942b1d",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学往来款项管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学往来款项管理办法:e47ee9942b1d"
+			],
+			"expected_version_ids": [
+				"sha256:67b3e064b79d2980aa086632881c1d2194a65de9a7924ef2aa68efe6c7d11a4d:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-e593d7a51e16",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学排课管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学排课管理办法:e593d7a51e16"
+			],
+			"expected_version_ids": [
+				"sha256:0582fb9874d09c92b8091150f155c3db58e9e09165fa3c160ffeece7d3694368:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-ccd8fad3cd06",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学教学行为规范",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学教学行为规范:ccd8fad3cd06"
+			],
+			"expected_version_ids": [
+				"sha256:28327183d5a59fe2f53c68edadd8b4511409ace0e6f446ca5145dbd29254c772:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-9c123d724343",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学教室使用管理规定",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学教室使用管理规定:9c123d724343"
+			],
+			"expected_version_ids": [
+				"sha256:b61023f55da9a7a603ef53f334602554f86763239a4c03aca5045ec6ce399bf4:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-580644ffc701",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科专业建设管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科专业建设管理办法:580644ffc701"
+			],
+			"expected_version_ids": [
+				"sha256:a588146187be9b5717f5c63e7bfcd4668aaa678634a0a0c556ae901bce70e551:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-6763b60099dc",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科在线开放课程教学管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科在线开放课程教学管理办法:6763b60099dc"
+			],
+			"expected_version_ids": [
+				"sha256:9824d9e3a4e4fda685cd060365e56736c6a4f873daf71c41b04d1cf35b16b2bd:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-0242f426a20c",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科学生专业奖学金评定办法（修订）",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科学生专业奖学金评定办法-修订:0242f426a20c"
+			],
+			"expected_version_ids": [
+				"sha256:bbbdfb67c0677c5bfbcb02b8af7798255dbca1bfdf70d190b7afb24287ff9a37:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-6ad2032144d0",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科学生学籍管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科学生学籍管理办法:6ad2032144d0"
+			],
+			"expected_version_ids": [
+				"sha256:d314abeac5543a8b0dc866c4af61136cb6afcaba9a4f9055e30e00547258e658:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-9ff43316b979",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科教学事故认定与处理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科教学事故认定与处理办法:9ff43316b979"
+			],
+			"expected_version_ids": [
+				"sha256:d1c5e76658bdd5ce035190a6be8b61a22a711a6cb945742c7b9f137c279a76de:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-bc6287127ff7",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科教学督导工作管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科教学督导工作管理办法:bc6287127ff7"
+			],
+			"expected_version_ids": [
+				"sha256:7c83e785e20647d18e191ddb08207ffd78d433bed6faf45c4d7c0d9a326fc099:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-46658f6eb927",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科教学质量监控管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科教学质量监控管理办法:46658f6eb927"
+			],
+			"expected_version_ids": [
+				"sha256:765de094fd18e01b45ad0cf350f11db7b8d8ead3459e3e6e6e942da101b082c5:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-a7716c82cbe1",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科毕业论文（设计）工作管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科毕业论文-设计-工作管理办法:a7716c82cbe1"
+			],
+			"expected_version_ids": [
+				"sha256:e93b6bac5949f9239cf511f012c8c0eb89fed014f2528bd032db6889e8a07082:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-eb3f2445780f",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科生专业调整实施办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科生专业调整实施办法:eb3f2445780f"
+			],
+			"expected_version_ids": [
+				"sha256:81b0c885b1d2aea9a231165299c0be0a1463506f8a19c5c84ffea5a98397fdaf:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-3c69a0dd5d82",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科生学业警示管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科生学业警示管理办法:3c69a0dd5d82"
+			],
+			"expected_version_ids": [
+				"sha256:d745bb238626009e632b0ee6853c86b73b12e517c83b8807a0e2e814d82a702f:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-f2860d036974",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科生实习管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科生实习管理办法:f2860d036974"
+			],
+			"expected_version_ids": [
+				"sha256:9185ac3b127ce93ff31ea99d3d0a62b377bdd8dfe7abf70d432de81c5fbb45e4:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-f9170210ec69",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科生生活物价补贴管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科生生活物价补贴管理办法:f9170210ec69"
+			],
+			"expected_version_ids": [
+				"sha256:cec37b8d38b5e1c9da944f7dced6d4fda6150f608f84da725dec8c90d96664ce:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-712ccc15214f",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科课程考核管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科课程考核管理办法:712ccc15214f"
+			],
+			"expected_version_ids": [
+				"sha256:a2762245af900bf621df05acfbbbb7e99b09d06bfbd5ecea98db9c003c6b66e4:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-1b97294a9f97",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学校外实践教学基地建设管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学校外实践教学基地建设管理办法:1b97294a9f97"
+			],
+			"expected_version_ids": [
+				"sha256:a7f4a5e91c4a4c06806f5ce90c31a61a3ca05cbd41b91f593c54e9d61ee5734b:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-f16e569519f7",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学毕业生就业奖励办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7"
+			],
+			"expected_version_ids": [
+				"sha256:adb72af33cb1f4e7e29c3fd5aa7ff985573aa6a67ce8ea64776f5f0f59198e6d:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-d11f18c41059",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学研究生学籍管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学研究生学籍管理办法:d11f18c41059"
+			],
+			"expected_version_ids": [
+				"sha256:bc4e448604a169d2fe7ac0f0bac8a9744bc294e93a4d43ff91fb979bb79791b9:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-0327869e06ea",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学落实习惯过紧日子工作细则",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学落实习惯过紧日子工作细则:0327869e06ea"
+			],
+			"expected_version_ids": [
+				"sha256:58bc1c5a703ad57b77b452d19ba27437122ac874f586b13beb20c481b1f911eb:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
 			"visibility_level": "restricted",
 			"visibility_scope": "campus"
 		},
@@ -46,7 +554,12 @@
 			"expected_document_ids": [
 				"institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7"
 			],
-			"entitlement_groups": ["campus_members"],
+			"expected_version_ids": [
+				"sha256:adb72af33cb1f4e7e29c3fd5aa7ff985573aa6a67ce8ea64776f5f0f59198e6d:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
 			"visibility_level": "restricted",
 			"visibility_scope": "campus"
 		},
