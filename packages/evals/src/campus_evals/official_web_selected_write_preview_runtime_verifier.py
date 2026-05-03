@@ -194,11 +194,15 @@ def run_selected_write_preview_runtime_verification(
     runner: PreviewRuntimeRunner | None = None,
 ) -> OfficialWebSelectedWritePreviewRuntimeVerificationReport:
     resolved_bundle_scope = _normalize_bundle_scope(bundle_scope)
-    selected_cases = cases or default_official_web_selected_write_preview_runtime_cases()
     resolved_report_path = report_path.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     preview_report = _load_preview_report(resolved_report_path)
     supported_targets = _supported_targets(preview_report)
+    selected_cases = (
+        cases
+        if cases is not None
+        else _default_cases_for_supported_targets(supported_targets)
+    )
     covered_targets = {
         f"{case.collection}:{case.inventory_id}"
         for case in selected_cases
@@ -331,6 +335,16 @@ def _case_results_from_payload(
             )
         )
     return tuple(results)
+
+
+def _default_cases_for_supported_targets(
+    supported_targets: set[str],
+) -> tuple[OfficialWebSelectedWritePreviewRuntimeCase, ...]:
+    return tuple(
+        case
+        for case in default_official_web_selected_write_preview_runtime_cases()
+        if f"{case.collection}:{case.inventory_id}" in supported_targets
+    )
 
 
 def _report_to_dict(

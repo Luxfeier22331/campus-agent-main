@@ -262,6 +262,99 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
         self.assertTrue(report.passed)
         self.assertEqual(artifact["summary"]["bundle_scope"], BUNDLE_SCOPE_FULL_IMPACT)
 
+    def test_runtime_verifier_filters_default_cases_to_preview_targets(self) -> None:
+        preview_report = {
+            "schema_version": "official_web_selected_write_preview_report.v1",
+            "results": [
+                {
+                    "selected_write_id": "owrelease_selected_write_service",
+                    "collection": "service_guide",
+                    "inventory_id": "muc-information-disclosure-application-process",
+                    "record_count": 1,
+                    "full_record_count": 5,
+                    "task_scope_display_names": [
+                        "中央民族大学信息公开依申请公开工作流程"
+                    ],
+                    "full_impact_display_names": [
+                        "中央民族大学信息公开依申请公开工作流程"
+                    ],
+                    "bundle": {
+                        "service_guide_records": [
+                            {
+                                "display_name": "中央民族大学信息公开依申请公开工作流程"
+                            }
+                        ]
+                    },
+                    "full_bundle": {
+                        "service_guide_records": [
+                            {
+                                "display_name": "中央民族大学信息公开依申请公开工作流程"
+                            }
+                        ]
+                    },
+                },
+            ],
+        }
+
+        def fake_runner(
+            *,
+            report_path: Path,
+            selected_cases: tuple[OfficialWebSelectedWritePreviewRuntimeCase, ...],
+            bundle_scope: str,
+        ) -> dict[str, object]:
+            self.assertEqual(report_path.name, "preview-report.json")
+            self.assertEqual(bundle_scope, BUNDLE_SCOPE_TASK_SCOPE)
+            self.assertEqual(
+                {case.case_id for case in selected_cases},
+                {
+                    "service-guide-information-disclosure-procedure",
+                    "service-guide-information-disclosure-entry-fail-close",
+                },
+            )
+            return {
+                "schema_version": "official_web_selected_write_preview_runtime_verification.v1",
+                "runner": "supervisor-api-go",
+                "results": [
+                    {
+                        "case_id": case.case_id,
+                        "collection": case.collection,
+                        "inventory_id": case.inventory_id,
+                        "selected_write_id": "owrelease_selected_write_service",
+                        "passed": True,
+                        "failures": [],
+                        "observed": {
+                            "target": case.expected_target,
+                            "payload_kind": case.expected_payload_kind,
+                            "selected_tool": case.expected_selected_tool,
+                            "outcome": case.expected_outcome,
+                            "resolved_display_name": case.expected_resolved_display_name,
+                        },
+                    }
+                    for case in selected_cases
+                ],
+            }
+
+        with TemporaryDirectory() as temp_dir:
+            temp_root = Path(temp_dir)
+            report_path = temp_root / "preview-report.json"
+            report_path.write_text(
+                json.dumps(preview_report, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            output_dir = temp_root / "runtime-verification"
+            report = run_selected_write_preview_runtime_verification(
+                report_path=report_path,
+                output_dir=output_dir,
+                runner=fake_runner,
+            )
+
+        self.assertTrue(report.passed)
+        self.assertEqual(
+            report.summary["covered_targets"],
+            ["service_guide:muc-information-disclosure-application-process"],
+        )
+        self.assertEqual(report.summary["uncovered_supported_targets"], [])
+
     def test_runtime_verifier_fails_when_supported_preview_result_has_no_case(self) -> None:
         preview_report = {
             "schema_version": "official_web_selected_write_preview_report.v1",
