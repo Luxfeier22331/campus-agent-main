@@ -531,15 +531,15 @@ describe("public chat web worker shell", () => {
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
 		expect(deployStagingSource).toContain("loadRepoEnvFile");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
-		expect(deployStagingSource).toContain("STAGING_AUTH_TURNSTILE_SITE_KEY");
-		expect(deployStagingSource).toContain("STAGING_AUTH_TURNSTILE_APPEARANCE");
-		expect(deployStagingSource).toContain("STAGING_AUTH_TURNSTILE_EXECUTION");
-		expect(deployStagingSource).toContain("AUTH_TURNSTILE_SITE_KEY:");
-		expect(deployStagingSource).toContain("AUTH_TURNSTILE_APPEARANCE:");
-		expect(deployStagingSource).toContain("AUTH_TURNSTILE_EXECUTION:");
+		expect(deployStagingSource).not.toContain("STAGING_AUTH_TURNSTILE_SITE_KEY");
+		expect(deployStagingSource).not.toContain("STAGING_AUTH_TURNSTILE_APPEARANCE");
+		expect(deployStagingSource).not.toContain("STAGING_AUTH_TURNSTILE_EXECUTION");
+		expect(deployStagingSource).not.toContain("AUTH_TURNSTILE_SITE_KEY:");
+		expect(deployStagingSource).not.toContain("AUTH_TURNSTILE_APPEARANCE:");
+		expect(deployStagingSource).not.toContain("AUTH_TURNSTILE_EXECUTION:");
 		expect(deployStagingSource).toContain("SENTRY_RELEASE:");
-		expect(verifyStagingConfigSource).toContain("STAGING_AUTH_TURNSTILE_APPEARANCE");
-		expect(verifyStagingConfigSource).toContain("STAGING_AUTH_TURNSTILE_EXECUTION");
+		expect(verifyStagingConfigSource).not.toContain("STAGING_AUTH_TURNSTILE_APPEARANCE");
+		expect(verifyStagingConfigSource).not.toContain("STAGING_AUTH_TURNSTILE_EXECUTION");
 		expect(verifyStagingConfigSource).toContain("https://app-api.internal");
 		expect(verifyStagingConfigSource).not.toContain("https://campus-api-staging.ayafeed.com");
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
@@ -566,6 +566,26 @@ describe("public chat web worker shell", () => {
 		expect(response.status).toBe(302);
 		expect(response.headers.get("location")).toBe(
 			"https://hub.muc.wiki/account/login?return_to=%2Fchat%2Fconv_01HQ",
+		);
+		expect(readPublicChatSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
+	});
+
+	it("preserves reset-password token when redirecting chat-local auth routes to hub", async () => {
+		const response = await worker.fetch(
+			new Request("https://chat.example.com/reset-password?token=reset_token_01HQ"),
+			{
+				APP_API_BASE_URL: "https://app-api.internal",
+				ASSETS: {
+					fetch: async () => new Response("ok", { status: 200 }),
+				},
+				HUB_WEB_BASE_URL: "https://hub.muc.wiki",
+				PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+			},
+		);
+
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe(
+			"https://hub.muc.wiki/account/reset-password?token=reset_token_01HQ",
 		);
 		expect(readPublicChatSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
 	});
@@ -880,7 +900,6 @@ describe("public chat web worker shell", () => {
 					}),
 			},
 			APP_API_BASE_URL: "https://app-api.internal",
-			AUTH_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
 			PUBLIC_CHAT_HOSTNAME: "chat.example.com",
 		});
 
@@ -890,37 +909,7 @@ describe("public chat web worker shell", () => {
 		expect(readPublicChatSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
 		const html = await response.text();
 		expect(html).toContain('<div id="root"></div>');
-		expect(html).toContain("__PUBLIC_CHAT_AUTH_CONFIG__");
-		expect(html).toContain('"turnstileSiteKey":"1x00000000000000000000AA"');
-		expect(html).toContain('"turnstileAppearance":"interaction-only"');
-		expect(html).toContain('"turnstileExecution":"render"');
-	});
-
-	it("honors explicit Turnstile runtime posture overrides in the injected auth shell config", async () => {
-		const response = await worker.fetch(new Request("https://chat.example.com/"), {
-			APP_API: {
-				fetch: async () => new Response(null, { status: 204 }),
-			},
-			ASSETS: {
-				fetch: async () =>
-					new Response('<!doctype html><html><body><div id="root"></div></body></html>', {
-						headers: {
-							"content-type": "text/html; charset=utf-8",
-						},
-						status: 200,
-					}),
-			},
-			APP_API_BASE_URL: "https://app-api.internal",
-			AUTH_TURNSTILE_APPEARANCE: "always",
-			AUTH_TURNSTILE_EXECUTION: "execute",
-			AUTH_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
-			PUBLIC_CHAT_HOSTNAME: "chat.example.com",
-		});
-
-		expect(response.status).toBe(200);
-		const html = await response.text();
-		expect(html).toContain('"turnstileAppearance":"always"');
-		expect(html).toContain('"turnstileExecution":"execute"');
+		expect(html).not.toContain("__PUBLIC_CHAT_AUTH_CONFIG__");
 	});
 
 	it("fails closed when app-api binding is not configured for the public shell", async () => {

@@ -1,9 +1,6 @@
 import type { CloudflareOptions } from "@sentry/cloudflare";
 import * as Sentry from "@sentry/cloudflare";
-import {
-	AUTH_RUNTIME_CONFIG_SCRIPT_ID,
-	resolveTurnstileRuntimeConfig,
-} from "./platform/auth/turnstile-runtime-config";
+import { buildHubAuthRedirect } from "./platform/auth/hub-redirect";
 
 export interface Env {
 	APP_API?: {
@@ -13,9 +10,6 @@ export interface Env {
 		fetch(request: Request): Promise<Response> | Response;
 	};
 	APP_API_BASE_URL?: string;
-	AUTH_TURNSTILE_APPEARANCE?: string;
-	AUTH_TURNSTILE_EXECUTION?: string;
-	AUTH_TURNSTILE_SITE_KEY?: string;
 	HUB_WEB_BASE_URL?: string;
 	PUBLIC_CHAT_APP_NAME?: string;
 	PUBLIC_CHAT_HOSTNAME?: string;
@@ -53,12 +47,6 @@ const JSON_HEADERS = {
 } as const;
 
 const LEGACY_CHAT_PREVIEW_PATH_PREFIX = "/chat/replatform-preview";
-const PUBLIC_CHAT_AUTH_REDIRECTS = new Map([
-	["/login", "/account/login"],
-	["/register", "/account/register"],
-	["/forgot-password", "/account/forgot-password"],
-	["/reset-password", "/account/reset-password"],
-]);
 const SENSITIVE_EVENT_FIELDS = new Set(["authorization", "cookie", "prompt", "transcript"]);
 
 interface AppApiRuntimeProbeResult {
@@ -253,23 +241,7 @@ function redirectToCanonicalChatRoute(url: URL): Response {
 }
 
 function resolveHubAuthRedirect(url: URL, env: Env): string | null {
-	const targetPath = PUBLIC_CHAT_AUTH_REDIRECTS.get(url.pathname);
-	if (!targetPath) {
-		return null;
-	}
-
-	const hubOrigin = new URL(env.HUB_WEB_BASE_URL?.trim() || "https://hub.muc.wiki").origin;
-	const redirectUrl = new URL(targetPath, hubOrigin);
-	const returnTo = url.searchParams.get("return_to")?.trim() || "/chat";
-	redirectUrl.searchParams.set("return_to", normalizeReturnToPath(returnTo));
-	return redirectUrl.toString();
-}
-
-function normalizeReturnToPath(value: string): string {
-	if (!value.startsWith("/") || value.startsWith("//")) {
-		return "/chat";
-	}
-	return value;
+	return buildHubAuthRedirect(url, env.HUB_WEB_BASE_URL);
 }
 
 function getMissingRuntimeConfig(env: Env): string[] {
@@ -347,27 +319,6 @@ function shouldForwardBody(method: string): boolean {
 	return method !== "GET" && method !== "HEAD";
 }
 
-function injectAuthRuntimeConfig(html: string, env: Env): string {
-	const serializedConfig = JSON.stringify(
-		resolveTurnstileRuntimeConfig({
-			turnstileAppearance: env.AUTH_TURNSTILE_APPEARANCE,
-			turnstileExecution: env.AUTH_TURNSTILE_EXECUTION,
-			turnstileSiteKey: env.AUTH_TURNSTILE_SITE_KEY,
-		}),
-	).replace(/</g, "\\u003c");
-	const scriptTag = `<script id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}" type="application/json">${serializedConfig}</script>`;
-
-	if (html.includes(`id="${AUTH_RUNTIME_CONFIG_SCRIPT_ID}"`)) {
-		return html;
-	}
-
-	if (html.includes("</body>")) {
-		return html.replace("</body>", `${scriptTag}</body>`);
-	}
-
-	return `${html}${scriptTag}`;
-}
-
 async function servePublicShell(request: Request, env: Env): Promise<Response> {
 	if (!(env.APP_API && env.APP_API_BASE_URL)) {
 		return appApiBridgeNotConfiguredResponse();
@@ -392,7 +343,7 @@ async function servePublicShell(request: Request, env: Env): Promise<Response> {
 	const headers = new Headers(response.headers);
 	headers.set("cache-control", "no-store");
 	applyPublicChatSecurityHeaders(headers);
-	return new Response(injectAuthRuntimeConfig(html, env), {
+	return new Response(html, {
 		headers,
 		status: response.status,
 		statusText: response.statusText,

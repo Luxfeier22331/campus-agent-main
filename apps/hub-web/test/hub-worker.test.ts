@@ -46,6 +46,7 @@ describe("hub worker boundary", () => {
 		expect(deployStagingSource).toContain("STAGING_HUB_AUTH_TURNSTILE_SITE_KEY");
 		expect(deployStagingSource).toContain("hub-staging.muc.wiki");
 		expect(verifyStagingConfigSource).toContain("STAGING_HUB_AUTH_TURNSTILE_SITE_KEY");
+		expect(packageManifest.scripts?.dev).toContain("--port 27012");
 		expect(stagingPreflightSource).toContain('"apps/hub-web"');
 		expect(stagingPreflightSource).toContain("worker-staging-hub-web");
 	});

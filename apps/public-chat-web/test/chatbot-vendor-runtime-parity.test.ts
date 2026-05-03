@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import packageManifestRaw from "../package.json?raw";
 import workerSource from "../src/index.ts?raw";
-import authTurnstileSource from "../src/platform/auth/turnstile.tsx?raw";
 import appShellSource from "../src/platform/chat/app-shell.tsx?raw";
 import compatModelsSource from "../src/platform/vendor-compat/lib/ai/models.ts?raw";
 import compatConstantsSource from "../src/platform/vendor-compat/lib/constants.ts?raw";
@@ -78,6 +77,11 @@ describe("chatbot vendor runtime parity", () => {
 		expect(appShellSource).toContain("@platform/chat/runtime");
 	});
 
+	it("removes public-chat-owned auth runtime injection from the worker shell", () => {
+		expect(workerSource).not.toContain("__PUBLIC_CHAT_AUTH_CONFIG__");
+		expect(workerSource).not.toContain("resolveTurnstileRuntimeConfig");
+	});
+
 	it("declares a canonical live-smoke dev path that boots app-api as an auxiliary worker", () => {
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("PUBLIC_CHAT_LIVE_SMOKE=1");
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--host 127.0.0.1");
@@ -94,11 +98,6 @@ describe("chatbot vendor runtime parity", () => {
 		expect(liveSmokeWranglerConfig).toContain("required = []");
 		expect(liveSmokeWranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
 		expect(liveSmokeWranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "127.0.0.1:27011"');
-		expect(liveSmokeWranglerConfig).toContain(
-			'AUTH_TURNSTILE_SITE_KEY = "1x00000000000000000000AA"',
-		);
-		expect(liveSmokeWranglerConfig).toContain('AUTH_TURNSTILE_APPEARANCE = "interaction-only"');
-		expect(liveSmokeWranglerConfig).toContain('AUTH_TURNSTILE_EXECUTION = "render"');
 		expect(liveSmokeWranglerConfig).not.toContain("SENTRY_DSN");
 	});
 
@@ -248,8 +247,7 @@ describe("chatbot vendor runtime parity", () => {
 	});
 
 	it("keeps hidden auth controls addressable while gating prompt attachments closed by default", () => {
-		expect(authTurnstileSource).toContain('id="captchaToken"');
-		expect(authTurnstileSource).toContain('name="captchaToken"');
+		expect(workerSource).not.toContain("captchaToken");
 		expect(vendorMultimodalInputSource).not.toContain('id="chat-attachment-input"');
 		expect(vendorMultimodalInputSource).not.toContain('name="attachments"');
 		expect(vendorMultimodalInputSource).toContain("attachmentsEnabled={false}");

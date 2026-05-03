@@ -1,4 +1,5 @@
 import type { UseChatHelpers } from "@ai-sdk/react";
+import { buildPublicChatAuthCompatPath } from "@platform/auth/hub-redirect";
 import { useAppRouter, useConversationRouteId } from "@platform/router";
 import {
 	createContext,
@@ -28,6 +29,10 @@ import type { ShellRequestOutcome } from "./types";
 export type ChatStatus = UseChatHelpers<ChatMessage>["status"];
 
 type SendMessageInput = Parameters<UseChatHelpers<ChatMessage>["sendMessage"]>[0];
+
+function redirectToLoginCompat(returnTo: string) {
+	window.location.assign(buildPublicChatAuthCompatPath("login", { returnTo }));
+}
 
 interface ActiveChatContextValue {
 	addToolApprovalResponse: UseChatHelpers<ChatMessage>["addToolApprovalResponse"];
@@ -156,7 +161,9 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 
 				if (error instanceof UnauthorizedError) {
 					setSessionUnauthenticated();
-					void router.replace("/login");
+					redirectToLoginCompat(
+						window.location.pathname + window.location.search + window.location.hash,
+					);
 					return;
 				}
 
@@ -172,7 +179,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 		return () => {
 			cancelled = true;
 		};
-	}, [conversationId, router, setMessages, setSessionUnauthenticated]);
+	}, [conversationId, setMessages, setSessionUnauthenticated]);
 
 	const sendPrompt = useCallback(
 		async (prompt: string) => {
@@ -245,7 +252,9 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 
 				if (error instanceof UnauthorizedError) {
 					setSessionUnauthenticated();
-					await router.replace("/login");
+					redirectToLoginCompat(
+						window.location.pathname + window.location.search + window.location.hash,
+					);
 					return;
 				}
 
@@ -263,7 +272,7 @@ export function ActiveChatProvider(props: { children: ReactNode }) {
 				}
 			}
 		},
-		[conversationId, mutate, router, setMessages, setSessionUnauthenticated],
+		[conversationId, mutate, setMessages, setSessionUnauthenticated],
 	);
 
 	const value = useMemo<ActiveChatContextValue>(

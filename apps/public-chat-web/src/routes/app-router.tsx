@@ -1,3 +1,4 @@
+import { buildPublicChatAuthCompatPath } from "@platform/auth/hub-redirect";
 import { ChatbotShellRuntimeProvider, useChatbotShellRuntime } from "@platform/chat/runtime";
 import {
 	createRootRoute,
@@ -6,12 +7,9 @@ import {
 	Navigate,
 	Outlet,
 	RouterProvider,
+	useLocation,
 } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
-import { ForgotPasswordPage } from "../login/forgot-password-page";
-import { LoginPage } from "../login/page";
-import { RegisterPage } from "../login/register-page";
-import { ResetPasswordPage } from "../login/reset-password-page";
+import { lazy, Suspense, useEffect } from "react";
 
 const ChatAppShell = lazy(async () => {
 	const module = await import("@platform/chat/app-shell");
@@ -58,13 +56,15 @@ function ChatRouteErrorFallback(props: { onRetry: () => Promise<void> }) {
 
 function AuthenticatedChatRouteGuard() {
 	const { refreshSession, session } = useChatbotShellRuntime();
+	const location = useLocation();
+	const returnTo = `${location.pathname}${location.search}${location.hash}`;
 
 	if (session.kind === "loading") {
 		return <ChatRouteBootstrapFallback />;
 	}
 
 	if (session.kind === "unauthenticated") {
-		return <Navigate replace to="/login" />;
+		return <FullDocumentRedirect href={buildPublicChatAuthCompatPath("login", { returnTo })} />;
 	}
 
 	if (session.kind === "error") {
@@ -72,7 +72,7 @@ function AuthenticatedChatRouteGuard() {
 	}
 
 	if (!session.principal.canChat) {
-		return <Navigate replace to="/login" />;
+		return <FullDocumentRedirect href={buildPublicChatAuthCompatPath("login", { returnTo })} />;
 	}
 
 	return <Outlet />;
@@ -94,6 +94,22 @@ function ChatRoutePage() {
 	);
 }
 
+function FullDocumentRedirect(props: { href: string }) {
+	useEffect(() => {
+		window.location.replace(props.href);
+	}, [props.href]);
+
+	return <ChatRouteBootstrapFallback />;
+}
+
+function CompatAuthRoute() {
+	useEffect(() => {
+		window.location.replace(window.location.href);
+	}, []);
+
+	return <ChatRouteBootstrapFallback />;
+}
+
 const rootRoute = createRootRoute({
 	component: RootRouteComponent,
 	notFoundComponent: () => <Navigate replace to="/chat" />,
@@ -106,25 +122,25 @@ const indexRoute = createRoute({
 });
 
 const loginRoute = createRoute({
-	component: LoginPage,
+	component: CompatAuthRoute,
 	getParentRoute: () => rootRoute,
 	path: "/login",
 });
 
 const registerRoute = createRoute({
-	component: RegisterPage,
+	component: CompatAuthRoute,
 	getParentRoute: () => rootRoute,
 	path: "/register",
 });
 
 const forgotPasswordRoute = createRoute({
-	component: ForgotPasswordPage,
+	component: CompatAuthRoute,
 	getParentRoute: () => rootRoute,
 	path: "/forgot-password",
 });
 
 const resetPasswordRoute = createRoute({
-	component: ResetPasswordPage,
+	component: CompatAuthRoute,
 	getParentRoute: () => rootRoute,
 	path: "/reset-password",
 });

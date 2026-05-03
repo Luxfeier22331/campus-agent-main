@@ -126,8 +126,8 @@ document/index release`
 - 当前保留 `/login`、`/register`、`/forgot-password`、`/reset-password`
   作为 bounded compatibility redirects/shims 到 hub account routes
 - 只负责 browser route shell 与 chat UI
-- auth family 通过 same-site seam 将 Turnstile verification transport 到
-  `apps/app-api`
+- 不再拥有 public auth/account shell、captcha widget 或 password-reset form runtime
+- browser auth handoff 固定为 `public-chat-web compat route -> hub-web /account/* -> same-site /api/auth/* -> app-api`
 - 通过 same-site/internal seam 与 Worker `APP_API` Service Binding 调用 `apps/app-api`
 
 ### `apps/public-docs`

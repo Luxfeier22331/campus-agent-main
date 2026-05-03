@@ -111,6 +111,8 @@ model`
 - same-site `/api/*` seam into `apps/app-api`
 - chat-local auth browser routes are bounded compatibility redirects/shims to
   hub account routes with explicit `return_to`
+- does not own account-shell UI, captcha widget runtime, or password-reset form
+- browser auth handoff is `public-chat-web compat route -> hub-web /account/* -> /api/auth/* -> app-api`
 - 不拥有 auth/session/conversation truth
 
 ### `apps/hub-web`
@@ -289,6 +291,8 @@ public auth family 的 runtime/product posture 固定为：
   verification
 - auth family 的 human verification transport 固定走 same-site `hub-web ->
   /api/auth/* -> app-api`
+- `public-chat-web` 不再注入 Turnstile runtime config，也不再持有 auth-page
+  staging/live-smoke posture
 
 长期 abuse-control 规则固定为：
 

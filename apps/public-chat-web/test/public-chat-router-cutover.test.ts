@@ -57,6 +57,9 @@ describe("public chat router cutover", () => {
 		expect(viteConfigSource).toContain("find: /^@\\/app\\/\\(chat\\)\\/actions$/");
 		expect(viteConfigSource).toContain("find: /^@\\/hooks\\/use-active-chat$/");
 		expect(viteConfigSource).toContain("find: /^@\\/hooks\\/use-chat-visibility$/");
+		expect(viteConfigSource).not.toContain("find: /^next\\/form$/");
+		expect(viteConfigSource).not.toContain("find: /^@\\/app\\/\\(auth\\)\\/layout$/");
+		expect(viteConfigSource).not.toContain("find: /^@\\/components\\/chat\\/auth-form$/");
 
 		expect(tsconfigSource).toContain('"next/link"');
 		expect(tsconfigSource).toContain('"next/navigation"');
@@ -67,5 +70,8 @@ describe("public chat router cutover", () => {
 		expect(tsconfigSource).toContain('"@/app/(chat)/actions"');
 		expect(tsconfigSource).toContain('"@/hooks/use-active-chat"');
 		expect(tsconfigSource).toContain('"@/hooks/use-chat-visibility"');
+		expect(tsconfigSource).not.toContain('"next/form"');
+		expect(tsconfigSource).not.toContain('"@/app/(auth)/layout"');
+		expect(tsconfigSource).not.toContain('"@/components/chat/auth-form"');
 	});
 });
