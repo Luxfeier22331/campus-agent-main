@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from campus_retrieval_core.backend_qdrant_no_hit_policy import _has_query_lexical_support
+
 from tests.retrieval.backend_qdrant_test_support import (
     STUDENT_HANDBOOK_QDRANT_COLLECTION,
     ChunkProfile,
@@ -167,6 +169,156 @@ class BackendQdrantNoHitPolicyTest(unittest.TestCase):
         )
 
         self.assertEqual(result, ())
+
+    def test_no_hit_policy_rejects_institutional_unreleased_policy_decoy(self) -> None:
+        profile = load_runtime_profile("regulations", "institutional_rules")
+        sources = (
+            _make_source(
+                doc_id="institutional_regulation:muc:党建经费",
+                chunk_id="institutional-rules:party-funds:chunk-0018",
+                collection="institutional_rules",
+                snippet="中央民族大学党建经费管理办法 经费使用范围和审批程序。",
+                score=0.033333335,
+            ),
+            _make_source(
+                doc_id="institutional_regulation:muc:过紧日子",
+                chunk_id="institutional-rules:tight-budget:chunk-0005",
+                collection="institutional_rules",
+                snippet="中央民族大学落实习惯过紧日子工作细则 预算支出从严控制。",
+                score=0.032258064,
+            ),
+        )
+
+        result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="中央民族大学差旅费管理办法具体报销标准是什么？",
+            sources=sources,
+        )
+
+        self.assertEqual(result, ())
+
+    def test_no_hit_policy_rejects_institutional_scoped_rule_decoy(self) -> None:
+        profile = load_runtime_profile("regulations", "institutional_rules")
+        sources = (
+            _make_source(
+                doc_id="institutional_regulation:muc:研究生学籍",
+                chunk_id="institutional-rules:graduate-status:chunk-0057",
+                collection="institutional_rules",
+                snippet="中央民族大学研究生学籍管理办法 研究生入学注册、学籍异动和毕业管理。",
+                score=0.032786883,
+            ),
+            _make_source(
+                doc_id="institutional_regulation:muc:研究生学籍",
+                chunk_id="institutional-rules:graduate-status:chunk-0004",
+                collection="institutional_rules",
+                snippet="中央民族大学研究生学籍管理办法 适用于学校研究生学籍管理工作。",
+                score=0.03137255,
+            ),
+        )
+
+        result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="历史文化学院硕博连读博士研究生招生实施细则属于校级制度吗？",
+            sources=sources,
+        )
+
+        self.assertEqual(result, ())
+
+    def test_query_lexical_support_rejects_institutional_generic_money_and_rule_terms(self) -> None:
+        self.assertFalse(
+            _has_query_lexical_support(
+                query_text="中央民族大学差旅费管理办法具体报销标准是什么？",
+                snippets=(
+                    "中央民族大学党建经费管理办法 经费使用范围和审批程序。",
+                    "中央民族大学落实习惯过紧日子工作细则 预算支出从严控制。",
+                ),
+            )
+        )
+        self.assertFalse(
+            _has_query_lexical_support(
+                query_text="历史文化学院硕博连读博士研究生招生实施细则属于校级制度吗？",
+                snippets=(
+                    "中央民族大学研究生学籍管理办法 研究生入学注册、学籍异动和毕业管理。",
+                    "中央民族大学研究生学籍管理办法 适用于学校研究生学籍管理工作。",
+                ),
+            )
+        )
+
+    def test_no_hit_policy_rejects_institutional_live_like_title_decoys(self) -> None:
+        profile = load_runtime_profile("regulations", "institutional_rules")
+
+        travel_result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="中央民族大学差旅费管理办法具体报销标准是什么？",
+            sources=(
+                _make_source(
+                    doc_id="institutional_regulation:muc:党建经费",
+                    chunk_id="institutional-rules:party-funds:chunk-0018",
+                    collection="institutional_rules",
+                    source_title="中央民族大学党建经费管理办法",
+                    snippet=(
+                        "中央民族大学党建经费管理办法 / 第二章 开支范围和标准 / （二）伙食费，"
+                        "参照上级和学校差旅费有关规定，在差旅伙食补助费标准内据实报销。"
+                    ),
+                    score=0.033333335,
+                ),
+                _make_source(
+                    doc_id="institutional_regulation:muc:过紧日子",
+                    chunk_id="institutional-rules:tight-budget:chunk-0005",
+                    collection="institutional_rules",
+                    source_title="中央民族大学落实习惯过紧日子工作细则",
+                    snippet=(
+                        "标题：中央民族大学落实习惯过紧日子工作细则 | 条款：第四条 "
+                        "严格执行《中央民族大学差旅费管理办法》，从严控制差旅人数和天数。"
+                    ),
+                    score=0.032258064,
+                ),
+            ),
+        )
+        self.assertEqual(travel_result, ())
+
+        scoped_rule_result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="历史文化学院硕博连读博士研究生招生实施细则属于校级制度吗？",
+            sources=(
+                _make_source(
+                    doc_id="institutional_regulation:muc:研究生学籍",
+                    chunk_id="institutional-rules:graduate-status:chunk-0057",
+                    collection="institutional_rules",
+                    source_title="中央民族大学研究生学籍管理办法",
+                    snippet=(
+                        "标题：中央民族大学研究生学籍管理办法 | 条款：第二十三条 "
+                        "博士研究生、直博研究生和硕博连读研究生的最长学习年限。"
+                    ),
+                    score=0.030365298,
+                ),
+            ),
+        )
+        self.assertEqual(scoped_rule_result, ())
+
+        fictional_office_result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="中央民族大学龙宫学院水下实验室规章如何办理？",
+            sources=(
+                _make_source(
+                    doc_id="institutional_regulation:muc:党政联席会议",
+                    chunk_id="institutional-rules:joint-meeting:chunk-0032",
+                    collection="institutional_rules",
+                    source_title="中央民族大学学院党政联席会议议事规则",
+                    snippet="中央民族大学学院党政联席会议议事规则 / 实验室基本建设和基建修缮等重要事项。",
+                    score=0.030000001,
+                ),
+                _make_source(
+                    doc_id="institutional_regulation:muc:教室使用",
+                    chunk_id="institutional-rules:classroom:chunk-0001",
+                    collection="institutional_rules",
+                    source_title="中央民族大学教室使用管理规定",
+                    snippet="中央民族大学教室使用管理规定",
+                    score=0.016666668,
+                ),
+            ),
+        )
+        self.assertEqual(fictional_office_result, ())
 
     def test_no_hit_policy_accepts_tied_candidates_when_strong_phrase_support_exists(self) -> None:
         profile = load_runtime_profile("regulations", "student_rules")

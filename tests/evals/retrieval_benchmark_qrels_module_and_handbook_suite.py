@@ -4,6 +4,7 @@ from tests.evals.retrieval_benchmark_test_support import (
     ANNOTATION_TEMPLATE_PATH,
     FIXTURE_PATH,
     HANDBOOK_MANIFEST_PATH,
+    INSTITUTIONAL_RULES_GOLDEN_QRELS_FIXTURE_PATH,
     INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH,
     INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
     KnowledgeScope,
@@ -327,6 +328,66 @@ class RetrievalInstitutionalRulesQrelsFixtureTest(unittest.TestCase):
         self.assertEqual(
             resolve_retrieval_fixture_manifest_path(INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH),
             INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
+        )
+
+    def test_institutional_rules_golden_qrels_cover_released_docs_with_consumption_queries(
+        self,
+    ) -> None:
+        dataset = load_retrieval_qrels_dataset(INSTITUTIONAL_RULES_GOLDEN_QRELS_FIXTURE_PATH)
+        release_docs = self._load_release_30_documents()
+        release_doc_ids = {item["document_id"] for item in release_docs}
+        cases_by_doc_id: dict[str, list[str]] = {doc_id: [] for doc_id in release_doc_ids}
+
+        self.assertEqual(
+            dataset.scope,
+            KnowledgeScope(corpus="regulations", collection="institutional_rules"),
+        )
+        self.assertGreaterEqual(len(dataset.cases), 64)
+        self.assertEqual(
+            set(dataset.baseline["source_fixture"]),
+            {"institutional_rules_retrieval_qrels.json"},
+        )
+        self.assertTrue(
+            all(
+                case.split == "regression_locked"
+                for case in dataset.cases
+                if case.expected_sources
+            )
+        )
+
+        title_by_doc_id = {item["document_id"]: item["title"] for item in release_docs}
+        for case in dataset.cases:
+            self.assertNotEqual(case.split, "release_gate")
+            self.assertEqual(
+                case.request_overrides,
+                {
+                    "entitlement_groups": ["campus_members"],
+                    "visibility_scope": "campus",
+                    "visibility_level": "restricted",
+                },
+            )
+            if not case.expected_sources:
+                continue
+            self.assertEqual(len(case.expected_sources), 1)
+            expected = case.expected_sources[0]
+            self.assertIn(expected.doc_id, release_doc_ids)
+            self.assertIsNotNone(expected.version_id)
+            self.assertNotEqual(case.query, title_by_doc_id[expected.doc_id])
+            cases_by_doc_id[expected.doc_id].append(case.case_id)
+
+        missing = sorted(doc_id for doc_id, case_ids in cases_by_doc_id.items() if len(case_ids) < 2)
+        self.assertEqual(missing, [])
+
+    def test_institutional_rules_golden_qrels_validate_against_eval_manifest(
+        self,
+    ) -> None:
+        self.assertEqual(
+            validate_retrieval_qrels_fixture(
+                INSTITUTIONAL_RULES_GOLDEN_QRELS_FIXTURE_PATH,
+                manifest_path=INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
+                ambiguity_severity="error",
+            ),
+            (),
         )
 
     def _load_release_30_documents(self) -> list[dict[str, str]]:

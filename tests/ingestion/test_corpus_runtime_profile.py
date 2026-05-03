@@ -45,6 +45,21 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.qdrant_index_binding.alias_name, "student_rules")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "student_rules")
 
+    def test_load_institutional_rules_runtime_profile_enables_no_hit_guard(self) -> None:
+        profile = load_runtime_profile("regulations", "institutional_rules")
+
+        self.assertEqual(profile.corpus, "regulations")
+        self.assertEqual(profile.collection, "institutional_rules")
+        self.assertEqual(profile.serving_stage, "query_serving")
+        self.assertTrue(profile.retrieval_enabled)
+        self.assertTrue(profile.query_enabled_by_default)
+        self.assertTrue(profile.current_only)
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.no_hit_min_top_score, 0.6)
+        self.assertEqual(profile.no_hit_min_score_gap, 0.1)
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "institutional_rules")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "institutional_rules")
+
     def test_load_curriculum_plan_runtime_profile(self) -> None:
         profile = load_runtime_profile("curriculum", "curriculum_plan")
 

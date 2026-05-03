@@ -5,11 +5,23 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from tests.evals.retrieval_benchmark_test_support import (
+    INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
+)
+
 from campus_evals.answer_quality_contract import (
     AnswerQualityObservation,
     evaluate_answer_quality_cases,
     load_answer_quality_cases,
     run_answer_quality_contract_profile,
+)
+
+INSTITUTIONAL_RULES_ANSWER_CASES_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "evals"
+    / "fixtures"
+    / "institutional_rules_answer_quality_cases.v1.json"
 )
 
 
@@ -140,6 +152,38 @@ class AnswerQualityContractSuite(unittest.TestCase):
         self.assertEqual(
             missing_institutional_report.results[0].failure_class,
             "required_source_title_missing",
+        )
+
+    def test_institutional_rules_answer_quality_cases_cover_all_released_titles(
+        self,
+    ) -> None:
+        case_set = load_answer_quality_cases(INSTITUTIONAL_RULES_ANSWER_CASES_PATH)
+        manifest = json.loads(
+            INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH.read_text(encoding="utf-8")
+        )
+        released_titles = {item["title"] for item in manifest["documents"]}
+        covered_titles = {
+            title for case in case_set.cases for title in case.required_source_titles
+        }
+
+        self.assertEqual(len(released_titles), 30)
+        self.assertTrue(
+            all(case.split == "regression_locked" for case in case_set.cases)
+        )
+        self.assertEqual(covered_titles, released_titles)
+        self.assertTrue(
+            all(
+                "/docs/regulations/institutional_rules/"
+                in case.required_source_url_fragments
+                for case in case_set.cases
+            )
+        )
+        self.assertTrue(
+            all(
+                "/docs/regulations/scoped_rules/"
+                in case.forbidden_source_url_fragments
+                for case in case_set.cases
+            )
         )
 
 
