@@ -37,7 +37,7 @@
 		"deploy:preflight:staging": "node ../../scripts/run-worker-staging-preflight.mjs --app apps/app-api",
 		"deploy:verify-config:staging": "node ./scripts/verify-staging-config.mjs",
 		"deploy:staging": "pnpm deploy:preflight:staging && node ./scripts/deploy-staging.mjs",
-		"test": "pnpm run test:node",
+		"test": "node ./scripts/run-node-tests.mjs",
 		"test:all": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.config.mts",
 		"test:node": "vitest run -c vitest.node.config.mts",
 		"test:worker": "WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1 XDG_CONFIG_HOME=./.wrangler-home vitest run -c vitest.worker.config.mts",
