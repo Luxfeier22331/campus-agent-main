@@ -397,6 +397,7 @@ def audit_eval_gate_configuration(*, repo_root: Path) -> dict[str, object]:
         ),
         _audit_operations_policy_coverage(),
         _audit_denominator_registry_coverage(),
+        _audit_rag_eval_coverage(),
         _audit_tool_family_fixture_coverage(),
         _audit_profile_fixture_smoke(),
     )
@@ -475,6 +476,10 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
         return runner
     if normalized == "answer-quality-contract":
         from campus_evals.answer_quality_contract import main as runner
+
+        return runner
+    if normalized == "institutional-rules-release-baseline":
+        from campus_evals.institutional_rules_release_baseline_gate import main as runner
 
         return runner
     if normalized == "eval-operations-governance":
@@ -560,6 +565,22 @@ def _audit_denominator_registry_coverage() -> dict[str, object]:
         "check_id": "denominator_registry_coverage",
         "passed": required.issubset(surface_ids),
         "missing": sorted(required - surface_ids),
+    }
+
+
+def _audit_rag_eval_coverage() -> dict[str, object]:
+    from campus_evals.rag_eval_coverage import build_rag_eval_coverage_report
+
+    report = build_rag_eval_coverage_report()
+    return {
+        "check_id": "rag_eval_coverage",
+        "passed": report.passed,
+        "minimum_gate_passed": report.minimum_gate_passed,
+        "maturity_passed": report.maturity_passed,
+        "surfaces": [surface.surface_key for surface in report.surfaces],
+        "gaps": list(report.gaps),
+        "maturity_gaps": list(report.maturity_gaps),
+        "excluded_surfaces": report.excluded_surfaces,
     }
 
 

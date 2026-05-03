@@ -136,6 +136,14 @@ def build_aggregated_metadata(
     aggregated_metadata["member_source_chunk_ids"] = [
         member.unit.source_chunk_id for member in members if member.unit.source_chunk_id is not None
     ]
+    aggregated_metadata["member_segment_lineage"] = [
+        {
+            "root_unit_id": member.piece.root_unit_id,
+            "segment_index": member.piece.segment_index,
+            "segment_total": member.piece.segment_total,
+        }
+        for member in members
+    ]
     article_labels = collect_member_labels(members, "article_label")
     if article_labels:
         aggregated_metadata["member_article_labels"] = article_labels
@@ -143,6 +151,18 @@ def build_aggregated_metadata(
     if provision_labels:
         aggregated_metadata["member_provision_labels"] = provision_labels
     return aggregated_metadata
+
+
+def build_table_release_metadata(metadata: dict[str, object]) -> dict[str, object]:
+    release_metadata: dict[str, object] = {}
+    header_line = str(metadata.get("table_header_line") or "").strip()
+    column_paths = _string_list(metadata.get("table_column_paths"))
+    header_cells = column_paths or _split_table_line(header_line)
+    if header_line and not metadata.get("table_headers"):
+        release_metadata["table_headers"] = header_cells or [header_line]
+    if header_cells and not metadata.get("table_columns"):
+        release_metadata["table_columns"] = header_cells
+    return release_metadata
 
 
 def build_aggregated_display_text(members: Sequence[_ChunkMember]) -> str:
@@ -268,6 +288,16 @@ def shared_metadata_text(members: Sequence[_ChunkMember], field_name: str) -> st
     return shared_value if isinstance(shared_value, str) else None
 
 
+def _string_list(value: object) -> list[str]:
+    if not isinstance(value, list | tuple):
+        return []
+    return [str(item).strip() for item in value if str(item).strip()]
+
+
+def _split_table_line(value: str) -> list[str]:
+    return [part.strip() for part in value.split("|") if part.strip()]
+
+
 def common_section_path_tuple(paths: Iterable[tuple[str, ...]]) -> tuple[str, ...]:
     normalized_paths = [path for path in paths if path]
     if not normalized_paths:
@@ -314,6 +344,7 @@ __all__ = [
     "build_curriculum_member_display_text",
     "build_institutional_regulation_aggregated_anchor",
     "build_member_anchor",
+    "build_table_release_metadata",
     "collect_member_labels",
     "common_section_path_tuple",
     "header_ratio",

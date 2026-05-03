@@ -2,7 +2,7 @@
 doc_type: roadmap
 status: active
 created: 2026-04-22
-updated: 2026-04-29
+updated: 2026-05-04
 ---
 
 # Roadmap: Eval
@@ -19,6 +19,15 @@ regression intake、public chat 产品路径、campus-services / notice tool eva
 restricted/authz/privacy、agentic retrieval plan 与 eval operations governance。Phase 6 已在
 Phase 5A scaffold 基础上独立完成；Phase 8-13 已完成 deterministic eval seams；`Phase 5B`
 仍等待 domain 数据补全。当前没有独立编号的 Phase 14；总数 14 来自 Phase 5A/5B 拆分。
+
+2026-05-04 RAG-only eval 收口后，当前 RAG 消费面固定为 `regulations/student_rules`、
+`regulations/institutional_rules`、`curriculum/curriculum_plan` 与
+`official_web/stable_reference`；`official_web/fresh_news` 不进入 RAG eval denominator。
+`institutional_rules` 已通过 `institutional-rules-release-baseline` 作为 domain-specific
+baseline 接入 coverage/audit。当前 report 区分 `minimum_gate_passed` 与 `maturity_passed`：
+minimum gate 通过，但 `student_rules` / `curriculum_plan` 仍是
+`coverage_present_but_thin`，后续需按 backlog 人工扩编；这不等于 repo-wide Phase 5B
+全面完成。
 
 ## Phases
 

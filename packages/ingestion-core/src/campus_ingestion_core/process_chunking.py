@@ -12,6 +12,7 @@ from campus_ingestion_core.chunking import (
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process_candidate_aggregation import build_collection_semantic_metadata
+from campus_ingestion_core.process_candidate_aggregation import build_table_release_metadata
 from campus_ingestion_core.process_candidate_postprocess import (
     postprocess_curriculum_chunk_candidates,
     postprocess_default_chunk_candidates,
@@ -138,6 +139,12 @@ def resolve_chunk_profile(
     return resolve_collection_chunk_strategy(record).build_chunk_profile(record)
 
 
+def _resolve_final_segment_value(candidate: _ChunkCandidate, field_name: str) -> int | None:
+    if candidate.metadata.get("aggregation_mode") == "adjacent_short_textual_units":
+        return None
+    return getattr(candidate.piece, field_name)
+
+
 def build_indexable_chunks_from_jsonl(
     *,
     record: DocumentRegistryRecord,
@@ -218,8 +225,8 @@ def build_indexable_chunks_from_jsonl(
                 metadata={
                     "unit_type": candidate.piece.unit_type,
                     "root_unit_id": candidate.piece.root_unit_id,
-                    "segment_index": candidate.piece.segment_index,
-                    "segment_total": candidate.piece.segment_total,
+                    "segment_index": _resolve_final_segment_value(candidate, "segment_index"),
+                    "segment_total": _resolve_final_segment_value(candidate, "segment_total"),
                     "split_reason": candidate.piece.split_reason,
                     "boundary_rule": candidate.piece.boundary_rule,
                     "strategy_name": runtime_profile.strategy_name,
@@ -240,6 +247,7 @@ def build_indexable_chunks_from_jsonl(
                         metadata=candidate.metadata,
                         text=candidate.piece.text,
                     ),
+                    **build_table_release_metadata(candidate.metadata),
                 },
             )
         )

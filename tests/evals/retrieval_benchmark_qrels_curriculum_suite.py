@@ -142,6 +142,50 @@ class RetrievalCurriculumQrelsFixtureTest(unittest.TestCase):
             }.issubset(case_ids)
         )
 
+    def test_curriculum_maturity_expansion_covers_core_program_families(self) -> None:
+        dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
+        release_acceptance = json.loads(
+            (
+                CURRICULUM_QRELS_FIXTURE_PATH.parent / "curriculum_plan_release_acceptance.v1.json"
+            ).read_text(encoding="utf-8")
+        )
+        case_ids = {case.case_id for case in dataset.cases}
+        release_case_ids = {case["case_id"] for case in release_acceptance["cases"]}
+        unique_expected_doc_ids = {
+            source.doc_id for case in dataset.cases for source in case.expected_sources
+        }
+
+        expected_maturity_case_ids = {
+            "curriculum-title-general-chinese-culture",
+            "curriculum-title-general-information-literacy",
+            "curriculum-title-general-national-security",
+            "curriculum-title-general-physical-education",
+            "curriculum-title-accounting-second-degree",
+            "curriculum-title-sports-education",
+            "curriculum-title-russian-central-asian",
+            "curriculum-title-information-computing",
+            "curriculum-title-information-computing-ethnic",
+            "curriculum-title-optical-information",
+            "curriculum-title-public-management",
+            "curriculum-title-law-undergraduate",
+            "curriculum-title-law-second-degree",
+            "curriculum-title-computer-science-ethnic",
+            "curriculum-title-computer-category",
+        }
+
+        self.assertGreaterEqual(len(dataset.cases), 60)
+        self.assertGreaterEqual(len(unique_expected_doc_ids), 45)
+        self.assertGreaterEqual(len(release_acceptance["cases"]), 30)
+        self.assertTrue(expected_maturity_case_ids.issubset(case_ids))
+        self.assertTrue(
+            {
+                "curriculum-title-general-chinese-culture",
+                "curriculum-title-general-information-literacy",
+                "curriculum-title-information-computing",
+                "curriculum-title-public-management",
+            }.issubset(release_case_ids)
+        )
+
     def test_curriculum_qrels_fixture_contains_uniquely_grounded_sparse_fixed_phrase_case(
         self,
     ) -> None:

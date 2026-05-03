@@ -71,6 +71,42 @@ def profile_answer_expectation(
             "json",
             (200,),
         )
+    if profile == "rag_delegate_institutional_rules":
+        institutional_rules_context = {
+            **context,
+            "authorization": {
+                "retrieval_filter": {
+                    "entitlement_groups": ["campus_members"],
+                    "visibility_level": "restricted",
+                    "visibility_scope": "campus",
+                    "policy_projection_version": "phase1-authorization-projection-v1",
+                }
+            },
+        }
+        return (
+            {
+                "user_goal": "研究生助教助研助管工作应该依据哪份管理办法？",
+                "request_id": "process-smoke-rag-delegate-institutional-rules",
+                "requested_capability": "knowledge",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "institutional_rules",
+                },
+                "context": institutional_rules_context,
+            },
+            200,
+            (
+                "workflow_trace_summary",
+                "agent_execution_projection",
+                "agent_plan",
+                "grounded_answer",
+                "中央民族大学研究生",
+                "三助",
+            ),
+            "/api/v1/answer",
+            "json",
+            (200,),
+        )
     if profile == "structured_direct_opened":
         return (
             {

@@ -5,15 +5,15 @@ import tempfile
 import unittest
 from pathlib import Path
 
-from tests.evals.retrieval_benchmark_test_support import (
-    INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
-)
-
 from campus_evals.answer_quality_contract import (
     AnswerQualityObservation,
     evaluate_answer_quality_cases,
     load_answer_quality_cases,
     run_answer_quality_contract_profile,
+)
+
+from tests.evals.retrieval_benchmark_test_support import (
+    INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
 )
 
 INSTITUTIONAL_RULES_ANSWER_CASES_PATH = (
@@ -22,6 +22,28 @@ INSTITUTIONAL_RULES_ANSWER_CASES_PATH = (
     / "evals"
     / "fixtures"
     / "institutional_rules_answer_quality_cases.v1.json"
+)
+
+SELECTED_RE_ADMITTED_SCHOOL_LEVEL_TITLES = frozenset(
+    {
+        "中央民族大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
+        "中央民族大学党建工作考核办法（试行）",
+        "中央民族大学双学士学位复合型人才培养项目实施管理暂行办法",
+        "中央民族大学学生参加国际外语水平考试暨国际化培养项目奖励暂行办法",
+        "中央民族大学招募选拔 “中国青年志愿者扶贫接力计划研究生支教团”成员规定",
+        "中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）",
+        "中央民族大学本科课程临时调(停)课管理办法",
+        "中央民族大学研究生“三助”工作管理办法",
+        "中央民族大学研究生学位论文评阅办法（试行）",
+        "中央民族大学研究生涉密学位论文管理办法（试行）",
+        "中央民族大学硕博连读研究生招生实施办法（试行）",
+        "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+    }
+)
+EXCLUDED_SCOPED_RULE_TITLES = frozenset(
+    {
+        "中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法",
+    }
 )
 
 
@@ -162,26 +184,22 @@ class AnswerQualityContractSuite(unittest.TestCase):
             INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH.read_text(encoding="utf-8")
         )
         released_titles = {item["title"] for item in manifest["documents"]}
-        covered_titles = {
-            title for case in case_set.cases for title in case.required_source_titles
-        }
+        covered_titles = {title for case in case_set.cases for title in case.required_source_titles}
 
-        self.assertEqual(len(released_titles), 30)
-        self.assertTrue(
-            all(case.split == "regression_locked" for case in case_set.cases)
-        )
+        self.assertEqual(len(released_titles), 42)
+        self.assertTrue(SELECTED_RE_ADMITTED_SCHOOL_LEVEL_TITLES.issubset(released_titles))
+        self.assertTrue(EXCLUDED_SCOPED_RULE_TITLES.isdisjoint(released_titles))
+        self.assertTrue(all(case.split == "regression_locked" for case in case_set.cases))
         self.assertEqual(covered_titles, released_titles)
         self.assertTrue(
             all(
-                "/docs/regulations/institutional_rules/"
-                in case.required_source_url_fragments
+                "/docs/regulations/institutional_rules/" in case.required_source_url_fragments
                 for case in case_set.cases
             )
         )
         self.assertTrue(
             all(
-                "/docs/regulations/scoped_rules/"
-                in case.forbidden_source_url_fragments
+                "/docs/regulations/scoped_rules/" in case.forbidden_source_url_fragments
                 for case in case_set.cases
             )
         )

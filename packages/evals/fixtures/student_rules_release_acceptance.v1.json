@@ -137,6 +137,82 @@
 			"forbidden_document_ids": ["handbook:9350d885657d7409e524e73666b828b826f07191"]
 		},
 		{
+			"case_id": "policy-title-credit-system",
+			"corpus": "regulations",
+			"collection": "student_rules",
+			"query": "中央民族大学本科学分制实施办法",
+			"top_k": 3,
+			"expected_document_ids": ["handbook:aafad3e5b2a6e60decaf15f8258401e1dcd398d9"]
+		},
+		{
+			"case_id": "policy-title-undergraduate-status-management",
+			"corpus": "regulations",
+			"collection": "student_rules",
+			"query": "中央民族大学本科学生学籍管理办法",
+			"top_k": 3,
+			"expected_document_ids": ["handbook:d5f01ceb2da8c830f904dbc049c8aca41fedf485"]
+		},
+		{
+			"case_id": "policy-title-degree-supplement",
+			"corpus": "regulations",
+			"collection": "student_rules",
+			"query": "中央民族大学全日制本科学生学士学位授予补充规定",
+			"top_k": 3,
+			"expected_document_ids": ["handbook:b4ec9c595995411079c1aaf19a5847c522a92433"]
+		},
+		{
+			"case_id": "policy-title-recommend-postgraduate-exemption",
+			"corpus": "regulations",
+			"collection": "student_rules",
+			"query": "中央民族大学推荐应届本科毕业生免试攻读硕士学位研究生管理办法",
+			"top_k": 3,
+			"expected_document_ids": ["handbook:4b943c3cb67ec0e3c578781fb0c62c1763fd73b9"],
+			"forbidden_document_ids": ["handbook:ceb42210e2431730ef5b1e376b800250fd9eb1fb"]
+		},
+		{
+			"case_id": "policy-title-athlete-postgraduate-exemption",
+			"corpus": "regulations",
+			"collection": "student_rules",
+			"query": "中央民族大学推荐应届优秀高水平运动员免试攻读硕士学位研究生管理办法",
+			"top_k": 3,
+			"expected_document_ids": ["handbook:ceb42210e2431730ef5b1e376b800250fd9eb1fb"],
+			"forbidden_document_ids": ["handbook:4b943c3cb67ec0e3c578781fb0c62c1763fd73b9"]
+		},
+		{
+			"case_id": "policy-title-major-adjustment",
+			"corpus": "regulations",
+			"collection": "student_rules",
+			"query": "中央民族大学本科生专业调整实施办法",
+			"top_k": 3,
+			"expected_document_ids": ["handbook:4ff7b434006008d28b5ba6e6b5df4482527b9e3d"]
+		},
+		{
+			"case_id": "semantic-innovation-education-credit",
+			"corpus": "regulations",
+			"collection": "student_rules",
+			"query": "本科创新教育项目和创新学分按哪个办法执行",
+			"top_k": 6,
+			"expected_document_ids": ["handbook:02a96d9625b2d15bec9411e8633b6c6533be4b6e"]
+		},
+		{
+			"case_id": "policy-title-exam-violation",
+			"corpus": "regulations",
+			"collection": "student_rules",
+			"query": "中央民族大学学生考试违规认定与处理办法",
+			"top_k": 3,
+			"expected_document_ids": ["handbook:4a106f850321154f454ec7c57150ec20775420e2"],
+			"forbidden_document_ids": ["handbook:9350d885657d7409e524e73666b828b826f07191"]
+		},
+		{
+			"case_id": "policy-title-muc-student-management",
+			"corpus": "regulations",
+			"collection": "student_rules",
+			"query": "中央民族大学学生管理规定",
+			"top_k": 3,
+			"expected_document_ids": ["handbook:69eef0f78d250946924e6a02187fafdb88852c23"],
+			"forbidden_document_ids": ["handbook:d0a1db59ed9a8b00c4349200916edae208d876f6"]
+		},
+		{
 			"case_id": "no-hit-impossible-query",
 			"corpus": "regulations",
 			"collection": "student_rules",

@@ -45,6 +45,20 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.qdrant_index_binding.alias_name, "student_rules")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "student_rules")
 
+    def test_load_student_rules_chunk_profile_uses_handbook_strategy(self) -> None:
+        profile = load_chunk_profile("regulations", "student_rules")
+
+        self.assertEqual(profile.corpus, "regulations")
+        self.assertEqual(profile.collection, "student_rules")
+        self.assertEqual(profile.chunk_profile_version, "student_rules_semantic_v3")
+        self.assertEqual(profile.structured_input, "document_units_jsonl")
+        self.assertEqual(profile.cleaning_policy_version, "student_rules_cleaning_v1")
+        self.assertEqual(profile.runtime_defaults.strategy_name, "student_handbook_structure_v3")
+        self.assertEqual(profile.runtime_defaults.chunk_size, 384)
+        self.assertEqual(profile.runtime_defaults.max_chunk_size, 512)
+        self.assertEqual(profile.runtime_defaults.chunk_overlap, 64)
+        self.assertEqual(profile.runtime_defaults.min_chunk_size, 96)
+
     def test_load_institutional_rules_runtime_profile_enables_no_hit_guard(self) -> None:
         profile = load_runtime_profile("regulations", "institutional_rules")
 

@@ -13,20 +13,136 @@ updated: 2026-05-03
 ## Current Position
 
 **Status:** Completed
-**Current Phase:** Phase 10 institutional RAG consumption acceptance completed
+**Current Phase:** Phase 15 institutional release baseline gate completed
 **Last Activity:** 2026-05-03
-**Last Activity Description:** The already released 30校级
-`institutional_rules` documents were validated for downstream RAG consumption
-with 33 version-locked qrels, live retrieval evidence and answer source-identity
-contract evidence.
+**Last Activity Description:** 42 school-level `institutional_rules` were
+quality-checked, admitted, embedded, indexed and published through the release
+lane. The 12 re-admitted documents were written to object storage/operator
+registry, the real 42-doc registry-scope chunk preparation passed, release
+admission was written, 42 release candidates were processed, and all 42 reached
+`serving_published`. Alias `institutional_rules` now points to
+`institutional_rules__r20260503_111156_686885_6ce8d197` with 1747 points.
+Phase 13 fixed the 3 golden retrieval strategy gaps; release-gate live retrieval
+45 cases and golden retrieval 89 cases now both pass with `doc_hit@1=1.0`,
+`doc_recall@5=1.0` and `forbidden_hit_rate=0.0`. Phase 14 proved answer-level
+and supervisor product-path consumption: answer-quality passed 42/42 cases, and
+`rag_delegate_institutional_rules` product-path smoke returned a grounded
+answer with 3 `institutional_rules` sources under restricted campus-member
+authorization. Phase 15 added and ran the
+`institutional-rules-release-baseline` eval gate, combining release retrieval,
+golden retrieval, answer-quality, Qdrant no-hit and supervisor product-path
+checks into one release/manual baseline; the gate passed 5/5 checks.
 
 ## Progress
 
-**Phases Complete:** 11
+**Phases Complete:** 15
 **Current Plan:** Keep this lane closed unless a new regulation query-enabled
-surface or release-policy drift is explicitly admitted.
+surface is explicitly admitted, a release-policy drift appears, or the 42-doc
+institutional retrieval/golden/answer/product-path baseline regresses.
 
 ## Current Slice
+
+Phase 15 institutional release baseline gate is completed:
+
+- `scripts.eval_gate accept --profile institutional-rules-release-baseline` now
+  runs the institutional release baseline as one repo-owned gate.
+- The gate verifies release retrieval qrels, golden retrieval qrels,
+  institutional answer-quality contract, Qdrant no-hit policy suite and
+  `rag_delegate_institutional_rules` product-path smoke.
+- The gate is not GitHub workflow dispatchable by default because it requires
+  Qdrant, embedding env and local supervisor product-path smoke runtime.
+- Real gate evidence passed 5/5 checks: release retrieval 45 cases,
+  golden retrieval 89 cases, answer-quality 42 cases, no-hit suite and
+  product-path smoke.
+- This phase does not admit new regulations or change the serving alias.
+
+Phase 14 institutional answer and product-path acceptance is completed:
+
+- Deterministic answer-quality contract passed across 42 institutional answer
+  cases with 42 passed and 0 failed.
+- `rag_delegate_institutional_rules` was added to the supervisor process smoke
+  profiles and retrieval profiles.
+- The institutional product-path smoke request now uses restricted
+  campus-member retrieval authorization:
+  `entitlement_groups=["campus_members"]`, `visibility_level="restricted"` and
+  `visibility_scope="campus"`.
+- Product-path smoke passed with answer HTTP 200, answer status `completed`,
+  semantic outcome `grounded_answer`, resolved collection `institutional_rules`
+  and 3 retrieved sources.
+- The smoke explicitly treats `retrieval_failed` and `"status": "no_answer"` as
+  forbidden body tokens for this positive path.
+- This phase does not admit `scoped_rules`, annual/cohort rules or college-level
+  rules to default query-serving.
+
+Phase 13 institutional golden retrieval quality follow-up is completed:
+
+- `backend_qdrant_no_hit_policy.py` now supports the institutional title alias
+  `助教/助研/助管 -> 三助`, so
+  `研究生助教助研助管工作应该依据哪份管理办法？` retrieves
+  `中央民族大学研究生“三助”工作管理办法`.
+- Institutional scope-membership questions that name annual/cohort implementation
+  rules now fail closed instead of returning adjacent current school-level
+  management rules.
+- Institutional scope-membership questions that name college-level implementation
+  rules now fail closed instead of returning adjacent current school-level rules.
+- Release-gate live retrieval passed across 45 cases with `doc_hit@1=1.0`,
+  `doc_hit@3=1.0`, `doc_recall@5=1.0` and `forbidden_hit_rate=0.0`.
+- Golden retrieval passed across 89 cases with `doc_hit@1=1.0`,
+  `doc_hit@3=1.0`, `doc_recall@5=1.0` and `forbidden_hit_rate=0.0`.
+- The three Phase 12 golden gaps are now closed without opening `scoped_rules` or
+  annual/cohort rules to default `institutional_rules` consumption.
+
+Phase 12 institutional 42 quality and release proved:
+
+- 42校级 `regulations/institutional_rules` are covered by quality evidence:
+  30 prior Phase 9 released documents plus 12 selected school-level re-admitted
+  documents.
+- The 12 re-admitted documents were transformed from scoped evidence into
+  institutional-scope `document-units` with institutional document ids,
+  `content_kind=institutional_regulation`, `content_role=regulation_*` and
+  `promotion_class=formal_regulation`.
+- The 12 re-admitted documents produced 437 units and 345 chunks; all chunks use
+  `institutional_rules_formal_v1`.
+- Combined quality evidence covers 42 documents and 1747 chunks.
+- The quality gate passed with no blocking cleaning/chunk issues.
+- The 12 re-admitted records were uploaded to object storage and upserted into
+  the operator registry.
+- Operator registry now exposes 42 releasable institutional records.
+- Real registry-scope chunk preparation produced a passed 42-document,
+  1747-chunk manifest under preparation run `phase12-institutional-42-release`.
+- Release admission was written for 42 documents under admission run
+  `phase12-institutional-42-release`.
+- 42 release candidates were enqueued; 30 were forced policy replays for already
+  published records.
+- 42 release candidates were processed; all 42 reached `serving_published`.
+- Qdrant alias `institutional_rules` points to
+  `institutional_rules__r20260503_111156_686885_6ce8d197` with 1747 points.
+- Runtime readiness was rechecked: root `.env` embedding provider settings are
+  present and Qdrant `/readyz`, `/livez` and `/collections` returned HTTP 200
+  with API key.
+
+Phase 11 selected school-level regulation admission proved:
+
+- `retrieval-eval-manifest.v1.json` now anchors 42校级
+  `regulations/institutional_rules` documents for downstream consumption.
+- The 30 Phase 9 released documents keep their existing document ids and version ids.
+- 12 selected school-level regulations from the scoped holding set are explicitly
+  re-admitted under regenerated `regulations/institutional_rules` document ids.
+- Re-admitted document `version_id` and `semantic_content_hash` are aligned to
+  Phase 42 v9 `document-units.jsonl` chunk-preparation evidence, while document
+  ids are regenerated under the institutional semantic scope.
+- `institutional_rules_retrieval_qrels.json` and
+  `institutional_rules_release_acceptance.v1.json` now each carry 42 title-exact
+  cases plus semantic, authz-deny and no-hit guards.
+- `institutional_rules_golden_retrieval_qrels.v1.json` now carries 89
+  regression-locked cases: 84 positive consumption cases and 5 hard-negative /
+  no-hit guards.
+- `institutional_rules_answer_quality_cases.v1.json` now covers all 42校级
+  institutional titles.
+- `中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法`
+  remains excluded as an annual/cohort-specific scoped rule.
+- This phase does not claim a new live alias publish or live retrieval run for
+  the expanded 42-document set; that requires a separate release/benchmark run.
 
 Phase 10 institutional RAG consumption acceptance proved:
 
@@ -145,6 +261,173 @@ Phase 6 canary cohort evidence previously proved:
   document-site/RAG default consumption until separately admitted.
 
 ## Verification
+
+- Phase 15 institutional release baseline gate evidence:
+
+  - `./evidence/phase-15-institutional-release-baseline-gate/institutional-rules-release-baseline-gate.json`
+  - `./evidence/phase-15-institutional-release-baseline-gate/retrieval-live-run.json`
+  - `./evidence/phase-15-institutional-release-baseline-gate/golden-retrieval-live-run.json`
+  - `./evidence/phase-15-institutional-release-baseline-gate/answer-quality-contract/profile-report.json`
+  - `./evidence/phase-15-institutional-release-baseline-gate/product-path-smoke/process-smoke-summary.json`
+
+- Phase 15 focused verification:
+
+  ```bash
+  uv run --all-packages python -m scripts.eval_gate accept \
+    --profile institutional-rules-release-baseline \
+    --observations-path .planning/workstreams/regulation-rag-release-lane/evidence/phase-14-institutional-answer-and-product-path-acceptance/institutional-answer-quality-observations.json \
+    --output-dir .planning/workstreams/regulation-rag-release-lane/evidence/phase-15-institutional-release-baseline-gate \
+    --json
+  ```
+
+- Phase 14 institutional answer and product-path acceptance evidence:
+
+  - `./evidence/phase-14-institutional-answer-and-product-path-acceptance/institutional-answer-quality-observations.json`
+  - `./evidence/phase-14-institutional-answer-and-product-path-acceptance/answer-quality-contract/profile-report.json`
+  - `./evidence/phase-14-institutional-answer-and-product-path-acceptance/product-path-smoke/process-smoke-summary.json`
+
+- Phase 14 focused verification:
+
+  ```bash
+  uv run --all-packages python -m campus_evals.answer_quality_contract accept \
+    --cases-path packages/evals/fixtures/institutional_rules_answer_quality_cases.v1.json \
+    --observations-path .planning/workstreams/regulation-rag-release-lane/evidence/phase-14-institutional-answer-and-product-path-acceptance/institutional-answer-quality-observations.json \
+    --output-dir .planning/workstreams/regulation-rag-release-lane/evidence/phase-14-institutional-answer-and-product-path-acceptance/answer-quality-contract \
+    --json
+
+  uv run --all-packages python -m scripts.supervisor_runtime_process_smoke \
+    --profile rag_delegate_institutional_rules \
+    --output-dir .planning/workstreams/regulation-rag-release-lane/evidence/phase-14-institutional-answer-and-product-path-acceptance/product-path-smoke \
+    --api-port 27151 \
+    --worker-port 27152 \
+    --timeout-seconds 90 \
+    --startup-timeout-seconds 240
+
+  uv run --all-packages python -m unittest \
+    tests.test_supervisor_runtime_process_smoke.SupervisorRuntimeProcessSmokeTest.test_institutional_rules_rag_profile_uses_restricted_campus_auth_projection \
+    tests.test_supervisor_runtime_process_smoke.SupervisorRuntimeProcessSmokeTest.test_profiles_select_distinct_answer_payloads_and_expectations \
+    tests.test_supervisor_runtime_process_smoke.SupervisorRuntimeProcessSmokeTest.test_rag_delegate_smoke_fails_when_positive_path_returns_no_answer \
+    -v
+
+  jq empty \
+    .planning/workstreams/regulation-rag-release-lane/evidence/phase-14-institutional-answer-and-product-path-acceptance/institutional-answer-quality-observations.json \
+    .planning/workstreams/regulation-rag-release-lane/evidence/phase-14-institutional-answer-and-product-path-acceptance/answer-quality-contract/profile-report.json \
+    .planning/workstreams/regulation-rag-release-lane/evidence/phase-14-institutional-answer-and-product-path-acceptance/product-path-smoke/process-smoke-summary.json
+  ```
+
+- Phase 13 institutional golden retrieval follow-up evidence:
+
+  - `./evidence/phase-13-institutional-golden-retrieval-quality-follow-up/retrieval-live-run.json`
+  - `./evidence/phase-13-institutional-golden-retrieval-quality-follow-up/retrieval-live-summary.json`
+  - `./evidence/phase-13-institutional-golden-retrieval-quality-follow-up/golden-retrieval-live-run.json`
+  - `./evidence/phase-13-institutional-golden-retrieval-quality-follow-up/golden-retrieval-live-summary.json`
+
+- Phase 13 focused verification:
+
+  ```bash
+  uv run --all-packages python -m unittest tests.retrieval.backend_qdrant_no_hit_suite -v
+
+  uv run --all-packages python -m unittest tests.evals.retrieval_benchmark_qrels_module_and_handbook_suite -v
+
+  uv run --all-packages ruff check \
+    packages/retrieval-core/src/campus_retrieval_core/backend_qdrant_no_hit_policy.py \
+    tests/retrieval/backend_qdrant_no_hit_suite.py
+
+  jq empty \
+    .planning/workstreams/regulation-rag-release-lane/evidence/phase-13-institutional-golden-retrieval-quality-follow-up/retrieval-live-run.json \
+    .planning/workstreams/regulation-rag-release-lane/evidence/phase-13-institutional-golden-retrieval-quality-follow-up/retrieval-live-summary.json \
+    .planning/workstreams/regulation-rag-release-lane/evidence/phase-13-institutional-golden-retrieval-quality-follow-up/golden-retrieval-live-run.json \
+    .planning/workstreams/regulation-rag-release-lane/evidence/phase-13-institutional-golden-retrieval-quality-follow-up/golden-retrieval-live-summary.json
+  ```
+
+- Phase 13 live retrieval verification:
+
+  ```bash
+  uv run --all-packages python -m campus_evals.retrieval_live_benchmark \
+    --qrels packages/evals/fixtures/institutional_rules_retrieval_qrels.json \
+    --output .planning/workstreams/regulation-rag-release-lane/evidence/phase-13-institutional-golden-retrieval-quality-follow-up/retrieval-live-run.json \
+    --format json \
+    --top-k 3
+
+  uv run --all-packages python -m campus_evals.retrieval_live_benchmark \
+    --qrels packages/evals/fixtures/institutional_rules_golden_retrieval_qrels.v1.json \
+    --output .planning/workstreams/regulation-rag-release-lane/evidence/phase-13-institutional-golden-retrieval-quality-follow-up/golden-retrieval-live-run.json \
+    --format json \
+    --top-k 5
+  ```
+
+- Phase 12 institutional 42 quality and release readiness evidence:
+
+  - `./evidence/phase-12-institutional-42-quality-and-release/quality-and-release-readiness.report.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/selected-12-institutional-chunk-prep/validation-summary.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/release-blockers.report.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/operator-registry-admission.report.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/chunk-preparation.report.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/release-admission.report.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/candidate-enqueue.report.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/release-execution-status.report.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/process-release.report.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/runtime-readiness.report.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/retrieval-live-run.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/retrieval-live-summary.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/golden-retrieval-live-run.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/golden-retrieval-live-summary.json`
+  - `./evidence/phase-12-institutional-42-quality-and-release/golden-retrieval-gap-analysis.json`
+
+- Phase 12 focused verification:
+
+  ```bash
+  jq empty \
+    .planning/workstreams/regulation-rag-release-lane/evidence/phase-12-institutional-42-quality-and-release/*.json \
+    .planning/workstreams/regulation-rag-release-lane/evidence/phase-12-institutional-42-quality-and-release/selected-12-institutional-chunk-prep/*.json
+
+  uv run --all-packages python -m unittest \
+    tests.ingestion.test_internal_notice_institutional_regulation_chunk_prep \
+    tests.ingestion.test_regulation_chunk_quality \
+    tests.evals.retrieval_benchmark_qrels_module_and_handbook_suite \
+    tests.evals.answer_quality_contract_suite \
+    tests.ingestion.test_index_release_acceptance \
+    -v
+  ```
+
+- Phase 12 live retrieval verification:
+
+  ```bash
+  uv run --all-packages python -m campus_evals.retrieval_live_benchmark \
+    --qrels packages/evals/fixtures/institutional_rules_retrieval_qrels.json \
+    --output .planning/workstreams/regulation-rag-release-lane/evidence/phase-12-institutional-42-quality-and-release/retrieval-live-run.json \
+    --format json \
+    --top-k 3
+
+  uv run --all-packages python -m campus_evals.retrieval_live_benchmark \
+    --qrels packages/evals/fixtures/institutional_rules_golden_retrieval_qrels.v1.json \
+    --output .planning/workstreams/regulation-rag-release-lane/evidence/phase-12-institutional-42-quality-and-release/golden-retrieval-live-run.json \
+    --format json \
+    --top-k 5
+  ```
+
+- Phase 11 selected school-level regulation admission evidence:
+
+  - `./evidence/phase-11-selected-school-level-regulation-admission/selected-school-level-regulation-admission.report.json`
+
+- Phase 11 focused verification:
+
+  ```bash
+  jq empty \
+    configs/ingestion/regulations/institutional_rules/retrieval-eval-manifest.v1.json \
+    packages/evals/fixtures/institutional_rules_retrieval_qrels.json \
+    packages/evals/fixtures/institutional_rules_release_acceptance.v1.json \
+    packages/evals/fixtures/institutional_rules_golden_retrieval_qrels.v1.json \
+    packages/evals/fixtures/institutional_rules_answer_quality_cases.v1.json \
+    .planning/workstreams/regulation-rag-release-lane/evidence/phase-11-selected-school-level-regulation-admission/selected-school-level-regulation-admission.report.json
+
+  uv run --all-packages python -m unittest \
+    tests.ingestion.test_regulation_chunk_quality \
+    tests.evals.retrieval_benchmark_qrels_module_and_handbook_suite \
+    tests.evals.answer_quality_contract_suite \
+    tests.ingestion.test_index_release_acceptance \
+    -v
+  ```
 
 - Phase 10 institutional RAG consumption evidence:
 

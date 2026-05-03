@@ -86,6 +86,8 @@ def should_skip_regulation_structural_unit(*, text: str, metadata: Mapping[str, 
         return False
     if metadata.get("is_answer_bearing") is False:
         return True
+    if contains_publication_imprint(text):
+        return True
     return looks_like_structural_heading(text)
 
 

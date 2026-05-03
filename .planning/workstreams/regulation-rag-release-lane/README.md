@@ -19,10 +19,20 @@ registry”推进到“下游 RAG 可检索”的独立 release lane。它不重
 ## Current Status
 
 - status: `completed`
-- current phase: `Phase 10 institutional RAG consumption acceptance completed`
-- current focus: 30 条校级 `institutional_rules` 已完成 RAG release 与下游消费验收；
-  33 条 retrieval qrels、live retrieval、answer source-identity contract 均已落证据；
-  `scoped_rules` 继续保持 chunk/retrieval-ready 但不默认 query-serving
+- current phase: `Phase 15 institutional release baseline gate completed`
+- current focus: 42 条校级 `institutional_rules` 已完成清洗/chunk 质量验收、
+  registry-scope preparation、release admission、candidate processing 与
+  embedding/index/alias publish；42 个 release candidates 全部为
+  `serving_published`，alias `institutional_rules` 指向 1747 points 的 Phase 12
+  collection。Phase 13 已修复 3 个 golden retrieval 策略缺口，release-gate live
+  retrieval 45 cases 与 golden retrieval 89 cases 均达到 `doc_hit@1=1.0` /
+  `doc_recall@5=1.0` / `forbidden_hit_rate=0.0`。Phase 14 已完成 42 条
+  institutional answer-quality contract 与 `rag_delegate_institutional_rules`
+  supervisor product-path smoke，受限校园成员授权投影已固定。Phase 15 已将
+  release retrieval、golden retrieval、answer-quality、no-hit policy 与 product-path
+  smoke 固化为 `institutional-rules-release-baseline` repo gate，并完成真实跑通。
+- boundary: `scoped_rules` 没有全局打开；年度/届次实施办法仍排除在默认文档站/RAG
+  consumption 之外
 
 ## Why This Workstream Exists
 
@@ -74,3 +84,10 @@ release admission -> acceptance -> serving alias`
 - `./phases/phase-09-institutional-30-release/SUMMARY.md`
 - `./phases/phase-10-institutional-rag-consumption/PLAN.md`
 - `./phases/phase-10-institutional-rag-consumption/SUMMARY.md`
+- `./phases/phase-11-selected-school-level-regulation-admission/SUMMARY.md`
+- `./phases/phase-12-institutional-42-quality-and-release/SUMMARY.md`
+- `./phases/phase-13-institutional-golden-retrieval-quality-follow-up/PLAN.md`
+- `./phases/phase-13-institutional-golden-retrieval-quality-follow-up/SUMMARY.md`
+- `./phases/phase-14-institutional-answer-and-product-path-acceptance/PLAN.md`
+- `./phases/phase-14-institutional-answer-and-product-path-acceptance/SUMMARY.md`
+- `./phases/phase-15-institutional-release-baseline-gate/SUMMARY.md`

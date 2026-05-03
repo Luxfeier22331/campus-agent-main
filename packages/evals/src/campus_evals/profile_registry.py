@@ -181,6 +181,15 @@ _PROFILE_DEFINITIONS = (
         "profile_report",
     ),
     EvalProfileDefinition(
+        "institutional-rules-release-baseline",
+        "composite_gate",
+        1,
+        "institutional-rules-release-baseline-gate-accept",
+        "composite_gate",
+        dispatchable=False,
+        operations_policy_subject=False,
+    ),
+    EvalProfileDefinition(
         "eval-operations-governance",
         "profile_gate",
         1,

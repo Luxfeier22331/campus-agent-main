@@ -11,6 +11,7 @@ from typing import Protocol
 from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle
 from campus_retrieval_core.backend_qdrant_evidence import build_evidence_sources
 from campus_retrieval_core.backend_qdrant_filters import _build_qdrant_filter
+from campus_retrieval_core.backend_qdrant_policies import _apply_no_hit_policy
 from campus_retrieval_core.backend_qdrant_query import (
     _build_dense_query_text,
     _build_hybrid_prefetch,
@@ -210,11 +211,16 @@ class QdrantPhysicalCollectionAcceptanceExecutor:
             with_vectors=False,
             timeout=_qdrant_http_timeout_seconds(self.settings.qdrant_timeout_seconds),
         )
+        sources = _apply_no_hit_policy(
+            profile=self.runtime_profile,
+            query_text=request.query_text,
+            sources=build_evidence_sources(self, response.points or ()),
+        )
         return EvidenceBundle(
             query_text=query,
             corpus=corpus,
             collection=collection,
-            sources=build_evidence_sources(self, response.points or ())[:top_k],
+            sources=sources[:top_k],
         )
 
 
@@ -386,6 +392,13 @@ def evaluate_release_chunk_quality(
                 chunk_order=_coerce_int(_chunk_value(chunk, "chunk_order")),
                 segment_index=_coerce_int(metadata.get("segment_index")),
                 segment_total=_coerce_int(metadata.get("segment_total")),
+            )
+        )
+        chunk_rows.extend(
+            _build_member_segment_quality_rows(
+                chunk_id=chunk_id,
+                chunk=chunk,
+                metadata=metadata,
             )
         )
         if issues:
@@ -622,6 +635,41 @@ def _add_cross_chunk_quality_issues(
         _add_chunk_order_issues(issues_by_chunk_id=issues_by_chunk_id, rows=tuple(rows))
     for rows in rows_by_root.values():
         _add_segment_coverage_issues(issues_by_chunk_id=issues_by_chunk_id, rows=tuple(rows))
+
+
+def _build_member_segment_quality_rows(
+    *,
+    chunk_id: str,
+    chunk: object,
+    metadata: Mapping[str, object],
+) -> tuple[_ChunkQualityRow, ...]:
+    lineage = metadata.get("member_segment_lineage")
+    if not isinstance(lineage, list | tuple):
+        return ()
+    document_key = (
+        str(_chunk_value(chunk, "corpus") or ""),
+        str(_chunk_value(chunk, "collection") or ""),
+        str(_chunk_value(chunk, "document_id") or ""),
+        str(_chunk_value(chunk, "version_id") or ""),
+    )
+    rows: list[_ChunkQualityRow] = []
+    for item in lineage:
+        if not isinstance(item, Mapping):
+            continue
+        root_unit_id = _required_text(item.get("root_unit_id")) or ""
+        if not root_unit_id:
+            continue
+        rows.append(
+            _ChunkQualityRow(
+                chunk_id=chunk_id,
+                document_key=document_key,
+                root_unit_id=root_unit_id,
+                chunk_order=None,
+                segment_index=_coerce_int(item.get("segment_index")),
+                segment_total=_coerce_int(item.get("segment_total")),
+            )
+        )
+    return tuple(rows)
 
 
 def _add_chunk_order_issues(

@@ -106,6 +106,13 @@ def evaluate_chunk_quality(
                 segment_total=_coerce_int(metadata.get("segment_total")),
             )
         )
+        chunk_rows.extend(
+            _build_member_segment_quality_rows(
+                chunk_id=chunk_id,
+                chunk=chunk,
+                metadata=metadata,
+            )
+        )
         if issues:
             issues_by_chunk_id[chunk_id] = tuple(dict.fromkeys(issues))
     _add_cross_chunk_quality_issues(
@@ -260,6 +267,41 @@ def _add_cross_chunk_quality_issues(
         _add_chunk_order_issues(issues_by_chunk_id=issues_by_chunk_id, rows=tuple(rows))
     for rows in rows_by_root.values():
         _add_segment_coverage_issues(issues_by_chunk_id=issues_by_chunk_id, rows=tuple(rows))
+
+
+def _build_member_segment_quality_rows(
+    *,
+    chunk_id: str,
+    chunk: Mapping[str, Any],
+    metadata: Mapping[str, Any],
+) -> tuple[_ChunkQualityRow, ...]:
+    lineage = metadata.get("member_segment_lineage")
+    if not isinstance(lineage, list | tuple):
+        return ()
+    document_key = (
+        str(chunk.get("corpus") or ""),
+        str(chunk.get("collection") or ""),
+        str(chunk.get("document_id") or ""),
+        str(chunk.get("version_id") or ""),
+    )
+    rows: list[_ChunkQualityRow] = []
+    for item in lineage:
+        if not isinstance(item, Mapping):
+            continue
+        root_unit_id = _required_text(item.get("root_unit_id")) or ""
+        if not root_unit_id:
+            continue
+        rows.append(
+            _ChunkQualityRow(
+                chunk_id=chunk_id,
+                document_key=document_key,
+                root_unit_id=root_unit_id,
+                chunk_order=None,
+                segment_index=_coerce_int(item.get("segment_index")),
+                segment_total=_coerce_int(item.get("segment_total")),
+            )
+        )
+    return tuple(rows)
 
 
 def _add_chunk_order_issues(

@@ -170,6 +170,35 @@ class BackendQdrantNoHitPolicyTest(unittest.TestCase):
 
         self.assertEqual(result, ())
 
+    def test_no_hit_policy_accepts_student_rule_exact_title_query(self) -> None:
+        profile = load_runtime_profile("regulations", "student_rules")
+        sources = (
+            _make_source(
+                doc_id="student_rule:muc:student-management",
+                chunk_id="student-rules:student-management:chunk-0001",
+                collection="student_rules",
+                source_title="中央民族大学学生管理规定",
+                snippet="中央民族大学学生管理规定 总则。",
+                score=0.033333335,
+            ),
+            _make_source(
+                doc_id="student_rule:muc:undergraduate-status",
+                chunk_id="student-rules:undergraduate-status:chunk-0001",
+                collection="student_rules",
+                source_title="中央民族大学本科生学籍管理规定",
+                snippet="中央民族大学本科生学籍管理规定 学籍注册。",
+                score=0.032258064,
+            ),
+        )
+
+        result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="中央民族大学学生管理规定",
+            sources=sources,
+        )
+
+        self.assertEqual(result, sources)
+
     def test_no_hit_policy_rejects_institutional_unreleased_policy_decoy(self) -> None:
         profile = load_runtime_profile("regulations", "institutional_rules")
         sources = (
@@ -213,6 +242,99 @@ class BackendQdrantNoHitPolicyTest(unittest.TestCase):
                 collection="institutional_rules",
                 snippet="中央民族大学研究生学籍管理办法 适用于学校研究生学籍管理工作。",
                 score=0.03137255,
+            ),
+        )
+
+        result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="历史文化学院硕博连读博士研究生招生实施细则属于校级制度吗？",
+            sources=sources,
+        )
+
+        self.assertEqual(result, ())
+
+    def test_no_hit_policy_accepts_institutional_three_assistant_title_alias(self) -> None:
+        profile = load_runtime_profile("regulations", "institutional_rules")
+        sources = (
+            _make_source(
+                doc_id="institutional_regulation:muc:中央民族大学研究生-三助-工作管理办法:49319e7c44d3",
+                chunk_id="institutional-rules:three-assistants:chunk-0001",
+                collection="institutional_rules",
+                source_title="中央民族大学研究生“三助”工作管理办法",
+                snippet="中央民族大学研究生“三助”工作管理办法 研究生助教、助研、助管岗位管理。",
+                score=0.033333335,
+            ),
+            _make_source(
+                doc_id="institutional_regulation:muc:研究生学籍",
+                chunk_id="institutional-rules:graduate-status:chunk-0004",
+                collection="institutional_rules",
+                source_title="中央民族大学研究生学籍管理办法",
+                snippet="中央民族大学研究生学籍管理办法 适用于学校研究生学籍管理工作。",
+                score=0.032258064,
+            ),
+        )
+
+        result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="研究生助教助研助管工作应该依据哪份管理办法？",
+            sources=sources,
+        )
+
+        self.assertEqual(result, sources)
+
+    def test_no_hit_policy_rejects_institutional_annual_scope_membership_query(self) -> None:
+        profile = load_runtime_profile("regulations", "institutional_rules")
+        sources = (
+            _make_source(
+                doc_id=(
+                    "institutional_regulation:muc:中央民族大学推荐优秀应届本科毕业生"
+                    "免试攻读硕士学位研究生管理办法:8f97b86c0e95"
+                ),
+                chunk_id="institutional-rules:postgraduate-recommendation:chunk-0002",
+                collection="institutional_rules",
+                source_title="中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+                snippet="中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法 推荐条件。",
+                score=0.031778056,
+            ),
+            _make_source(
+                doc_id=(
+                    "institutional_regulation:muc:中央民族大学推荐优秀应届本科毕业生"
+                    "免试攻读硕士学位研究生管理办法:8f97b86c0e95"
+                ),
+                chunk_id="institutional-rules:postgraduate-recommendation:chunk-0003",
+                collection="institutional_rules",
+                source_title="中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+                snippet="学校成立推荐优秀应届本科毕业生免试攻读硕士学位研究生工作领导小组。",
+                score=0.03159204,
+            ),
+        )
+
+        result = _apply_no_hit_policy(
+            profile=profile,
+            query_text="中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法是当前校级制度消费范围吗？",
+            sources=sources,
+        )
+
+        self.assertEqual(result, ())
+
+    def test_no_hit_policy_rejects_institutional_college_scope_membership_query(self) -> None:
+        profile = load_runtime_profile("regulations", "institutional_rules")
+        sources = (
+            _make_source(
+                doc_id="institutional_regulation:muc:中央民族大学硕博连读研究生招生实施办法-试行:438bbad6c45e",
+                chunk_id="institutional-rules:through-master-doctor:chunk-0025",
+                collection="institutional_rules",
+                source_title="中央民族大学硕博连读研究生招生实施办法（试行）",
+                snippet="中央民族大学硕博连读研究生招生实施办法（试行） 博士研究生招生工作。",
+                score=0.03306011,
+            ),
+            _make_source(
+                doc_id="institutional_regulation:muc:中央民族大学硕博连读研究生招生实施办法-试行:438bbad6c45e",
+                chunk_id="institutional-rules:through-master-doctor:chunk-0006",
+                collection="institutional_rules",
+                source_title="中央民族大学硕博连读研究生招生实施办法（试行）",
+                snippet="硕博连读研究生招生实施按照学校博士研究生招生相关要求执行。",
+                score=0.031280547,
             ),
         )
 

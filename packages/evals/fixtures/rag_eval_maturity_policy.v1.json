@@ -1,0 +1,41 @@
+{
+	"schema_version": "rag-eval-maturity-policy-v1",
+	"surfaces": {
+		"regulations/student_rules": {
+			"minimum_qrels_case_count": 15,
+			"minimum_release_acceptance_case_count": 1,
+			"recommended_target_case_count": 45,
+			"recommended_release_acceptance_case_count": 25,
+			"recommended_unique_expected_doc_count": 30,
+			"baseline_ready_requires_answer_quality": false,
+			"backlog_fixture": "rag_eval_maturity_backlog.v1.json"
+		},
+		"regulations/institutional_rules": {
+			"minimum_qrels_case_count": 33,
+			"minimum_release_acceptance_case_count": 33,
+			"recommended_target_case_count": 45,
+			"recommended_release_acceptance_case_count": 42,
+			"recommended_unique_expected_doc_count": 42,
+			"baseline_ready_requires_answer_quality": true,
+			"backlog_fixture": ""
+		},
+		"curriculum/curriculum_plan": {
+			"minimum_qrels_case_count": 20,
+			"minimum_release_acceptance_case_count": 1,
+			"recommended_target_case_count": 60,
+			"recommended_release_acceptance_case_count": 30,
+			"recommended_unique_expected_doc_count": 45,
+			"baseline_ready_requires_answer_quality": false,
+			"backlog_fixture": "rag_eval_maturity_backlog.v1.json"
+		},
+		"official_web/stable_reference": {
+			"minimum_qrels_case_count": 10,
+			"minimum_release_acceptance_case_count": 5,
+			"recommended_target_case_count": 10,
+			"recommended_release_acceptance_case_count": 5,
+			"recommended_unique_expected_doc_count": 6,
+			"baseline_ready_requires_answer_quality": false,
+			"backlog_fixture": ""
+		}
+	}
+}

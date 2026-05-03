@@ -9,10 +9,22 @@ from campus_ingestion_core.regulation_chunk_quality import (
     contains_publication_imprint,
     header_dominance_is_blocking_quality_gap,
     section_path_contains_body_text,
+    should_skip_regulation_structural_unit,
 )
 
 
 class RegulationChunkQualityTest(unittest.TestCase):
+    def test_regulation_chunking_skips_publication_imprint_tail_unit(self) -> None:
+        self.assertTrue(
+            should_skip_regulation_structural_unit(
+                text="2026年3月24日印发",
+                metadata={
+                    "content_role": "scoped_rule_body",
+                    "section_path": ["第六章 附 则"],
+                },
+            )
+        )
+
     def test_chunk_has_coarse_provision_label_flags_multi_item_single_label(self) -> None:
         self.assertTrue(
             chunk_has_coarse_provision_label(

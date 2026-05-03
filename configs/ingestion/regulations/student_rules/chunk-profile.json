@@ -3,6 +3,14 @@
 	"collection": "student_rules",
 	"chunk_profile_version": "student_rules_semantic_v3",
 	"structured_input": "document_units_jsonl",
+	"runtime_defaults": {
+		"strategy_name": "student_handbook_structure_v3",
+		"chunk_size": 384,
+		"max_chunk_size": 512,
+		"chunk_overlap": 64,
+		"min_chunk_size": 96
+	},
+	"cleaning_policy_version": "student_rules_cleaning_v1",
 	"notes": [
 		"Chunk only document-level document-units.jsonl rows after handbook cleanup.",
 		"Keep article_body, policy_page, table, and table_row as the fixed phase-1 unit set.",

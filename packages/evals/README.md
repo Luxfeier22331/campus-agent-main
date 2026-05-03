@@ -63,11 +63,16 @@ Evaluation helpers for campus-agent v2.
   `campus_evals.benchmark.validate_default_query_enabled_qrels_coverage()` 固定
   检查；它要求每个公开检索 scope 至少覆盖 positive、no-hit、forbidden 与 version
   locked 类样本，`institutional_rules` 还必须覆盖 authz case
-- `institutional_rules` qrels 当前固定覆盖 30 条已发布校级制度 title-exact
+- `institutional_rules` qrels 当前固定覆盖 42 条已 admission 校级制度 title-exact
   release-gate case，另加 semantic、authz-deny 与 no-hit guard；eval manifest 使用
   `configs/ingestion/regulations/institutional_rules/retrieval-eval-manifest.v1.json`
-  锚定 30 条 current document/version truth，院级 `scoped_rules` 不得作为
-  institutional qrels truth 或默认消费来源
+  锚定 42 条 current document/version truth；其中 12 条 selected school-level
+  re-admission 保持 Phase 42 v9 chunk-preparation semantic `version_id`，院级
+  `scoped_rules` 不得作为 institutional qrels truth 或默认消费来源
+- `institutional_rules_golden_retrieval_qrels.v1.json` 是 released 校级制度的
+  golden retrieval baseline：当前覆盖 89 个 regression-locked case，其中 84 个 positive
+  consumption case 覆盖 42 条 admitted title，5 个 no-hit / hard-negative guard 保护未发布
+  校级制度、年度/届次 scoped-rule、院级 scoped-rule decoy 和虚构制度不被误命中
 - chunk 质量抽查由 `campus_evals.retrieval_chunk_quality.evaluate_chunk_quality()`
   固定表达；它检查 chunk 必备 traceability 字段、`root_unit_id` /
   `chunk_policy_version` provenance、重复 chunk id 与 token budget
@@ -145,8 +150,8 @@ Evaluation helpers for campus-agent v2.
   required facts、forbidden claims 与 title/source URL，不替代后续 domain golden dataset；
   institutional regulation consumption 使用
   `institutional_rules_answer_quality_cases.v1.json` 额外检查 required / forbidden
-  source title and URL identity，确保校级制度回答不能由 `scoped_rules` 路径或
-  scoped-rule promotion URL 满足
+  source title and URL identity；该 fixture 当前覆盖 42 条 admitted 校级 title，确保校级制度回答
+  不能由 `scoped_rules` 路径或 scoped-rule promotion URL 满足
 - campus-services / notice tool-family denominator 固定在
   `packages/evals/fixtures/tool_family_denominators.v1.json` 与
   `campus_evals.tool_family_denominator`；它覆盖 `service_status_lookup`、
@@ -196,13 +201,18 @@ Evaluation helpers for campus-agent v2.
   它验证 service guide projection eval、service-guide intent 子集、
   supervisor-api Go planning/runtime/query tests 与 Python campus-services-agent
   contract tests，不打开 campus_services serving surface，也不产生 operator
-  observability live case-results publish。
+  observability live case-results publish。需要对真实 official-web selected-write candidate
+  做 answer-facing 审计时，可额外传入 `--selected-write-preview-report <path>`；这条附加检查只验证
+  preview 产物是否具备 tool-ready 最低字段，不替代 runtime smoke 或 structured query tests。
 - `contact_directory_lookup` release gate 也是确定性组合 gate，入口为：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   contact-directory-lookup`；
   它验证 contact directory projection eval、contact intent 子集、
   supervisor-api Go planning/runtime/query tests 与 Python campus-services-agent
-  contract tests，同样不产生 operator observability live case-results publish。
+  contract tests，同样不产生 operator observability live case-results publish。需要对真实
+  official-web selected-write candidate 做 answer-facing 审计时，同样可额外传入
+  `--selected-write-preview-report <path>`；这条附加检查只审计 preview/tool-readiness，
+  不改变默认 deterministic gate 边界。
 - `campus-services-product-path` opening gate 是 product-path admission gate，
   入口为：`uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path`；v2 artifact 用 `open_candidate` /
@@ -228,6 +238,15 @@ Evaluation helpers for campus-agent v2.
   direct runtime、notice discover/detail direct runtime 与 terminal approval-required
   guardrail，并把真实 supervisor response 中的 `workflow_trace_summary` 回放到
   blocking workflow trace replay；process smoke 或 trace replay 任一失败都会使 gate 失败。
+- `institutional-rules-release-baseline` 是 42 条校级 `regulations/institutional_rules`
+  的 release 前组合 baseline，入口为：`uv run --all-packages python -m
+  scripts.eval_gate accept --profile institutional-rules-release-baseline
+  --observations-path <institutional-answer-observations.json>`；它顺序验证 release
+  retrieval qrels、golden retrieval qrels、institutional answer-quality contract、
+  Qdrant no-hit policy suite 与 `rag_delegate_institutional_rules` supervisor
+  product-path smoke。该 gate 需要当前 Qdrant alias / embedding env / local
+  supervisor runtime 可用，不进入通用 GitHub workflow dispatch；它不打开
+  `scoped_rules`、年度/届次规则或院级规则。
 - `multi-agent-runtime-contract` 额外固定 cross-language supervisor execution fixture
   matrix：`tests/fixtures/supervisor_execution_contract/` 的 valid / invalid 样本必须同时被
   Python bridge DTO、Go strict decoder 与 TypeScript app-api adapter 覆盖，用来
@@ -316,6 +335,9 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
   contact-directory-lookup --json`
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
   multi-agent-runtime-contract --json`
+- `uv run --all-packages python -m scripts.eval_gate accept --profile
+  institutional-rules-release-baseline --observations-path
+  <institutional-answer-observations.json> --json`
 - `uv run --all-packages python -m scripts.eval_gate audit --json`
 - `uv run --all-packages python -m unittest
   tests.evals.public_chat_product_path_eval_suite

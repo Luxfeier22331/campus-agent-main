@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-22
-updated: 2026-04-29
+updated: 2026-05-04
 ---
 
 # Workstream: Eval
@@ -25,7 +25,16 @@ updated: 2026-04-29
   统一 client、profile runtime metrics、`publish-profile` backflow、workflow trace tool-call
   grading 扩展、report-only `quality-calibration` profile，并将 `multi-agent-runtime-contract`
   作为正式 deterministic runtime contract profile；本轮继续补齐 profile registry / audit、
-  tool routing、public chat entry E2E 与 answer-quality contract profiles。
+  tool routing、public chat entry E2E 与 answer-quality contract profiles。当前 RAG-only
+  eval denominator 已收口为 `student_rules`、`institutional_rules`、`curriculum_plan` 与
+  `official_web/stable_reference`；`official_web/fresh_news` 明确不属于当前 RAG 消费面。
+  `institutional_rules` 已以 `institutional-rules-release-baseline` composite gate 接入
+  RAG eval coverage，coverage evidence 位于 `./evidence/rag-eval-coverage/rag-eval-coverage.json`。
+  当前 RAG minimum gate 与 maturity gate 均通过；`student_rules` 已达到 45 条 qrels、
+  39 个 unique expected docs、25 条 release acceptance，`curriculum_plan` 已达到
+  60 条 qrels、49 个 unique expected docs、30 条 release acceptance，四个当前 RAG
+  消费面 maturity status 均为 `baseline_ready`。人工扩编 backlog 记录在
+  `packages/evals/fixtures/rag_eval_maturity_backlog.v1.json`。
   `Phase 5B` 的正式 golden dataset expansion 继续等待 domain 数据补全。
   当前没有独立编号的 Phase 14；`Total Phases = 14` 是因为 Phase 5 被拆为 5A/5B。
 

@@ -54,10 +54,17 @@ class ProfileRegistryAndAuditSuite(unittest.TestCase):
                 "workflow_contract_generation_check",
                 "operations_policy_coverage",
                 "denominator_registry_coverage",
+                "rag_eval_coverage",
                 "tool_family_fixture_coverage",
                 "profile_fixture_smoke",
             }.issubset(check_ids)
         )
+        rag_check = next(
+            check for check in report["checks"] if check["check_id"] == "rag_eval_coverage"
+        )
+        self.assertTrue(rag_check["passed"])
+        self.assertTrue(rag_check["maturity_passed"])
+        self.assertEqual(rag_check["maturity_gaps"], [])
 
 
 if __name__ == "__main__":

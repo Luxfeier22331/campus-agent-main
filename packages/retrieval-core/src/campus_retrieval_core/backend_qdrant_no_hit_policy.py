@@ -124,6 +124,38 @@ _INSTITUTIONAL_RULE_TITLE_LOW_SIGNAL_PHRASES = (
     "管理要求",
     "具体",
 )
+_INSTITUTIONAL_RULE_SCOPE_DECISION_CUES = (
+    "当前校级制度消费范围",
+    "校级制度消费范围",
+    "当前消费范围",
+    "消费范围",
+    "进入下游消费",
+    "进入默认消费",
+    "加入下游消费",
+    "加入默认消费",
+    "纳入下游消费",
+    "纳入默认消费",
+    "属于校级制度吗",
+    "属于学校制度吗",
+    "是否属于校级制度",
+    "是否属于学校制度",
+    "是不是校级制度",
+    "是不是学校制度",
+    "是否为校级制度",
+    "是否为学校制度",
+)
+_INSTITUTIONAL_RULE_ANNUAL_OR_COHORT_RE = re.compile(r"20\d{2}\s*[届年]")
+_INSTITUTIONAL_RULE_SCOPED_TITLE_CUES = (
+    "实施办法",
+    "实施细则",
+    "实施方案",
+    "工作方案",
+    "工作实施细则",
+)
+_INSTITUTIONAL_RULE_NAMED_COLLEGE_RE = re.compile(
+    r"(?:中央民族大学)?(?P<name>[\u4e00-\u9fff]{1,20})学院"
+)
+_INSTITUTIONAL_RULE_TITLE_ALIAS_TERMS = ((("助教", "助研", "助管"), "三助"),)
 _INSTITUTIONAL_RULE_WEAK_TITLE_TOKENS = _WEAK_CJK_QUERY_TOKENS | frozenset(
     {
         "中央",
@@ -181,6 +213,10 @@ def _apply_no_hit_policy(
         return ()
     if profile.no_hit_min_top_score is None or profile.no_hit_min_score_gap is None:
         return sources
+    if _is_institutional_rules_profile(
+        profile
+    ) and _is_excluded_institutional_rule_scope_decision_query(query_text):
+        return ()
     top_source = sources[0]
     if top_source.score >= profile.no_hit_min_top_score:
         return sources
@@ -193,6 +229,9 @@ def _apply_no_hit_policy(
         if _has_institutional_rule_title_support(query_text=query_text, sources=sources):
             return sources
         return ()
+    if _is_student_rules_profile(profile) and _is_student_rule_title_intent_query(query_text):
+        if _has_student_rule_title_support(query_text=query_text, sources=sources):
+            return sources
     if _has_query_lexical_support(
         query_text=query_text,
         snippets=tuple(source.snippet for source in sources),
@@ -234,9 +273,43 @@ def _is_institutional_rules_profile(profile: CollectionRuntimeProfile) -> bool:
     return profile.corpus == "regulations" and profile.collection == "institutional_rules"
 
 
+def _is_student_rules_profile(profile: CollectionRuntimeProfile) -> bool:
+    return profile.corpus == "regulations" and profile.collection == "student_rules"
+
+
 def _is_institutional_rule_title_intent_query(query_text: str) -> bool:
     normalized_query = normalize_text(query_text)
     return any(cue in normalized_query for cue in _INSTITUTIONAL_RULE_TITLE_INTENT_CUES)
+
+
+def _is_student_rule_title_intent_query(query_text: str) -> bool:
+    normalized_query = normalize_text(query_text)
+    return any(cue in normalized_query for cue in _INSTITUTIONAL_RULE_TITLE_INTENT_CUES)
+
+
+def _is_excluded_institutional_rule_scope_decision_query(query_text: str) -> bool:
+    normalized_query = normalize_text(query_text)
+    if not any(cue in normalized_query for cue in _INSTITUTIONAL_RULE_SCOPE_DECISION_CUES):
+        return False
+    return _is_annual_or_cohort_scope_query(normalized_query) or _is_college_level_scope_query(
+        normalized_query
+    )
+
+
+def _is_annual_or_cohort_scope_query(normalized_query: str) -> bool:
+    if not _INSTITUTIONAL_RULE_ANNUAL_OR_COHORT_RE.search(normalized_query):
+        return False
+    return any(cue in normalized_query for cue in _INSTITUTIONAL_RULE_SCOPED_TITLE_CUES)
+
+
+def _is_college_level_scope_query(normalized_query: str) -> bool:
+    if not any(cue in normalized_query for cue in _INSTITUTIONAL_RULE_SCOPED_TITLE_CUES):
+        return False
+    for match in _INSTITUTIONAL_RULE_NAMED_COLLEGE_RE.finditer(normalized_query):
+        college_name = match.group("name").removeprefix("中央民族大学")
+        if college_name:
+            return True
+    return False
 
 
 def _has_institutional_rule_title_support(
@@ -260,6 +333,17 @@ def _has_institutional_rule_title_support(
     return False
 
 
+def _has_student_rule_title_support(
+    *, query_text: str, sources: Sequence[EvidenceSource]
+) -> bool:
+    normalized_query = normalize_text(query_text)
+    query_key = match_key(normalized_query)
+    return any(
+        title_match_priority(query_key=query_key, title_keys=source_title_keys(source)) >= 2
+        for source in sources
+    )
+
+
 def _title_key_has_institutional_support_token(
     *, title_key: str, support_tokens: Sequence[str]
 ) -> bool:
@@ -271,6 +355,7 @@ def _institutional_rule_title_support_tokens(normalized_query: str) -> tuple[str
     for phrase in _INSTITUTIONAL_RULE_TITLE_LOW_SIGNAL_PHRASES:
         stripped_query = stripped_query.replace(phrase, " ")
     tokens: list[str] = []
+    tokens.extend(_institutional_rule_title_alias_tokens(normalized_query))
     for segment in _cjk_segments(stripped_query):
         for token_size in (4, 3, 2):
             tokens.extend(
@@ -279,6 +364,14 @@ def _institutional_rule_title_support_tokens(normalized_query: str) -> tuple[str
                 if _is_institutional_rule_title_support_token(token)
             )
     return tuple(dict.fromkeys(tokens))
+
+
+def _institutional_rule_title_alias_tokens(normalized_query: str) -> tuple[str, ...]:
+    return tuple(
+        alias
+        for query_terms, alias in _INSTITUTIONAL_RULE_TITLE_ALIAS_TERMS
+        if all(term in normalized_query for term in query_terms)
+    )
 
 
 def _is_institutional_rule_title_support_token(token: str) -> bool:

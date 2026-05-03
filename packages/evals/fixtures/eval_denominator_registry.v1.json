@@ -13,6 +13,22 @@
 			"eval_families": ["retrieval_qrels", "deterministic_answer", "workflow_trace", "release_gate"]
 		},
 		{
+			"surface_id": "institutional_rules",
+			"domain_owner": "regulations/institutional_rules",
+			"capability_family": "rag-agent",
+			"admission_state": "admitted",
+			"truth_scope": "denominator_expectation",
+			"authors_domain_truth": false,
+			"eval_families": [
+				"retrieval_qrels",
+				"golden_retrieval_qrels",
+				"deterministic_answer",
+				"answer_quality_contract",
+				"workflow_trace",
+				"release_gate"
+			]
+		},
+		{
 			"surface_id": "curriculum_plan",
 			"domain_owner": "curriculum/curriculum_plan",
 			"capability_family": "rag-agent",
@@ -29,15 +45,6 @@
 			"truth_scope": "denominator_expectation",
 			"authors_domain_truth": false,
 			"eval_families": ["retrieval_qrels", "deterministic_answer", "workflow_trace", "release_gate"]
-		},
-		{
-			"surface_id": "official_web/fresh_news",
-			"domain_owner": "official_web/fresh_news",
-			"capability_family": "rag-agent",
-			"admission_state": "admitted",
-			"truth_scope": "denominator_expectation",
-			"authors_domain_truth": false,
-			"eval_families": ["retrieval_qrels", "freshness", "workflow_trace", "release_gate"]
 		},
 		{
 			"surface_id": "service_status_lookup",

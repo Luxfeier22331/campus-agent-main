@@ -269,6 +269,28 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             ("retrieval_failed", '"status": "no_answer"'),
         )
 
+    def test_institutional_rules_rag_profile_uses_restricted_campus_auth_projection(
+        self,
+    ) -> None:
+        plan = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="rag_delegate_institutional_rules",
+        )
+
+        context = plan.answer_payload["context"]  # type: ignore[index]
+        retrieval_filter = context["authorization"]["retrieval_filter"]  # type: ignore[index]
+
+        self.assertEqual(
+            retrieval_filter,
+            {
+                "entitlement_groups": ["campus_members"],
+                "visibility_level": "restricted",
+                "visibility_scope": "campus",
+                "policy_projection_version": "phase1-authorization-projection-v1",
+            },
+        )
+
     def test_terminate_processes_signals_process_groups(self) -> None:
         import scripts.supervisor_runtime_process_smoke as smoke
 
@@ -301,6 +323,11 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/smoke"),
             profile="rag_delegate",
+        )
+        institutional_rag = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="rag_delegate_institutional_rules",
         )
         structured_open = build_process_smoke_plan(
             repo_root=Path("/repo"),
@@ -361,6 +388,22 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         self.assertIn("中央民族大学学生公费医疗管理办法", rag.expected_body_tokens)
         self.assertEqual(rag.answer_payload["requested_capability"], "knowledge")
         self.assertEqual(rag.answer_payload["user_goal"], "公费医疗报销")
+        self.assertEqual(institutional_rag.expected_status, 200)
+        self.assertEqual(institutional_rag.answer_payload["requested_capability"], "knowledge")
+        self.assertEqual(
+            institutional_rag.answer_payload["requested_scope"],
+            {"corpus": "regulations", "collection": "institutional_rules"},
+        )
+        self.assertEqual(
+            institutional_rag.answer_payload["user_goal"],
+            "研究生助教助研助管工作应该依据哪份管理办法？",
+        )
+        self.assertIn("workflow_trace_summary", institutional_rag.expected_body_tokens)
+        self.assertIn("agent_execution_projection", institutional_rag.expected_body_tokens)
+        self.assertIn("agent_plan", institutional_rag.expected_body_tokens)
+        self.assertIn("grounded_answer", institutional_rag.expected_body_tokens)
+        self.assertIn("中央民族大学研究生", institutional_rag.expected_body_tokens)
+        self.assertIn("三助", institutional_rag.expected_body_tokens)
         self.assertEqual(structured_open.expected_status, 200)
         self.assertEqual(
             structured_open.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],

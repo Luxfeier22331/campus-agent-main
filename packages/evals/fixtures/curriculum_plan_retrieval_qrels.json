@@ -420,6 +420,541 @@
 			"notes": "dense paraphrase + disambiguation 样本。"
 		},
 		{
+			"case_id": "curriculum-title-general-chinese-culture",
+			"split": "smoke",
+			"query": "中央民族大学通识课程中华文化课程教学计划",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:中央民族大学通识课程“中华文化”课程教学计划",
+					"grade": 2,
+					"rationale": "通识中华文化课程教学计划标题 exact-match。"
+				}
+			],
+			"notes": "通识中华文化课程教学计划标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-general-information-literacy",
+			"split": "smoke",
+			"query": "中央民族大学通识课程信息素养课程教学计划",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:中央民族大学通识课程“信息素养”课程教学计划",
+					"grade": 2,
+					"rationale": "通识信息素养课程教学计划标题 exact-match。"
+				}
+			],
+			"notes": "通识信息素养课程教学计划标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-general-national-security",
+			"split": "smoke",
+			"query": "中央民族大学通识课程国家安全教育课程教学计划",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:中央民族大学通识课程“国家安全教育”课程教学计划",
+					"grade": 2,
+					"rationale": "通识国家安全教育课程教学计划标题 exact-match。"
+				}
+			],
+			"notes": "通识国家安全教育课程教学计划标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-general-physical-education",
+			"split": "smoke",
+			"query": "中央民族大学通识课程大学体育课程教学计划",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:中央民族大学通识课程“大学体育”课程教学计划",
+					"grade": 2,
+					"rationale": "通识大学体育课程教学计划标题 exact-match。"
+				}
+			],
+			"notes": "通识大学体育课程教学计划标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-general-mathematics",
+			"split": "smoke",
+			"query": "中央民族大学通识课程大学数学课程教学计划",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:中央民族大学通识课程“大学数学”课程教学计划",
+					"grade": 2,
+					"rationale": "通识大学数学课程教学计划标题 exact-match。"
+				}
+			],
+			"notes": "通识大学数学课程教学计划标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-general-mental-health",
+			"split": "smoke",
+			"query": "中央民族大学通识课程心理健康课程教学计划",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:中央民族大学通识课程“心理健康”课程教学计划",
+					"grade": 2,
+					"rationale": "通识心理健康课程教学计划标题 exact-match。"
+				}
+			],
+			"notes": "通识心理健康课程教学计划标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-general-ideological-political",
+			"split": "smoke",
+			"query": "中央民族大学通识课程思想政治理论课教学计划",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:中央民族大学通识课程思想政治理论课教学计划",
+					"grade": 2,
+					"rationale": "通识思想政治理论课教学计划标题 exact-match。"
+				}
+			],
+			"notes": "通识思想政治理论课教学计划标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-social-practice",
+			"split": "smoke",
+			"query": "中央民族大学大学生社会实践环节实施方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:中央民族大学大学生社会实践环节实施方案",
+					"grade": 2,
+					"rationale": "大学生社会实践环节实施方案标题 exact-match。"
+				}
+			],
+			"notes": "大学生社会实践环节实施方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-general-course-plan",
+			"split": "smoke",
+			"query": "中央民族大学通识课程教学计划",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:中央民族大学通识课程教学计划",
+					"grade": 2,
+					"rationale": "通识课程总教学计划标题 exact-match。"
+				}
+			],
+			"notes": "通识课程总教学计划标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-accounting-second-degree",
+			"split": "smoke",
+			"query": "会计学本科第二学士学位人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:会计学本科第二学士学位人才培养方案",
+					"grade": 2,
+					"rationale": "会计学第二学士学位方案标题 exact-match。"
+				}
+			],
+			"notes": "会计学第二学士学位方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-sports-education",
+			"split": "smoke",
+			"query": "体育教育本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:体育教育本科人才培养方案",
+					"grade": 2,
+					"rationale": "体育教育本科方案标题 exact-match。"
+				}
+			],
+			"notes": "体育教育本科方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-russian-central-asian",
+			"split": "smoke",
+			"query": "俄语中亚语本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:俄语（俄语、中亚语）本科人才培养方案",
+					"grade": 2,
+					"rationale": "俄语（俄语、中亚语）本科方案标题 exact-match。"
+				}
+			],
+			"notes": "俄语（俄语、中亚语）本科方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-information-computing",
+			"split": "smoke",
+			"query": "信息与计算科学本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:信息与计算科学本科人才培养方案",
+					"grade": 2,
+					"rationale": "信息与计算科学本科方案标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+					"grade": 1,
+					"rationale": "民族实验班版本不应压过普通信息与计算科学方案。"
+				}
+			],
+			"notes": "信息与计算科学本科方案标题区分样本。"
+		},
+		{
+			"case_id": "curriculum-title-information-computing-ethnic",
+			"split": "smoke",
+			"query": "信息与计算科学民族实验班本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+					"grade": 2,
+					"rationale": "信息与计算科学民族实验班方案标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "curriculum:信息与计算科学本科人才培养方案",
+					"grade": 1,
+					"rationale": "普通信息与计算科学方案不应压过民族实验班版本。"
+				}
+			],
+			"notes": "信息与计算科学民族实验班方案标题区分样本。"
+		},
+		{
+			"case_id": "curriculum-title-optical-information",
+			"split": "smoke",
+			"query": "光电信息科学与工程本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:光电信息科学与工程本科人才培养方案",
+					"grade": 2,
+					"rationale": "光电信息科学与工程本科方案标题 exact-match。"
+				}
+			],
+			"notes": "光电信息科学与工程本科方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-public-management",
+			"split": "smoke",
+			"query": "公共管理类本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:公共管理类本科人才培养方案",
+					"grade": 2,
+					"rationale": "公共管理类本科方案标题 exact-match。"
+				}
+			],
+			"notes": "公共管理类本科方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-history-undergraduate",
+			"split": "smoke",
+			"query": "历史学本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:历史学本科人才培养方案",
+					"grade": 2,
+					"rationale": "普通历史学本科方案标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "curriculum:历史学（强基计划）本科人才培养方案",
+					"grade": 1,
+					"rationale": "历史学强基计划版本不应压过普通历史学方案。"
+				}
+			],
+			"notes": "普通历史学本科方案标题区分样本。"
+		},
+		{
+			"case_id": "curriculum-title-philosophy-category",
+			"split": "smoke",
+			"query": "哲学类本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:哲学类本科人才培养方案",
+					"grade": 2,
+					"rationale": "哲学类本科方案标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "curriculum:哲学（强基计划）本科人才培养方案",
+					"grade": 1,
+					"rationale": "哲学强基计划版本不应压过普通哲学类方案。"
+				}
+			],
+			"notes": "哲学类本科方案标题区分样本。"
+		},
+		{
+			"case_id": "curriculum-title-international-trade",
+			"split": "smoke",
+			"query": "国际经济与贸易本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:国际经济与贸易本科人才培养方案",
+					"grade": 2,
+					"rationale": "国际经济与贸易本科方案标题 exact-match。"
+				}
+			],
+			"notes": "国际经济与贸易本科方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-xiaotong-experimental",
+			"split": "smoke",
+			"query": "孝通实验班本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:孝通实验班本科人才培养方案",
+					"grade": 2,
+					"rationale": "孝通实验班本科方案标题 exact-match。"
+				}
+			],
+			"notes": "孝通实验班本科方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-preparatory-education",
+			"split": "smoke",
+			"query": "少数民族预科教育人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:少数民族预科教育人才培养方案",
+					"grade": 2,
+					"rationale": "少数民族预科教育方案标题 exact-match。"
+				}
+			],
+			"notes": "少数民族预科教育方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-business-management-category",
+			"split": "smoke",
+			"query": "工商管理类本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:工商管理类本科人才培养方案",
+					"grade": 2,
+					"rationale": "工商管理类本科方案标题 exact-match。"
+				}
+			],
+			"notes": "工商管理类本科方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-applied-statistics-second-degree",
+			"split": "smoke",
+			"query": "应用统计学本科专业第二学位人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:应用统计学本科专业第二学位人才培养方案",
+					"grade": 2,
+					"rationale": "应用统计学第二学位方案标题 exact-match。"
+				}
+			],
+			"notes": "应用统计学第二学位方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-education-undergraduate",
+			"split": "smoke",
+			"query": "教育学本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:教育学本科人才培养方案",
+					"grade": 2,
+					"rationale": "普通教育学本科方案标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "curriculum:教育学本科第二学士学位人才培养方案",
+					"grade": 1,
+					"rationale": "教育学第二学士学位方案不应压过普通教育学本科方案。"
+				}
+			],
+			"notes": "普通教育学本科方案标题区分样本。"
+		},
+		{
+			"case_id": "curriculum-title-cultural-heritage-museology",
+			"split": "smoke",
+			"query": "文物与博物馆学本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:文物与博物馆学本科人才培养方案",
+					"grade": 2,
+					"rationale": "文物与博物馆学本科方案标题 exact-match。"
+				}
+			],
+			"notes": "文物与博物馆学本科方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-journalism-communication",
+			"split": "smoke",
+			"query": "新闻传播学类本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:新闻传播学类本科人才培养方案",
+					"grade": 2,
+					"rationale": "新闻传播学类本科方案标题 exact-match。"
+				}
+			],
+			"notes": "新闻传播学类本科方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-japanese",
+			"split": "smoke",
+			"query": "日语本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:日语本科人才培养方案",
+					"grade": 2,
+					"rationale": "日语本科方案标题 exact-match。"
+				}
+			],
+			"notes": "日语本科方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-hanyu-undergraduate",
+			"split": "smoke",
+			"query": "汉语国际教育本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:汉语国际教育本科人才培养方案",
+					"grade": 2,
+					"rationale": "普通汉语国际教育本科方案标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "curriculum:汉语国际教育（国际学生）本科人才培养方案",
+					"grade": 1,
+					"rationale": "国际学生版本不应压过普通汉语国际教育方案。"
+				}
+			],
+			"notes": "普通汉语国际教育本科方案标题区分样本。"
+		},
+		{
+			"case_id": "curriculum-title-law-undergraduate",
+			"split": "smoke",
+			"query": "法学本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:法学本科人才培养方案",
+					"grade": 2,
+					"rationale": "普通法学本科方案标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "curriculum:法学（民族实验班）本科人才培养方案",
+					"grade": 1,
+					"rationale": "法学民族实验班版本不应压过普通法学方案。"
+				},
+				{
+					"doc_id": "curriculum:法学本科第二学士学位人才培养方案",
+					"grade": 1,
+					"rationale": "法学第二学士学位方案不应压过普通法学方案。"
+				}
+			],
+			"notes": "普通法学本科方案标题区分样本。"
+		},
+		{
+			"case_id": "curriculum-title-law-second-degree",
+			"split": "smoke",
+			"query": "法学本科第二学士学位人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:法学本科第二学士学位人才培养方案",
+					"grade": 2,
+					"rationale": "法学第二学士学位方案标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "curriculum:法学本科人才培养方案",
+					"grade": 1,
+					"rationale": "普通法学本科方案不应压过第二学士学位版本。"
+				}
+			],
+			"notes": "法学第二学士学位方案标题区分样本。"
+		},
+		{
+			"case_id": "curriculum-title-environmental-science-engineering",
+			"split": "smoke",
+			"query": "环境科学与工程类本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:环境科学与工程类本科人才培养方案",
+					"grade": 2,
+					"rationale": "环境科学与工程类本科方案标题 exact-match。"
+				}
+			],
+			"notes": "环境科学与工程类本科方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-biological-sciences",
+			"split": "smoke",
+			"query": "生物科学类本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:生物科学类本科人才培养方案",
+					"grade": 2,
+					"rationale": "生物科学类本科方案标题 exact-match。"
+				}
+			],
+			"notes": "生物科学类本科方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-electronic-information",
+			"split": "smoke",
+			"query": "电子信息类本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:电子信息类本科人才培养方案",
+					"grade": 2,
+					"rationale": "电子信息类本科方案标题 exact-match。"
+				}
+			],
+			"notes": "电子信息类本科方案标题命中。"
+		},
+		{
+			"case_id": "curriculum-title-computer-science-ethnic",
+			"split": "smoke",
+			"query": "计算机科学与技术民族实验班本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:计算机科学与技术（民族实验班）本科人才培养方案",
+					"grade": 2,
+					"rationale": "计算机科学与技术民族实验班方案标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "curriculum:计算机类本科人才培养方案",
+					"grade": 1,
+					"rationale": "计算机类普通方案不应压过民族实验班版本。"
+				},
+				{
+					"doc_id": "curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+					"grade": 1,
+					"rationale": "相邻民族实验班方案不应混入计算机科学与技术问题。"
+				}
+			],
+			"notes": "计算机科学与技术民族实验班方案标题区分样本。"
+		},
+		{
+			"case_id": "curriculum-title-computer-category",
+			"split": "smoke",
+			"query": "计算机类本科人才培养方案",
+			"expected_sources": [
+				{
+					"doc_id": "curriculum:计算机类本科人才培养方案",
+					"grade": 2,
+					"rationale": "计算机类本科方案标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "curriculum:计算机科学与技术（民族实验班）本科人才培养方案",
+					"grade": 1,
+					"rationale": "计算机科学与技术民族实验班版本不应压过计算机类方案。"
+				}
+			],
+			"notes": "计算机类本科方案标题区分样本。"
+		},
+		{
 			"case_id": "no-hit-impossible-query",
 			"split": "smoke",
 			"query": "火星校区飞船停靠规则",

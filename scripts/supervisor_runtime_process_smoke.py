@@ -38,6 +38,7 @@ MULTI_STEP_WORKFLOW_PROFILES = {
 }
 RAG_RETRIEVAL_PROFILES = {
     "rag_delegate",
+    "rag_delegate_institutional_rules",
     *MULTI_STEP_WORKFLOW_PROFILES,
 }
 DEFAULT_STARTUP_TIMEOUT_SECONDS = 180.0
@@ -431,7 +432,7 @@ def run_process_smoke(
 
 
 def _forbidden_body_tokens(profile: str) -> tuple[str, ...]:
-    if profile == "rag_delegate":
+    if profile in {"rag_delegate", "rag_delegate_institutional_rules"}:
         return ("retrieval_failed", '"status": "no_answer"')
     if profile in RAG_RETRIEVAL_PROFILES:
         return ("retrieval_failed",)

@@ -24,6 +24,7 @@ from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.sparse import build_mock_sparse_embedding_model
 from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
+from qdrant_client.http import models as qdrant_models
 
 _REPO_ROOT = Path(__file__).resolve().parents[2]
 _STUDENT_RULES_RELEASE_ACCEPTANCE_PATH = (
@@ -38,6 +39,12 @@ _QUERY_ENABLED_RELEASE_ACCEPTANCE_FIXTURES = (
         "stable_reference",
         "official_web_stable_reference_release_acceptance.v1.json",
     ),
+)
+_INSTITUTIONAL_RULES_RELEASE_ACCEPTANCE_PATH = (
+    _REPO_ROOT / "packages/evals/fixtures/institutional_rules_release_acceptance.v1.json"
+)
+_INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH = (
+    _REPO_ROOT / "configs/ingestion/regulations/institutional_rules/retrieval-eval-manifest.v1.json"
 )
 
 
@@ -108,6 +115,58 @@ class _FakeRemoteQdrantClient:
     def query_points(self, **kwargs: object) -> _FakeQdrantQueryResponse:
         self.timeout = kwargs.get("timeout")
         return _FakeQdrantQueryResponse()
+
+
+class _FakeLowSignalQdrantClient:
+    def query_points(self, **_kwargs: object) -> object:
+        return type(
+            "FakeResponse",
+            (),
+            {
+                "points": (
+                    qdrant_models.ScoredPoint(
+                        id="low-signal",
+                        version=1,
+                        score=0.3,
+                        payload={
+                            "document_id": "student_rules:unrelated",
+                            "revision_track": "source-faithful",
+                            "version_id": "v1:unrelated",
+                            "chunk_id": "student_rules:unrelated:chunk-0001",
+                            "corpus": "regulations",
+                            "collection": "student_rules",
+                            "source_uri": "https://docs.example/unrelated",
+                            "canonical_url": "https://docs.example/unrelated",
+                            "latest_url": "https://docs.example/unrelated",
+                            "source_channel": "manual_curated",
+                            "is_current": True,
+                            "text": "学生请假和宿舍管理说明",
+                        },
+                        vector=None,
+                    ),
+                    qdrant_models.ScoredPoint(
+                        id="low-signal-runner-up",
+                        version=1,
+                        score=0.29,
+                        payload={
+                            "document_id": "student_rules:another-unrelated",
+                            "revision_track": "source-faithful",
+                            "version_id": "v1:another-unrelated",
+                            "chunk_id": "student_rules:another-unrelated:chunk-0001",
+                            "corpus": "regulations",
+                            "collection": "student_rules",
+                            "source_uri": "https://docs.example/another-unrelated",
+                            "canonical_url": "https://docs.example/another-unrelated",
+                            "latest_url": "https://docs.example/another-unrelated",
+                            "source_channel": "manual_curated",
+                            "is_current": True,
+                            "text": "奖学金申请材料说明",
+                        },
+                        vector=None,
+                    ),
+                )
+            },
+        )()
 
 
 class IndexReleaseAcceptanceTest(unittest.TestCase):
@@ -206,6 +265,34 @@ class IndexReleaseAcceptanceTest(unittest.TestCase):
                 self.assertGreaterEqual(len(cases), 5)
                 self.assertTrue(any(case.expected_no_hit for case in cases), fixture_name)
                 self.assertTrue(any(case.expected_document_ids for case in cases), fixture_name)
+
+    def test_institutional_rules_release_acceptance_covers_consumption_manifest_titles(
+        self,
+    ) -> None:
+        cases = load_release_retrieval_acceptance_cases(
+            _INSTITUTIONAL_RULES_RELEASE_ACCEPTANCE_PATH,
+            corpus="regulations",
+            collection="institutional_rules",
+        )
+        manifest = json.loads(
+            _INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH.read_text(encoding="utf-8")
+        )
+        released_docs = tuple(manifest["documents"])
+        title_cases = {
+            case.query: case
+            for case in cases
+            if case.expected_document_ids and case.case_id.startswith("institutional-title-exact-")
+        }
+
+        self.assertEqual(len(released_docs), 42)
+        self.assertEqual(set(title_cases), {item["title"] for item in released_docs})
+        for item in released_docs:
+            case = title_cases[item["title"]]
+            self.assertEqual(case.expected_document_ids, (item["document_id"],))
+            self.assertEqual(case.expected_version_ids, (item["version_id"],))
+            self.assertEqual(case.entitlement_groups, ("campus_members",))
+            self.assertEqual(case.visibility_level, "restricted")
+            self.assertEqual(case.visibility_scope, "campus")
 
     def test_load_release_retrieval_acceptance_cases_rejects_empty_case_file(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -423,6 +510,38 @@ class IndexReleaseAcceptanceTest(unittest.TestCase):
 
         self.assertIsInstance(qdrant_client.timeout, int)
         self.assertEqual(qdrant_client.timeout, 10)
+
+    def test_physical_collection_executor_applies_no_hit_policy(self) -> None:
+        profile = load_runtime_profile("regulations", "student_rules")
+        executor = QdrantPhysicalCollectionAcceptanceExecutor(
+            qdrant_client=_FakeLowSignalQdrantClient(),  # type: ignore[arg-type]
+            settings=RetrievalSettings(
+                qdrant_url="https://qdrant.example",
+                embedding_provider="mock",
+                embedding_model="mock-embedding-8d",
+                embedding_dimensions=3,
+                sparse_provider="mock",
+            ),
+            runtime_profile=profile,
+            embedding_model=_FakeEmbeddingModel(),
+            sparse_embedding_model=build_mock_sparse_embedding_model(),
+        )
+
+        bundle = executor.retrieve(
+            physical_collection_name="student_rules__r20260430_acceptance",
+            corpus="regulations",
+            collection="student_rules",
+            query="校内宇宙签证办理处",
+            top_k=3,
+            target_document_ids=(),
+            target_version_ids=(),
+            target_revision_track="",
+            entitlement_groups=(),
+            visibility_level="public",
+            visibility_scope=None,
+        )
+
+        self.assertEqual(bundle.sources, ())
 
 
 def _write_cases(payload: dict[str, object]) -> Path:

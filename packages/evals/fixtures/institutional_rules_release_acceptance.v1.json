@@ -3,7 +3,7 @@
 	"source_fixture": "institutional_rules_retrieval_qrels.json",
 	"corpus": "regulations",
 	"collection": "institutional_rules",
-	"gate_policy": "current operator registry release gate; all 30校级 institutional_rules title cases plus authz/no-hit guards must pass before alias publish",
+	"gate_policy": "current consumption manifest release gate; all 42校级 institutional_rules title cases plus authz/no-hit guards must pass before alias publish",
 	"cases": [
 		{
 			"case_id": "institutional-title-exact-ff711d1185f9",
@@ -538,6 +538,222 @@
 			],
 			"expected_version_ids": [
 				"sha256:58bc1c5a703ad57b77b452d19ba27437122ac874f586b13beb20c481b1f911eb:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-8c293d7d2b82",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学优秀研究生导师-优秀研究生导师团队评选办法-试行:8c293d7d2b82"
+			],
+			"expected_version_ids": [
+				"sha256:9b0bf2b5fbc689bff364ce596511a2a649fde639567f7b917e241f9cd4e003cf:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-1ef5452fb4a6",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学党建工作考核办法（试行）",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学党建工作考核办法-试行:1ef5452fb4a6"
+			],
+			"expected_version_ids": [
+				"sha256:53f984f974f9a475ba9d8d37df716b0b0a2c7191cf208db75709c251d66be2fb:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-beafdf10b18e",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学双学士学位复合型人才培养项目实施管理暂行办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学双学士学位复合型人才培养项目实施管理暂行办法:beafdf10b18e"
+			],
+			"expected_version_ids": [
+				"sha256:9536645ffd940c0fed8cec8e2efe258b078d08eb46767ee57b7617817c507b82:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-c1060315d096",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学学生参加国际外语水平考试暨国际化培养项目奖励暂行办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学学生参加国际外语水平考试暨国际化培养项目奖励暂行办法:c1060315d096"
+			],
+			"expected_version_ids": [
+				"sha256:50f4f4153a504d89e5019125cc30466ebd9bf048c0c119a9559c85639a2407ab:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-079ab1019359",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学招募选拔 “中国青年志愿者扶贫接力计划研究生支教团”成员规定",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学招募选拔-中国青年志愿者扶贫接力计划研究生支教团-成员规定:079ab1019359"
+			],
+			"expected_version_ids": [
+				"sha256:06353e40e25bb4801fc63f1d3b3bfaf67475a63ed21db13a9ca26fca909bec8d:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-c3329cc7770c",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法-试行:c3329cc7770c"
+			],
+			"expected_version_ids": [
+				"sha256:a7fa9388a143579c6e86966180359bec60ff0f4ecdd2745d65a69377fa8cfa63:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-384d75f2cd91",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学本科课程临时调(停)课管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学本科课程临时调-停-课管理办法:384d75f2cd91"
+			],
+			"expected_version_ids": [
+				"sha256:f0c06bc135670f1969788c274e0753a695f1f158cf13257cd8f0ab771a3de005:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-49319e7c44d3",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学研究生“三助”工作管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学研究生-三助-工作管理办法:49319e7c44d3"
+			],
+			"expected_version_ids": [
+				"sha256:8a1815fa0ad3ecd53cb47e6bc10a9df41022bed2c7442c5221ed256c59572386:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-d982b544803b",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学研究生学位论文评阅办法（试行）",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学研究生学位论文评阅办法-试行:d982b544803b"
+			],
+			"expected_version_ids": [
+				"sha256:edec587abccd9e4295e36d5fc89c017bd582005ab49025e09fa6197bd92b2cf3:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-e9223e88dd04",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学研究生涉密学位论文管理办法（试行）",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学研究生涉密学位论文管理办法-试行:e9223e88dd04"
+			],
+			"expected_version_ids": [
+				"sha256:1ae22fc5fd8cacb7befd1fce25be236cfc24ee4d39d0e185d048004fa316ec24:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-438bbad6c45e",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学硕博连读研究生招生实施办法（试行）",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学硕博连读研究生招生实施办法-试行:438bbad6c45e"
+			],
+			"expected_version_ids": [
+				"sha256:a594f0eafd05b7a981d766efd65fe69e2f8edecc2fe8dc1de1f945c7f212d4c0:effective-undated:revision-none"
+			],
+			"entitlement_groups": [
+				"campus_members"
+			],
+			"visibility_level": "restricted",
+			"visibility_scope": "campus"
+		},
+		{
+			"case_id": "institutional-title-exact-8f97b86c0e95",
+			"corpus": "regulations",
+			"collection": "institutional_rules",
+			"query": "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+			"top_k": 3,
+			"expected_document_ids": [
+				"institutional_regulation:muc:中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法:8f97b86c0e95"
+			],
+			"expected_version_ids": [
+				"sha256:062413ee08c552f18fdfc24072ff5e381709da93b403ea2d6261b39030dd65a6:effective-undated:revision-none"
 			],
 			"entitlement_groups": [
 				"campus_members"

@@ -146,6 +146,57 @@ class RetrievalChunkQualityTest(unittest.TestCase):
         self.assertIn("segment_coverage_gap", report.issues_by_chunk_id["chunk-segment-3"])
         self.assertIn("missing_table_context_or_header", report.issues_by_chunk_id["chunk-table"])
 
+    def test_chunk_quality_counts_aggregated_member_segment_lineage_as_covered(
+        self,
+    ) -> None:
+        report = evaluate_chunk_quality(
+            chunks=[
+                {
+                    "document_id": "doc:policy",
+                    "version_id": "v1",
+                    "chunk_id": "chunk-segment-1-aggregated",
+                    "chunk_order": 1,
+                    "corpus": "regulations",
+                    "collection": "student_rules",
+                    "text": "第一段",
+                    "source_uri": "s3://derived/doc",
+                    "metadata": {
+                        "unit_type": "section_text",
+                        "root_unit_id": "article-previous",
+                        "member_segment_lineage": [
+                            {
+                                "root_unit_id": "article-segmented",
+                                "segment_index": 1,
+                                "segment_total": 2,
+                            }
+                        ],
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                    },
+                },
+                {
+                    "document_id": "doc:policy",
+                    "version_id": "v1",
+                    "chunk_id": "chunk-segment-2",
+                    "chunk_order": 2,
+                    "corpus": "regulations",
+                    "collection": "student_rules",
+                    "text": "第二段",
+                    "source_uri": "s3://derived/doc",
+                    "metadata": {
+                        "unit_type": "section_text",
+                        "root_unit_id": "article-segmented",
+                        "segment_index": 2,
+                        "segment_total": 2,
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                    },
+                },
+            ],
+            max_tokens=64,
+        )
+
+        self.assertEqual(report.status, "passed")
+        self.assertEqual(report.issue_count, 0)
+
     def test_chunk_quality_audit_report_summarizes_issue_and_unit_type_counts(self) -> None:
         report = build_chunk_quality_audit_report(
             chunks=[
