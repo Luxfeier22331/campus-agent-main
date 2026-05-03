@@ -112,7 +112,8 @@ model`
 - chat-local auth browser routes are bounded compatibility redirects/shims to
   hub account routes with explicit `return_to`
 - does not own account-shell UI, captcha widget runtime, or password-reset form
-- browser auth handoff is `public-chat-web compat route -> hub-web /account/* -> /api/auth/* -> app-api`
+- browser auth handoff is
+  `public-chat-web compat route -> hub-web /account/* -> /api/auth/* -> app-api`
 - 不拥有 auth/session/conversation truth
 
 ### `apps/hub-web`
