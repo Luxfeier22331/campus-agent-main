@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import os
+
 from .chunking_policy_test_support import *
 
 
@@ -123,6 +125,68 @@ class ChunkingPolicyProfileTest(_ChunkingPolicyTestCase):
             "/tmp/qwen-tokenizer",
             local_files_only=True,
         )
+
+    def test_load_hf_tokenizer_suppresses_transformers_missing_torch_advisory_only(
+        self,
+    ) -> None:
+        fake_tokenizer = object()
+        captured_import_env: dict[str, str | None] = {}
+
+        def fake_import_module(name: str, *args: object, **kwargs: object) -> object:
+            self.assertEqual(name, "transformers")
+            captured_import_env["TRANSFORMERS_NO_ADVISORY_WARNINGS"] = os.environ.get(
+                "TRANSFORMERS_NO_ADVISORY_WARNINGS"
+            )
+            return types.SimpleNamespace(
+                AutoTokenizer=types.SimpleNamespace(
+                    from_pretrained=mock.Mock(return_value=fake_tokenizer)
+                )
+            )
+
+        with (
+            mock.patch(
+                "campus_ingestion_core.chunking_tokenizers.resolve_prefetched_hf_tokenizer_path",
+                return_value="/tmp/qwen-tokenizer",
+            ),
+            mock.patch(
+                "campus_ingestion_core.chunking_tokenizers.importlib.import_module",
+                side_effect=fake_import_module,
+            ),
+            mock.patch.dict(os.environ, {}, clear=True),
+        ):
+            result = _load_hf_tokenizer("Qwen/Qwen3-Embedding-4B")
+
+        self.assertIs(result, fake_tokenizer)
+        self.assertEqual(captured_import_env["TRANSFORMERS_NO_ADVISORY_WARNINGS"], "1")
+        self.assertNotIn("TRANSFORMERS_NO_ADVISORY_WARNINGS", os.environ)
+
+    def test_load_hf_tokenizer_preserves_existing_transformers_advisory_env(self) -> None:
+        fake_tokenizer = object()
+
+        def fake_import_module(name: str, *args: object, **kwargs: object) -> object:
+            self.assertEqual(name, "transformers")
+            self.assertEqual(os.environ.get("TRANSFORMERS_NO_ADVISORY_WARNINGS"), "custom")
+            return types.SimpleNamespace(
+                AutoTokenizer=types.SimpleNamespace(
+                    from_pretrained=mock.Mock(return_value=fake_tokenizer)
+                )
+            )
+
+        with (
+            mock.patch(
+                "campus_ingestion_core.chunking_tokenizers.resolve_prefetched_hf_tokenizer_path",
+                return_value="/tmp/qwen-tokenizer",
+            ),
+            mock.patch(
+                "campus_ingestion_core.chunking_tokenizers.importlib.import_module",
+                side_effect=fake_import_module,
+            ),
+            mock.patch.dict(os.environ, {"TRANSFORMERS_NO_ADVISORY_WARNINGS": "custom"}),
+        ):
+            result = _load_hf_tokenizer("Qwen/Qwen3-Embedding-4B")
+            self.assertEqual(os.environ["TRANSFORMERS_NO_ADVISORY_WARNINGS"], "custom")
+
+        self.assertIs(result, fake_tokenizer)
 
     def test_load_hf_tokenizer_initializes_once_under_concurrent_calls(self) -> None:
         _load_hf_tokenizer.cache_clear()

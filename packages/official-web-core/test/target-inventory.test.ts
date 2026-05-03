@@ -15,7 +15,7 @@ describe("official web target inventory report", () => {
 		const report = buildOfficialWebTargetInventoryReport(config);
 
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 13,
+			candidate: 12,
 		});
 		expect(report.entries[0]).toMatchObject({
 			inventoryId: "muc-main-homepage-contact",
@@ -249,7 +249,7 @@ describe("official web target inventory report", () => {
 			reviewState: "previewed",
 		});
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 12,
+			candidate: 11,
 			previewed: 1,
 		});
 	});

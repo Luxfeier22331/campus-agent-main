@@ -159,6 +159,10 @@ def build_selected_write_release_task_from_candidate(
         task_id=_selected_write_task_id(
             candidate_key=candidate_key,
             policy_version=_SELECTED_WRITE_ADMISSION_POLICY_VERSION,
+            run_id=run_id,
+            selected_write_target=selected_write_target,
+            source_object_keys=source_object_keys,
+            source_urls=source_urls,
         ),
         task_type=task_type,
     )
@@ -315,8 +319,27 @@ def _dedupe_strings(values: Sequence[str]) -> list[str]:
     return result
 
 
-def _selected_write_task_id(*, candidate_key: str, policy_version: str) -> str:
-    digest = hashlib.sha256(f"{policy_version}:{candidate_key}".encode()).hexdigest()[:24]
+def _selected_write_task_id(
+    *,
+    candidate_key: str,
+    policy_version: str,
+    run_id: str,
+    selected_write_target: str,
+    source_object_keys: Sequence[str],
+    source_urls: Sequence[str],
+) -> str:
+    digest = hashlib.sha256(
+        repr(
+            {
+                "candidate_key": candidate_key,
+                "policy_version": policy_version,
+                "run_id": run_id,
+                "selected_write_target": selected_write_target,
+                "source_object_keys": _dedupe_strings(list(source_object_keys)),
+                "source_urls": _dedupe_strings(list(source_urls)),
+            }
+        ).encode()
+    ).hexdigest()[:24]
     return f"owrelease_selected_write_{digest}"
 
 

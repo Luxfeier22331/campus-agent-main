@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import importlib
+import os
 import re
 import threading
+from collections.abc import Iterator
+from contextlib import contextmanager
 from functools import lru_cache
 from typing import Any, Protocol
 
@@ -106,10 +110,26 @@ def _load_hf_tokenizer(repo_id: str) -> Any:
 
 @lru_cache(maxsize=4)
 def _load_hf_tokenizer_cached(repo_id: str) -> Any:
-    from transformers import AutoTokenizer
+    with _suppress_transformers_missing_torch_advisory():
+        transformers = importlib.import_module("transformers")
 
     local_tokenizer_path = resolve_prefetched_hf_tokenizer_path(repo_id)
-    return AutoTokenizer.from_pretrained(local_tokenizer_path, local_files_only=True)
+    return transformers.AutoTokenizer.from_pretrained(local_tokenizer_path, local_files_only=True)
+
+
+@contextmanager
+def _suppress_transformers_missing_torch_advisory() -> Iterator[None]:
+    env_key = "TRANSFORMERS_NO_ADVISORY_WARNINGS"
+    previous_value = os.environ.get(env_key)
+    if previous_value is None:
+        os.environ[env_key] = "1"
+    try:
+        yield
+    finally:
+        if previous_value is None:
+            os.environ.pop(env_key, None)
+        else:
+            os.environ[env_key] = previous_value
 
 
 _load_hf_tokenizer.cache_clear = _load_hf_tokenizer_cached.cache_clear

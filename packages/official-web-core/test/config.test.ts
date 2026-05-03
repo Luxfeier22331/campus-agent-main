@@ -396,7 +396,6 @@ describe("official-web-core config loading", () => {
 			"muc-main-homepage-contact",
 			"muc-information-disclosure-contact",
 			"muc-information-disclosure-application-process",
-			"muc-information-disclosure-application-form-download",
 			"muc-it-student-campus-card-service-guide",
 			"muc-it-network-auth-service-guide",
 			"muc-it-vpn-service-guide",

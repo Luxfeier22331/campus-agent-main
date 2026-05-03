@@ -196,6 +196,60 @@ class OfficialWebReleaseTaskAdmissionTest(unittest.TestCase):
             "owasset_info_material",
         )
 
+    def test_selected_write_release_task_identity_changes_when_source_refs_change(self) -> None:
+        old_task = build_selected_write_release_task_from_candidate(
+            _information_disclosure_candidate(
+                source_refs=[
+                    {
+                        "raw_asset_id": "owasset_info_procedure",
+                        "raw_version_id": "owver_info_procedure",
+                        "normalized_canonical_url": (
+                            "https://xxgk.muc.edu.cn/info/1007/1113.htm"
+                        ),
+                    }
+                ]
+            ),
+            run_id="owrun_info_disclosure",
+            source_object_keys=[
+                "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+            ],
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+        new_task = build_selected_write_release_task_from_candidate(
+            _information_disclosure_candidate(
+                source_refs=[
+                    {
+                        "raw_asset_id": "owasset_info_procedure",
+                        "raw_version_id": "owver_info_procedure",
+                        "normalized_canonical_url": (
+                            "https://xxgk.muc.edu.cn/info/1007/1113.htm"
+                        ),
+                    },
+                    {
+                        "raw_asset_id": "owasset_info_material",
+                        "raw_version_id": "owver_info_material",
+                        "normalized_canonical_url": (
+                            "https://xxgk.muc.edu.cn/info/1007/1114.htm"
+                        ),
+                    },
+                ]
+            ),
+            run_id="owrun_info_disclosure",
+            source_object_keys=[
+                "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+            ],
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+
+        self.assertNotEqual(old_task.task_id, new_task.task_id)
+        self.assertEqual(
+            new_task.input_ref["sourceUrls"],
+            [
+                "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+            ],
+        )
+
     def test_admits_ready_selected_write_candidates_from_partial_review(self) -> None:
         store = InMemoryOfficialWebReleaseTaskStore()
 
@@ -329,6 +383,47 @@ def _approved_gate() -> dict[str, object]:
         "releaseId": "owrelease_school_intro",
         "runId": "owrun_001",
         "status": "approved",
+    }
+
+
+def _information_disclosure_candidate(
+    *, source_refs: list[dict[str, object]]
+) -> dict[str, object]:
+    return {
+        "candidate_key": "owcand_information_disclosure_composed",
+        "field_status": {
+            "process_steps": "present",
+            "required_materials": "present",
+            "service_name": "present",
+            "service_process": "present",
+            "service_material": "present",
+            "source_url": "present",
+            "source_version_evidence": "present",
+        },
+        "inventory_id": "muc-information-disclosure-application-process",
+        "matched_evidence": ["service_process", "service_material"],
+        "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+        "ready_for_selected_write": True,
+        "optional_evidence": ["service_material"],
+        "optional_fields": ["required_materials", "service_material"],
+        "required_evidence": ["service_process"],
+        "required_fields": [
+            "service_name",
+            "process_steps",
+            "source_url",
+            "source_version_evidence",
+            "service_process",
+        ],
+        "review_verdict": "pending_review",
+        "selected_write_target": "campus_services/service_guide",
+        "source_ref": {
+            "raw_asset_id": "owasset_info_procedure",
+            "raw_version_id": "owver_info_procedure",
+            "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+        },
+        "source_refs": source_refs,
+        "target_job_id": "owtarget_service_guide",
+        "typed_candidate_schema_version": "official_web_service_guide_candidate.v1",
     }
 
 
