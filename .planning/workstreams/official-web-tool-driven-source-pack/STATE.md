@@ -6,14 +6,16 @@ created: 2026-05-03
 # Project State
 
 ## Current Position
-**Status:** Active
-**Current Phase:** Phase 1 - Source content assessment and downstream demand matrix
+**Status:** Completed
+**Current Phase:** Phase 2 - Execution handoff complete
 **Last Activity:** 2026-05-03
-**Last Activity Description:** Excluded library dynamic-shell pages from first-slice collection scope.
+**Last Activity Description:** Accepted downstream demand, content cases, composition requirements
+and eval expectations were frozen for the source-pack execution workstream.
 
 ## Progress
-**Phases Complete:** 1
-**Current Plan:** Confirm first-slice official-web content families, user intents and owner surfaces before handing execution to `official-web-source-pack-collection-execution`.
+**Phases Complete:** 3
+**Current Plan:** None. The source-pack demand side is closed; implementation belongs to
+`official-web-source-pack-collection-execution` and later ingestion release work.
 
 ## Current Slice
 
@@ -22,8 +24,11 @@ created: 2026-05-03
 - Source content assessment: `SOURCE-CONTENT-ASSESSMENT.md`.
 - Source collection cases: `SOURCE-COLLECTION-CASES.md`.
 - Demand document: `DOWNSTREAM-DEMAND-MATRIX.md`.
-- Next phase: freeze execution handoff inputs for `official-web-source-pack-collection-execution`.
+- Execution handoff: accepted demand is frozen for
+  `official-web-source-pack-collection-execution`; this workstream does not reopen manifest,
+  capture, replay or release implementation.
 
 ## Session Continuity
-**Stopped At:** Phase 1 content assessment, demand matrix and collection cases created; library dynamic-shell pages excluded; source pack manifest not yet implemented.
+**Stopped At:** Workstream closeout. Do not continue source selection here unless first-slice
+demand, owner surfaces or excluded/deferred content posture are explicitly reopened.
 **Resume File:** None

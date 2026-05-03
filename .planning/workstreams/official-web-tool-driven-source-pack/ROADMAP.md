@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-05-03
 updated: 2026-05-03
 ---
@@ -21,10 +21,10 @@ collection execution are owned by `official-web-source-pack-collection-execution
 
 - [x] **Phase 0: Workstream Creation And Boundary Freeze** - Create native workstream and freeze
   the one-time source pack boundary.
-- [ ] **Phase 1: Source Content Assessment And Downstream Demand Matrix** - Confirm official-web
+- [x] **Phase 1: Source Content Assessment And Downstream Demand Matrix** - Confirm official-web
   content families, owner tools, user intents, expected facts, non-goals and fail-close behavior
   for the first official-web demand slice.
-- [ ] **Phase 2: Execution Handoff** - Freeze accepted demand, proposed page set, composition
+- [x] **Phase 2: Execution Handoff** - Freeze accepted demand, proposed page set, composition
   requirements and eval expectations as input to
   `official-web-source-pack-collection-execution`.
 

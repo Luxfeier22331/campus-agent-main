@@ -1,6 +1,6 @@
 ---
 doc_type: design
-status: active
+status: completed
 created: 2026-05-03
 updated: 2026-05-03
 ---

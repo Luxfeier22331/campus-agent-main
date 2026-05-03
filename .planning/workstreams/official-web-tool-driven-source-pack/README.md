@@ -23,10 +23,10 @@ It answers a narrower question than the collector restart work:
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 1 - Downstream demand matrix`
-- current slice: freeze tool-driven demand before source pack implementation
-- active implementation: planning and demand confirmation only
+- status: `completed`
+- current phase: `Phase 2 - Execution handoff complete`
+- current slice: accepted downstream demand and content cases frozen for source-pack execution
+- active implementation: no
 - owner: Codex session
 
 ## Native Planning Truth
@@ -37,6 +37,7 @@ It answers a narrower question than the collector restart work:
 - source content assessment: `./SOURCE-CONTENT-ASSESSMENT.md`
 - source collection cases: `./SOURCE-COLLECTION-CASES.md`
 - downstream demand matrix: `./DOWNSTREAM-DEMAND-MATRIX.md`
+- execution handoff: `./EXECUTION-HANDOFF.md`
 - downstream execution handoff: `../official-web-source-pack-collection-execution/README.md`
 
 ## Boundary Notes
@@ -59,7 +60,7 @@ It answers a narrower question than the collector restart work:
 - `official-web-target-inventory` completed target inventory and selected-write handoff.
 - `official-web-service-info-denominator-realism` fixed optional denominator semantics such as
   `source_not_provided`.
-- This workstream narrows first production-quality source ingestion to a one-time,
-  content-assessed, tool-demand-driven pack before collection execution begins.
+- This workstream narrowed first production-quality source ingestion to a one-time,
+  content-assessed, tool-demand-driven pack and then froze the accepted handoff inputs.
 - `official-web-source-pack-collection-execution` owns manifest validation, one-time capture,
   source-truth replay, release preview and eval gates after this workstream's demand handoff.
