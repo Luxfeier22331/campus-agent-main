@@ -166,7 +166,7 @@ func evaluateCase(
 	policy runtimepolicy.IntentPolicyArtifact,
 	bundleScope string,
 ) (caseResult, error) {
-	targetPreview, err := findPreviewResult(report, item.Collection, item.InventoryID)
+	targetPreview, err := findPreviewResult(report, item.Collection, item.InventoryID, bundleScope)
 	if err != nil {
 		return caseResult{}, err
 	}
@@ -293,11 +293,19 @@ func findPreviewResult(
 	report previewReport,
 	collection string,
 	inventoryID string,
+	bundleScope string,
 ) (previewResult, error) {
 	for _, item := range report.Results {
 		if strings.TrimSpace(item.Collection) == strings.TrimSpace(collection) &&
 			strings.TrimSpace(item.InventoryID) == strings.TrimSpace(inventoryID) {
 			return item, nil
+		}
+	}
+	if normalizeBundleScope(bundleScope) == "full_impact" {
+		for _, item := range report.Results {
+			if strings.TrimSpace(item.Collection) == strings.TrimSpace(collection) {
+				return item, nil
+			}
 		}
 	}
 	return previewResult{}, fmt.Errorf(

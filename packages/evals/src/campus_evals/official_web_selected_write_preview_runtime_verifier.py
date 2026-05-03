@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import subprocess
+from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
 from typing import Any, Protocol
@@ -10,6 +11,9 @@ REPO_ROOT = Path(__file__).resolve().parents[4]
 SUPERVISOR_API_DIR = REPO_ROOT / "apps" / "supervisor-api"
 DEFAULT_GO_RUNNER_COMMAND = ("go", "run", "./cmd/official-web-preview-runtime-verifier")
 DEFAULT_REPORT_NAME = "official-web-selected-write-preview-runtime-verification.json"
+DEFAULT_TARGET_INVENTORY_PATH = (
+    REPO_ROOT / "configs/sources/official_web/muc_public/target-inventory.json"
+)
 BUNDLE_SCOPE_TASK_SCOPE = "task_scope"
 BUNDLE_SCOPE_FULL_IMPACT = "full_impact"
 SUPPORTED_BUNDLE_SCOPES = (BUNDLE_SCOPE_TASK_SCOPE, BUNDLE_SCOPE_FULL_IMPACT)
@@ -197,7 +201,10 @@ def run_selected_write_preview_runtime_verification(
     resolved_report_path = report_path.resolve()
     output_dir.mkdir(parents=True, exist_ok=True)
     preview_report = _load_preview_report(resolved_report_path)
-    supported_targets = _supported_targets(preview_report)
+    supported_targets = _supported_targets(
+        preview_report,
+        bundle_scope=resolved_bundle_scope,
+    )
     selected_cases = (
         cases
         if cases is not None
@@ -288,7 +295,11 @@ def _normalize_bundle_scope(bundle_scope: str) -> str:
     return normalized
 
 
-def _supported_targets(report: dict[str, object]) -> set[str]:
+def _supported_targets(
+    report: dict[str, object],
+    *,
+    bundle_scope: str,
+) -> set[str]:
     results = report.get("results")
     if not isinstance(results, list):
         raise RuntimeError("selected-write preview report results must be a list")
@@ -301,7 +312,86 @@ def _supported_targets(report: dict[str, object]) -> set[str]:
         if collection not in {"service_guide", "contact_directory"} or not inventory_id:
             continue
         supported.add(f"{collection}:{inventory_id}")
+        if bundle_scope == BUNDLE_SCOPE_FULL_IMPACT:
+            supported.update(_full_impact_targets(item, collection=collection))
     return supported
+
+
+def _full_impact_targets(
+    preview_result: Mapping[str, object],
+    *,
+    collection: str,
+) -> set[str]:
+    full_bundle = preview_result.get("full_bundle")
+    if not isinstance(full_bundle, dict):
+        return set()
+    records_field = (
+        "service_guide_records"
+        if collection == "service_guide"
+        else "contact_records"
+        if collection == "contact_directory"
+        else ""
+    )
+    if not records_field:
+        return set()
+    inventory_lookup = _target_inventory_lookup(collection=collection)
+    targets: set[str] = set()
+    for record in _mapping_list(full_bundle.get(records_field)):
+        inventory_id = _inventory_id_for_record(record, inventory_lookup=inventory_lookup)
+        if inventory_id:
+            targets.add(f"{collection}:{inventory_id}")
+    return targets
+
+
+def _target_inventory_lookup(*, collection: str) -> dict[str, dict[str, object]]:
+    try:
+        inventory = json.loads(DEFAULT_TARGET_INVENTORY_PATH.read_text(encoding="utf-8"))
+    except Exception:
+        return {}
+    expected_target = (
+        "campus_services/service_guide"
+        if collection == "service_guide"
+        else "campus_services/contact_directory"
+    )
+    lookup: dict[str, dict[str, object]] = {}
+    for entry in _mapping_list(inventory.get("entries")):
+        if str(entry.get("selected_write_target") or "").strip() != expected_target:
+            continue
+        inventory_id = str(entry.get("inventory_id") or "").strip()
+        if not inventory_id:
+            continue
+        lookup[inventory_id] = {
+            "target_label": str(entry.get("target_label") or "").strip(),
+            "source_urls": _string_list(entry.get("source_urls")),
+        }
+    return lookup
+
+
+def _inventory_id_for_record(
+    record: Mapping[str, object],
+    *,
+    inventory_lookup: Mapping[str, Mapping[str, object]],
+) -> str:
+    source_refs = _string_list(record.get("source_refs"))
+    for source_ref in source_refs:
+        inventory_id = _inventory_id_from_official_web_ref(source_ref)
+        if inventory_id in inventory_lookup:
+            return inventory_id
+    source_ref_set = set(source_refs)
+    display_name = str(record.get("display_name") or "").strip()
+    for inventory_id, entry in inventory_lookup.items():
+        if display_name and display_name == str(entry.get("target_label") or "").strip():
+            return inventory_id
+        if source_ref_set & set(_string_list(entry.get("source_urls"))):
+            return inventory_id
+    return ""
+
+
+def _inventory_id_from_official_web_ref(source_ref: str) -> str:
+    parts = source_ref.split(":", 2)
+    if len(parts) < 3 or parts[0] != "official_web":
+        return ""
+    return parts[1].strip()
 
 
 def _case_results_from_payload(
@@ -345,6 +435,20 @@ def _default_cases_for_supported_targets(
         for case in default_official_web_selected_write_preview_runtime_cases()
         if f"{case.collection}:{case.inventory_id}" in supported_targets
     )
+
+
+def _mapping_list(value: object) -> list[dict[str, object]]:
+    if not isinstance(value, list):
+        return []
+    return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def _string_list(value: object) -> list[str]:
+    if isinstance(value, str):
+        return [value.strip()] if value.strip() else []
+    if isinstance(value, list):
+        return [str(item).strip() for item in value if str(item).strip()]
+    return []
 
 
 def _report_to_dict(

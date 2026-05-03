@@ -150,6 +150,9 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
     ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
+            current_key = (
+                "campus_services/releases/service_guide/current/service-guide-projection.json"
+            )
             object_store = _FakeObjectStore(
                 {
                     (
@@ -161,7 +164,54 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
                             "runId": "owrun_contact",
                             "siteId": "muc_public",
                         }
-                    ).encode("utf-8")
+                    ).encode("utf-8"),
+                    (
+                        "campus-rag-derived",
+                        current_key,
+                    ): json.dumps(
+                        {
+                            "schema_version": "campus_services_service_guide_projection.v1",
+                            "generated_at": "2026-05-01T07:00:00+00:00",
+                            "source_families": [
+                                "official_web_curated_service_guide_v1"
+                            ],
+                            "service_guide_records": [
+                                {
+                                    "aliases": ["VPN"],
+                                    "audience": ["unknown"],
+                                    "campus_scope": "all",
+                                    "category": "campus_service",
+                                    "contact_refs": [],
+                                    "display_name": "中央民族大学 VPN 使用说明",
+                                    "effective_from": "2026-05-01T00:00:00+00:00",
+                                    "effective_until": "9999-12-31T23:59:59+00:00",
+                                    "eligibility_notes": [],
+                                    "entry_refs": [],
+                                    "extraction_status": "ready",
+                                    "guide_sections": [
+                                        {
+                                            "section_id": "service:official_web:vpn:section:overview",
+                                            "section_type": "overview",
+                                            "title": "中央民族大学 VPN 使用说明",
+                                            "content": "VPN 使用说明。",
+                                            "order": 1,
+                                            "source_refs": [
+                                                "official_web:muc-it-vpn-service-guide:owver_vpn"
+                                            ],
+                                        }
+                                    ],
+                                    "materials": [],
+                                    "office_hours": [],
+                                    "service_id": "service:official_web:vpn",
+                                    "source_refs": [
+                                        "official_web:muc-it-vpn-service-guide:owver_vpn"
+                                    ],
+                                }
+                            ],
+                            "conflict_records": [],
+                            "manual_review_sources": [],
+                        }
+                    ).encode("utf-8"),
                 }
             )
             reporter = _FakeProjectionReporter()
@@ -801,6 +851,9 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
     def test_releases_service_guide_candidate_to_structured_projection(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
+            current_key = (
+                "campus_services/releases/service_guide/current/service-guide-projection.json"
+            )
             object_store = _FakeObjectStore(
                 {
                     (
@@ -812,7 +865,54 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
                             "runId": "owrun_contact",
                             "siteId": "muc_public",
                         }
-                    ).encode("utf-8")
+                    ).encode("utf-8"),
+                    (
+                        "campus-rag-derived",
+                        current_key,
+                    ): json.dumps(
+                        {
+                            "schema_version": "campus_services_service_guide_projection.v1",
+                            "generated_at": "2026-05-01T07:00:00+00:00",
+                            "source_families": [
+                                "official_web_curated_service_guide_v1"
+                            ],
+                            "service_guide_records": [
+                                {
+                                    "aliases": ["VPN"],
+                                    "audience": ["unknown"],
+                                    "campus_scope": "all",
+                                    "category": "campus_service",
+                                    "contact_refs": [],
+                                    "display_name": "中央民族大学 VPN 使用说明",
+                                    "effective_from": "2026-05-01T00:00:00+00:00",
+                                    "effective_until": "9999-12-31T23:59:59+00:00",
+                                    "eligibility_notes": [],
+                                    "entry_refs": [],
+                                    "extraction_status": "ready",
+                                    "guide_sections": [
+                                        {
+                                            "section_id": "service:official_web:vpn:section:overview",
+                                            "section_type": "overview",
+                                            "title": "中央民族大学 VPN 使用说明",
+                                            "content": "VPN 使用说明。",
+                                            "order": 1,
+                                            "source_refs": [
+                                                "official_web:muc-it-vpn-service-guide:owver_vpn"
+                                            ],
+                                        }
+                                    ],
+                                    "materials": [],
+                                    "office_hours": [],
+                                    "service_id": "service:official_web:vpn",
+                                    "source_refs": [
+                                        "official_web:muc-it-vpn-service-guide:owver_vpn"
+                                    ],
+                                }
+                            ],
+                            "conflict_records": [],
+                            "manual_review_sources": [],
+                        }
+                    ).encode("utf-8"),
                 }
             )
             task = {
@@ -870,17 +970,24 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
                     projection_reporter=reporter,
                     structured_projection_publisher=publisher,
                     work_dir=root / "selected-write",
+                    derived_bucket="campus-rag-derived",
                 )
 
             self.assertEqual(result.status, "published")
             self.assertEqual(result.collection, "service_guide")
             self.assertEqual(result.record_count, 1)
+            self.assertEqual(result.full_record_count, 2)
             self.assertEqual(publisher.published[0]["collection"], "service_guide")
-            current_key = (
-                "campus_services/releases/service_guide/current/service-guide-projection.json"
-            )
             bundle = json.loads(object_store.objects[("campus-rag-derived", current_key)])
-            record = bundle["service_guide_records"][0]
+            records_by_name = {
+                str(record["display_name"]): record
+                for record in bundle["service_guide_records"]
+            }
+            self.assertEqual(
+                set(records_by_name),
+                {"中央民族大学 VPN 使用说明", "中央民族大学信息公开申请"},
+            )
+            record = records_by_name["中央民族大学信息公开申请"]
             self.assertEqual(record["display_name"], "中央民族大学信息公开申请")
             self.assertIn("中央民族大学学生校园卡服务", record["aliases"])
             self.assertEqual(record["materials"][0]["name"], "申请表")
@@ -1050,6 +1157,148 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
             self.assertEqual(
                 record["entry_refs"][0]["url"],
                 "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+            )
+
+    def test_service_guide_carry_forward_adds_public_source_refs_from_inventory(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            current_key = (
+                "campus_services/releases/service_guide/current/service-guide-projection.json"
+            )
+            object_store = _FakeObjectStore(
+                {
+                    (
+                        "campus-rag-source",
+                        "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json",
+                    ): json.dumps(
+                        {
+                            "pages": [],
+                            "runId": "owrun_contact",
+                            "siteId": "muc_public",
+                        }
+                    ).encode("utf-8"),
+                    (
+                        "campus-rag-derived",
+                        current_key,
+                    ): json.dumps(
+                        {
+                            "schema_version": "campus_services_service_guide_projection.v1",
+                            "generated_at": "2026-05-01T07:00:00+00:00",
+                            "source_families": [
+                                "official_web_curated_service_guide_v1"
+                            ],
+                            "source_documents": [],
+                            "service_guide_records": [
+                                {
+                                    "aliases": ["VPN"],
+                                    "audience": ["unknown"],
+                                    "campus_scope": "all",
+                                    "category": "campus_service",
+                                    "contact_refs": [],
+                                    "display_name": "中央民族大学 VPN 使用说明",
+                                    "effective_from": "2026-05-01T00:00:00+00:00",
+                                    "effective_until": "9999-12-31T23:59:59+00:00",
+                                    "eligibility_notes": [],
+                                    "entry_refs": [
+                                        {
+                                            "entry_id": "service:official_web:vpn:entry:1",
+                                            "entry_type": "online_url",
+                                            "label": "https://vpn.muc.edu.cn",
+                                            "location_ref": "",
+                                            "source_refs": [
+                                                "official_web:muc-it-vpn-service-guide:owver_vpn"
+                                            ],
+                                            "url": "https://vpn.muc.edu.cn",
+                                        }
+                                    ],
+                                    "extraction_status": "ready",
+                                    "guide_sections": [
+                                        {
+                                            "content": "1. 登录 VPN。",
+                                            "order": 1,
+                                            "section_id": "service:official_web:vpn:section:procedure",
+                                            "section_type": "procedure",
+                                            "source_refs": [
+                                                "official_web:muc-it-vpn-service-guide:owver_vpn"
+                                            ],
+                                            "title": "中央民族大学 VPN 使用说明",
+                                        }
+                                    ],
+                                    "materials": [],
+                                    "office_hours": [],
+                                    "service_id": "service:official_web:vpn",
+                                    "source_refs": [
+                                        "official_web:muc-it-vpn-service-guide:owver_vpn"
+                                    ],
+                                }
+                            ],
+                            "conflict_records": [],
+                            "manual_review_sources": [],
+                        }
+                    ).encode("utf-8"),
+                }
+            )
+            task = {
+                **_selected_write_task(selected_write_target="campus_services/service_guide"),
+                "inventoryId": "muc-information-disclosure-application-process",
+            }
+
+            def fake_replay(**_: object) -> dict[str, object]:
+                return {
+                    "consumer_candidate_pages": [
+                        {
+                            "consumer_family": "service_guide_candidate",
+                            "materialization_policy": "candidate_only",
+                            "normalized_canonical_url": "https://www.muc.edu.cn/",
+                            "quality_gate": {"decision": "pass"},
+                            "raw_asset_id": "owasset_service",
+                            "raw_version_id": "owver_service",
+                            "selected_write_target": "campus_services/service_guide",
+                            "target_job_id": "owtarget_contact",
+                            "typed_candidate": {
+                                "contacts": {},
+                                "entry_points": [],
+                                "materials": [],
+                                "process_steps": ["申请人提交申请"],
+                                "responsible_office": [],
+                                "service_name": "中央民族大学信息公开申请",
+                                "source_title": "中央民族大学信息公开申请",
+                                "source_url": "https://www.muc.edu.cn/",
+                            },
+                            "typed_candidate_schema_version": "official_web_service_guide_candidate.v1",
+                        }
+                    ]
+                }
+
+            with (
+                patch(
+                    "campus_ingestion_worker.release_official_web_selected_write.materialize_replay_input"
+                ),
+                patch(
+                    "campus_ingestion_worker.release_official_web_selected_write.replay_official_web_source_truth_local",
+                    side_effect=fake_replay,
+                ),
+            ):
+                result = preview_official_web_selected_write(
+                    release_task=task,
+                    object_store=object_store,
+                    work_dir=root / "selected-write-preview",
+                )
+
+            records_by_name = {
+                str(record["display_name"]): record
+                for record in result.full_bundle["service_guide_records"]
+            }
+            carried_record = records_by_name["中央民族大学 VPN 使用说明"]
+            expected_source_ref = "https://met.muc.edu.cn/info/1046/1674.htm"
+            self.assertIn(expected_source_ref, carried_record["source_refs"])
+            self.assertIn(
+                expected_source_ref,
+                carried_record["guide_sections"][0]["source_refs"],
+            )
+            self.assertIn(
+                expected_source_ref,
+                carried_record["entry_refs"][0]["source_refs"],
             )
 
     def test_single_service_guide_composition_keeps_material_source_refs(self) -> None:

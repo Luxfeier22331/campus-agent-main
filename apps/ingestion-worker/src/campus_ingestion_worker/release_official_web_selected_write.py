@@ -81,6 +81,9 @@ class OfficialWebSelectedWritePublisher(Protocol):
     ) -> object: ...
 
 
+_TARGET_INVENTORY_SOURCE_URLS_BY_ID: dict[str, list[str]] | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class OfficialWebSelectedWriteResult:
     selected_write_id: str
@@ -456,7 +459,7 @@ def _publish_selected_write_projection(
             corpus=prepared.corpus,
             collection=prepared.collection,
             release_id=report.release_id,
-            record_count=len(_mapping_list(prepared.bundle.get("contact_records"))),
+            record_count=len(_mapping_list(prepared.task_scope_bundle.get("contact_records"))),
         )
     if prepared.collection == SERVICE_GUIDE_COLLECTION:
         report = write_service_guide_projection_release(
@@ -483,7 +486,9 @@ def _publish_selected_write_projection(
             corpus=prepared.corpus,
             collection=prepared.collection,
             release_id=report.release_id,
-            record_count=len(_mapping_list(prepared.bundle.get("service_guide_records"))),
+            record_count=len(
+                _mapping_list(prepared.task_scope_bundle.get("service_guide_records"))
+            ),
         )
     raise OfficialWebSelectedWriteReleaseError(
         code="unsupported_selected_write_target",
@@ -783,7 +788,9 @@ def _merge_current_projection_bundle(
     replacement_ids = {str(record.get(id_field) or "").strip() for record in new_records}
     replacement_inventory_ids = _record_inventory_ids(new_records)
     carried_records = [
-        {**record, "release_record_state": "carried_forward"}
+        _with_carried_forward_source_urls(
+            record={**record, "release_record_state": "carried_forward"}
+        )
         for record in current_records
         if str(record.get(id_field) or "").strip() not in replacement_ids
         and not (_record_inventory_ids([record]) & replacement_inventory_ids)
@@ -869,6 +876,62 @@ def _official_web_inventory_id_from_source_ref(source_ref: str) -> str:
     if len(parts) < 3 or parts[0] != "official_web":
         return ""
     return parts[1].strip()
+
+
+def _with_carried_forward_source_urls(*, record: dict[str, object]) -> dict[str, object]:
+    source_urls = _public_source_urls_for_record(record)
+    if not source_urls:
+        return record
+
+    def patch_mapping(value: object) -> object:
+        if isinstance(value, list):
+            return [patch_mapping(item) for item in value]
+        if not isinstance(value, dict):
+            return value
+        patched = {key: patch_mapping(item) for key, item in value.items()}
+        source_refs = _string_list(patched.get("source_refs"))
+        if source_refs:
+            patched["source_refs"] = _unique_strings([*source_refs, *source_urls])
+        return patched
+
+    patched_record = patch_mapping(record)
+    return dict(patched_record) if isinstance(patched_record, dict) else record
+
+
+def _public_source_urls_for_record(record: Mapping[str, object]) -> list[str]:
+    urls: list[str] = []
+    for source_ref in _string_list(record.get("source_refs")):
+        inventory_id = _official_web_inventory_id_from_source_ref(source_ref)
+        if not inventory_id:
+            continue
+        urls.extend(_source_urls_for_inventory_id(inventory_id))
+    return _unique_strings(urls)
+
+
+def _source_urls_for_inventory_id(inventory_id: str) -> list[str]:
+    global _TARGET_INVENTORY_SOURCE_URLS_BY_ID
+    if _TARGET_INVENTORY_SOURCE_URLS_BY_ID is not None:
+        return list(_TARGET_INVENTORY_SOURCE_URLS_BY_ID.get(inventory_id, []))
+    inventory_path = (
+        Path(__file__).resolve().parents[4]
+        / "configs"
+        / "sources"
+        / "official_web"
+        / "muc_public"
+        / "target-inventory.json"
+    )
+    try:
+        inventory = json.loads(inventory_path.read_text(encoding="utf-8"))
+    except Exception:
+        _TARGET_INVENTORY_SOURCE_URLS_BY_ID = {}
+        return []
+    urls_by_id: dict[str, list[str]] = {}
+    for entry in _mapping_list(inventory.get("entries")):
+        entry_inventory_id = str(entry.get("inventory_id") or "").strip()
+        if entry_inventory_id:
+            urls_by_id[entry_inventory_id] = _string_list(entry.get("source_urls"))
+    _TARGET_INVENTORY_SOURCE_URLS_BY_ID = urls_by_id
+    return list(urls_by_id.get(inventory_id, []))
 
 
 def _contact_record_from_candidate(

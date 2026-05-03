@@ -415,6 +415,155 @@ func TestRunUsesFullImpactBundleButTaskScopeTrustedTimeWhenRequested(t *testing.
 	}
 }
 
+func TestRunUsesCollectionFullImpactBundleForCarriedForwardServiceGuideCases(t *testing.T) {
+	input := inputPayload{
+		PreviewReportPath: writePreviewReportFixture(
+			t,
+			previewReport{
+				Results: []previewResult{
+					{
+						SelectedWriteID: "owrelease_selected_write_information_disclosure",
+						Collection:      "service_guide",
+						InventoryID:     "muc-information-disclosure-application-process",
+						Bundle: map[string]any{
+							"schema_version": "campus_services_service_guide_projection.v1",
+							"service_guide_records": []map[string]any{
+								{
+									"service_id":       "service:official-web:information-disclosure",
+									"display_name":     "中央民族大学信息公开依申请公开工作流程",
+									"aliases":          []string{"信息公开申请流程"},
+									"category":         "campus_service",
+									"campus_scope":     "all",
+									"audience":         []string{"unknown"},
+									"effective_from":   "2026-05-02T00:00:00+08:00",
+									"effective_until":  "9999-12-31T23:59:59+08:00",
+									"source_refs":      []string{"https://xxgk.muc.edu.cn/info/1007/1113.htm"},
+									"materials":        []any{},
+									"office_hours":     []any{},
+									"contact_refs":     []any{},
+									"entry_refs":       []any{},
+									"eligibility_notes": []any{},
+									"extraction_status": "ready",
+									"field_status": map[string]string{
+										"service_name":            "present",
+										"process_steps":           "present",
+										"service_entry":           "source_not_provided",
+										"source_url":              "present",
+										"source_version_evidence": "present",
+										"service_process":         "present",
+									},
+									"guide_sections": []map[string]any{
+										{
+											"section_id":   "information-disclosure:procedure",
+											"section_type": "procedure",
+											"title":        "信息公开申请流程",
+											"content":      "1. 提交信息公开申请。",
+											"order":        1,
+											"source_refs":  []string{"https://xxgk.muc.edu.cn/info/1007/1113.htm"},
+										},
+									},
+								},
+							},
+						},
+						FullBundle: map[string]any{
+							"schema_version": "campus_services_service_guide_projection.v1",
+							"service_guide_records": []map[string]any{
+								{
+									"service_id":       "service:official-web:vpn",
+									"display_name":     "中央民族大学 VPN 使用说明",
+									"aliases":          []string{"VPN 使用说明"},
+									"category":         "campus_service",
+									"campus_scope":     "all",
+									"audience":         []string{"unknown"},
+									"effective_from":   "2026-05-01T00:00:00+08:00",
+									"effective_until":  "9999-12-31T23:59:59+08:00",
+									"source_refs":      []string{"https://met.muc.edu.cn/info/1046/1674.htm"},
+									"materials":        []any{},
+									"office_hours":     []any{},
+									"contact_refs":     []any{},
+									"eligibility_notes": []any{},
+									"extraction_status": "ready",
+									"field_status": map[string]string{
+										"service_name":            "present",
+										"process_steps":           "present",
+										"service_entry":           "present",
+										"source_url":              "present",
+										"source_version_evidence": "present",
+										"service_process":         "present",
+									},
+									"guide_sections": []map[string]any{
+										{
+											"section_id":   "vpn:procedure",
+											"section_type": "procedure",
+											"title":        "VPN 说明",
+											"content":      "1. 访问 https://vpn.muc.edu.cn 登录 VPN。",
+											"order":        1,
+											"source_refs":  []string{"https://met.muc.edu.cn/info/1046/1674.htm"},
+										},
+										{
+											"section_id":   "vpn:entry",
+											"section_type": "entry",
+											"title":        "办理入口",
+											"content":      "https://vpn.muc.edu.cn",
+											"order":        2,
+											"source_refs":  []string{"https://met.muc.edu.cn/info/1046/1674.htm"},
+										},
+									},
+									"entry_refs": []map[string]any{
+										{
+											"entry_id":    "vpn:entry:1",
+											"label":       "https://vpn.muc.edu.cn",
+											"entry_type":  "online_url",
+											"url":         "https://vpn.muc.edu.cn",
+											"location_ref": "",
+											"source_refs": []string{"https://met.muc.edu.cn/info/1046/1674.htm"},
+										},
+									},
+								},
+							},
+						},
+					},
+				},
+			},
+		),
+		BundleScope: "full_impact",
+		Cases: []runtimeCase{
+			{
+				CaseID:                      "service-vpn-entry-full-impact",
+				Collection:                  "service_guide",
+				InventoryID:                 "muc-it-vpn-service-guide",
+				Mode:                        "planner_runtime",
+				UserGoal:                    "VPN入口在哪里",
+				ExpectedTarget:              "campus-services-agent",
+				ExpectedPayloadKind:         "service_guide_lookup",
+				ExpectedSelectedTool:        "service_guide_lookup",
+				ExpectedOutcome:             "resolved_current",
+				ExpectedResolvedDisplayName: "中央民族大学 VPN 使用说明",
+				RequiredBodyTokens:          []string{"vpn.muc.edu.cn"},
+			},
+		},
+	}
+
+	raw, err := json.Marshal(input)
+	if err != nil {
+		t.Fatalf("marshal input: %v", err)
+	}
+	var stdout bytes.Buffer
+	if err := run(bytes.NewReader(raw), &stdout); err != nil {
+		t.Fatalf("run: %v", err)
+	}
+	var output outputPayload
+	if err := json.Unmarshal(stdout.Bytes(), &output); err != nil {
+		t.Fatalf("parse output: %v", err)
+	}
+	if len(output.Results) != 1 {
+		t.Fatalf("results len = %d, want 1", len(output.Results))
+	}
+	if !output.Results[0].Passed {
+		t.Fatalf("case failed: %#v", output.Results[0].Failures)
+	}
+}
+
 func writePreviewReportFixture(t *testing.T, report previewReport) string {
 	t.Helper()
 	path := t.TempDir() + "/preview-report.json"
