@@ -1052,6 +1052,176 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
                 "https://xxgk.muc.edu.cn/info/1007/1114.htm",
             )
 
+    def test_single_service_guide_composition_keeps_material_source_refs(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            object_store = _FakeObjectStore(
+                {
+                    (
+                        "campus-rag-source",
+                        "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json",
+                    ): json.dumps(
+                        {
+                            "pages": [],
+                            "runId": "owrun_contact",
+                            "siteId": "muc_public",
+                        }
+                    ).encode("utf-8")
+                }
+            )
+            task = {
+                **_selected_write_task(selected_write_target="campus_services/service_guide"),
+                "inventoryId": "muc-information-disclosure-application-process",
+                "inputRef": {
+                    **dict(
+                        _selected_write_task(
+                            selected_write_target="campus_services/service_guide"
+                        )["inputRef"]
+                    ),
+                    "fieldStatus": {
+                        "process_steps": "present",
+                        "required_materials": "present",
+                        "service_entry": "present",
+                        "service_material": "present",
+                        "service_name": "present",
+                        "service_process": "present",
+                        "source_url": "present",
+                        "source_version_evidence": "present",
+                    },
+                    "sourceRefs": [
+                        {
+                            "raw_asset_id": "owasset_info_procedure",
+                            "raw_version_id": "owver_info_procedure",
+                            "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                        },
+                        {
+                            "raw_asset_id": "owasset_info_material",
+                            "raw_version_id": "owver_info_material",
+                            "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+                        },
+                        {
+                            "raw_asset_id": "owasset_info_contact",
+                            "raw_version_id": "owver_info_contact",
+                            "normalized_canonical_url": "https://xxgk.muc.edu.cn/xxgk/lxfs.htm",
+                        },
+                    ],
+                    "sourceUrls": [
+                        "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                        "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+                        "https://xxgk.muc.edu.cn/xxgk/lxfs.htm",
+                    ],
+                    "targetLabel": "中央民族大学信息公开依申请公开工作流程",
+                },
+            }
+
+            def fake_replay(**_: object) -> dict[str, object]:
+                return {
+                    "consumer_candidate_pages": [
+                        {
+                            "consumer_family": "service_guide_candidate",
+                            "materialization_policy": "candidate_only",
+                            "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                            "quality_gate": {"decision": "pass"},
+                            "raw_asset_id": "owasset_info_procedure",
+                            "raw_version_id": "owver_info_procedure",
+                            "selected_write_target": "campus_services/service_guide",
+                            "source_refs": [
+                                "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                                "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+                                "https://xxgk.muc.edu.cn/xxgk/lxfs.htm",
+                            ],
+                            "target_job_id": "owtarget_contact",
+                            "typed_candidate": {
+                                "contacts": {
+                                    "phones": ["010-68930000"],
+                                },
+                                "entry_points": [
+                                    "https://xxgk.muc.edu.cn/info/1007/1114.htm"
+                                ],
+                                "field_source_urls": {
+                                    "contacts": ["https://xxgk.muc.edu.cn/xxgk/lxfs.htm"],
+                                    "entry_points": [
+                                        "https://xxgk.muc.edu.cn/info/1007/1114.htm"
+                                    ],
+                                    "materials": [
+                                        "https://xxgk.muc.edu.cn/info/1007/1114.htm"
+                                    ],
+                                    "process_steps": [
+                                        "https://xxgk.muc.edu.cn/info/1007/1113.htm"
+                                    ],
+                                    "responsible_office": [
+                                        "https://xxgk.muc.edu.cn/info/1007/1113.htm"
+                                    ],
+                                },
+                                "materials": [
+                                    "中央民族大学依申请公开信息审批表",
+                                    "中央民族大学信息公开申请表",
+                                ],
+                                "process_steps": ["申请人提交信息公开申请"],
+                                "responsible_office": ["学校信息公开办公室"],
+                                "service_name": "中央民族大学信息公开申请",
+                                "source_title": "中央民族大学信息公开申请",
+                                "source_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                                "supporting_source_urls": [
+                                    "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                                    "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+                                    "https://xxgk.muc.edu.cn/xxgk/lxfs.htm",
+                                ],
+                            },
+                            "typed_candidate_schema_version": "official_web_service_guide_candidate.v1",
+                        }
+                    ]
+                }
+
+            with (
+                patch(
+                    "campus_ingestion_worker.release_official_web_selected_write.materialize_replay_input"
+                ),
+                patch(
+                    "campus_ingestion_worker.release_official_web_selected_write.replay_official_web_source_truth_local",
+                    side_effect=fake_replay,
+                ),
+            ):
+                result = preview_official_web_selected_write(
+                    release_task=task,
+                    object_store=object_store,
+                    work_dir=root / "selected-write-preview",
+                )
+
+            record = result.bundle["service_guide_records"][0]
+            self.assertEqual(
+                record["source_refs"],
+                [
+                    "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                    "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+                    "https://xxgk.muc.edu.cn/xxgk/lxfs.htm",
+                ],
+            )
+            self.assertEqual(
+                [item["name"] for item in record["materials"]],
+                [
+                    "中央民族大学依申请公开信息审批表",
+                    "中央民族大学信息公开申请表",
+                ],
+            )
+            self.assertEqual(
+                record["materials"][0]["source_refs"],
+                ["https://xxgk.muc.edu.cn/info/1007/1114.htm"],
+            )
+            self.assertEqual(
+                record["materials"][1]["source_refs"],
+                ["https://xxgk.muc.edu.cn/info/1007/1114.htm"],
+            )
+            required_materials_sections = [
+                section
+                for section in record["guide_sections"]
+                if section["section_type"] == "required_materials"
+            ]
+            self.assertEqual(
+                required_materials_sections[0]["source_refs"],
+                ["https://xxgk.muc.edu.cn/info/1007/1114.htm"],
+            )
+
     def test_preview_selected_write_contact_directory_prefers_target_label_for_generic_shell_title(
         self,
     ) -> None:

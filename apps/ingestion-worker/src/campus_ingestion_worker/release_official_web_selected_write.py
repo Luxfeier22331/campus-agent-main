@@ -984,6 +984,32 @@ def _service_guide_record_from_candidate(
     materials = _string_list(typed_candidate.get("materials"))
     entry_points = _string_list(typed_candidate.get("entry_points"))
     responsible_offices = _string_list(typed_candidate.get("responsible_office"))
+    field_source_urls = _object_mapping(typed_candidate.get("field_source_urls"))
+    process_source_refs = _candidate_field_source_refs(
+        field_source_urls=field_source_urls,
+        field_name="process_steps",
+        fallback_source_ref=source_ref,
+    )
+    material_source_refs = _candidate_field_source_refs(
+        field_source_urls=field_source_urls,
+        field_name="materials",
+        fallback_source_ref=source_ref,
+    )
+    entry_source_refs = _candidate_field_source_refs(
+        field_source_urls=field_source_urls,
+        field_name="entry_points",
+        fallback_source_ref=source_ref,
+    )
+    office_source_refs = _candidate_field_source_refs(
+        field_source_urls=field_source_urls,
+        field_name="responsible_office",
+        fallback_source_ref=source_ref,
+    )
+    contact_source_refs = _candidate_field_source_refs(
+        field_source_urls=field_source_urls,
+        field_name="contacts",
+        fallback_source_ref=source_ref,
+    )
     contacts = _object_mapping(typed_candidate.get("contacts"))
     office_hours = _string_list(contacts.get("office_hours"))
     contact_refs = _service_guide_contact_refs(
@@ -991,7 +1017,7 @@ def _service_guide_record_from_candidate(
         display_name=display_name,
         responsible_offices=responsible_offices,
         service_id=service_id,
-        source_ref=source_ref,
+        source_ref=contact_source_refs[0],
     )
     guide_sections = _service_guide_sections(
         service_id=service_id,
@@ -1000,7 +1026,11 @@ def _service_guide_record_from_candidate(
         materials=materials,
         entry_points=entry_points,
         responsible_offices=responsible_offices,
-        source_ref=source_ref,
+        process_source_refs=process_source_refs,
+        material_source_refs=material_source_refs,
+        entry_source_refs=entry_source_refs,
+        office_source_refs=office_source_refs,
+        fallback_source_ref=source_ref,
     )
     selected_write_field_review = _selected_write_field_review(selected_write_task)
     return {
@@ -1028,7 +1058,7 @@ def _service_guide_record_from_candidate(
                 "name": material,
                 "required": True,
                 "note": "",
-                "source_refs": [source_ref],
+                "source_refs": material_source_refs,
             }
             for index, material in enumerate(materials, start=1)
         ],
@@ -1041,7 +1071,7 @@ def _service_guide_record_from_candidate(
                 else "web_page",
                 "url": entry if entry.startswith(("http://", "https://")) else "",
                 "location_ref": "",
-                "source_refs": [source_ref],
+                "source_refs": entry_source_refs,
             }
             for index, entry in enumerate(entry_points, start=1)
         ],
@@ -1052,7 +1082,7 @@ def _service_guide_record_from_candidate(
                 "day_pattern": "",
                 "time_range": "",
                 "effective_note": "",
-                "source_refs": [source_ref],
+                "source_refs": contact_source_refs,
             }
             for index, hours in enumerate(office_hours, start=1)
         ],
@@ -1223,7 +1253,17 @@ def _with_public_service_guide_source_refs(
     primary_source_ref = source_refs[0]
 
     def replace_item_sources(value: object) -> list[dict[str, object]]:
-        return [{**item, "source_refs": [primary_source_ref]} for item in _mapping_list(value)]
+        return [
+            {
+                **item,
+                "source_refs": _public_item_source_refs(
+                    item=item,
+                    public_source_refs=source_refs,
+                    fallback_source_ref=primary_source_ref,
+                ),
+            }
+            for item in _mapping_list(value)
+        ]
 
     return {
         **record,
@@ -1234,6 +1274,29 @@ def _with_public_service_guide_source_refs(
         "office_hours": replace_item_sources(record.get("office_hours")),
         "contact_refs": replace_item_sources(record.get("contact_refs")),
     }
+
+
+def _candidate_field_source_refs(
+    *,
+    field_source_urls: Mapping[str, object],
+    field_name: str,
+    fallback_source_ref: str,
+) -> list[str]:
+    return _unique_strings(_string_list(field_source_urls.get(field_name)) or [fallback_source_ref])
+
+
+def _public_item_source_refs(
+    *,
+    item: Mapping[str, object],
+    public_source_refs: Sequence[str],
+    fallback_source_ref: str,
+) -> list[str]:
+    source_refs = _string_list(item.get("source_refs"))
+    if not source_refs:
+        return [fallback_source_ref]
+    public_ref_set = set(public_source_refs)
+    public_refs = [source_ref for source_ref in source_refs if source_ref in public_ref_set]
+    return _unique_strings(public_refs or [fallback_source_ref])
 
 
 def _selected_write_effective_from(
@@ -1286,7 +1349,11 @@ def _service_guide_sections(
     materials: list[str],
     entry_points: list[str],
     responsible_offices: list[str],
-    source_ref: str,
+    process_source_refs: list[str],
+    material_source_refs: list[str],
+    entry_source_refs: list[str],
+    office_source_refs: list[str],
+    fallback_source_ref: str,
 ) -> list[dict[str, object]]:
     sections: list[dict[str, object]] = []
     if process_steps:
@@ -1299,7 +1366,7 @@ def _service_guide_sections(
                     f"{index}. {step}" for index, step in enumerate(process_steps, start=1)
                 ),
                 "order": 1,
-                "source_refs": [source_ref],
+                "source_refs": process_source_refs,
             }
         )
     if materials:
@@ -1310,7 +1377,7 @@ def _service_guide_sections(
                 "title": "申请材料",
                 "content": "\n".join(materials),
                 "order": 2,
-                "source_refs": [source_ref],
+                "source_refs": material_source_refs,
             }
         )
     if entry_points:
@@ -1321,7 +1388,7 @@ def _service_guide_sections(
                 "title": "办理入口",
                 "content": "\n".join(entry_points),
                 "order": 3,
-                "source_refs": [source_ref],
+                "source_refs": entry_source_refs,
             }
         )
     if responsible_offices:
@@ -1332,7 +1399,7 @@ def _service_guide_sections(
                 "title": "负责部门",
                 "content": "\n".join(responsible_offices),
                 "order": 4,
-                "source_refs": [source_ref],
+                "source_refs": office_source_refs,
             }
         )
     if sections:
@@ -1344,7 +1411,7 @@ def _service_guide_sections(
             "title": display_name,
             "content": display_name,
             "order": 1,
-            "source_refs": [source_ref],
+            "source_refs": [fallback_source_ref],
         }
     ]
 

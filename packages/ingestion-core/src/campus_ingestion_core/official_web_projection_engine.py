@@ -636,6 +636,22 @@ def _build_email_service_candidate_page(
         + _extract_mail_host_entry_points(entry_lines)
     )
     contact_text_lines = _unique(contact_lines + policy_lines + entry_lines)
+    field_source_urls = {
+        "process_steps": [
+            _require_text(
+                dict(policy_context["manifest"]).get("normalizedCanonicalUrl"),
+                "normalizedCanonicalUrl",
+            )
+        ]
+        if process_steps
+        else [],
+        "materials": _composition_source_urls(material_contexts) if materials else [],
+        "entry_points": _composition_source_urls(entry_contexts) if entry_points else [],
+        "responsible_office": _composition_source_urls([policy_context, *contact_contexts])
+        if responsible_office
+        else [],
+        "contacts": _composition_source_urls(contact_contexts) if contact_text_lines else [],
+    }
     typed_candidate = {
         "service_name": _service_candidate_name(
             title=title,
@@ -656,6 +672,7 @@ def _build_email_service_candidate_page(
         "supporting_source_urls": _composition_source_urls(
             [policy_context, *entry_contexts, *material_contexts, *contact_contexts]
         ),
+        "field_source_urls": field_source_urls,
         "source_url": normalized_canonical_url,
         "source_title": title,
     }
@@ -749,6 +766,22 @@ def _build_information_disclosure_service_candidate_page(
         + _extract_mail_host_entry_points(material_lines)
     )
     contact_text_lines = _unique(contact_lines + procedure_lines)
+    field_source_urls = {
+        "process_steps": [
+            _require_text(
+                dict(procedure_context["manifest"]).get("normalizedCanonicalUrl"),
+                "normalizedCanonicalUrl",
+            )
+        ]
+        if process_steps
+        else [],
+        "materials": _composition_source_urls(material_contexts) if materials else [],
+        "entry_points": _composition_source_urls(material_contexts) if entry_points else [],
+        "responsible_office": _composition_source_urls([procedure_context, *contact_contexts])
+        if responsible_office
+        else [],
+        "contacts": _composition_source_urls(contact_contexts) if contact_text_lines else [],
+    }
     typed_candidate = {
         "service_name": _service_candidate_name(
             title=title,
@@ -769,6 +802,7 @@ def _build_information_disclosure_service_candidate_page(
         "supporting_source_urls": _composition_source_urls(
             [procedure_context, *material_contexts, *contact_contexts]
         ),
+        "field_source_urls": field_source_urls,
         "source_url": normalized_canonical_url,
         "source_title": title,
     }
@@ -1223,6 +1257,9 @@ def _extract_service_materials(lines: list[str]) -> list[str]:
     for line in lines:
         if _SERVICE_EXPLANATION_PREFIX_RE.search(line):
             continue
+        if _is_service_material_name_line(line):
+            materials.append(line.strip())
+            continue
         if not _SERVICE_MATERIAL_DECLARATION_RE.search(line):
             continue
         fragment = _material_fragment(line)
@@ -1263,6 +1300,22 @@ def _is_service_material_only_line(line: str) -> bool:
             r"[\u4e00-\u9fffA-Za-z0-9（）()《》、，, -]*(?:申请表|审批表|表格|下载)[\u4e00-\u9fffA-Za-z0-9（）()《》、，, -]*",
             normalized,
         )
+    )
+
+
+def _is_service_material_name_line(line: str) -> bool:
+    normalized = line.strip(" \t，,。；;：:")
+    if not normalized:
+        return False
+    if "下载" in normalized:
+        return False
+    if normalized in {"申请表格", "申请表", "审批表", "表格"}:
+        return False
+    if len(normalized) > 48:
+        return False
+    return bool(
+        re.fullmatch(r"[\u4e00-\u9fffA-Za-z0-9（）()《》、，, .·\-－—]+", normalized)
+        and re.search(r"(申请表|审批表|表格)", normalized)
     )
 
 

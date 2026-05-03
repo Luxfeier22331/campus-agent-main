@@ -1221,6 +1221,10 @@ class OfficialWebProjectionCoreReplayTest(unittest.TestCase):
             candidate = report.consumer_candidate_pages[0]
             self.assertEqual(candidate["typed_candidate"]["process_steps"], [])
             self.assertEqual(
+                candidate["typed_candidate"]["materials"],
+                ["中央民族大学依申请公开信息审批表", "中央民族大学信息公开申请表"],
+            )
+            self.assertEqual(
                 candidate["quality_gate"],
                 {"decision": "reject", "reason_codes": ["missing_required_evidence"]},
             )
