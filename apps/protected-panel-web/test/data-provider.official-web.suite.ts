@@ -182,8 +182,14 @@ export function registerDataProviderOfficialWebSuite() {
 						maxAttempts: 3,
 						observedAgeSeconds: 0,
 						outputSummary: {
+							fullImpactDisplayNames: [
+								"中央民族大学",
+								"中央民族大学信息公开联系方式",
+							],
+							fullRecordCount: 2,
 							recordCount: 1,
 							releaseId: "release_contact",
+							taskScopeDisplayNames: ["中央民族大学信息公开联系方式"],
 						},
 						producerVersion: "test@1",
 						projectedAt: "2026-05-01T08:03:00.000Z",
@@ -257,7 +263,13 @@ export function registerDataProviderOfficialWebSuite() {
 					maxAttempts: 3,
 					observedAgeSeconds: 0,
 					outputSummary: {
+						fullImpactDisplayNames: [
+							"中央民族大学",
+							"中央民族大学信息公开联系方式",
+						],
+						fullRecordCount: 2,
 						releaseId: "release_contact",
+						taskScopeDisplayNames: ["中央民族大学信息公开联系方式"],
 					},
 					producerVersion: "test@1",
 					projectedAt: "2026-05-01T08:03:00.000Z",

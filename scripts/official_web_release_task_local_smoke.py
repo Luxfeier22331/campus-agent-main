@@ -35,6 +35,12 @@ class _SmokeReleaseResult:
     corpus: str = "campus_services"
     collection: str = "contact_directory"
     record_count: int = 1
+    full_record_count: int = 2
+    task_scope_display_names: tuple[str, ...] = ("中央民族大学信息公开联系方式",)
+    full_impact_display_names: tuple[str, ...] = (
+        "中央民族大学",
+        "中央民族大学信息公开联系方式",
+    )
     document_ids: tuple[str, ...] = ("official-web-release-task-local-smoke",)
     source_bundle_key: str = (
         "official_web/campus_public/runs/owrun_local_smoke/source-truth-bundle.json"

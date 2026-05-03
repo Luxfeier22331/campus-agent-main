@@ -519,8 +519,13 @@ approve/reject decisions.
         "sourceUrlCount": 1
       },
       "outputSummary": {
+        "releaseId": "owrelease_selected_write_01JQ...",
+        "corpus": "campus_services",
+        "collection": "contact_directory",
         "recordCount": 1,
-        "collection": "contact_directory"
+        "fullRecordCount": 2,
+        "taskScopeDisplayNames": ["中央民族大学信息公开联系方式"],
+        "fullImpactDisplayNames": ["中央民族大学", "中央民族大学信息公开联系方式"]
       },
       "timeline": [
         {
@@ -557,6 +562,11 @@ approve/reject decisions.
 - `taskId` 是 snapshot 幂等 upsert key；timeline event 使用 `eventId` 或
   deterministic event identity 幂等写入
 - app-api 只保存 redacted summary 与 timeline，不保存 release task input/output truth
+- selected-write `outputSummary` 采用双轨摘要语义：
+  - `recordCount` / `taskScopeDisplayNames` 表示本次 task-scope 写入集合
+  - `fullRecordCount` / `fullImpactDisplayNames` 表示与当前 projection merge 后的
+    全量 current 影响面
+  - panel 只展示 ingestion worker 已投影的摘要，不在 app-api 或 panel 侧自行推导“本次写入”和“全量影响”
 
 ### `GET /api/operator/official-web/release-tasks`
 
@@ -594,6 +604,14 @@ approve/reject decisions.
 - `maxAttempts`
 - `inputSummary`
 - `outputSummary`
+- 对 selected-write task，`outputSummary` 至少允许包含：
+  - `releaseId`
+  - `corpus`
+  - `collection`
+  - `recordCount`
+  - `fullRecordCount`
+  - `taskScopeDisplayNames`
+  - `fullImpactDisplayNames`
 - `timeline`
 - `freshnessStatus`
 

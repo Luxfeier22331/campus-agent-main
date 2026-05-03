@@ -290,11 +290,18 @@ Required env:
 - `OBJECT_STORE_SECRET_KEY`
 - `OFFICIAL_WEB_RELEASE_TASK_DATABASE_URL` or `CAMPUS_SHARED_POSTGRES_URL`
 - `OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_URL` or operator shared DB env
-
-Optional env:
-
 - `INGESTION_WORKER_APP_API_BASE_URL`
 - `INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET`
+
+Local dev fallback:
+
+- when repo root `.env` already defines `APP_API_INTERNAL_SHARED_SECRET` and
+  the worker callback env is still unset, `load_worker_env()` derives
+  `INGESTION_WORKER_APP_API_BASE_URL=http://127.0.0.1:27031` and reuses
+  `APP_API_INTERNAL_SHARED_SECRET`
+- set explicit `INGESTION_WORKER_APP_API_*` values when local `app-api` is not
+  running on the default port or when deployment/runtime config must stay
+  explicit
 
 Optional CLI args:
 
@@ -311,8 +318,10 @@ Behavior:
 - Dispatches stable-reference tasks to `release_official_web_target`
 - Dispatches selected-write tasks to `release_official_web_selected_write`
 - Marks materialized / indexed / published / failed state in the task store
-- Reports redacted operator snapshots to app-api only when callback env is
+- Fails closed unless the app-api operator projection callback env is
   configured
+- Reports redacted operator snapshots to app-api as part of the canonical
+  release-task execution path
 
 Local integration smoke:
 

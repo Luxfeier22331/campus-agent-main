@@ -65,8 +65,25 @@ def build_official_web_release_task_projection_reporter_from_env(
     )
 
 
+def require_official_web_release_task_projection_reporter_from_env(
+    env: Mapping[str, str] | None = None,
+) -> HttpOfficialWebReleaseTaskProjectionReporter:
+    reporter = build_official_web_release_task_projection_reporter_from_env(env)
+    if reporter is not None:
+        return reporter
+    raise OfficialWebReleaseTaskProjectionReportError(
+        code="official_web_release_task_projection_callback_not_configured",
+        message=(
+            "Missing required official web release task projection callback env: "
+            "INGESTION_WORKER_APP_API_BASE_URL and "
+            "INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET."
+        ),
+    )
+
+
 __all__ = [
     "HttpOfficialWebReleaseTaskProjectionReporter",
     "OfficialWebReleaseTaskProjectionReportError",
     "build_official_web_release_task_projection_reporter_from_env",
+    "require_official_web_release_task_projection_reporter_from_env",
 ]

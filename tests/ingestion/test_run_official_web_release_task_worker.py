@@ -20,6 +20,12 @@ class _ReleaseResult:
     corpus: str = "campus_services"
     collection: str = "contact_directory"
     record_count: int = 1
+    full_record_count: int = 2
+    task_scope_display_names: tuple[str, ...] = ("中央民族大学信息公开联系方式",)
+    full_impact_display_names: tuple[str, ...] = (
+        "中央民族大学",
+        "中央民族大学信息公开联系方式",
+    )
     document_ids: tuple[str, ...] = ()
     source_bundle_key: str = "official_web/muc_public/runs/owrun/source-truth-bundle.json"
 
@@ -103,6 +109,57 @@ class RunOfficialWebReleaseTaskWorkerTest(unittest.TestCase):
         self.assertEqual(
             [snapshot["lifecycleStatus"] for snapshot in reporter.snapshots],
             ["claimed", "running", "published"],
+        )
+        self.assertEqual(
+            reporter.snapshots[-1]["outputSummary"]["taskScopeDisplayNames"],
+            ["中央民族大学信息公开联系方式"],
+        )
+        self.assertEqual(reporter.snapshots[-1]["outputSummary"]["fullRecordCount"], 2)
+        self.assertEqual(
+            reporter.snapshots[-1]["outputSummary"]["fullImpactDisplayNames"],
+            ["中央民族大学", "中央民族大学信息公开联系方式"],
+        )
+
+    def test_service_guide_selected_write_publishes_full_impact_summary_projection(self) -> None:
+        store = InMemoryOfficialWebReleaseTaskStore()
+        store.create_or_get_task(_selected_write_service_guide_task())
+        reporter = _Reporter()
+
+        def fake_selected_write_release(**_: object) -> _ReleaseResult:
+            return _ReleaseResult(
+                status="published",
+                release_id="release_service_guide",
+                collection="service_guide",
+                record_count=1,
+                full_record_count=2,
+                task_scope_display_names=("中央民族大学信息公开依申请公开工作流程",),
+                full_impact_display_names=("学生校园卡服务", "中央民族大学信息公开依申请公开工作流程"),
+            )
+
+        with TemporaryDirectory() as temp_dir:
+            result = run_official_web_release_task_once(
+                derived_object_store=object(),
+                object_store=object(),
+                projection_reporter=reporter,
+                release_selected_write_func=fake_selected_write_release,
+                release_store=store,
+                release_target_func=None,
+                structured_projection_publisher=object(),
+                worker_id="worker-a",
+                work_dir=Path(temp_dir),
+                now=lambda: datetime(2026, 5, 1, 8, 3, tzinfo=UTC),
+            )
+
+        self.assertIsNotNone(result)
+        self.assertEqual(result.task_id, "owrelease_service_guide")
+        self.assertEqual(
+            reporter.snapshots[-1]["outputSummary"]["taskScopeDisplayNames"],
+            ["中央民族大学信息公开依申请公开工作流程"],
+        )
+        self.assertEqual(reporter.snapshots[-1]["outputSummary"]["fullRecordCount"], 2)
+        self.assertEqual(
+            reporter.snapshots[-1]["outputSummary"]["fullImpactDisplayNames"],
+            ["学生校园卡服务", "中央民族大学信息公开依申请公开工作流程"],
         )
 
     def test_task_id_executes_selected_task_without_claiming_older_matching_type(self) -> None:

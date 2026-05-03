@@ -15,7 +15,7 @@ describe("official web target inventory report", () => {
 		const report = buildOfficialWebTargetInventoryReport(config);
 
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 6,
+			candidate: 13,
 		});
 		expect(report.entries[0]).toMatchObject({
 			inventoryId: "muc-main-homepage-contact",
@@ -249,9 +249,25 @@ describe("official web target inventory report", () => {
 			reviewState: "previewed",
 		});
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 5,
+			candidate: 12,
 			previewed: 1,
 		});
+	});
+
+	it("includes newly admitted email service, met contact, and public regulation targets", () => {
+		const config = loadOfficialWebConfig("muc_public");
+		const inventoryIds = config.targetInventory.entries.map((entry) => entry.inventoryId);
+
+		expect(inventoryIds).toEqual(
+			expect.arrayContaining([
+				"muc-it-network-auth-service-guide",
+				"muc-it-vpn-service-guide",
+				"muc-it-email-service-guide",
+				"muc-it-service-contacts",
+				"muc-academic-committee-charter",
+				"muc-staff-congress-procedure",
+			]),
+		);
 	});
 
 	it("normalizes bundled manifest JSON into the same report contract without filesystem access", () => {

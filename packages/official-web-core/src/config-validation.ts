@@ -412,6 +412,17 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 			if (rule.selectedWriteTarget) {
 				throw new Error("notice_news_candidate selectedWriteTarget must be empty");
 			}
+		} else if (rule.consumerFamily === "regulation_candidate") {
+			if (rule.materializationPolicy !== "release_gate_required") {
+				throw new Error(
+					"regulation_candidate must use materializationPolicy=release_gate_required",
+				);
+			}
+			if (rule.selectedWriteTarget !== "regulations/institutional_rules") {
+				throw new Error(
+					"regulation_candidate selectedWriteTarget must be regulations/institutional_rules",
+				);
+			}
 		} else {
 			assertNonEmpty(
 				rule.selectedWriteTarget,

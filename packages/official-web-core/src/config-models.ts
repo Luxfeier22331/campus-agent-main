@@ -27,6 +27,7 @@ export const OFFICIAL_WEB_CONSUMER_FAMILIES = [
 	"contact_directory_candidate",
 	"service_guide_candidate",
 	"stable_reference_candidate",
+	"regulation_candidate",
 	"notice_news_candidate",
 ] as const;
 export const OFFICIAL_WEB_CONSUMER_MATERIALIZATION_POLICIES = [
@@ -47,6 +48,7 @@ export const OFFICIAL_WEB_CONSUMER_REQUIRED_EVIDENCE = [
 	"service_entry",
 	"service_material",
 	"stable_reference",
+	"regulation_text",
 	"notice_news",
 ] as const;
 export const OFFICIAL_WEB_CONSUMER_REJECTED_POLICIES = ["reject"] as const;
@@ -99,6 +101,7 @@ export const OFFICIAL_WEB_SOURCE_PACK_EXPECTED_FACTS = [
 	"location",
 	"office_hours",
 	"stable_reference",
+	"regulation_text",
 	"notice_news",
 ] as const;
 export const OFFICIAL_WEB_DECLARABLE_PAGE_FAMILIES = [

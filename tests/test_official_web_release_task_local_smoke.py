@@ -90,6 +90,15 @@ class OfficialWebReleaseTaskLocalSmokeTest(unittest.TestCase):
         self.assertEqual(report["task"]["taskId"], "owrelease_local_smoke_test")
         self.assertEqual(report["task"]["lifecycleStatus"], "published")
         self.assertEqual(report["releaseTaskRunner"]["status"], "published")
+        self.assertEqual(
+            report["task"]["outputSummary"]["taskScopeDisplayNames"],
+            ["中央民族大学信息公开联系方式"],
+        )
+        self.assertEqual(report["task"]["outputSummary"]["fullRecordCount"], 2)
+        self.assertEqual(
+            report["task"]["outputSummary"]["fullImpactDisplayNames"],
+            ["中央民族大学", "中央民族大学信息公开联系方式"],
+        )
 
 
 if __name__ == "__main__":

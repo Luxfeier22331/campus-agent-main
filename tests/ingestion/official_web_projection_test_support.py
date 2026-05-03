@@ -271,11 +271,12 @@ def _target_match(
     target_job_id: str = "owtargetjob_test",
     target_candidate_id: str | None = "owtargetcandidate_test",
     target_declaration_version: str = "muc_public_target_source_map_v2",
+    target_label: str | None = None,
     retention_policy: str = "retain_source_truth",
     review_policy: str = "selected_write_requires_review",
     workset_reason: str = "target_source_map_match",
 ) -> dict[str, object]:
-    return {
+    payload = {
         "targetJobId": target_job_id,
         "targetCandidateId": target_candidate_id,
         "targetId": target_id,
@@ -287,6 +288,9 @@ def _target_match(
         "reviewPolicy": review_policy,
         "worksetReason": workset_reason,
     }
+    if target_label is not None:
+        payload["targetLabel"] = target_label
+    return payload
 
 
 def _block(

@@ -60,8 +60,14 @@ const releaseTaskRecord = {
 		sourceUrls: ["https://www.muc.edu.cn/"],
 	},
 	outputSummary: {
+		fullImpactDisplayNames: [
+			"中央民族大学",
+			"中央民族大学信息公开联系方式",
+		],
+		fullRecordCount: 2,
 		recordCount: 1,
 		releaseId: "release_contact",
+		taskScopeDisplayNames: ["中央民族大学信息公开联系方式"],
 	},
 	timeline: [
 		{
@@ -82,6 +88,34 @@ const releaseTaskRecord = {
 	observedAgeSeconds: 0,
 	staleAfterSeconds: 1800,
 	staleReasonCode: null,
+};
+
+const serviceGuideReleaseTaskRecord = {
+	...releaseTaskRecord,
+	id: "owrelease_service_guide",
+	taskId: "owrelease_service_guide",
+	taskType: "official_web_selected_write_service_guide",
+	inventoryId: "muc-information-disclosure-application-process",
+	jobId: "owtarget_service_guide",
+	runId: "owrun_service_guide",
+	selectedWriteTarget: "campus_services/service_guide",
+	inputSummary: {
+		sourceObjectCount: 2,
+		sourceUrls: [
+			"https://xxgk.muc.edu.cn/info/1007/1113.htm",
+			"https://xxgk.muc.edu.cn/info/1007/1114.htm",
+		],
+	},
+	outputSummary: {
+		fullImpactDisplayNames: [
+			"学生校园卡服务",
+			"中央民族大学信息公开依申请公开工作流程",
+		],
+		fullRecordCount: 2,
+		recordCount: 1,
+		releaseId: "release_service_guide",
+		taskScopeDisplayNames: ["中央民族大学信息公开依申请公开工作流程"],
+	},
 };
 
 describe("official web release task processing operator routes", () => {
@@ -196,6 +230,32 @@ describe("official web release task processing operator routes", () => {
 		expect(queryService.getById).toHaveBeenCalledWith({
 			id: "owrelease_contact",
 			principal,
+		});
+	});
+
+	it("returns service guide release task impact summary fields without dropping them", async () => {
+		const principal = createOperatorPrincipal();
+		const queryService = {
+			getById: vi.fn().mockResolvedValue(serviceGuideReleaseTaskRecord),
+			list: vi.fn(),
+		};
+		const app = createApp(
+			env as never,
+			{
+				getPrincipal: vi.fn().mockResolvedValue(principal),
+				officialWebReleaseTaskProcessingQueryService: queryService,
+			} as never,
+		);
+
+		const response = await app.fetch(
+			new Request(
+				"https://app-api.internal/api/operator/official-web/release-tasks/owrelease_service_guide",
+			),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			task: serviceGuideReleaseTaskRecord,
 		});
 	});
 });

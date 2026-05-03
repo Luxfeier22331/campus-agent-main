@@ -36,8 +36,14 @@ class OfficialWebReleaseTaskProjectionTest(unittest.TestCase):
             output_ref={
                 "artifactObjectKey": "campus_services/releases/contact_directory/current.json",
                 "bucket": "campus-rag-derived",
+                "fullRecordCount": 5,
                 "recordCount": 3,
                 "releaseId": "release_contact",
+                "taskScopeDisplayNames": ["中央民族大学信息公开联系方式"],
+                "fullImpactDisplayNames": [
+                    "中央民族大学",
+                    "中央民族大学信息公开联系方式",
+                ],
             },
             worker_id="worker-a",
             now=datetime(2026, 5, 1, 8, 2, tzinfo=UTC),
@@ -64,6 +70,15 @@ class OfficialWebReleaseTaskProjectionTest(unittest.TestCase):
         self.assertEqual(snapshot["inputSummary"]["sourceUrls"], ["https://www.muc.edu.cn/"])
         self.assertEqual(snapshot["outputSummary"]["releaseId"], "release_contact")
         self.assertEqual(snapshot["outputSummary"]["recordCount"], 3)
+        self.assertEqual(snapshot["outputSummary"]["fullRecordCount"], 5)
+        self.assertEqual(
+            snapshot["outputSummary"]["taskScopeDisplayNames"],
+            ["中央民族大学信息公开联系方式"],
+        )
+        self.assertEqual(
+            snapshot["outputSummary"]["fullImpactDisplayNames"],
+            ["中央民族大学", "中央民族大学信息公开联系方式"],
+        )
 
         encoded = json.dumps(snapshot, ensure_ascii=False)
         self.assertNotIn("source-truth-bundle.json", encoded)

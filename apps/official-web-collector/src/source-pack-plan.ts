@@ -54,7 +54,7 @@ const OWNER_TO_TARGET_ID: Record<OfficialWebSourcePackOwnerSurface, string> = {
 	"contact_directory_lookup": "campus-services-contact-directory",
 	"future_notice_runtime": "official-web-notice-news-inventory",
 	"official_web/stable_reference": "official-web-stable-reference",
-	"regulations/institutional_rules": "official-web-stable-reference",
+	"regulations/institutional_rules": "official-web-institutional-rules",
 	"regulations/scoped_rules": "official-web-stable-reference",
 	"service_guide_lookup": "campus-services-service-guide",
 };

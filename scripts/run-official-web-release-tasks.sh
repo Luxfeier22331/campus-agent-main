@@ -9,6 +9,19 @@ task_types="${INGESTION_ON_DEMAND_OFFICIAL_WEB_RELEASE_TASK_TYPES:-}"
 declarations_path="${INGESTION_ON_DEMAND_OFFICIAL_WEB_RELEASE_TASK_DECLARATIONS_PATH:-}"
 reset_index="${INGESTION_ON_DEMAND_OFFICIAL_WEB_RELEASE_TASK_RESET_INDEX:-0}"
 
+if [[ -z "${INGESTION_WORKER_APP_API_BASE_URL:-}" && -n "${APP_API_INTERNAL_SHARED_SECRET:-}" ]]; then
+  export INGESTION_WORKER_APP_API_BASE_URL="http://127.0.0.1:27031"
+fi
+if [[ -z "${INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET:-}" && -n "${APP_API_INTERNAL_SHARED_SECRET:-}" ]]; then
+  export INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET="${APP_API_INTERNAL_SHARED_SECRET}"
+fi
+
+if [[ -z "${INGESTION_WORKER_APP_API_BASE_URL:-}" || -z "${INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET:-}" ]]; then
+  echo "official-web release tasks require INGESTION_WORKER_APP_API_BASE_URL and INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET." >&2
+  echo "For local dev, start app-api on http://127.0.0.1:27031 and set APP_API_INTERNAL_SHARED_SECRET in repo root .env, or configure explicit INGESTION_WORKER_APP_API_* env values." >&2
+  exit 1
+fi
+
 args=(
   --worker-id "${worker_id}"
   --lease-seconds "${lease_seconds}"

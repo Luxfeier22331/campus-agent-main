@@ -447,6 +447,7 @@ def _build_consumer_candidate_review_entry(
                 "normalized_canonical_url",
             ),
         },
+        "source_refs": _candidate_source_refs(candidate),
         "inventory_id": optional_text(target_inventory_entry.get("inventory_id"))
         if target_inventory_entry is not None
         else None,
@@ -487,6 +488,73 @@ def _target_inventory_entries(
     if target_inventory_manifest.get("schema_version") != "official_web_target_inventory.v1":
         return []
     return require_object_list(target_inventory_manifest.get("entries"), "entries")
+
+
+def _candidate_source_refs(candidate: dict[str, object]) -> list[dict[str, object]]:
+    refs = _candidate_explicit_source_refs(candidate)
+    if not refs:
+        refs = [
+            {
+                "source_channel": "official_web",
+                "raw_asset_id": require_text(candidate.get("raw_asset_id"), "raw_asset_id"),
+                "raw_version_id": require_text(candidate.get("raw_version_id"), "raw_version_id"),
+                "normalized_canonical_url": require_text(
+                    candidate.get("normalized_canonical_url"),
+                    "normalized_canonical_url",
+                ),
+            }
+        ]
+    typed_candidate = candidate.get("typed_candidate")
+    if isinstance(typed_candidate, dict):
+        for url in normalize_string_list(
+            typed_candidate.get("supporting_source_urls")
+            or typed_candidate.get("supportingSourceUrls")
+        ):
+            if not any(ref["normalized_canonical_url"] == url for ref in refs):
+                refs.append(
+                    {
+                        "source_channel": "official_web",
+                        "raw_asset_id": "",
+                        "raw_version_id": "",
+                        "normalized_canonical_url": url,
+                    }
+                )
+    return refs
+
+
+def _candidate_explicit_source_refs(candidate: dict[str, object]) -> list[dict[str, object]]:
+    raw_refs = candidate.get("source_refs") or candidate.get("sourceRefs")
+    if not isinstance(raw_refs, list):
+        return []
+    refs: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for raw_ref in raw_refs:
+        if not isinstance(raw_ref, dict):
+            continue
+        normalized_url = optional_text(
+            raw_ref.get("normalized_canonical_url") or raw_ref.get("normalizedCanonicalUrl")
+        )
+        if normalized_url is None or normalized_url in seen:
+            continue
+        seen.add(normalized_url)
+        refs.append(
+            {
+                "source_channel": optional_text(
+                    raw_ref.get("source_channel") or raw_ref.get("sourceChannel")
+                )
+                or "official_web",
+                "raw_asset_id": optional_text(
+                    raw_ref.get("raw_asset_id") or raw_ref.get("rawAssetId")
+                )
+                or "",
+                "raw_version_id": optional_text(
+                    raw_ref.get("raw_version_id") or raw_ref.get("rawVersionId")
+                )
+                or "",
+                "normalized_canonical_url": normalized_url,
+            }
+        )
+    return refs
 
 
 def _target_inventory_entry_for_candidate(

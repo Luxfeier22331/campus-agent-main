@@ -27,6 +27,17 @@ function readSummaryValue(record: Record<string, unknown>, key: string) {
 	return String(value);
 }
 
+function readSummaryList(record: Record<string, unknown>, key: string) {
+	const value = record[key];
+	if (!Array.isArray(value)) {
+		return PANEL_COPY.notAvailable;
+	}
+	const items = value
+		.map((item) => String(item ?? "").trim())
+		.filter((item) => item.length > 0);
+	return items.length > 0 ? items.join(" / ") : PANEL_COPY.notAvailable;
+}
+
 function ReleaseTaskShowContent() {
 	const record = useRecordContext<OfficialWebReleaseTaskRecord>();
 	if (!record) {
@@ -126,6 +137,18 @@ function ReleaseTaskShowContent() {
 								<FieldRow
 									label="记录数"
 									value={readSummaryValue(record.outputSummary, "recordCount")}
+								/>
+								<FieldRow
+									label="本次写入记录"
+									value={readSummaryList(record.outputSummary, "taskScopeDisplayNames")}
+								/>
+								<FieldRow
+									label="全量记录数"
+									value={readSummaryValue(record.outputSummary, "fullRecordCount")}
+								/>
+								<FieldRow
+									label="全量影响"
+									value={readSummaryList(record.outputSummary, "fullImpactDisplayNames")}
 								/>
 								<FieldRow
 									label="错误"

@@ -1,8 +1,8 @@
 ---
 doc_type: handoff
-status: active
+status: completed
 created: 2026-05-01
-updated: 2026-05-02
+updated: 2026-05-03
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -14,6 +14,17 @@ This inventory workstream does not promote current read-model truth by itself.
 Selected-write/release work may start only from inventory rows whose operator projection is
 `ready_for_selected_write`. Machine admission, claim, retry, dead-letter and publish state belong
 to the ingestion release task state machine, not app-api.
+
+2026-05-03 closeout:
+
+- the first admitted `campus_services/contact_directory` and `campus_services/service_guide`
+  service-info rows have now moved past preview and into real published current state
+- five queued selected-write tasks were promoted through the canonical ingestion runner with app-api
+  callback enabled
+- operator list/detail read models under `/api/operator/official-web/release-tasks*` now expose the
+  published tasks
+- further selected-write work for new target rows should start from a new active workstream rather
+  than reopening this inventory handoff
 
 Required release evidence for each row:
 

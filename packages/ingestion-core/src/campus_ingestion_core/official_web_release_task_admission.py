@@ -106,6 +106,14 @@ def build_selected_write_release_task_from_candidate(
         source_ref.get("raw_version_id") or source_ref.get("rawVersionId"),
         "source_ref.raw_version_id",
     )
+    source_refs = _source_refs(candidate=candidate, fallback_source_ref=source_ref)
+    source_urls = _source_urls_from_refs(
+        source_refs=source_refs,
+        fallback_url=_required_text(
+            candidate.get("normalized_canonical_url") or candidate.get("normalizedCanonicalUrl"),
+            "normalized_canonical_url",
+        ),
+    )
     evidence = {
         "candidateKey": candidate_key,
         "fieldStatus": dict(field_status),
@@ -125,13 +133,8 @@ def build_selected_write_release_task_from_candidate(
         "selectedWriteTarget": selected_write_target,
         "sourceObjectKeys": _required_string_list(source_object_keys, "source_object_keys"),
         "sourceRef": source_ref,
-        "sourceUrls": [
-            _required_text(
-                candidate.get("normalized_canonical_url")
-                or candidate.get("normalizedCanonicalUrl"),
-                "normalized_canonical_url",
-            )
-        ],
+        "sourceRefs": source_refs,
+        "sourceUrls": source_urls,
         "targetCandidateId": _optional_text(candidate.get("target_candidate_id")),
         "targetDeclarationVersion": _optional_text(candidate.get("target_declaration_version")),
         "targetId": _optional_text(candidate.get("target_id")),
@@ -206,6 +209,110 @@ def _release_input_ref(
     if source_urls:
         payload["sourceUrls"] = source_urls
     return payload
+
+
+def _source_refs(
+    *,
+    candidate: Mapping[str, Any],
+    fallback_source_ref: Mapping[str, Any],
+) -> list[dict[str, Any]]:
+    raw_refs = candidate.get("source_refs") or candidate.get("sourceRefs")
+    refs: list[dict[str, Any]] = []
+    if isinstance(raw_refs, Sequence) and not isinstance(raw_refs, str | bytes):
+        for raw_ref in raw_refs:
+            if not isinstance(raw_ref, Mapping):
+                continue
+            normalized_url = _optional_text(
+                raw_ref.get("normalized_canonical_url") or raw_ref.get("normalizedCanonicalUrl")
+            )
+            if not normalized_url:
+                continue
+            refs.append(
+                {
+                    "source_channel": _optional_text(
+                        raw_ref.get("source_channel") or raw_ref.get("sourceChannel")
+                    )
+                    or "official_web",
+                    "raw_asset_id": _optional_text(
+                        raw_ref.get("raw_asset_id") or raw_ref.get("rawAssetId")
+                    )
+                    or "",
+                    "raw_version_id": _optional_text(
+                        raw_ref.get("raw_version_id") or raw_ref.get("rawVersionId")
+                    )
+                    or "",
+                    "normalized_canonical_url": normalized_url,
+                }
+            )
+    if not refs:
+        refs.append(
+            {
+                "source_channel": _optional_text(
+                    fallback_source_ref.get("source_channel")
+                    or fallback_source_ref.get("sourceChannel")
+                )
+                or "official_web",
+                "raw_asset_id": _required_text(
+                    fallback_source_ref.get("raw_asset_id")
+                    or fallback_source_ref.get("rawAssetId"),
+                    "source_ref.raw_asset_id",
+                ),
+                "raw_version_id": _required_text(
+                    fallback_source_ref.get("raw_version_id")
+                    or fallback_source_ref.get("rawVersionId"),
+                    "source_ref.raw_version_id",
+                ),
+                "normalized_canonical_url": _required_text(
+                    fallback_source_ref.get("normalized_canonical_url")
+                    or fallback_source_ref.get("normalizedCanonicalUrl"),
+                    "source_ref.normalized_canonical_url",
+                ),
+            }
+        )
+    return _dedupe_source_refs(refs)
+
+
+def _source_urls_from_refs(
+    *,
+    source_refs: Sequence[Mapping[str, Any]],
+    fallback_url: str,
+) -> list[str]:
+    urls = [
+        url
+        for url in (
+            _optional_text(ref.get("normalized_canonical_url") or ref.get("normalizedCanonicalUrl"))
+            for ref in source_refs
+        )
+        if url
+    ]
+    if not urls:
+        urls = [_required_text(fallback_url, "normalized_canonical_url")]
+    return _dedupe_strings(urls)
+
+
+def _dedupe_source_refs(refs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
+    result: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for ref in refs:
+        normalized_url = _optional_text(
+            ref.get("normalized_canonical_url") or ref.get("normalizedCanonicalUrl")
+        )
+        if not normalized_url or normalized_url in seen:
+            continue
+        seen.add(normalized_url)
+        result.append(dict(ref))
+    return result
+
+
+def _dedupe_strings(values: Sequence[str]) -> list[str]:
+    result: list[str] = []
+    seen: set[str] = set()
+    for value in values:
+        normalized = str(value).strip()
+        if normalized and normalized not in seen:
+            seen.add(normalized)
+            result.append(normalized)
+    return result
 
 
 def _selected_write_task_id(*, candidate_key: str, policy_version: str) -> str:

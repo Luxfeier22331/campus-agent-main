@@ -221,6 +221,23 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "contact directory location with entity selector",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "信息化办办公地点在哪里",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "contact_directory_lookup",
+			wantTool:   "contact_directory_lookup",
+			wantPayload: map[string]any{
+				"query_text":    "信息化办办公地点在哪里",
+				"contact_focus": "location",
+				"entity_selector": map[string]any{
+					"department_query": "信息化办",
+				},
+			},
+		},
+		{
 			name: "service guide procedure",
 			request: Request{
 				EffectiveCapability: "campus_services",
@@ -315,6 +332,90 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantPayload: map[string]any{
 				"service_query": "一卡通挂失电话是多少",
 				"guide_focus":   "contact",
+			},
+		},
+		{
+			name: "vpn entry",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "VPN入口在哪里",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "VPN入口在哪里",
+				"guide_focus":   "entry",
+			},
+		},
+		{
+			name: "network auth entry",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校园网认证入口在哪里",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校园网认证入口在哪里",
+				"guide_focus":   "entry",
+			},
+		},
+		{
+			name: "email required materials",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校园邮箱需要什么材料",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校园邮箱需要什么材料",
+				"guide_focus":   "required_materials",
+			},
+		},
+		{
+			name: "information disclosure entry prefers service guide over contact directory",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "信息公开申请入口在哪里",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "信息公开申请入口在哪里",
+				"guide_focus":   "entry",
+			},
+		},
+		{
+			name: "information disclosure phone",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "信息公开联系电话是多少",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "contact_directory_lookup",
+			wantTool:   "contact_directory_lookup",
+			wantPayload: map[string]any{
+				"query_text":    "信息公开联系电话是多少",
+				"contact_focus": "phone",
+			},
+		},
+		{
+			name: "information service location",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "信息化服务办公地点在哪里",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "contact_directory_lookup",
+			wantTool:   "contact_directory_lookup",
+			wantPayload: map[string]any{
+				"query_text":    "信息化服务办公地点在哪里",
+				"contact_focus": "location",
 			},
 		},
 		{

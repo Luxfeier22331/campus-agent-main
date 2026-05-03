@@ -77,6 +77,8 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 - `service_guide_candidate`：只进入 service guide selected-write candidate；需要
   review 或 deterministic extraction 后才可写 current read model
 - `stable_reference_candidate`：只进入 `official_web/stable_reference` release gate
+- `regulation_candidate`：只进入 `regulations/institutional_rules` release gate；
+  不再把校级规章候选页混入 `official_web/stable_reference`
 - `notice_news_candidate`：只保留 inventory-only evidence；不得打开
   `fresh_news`、`news_archive` 或 notice/news runtime
 
@@ -89,11 +91,20 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
   ingestion-owned release task state machine 与 ingestion-worker selected-write executor；
   app-api 只暴露已入库 projection、release task operator-safe projection 与 stable-reference
   operator release gate command ledger
+- selected-write preview 与 release-task operator summary 固定采用双轨语义：
+  task-scope bundle / `recordCount` / `taskScopeDisplayNames` 只表示本次 admitted target
+  将写入的记录；full bundle / `fullRecordCount` / `fullImpactDisplayNames` 表示 merge 进当前
+  projection 后的全量 current 影响面。这个语义由 ingestion worker 产出，app-api 与 panel 只消费
+  redacted projection，不自行重算
 - selected write 必须有 source refs、matched evidence、review verdict 或等价的
   deterministic extraction evidence，并且只能写显式 `selected_write_target` 对应的
   structured projection
 - listing pages 默认只作 discovery；除非自身命中 stable/contact/service denominator，否则不作为
   answer-bearing source-truth
+- target-first official-web source pack 可以声明小范围、多页 composition（例如
+  `information_disclosure`、`email_service`），但组合后的 candidate 仍必须由单一 admitted
+  target 驱动，且所有字段都必须可回链到明确 source page；不得借 composition 恢复 broad crawl
+  或生成 query-time fetch 依赖
 
 ### Target Source Map
 

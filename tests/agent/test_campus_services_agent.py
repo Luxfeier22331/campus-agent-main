@@ -433,6 +433,60 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("010-68933381", response.answer_text)
         self.assertIn("学生和教职工均可办理", response.answer_text)
 
+    def test_service_guide_information_disclosure_response_exposes_all_source_urls(self) -> None:
+        response = campus_services_tool_adapter._service_guide_response(
+            ServiceGuideLookupResult(
+                service_query="信息公开申请怎么提交",
+                guide_focus="full_guide",
+                outcome="resolved_current",
+                resolved_service=ServiceGuideServiceRef(
+                    service_id="service:official-web:information-disclosure-application",
+                    display_name="中央民族大学信息公开依申请公开工作流程",
+                    aliases=("信息公开申请",),
+                    category="information_disclosure",
+                    campus_scope="all",
+                    audience=("student",),
+                ),
+                guide_sections=(
+                    ServiceGuideSection(
+                        section_type="procedure",
+                        title="申请流程",
+                        content="申请人填写申请表后提交学校信息公开办公室。",
+                        source_refs=("https://xxgk.muc.edu.cn/info/1007/1113.htm",),
+                    ),
+                ),
+                required_materials=(
+                    ServiceGuideMaterial(
+                        name="中央民族大学信息公开申请表",
+                        required=True,
+                        source_refs=("https://xxgk.muc.edu.cn/info/1007/1114.htm",),
+                    ),
+                ),
+                entry_refs=(
+                    ServiceGuideEntryRef(
+                        label="信息公开申请表下载页",
+                        entry_type="online_url",
+                        url="https://xxgk.muc.edu.cn/info/1007/1114.htm",
+                        source_refs=("https://xxgk.muc.edu.cn/info/1007/1114.htm",),
+                    ),
+                ),
+                source_refs=(
+                    "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                    "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+                ),
+                queried_time_anchor="2026-05-04T10:30:00+08:00",
+                effective_from="2026-05-01T00:00:00+08:00",
+                effective_until="2099-12-31T23:59:59+08:00",
+                matched_service_category="information_disclosure",
+            )
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("申请人填写申请表", response.answer_text)
+        self.assertIn("中央民族大学信息公开申请表", response.answer_text)
+        self.assertIn("https://xxgk.muc.edu.cn/info/1007/1113.htm", response.answer_text)
+        self.assertIn("https://xxgk.muc.edu.cn/info/1007/1114.htm", response.answer_text)
+
     def test_missing_query_service_returns_error_response(self) -> None:
         response = delegate_to_campus_services_agent(
             AgentRequest(

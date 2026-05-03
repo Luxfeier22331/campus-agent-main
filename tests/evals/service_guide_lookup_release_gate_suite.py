@@ -11,6 +11,9 @@ from campus_evals.service_guide_lookup_release_gate import (
     run_service_guide_lookup_release_gate,
     service_guide_lookup_intent_gate_cases,
 )
+from campus_evals.official_web_selected_write_preview_runtime_verifier import (
+    OfficialWebSelectedWritePreviewRuntimeVerificationReport,
+)
 
 
 class ServiceGuideLookupReleaseGateTest(unittest.TestCase):
@@ -188,6 +191,131 @@ class ServiceGuideLookupReleaseGateTest(unittest.TestCase):
         smoke_check = artifact["checks"][-1]
         self.assertEqual(smoke_check["summary"]["release_id"], "owrelease_selected_write_123")
         self.assertEqual(smoke_check["summary"]["service_guide_records"], 2)
+
+    def test_release_gate_can_include_selected_write_preview_tool_readiness_audit(self) -> None:
+        def fake_command_runner(
+            command: tuple[str, ...],
+            *,
+            cwd: Path | None = None,
+        ) -> CommandResult:
+            return CommandResult(returncode=0, stdout="ok", stderr="")
+
+        def fake_intent_runner(_cases) -> IntentEvalReport:
+            return IntentEvalReport(
+                total=2,
+                passed=2,
+                failed=0,
+                overall_exact_match_rate=1.0,
+                critical_total=2,
+                critical_passed=2,
+                critical_gate_pass_rate=1.0,
+                confusion={},
+                results=(),
+            )
+
+        preview_report = {
+            "schema_version": "official_web_selected_write_preview_report.v1",
+            "results": [
+                {
+                    "selected_write_id": "owrelease_selected_write_service",
+                    "collection": "service_guide",
+                    "inventory_id": "muc-it-vpn-service-guide",
+                    "record_count": 1,
+                    "full_record_count": 3,
+                    "task_scope_display_names": ["中央民族大学 VPN 使用说明"],
+                    "full_impact_display_names": ["学生校园卡服务", "中央民族大学 VPN 使用说明"],
+                    "bundle": {
+                        "service_guide_records": [
+                            {
+                                "display_name": "中央民族大学 VPN 使用说明",
+                                "guide_sections": [{"section_type": "procedure"}],
+                                "entry_refs": [{"label": "中央民族大学VPN系统"}],
+                                "source_refs": ["https://met.muc.edu.cn/info/1027/1137.htm"],
+                                "field_status": {
+                                    "service_name": "present",
+                                    "process_steps": "present",
+                                    "service_entry": "present",
+                                    "source_url": "present",
+                                    "source_version_evidence": "present",
+                                },
+                            }
+                        ]
+                    },
+                }
+            ],
+        }
+
+        with TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / "gate"
+            preview_report_path = Path(temp_dir) / "preview-report.json"
+            preview_report_path.write_text(
+                json.dumps(preview_report, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            runtime_runner_calls: list[tuple[Path, Path, str]] = []
+            report = run_service_guide_lookup_release_gate(
+                output_dir=output_dir,
+                command_runner=fake_command_runner,
+                intent_runner=fake_intent_runner,
+                selected_write_preview_report_path=preview_report_path,
+                selected_write_preview_runtime_runner=lambda *, report_path, output_dir, bundle_scope: (
+                    runtime_runner_calls.append((report_path, output_dir, bundle_scope))
+                    or OfficialWebSelectedWritePreviewRuntimeVerificationReport(
+                        passed=True,
+                        output_path=output_dir / "runtime.json",
+                        summary={
+                            "bundle_scope": bundle_scope,
+                            "total_cases": 1,
+                            "passed_cases": 1,
+                            "failed_cases": 0,
+                            "uncovered_supported_targets": [],
+                        },
+                        case_results=(),
+                    )
+                ),
+            )
+            artifact = json.loads(
+                (output_dir / "service-guide-lookup-release-gate.json").read_text(encoding="utf-8")
+            )
+
+        self.assertTrue(report.passed)
+        self.assertEqual(
+            artifact["checks"][-3]["check_id"],
+            "selected_write_preview_tool_readiness",
+        )
+        self.assertEqual(artifact["checks"][-3]["summary"]["record_count"], 1)
+        self.assertEqual(
+            artifact["checks"][-1]["check_id"],
+            "selected_write_preview_runtime_verification_full_impact",
+        )
+        self.assertEqual(artifact["checks"][-1]["summary"]["total_cases"], 1)
+        self.assertEqual(
+            artifact["checks"][-1]["summary"]["bundle_scope"],
+            "full_impact",
+        )
+        self.assertEqual(
+            artifact["checks"][-2]["check_id"],
+            "selected_write_preview_runtime_verification_task_scope",
+        )
+        self.assertEqual(
+            artifact["checks"][-2]["summary"]["bundle_scope"],
+            "task_scope",
+        )
+        self.assertEqual(
+            runtime_runner_calls,
+            [
+                (
+                    preview_report_path,
+                    output_dir / "selected-write-preview-runtime-verification",
+                    "task_scope",
+                ),
+                (
+                    preview_report_path,
+                    output_dir / "selected-write-preview-runtime-verification-full-impact",
+                    "full_impact",
+                ),
+            ],
+        )
 
     def test_release_gate_fails_when_selected_write_runtime_smoke_fails(self) -> None:
         def fake_command_runner(

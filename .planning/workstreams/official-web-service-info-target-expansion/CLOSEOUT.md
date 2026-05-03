@@ -2,7 +2,7 @@
 doc_type: closeout
 status: completed
 created: 2026-05-02
-updated: 2026-05-02
+updated: 2026-05-03
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -20,7 +20,7 @@ projections and remaining candidates held fail-closed:
 - selected-write release task admission requires machine field status and source lineage
 - app-api and panel projections expose required evidence alongside required fields
 - ingestion-owned selected-write release tasks published current structured projections for two
-  contact-directory targets and one service-guide target
+  contact-directory targets and three service-guide targets
 - runtime structured query smoke resolved the released contact-directory and service-guide facts
 
 ## Accepted Targets
@@ -33,14 +33,24 @@ projections and remaining candidates held fail-closed:
 
 Released current projections:
 
-- `campus_services/contact_directory` current release:
-  `owrelease_selected_write_65cfdeede302ea2ba607dc5f_20260502_063653_527114_0000`
-  includes `muc-main-homepage-contact` and carries forward
-  `muc-information-disclosure-contact`.
-- `muc-information-disclosure-contact`:
-  `owrelease_selected_write_37bffac7b4cdde1541fa6a39_20260502_044902_977587_0000`
-- `muc-it-student-campus-card-service-guide`:
-  `owrelease_selected_write_58ad72a9c1a76168a4a3e491_20260502_062927_723355_0000`
+- `campus_services/contact_directory` current:
+  - `owrelease_selected_write_c3ab739b6ee31a47d3cc019d_20260503_203838_671850_0000`
+  - `owrelease_selected_write_dcb739800954549b943af6bc_20260503_204029_141565_0000`
+  - resulting current records:
+    - `中央民族大学`
+    - `中央民族大学信息公开联系方式`
+    - `中央民族大学信息化服务联系方式`
+- `campus_services/service_guide` current:
+  - `owrelease_selected_write_58ad72a9c1a76168a4a3e491_20260502_062927_723355_0000`
+  - `owrelease_selected_write_2de6b7953acd82bd5e01cf04_20260503_204120_258697_0000`
+  - `owrelease_selected_write_a2788e7d99692107bb18d4df_20260503_204132_314985_0000`
+  - `owrelease_selected_write_88ead76d67c13db4345e4306_20260503_204141_443843_0000`
+  - resulting current records:
+    - `学生校园卡服务`
+    - `中央民族大学信息公开依申请公开工作流程`
+    - `中央民族大学校园网认证及使用说明`
+    - `中央民族大学校园电子邮件服务`
+    - `中央民族大学 VPN 使用说明`
 
 Remaining retained candidates stay blocked until they have preview evidence and pass the same
 machine field review gate.
@@ -67,6 +77,30 @@ Runtime smoke evidence:
 - Released source pages that do not provide office hours record those optional
   fields as source-not-provided rather than treating them as expected completeness gaps or inventing
   values.
+- Real operator evidence on 2026-05-03:
+  - `/api/operator/official-web/release-tasks?status=published&limit=20` returned the five promoted
+    selected-write tasks as `published`
+  - `/api/operator/official-web/release-tasks/owrelease_selected_write_88ead76d67c13db4345e4306`
+    returned the expected published detail projection
+- Post-promotion deterministic gates:
+  - `contact-directory-lookup-release-gate.json`: `total_checks=5`, `passed_checks=5`
+  - `service-guide-lookup-release-gate.json`: `total_checks=5`, `passed_checks=5`
+
+Known residual gap:
+
+- `service_guide` release-task operator projection currently exposes `recordCount` but does not yet
+  expose `fullRecordCount`, `taskScopeDisplayNames`, or `fullImpactDisplayNames`. The richer
+  selected-write impact summary is already present for `contact_directory`.
+
+Next admitted target starting point:
+
+- `muc-information-disclosure-application-process` + `muc-information-disclosure-application-form-download`
+  - owner surface: `service_guide_lookup`
+  - selected-write target: `campus_services/service_guide`
+  - current posture: retained composition group, still blocked
+  - why next: the form-download page should not be promoted alone; it must be re-evaluated as a
+    composition component of the existing information-disclosure application flow so `service_process`
+    can be source-backed without reopening broad crawl
 
 ## Reopen Rule
 

@@ -23,7 +23,7 @@ updated: 2026-05-02
 | `https://met.muc.edu.cn/fwzn/xsfw.htm` | service-listing page; useful for discovery but not a standalone selected-write service guide |
 | `https://met.muc.edu.cn/info/1027/1132.htm` | network-account entry source; current text does not clearly expose the service-process denominator |
 | `https://met.muc.edu.cn/info/1027/1129.htm` | VPN entry source; current text exposes entry but not enough process evidence |
-| `https://xxgk.muc.edu.cn/info/1007/1114.htm` | material-only form page; remains blocked as standalone service guide until multi-page composition exists |
+| `https://xxgk.muc.edu.cn/info/1007/1114.htm` | material-only form page; remains blocked as a standalone service guide and should only be used as a composition component with `https://xxgk.muc.edu.cn/info/1007/1113.htm` |
 
 ## Classification Fix
 

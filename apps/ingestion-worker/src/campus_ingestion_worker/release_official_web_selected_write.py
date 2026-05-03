@@ -27,6 +27,10 @@ from campus_ingestion_core.contact_directory_projection import (
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.object_store import build_index_release_artifact_key
 from campus_ingestion_core.official_web_release_task import OfficialWebReleaseTask
+from campus_ingestion_core.official_web_target_labeling import (
+    choose_official_web_contact_display_name,
+    choose_official_web_service_name,
+)
 from campus_ingestion_core.service_guide_projection import (
     OFFICIAL_WEB_CURATED_SERVICE_GUIDE_SOURCE_FAMILY,
     SERVICE_GUIDE_COLLECTION,
@@ -85,8 +89,36 @@ class OfficialWebSelectedWriteResult:
     collection: str
     release_id: str
     record_count: int
+    full_record_count: int
+    task_scope_display_names: list[str]
+    full_impact_display_names: list[str]
     work_dir: str
     source_bundle_key: str
+
+
+@dataclass(frozen=True, slots=True)
+class OfficialWebSelectedWritePreviewResult:
+    selected_write_id: str
+    status: str
+    corpus: str
+    collection: str
+    record_count: int
+    full_record_count: int
+    work_dir: str
+    source_bundle_key: str
+    bundle: dict[str, object]
+    full_bundle: dict[str, object]
+
+
+@dataclass(frozen=True, slots=True)
+class _PreparedSelectedWriteProjection:
+    selected_write_id: str
+    source_bundle_key: str
+    generated_at: str
+    corpus: str
+    collection: str
+    bundle: dict[str, object]
+    task_scope_bundle: dict[str, object]
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -114,6 +146,149 @@ def release_official_web_selected_write(
     derived_bucket: str | None = None,
     declarations_path: Path | None = None,
 ) -> OfficialWebSelectedWriteResult:
+    prepared = _prepare_selected_write_projection(
+        release_task=release_task,
+        object_store=object_store,
+        derived_object_store=derived_object_store,
+        projection_reporter=projection_reporter,
+        work_dir=work_dir,
+        object_store_settings=object_store_settings,
+        source_bucket=source_bucket,
+        derived_bucket=derived_bucket,
+        declarations_path=declarations_path,
+    )
+    release_output_dir = work_dir / "release-output"
+    _reset_dir(release_output_dir)
+    release_id = _selected_write_release_id(
+        selected_write_id=prepared.selected_write_id,
+        generated_at=prepared.generated_at,
+    )
+    result = _publish_selected_write_projection(
+        prepared=prepared,
+        derived_object_store=derived_object_store,
+        structured_projection_publisher=structured_projection_publisher,
+        output_dir=release_output_dir,
+        release_id=release_id,
+        generated_at=prepared.generated_at,
+        derived_bucket=(
+            derived_bucket
+            or _resolve_object_store_settings(
+                object_store_settings=object_store_settings,
+                source_bucket=source_bucket,
+            ).bucket_derived
+        ),
+    )
+    _report_projection(
+        projection_reporter=projection_reporter,
+        task=_release_task_model(release_task),
+        snapshot={
+            "execution": {
+                "collection": result.collection,
+                "corpus": result.corpus,
+                "fullImpactDisplayNames": _projection_display_names(
+                    prepared.bundle,
+                    prepared.collection,
+                ),
+                "fullRecordCount": _projection_record_count(prepared.bundle, prepared.collection),
+                "recordCount": result.record_count,
+                "releaseId": result.release_id,
+                "sourceBundleKey": prepared.source_bundle_key,
+                "taskScopeDisplayNames": _projection_display_names(
+                    prepared.task_scope_bundle,
+                    prepared.collection,
+                ),
+            },
+            "status": "published",
+            "updatedAt": _utcnow(),
+        },
+    )
+    return OfficialWebSelectedWriteResult(
+        selected_write_id=prepared.selected_write_id,
+        status="published",
+        corpus=result.corpus,
+        collection=result.collection,
+        release_id=result.release_id,
+        record_count=result.record_count,
+        full_record_count=_projection_record_count(prepared.bundle, prepared.collection),
+        task_scope_display_names=_projection_display_names(
+            prepared.task_scope_bundle,
+            prepared.collection,
+        ),
+        full_impact_display_names=_projection_display_names(prepared.bundle, prepared.collection),
+        work_dir=str(work_dir.resolve()),
+        source_bundle_key=prepared.source_bundle_key,
+    )
+
+
+def preview_official_web_selected_write(
+    *,
+    release_task: Mapping[str, object] | OfficialWebReleaseTask,
+    object_store: OfficialWebSelectedWriteObjectStore,
+    work_dir: Path,
+    projection_reporter: OfficialWebSelectedWriteProjectionReporter | None = None,
+    object_store_settings: ObjectStoreSettings | None = None,
+    source_bucket: str = DEFAULT_BUCKET_SOURCE,
+    derived_bucket: str | None = None,
+    declarations_path: Path | None = None,
+) -> OfficialWebSelectedWritePreviewResult:
+    preview_output_dir = work_dir / "preview-output"
+    _reset_dir(preview_output_dir)
+    prepared = _prepare_selected_write_projection(
+        release_task=release_task,
+        object_store=object_store,
+        derived_object_store=object_store,
+        projection_reporter=projection_reporter,
+        work_dir=work_dir,
+        object_store_settings=object_store_settings,
+        source_bucket=source_bucket,
+        derived_bucket=derived_bucket,
+        declarations_path=declarations_path,
+    )
+    _write_json(preview_output_dir / "projection-bundle.json", prepared.task_scope_bundle)
+    _write_json(preview_output_dir / "full-projection-bundle.json", prepared.bundle)
+    _report_projection(
+        projection_reporter=projection_reporter,
+        task=_release_task_model(release_task),
+        snapshot={
+            "execution": {
+                "collection": prepared.collection,
+                "corpus": prepared.corpus,
+                "recordCount": _projection_record_count(
+                    prepared.task_scope_bundle, prepared.collection
+                ),
+                "fullRecordCount": _projection_record_count(prepared.bundle, prepared.collection),
+                "sourceBundleKey": prepared.source_bundle_key,
+            },
+            "status": "previewed",
+            "updatedAt": _utcnow(),
+        },
+    )
+    return OfficialWebSelectedWritePreviewResult(
+        selected_write_id=prepared.selected_write_id,
+        status="previewed",
+        corpus=prepared.corpus,
+        collection=prepared.collection,
+        record_count=_projection_record_count(prepared.task_scope_bundle, prepared.collection),
+        full_record_count=_projection_record_count(prepared.bundle, prepared.collection),
+        work_dir=str(work_dir.resolve()),
+        source_bundle_key=prepared.source_bundle_key,
+        bundle=prepared.task_scope_bundle,
+        full_bundle=prepared.bundle,
+    )
+
+
+def _prepare_selected_write_projection(
+    *,
+    release_task: Mapping[str, object] | OfficialWebReleaseTask,
+    object_store: OfficialWebSelectedWriteObjectStore,
+    derived_object_store: OfficialWebSelectedWriteObjectStore,
+    projection_reporter: OfficialWebSelectedWriteProjectionReporter | None,
+    work_dir: Path,
+    object_store_settings: ObjectStoreSettings | None,
+    source_bucket: str,
+    derived_bucket: str | None,
+    declarations_path: Path | None,
+) -> _PreparedSelectedWriteProjection:
     task = _release_task_model(release_task)
     _assert_selected_write_release_task(task)
     selected_write_task = _selected_write_task_from_release_task(task)
@@ -125,10 +300,8 @@ def release_official_web_selected_write(
     runtime_derived_bucket = derived_bucket or settings.bucket_derived
     replay_input_dir = work_dir / "replay-input"
     projection_output_dir = work_dir / "projection-output"
-    release_output_dir = work_dir / "release-output"
     _reset_dir(replay_input_dir)
     _reset_dir(projection_output_dir)
-    _reset_dir(release_output_dir)
 
     source_bundle_key = ""
     try:
@@ -167,37 +340,32 @@ def release_official_web_selected_write(
                 message="selected-write task target produced no matching ready candidate.",
             )
         generated_at = _utcnow()
-        release_id = _selected_write_release_id(
-            selected_write_id=selected_write_id,
-            generated_at=generated_at,
-        )
         selected_write_target = _require_text(
             selected_write_task.get("selectedWriteTarget")
             or selected_write_task.get("selected_write_target"),
             "selectedWriteTarget",
         )
         if selected_write_target == "campus_services/contact_directory":
-            result = _release_contact_directory_candidates(
+            bundle = _build_contact_directory_bundle(
                 candidates=candidates,
                 selected_write_task=selected_write_task,
-                output_dir=release_output_dir,
-                release_id=release_id,
                 generated_at=generated_at,
-                object_store=derived_object_store,
                 derived_bucket=runtime_derived_bucket,
-                structured_projection_publisher=structured_projection_publisher,
+                object_store=derived_object_store,
             )
+            collection = CONTACT_DIRECTORY_COLLECTION
+            corpus = CONTACT_DIRECTORY_CORPUS
         elif selected_write_target == "campus_services/service_guide":
-            result = _release_service_guide_candidates(
+            bundle = _build_service_guide_bundle(
                 candidates=candidates,
                 selected_write_task=selected_write_task,
-                output_dir=release_output_dir,
-                release_id=release_id,
+                task_created_at=task.created_at,
                 generated_at=generated_at,
-                object_store=derived_object_store,
                 derived_bucket=runtime_derived_bucket,
-                structured_projection_publisher=structured_projection_publisher,
+                object_store=derived_object_store,
             )
+            collection = SERVICE_GUIDE_COLLECTION
+            corpus = SERVICE_GUIDE_CORPUS
         else:
             raise OfficialWebSelectedWriteReleaseError(
                 code="unsupported_selected_write_target",
@@ -208,39 +376,25 @@ def release_official_web_selected_write(
             task=task,
             snapshot={
                 "execution": {
-                    "collection": result.collection,
-                    "corpus": result.corpus,
-                    "recordCount": result.record_count,
-                    "releaseId": result.release_id,
+                    "collection": collection,
+                    "corpus": corpus,
+                    "recordCount": _projection_record_count(bundle, collection),
                 },
                 "status": "materialized",
                 "updatedAt": _utcnow(),
             },
         )
-        _report_projection(
-            projection_reporter=projection_reporter,
-            task=task,
-            snapshot={
-                "execution": {
-                    "collection": result.collection,
-                    "corpus": result.corpus,
-                    "recordCount": result.record_count,
-                    "releaseId": result.release_id,
-                    "sourceBundleKey": source_bundle_key,
-                },
-                "status": "published",
-                "updatedAt": _utcnow(),
-            },
-        )
-        return OfficialWebSelectedWriteResult(
+        return _PreparedSelectedWriteProjection(
             selected_write_id=selected_write_id,
-            status="published",
-            corpus=result.corpus,
-            collection=result.collection,
-            release_id=result.release_id,
-            record_count=result.record_count,
-            work_dir=str(work_dir.resolve()),
             source_bundle_key=source_bundle_key,
+            generated_at=generated_at,
+            corpus=corpus,
+            collection=collection,
+            bundle=bundle,
+            task_scope_bundle=_task_scope_preview_bundle(
+                full_bundle=bundle,
+                records_field=_records_field_for_collection(collection),
+            ),
         )
     except Exception as exc:
         _report_projection(
@@ -267,6 +421,121 @@ class _ProjectionReleaseResult:
     record_count: int
 
 
+def _publish_selected_write_projection(
+    *,
+    prepared: _PreparedSelectedWriteProjection,
+    derived_object_store: OfficialWebSelectedWriteObjectStore,
+    structured_projection_publisher: OfficialWebSelectedWritePublisher,
+    output_dir: Path,
+    release_id: str,
+    generated_at: str,
+    derived_bucket: str,
+) -> _ProjectionReleaseResult:
+    if prepared.collection == CONTACT_DIRECTORY_COLLECTION:
+        report = write_contact_directory_projection_release(
+            bundle=prepared.bundle,
+            output_dir=output_dir,
+            release_id=release_id,
+            generated_at=generated_at,
+            manual_review_sources=[],
+            object_store=derived_object_store,
+            bucket=derived_bucket,
+        )
+        structured_projection_publisher.publish_release(
+            corpus=prepared.corpus,
+            collection=prepared.collection,
+            release_id=report.release_id,
+            generated_at=generated_at,
+            schema_version=CONTACT_DIRECTORY_PROJECTION_SCHEMA_VERSION,
+            artifact_object_key=report.release_object_key,
+            artifact_checksum=projection_artifact_checksum(prepared.bundle),
+            bundle=prepared.bundle,
+            validation_status="valid",
+        )
+        return _ProjectionReleaseResult(
+            corpus=prepared.corpus,
+            collection=prepared.collection,
+            release_id=report.release_id,
+            record_count=len(_mapping_list(prepared.bundle.get("contact_records"))),
+        )
+    if prepared.collection == SERVICE_GUIDE_COLLECTION:
+        report = write_service_guide_projection_release(
+            bundle=prepared.bundle,
+            output_dir=output_dir,
+            release_id=release_id,
+            generated_at=generated_at,
+            manual_review_sources=[],
+            object_store=derived_object_store,
+            bucket=derived_bucket,
+        )
+        structured_projection_publisher.publish_release(
+            corpus=prepared.corpus,
+            collection=prepared.collection,
+            release_id=report.release_id,
+            generated_at=generated_at,
+            schema_version=SERVICE_GUIDE_PROJECTION_SCHEMA_VERSION,
+            artifact_object_key=report.release_object_key,
+            artifact_checksum=projection_artifact_checksum(prepared.bundle),
+            bundle=prepared.bundle,
+            validation_status="valid",
+        )
+        return _ProjectionReleaseResult(
+            corpus=prepared.corpus,
+            collection=prepared.collection,
+            release_id=report.release_id,
+            record_count=len(_mapping_list(prepared.bundle.get("service_guide_records"))),
+        )
+    raise OfficialWebSelectedWriteReleaseError(
+        code="unsupported_selected_write_target",
+        message=f"unsupported selected-write collection: {prepared.collection}",
+    )
+
+
+def _projection_record_count(bundle: Mapping[str, object], collection: str) -> int:
+    if collection == CONTACT_DIRECTORY_COLLECTION:
+        return len(_mapping_list(bundle.get("contact_records")))
+    if collection == SERVICE_GUIDE_COLLECTION:
+        return len(_mapping_list(bundle.get("service_guide_records")))
+    return 0
+
+
+def _projection_display_names(bundle: Mapping[str, object], collection: str) -> list[str]:
+    records_field = _records_field_for_collection(collection)
+    return [
+        str(record.get("display_name") or "").strip()
+        for record in _mapping_list(bundle.get(records_field))
+        if str(record.get("display_name") or "").strip()
+    ]
+
+
+def _records_field_for_collection(collection: str) -> str:
+    if collection == CONTACT_DIRECTORY_COLLECTION:
+        return "contact_records"
+    if collection == SERVICE_GUIDE_COLLECTION:
+        return "service_guide_records"
+    raise OfficialWebSelectedWriteReleaseError(
+        code="unsupported_selected_write_target",
+        message=f"unsupported selected-write collection: {collection}",
+    )
+
+
+def _task_scope_preview_bundle(
+    *,
+    full_bundle: Mapping[str, object],
+    records_field: str,
+) -> dict[str, object]:
+    task_scope_records = [
+        record
+        for record in _mapping_list(full_bundle.get(records_field))
+        if str(record.get("release_record_state") or "").strip() == "newly_selected"
+    ]
+    return {
+        **dict(full_bundle),
+        records_field: task_scope_records,
+        "release_record_lineage": _release_record_lineage(task_scope_records),
+    }
+
+
 def _release_contact_directory_candidates(
     *,
     candidates: list[dict[str, object]],
@@ -278,34 +547,13 @@ def _release_contact_directory_candidates(
     derived_bucket: str,
     structured_projection_publisher: OfficialWebSelectedWritePublisher,
 ) -> _ProjectionReleaseResult:
-    bundle = {
-        "schema_version": CONTACT_DIRECTORY_PROJECTION_SCHEMA_VERSION,
-        "generated_at": generated_at,
-        "source_families": ["official_web_contact_directory_candidate_v1"],
-        "source_documents": [_source_document(selected_write_task=selected_write_task)],
-        "contact_records": [
-            _contact_record_from_candidate(
-                candidate=candidate,
-                selected_write_task=selected_write_task,
-            )
-            for candidate in candidates
-        ],
-        "conflict_records": [],
-        "manual_review_sources": [],
-    }
-    bundle = _merge_current_projection_bundle(
-        current_bundle=_load_current_projection_bundle(
-            object_store=object_store,
-            bucket=derived_bucket,
-            corpus=CONTACT_DIRECTORY_CORPUS,
-            collection=CONTACT_DIRECTORY_COLLECTION,
-            filename=CONTACT_DIRECTORY_PROJECTION_FILENAME,
-        ),
-        new_bundle=bundle,
-        records_field="contact_records",
-        id_field="contact_id",
+    bundle = _build_contact_directory_bundle(
+        candidates=candidates,
+        selected_write_task=selected_write_task,
+        generated_at=generated_at,
+        object_store=object_store,
+        derived_bucket=derived_bucket,
     )
-    assert_contact_directory_projection_release_ready(bundle)
     report = write_contact_directory_projection_release(
         bundle=bundle,
         output_dir=output_dir,
@@ -334,26 +582,23 @@ def _release_contact_directory_candidates(
     )
 
 
-def _release_service_guide_candidates(
+def _build_contact_directory_bundle(
     *,
     candidates: list[dict[str, object]],
     selected_write_task: dict[str, object],
-    output_dir: Path,
-    release_id: str,
     generated_at: str,
     object_store: OfficialWebSelectedWriteObjectStore,
     derived_bucket: str,
-    structured_projection_publisher: OfficialWebSelectedWritePublisher,
-) -> _ProjectionReleaseResult:
+) -> dict[str, object]:
     bundle = {
-        "schema_version": SERVICE_GUIDE_PROJECTION_SCHEMA_VERSION,
+        "schema_version": CONTACT_DIRECTORY_PROJECTION_SCHEMA_VERSION,
         "generated_at": generated_at,
-        "source_families": [OFFICIAL_WEB_CURATED_SERVICE_GUIDE_SOURCE_FAMILY],
-        "service_guide_records": [
-            _service_guide_record_from_candidate(
+        "source_families": ["official_web_contact_directory_candidate_v1"],
+        "source_documents": [_source_document(selected_write_task=selected_write_task)],
+        "contact_records": [
+            _contact_record_from_candidate(
                 candidate=candidate,
                 selected_write_task=selected_write_task,
-                generated_at=generated_at,
             )
             for candidate in candidates
         ],
@@ -364,15 +609,38 @@ def _release_service_guide_candidates(
         current_bundle=_load_current_projection_bundle(
             object_store=object_store,
             bucket=derived_bucket,
-            corpus=SERVICE_GUIDE_CORPUS,
-            collection=SERVICE_GUIDE_COLLECTION,
-            filename=SERVICE_GUIDE_PROJECTION_FILENAME,
+            corpus=CONTACT_DIRECTORY_CORPUS,
+            collection=CONTACT_DIRECTORY_COLLECTION,
+            filename=CONTACT_DIRECTORY_PROJECTION_FILENAME,
         ),
         new_bundle=bundle,
-        records_field="service_guide_records",
-        id_field="service_id",
+        records_field="contact_records",
+        id_field="contact_id",
     )
-    assert_service_guide_projection_release_ready(bundle)
+    assert_contact_directory_projection_release_ready(bundle)
+    return bundle
+
+
+def _release_service_guide_candidates(
+    *,
+    candidates: list[dict[str, object]],
+    selected_write_task: dict[str, object],
+    task_created_at: datetime,
+    output_dir: Path,
+    release_id: str,
+    generated_at: str,
+    object_store: OfficialWebSelectedWriteObjectStore,
+    derived_bucket: str,
+    structured_projection_publisher: OfficialWebSelectedWritePublisher,
+) -> _ProjectionReleaseResult:
+    bundle = _build_service_guide_bundle(
+        candidates=candidates,
+        selected_write_task=selected_write_task,
+        task_created_at=task_created_at,
+        generated_at=generated_at,
+        object_store=object_store,
+        derived_bucket=derived_bucket,
+    )
     report = write_service_guide_projection_release(
         bundle=bundle,
         output_dir=output_dir,
@@ -399,6 +667,46 @@ def _release_service_guide_candidates(
         release_id=report.release_id,
         record_count=len(bundle["service_guide_records"]),
     )
+
+
+def _build_service_guide_bundle(
+    *,
+    candidates: list[dict[str, object]],
+    selected_write_task: dict[str, object],
+    task_created_at: datetime,
+    generated_at: str,
+    object_store: OfficialWebSelectedWriteObjectStore,
+    derived_bucket: str,
+) -> dict[str, object]:
+    bundle = {
+        "schema_version": SERVICE_GUIDE_PROJECTION_SCHEMA_VERSION,
+        "generated_at": generated_at,
+        "source_families": [OFFICIAL_WEB_CURATED_SERVICE_GUIDE_SOURCE_FAMILY],
+        "service_guide_records": [
+            _service_guide_record_from_candidates(
+                candidates=candidates,
+                selected_write_task=selected_write_task,
+                task_created_at=task_created_at,
+                generated_at=generated_at,
+            )
+        ],
+        "conflict_records": [],
+        "manual_review_sources": [],
+    }
+    bundle = _merge_current_projection_bundle(
+        current_bundle=_load_current_projection_bundle(
+            object_store=object_store,
+            bucket=derived_bucket,
+            corpus=SERVICE_GUIDE_CORPUS,
+            collection=SERVICE_GUIDE_COLLECTION,
+            filename=SERVICE_GUIDE_PROJECTION_FILENAME,
+        ),
+        new_bundle=bundle,
+        records_field="service_guide_records",
+        id_field="service_id",
+    )
+    assert_service_guide_projection_release_ready(bundle)
+    return bundle
 
 
 def _load_current_projection_bundle(
@@ -569,8 +877,17 @@ def _contact_record_from_candidate(
     selected_write_task: dict[str, object],
 ) -> dict[str, object]:
     typed_candidate = _object_mapping(candidate.get("typed_candidate"))
+    source_title = _require_text(
+        typed_candidate.get("source_title") or typed_candidate.get("display_name"),
+        "typed_candidate.source_title",
+    )
     display_name = _require_text(
-        typed_candidate.get("display_name") or typed_candidate.get("source_title"),
+        choose_official_web_contact_display_name(
+            source_title=source_title,
+            target_label=_target_label(selected_write_task),
+        )
+        or typed_candidate.get("display_name")
+        or typed_candidate.get("source_title"),
         "typed_candidate.display_name",
     )
     source_ref = _candidate_source_ref(candidate=candidate, selected_write_task=selected_write_task)
@@ -583,13 +900,17 @@ def _contact_record_from_candidate(
         },
     )
     selected_write_field_review = _selected_write_field_review(selected_write_task)
+    contact_points = _contact_point_list(typed_candidate.get("contact_points"))
+    phones = _string_list(typed_candidate.get("phones"))
     return {
         "contact_id": contact_id,
         "display_name": display_name,
         "aliases": _unique_strings(
             [
                 display_name,
+                source_title,
                 _target_label(selected_write_task),
+                *_official_web_contact_aliases(display_name=display_name, source_title=source_title),
                 *_string_list(typed_candidate.get("aliases")),
             ]
         ),
@@ -598,11 +919,11 @@ def _contact_record_from_candidate(
         "phones": [
             {
                 "phone_id": f"{contact_id}:phone:{index}",
-                "label": "电话号码",
+                "label": _contact_point_label(contact_points=contact_points, phone=phone) or "电话号码",
                 "number": phone,
                 "source_refs": [source_ref],
             }
-            for index, phone in enumerate(_string_list(typed_candidate.get("phones")), start=1)
+            for index, phone in enumerate(phones, start=1)
         ],
         "emails": [
             {
@@ -633,11 +954,21 @@ def _service_guide_record_from_candidate(
     *,
     candidate: dict[str, object],
     selected_write_task: dict[str, object],
+    task_created_at: datetime,
     generated_at: str,
 ) -> dict[str, object]:
     typed_candidate = _object_mapping(candidate.get("typed_candidate"))
+    source_title = _require_text(
+        typed_candidate.get("source_title") or typed_candidate.get("service_name"),
+        "typed_candidate.source_title",
+    )
     display_name = _require_text(
-        typed_candidate.get("service_name") or typed_candidate.get("source_title"),
+        choose_official_web_service_name(
+            source_title=source_title,
+            target_label=_target_label(selected_write_task),
+        )
+        or typed_candidate.get("service_name")
+        or typed_candidate.get("source_title"),
         "typed_candidate.service_name",
     )
     source_ref = _candidate_source_ref(candidate=candidate, selected_write_task=selected_write_task)
@@ -678,14 +1009,16 @@ def _service_guide_record_from_candidate(
         "aliases": _unique_strings(
             [
                 display_name,
+                source_title,
                 _target_label(selected_write_task),
+                *_official_web_service_aliases(display_name=display_name, source_title=source_title),
                 *_string_list(typed_candidate.get("aliases")),
             ]
         ),
         "category": "campus_service",
         "campus_scope": "all",
         "audience": ["unknown"],
-        "effective_from": generated_at,
+        "effective_from": _selected_write_effective_from(task_created_at, generated_at),
         "effective_until": "9999-12-31T23:59:59+00:00",
         "source_refs": [source_ref],
         "guide_sections": guide_sections,
@@ -728,6 +1061,221 @@ def _service_guide_record_from_candidate(
         "extraction_status": "ready",
         **selected_write_field_review,
     }
+
+
+def _service_guide_record_from_candidates(
+    *,
+    candidates: list[dict[str, object]],
+    selected_write_task: dict[str, object],
+    task_created_at: datetime,
+    generated_at: str,
+) -> dict[str, object]:
+    if len(candidates) == 1:
+        single = _service_guide_record_from_candidate(
+            candidate=candidates[0],
+            selected_write_task=selected_write_task,
+            task_created_at=task_created_at,
+            generated_at=generated_at,
+        )
+        return _with_public_service_guide_source_refs(
+            record=single,
+            selected_write_task=selected_write_task,
+        )
+    typed_candidates = [
+        _object_mapping(candidate.get("typed_candidate")) for candidate in candidates
+    ]
+    source_title = _require_text(
+        next(
+            (
+                typed.get("source_title") or typed.get("service_name")
+                for typed in typed_candidates
+                if typed.get("source_title") or typed.get("service_name")
+            ),
+            "",
+        ),
+        "typed_candidate.source_title",
+    )
+    display_name = _require_text(
+        _target_label(selected_write_task)
+        or choose_official_web_service_name(
+            source_title=source_title,
+            target_label=_target_label(selected_write_task),
+        ),
+        "typed_candidate.service_name",
+    )
+    source_refs = _public_source_refs_for_selected_write_task(selected_write_task)
+    source_ref = source_refs[0]
+    service_id = _stable_record_id(
+        prefix="service:official_web",
+        seed={
+            "display_name": display_name,
+            "inventory_id": selected_write_task.get("inventoryId"),
+            "source_refs": source_refs,
+        },
+    )
+    process_items = _service_guide_items_by_source(
+        candidates=candidates,
+        field_name="process_steps",
+        fallback_source_ref=source_ref,
+    )
+    material_items = _service_guide_items_by_source(
+        candidates=candidates,
+        field_name="materials",
+        fallback_source_ref=source_ref,
+    )
+    entry_items = _service_guide_items_by_source(
+        candidates=candidates,
+        field_name="entry_points",
+        fallback_source_ref=source_ref,
+    )
+    office_items = _service_guide_items_by_source(
+        candidates=candidates,
+        field_name="responsible_office",
+        fallback_source_ref=source_ref,
+    )
+    contacts = _merged_service_guide_contacts(candidates)
+    contact_refs = _service_guide_contact_refs(
+        contacts=contacts,
+        display_name=display_name,
+        responsible_offices=[item["text"] for item in office_items],
+        service_id=service_id,
+        source_ref=source_ref,
+    )
+    selected_write_field_review = _selected_write_field_review(selected_write_task)
+    return {
+        "service_id": service_id,
+        "display_name": display_name,
+        "aliases": _unique_strings(
+            [
+                display_name,
+                source_title,
+                _target_label(selected_write_task),
+                *_official_web_service_aliases(display_name=display_name, source_title=source_title),
+                *[
+                    alias
+                    for typed in typed_candidates
+                    for alias in _string_list(typed.get("aliases"))
+                ],
+            ]
+        ),
+        "category": "campus_service",
+        "campus_scope": "all",
+        "audience": ["unknown"],
+        "effective_from": _selected_write_effective_from(task_created_at, generated_at),
+        "effective_until": "9999-12-31T23:59:59+00:00",
+        "source_refs": source_refs,
+        "guide_sections": _service_guide_sections_from_items(
+            service_id=service_id,
+            display_name=display_name,
+            process_items=process_items,
+            material_items=material_items,
+            entry_items=entry_items,
+            office_items=office_items,
+            fallback_source_ref=source_ref,
+        ),
+        "materials": [
+            {
+                "material_id": f"{service_id}:material:{index}",
+                "name": item["text"],
+                "required": True,
+                "note": "",
+                "source_refs": [item["source_ref"]],
+            }
+            for index, item in enumerate(material_items, start=1)
+        ],
+        "entry_refs": [
+            {
+                "entry_id": f"{service_id}:entry:{index}",
+                "label": item["text"],
+                "entry_type": "online_url"
+                if item["text"].startswith(("http://", "https://"))
+                else "web_page",
+                "url": item["text"] if item["text"].startswith(("http://", "https://")) else "",
+                "location_ref": "",
+                "source_refs": [item["source_ref"]],
+            }
+            for index, item in enumerate(entry_items, start=1)
+        ],
+        "office_hours": [
+            {
+                "hours_id": f"{service_id}:hours:{index}",
+                "label": hours,
+                "day_pattern": "",
+                "time_range": "",
+                "effective_note": "",
+                "source_refs": [source_ref],
+            }
+            for index, hours in enumerate(_string_list(contacts.get("office_hours")), start=1)
+        ],
+        "contact_refs": contact_refs,
+        "eligibility_notes": [],
+        "extraction_status": "ready",
+        **selected_write_field_review,
+    }
+
+
+def _with_public_service_guide_source_refs(
+    *,
+    record: dict[str, object],
+    selected_write_task: dict[str, object],
+) -> dict[str, object]:
+    source_refs = _public_source_refs_for_selected_write_task(selected_write_task)
+    primary_source_ref = source_refs[0]
+
+    def replace_item_sources(value: object) -> list[dict[str, object]]:
+        return [{**item, "source_refs": [primary_source_ref]} for item in _mapping_list(value)]
+
+    return {
+        **record,
+        "source_refs": source_refs,
+        "guide_sections": replace_item_sources(record.get("guide_sections")),
+        "materials": replace_item_sources(record.get("materials")),
+        "entry_refs": replace_item_sources(record.get("entry_refs")),
+        "office_hours": replace_item_sources(record.get("office_hours")),
+        "contact_refs": replace_item_sources(record.get("contact_refs")),
+    }
+
+
+def _selected_write_effective_from(
+    task_created_at: datetime,
+    generated_at: str,
+) -> str:
+    if task_created_at.tzinfo is not None:
+        return task_created_at.astimezone(UTC).replace(
+            hour=0,
+            minute=0,
+            second=0,
+            microsecond=0,
+        ).isoformat()
+    return generated_at
+
+
+def _official_web_service_aliases(*, display_name: str, source_title: str) -> list[str]:
+    aliases: list[str] = []
+    normalized_display = display_name.strip()
+    normalized_source = source_title.strip()
+    if "电子邮件" in normalized_display or "电子邮件" in normalized_source:
+        aliases.append("校园邮箱")
+    if "校园网认证" in normalized_display or "校园网新版认证系统" in normalized_source:
+        aliases.extend(["校园网认证", "上网认证"])
+    if "VPN" in normalized_display or "VPN" in normalized_source.upper():
+        aliases.extend(["VPN", "vpn"])
+    if "信息公开" in normalized_display or "信息公开" in normalized_source:
+        aliases.extend(["信息公开申请流程", "信息公开申请"])
+    if "校园卡" in normalized_display or "校园卡" in normalized_source:
+        aliases.extend(["校园卡", "一卡通", "校园卡补办", "校园卡挂失"])
+    return _unique_strings(aliases)
+
+
+def _official_web_contact_aliases(*, display_name: str, source_title: str) -> list[str]:
+    aliases: list[str] = []
+    normalized_display = display_name.strip()
+    normalized_source = source_title.strip()
+    if "信息化服务" in normalized_display or "信息化服务" in normalized_source:
+        aliases.append("信息化办")
+    if "信息公开" in normalized_display or "信息公开" in normalized_source:
+        aliases.append("信息公开")
+    return _unique_strings(aliases)
 
 
 def _service_guide_sections(
@@ -801,6 +1349,113 @@ def _service_guide_sections(
     ]
 
 
+def _service_guide_sections_from_items(
+    *,
+    service_id: str,
+    display_name: str,
+    process_items: list[dict[str, str]],
+    material_items: list[dict[str, str]],
+    entry_items: list[dict[str, str]],
+    office_items: list[dict[str, str]],
+    fallback_source_ref: str,
+) -> list[dict[str, object]]:
+    sections: list[dict[str, object]] = []
+    if process_items:
+        sections.append(
+            {
+                "section_id": f"{service_id}:section:procedure",
+                "section_type": "procedure",
+                "title": display_name,
+                "content": "\n".join(
+                    f"{index}. {item['text']}" for index, item in enumerate(process_items, start=1)
+                ),
+                "order": 1,
+                "source_refs": _unique_strings([item["source_ref"] for item in process_items]),
+            }
+        )
+    if material_items:
+        sections.append(
+            {
+                "section_id": f"{service_id}:section:required_materials",
+                "section_type": "required_materials",
+                "title": "申请材料",
+                "content": "\n".join(item["text"] for item in material_items),
+                "order": 2,
+                "source_refs": _unique_strings([item["source_ref"] for item in material_items]),
+            }
+        )
+    if entry_items:
+        sections.append(
+            {
+                "section_id": f"{service_id}:section:entry",
+                "section_type": "entry",
+                "title": "办理入口",
+                "content": "\n".join(item["text"] for item in entry_items),
+                "order": 3,
+                "source_refs": _unique_strings([item["source_ref"] for item in entry_items]),
+            }
+        )
+    if office_items:
+        sections.append(
+            {
+                "section_id": f"{service_id}:section:contact",
+                "section_type": "contact",
+                "title": "负责部门",
+                "content": "\n".join(item["text"] for item in office_items),
+                "order": 4,
+                "source_refs": _unique_strings([item["source_ref"] for item in office_items]),
+            }
+        )
+    if sections:
+        return sections
+    return [
+        {
+            "section_id": f"{service_id}:section:overview",
+            "section_type": "overview",
+            "title": display_name,
+            "content": display_name,
+            "order": 1,
+            "source_refs": [fallback_source_ref],
+        }
+    ]
+
+
+def _service_guide_items_by_source(
+    *,
+    candidates: Sequence[Mapping[str, object]],
+    field_name: str,
+    fallback_source_ref: str,
+) -> list[dict[str, str]]:
+    items: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for candidate in candidates:
+        typed_candidate = _object_mapping(candidate.get("typed_candidate"))
+        source_ref = _candidate_public_source_ref(candidate) or fallback_source_ref
+        for text in _string_list(typed_candidate.get(field_name)):
+            key = (text, source_ref)
+            if key in seen:
+                continue
+            seen.add(key)
+            items.append({"text": text, "source_ref": source_ref})
+    return items
+
+
+def _merged_service_guide_contacts(
+    candidates: Sequence[Mapping[str, object]],
+) -> dict[str, object]:
+    merged: dict[str, list[str]] = {
+        "emails": [],
+        "locations": [],
+        "office_hours": [],
+        "phones": [],
+    }
+    for candidate in candidates:
+        contacts = _object_mapping(_object_mapping(candidate.get("typed_candidate")).get("contacts"))
+        for key in merged:
+            merged[key].extend(_string_list(contacts.get(key)))
+    return {key: _unique_strings(values) for key, values in merged.items()}
+
+
 def _service_guide_contact_refs(
     *,
     contacts: Mapping[str, object],
@@ -830,6 +1485,28 @@ def _service_guide_contact_refs(
 def _indexed_value(values: list[str], offset: int) -> str:
     if offset < len(values):
         return values[offset]
+    return ""
+
+
+def _contact_point_list(value: object) -> list[dict[str, str]]:
+    if not isinstance(value, list):
+        return []
+    result: list[dict[str, str]] = []
+    for item in value:
+        if not isinstance(item, Mapping):
+            continue
+        label = str(item.get("label") or "").strip()
+        phone = str(item.get("phone") or "").strip()
+        if not label or not phone:
+            continue
+        result.append({"label": label, "phone": phone})
+    return result
+
+
+def _contact_point_label(*, contact_points: list[dict[str, str]], phone: str) -> str:
+    for item in contact_points:
+        if item["phone"] == phone:
+            return item["label"]
     return ""
 
 
@@ -920,6 +1597,30 @@ def _candidate_source_ref(
     return f"official_web:{inventory_id}:{raw_version_id}"
 
 
+def _candidate_public_source_ref(candidate: Mapping[str, object]) -> str:
+    typed_candidate = _object_mapping(candidate.get("typed_candidate"))
+    return str(
+        typed_candidate.get("source_url")
+        or candidate.get("normalized_canonical_url")
+        or ""
+    ).strip()
+
+
+def _public_source_refs_for_selected_write_task(selected_write_task: dict[str, object]) -> list[str]:
+    evidence = _evidence(selected_write_task)
+    urls = _string_list(evidence.get("sourceUrls") or evidence.get("source_urls"))
+    refs = []
+    for item in _mapping_list(evidence.get("sourceRefs") or evidence.get("source_refs")):
+        ref_url = str(
+            item.get("normalized_canonical_url")
+            or item.get("normalizedCanonicalUrl")
+            or ""
+        ).strip()
+        if ref_url:
+            refs.append(ref_url)
+    return _unique_strings([*urls, *refs])
+
+
 def _release_task_model(
     release_task: Mapping[str, object] | OfficialWebReleaseTask,
 ) -> OfficialWebReleaseTask:
@@ -998,12 +1699,14 @@ def _assert_machine_field_review_ready(input_ref: Mapping[str, object]) -> None:
 
 def _selected_write_task_from_release_task(task: OfficialWebReleaseTask) -> dict[str, object]:
     return {
+        "createdAt": task.created_at.isoformat(),
         "evidenceJson": dict(task.input_ref),
         "inventoryId": task.inventory_id,
         "jobId": task.job_id,
         "runId": task.run_id,
         "selectedWriteId": task.task_id,
         "selectedWriteTarget": _selected_write_target_from_task(task),
+        "updatedAt": task.updated_at.isoformat(),
     }
 
 
@@ -1211,9 +1914,11 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 
 __all__ = [
+    "OfficialWebSelectedWritePreviewResult",
     "OfficialWebSelectedWriteResult",
     "build_parser",
     "main",
+    "preview_official_web_selected_write",
     "release_official_web_selected_write",
 ]
 

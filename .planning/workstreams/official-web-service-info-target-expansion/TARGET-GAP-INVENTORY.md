@@ -24,7 +24,7 @@ The selected-write denominator is:
 | `muc-main-homepage-contact` | `contact_directory_lookup` | `https://www.muc.edu.cn/` | campus locations, main phone | optional `email`, `office_hours` recorded as source-not-provided | selected-write released |
 | `muc-information-disclosure-contact` | `contact_directory_lookup` | `https://xxgk.muc.edu.cn/xxgk/lxfs.htm` | information disclosure phone/fax and address text | optional `email`, `office_hours` recorded as source-not-provided | selected-write released |
 | `muc-information-disclosure-application-process` | `service_guide_lookup` | `https://xxgk.muc.edu.cn/info/1007/1113.htm` | process steps, information portal route, responsible office text | no current preview/release evidence in this workstream | retained candidate, selected-write blocked until preview |
-| `muc-information-disclosure-application-form-download` | `service_guide_lookup` | `https://xxgk.muc.edu.cn/info/1007/1114.htm` | application form and approval form download links | required `service_process` absent on this page alone | retained candidate, selected-write blocked |
+| `muc-information-disclosure-application-form-download` | `service_guide_lookup` | `https://xxgk.muc.edu.cn/info/1007/1114.htm` | application form and approval form download links | required `service_process` absent on this page alone; should be evaluated as a composition component with `muc-information-disclosure-application-process` | retained composition component, selected-write blocked |
 | `muc-it-student-campus-card-service-guide` | `service_guide_lookup` | `https://met.muc.edu.cn/info/1027/1127.htm` | campus card process sections and service contact phones | optional `location`, `office_hours` recorded as source-not-provided | selected-write released |
 
 ## Excluded Shape
@@ -41,5 +41,5 @@ The selected-write denominator is:
   blocker.
 - The homepage contact, information disclosure contact and student campus card service guide rows
   are released into current structured projections.
-- The application-form row remains a blocked service-guide candidate because it contributes material
-  evidence but not the required process evidence on that page alone.
+- The application-form row remains a blocked service-guide composition component because it
+  contributes material evidence but not the required process evidence on that page alone.

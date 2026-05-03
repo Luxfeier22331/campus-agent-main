@@ -32,7 +32,7 @@ from campus_ingestion_core.structured_projection_postgres import (
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.official_web_release_task_projection_reporting import (
-    build_official_web_release_task_projection_reporter_from_env,
+    require_official_web_release_task_projection_reporter_from_env,
 )
 from campus_ingestion_worker.release_official_web_selected_write import (
     release_official_web_selected_write,
@@ -352,12 +352,18 @@ def _output_ref_from_result(result: object) -> dict[str, Any]:
             "collection",
             "corpus",
             "document_ids",
+            "full_impact_display_names",
+            "full_record_count",
             "record_count",
             "release_id",
             "releaseId",
             "selected_write_id",
             "source_bundle_key",
             "status",
+            "task_scope_display_names",
+            "fullImpactDisplayNames",
+            "fullRecordCount",
+            "taskScopeDisplayNames",
         }
         and value not in (None, "")
     }
@@ -411,7 +417,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         document_registry=build_document_registry_from_env(prefer_operator=True),
         raw_asset_registry=build_raw_asset_registry_from_env(prefer_operator=True),
         structured_projection_publisher=build_structured_projection_publisher_from_env(),
-        projection_reporter=build_official_web_release_task_projection_reporter_from_env(),
+        projection_reporter=require_official_web_release_task_projection_reporter_from_env(),
         work_dir=Path(args.work_dir).resolve(),
         object_store_settings=settings,
         source_bucket=args.source_bucket,

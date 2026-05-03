@@ -134,6 +134,7 @@ describe("official web consumer denominator", () => {
 			"contact_directory_candidate",
 			"service_guide_candidate",
 			"stable_reference_candidate",
+			"regulation_candidate",
 			"notice_news_candidate",
 		]);
 		expect(

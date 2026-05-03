@@ -158,6 +158,73 @@ func TestLookupContactDirectoryPrefersExactDepartmentOverLongAlias(t *testing.T)
 	}
 }
 
+func TestLookupContactDirectoryResolvesEntitySelectorAgainstMergedHomepageContact(t *testing.T) {
+	runtime := newRuntimeWithContactDirectoryReadModel(
+		t,
+		`{
+			"schema_version":"campus_services_contact_directory_projection.v1",
+			"contact_records":[
+				{
+					"contact_id":"contact:official-web:muc-homepage",
+					"display_name":"中央民族大学",
+					"aliases":["中央民族大学"],
+					"contact_group":"official_web",
+					"department":"中央民族大学",
+					"location_refs":[
+						{
+							"label":"办公地点",
+							"location_ref":"北京市海淀区中关村南大街27号",
+							"address_text":"北京市海淀区中关村南大街27号",
+							"source_refs":["official_web:muc-main-homepage-contact:owver"]
+						}
+					],
+					"source_refs":["official_web:muc-main-homepage-contact:owver"],
+					"extraction_status":"ready"
+				},
+				{
+					"contact_id":"contact:official-web:it-service",
+					"display_name":"中央民族大学信息化服务联系方式",
+					"aliases":["信息化办","信息化服务联系方式"],
+					"contact_group":"official_web",
+					"department":"信息化建设管理处",
+					"location_refs":[
+						{
+							"label":"办公地点",
+							"location_ref":"北京市海淀区中关村南大街27号",
+							"address_text":"北京市海淀区中关村南大街27号",
+							"source_refs":["official_web:muc-it-service-contacts:owver"]
+						}
+					],
+					"source_refs":["official_web:muc-it-service-contacts:owver"],
+					"extraction_status":"ready"
+				}
+			],
+			"conflict_records":[],
+			"manual_review_sources":[]
+		}`,
+		"2026-05-02T00:00:01+08:00",
+	)
+
+	response := runtime.LookupContactDirectory(context.Background(), []byte(`{
+		"query_text":"信息化办办公地点在哪里",
+		"contact_focus":"location",
+		"entity_selector":{"department_query":"信息化办"},
+		"temporal_query":{"mode":"current"},
+		"audience":"unknown"
+	}`))
+
+	result := response.Body.(contactDirectoryResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current; candidates = %#v", result.Outcome, result.CandidateContacts)
+	}
+	if result.ResolvedContact == nil || result.ResolvedContact.DisplayName != "中央民族大学信息化服务联系方式" {
+		t.Fatalf("resolved_contact = %#v", result.ResolvedContact)
+	}
+	if len(result.LocationRefs) != 1 || result.LocationRefs[0].LocationRef != "北京市海淀区中关村南大街27号" {
+		t.Fatalf("location_refs = %#v", result.LocationRefs)
+	}
+}
+
 func TestLookupContactDirectoryMatchesContactPointAndHoursLabels(t *testing.T) {
 	runtime := newRuntimeWithContactDirectoryReadModel(
 		t,

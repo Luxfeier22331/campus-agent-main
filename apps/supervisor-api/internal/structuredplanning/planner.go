@@ -82,7 +82,8 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_status_lookup"),
 			})
 		}
-		if isContactDirectoryLookup(normalizedGoal, policy) {
+		if isContactDirectoryLookup(normalizedGoal, policy) &&
+			!shouldPreferServiceGuideOverContactDirectory(normalizedGoal, policy) {
 			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "contact_directory_lookup",
@@ -256,7 +257,33 @@ func contactDirectoryPayload(
 	if campusScope := campusScopeFromGoal(normalizedGoal, policy); campusScope != "" {
 		payload["campus_scope"] = campusScope
 	}
+	if entitySelector := contactDirectoryEntitySelectorPayload(normalizedGoal, policy); len(entitySelector) > 0 {
+		payload["entity_selector"] = entitySelector
+	}
 	return payload
+}
+
+func contactDirectoryEntitySelectorPayload(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) map[string]any {
+	subject := firstPlanningSignal(normalizedGoal, policy.Signals("structured_contact_directory"))
+	if subject == "" {
+		return nil
+	}
+	return map[string]any{
+		"department_query": subject,
+	}
+}
+
+func firstPlanningSignal(normalizedValue string, signals []string) string {
+	for _, signal := range signals {
+		normalizedSignal := runtimepolicy.NormalizeGoal(signal)
+		if normalizedSignal != "" && strings.Contains(normalizedValue, normalizedSignal) {
+			return signal
+		}
+	}
+	return ""
 }
 
 func noticeDiscoverPayload(
@@ -428,6 +455,15 @@ func isContactDirectoryLookup(
 ) bool {
 	return containsAny(normalizedGoal, policy.Signals("structured_contact_directory")) &&
 		containsAny(normalizedGoal, policy.Signals("structured_contact_directory_action"))
+}
+
+func shouldPreferServiceGuideOverContactDirectory(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) bool {
+	return containsAny(normalizedGoal, policy.Signals("structured_service_guide_subject")) &&
+		containsAny(normalizedGoal, policy.Signals("structured_service_guide_action")) &&
+		containsAny(normalizedGoal, policy.Signals("service_guide_focus_entry"))
 }
 
 func isTransportBoardingStatusLookup(

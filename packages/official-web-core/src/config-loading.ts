@@ -359,6 +359,9 @@ function defaultMaterializationPolicyForConsumerFamily(
 	if (consumerFamily === "stable_reference_candidate") {
 		return "release_gate_required";
 	}
+	if (consumerFamily === "regulation_candidate") {
+		return "release_gate_required";
+	}
 	if (consumerFamily === "notice_news_candidate") {
 		return "inventory_only";
 	}
@@ -367,6 +370,9 @@ function defaultMaterializationPolicyForConsumerFamily(
 
 function defaultReviewPolicyForConsumerFamily(consumerFamily: OfficialWebConsumerFamily): string {
 	if (consumerFamily === "stable_reference_candidate") {
+		return "release_gate_required";
+	}
+	if (consumerFamily === "regulation_candidate") {
 		return "release_gate_required";
 	}
 	if (consumerFamily === "notice_news_candidate") {

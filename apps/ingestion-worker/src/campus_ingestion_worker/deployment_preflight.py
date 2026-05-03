@@ -292,6 +292,31 @@ def _check_batch_specific_env(
                     },
                 )
             )
+    if "official-web-release-tasks" in batch_kinds:
+        base_url = _env_text(env, "INGESTION_WORKER_APP_API_BASE_URL")
+        shared_secret = _env_text(env, "INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET")
+        if not (base_url and shared_secret):
+            checks.append(
+                _failed(
+                    "official_web_release_task_projection_callback",
+                    "Missing required official web release task projection callback env: "
+                    "INGESTION_WORKER_APP_API_BASE_URL and "
+                    "INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET.",
+                )
+            )
+        else:
+            checks.append(
+                _passed(
+                    "official_web_release_task_projection_callback",
+                    "Official web release task projection callback env is configured.",
+                    details={
+                        "base_url_env": "INGESTION_WORKER_APP_API_BASE_URL",
+                        "shared_secret_env": (
+                            "INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET"
+                        ),
+                    },
+                )
+            )
     return checks
 
 

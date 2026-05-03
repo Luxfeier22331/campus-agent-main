@@ -93,6 +93,22 @@
 			"review_policy": "release_gate_required"
 		},
 		{
+			"consumer_family": "regulation_candidate",
+			"owner_surface": "regulations/institutional_rules",
+			"owner_agent_or_runtime": "rag-agent",
+			"materialization_policy": "release_gate_required",
+			"page_families": ["article_detail", "generic_content_page"],
+			"title_keywords": ["办法", "规定", "细则", "制度", "实施细则"],
+			"path_patterns": ["gzzd", "rule", "policy", "zhidu"],
+			"required_evidence": ["regulation_text"],
+			"optional_evidence": [],
+			"minimum_matched_evidence_count": 1,
+			"requires_keyword_or_path_match": false,
+			"negative_patterns": ["新闻", "通知", "公告", "讲座", "活动", "公示"],
+			"selected_write_target": "regulations/institutional_rules",
+			"review_policy": "release_gate_required"
+		},
+		{
 			"consumer_family": "notice_news_candidate",
 			"owner_surface": "future_notice_runtime",
 			"owner_agent_or_runtime": "notice-agent",

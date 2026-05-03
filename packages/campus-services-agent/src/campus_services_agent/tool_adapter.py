@@ -519,7 +519,20 @@ def _service_guide_text(result: ServiceGuideLookupResult) -> str:
         )
     if result.eligibility_notes:
         parts.append("适用范围：" + "、".join(result.eligibility_notes))
+    display_source_refs = _display_source_refs(result.source_refs)
+    if display_source_refs:
+        parts.append("来源：" + "、".join(display_source_refs))
     return "\n".join(part for part in dict.fromkeys(parts) if part)
+
+
+def _display_source_refs(source_refs: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(
+        dict.fromkeys(
+            source_ref
+            for source_ref in source_refs
+            if source_ref.startswith(("http://", "https://"))
+        )
+    )
 
 
 def _service_guide_material_text(material) -> str:

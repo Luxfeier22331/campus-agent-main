@@ -42,6 +42,10 @@ from campus_ingestion_core.official_web_projection_units import (
     _render_canonical_markdown,
     _resolve_document_title,
 )
+from campus_ingestion_core.official_web_target_labeling import (
+    choose_official_web_contact_display_name,
+    choose_official_web_service_name,
+)
 
 _PHONE_RE = re.compile(r"(?<!\d)(?:0\d{2,3}[-\s]?)?\d{7,8}(?!\d)")
 _EMAIL_RE = re.compile(r"[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}", re.IGNORECASE)
@@ -51,11 +55,14 @@ _CAMPUS_ADDRESS_RE = re.compile(
     r"(?P<address>.*?)(?=\s*(?:海淀|丰台|海南)校区[:：]|$)"
 )
 _OFFICE_HOURS_RE = re.compile(r"(?:办公时间|办理时间|服务时间|开放时间)[:：]\s*([^。；;\n]+)")
+_CONTACT_POINT_RE = re.compile(
+    r"(?P<label>[\u4e00-\u9fffA-Za-z0-9（）()·\-]{2,30}(?:服务)?)电话[:：]\s*(?P<phone>(?:0\d{2,3}[-\s]?)?\d{7,8})"
+)
 _SELECTED_WRITE_SUPPRESSION_RE = re.compile(
     r"(采购|招标|中标|中选|比选|竞价|结果公示|公示期|公开招聘|招聘启事|新闻|通知|公告)"
 )
 _SERVICE_PROCESS_RE = re.compile(
-    r"(办理流程|工作流程|流程|步骤|受理|审核|答复|提交|补正|办理|补办|挂失|解挂|报销|预约|"
+    r"(办理流程|工作流程|流程|步骤|受理|审核|答复|提交|补正|办理|申请方法|补办|挂失|解挂|报销|预约|"
     r"申请人|承办部门|工作日|领取|发放|携带|支付)"
 )
 _SERVICE_ENTRY_RE = re.compile(r"(入口|系统|APP|小程序|自助|线下|窗口|前台)", re.IGNORECASE)
@@ -95,6 +102,7 @@ _TARGET_CONSUMER_FAMILIES = frozenset(
         "contact_directory_candidate",
         "service_guide_candidate",
         "stable_reference_candidate",
+        "regulation_candidate",
         "notice_news_candidate",
     }
 )
@@ -439,6 +447,8 @@ def _build_consumer_projection_overrides(
             overrides.update(
                 _build_information_disclosure_projection_overrides(group_contexts)
             )
+        elif composition_group == "email_service":
+            overrides.update(_build_email_service_projection_overrides(group_contexts))
     return overrides
 
 
@@ -506,6 +516,196 @@ def _build_information_disclosure_projection_overrides(
     return overrides
 
 
+def _build_email_service_projection_overrides(
+    page_contexts: list[dict[str, object]],
+) -> dict[tuple[str, str], dict[str, object]]:
+    policy_context: dict[str, object] | None = None
+    entry_contexts: list[dict[str, object]] = []
+    material_contexts: list[dict[str, object]] = []
+    contact_contexts: list[dict[str, object]] = []
+    suppressed_page_keys: set[tuple[str, str]] = set()
+
+    for page_context in page_contexts:
+        manifest = dict(page_context["manifest"])
+        raw_page = dict(page_context["raw_page"])
+        page_lineage = _page_lineage_fields(manifest=manifest, raw_page=raw_page)
+        composition_role = _require_optional_text(page_lineage.get("compositionRole"))
+        target_matches = list(page_context["target_matches"])
+        if _find_consumer_match(target_matches, "service_guide_candidate") is not None:
+            if composition_role == "policy_source":
+                policy_context = page_context
+            elif composition_role in {"entry_source", "material_source", "contact_source"}:
+                suppressed_page_keys.add(_page_identity(manifest))
+        if composition_role == "entry_source":
+            entry_contexts.append(page_context)
+        elif composition_role == "material_source":
+            material_contexts.append(page_context)
+        elif composition_role == "contact_source":
+            contact_contexts.append(page_context)
+
+    if policy_context is None:
+        return {
+            page_key: {
+                "candidate_pages": [],
+                "skip_consumer_families": ["service_guide_candidate"],
+                "force_candidate_action": True,
+            }
+            for page_key in suppressed_page_keys
+        }
+
+    policy_target_lineage = _find_consumer_match(
+        list(policy_context["target_matches"]),
+        "service_guide_candidate",
+    )
+    if policy_target_lineage is None:
+        return {}
+
+    overrides: dict[tuple[str, str], dict[str, object]] = {}
+    policy_manifest = dict(policy_context["manifest"])
+    overrides[_page_identity(policy_manifest)] = {
+        "candidate_pages": [
+            _build_email_service_candidate_page(
+                policy_context=policy_context,
+                entry_contexts=entry_contexts,
+                material_contexts=material_contexts,
+                contact_contexts=contact_contexts,
+                target_lineage=policy_target_lineage,
+            )
+        ],
+        "skip_consumer_families": ["service_guide_candidate"],
+        "force_candidate_action": True,
+    }
+    for page_key in suppressed_page_keys:
+        overrides[page_key] = {
+            "candidate_pages": [],
+            "skip_consumer_families": ["service_guide_candidate"],
+            "force_candidate_action": True,
+        }
+    return overrides
+
+
+def _build_email_service_candidate_page(
+    *,
+    policy_context: dict[str, object],
+    entry_contexts: list[dict[str, object]],
+    material_contexts: list[dict[str, object]],
+    contact_contexts: list[dict[str, object]],
+    target_lineage: dict[str, object],
+) -> dict[str, object]:
+    policy_manifest = dict(policy_context["manifest"])
+    policy_blocks = list(policy_context["blocks"])
+    title = str(policy_context["title"])
+    normalized_canonical_url = _require_text(
+        policy_manifest.get("normalizedCanonicalUrl"),
+        "normalizedCanonicalUrl",
+    )
+    raw_version_id = _require_text(policy_manifest.get("rawVersionId"), "rawVersionId")
+    selected_write_target = (
+        _require_optional_text(
+            target_lineage.get("selectedWriteTarget") or target_lineage.get("selected_write_target")
+        )
+        or ""
+    )
+    policy_lines = _main_content_lines(policy_blocks)
+    entry_lines = _combined_main_content_lines(entry_contexts)
+    material_lines = _combined_main_content_lines(material_contexts)
+    contact_blocks = _combined_candidate_blocks(
+        contact_contexts,
+        consumer_family="contact_directory_candidate",
+    )
+    contact_lines = _block_lines(contact_blocks)
+    process_steps = _extract_service_process_steps(policy_lines)
+    materials = _extract_service_materials(material_lines)
+    if not materials:
+        materials = [
+            line
+            for line in material_lines
+            if ("申请表" in line or "审批表" in line) and len(line.strip()) <= 64
+        ]
+        materials = _unique(materials)
+    responsible_office = _unique(
+        _extract_responsible_offices(policy_lines)
+        + _extract_responsible_offices(contact_lines)
+    )
+    if not responsible_office and any("网络中心" in line for line in policy_lines):
+        responsible_office = ["网络中心"]
+    entry_points = _unique(
+        _extract_service_entry_points(policy_lines)
+        + _extract_service_entry_points(entry_lines)
+        + _extract_mail_host_entry_points(policy_lines)
+        + _extract_mail_host_entry_points(entry_lines)
+    )
+    contact_text_lines = _unique(contact_lines + policy_lines + entry_lines)
+    typed_candidate = {
+        "service_name": _service_candidate_name(
+            title=title,
+            target_lineage=target_lineage,
+        ),
+        "process_steps": process_steps,
+        "materials": materials,
+        "responsible_office": responsible_office,
+        "entry_points": entry_points,
+        "contacts": {
+            "phones": _unique(_PHONE_RE.findall("\n".join(contact_text_lines))),
+            "emails": _unique(_EMAIL_RE.findall("\n".join(contact_text_lines))),
+            "locations": _extract_locations(contact_text_lines),
+            "office_hours": _unique(
+                match.strip() for match in _OFFICE_HOURS_RE.findall("\n".join(contact_text_lines))
+            ),
+        },
+        "supporting_source_urls": _composition_source_urls(
+            [policy_context, *entry_contexts, *material_contexts, *contact_contexts]
+        ),
+        "source_url": normalized_canonical_url,
+        "source_title": title,
+    }
+    candidate = {
+        "candidate_key": _build_candidate_key(
+            consumer_family="service_guide_candidate",
+            normalized_canonical_url=normalized_canonical_url,
+            raw_version_id=raw_version_id,
+            selected_write_target=selected_write_target,
+        ),
+        "consumer_family": "service_guide_candidate",
+        "materialization_policy": _require_optional_text(
+            target_lineage.get("materializationPolicy")
+            or target_lineage.get("materialization_policy")
+        )
+        or "",
+        "target_corpus": "campus_services",
+        "target_collection": "service_guide",
+        "normalized_canonical_url": normalized_canonical_url,
+        "raw_asset_id": policy_manifest["rawAssetId"],
+        "raw_version_id": raw_version_id,
+        "title": title,
+        "matched_evidence": _target_lineage_matched_evidence(target_lineage),
+        "selected_write_target": selected_write_target,
+        "review_policy": _require_optional_text(
+            target_lineage.get("reviewPolicy") or target_lineage.get("review_policy")
+        ),
+        "reason": "candidate_only consumer denominator match",
+        "typed_candidate_schema_version": "official_web_service_guide_candidate.v1",
+        "typed_candidate": typed_candidate,
+        "quality_gate": _quality_gate(
+            suppressed=_selected_write_suppressed(title=title, lines=policy_lines),
+            has_identity=bool(title.strip()),
+            has_required_evidence=bool(process_steps),
+            has_source=bool(normalized_canonical_url.strip()),
+        ),
+        "evidence_spans": _build_evidence_spans(
+            _main_content_blocks(policy_blocks)
+            + _combined_main_content_blocks(entry_contexts)
+            + _combined_main_content_blocks(material_contexts)
+            + contact_blocks
+        ),
+        "source_refs": _composition_source_refs(
+            [policy_context, *entry_contexts, *material_contexts, *contact_contexts]
+        ),
+    }
+    candidate.update(_target_projection_fields(target_lineage))
+    return candidate
+
+
 def _build_information_disclosure_service_candidate_page(
     *,
     procedure_context: dict[str, object],
@@ -545,10 +745,15 @@ def _build_information_disclosure_service_candidate_page(
     entry_points = _unique(
         _extract_service_entry_points(procedure_lines)
         + _extract_service_entry_points(material_lines)
+        + _extract_mail_host_entry_points(procedure_lines)
+        + _extract_mail_host_entry_points(material_lines)
     )
     contact_text_lines = _unique(contact_lines + procedure_lines)
     typed_candidate = {
-        "service_name": title,
+        "service_name": _service_candidate_name(
+            title=title,
+            target_lineage=target_lineage,
+        ),
         "process_steps": process_steps,
         "materials": materials,
         "responsible_office": responsible_office,
@@ -561,6 +766,9 @@ def _build_information_disclosure_service_candidate_page(
                 match.strip() for match in _OFFICE_HOURS_RE.findall("\n".join(contact_text_lines))
             ),
         },
+        "supporting_source_urls": _composition_source_urls(
+            [procedure_context, *material_contexts, *contact_contexts]
+        ),
         "source_url": normalized_canonical_url,
         "source_title": title,
     }
@@ -602,6 +810,9 @@ def _build_information_disclosure_service_candidate_page(
             + _combined_main_content_blocks(material_contexts)
             + contact_blocks
         ),
+        "source_refs": _composition_source_refs(
+            [procedure_context, *material_contexts, *contact_contexts]
+        ),
     }
     candidate.update(_target_projection_fields(target_lineage))
     return candidate
@@ -609,6 +820,36 @@ def _build_information_disclosure_service_candidate_page(
 
 def _combined_main_content_lines(page_contexts: list[dict[str, object]]) -> list[str]:
     return _block_lines(_combined_main_content_blocks(page_contexts))
+
+
+def _composition_source_urls(page_contexts: list[dict[str, object]]) -> list[str]:
+    return _unique(
+        _require_text(dict(page_context["manifest"]).get("normalizedCanonicalUrl"), "normalizedCanonicalUrl")
+        for page_context in page_contexts
+    )
+
+
+def _composition_source_refs(page_contexts: list[dict[str, object]]) -> list[dict[str, object]]:
+    refs: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for page_context in page_contexts:
+        manifest = dict(page_context["manifest"])
+        normalized_url = _require_text(
+            manifest.get("normalizedCanonicalUrl"),
+            "normalizedCanonicalUrl",
+        )
+        if normalized_url in seen:
+            continue
+        seen.add(normalized_url)
+        refs.append(
+            {
+                "source_channel": "official_web",
+                "raw_asset_id": _require_text(manifest.get("rawAssetId"), "rawAssetId"),
+                "raw_version_id": _require_text(manifest.get("rawVersionId"), "rawVersionId"),
+                "normalized_canonical_url": normalized_url,
+            }
+        )
+    return refs
 
 
 def _combined_main_content_blocks(page_contexts: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -685,6 +926,7 @@ def _build_consumer_candidate_page(
             consumer_family=consumer_family,
             normalized_canonical_url=normalized_canonical_url,
             title=title,
+            target_lineage=target_lineage,
         )
     )
     candidate = {
@@ -746,6 +988,7 @@ def _build_typed_candidate(
     consumer_family: str,
     normalized_canonical_url: str,
     title: str,
+    target_lineage: dict[str, object] | None = None,
 ) -> tuple[str, dict[str, object], dict[str, object], list[dict[str, object]]]:
     main_lines = _main_content_lines(blocks)
     candidate_blocks = _candidate_content_blocks(blocks=blocks, consumer_family=consumer_family)
@@ -759,12 +1002,18 @@ def _build_typed_candidate(
     suppressed = _selected_write_suppressed(title=title, lines=main_lines)
 
     if consumer_family == "contact_directory_candidate":
+        contact_points = _extract_contact_points(lines)
         typed_candidate = {
-            "display_name": title,
+            "display_name": _contact_candidate_display_name(
+                title=title,
+                contact_points=contact_points,
+                target_lineage=target_lineage,
+            ),
             "phones": phones,
             "emails": emails,
             "locations": locations,
             "office_hours": office_hours,
+            "contact_points": contact_points,
             "source_url": normalized_canonical_url,
             "source_title": title,
         }
@@ -783,10 +1032,15 @@ def _build_typed_candidate(
     if consumer_family == "service_guide_candidate":
         process_steps = _extract_service_process_steps(lines)
         materials = _extract_service_materials(lines)
-        entry_points = _extract_service_entry_points(lines)
+        entry_points = _unique(
+            _extract_service_entry_points(lines) + _extract_mail_host_entry_points(lines)
+        )
         responsible_office = _extract_responsible_offices(lines)
         typed_candidate = {
-            "service_name": title,
+            "service_name": _service_candidate_name(
+                title=title,
+                target_lineage=target_lineage,
+            ),
             "process_steps": process_steps,
             "materials": materials,
             "responsible_office": responsible_office,
@@ -807,6 +1061,32 @@ def _build_typed_candidate(
                 suppressed=suppressed,
                 has_identity=bool(title.strip()),
                 has_required_evidence=bool(process_steps),
+                has_source=bool(normalized_canonical_url.strip()),
+            ),
+            evidence_spans,
+        )
+
+    if consumer_family == "regulation_candidate":
+        normalized_summary = _build_regulation_content_summary(lines)
+        regulation_text = "\n".join(
+            line for line in lines if line.strip() and line.strip() != title.strip()
+        )
+        typed_candidate = {
+            "reference_title": title,
+            "normalized_content_summary": normalized_summary,
+            "regulation_text": regulation_text,
+            "authoritative_source_url": normalized_canonical_url,
+            "release_scope": "regulations/institutional_rules",
+            "source_url": normalized_canonical_url,
+            "source_title": title,
+        }
+        return (
+            "official_web_regulation_candidate.v1",
+            typed_candidate,
+            _quality_gate(
+                suppressed=suppressed,
+                has_identity=bool(title.strip()),
+                has_required_evidence=bool(normalized_summary),
                 has_source=bool(normalized_canonical_url.strip()),
             ),
             evidence_spans,
@@ -932,6 +1212,9 @@ def _extract_responsible_offices(lines: list[str]) -> list[str]:
 def _clean_responsible_office(value: str) -> str:
     normalized = value.strip(" ，,。；;：:")
     normalized = re.sub(r"^(?:并由|由|经)", "", normalized)
+    for prefix in ("校园网电子邮件由", "电子邮件由", "由"):
+        if normalized.startswith(prefix):
+            normalized = normalized[len(prefix) :]
     return normalized.strip()
 
 
@@ -1026,7 +1309,81 @@ def _extract_service_entry_points(lines: list[str]) -> list[str]:
         ):
             for match in _SERVICE_SYSTEM_RE.finditer(line):
                 entries.append(_clean_service_entry_label(match.group("label")))
-    return _unique(entry for entry in entries if entry)
+    return _filter_service_entry_points(_unique(entry for entry in entries if entry))
+
+
+def _service_candidate_name(*, title: str, target_lineage: dict[str, object] | None) -> str:
+    return choose_official_web_service_name(
+        source_title=title,
+        target_label=_target_label_from_lineage(target_lineage),
+    )
+
+
+def _contact_candidate_display_name(
+    *,
+    title: str,
+    contact_points: list[dict[str, str]],
+    target_lineage: dict[str, object] | None,
+) -> str:
+    del contact_points
+    return choose_official_web_contact_display_name(
+        source_title=title,
+        target_label=_target_label_from_lineage(target_lineage),
+    )
+
+
+def _target_label_from_lineage(target_lineage: dict[str, object] | None) -> str:
+    if not isinstance(target_lineage, dict):
+        return ""
+    return (
+        _require_optional_text(
+            target_lineage.get("targetLabel") or target_lineage.get("target_label")
+        )
+        or ""
+    )
+
+
+def _filter_service_entry_points(entries: list[str]) -> list[str]:
+    filtered: list[str] = []
+    for entry in entries:
+        normalized = entry.strip()
+        if not normalized:
+            continue
+        if normalized.endswith("系统") and not (
+            "认证" in normalized or "VPN" in normalized or "邮箱" in normalized
+        ):
+            continue
+        filtered.append(normalized)
+    return filtered
+
+
+def _extract_mail_host_entry_points(lines: list[str]) -> list[str]:
+    entries: list[str] = []
+    for line in lines:
+        for match in re.findall(
+            r"(?<![A-Za-z0-9.-])((?:mail|vpn|rz)\.muc\.edu\.cn)(?![A-Za-z0-9.-])",
+            line,
+            re.IGNORECASE,
+        ):
+            entries.append(match.lower())
+    return _unique(entries)
+
+
+def _extract_contact_points(lines: list[str]) -> list[dict[str, str]]:
+    points: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
+    for line in lines:
+        for match in _CONTACT_POINT_RE.finditer(line):
+            label = str(match.group("label") or "").strip(" ：:，,。；;")
+            phone = str(match.group("phone") or "").strip()
+            if not label or not phone:
+                continue
+            key = (label, phone)
+            if key in seen:
+                continue
+            seen.add(key)
+            points.append({"label": label, "phone": phone})
+    return points
 
 
 def _clean_service_entry_label(value: str) -> str:
@@ -1318,6 +1675,9 @@ def _target_projection_fields(target_lineage: dict[str, object]) -> dict[str, ob
         "source_pack_entry_id": _require_optional_text(
             target_lineage.get("sourcePackEntryId") or target_lineage.get("source_pack_entry_id")
         ),
+        "target_label": _require_optional_text(
+            target_lineage.get("targetLabel") or target_lineage.get("target_label")
+        ),
         "composition_group": _require_optional_text(
             target_lineage.get("compositionGroup") or target_lineage.get("composition_group")
         ),
@@ -1358,9 +1718,19 @@ def _target_from_consumer_match(match: dict[str, object]) -> tuple[str, str]:
         if corpus and collection:
             return corpus, collection
     consumer_family = str(match.get("consumerFamily") or match.get("consumer_family") or "")
+    if consumer_family == "regulation_candidate":
+        return "regulations", "institutional_rules"
     if consumer_family == "notice_news_candidate":
         return "official_web_public_notice", "inventory"
     return "official_web", "muc_public_pages"
+
+
+def _build_regulation_content_summary(lines: list[str]) -> str:
+    normalized_lines = [line.strip() for line in lines if line.strip()]
+    if not normalized_lines:
+        return ""
+    summary = " ".join(normalized_lines[:3]).strip()
+    return re.sub(r"\s+", " ", summary)[:500]
 
 
 def _string_list(value: object) -> list[str]:

@@ -15,6 +15,15 @@ from campus_ingestion_core.service_guide_projection import (
 from campus_evals.intent_models import IntentCase, IntentEvalReport
 from campus_evals.intent_runner import report_to_dict, run_intent_cases
 from campus_evals.intent_scenarios import intent_release_gate_cases
+from campus_evals.official_web_selected_write_tool_readiness_audit import (
+    audit_selected_write_preview_report,
+)
+from campus_evals.official_web_selected_write_preview_runtime_verifier import (
+    BUNDLE_SCOPE_FULL_IMPACT,
+    BUNDLE_SCOPE_TASK_SCOPE,
+    OfficialWebSelectedWritePreviewRuntimeVerificationReport,
+    run_selected_write_preview_runtime_verification,
+)
 from campus_evals.service_guide_projection_eval import (
     evaluate_service_guide_projection_bundle,
     load_default_service_guide_projection_eval_cases,
@@ -85,6 +94,10 @@ class ServiceGuideLookupReleaseGateReport:
 
 IntentRunner = Callable[[tuple[IntentCase, ...]], IntentEvalReport]
 RuntimeSmokeRunner = Callable[[Path], dict[str, object]]
+SelectedWritePreviewRuntimeRunner = Callable[
+    ...,
+    OfficialWebSelectedWritePreviewRuntimeVerificationReport,
+]
 
 
 class CommandRunner(Protocol):
@@ -128,6 +141,8 @@ def run_service_guide_lookup_release_gate(
     intent_runner: IntentRunner | None = None,
     include_runtime_smoke: bool = False,
     runtime_smoke_runner: RuntimeSmokeRunner | None = None,
+    selected_write_preview_report_path: Path | None = None,
+    selected_write_preview_runtime_runner: SelectedWritePreviewRuntimeRunner | None = None,
 ) -> ServiceGuideLookupReleaseGateReport:
     output_dir.mkdir(parents=True, exist_ok=True)
     projection_dir = output_dir / "projection"
@@ -167,6 +182,34 @@ def run_service_guide_lookup_release_gate(
             _run_selected_write_runtime_smoke_check(
                 output_dir=output_dir / "selected-write-runtime-smoke",
                 runtime_smoke_runner=runtime_smoke_runner or _run_selected_write_runtime_smoke,
+            )
+        )
+    if selected_write_preview_report_path is not None:
+        checks.append(
+            _run_selected_write_preview_tool_readiness_check(
+                output_dir=output_dir / "selected-write-preview-tool-readiness",
+                report_path=selected_write_preview_report_path,
+                collection="service_guide",
+            )
+        )
+        checks.append(
+            _run_selected_write_preview_runtime_verification_check(
+                output_dir=output_dir / "selected-write-preview-runtime-verification",
+                report_path=selected_write_preview_report_path,
+                bundle_scope=BUNDLE_SCOPE_TASK_SCOPE,
+                check_id="selected_write_preview_runtime_verification_task_scope",
+                runtime_runner=selected_write_preview_runtime_runner
+                or _run_selected_write_preview_runtime_verification,
+            )
+        )
+        checks.append(
+            _run_selected_write_preview_runtime_verification_check(
+                output_dir=output_dir / "selected-write-preview-runtime-verification-full-impact",
+                report_path=selected_write_preview_report_path,
+                bundle_scope=BUNDLE_SCOPE_FULL_IMPACT,
+                check_id="selected_write_preview_runtime_verification_full_impact",
+                runtime_runner=selected_write_preview_runtime_runner
+                or _run_selected_write_preview_runtime_verification,
             )
         )
     report = ServiceGuideLookupReleaseGateReport(
@@ -303,6 +346,67 @@ def _run_selected_write_runtime_smoke(output_dir: Path) -> dict[str, object]:
     return run_service_guide_selected_write_runtime_smoke(plan)
 
 
+def _run_selected_write_preview_tool_readiness_check(
+    *,
+    output_dir: Path,
+    report_path: Path,
+    collection: str,
+) -> ReleaseGateCheck:
+    audit = audit_selected_write_preview_report(
+        report_path=report_path,
+        output_dir=output_dir,
+    )
+    relevant = [item for item in audit.record_results if item.collection == collection]
+    failed = [item for item in relevant if not item.passed]
+    return ReleaseGateCheck(
+        check_id="selected_write_preview_tool_readiness",
+        passed=bool(relevant) and not failed,
+        summary={
+            "report_path": str(report_path),
+            "audit_output_path": str(audit.output_path),
+            "collection": collection,
+            "record_count": len(relevant),
+            "failed_record_ids": [item.selected_write_id for item in failed],
+        },
+    )
+
+
+def _run_selected_write_preview_runtime_verification_check(
+    *,
+    output_dir: Path,
+    report_path: Path,
+    bundle_scope: str,
+    check_id: str,
+    runtime_runner: SelectedWritePreviewRuntimeRunner,
+) -> ReleaseGateCheck:
+    report = runtime_runner(
+        report_path=report_path,
+        output_dir=output_dir,
+        bundle_scope=bundle_scope,
+    )
+    summary = dict(report.summary)
+    summary["report_path"] = str(report_path)
+    summary["runtime_output_path"] = str(report.output_path)
+    return ReleaseGateCheck(
+        check_id=check_id,
+        passed=report.passed,
+        summary=summary,
+    )
+
+
+def _run_selected_write_preview_runtime_verification(
+    *,
+    report_path: Path,
+    output_dir: Path,
+    bundle_scope: str,
+) -> OfficialWebSelectedWritePreviewRuntimeVerificationReport:
+    return run_selected_write_preview_runtime_verification(
+        report_path=report_path,
+        output_dir=output_dir,
+        bundle_scope=bundle_scope,
+    )
+
+
 def _run_intent_cases(cases: tuple[IntentCase, ...]) -> IntentEvalReport:
     return run_intent_cases(cases, runner="supervisor-api-go")
 
@@ -371,6 +475,10 @@ def build_parser() -> argparse.ArgumentParser:
             "Postgres current service_guide projection."
         ),
     )
+    accept_parser.add_argument(
+        "--selected-write-preview-report",
+        help="Optional real selected-write preview report path for answer-facing tool-readiness audit.",
+    )
     return parser
 
 
@@ -384,6 +492,11 @@ def main(argv: Sequence[str] | None = None) -> int:
         output_dir=Path(args.output_dir),
         source_truth_manifest_path=Path(args.source_truth_manifest),
         include_runtime_smoke=bool(args.include_runtime_smoke),
+        selected_write_preview_report_path=(
+            Path(args.selected_write_preview_report)
+            if args.selected_write_preview_report
+            else None
+        ),
     )
     if args.verbose:
         print(
@@ -402,6 +515,7 @@ __all__ = [
     "CommandResult",
     "ReleaseGateCheck",
     "RuntimeSmokeRunner",
+    "SelectedWritePreviewRuntimeRunner",
     "ServiceGuideLookupReleaseGateReport",
     "main",
     "run_service_guide_lookup_release_gate",

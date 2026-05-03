@@ -47,11 +47,28 @@ describe("official web source-pack execution plan", () => {
 		expect(row.targetMatches[0]).toMatchObject({
 			compositionGroup: "information_disclosure",
 			compositionRole: "policy_source",
-			targetId: "official-web-stable-reference",
-			consumerFamily: "stable_reference_candidate",
-			selectedWriteTarget: "official_web/stable_reference",
+			targetId: "official-web-institutional-rules",
+			consumerFamily: "regulation_candidate",
+			selectedWriteTarget: "regulations/institutional_rules",
 			sourcePackEntryId: "owsp-info-disclosure-policy-1107",
 			sourcePackId: "tool-driven-first-slice.v1",
+		});
+	});
+
+	it("keeps email service composition rows on the service-guide target", () => {
+		const plan = buildSourcePackExecutionPlan("muc_public");
+		const row = plan.rows.find(
+			(item) => item.entryId === "owsp-email-policy-1090",
+		) as SourcePackExecutionPlanEntry;
+
+		expect(row.targetMatches).toHaveLength(1);
+		expect(row.targetMatches[0]).toMatchObject({
+			compositionGroup: "email_service",
+			compositionRole: "policy_source",
+			targetId: "campus-services-service-guide",
+			consumerFamily: "service_guide_candidate",
+			selectedWriteTarget: "campus_services/service_guide",
+			sourcePackEntryId: "owsp-email-policy-1090",
 		});
 	});
 });
