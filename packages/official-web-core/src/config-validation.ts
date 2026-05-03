@@ -698,6 +698,99 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 		}
 	}
 
+	if (bundle.sourcePackManifest.siteId !== bundle.site.siteId) {
+		throw new Error("sourcePackManifest.siteId must match site.siteId");
+	}
+	assertNonEmpty(bundle.sourcePackManifest.schemaVersion, "sourcePackManifest.schemaVersion");
+	assertNonEmpty(bundle.sourcePackManifest.sourcePackId, "sourcePackManifest.sourcePackId");
+	if (bundle.sourcePackManifest.entries.length === 0) {
+		throw new Error("sourcePackManifest.entries must not be empty");
+	}
+	ensureUnique(
+		bundle.sourcePackManifest.entries.map((entry) => entry.entryId),
+		"sourcePackManifest.entries[].entryId",
+	);
+	const allowedOwnerToTarget = new Map<string, string>([
+		["service_guide_lookup", "campus_services/service_guide"],
+		["contact_directory_lookup", "campus_services/contact_directory"],
+		["official_web/stable_reference", "official_web/stable_reference"],
+		["future_notice_runtime", "official_web/fresh_news"],
+		["regulations/institutional_rules", "regulations/institutional_rules"],
+		["regulations/scoped_rules", "regulations/scoped_rules"],
+	]);
+	for (const entry of bundle.sourcePackManifest.entries) {
+		assertNonEmpty(entry.url, `sourcePackManifest ${entry.entryId} url`);
+		validateSourceUrl(
+			entry.url,
+			bundle.site.allowedHosts,
+			`sourcePackManifest ${entry.entryId}.url`,
+		);
+		ensureUnique(entry.demandIds, `sourcePackManifest ${entry.entryId}.demandIds`);
+		ensureUnique(entry.ownerSurfaces, `sourcePackManifest ${entry.entryId}.ownerSurfaces`);
+		ensureUnique(entry.releaseTargets, `sourcePackManifest ${entry.entryId}.releaseTargets`);
+		ensureUnique(entry.expectedFacts, `sourcePackManifest ${entry.entryId}.expectedFacts`);
+		ensureUnique(entry.evalQuestions, `sourcePackManifest ${entry.entryId}.evalQuestions`);
+		if (entry.answerBearing) {
+			if (entry.demandIds.length === 0) {
+				throw new Error(`sourcePackManifest ${entry.entryId} must define demandIds`);
+			}
+			if (entry.ownerSurfaces.length === 0) {
+				throw new Error(`sourcePackManifest ${entry.entryId} must define ownerSurfaces`);
+			}
+			if (entry.releaseTargets.length === 0) {
+				throw new Error(`sourcePackManifest ${entry.entryId} must define releaseTargets`);
+			}
+			if (entry.expectedFacts.length === 0) {
+				throw new Error(`sourcePackManifest ${entry.entryId} must define expectedFacts`);
+			}
+			if (entry.evalQuestions.length === 0) {
+				throw new Error(`sourcePackManifest ${entry.entryId} must define evalQuestions`);
+			}
+		}
+		if (entry.sourceKind === "dynamic_shell_excluded" && entry.answerBearing) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} dynamic shell page must not be answer-bearing`,
+			);
+		}
+		if (entry.releaseTargets.includes("official_web/fresh_news")) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} attempts to open official_web/fresh_news or official_web/news_archive`,
+			);
+		}
+		if (entry.releaseTargets.includes("official_web/news_archive")) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} attempts to open official_web/fresh_news or official_web/news_archive`,
+			);
+		}
+		if (
+			entry.contentFamily === "public_notice_news" &&
+			entry.answerBearing &&
+			entry.releaseTargets.some(
+				(target) =>
+					target === "official_web/fresh_news" || target === "official_web/news_archive",
+			)
+		) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} attempts to open official_web/fresh_news or official_web/news_archive`,
+			);
+		}
+		if (entry.ownerSurfaces.length !== entry.releaseTargets.length) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} multi-owner row must map each owner surface to a compatible release target`,
+			);
+		}
+		for (let index = 0; index < entry.ownerSurfaces.length; index += 1) {
+			const ownerSurface = entry.ownerSurfaces[index];
+			const releaseTarget = entry.releaseTargets[index];
+			const expectedTarget = allowedOwnerToTarget.get(ownerSurface);
+			if (expectedTarget !== releaseTarget) {
+				throw new Error(
+					`sourcePackManifest ${entry.entryId} multi-owner row must map each owner surface to a compatible release target`,
+				);
+			}
+		}
+	}
+
 	if (bundle.qcPolicy.siteId !== bundle.site.siteId) {
 		throw new Error("qcPolicy.siteId must match site.siteId");
 	}

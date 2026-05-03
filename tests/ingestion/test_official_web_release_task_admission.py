@@ -4,6 +4,7 @@ import unittest
 from datetime import UTC, datetime
 
 from campus_ingestion_core.official_web_release_task_admission import (
+    admit_selected_write_release_tasks_from_review,
     build_selected_write_release_task_from_candidate,
     build_stable_reference_release_task_from_gate,
 )
@@ -125,6 +126,86 @@ class OfficialWebReleaseTaskAdmissionTest(unittest.TestCase):
             task.input_ref["optionalEvidence"],
             ["email", "location", "office_hours"],
         )
+
+    def test_admits_ready_selected_write_candidates_from_partial_review(self) -> None:
+        store = InMemoryOfficialWebReleaseTaskStore()
+
+        admitted = admit_selected_write_release_tasks_from_review(
+            release_task_store=store,
+            review_report={
+                "selectedWrite": {
+                    "decision": "partial_dry_run_ready",
+                    "ready_record_count": 1,
+                    "blocked_record_count": 1,
+                },
+                "candidates": [
+                    {
+                        "candidate_key": "owcand_contact_ready",
+                        "field_status": {
+                            "organization_name": "present",
+                            "phone": "present",
+                            "source_url": "present",
+                            "source_version_evidence": "present",
+                        },
+                        "inventory_id": "muc-main-homepage-contact",
+                        "matched_evidence": ["phone"],
+                        "normalized_canonical_url": "https://www.muc.edu.cn/",
+                        "ready_for_selected_write": True,
+                        "required_evidence": ["phone"],
+                        "required_fields": [
+                            "organization_name",
+                            "phone",
+                            "source_url",
+                            "source_version_evidence",
+                        ],
+                        "review_verdict": "pending_review",
+                        "selected_write_target": "campus_services/contact_directory",
+                        "source_ref": {
+                            "raw_asset_id": "owasset_contact",
+                            "raw_version_id": "owver_contact",
+                            "normalized_canonical_url": "https://www.muc.edu.cn/",
+                        },
+                        "target_job_id": "owtarget_contact",
+                        "typed_candidate_schema_version": (
+                            "official_web_contact_directory_candidate.v1"
+                        ),
+                    },
+                    {
+                        "candidate_key": "owcand_contact_blocked",
+                        "field_status": {
+                            "organization_name": "present",
+                            "phone": "missing",
+                            "source_url": "present",
+                            "source_version_evidence": "present",
+                        },
+                        "inventory_id": "muc-no-phone-contact",
+                        "normalized_canonical_url": "https://www.muc.edu.cn/no-phone",
+                        "ready_for_selected_write": False,
+                        "required_fields": [
+                            "organization_name",
+                            "phone",
+                            "source_url",
+                            "source_version_evidence",
+                        ],
+                        "selected_write_target": "campus_services/contact_directory",
+                        "target_job_id": "owtarget_contact_blocked",
+                    },
+                ],
+            },
+            run_id="owrun_contact",
+            source_object_keys=[
+                "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json"
+            ],
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+
+        self.assertEqual(len(admitted), 1)
+        self.assertEqual(len(store.list_tasks()), 1)
+        self.assertEqual(
+            admitted[0].selected_write_target,
+            "campus_services/contact_directory",
+        )
+        self.assertEqual(admitted[0].inventory_id, "muc-main-homepage-contact")
 
     def test_rejects_selected_write_release_task_without_field_review(self) -> None:
         with self.assertRaisesRegex(ValueError, "field_status"):

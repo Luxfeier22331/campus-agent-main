@@ -875,7 +875,7 @@ def assert_seam_report(report: dict[str, object]) -> None:
         raise RuntimeError("consumer reported target lineage issues")
     selected_write = _object_mapping(consumer.get("selected_write"))
     target_field_reviews = _object_list(consumer.get("target_field_reviews"))
-    if selected_write.get("decision") == "dry_run_ready":
+    if selected_write.get("decision") in {"dry_run_ready", "partial_dry_run_ready"}:
         if int(consumer.get("selected_write_ready_count") or 0) < 1:
             raise RuntimeError("consumer selected-write ready count is missing")
         if not target_field_reviews:

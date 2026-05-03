@@ -54,6 +54,53 @@ export const OFFICIAL_WEB_CONSUMER_ENFORCEMENT_MODES = [
 	"audit_only",
 	"retain_matching_only",
 ] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_CONTENT_FAMILIES = [
+	"campus_service_guide",
+	"service_contact_directory",
+	"institutional_policy_reference",
+	"university_core_reference",
+	"public_fee_reference",
+	"service_material_reference",
+	"public_notice_news",
+] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_SOURCE_KINDS = [
+	"html_page",
+	"html_table_page",
+	"download_reference_page",
+	"dynamic_shell_excluded",
+	"file_asset_reference_only",
+] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_CAPTURE_POLICIES = ["one_time"] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_REFRESH_POSTURES = ["manifest_refresh_only"] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_EXTRACTION_GATES = ["deterministic_source_backed"] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_OWNER_SURFACES = [
+	"service_guide_lookup",
+	"contact_directory_lookup",
+	"official_web/stable_reference",
+	"future_notice_runtime",
+	"regulations/institutional_rules",
+	"regulations/scoped_rules",
+] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_RELEASE_TARGETS = [
+	"campus_services/service_guide",
+	"campus_services/contact_directory",
+	"official_web/stable_reference",
+	"official_web/fresh_news",
+	"official_web/news_archive",
+	"regulations/institutional_rules",
+	"regulations/scoped_rules",
+] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_EXPECTED_FACTS = [
+	"service_process",
+	"service_entry",
+	"service_material",
+	"phone",
+	"email",
+	"location",
+	"office_hours",
+	"stable_reference",
+	"notice_news",
+] as const;
 export const OFFICIAL_WEB_DECLARABLE_PAGE_FAMILIES = [
 	"article_detail",
 	"listing_page",
@@ -90,6 +137,22 @@ export type OfficialWebConsumerEnforcementMode =
 	(typeof OFFICIAL_WEB_CONSUMER_ENFORCEMENT_MODES)[number];
 export type OfficialWebDeclarablePageFamily =
 	(typeof OFFICIAL_WEB_DECLARABLE_PAGE_FAMILIES)[number];
+export type OfficialWebSourcePackContentFamily =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_CONTENT_FAMILIES)[number];
+export type OfficialWebSourcePackSourceKind =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_SOURCE_KINDS)[number];
+export type OfficialWebSourcePackCapturePolicy =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_CAPTURE_POLICIES)[number];
+export type OfficialWebSourcePackRefreshPosture =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_REFRESH_POSTURES)[number];
+export type OfficialWebSourcePackExtractionGate =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_EXTRACTION_GATES)[number];
+export type OfficialWebSourcePackOwnerSurface =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_OWNER_SURFACES)[number];
+export type OfficialWebSourcePackReleaseTarget =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_RELEASE_TARGETS)[number];
+export type OfficialWebSourcePackExpectedFact =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_EXPECTED_FACTS)[number];
 
 export interface OfficialWebSiteConfig {
 	schemaVersion: string;
@@ -299,6 +362,31 @@ export interface OfficialWebTargetInventory {
 	siteId: string;
 }
 
+export interface OfficialWebSourcePackManifestEntry {
+	entryId: string;
+	url: string;
+	contentFamily: OfficialWebSourcePackContentFamily;
+	sourceKind: OfficialWebSourcePackSourceKind;
+	answerBearing: boolean;
+	demandIds: string[];
+	ownerSurfaces: OfficialWebSourcePackOwnerSurface[];
+	releaseTargets: OfficialWebSourcePackReleaseTarget[];
+	expectedFacts: OfficialWebSourcePackExpectedFact[];
+	compositionGroup: string | null;
+	compositionRole: string | null;
+	capturePolicy: OfficialWebSourcePackCapturePolicy;
+	refreshPosture: OfficialWebSourcePackRefreshPosture;
+	extractionGate: OfficialWebSourcePackExtractionGate;
+	evalQuestions: string[];
+}
+
+export interface OfficialWebSourcePackManifest {
+	entries: OfficialWebSourcePackManifestEntry[];
+	schemaVersion: string;
+	siteId: string;
+	sourcePackId: string;
+}
+
 export interface OfficialWebQcHostOverride {
 	host: string;
 	allowedReviewIssueCodes: string[];
@@ -345,6 +433,7 @@ export interface OfficialWebConfigPaths {
 	consumerDenominatorPath: string;
 	targetSourceMapPath: string;
 	targetInventoryPath: string;
+	sourcePackManifestPath: string;
 	schedulerPolicyPath: string;
 	qcPolicyPath: string;
 }
@@ -360,6 +449,7 @@ export interface OfficialWebConfigBundle {
 	consumerDenominator: OfficialWebConsumerDenominator;
 	targetSourceMap: OfficialWebTargetSourceMap;
 	targetInventory: OfficialWebTargetInventory;
+	sourcePackManifest: OfficialWebSourcePackManifest;
 	schedulerPolicy: OfficialWebSchedulerPolicy;
 	qcPolicy: OfficialWebQcPolicy;
 }

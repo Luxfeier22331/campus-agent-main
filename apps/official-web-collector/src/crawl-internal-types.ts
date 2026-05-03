@@ -9,6 +9,13 @@ import type {
 } from "./official-web-core.ts";
 import type { CollectedPageArtifact } from "./page-artifacts.ts";
 
+export interface CollectorSourcePackLineageOverride {
+	compositionGroup: string | null;
+	compositionRole: string | null;
+	sourcePackEntryId: string;
+	sourcePackId: string;
+}
+
 export interface CollectorRequestUserData {
 	discoveryMethod:
 		| "seed"
@@ -23,6 +30,7 @@ export interface CollectorRequestUserData {
 	discoveredFromUrl: string | null;
 	depth: number;
 	knownPage?: OfficialWebPlannerPageCandidate;
+	knownPages?: OfficialWebPlannerPageCandidate[];
 }
 
 export interface CollectorAggregatedResults {

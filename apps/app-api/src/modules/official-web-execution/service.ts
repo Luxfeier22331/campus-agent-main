@@ -171,6 +171,60 @@ function normalizeTargetFieldReviews(
 	});
 }
 
+function rankTargetFieldReviewStatus(status: string): number {
+	switch (status) {
+		case "ready_for_selected_write":
+			return 4;
+		case "release_gate_required":
+			return 3;
+		case "selected_write_review_required":
+			return 2;
+		case "blocked_fields":
+			return 1;
+		default:
+			return 0;
+	}
+}
+
+function coalesceTargetFieldReviews(
+	reviews: OfficialWebTargetArtifactVerificationSummaryWrite[],
+): OfficialWebTargetArtifactVerificationSummaryWrite[] {
+	if (reviews.length <= 1) {
+		return reviews;
+	}
+	const byJobRun = new Map<string, OfficialWebTargetArtifactVerificationSummaryWrite[]>();
+	for (const review of reviews) {
+		const key = `${review.jobId}::${review.runId}`;
+		const group = byJobRun.get(key);
+		if (group) {
+			group.push(review);
+		} else {
+			byJobRun.set(key, [review]);
+		}
+	}
+	return Array.from(byJobRun.values()).map((group) => {
+		if (group.length === 1) {
+			return group[0]!;
+		}
+		const sorted = [...group].sort(
+			(left, right) => rankTargetFieldReviewStatus(right.status) - rankTargetFieldReviewStatus(left.status),
+		);
+		const primary = sorted[0]!;
+		return {
+			...primary,
+			summary: {
+				schemaVersion: "official_web_target_field_review_rollup.v1",
+				latestStatus: primary.status,
+				candidateCount: group.length,
+				candidateKeys: group
+					.map((review) => normalizeOptionalString(review.summary.candidateKey))
+					.filter((value): value is string => Boolean(value)),
+				reviewSummaries: group.map((review) => review.summary),
+			},
+		};
+	});
+}
+
 export function buildOfficialWebExecutionStatusService(
 	dependencies: OfficialWebExecutionStatusServiceDependencies,
 ): OfficialWebExecutionStatusService {
@@ -188,10 +242,12 @@ export function buildOfficialWebExecutionStatusService(
 			const errorMessage = shouldPersistExecutionError
 				? normalizeOptionalString(input.payload.errorMessage)
 				: null;
-			const targetFieldReviews = normalizeTargetFieldReviews(input.payload.targetFieldReviews, {
-				runId: input.runId,
-				updatedAt,
-			});
+			const targetFieldReviews = coalesceTargetFieldReviews(
+				normalizeTargetFieldReviews(input.payload.targetFieldReviews, {
+					runId: input.runId,
+					updatedAt,
+				}),
+			);
 
 			const updated = await dependencies.store.updateRunExecutionStatus({
 				errorCode,

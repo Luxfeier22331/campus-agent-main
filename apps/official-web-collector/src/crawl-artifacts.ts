@@ -191,6 +191,10 @@ export function buildRunSourceTruthBundle(
 			rawVersionId: page.rawVersionId,
 			normalizedCanonicalUrl: page.pageManifest.normalizedCanonicalUrl,
 			pageFamily: page.pageManifest.pageFamily,
+			sourcePackId: page.pageManifest.sourcePackId,
+			sourcePackEntryId: page.pageManifest.sourcePackEntryId,
+			compositionGroup: page.pageManifest.compositionGroup,
+			compositionRole: page.pageManifest.compositionRole,
 			pageManifestObjectKey: findPageFileObjectKey(page, "source-truth/page-manifest.json"),
 			contentBlocksObjectKey: findPageFileObjectKey(page, "source-truth/content-blocks.jsonl"),
 			providerExtractionObjectKey: findPageFileObjectKey(

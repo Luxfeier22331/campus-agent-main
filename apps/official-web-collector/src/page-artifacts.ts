@@ -61,6 +61,7 @@ export function buildCollectedPageArtifacts(input: {
 	discoveredFromUrl: string | null;
 	fetchedAt: string;
 	targetLineage?: OfficialWebPageTargetMatch;
+	targetLineages?: OfficialWebPageTargetMatch[];
 	html: CheerioCrawlingContext["$"];
 }): CollectedPageArtifact {
 	const urlIdentity = buildOfficialWebUrlIdentity(input.bundle, {
@@ -121,6 +122,10 @@ export function buildCollectedPageArtifacts(input: {
 		pageFamily: pageFamily.pageFamily,
 	});
 
+	const targetLineages = dedupeTargetLineages(
+		input.targetLineages ?? (input.targetLineage ? [input.targetLineage] : []),
+	);
+	const primaryTargetLineage = targetLineages[0];
 	const pageManifest = buildOfficialWebPageManifest({
 		siteId: input.bundle.site.siteId,
 		host: input.hostPolicy.host,
@@ -162,13 +167,17 @@ export function buildCollectedPageArtifacts(input: {
 		crawlPolicyVersion: input.bundle.site.crawlPolicyVersion,
 		credentialsMode: input.bundle.site.credentialsMode,
 		consumerDenominatorVersion: input.bundle.consumerDenominator.denominatorVersion,
-		targetJobId: input.targetLineage?.targetJobId,
-		targetCandidateId: input.targetLineage?.targetCandidateId,
-		targetDeclarationVersion: input.targetLineage?.targetDeclarationVersion,
-		targetMatches: input.targetLineage ? [input.targetLineage] : undefined,
-		materializationPolicy: input.targetLineage?.materializationPolicy,
-		selectedWriteTarget: input.targetLineage?.selectedWriteTarget,
-		reviewPolicy: input.targetLineage?.reviewPolicy,
+		sourcePackId: primaryTargetLineage?.sourcePackId,
+		sourcePackEntryId: primaryTargetLineage?.sourcePackEntryId,
+		compositionGroup: primaryTargetLineage?.compositionGroup,
+		compositionRole: primaryTargetLineage?.compositionRole,
+		targetJobId: primaryTargetLineage?.targetJobId,
+		targetCandidateId: primaryTargetLineage?.targetCandidateId,
+		targetDeclarationVersion: primaryTargetLineage?.targetDeclarationVersion,
+		targetMatches: targetLineages.length > 0 ? targetLineages : undefined,
+		materializationPolicy: primaryTargetLineage?.materializationPolicy,
+		selectedWriteTarget: primaryTargetLineage?.selectedWriteTarget,
+		reviewPolicy: primaryTargetLineage?.reviewPolicy,
 	});
 
 	const providerExtraction = buildOfficialWebProviderPageExtraction({
@@ -232,4 +241,20 @@ export function buildCollectedPageArtifacts(input: {
 		providerExtraction,
 		files,
 	};
+}
+
+function dedupeTargetLineages(
+	lineages: OfficialWebPageTargetMatch[],
+): OfficialWebPageTargetMatch[] {
+	const byKey = new Map<string, OfficialWebPageTargetMatch>();
+	for (const lineage of lineages) {
+		byKey.set(buildTargetLineageKey(lineage), lineage);
+	}
+	return [...byKey.values()].sort((left, right) =>
+		buildTargetLineageKey(left).localeCompare(buildTargetLineageKey(right)),
+	);
+}
+
+function buildTargetLineageKey(lineage: OfficialWebPageTargetMatch): string {
+	return `${lineage.targetJobId}:${lineage.targetCandidateId ?? ""}:${lineage.targetId}`;
 }

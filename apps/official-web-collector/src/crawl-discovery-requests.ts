@@ -24,10 +24,11 @@ export async function buildInitialRequests(input: {
 	disableConditionalHeaders?: boolean;
 }): Promise<Array<{ url: string; uniqueKey: string; userData: CollectorRequestUserData }>> {
 	const candidates: Array<{
-		url: string;
-		discoveryMethod: CollectorRequestUserData["discoveryMethod"];
-		discoveredFromUrl?: string | null;
-		knownPage?: OfficialWebPlannerPageCandidate;
+			url: string;
+			discoveryMethod: CollectorRequestUserData["discoveryMethod"];
+			discoveredFromUrl?: string | null;
+			knownPage?: OfficialWebPlannerPageCandidate;
+			knownPages?: OfficialWebPlannerPageCandidate[];
 	}> = [];
 
 	if (input.executionMode !== "target-workset") {
@@ -125,17 +126,29 @@ export async function buildInitialRequests(input: {
 			continue;
 		}
 
+		const mergedKnownPages = mergeKnownPages(
+			requests.get(admission.normalizedUrl)?.userData.knownPages,
+			candidate.knownPages ?? (candidate.knownPage ? [candidate.knownPage] : []),
+		);
 		requests.set(admission.normalizedUrl, {
 			url: admission.normalizedUrl,
 			uniqueKey: admission.normalizedUrl,
 			userData: {
 				discoveryMethod: candidate.discoveryMethod,
-				conditionalHeaders: buildConditionalHeaders(candidate.knownPage, {
-					disabled: input.disableConditionalHeaders,
-				}),
+				conditionalHeaders: buildConditionalHeaders(
+					selectPrimaryKnownPage(mergedKnownPages),
+					{
+						disabled: input.disableConditionalHeaders,
+					},
+				),
 				discoveredFromUrl: candidate.discoveredFromUrl ?? null,
 				depth: 0,
-				...(candidate.knownPage ? { knownPage: candidate.knownPage } : {}),
+				...(mergedKnownPages.length > 0
+					? {
+							knownPage: selectPrimaryKnownPage(mergedKnownPages),
+							knownPages: mergedKnownPages,
+						}
+					: {}),
 			},
 		});
 	}
@@ -210,11 +223,36 @@ export function collectNavigationRequests(input: {
 				discoveredFromUrl: input.baseUrl,
 				depth: input.depth,
 				knownPage,
+				...(knownPage ? { knownPages: [knownPage] } : {}),
 			},
 		});
 	}
 
 	return [...requests.values()];
+}
+
+function mergeKnownPages(
+	existing: OfficialWebPlannerPageCandidate[] | undefined,
+	incoming: OfficialWebPlannerPageCandidate[],
+): OfficialWebPlannerPageCandidate[] {
+	const merged = new Map<string, OfficialWebPlannerPageCandidate>();
+	for (const page of existing ?? []) {
+		merged.set(buildKnownPageKey(page), page);
+	}
+	for (const page of incoming) {
+		merged.set(buildKnownPageKey(page), page);
+	}
+	return [...merged.values()].sort((left, right) => buildKnownPageKey(left).localeCompare(buildKnownPageKey(right)));
+}
+
+function buildKnownPageKey(page: OfficialWebPlannerPageCandidate): string {
+	return `${page.targetJobId}:${page.targetCandidateId ?? ""}:${page.targetId}`;
+}
+
+function selectPrimaryKnownPage(
+	knownPages: OfficialWebPlannerPageCandidate[],
+): OfficialWebPlannerPageCandidate | undefined {
+	return knownPages[0];
 }
 
 export function buildConditionalHeaders(

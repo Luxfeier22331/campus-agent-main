@@ -13,6 +13,14 @@ import {
 	OFFICIAL_WEB_HOST_GROUPS,
 	OFFICIAL_WEB_PROJECTION_ACTIONS,
 	OFFICIAL_WEB_RUN_INTENTS,
+	OFFICIAL_WEB_SOURCE_PACK_CAPTURE_POLICIES,
+	OFFICIAL_WEB_SOURCE_PACK_CONTENT_FAMILIES,
+	OFFICIAL_WEB_SOURCE_PACK_EXPECTED_FACTS,
+	OFFICIAL_WEB_SOURCE_PACK_EXTRACTION_GATES,
+	OFFICIAL_WEB_SOURCE_PACK_OWNER_SURFACES,
+	OFFICIAL_WEB_SOURCE_PACK_REFRESH_POSTURES,
+	OFFICIAL_WEB_SOURCE_PACK_RELEASE_TARGETS,
+	OFFICIAL_WEB_SOURCE_PACK_SOURCE_KINDS,
 	OFFICIAL_WEB_TARGET_RETENTION_POLICIES,
 	type OfficialWebConsumerEnforcementMode,
 	type OfficialWebConsumerFamily,
@@ -27,6 +35,14 @@ import {
 	type OfficialWebProjectionAction,
 	type OfficialWebPublicKind,
 	type OfficialWebRunIntent,
+	type OfficialWebSourcePackCapturePolicy,
+	type OfficialWebSourcePackContentFamily,
+	type OfficialWebSourcePackExpectedFact,
+	type OfficialWebSourcePackExtractionGate,
+	type OfficialWebSourcePackOwnerSurface,
+	type OfficialWebSourcePackRefreshPosture,
+	type OfficialWebSourcePackReleaseTarget,
+	type OfficialWebSourcePackSourceKind,
 	type OfficialWebTargetRetentionPolicy,
 } from "./config-models.ts";
 
@@ -216,6 +232,70 @@ export function asPathSegment(value: unknown, fieldName: string): string {
 	}
 	if (normalized.includes("/")) {
 		throw new Error(`${fieldName} must not contain slash`);
+	}
+	return normalized;
+}
+
+export function asSourcePackContentFamily(value: unknown): OfficialWebSourcePackContentFamily {
+	const normalized = asString(value) as OfficialWebSourcePackContentFamily;
+	if (!OFFICIAL_WEB_SOURCE_PACK_CONTENT_FAMILIES.includes(normalized)) {
+		throw new Error(`unsupported official_web source-pack content family: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asSourcePackSourceKind(value: unknown): OfficialWebSourcePackSourceKind {
+	const normalized = asString(value) as OfficialWebSourcePackSourceKind;
+	if (!OFFICIAL_WEB_SOURCE_PACK_SOURCE_KINDS.includes(normalized)) {
+		throw new Error(`unsupported official_web source-pack source kind: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asSourcePackCapturePolicy(value: unknown): OfficialWebSourcePackCapturePolicy {
+	const normalized = asString(value) as OfficialWebSourcePackCapturePolicy;
+	if (!OFFICIAL_WEB_SOURCE_PACK_CAPTURE_POLICIES.includes(normalized)) {
+		throw new Error(`unsupported official_web source-pack capture policy: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asSourcePackRefreshPosture(value: unknown): OfficialWebSourcePackRefreshPosture {
+	const normalized = asString(value) as OfficialWebSourcePackRefreshPosture;
+	if (!OFFICIAL_WEB_SOURCE_PACK_REFRESH_POSTURES.includes(normalized)) {
+		throw new Error(`unsupported official_web source-pack refresh posture: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asSourcePackExtractionGate(value: unknown): OfficialWebSourcePackExtractionGate {
+	const normalized = asString(value) as OfficialWebSourcePackExtractionGate;
+	if (!OFFICIAL_WEB_SOURCE_PACK_EXTRACTION_GATES.includes(normalized)) {
+		throw new Error(`unsupported official_web source-pack extraction gate: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asSourcePackOwnerSurface(value: unknown): OfficialWebSourcePackOwnerSurface {
+	const normalized = asString(value) as OfficialWebSourcePackOwnerSurface;
+	if (!OFFICIAL_WEB_SOURCE_PACK_OWNER_SURFACES.includes(normalized)) {
+		throw new Error(`unsupported official_web source-pack owner surface: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asSourcePackReleaseTarget(value: unknown): OfficialWebSourcePackReleaseTarget {
+	const normalized = asString(value) as OfficialWebSourcePackReleaseTarget;
+	if (!OFFICIAL_WEB_SOURCE_PACK_RELEASE_TARGETS.includes(normalized)) {
+		throw new Error(`unsupported official_web source-pack release target: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asSourcePackExpectedFact(value: unknown): OfficialWebSourcePackExpectedFact {
+	const normalized = asString(value) as OfficialWebSourcePackExpectedFact;
+	if (!OFFICIAL_WEB_SOURCE_PACK_EXPECTED_FACTS.includes(normalized)) {
+		throw new Error(`unsupported official_web source-pack expected fact: ${String(value)}`);
 	}
 	return normalized;
 }

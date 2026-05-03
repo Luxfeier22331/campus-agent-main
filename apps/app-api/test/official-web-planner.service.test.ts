@@ -8,6 +8,7 @@ import {
 	type OfficialWebPlannerPageCandidate,
 	type OfficialWebPlannerStore,
 } from "../src/modules/official-web-planner";
+import { __officialWebPlannerStoreTestUtils } from "../src/modules/official-web-planner/store";
 
 const collectorPrincipal: OfficialWebCollectorPrincipal = {
 	kind: "service",
@@ -62,6 +63,53 @@ function buildTargetCandidate(
 }
 
 describe("official web planner service", () => {
+	it("keeps same-url target candidates together when explicit target candidates are requested", () => {
+		const rows = [
+			buildTargetCandidate({
+				host: "www.muc.edu.cn",
+				normalizedCanonicalUrl: "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+				targetCandidateId: "owcand_stable",
+				targetId: "official-web-stable-reference",
+				targetJobId: "owtarget_stable",
+			}),
+			buildTargetCandidate({
+				host: "www.muc.edu.cn",
+				consumerFamily: "contact_directory_candidate",
+				normalizedCanonicalUrl: "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+				selectedWriteTarget: "campus_services/contact_directory",
+				targetCandidateId: "owcand_contact",
+				targetId: "campus-services-contact-directory",
+				targetJobId: "owtarget_contact",
+			}),
+			buildTargetCandidate({
+				host: "xxgk.muc.edu.cn",
+				normalizedCanonicalUrl: "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+				targetCandidateId: "owcand_service",
+				targetId: "campus-services-service-guide",
+				targetJobId: "owtarget_service",
+			}),
+		];
+
+		const selected = __officialWebPlannerStoreTestUtils.selectBudgetedRows(
+			rows,
+			{
+				hostFilter: ["www.muc.edu.cn", "xxgk.muc.edu.cn"],
+				maxPagesPerHost: 1,
+				maxTotalPages: 2,
+				now: "2026-05-01T09:00:00.000Z",
+				runIntent: "hot",
+				siteId: "muc_public",
+				targetCandidateIds: ["owcand_stable", "owcand_contact", "owcand_service"],
+			},
+			{ dedupeByCanonicalUrl: true },
+		);
+
+		expect(selected).toHaveLength(3);
+		expect(
+			selected.map((row) => row.targetCandidateId),
+		).toEqual(["owcand_stable", "owcand_contact", "owcand_service"]);
+	});
+
 	it("returns target-scoped workset rows and summary", async () => {
 		const candidate = buildTargetCandidate();
 		const store: OfficialWebPlannerStore = {

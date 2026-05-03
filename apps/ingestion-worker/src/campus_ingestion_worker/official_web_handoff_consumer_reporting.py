@@ -910,13 +910,15 @@ def _build_selected_write_admission_preview(
     if ready_count == 0 and rejected_count == candidate_count:
         decision = "no_ready_records"
         reason = "all_candidates_rejected"
+    elif ready_count > 0 and blocked_count > 0:
+        decision = "partial_dry_run_ready"
+        reason = "machine_field_review_partially_passed"
+    elif ready_count > 0:
+        decision = "dry_run_ready"
+        reason = "machine_field_review_passed"
     else:
-        decision = "dry_run_ready" if blocked_count == 0 and ready_count > 0 else "blocked"
-        reason = (
-            "machine_field_review_passed"
-            if decision == "dry_run_ready"
-            else "machine_field_review_blocked"
-        )
+        decision = "blocked"
+        reason = "machine_field_review_blocked"
     return {
         "decision": decision,
         "ready_record_count": ready_count,

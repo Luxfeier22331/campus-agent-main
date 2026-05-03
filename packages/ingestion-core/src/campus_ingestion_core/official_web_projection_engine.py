@@ -153,6 +153,7 @@ def replay_official_web_source_truth_local(
     target_family_counts: dict[str, int] = {}
     target_materialization_policy_counts: dict[str, int] = {}
     target_lineage_issues: list[dict[str, object]] = []
+    page_contexts: list[dict[str, object]] = []
     for raw_page in pages:
         if not isinstance(raw_page, dict):
             raise ValueError("source-truth bundle page must be an object")
@@ -173,7 +174,14 @@ def replay_official_web_source_truth_local(
                 "rawVersionId",
             ),
         )
-        target_matches = _target_matches(manifest) or _target_matches(raw_page)
+        target_matches = [
+            _merge_target_lineage_with_page_fields(
+                target_match,
+                manifest=manifest,
+                raw_page=raw_page,
+            )
+            for target_match in (_target_matches(manifest) or _target_matches(raw_page))
+        ]
         page_target_lineage_issues = _target_lineage_issues(
             collection_mode=collection_mode,
             manifest=manifest,
@@ -203,11 +211,36 @@ def replay_official_web_source_truth_local(
             if target_matches or collection_mode == _TARGET_WORKSET_COLLECTION_MODE
             else _consumer_matches(manifest) or _consumer_matches(raw_page)
         )
+        page_contexts.append(
+            {
+                "raw_page": raw_page,
+                "page_family": page_family,
+                "declaration": declaration,
+                "manifest": manifest,
+                "blocks": blocks,
+                "title": title,
+                "target_matches": target_matches,
+                "projection_matches": projection_matches,
+            }
+        )
+
+    consumer_projection_overrides = _build_consumer_projection_overrides(page_contexts)
+
+    for page_context in page_contexts:
+        raw_page = dict(page_context["raw_page"])
+        page_family = str(page_context["page_family"])
+        declaration = page_context["declaration"]
+        manifest = dict(page_context["manifest"])
+        blocks = list(page_context["blocks"])
+        title = str(page_context["title"])
+        target_matches = list(page_context["target_matches"])
+        projection_matches = list(page_context["projection_matches"])
         consumer_projection = _resolve_consumer_projection(
             manifest=manifest,
             matches=projection_matches,
             blocks=blocks,
             title=title,
+            composition_override=consumer_projection_overrides.get(_page_identity(manifest)),
         )
         if consumer_projection is not None and consumer_projection["action"] == "candidate":
             consumer_candidate_pages.extend(consumer_projection["candidate_pages"])
@@ -319,8 +352,9 @@ def _resolve_consumer_projection(
     matches: list[dict[str, object]],
     blocks: list[dict[str, object]],
     title: str,
+    composition_override: dict[str, object] | None = None,
 ) -> dict[str, object] | None:
-    if not matches:
+    if not matches and composition_override is None:
         return None
     stable_match = _find_consumer_match(matches, "stable_reference_candidate")
     if stable_match is not None:
@@ -332,7 +366,11 @@ def _resolve_consumer_projection(
             "target_lineage": stable_match,
         }
 
-    candidate_pages: list[dict[str, object]] = []
+    candidate_pages = _candidate_pages_from_override(composition_override)
+    skipped_consumer_families = _skipped_consumer_families(composition_override)
+    force_candidate_action = bool(
+        composition_override is not None and composition_override.get("force_candidate_action")
+    )
     for match in matches:
         if not isinstance(match, dict):
             continue
@@ -345,6 +383,8 @@ def _resolve_consumer_projection(
         if consumer_family is None or materialization_policy is None:
             continue
         if consumer_family == "stable_reference_candidate":
+            continue
+        if consumer_family in skipped_consumer_families:
             continue
         target_corpus, target_collection = _target_from_consumer_match(match)
         selected_write_target = (
@@ -374,9 +414,250 @@ def _resolve_consumer_projection(
                 title=title,
             )
         )
-    if candidate_pages:
+    if candidate_pages or force_candidate_action:
         return {"action": "candidate", "candidate_pages": candidate_pages}
     return None
+
+
+def _build_consumer_projection_overrides(
+    page_contexts: list[dict[str, object]],
+) -> dict[tuple[str, str], dict[str, object]]:
+    grouped_contexts: dict[tuple[str, str], list[dict[str, object]]] = {}
+    for page_context in page_contexts:
+        manifest = dict(page_context["manifest"])
+        raw_page = dict(page_context["raw_page"])
+        page_lineage = _page_lineage_fields(manifest=manifest, raw_page=raw_page)
+        source_pack_id = _require_optional_text(page_lineage.get("sourcePackId"))
+        composition_group = _require_optional_text(page_lineage.get("compositionGroup"))
+        if source_pack_id is None or composition_group is None:
+            continue
+        grouped_contexts.setdefault((source_pack_id, composition_group), []).append(page_context)
+
+    overrides: dict[tuple[str, str], dict[str, object]] = {}
+    for (_, composition_group), group_contexts in grouped_contexts.items():
+        if composition_group == "information_disclosure":
+            overrides.update(
+                _build_information_disclosure_projection_overrides(group_contexts)
+            )
+    return overrides
+
+
+def _build_information_disclosure_projection_overrides(
+    page_contexts: list[dict[str, object]],
+) -> dict[tuple[str, str], dict[str, object]]:
+    procedure_context: dict[str, object] | None = None
+    material_contexts: list[dict[str, object]] = []
+    contact_contexts: list[dict[str, object]] = []
+    suppressed_page_keys: set[tuple[str, str]] = set()
+
+    for page_context in page_contexts:
+        manifest = dict(page_context["manifest"])
+        raw_page = dict(page_context["raw_page"])
+        page_lineage = _page_lineage_fields(manifest=manifest, raw_page=raw_page)
+        composition_role = _require_optional_text(page_lineage.get("compositionRole"))
+        target_matches = list(page_context["target_matches"])
+        if _find_consumer_match(target_matches, "service_guide_candidate") is not None:
+            if composition_role == "procedure_source":
+                procedure_context = page_context
+            elif composition_role in {"material_source", "contact_source"}:
+                suppressed_page_keys.add(_page_identity(manifest))
+        if composition_role == "material_source":
+            material_contexts.append(page_context)
+        elif composition_role == "contact_source":
+            contact_contexts.append(page_context)
+
+    if procedure_context is None:
+        return {
+            page_key: {
+                "candidate_pages": [],
+                "skip_consumer_families": ["service_guide_candidate"],
+                "force_candidate_action": True,
+            }
+            for page_key in suppressed_page_keys
+        }
+
+    procedure_target_lineage = _find_consumer_match(
+        list(procedure_context["target_matches"]),
+        "service_guide_candidate",
+    )
+    if procedure_target_lineage is None:
+        return {}
+
+    overrides: dict[tuple[str, str], dict[str, object]] = {}
+    procedure_manifest = dict(procedure_context["manifest"])
+    overrides[_page_identity(procedure_manifest)] = {
+        "candidate_pages": [
+            _build_information_disclosure_service_candidate_page(
+                procedure_context=procedure_context,
+                material_contexts=material_contexts,
+                contact_contexts=contact_contexts,
+                target_lineage=procedure_target_lineage,
+            )
+        ],
+        "skip_consumer_families": ["service_guide_candidate"],
+        "force_candidate_action": True,
+    }
+    for page_key in suppressed_page_keys:
+        overrides[page_key] = {
+            "candidate_pages": [],
+            "skip_consumer_families": ["service_guide_candidate"],
+            "force_candidate_action": True,
+        }
+    return overrides
+
+
+def _build_information_disclosure_service_candidate_page(
+    *,
+    procedure_context: dict[str, object],
+    material_contexts: list[dict[str, object]],
+    contact_contexts: list[dict[str, object]],
+    target_lineage: dict[str, object],
+) -> dict[str, object]:
+    procedure_manifest = dict(procedure_context["manifest"])
+    procedure_blocks = list(procedure_context["blocks"])
+    title = str(procedure_context["title"])
+    normalized_canonical_url = _require_text(
+        procedure_manifest.get("normalizedCanonicalUrl"),
+        "normalizedCanonicalUrl",
+    )
+    raw_version_id = _require_text(procedure_manifest.get("rawVersionId"), "rawVersionId")
+    selected_write_target = (
+        _require_optional_text(
+            target_lineage.get("selectedWriteTarget") or target_lineage.get("selected_write_target")
+        )
+        or ""
+    )
+    procedure_lines = _main_content_lines(procedure_blocks)
+    material_lines = _combined_main_content_lines(material_contexts)
+    contact_blocks = _combined_candidate_blocks(
+        contact_contexts,
+        consumer_family="contact_directory_candidate",
+    )
+    contact_lines = _block_lines(contact_blocks)
+    process_steps = _extract_service_process_steps(procedure_lines)
+    materials = _extract_service_materials(material_lines) or _extract_service_materials(
+        procedure_lines
+    )
+    responsible_office = _unique(
+        _extract_responsible_offices(procedure_lines)
+        + _extract_responsible_offices(contact_lines)
+    )
+    entry_points = _unique(
+        _extract_service_entry_points(procedure_lines)
+        + _extract_service_entry_points(material_lines)
+    )
+    contact_text_lines = _unique(contact_lines + procedure_lines)
+    typed_candidate = {
+        "service_name": title,
+        "process_steps": process_steps,
+        "materials": materials,
+        "responsible_office": responsible_office,
+        "entry_points": entry_points,
+        "contacts": {
+            "phones": _unique(_PHONE_RE.findall("\n".join(contact_text_lines))),
+            "emails": _unique(_EMAIL_RE.findall("\n".join(contact_text_lines))),
+            "locations": _extract_locations(contact_text_lines),
+            "office_hours": _unique(
+                match.strip() for match in _OFFICE_HOURS_RE.findall("\n".join(contact_text_lines))
+            ),
+        },
+        "source_url": normalized_canonical_url,
+        "source_title": title,
+    }
+    candidate = {
+        "candidate_key": _build_candidate_key(
+            consumer_family="service_guide_candidate",
+            normalized_canonical_url=normalized_canonical_url,
+            raw_version_id=raw_version_id,
+            selected_write_target=selected_write_target,
+        ),
+        "consumer_family": "service_guide_candidate",
+        "materialization_policy": _require_optional_text(
+            target_lineage.get("materializationPolicy")
+            or target_lineage.get("materialization_policy")
+        )
+        or "",
+        "target_corpus": "campus_services",
+        "target_collection": "service_guide",
+        "normalized_canonical_url": normalized_canonical_url,
+        "raw_asset_id": procedure_manifest["rawAssetId"],
+        "raw_version_id": raw_version_id,
+        "title": title,
+        "matched_evidence": _target_lineage_matched_evidence(target_lineage),
+        "selected_write_target": selected_write_target,
+        "review_policy": _require_optional_text(
+            target_lineage.get("reviewPolicy") or target_lineage.get("review_policy")
+        ),
+        "reason": "candidate_only consumer denominator match",
+        "typed_candidate_schema_version": "official_web_service_guide_candidate.v1",
+        "typed_candidate": typed_candidate,
+        "quality_gate": _quality_gate(
+            suppressed=_selected_write_suppressed(title=title, lines=procedure_lines),
+            has_identity=bool(title.strip()),
+            has_required_evidence=bool(process_steps),
+            has_source=bool(normalized_canonical_url.strip()),
+        ),
+        "evidence_spans": _build_evidence_spans(
+            _main_content_blocks(procedure_blocks)
+            + _combined_main_content_blocks(material_contexts)
+            + contact_blocks
+        ),
+    }
+    candidate.update(_target_projection_fields(target_lineage))
+    return candidate
+
+
+def _combined_main_content_lines(page_contexts: list[dict[str, object]]) -> list[str]:
+    return _block_lines(_combined_main_content_blocks(page_contexts))
+
+
+def _combined_main_content_blocks(page_contexts: list[dict[str, object]]) -> list[dict[str, object]]:
+    blocks: list[dict[str, object]] = []
+    for page_context in page_contexts:
+        blocks.extend(_main_content_blocks(list(page_context["blocks"])))
+    return blocks
+
+
+def _combined_candidate_blocks(
+    page_contexts: list[dict[str, object]],
+    *,
+    consumer_family: str,
+) -> list[dict[str, object]]:
+    blocks: list[dict[str, object]] = []
+    for page_context in page_contexts:
+        blocks.extend(
+            _candidate_content_blocks(
+                blocks=list(page_context["blocks"]),
+                consumer_family=consumer_family,
+            )
+        )
+    return blocks
+
+
+def _candidate_pages_from_override(
+    composition_override: dict[str, object] | None,
+) -> list[dict[str, object]]:
+    if composition_override is None:
+        return []
+    raw_candidate_pages = composition_override.get("candidate_pages")
+    if not isinstance(raw_candidate_pages, list):
+        return []
+    return [item for item in raw_candidate_pages if isinstance(item, dict)]
+
+
+def _skipped_consumer_families(
+    composition_override: dict[str, object] | None,
+) -> set[str]:
+    if composition_override is None:
+        return set()
+    raw_families = composition_override.get("skip_consumer_families")
+    if not isinstance(raw_families, list):
+        return set()
+    return {
+        str(item).strip()
+        for item in raw_families
+        if isinstance(item, str) and str(item).strip()
+    }
 
 
 def _build_consumer_candidate_page(
@@ -662,6 +943,10 @@ def _extract_service_materials(lines: list[str]) -> list[str]:
         if not _SERVICE_MATERIAL_DECLARATION_RE.search(line):
             continue
         fragment = _material_fragment(line)
+        declared_items = _extract_declared_material_items(fragment)
+        if declared_items:
+            materials.extend(declared_items)
+            continue
         matches = _SERVICE_MATERIAL_ITEM_RE.findall(fragment)
         materials.extend(matches)
     return _unique(materials)
@@ -705,6 +990,25 @@ def _material_fragment(line: str) -> str:
             normalized = normalized.split(separator, 1)[1]
             break
     return normalized
+
+
+def _extract_declared_material_items(fragment: str) -> list[str]:
+    normalized = fragment.strip().strip("。；;")
+    if not normalized:
+        return []
+    parts = re.split(r"[、；;，,]|(?:以及)|(?:及)", normalized)
+    items: list[str] = []
+    for part in parts:
+        candidate = part.strip().strip("。；;，,")
+        if not candidate:
+            continue
+        if not (
+            _SERVICE_MATERIAL_ITEM_RE.search(candidate)
+            or candidate.endswith(("申请表", "审批表", "证明材料", "证明", "复印件", "附件"))
+        ):
+            continue
+        items.append(candidate)
+    return _unique(items)
 
 
 def _extract_service_entry_points(lines: list[str]) -> list[str]:
@@ -830,6 +1134,65 @@ def _single_target_lineage(
     return target_matches[0]
 
 
+def _page_identity(manifest: dict[str, object]) -> tuple[str, str]:
+    return (
+        _require_text(manifest.get("rawAssetId"), "rawAssetId"),
+        _require_text(manifest.get("rawVersionId"), "rawVersionId"),
+    )
+
+
+def _page_lineage_fields(
+    *,
+    manifest: dict[str, object],
+    raw_page: dict[str, object],
+) -> dict[str, object]:
+    return {
+        "sourcePackId": _require_optional_text(
+            manifest.get("sourcePackId")
+            or manifest.get("source_pack_id")
+            or raw_page.get("sourcePackId")
+            or raw_page.get("source_pack_id")
+        ),
+        "sourcePackEntryId": _require_optional_text(
+            manifest.get("sourcePackEntryId")
+            or manifest.get("source_pack_entry_id")
+            or raw_page.get("sourcePackEntryId")
+            or raw_page.get("source_pack_entry_id")
+        ),
+        "compositionGroup": _require_optional_text(
+            manifest.get("compositionGroup")
+            or manifest.get("composition_group")
+            or raw_page.get("compositionGroup")
+            or raw_page.get("composition_group")
+        ),
+        "compositionRole": _require_optional_text(
+            manifest.get("compositionRole")
+            or manifest.get("composition_role")
+            or raw_page.get("compositionRole")
+            or raw_page.get("composition_role")
+        ),
+    }
+
+
+def _merge_target_lineage_with_page_fields(
+    target_match: dict[str, object],
+    *,
+    manifest: dict[str, object],
+    raw_page: dict[str, object],
+) -> dict[str, object]:
+    merged = dict(target_match)
+    page_lineage = _page_lineage_fields(manifest=manifest, raw_page=raw_page)
+    if page_lineage["sourcePackId"] is not None:
+        merged["sourcePackId"] = page_lineage["sourcePackId"]
+    if page_lineage["sourcePackEntryId"] is not None:
+        merged["sourcePackEntryId"] = page_lineage["sourcePackEntryId"]
+    if page_lineage["compositionGroup"] is not None:
+        merged["compositionGroup"] = page_lineage["compositionGroup"]
+    if page_lineage["compositionRole"] is not None:
+        merged["compositionRole"] = page_lineage["compositionRole"]
+    return merged
+
+
 def _target_lineage_issues(
     *,
     collection_mode: str | None,
@@ -948,6 +1311,18 @@ def _target_projection_fields(target_lineage: dict[str, object]) -> dict[str, ob
         ),
         "workset_reason": _require_optional_text(
             target_lineage.get("worksetReason") or target_lineage.get("workset_reason")
+        ),
+        "source_pack_id": _require_optional_text(
+            target_lineage.get("sourcePackId") or target_lineage.get("source_pack_id")
+        ),
+        "source_pack_entry_id": _require_optional_text(
+            target_lineage.get("sourcePackEntryId") or target_lineage.get("source_pack_entry_id")
+        ),
+        "composition_group": _require_optional_text(
+            target_lineage.get("compositionGroup") or target_lineage.get("composition_group")
+        ),
+        "composition_role": _require_optional_text(
+            target_lineage.get("compositionRole") or target_lineage.get("composition_role")
         ),
     }
 

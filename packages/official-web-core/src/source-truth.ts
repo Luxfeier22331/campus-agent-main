@@ -74,6 +74,10 @@ export interface OfficialWebConsumerMatch {
 }
 
 export interface OfficialWebPageTargetMatch {
+	sourcePackId?: string | null;
+	sourcePackEntryId?: string | null;
+	compositionGroup?: string | null;
+	compositionRole?: string | null;
 	targetJobId: string;
 	targetCandidateId: string | null;
 	targetId: string;
@@ -132,6 +136,10 @@ export interface OfficialWebPageManifest {
 	consumerMatches?: OfficialWebConsumerMatch[];
 	consumerRetentionDecision?: "retain_source_truth" | "discovery_only" | "reject";
 	consumerRejectionReason?: string | null;
+	sourcePackId?: string | null;
+	sourcePackEntryId?: string | null;
+	compositionGroup?: string | null;
+	compositionRole?: string | null;
 	targetJobId?: string;
 	targetCandidateId?: string | null;
 	targetDeclarationVersion?: string;
@@ -230,6 +238,10 @@ export interface OfficialWebSourceTruthBundlePage {
 	rawVersionId: string;
 	normalizedCanonicalUrl: string;
 	pageFamily: OfficialWebPageFamily;
+	sourcePackId?: string | null;
+	sourcePackEntryId?: string | null;
+	compositionGroup?: string | null;
+	compositionRole?: string | null;
 	pageManifestObjectKey: string;
 	contentBlocksObjectKey: string;
 	providerExtractionObjectKey: string;

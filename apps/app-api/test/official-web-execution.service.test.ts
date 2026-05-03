@@ -124,4 +124,95 @@ describe("official web execution status service", () => {
 			},
 		]);
 	});
+
+	it("coalesces multiple target field reviews for the same job and run before persistence", async () => {
+		const store: OfficialWebProjectionProjectorStore = {
+			getRunAdmissionDecision: vi.fn(),
+			getRunProjectionSource: vi.fn().mockResolvedValue(createRunSource()),
+			getSiteProjectionSource: vi.fn().mockResolvedValue(createSiteSource()),
+			listPendingEvents: vi.fn(),
+			markEventFailed: vi.fn(),
+			markEventProcessed: vi.fn(),
+			markTimedOutRunsAsAbandoned: vi.fn(),
+			updateRunDispatchStatus: vi.fn(),
+			updateRunExecutionStatus: vi.fn().mockResolvedValue(true),
+			upsertRunProjection: vi.fn(),
+			upsertSiteProjection: vi.fn(),
+			upsertTargetArtifactVerificationSummaries: vi.fn(),
+		};
+		const service = buildOfficialWebExecutionStatusService({
+			now: () => new Date("2026-05-01T08:05:00.000Z"),
+			store,
+		});
+
+		await service.updateRunExecutionStatus({
+			payload: {
+				executionRef: "owexec_01",
+				status: "staged",
+				targetFieldReviews: [
+					{
+						jobId: "owtarget_muc_public_service",
+						runId: "owrun_field_review",
+						status: "ready_for_selected_write",
+						summary: {
+							candidateKey: "candidate-a",
+							fieldStatus: {
+								service_name: "present",
+							},
+							schemaVersion: "official_web_target_field_review.v1",
+						},
+					},
+					{
+						jobId: "owtarget_muc_public_service",
+						runId: "owrun_field_review",
+						status: "selected_write_review_required",
+						summary: {
+							candidateKey: "candidate-b",
+							fieldStatus: {
+								phone: "missing",
+							},
+							schemaVersion: "official_web_target_field_review.v1",
+						},
+					},
+				],
+				updatedAt: "2026-05-01T08:05:00.000Z",
+			},
+			runId: "owrun_field_review",
+		});
+
+		expect(store.upsertTargetArtifactVerificationSummaries).toHaveBeenCalledWith([
+			{
+				canonicalVerification: false,
+				jobId: "owtarget_muc_public_service",
+				objectVerificationId: null,
+				runId: "owrun_field_review",
+				sourceHandoffId: null,
+				status: "ready_for_selected_write",
+				summary: {
+					candidateCount: 2,
+					candidateKeys: ["candidate-a", "candidate-b"],
+					latestStatus: "ready_for_selected_write",
+					reviewSummaries: [
+						{
+							candidateKey: "candidate-a",
+							fieldStatus: {
+								service_name: "present",
+							},
+							schemaVersion: "official_web_target_field_review.v1",
+						},
+						{
+							candidateKey: "candidate-b",
+							fieldStatus: {
+								phone: "missing",
+							},
+							schemaVersion: "official_web_target_field_review.v1",
+						},
+					],
+					schemaVersion: "official_web_target_field_review_rollup.v1",
+				},
+				summaryId: "owtargetsummary_owtarget_muc_public_service_owrun_field_review",
+				updatedAt: "2026-05-01T08:05:00.000Z",
+			},
+		]);
+	});
 });

@@ -4,6 +4,7 @@ import type { OfficialWebPlannerPageCandidate } from "./control-plane.ts";
 import type {
 	CollectorAggregatedResults,
 	CollectorProgressCounts,
+	CollectorSourcePackLineageOverride,
 } from "./crawl-internal-types.ts";
 import { buildTargetWorksetProgressCounts, summarizeProgressCounts } from "./crawl-progress.ts";
 import { crawlSingleHost } from "./crawl-single-host.ts";
@@ -46,6 +47,7 @@ export interface CrawlHostsWithCrawleeInput {
 	maxTotalPages: number;
 	dynamicShellDiscoverer?: OfficialWebDynamicShellDiscoverer;
 	disableConditionalHeaders?: boolean;
+	sourcePackLineageOverrides?: Record<string, CollectorSourcePackLineageOverride>;
 	reportProgress?: (counts: CollectorProgressCounts) => Promise<void>;
 }
 
@@ -122,6 +124,7 @@ export async function crawlHostsWithCrawlee(
 			),
 			dynamicShellDiscoverer: input.dynamicShellDiscoverer,
 			disableConditionalHeaders: input.disableConditionalHeaders,
+			sourcePackLineageOverrides: input.sourcePackLineageOverrides,
 		});
 		hostSummaries.push(...hostResult.hostSummaries);
 		pageObservations.push(...(hostResult.pageObservations ?? []));

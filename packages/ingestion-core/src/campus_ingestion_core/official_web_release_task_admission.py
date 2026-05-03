@@ -170,7 +170,7 @@ def admit_selected_write_release_tasks_from_review(
     now: datetime | None = None,
 ) -> tuple[OfficialWebReleaseTask, ...]:
     selected_write = _mapping(review_report.get("selectedWrite") or {}, "selectedWrite")
-    if selected_write.get("decision") != "dry_run_ready":
+    if selected_write.get("decision") not in {"dry_run_ready", "partial_dry_run_ready"}:
         return ()
     candidates = review_report.get("candidates")
     if not isinstance(candidates, list):

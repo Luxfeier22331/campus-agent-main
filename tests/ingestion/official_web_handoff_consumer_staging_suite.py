@@ -352,6 +352,113 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             "ready_for_selected_write",
         )
 
+    def test_machine_field_review_reports_partial_dry_run_ready_for_mixed_selected_write_batch(
+        self,
+    ) -> None:
+        review = build_consumer_candidate_review_report(
+            replay_report={
+                "site_id": "muc_public",
+                "crawl_run_id": "owrun_mixed_selected_write",
+                "documents": [],
+                "consumer_candidate_pages": [
+                    {
+                        "candidate_key": "owcand_contact_ready",
+                        "consumer_family": "contact_directory_candidate",
+                        "materialization_policy": "candidate_only",
+                        "selected_write_target": "campus_services/contact_directory",
+                        "review_policy": "selected_write_requires_review",
+                        "title": "联系我们",
+                        "normalized_canonical_url": "https://www.muc.edu.cn/",
+                        "matched_evidence": ["phone", "location"],
+                        "raw_asset_id": "owasset_contact_ready",
+                        "raw_version_id": "owver_contact_ready",
+                        "target_id": "campus-services-contact-directory",
+                        "target_job_id": "owtarget_muc_public_contact",
+                        "typed_candidate_schema_version": "official_web_contact_directory_candidate.v1",
+                        "typed_candidate": {
+                            "display_name": "中央民族大学",
+                            "phones": ["010-68932442"],
+                            "locations": ["北京市海淀区中关村南大街27号"],
+                            "source_url": "https://www.muc.edu.cn/",
+                        },
+                        "quality_gate": {"decision": "pass"},
+                    },
+                    {
+                        "candidate_key": "owcand_contact_blocked",
+                        "consumer_family": "contact_directory_candidate",
+                        "materialization_policy": "candidate_only",
+                        "selected_write_target": "campus_services/contact_directory",
+                        "review_policy": "selected_write_requires_review",
+                        "title": "无电话联系方式",
+                        "normalized_canonical_url": "https://www.muc.edu.cn/no-phone",
+                        "matched_evidence": ["location"],
+                        "raw_asset_id": "owasset_contact_blocked",
+                        "raw_version_id": "owver_contact_blocked",
+                        "target_id": "campus-services-contact-directory",
+                        "target_job_id": "owtarget_muc_public_contact_blocked",
+                        "typed_candidate_schema_version": "official_web_contact_directory_candidate.v1",
+                        "typed_candidate": {
+                            "display_name": "中央民族大学",
+                            "locations": ["北京市海淀区中关村南大街27号"],
+                            "source_url": "https://www.muc.edu.cn/no-phone",
+                        },
+                        "quality_gate": {"decision": "pass"},
+                    },
+                ],
+            },
+            target_inventory_manifest={
+                "schema_version": "official_web_target_inventory.v1",
+                "site_id": "muc_public",
+                "inventory_version": "test_target_inventory_v5",
+                "entries": [
+                    {
+                        "inventory_id": "muc-main-homepage-contact",
+                        "admission_target_id": "campus-services-contact-directory",
+                        "source_urls": ["https://www.muc.edu.cn/"],
+                        "required_fields": [
+                            "organization_name",
+                            "phone",
+                            "source_url",
+                            "source_version_evidence",
+                        ],
+                        "optional_fields": ["location"],
+                        "optional_evidence": ["location"],
+                        "required_evidence": ["phone"],
+                    },
+                    {
+                        "inventory_id": "muc-no-phone-contact",
+                        "admission_target_id": "campus-services-contact-directory",
+                        "source_urls": ["https://www.muc.edu.cn/no-phone"],
+                        "required_fields": [
+                            "organization_name",
+                            "phone",
+                            "source_url",
+                            "source_version_evidence",
+                        ],
+                        "optional_fields": ["location"],
+                        "optional_evidence": ["location"],
+                        "required_evidence": ["phone"],
+                    },
+                ],
+            },
+        )
+
+        self.assertEqual(review["selectedWrite"]["decision"], "partial_dry_run_ready")
+        self.assertEqual(
+            review["selectedWrite"]["reason"],
+            "machine_field_review_partially_passed",
+        )
+        self.assertEqual(review["selectedWrite"]["ready_record_count"], 1)
+        self.assertEqual(review["selectedWrite"]["blocked_record_count"], 1)
+        self.assertEqual(
+            [record["candidate_key"] for record in review["selectedWrite"]["preview_records"]],
+            ["owcand_contact_ready"],
+        )
+        self.assertEqual(
+            [review_record["status"] for review_record in review["targetFieldReviews"]],
+            ["ready_for_selected_write", "blocked_fields"],
+        )
+
     def test_machine_field_review_marks_campus_card_service_ready_with_optional_gaps(
         self,
     ) -> None:

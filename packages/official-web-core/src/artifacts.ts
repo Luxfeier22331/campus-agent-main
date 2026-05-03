@@ -177,6 +177,7 @@ export interface OfficialWebPageObservationRecord {
 	targetDeclarationVersion?: string;
 	targetId?: string;
 	targetJobId?: string;
+	targetMatches?: OfficialWebPageTargetMatch[];
 }
 
 export interface OfficialWebPageQualityAuditIssue {
@@ -337,6 +338,7 @@ export function buildOfficialWebPageObservationRecord(
 		targetDeclarationVersion: input.targetDeclarationVersion,
 		targetId: input.targetId,
 		targetJobId: input.targetJobId,
+		targetMatches: input.targetMatches,
 	};
 }
 

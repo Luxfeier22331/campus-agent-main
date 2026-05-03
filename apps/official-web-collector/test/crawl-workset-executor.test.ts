@@ -104,6 +104,35 @@ describe("official web target workset executor", () => {
 		expect(requests.map((request) => request.url)).not.toContain("https://www.example.edu/");
 	});
 
+	it("merges multiple target workset rows for the same URL into one fetch request", async () => {
+		const fixture = buildFixture();
+		const contactPage = buildPlannerPage();
+		const servicePage = buildPlannerPage({
+			consumerFamily: "service_guide_candidate",
+			materializationPolicy: "candidate_only",
+			normalizedCanonicalUrl: contactPage.normalizedCanonicalUrl,
+			reviewPolicy: "selected_write_requires_review",
+			selectedWriteTarget: "campus_services/service_guide",
+			targetCandidateId: "owcand_service",
+			targetDeclarationVersion: "campus_public_target_source_map_v2",
+			targetId: "campus-services-service-guide",
+			targetJobId: "owtarget_service",
+			worksetReason: "target_candidate_due",
+		});
+		const requests = await buildInitialRequests({
+			...fixture,
+			executionMode: "target-workset",
+			plannerPages: [contactPage, servicePage],
+		});
+
+		expect(requests).toHaveLength(1);
+		expect(requests[0]?.userData.knownPages).toHaveLength(2);
+		expect(requests[0]?.userData.knownPages?.map((page) => page.targetId).sort()).toEqual([
+			"campus-services-contact-directory",
+			"campus-services-service-guide",
+		]);
+	});
+
 	it("can disable conditional headers for evidence preview fetches", async () => {
 		const fixture = buildFixture();
 		const requests = await buildInitialRequests({
@@ -192,6 +221,78 @@ describe("official web target workset executor", () => {
 			consumerFamily: "contact_directory_candidate",
 			worksetReason: "target_candidate_due",
 		});
+	});
+
+	it("preserves multiple target lineages on a single fetched page", () => {
+		const fixture = buildFixture();
+		const contactPage = buildPlannerPage();
+		const servicePage = buildPlannerPage({
+			consumerFamily: "service_guide_candidate",
+			materializationPolicy: "candidate_only",
+			normalizedCanonicalUrl: contactPage.normalizedCanonicalUrl,
+			reviewPolicy: "selected_write_requires_review",
+			selectedWriteTarget: "campus_services/service_guide",
+			targetCandidateId: "owcand_service",
+			targetDeclarationVersion: "campus_public_target_source_map_v2",
+			targetId: "campus-services-service-guide",
+			targetJobId: "owtarget_service",
+			worksetReason: "target_candidate_due",
+		});
+		const page = buildCollectedPageArtifacts({
+			bundle: fixture.bundle,
+			plan: fixture.plan,
+			hostPolicy: fixture.hostPolicy,
+			requestedUrl: "https://www.example.edu/contact/",
+			finalUrl: "https://www.example.edu/contact/",
+			declaredCanonicalUrl: null,
+			responseBody:
+				"<html><head><title>Contact</title></head><body><main>联系我们 010-12345678 office@example.edu 地址：一号楼 办理流程：先登记后办理</main></body></html>",
+			responseHeaders: {
+				"content-type": "text/html; charset=utf-8",
+			},
+			httpStatus: 200,
+			contentType: "text/html",
+			discoveryMethod: "manual_requeue",
+			discoveredFromUrl: null,
+			fetchedAt: "2026-05-01T08:00:00.000Z",
+			targetLineages: [
+				{
+					targetJobId: contactPage.targetJobId,
+					targetCandidateId: contactPage.targetCandidateId,
+					targetId: contactPage.targetId,
+					targetDeclarationVersion: contactPage.targetDeclarationVersion,
+					consumerFamily: "contact_directory_candidate",
+					retentionPolicy: "retain_source_truth",
+					materializationPolicy: "candidate_only",
+					selectedWriteTarget: contactPage.selectedWriteTarget,
+					reviewPolicy: contactPage.reviewPolicy,
+					worksetReason: contactPage.worksetReason,
+				},
+				{
+					targetJobId: servicePage.targetJobId,
+					targetCandidateId: servicePage.targetCandidateId,
+					targetId: servicePage.targetId,
+					targetDeclarationVersion: servicePage.targetDeclarationVersion,
+					consumerFamily: "service_guide_candidate",
+					retentionPolicy: "retain_source_truth",
+					materializationPolicy: "candidate_only",
+					selectedWriteTarget: servicePage.selectedWriteTarget,
+					reviewPolicy: servicePage.reviewPolicy,
+					worksetReason: servicePage.worksetReason,
+				},
+			],
+			html: load(
+				"<html><head><title>Contact</title></head><body><main>联系我们 010-12345678 office@example.edu 地址：一号楼 办理流程：先登记后办理</main></body></html>",
+			),
+		});
+
+		expect(page.pageManifest.targetMatches?.map((match) => match.targetId).sort()).toEqual([
+			"campus-services-contact-directory",
+			"campus-services-service-guide",
+		]);
+		expect(page.pageManifest.targetJobId).toBe("owtarget_contact");
+		expect(page.pageManifest.targetCandidateId).toBe("owcand_contact");
+		expect(page.pageManifest.selectedWriteTarget).toBe("campus_services/contact_directory");
 	});
 
 	it("carries target lineage from page manifests into app-api page observations", () => {

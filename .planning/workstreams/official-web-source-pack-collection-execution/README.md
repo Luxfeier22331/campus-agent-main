@@ -24,10 +24,11 @@ narrower execution question:
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 1 next - Manifest contract and validation`
-- current slice: implement manifest contract and validation before collection
-- active implementation: planning only
+- status: `completed`
+- current phase: `Phase 7 closeout complete`
+- current slice: source-pack batch no-promotion seam, offline composition and ingestion-owned
+  selected-write admission proof are implemented and verified
+- active implementation: none
 - owner: Codex session
 
 ## Native Planning Truth
@@ -74,3 +75,20 @@ narrower execution question:
   semantics.
 - This workstream turns the accepted source-pack demand into a deterministic collection execution
   path without restoring collector automation as the source of scope.
+
+## Closeout Evidence
+
+- live seam evidence:
+  [seam-report.json](/home/reptilian/code/campus-agent/var/official-web-source-pack-live-seam/owrun_source_pack_replay_partial_20260503T033001Z/seam-report.json)
+- closeout script:
+  [official_web_source_pack_no_promotion.py](/home/reptilian/code/campus-agent/scripts/official_web_source_pack_no_promotion.py)
+- replay / seam tests:
+  [test_official_web_source_pack_no_promotion_script.py](/home/reptilian/code/campus-agent/tests/ingestion/test_official_web_source_pack_no_promotion_script.py)
+
+Accepted closeout semantics:
+
+- source-pack no-promotion seam must prove collector completion, source-truth lineage coverage,
+  app-api staged execution, and ingestion-owned selected-write release task admission when the
+  consumer review reaches `dry_run_ready` or `partial_dry_run_ready`
+- current-truth mutation remains out of scope for this workstream; that belongs to the ingestion
+  release lane

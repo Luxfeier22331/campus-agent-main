@@ -539,6 +539,38 @@ export function writeTestConfigRoot(
 			2,
 		),
 	);
+	mkdirSync(resolve(siteRoot, "source-packs"), { recursive: true });
+	writeFileSync(
+		resolve(siteRoot, "source-packs", "tool-driven-first-slice.v1.json"),
+		JSON.stringify(
+			{
+				schema_version: "official_web_source_pack_manifest.v1",
+				site_id: "campus_public",
+				source_pack_id: "tool-driven-first-slice.v1",
+				entries: [
+					{
+						entry_id: "campus-service-guide",
+						url: "https://www.example.edu/service/",
+						content_family: "campus_service_guide",
+						source_kind: "html_page",
+						answer_bearing: true,
+						demand_ids: ["owsp-campus-service-guide"],
+						owner_surfaces: ["service_guide_lookup"],
+						release_targets: ["campus_services/service_guide"],
+						expected_facts: ["service_process"],
+						composition_group: null,
+						composition_role: null,
+						capture_policy: "one_time",
+						refresh_posture: "manifest_refresh_only",
+						extraction_gate: "deterministic_source_backed",
+						eval_questions: ["怎么办理？"],
+					}
+				]
+			},
+			null,
+			2,
+		),
+	);
 
 	return {
 		configRoot,

@@ -120,35 +120,69 @@ function resolveFetchLimit(filters: NormalizedOfficialWebPlannerFilters): number
 	return Math.max(filters.maxTotalPages * 4, filters.maxPagesPerHost * hostCount * 2);
 }
 
-function selectBudgetedRows<T extends { host: string; targetJobId: string }>(
+function selectBudgetedRows<T extends { host: string; normalizedCanonicalUrl: string; targetJobId: string }>(
 	rows: T[],
 	filters: NormalizedOfficialWebPlannerFilters,
+	options: {
+		dedupeByCanonicalUrl?: boolean;
+	} = {},
 ): T[] {
 	const selected: T[] = [];
 	const remainingByHost = new Map<string, number>();
 	const remainingByTarget = new Map<string, number>();
+	const selectedCanonicalUrls = new Set<string>();
+	const selectedTargetCanonicalKeys = new Set<string>();
 
 	for (const row of rows) {
-		if (selected.length >= filters.maxTotalPages) {
+		const canonicalUrlKey = row.normalizedCanonicalUrl;
+		const targetCanonicalKey = `${row.targetJobId}::${canonicalUrlKey}`;
+		const reuseSelectedCanonicalUrl =
+			options.dedupeByCanonicalUrl === true && selectedCanonicalUrls.has(canonicalUrlKey);
+		const reuseSelectedTargetCanonicalKey =
+			options.dedupeByCanonicalUrl === true &&
+			selectedTargetCanonicalKeys.has(targetCanonicalKey);
+
+		if (
+			(options.dedupeByCanonicalUrl === true
+				? selectedCanonicalUrls.size
+				: selected.length) >= filters.maxTotalPages &&
+			!reuseSelectedCanonicalUrl
+		) {
 			break;
 		}
 
-		const hostRemaining = remainingByHost.get(row.host) ?? filters.maxPagesPerHost;
-		if (hostRemaining < 1) {
-			continue;
-		}
-		const targetRemaining = remainingByTarget.get(row.targetJobId) ?? filters.maxPagesPerHost;
-		if (targetRemaining < 1) {
-			continue;
+		if (!reuseSelectedCanonicalUrl) {
+			const hostRemaining = remainingByHost.get(row.host) ?? filters.maxPagesPerHost;
+			if (hostRemaining < 1) {
+				continue;
+			}
+			remainingByHost.set(row.host, hostRemaining - 1);
+			selectedCanonicalUrls.add(canonicalUrlKey);
 		}
 
-		remainingByHost.set(row.host, hostRemaining - 1);
-		remainingByTarget.set(row.targetJobId, targetRemaining - 1);
+		if (!reuseSelectedTargetCanonicalKey) {
+			const targetRemaining =
+				remainingByTarget.get(row.targetJobId) ?? filters.maxPagesPerHost;
+			if (targetRemaining < 1) {
+				if (!reuseSelectedCanonicalUrl) {
+					selectedCanonicalUrls.delete(canonicalUrlKey);
+					remainingByHost.set(row.host, (remainingByHost.get(row.host) ?? 0) + 1);
+				}
+				continue;
+			}
+			remainingByTarget.set(row.targetJobId, targetRemaining - 1);
+			selectedTargetCanonicalKeys.add(targetCanonicalKey);
+		}
+
 		selected.push(row);
 	}
 
 	return selected;
 }
+
+export const __officialWebPlannerStoreTestUtils = {
+	selectBudgetedRows,
+};
 
 export function createPgOfficialWebPlannerStore(env: Env): OfficialWebPlannerStore {
 	return {
@@ -213,7 +247,9 @@ export function createPgOfficialWebPlannerStore(env: Env): OfficialWebPlannerSto
 						.filter(
 							(row) => filters.hostFilter.length === 0 || filters.hostFilter.includes(row.host),
 						);
-					return selectBudgetedRows(candidates, filters);
+					return selectBudgetedRows(candidates, filters, {
+						dedupeByCanonicalUrl: filters.targetCandidateIds.length > 0,
+					});
 				}
 
 				const conditions = [
@@ -268,7 +304,9 @@ export function createPgOfficialWebPlannerStore(env: Env): OfficialWebPlannerSto
 					)
 					.limit(resolveFetchLimit(filters));
 
-				return selectBudgetedRows(rows.map(toPlannerPageCandidate), filters);
+				return selectBudgetedRows(rows.map(toPlannerPageCandidate), filters, {
+					dedupeByCanonicalUrl: filters.targetCandidateIds.length > 0,
+				});
 			});
 		},
 	};

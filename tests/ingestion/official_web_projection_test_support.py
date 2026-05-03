@@ -103,6 +103,10 @@ def _page_bundle_entry(
     page_family: str,
     consumer_matches: list[dict[str, object]] | None = None,
     target_matches: list[dict[str, object]] | None = None,
+    source_pack_id: str | None = None,
+    source_pack_entry_id: str | None = None,
+    composition_group: str | None = None,
+    composition_role: str | None = None,
 ) -> dict[str, object]:
     entry = {
         "rawAssetId": raw_asset_id,
@@ -136,6 +140,14 @@ def _page_bundle_entry(
             target_matches[0]["selectedWriteTarget"] if target_matches else ""
         )
         entry["reviewPolicy"] = target_matches[0]["reviewPolicy"] if target_matches else None
+    if source_pack_id is not None:
+        entry["sourcePackId"] = source_pack_id
+    if source_pack_entry_id is not None:
+        entry["sourcePackEntryId"] = source_pack_entry_id
+    if composition_group is not None:
+        entry["compositionGroup"] = composition_group
+    if composition_role is not None:
+        entry["compositionRole"] = composition_role
     return entry
 
 
@@ -154,6 +166,10 @@ def _write_output_page(
     last_modified: str | None = None,
     consumer_matches: list[dict[str, object]] | None = None,
     target_matches: list[dict[str, object]] | None = None,
+    source_pack_id: str | None = None,
+    source_pack_entry_id: str | None = None,
+    composition_group: str | None = None,
+    composition_role: str | None = None,
 ) -> None:
     base_dir = output_dir / "source-assets" / raw_asset_id / raw_version_id
     _write_json(
@@ -204,11 +220,11 @@ def _write_output_page(
                 {
                     "consumerDenominatorVersion": "test_consumer_denominator_v1",
                     "consumerMatches": consumer_matches,
-                    "consumerRetentionDecision": "retain_source_truth",
-                    "consumerRejectionReason": None,
-                }
-                if consumer_matches is not None
-                else {}
+            "consumerRetentionDecision": "retain_source_truth",
+            "consumerRejectionReason": None,
+        }
+        if consumer_matches is not None
+        else {}
             ),
             **(
                 {
@@ -229,6 +245,16 @@ def _write_output_page(
                     "reviewPolicy": target_matches[0]["reviewPolicy"] if target_matches else None,
                 }
                 if target_matches is not None
+                else {}
+            ),
+            **(
+                {
+                    "sourcePackId": source_pack_id,
+                    "sourcePackEntryId": source_pack_entry_id,
+                    "compositionGroup": composition_group,
+                    "compositionRole": composition_role,
+                }
+                if source_pack_id is not None
                 else {}
             ),
         },

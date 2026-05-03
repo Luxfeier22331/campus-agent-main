@@ -25,19 +25,19 @@ It deliberately separates:
 
 - [x] **Phase 0: Boundary And Upstream Handoff** - Create the workstream, freeze its relationship to
   source-pack demand, and record the execution boundary.
-- [ ] **Phase 1: Manifest Contract And Validation** - Define the source-pack manifest schema,
+- [x] **Phase 1: Manifest Contract And Validation** - Define the source-pack manifest schema,
   validation rules and drift checks against existing target-source-map / consumer denominator.
-- [ ] **Phase 2: First-Slice Manifest Population** - Populate the initial manifest from accepted
+- [x] **Phase 2: First-Slice Manifest Population** - Populate the initial manifest from accepted
   demand rows and collection cases, with explicit release targets and expected facts per URL.
-- [ ] **Phase 3: One-Time Capture And Source Truth** - Execute a no-broad-crawl capture path for
+- [x] **Phase 3: One-Time Capture And Source Truth** - Execute a no-broad-crawl capture path for
   manifest URLs and verify canonical `capture/`, `provider/` and `source-truth/` artifacts.
-- [ ] **Phase 4: Ingestion Replay And Projection Fan-Out** - Replay source truth into service guide,
+- [x] **Phase 4: Ingestion Replay And Projection Fan-Out** - Replay source truth into service guide,
   contact directory, stable-reference, regulation or blocked/deferred outcomes.
-- [ ] **Phase 5: Multi-Page Composition Materialization** - Materialize composition groups such as
+- [x] **Phase 5: Multi-Page Composition Materialization** - Materialize composition groups such as
   information disclosure offline, preserving per-field source references.
-- [ ] **Phase 6: Eval And Release Gates** - Add release-preview and runtime/eval acceptance gates for
+- [x] **Phase 6: Eval And Release Gates** - Add release-preview and runtime/eval acceptance gates for
   tool selection, answer shape, source citation and fail-close behavior.
-- [ ] **Phase 7: Closeout, Refresh And Deferral** - Record captured inventory, unresolved blockers,
+- [x] **Phase 7: Closeout, Refresh And Deferral** - Record captured inventory, unresolved blockers,
   future manifest refresh rules and collector automation deferral criteria.
 
 ## Implementation Dependency
@@ -70,6 +70,25 @@ Close this workstream only after:
 - source-truth artifacts validate against the canonical official-web source-truth schema
 - ingestion replay emits expected typed candidates / stable documents / blocked outcomes
 - information-disclosure composition is offline and source-linked
-- no-promotion preview demonstrates release writes before any current-truth mutation
+- no-promotion preview demonstrates release writes before any current-truth mutation and, when a
+  candidate batch is `dry_run_ready` or `partial_dry_run_ready`, ingestion-owned selected-write
+  release task admission is proven for ready records
 - eval proves downstream tool/surface consumption for representative campus user questions
 - future refresh remains manifest-driven and automation deferral is explicit
+
+## Implementation Status
+
+The code path for this roadmap is now in tree:
+
+- manifest validation and planning live in `apps/official-web-collector`
+- source-pack lineage is carried into collector page artifacts and source-truth bundle pages
+- ingestion replay performs offline `information_disclosure` composition
+- batch no-promotion seam exists as `scripts/official_web_source_pack_no_promotion.py`
+
+Closeout evidence is in tree:
+
+- real source-pack no-promotion seam completed and can be resumed/rebuilt from artifacts
+- seam assertions now require ingestion-owned selected-write release task admission when review is
+  `dry_run_ready` or `partial_dry_run_ready`
+
+The next work is not more source-pack collection design. It belongs to the ingestion release lane.

@@ -38,6 +38,7 @@ export function buildPageObservationFromCollectedPage(
 		targetDeclarationVersion: page.pageManifest.targetDeclarationVersion,
 		targetId: page.pageManifest.targetMatches?.[0]?.targetId,
 		targetJobId: page.pageManifest.targetJobId,
+		targetMatches: page.pageManifest.targetMatches,
 	});
 }
 

@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { Configuration } from "crawlee";
@@ -38,6 +38,7 @@ import { type CrawlHostsWithCrawleeInput, crawlHostsWithCrawlee } from "./crawl-
 import type {
 	CollectorAggregatedResults,
 	CollectorProgressCounts,
+	CollectorSourcePackLineageOverride,
 } from "./crawl-internal-types.ts";
 import { buildPageObservations } from "./crawl-observations.ts";
 import {
@@ -74,6 +75,7 @@ export interface CrawlSiteOptions {
 	artifactStore?: OfficialWebArtifactStore;
 	controlPlaneClient?: OfficialWebControlPlaneClient;
 	legacyBroadCrawlAdmission?: LegacyBroadCrawlAdmissionInput;
+	sourcePackLineagePath?: string;
 	dynamicShellDiscoverer?: OfficialWebDynamicShellDiscoverer;
 	disableConditionalHeaders?: boolean;
 	crawlHosts?: (input: CrawlHostsWithCrawleeInput) => Promise<CollectorAggregatedResults>;
@@ -141,6 +143,9 @@ export async function crawlSite(
 		options.maxPagesPerHost ??
 		Math.max(1, ...selectedHosts.map((plannedHost) => plannedHost.maxPagesPerRun));
 	const maxTotalPages = options.maxTotalPages ?? plan.runLimits.maxTotalPagesPerRun;
+	const sourcePackLineageOverrides = loadSourcePackLineageOverrides(
+		options.sourcePackLineagePath,
+	);
 
 	if (options.controlPlaneClient) {
 		const started = await options.controlPlaneClient.startRun({
@@ -250,6 +255,7 @@ export async function crawlSite(
 						maxTotalPages,
 						dynamicShellDiscoverer: options.dynamicShellDiscoverer,
 						disableConditionalHeaders: options.disableConditionalHeaders,
+						sourcePackLineageOverrides,
 						reportProgress,
 					})
 				: await options.crawlHosts({
@@ -263,6 +269,7 @@ export async function crawlSite(
 						maxTotalPages,
 						dynamicShellDiscoverer: options.dynamicShellDiscoverer,
 						disableConditionalHeaders: options.disableConditionalHeaders,
+						sourcePackLineageOverrides,
 						reportProgress,
 					});
 		const dedupedPages = dedupeCollectedPages(aggregatedResults.pages);
@@ -432,6 +439,19 @@ export async function crawlSite(
 		}
 		throw error;
 	}
+}
+
+function loadSourcePackLineageOverrides(
+	path: string | undefined,
+): Record<string, CollectorSourcePackLineageOverride> | undefined {
+	if (!path) {
+		return;
+	}
+	const payload = JSON.parse(readFileSync(path, "utf-8"));
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+		throw new Error("source-pack lineage override payload must be an object");
+	}
+	return payload as Record<string, CollectorSourcePackLineageOverride>;
 }
 
 function normalizeLegacyBroadCrawlAdmission(

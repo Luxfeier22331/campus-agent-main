@@ -26,6 +26,14 @@ import {
 	asRunIntent,
 	asString,
 	asStringArray,
+	asSourcePackCapturePolicy,
+	asSourcePackContentFamily,
+	asSourcePackExpectedFact,
+	asSourcePackExtractionGate,
+	asSourcePackOwnerSurface,
+	asSourcePackRefreshPosture,
+	asSourcePackReleaseTarget,
+	asSourcePackSourceKind,
 	asTargetRetentionPolicy,
 	readJson,
 } from "./config-parsing.ts";
@@ -46,6 +54,7 @@ export function loadOfficialWebConfig(
 	const consumerDenominatorPayload = readJson(paths.consumerDenominatorPath);
 	const targetSourceMapPayload = readJson(paths.targetSourceMapPath);
 	const targetInventoryPayload = readJson(paths.targetInventoryPath);
+	const sourcePackManifestPayload = readJson(paths.sourcePackManifestPath);
 	const schedulerPolicyPayload = readJson(paths.schedulerPolicyPath);
 	const qcPolicyPayload = readJson(paths.qcPolicyPath);
 
@@ -217,6 +226,12 @@ export function loadOfficialWebConfig(
 			inventoryVersion: asString(targetInventoryPayload.inventory_version),
 			entries: asArray(targetInventoryPayload.entries).map(loadTargetInventoryEntry),
 		},
+		sourcePackManifest: {
+			schemaVersion: asString(sourcePackManifestPayload.schema_version),
+			siteId: asString(sourcePackManifestPayload.site_id),
+			sourcePackId: asString(sourcePackManifestPayload.source_pack_id),
+			entries: asArray(sourcePackManifestPayload.entries).map(loadSourcePackManifestEntry),
+		},
 		schedulerPolicy: {
 			schemaVersion: asString(schedulerPolicyPayload.schema_version),
 			siteId: asString(schedulerPolicyPayload.site_id),
@@ -314,6 +329,27 @@ function loadTargetSourceMapTarget(item: Record<string, unknown>) {
 				? materializationPolicy === "inventory_only"
 				: Boolean(item.inventory_only),
 		notes: asString(item.notes),
+	};
+}
+
+function loadSourcePackManifestEntry(item: Record<string, unknown>) {
+	return {
+		entryId: asPathSegment(item.entry_id, "source_pack.entry_id"),
+		url: asString(item.url),
+		contentFamily: asSourcePackContentFamily(item.content_family),
+		sourceKind: asSourcePackSourceKind(item.source_kind),
+		answerBearing: Boolean(item.answer_bearing),
+		demandIds: asStringArray(item.demand_ids),
+		ownerSurfaces: asStringArray(item.owner_surfaces).map(asSourcePackOwnerSurface),
+		releaseTargets: asStringArray(item.release_targets).map(asSourcePackReleaseTarget),
+		expectedFacts: asStringArray(item.expected_facts).map(asSourcePackExpectedFact),
+		compositionGroup:
+			item.composition_group == null ? null : asString(item.composition_group),
+		compositionRole: item.composition_role == null ? null : asString(item.composition_role),
+		capturePolicy: asSourcePackCapturePolicy(item.capture_policy),
+		refreshPosture: asSourcePackRefreshPosture(item.refresh_posture),
+		extractionGate: asSourcePackExtractionGate(item.extraction_gate),
+		evalQuestions: asStringArray(item.eval_questions),
 	};
 }
 
