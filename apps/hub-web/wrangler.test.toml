@@ -5,6 +5,7 @@ compatibility_flags = ["nodejs_compat"]
 
 [vars]
 APP_API_BASE_URL = "https://app-api.internal"
+HUB_PUBLIC_CHAT_ORIGIN = "https://chat.muc.wiki"
 HUB_WEB_HOSTNAME = "hub.muc.wiki"
 
 [assets]

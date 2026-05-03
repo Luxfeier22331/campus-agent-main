@@ -3,6 +3,7 @@ import {
 	createRoute,
 	createRouter,
 	Link,
+	type LinkProps,
 	Outlet,
 	RouterProvider,
 } from "@tanstack/react-router";
@@ -21,6 +22,11 @@ import {
 } from "lucide-react";
 import { type FormEvent, useMemo, useRef, useState } from "react";
 
+import { Badge, type BadgeProps } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
 import {
 	type HubAuthActionState,
 	HubAuthSubmissionError,
@@ -29,9 +35,22 @@ import {
 	signInWithEmail,
 	signUpWithEmail,
 } from "../platform/auth/client";
+import {
+	resolveHubAuthReturnOrigins,
+	resolveHubAuthReturnTarget,
+} from "../platform/auth/return-target";
 import { type AuthTurnstileController, AuthTurnstileField } from "../platform/auth/turnstile";
+import {
+	AUTH_RUNTIME_CONFIG_SCRIPT_ID,
+	parseTurnstileRuntimeConfigSource,
+} from "../platform/auth/turnstile-runtime-config";
 import { formatEntryState } from "../platform/launcher/entry-state";
-import { HUB_NAVIGATION_ENTRIES, type HubNavigationEntry } from "../platform/launcher/manifest";
+import {
+	HUB_NAVIGATION_ENTRIES,
+	type HubEntryState,
+	type HubNavigationEntry,
+	requireHubEntryBySlug,
+} from "../platform/launcher/manifest";
 
 const routeIcon = {
 	account: UserRound,
@@ -44,19 +63,52 @@ const routeIcon = {
 	services: Lock,
 } as const;
 
+const entryStateBadgeVariant: Record<HubEntryState, BadgeProps["variant"]> = {
+	available: "secondary",
+	external: "outline",
+	gated: "warning",
+	planned: "muted",
+	preview: "default",
+};
+
+const internalLinkTargets = {
+	account: "/account",
+} as const satisfies Partial<Record<HubNavigationEntry["slug"], LinkProps["to"]>>;
+
+function getInternalLinkTarget(entry: HubNavigationEntry): LinkProps["to"] | null {
+	return entry.slug === "account" ? internalLinkTargets.account : null;
+}
+
+function EntryStateBadge({ state }: { state: HubEntryState }) {
+	return <Badge variant={entryStateBadgeVariant[state]}>{formatEntryState(state)}</Badge>;
+}
+
 function RootRouteComponent() {
 	return (
-		<div className="hub-shell">
-			<header className="hub-header">
-				<Link className="hub-brand" to="/">
-					<span className="hub-brand-mark">M</span>
-					<span>MUC Wiki Hub</span>
-				</Link>
-				<nav aria-label="主导航" className="hub-topnav">
-					<Link to="/chat">问答</Link>
-					<Link to="/docs">文档</Link>
-					<Link to="/account">账号</Link>
-				</nav>
+		<div className="min-h-dvh bg-background text-foreground">
+			<header className="border-b border-border bg-background/95">
+				<div className="mx-auto flex w-full max-w-6xl flex-col gap-4 px-5 py-4 sm:flex-row sm:items-center sm:justify-between lg:px-8">
+					<Link className="inline-flex w-fit items-center gap-3 font-semibold" to="/">
+						<span className="grid size-8 place-items-center rounded-md bg-primary text-sm text-primary-foreground">
+							M
+						</span>
+						<span>MUC Wiki Hub</span>
+					</Link>
+					<nav
+						aria-label="主导航"
+						className="flex items-center gap-1 text-sm text-muted-foreground"
+					>
+						<Button asChild size="sm" variant="ghost">
+							<a href={requireHubEntryBySlug("chat").href}>问答</a>
+						</Button>
+						<Button asChild size="sm" variant="ghost">
+							<a href={requireHubEntryBySlug("docs").href}>文档</a>
+						</Button>
+						<Button asChild size="sm" variant="ghost">
+							<Link to="/account">账号</Link>
+						</Button>
+					</nav>
+				</div>
 			</header>
 			<main>
 				<Outlet />
@@ -67,12 +119,14 @@ function RootRouteComponent() {
 
 function LauncherPage() {
 	return (
-		<section className="hub-launcher">
-			<div className="hub-launcher-heading">
-				<p className="hub-kicker">hub.muc.wiki</p>
-				<h1>校园应用入口</h1>
+		<section className="mx-auto w-full max-w-6xl px-5 py-12 lg:px-8">
+			<div className="mb-8 max-w-3xl">
+				<p className="mb-3 text-sm font-medium text-muted-foreground">hub.muc.wiki</p>
+				<h1 className="text-balance text-4xl font-semibold tracking-normal sm:text-5xl">
+					校园应用入口
+				</h1>
 			</div>
-			<div className="hub-entry-grid">
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
 				{HUB_NAVIGATION_ENTRIES.map((entry) => (
 					<HubEntryCard entry={entry} key={entry.slug} />
 				))}
@@ -83,63 +137,82 @@ function LauncherPage() {
 
 function HubEntryCard({ entry }: { entry: HubNavigationEntry }) {
 	const Icon = routeIcon[entry.slug as keyof typeof routeIcon] ?? ArrowRight;
+	const isExternalTarget = entry.targetKind === "external";
+	const isPlannedTarget = entry.targetKind === "planned";
+	const action = isPlannedTarget ? "暂未开放" : isExternalTarget ? "打开外部服务" : "进入";
+	const actionIcon = isExternalTarget ? (
+		<ExternalLink aria-hidden="true" className="size-4" />
+	) : (
+		<ArrowRight aria-hidden="true" className="size-4" />
+	);
+	const cardClassName = isPlannedTarget
+		? "flex min-h-48 flex-col justify-between opacity-70"
+		: "flex min-h-48 flex-col justify-between transition-colors hover:border-foreground/30";
 	const content = (
-		<>
-			<div className="hub-entry-card-header">
-				<span className="hub-entry-icon">
-					<Icon aria-hidden="true" size={20} />
+		<Card className={cardClassName}>
+			<CardHeader>
+				<div className="mb-5 flex items-center justify-between gap-3">
+					<span className="grid size-10 place-items-center rounded-md bg-muted text-foreground">
+						<Icon aria-hidden="true" className="size-5" />
+					</span>
+					<EntryStateBadge state={entry.state} />
+				</div>
+				<CardTitle>{entry.label}</CardTitle>
+				<CardDescription>{entry.description}</CardDescription>
+			</CardHeader>
+			<CardContent>
+				<span className="inline-flex items-center gap-2 text-sm font-medium text-foreground">
+					{action}
+					{actionIcon}
 				</span>
-				<span className={`hub-entry-state hub-entry-state-${entry.state}`}>
-					{formatEntryState(entry.state)}
-				</span>
-			</div>
-			<h2>{entry.label}</h2>
-			<p>{entry.description}</p>
-			<span className="hub-entry-action">
-				{entry.external ? "打开外部服务" : "进入"}
-				{entry.external ? (
-					<ExternalLink aria-hidden="true" size={16} />
-				) : (
-					<ArrowRight aria-hidden="true" size={16} />
-				)}
-			</span>
-		</>
+			</CardContent>
+		</Card>
 	);
 
-	if (entry.external) {
+	if (isPlannedTarget) {
 		return (
-			<a className="hub-entry-card" href={entry.href} rel="noreferrer" target="_blank">
+			<div aria-disabled="true" className="block cursor-not-allowed">
+				{content}
+			</div>
+		);
+	}
+
+	if (isExternalTarget) {
+		return (
+			<a
+				className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				href={entry.href}
+				rel="noreferrer"
+				target="_blank"
+			>
 				{content}
 			</a>
 		);
 	}
 
+	if (entry.targetKind === "app_link") {
+		return (
+			<a
+				className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+				href={entry.href}
+			>
+				{content}
+			</a>
+		);
+	}
+
+	const internalTo = getInternalLinkTarget(entry);
+	if (!internalTo) {
+		return <div className="block">{content}</div>;
+	}
+
 	return (
-		<Link className="hub-entry-card" to={entry.href}>
+		<Link
+			className="block focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
+			to={internalTo}
+		>
 			{content}
 		</Link>
-	);
-}
-
-function EntryPlaceholderPage({ entry }: { entry: HubNavigationEntry }) {
-	return (
-		<section className="hub-page-panel">
-			<p className={`hub-entry-state hub-entry-state-${entry.state}`}>
-				{formatEntryState(entry.state)}
-			</p>
-			<h1>{entry.label}</h1>
-			<p>{entry.description}</p>
-			<div className="hub-page-actions">
-				<Link className="hub-button" to="/">
-					返回入口
-				</Link>
-				{entry.slug === "chat" ? (
-					<a className="hub-button hub-button-primary" href="/chat">
-						进入问答
-					</a>
-				) : null}
-			</div>
-		</section>
 	);
 }
 
@@ -173,40 +246,47 @@ function AccountPage() {
 	}
 
 	return (
-		<section className="hub-page-panel">
-			<p className="hub-entry-state hub-entry-state-available">可用</p>
-			<h1>账号</h1>
-			<p>登录、注册与账号恢复由 app-api 统一处理。</p>
+		<PageSection>
+			<EntryStateBadge state="available" />
+			<PageTitle>账号</PageTitle>
+			<PageDescription>登录、注册与账号恢复由 app-api 统一处理。</PageDescription>
 			{sessionState === "ready" && email ? (
-				<p className="hub-account-session">当前登录：{email}</p>
+				<Card className="mt-6 w-fit">
+					<CardContent className="p-4 text-sm text-muted-foreground">当前登录：{email}</CardContent>
+				</Card>
 			) : null}
-			<div className="hub-page-actions">
-				<Link className="hub-button hub-button-primary" to="/account/login">
-					<LogIn aria-hidden="true" size={16} />
-					登录
-				</Link>
-				<Link className="hub-button" to="/account/register">
-					注册
-				</Link>
-				<button className="hub-button" onClick={refreshSession} type="button">
-					<RotateCcw aria-hidden="true" size={16} />
+			<ActionRow>
+				<Button asChild>
+					<Link to="/account/login">
+						<LogIn aria-hidden="true" />
+						登录
+					</Link>
+				</Button>
+				<Button asChild variant="outline">
+					<Link to="/account/register">注册</Link>
+				</Button>
+				<Button onClick={refreshSession} type="button" variant="outline">
+					<RotateCcw aria-hidden="true" />
 					{sessionState === "loading" ? "刷新中" : "刷新状态"}
-				</button>
-			</div>
-		</section>
+				</Button>
+			</ActionRow>
+		</PageSection>
 	);
 }
 
 function readReturnTo(): string {
 	if (typeof window === "undefined") {
-		return "/chat";
+		return resolveHubAuthReturnTarget("", {
+			appOrigins: resolveHubAuthReturnOrigins({}),
+		});
 	}
 
-	const value = new URLSearchParams(window.location.search).get("return_to")?.trim();
-	if (!value?.startsWith("/") || value.startsWith("//")) {
-		return "/chat";
-	}
-	return value;
+	const script = document.getElementById(AUTH_RUNTIME_CONFIG_SCRIPT_ID);
+	const runtimeConfig = parseTurnstileRuntimeConfigSource(script?.textContent);
+	return resolveHubAuthReturnTarget(window.location.search, {
+		appOrigins: runtimeConfig.authReturnOrigins,
+		currentOrigin: window.location.origin,
+	});
 }
 
 function readResetToken(): string | null {
@@ -286,10 +366,10 @@ function HubEmailPasswordForm(props: { mode: "login" | "register" }) {
 	}
 
 	return (
-		<form className="hub-auth-form" onSubmit={handleSubmit}>
-			<div className="hub-form-field">
-				<label htmlFor="email">邮箱</label>
-				<input
+		<form className="mt-6 flex w-full max-w-md flex-col gap-4" onSubmit={handleSubmit}>
+			<FormField>
+				<Label htmlFor="email">邮箱</Label>
+				<Input
 					autoComplete="email"
 					id="email"
 					name="email"
@@ -297,10 +377,10 @@ function HubEmailPasswordForm(props: { mode: "login" | "register" }) {
 					required
 					type="email"
 				/>
-			</div>
-			<div className="hub-form-field">
-				<label htmlFor="password">密码</label>
-				<input
+			</FormField>
+			<FormField>
+				<Label htmlFor="password">密码</Label>
+				<Input
 					autoComplete={mode === "login" ? "current-password" : "new-password"}
 					id="password"
 					minLength={10}
@@ -309,7 +389,7 @@ function HubEmailPasswordForm(props: { mode: "login" | "register" }) {
 					required
 					type="password"
 				/>
-			</div>
+			</FormField>
 			<AuthTurnstileField
 				action={mode === "login" ? "sign-in" : "sign-up"}
 				onController={(controller) => {
@@ -317,10 +397,10 @@ function HubEmailPasswordForm(props: { mode: "login" | "register" }) {
 				}}
 			/>
 			<HubAuthStatus status={status} />
-			<button className="hub-button hub-button-primary" disabled={isSubmitting} type="submit">
-				<Send aria-hidden="true" size={16} />
+			<Button disabled={isSubmitting} type="submit">
+				<Send aria-hidden="true" />
 				{isSubmitting ? "提交中" : mode === "login" ? "登录" : "注册"}
-			</button>
+			</Button>
 		</form>
 	);
 }
@@ -366,10 +446,10 @@ function HubPasswordRecoveryRequestForm() {
 	}
 
 	return (
-		<form className="hub-auth-form" onSubmit={handleSubmit}>
-			<div className="hub-form-field">
-				<label htmlFor="email">邮箱</label>
-				<input
+		<form className="mt-6 flex w-full max-w-md flex-col gap-4" onSubmit={handleSubmit}>
+			<FormField>
+				<Label htmlFor="email">邮箱</Label>
+				<Input
 					autoComplete="email"
 					id="email"
 					name="email"
@@ -377,7 +457,7 @@ function HubPasswordRecoveryRequestForm() {
 					required
 					type="email"
 				/>
-			</div>
+			</FormField>
 			<AuthTurnstileField
 				action="request-password-reset"
 				onController={(controller) => {
@@ -385,9 +465,9 @@ function HubPasswordRecoveryRequestForm() {
 				}}
 			/>
 			<HubAuthStatus status={status} />
-			<button className="hub-button hub-button-primary" disabled={isSubmitting} type="submit">
+			<Button disabled={isSubmitting} type="submit">
 				{isSubmitting ? "发送中" : "发送重置邮件"}
-			</button>
+			</Button>
 		</form>
 	);
 }
@@ -432,10 +512,10 @@ function HubPasswordRecoveryResetForm() {
 	}
 
 	return (
-		<form className="hub-auth-form" onSubmit={handleSubmit}>
-			<div className="hub-form-field">
-				<label htmlFor="password">新密码</label>
-				<input
+		<form className="mt-6 flex w-full max-w-md flex-col gap-4" onSubmit={handleSubmit}>
+			<FormField>
+				<Label htmlFor="password">新密码</Label>
+				<Input
 					autoComplete="new-password"
 					id="password"
 					minLength={10}
@@ -444,10 +524,10 @@ function HubPasswordRecoveryResetForm() {
 					required
 					type="password"
 				/>
-			</div>
-			<div className="hub-form-field">
-				<label htmlFor="confirmPassword">确认密码</label>
-				<input
+			</FormField>
+			<FormField>
+				<Label htmlFor="confirmPassword">确认密码</Label>
+				<Input
 					autoComplete="new-password"
 					id="confirmPassword"
 					minLength={10}
@@ -456,11 +536,11 @@ function HubPasswordRecoveryResetForm() {
 					required
 					type="password"
 				/>
-			</div>
+			</FormField>
 			<HubAuthStatus status={status} />
-			<button className="hub-button hub-button-primary" disabled={isSubmitting} type="submit">
+			<Button disabled={isSubmitting} type="submit">
 				{isSubmitting ? "更新中" : "更新密码"}
-			</button>
+			</Button>
 		</form>
 	);
 }
@@ -480,7 +560,11 @@ function HubAuthStatus({ status }: { status: HubAuthActionState }) {
 		return null;
 	}
 
-	return <p className={status === "success" ? "hub-form-success" : "hub-form-error"}>{message}</p>;
+	return (
+		<p className={status === "success" ? "text-sm text-foreground" : "text-sm text-destructive"}>
+			{message}
+		</p>
+	);
 }
 
 function AccountActionPage({
@@ -506,46 +590,74 @@ function AccountActionPage({
 		);
 
 	return (
-		<section className="hub-page-panel">
-			<p className="hub-entry-state hub-entry-state-available">账号服务</p>
-			<h1>{title}</h1>
-			<p>账号表单通过 hub 的 allowlisted same-site seam 调用 app-api。</p>
+		<PageSection>
+			<EntryStateBadge state="available" />
+			<PageTitle>{title}</PageTitle>
+			<PageDescription>登录、注册与密码恢复由统一账号服务处理。</PageDescription>
 			{form}
-			<div className="hub-page-actions">
+			<ActionRow>
 				{kind === "login" ? null : (
-					<Link className="hub-button" to="/account/login">
-						返回登录
-					</Link>
+					<Button asChild variant="outline">
+						<Link to="/account/login">返回登录</Link>
+					</Button>
 				)}
 				{kind === "login" ? (
 					<>
-						<Link className="hub-button" to="/account/register">
-							注册
-						</Link>
-						<Link className="hub-button" to="/account/forgot-password">
-							忘记密码
-						</Link>
+						<Button asChild variant="outline">
+							<Link to="/account/register">注册</Link>
+						</Button>
+						<Button asChild variant="outline">
+							<Link to="/account/forgot-password">忘记密码</Link>
+						</Button>
 					</>
 				) : null}
-				<Link className="hub-button" to="/account">
-					返回账号
-				</Link>
-			</div>
-		</section>
+				<Button asChild variant="outline">
+					<Link to="/account">返回账号</Link>
+				</Button>
+			</ActionRow>
+		</PageSection>
 	);
 }
 
 function NotFoundPage() {
 	return (
-		<section className="hub-page-panel">
-			<p className="hub-entry-state hub-entry-state-coming_soon">未开放</p>
-			<h1>入口不存在</h1>
-			<p>该路径未进入 hub app launcher allowlist。</p>
-			<Link className="hub-button hub-button-primary" to="/">
-				返回入口
-			</Link>
-		</section>
+		<PageSection>
+			<EntryStateBadge state="planned" />
+			<PageTitle>入口不存在</PageTitle>
+			<PageDescription>该路径未进入 hub app launcher allowlist。</PageDescription>
+			<Button asChild>
+				<Link to="/">返回入口</Link>
+			</Button>
+		</PageSection>
 	);
+}
+
+function PageSection({ children }: { children: React.ReactNode }) {
+	return <section className="mx-auto w-full max-w-6xl px-5 py-16 lg:px-8">{children}</section>;
+}
+
+function PageTitle({ children }: { children: React.ReactNode }) {
+	return (
+		<h1 className="mt-3 text-balance text-4xl font-semibold tracking-normal sm:text-5xl">
+			{children}
+		</h1>
+	);
+}
+
+function PageDescription({ children }: { children: React.ReactNode }) {
+	return (
+		<p className="mt-3 max-w-2xl text-pretty text-base leading-7 text-muted-foreground">
+			{children}
+		</p>
+	);
+}
+
+function ActionRow({ children }: { children: React.ReactNode }) {
+	return <div className="mt-6 flex flex-wrap items-center gap-3">{children}</div>;
+}
+
+function FormField({ children }: { children: React.ReactNode }) {
+	return <div className="flex flex-col gap-2">{children}</div>;
 }
 
 const rootRoute = createRootRoute({
@@ -589,18 +701,6 @@ const accountResetPasswordRoute = createRoute({
 	path: "/account/reset-password",
 });
 
-function createEntryRoute(slug: string) {
-	const entry = HUB_NAVIGATION_ENTRIES.find((item) => item.slug === slug && !item.external);
-	if (!entry) {
-		throw new Error(`Hub entry route is not admitted: ${slug}`);
-	}
-	return createRoute({
-		component: () => <EntryPlaceholderPage entry={entry} />,
-		getParentRoute: () => rootRoute,
-		path: `/${slug}`,
-	});
-}
-
 const routeTree = rootRoute.addChildren([
 	indexRoute,
 	accountRoute,
@@ -608,12 +708,6 @@ const routeTree = rootRoute.addChildren([
 	accountRegisterRoute,
 	accountForgotPasswordRoute,
 	accountResetPasswordRoute,
-	createEntryRoute("chat"),
-	createEntryRoute("docs"),
-	createEntryRoute("map"),
-	createEntryRoute("services"),
-	createEntryRoute("notices"),
-	createEntryRoute("panel"),
 ]);
 
 const router = createRouter({

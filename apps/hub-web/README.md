@@ -4,7 +4,7 @@ Cloudflare Worker-hosted product entry surface for the campus-agent app set.
 
 It owns:
 
-- `hub.muc.wiki/[slug]` app launcher routes
+- `/` app launcher shell backed by a single launcher route registry
 - `/account` browser shell for login, registration and password recovery
 - allowlisted same-site seams to `apps/app-api` through Worker `APP_API`
   Service Binding
@@ -12,6 +12,8 @@ It owns:
 
 It does not own:
 
+- browser shells for sibling apps such as `/chat`, `/docs`, `/panel`, `/map`,
+  `/services`, or `/notices`
 - auth database, session storage, principal mapping or authorization truth
 - generic `/api/*` proxy behavior
 - MediaWiki content, uploaded media, account migration, proxying or mirroring
@@ -27,12 +29,14 @@ Current route scope:
 - `GET /account/register`
 - `GET /account/forgot-password`
 - `GET /account/reset-password`
-- `GET /chat`
-- `GET /docs`
-- `GET /map`
-- `GET /services`
-- `GET /notices`
-- `GET /panel`
+
+Launcher registry target kinds:
+
+- `internal`: hub-owned browser shell routes such as `/account`
+- `app_link`: sibling app URLs such as public chat, docs and protected panel
+- `planned`: disabled future app entries that must not create fake browser
+  routes
+- `external`: non-hub services such as the legacy MediaWiki site
 
 Allowlisted app-api seams:
 
@@ -49,6 +53,7 @@ Unknown `/api/*` paths fail closed.
 Environment:
 
 - `APP_API_BASE_URL`
+- `HUB_PUBLIC_CHAT_ORIGIN`
 - `HUB_WEB_HOSTNAME`
 - `AUTH_TURNSTILE_SITE_KEY`
 - `AUTH_TURNSTILE_APPEARANCE`
@@ -58,6 +63,8 @@ Environment:
 - `SENTRY_RELEASE`
 
 The Worker also requires an internal `APP_API` service binding at runtime.
+Unknown browser paths, including sibling app slugs such as `/chat`, fail closed
+with `404` instead of serving the hub SPA shell.
 
 Staging deployment keeps Turnstile widget values out of tracked `wrangler.toml`.
 Use `STAGING_HUB_AUTH_TURNSTILE_SITE_KEY` plus optional

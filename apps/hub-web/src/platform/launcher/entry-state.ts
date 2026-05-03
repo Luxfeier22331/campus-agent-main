@@ -8,9 +8,9 @@ export function formatEntryState(state: HubEntryState): string {
 			return "预览";
 		case "gated":
 			return "受保护";
-		case "coming_soon":
-			return "即将开放";
-		case "external_legacy":
+		case "planned":
+			return "规划中";
+		case "external":
 			return "外部服务";
 		default:
 			return "未知";

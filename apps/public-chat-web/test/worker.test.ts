@@ -565,7 +565,7 @@ describe("public chat web worker shell", () => {
 
 		expect(response.status).toBe(302);
 		expect(response.headers.get("location")).toBe(
-			"https://hub.muc.wiki/account/login?return_to=%2Fchat%2Fconv_01HQ",
+			"https://hub.muc.wiki/account/login?return_app=chat&return_to=https%3A%2F%2Fchat.example.com%2Fchat%2Fconv_01HQ",
 		);
 		expect(readPublicChatSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
 	});

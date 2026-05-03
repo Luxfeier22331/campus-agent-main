@@ -4,6 +4,7 @@ import {
 	AUTH_RUNTIME_CONFIG_SCRIPT_ID,
 	resolveTurnstileRuntimeConfig,
 } from "./platform/auth/turnstile-runtime-config";
+import { isHubOwnedShellPath, resolveHubAuthCompatPath } from "./platform/routes/route-registry";
 
 export interface Env {
 	APP_API?: {
@@ -16,6 +17,7 @@ export interface Env {
 	AUTH_TURNSTILE_APPEARANCE?: string;
 	AUTH_TURNSTILE_EXECUTION?: string;
 	AUTH_TURNSTILE_SITE_KEY?: string;
+	HUB_PUBLIC_CHAT_ORIGIN?: string;
 	HUB_WEB_HOSTNAME?: string;
 	SENTRY_DSN?: string;
 	SENTRY_ENVIRONMENT?: string;
@@ -30,13 +32,6 @@ const HUB_ALLOWED_APP_API_PATHS = new Set([
 	"/api/auth/get-session",
 	"/api/auth/request-password-reset",
 	"/api/auth/reset-password",
-]);
-
-const HUB_AUTH_REDIRECTS = new Map([
-	["/login", "/account/login"],
-	["/register", "/account/register"],
-	["/forgot-password", "/account/forgot-password"],
-	["/reset-password", "/account/reset-password"],
 ]);
 
 const HUB_API_PATH_PREFIX = "/api/";
@@ -126,6 +121,14 @@ const worker = {
 		}
 
 		if (request.method === "GET" || request.method === "HEAD") {
+			if (!isHubOwnedShellPath(url.pathname)) {
+				return jsonResponse(404, {
+					error: {
+						code: "not_found",
+						message: "Route not found.",
+					},
+				});
+			}
 			return serveHubShell(request, env);
 		}
 
@@ -188,7 +191,7 @@ function isAllowedAppApiRequest(pathname: string): boolean {
 }
 
 function resolveAuthRedirect(url: URL): string | null {
-	const targetPath = HUB_AUTH_REDIRECTS.get(url.pathname);
+	const targetPath = resolveHubAuthCompatPath(url.pathname);
 	if (!targetPath) {
 		return null;
 	}
@@ -287,6 +290,7 @@ async function serveHubShell(request: Request, env: Env): Promise<Response> {
 function injectAuthRuntimeConfig(html: string, env: Env): string {
 	const serializedConfig = JSON.stringify(
 		resolveTurnstileRuntimeConfig({
+			publicChatOrigin: env.HUB_PUBLIC_CHAT_ORIGIN,
 			turnstileAppearance: env.AUTH_TURNSTILE_APPEARANCE,
 			turnstileExecution: env.AUTH_TURNSTILE_EXECUTION,
 			turnstileSiteKey: env.AUTH_TURNSTILE_SITE_KEY,

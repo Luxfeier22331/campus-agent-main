@@ -95,7 +95,7 @@ function classifyRecoveryError(
 
 export async function signInWithEmail(input: HubEmailPasswordSubmission): Promise<void> {
 	const response = await hubAuthClient.signIn.email({
-		callbackURL: input.returnTo || "/chat",
+		callbackURL: "/account",
 		email: input.email,
 		fetchOptions: input.captchaToken
 			? { headers: { "x-captcha-response": input.captchaToken } }
@@ -111,7 +111,7 @@ export async function signInWithEmail(input: HubEmailPasswordSubmission): Promis
 
 export async function signUpWithEmail(input: HubEmailPasswordSubmission): Promise<void> {
 	const response = await hubAuthClient.signUp.email({
-		callbackURL: input.returnTo || "/chat",
+		callbackURL: "/account",
 		email: input.email,
 		fetchOptions: input.captchaToken
 			? { headers: { "x-captcha-response": input.captchaToken } }

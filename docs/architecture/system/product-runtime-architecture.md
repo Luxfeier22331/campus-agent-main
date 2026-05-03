@@ -41,7 +41,7 @@ model`
 - 当前已落地的 public/protected/docs surface 是 shared `app-api` 前面的并列 browser surface
 - Worker surface 到 `app-api` 的长期调用形态是 Cloudflare Worker `APP_API` Service Binding；
   `APP_API_BASE_URL` / `PANEL_RUNTIME_API_BASE_URL` 只是构造内部 `Request` URL 的 origin
-- `apps/hub-web` 是 app-set product entry surface；它拥有平面入口、route shell 与 account
+- `apps/hub-web` 是 app-set product entry surface；它拥有平面入口、launcher registry 与 account
   browser shell，但不拥有 backend truth
 - `apps/public-chat-web` 与 `apps/public-docs` 都是 public-facing surface，但它们的内部 IA
   不自动升级成整个产品的顶层 IA
@@ -66,8 +66,11 @@ model`
 - `public-chat-web`
   - 当前是最成熟的公开助理入口，不再以旧 `public-consumer-chat` 为 forward truth
 - `hub-web`
-  - 当前是 `hub.muc.wiki/[slug]` app-set entry surface
+  - 当前是 `hub.muc.wiki` app-set entry surface
   - 使用 Cloudflare Worker + Vite React SPA + TanStack Router
+  - 只为 `/` 与 `/account/*` 这类 hub-owned shell path 交付 SPA shell
+  - sibling app 入口通过 launcher registry 的 `app_link` / `planned` / `external`
+    target 表达，不在 hub 内创建 fake browser route shell
   - 只通过 allowlisted same-site app-api seams 消费 `/api/me` 与必要 auth endpoints
   - legacy Wiki 只作为 external-link card 指向 `https://muc.wiki`
 - `public-docs`
@@ -118,7 +121,9 @@ model`
 
 ### `apps/hub-web`
 
-- flat app launcher for `hub.muc.wiki/[slug]`
+- flat app launcher for `hub.muc.wiki`
+- single launcher registry with `internal` / `app_link` / `planned` / `external`
+  target kinds
 - account shell routes:
   - `/account`
   - `/account/login`
@@ -127,7 +132,8 @@ model`
   - `/account/reset-password`
 - same-site allowlisted auth and `/api/me` seams into `apps/app-api` via Worker
   Service Binding
-- fail-closed unknown slug handling
+- fail-closed unknown browser path handling, including sibling app slugs that are
+  not hub-owned shell paths
 - no generic app-api proxy
 - no MediaWiki page/content/upload proxy
 - no auth/session/principal backend ownership

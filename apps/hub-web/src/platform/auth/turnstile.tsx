@@ -259,7 +259,7 @@ export function AuthTurnstileField(props: {
 	}, [onController]);
 
 	return (
-		<div className="hub-auth-turnstile">
+		<div className="flex flex-col gap-2">
 			<input
 				id="captchaToken"
 				name="captchaToken"
@@ -271,9 +271,9 @@ export function AuthTurnstileField(props: {
 			{siteKey ? (
 				<div data-slot="auth-turnstile" id={containerId} ref={widgetRef} />
 			) : (
-				<p className="hub-form-error">暂时无法加载安全验证。</p>
+				<p className="text-sm text-destructive">暂时无法加载安全验证。</p>
 			)}
-			{errorMessage ? <p className="hub-form-error">{errorMessage}</p> : null}
+			{errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
 		</div>
 	);
 }

@@ -79,6 +79,23 @@ describe("hub worker boundary", () => {
 		expect(seen).toEqual(["/api/me"]);
 	});
 
+	it("fails closed for unknown browser paths instead of serving fake app routes", async () => {
+		const env = createEnv();
+		const unknown = await worker.fetch(new Request("https://hub.muc.wiki/unknown"), env);
+		const chat = await worker.fetch(new Request("https://hub.muc.wiki/chat"), env);
+		const account = await worker.fetch(new Request("https://hub.muc.wiki/account/login"), env);
+
+		expect(unknown.status).toBe(404);
+		expect(chat.status).toBe(404);
+		expect(await unknown.json()).toMatchObject({
+			error: {
+				code: "not_found",
+			},
+		});
+		expect(account.status).toBe(200);
+		expect(account.headers.get("content-type")).toContain("text/html");
+	});
+
 	it("keeps Turnstile challenge origins admitted by hub CSP", async () => {
 		const response = await worker.fetch(new Request("https://hub.muc.wiki/account/login"), {
 			...createEnv(),

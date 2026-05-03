@@ -38,6 +38,12 @@ export function normalizeReturnToPath(value: string, fallback = "/chat"): string
 	return value;
 }
 
+function normalizeReturnToUrl(url: URL, value: string | null | undefined): string {
+	const path = normalizeReturnToPath(trimToNull(value) ?? "/chat");
+	const returnUrl = new URL(path, url.origin);
+	return returnUrl.toString();
+}
+
 export function buildPublicChatAuthCompatPath(
 	kind: PublicChatAuthCompatKind,
 	options: {
@@ -88,12 +94,13 @@ export function buildHubAuthRedirect(url: URL, hubBaseUrl = "https://hub.muc.wik
 
 		const returnTo = trimToNull(url.searchParams.get("return_to"));
 		if (returnTo) {
-			redirectUrl.searchParams.set("return_to", normalizeReturnToPath(returnTo));
+			redirectUrl.searchParams.set("return_to", normalizeReturnToUrl(url, returnTo));
 		}
 	} else {
+		redirectUrl.searchParams.set("return_app", "chat");
 		redirectUrl.searchParams.set(
 			"return_to",
-			normalizeReturnToPath(trimToNull(url.searchParams.get("return_to")) ?? "/chat"),
+			normalizeReturnToUrl(url, url.searchParams.get("return_to")),
 		);
 	}
 
