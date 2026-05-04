@@ -513,6 +513,12 @@ func classifyServiceGuideFocus(
 	normalizedGoal string,
 	policy runtimepolicy.IntentPolicyArtifact,
 ) string {
+	if strings.Contains(normalizedGoal, "办公电话怎么查") ||
+		strings.Contains(normalizedGoal, "通讯录怎么查") ||
+		strings.Contains(normalizedGoal, "办公电话如何查") ||
+		strings.Contains(normalizedGoal, "通讯录如何查") {
+		return "procedure"
+	}
 	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_required_materials")) {
 		return "required_materials"
 	}

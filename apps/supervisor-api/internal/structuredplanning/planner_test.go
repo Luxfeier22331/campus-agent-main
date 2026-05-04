@@ -489,6 +489,76 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "enterprise wechat onboarding",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "企业微信怎么绑定",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "企业微信怎么绑定",
+				"guide_focus":   "procedure",
+			},
+		},
+		{
+			name: "directory lookup guide",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "办公电话怎么查",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "办公电话怎么查",
+				"guide_focus":   "procedure",
+			},
+		},
+		{
+			name: "directory lookup guide alias",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "通讯录在哪里找",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "通讯录在哪里找",
+				"guide_focus":   "procedure",
+			},
+		},
+		{
+			name: "network account guide",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "上网账号申请去哪里办",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "上网账号申请去哪里办",
+				"guide_focus":   "entry",
+			},
+		},
+		{
+			name: "staff campus card guide",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "教职工校园卡丢了怎么办",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "教职工校园卡丢了怎么办",
+				"guide_focus":   "full_guide",
+			},
+		},
+		{
 			name: "campus card office hours",
 			request: Request{
 				EffectiveCapability: "campus_services",

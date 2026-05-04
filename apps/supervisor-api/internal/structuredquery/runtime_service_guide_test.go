@@ -943,6 +943,88 @@ func TestLookupServiceGuideMatchesCanonicalVPNGroupedProcedureFixture(t *testing
 	}
 }
 
+func TestLookupServiceGuideResolvesIdentityPasswordResetAliases(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideIdentityAndEmailProjectionFixture(),
+		"2026-05-04T10:30:00+08:00",
+	)
+
+	tests := []struct {
+		name       string
+		query      string
+		guideFocus string
+	}{
+		{name: "unified auth password", query: "统一身份认证密码怎么改", guideFocus: "procedure"},
+		{name: "portal password", query: "信息门户密码怎么改", guideFocus: "procedure"},
+		{name: "smart portal forgot password", query: "智慧门户忘记密码怎么办", guideFocus: "procedure"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+				"service_query":"`+tt.query+`",
+				"guide_focus":"`+tt.guideFocus+`",
+				"temporal_query":{"mode":"current"},
+				"audience":"student"
+			}`))
+
+			result := response.Body.(serviceGuideResult)
+			if result.Outcome != "resolved_current" {
+				t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+			}
+			if result.ResolvedService == nil || result.ResolvedService.ServiceID != "service:official_web:identity-password-reset" {
+				t.Fatalf("resolved_service = %#v", result.ResolvedService)
+			}
+			if len(result.EntryRefs) != 1 || result.EntryRefs[0].URL != "https://password.muc.edu.cn" {
+				t.Fatalf("entry_refs = %#v", result.EntryRefs)
+			}
+		})
+	}
+}
+
+func TestLookupServiceGuideResolvesNetworkAuthAndEmailAliases(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideIdentityAndEmailProjectionFixture(),
+		"2026-05-04T10:30:00+08:00",
+	)
+
+	networkResponse := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"校园网认证网址是什么",
+		"guide_focus":"entry",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+	networkResult := networkResponse.Body.(serviceGuideResult)
+	if networkResult.Outcome != "resolved_current" {
+		t.Fatalf("network outcome = %q, want resolved_current", networkResult.Outcome)
+	}
+	if networkResult.ResolvedService == nil || networkResult.ResolvedService.ServiceID != "service:official_web:network-auth" {
+		t.Fatalf("network resolved_service = %#v", networkResult.ResolvedService)
+	}
+	if len(networkResult.EntryRefs) != 1 || networkResult.EntryRefs[0].URL != "https://a.muc.edu.cn" {
+		t.Fatalf("network entry_refs = %#v", networkResult.EntryRefs)
+	}
+
+	emailResponse := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"校园邮箱申请表在哪里下载",
+		"guide_focus":"entry",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+	emailResult := emailResponse.Body.(serviceGuideResult)
+	if emailResult.Outcome != "resolved_current" {
+		t.Fatalf("email outcome = %q, want resolved_current", emailResult.Outcome)
+	}
+	if emailResult.ResolvedService == nil || emailResult.ResolvedService.ServiceID != "service:official_web:campus-email" {
+		t.Fatalf("email resolved_service = %#v", emailResult.ResolvedService)
+	}
+	if len(emailResult.EntryRefs) != 1 || !strings.Contains(emailResult.EntryRefs[0].Label, "申请表") {
+		t.Fatalf("email entry_refs = %#v", emailResult.EntryRefs)
+	}
+}
+
 func TestLookupServiceGuideFailsClosedForLegacyManualReviewSourceAsSourceUnavailable(t *testing.T) {
 	runtime := newRuntimeWithServiceGuideReadModel(
 		t,
@@ -1042,6 +1124,121 @@ func TestLookupServiceGuideIncludesContactSourceRefs(t *testing.T) {
 	}
 	if !testStringSliceContains(result.SourceRefs, "handbook:student_rules:pages:261-261#page=261") {
 		t.Fatalf("source_refs = %#v, want contact source ref", result.SourceRefs)
+	}
+}
+
+func TestLookupServiceGuideResolvesEnterpriseWechatProcedure(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideITAdditionalTargetsProjectionFixture(),
+		"2026-05-04T12:00:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"企业微信怎么绑定",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"unknown"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedService == nil || result.ResolvedService.ServiceID != "service:official_web:enterprise-wechat" {
+		t.Fatalf("resolved_service = %#v", result.ResolvedService)
+	}
+	if len(result.GuideSections) != 1 || !strings.Contains(result.GuideSections[0].Content, "关注“中央民族大学企业微信”") {
+		t.Fatalf("guide_sections = %#v", result.GuideSections)
+	}
+}
+
+func TestLookupServiceGuideResolvesDirectoryLookupProcedure(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideITAdditionalTargetsProjectionFixture(),
+		"2026-05-04T12:00:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"通讯录在哪里找",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"unknown"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedService == nil || result.ResolvedService.ServiceID != "service:official_web:directory-lookup" {
+		t.Fatalf("resolved_service = %#v", result.ResolvedService)
+	}
+	if len(result.GuideSections) != 1 || !strings.Contains(result.GuideSections[0].Content, "信息门户通讯录") {
+		t.Fatalf("guide_sections = %#v", result.GuideSections)
+	}
+}
+
+func TestLookupServiceGuideResolvesNetworkAccountEntry(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideITAdditionalTargetsProjectionFixture(),
+		"2026-05-04T12:00:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"上网账号申请去哪里办",
+		"guide_focus":"entry",
+		"temporal_query":{"mode":"current"},
+		"audience":"faculty"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedService == nil || result.ResolvedService.ServiceID != "service:official_web:network-account-management" {
+		t.Fatalf("resolved_service = %#v", result.ResolvedService)
+	}
+	if len(result.EntryRefs) != 2 {
+		t.Fatalf("entry_refs = %#v, want 2", result.EntryRefs)
+	}
+	if result.EntryRefs[0].Label != "IT服务中心" || result.EntryRefs[0].LocationRef != "中慧楼二层IT服务中心" {
+		t.Fatalf("entry_refs = %#v", result.EntryRefs)
+	}
+	if result.EntryRefs[1].Label != "服务门户" {
+		t.Fatalf("entry_refs = %#v", result.EntryRefs)
+	}
+}
+
+func TestLookupServiceGuideResolvesStaffCampusCardFullGuide(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideITAdditionalTargetsProjectionFixture(),
+		"2026-05-04T12:00:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"教职工校园卡丢了怎么办",
+		"guide_focus":"full_guide",
+		"temporal_query":{"mode":"current"},
+		"audience":"faculty"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedService == nil || result.ResolvedService.ServiceID != "service:official_web:staff-campus-card" {
+		t.Fatalf("resolved_service = %#v", result.ResolvedService)
+	}
+	if len(result.ContactRefs) != 2 ||
+		result.ContactRefs[0].Phone != "010-68933381" ||
+		result.ContactRefs[1].Phone != "010-83878225" {
+		t.Fatalf("contact_refs = %#v", result.ContactRefs)
+	}
+	if len(result.EntryRefs) != 2 {
+		t.Fatalf("entry_refs = %#v", result.EntryRefs)
 	}
 }
 

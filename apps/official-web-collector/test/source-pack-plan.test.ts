@@ -138,4 +138,30 @@ describe("official web source-pack execution plan", () => {
 			sourcePackEntryId: "owsp-password-reset-1830",
 		});
 	});
+
+	it("admits newly added met service-guide pages on the service-guide target", () => {
+		const plan = buildSourcePackExecutionPlan("muc_public");
+
+		for (const entryId of [
+			"owsp-network-account-1106",
+			"owsp-staff-campus-card-1107",
+			"owsp-enterprise-wechat-1828",
+			"owsp-directory-lookup-1831",
+		]) {
+			const row = plan.rows.find(
+				(item) => item.entryId === entryId,
+			) as SourcePackExecutionPlanEntry;
+
+			expect(row.ownerSurfaces).toContain("service_guide_lookup");
+			expect(row.releaseTargets).toContain("campus_services/service_guide");
+			expect(
+				row.targetMatches.find((item) => item.targetId === "campus-services-service-guide"),
+			).toMatchObject({
+				targetId: "campus-services-service-guide",
+				consumerFamily: "service_guide_candidate",
+				selectedWriteTarget: "campus_services/service_guide",
+				sourcePackEntryId: entryId,
+			});
+		}
+	});
 });

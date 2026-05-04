@@ -15,7 +15,7 @@ describe("official web target inventory report", () => {
 		const report = buildOfficialWebTargetInventoryReport(config);
 
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 20,
+			candidate: 24,
 		});
 		expect(report.entries[0]).toMatchObject({
 			inventoryId: "muc-main-homepage-contact",
@@ -249,7 +249,7 @@ describe("official web target inventory report", () => {
 			reviewState: "previewed",
 		});
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 19,
+			candidate: 23,
 			previewed: 1,
 		});
 	});
@@ -264,6 +264,10 @@ describe("official web target inventory report", () => {
 				"muc-it-vpn-service-guide",
 				"muc-it-email-service-guide",
 				"muc-it-password-reset-service-guide",
+				"muc-it-network-account-management-guide",
+				"muc-it-staff-campus-card-service-guide",
+				"muc-it-enterprise-wechat-guide",
+				"muc-it-directory-lookup-guide",
 				"muc-it-service-contacts",
 				"muc-logistics-service-contacts",
 				"muc-it-email-policy-reference",

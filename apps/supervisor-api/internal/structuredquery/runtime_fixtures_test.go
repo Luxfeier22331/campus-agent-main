@@ -912,6 +912,156 @@ func serviceGuideVPNProjectionFixture() string {
 	}`
 }
 
+func serviceGuideIdentityAndEmailProjectionFixture() string {
+	return `{
+		"schema_version":"campus_services_service_guide_projection.v1",
+		"generated_at":"2026-05-04T10:00:00+08:00",
+		"source_families":["official_web_curated_service_guide_v1"],
+		"service_guide_records":[
+			{
+				"service_id":"service:official_web:identity-password-reset",
+				"display_name":"中央民族大学统一身份认证密码重置",
+				"aliases":["统一身份认证密码","信息门户密码","智慧门户密码","网上办事大厅密码","校园网密码","密码修改入口"],
+				"category":"campus_service",
+				"campus_scope":"all",
+				"audience":["student","faculty","unknown"],
+				"effective_from":"2026-05-01T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["https://met.muc.edu.cn/info/1046/1824.htm"],
+				"guide_sections":[
+					{
+						"section_id":"service:official_web:identity-password-reset:section:procedure",
+						"section_type":"procedure",
+						"title":"统一身份认证密码重置流程",
+						"content":"1. 进入统一身份认证密码服务页面。\n2. 按页面提示完成身份核验。\n3. 设置新密码后重新登录信息门户、网上办事大厅等系统。",
+						"order":1,
+						"source_refs":["https://met.muc.edu.cn/info/1046/1824.htm"]
+					}
+				],
+				"procedure_groups":[
+					{
+						"group_id":"service:official_web:identity-password-reset:procedure_group:self_service",
+						"title":"自助重置",
+						"focus_tags":["procedure","password_reset","entry","identity"],
+						"order":1,
+						"steps":[
+							{
+								"step_id":"service:official_web:identity-password-reset:procedure_group:self_service:step:1",
+								"content":"进入统一身份认证密码服务页面。",
+								"order":1,
+								"source_refs":["https://met.muc.edu.cn/info/1046/1824.htm"]
+							},
+							{
+								"step_id":"service:official_web:identity-password-reset:procedure_group:self_service:step:2",
+								"content":"按页面提示完成身份核验并设置新密码。",
+								"order":2,
+								"source_refs":["https://met.muc.edu.cn/info/1046/1824.htm"]
+							}
+						],
+						"source_refs":["https://met.muc.edu.cn/info/1046/1824.htm"]
+					}
+				],
+				"materials":[],
+				"entry_refs":[
+					{"entry_id":"service:official_web:identity-password-reset:entry:1","label":"密码服务页面","entry_type":"online_url","url":"https://password.muc.edu.cn","location_ref":"","source_refs":["https://met.muc.edu.cn/info/1046/1824.htm"]}
+				],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":[],
+				"field_status":{"service_process":"present","service_entry":"present"},
+				"extraction_status":"ready"
+			},
+			{
+				"service_id":"service:official_web:network-auth",
+				"display_name":"中央民族大学校园网认证使用说明",
+				"aliases":["校园网认证","校园网登录","校园网怎么登录","校园网怎么认证登录","校园网认证网址"],
+				"category":"campus_service",
+				"campus_scope":"all",
+				"audience":["student","faculty","unknown"],
+				"effective_from":"2026-05-01T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["https://met.muc.edu.cn/info/1046/1808.htm"],
+				"guide_sections":[
+					{
+						"section_id":"service:official_web:network-auth:section:procedure",
+						"section_type":"procedure",
+						"title":"校园网认证使用说明",
+						"content":"1. 访问校园网认证页面。\n2. 输入统一身份认证账号密码登录。\n3. 认证成功后即可访问校园网资源。",
+						"order":1,
+						"source_refs":["https://met.muc.edu.cn/info/1046/1808.htm"]
+					}
+				],
+				"procedure_groups":[
+					{
+						"group_id":"service:official_web:network-auth:procedure_group:login",
+						"title":"认证登录",
+						"focus_tags":["procedure","entry","login","network_auth"],
+						"order":1,
+						"steps":[
+							{
+								"step_id":"service:official_web:network-auth:procedure_group:login:step:1",
+								"content":"访问校园网认证页面。",
+								"order":1,
+								"source_refs":["https://met.muc.edu.cn/info/1046/1808.htm"]
+							},
+							{
+								"step_id":"service:official_web:network-auth:procedure_group:login:step:2",
+								"content":"输入统一身份认证账号密码登录。",
+								"order":2,
+								"source_refs":["https://met.muc.edu.cn/info/1046/1808.htm"]
+							}
+						],
+						"source_refs":["https://met.muc.edu.cn/info/1046/1808.htm"]
+					}
+				],
+				"materials":[],
+				"entry_refs":[
+					{"entry_id":"service:official_web:network-auth:entry:1","label":"校园网认证页面","entry_type":"online_url","url":"https://a.muc.edu.cn","location_ref":"","source_refs":["https://met.muc.edu.cn/info/1046/1808.htm"]}
+				],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":[],
+				"field_status":{"service_process":"present","service_entry":"present"},
+				"extraction_status":"ready"
+			},
+			{
+				"service_id":"service:official_web:campus-email",
+				"display_name":"中央民族大学校园邮箱服务说明",
+				"aliases":["校园邮箱","学校邮箱","邮箱后缀","邮箱域名","校园邮箱申请表"],
+				"category":"campus_service",
+				"campus_scope":"all",
+				"audience":["student","faculty","unknown"],
+				"effective_from":"2026-05-01T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["https://met.muc.edu.cn/info/1046/1816.htm"],
+				"guide_sections":[
+					{
+						"section_id":"service:official_web:campus-email:section:procedure",
+						"section_type":"procedure",
+						"title":"校园邮箱服务说明",
+						"content":"校园邮箱申请需下载申请表并按页面说明提交。邮箱后缀为 @muc.edu.cn。",
+						"order":1,
+						"source_refs":["https://met.muc.edu.cn/info/1046/1816.htm"]
+					}
+				],
+				"materials":[
+					{"material_id":"service:official_web:campus-email:material:1","name":"校园邮箱申请表","note":"按页面下载填写","source_refs":["https://met.muc.edu.cn/info/1046/1816.htm"]}
+				],
+				"entry_refs":[
+					{"entry_id":"service:official_web:campus-email:entry:1","label":"校园邮箱申请表下载","entry_type":"online_url","url":"https://met.muc.edu.cn/__local/email-apply-form.doc","location_ref":"","source_refs":["https://met.muc.edu.cn/info/1046/1816.htm"]}
+				],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":["校园邮箱后缀为 @muc.edu.cn。"],
+				"field_status":{"service_entry":"present"},
+				"extraction_status":"ready"
+			}
+		],
+		"conflict_records":[],
+		"manual_review_sources":[]
+	}`
+}
+
 func serviceGuideContactProjectionFixture() string {
 	return strings.Replace(
 		serviceGuidePublicMedicalProjectionFixture(),
@@ -949,6 +1099,34 @@ func contactDirectoryProjectionFixture() string {
 				],
 				"location_refs":["海淀校区行政楼201"],
 				"source_refs":["handbook:contact-directory:2026#page=261"],
+				"extraction_status":"ready"
+			},
+			{
+				"contact_id":"contact:official-web:it-service-contacts",
+				"display_name":"中央民族大学信息化服务联系方式",
+				"aliases":["信息化办","信息化服务","网络服务","一卡通服务","多媒体教室服务"],
+				"contact_group":"official_web",
+				"department":"信息化建设管理处",
+				"contact_points":[
+					{"channel_type":"phone","label":"网络服务","value":"010-68932559","source_refs":["https://met.muc.edu.cn/info/1046/1810.htm"]},
+					{"channel_type":"phone","label":"一卡通服务","value":"010-68933381","source_refs":["https://met.muc.edu.cn/info/1046/1810.htm"]},
+					{"channel_type":"phone","label":"多媒体教室服务","value":"010-68932625","source_refs":["https://met.muc.edu.cn/info/1046/1810.htm"]}
+				],
+				"source_refs":["https://met.muc.edu.cn/info/1046/1810.htm"],
+				"extraction_status":"ready"
+			},
+			{
+				"contact_id":"contact:official-web:logistics-service-center",
+				"display_name":"中央民族大学后勤服务联系方式",
+				"aliases":["后勤服务热线","学生公寓管理服务中心","会务服务中心"],
+				"contact_group":"official_web",
+				"department":"后勤保障处",
+				"contact_points":[
+					{"channel_type":"phone","label":"后勤服务热线","value":"010-68931111","source_refs":["https://hq.muc.edu.cn/info/1010/1001.htm"]},
+					{"channel_type":"phone","label":"学生公寓管理服务中心","value":"010-68931234","source_refs":["https://hq.muc.edu.cn/info/1010/1001.htm"]},
+					{"channel_type":"phone","label":"会务服务中心","value":"010-68935678","source_refs":["https://hq.muc.edu.cn/info/1010/1001.htm"]}
+				],
+				"source_refs":["https://hq.muc.edu.cn/info/1010/1001.htm"],
 				"extraction_status":"ready"
 			}
 		],

@@ -8,6 +8,7 @@ func contactDirectoryResultFromRecord(
 	timeAnchor string,
 ) contactDirectoryResult {
 	contactPoints := contactDirectoryContactPoints(record)
+	contactPoints = filterContactPointsForQuery(request.QueryText, request.ContactFocus, contactPoints)
 	locationRefs := contactDirectoryLocationRefs(record)
 	officeHours := contactDirectoryOfficeHoursRows(record)
 	filteredPoints, filteredLocations, filteredHours := contactDirectoryFocusFilteredData(
@@ -112,6 +113,34 @@ func filterContactPointsByChannel(
 		filtered = append(filtered, point)
 	}
 	return filtered
+}
+
+func filterContactPointsForQuery(
+	query string,
+	focus string,
+	points []contactDirectoryContactPoint,
+) []contactDirectoryContactPoint {
+	if focus != "phone" && focus != "email" {
+		return points
+	}
+	normalizedQuery := normalizeSearchText(query)
+	if normalizedQuery == "" {
+		return points
+	}
+	matched := []contactDirectoryContactPoint{}
+	for _, point := range points {
+		label := normalizeSearchText(point.Label)
+		if label == "" {
+			continue
+		}
+		if strings.Contains(normalizedQuery, label) || strings.Contains(label, normalizedQuery) {
+			matched = append(matched, point)
+		}
+	}
+	if len(matched) > 0 {
+		return matched
+	}
+	return points
 }
 
 func contactDirectoryContactPoints(record contactDirectoryRecord) []contactDirectoryContactPoint {

@@ -32,7 +32,7 @@ func serviceGuideResultFromRecord(
 	if request.GuideFocus == "required_materials" || request.GuideFocus == "full_guide" {
 		result.RequiredMaterials = serviceGuideMaterials(record.Materials)
 	}
-	if request.GuideFocus == "entry" || request.GuideFocus == "full_guide" {
+	if request.GuideFocus == "entry" || request.GuideFocus == "procedure" || request.GuideFocus == "full_guide" {
 		result.EntryRefs = serviceGuideEntryRefs(record.EntryRefs)
 	}
 	if request.GuideFocus == "office_hours" || request.GuideFocus == "full_guide" {

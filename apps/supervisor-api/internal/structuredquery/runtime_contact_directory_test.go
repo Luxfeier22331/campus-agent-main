@@ -504,6 +504,45 @@ func TestLookupContactDirectoryLoadsOnlyCurrentPointerRelease(t *testing.T) {
 	}
 }
 
+func TestLookupContactDirectoryResolvesServiceLabelPhones(t *testing.T) {
+	runtime := newRuntimeWithContactDirectoryReadModel(
+		t,
+		contactDirectoryProjectionFixture(),
+		"2026-05-04T10:30:00+08:00",
+	)
+
+	tests := []struct {
+		name      string
+		query     string
+		wantValue string
+	}{
+		{name: "network service", query: "网络服务电话是多少", wantValue: "010-68932559"},
+		{name: "campus card service", query: "一卡通服务电话是多少", wantValue: "010-68933381"},
+		{name: "multimedia classroom service", query: "多媒体教室服务电话是多少", wantValue: "010-68932625"},
+		{name: "dorm management center", query: "学生公寓管理服务中心电话是多少", wantValue: "010-68931234"},
+		{name: "conference center", query: "会务服务中心电话是多少", wantValue: "010-68935678"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response := runtime.LookupContactDirectory(context.Background(), []byte(`{
+				"query_text":"`+tt.query+`",
+				"contact_focus":"phone",
+				"temporal_query":{"mode":"current"},
+				"audience":"student"
+			}`))
+
+			result := response.Body.(contactDirectoryResult)
+			if result.Outcome != "resolved_current" {
+				t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+			}
+			if len(result.ContactPoints) == 0 || result.ContactPoints[0].Value != tt.wantValue {
+				t.Fatalf("contact_points = %#v, want %s", result.ContactPoints, tt.wantValue)
+			}
+		})
+	}
+}
+
 func newRuntimeWithContactDirectoryReadModel(
 	t *testing.T,
 	payload string,
