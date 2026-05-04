@@ -48,6 +48,21 @@ class ServiceGuideSelectedWriteRuntimeSmokeTest(unittest.TestCase):
         self.assertGreater(port, 0)
         self.assertEqual(plan.api_base_url, f"http://127.0.0.1:{port}")
 
+    def test_plan_uses_explicit_trusted_time_anchor_when_provided(self) -> None:
+        plan = smoke.build_service_guide_selected_write_runtime_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/service-guide-smoke"),
+            database_url="postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
+            structured_query_secret="query-secret",
+            trusted_time_rfc3339="2026-05-04T00:00:01Z",
+            api_port=19181,
+        )
+
+        self.assertEqual(
+            plan.processes[0].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
+            "2026-05-04T00:00:01Z",
+        )
+
     def test_run_smoke_passes_current_release_runtime_probes(self) -> None:
         class FakeProcess:
             pid = 4321
@@ -69,12 +84,15 @@ class ServiceGuideSelectedWriteRuntimeSmokeTest(unittest.TestCase):
                     },
                 },
             ),
-            "phone_missing_fail_close": (
+            "phone_current": (
                 200,
                 {
-                    "outcome": "temporarily_unverifiable",
-                    "fail_close_reason": "field_not_provided_by_source",
-                    "field_status": {"phone": "source_not_provided"},
+                    "outcome": "resolved_current",
+                    "field_status": {"phone": "present"},
+                    "contact_refs": [
+                        {"phone": "010-68932551"},
+                        {"phone": "010-68933983"},
+                    ],
                 },
             ),
             "responsible_department_current": (
@@ -154,7 +172,7 @@ class ServiceGuideSelectedWriteRuntimeSmokeTest(unittest.TestCase):
             secret: str,
             timeout_seconds: float,
         ) -> tuple[int, object]:
-            if probe.probe_id == "phone_missing_fail_close":
+            if probe.probe_id == "phone_current":
                 return 200, {"outcome": "resolved_current", "contact_refs": [{"phone": ""}]}
             if probe.probe_id == "procedure_current":
                 return 200, {
@@ -197,7 +215,7 @@ class ServiceGuideSelectedWriteRuntimeSmokeTest(unittest.TestCase):
                 )
 
         self.assertFalse(report["passed"])
-        self.assertEqual(report["probes"]["failed_probe_ids"], ["phone_missing_fail_close"])
+        self.assertEqual(report["probes"]["failed_probe_ids"], ["phone_current"])
 
 
 if __name__ == "__main__":

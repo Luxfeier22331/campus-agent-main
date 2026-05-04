@@ -158,7 +158,28 @@ Runtime tools must not fetch or compose official-web pages at query time.
     image extraction becomes required
   - attachment materialization must not be hardcoded into this single page
 
-## Case 6: Information Disclosure Implementation Rules
+## Case 6: Unified Identity Password Reset Guide
+
+- URL: `https://met.muc.edu.cn/info/1068/1830.htm`
+- Content family: `campus_service_guide`
+- Observed facts:
+  - initial password rule and password complexity requirement
+  - self-service password change entry in `https://my.muc.edu.cn`
+  - forgot-password recovery path via face recognition
+  - service-portal application fallback and on-site handling locations
+- Primary owner:
+  - `service_guide_lookup`
+- Collection path:
+  - capture HTML source truth
+  - emit service guide candidate with `procedure`, `entry_refs`, optional material/location facts
+- Runtime examples:
+  - "统一身份认证密码怎么改？" -> service guide procedure
+  - "忘记统一身份认证密码怎么办？" -> service guide recovery path
+  - "密码修改入口是什么？" -> entry ref answer
+- Risk / gate:
+  - page includes screenshots, but the text is already sufficient for first-slice guide answers
+  - face-recognition and on-site fallback should remain descriptive guide facts, not action flow
+## Case 7: Information Disclosure Implementation Rules
 
 - URL: `https://xxgk.muc.edu.cn/info/1005/1107.htm`
 - Content family: `institutional_policy_reference`
@@ -187,7 +208,7 @@ Runtime tools must not fetch or compose official-web pages at query time.
   - must not be flattened into the application-process service guide
   - if routed to `regulations/*`, owner-text/title/version policy must match regulation release lane
 
-## Case 7: Information Disclosure Application Pages
+## Case 8: Information Disclosure Application Pages
 
 - URLs:
   - `https://xxgk.muc.edu.cn/info/1007/1113.htm`
@@ -213,7 +234,7 @@ Runtime tools must not fetch or compose official-web pages at query time.
   - form page should not be blocked because it lacks procedure; it is a material component
   - procedure page, form page and contact page must not be query-time stitched by runtime
 
-## Case 8: Education Fee Disclosure Table
+## Case 9: Education Fee Disclosure Table
 
 - URL: `https://xxgk.muc.edu.cn/info/1302/1393.htm`
 - Content family: `public_fee_reference`
@@ -237,7 +258,91 @@ Runtime tools must not fetch or compose official-web pages at query time.
   - table extraction is mandatory before answering row-specific fee questions
   - if row alignment is not deterministic, only answer "where to view" and cite source, not exact fee
 
-## Case 9: Excluded Library Fee Rule / Dynamic Shell Page
+## Case 10: Logistics Service Contact Page
+
+- URL: `https://www.muc.edu.cn/ggfw/hqfw.htm`
+- Content family: `service_contact_directory`
+- Observed facts:
+  - labeled service hotlines for logistics office, student apartments, dining, transport, energy
+    repair, meeting services and community support
+  - plain-text phone evidence published on one stable public page
+- Primary owner:
+  - `contact_directory_lookup`
+- Collection path:
+  - capture HTML source truth
+  - retain as contact-directory candidate only
+  - preserve service labels together with phone values instead of flattening the page into one
+    generic office contact
+- Runtime examples:
+  - "后勤服务热线是多少？" -> contact directory answer
+  - "学生公寓管理服务中心电话是多少？" -> contact directory answer
+  - "会务服务中心电话是多少？" -> contact directory answer
+- Risk / gate:
+  - page mixes multiple service entities on one page; extraction must preserve label-to-phone
+    alignment
+  - meeting-room reservation wording on the page must not reopen transactional handling; runtime
+    still returns contact facts only
+
+## Case 11: Administrative Office List
+
+- URL: `https://www.muc.edu.cn/zzjg/znbm.htm`
+- Content family: `university_core_reference`
+- Observed facts:
+  - school administrative office names under the `职能部门` listing
+  - stable public school-host page with bounded organization-reference value
+- Primary owner:
+  - `official_web/stable_reference`
+- Collection path:
+  - capture as HTML source truth
+  - emit stable-reference document or bounded office-list reference candidate
+  - do not expand linked office pages in this source pack
+- Runtime examples:
+  - "中央民族大学有哪些职能部门？" -> stable reference list answer
+  - "学校有哪些行政部门？" -> stable reference answer with source citation
+- Risk / gate:
+  - this is answer-bearing only for the bounded office list itself
+  - linked department sites remain discovery-only unless a downstream owner admits them separately
+
+## Case 12: Library Public Reference Page
+
+- URL: `https://www.muc.edu.cn/ggfw/tsg.htm`
+- Content family: `university_core_reference`
+- Observed facts:
+  - library overview text, campus distribution and resource scale
+  - static public school-host mirror page rather than the dynamic library site shell
+- Primary owner:
+  - `official_web/stable_reference`
+- Collection path:
+  - capture as HTML source truth
+  - emit stable-reference document only
+  - do not treat this page as live opening-hours or live service-status truth
+- Runtime examples:
+  - "中央民族大学图书馆在哪里？" -> stable reference answer
+  - "中央民族大学图书馆馆藏大概有多少？" -> stable reference answer with source citation
+- Risk / gate:
+  - answers must stay within source-backed overview facts
+  - dynamic-shell library pages and live status pages remain excluded from this batch
+
+## Case 13: Museum Public Reference Page
+
+- URL: `https://www.muc.edu.cn/ggfw/mzbwg.htm`
+- Content family: `university_core_reference`
+- Observed facts:
+  - museum location, exhibition/background text and collection scale
+  - static public school-host overview page with stable descriptive content
+- Primary owner:
+  - `official_web/stable_reference`
+- Collection path:
+  - capture as HTML source truth
+  - emit stable-reference document only
+- Runtime examples:
+  - "中央民族大学民族博物馆在哪里？" -> stable reference answer
+  - "民族博物馆馆藏有什么特点？" -> stable reference answer with source citation
+- Risk / gate:
+  - use only source-backed museum overview facts
+  - do not expand museum subpages or temporary exhibition/news content in this batch
+
+## Case 14: Excluded Library Fee Rule / Dynamic Shell Page
 
 - URL: `https://lib.muc.edu.cn/engine2/d/9285046/667831/1?p=87948&t=5267574`
 - Content family: `library_service_reference`
@@ -262,7 +367,7 @@ Runtime tools must not fetch or compose official-web pages at query time.
   - this is the strongest example for not doing broad crawl first
   - dynamic shell support must prove replayable source truth before any future serving
 
-## Case 10: Library Opening-Hours Signal
+## Case 15: Library Opening-Hours Signal
 
 - Example URLs:
   - `https://lib.muc.edu.cn/engine2/general/more?appId=515526&currentBranch=1&pageId=87948&typeId=5155307&websiteId=64168&wfwfid=24149`

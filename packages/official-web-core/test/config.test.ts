@@ -391,7 +391,7 @@ describe("official-web-core config loading", () => {
 			reviewPolicy: "inventory_only",
 			selectedWriteTarget: "",
 		});
-		expect(config.targetInventory.inventoryVersion).toBe("muc_public_target_inventory_v3");
+		expect(config.targetInventory.inventoryVersion).toBe("muc_public_target_inventory_v7");
 		expect(config.targetInventory.entries.map((entry) => entry.inventoryId)).toEqual([
 			"muc-main-homepage-contact",
 			"muc-information-disclosure-contact",
@@ -400,11 +400,19 @@ describe("official-web-core config loading", () => {
 			"muc-it-network-auth-service-guide",
 			"muc-it-vpn-service-guide",
 			"muc-it-email-service-guide",
+			"muc-it-password-reset-service-guide",
 			"muc-it-service-contacts",
+			"muc-logistics-service-contacts",
 			"muc-information-disclosure-regulation-reference",
+			"muc-it-email-policy-reference",
 			"muc-academic-committee-charter",
 			"muc-staff-congress-procedure",
 			"muc-school-introduction-reference",
+			"muc-administrative-offices-reference",
+			"muc-teaching-research-units-reference",
+			"muc-library-reference",
+			"muc-museum-reference",
+			"muc-fee-disclosure-reference",
 		]);
 		expect(config.targetInventory.entries[0]).toMatchObject({
 			admissionTargetId: "campus-services-contact-directory",
@@ -441,6 +449,50 @@ describe("official-web-core config loading", () => {
 			requiredEvidence: ["regulation_text"],
 			sourceHosts: ["xxgk.muc.edu.cn"],
 			sourceUrls: ["https://xxgk.muc.edu.cn/info/1005/1107.htm"],
+		});
+		expect(
+			config.targetInventory.entries.find(
+				(entry) => entry.inventoryId === "muc-it-password-reset-service-guide",
+			),
+		).toMatchObject({
+			admissionTargetId: "campus-services-service-guide",
+			consumerFamily: "service_guide_candidate",
+			requiredEvidence: ["service_process"],
+			sourceHosts: ["met.muc.edu.cn"],
+			sourceUrls: ["https://met.muc.edu.cn/info/1068/1830.htm"],
+		});
+		expect(
+			config.targetInventory.entries.find(
+				(entry) => entry.inventoryId === "muc-it-email-policy-reference",
+			),
+		).toMatchObject({
+			admissionTargetId: "official-web-institutional-rules",
+			consumerFamily: "regulation_candidate",
+			requiredEvidence: ["regulation_text"],
+			sourceHosts: ["met.muc.edu.cn"],
+			sourceUrls: ["https://met.muc.edu.cn/info/1024/1090.htm"],
+		});
+		expect(
+			config.targetInventory.entries.find(
+				(entry) => entry.inventoryId === "muc-logistics-service-contacts",
+			),
+		).toMatchObject({
+			admissionTargetId: "campus-services-contact-directory",
+			consumerFamily: "contact_directory_candidate",
+			requiredEvidence: ["phone"],
+			sourceHosts: ["www.muc.edu.cn"],
+			sourceUrls: ["https://www.muc.edu.cn/ggfw/hqfw.htm"],
+		});
+		expect(
+			config.targetInventory.entries.find(
+				(entry) => entry.inventoryId === "muc-library-reference",
+			),
+		).toMatchObject({
+			admissionTargetId: "official-web-stable-reference",
+			consumerFamily: "stable_reference_candidate",
+			requiredEvidence: ["stable_reference"],
+			sourceHosts: ["www.muc.edu.cn"],
+			sourceUrls: ["https://www.muc.edu.cn/ggfw/tsg.htm"],
 		});
 		expect(config.hosts.hosts.find((item) => item.host === "www.muc.edu.cn")).toMatchObject({
 			hostGroup: "university_core",

@@ -1086,6 +1086,21 @@ def _service_guide_record_from_candidate(
     )
     contacts = _object_mapping(typed_candidate.get("contacts"))
     office_hours = _string_list(contacts.get("office_hours"))
+    canonical_source_ref = _candidate_source_ref(
+        candidate=candidate,
+        selected_write_task=selected_write_task,
+    )
+    public_source_refs = _unique_strings(
+        [
+            canonical_source_ref,
+            source_ref,
+            *_string_list(typed_candidate.get("supporting_source_urls")),
+            *_string_list(
+                _evidence(selected_write_task).get("sourceUrls")
+                or _evidence(selected_write_task).get("source_urls")
+            ),
+        ]
+    )
     contact_refs = _service_guide_contact_refs(
         contacts=contacts,
         display_name=display_name,
@@ -1126,7 +1141,7 @@ def _service_guide_record_from_candidate(
         "audience": ["unknown"],
         "effective_from": _selected_write_effective_from(task_created_at, generated_at),
         "effective_until": "9999-12-31T23:59:59+00:00",
-        "source_refs": [source_ref],
+        "source_refs": public_source_refs,
         "guide_sections": guide_sections,
         "procedure_groups": _service_guide_procedure_groups(
             service_id=service_id,
@@ -1337,7 +1352,12 @@ def _with_public_service_guide_source_refs(
     record: dict[str, object],
     selected_write_task: dict[str, object],
 ) -> dict[str, object]:
-    source_refs = _public_source_refs_for_selected_write_task(selected_write_task)
+    source_refs = _unique_strings(
+        [
+            *_string_list(record.get("source_refs")),
+            *_public_source_refs_for_selected_write_task(selected_write_task),
+        ]
+    )
     primary_source_ref = source_refs[0]
 
     def replace_item_sources(value: object) -> list[dict[str, object]]:

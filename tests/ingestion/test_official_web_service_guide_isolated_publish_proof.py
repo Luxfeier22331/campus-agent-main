@@ -3,6 +3,7 @@ from __future__ import annotations
 import unittest
 
 from scripts.official_web_service_guide_isolated_publish_proof import (
+    _trusted_time_from_full_impact_bundle,
     build_isolated_derived_bucket_name,
     compare_publish_results_to_preview,
 )
@@ -93,6 +94,24 @@ class OfficialWebServiceGuideIsolatedPublishProofTest(unittest.TestCase):
 
         self.assertFalse(comparison["passed"])
         self.assertEqual(comparison["mismatches"][0]["field"], "record_count")
+
+    def test_trusted_time_from_full_impact_bundle_uses_latest_effective_from(self) -> None:
+        bundle = {
+            "service_guide_records": [
+                {
+                    "display_name": "中央民族大学信息公开依申请公开工作流程",
+                    "effective_from": "2026-05-03T00:00:00+00:00",
+                },
+                {
+                    "display_name": "学生校园卡服务",
+                    "effective_from": "2026-05-04T00:00:00+00:00",
+                },
+            ]
+        }
+
+        trusted_time = _trusted_time_from_full_impact_bundle(bundle)
+
+        self.assertEqual(trusted_time, "2026-05-04T00:00:01Z")
 
 
 if __name__ == "__main__":

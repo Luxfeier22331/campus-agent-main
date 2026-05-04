@@ -433,7 +433,7 @@ class ServiceGuideLookupReleaseGateTest(unittest.TestCase):
             return {
                 "passed": False,
                 "projection": {"release_id": "owrelease_selected_write_123"},
-                "probes": {"failed_probe_ids": ["phone_missing_fail_close"]},
+                "probes": {"failed_probe_ids": ["phone_current"]},
             }
 
         with TemporaryDirectory() as temp_dir:

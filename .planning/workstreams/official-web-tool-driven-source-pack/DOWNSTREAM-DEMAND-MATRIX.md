@@ -36,16 +36,21 @@ must be admitted only when they serve one or more rows below.
 |-----------|----------------|-----------------------|---------------|----------------|----------------------|
 | `owsp-core-school-profile` | `university_core_reference` | 中央民族大学是什么学校？有几个校区？ | `official_web/stable_reference` | school profile, campus count/names, source refs | concise stable reference answer with citation |
 | `owsp-core-org-units` | `university_core_reference` | 中央民族大学有哪些学院或教学科研单位？ | `official_web/stable_reference` | organization unit names, source refs | list or summarized organization facts with citation |
+| `owsp-admin-offices-reference` | `university_core_reference` | 中央民族大学有哪些职能部门？ | `official_web/stable_reference` | administrative office names, source refs | bounded office-list answer with citation |
+| `owsp-library-reference` | `university_core_reference` | 中央民族大学图书馆在哪里？馆藏大概有多少？ | `official_web/stable_reference` | library overview, campus distribution, collection scale, source refs | concise stable reference answer with citation |
+| `owsp-museum-reference` | `university_core_reference` | 中央民族大学民族博物馆在哪里？馆藏有什么特点？ | `official_web/stable_reference` | museum overview, location, collection scale, source refs | concise stable reference answer with citation |
 | `owsp-core-main-contact` | `service_contact_directory` | 中央民族大学总机电话和地址是什么？ | `contact_directory_lookup` | addresses, phone/fax if source-backed | contact facts; no inferred department directory |
 | `owsp-it-campus-card-guide` | `campus_service_guide` | 校园卡丢了怎么办？怎么补卡？ | `service_guide_lookup` | loss reporting, replacement, location/contact, source refs | procedure and service entry facts |
 | `owsp-it-campus-card-contact` | `service_contact_directory` | 校园卡服务电话是多少？ | `contact_directory_lookup` | service hotline, service point, source refs | contact facts or source-backed unavailable |
 | `owsp-it-vpn-guide` | `campus_service_guide` | 校外怎么用 VPN 访问校园网资源？ | `service_guide_lookup` | VPN entry URL, login requirements, client/direct modes, source refs | step summary plus entry refs |
 | `owsp-it-network-auth` | `campus_service_guide` | 校园网怎么认证登录？ | `service_guide_lookup` | wired/wireless login flow, account/password basis, source refs | procedure with campus/audience caveats |
 | `owsp-it-password-reset` | `campus_service_guide` | 统一身份认证密码怎么改？ | `service_guide_lookup` | portal entry, reset/change steps, source refs | short procedure and entry URL |
+| `owsp-it-email-guide` | `campus_service_guide` | 校园邮箱怎么申请？登录入口是什么？申请表在哪下载？ | `service_guide_lookup` plus composition | procedure, login entry, material/download refs, source refs | composed service guide answer |
 | `owsp-it-email-policy` | `institutional_policy_reference` | 民大邮箱谁可以用？邮箱后缀是什么？ | `regulations/institutional_rules` or `official_web/stable_reference` | eligibility, domain suffix, application rules, source refs | policy answer; not service-guide-only |
 | `owsp-info-disclosure-scope` | `institutional_policy_reference` | 哪些学校信息可以公开？哪些不能公开？ | `regulations/institutional_rules` or `official_web/stable_reference` | active disclosure scope, non-disclosure categories, source refs | policy summary with citation |
 | `owsp-info-disclosure-apply` | `campus_service_guide` | 信息公开怎么申请？申请表在哪下载？ | `service_guide_lookup` plus composition | procedure, material/download refs, responsible office, source refs | composed service guide answer |
 | `owsp-info-disclosure-contact` | `service_contact_directory` | 信息公开办公室电话和邮箱是什么？ | `contact_directory_lookup` | department, phone, email, address, source refs | contact facts; missing fields fail closed |
+| `owsp-logistics-service-contact` | `service_contact_directory` | 后勤服务热线是多少？学生公寓报修电话是多少？ | `contact_directory_lookup` | labeled hotline/service-point phones, source refs | contact facts with service labels; no action execution |
 | `owsp-fee-reference` | `public_fee_reference` | 学校学费和住宿费标准在哪里看？ | `official_web/stable_reference` or future structured fee facts | fee table title/rows, source refs, effective caveat | source-faithful reference; no unsupported calculation |
 
 ## Explicitly Excluded In First Slice

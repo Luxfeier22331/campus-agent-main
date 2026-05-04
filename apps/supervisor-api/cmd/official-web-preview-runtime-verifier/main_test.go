@@ -420,6 +420,33 @@ func TestRunUsesFullImpactBundleButTaskScopeTrustedTimeWhenRequested(t *testing.
 	}
 }
 
+func TestPreviewTrustedTimeForCaseUsesTargetInventoryRecordInFullImpactBundle(t *testing.T) {
+	bundle := map[string]any{
+		"service_guide_records": []any{
+			map[string]any{
+				"display_name":   "中央民族大学 VPN 使用说明",
+				"effective_from": "2026-05-02T00:00:00Z",
+				"source_refs":    []any{"official_web:muc-it-vpn-service-guide:owver_vpn"},
+			},
+			map[string]any{
+				"display_name":   "中央民族大学信息公开依申请公开工作流程",
+				"effective_from": "2026-05-04T00:00:00Z",
+				"source_refs":    []any{"official_web:muc-information-disclosure-application-process:owver_info"},
+			},
+		},
+	}
+
+	got := previewTrustedTimeForCase(
+		bundle,
+		"service_guide",
+		"muc-information-disclosure-application-process",
+	)
+
+	if got != "2026-05-04T00:00:01Z" {
+		t.Fatalf("trusted time = %q, want 2026-05-04T00:00:01Z", got)
+	}
+}
+
 func TestRunFailsWhenVPNProcedureCaseLeaksForbiddenTokens(t *testing.T) {
 	input := inputPayload{
 		PreviewReportPath: writePreviewReportFixture(

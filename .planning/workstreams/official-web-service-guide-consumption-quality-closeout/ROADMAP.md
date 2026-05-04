@@ -12,15 +12,15 @@ updated: 2026-05-04
 | Phase | Status | Purpose |
 | --- | --- | --- |
 | Phase 0 | completed | Freeze scope, source facts and quality gaps |
-| Phase 1 | planned | Update architecture and projection contract for grouped service-guide sections |
-| Phase 2 | in_progress | Refactor official-web service-guide candidate extraction and declarative composition |
+| Phase 1 | completed | Update architecture and projection contract for grouped service-guide sections |
+| Phase 2 | completed | Refactor official-web service-guide candidate extraction and declarative composition |
 | Phase 3 | completed | Refactor selected-write release projection and typed read-model compatibility |
 | Phase 4 | completed | Implement focused `service_guide_lookup` section selection and answer shaping |
 | Phase 5 | completed | Add runtime guardrails and agent observability for service-guide answers |
 | Phase 6 | completed | Add eval dataset and release-gate coverage for product questions |
-| Phase 7 | planned | Run real source-pack no-promotion replay proof |
-| Phase 8 | planned | Run isolated selected-write publish proof |
-| Phase 9 | planned | Close out docs, evidence and workstream state |
+| Phase 7 | completed | Run real source-pack no-promotion replay proof |
+| Phase 8 | completed | Run isolated selected-write publish proof |
+| Phase 9 | completed | Close out docs, evidence and workstream state |
 
 ## Phase 0: Scope And Gap Freeze
 
@@ -41,7 +41,7 @@ Acceptance:
 
 ## Phase 1: Architecture And Contract Update
 
-Status: planned.
+Status: completed.
 
 Purpose:
 
@@ -71,7 +71,7 @@ Acceptance:
 
 ## Phase 2: Official-Web Candidate Extraction And Composition
 
-Status: in progress.
+Status: completed.
 
 Purpose:
 
@@ -210,7 +210,7 @@ Acceptance:
 
 ## Phase 7: Real Source-Pack No-Promotion Replay
 
-Status: planned.
+Status: completed.
 
 Purpose:
 
@@ -240,7 +240,7 @@ Acceptance:
 
 ## Phase 8: Isolated Selected-Write Publish Proof
 
-Status: planned.
+Status: completed.
 
 Purpose:
 
@@ -269,7 +269,7 @@ Acceptance:
 
 ## Phase 9: Closeout
 
-Status: planned.
+Status: completed.
 
 Purpose:
 

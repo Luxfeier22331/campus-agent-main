@@ -201,11 +201,23 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
 
         office_hours_case = cases["service-guide-campus-card-office-hours"]
         self.assertEqual(office_hours_case.expected_guide_focus, "office_hours")
-        self.assertIn("09:00-17:00", office_hours_case.required_body_tokens)
+        self.assertEqual(office_hours_case.expected_outcome, "temporarily_unverifiable")
+        self.assertEqual(
+            office_hours_case.expected_fail_close_reason,
+            "field_not_provided_by_source",
+        )
+        self.assertEqual(
+            office_hours_case.expected_field_status,
+            {"office_hours": "source_not_provided"},
+        )
 
         eligibility_case = cases["service-guide-campus-card-eligibility"]
         self.assertEqual(eligibility_case.expected_guide_focus, "eligibility")
-        self.assertIn("学生和教职工均可办理", eligibility_case.required_body_tokens)
+        self.assertEqual(eligibility_case.expected_outcome, "temporarily_unverifiable")
+        self.assertEqual(
+            eligibility_case.expected_fail_close_reason,
+            "source_truth_unavailable",
+        )
 
     def test_runtime_verifier_passes_full_impact_scope_to_runner(self) -> None:
         preview_report = {

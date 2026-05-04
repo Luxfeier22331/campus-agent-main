@@ -164,10 +164,10 @@ def default_official_web_selected_write_preview_runtime_cases() -> tuple[
             expected_target="campus-services-agent",
             expected_payload_kind="service_guide_lookup",
             expected_selected_tool="service_guide_lookup",
-            expected_outcome="resolved_current",
-            expected_resolved_display_name="学生校园卡服务",
+            expected_outcome="temporarily_unverifiable",
+            expected_fail_close_reason="field_not_provided_by_source",
+            expected_field_status={"office_hours": "source_not_provided"},
             expected_guide_focus="office_hours",
-            required_body_tokens=("09:00-17:00",),
         ),
         OfficialWebSelectedWritePreviewRuntimeCase(
             case_id="service-guide-campus-card-eligibility",
@@ -178,10 +178,9 @@ def default_official_web_selected_write_preview_runtime_cases() -> tuple[
             expected_target="campus-services-agent",
             expected_payload_kind="service_guide_lookup",
             expected_selected_tool="service_guide_lookup",
-            expected_outcome="resolved_current",
-            expected_resolved_display_name="学生校园卡服务",
+            expected_outcome="temporarily_unverifiable",
+            expected_fail_close_reason="source_truth_unavailable",
             expected_guide_focus="eligibility",
-            required_body_tokens=("学生和教职工均可办理",),
         ),
         OfficialWebSelectedWritePreviewRuntimeCase(
             case_id="service-guide-network-auth-entry",
@@ -244,7 +243,7 @@ def default_official_web_selected_write_preview_runtime_cases() -> tuple[
             ),
             max_selected_section_count=1,
             required_body_tokens=("下载客户端", "Install EasyConnect.pkg"),
-            forbidden_body_tokens=("直接登录", "移动端", "https://vpn.muc.edu.cn"),
+            forbidden_body_tokens=("直接登录", "进入资源列表页面", "点击相应的资源进行访问"),
         ),
     )
 

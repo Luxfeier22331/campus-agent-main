@@ -371,7 +371,11 @@ func executePreviewRuntime(
 	if err != nil {
 		return structuredquery.Response{}, err
 	}
-	trustedTime := previewTrustedTime(bundleMap)
+	trustedTime := previewTrustedTimeForCase(
+		bundleMap,
+		strings.TrimSpace(item.Collection),
+		strings.TrimSpace(item.InventoryID),
+	)
 	switch strings.TrimSpace(handoff.PayloadKind) {
 	case structuredquery.ToolServiceGuideLookup:
 		runtime := structuredquery.NewRuntime(structuredquery.Options{
@@ -411,29 +415,78 @@ func normalizeBundleScope(value string) string {
 	return "task_scope"
 }
 
-func previewTrustedTime(bundleMap map[string]any) string {
-	for _, field := range []string{"service_guide_records", "contact_records"} {
-		records, ok := bundleMap[field].([]any)
-		if !ok {
+func previewTrustedTimeForCase(
+	bundleMap map[string]any,
+	collection string,
+	inventoryID string,
+) string {
+	for _, record := range previewRecordsForCollection(bundleMap, collection) {
+		if previewRecordInventoryID(record) != inventoryID {
 			continue
 		}
-		for _, item := range records {
-			record, ok := item.(map[string]any)
-			if !ok {
-				continue
-			}
-			effectiveFrom := strings.TrimSpace(stringValue(record["effective_from"]))
-			if effectiveFrom == "" {
-				continue
-			}
-			parsed, err := time.Parse(time.RFC3339, effectiveFrom)
-			if err != nil {
-				continue
-			}
-			return parsed.Add(time.Second).Format(time.RFC3339)
+		if anchor := previewTrustedTimeFromRecord(record); anchor != "" {
+			return anchor
+		}
+	}
+	for _, record := range previewRecordsForCollection(bundleMap, collection) {
+		if anchor := previewTrustedTimeFromRecord(record); anchor != "" {
+			return anchor
 		}
 	}
 	return ""
+}
+
+func previewRecordsForCollection(bundleMap map[string]any, collection string) []map[string]any {
+	field := ""
+	switch strings.TrimSpace(collection) {
+	case "service_guide":
+		field = "service_guide_records"
+	case "contact_directory":
+		field = "contact_records"
+	default:
+		return nil
+	}
+	items, ok := bundleMap[field].([]any)
+	if !ok {
+		return nil
+	}
+	records := make([]map[string]any, 0, len(items))
+	for _, item := range items {
+		record, ok := item.(map[string]any)
+		if ok {
+			records = append(records, record)
+		}
+	}
+	return records
+}
+
+func previewRecordInventoryID(record map[string]any) string {
+	for _, sourceRef := range stringSlice(record["source_refs"]) {
+		parts := strings.Split(strings.TrimSpace(sourceRef), ":")
+		if len(parts) < 3 {
+			continue
+		}
+		if parts[0] != "official_web" {
+			continue
+		}
+		inventoryID := strings.TrimSpace(parts[1])
+		if inventoryID != "" {
+			return inventoryID
+		}
+	}
+	return ""
+}
+
+func previewTrustedTimeFromRecord(record map[string]any) string {
+	effectiveFrom := strings.TrimSpace(stringValue(record["effective_from"]))
+	if effectiveFrom == "" {
+		return ""
+	}
+	parsed, err := time.Parse(time.RFC3339, effectiveFrom)
+	if err != nil {
+		return ""
+	}
+	return parsed.Add(time.Second).Format(time.RFC3339)
 }
 
 func bundleFromMap(value map[string]any) (structuredquery.ProjectionBundle, error) {

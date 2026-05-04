@@ -1,7 +1,7 @@
 {
 	"schema_version": "official_web_target_inventory.v1",
 	"site_id": "muc_public",
-	"inventory_version": "muc_public_target_inventory_v3",
+	"inventory_version": "muc_public_target_inventory_v7",
 	"entries": [
 		{
 			"inventory_id": "muc-main-homepage-contact",
@@ -223,6 +223,40 @@
 			"notes": "Email service guide composes management policy, login entry and application-form listing into one informational guide. It remains read-only and does not generate transactional submission."
 		},
 		{
+			"inventory_id": "muc-it-password-reset-service-guide",
+			"admission_target_id": "campus-services-service-guide",
+			"target_label": "中央民族大学统一身份认证密码重置",
+			"consumer_family": "service_guide_candidate",
+			"owner_surface": "service_guide_lookup",
+			"owner_agent_or_runtime": "campus-services-agent",
+			"selected_write_target": "campus_services/service_guide",
+			"source_hosts": ["met.muc.edu.cn"],
+			"source_urls": ["https://met.muc.edu.cn/info/1068/1830.htm"],
+			"required_fields": ["service_name", "process_steps", "source_url", "source_version_evidence"],
+			"optional_fields": [
+				"service_entry",
+				"required_materials",
+				"responsible_office",
+				"phone",
+				"location",
+				"office_hours"
+			],
+			"required_evidence": ["service_process"],
+			"optional_evidence": [
+				"service_entry",
+				"service_material",
+				"phone",
+				"location",
+				"office_hours"
+			],
+			"materialization_policy": "candidate_only",
+			"review_policy": "selected_write_requires_review",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "machine_field_review_pending"],
+			"preview_status": "candidate",
+			"notes": "Unified identity password reset guide should answer informational questions about self-service reset, recovery path, service-portal fallback and on-site handling only."
+		},
+		{
 			"inventory_id": "muc-it-service-contacts",
 			"admission_target_id": "campus-services-contact-directory",
 			"target_label": "中央民族大学信息化服务联系方式",
@@ -242,6 +276,27 @@
 			"release_blockers": ["no_preview_evidence", "machine_field_review_pending"],
 			"preview_status": "candidate",
 			"notes": "Information technology service contacts should preserve source-faithful service labels such as network service, campus card service and multimedia classroom support, rather than flattening numbers into unlabeled phones."
+		},
+		{
+			"inventory_id": "muc-logistics-service-contacts",
+			"admission_target_id": "campus-services-contact-directory",
+			"target_label": "中央民族大学后勤服务联系方式",
+			"consumer_family": "contact_directory_candidate",
+			"owner_surface": "contact_directory_lookup",
+			"owner_agent_or_runtime": "campus-services-agent",
+			"selected_write_target": "campus_services/contact_directory",
+			"source_hosts": ["www.muc.edu.cn"],
+			"source_urls": ["https://www.muc.edu.cn/ggfw/hqfw.htm"],
+			"required_fields": ["organization_name", "phone", "source_url", "source_version_evidence"],
+			"optional_fields": ["email", "location", "office_hours"],
+			"required_evidence": ["phone"],
+			"optional_evidence": ["email", "location", "office_hours"],
+			"materialization_policy": "candidate_only",
+			"review_policy": "selected_write_requires_review",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "machine_field_review_pending"],
+			"preview_status": "candidate",
+			"notes": "Public logistics service contact page with labeled hotlines for apartments, dining, transport, repairs and meeting services. Preserve source-faithful service labels; do not upgrade the page into transactional handling."
 		},
 		{
 			"inventory_id": "muc-information-disclosure-regulation-reference",
@@ -269,6 +324,33 @@
 			"release_blockers": ["no_preview_evidence", "release_gate_not_reviewed"],
 			"preview_status": "candidate",
 			"notes": "School-level regulation text from the information disclosure site. It must remain release-gated before entering regulations/institutional_rules."
+		},
+		{
+			"inventory_id": "muc-it-email-policy-reference",
+			"admission_target_id": "official-web-institutional-rules",
+			"target_label": "中央民族大学校园网电子邮件管理办法",
+			"consumer_family": "regulation_candidate",
+			"owner_surface": "regulations/institutional_rules",
+			"owner_agent_or_runtime": "rag-agent",
+			"selected_write_target": "regulations/institutional_rules",
+			"source_hosts": ["met.muc.edu.cn"],
+			"source_urls": ["https://met.muc.edu.cn/info/1024/1090.htm"],
+			"required_fields": [
+				"reference_title",
+				"normalized_content_summary",
+				"authoritative_source_url",
+				"release_scope",
+				"source_version_evidence"
+			],
+			"optional_fields": [],
+			"required_evidence": ["regulation_text"],
+			"optional_evidence": [],
+			"materialization_policy": "release_gate_required",
+			"review_policy": "release_gate_required",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "release_gate_not_reviewed"],
+			"preview_status": "candidate",
+			"notes": "Campus email policy page should support regulation-style answers about eligibility, mailbox domain suffix and application rules. It remains release-gated before entering regulations/institutional_rules."
 		},
 		{
 			"inventory_id": "muc-academic-committee-charter",
@@ -350,6 +432,141 @@
 			"release_blockers": ["no_preview_evidence", "release_gate_not_reviewed"],
 			"preview_status": "candidate",
 			"notes": "Stable institutional reference candidate for school introduction. It must pass release gate before serving alias changes."
+		},
+		{
+			"inventory_id": "muc-administrative-offices-reference",
+			"admission_target_id": "official-web-stable-reference",
+			"target_label": "中央民族大学职能部门列表",
+			"consumer_family": "stable_reference_candidate",
+			"owner_surface": "official_web/stable_reference",
+			"owner_agent_or_runtime": "rag-agent",
+			"selected_write_target": "official_web/stable_reference",
+			"source_hosts": ["www.muc.edu.cn"],
+			"source_urls": ["https://www.muc.edu.cn/zzjg/znbm.htm"],
+			"required_fields": [
+				"reference_title",
+				"normalized_content_summary",
+				"authoritative_source_url",
+				"release_scope",
+				"source_version_evidence"
+			],
+			"required_evidence": ["stable_reference"],
+			"optional_evidence": [],
+			"optional_fields": [],
+			"materialization_policy": "release_gate_required",
+			"review_policy": "release_gate_required",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "release_gate_not_reviewed"],
+			"preview_status": "candidate",
+			"notes": "Stable institutional reference candidate for the administrative office list. It should support bounded office-list answers and remain release-gated before serving."
+		},
+		{
+			"inventory_id": "muc-teaching-research-units-reference",
+			"admission_target_id": "official-web-stable-reference",
+			"target_label": "中央民族大学教学和科研单位列表",
+			"consumer_family": "stable_reference_candidate",
+			"owner_surface": "official_web/stable_reference",
+			"owner_agent_or_runtime": "rag-agent",
+			"selected_write_target": "official_web/stable_reference",
+			"source_hosts": ["www.muc.edu.cn"],
+			"source_urls": ["https://www.muc.edu.cn/zzjg/jxhkydw1.htm"],
+			"required_fields": [
+				"reference_title",
+				"normalized_content_summary",
+				"authoritative_source_url",
+				"release_scope",
+				"source_version_evidence"
+			],
+			"required_evidence": ["stable_reference"],
+			"optional_evidence": [],
+			"optional_fields": [],
+			"materialization_policy": "release_gate_required",
+			"review_policy": "release_gate_required",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "release_gate_not_reviewed"],
+			"preview_status": "candidate",
+			"notes": "Stable institutional reference candidate for teaching and research unit listing. It should support bounded organization-unit answers and remain release-gated before serving."
+		},
+		{
+			"inventory_id": "muc-library-reference",
+			"admission_target_id": "official-web-stable-reference",
+			"target_label": "中央民族大学图书馆简介",
+			"consumer_family": "stable_reference_candidate",
+			"owner_surface": "official_web/stable_reference",
+			"owner_agent_or_runtime": "rag-agent",
+			"selected_write_target": "official_web/stable_reference",
+			"source_hosts": ["www.muc.edu.cn"],
+			"source_urls": ["https://www.muc.edu.cn/ggfw/tsg.htm"],
+			"required_fields": [
+				"reference_title",
+				"normalized_content_summary",
+				"authoritative_source_url",
+				"release_scope",
+				"source_version_evidence"
+			],
+			"required_evidence": ["stable_reference"],
+			"optional_evidence": [],
+			"optional_fields": [],
+			"materialization_policy": "release_gate_required",
+			"review_policy": "release_gate_required",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "release_gate_not_reviewed"],
+			"preview_status": "candidate",
+			"notes": "Stable public reference candidate for the school-host library overview page. It should answer source-backed library overview questions only and remain release-gated before serving."
+		},
+		{
+			"inventory_id": "muc-museum-reference",
+			"admission_target_id": "official-web-stable-reference",
+			"target_label": "中央民族大学民族博物馆简介",
+			"consumer_family": "stable_reference_candidate",
+			"owner_surface": "official_web/stable_reference",
+			"owner_agent_or_runtime": "rag-agent",
+			"selected_write_target": "official_web/stable_reference",
+			"source_hosts": ["www.muc.edu.cn"],
+			"source_urls": ["https://www.muc.edu.cn/ggfw/mzbwg.htm"],
+			"required_fields": [
+				"reference_title",
+				"normalized_content_summary",
+				"authoritative_source_url",
+				"release_scope",
+				"source_version_evidence"
+			],
+			"required_evidence": ["stable_reference"],
+			"optional_evidence": [],
+			"optional_fields": [],
+			"materialization_policy": "release_gate_required",
+			"review_policy": "release_gate_required",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "release_gate_not_reviewed"],
+			"preview_status": "candidate",
+			"notes": "Stable public reference candidate for the school-host museum overview page. It should answer source-backed museum overview questions only and remain release-gated before serving."
+		},
+		{
+			"inventory_id": "muc-fee-disclosure-reference",
+			"admission_target_id": "official-web-stable-reference",
+			"target_label": "中央民族大学大学教育收费公示表",
+			"consumer_family": "stable_reference_candidate",
+			"owner_surface": "official_web/stable_reference",
+			"owner_agent_or_runtime": "rag-agent",
+			"selected_write_target": "official_web/stable_reference",
+			"source_hosts": ["xxgk.muc.edu.cn"],
+			"source_urls": ["https://xxgk.muc.edu.cn/info/1302/1393.htm"],
+			"required_fields": [
+				"reference_title",
+				"normalized_content_summary",
+				"authoritative_source_url",
+				"release_scope",
+				"source_version_evidence"
+			],
+			"required_evidence": ["stable_reference"],
+			"optional_evidence": [],
+			"optional_fields": [],
+			"materialization_policy": "release_gate_required",
+			"review_policy": "release_gate_required",
+			"inventory_only": false,
+			"release_blockers": ["no_preview_evidence", "release_gate_not_reviewed"],
+			"preview_status": "candidate",
+			"notes": "Stable public fee reference candidate for tuition and accommodation fee disclosure. It should support source-faithful where-to-view answers and release-gated row-level use only after deterministic table preservation."
 		}
 	]
 }

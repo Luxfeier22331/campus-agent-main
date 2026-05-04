@@ -1,16 +1,16 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-28
-updated: 2026-04-28
+updated: 2026-05-04
 ---
 
 # Roadmap: Official Web Collection Restart Closeout
 
 ## Overview
 
-这条 workstream 只收口 official web 采集重启与部署前 ops 缺口。它不是
-`fresh_news` / `news_archive` opening workstream。
+这条 workstream 原本收口 official web 采集重启与部署前 ops 缺口。
+现在它已经被 one-time source-pack 路线取代，不再继续执行未完成 phase。
 
 ## Phases
 
@@ -27,23 +27,16 @@ updated: 2026-04-28
   两批 crawl / validator / QC 均通过；fixed projection replay 的 projection
   validator 与 chunk audit 均通过。当前 evidence 仍是 artifact-only local
   evidence，不代表已 import/promote 或改变 query-serving surface。
-- [ ] **Phase 2: Dev Scheduler And Preflight Closeout** — 补齐 dev/local scheduler entry、
-  worker 专属 preflight 检查项和 repeated-run 操作口径。
-- [ ] **Phase 3: Report Retention And Alert Closeout** — 明确 batch report retention、
-  failure alert、zero-candidate alert 与 operator handoff 口径。
-- [ ] **Phase 4: Deployment Handoff Evidence** — 等待部署窗口时补服务器侧或容器侧 evidence；
-  不在当前本地记录中声明线上完成。
+- [x] **Superseded Closeout** — 明确 remaining scheduler / preflight / retention / alert /
+  deployment work 不再沿旧 collector restart 路线继续实现，forward path 改为
+  target-first one-time source-pack capture / replay / release preview。
 
 ## Reopen / Close Rule
 
-本 workstream 可在以下条件满足后关闭：
+本 workstream 现在按 superseded historical lane 关闭。
 
-- dev/local scheduler 与 preflight 路径明确；
-- enabled university-core crawl 与至少一个 college single-host crawl 有 fresh evidence；
-- fresh evidence 的 chunk audit findings 已修复或被明确 reclassified；
-- report retention 与 alert 规则明确；
-- repeated-run 验收能证明 projection / handoff batch 可重复执行且不会制造 duplicate side effects；
-- 所有证据路径写入 `STATE.md`。
+只有在产品明确撤回 one-time source-pack 路线、重新恢复 recurring official-web collector
+automation 作为 forward scope owner 时，才应 reopen。
 
 如果产品范围决定正式打开 `fresh_news` 或 `news_archive` query-serving，再恢复 backlog 中的
 `official-web-source-channel-news-opening`，不要在本 workstream 内扩展 opening。

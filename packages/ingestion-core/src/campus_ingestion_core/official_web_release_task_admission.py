@@ -114,6 +114,19 @@ def build_selected_write_release_task_from_candidate(
             "normalized_canonical_url",
         ),
     )
+    typed_candidate = _mapping(
+        candidate.get("typed_candidate") or candidate.get("typedCandidate") or {},
+        "typed_candidate",
+    )
+    source_urls = _dedupe_strings(
+        [
+            *source_urls,
+            *_string_list(
+                typed_candidate.get("supporting_source_urls")
+                or typed_candidate.get("supportingSourceUrls")
+            ),
+        ]
+    )
     evidence = {
         "candidateKey": candidate_key,
         "fieldStatus": dict(field_status),

@@ -250,6 +250,36 @@ class OfficialWebReleaseTaskAdmissionTest(unittest.TestCase):
             ],
         )
 
+    def test_builds_service_guide_release_task_from_supporting_source_urls_when_source_refs_missing(
+        self,
+    ) -> None:
+        task = build_selected_write_release_task_from_candidate(
+            {
+                **_information_disclosure_candidate(source_refs=[]),
+                "typed_candidate": {
+                    "supporting_source_urls": [
+                        "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                        "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+                        "https://xxgk.muc.edu.cn/xxgk/lxfs.htm",
+                    ]
+                },
+            },
+            run_id="owrun_info_disclosure",
+            source_object_keys=[
+                "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+            ],
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+
+        self.assertEqual(
+            task.input_ref["sourceUrls"],
+            [
+                "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+                "https://xxgk.muc.edu.cn/xxgk/lxfs.htm",
+            ],
+        )
+
     def test_admits_ready_selected_write_candidates_from_partial_review(self) -> None:
         store = InMemoryOfficialWebReleaseTaskStore()
 

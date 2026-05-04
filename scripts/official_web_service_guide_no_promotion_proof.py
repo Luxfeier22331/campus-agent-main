@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
 import json
 import sys
 from pathlib import Path
@@ -24,6 +25,9 @@ from campus_ingestion_core.official_web_release_task_store import (
     build_official_web_release_task_store_from_env,
 )
 from campus_ingestion_worker.env_bootstrap import load_worker_env
+from campus_ingestion_worker.release_official_web_selected_write import (
+    _service_guide_record_from_candidates,
+)
 
 from scripts.official_web_selected_write_preview import (
     DEFAULT_REPORT_NAME as DEFAULT_PREVIEW_REPORT_NAME,
@@ -62,6 +66,22 @@ def resolve_service_guide_task_ids_from_seam_report(
     *,
     release_store: object,
 ) -> list[str]:
+    tasks = resolve_service_guide_tasks_from_seam_report(
+        seam_report,
+        release_store=release_store,
+    )
+    return [
+        str(task.get("taskId") or task.get("task_id") or "").strip()
+        for task in tasks
+        if str(task.get("taskId") or task.get("task_id") or "").strip()
+    ]
+
+
+def resolve_service_guide_tasks_from_seam_report(
+    seam_report: dict[str, object],
+    *,
+    release_store: object,
+) -> list[dict[str, object]]:
     consumer = seam_report.get("consumer")
     if not isinstance(consumer, dict):
         raise ValueError("seam report consumer must be an object")
@@ -71,7 +91,7 @@ def resolve_service_guide_task_ids_from_seam_report(
     raw_task_ids = release_tasks.get("taskIds")
     if not isinstance(raw_task_ids, list):
         raise ValueError("seam report consumer.release_tasks.taskIds must be a list")
-    resolved: list[str] = []
+    resolved: list[dict[str, object]] = []
     for raw_task_id in raw_task_ids:
         task_id = str(raw_task_id or "").strip()
         if not task_id:
@@ -85,13 +105,24 @@ def resolve_service_guide_task_ids_from_seam_report(
             task_type == "official_web_selected_write_service_guide"
             and selected_write_target == "campus_services/service_guide"
         ):
-            resolved.append(task_id)
+            to_payload = getattr(task, "to_payload", None)
+            if callable(to_payload):
+                resolved.append(dict(to_payload()))
+                continue
+            resolved.append(
+                {
+                    "taskId": task_id,
+                    "inventoryId": str(getattr(task, "inventory_id", "") or "").strip(),
+                    "taskType": task_type,
+                    "selectedWriteTarget": selected_write_target,
+                }
+            )
     if not resolved:
         raise RuntimeError("no service-guide selected-write tasks found in seam report")
     return resolved
 
 
-def build_service_guide_task_ids_from_execution_report(
+def build_service_guide_release_tasks_from_execution_report(
     execution_report: dict[str, object],
 ) -> list[dict[str, object]]:
     review_report = execution_report.get("consumerCandidateReview")
@@ -119,6 +150,309 @@ def build_service_guide_task_ids_from_execution_report(
     if not task_payloads:
         raise RuntimeError("consumerCandidateReview produced no service-guide selected-write tasks")
     return task_payloads
+
+
+def build_service_guide_task_ids_from_execution_report(
+    execution_report: dict[str, object],
+) -> list[dict[str, object]]:
+    return build_service_guide_release_tasks_from_execution_report(execution_report)
+
+
+def load_execution_report_for_seam_report(
+    *,
+    seam_report_path: Path,
+    seam_report: dict[str, object],
+) -> dict[str, object] | None:
+    event_id = str(seam_report.get("event_id") or "").strip()
+    if not event_id:
+        return None
+    execution_report_path = seam_report_path.parent / "executions" / event_id / "execution-report.json"
+    if not execution_report_path.exists():
+        return None
+    execution_report = json.loads(execution_report_path.read_text(encoding="utf-8"))
+    if not isinstance(execution_report, dict):
+        raise ValueError("execution report must be an object")
+    return execution_report
+
+
+def _merge_preview_release_tasks(
+    *,
+    persisted_release_tasks: list[dict[str, object]],
+    re_admitted_release_tasks: list[dict[str, object]],
+) -> list[dict[str, object]]:
+    merged_by_key: dict[str, dict[str, object]] = {}
+    ordered_keys: list[str] = []
+
+    def merge_items(items: list[dict[str, object]]) -> None:
+        for item in items:
+            task_id = str(item.get("taskId") or item.get("task_id") or "").strip()
+            inventory_id = str(item.get("inventoryId") or item.get("inventory_id") or "").strip()
+            key = inventory_id or task_id
+            if not key:
+                continue
+            if key not in merged_by_key:
+                ordered_keys.append(key)
+            merged_by_key[key] = dict(item)
+
+    merge_items(persisted_release_tasks)
+    merge_items(re_admitted_release_tasks)
+    return [merged_by_key[key] for key in ordered_keys]
+
+
+def resolve_service_guide_preview_release_tasks(
+    *,
+    seam_report: dict[str, object],
+    release_store: object,
+    execution_report: dict[str, object] | None = None,
+) -> tuple[list[dict[str, object]], str]:
+    persisted_release_tasks = resolve_service_guide_tasks_from_seam_report(
+        seam_report,
+        release_store=release_store,
+    )
+    re_admitted_release_tasks: list[dict[str, object]] = []
+    preview_task_source = "persisted_release_tasks"
+    if execution_report is not None:
+        re_admitted_release_tasks = build_service_guide_release_tasks_from_execution_report(
+            execution_report
+        )
+        preview_task_source = (
+            "persisted_plus_re_admitted_from_consumer_candidate_review"
+            if persisted_release_tasks
+            else "re_admitted_from_consumer_candidate_review"
+        )
+    return (
+        _merge_preview_release_tasks(
+            persisted_release_tasks=persisted_release_tasks,
+            re_admitted_release_tasks=re_admitted_release_tasks,
+        ),
+        preview_task_source,
+    )
+
+
+def _rewrite_preview_report_with_replay_full_impact_baseline(
+    *,
+    preview_report: dict[str, object],
+    target_inventory_path: Path,
+    baseline_output_path: Path,
+) -> dict[str, object]:
+    inventory_lookup = _load_target_inventory_lookup(target_inventory_path)
+    replay_candidates_by_inventory = _replay_service_guide_candidates_by_inventory(
+        preview_report=preview_report,
+        inventory_lookup=inventory_lookup,
+    )
+    if not replay_candidates_by_inventory:
+        return preview_report
+
+    results = preview_report.get("results")
+    if not isinstance(results, list):
+        raise ValueError("selected-write preview report results must be a list")
+
+    baseline_records_by_inventory: dict[str, dict[str, object]] = {}
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("collection") or "").strip() != "service_guide":
+            continue
+        full_bundle = item.get("full_bundle")
+        if not isinstance(full_bundle, dict):
+            continue
+        for record in _mapping_list(full_bundle.get("service_guide_records")):
+            inventory_id = _inventory_id_for_service_record(record, inventory_lookup)
+            if not inventory_id:
+                continue
+            candidates = replay_candidates_by_inventory.get(inventory_id)
+            if not candidates:
+                continue
+            baseline_records_by_inventory[inventory_id] = _merge_full_impact_baseline_record(
+                existing_record=record,
+                baseline_record=_service_guide_baseline_record_from_candidates(
+                    inventory_id=inventory_id,
+                    inventory_entry=inventory_lookup[inventory_id],
+                    candidates=candidates,
+                    existing_record=record,
+                ),
+            )
+
+    if not baseline_records_by_inventory:
+        return preview_report
+
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        if str(item.get("collection") or "").strip() != "service_guide":
+            continue
+        full_bundle = item.get("full_bundle")
+        if not isinstance(full_bundle, dict):
+            continue
+        records = []
+        for record in _mapping_list(full_bundle.get("service_guide_records")):
+            inventory_id = _inventory_id_for_service_record(record, inventory_lookup)
+            replacement = baseline_records_by_inventory.get(inventory_id, {})
+            if replacement:
+                records.append(dict(replacement))
+            else:
+                records.append(record)
+        full_bundle["service_guide_records"] = records
+
+    baseline_output_path.write_text(
+        json.dumps(
+            {
+                "schema_version": "official_web_service_guide_full_impact_baseline_snapshot.v1",
+                "record_count": len(baseline_records_by_inventory),
+                "service_guide_records": [
+                    baseline_records_by_inventory[key]
+                    for key in sorted(baseline_records_by_inventory)
+                ],
+            },
+            ensure_ascii=False,
+            indent=2,
+        )
+        + "\n",
+        encoding="utf-8",
+    )
+    return preview_report
+
+
+def _replay_service_guide_candidates_by_inventory(
+    *,
+    preview_report: dict[str, object],
+    inventory_lookup: dict[str, dict[str, object]],
+) -> dict[str, list[dict[str, object]]]:
+    results = preview_report.get("results")
+    if not isinstance(results, list):
+        raise ValueError("selected-write preview report results must be a list")
+    candidates_by_inventory: dict[str, list[dict[str, object]]] = {}
+    seen_candidate_keys: set[tuple[str, str]] = set()
+    for item in results:
+        if not isinstance(item, dict):
+            continue
+        projection_report_path = _projection_report_path_for_preview_result(item)
+        if projection_report_path is None or not projection_report_path.exists():
+            continue
+        projection_report = json.loads(projection_report_path.read_text(encoding="utf-8"))
+        candidate_pages = projection_report.get("consumer_candidate_pages")
+        if not isinstance(candidate_pages, list):
+            continue
+        for raw_candidate in candidate_pages:
+            if not isinstance(raw_candidate, dict):
+                continue
+            if str(raw_candidate.get("consumer_family") or "").strip() != "service_guide_candidate":
+                continue
+            if (
+                str(raw_candidate.get("selected_write_target") or "").strip()
+                != "campus_services/service_guide"
+            ):
+                continue
+            if str(_mapping(raw_candidate.get("quality_gate")).get("decision") or "").strip() != "pass":
+                continue
+            if not _mapping(raw_candidate.get("typed_candidate")):
+                continue
+            inventory_id = _inventory_id_for_candidate(raw_candidate, inventory_lookup)
+            if not inventory_id:
+                continue
+            candidate_key = (
+                inventory_id,
+                str(raw_candidate.get("normalized_canonical_url") or "").strip(),
+            )
+            if candidate_key in seen_candidate_keys:
+                continue
+            seen_candidate_keys.add(candidate_key)
+            candidates_by_inventory.setdefault(inventory_id, []).append(dict(raw_candidate))
+    return candidates_by_inventory
+
+
+def _projection_report_path_for_preview_result(
+    preview_result: dict[str, object],
+) -> Path | None:
+    bundle_path = str(preview_result.get("bundle_path") or "").strip()
+    if not bundle_path:
+        return None
+    task_dir = Path(bundle_path).resolve().parents[1]
+    return task_dir / "projection-output" / "projection-report.json"
+
+
+def _inventory_id_for_candidate(
+    candidate: dict[str, object],
+    inventory_lookup: dict[str, dict[str, object]],
+) -> str:
+    candidate_urls = _unique_strings(
+        [
+            str(candidate.get("normalized_canonical_url") or "").strip(),
+            str(_mapping(candidate.get("typed_candidate")).get("source_url") or "").strip(),
+        ]
+    )
+    candidate_title = str(_mapping(candidate.get("typed_candidate")).get("service_name") or "").strip()
+    for inventory_id, entry in inventory_lookup.items():
+        source_urls = set(_string_list(entry.get("source_urls")))
+        if source_urls & set(candidate_urls):
+            return inventory_id
+        if candidate_title and candidate_title == str(entry.get("target_label") or "").strip():
+            return inventory_id
+    return ""
+
+
+def _service_guide_baseline_record_from_candidates(
+    *,
+    inventory_id: str,
+    inventory_entry: dict[str, object],
+    candidates: list[dict[str, object]],
+    existing_record: dict[str, object],
+) -> dict[str, object]:
+    effective_from = str(existing_record.get("effective_from") or "").strip()
+    generated_at = effective_from or datetime.now(timezone.utc).isoformat()
+    task_created_at = _parse_rfc3339_or_now(effective_from)
+    synthetic_selected_write_task = {
+        "inventoryId": inventory_id,
+        "selectedWriteTarget": "campus_services/service_guide",
+        "evidenceJson": {
+            "targetLabel": str(inventory_entry.get("target_label") or "").strip(),
+            "sourceUrls": _string_list(inventory_entry.get("source_urls")),
+            "fieldStatus": dict(existing_record.get("field_status") or {}),
+            "requiredFields": _string_list(existing_record.get("required_fields")),
+            "optionalFields": _string_list(existing_record.get("optional_fields")),
+        },
+    }
+    return _service_guide_record_from_candidates(
+        candidates=candidates,
+        selected_write_task=synthetic_selected_write_task,
+        task_created_at=task_created_at,
+        generated_at=generated_at,
+    )
+
+
+def _merge_full_impact_baseline_record(
+    *,
+    existing_record: dict[str, object],
+    baseline_record: dict[str, object],
+) -> dict[str, object]:
+    merged = dict(baseline_record)
+    merged["source_refs"] = _unique_strings(
+        [
+            *_string_list(existing_record.get("source_refs")),
+            *_string_list(baseline_record.get("source_refs")),
+        ]
+    )
+    for field_name in (
+        "effective_from",
+        "effective_until",
+        "release_record_state",
+        "field_status",
+        "required_fields",
+        "optional_fields",
+    ):
+        if field_name in existing_record:
+            merged[field_name] = existing_record[field_name]
+    return merged
+
+
+def _parse_rfc3339_or_now(value: str) -> datetime:
+    text = str(value or "").strip()
+    if text:
+        try:
+            return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(timezone.utc)
+        except ValueError:
+            pass
+    return datetime.now(timezone.utc)
 
 
 def build_service_guide_quality_summary(
@@ -185,42 +519,41 @@ def run_service_guide_no_promotion_proof(
     seam_report = json.loads(seam_report_path.read_text(encoding="utf-8"))
     if not isinstance(seam_report, dict):
         raise ValueError("seam report must be an object")
-    execution_report_path = (
-        seam_report_path.parent / "executions" / str(seam_report["event_id"]) / "execution-report.json"
+    release_store = build_official_web_release_task_store_from_env()
+    execution_report = load_execution_report_for_seam_report(
+        seam_report_path=seam_report_path,
+        seam_report=seam_report,
     )
-    task_ids: list[str]
-    re_admitted_release_tasks: list[dict[str, object]] | None = None
-    preview_task_source = "persisted_release_tasks"
-    if execution_report_path.exists():
-        execution_report = json.loads(execution_report_path.read_text(encoding="utf-8"))
-        if not isinstance(execution_report, dict):
-            raise ValueError("execution report must be an object")
-        re_admitted_release_tasks = build_service_guide_task_ids_from_execution_report(
-            execution_report
-        )
-        task_ids = [
-            str(task.get("taskId") or task.get("task_id") or "").strip()
-            for task in re_admitted_release_tasks
-            if str(task.get("taskId") or task.get("task_id") or "").strip()
-        ]
-        preview_task_source = "re_admitted_from_consumer_candidate_review"
-    else:
-        release_store = build_official_web_release_task_store_from_env()
-        task_ids = resolve_service_guide_task_ids_from_seam_report(
-            seam_report,
-            release_store=release_store,
-        )
+    preview_release_tasks, preview_task_source = resolve_service_guide_preview_release_tasks(
+        seam_report=seam_report,
+        release_store=release_store,
+        execution_report=execution_report,
+    )
+    task_ids = [
+        str(task.get("taskId") or task.get("task_id") or "").strip()
+        for task in preview_release_tasks
+        if str(task.get("taskId") or task.get("task_id") or "").strip()
+    ]
     output_dir.mkdir(parents=True, exist_ok=True)
     preview_output_dir = output_dir / "selected-write-preview"
     preview_report = run_selected_write_preview(
-        task_ids=[] if re_admitted_release_tasks is not None else task_ids,
+        task_ids=[],
         output_dir=preview_output_dir,
         source_bucket=source_bucket or seam_report.get("source_bucket") or "campus-rag-source",
         derived_bucket=derived_bucket,
         declarations_path=declarations_path,
-        release_tasks=re_admitted_release_tasks,
+        release_tasks=preview_release_tasks,
+    )
+    preview_report = _rewrite_preview_report_with_replay_full_impact_baseline(
+        preview_report=preview_report,
+        target_inventory_path=target_inventory_path,
+        baseline_output_path=output_dir / "service-guide-full-impact-baseline.json",
     )
     preview_report_path = preview_output_dir / DEFAULT_PREVIEW_REPORT_NAME
+    preview_report_path.write_text(
+        json.dumps(preview_report, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
     readiness_audit = audit_selected_write_preview_report(
         report_path=preview_report_path,
         output_dir=output_dir / "tool-readiness-audit",
@@ -415,6 +748,24 @@ def _mapping_list(value: object) -> list[dict[str, object]]:
     if not isinstance(value, list):
         return []
     return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def _mapping(value: object) -> dict[str, object]:
+    if not isinstance(value, dict):
+        return {}
+    return dict(value)
+
+
+def _unique_strings(values: list[object]) -> list[str]:
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for value in values:
+        text = str(value or "").strip()
+        if not text or text in seen:
+            continue
+        seen.add(text)
+        ordered.append(text)
+    return ordered
 
 
 def _string_list(value: object) -> list[str]:

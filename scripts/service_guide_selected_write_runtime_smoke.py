@@ -11,6 +11,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from scripts.supervisor_runtime_process_smoke_http import wait_for_status
@@ -64,6 +65,7 @@ def build_service_guide_selected_write_runtime_smoke_plan(
     output_dir: Path,
     database_url: str | None = None,
     structured_query_secret: str | None = None,
+    trusted_time_rfc3339: str | None = None,
     api_host: str = "127.0.0.1",
     api_port: int = 0,
 ) -> ServiceGuideSelectedWriteRuntimeSmokePlan:
@@ -112,9 +114,9 @@ def build_service_guide_selected_write_runtime_smoke_plan(
                 "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS",
                 "2000",
             ),
-            "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": os.getenv(
-                "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339",
-                "2026-05-02T20:45:00+08:00",
+            "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": _required_text(
+                trusted_time_rfc3339 or _resolve_trusted_time_rfc3339(repo_root=repo_root),
+                "trusted_time_rfc3339",
             ),
         },
         log_path=output_dir / "supervisor-api.log",
@@ -257,6 +259,37 @@ def load_current_service_guide_projection_summary(
     return CurrentServiceGuideProjectionSummary(release_id=release_id, **counts)
 
 
+def _resolve_trusted_time_rfc3339(*, repo_root: Path) -> str:
+    override = os.getenv("SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339", "").strip()
+    if override:
+        return override
+    preview_report_path = repo_root / "var" / "official-web-service-guide-no-promotion-proof" / (
+        "owrun_source_pack_replay_partial_20260503T033001Z"
+    ) / "selected-write-preview" / "official-web-selected-write-preview-report.json"
+    if preview_report_path.exists():
+        try:
+            payload = json.loads(preview_report_path.read_text(encoding="utf-8"))
+            for item in payload.get("results", []):
+                if not isinstance(item, dict):
+                    continue
+                full_bundle = item.get("full_bundle")
+                if not isinstance(full_bundle, dict):
+                    continue
+                for record in full_bundle.get("service_guide_records", []):
+                    if not isinstance(record, dict):
+                        continue
+                    effective_from = str(record.get("effective_from") or "").strip()
+                    if not effective_from:
+                        continue
+                    parsed = datetime.fromisoformat(
+                        effective_from.replace("Z", "+00:00")
+                    ).astimezone(timezone.utc)
+                    return (parsed + timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
+        except Exception:
+            pass
+    return "2026-05-03T00:00:01Z"
+
+
 def _count_release_rows(cursor: object, table_name: str, release_id: str) -> int:
     cursor.execute(
         f"select count(*) from {table_name} where release_id = %s",
@@ -368,16 +401,16 @@ def _default_service_guide_runtime_probes() -> tuple[ServiceGuideRuntimeProbe, .
             expected_body_tokens=("信息公开",),
         ),
         ServiceGuideRuntimeProbe(
-            probe_id="phone_missing_fail_close",
+            probe_id="phone_current",
             payload={
                 "service_query": "信息公开申请联系电话是多少",
                 "guide_focus": "contact",
                 "temporal_query": {"mode": "current"},
                 "audience": "student",
             },
-            expected_outcome="temporarily_unverifiable",
-            expected_fail_close_reason="field_not_provided_by_source",
-            expected_field_status={"phone": "source_not_provided"},
+            expected_outcome="resolved_current",
+            expected_field_status={"phone": "present"},
+            expected_body_tokens=("010-68932551", "010-68933983"),
         ),
         ServiceGuideRuntimeProbe(
             probe_id="responsible_department_current",

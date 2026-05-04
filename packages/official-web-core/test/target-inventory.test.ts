@@ -15,7 +15,7 @@ describe("official web target inventory report", () => {
 		const report = buildOfficialWebTargetInventoryReport(config);
 
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 12,
+			candidate: 20,
 		});
 		expect(report.entries[0]).toMatchObject({
 			inventoryId: "muc-main-homepage-contact",
@@ -249,7 +249,7 @@ describe("official web target inventory report", () => {
 			reviewState: "previewed",
 		});
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 11,
+			candidate: 19,
 			previewed: 1,
 		});
 	});
@@ -263,9 +263,17 @@ describe("official web target inventory report", () => {
 				"muc-it-network-auth-service-guide",
 				"muc-it-vpn-service-guide",
 				"muc-it-email-service-guide",
+				"muc-it-password-reset-service-guide",
 				"muc-it-service-contacts",
+				"muc-logistics-service-contacts",
+				"muc-it-email-policy-reference",
 				"muc-academic-committee-charter",
 				"muc-staff-congress-procedure",
+				"muc-administrative-offices-reference",
+				"muc-teaching-research-units-reference",
+				"muc-library-reference",
+				"muc-museum-reference",
+				"muc-fee-disclosure-reference",
 			]),
 		);
 	});

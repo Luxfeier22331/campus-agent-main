@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-05-04
 updated: 2026-05-04
 ---
@@ -25,13 +25,11 @@ not yet measure product-answer focus.
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 6 completed`
-- current slice: official-web service-guide runtime closeout now covers focused planner routing,
-  grouped-procedure deduplicated answer shaping, service-guide agent observability/guardrails, and
-  default preview/runtime eval coverage for `entry` / `procedure` / `required_materials` /
-  `contact` / `office_hours` / `eligibility`; next remaining proof is real no-promotion replay and
-  isolated publish evidence
+- status: `completed`
+- current phase: `Phase 9 closeout complete`
+- current slice: grouped-procedure contract, focused runtime behavior, no-promotion replay proof
+  and isolated selected-write publish proof are all closed with retained artifacts and closeout
+  docs
 - owner: Codex session
 
 ## Native Planning Truth
@@ -41,6 +39,7 @@ not yet measure product-answer focus.
 - state: `./STATE.md`
 - gap review: `./GAP-REVIEW.md`
 - phase plans: `./phases/`
+- closeout: `./CLOSEOUT.md`
 
 ## Boundary Notes
 
@@ -51,3 +50,12 @@ not yet measure product-answer focus.
 - This workstream does not make `service_catalog` a query-serving fallback.
 - The runtime owner remains `campus-services-agent`; the data-plane owner remains
   `packages/ingestion-core` / `apps/ingestion-worker`.
+
+## Implementation Result
+
+- canonical grouped procedure and focused section metadata now flow from selected-write projection
+  to runtime answer shaping
+- official-web service-guide composition is role-driven and fail-closes ambiguous inputs
+- no-promotion source-pack proof passes on retained artifacts
+- isolated selected-write publish proof passes against an isolated PG/object-store target
+- closeout evidence is recorded in `./CLOSEOUT.md`
