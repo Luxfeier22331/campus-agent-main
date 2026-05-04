@@ -142,6 +142,7 @@ class WorkflowTraceSummary:
     workflow_mode: str = ""
     handoff: dict[str, Any] = field(default_factory=dict)
     handoff_chain: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    agent_invocations: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     selected_target: str = ""
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
     context_projections: tuple[dict[str, Any], ...] = field(default_factory=tuple)
@@ -159,6 +160,7 @@ class WorkflowTraceSummary:
             ("context_resolution", self.context_resolution),
             ("handoff", self.handoff),
             ("context_projections", self.context_projections),
+            ("agent_invocations", self.agent_invocations),
             ("tool_argument_summary", self.tool_argument_summary),
             ("trace_steps", self.trace_steps),
             ("tool_call_summaries", self.tool_call_summaries),
@@ -167,6 +169,27 @@ class WorkflowTraceSummary:
             ("policy_artifact_versions", self.policy_artifact_versions),
         ):
             _reject_raw_workflow_trace_keys(payload, field_name)
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowAgentContext:
+    schema_version: str = "workflow-agent-context-v1"
+    visibility: str = "agent_private"
+    target: str = ""
+    required_projection_kind: str = ""
+    projection_refs: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "workflow-agent-context-v1":
+            raise ValueError("workflow_context.schema_version must be workflow-agent-context-v1")
+        if self.visibility != "agent_private":
+            raise ValueError("workflow_context.visibility must be agent_private")
+        if self.required_projection_kind and not any(
+            str(item.get("projection_kind") or "").strip() == self.required_projection_kind
+            for item in self.projection_refs
+        ):
+            raise ValueError("workflow_context required projection is missing")
+        _reject_raw_workflow_trace_keys(self.projection_refs, "workflow_context.projection_refs")
 
 
 @dataclass(frozen=True, slots=True)
@@ -300,6 +323,7 @@ class AgentRequest:
     trace: TraceContext = field(default_factory=TraceContext)
     actor: ActorContext = field(default_factory=ActorContext)
     context: ContextProjection = field(default_factory=ContextProjection)
+    workflow_context: WorkflowAgentContext = field(default_factory=WorkflowAgentContext)
 
     def __post_init__(self) -> None:
         if self.target not in ALLOWED_AGENT_TARGETS:

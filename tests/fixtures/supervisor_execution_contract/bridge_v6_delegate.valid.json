@@ -97,6 +97,7 @@
 			"schema_version": "workflow-plan-v1",
 			"plan_id": "plan:single_handoff:rag-agent:rag_request",
 			"workflow_mode": "single_handoff",
+			"allowed_agents": ["rag-agent"],
 			"steps": [
 				{
 					"step_id": "handoff:rag-agent:rag_request",

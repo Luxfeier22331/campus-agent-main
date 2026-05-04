@@ -89,7 +89,7 @@
 				"available": true,
 				"strict": true
 			},
-			"runtime_posture": "typed_handoff_only",
+			"runtime_posture": "sdk_adapter_candidate",
 			"description": "Discover governed campus notices by topic, family, and target surface."
 		},
 		{

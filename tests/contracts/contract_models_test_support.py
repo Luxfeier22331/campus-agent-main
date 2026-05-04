@@ -44,6 +44,7 @@ from campus_contracts import (
     RagRequestPayload,
     RagResultDiagnostics,
     RagResultPayload,
+    RagStageActivitySummary,
     RemoteContentSuspicionSummary,
     RetrievalPlanSummary,
     RetrievalStepActivitySummary,
@@ -75,6 +76,7 @@ from campus_contracts import (
     TransportServiceWindow,
     TransportStopRef,
     VersionQuery,
+    WorkflowAgentContext,
     WorkflowTraceSummary,
 )
 
@@ -119,6 +121,7 @@ __all__ = [
     "RagRequestPayload",
     "RagResultDiagnostics",
     "RagResultPayload",
+    "RagStageActivitySummary",
     "RemoteContentSuspicionSummary",
     "RetrievalPlanSummary",
     "RetrievalStepActivitySummary",
@@ -150,6 +153,7 @@ __all__ = [
     "TransportServiceWindow",
     "TransportStopRef",
     "VersionQuery",
+    "WorkflowAgentContext",
     "WorkflowTraceSummary",
     "asdict",
     "fields",

@@ -307,6 +307,7 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                 "prompt_runtime_state": "",
                 "prompt_runtime_detail": "",
                 "retrieval_plan_summary": None,
+                "stage_activities": (),
                 "retrieved_sources": (),
                 "prompt_trace": None,
             },

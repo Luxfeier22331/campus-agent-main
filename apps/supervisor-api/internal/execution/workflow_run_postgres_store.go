@@ -97,12 +97,16 @@ func (s *PostgresWorkflowRunStore) Create(
 	if err != nil {
 		return WorkflowRun{}, err
 	}
+	agentInvocations, err := workflowRunAgentInvocationsJSON(run)
+	if err != nil {
+		return WorkflowRun{}, err
+	}
 	_, err = s.pool.Exec(
 		ctx,
 		`insert into runtime.workflow_runs (
 			run_id, request_id, trace_id, plan_id, workflow_mode, branch, state,
-			handoff_chain, steps, context_projections
-		) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb)`,
+			handoff_chain, steps, agent_invocations, context_projections
+		) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb)`,
 		run.RunID,
 		run.RequestID,
 		run.TraceID,
@@ -112,6 +116,7 @@ func (s *PostgresWorkflowRunStore) Create(
 		string(run.State),
 		handoffChain,
 		steps,
+		agentInvocations,
 		contextProjections,
 	)
 	if err != nil {
@@ -154,6 +159,17 @@ func (s *PostgresWorkflowRunStore) AppendStep(
 ) (WorkflowRun, error) {
 	return s.updateLocked(ctx, runID, func(run WorkflowRun) (WorkflowRun, error) {
 		run.Steps = append(run.Steps, step)
+		return run, validateWorkflowRun(run)
+	})
+}
+
+func (s *PostgresWorkflowRunStore) AppendAgentInvocation(
+	ctx context.Context,
+	runID string,
+	invocation AgentInvocation,
+) (WorkflowRun, error) {
+	return s.updateLocked(ctx, runID, func(run WorkflowRun) (WorkflowRun, error) {
+		run.AgentInvocations = append(run.AgentInvocations, cloneAgentInvocation(invocation))
 		return run, validateWorkflowRun(run)
 	})
 }
@@ -213,11 +229,15 @@ func (s *PostgresWorkflowRunStore) updateLocked(
 	if err != nil {
 		return WorkflowRun{}, err
 	}
+	agentInvocations, err := workflowRunAgentInvocationsJSON(run)
+	if err != nil {
+		return WorkflowRun{}, err
+	}
 	if _, err := tx.Exec(
 		ctx,
 		`update runtime.workflow_runs
 		set workflow_mode = $2, branch = $3, state = $4, handoff_chain = $5::jsonb,
-			steps = $6::jsonb, context_projections = $7::jsonb, updated_at = now()
+			steps = $6::jsonb, agent_invocations = $7::jsonb, context_projections = $8::jsonb, updated_at = now()
 		where run_id = $1`,
 		run.RunID,
 		string(run.Mode),
@@ -225,6 +245,7 @@ func (s *PostgresWorkflowRunStore) updateLocked(
 		string(run.State),
 		handoffChain,
 		steps,
+		agentInvocations,
 		contextProjections,
 	); err != nil {
 		return WorkflowRun{}, err
@@ -251,12 +272,21 @@ func workflowRunJSON(run WorkflowRun) (string, string, string, error) {
 	return string(handoffChain), string(steps), string(contextProjections), nil
 }
 
+func workflowRunAgentInvocationsJSON(run WorkflowRun) (string, error) {
+	agentInvocations, err := json.Marshal(run.AgentInvocations)
+	if err != nil {
+		return "", err
+	}
+	return string(agentInvocations), nil
+}
+
 func scanWorkflowRun(row pgx.Row) (WorkflowRun, error) {
 	var run WorkflowRun
 	var mode string
 	var state string
 	var handoffChainRaw []byte
 	var stepsRaw []byte
+	var agentInvocationsRaw []byte
 	var contextProjectionsRaw []byte
 	if err := row.Scan(
 		&run.RunID,
@@ -268,6 +298,7 @@ func scanWorkflowRun(row pgx.Row) (WorkflowRun, error) {
 		&state,
 		&handoffChainRaw,
 		&stepsRaw,
+		&agentInvocationsRaw,
 		&contextProjectionsRaw,
 	); err != nil {
 		return WorkflowRun{}, err
@@ -284,6 +315,11 @@ func scanWorkflowRun(row pgx.Row) (WorkflowRun, error) {
 			return WorkflowRun{}, err
 		}
 	}
+	if len(agentInvocationsRaw) > 0 {
+		if err := json.Unmarshal(agentInvocationsRaw, &run.AgentInvocations); err != nil {
+			return WorkflowRun{}, err
+		}
+	}
 	if len(contextProjectionsRaw) > 0 {
 		if err := json.Unmarshal(contextProjectionsRaw, &run.ContextProjections); err != nil {
 			return WorkflowRun{}, err
@@ -294,6 +330,9 @@ func scanWorkflowRun(row pgx.Row) (WorkflowRun, error) {
 	}
 	if run.Steps == nil {
 		run.Steps = []WorkflowStep{}
+	}
+	if run.AgentInvocations == nil {
+		run.AgentInvocations = []AgentInvocation{}
 	}
 	if run.ContextProjections == nil {
 		run.ContextProjections = []StepOutputProjection{}
@@ -308,7 +347,7 @@ func isUniqueViolation(err error) bool {
 
 const workflowRunSelectSQL = `select
 	run_id, request_id, trace_id, plan_id, workflow_mode, branch, state,
-	handoff_chain, steps, context_projections
+	handoff_chain, steps, agent_invocations, context_projections
 from runtime.workflow_runs`
 
 const workflowRunSchemaSQL = `
@@ -324,10 +363,14 @@ create table if not exists runtime.workflow_runs (
 	state text not null,
 	handoff_chain jsonb not null default '[]'::jsonb,
 	steps jsonb not null default '[]'::jsonb,
+	agent_invocations jsonb not null default '[]'::jsonb,
 	context_projections jsonb not null default '[]'::jsonb,
 	created_at timestamptz not null default now(),
 	updated_at timestamptz not null default now()
 );
+
+alter table runtime.workflow_runs
+	add column if not exists agent_invocations jsonb not null default '[]'::jsonb;
 
 alter table runtime.workflow_runs
 	add column if not exists context_projections jsonb not null default '[]'::jsonb;

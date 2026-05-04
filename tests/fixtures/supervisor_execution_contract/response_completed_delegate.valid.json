@@ -43,6 +43,18 @@
 				"selected_tool": "retrieval.query"
 			}
 		],
+		"agent_invocations": [
+			{
+				"invocation_id": "agent-invocation:rag-agent:1",
+				"workflow_run_ref": "single_handoff:rag-agent:retrieval.query",
+				"step_id": "handoff:rag-agent:rag_request",
+				"agent_id": "rag-agent",
+				"status": "completed",
+				"allowed_tools": [],
+				"used_tools": ["retrieval.query"],
+				"projection_ids": []
+			}
+		],
 		"selected_target": "rag-agent",
 		"selected_tools": ["retrieval.query"],
 		"context_projections": [],

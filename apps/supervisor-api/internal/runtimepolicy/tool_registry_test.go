@@ -58,6 +58,17 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 			serviceStatus.RuntimePosture,
 		)
 	}
+	noticeDiscover, ok := registry.ToolByName("campus_notice_discover")
+	if !ok {
+		t.Fatal("campus_notice_discover missing from ToolSpec")
+	}
+	if !noticeDiscover.FunctionSchema.Available || noticeDiscover.RuntimePosture != "sdk_adapter_candidate" {
+		t.Fatalf(
+			"campus_notice_discover function/runtime posture = %#v/%q, want available sdk_adapter_candidate",
+			noticeDiscover.FunctionSchema,
+			noticeDiscover.RuntimePosture,
+		)
+	}
 }
 
 func TestRuntimePolicyAllowedToolsMatchDefaultToolSpec(t *testing.T) {

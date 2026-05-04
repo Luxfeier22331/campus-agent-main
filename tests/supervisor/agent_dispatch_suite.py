@@ -16,6 +16,7 @@ from campus_contracts import (
     EvidenceBundle,
     EvidenceSource,
     KnowledgeScope,
+    PlaceLookupPayload,
     RagRequestPayload,
     RagResultPayload,
     ServiceGuideLookupPayload,
@@ -26,6 +27,7 @@ from campus_contracts import (
 )
 from campus_supervisor_agent_worker.agent_dispatch import (
     AgentDispatcher,
+    AgentSpecAdmissionError,
     ExecutionCancelledError,
     MissingAgentDelegateError,
     ToolAdmissionError,
@@ -211,6 +213,27 @@ class AgentDispatchTest(unittest.TestCase):
                     )
                 },
             )
+
+    def test_dispatch_agent_request_rejects_closed_agent_before_delegate(self) -> None:
+        delegate_called = False
+        request = AgentRequest(
+            target="navigation-agent",
+            user_goal="北楼在哪里",
+            payload=PlaceLookupPayload(query_text="北楼在哪里"),
+        )
+
+        def fake_navigation_agent(_request: AgentRequest) -> AgentResponse:
+            nonlocal delegate_called
+            delegate_called = True
+            return AgentResponse(target="navigation-agent", status="completed")
+
+        with self.assertRaisesRegex(AgentSpecAdmissionError, "navigation-agent"):
+            dispatch_agent_request(
+                request,
+                agent_delegates={"navigation-agent": fake_navigation_agent},
+            )
+
+        self.assertFalse(delegate_called)
 
     def test_dispatcher_uses_injected_tool_spec_registry_for_admission(self) -> None:
         with tempfile.TemporaryDirectory() as fixture_dir:

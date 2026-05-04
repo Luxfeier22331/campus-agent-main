@@ -122,6 +122,9 @@ func (wire WorkflowPlanWire) Validate() error {
 \tif !wire.WorkflowMode.Valid() {
 \t\treturn fmt.Errorf("workflow_mode is invalid")
 \t}
+\tif wire.AllowedAgents == nil {
+\t\treturn fmt.Errorf("allowed_agents is required")
+\t}
 \tif wire.Steps == nil {
 \t\treturn fmt.Errorf("steps is required")
 \t}
@@ -200,7 +203,7 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 \t\tif projection.SourceStepID == "" {
 \t\t\treturn fmt.Errorf("context_projections[%d].source_step_id is required", index)
 \t\t}
-\t\tif projection.ProjectionKind != "notice_context" {
+\t\tif !projection.ProjectionKind.Valid() {
 \t\t\treturn fmt.Errorf("context_projections[%d].projection_kind is invalid", index)
 \t\t}
 \t\tif projection.ContentHash == "" {
@@ -299,6 +302,20 @@ func (value SupervisorStatus) Valid() bool {
 func (value WorkflowMode) Valid() bool {
 \tswitch value {
 \tcase WorkflowModeTerminal, WorkflowModeDirectRuntime, WorkflowModeSingleHandoff, WorkflowModeMultiStep:
+\t\treturn true
+\tdefault:
+\t\treturn false
+\t}
+}
+
+func (value StepOutputProjectionKind) Valid() bool {
+\tswitch value {
+\tcase StepOutputProjectionKindNoticeContext,
+\t\tStepOutputProjectionKindScheduleBaseline,
+\t\tStepOutputProjectionKindServiceGuideFacts,
+\t\tStepOutputProjectionKindPlaceContext,
+\t\tStepOutputProjectionKindEvidenceBundle,
+\t\tStepOutputProjectionKindGroundingVerdict:
 \t\treturn true
 \tdefault:
 \t\treturn false

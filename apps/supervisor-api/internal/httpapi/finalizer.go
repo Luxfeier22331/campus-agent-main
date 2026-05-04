@@ -276,6 +276,7 @@ func buildWorkflowTraceSummaryWire(
 		WorkflowMode:           contractsv1.WorkflowMode(workflowMode),
 		Handoff:                handoff,
 		HandoffChain:           run.HandoffChainMaps(),
+		AgentInvocations:       workflowAgentInvocationWire(run.AgentInvocations),
 		SelectedTarget:         &selectedTarget,
 		SelectedTools:          selectedTools,
 		ContextProjections:     workflowContextProjectionWire(run.ContextProjections),
@@ -315,6 +316,7 @@ func workflowTraceSummaryWireMap(wire contractsv1.WorkflowTraceSummaryWire) map[
 		"workflow_mode":             string(wire.WorkflowMode),
 		"handoff":                   wire.Handoff,
 		"handoff_chain":             wire.HandoffChain,
+		"agent_invocations":         workflowAgentInvocationWireMaps(wire.AgentInvocations),
 		"selected_target":           selectedTarget,
 		"selected_tools":            wire.SelectedTools,
 		"context_projections":       workflowContextProjectionWireMaps(wire.ContextProjections),
@@ -336,7 +338,7 @@ func workflowContextProjectionWire(
 		items = append(items, contractsv1.WorkflowContextProjectionWire{
 			ProjectionID:   projection.ProjectionID,
 			SourceStepID:   projection.SourceStepID,
-			ProjectionKind: string(projection.ProjectionKind),
+			ProjectionKind: contractsv1.StepOutputProjectionKind(projection.ProjectionKind),
 			ContentHash:    projection.ContentHash,
 			Safety: contractsv1.ProjectionSafetySummaryWire{
 				Truncated:     projection.Safety.Truncated,
@@ -366,6 +368,53 @@ func workflowContextProjectionWireMaps(
 				"fields_present": append([]string{}, projection.Safety.FieldsPresent...),
 			},
 		})
+	}
+	return items
+}
+
+func workflowAgentInvocationWire(
+	invocations []execution.AgentInvocation,
+) []contractsv1.AgentInvocationWire {
+	items := make([]contractsv1.AgentInvocationWire, 0, len(invocations))
+	for _, invocation := range invocations {
+		items = append(items, contractsv1.AgentInvocationWire{
+			InvocationID:       invocation.InvocationID,
+			ParentInvocationID: invocation.ParentInvocationID,
+			WorkflowRunRef:     invocation.WorkflowRunRef,
+			StepID:             invocation.StepID,
+			AgentID:            contractsv1.AgentTarget(invocation.AgentID),
+			Status:             invocation.Status,
+			AllowedTools:       append([]string{}, invocation.AllowedTools...),
+			UsedTools:          append([]string{}, invocation.UsedTools...),
+			ProjectionIDs:      append([]string{}, invocation.ProjectionIDs...),
+			FailCloseReason:    invocation.FailCloseReason,
+		})
+	}
+	return items
+}
+
+func workflowAgentInvocationWireMaps(
+	invocations []contractsv1.AgentInvocationWire,
+) []map[string]any {
+	items := make([]map[string]any, 0, len(invocations))
+	for _, invocation := range invocations {
+		item := map[string]any{
+			"invocation_id":    invocation.InvocationID,
+			"workflow_run_ref": invocation.WorkflowRunRef,
+			"step_id":          invocation.StepID,
+			"agent_id":         string(invocation.AgentID),
+			"status":           invocation.Status,
+			"allowed_tools":    append([]string{}, invocation.AllowedTools...),
+			"used_tools":       append([]string{}, invocation.UsedTools...),
+			"projection_ids":   append([]string{}, invocation.ProjectionIDs...),
+		}
+		if invocation.ParentInvocationID != "" {
+			item["parent_invocation_id"] = invocation.ParentInvocationID
+		}
+		if invocation.FailCloseReason != "" {
+			item["fail_close_reason"] = invocation.FailCloseReason
+		}
+		items = append(items, item)
 	}
 	return items
 }
@@ -511,6 +560,15 @@ func workflowTraceRun(
 			PayloadKind:  handoff.PayloadKind,
 			AllowedTools: append([]string{}, handoff.AllowedTools...),
 			SelectedTool: selectedTool,
+		})
+		run.AgentInvocations = append(run.AgentInvocations, execution.AgentInvocation{
+			InvocationID:   "agent-invocation:" + defaultString(handoff.Target, target) + ":1",
+			WorkflowRunRef: workflowRunRef(run, target, selectedTool),
+			StepID:         "handoff:" + defaultString(handoff.Target, target) + ":" + handoff.PayloadKind,
+			AgentID:        defaultString(handoff.Target, target),
+			Status:         status,
+			AllowedTools:   append([]string{}, handoff.AllowedTools...),
+			UsedTools:      workflowSelectedTools(handoff, selectedTool),
 		})
 	}
 	run.Steps = append(run.Steps, execution.WorkflowStep{

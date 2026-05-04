@@ -33,6 +33,9 @@ Notice user-facing output is card-first and source-link-first.
   resolve/context function.
 - Provider function schema generation must not emit `campus_notice_get`.
 - Agents SDK and provider-loop notice-get pilots are closed.
+- If Agents SDK is used at all, only
+  `notice-agent + campus_notice_discover` may be admitted as an
+  explicit-gated candidate until live evidence supports any broader promotion.
 - Public answers, workflow traces, panel assets and eval canonical artifacts
   must not carry full `normalized_body`, OCR owner text, inline image text or
   attachment body.

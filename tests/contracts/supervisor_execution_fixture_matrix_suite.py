@@ -34,6 +34,44 @@ class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
         assert envelope.agent_request is not None
         self.assertEqual(envelope.agent_request.target, "rag-agent")
 
+    def test_python_bridge_accepts_agent_workflow_context_projection_refs(self) -> None:
+        payload = load_fixture("bridge_v6_delegate.valid.json")
+        payload["runtime_decisions"]["handoff"]["agent_request"]["workflow_context"] = {
+            "schema_version": "workflow-agent-context-v1",
+            "visibility": "agent_private",
+            "target": "rag-agent",
+            "required_projection_kind": "notice_context",
+            "projection_refs": [
+                {
+                    "projection_id": "projection:notice_context:test",
+                    "source_step_id": "handoff:notice-agent:campus_notice_get",
+                    "projection_kind": "notice_context",
+                    "content_hash": "sha256:test",
+                    "safety": {"max_chars": 1600, "fields_present": ["title"]},
+                }
+            ],
+        }
+
+        envelope = parse_bridge_supervisor_envelope(payload)
+
+        assert envelope.agent_request is not None
+        self.assertEqual(
+            envelope.agent_request.workflow_context.projection_refs[0]["projection_id"],
+            "projection:notice_context:test",
+        )
+
+    def test_python_bridge_rejects_raw_agent_workflow_context_projection_refs(self) -> None:
+        payload = load_fixture("bridge_v6_delegate.valid.json")
+        payload["runtime_decisions"]["handoff"]["agent_request"]["workflow_context"] = {
+            "schema_version": "workflow-agent-context-v1",
+            "visibility": "agent_private",
+            "target": "rag-agent",
+            "projection_refs": [{"projection_id": "p1", "raw_response": "secret"}],
+        }
+
+        with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
+            parse_bridge_supervisor_envelope(payload)
+
     def test_python_bridge_rejects_invalid_bridge_fixtures(self) -> None:
         for fixture_name in (
             "bridge_v6_extra_field.invalid.json",

@@ -148,8 +148,11 @@ Docker-side Go runtime control plane 长期负责：
   (payload_kind=campus_notice_get) -> rag-agent retrieval.query`。第一步 notice
   结果会先落成 repo-owned canonical
   `StepOutputProjection`，再以有长度上限的 `notice_context` 输入第二步 RAG bridge
-  payload；operator / eval 可见的 `workflow_trace_summary.context_projections`
-  只暴露 projection id、source step、kind、content hash 与 safety summary，不暴露正文 payload。
+  payload；执行 wire 使用 `agent_request.workflow_context` 传递
+  `workflow-agent-context-v1` 投影引用 envelope，只允许 `projection_refs`、required
+  projection kind 与 target metadata，不携带 raw projection payload。operator / eval 可见的
+  `workflow_trace_summary.context_projections` 只暴露 projection id、source step、kind、
+  content hash 与 safety summary，不暴露正文 payload。
   不得把单 handoff trace 包装成 `multi_step`
 - `runtime_decisions.workflow_plan` 是 Go planner 的 canonical safe projection，当前
   `schema_version=workflow-plan-v1`，用于显式记录 `single_handoff` plan、step kind、
@@ -436,6 +439,14 @@ length budget、source refs 与 safety summary。缺失 required projection 或 
 visibility 不匹配时，workflow 必须 fail closed 或进入 clarification，不得回退到 raw
 history / raw evidence prompt stuffing。
 
+执行 wire 的 cross-agent context envelope 固定为 `AgentRequest.workflow_context`。
+该 envelope 是 agent-private 的 projection-ref carrier，不是 operator summary，也不是 raw
+context store。它必须携带 schema version、visibility、target、
+`required_projection_kind` 与 bounded `projection_refs`；不得出现 `payload`、`raw_payload`、
+`raw_context` 或 `source_body` 等 raw-key。`workflow_trace_summary.context_projections`
+是 operator / eval summary，只用于重建 workflow shape、source step、projection kind、
+hash 与 safety posture，不承担下游 agent prompt context 传递。
+
 ## Agent Framework / Agents SDK Boundary
 
 agent framework 是 domain-agent 内部实现 substrate，不是 repo-level orchestration owner。
@@ -568,7 +579,9 @@ notice-get provider tool runtime 当前最终姿态是 closed：
 Agents SDK 试点当前也不承载 `campus_notice_get`。SDK runner shell、tool bridge 与 trace
 projection 可以继续作为 default-off infrastructure lane 存在，用于后续新 denominator
 评估；但 notice-get SDK pilot 已关闭，stale `campus_notice_get` allowed tool 必须返回
-unsupported/closed。SDK `FunctionTool` surface 只能由 repo-owned ToolSpec
+unsupported/closed。当前可选的 SDK adapter candidate 仅限 `notice-agent +
+campus_notice_discover`，并且仍然必须通过 repo-owned allowlist、ToolSpec posture 与
+eval gate 才能运行。SDK `FunctionTool` surface 只能由 repo-owned ToolSpec
 派生；SDK run / trace / native state 不得进入 `packages/contracts`、panel、eval 或
 `workflow_trace_summary`。
 
@@ -597,6 +610,20 @@ finalizer guard。
 - provider tool loop correlation：repo-owned `tool_call_id` 仍是主 ID，provider
   `call_id` / response id 只作为 sanitized `provider_tool_call_projection` 出现在
   workflow trace 中，用于 debugging 与 eval，不替代 repo-owned lifecycle id
+
+runtime observability、audit 与 eval 统一使用 repo-owned correlation id：
+
+- request / trace correlation：`request_id`、incoming trace context 与低基数 lane /
+  capability / workflow mode label
+- workflow correlation：`workflow_run_ref` / run id、step id、`AgentInvocation`
+  id 与 parent invocation id
+- tool correlation：repo-owned `tool_call_id`、tool name、owner agent、business
+  outcome、fail-close reason 与 bounded result projection posture
+- projection / evidence correlation：`projection_id`、projection kind、content hash、
+  source refs / evidence refs 与 freshness / effective window where applicable
+- provider correlation：provider response id / call id 只能作为 sanitized auxiliary
+  projection；raw prompt、raw response、raw source body 与 source object bytes 不进入
+  OTel span attributes、audit event、workflow trace、panel 或 eval canonical asset
 
 默认禁止：
 

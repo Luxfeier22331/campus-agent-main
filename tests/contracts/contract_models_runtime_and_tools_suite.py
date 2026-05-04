@@ -98,6 +98,14 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                     "target": "campus-services-agent",
                     "payload_kind": "transport_schedule_lookup",
                 },
+                agent_invocations=(
+                    {
+                        "invocation_id": "agent-invocation:1",
+                        "workflow_run_ref": "workflow:req-1",
+                        "agent_id": "campus-services-agent",
+                        "status": "completed",
+                    },
+                ),
                 selected_target="campus-services-agent",
                 selected_tools=("transport_schedule_lookup",),
                 tool_argument_summary={"payload_kind": "transport_schedule_lookup"},
@@ -117,6 +125,10 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             payload["workflow_trace_summary"]["handoff"]["target"],
             "campus-services-agent",
         )
+        self.assertEqual(
+            payload["workflow_trace_summary"]["agent_invocations"][0]["agent_id"],
+            "campus-services-agent",
+        )
 
     def test_workflow_trace_summary_rejects_nested_raw_or_auth_material_keys(self) -> None:
         with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
@@ -126,6 +138,51 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                     "collection": "student_rules",
                     "debug": {"auth_envelope": {"cookie": "secret"}},
                 },
+            )
+
+    def test_agent_request_serializes_workflow_context_projection_refs(self) -> None:
+        request = AgentRequest(
+            target="rag-agent",
+            user_goal="这条通知依据学生手册哪条规定？",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+            ),
+            workflow_context=WorkflowAgentContext(
+                target="rag-agent",
+                required_projection_kind="notice_context",
+                projection_refs=(
+                    {
+                        "projection_id": "projection:notice_context:test",
+                        "source_step_id": "handoff:notice-agent:campus_notice_get",
+                        "projection_kind": "notice_context",
+                        "content_hash": "sha256:test",
+                        "safety": {"max_chars": 1600, "fields_present": ["title"]},
+                    },
+                ),
+            ),
+        )
+
+        payload = asdict(request)
+
+        self.assertEqual(
+            payload["workflow_context"]["projection_refs"][0]["projection_id"],
+            "projection:notice_context:test",
+        )
+        self.assertNotIn("payload", payload["workflow_context"]["projection_refs"][0])
+
+    def test_workflow_agent_context_requires_required_projection_ref(self) -> None:
+        with self.assertRaisesRegex(ValueError, "required projection"):
+            WorkflowAgentContext(
+                target="rag-agent",
+                required_projection_kind="notice_context",
+                projection_refs=(),
+            )
+
+    def test_workflow_agent_context_rejects_raw_projection_ref_keys(self) -> None:
+        with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
+            WorkflowAgentContext(
+                target="rag-agent",
+                projection_refs=({"projection_id": "p1", "raw_response": "secret"},),
             )
 
     def test_source_trust_summary_serializes_as_contract_field(self) -> None:
@@ -220,6 +277,50 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                     },
                 ),
             },
+        )
+
+    def test_rag_stage_activity_summary_serializes_stage_attribution_fields(self) -> None:
+        diagnostics = RagResultDiagnostics(
+            stage_activities=(
+                RagStageActivitySummary(
+                    request_id="req-stage",
+                    plan_id="regulations:student_rules:current",
+                    query_mode="current",
+                    stage_name="retrieval",
+                    stage_status="completed",
+                    candidate_count=2,
+                    supporting_evidence_count=0,
+                    grounding_verdict="",
+                    fallback_reason="",
+                    latency_ms=12,
+                    retrieval_ms=12,
+                    prompt_ms=0,
+                    adapter_ms=0,
+                    diagnostic_ms=0,
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            asdict(diagnostics)["stage_activities"],
+            (
+                {
+                    "request_id": "req-stage",
+                    "plan_id": "regulations:student_rules:current",
+                    "query_mode": "current",
+                    "stage_name": "retrieval",
+                    "stage_status": "completed",
+                    "candidate_count": 2,
+                    "supporting_evidence_count": 0,
+                    "grounding_verdict": "",
+                    "fallback_reason": "",
+                    "latency_ms": 12,
+                    "retrieval_ms": 12,
+                    "prompt_ms": 0,
+                    "adapter_ms": 0,
+                    "diagnostic_ms": 0,
+                },
+            ),
         )
 
     def test_agent_request_requires_explicit_payload(self) -> None:

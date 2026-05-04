@@ -79,6 +79,20 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 	withProjection.ContextProjections[0].Payload["title"] = "mutated"
 	withProjection.ContextProjections[0].Safety.FieldsPresent[0] = "mutated"
 
+	withInvocation, err := store.AppendAgentInvocation(ctx, "run-001", AgentInvocation{
+		InvocationID:   "agent-invocation:rag-agent:1",
+		WorkflowRunRef: "run-001",
+		StepID:         "handoff:rag-agent:rag_request",
+		AgentID:        "rag-agent",
+		Status:         "completed",
+		AllowedTools:   []string{"retrieval.query"},
+		UsedTools:      []string{"retrieval.query"},
+	})
+	if err != nil {
+		t.Fatalf("append agent invocation: %v", err)
+	}
+	withInvocation.AgentInvocations[0].AllowedTools[0] = "mutated"
+
 	completed, err := store.Complete(ctx, "run-001", WorkflowStateCompleted)
 	if err != nil {
 		t.Fatalf("complete workflow run: %v", err)
@@ -102,6 +116,12 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 		t.Fatalf(
 			"stored projection safety = %#v, want defensive copy",
 			completed.ContextProjections[0].Safety,
+		)
+	}
+	if completed.AgentInvocations[0].AllowedTools[0] != "retrieval.query" {
+		t.Fatalf(
+			"stored agent invocation = %#v, want defensive copy",
+			completed.AgentInvocations[0],
 		)
 	}
 }

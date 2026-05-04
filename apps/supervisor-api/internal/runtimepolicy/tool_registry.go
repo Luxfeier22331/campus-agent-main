@@ -36,6 +36,8 @@ var supportedRuntimePostures = map[string]struct{}{
 	"provider_argument_completion_pilot": {},
 	"provider_loop_pilot":                {},
 	"provider_loop_open":                 {},
+	"sdk_adapter_candidate":              {},
+	"sdk_adapter_admitted":               {},
 }
 
 type ToolFunctionSchemaSpec struct {
@@ -166,8 +168,8 @@ func (t ToolSpec) Validate() error {
 	if _, ok := supportedRuntimePostures[runtimePosture]; !ok {
 		return fmt.Errorf("%s runtime_posture is unsupported: %s", t.Name, runtimePosture)
 	}
-	if strings.HasPrefix(runtimePosture, "provider_") && !functionSchema.Available {
-		return fmt.Errorf("%s provider runtime posture requires function_schema.available", t.Name)
+	if (strings.HasPrefix(runtimePosture, "provider_") || strings.HasPrefix(runtimePosture, "sdk_")) && !functionSchema.Available {
+		return fmt.Errorf("%s runtime posture requires function_schema.available", t.Name)
 	}
 	return nil
 }

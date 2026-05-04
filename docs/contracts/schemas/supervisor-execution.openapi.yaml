@@ -98,6 +98,11 @@ components:
       type: string
       enum:
         - notice_context
+        - schedule_baseline
+        - service_guide_facts
+        - place_context
+        - evidence_bundle
+        - grounding_verdict
     ProjectionSafetySummary:
       type: object
       additionalProperties: false
@@ -177,6 +182,65 @@ components:
           type: string
         safety:
           $ref: "#/components/schemas/ProjectionSafetySummary"
+    WorkflowAgentContext:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - visibility
+        - projection_refs
+      properties:
+        schema_version:
+          const: workflow-agent-context-v1
+        visibility:
+          const: agent_private
+        target:
+          $ref: "#/components/schemas/AgentTarget"
+        required_projection_kind:
+          $ref: "#/components/schemas/StepOutputProjectionKind"
+        projection_refs:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowContextProjection"
+    AgentInvocation:
+      type: object
+      additionalProperties: false
+      required:
+        - invocation_id
+        - workflow_run_ref
+        - step_id
+        - agent_id
+        - status
+        - allowed_tools
+        - used_tools
+        - projection_ids
+      properties:
+        invocation_id:
+          type: string
+        parent_invocation_id:
+          type: string
+        workflow_run_ref:
+          type: string
+        step_id:
+          type: string
+        agent_id:
+          $ref: "#/components/schemas/AgentTarget"
+        status:
+          type: string
+        allowed_tools:
+          type: array
+          items:
+            type: string
+        used_tools:
+          type: array
+          items:
+            type: string
+        projection_ids:
+          type: array
+          items:
+            type: string
+        fail_close_reason:
+          type: string
     WorkflowPlanStep:
       type: object
       additionalProperties: false
@@ -221,6 +285,7 @@ components:
         - schema_version
         - plan_id
         - workflow_mode
+        - allowed_agents
         - steps
         - edges
         - terminal_policy
@@ -233,6 +298,10 @@ components:
           type: string
         workflow_mode:
           $ref: "#/components/schemas/WorkflowMode"
+        allowed_agents:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentTarget"
         steps:
           type: array
           items:
@@ -438,6 +507,8 @@ components:
           $ref: "#/components/schemas/ActorContext"
         context:
           $ref: "#/components/schemas/SafeObject"
+        workflow_context:
+          $ref: "#/components/schemas/WorkflowAgentContext"
         payload:
           type: object
           additionalProperties: false
@@ -542,6 +613,7 @@ components:
         - workflow_mode
         - handoff
         - handoff_chain
+        - agent_invocations
         - selected_target
         - selected_tools
         - context_projections
@@ -567,6 +639,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SafeObject"
+        agent_invocations:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentInvocation"
         selected_target:
           oneOf:
             - $ref: "#/components/schemas/AgentTarget"

@@ -52,6 +52,14 @@ WorkflowMode = Literal[
     "single_handoff",
     "multi_step",
 ]
+StepOutputProjectionKind = Literal[
+    "notice_context",
+    "schedule_baseline",
+    "service_guide_facts",
+    "place_context",
+    "evidence_bundle",
+    "grounding_verdict",
+]
 
 
 class RuntimeDecisionSummaryWire(BaseModel):
@@ -105,7 +113,7 @@ class StepOutputProjectionWire(BaseModel):
 
     projection_id: str
     source_step_id: str
-    projection_kind: Literal["notice_context"]
+    projection_kind: StepOutputProjectionKind
     content_hash: str
     payload: dict[str, Any]
     safety: ProjectionSafetySummaryWire
@@ -116,9 +124,19 @@ class WorkflowContextProjectionWire(BaseModel):
 
     projection_id: str
     source_step_id: str
-    projection_kind: Literal["notice_context"]
+    projection_kind: StepOutputProjectionKind
     content_hash: str
     safety: ProjectionSafetySummaryWire
+
+
+class WorkflowAgentContextWire(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: Literal["workflow-agent-context-v1"]
+    visibility: Literal["agent_private"]
+    target: AgentTarget | str = ""
+    required_projection_kind: StepOutputProjectionKind | str = ""
+    projection_refs: list[WorkflowContextProjectionWire]
 
 
 class WorkflowPlanWire(BaseModel):
@@ -127,11 +145,27 @@ class WorkflowPlanWire(BaseModel):
     schema_version: Literal["workflow-plan-v1"]
     plan_id: str
     workflow_mode: WorkflowMode
+    allowed_agents: list[AgentTarget]
     steps: list[WorkflowPlanStepWire]
     edges: list[WorkflowPlanEdgeWire]
     terminal_policy: dict[str, Any]
     resume_policy: dict[str, Any]
     semantic_retry_policy: dict[str, Any]
+
+
+class AgentInvocationWire(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    invocation_id: str
+    parent_invocation_id: str = ""
+    workflow_run_ref: str
+    step_id: str
+    agent_id: AgentTarget
+    status: str
+    allowed_tools: list[str]
+    used_tools: list[str]
+    projection_ids: list[str]
+    fail_close_reason: str = ""
 
 
 class RuntimeDecisionsWire(BaseModel):
@@ -171,6 +205,22 @@ class BridgeV6RequestWire(BaseModel):
     requested_scope: dict[str, Any] | None = None
 
 
+class AgentRequestWire(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    target: AgentTarget
+    user_goal: str
+    payload: dict[str, Any]
+    allowed_tools: list[str]
+    conversation_id: str = ""
+    request_id: str = ""
+    safety_identifier: str | None = None
+    trace: dict[str, Any] = Field(default_factory=dict)
+    actor: dict[str, Any] = Field(default_factory=dict)
+    context: dict[str, Any] = Field(default_factory=dict)
+    workflow_context: WorkflowAgentContextWire | None = None
+
+
 class AgentResponseWire(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
@@ -194,6 +244,7 @@ class WorkflowTraceSummaryWire(BaseModel):
     workflow_mode: WorkflowMode
     handoff: dict[str, Any]
     handoff_chain: list[dict[str, Any]]
+    agent_invocations: list[AgentInvocationWire]
     selected_target: str | None
     selected_tools: list[str]
     context_projections: list[WorkflowContextProjectionWire]

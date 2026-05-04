@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-05-04
 updated: 2026-05-04
 ---
@@ -21,10 +21,12 @@ observability。
 
 ## Current Status
 
-- status: active
-- current phase: Phase 0 planning admission
-- current slice: architecture docs updated; implementation plan ready for Phase 1
-- product posture: no runtime behavior changed yet
+- status: completed
+- current phase: Phase 8 closeout completed
+- current slice: AgentSpec registry/admission, AgentInvocation graph, context projection,
+  tool provenance, eval gate and observability contract slices landed
+- product posture: no new product capability opened; runtime contract validation and trace
+  projection hardened
 - primary owner boundary: `apps/supervisor-api` + `apps/supervisor-agent-worker` +
   `packages/contracts` + `packages/evals`
 
@@ -73,6 +75,26 @@ explicit specialist handoff 只在下一轮回复 ownership 必须转给 special
 - roadmap: `./ROADMAP.md`
 - state: `./STATE.md`
 
+## Relation To Existing Workstreams
+
+This workstream is a contract-hardening prerequisite for reopening or replacing deferred
+`governed-multi-agent-workflow-runtime`.
+
+Fixed split:
+
+- `supervisor-multi-agent-runtime-contract-hardening`
+  - owns `AgentSpec`, `AgentInvocation`, context projection, tool result provenance, eval and
+    observability contract planning
+  - may add schemas, fixtures, drift tests and docs needed to make those contracts enforceable
+  - does not implement new runtime workflow execution
+- `governed-multi-agent-workflow-runtime`
+  - stays deferred as the runtime implementation workstream
+  - must not start implementation until this workstream has completed Phase 1-4 contract decisions
+    and Phase 8 readiness review, or has been explicitly superseded
+
+If future planning merges these two lines, the merge must preserve this ordering: contract first,
+runtime implementation second.
+
 ## Boundary Notes
 
 - 不把 domain agents 建成 peer-to-peer autonomous swarm。
@@ -96,4 +118,3 @@ explicit specialist handoff 只在下一轮回复 ownership 必须转给 special
   `https://modelcontextprotocol.io/specification/2025-06-18/server/tools`
 - LangGraph multi-agent handoffs:
   `https://docs.langchain.com/oss/python/langchain/multi-agent/handoffs`
-

@@ -178,6 +178,10 @@ func collectWorkflowSourceIDs(value any, ids *[]string) {
 		for _, item := range current {
 			collectWorkflowSourceIDs(item, ids)
 		}
+	case []string:
+		for _, item := range current {
+			appendWorkflowSourceID(ids, item)
+		}
 	}
 }
 

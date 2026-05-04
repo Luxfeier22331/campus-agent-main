@@ -51,6 +51,15 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 	}
 	if request.EffectiveCapability == "campus_services" {
 		serviceGuideFocus := classifyServiceGuideFocus(normalizedGoal, policy)
+		if isContactDirectoryLookup(normalizedGoal, policy) &&
+			!shouldPreferServiceGuideOverContactDirectory(normalizedGoal, policy) {
+			return SingleHandoffPlan(Handoff{
+				Target:       "campus-services-agent",
+				PayloadKind:  "contact_directory_lookup",
+				Payload:      contactDirectoryPayload(request.UserGoal, normalizedGoal, policy),
+				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "contact_directory_lookup"),
+			})
+		}
 		if isTransportBoardingStatusLookup(normalizedGoal, policy) {
 			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
@@ -91,15 +100,6 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 				PayloadKind:  "service_status_lookup",
 				Payload:      serviceStatusPayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_status_lookup"),
-			})
-		}
-		if isContactDirectoryLookup(normalizedGoal, policy) &&
-			!shouldPreferServiceGuideOverContactDirectory(normalizedGoal, policy) {
-			return SingleHandoffPlan(Handoff{
-				Target:       "campus-services-agent",
-				PayloadKind:  "contact_directory_lookup",
-				Payload:      contactDirectoryPayload(request.UserGoal, normalizedGoal, policy),
-				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "contact_directory_lookup"),
 			})
 		}
 		if isServiceGuideLookup(normalizedGoal, policy) {

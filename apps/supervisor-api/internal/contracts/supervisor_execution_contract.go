@@ -73,6 +73,17 @@ const (
 	WorkflowModeMultiStep     WorkflowMode = "multi_step"
 )
 
+type StepOutputProjectionKind string
+
+const (
+	StepOutputProjectionKindNoticeContext     StepOutputProjectionKind = "notice_context"
+	StepOutputProjectionKindScheduleBaseline  StepOutputProjectionKind = "schedule_baseline"
+	StepOutputProjectionKindServiceGuideFacts StepOutputProjectionKind = "service_guide_facts"
+	StepOutputProjectionKindPlaceContext      StepOutputProjectionKind = "place_context"
+	StepOutputProjectionKindEvidenceBundle    StepOutputProjectionKind = "evidence_bundle"
+	StepOutputProjectionKindGroundingVerdict  StepOutputProjectionKind = "grounding_verdict"
+)
+
 type RuntimeDecisionSummaryWire struct {
 	SchemaVersion          string         `json:"schema_version"`
 	ScopeGateDecision      string         `json:"scope_gate_decision,omitempty"`
@@ -123,20 +134,42 @@ type StepOutputProjectionWire struct {
 type WorkflowContextProjectionWire struct {
 	ProjectionID   string                      `json:"projection_id"`
 	SourceStepID   string                      `json:"source_step_id"`
-	ProjectionKind string                      `json:"projection_kind"`
+	ProjectionKind StepOutputProjectionKind    `json:"projection_kind"`
 	ContentHash    string                      `json:"content_hash"`
 	Safety         ProjectionSafetySummaryWire `json:"safety"`
+}
+
+type WorkflowAgentContextWire struct {
+	SchemaVersion          string                          `json:"schema_version"`
+	Visibility             string                          `json:"visibility"`
+	Target                 AgentTarget                     `json:"target,omitempty"`
+	RequiredProjectionKind StepOutputProjectionKind        `json:"required_projection_kind,omitempty"`
+	ProjectionRefs         []WorkflowContextProjectionWire `json:"projection_refs"`
 }
 
 type WorkflowPlanWire struct {
 	SchemaVersion       string                 `json:"schema_version"`
 	PlanID              string                 `json:"plan_id"`
 	WorkflowMode        WorkflowMode           `json:"workflow_mode"`
+	AllowedAgents       []AgentTarget          `json:"allowed_agents"`
 	Steps               []WorkflowPlanStepWire `json:"steps"`
 	Edges               []WorkflowPlanEdgeWire `json:"edges"`
 	TerminalPolicy      map[string]any         `json:"terminal_policy"`
 	ResumePolicy        map[string]any         `json:"resume_policy"`
 	SemanticRetryPolicy map[string]any         `json:"semantic_retry_policy"`
+}
+
+type AgentInvocationWire struct {
+	InvocationID       string      `json:"invocation_id"`
+	ParentInvocationID string      `json:"parent_invocation_id,omitempty"`
+	WorkflowRunRef     string      `json:"workflow_run_ref"`
+	StepID             string      `json:"step_id"`
+	AgentID            AgentTarget `json:"agent_id"`
+	Status             string      `json:"status"`
+	AllowedTools       []string    `json:"allowed_tools"`
+	UsedTools          []string    `json:"used_tools"`
+	ProjectionIDs      []string    `json:"projection_ids"`
+	FailCloseReason    string      `json:"fail_close_reason,omitempty"`
 }
 
 type RuntimeDecisionsWire struct {
@@ -172,6 +205,20 @@ type BridgeV6RequestWire struct {
 	RuntimeDecisions    RuntimeDecisionsWire `json:"runtime_decisions"`
 }
 
+type AgentRequestWire struct {
+	Target           AgentTarget               `json:"target"`
+	UserGoal         string                    `json:"user_goal"`
+	ConversationID   string                    `json:"conversation_id,omitempty"`
+	RequestID        string                    `json:"request_id,omitempty"`
+	SafetyIdentifier *string                   `json:"safety_identifier,omitempty"`
+	Trace            map[string]any            `json:"trace,omitempty"`
+	Actor            map[string]any            `json:"actor,omitempty"`
+	Context          map[string]any            `json:"context,omitempty"`
+	WorkflowContext  *WorkflowAgentContextWire `json:"workflow_context,omitempty"`
+	Payload          map[string]any            `json:"payload"`
+	AllowedTools     []string                  `json:"allowed_tools"`
+}
+
 type WorkflowTraceSummaryWire struct {
 	RoutingFrame           map[string]any                  `json:"routing_frame"`
 	ContextResolution      map[string]any                  `json:"context_resolution"`
@@ -180,6 +227,7 @@ type WorkflowTraceSummaryWire struct {
 	WorkflowMode           WorkflowMode                    `json:"workflow_mode"`
 	Handoff                map[string]any                  `json:"handoff"`
 	HandoffChain           []map[string]any                `json:"handoff_chain"`
+	AgentInvocations       []AgentInvocationWire           `json:"agent_invocations"`
 	SelectedTarget         *string                         `json:"selected_target"`
 	SelectedTools          []string                        `json:"selected_tools"`
 	ContextProjections     []WorkflowContextProjectionWire `json:"context_projections"`
@@ -324,6 +372,9 @@ func (wire WorkflowPlanWire) Validate() error {
 	if !wire.WorkflowMode.Valid() {
 		return fmt.Errorf("workflow_mode is invalid")
 	}
+	if wire.AllowedAgents == nil {
+		return fmt.Errorf("allowed_agents is required")
+	}
 	if wire.Steps == nil {
 		return fmt.Errorf("steps is required")
 	}
@@ -402,7 +453,7 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 		if projection.SourceStepID == "" {
 			return fmt.Errorf("context_projections[%d].source_step_id is required", index)
 		}
-		if projection.ProjectionKind != "notice_context" {
+		if !projection.ProjectionKind.Valid() {
 			return fmt.Errorf("context_projections[%d].projection_kind is invalid", index)
 		}
 		if projection.ContentHash == "" {
@@ -501,6 +552,20 @@ func (value SupervisorStatus) Valid() bool {
 func (value WorkflowMode) Valid() bool {
 	switch value {
 	case WorkflowModeTerminal, WorkflowModeDirectRuntime, WorkflowModeSingleHandoff, WorkflowModeMultiStep:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value StepOutputProjectionKind) Valid() bool {
+	switch value {
+	case StepOutputProjectionKindNoticeContext,
+		StepOutputProjectionKindScheduleBaseline,
+		StepOutputProjectionKindServiceGuideFacts,
+		StepOutputProjectionKindPlaceContext,
+		StepOutputProjectionKindEvidenceBundle,
+		StepOutputProjectionKindGroundingVerdict:
 		return true
 	default:
 		return false

@@ -5,6 +5,7 @@ from campus_contracts import (
     CampusNoticeGetPayload,
     ContactDirectoryEntitySelector,
     ContactDirectoryLookupPayload,
+    PlaceLookupPayload,
     RagRequestPayload,
     ServiceGuideLookupPayload,
     ServiceStatusLookupPayload,
@@ -42,6 +43,10 @@ def parse_agent_payload_by_kind(payload_kind: str, payload: dict[str, object]) -
         return RagRequestPayload(
             scope=parse_requested_scope(payload.get("scope")),
             version_query=parse_version_query(payload.get("version_query")),
+        )
+    if payload_kind == "place_lookup":
+        return PlaceLookupPayload(
+            query_text=require_string(payload.get("query_text"), field_name="query_text"),
         )
     if payload_kind == "transport_schedule_lookup":
         route_selector = payload.get("route_selector")

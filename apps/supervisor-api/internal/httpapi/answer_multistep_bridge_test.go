@@ -141,4 +141,22 @@ func TestAnswerExecutesRecordedMultiStepWorkflow(t *testing.T) {
 	if _, hasRawPayload := projection["payload"]; hasRawPayload {
 		t.Fatalf("context projection summary leaked payload: %#v", projection)
 	}
+	agentInvocations, ok := traceSummary["agent_invocations"].([]any)
+	if !ok || len(agentInvocations) != 2 {
+		t.Fatalf("agent_invocations = %#v, want two invocation graph nodes", traceSummary["agent_invocations"])
+	}
+	firstInvocation := expectRecord(t, agentInvocations[0], "agent_invocations[0]")
+	secondInvocation := expectRecord(t, agentInvocations[1], "agent_invocations[1]")
+	firstID, _ := firstInvocation["invocation_id"].(string)
+	if firstInvocation["agent_id"] != "notice-agent" || firstID == "" {
+		t.Fatalf("first agent invocation = %#v, want notice-agent invocation", firstInvocation)
+	}
+	if secondInvocation["agent_id"] != "rag-agent" ||
+		secondInvocation["parent_invocation_id"] != firstID {
+		t.Fatalf("second agent invocation = %#v, want rag-agent child of %q", secondInvocation, firstID)
+	}
+	projectionIDs, ok := secondInvocation["projection_ids"].([]any)
+	if !ok || len(projectionIDs) != 1 || projectionIDs[0] != projection["projection_id"] {
+		t.Fatalf("rag projection_ids = %#v, want consumed notice projection", secondInvocation["projection_ids"])
+	}
 }

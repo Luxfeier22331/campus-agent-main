@@ -264,6 +264,44 @@ class RetrievalPlanSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class RagStageActivitySummary:
+    request_id: str = ""
+    plan_id: str = ""
+    query_mode: str = ""
+    stage_name: str = ""
+    stage_status: str = ""
+    candidate_count: int = 0
+    supporting_evidence_count: int = 0
+    grounding_verdict: str = ""
+    fallback_reason: str = ""
+    latency_ms: int | None = None
+    retrieval_ms: int | None = None
+    prompt_ms: int | None = None
+    adapter_ms: int | None = None
+    diagnostic_ms: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.stage_name.strip():
+            raise ValueError("stage_name must not be empty")
+        if not self.stage_status.strip():
+            raise ValueError("stage_status must not be empty")
+        if self.candidate_count < 0:
+            raise ValueError("candidate_count must not be negative")
+        if self.supporting_evidence_count < 0:
+            raise ValueError("supporting_evidence_count must not be negative")
+        for field_name in (
+            "latency_ms",
+            "retrieval_ms",
+            "prompt_ms",
+            "adapter_ms",
+            "diagnostic_ms",
+        ):
+            value = getattr(self, field_name)
+            if value is not None and value < 0:
+                raise ValueError(f"{field_name} must not be negative")
+
+
+@dataclass(frozen=True, slots=True)
 class PromptTrace:
     prompt_id: str = ""
     prompt_version: str = ""
@@ -317,5 +355,6 @@ class RagResultDiagnostics:
     prompt_runtime_state: str = ""
     prompt_runtime_detail: str = ""
     retrieval_plan_summary: RetrievalPlanSummary | None = field(default=None, compare=False)
+    stage_activities: tuple[RagStageActivitySummary, ...] = field(default_factory=tuple)
     retrieved_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
     prompt_trace: PromptTrace | None = None

@@ -164,6 +164,7 @@ func (s *Server) runMultiStepBridgeExecution(
 	totalRunState := bridgeExecutionRunState{}
 	var finalBridgeResponse bridge.ExecuteResponse
 	workflowContextProjections := []execution.StepOutputProjection{}
+	lastAgentInvocationID := ""
 	for index, handoff := range executionRequest.PlannedHandoffs {
 		selectedTool := runtimeSelectedTool(handoff)
 		var appendErr error
@@ -279,8 +280,9 @@ func (s *Server) runMultiStepBridgeExecution(
 				}
 			}
 		}
+		stepID := "handoff:" + handoff.Target + ":" + handoff.PayloadKind
 		workflowRun, _ = s.workflowRuns.AppendStep(requestCtx, runID, execution.WorkflowStep{
-			StepID:       "handoff:" + handoff.Target + ":" + handoff.PayloadKind,
+			StepID:       stepID,
 			SpanKind:     "handoff",
 			ParentStepID: workflowRunParentStepID(index, executionRequest.PlannedHandoffs),
 			Target:       handoff.Target,
@@ -289,6 +291,23 @@ func (s *Server) runMultiStepBridgeExecution(
 			ResultStatus: resultStatus,
 			RetryCount:   bridgeRunState.RetryCount,
 		})
+		invocationID := "agent-invocation:" + handoff.Target + ":" + handoff.PayloadKind
+		parentInvocationID := ""
+		if index > 0 {
+			parentInvocationID = lastAgentInvocationID
+		}
+		workflowRun, _ = s.workflowRuns.AppendAgentInvocation(requestCtx, runID, execution.AgentInvocation{
+			InvocationID:       invocationID,
+			ParentInvocationID: parentInvocationID,
+			WorkflowRunRef:     runID,
+			StepID:             stepID,
+			AgentID:            handoff.Target,
+			Status:             resultStatus,
+			AllowedTools:       append([]string{}, handoff.AllowedTools...),
+			UsedTools:          workflowSelectedTools(nil, selectedTool),
+			ProjectionIDs:      workflowProjectionIDsForHandoff(handoff, workflowContextProjections),
+		})
+		lastAgentInvocationID = invocationID
 		finalBridgeResponse = bridgeResponse
 		if resultStatus != "completed" {
 			workflowRun, _ = s.workflowRuns.Complete(requestCtx, runID, execution.WorkflowStateFailed)
@@ -326,6 +345,25 @@ func (s *Server) runMultiStepBridgeExecution(
 		WorkflowRun:    &workflowRun,
 		complete:       complete,
 	}
+}
+
+func workflowProjectionIDsForHandoff(
+	handoff execution.RuntimeHandoff,
+	projections []execution.StepOutputProjection,
+) []string {
+	if handoff.RequiredProjectionKind == "" {
+		return []string{}
+	}
+	projectionIDs := make([]string, 0, len(projections))
+	for _, projection := range projections {
+		if string(projection.ProjectionKind) != handoff.RequiredProjectionKind {
+			continue
+		}
+		if projection.ProjectionID != "" {
+			projectionIDs = append(projectionIDs, projection.ProjectionID)
+		}
+	}
+	return projectionIDs
 }
 
 func runtimeSelectedTool(handoff execution.RuntimeHandoff) string {

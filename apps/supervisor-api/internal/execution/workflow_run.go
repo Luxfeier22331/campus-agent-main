@@ -30,6 +30,7 @@ type WorkflowRun struct {
 	State              WorkflowState
 	HandoffChain       []HandoffStep
 	Steps              []WorkflowStep
+	AgentInvocations   []AgentInvocation
 	ContextProjections []StepOutputProjection
 }
 
@@ -52,6 +53,19 @@ type WorkflowStep struct {
 	AttemptCount      int
 	RuntimeRetryCount int
 	FailCloseReason   string
+}
+
+type AgentInvocation struct {
+	InvocationID       string
+	ParentInvocationID string
+	WorkflowRunRef     string
+	StepID             string
+	AgentID            string
+	Status             string
+	AllowedTools       []string
+	UsedTools          []string
+	ProjectionIDs      []string
+	FailCloseReason    string
 }
 
 func (run WorkflowRun) HandoffChainMaps() []map[string]any {
@@ -89,6 +103,14 @@ func (run WorkflowRun) ContextProjectionMaps() []map[string]any {
 	return WorkflowContextProjectionMaps(run.ContextProjections)
 }
 
+func (run WorkflowRun) AgentInvocationMaps() []map[string]any {
+	items := make([]map[string]any, 0, len(run.AgentInvocations))
+	for _, invocation := range run.AgentInvocations {
+		items = append(items, invocation.Map())
+	}
+	return items
+}
+
 func (step WorkflowStep) Map() map[string]any {
 	item := map[string]any{
 		"step_id":        step.StepID,
@@ -116,6 +138,26 @@ func (step WorkflowStep) Map() map[string]any {
 	}
 	if step.FailCloseReason != "" {
 		item["fail_close_reason"] = step.FailCloseReason
+	}
+	return item
+}
+
+func (invocation AgentInvocation) Map() map[string]any {
+	item := map[string]any{
+		"invocation_id":    invocation.InvocationID,
+		"workflow_run_ref": invocation.WorkflowRunRef,
+		"step_id":          invocation.StepID,
+		"agent_id":         invocation.AgentID,
+		"status":           invocation.Status,
+		"allowed_tools":    append([]string{}, invocation.AllowedTools...),
+		"used_tools":       append([]string{}, invocation.UsedTools...),
+		"projection_ids":   append([]string{}, invocation.ProjectionIDs...),
+	}
+	if invocation.ParentInvocationID != "" {
+		item["parent_invocation_id"] = invocation.ParentInvocationID
+	}
+	if invocation.FailCloseReason != "" {
+		item["fail_close_reason"] = invocation.FailCloseReason
 	}
 	return item
 }

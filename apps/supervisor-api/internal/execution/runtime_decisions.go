@@ -94,6 +94,30 @@ func runtimeDecisions(
 	}
 	handoff := plan.SelectedHandoff()
 	if policyDecision.RoutingFrame.SuggestedNextAction == "delegate" && handoff != nil {
+		if err := structuredplanning.ValidateWorkflowPlanWithAgentSpec(
+			plan,
+			mustDefaultAgentSpecRegistry(),
+		); err != nil {
+			summary.PlanningOutcome = "invalid_plan"
+			summary.WorkflowMode = WorkflowMode(plan.WorkflowMode)
+			summary.WorkflowPlanID = plan.PlanID
+			summary.FailCloseReason = "agent_spec_admission_failed"
+			decisions["workflow_plan"] = plan.Map()
+			decisions["runtime_decision_summary"] = summary.Map()
+			decisions["terminal_envelope"] = map[string]any{
+				"selected_target":    nil,
+				"status":             "no_answer",
+				"answer_text":        "该请求无法进入当前已开放的校园助理执行链路。",
+				"follow_up_question": "",
+				"confidence":         "low",
+				"observability": map[string]any{
+					"fail_closed":       true,
+					"fail_close_reason": "agent_spec_admission_failed",
+					"policy_reason":     err.Error(),
+				},
+			}
+			return decisions, summary, nil, decisions["terminal_envelope"].(map[string]any)
+		}
 		summary.PlanningOutcome = "preplanned"
 		summary.WorkflowMode = WorkflowMode(plan.WorkflowMode)
 		summary.WorkflowPlanID = plan.PlanID
@@ -103,10 +127,11 @@ func runtimeDecisions(
 			summary.SelectedTool = handoff.AllowedTools[0]
 		}
 		runtimeHandoff := &RuntimeHandoff{
-			Target:       handoff.Target,
-			PayloadKind:  handoff.PayloadKind,
-			Payload:      handoff.Payload,
-			AllowedTools: append([]string{}, handoff.AllowedTools...),
+			Target:                 handoff.Target,
+			PayloadKind:            handoff.PayloadKind,
+			Payload:                handoff.Payload,
+			AllowedTools:           append([]string{}, handoff.AllowedTools...),
+			RequiredProjectionKind: firstRequiredProjectionForHandoff(plan, handoff),
 		}
 		decisions["handoff"] = map[string]any{
 			"planning_outcome": "preplanned",
@@ -163,6 +188,34 @@ func runtimeHandoffsFromPlan(plan *structuredplanning.WorkflowPlan) []RuntimeHan
 		})
 	}
 	return result
+}
+
+func firstRequiredProjectionForHandoff(
+	plan *structuredplanning.WorkflowPlan,
+	handoff *structuredplanning.Handoff,
+) string {
+	if plan == nil || handoff == nil {
+		return ""
+	}
+	stepID := "handoff:" + handoff.Target + ":" + handoff.PayloadKind
+	for _, edge := range plan.Edges {
+		if edge.ToStepID == stepID {
+			return edge.RequiredProjectionKind
+		}
+	}
+	return ""
+}
+
+func mustDefaultAgentSpecRegistry() runtimepolicy.AgentSpecRegistry {
+	registry, ok := runtimepolicy.DefaultAgentSpecRegistry()
+	if ok {
+		return registry
+	}
+	return runtimepolicy.AgentSpecRegistry{
+		SchemaVersion:   runtimepolicy.AgentSpecSchemaVersion,
+		RegistryVersion: "unavailable",
+		Agents:          []runtimepolicy.AgentSpec{},
+	}
 }
 
 func runtimeVersionSummary() map[string]any {

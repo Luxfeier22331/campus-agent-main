@@ -179,13 +179,18 @@ def _validate_tools(tools: tuple[ToolSpec, ...]) -> None:
             "provider_argument_completion_pilot",
             "provider_loop_pilot",
             "provider_loop_open",
+            "sdk_adapter_candidate",
+            "sdk_adapter_admitted",
         }:
             raise ToolSpecRegistryError(
                 f"{tool.name} runtime_posture is unsupported: {tool.runtime_posture}"
             )
-        if tool.runtime_posture.startswith("provider_") and not tool.function_schema.available:
+        if (
+            tool.runtime_posture.startswith(("provider_", "sdk_"))
+            and not tool.function_schema.available
+        ):
             raise ToolSpecRegistryError(
-                f"{tool.name} provider runtime posture requires function_schema.available"
+                f"{tool.name} runtime posture requires function_schema.available"
             )
 
 

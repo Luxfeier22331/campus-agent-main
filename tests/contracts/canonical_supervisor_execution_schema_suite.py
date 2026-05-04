@@ -87,7 +87,17 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
         projection = _schema("StepOutputProjection")
         context_projection = _schema("WorkflowContextProjection")
 
-        self.assertEqual(_schema("StepOutputProjectionKind")["enum"], ["notice_context"])
+        self.assertEqual(
+            _schema("StepOutputProjectionKind")["enum"],
+            [
+                "notice_context",
+                "schedule_baseline",
+                "service_guide_facts",
+                "place_context",
+                "evidence_bundle",
+                "grounding_verdict",
+            ],
+        )
         self.assertIn("projection_id", projection["required"])
         self.assertIn("projection_kind", projection["required"])
         self.assertIn("content_hash", projection["required"])
@@ -99,6 +109,22 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
         self.assertEqual(
             context_projection["properties"]["projection_kind"],
             {"$ref": "#/components/schemas/StepOutputProjectionKind"},
+        )
+
+    def test_agent_request_declares_workflow_context_projection_envelope(self) -> None:
+        agent_request = _schema("AgentRequest")
+        workflow_context = _schema("WorkflowAgentContext")
+
+        self.assertEqual(
+            agent_request["properties"]["workflow_context"],
+            {"$ref": "#/components/schemas/WorkflowAgentContext"},
+        )
+        self.assertIn("schema_version", workflow_context["required"])
+        self.assertIn("visibility", workflow_context["required"])
+        self.assertIn("projection_refs", workflow_context["required"])
+        self.assertEqual(
+            workflow_context["properties"]["projection_refs"]["items"],
+            {"$ref": "#/components/schemas/WorkflowContextProjection"},
         )
 
     def test_workflow_mode_is_canonical_cross_language_enum(self) -> None:
@@ -122,12 +148,26 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
             workflow_plan["properties"]["workflow_mode"],
             {"$ref": "#/components/schemas/WorkflowMode"},
         )
+        self.assertIn("allowed_agents", workflow_plan["required"])
         self.assertIn("steps", workflow_plan["required"])
         self.assertIn("semantic_retry_policy", workflow_plan["required"])
+        self.assertEqual(
+            workflow_plan["properties"]["allowed_agents"]["items"],
+            {"$ref": "#/components/schemas/AgentTarget"},
+        )
         edge = _schema("WorkflowPlanEdge")
         self.assertEqual(
             edge["properties"]["required_projection_kind"],
             {"$ref": "#/components/schemas/StepOutputProjectionKind"},
+        )
+
+    def test_workflow_trace_summary_declares_agent_invocation_graph(self) -> None:
+        schema = _schema("WorkflowTraceSummary")
+
+        self.assertIn("agent_invocations", schema["required"])
+        self.assertEqual(
+            schema["properties"]["agent_invocations"]["items"],
+            {"$ref": "#/components/schemas/AgentInvocation"},
         )
 
     def test_contract_versioning_policy_is_declared_in_canonical_schema(self) -> None:

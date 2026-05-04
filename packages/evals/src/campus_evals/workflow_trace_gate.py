@@ -295,6 +295,7 @@ def _workflow_trace_summary_from_payload(payload: object) -> WorkflowTraceSummar
     selected_tools = _list_value(record, "selected_tools", "selectedTools")
     handoff_chain = _list_value(record, "handoff_chain", "handoffChain")
     context_projections = _list_value(record, "context_projections", "contextProjections")
+    agent_invocations = _list_value(record, "agent_invocations", "agentInvocations")
     return WorkflowTraceSummary(
         routing_frame=_dict_value(record, "routing_frame", "routingFrame"),
         context_resolution=_dict_value(record, "context_resolution", "contextResolution"),
@@ -307,6 +308,7 @@ def _workflow_trace_summary_from_payload(payload: object) -> WorkflowTraceSummar
         workflow_mode=_string_value(record, "workflow_mode", "workflowMode"),
         handoff=_dict_value(record, "handoff"),
         handoff_chain=tuple(dict(item) for item in handoff_chain if isinstance(item, dict)),
+        agent_invocations=tuple(dict(item) for item in agent_invocations if isinstance(item, dict)),
         selected_target=_string_value(record, "selected_target", "selectedTarget"),
         selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),
         context_projections=tuple(
@@ -541,6 +543,11 @@ def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionRe
         missing.append("handoff_chain.multi_step")
     if summary.workflow_mode == "multi_step" and not summary.context_projections:
         missing.append("context_projections.multi_step")
+    missing.extend(_context_projection_summary_gaps(summary))
+    if summary.workflow_mode in {"single_handoff", "multi_step"} and not summary.agent_invocations:
+        missing.append("agent_invocations")
+    elif summary.workflow_mode in {"single_handoff", "multi_step"}:
+        missing.extend(_agent_invocation_graph_gaps(summary))
     if (
         not summary.selected_tools
         and not summary.fail_close_reason
@@ -551,6 +558,8 @@ def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionRe
         missing.append("selected_tools")
     if summary.selected_tools and not summary.tool_call_summaries:
         missing.append("tool_call_summaries")
+    if summary.tool_call_summaries:
+        missing.extend(_tool_call_summary_provenance_gaps(summary))
     if not summary.planning_outcome:
         missing.append("planning_outcome")
     if not summary.trace_steps:
@@ -561,6 +570,150 @@ def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionRe
         passed=not missing,
         reason="" if not missing else "missing workflow trace fields: " + ", ".join(missing),
     )
+
+
+def _context_projection_summary_gaps(summary: WorkflowTraceSummary) -> list[str]:
+    gaps: list[str] = []
+    for projection in summary.context_projections:
+        if "payload" in projection:
+            gaps.append("context_projections.raw_payload")
+            break
+        for key in ("projection_id", "source_step_id", "projection_kind", "content_hash", "safety"):
+            if not projection.get(key):
+                gaps.append("context_projections.summary_fields")
+                return gaps
+    return gaps
+
+
+def _tool_call_summary_provenance_gaps(summary: WorkflowTraceSummary) -> list[str]:
+    gaps: list[str] = []
+    for item in summary.tool_call_summaries:
+        if item.get("result_projection") != "bounded_summary" or item.get(
+            "raw_result_included"
+        ) not in (False, None):
+            gaps.append("tool_call_summaries.bounded")
+            break
+    for item in summary.tool_call_summaries:
+        result_status = str(item.get("result_status") or item.get("status") or "").strip()
+        source_ids = _source_ids_from_tool_summary(item)
+        fail_close_reason = str(
+            item.get("fail_close_reason") or item.get("failCloseReason") or ""
+        ).strip()
+        if result_status in _FAIL_CLOSE_TOOL_RESULT_STATUSES and not fail_close_reason:
+            gaps.append("tool_call_summaries.fail_close_reason")
+            break
+        if (
+            _tool_result_needs_source_ref(result_status)
+            and not source_ids
+            and not fail_close_reason
+        ):
+            gaps.append("tool_call_summaries.provenance")
+            break
+    return gaps
+
+
+_FAIL_CLOSE_TOOL_RESULT_STATUSES = frozenset(
+    (
+        "temporarily_unverifiable",
+        "projection_missing",
+        "authorization_denied",
+        "error",
+        "failed",
+        "timed_out",
+    )
+)
+
+
+def _tool_result_needs_source_ref(result_status: str) -> bool:
+    return result_status not in {
+        "",
+        "clarification_required",
+        "not_found",
+        "no_result",
+        "invalid_request",
+    }
+
+
+def _source_ids_from_tool_summary(item: dict[str, object]) -> set[str]:
+    source_ids: set[str] = set()
+    for key in ("source_ids", "sourceIds", "evidence_ids", "evidenceIds"):
+        raw_values = item.get(key)
+        if isinstance(raw_values, list | tuple):
+            source_ids.update(str(value) for value in raw_values if str(value).strip())
+    source_id = item.get("source_id") or item.get("sourceId")
+    if source_id:
+        source_ids.add(str(source_id))
+    return source_ids
+
+
+def _agent_invocation_graph_gaps(summary: WorkflowTraceSummary) -> list[str]:
+    expected_targets = _expected_invocation_targets(summary)
+    observed_targets = tuple(
+        str(item.get("agent_id") or item.get("agentId") or "").strip()
+        for item in summary.agent_invocations
+    )
+    gaps: list[str] = []
+    if expected_targets and observed_targets[: len(expected_targets)] != expected_targets:
+        gaps.append("agent_invocations.target_alignment")
+    if summary.workflow_mode == "multi_step":
+        gaps.extend(_multi_step_agent_invocation_graph_gaps(summary))
+    return gaps
+
+
+def _expected_invocation_targets(summary: WorkflowTraceSummary) -> tuple[str, ...]:
+    if summary.handoff_chain:
+        return tuple(
+            str(item.get("target") or item.get("agent_id") or item.get("agentId") or "").strip()
+            for item in summary.handoff_chain
+            if str(item.get("target") or item.get("agent_id") or item.get("agentId") or "").strip()
+        )
+    if summary.selected_target and summary.selected_target != "none":
+        return (summary.selected_target,)
+    return ()
+
+
+def _multi_step_agent_invocation_graph_gaps(summary: WorkflowTraceSummary) -> list[str]:
+    gaps: list[str] = []
+    invocation_ids = tuple(
+        str(item.get("invocation_id") or item.get("invocationId") or "").strip()
+        for item in summary.agent_invocations
+    )
+    if len(invocation_ids) < 2 or not all(invocation_ids):
+        gaps.append("agent_invocations.multi_step_nodes")
+    else:
+        for index, invocation in enumerate(summary.agent_invocations[1:], start=1):
+            parent_id = str(
+                invocation.get("parent_invocation_id") or invocation.get("parentInvocationId") or ""
+            ).strip()
+            if parent_id != invocation_ids[index - 1]:
+                gaps.append("agent_invocations.parent_edge")
+                break
+    projection_ids = {
+        str(item.get("projection_id") or item.get("projectionId") or "").strip()
+        for item in summary.context_projections
+        if str(item.get("projection_id") or item.get("projectionId") or "").strip()
+    }
+    if projection_ids and not _agent_invocations_reference_projection_ids(
+        summary.agent_invocations,
+        projection_ids,
+    ):
+        gaps.append("agent_invocations.projection_refs")
+    return gaps
+
+
+def _agent_invocations_reference_projection_ids(
+    invocations: tuple[dict[str, object], ...],
+    projection_ids: set[str],
+) -> bool:
+    for invocation in invocations[1:]:
+        refs = {
+            str(value).strip()
+            for value in _list_value(invocation, "projection_ids", "projectionIds")
+            if str(value).strip()
+        }
+        if refs & projection_ids:
+            return True
+    return False
 
 
 def _is_internal_notice_resolve(summary: WorkflowTraceSummary) -> bool:

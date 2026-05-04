@@ -1,5 +1,11 @@
 package structuredplanning
 
+import (
+	"fmt"
+
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
+)
+
 const WorkflowPlanSchemaVersion = "workflow-plan-v1"
 
 type WorkflowMode string
@@ -25,6 +31,7 @@ type WorkflowPlan struct {
 	SchemaVersion       string
 	PlanID              string
 	WorkflowMode        WorkflowMode
+	AllowedAgents       []string
 	Steps               []WorkflowPlanStep
 	Edges               []WorkflowPlanEdge
 	TerminalPolicy      WorkflowTerminalPolicy
@@ -75,6 +82,7 @@ func SingleHandoffPlan(handoff Handoff) *WorkflowPlan {
 		SchemaVersion: WorkflowPlanSchemaVersion,
 		PlanID:        "plan:single_handoff:" + handoff.Target + ":" + handoff.PayloadKind,
 		WorkflowMode:  WorkflowModeSingleHandoff,
+		AllowedAgents: []string{handoff.Target},
 		Steps:         []WorkflowPlanStep{step},
 		Edges:         []WorkflowPlanEdge{},
 		TerminalPolicy: WorkflowTerminalPolicy{
@@ -100,6 +108,7 @@ func MultiStepNoticeKnowledgeFollowthroughPlan(
 		SchemaVersion: WorkflowPlanSchemaVersion,
 		PlanID:        "plan:multi_step:notice-agent:rag-agent:notice_knowledge_followthrough",
 		WorkflowMode:  WorkflowModeMultiStep,
+		AllowedAgents: []string{noticeHandoff.Target, ragHandoff.Target},
 		Steps:         []WorkflowPlanStep{noticeStep, ragStep},
 		Edges: []WorkflowPlanEdge{
 			{
@@ -170,6 +179,7 @@ func (p *WorkflowPlan) Map() map[string]any {
 		"schema_version":        p.SchemaVersion,
 		"plan_id":               p.PlanID,
 		"workflow_mode":         string(p.WorkflowMode),
+		"allowed_agents":        append([]string{}, p.AllowedAgents...),
 		"steps":                 steps,
 		"edges":                 edges,
 		"terminal_policy":       p.TerminalPolicy.Map(),
@@ -223,6 +233,62 @@ func (p SemanticRetryPolicy) Map() map[string]any {
 	return map[string]any{
 		"max_replans": p.MaxReplans,
 	}
+}
+
+func ValidateWorkflowPlanWithAgentSpec(
+	plan *WorkflowPlan,
+	registry runtimepolicy.AgentSpecRegistry,
+) error {
+	if plan == nil {
+		return nil
+	}
+	for index, step := range plan.Steps {
+		if step.StepKind != WorkflowStepKindHandoff {
+			continue
+		}
+		agent, ok := registry.AgentByID(step.Target)
+		if !ok {
+			return fmt.Errorf("workflow plan step[%d] target is outside AgentSpec: %s", index, step.Target)
+		}
+		if !agent.Active || agent.OpeningGate != "open" {
+			return fmt.Errorf("workflow plan step[%d] AgentSpec target is not open: %s", index, step.Target)
+		}
+		if !containsString(agent.PayloadKinds, step.PayloadKind) {
+			return fmt.Errorf(
+				"workflow plan step[%d] payload_kind %q is outside AgentSpec for target %s",
+				index,
+				step.PayloadKind,
+				step.Target,
+			)
+		}
+		if !allowedToolsWithinAgentSpec(step.AllowedTools, agent.AllowedStructuredHandoffTools) {
+			return fmt.Errorf(
+				"workflow plan step[%d] allowed_tools %#v are outside AgentSpec for target %s",
+				index,
+				step.AllowedTools,
+				step.Target,
+			)
+		}
+	}
+	return nil
+}
+
+func allowedToolsWithinAgentSpec(allowedTools []string, allowedStructuredTools []string) bool {
+	for _, tool := range allowedTools {
+		if !containsString(allowedStructuredTools, tool) {
+			return false
+		}
+	}
+	return true
+}
+
+func containsString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
 }
 
 func selectedToolForHandoff(handoff Handoff) string {

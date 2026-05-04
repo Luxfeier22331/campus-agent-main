@@ -238,6 +238,20 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "contact directory logistics hotline",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "后勤服务热线是多少",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "contact_directory_lookup",
+			wantTool:   "contact_directory_lookup",
+			wantPayload: map[string]any{
+				"query_text":    "后勤服务热线是多少",
+				"contact_focus": "phone",
+			},
+		},
+		{
 			name: "service guide procedure",
 			request: Request{
 				EffectiveCapability: "campus_services",
@@ -391,6 +405,90 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "unified auth password reset",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "统一身份认证密码怎么改",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "统一身份认证密码怎么改",
+				"guide_focus":   "procedure",
+			},
+		},
+		{
+			name: "portal forgot password",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "智慧门户忘记密码怎么办",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "智慧门户忘记密码怎么办",
+				"guide_focus":   "procedure",
+			},
+		},
+		{
+			name: "network auth login entry",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校园网怎么认证登录",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校园网怎么认证登录",
+				"guide_focus":   "procedure",
+			},
+		},
+		{
+			name: "network auth website",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校园网认证网址是什么",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校园网认证网址是什么",
+				"guide_focus":   "entry",
+			},
+		},
+		{
+			name: "vpn address",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "VPN地址是什么",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "VPN地址是什么",
+				"guide_focus":   "entry",
+			},
+		},
+		{
+			name: "email application form download",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校园邮箱申请表在哪里下载",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校园邮箱申请表在哪里下载",
+				"guide_focus":   "entry",
+			},
+		},
+		{
 			name: "campus card office hours",
 			request: Request{
 				EffectiveCapability: "campus_services",
@@ -458,6 +556,57 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantPayload: map[string]any{
 				"query_text":    "信息化服务办公地点在哪里",
 				"contact_focus": "location",
+			},
+		},
+		{
+			name: "network service phone",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "网络服务电话是多少",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "contact_directory_lookup",
+			wantTool:   "contact_directory_lookup",
+			wantPayload: map[string]any{
+				"query_text":    "网络服务电话是多少",
+				"contact_focus": "phone",
+				"entity_selector": map[string]any{
+					"department_query": "网络服务",
+				},
+			},
+		},
+		{
+			name: "conference center phone",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "会务服务中心电话是多少",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "contact_directory_lookup",
+			wantTool:   "contact_directory_lookup",
+			wantPayload: map[string]any{
+				"query_text":    "会务服务中心电话是多少",
+				"contact_focus": "phone",
+				"entity_selector": map[string]any{
+					"department_query": "会务服务中心",
+				},
+			},
+		},
+		{
+			name: "dorm management center phone",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "学生公寓管理服务中心电话是多少",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "contact_directory_lookup",
+			wantTool:   "contact_directory_lookup",
+			wantPayload: map[string]any{
+				"query_text":    "学生公寓管理服务中心电话是多少",
+				"contact_focus": "phone",
+				"entity_selector": map[string]any{
+					"department_query": "学生公寓管理服务中心",
+				},
 			},
 		},
 		{
@@ -685,6 +834,58 @@ func TestPlanWithPolicyBuildsMultiStepNoticeKnowledgeFollowthrough(t *testing.T)
 			"projection edge required projection = %#v, want notice_context",
 			edges[0]["required_projection_kind"],
 		)
+	}
+}
+
+func TestValidateWorkflowPlanWithAgentSpecRejectsInactiveAgent(t *testing.T) {
+	plan := SingleHandoffPlan(Handoff{
+		Target:      "navigation-agent",
+		PayloadKind: "place_lookup",
+		Payload:     map[string]any{"query_text": "北楼在哪里"},
+	})
+	registry := runtimepolicy.AgentSpecRegistry{
+		SchemaVersion:   runtimepolicy.AgentSpecSchemaVersion,
+		RegistryVersion: "test",
+		Agents: []runtimepolicy.AgentSpec{
+			{
+				ID:                            "navigation-agent",
+				Capability:                    "place_lookup",
+				OwnerPackage:                  "packages/navigation-agent",
+				RuntimeAdapter:                "python_delegate",
+				Active:                        false,
+				OpeningGate:                   "closed",
+				PayloadKinds:                  []string{"place_lookup"},
+				AllowedStructuredHandoffTools: []string{},
+				ContextProjectionKinds:        []string{"place_context"},
+				DelegateModule:                "campus_navigation_agent",
+				DelegateSymbol:                "delegate_to_navigation_agent",
+				Description:                   "fixture",
+			},
+		},
+	}
+
+	err := ValidateWorkflowPlanWithAgentSpec(plan, registry)
+
+	if err == nil {
+		t.Fatal("expected inactive agent plan validation to fail")
+	}
+}
+
+func TestValidateWorkflowPlanWithAgentSpecRejectsPayloadKindOutsideAgentSpec(t *testing.T) {
+	plan := SingleHandoffPlan(Handoff{
+		Target:      "campus-services-agent",
+		PayloadKind: "campus_notice_discover",
+		Payload:     map[string]any{"query_text": "校历"},
+	})
+	registry, err := runtimepolicy.LoadAgentSpecRegistry("")
+	if err != nil {
+		t.Fatalf("load agent spec: %v", err)
+	}
+
+	err = ValidateWorkflowPlanWithAgentSpec(plan, registry)
+
+	if err == nil {
+		t.Fatal("expected payload kind outside AgentSpec to fail")
 	}
 }
 

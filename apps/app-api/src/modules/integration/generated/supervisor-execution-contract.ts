@@ -42,6 +42,14 @@ export const WORKFLOW_MODES = [
 	"single_handoff",
 	"multi_step",
 ] as const;
+export const STEP_OUTPUT_PROJECTION_KINDS = [
+	"notice_context",
+	"schedule_baseline",
+	"service_guide_facts",
+	"place_context",
+	"evidence_bundle",
+	"grounding_verdict",
+] as const;
 
 export type AgentTarget = (typeof AGENT_TARGETS)[number];
 export type RequestedCapability = (typeof REQUESTED_CAPABILITIES)[number];
@@ -50,6 +58,7 @@ export type DelegateStatus = (typeof DELEGATE_STATUSES)[number];
 export type SupervisorStatus = (typeof SUPERVISOR_STATUSES)[number];
 
 export type WorkflowMode = (typeof WORKFLOW_MODES)[number];
+export type StepOutputProjectionKind = (typeof STEP_OUTPUT_PROJECTION_KINDS)[number];
 
 export type SafeRecord = Record<string, unknown>;
 
@@ -84,8 +93,6 @@ export interface WorkflowPlanEdgeWire {
 	required_projection_kind?: StepOutputProjectionKind;
 }
 
-export type StepOutputProjectionKind = "notice_context";
-
 export interface ProjectionSafetySummaryWire {
 	truncated: boolean;
 	redacted: boolean;
@@ -110,15 +117,37 @@ export interface WorkflowContextProjectionWire {
 	safety: ProjectionSafetySummaryWire;
 }
 
+export interface WorkflowAgentContextWire {
+	schema_version: "workflow-agent-context-v1";
+	visibility: "agent_private";
+	target?: AgentTarget;
+	required_projection_kind?: StepOutputProjectionKind;
+	projection_refs: WorkflowContextProjectionWire[];
+}
+
 export interface WorkflowPlanWire {
 	schema_version: "workflow-plan-v1";
 	plan_id: string;
 	workflow_mode: WorkflowMode;
+	allowed_agents: AgentTarget[];
 	steps: WorkflowPlanStepWire[];
 	edges: WorkflowPlanEdgeWire[];
 	terminal_policy: SafeRecord;
 	resume_policy: SafeRecord;
 	semantic_retry_policy: SafeRecord;
+}
+
+export interface AgentInvocationWire {
+	invocation_id: string;
+	parent_invocation_id?: string;
+	workflow_run_ref: string;
+	step_id: string;
+	agent_id: AgentTarget;
+	status: string;
+	allowed_tools: string[];
+	used_tools: string[];
+	projection_ids: string[];
+	fail_close_reason?: string;
 }
 
 export interface RuntimeDecisionsWire {
@@ -166,6 +195,20 @@ export interface BridgeV6RequestWire {
 	runtime_decisions: RuntimeDecisionsWire;
 }
 
+export interface AgentRequestWire {
+	target: AgentTarget;
+	user_goal: string;
+	conversation_id?: string;
+	request_id?: string;
+	safety_identifier?: string | null;
+	trace?: { trace_id: string };
+	actor?: SafeRecord;
+	context?: SafeRecord;
+	workflow_context?: WorkflowAgentContextWire;
+	payload: { kind: string; payload: SafeRecord };
+	allowed_tools: string[];
+}
+
 export interface SupervisorExecutionWorkflowTraceSummaryWire {
 	routing_frame: SafeRecord;
 	context_resolution: SafeRecord;
@@ -174,6 +217,7 @@ export interface SupervisorExecutionWorkflowTraceSummaryWire {
 	workflow_mode: WorkflowMode;
 	handoff: SafeRecord;
 	handoff_chain: SafeRecord[];
+	agent_invocations: AgentInvocationWire[];
 	selected_target: AgentTarget | string | null;
 	selected_tools: string[];
 	context_projections: WorkflowContextProjectionWire[];

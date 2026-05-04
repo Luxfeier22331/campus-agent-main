@@ -21,6 +21,10 @@ func BridgePayloadForHandoff(
 	}
 	selectedTool := selectedToolForRuntimeHandoff(handoff)
 	userGoal := bridgeUserGoalForHandoff(payload["user_goal"], handoff, firstNoticeProjection(projections))
+	workflowContext, err := workflowContextForHandoff(handoff, projections)
+	if err != nil {
+		return nil, err
+	}
 	payload["user_goal"] = userGoal
 	decisions["handoff"] = map[string]any{
 		"planning_outcome": "preplanned",
@@ -34,7 +38,8 @@ func BridgePayloadForHandoff(
 			"safety_identifier": payload["safety_identifier"],
 			"trace":             payload["trace"],
 			"actor":             payload["actor"],
-			"context":           payload["context"],
+			"context":           sanitizedAgentContext(payload["context"]),
+			"workflow_context":  workflowContext,
 			"payload": map[string]any{
 				"kind":    handoff.PayloadKind,
 				"payload": cloneAnyMap(handoff.Payload),
@@ -52,6 +57,68 @@ func BridgePayloadForHandoff(
 		return nil, fmt.Errorf("encode bridge payload: %w", err)
 	}
 	return raw, nil
+}
+
+func workflowContextForHandoff(
+	handoff RuntimeHandoff,
+	projections []StepOutputProjection,
+) (map[string]any, error) {
+	requiredProjectionKind := strings.TrimSpace(handoff.RequiredProjectionKind)
+	if requiredProjectionKind != "" && !workflowHasProjectionKind(projections, requiredProjectionKind) {
+		return nil, fmt.Errorf(
+			"required projection %q is unavailable for handoff target %q",
+			requiredProjectionKind,
+			handoff.Target,
+		)
+	}
+	projectionRefs := make([]map[string]any, 0, len(projections))
+	for _, projection := range projections {
+		if !projectionAllowedForHandoff(handoff, projection) {
+			continue
+		}
+		projectionRefs = append(projectionRefs, projection.SummaryMap())
+	}
+	return map[string]any{
+		"schema_version":           "workflow-agent-context-v1",
+		"visibility":               "agent_private",
+		"target":                   handoff.Target,
+		"required_projection_kind": requiredProjectionKind,
+		"projection_refs":          projectionRefs,
+	}, nil
+}
+
+func workflowHasProjectionKind(projections []StepOutputProjection, projectionKind string) bool {
+	for _, projection := range projections {
+		if string(projection.ProjectionKind) == projectionKind {
+			return true
+		}
+	}
+	return false
+}
+
+func projectionAllowedForHandoff(handoff RuntimeHandoff, projection StepOutputProjection) bool {
+	if projection.ProjectionID == "" || projection.ProjectionKind == "" {
+		return false
+	}
+	requiredProjectionKind := strings.TrimSpace(handoff.RequiredProjectionKind)
+	if requiredProjectionKind != "" {
+		return string(projection.ProjectionKind) == requiredProjectionKind
+	}
+	return false
+}
+
+func sanitizedAgentContext(rawContext any) map[string]any {
+	context, _ := rawContext.(map[string]any)
+	if len(context) == 0 {
+		return map[string]any{}
+	}
+	sanitized := make(map[string]any, len(context))
+	for _, key := range []string{"actor", "authorization", "profile_memory", "session"} {
+		if value, exists := context[key]; exists {
+			sanitized[key] = value
+		}
+	}
+	return sanitized
 }
 
 func firstNoticeProjection(projections []StepOutputProjection) StepOutputProjection {

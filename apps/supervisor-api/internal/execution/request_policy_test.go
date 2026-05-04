@@ -64,6 +64,10 @@ func TestParseAnswerRequestProjectsBridgeV5AgentRequestForTransportSchedule(t *t
 	if workflowPlan["workflow_mode"] != "single_handoff" {
 		t.Fatalf("workflow_plan.workflow_mode = %v, want single_handoff", workflowPlan["workflow_mode"])
 	}
+	allowedAgents, ok := workflowPlan["allowed_agents"].([]any)
+	if !ok || len(allowedAgents) != 1 || allowedAgents[0] != "campus-services-agent" {
+		t.Fatalf("workflow_plan.allowed_agents = %#v, want campus-services-agent", workflowPlan["allowed_agents"])
+	}
 	if workflowPlan["workflow_mode"] == "multi_step" {
 		t.Fatalf("transport preplan must not emit multi_step workflow plans: %#v", workflowPlan)
 	}
@@ -142,6 +146,7 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 		t.Fatalf("runtime_decision_summary.planning_outcome = %v, want preplanned", summary["planning_outcome"])
 	}
 	handoff := expectExecutionRecord(t, runtimeDecisions["handoff"], "handoff")
+	workflowPlan := expectExecutionRecord(t, runtimeDecisions["workflow_plan"], "workflow_plan")
 	if request.RuntimeDecisions.PlanningOutcome != "preplanned" {
 		t.Fatalf(
 			"request planning outcome = %q, want preplanned",
@@ -150,6 +155,10 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 	}
 	if handoff["target"] != "rag-agent" {
 		t.Fatalf("handoff.target = %v, want rag-agent", handoff["target"])
+	}
+	allowedAgents, ok := workflowPlan["allowed_agents"].([]any)
+	if !ok || len(allowedAgents) != 1 || allowedAgents[0] != "rag-agent" {
+		t.Fatalf("workflow_plan.allowed_agents = %#v, want rag-agent", workflowPlan["allowed_agents"])
 	}
 	allowedTools, ok := handoff["allowed_tools"].([]any)
 	if !ok || len(allowedTools) != 0 {

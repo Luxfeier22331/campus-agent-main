@@ -1,0 +1,72 @@
+{
+  "schema_version": "agent-spec-registry-v1",
+  "registry_version": "2026-05-04",
+  "agents": [
+    {
+      "id": "rag-agent",
+      "capability": "knowledge",
+      "owner_package": "packages/rag-agent",
+      "runtime_adapter": "python_delegate",
+      "active": true,
+      "opening_gate": "open",
+      "payload_kinds": ["rag_request"],
+      "allowed_structured_handoff_tools": [],
+      "context_projection_kinds": ["evidence_bundle"],
+      "delegate_module": "campus_rag_agent.service",
+      "delegate_symbol": "delegate_to_rag_agent",
+      "description": "Knowledge retrieval and grounded answer specialist."
+    },
+    {
+      "id": "navigation-agent",
+      "capability": "place_lookup",
+      "owner_package": "packages/navigation-agent",
+      "runtime_adapter": "python_delegate",
+      "active": false,
+      "opening_gate": "closed",
+      "payload_kinds": ["place_lookup"],
+      "allowed_structured_handoff_tools": [],
+      "context_projection_kinds": ["place_context"],
+      "delegate_module": "campus_navigation_agent",
+      "delegate_symbol": "delegate_to_navigation_agent",
+      "description": "Navigation and place lookup specialist; registered before rollout."
+    },
+    {
+      "id": "campus-services-agent",
+      "capability": "campus_services",
+      "owner_package": "packages/campus-services-agent",
+      "runtime_adapter": "python_delegate",
+      "active": true,
+      "opening_gate": "open",
+      "payload_kinds": [
+        "service_status_lookup",
+        "service_guide_lookup",
+        "transport_schedule_lookup",
+        "contact_directory_lookup"
+      ],
+      "allowed_structured_handoff_tools": [
+        "service_status_lookup",
+        "service_guide_lookup",
+        "transport_schedule_lookup",
+        "contact_directory_lookup"
+      ],
+      "context_projection_kinds": ["service_guide_facts", "schedule_baseline"],
+      "delegate_module": "campus_services_agent",
+      "delegate_symbol": "delegate_to_campus_services_agent",
+      "description": "Campus services specialist for structured service queries."
+    },
+    {
+      "id": "notice-agent",
+      "capability": "notice",
+      "owner_package": "packages/notice-agent",
+      "runtime_adapter": "python_delegate",
+      "active": true,
+      "opening_gate": "open",
+      "payload_kinds": ["campus_notice_discover", "campus_notice_get"],
+      "allowed_structured_handoff_tools": ["campus_notice_discover"],
+      "context_projection_kinds": ["notice_context"],
+      "delegate_module": "campus_notice_agent",
+      "delegate_symbol": "delegate_to_notice_agent",
+      "description": "Notice discovery and internal selected notice resolution specialist."
+    }
+  ]
+}

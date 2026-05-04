@@ -198,6 +198,10 @@ func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 			traceSummary["handoff_chain"],
 		)
 	}
+	agentInvocations, ok := traceSummary["agent_invocations"].([]map[string]any)
+	if !ok || len(agentInvocations) != 1 || agentInvocations[0]["agent_id"] != "campus-services-agent" {
+		t.Fatalf("agent_invocations = %#v, want campus-services-agent invocation", traceSummary["agent_invocations"])
+	}
 	if traceSummary["planning_outcome"] != "preplanned" {
 		t.Fatalf("planning_outcome = %v, want preplanned", traceSummary["planning_outcome"])
 	}
@@ -217,6 +221,22 @@ func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 	}
 	if toolSummary["source_ref_count"] != float64(1) {
 		t.Fatalf("source_ref_count = %v, want 1", toolSummary["source_ref_count"])
+	}
+}
+
+func TestWorkflowSourceIDsCollectsStringSliceRefs(t *testing.T) {
+	sourceIDs := workflowSourceIDs(map[string]any{
+		"outcome":     "resolved_current",
+		"source_refs": []string{"official_web:campus-card-guide"},
+		"nested": map[string]any{
+			"related_notice_refs": []string{"notice:muc_internal_portal:353903"},
+		},
+	})
+
+	if len(sourceIDs) != 2 ||
+		sourceIDs[0] != "official_web:campus-card-guide" ||
+		sourceIDs[1] != "notice:muc_internal_portal:353903" {
+		t.Fatalf("sourceIDs = %#v, want string slice source refs", sourceIDs)
 	}
 }
 
