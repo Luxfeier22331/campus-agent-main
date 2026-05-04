@@ -66,6 +66,18 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
         self.assertEqual(interpretation.intent_kind, "curriculum_lookup")
         self.assertEqual(interpretation.curriculum_lookup_target, "course_map")
 
+    def test_interpret_curriculum_query_extracts_implementation_plan_title(self) -> None:
+        interpretation = interpret_curriculum_query("中央民族大学大学生社会实践环节实施方案")
+
+        self.assertEqual(
+            interpretation.program_query_fragment,
+            "中央民族大学大学生社会实践环节实施方案",
+        )
+        self.assertEqual(
+            interpretation.program_compact_key,
+            "中央民族大学大学生社会实践环节实施",
+        )
+
     def test_interpret_curriculum_query_marks_course_settings_and_study_advice_as_structured_lookup(
         self,
     ) -> None:

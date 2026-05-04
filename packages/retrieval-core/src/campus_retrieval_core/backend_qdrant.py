@@ -20,6 +20,9 @@ from campus_ingestion_core.sparse import (
 from qdrant_client import QdrantClient
 
 from campus_retrieval_core.backend_qdrant_access import _fail_closed_on_denied_target_documents
+from campus_retrieval_core.backend_qdrant_curriculum_rescue import (
+    rescue_curriculum_title_sources,
+)
 from campus_retrieval_core.backend_qdrant_document_support import (
     _expand_named_document_support,
     _resolve_initial_query_limit,
@@ -43,6 +46,7 @@ from campus_retrieval_core.backend_qdrant_policies import (
     _apply_document_diversity_policy,
     _apply_no_hit_policy,
     _apply_official_web_low_signal_policy,
+    finalize_retrieval_sources,
 )
 from campus_retrieval_core.backend_qdrant_query import (
     _build_document_support_query_text,
@@ -200,10 +204,19 @@ class QdrantRetrievalBackend:
         except Exception as exc:  # pragma: no cover - exercised by error mapping test
             raise RetrievalBackendError("qdrant retrieval failed") from exc
 
+        raw_sources = build_evidence_sources(self, response.points or ())
+        rescued_sources = rescue_curriculum_title_sources(
+            self,
+            request=request,
+            profile=profile,
+            qdrant_collection_name=qdrant_collection_name,
+            sources=raw_sources,
+            timeout_seconds=deadline.qdrant_timeout_seconds(),
+        )
         initial_sources = _apply_no_hit_policy(
             profile=profile,
             query_text=query_text,
-            sources=build_evidence_sources(self, response.points or ()),
+            sources=rescued_sources,
         )
         initial_sources = _apply_official_web_low_signal_policy(
             profile=profile,
@@ -234,25 +247,15 @@ class QdrantRetrievalBackend:
                 deadline=deadline,
             )
         )
-        ranked_final_sources = prioritize_evidence_sources(
+        ranked_final_sources = finalize_retrieval_sources(
+            profile=profile,
             query_text=query_text,
             sources=expanded_sources,
-        )
-        ranked_final_sources = _apply_preferred_document_bias(
-            sources=ranked_final_sources,
             preferred_document_ids=request.preferred_document_ids,
-        )
-        ranked_final_sources = _prefer_curriculum_semester_course_list_sources(
-            query_text=request.query_text,
-            sources=ranked_final_sources,
         )
         return EvidenceBundle(
             query_text=request.query_text,
             corpus=request.corpus,
             collection=request.collection,
-            sources=_apply_document_diversity_policy(
-                profile=profile,
-                query_text=query_text,
-                sources=ranked_final_sources,
-            )[: request.top_k],
+            sources=ranked_final_sources[: request.top_k],
         )

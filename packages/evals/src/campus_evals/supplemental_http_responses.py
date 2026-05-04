@@ -5,8 +5,12 @@ import time
 import typing as t
 
 import httpx
-from langchain_core.outputs import Generation, LLMResult
-from ragas.llms.base import BaseRagasLLM, InstructorBaseRagasLLM
+
+from campus_evals._advisory_suppression import suppress_transformers_missing_torch_advisory
+
+with suppress_transformers_missing_torch_advisory():
+    from langchain_core.outputs import Generation, LLMResult
+    from ragas.llms.base import BaseRagasLLM, InstructorBaseRagasLLM
 
 from campus_evals.settings import SupplementalHTTPSettings
 from campus_evals.supplemental_http_payloads import (

@@ -105,6 +105,7 @@
 			"query": "申请奖学金需要满足什么条件",
 			"top_k": 8,
 			"expected_document_ids": [
+				"handbook:a531a3c85de862c737d0576e957bf59598822c54",
 				"handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
 				"handbook:60c8b33801e2e59e6db2210719592a6252e3516d",
 				"handbook:aa835b8cd4acddb62c7243fed9a9f8c0728e68bc"
@@ -125,7 +126,10 @@
 			"collection": "student_rules",
 			"query": "旷课多少学时会按违纪处理",
 			"top_k": 8,
-			"expected_document_ids": ["handbook:e53d05ae90e91f1c45843c50c3a777f774a88afc"]
+			"expected_document_ids": [
+				"handbook:9350d885657d7409e524e73666b828b826f07191",
+				"handbook:e53d05ae90e91f1c45843c50c3a777f774a88afc"
+			]
 		},
 		{
 			"case_id": "structured-disciplinary-relief-materials",

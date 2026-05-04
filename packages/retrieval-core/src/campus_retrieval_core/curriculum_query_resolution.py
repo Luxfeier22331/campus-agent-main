@@ -12,7 +12,7 @@ from typing import Literal
 from campus_contracts import EvidenceSource
 
 _WHITESPACE_RE = re.compile(r"\s+")
-_TITLE_FRAGMENT_RE = re.compile(r"(?P<fragment>.+?(?:培养方案|课程教学计划))")
+_TITLE_FRAGMENT_RE = re.compile(r"(?P<fragment>.+?(?:培养方案|课程教学计划|实施方案))")
 _SEMESTER_ALIASES = (
     ("大一上", "第一学期"),
     ("大一下", "第二学期"),

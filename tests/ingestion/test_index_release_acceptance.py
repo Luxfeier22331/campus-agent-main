@@ -4,7 +4,7 @@ import json
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
@@ -79,6 +79,7 @@ class _FakeAcceptanceExecutor(ReleaseRetrievalAcceptanceExecutor):
     def __init__(self, *, bundles: dict[str, EvidenceBundle]) -> None:
         self.bundles = bundles
         self.requests: list[tuple[str, str, str]] = []
+        self.authorized_requests: list[dict[str, object]] = []
 
     def retrieve(
         self,
@@ -96,6 +97,14 @@ class _FakeAcceptanceExecutor(ReleaseRetrievalAcceptanceExecutor):
         visibility_scope: str | None,
     ) -> EvidenceBundle:
         self.requests.append((physical_collection_name, corpus, collection))
+        self.authorized_requests.append(
+            {
+                "query": query,
+                "entitlement_groups": entitlement_groups,
+                "visibility_level": visibility_level,
+                "visibility_scope": visibility_scope,
+            }
+        )
         return self.bundles[query]
 
 
@@ -111,10 +120,80 @@ class _FakeQdrantQueryResponse:
 class _FakeRemoteQdrantClient:
     def __init__(self) -> None:
         self.timeout: object | None = None
+        self.limit: object | None = None
 
     def query_points(self, **kwargs: object) -> _FakeQdrantQueryResponse:
         self.timeout = kwargs.get("timeout")
+        self.limit = kwargs.get("limit")
         return _FakeQdrantQueryResponse()
+
+
+class _FakeCurriculumTitleMissQdrantClient:
+    def __init__(self) -> None:
+        self.scroll_calls: list[dict[str, object]] = []
+
+    def query_points(self, **_kwargs: object) -> object:
+        return type(
+            "FakeResponse",
+            (),
+            {
+                "points": (
+                    qdrant_models.ScoredPoint(
+                        id="russian",
+                        version=1,
+                        score=0.72,
+                        payload={
+                            "document_id": "curriculum:俄语（俄语、中亚语）本科人才培养方案",
+                            "revision_track": "source-faithful",
+                            "version_id": "v1:russian",
+                            "chunk_id": "curriculum:俄语（俄语、中亚语）本科人才培养方案:chunk-0001",
+                            "corpus": "curriculum",
+                            "collection": "curriculum_plan",
+                            "visibility_level": "public",
+                            "status": "active",
+                            "source_uri": "https://campus.example/curriculum/russian",
+                            "canonical_url": "https://campus.example/curriculum/russian",
+                            "latest_url": "https://campus.example/curriculum/russian",
+                            "source_channel": "pdf_ocr",
+                            "is_current": True,
+                            "anchor": {"section_path": ["俄语（俄语、中亚语）本科人才培养方案"]},
+                            "text": "俄语（俄语、中亚语）本科人才培养方案。",
+                        },
+                        vector=None,
+                    ),
+                )
+            },
+        )()
+
+    def scroll(self, **kwargs: object) -> tuple[list[qdrant_models.Record], None]:
+        self.scroll_calls.append(kwargs)
+        return (
+            [
+                qdrant_models.Record(
+                    id="social-practice",
+                    payload={
+                        "document_id": "curriculum:中央民族大学大学生社会实践环节实施方案",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:social-practice",
+                        "chunk_id": "curriculum:中央民族大学大学生社会实践环节实施方案:chunk-0001",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/curriculum/social-practice",
+                        "canonical_url": "https://campus.example/curriculum/social-practice",
+                        "latest_url": "https://campus.example/curriculum/social-practice",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "anchor": {
+                            "section_path": ["中央民族大学大学生社会实践环节实施方案"]
+                        },
+                        "display_text": "中央民族大学大学生社会实践环节实施方案。",
+                    },
+                )
+            ],
+            None,
+        )
 
 
 class _FakeLowSignalQdrantClient:
@@ -266,6 +345,25 @@ class IndexReleaseAcceptanceTest(unittest.TestCase):
                 self.assertTrue(any(case.expected_no_hit for case in cases), fixture_name)
                 self.assertTrue(any(case.expected_document_ids for case in cases), fixture_name)
 
+    def test_curriculum_social_practice_release_case_uses_campus_member_authorization(
+        self,
+    ) -> None:
+        cases = load_release_retrieval_acceptance_cases(
+            _REPO_ROOT / "packages/evals/fixtures/curriculum_plan_release_acceptance.v1.json",
+            corpus="curriculum",
+            collection="curriculum_plan",
+        )
+        case_by_id = {case.case_id: case for case in cases}
+
+        social_practice_case = case_by_id["curriculum-title-social-practice"]
+
+        self.assertEqual(
+            social_practice_case.expected_document_ids,
+            ("curriculum:中央民族大学大学生社会实践环节实施方案",),
+        )
+        self.assertEqual(social_practice_case.entitlement_groups, ("campus_members",))
+        self.assertEqual(social_practice_case.visibility_level, "restricted")
+
     def test_institutional_rules_release_acceptance_covers_consumption_manifest_titles(
         self,
     ) -> None:
@@ -380,6 +478,73 @@ class IndexReleaseAcceptanceTest(unittest.TestCase):
             [
                 ("student_rules__r20260430_test", "regulations", "student_rules"),
                 ("student_rules__r20260430_test", "regulations", "student_rules"),
+            ],
+        )
+
+    def test_run_release_retrieval_acceptance_passes_case_authorization_to_executor(
+        self,
+    ) -> None:
+        source = EvidenceSource(
+            doc_id="curriculum:restricted",
+            revision_track="source-faithful",
+            version_id="v1:restricted",
+            chunk_id="curriculum:restricted:chunk-0001",
+            anchor={},
+            canonical_url="https://campus.example/curriculum/restricted",
+            latest_url="https://campus.example/curriculum/restricted",
+            source_channel="pdf_ocr",
+            collection="curriculum_plan",
+            is_current=True,
+            snippet="受限培养方案正文",
+            score=0.91,
+        )
+        executor = _FakeAcceptanceExecutor(
+            bundles={
+                "受限培养方案": EvidenceBundle(
+                    query_text="受限培养方案",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    sources=(source,),
+                )
+            }
+        )
+        cases = load_release_retrieval_acceptance_cases(
+            _write_cases(
+                {
+                    "cases": [
+                        {
+                            "case_id": "restricted-curriculum-hit",
+                            "corpus": "curriculum",
+                            "collection": "curriculum_plan",
+                            "query": "受限培养方案",
+                            "expected_document_ids": ["curriculum:restricted"],
+                            "entitlement_groups": ["campus_members"],
+                            "visibility_level": "restricted",
+                            "visibility_scope": "campus",
+                        }
+                    ]
+                }
+            ),
+            corpus="curriculum",
+            collection="curriculum_plan",
+        )
+
+        result = run_release_retrieval_acceptance(
+            cases=cases,
+            executor=executor,
+            physical_collection_name="curriculum_plan__r20260503_test",
+        )
+
+        self.assertEqual(result.status, "passed")
+        self.assertEqual(
+            executor.authorized_requests,
+            [
+                {
+                    "query": "受限培养方案",
+                    "entitlement_groups": ("campus_members",),
+                    "visibility_level": "restricted",
+                    "visibility_scope": "campus",
+                }
             ],
         )
 
@@ -511,6 +676,40 @@ class IndexReleaseAcceptanceTest(unittest.TestCase):
         self.assertIsInstance(qdrant_client.timeout, int)
         self.assertEqual(qdrant_client.timeout, 10)
 
+    def test_physical_collection_executor_uses_runtime_document_support_limit_for_candidate_width(
+        self,
+    ) -> None:
+        qdrant_client = _FakeRemoteQdrantClient()
+        executor = QdrantPhysicalCollectionAcceptanceExecutor(
+            qdrant_client=qdrant_client,  # type: ignore[arg-type]
+            settings=RetrievalSettings(
+                qdrant_url="https://qdrant.example",
+                embedding_provider="mock",
+                embedding_model="mock-embedding-8d",
+                embedding_dimensions=3,
+                sparse_provider="mock",
+            ),
+            runtime_profile=load_runtime_profile("curriculum", "curriculum_plan"),
+            embedding_model=_FakeEmbeddingModel(),
+            sparse_embedding_model=build_mock_sparse_embedding_model(),
+        )
+
+        executor.retrieve(
+            physical_collection_name="curriculum_plan__r20260504_acceptance",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            query="教育学本科人才培养方案",
+            top_k=3,
+            target_document_ids=(),
+            target_version_ids=(),
+            target_revision_track="",
+            entitlement_groups=(),
+            visibility_level="public",
+            visibility_scope=None,
+        )
+
+        self.assertEqual(qdrant_client.limit, 24)
+
     def test_physical_collection_executor_applies_no_hit_policy(self) -> None:
         profile = load_runtime_profile("regulations", "student_rules")
         executor = QdrantPhysicalCollectionAcceptanceExecutor(
@@ -542,6 +741,140 @@ class IndexReleaseAcceptanceTest(unittest.TestCase):
         )
 
         self.assertEqual(bundle.sources, ())
+
+    def test_physical_collection_executor_prioritizes_curriculum_title_match_before_top_k_truncation(
+        self,
+    ) -> None:
+        profile = load_runtime_profile("curriculum", "curriculum_plan")
+        qdrant_client = Mock()
+        qdrant_client.query_points.return_value = qdrant_models.QueryResponse(
+            points=[
+                qdrant_models.ScoredPoint(
+                    id="point-ethnic",
+                    version=0,
+                    score=0.82,
+                    payload={
+                        "document_id": "curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:ics-ethnic",
+                        "chunk_id": "curriculum:信息与计算科学（民族实验班）本科人才培养方案:chunk-0001",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/curriculum/ics-ethnic",
+                        "canonical_url": "https://campus.example/curriculum/ics-ethnic",
+                        "latest_url": "https://campus.example/curriculum/ics-ethnic",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "anchor": {
+                            "section_path": [
+                                "信息与计算科学（民族实验班）本科人才培养方案",
+                                "一、培养目标",
+                            ]
+                        },
+                        "text": "信息与计算科学（民族实验班）本科人才培养方案 一、培养目标。",
+                    },
+                ),
+                qdrant_models.ScoredPoint(
+                    id="point-target",
+                    version=0,
+                    score=0.49,
+                    payload={
+                        "document_id": "curriculum:信息与计算科学本科人才培养方案",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:ics",
+                        "chunk_id": "curriculum:信息与计算科学本科人才培养方案:chunk-0001",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/curriculum/ics",
+                        "canonical_url": "https://campus.example/curriculum/ics",
+                        "latest_url": "https://campus.example/curriculum/ics",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "anchor": {
+                            "section_path": [
+                                "信息与计算科学本科人才培养方案",
+                                "一、培养目标",
+                            ]
+                        },
+                        "text": "信息与计算科学本科人才培养方案 一、培养目标。",
+                    },
+                ),
+            ]
+        )
+        executor = QdrantPhysicalCollectionAcceptanceExecutor(
+            qdrant_client=qdrant_client,  # type: ignore[arg-type]
+            settings=RetrievalSettings(
+                qdrant_url="https://qdrant.example",
+                embedding_provider="mock",
+                embedding_model="mock-embedding-8d",
+                embedding_dimensions=3,
+                sparse_provider="mock",
+            ),
+            runtime_profile=profile,
+            embedding_model=_FakeEmbeddingModel(),
+            sparse_embedding_model=build_mock_sparse_embedding_model(),
+        )
+
+        bundle = executor.retrieve(
+            physical_collection_name="curriculum_plan__r20260427_000952",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            query="信息与计算科学本科人才培养方案",
+            top_k=1,
+            target_document_ids=(),
+            target_version_ids=(),
+            target_revision_track="",
+            entitlement_groups=(),
+            visibility_level="public",
+            visibility_scope=None,
+        )
+
+        self.assertEqual(
+            [source.doc_id for source in bundle.sources],
+            ["curriculum:信息与计算科学本科人才培养方案"],
+        )
+
+    def test_physical_collection_executor_rescues_curriculum_title_match_when_initial_candidates_miss_exact_title(
+        self,
+    ) -> None:
+        qdrant_client = _FakeCurriculumTitleMissQdrantClient()
+        executor = QdrantPhysicalCollectionAcceptanceExecutor(
+            qdrant_client=qdrant_client,  # type: ignore[arg-type]
+            settings=RetrievalSettings(
+                qdrant_url="https://qdrant.example",
+                embedding_provider="mock",
+                embedding_model="mock-embedding-8d",
+                embedding_dimensions=3,
+                sparse_provider="mock",
+            ),
+            runtime_profile=load_runtime_profile("curriculum", "curriculum_plan"),
+            embedding_model=_FakeEmbeddingModel(),
+            sparse_embedding_model=build_mock_sparse_embedding_model(),
+        )
+
+        bundle = executor.retrieve(
+            physical_collection_name="curriculum_plan__r20260503_acceptance",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            query="中央民族大学大学生社会实践环节实施方案",
+            top_k=3,
+            target_document_ids=(),
+            target_version_ids=(),
+            target_revision_track="",
+            entitlement_groups=(),
+            visibility_level="public",
+            visibility_scope=None,
+        )
+
+        self.assertEqual(
+            [source.doc_id for source in bundle.sources],
+            ["curriculum:中央民族大学大学生社会实践环节实施方案"],
+        )
+        self.assertEqual(len(qdrant_client.scroll_calls), 1)
 
 
 def _write_cases(payload: dict[str, object]) -> Path:

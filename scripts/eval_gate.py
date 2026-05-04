@@ -398,6 +398,7 @@ def audit_eval_gate_configuration(*, repo_root: Path) -> dict[str, object]:
         _audit_operations_policy_coverage(),
         _audit_denominator_registry_coverage(),
         _audit_rag_eval_coverage(),
+        _audit_rag_retrieval_quality_gate(),
         _audit_tool_family_fixture_coverage(),
         _audit_profile_fixture_smoke(),
     )
@@ -581,6 +582,20 @@ def _audit_rag_eval_coverage() -> dict[str, object]:
         "gaps": list(report.gaps),
         "maturity_gaps": list(report.maturity_gaps),
         "excluded_surfaces": report.excluded_surfaces,
+    }
+
+
+def _audit_rag_retrieval_quality_gate() -> dict[str, object]:
+    from campus_evals.rag_retrieval_quality_gate import build_rag_retrieval_quality_gate_report
+
+    report = build_rag_retrieval_quality_gate_report()
+    return {
+        "check_id": "rag_retrieval_quality_gate",
+        "passed": report.passed,
+        "surfaces": [surface.surface_key for surface in report.surfaces],
+        "gaps": list(report.gaps),
+        "excluded_surfaces": report.excluded_surfaces,
+        "non_blocking_surfaces": report.non_blocking_surfaces,
     }
 
 

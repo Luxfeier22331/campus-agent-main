@@ -295,6 +295,46 @@ class EvalGateTest(unittest.TestCase):
             dry_run=True,
         )
 
+    def test_audit_includes_rag_retrieval_quality_gate(self) -> None:
+        from scripts.eval_gate import audit_eval_gate_configuration
+
+        with (
+            patch("scripts.eval_gate._audit_profile_registry_runners", return_value=_pass("a")),
+            patch("scripts.eval_gate._audit_workflow_dispatch_choices", return_value=_pass("b")),
+            patch(
+                "scripts.eval_gate._audit_workflow_contract_generation_check",
+                return_value=_pass("c"),
+            ),
+            patch("scripts.eval_gate._audit_operations_policy_coverage", return_value=_pass("d")),
+            patch(
+                "scripts.eval_gate._audit_denominator_registry_coverage", return_value=_pass("e")
+            ),
+            patch("scripts.eval_gate._audit_rag_eval_coverage", return_value=_pass("f")),
+            patch(
+                "scripts.eval_gate._audit_rag_retrieval_quality_gate",
+                return_value={
+                    "check_id": "rag_retrieval_quality_gate",
+                    "passed": False,
+                    "gaps": ["regulations/student_rules:doc_recall_at_5_below_threshold"],
+                },
+            ),
+            patch("scripts.eval_gate._audit_tool_family_fixture_coverage", return_value=_pass("g")),
+            patch("scripts.eval_gate._audit_profile_fixture_smoke", return_value=_pass("h")),
+        ):
+            report = audit_eval_gate_configuration(repo_root=Path("/tmp/campus-agent"))
+
+        checks = {check["check_id"]: check for check in report["checks"]}
+        self.assertFalse(report["passed"])
+        self.assertIn("rag_retrieval_quality_gate", checks)
+        self.assertEqual(
+            checks["rag_retrieval_quality_gate"]["gaps"],
+            ["regulations/student_rules:doc_recall_at_5_below_threshold"],
+        )
+
+
+def _pass(check_id: str) -> dict[str, object]:
+    return {"check_id": check_id, "passed": True}
+
 
 if __name__ == "__main__":
     unittest.main()

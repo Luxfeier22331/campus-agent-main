@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from campus_retrieval_core.backend_qdrant_policies import finalize_retrieval_sources
+
 from tests.retrieval.backend_qdrant_test_support import (
     _apply_document_diversity_policy,
     _apply_official_web_low_signal_policy,
@@ -10,6 +12,89 @@ from tests.retrieval.backend_qdrant_test_support import (
 
 
 class BackendQdrantPolicyTest(unittest.TestCase):
+    def test_finalize_retrieval_sources_locks_curriculum_title_query_to_unique_document(
+        self,
+    ) -> None:
+        profile = _make_runtime_profile(corpus="curriculum", collection="curriculum_plan")
+
+        finalized = finalize_retrieval_sources(
+            profile=profile,
+            query_text="信息与计算科学本科人才培养方案",
+            sources=(
+                _make_source(
+                    doc_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+                    chunk_id="curriculum:ics-ethnic:chunk-0001",
+                    snippet="信息与计算科学（民族实验班）本科人才培养方案 一、培养目标。",
+                    score=0.82,
+                    source_title="信息与计算科学（民族实验班）本科人才培养方案",
+                    structural_path=("信息与计算科学（民族实验班）本科人才培养方案", "一、培养目标"),
+                ),
+                _make_source(
+                    doc_id="curriculum:信息与计算科学本科人才培养方案",
+                    chunk_id="curriculum:ics:chunk-0001",
+                    snippet="信息与计算科学本科人才培养方案 一、培养目标。",
+                    score=0.49,
+                    source_title="信息与计算科学本科人才培养方案",
+                    structural_path=("信息与计算科学本科人才培养方案", "一、培养目标"),
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            tuple(source.doc_id for source in finalized),
+            ("curriculum:信息与计算科学本科人才培养方案",),
+        )
+
+    def test_finalize_retrieval_sources_locks_curriculum_course_query_to_unique_program_semester(
+        self,
+    ) -> None:
+        profile = _make_runtime_profile(corpus="curriculum", collection="curriculum_plan")
+
+        finalized = finalize_retrieval_sources(
+            profile=profile,
+            query_text="法学民族班培养方案里大二下有什么课",
+            sources=(
+                _make_source(
+                    doc_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+                    chunk_id="curriculum:ics-ethnic:chunk-0004",
+                    snippet=(
+                        "信息与计算科学（民族实验班）本科人才培养方案\n"
+                        "第四学期 | 数学分析 | 4"
+                    ),
+                    score=0.86,
+                    source_title="信息与计算科学（民族实验班）本科人才培养方案",
+                    structural_path=("信息与计算科学（民族实验班）本科人才培养方案", "第四学期"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                _make_source(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    chunk_id="curriculum:law-ethnic:chunk-0004",
+                    snippet="第四学期 | 侵权责任法 | 2",
+                    score=0.64,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "第四学期"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                _make_source(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    chunk_id="curriculum:law-ethnic:chunk-0003",
+                    snippet="第三学期 | 民法总论 | 3",
+                    score=0.63,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=("法学（民族实验班）本科人才培养方案", "第三学期"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            tuple(source.chunk_id for source in finalized),
+            ("curriculum:law-ethnic:chunk-0004",),
+        )
+
     def test_apply_official_web_low_signal_policy_fail_closes_generic_campus_name_query(
         self,
     ) -> None:

@@ -514,6 +514,10 @@
 			"case_id": "curriculum-title-social-practice",
 			"split": "smoke",
 			"query": "中央民族大学大学生社会实践环节实施方案",
+			"request_overrides": {
+				"entitlement_groups": ["campus_members"],
+				"visibility_level": "restricted"
+			},
 			"expected_sources": [
 				{
 					"doc_id": "curriculum:中央民族大学大学生社会实践环节实施方案",

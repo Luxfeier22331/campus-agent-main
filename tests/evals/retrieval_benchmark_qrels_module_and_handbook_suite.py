@@ -212,6 +212,17 @@ class RetrievalHandbookQrelsFixtureTest(unittest.TestCase):
         self.assertGreaterEqual(len(release_acceptance["cases"]), 25)
         self.assertTrue(expected_second_batch_case_ids.issubset(case_ids))
 
+    def test_student_rules_qrels_cover_every_manifest_document(self) -> None:
+        dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
+        manifest = json.loads(HANDBOOK_MANIFEST_PATH.read_text(encoding="utf-8"))
+        manifest_doc_ids = {item["document_id"] for item in manifest["documents"]}
+        covered_doc_ids = {
+            source.doc_id for case in dataset.cases for source in case.expected_sources
+        }
+
+        self.assertEqual(len(manifest_doc_ids), 46)
+        self.assertTrue(manifest_doc_ids.issubset(covered_doc_ids))
+
     def test_qrels_fixture_uses_empty_request_overrides_for_handbook_scope(self) -> None:
         dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
 

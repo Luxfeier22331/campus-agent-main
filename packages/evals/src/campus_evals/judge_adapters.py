@@ -7,7 +7,11 @@ from pathlib import Path
 
 import httpx
 from campus_contracts import AgentResponse, RagResultPayload, SupervisorResponse
-from langchain_core.prompt_values import StringPromptValue
+
+from campus_evals._advisory_suppression import suppress_transformers_missing_torch_advisory
+
+with suppress_transformers_missing_torch_advisory():
+    from langchain_core.prompt_values import StringPromptValue
 
 from campus_evals.models import ExecutionResult, GoldenCase, SupplementalResult
 from campus_evals.ragas_adapter import (

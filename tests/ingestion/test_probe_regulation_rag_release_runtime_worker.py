@@ -40,11 +40,59 @@ class ProbeRegulationRagReleaseRuntimeWorkerCliTest(unittest.TestCase):
             get_collection=Mock(return_value=collection_info),
             scroll=Mock(return_value=([], None)),
         )
+        object_store = _FakeReleaseObjectStore(
+            {
+                "regulations/releases/student_rules/r1/index-release.json": _release_manifest(
+                    release_id="r1",
+                    corpus="regulations",
+                    collection="student_rules",
+                    physical_collection_name="student_rules__r1",
+                    serving_alias="student_rules",
+                ),
+                "regulations/releases/institutional_rules/r1/index-release.json": (
+                    _release_manifest(
+                        release_id="r1",
+                        corpus="regulations",
+                        collection="institutional_rules",
+                        physical_collection_name="institutional_rules__r1",
+                        serving_alias="institutional_rules",
+                    )
+                ),
+                "curriculum/releases/curriculum_plan/r1/index-release.json": _release_manifest(
+                    release_id="r1",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    physical_collection_name="curriculum_plan__r1",
+                    serving_alias="curriculum_plan",
+                ),
+                "curriculum/releases/curriculum_plan/r2/index-release.json": _release_manifest(
+                    release_id="r2",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    physical_collection_name="curriculum_plan__r2",
+                    serving_alias="curriculum_plan",
+                    published_at="2026-05-01T00:00:00+00:00",
+                ),
+                "official_web/releases/stable_reference/r1/index-release.json": (
+                    _release_manifest(
+                        release_id="r1",
+                        corpus="official_web",
+                        collection="stable_reference",
+                        physical_collection_name="official_web_stable_reference__r1",
+                        serving_alias="official_web_stable_reference",
+                    )
+                ),
+            }
+        )
 
         with (
             patch(f"{_MODULE_NAME}.load_worker_env") as load_env,
             patch(f"{_MODULE_NAME}.RetrievalSettings.from_env") as from_env,
             patch(f"{_MODULE_NAME}._build_qdrant_client") as build_client,
+            patch(
+                f"{_MODULE_NAME}._build_release_object_store",
+                return_value=("available", "", object_store, "campus-rag-derived"),
+            ),
             patch(f"{_MODULE_NAME}.load_runtime_profile") as load_profile,
             patch(f"{_MODULE_NAME}.resolve_alias_target") as resolve_alias,
             patch(f"{_MODULE_NAME}.validate_alias_release_metadata") as validate_release,
@@ -67,6 +115,7 @@ class ProbeRegulationRagReleaseRuntimeWorkerCliTest(unittest.TestCase):
             resolve_alias.side_effect = lambda *, qdrant_client, alias_name: f"{alias_name}__r1"
             validate_release.side_effect = [
                 Exception("release metadata drift for student_rules/r1: sample 1: missing release metadata fields: profile_identity_hash, quality_gate_status"),
+                None,
                 None,
                 Exception("release metadata drift for curriculum_plan/r1: sample 1: missing release metadata fields: sparse_provider"),
                 Exception("missing release metadata for query-serving alias official_web_stable_reference"),
@@ -104,6 +153,11 @@ class ProbeRegulationRagReleaseRuntimeWorkerCliTest(unittest.TestCase):
             surfaces["regulations/student_rules"]["release_metadata_guard_status"],
             "failed",
         )
+        self.assertEqual(surfaces["regulations/student_rules"]["readiness_status"], "blocked")
+        self.assertEqual(
+            surfaces["regulations/student_rules"]["readiness_blocker"],
+            "latest_release_metadata_guard_failed",
+        )
         self.assertIn(
             "profile_identity_hash",
             surfaces["regulations/student_rules"]["release_metadata_guard_message"],
@@ -114,7 +168,25 @@ class ProbeRegulationRagReleaseRuntimeWorkerCliTest(unittest.TestCase):
         )
         self.assertEqual(
             surfaces["curriculum/curriculum_plan"]["release_metadata_guard_missing_fields"],
+            [],
+        )
+        self.assertEqual(
+            surfaces["curriculum/curriculum_plan"]["alias_target_guard_missing_fields"],
             ["sparse_provider"],
+        )
+        self.assertEqual(
+            surfaces["curriculum/curriculum_plan"][
+                "release_family_latest_physical_collection_name"
+            ],
+            "curriculum_plan__r2",
+        )
+        self.assertEqual(
+            surfaces["curriculum/curriculum_plan"]["release_freshness_status"],
+            "stale_alias",
+        )
+        self.assertEqual(
+            surfaces["curriculum/curriculum_plan"]["readiness_blocker"],
+            "stale_alias",
         )
         self.assertEqual(
             surfaces["official_web/stable_reference"]["release_metadata_guard_status"],
@@ -125,6 +197,8 @@ class ProbeRegulationRagReleaseRuntimeWorkerCliTest(unittest.TestCase):
             "official_web_stable_reference__r1",
         )
         self.assertEqual(surfaces["official_web/stable_reference"]["points_count"], 1747)
+        self.assertEqual(payload["object_store_status"], "available")
+        self.assertEqual(payload["object_store_bucket_derived"], "campus-rag-derived")
         self.assertTrue(payload["secrets_redacted"])
         self.assertNotIn("secret-api-key", stdout.getvalue())
         self.assertNotIn("secret-embedding-key", stdout.getvalue())
@@ -152,6 +226,10 @@ class ProbeRegulationRagReleaseRuntimeWorkerCliTest(unittest.TestCase):
             patch(f"{_MODULE_NAME}.load_worker_env"),
             patch(f"{_MODULE_NAME}.RetrievalSettings.from_env") as from_env,
             patch(f"{_MODULE_NAME}._build_qdrant_client") as build_client,
+            patch(
+                f"{_MODULE_NAME}._build_release_object_store",
+                return_value=("unavailable", "missing object store", None, None),
+            ),
             patch(f"{_MODULE_NAME}.load_runtime_profile", return_value=profile) as load_profile,
             patch(f"{_MODULE_NAME}.resolve_alias_target", return_value="institutional_rules__r1"),
             patch(f"{_MODULE_NAME}.validate_alias_release_metadata"),
@@ -178,6 +256,8 @@ class ProbeRegulationRagReleaseRuntimeWorkerCliTest(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertEqual(len(payload["surfaces"]), 1)
         self.assertEqual(payload["surfaces"][0]["scope"], "regulations/institutional_rules")
+        self.assertEqual(payload["surfaces"][0]["release_freshness_status"], "unavailable")
+        self.assertEqual(payload["surfaces"][0]["readiness_blocker"], "unavailable")
         load_profile.assert_called_once_with("regulations", "institutional_rules")
 
 
@@ -193,3 +273,37 @@ def _profile(corpus: str, collection: str, alias_name: str) -> SimpleNamespace:
         query_enabled_by_default=True,
         qdrant_index_binding=SimpleNamespace(alias_name=alias_name),
     )
+
+
+class _FakeReleaseObjectStore:
+    def __init__(self, payloads: dict[str, dict[str, object]]) -> None:
+        self.payloads = {
+            key: (json.dumps(value, ensure_ascii=False) + "\n").encode("utf-8")
+            for key, value in payloads.items()
+        }
+
+    def list_keys(self, *, bucket: str, prefix: str) -> tuple[str, ...]:
+        return tuple(sorted(key for key in self.payloads if key.startswith(prefix)))
+
+    def get_bytes(self, *, bucket: str, key: str) -> bytes:
+        return self.payloads[key]
+
+
+def _release_manifest(
+    *,
+    release_id: str,
+    corpus: str,
+    collection: str,
+    physical_collection_name: str,
+    serving_alias: str,
+    published_at: str = "2026-04-30T00:00:00+00:00",
+) -> dict[str, object]:
+    return {
+        "release_id": release_id,
+        "corpus": corpus,
+        "collection": collection,
+        "serving_alias": serving_alias,
+        "physical_collection_name": physical_collection_name,
+        "indexed_at": published_at,
+        "published_at": published_at,
+    }

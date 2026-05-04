@@ -149,17 +149,20 @@ composite gate 已纳入 RAG eval coverage/audit。RAG eval coverage report 已�
   - completed as a RAG-only coverage/audit slice
   - `packages/evals/src/campus_evals/rag_eval_coverage.py` 生成
     `rag-eval-coverage-report-v2`
-  - `scripts.eval_gate audit` 已包含 `rag_eval_coverage` 检查，防止 RAG denominator
-    重新混入非消费面或漏掉已 admit 的 RAG surface；maturity gaps 只报告，不让当前
-    audit fail
+  - `scripts.eval_gate audit` 已包含 `rag_eval_coverage` 与
+    `rag_retrieval_quality_gate` 检查，前者防止 RAG denominator 重新混入非消费面或漏掉已
+    admit 的 RAG surface，后者基于当前 runtime-readiness 与 live qrels evidence 阻断核心
+    RAG retrieval 质量回退；maturity gaps 只报告，不让当前 audit fail
   - maturity policy:
     `packages/evals/fixtures/rag_eval_maturity_policy.v1.json`
   - manual authoring backlog:
     `packages/evals/fixtures/rag_eval_maturity_backlog.v1.json`
   - 当前 coverage evidence:
     `.planning/workstreams/eval/evidence/rag-eval-coverage/rag-eval-coverage.json`
+  - 当前 retrieval quality gate evidence:
+    `.planning/workstreams/eval/evidence/retrieval-quality/gate/rag-retrieval-quality-gate.current.json`
   - 当前 RAG surface coverage:
-    - `regulations/student_rules`: handbook profile，45 条 qrels，39 个 unique expected
+    - `regulations/student_rules`: handbook profile，52 条 qrels，46 个 unique expected
       docs，25 条 release acceptance；minimum gate 通过，maturity status =
       `baseline_ready`
     - `regulations/institutional_rules`: `institutional-rules-release-baseline`，45 条 release
@@ -173,6 +176,11 @@ composite gate 已纳入 RAG eval coverage/audit。RAG eval coverage report 已�
   - 当前 maturity gaps: none
   - `official_web/fresh_news` 当前记录为 excluded surface:
     `not_current_rag_consumption_surface`
+  - 当前 core RAG retrieval quality gate 覆盖 `regulations/student_rules`、
+    `regulations/institutional_rules` 与 `curriculum/curriculum_plan`；三条 surface 的 live
+    qrels `doc_hit_at_1 = 1.0`、`doc_recall_at_5 = 1.0`、`forbidden_hit_rate = 0.0`，
+    runtime readiness 均为 `ready`。`official_web/stable_reference` 仍保留在 coverage
+    surface，但未纳入本轮 core RAG quality gate 的 refreshed blocking evidence。
 - 后续 eval closure queue：
   - 当前没有独立编号的 Phase 14
   - `Total Phases = 14` 来自 Phase 5A/5B 拆分

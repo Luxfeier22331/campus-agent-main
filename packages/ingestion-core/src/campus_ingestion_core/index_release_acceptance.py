@@ -3,15 +3,20 @@ from __future__ import annotations
 import json
 import math
 import re
-from collections.abc import Mapping, Sequence
+from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Protocol
 
 from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle
+from campus_retrieval_core.backend_qdrant_curriculum_rescue import rescue_curriculum_title_sources
 from campus_retrieval_core.backend_qdrant_evidence import build_evidence_sources
 from campus_retrieval_core.backend_qdrant_filters import _build_qdrant_filter
-from campus_retrieval_core.backend_qdrant_policies import _apply_no_hit_policy
+from campus_retrieval_core.backend_qdrant_policies import (
+    _apply_no_hit_policy,
+    _apply_official_web_low_signal_policy,
+    finalize_retrieval_sources,
+)
 from campus_retrieval_core.backend_qdrant_query import (
     _build_dense_query_text,
     _build_hybrid_prefetch,
@@ -206,15 +211,39 @@ class QdrantPhysicalCollectionAcceptanceExecutor:
                 build_qdrant_filter_fn=_build_qdrant_filter,
             ),
             query=_build_rrf_query(self.runtime_profile),
-            limit=max(top_k, self.runtime_profile.retrieval_top_k),
+            limit=max(
+                top_k,
+                self.runtime_profile.retrieval_top_k,
+                self.runtime_profile.document_support_limit,
+            ),
             with_payload=True,
             with_vectors=False,
             timeout=_qdrant_http_timeout_seconds(self.settings.qdrant_timeout_seconds),
         )
+        raw_sources = build_evidence_sources(self, response.points or ())
+        rescued_sources = rescue_curriculum_title_sources(
+            self,
+            request=request,
+            profile=self.runtime_profile,
+            qdrant_collection_name=physical_collection_name,
+            sources=raw_sources,
+            timeout_seconds=_qdrant_http_timeout_seconds(self.settings.qdrant_timeout_seconds),
+        )
         sources = _apply_no_hit_policy(
             profile=self.runtime_profile,
             query_text=request.query_text,
-            sources=build_evidence_sources(self, response.points or ()),
+            sources=rescued_sources,
+        )
+        sources = _apply_official_web_low_signal_policy(
+            profile=self.runtime_profile,
+            query_text=request.query_text,
+            sources=sources,
+        )
+        sources = finalize_retrieval_sources(
+            profile=self.runtime_profile,
+            query_text=request.query_text,
+            sources=sources,
+            preferred_document_ids=request.preferred_document_ids,
         )
         return EvidenceBundle(
             query_text=query,
@@ -702,7 +731,7 @@ def _add_segment_coverage_issues(
     issues_by_chunk_id: dict[str, tuple[str, ...]],
     rows: Sequence[_ChunkQualityRow],
 ) -> None:
-    segmented_rows = tuple(
+    segmented_rows = _dedupe_segment_quality_rows(
         row for row in rows if row.segment_index is not None or row.segment_total is not None
     )
     if not segmented_rows:
@@ -754,6 +783,20 @@ def _add_segment_coverage_issues(
                 chunk_id=row.chunk_id,
                 issue="segment_coverage_gap",
             )
+
+
+def _dedupe_segment_quality_rows(
+    rows: Iterable[_ChunkQualityRow],
+) -> tuple[_ChunkQualityRow, ...]:
+    deduped: list[_ChunkQualityRow] = []
+    seen: set[tuple[str, int | None, int | None]] = set()
+    for row in rows:
+        key = (row.chunk_id, row.segment_index, row.segment_total)
+        if key in seen:
+            continue
+        seen.add(key)
+        deduped.append(row)
+    return tuple(deduped)
 
 
 def _append_chunk_quality_issue(

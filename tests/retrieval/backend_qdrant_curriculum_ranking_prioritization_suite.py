@@ -32,6 +32,36 @@ class BackendQdrantCurriculumRankingPrioritizationTest(unittest.TestCase):
 
         self.assertEqual(ranked[0].doc_id, "curriculum:民族学本科人才培养方案")
 
+    def test_prioritize_evidence_sources_preserves_curriculum_bracketed_program_identity(
+        self,
+    ) -> None:
+        ranked = prioritize_evidence_sources(
+            query_text="信息与计算科学本科人才培养方案",
+            sources=(
+                _make_source(
+                    doc_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案",
+                    chunk_id="curriculum:ics-ethnic-experimental:chunk-0001",
+                    snippet="信息与计算科学（民族实验班）本科人才培养方案 一、培养目标。",
+                    score=0.82,
+                    source_title="信息与计算科学（民族实验班）本科人才培养方案",
+                    structural_path=(
+                        "信息与计算科学（民族实验班）本科人才培养方案",
+                        "一、培养目标",
+                    ),
+                ),
+                _make_source(
+                    doc_id="curriculum:信息与计算科学本科人才培养方案",
+                    chunk_id="curriculum:ics:chunk-0001",
+                    snippet="信息与计算科学本科人才培养方案 一、培养目标。",
+                    score=0.49,
+                    source_title="信息与计算科学本科人才培养方案",
+                    structural_path=("信息与计算科学本科人才培养方案", "一、培养目标"),
+                ),
+            ),
+        )
+
+        self.assertEqual(ranked[0].doc_id, "curriculum:信息与计算科学本科人才培养方案")
+
     def test_prioritize_evidence_sources_prefers_curriculum_fact_chunk_for_short_fact_query(
         self,
     ) -> None:

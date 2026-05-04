@@ -485,6 +485,83 @@
 			"notes": "勤工助学与资助管理泛制度区分。"
 		},
 		{
+			"case_id": "policy-title-weekly-monthly-student-report",
+			"category": "policy_title_exact_match",
+			"split": "smoke",
+			"query": "中央民族大学学院(系)学生基本情况周查月报制度",
+			"request_overrides": {},
+			"retrieved_sources": [],
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "周查月报制度标题命中。"
+		},
+		{
+			"case_id": "policy-title-ethnic-unity-advanced-selection",
+			"category": "policy_title_exact_match",
+			"split": "smoke",
+			"query": "中央民族大学评选学生民族团结进步先进集体和先进个人实施办法",
+			"request_overrides": {},
+			"retrieved_sources": [],
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "民族团结进步先进评选制度标题命中。"
+		},
+		{
+			"case_id": "policy-title-temporary-hardship-subsidy",
+			"category": "policy_title_exact_match",
+			"split": "smoke",
+			"query": "中央民族大学家庭经济困难学生临时困难补助管理办法",
+			"request_overrides": {},
+			"retrieved_sources": [],
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "困难认定与临时困难补助制度区分。"
+		},
+		{
+			"case_id": "policy-title-national-grant",
+			"category": "policy_title_exact_match",
+			"split": "smoke",
+			"query": "中央民族大学本科生国家助学金评审办法",
+			"request_overrides": {},
+			"retrieved_sources": [],
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "助学金与奖学金制度区分。"
+		},
+		{
+			"case_id": "policy-title-tuition-loan-compensation",
+			"category": "policy_title_exact_match",
+			"split": "smoke",
+			"query": "中央民族大学毕业生学费和国家助学贷款代偿暂行实施办法",
+			"request_overrides": {},
+			"retrieved_sources": [],
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "助学贷款代偿与助学贷款管理制度区分。"
+		},
+		{
+			"case_id": "policy-title-student-aid-management",
+			"category": "policy_title_exact_match",
+			"split": "smoke",
+			"query": "中央民族大学学生资助管理工作暂行办法",
+			"request_overrides": {},
+			"retrieved_sources": [],
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "资助管理泛制度与勤工助学制度区分。"
+		},
+		{
+			"case_id": "policy-title-funded-student-public-service",
+			"category": "policy_title_exact_match",
+			"split": "smoke",
+			"query": "中央民族大学本科受资助学生参与公益服务活动实施办法",
+			"request_overrides": {},
+			"retrieved_sources": [],
+			"expected_sources": [],
+			"forbidden_sources": [],
+			"notes": "受资助学生公益服务与一般志愿服务制度区分。"
+		},
+		{
 			"case_id": "no-hit-impossible-query",
 			"category": "no_hit",
 			"split": "smoke",

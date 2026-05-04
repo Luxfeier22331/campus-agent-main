@@ -4,12 +4,12 @@
 	"posture": "manual_authoring_backlog",
 	"surfaces": {
 		"regulations/student_rules": {
-			"current_qrels_case_count": 45,
+			"current_qrels_case_count": 52,
 			"current_release_acceptance_case_count": 25,
-			"current_unique_expected_doc_count": 39,
-			"target_qrels_case_count": 45,
+			"current_unique_expected_doc_count": 46,
+			"target_qrels_case_count": 52,
 			"target_release_acceptance_case_count": 25,
-			"target_unique_expected_doc_count": 30,
+			"target_unique_expected_doc_count": 46,
 			"case_types": [
 				"policy_title_exact_match",
 				"article_or_clause_reference",

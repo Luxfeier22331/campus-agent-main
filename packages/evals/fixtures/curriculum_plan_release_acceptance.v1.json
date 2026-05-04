@@ -105,6 +105,8 @@
 			"collection": "curriculum_plan",
 			"query": "中央民族大学大学生社会实践环节实施方案",
 			"top_k": 3,
+			"entitlement_groups": ["campus_members"],
+			"visibility_level": "restricted",
 			"expected_document_ids": ["curriculum:中央民族大学大学生社会实践环节实施方案"]
 		},
 		{
