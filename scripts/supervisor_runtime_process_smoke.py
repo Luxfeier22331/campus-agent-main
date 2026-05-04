@@ -36,6 +36,9 @@ NOTICE_DIRECT_OPENED_PROFILES = {
 MULTI_STEP_WORKFLOW_PROFILES = {
     "multi_step_notice_knowledge_followthrough",
 }
+AGENTS_SDK_NOTICE_PROFILES = {
+    "agents_sdk_notice_discover_e2e",
+}
 RAG_RETRIEVAL_PROFILES = {
     "rag_delegate",
     "rag_delegate_institutional_rules",
@@ -87,7 +90,7 @@ def build_process_smoke_plan(
         "supervisor-agent-worker-local-placeholder",
     )
     structured_query_secret = _env_or_default(
-        "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",
+        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
         "supervisor-structured-query-local-placeholder",
     )
     api_base_url = f"http://{api_host}:{api_port}"
@@ -235,7 +238,7 @@ def _profile_api_env(
         return {
             "SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED": "true",
             "SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE": "true",
-            "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET": structured_query_secret,
+            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
             "OBJECT_STORE_ENDPOINT": object_store_base_url,
             "OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
             "OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
@@ -253,8 +256,8 @@ def _profile_worker_env(
     if profile not in MULTI_STEP_WORKFLOW_PROFILES:
         return {}
     return {
-        "SUPERVISOR_STRUCTURED_QUERY_BASE_URL": api_base_url,
-        "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET": structured_query_secret,
+        "SUPERVISOR_INTERNAL_QUERY_BASE_URL": api_base_url,
+        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS": "1.0",
     }
 
@@ -273,7 +276,11 @@ def _profile_requires_structured_projection(profile: str) -> bool:
 
 
 def _profile_requires_notice_read_model(profile: str) -> bool:
-    return profile in NOTICE_DIRECT_OPENED_PROFILES or profile in MULTI_STEP_WORKFLOW_PROFILES
+    return (
+        profile in NOTICE_DIRECT_OPENED_PROFILES
+        or profile in MULTI_STEP_WORKFLOW_PROFILES
+        or profile in AGENTS_SDK_NOTICE_PROFILES
+    )
 
 
 def _profile_requires_workflow_run_store(profile: str) -> bool:

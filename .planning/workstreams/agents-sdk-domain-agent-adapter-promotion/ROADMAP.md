@@ -1,6 +1,6 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-05-04
 updated: 2026-05-04
 ---
@@ -233,6 +233,8 @@ git diff --check
 **Exit Criteria:**
 
 - Phase 8 can compare correctness, latency/cost, failure rate and rollback safety.
+- Structured-query E2E smoke records sanitized runner projection:
+  `tool_call_count=1`, `tool_execution_count=1`, source ref count and bounded notice card fields.
 
 ## Phase 8: Promotion Decision Per Target
 
@@ -257,6 +259,8 @@ git diff --check
 
 - The selected posture is recorded with target/tool granularity.
 - Env defaults are changed only if evidence supports default-on.
+- Current decision: keep `notice-agent + campus_notice_discover` explicit-gated. Do not promote to
+  default-on from a single E2E smoke.
 
 ## Phase 9: Closeout And Architecture Update
 
@@ -304,9 +308,20 @@ SDK adapter candidate. It is not default-on.
 
 **Follow-up evidence before default-on:**
 
-- Run a real provider smoke with `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED=true`,
+- Re-run the structured-query E2E smoke:
+  `uv run --all-packages python -m scripts.agents_sdk_notice_discover_e2e_smoke --timeout-seconds 90 --startup-timeout-seconds 180`.
+- Keep `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED=true`,
   `SUPERVISOR_AGENTS_SDK_ALLOWED_TARGETS=notice-agent`,
   `SUPERVISOR_AGENTS_SDK_ALLOWED_TOOLS=campus_notice_discover` and complete prompt runtime
-  provider config.
-- Record live latency/cost/error evidence.
+  provider config explicit in the E2E lane.
+- Record live latency/cost/error evidence across multiple runs.
 - Re-run parity, redaction and rollback gates before changing defaults.
+
+**Structured-query E2E evidence recorded 2026-05-04:**
+
+- `passed=true`
+- `mode=real_openai_agents_sdk_with_go_structured_query_pg_read_model`
+- `structured_query_e2e=true`
+- `tool_execution_count=1`
+- `source_ref_count=1`
+- returned seed title/source URL from temporary PG notice read model.

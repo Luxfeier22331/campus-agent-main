@@ -1,6 +1,6 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-05-04
 updated: 2026-05-04
 ---
@@ -22,10 +22,11 @@ trace、tool schema 或 run state 提升为 shared contract truth。
 
 ## Current Status
 
-- status: implementation complete, closeout verification pending
-- current phase: Phase 9 closeout
+- status: completed, explicit-gated candidate evidence complete
+- current phase: closed
 - current slice: `notice-agent + campus_notice_discover` explicit-gated SDK adapter candidate
 - product posture: no default runtime changed; SDK remains env/allowlist gated
+- deferred decision: default-on promotion still requires broader live latency/cost/error evidence
 - primary owner boundary: `apps/supervisor-agent-worker` + `apps/supervisor-api` +
   `packages/contracts` + `packages/evals`
 

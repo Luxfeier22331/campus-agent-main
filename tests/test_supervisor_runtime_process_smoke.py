@@ -512,15 +512,15 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         )
         self.assertEqual(
             multi_step_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_STRUCTURED_QUERY_BASE_URL"
+                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
             ],
             "http://127.0.0.1:27051",
         )
         self.assertEqual(
             multi_step_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"
+                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"
             ],
-            multi_step_processes["supervisor-api"].env["SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"],
+            multi_step_processes["supervisor-api"].env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"],
         )
         self.assertIn("s3-smoke-object-store", multi_step_processes)
         self.assertIn("multi_step", multi_step_notice.expected_body_tokens)
@@ -547,6 +547,15 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         parameters = inspect.signature(_post_json).parameters
 
         self.assertIn("timeout_seconds", parameters)
+
+    def test_json_status_probe_accepts_headers(self) -> None:
+        import inspect
+
+        from scripts.supervisor_runtime_process_smoke_http import wait_for_json_status
+
+        parameters = inspect.signature(wait_for_json_status).parameters
+
+        self.assertIn("headers", parameters)
 
     def test_sse_answer_probe_preserves_event_stream_text(self) -> None:
         from scripts.supervisor_runtime_process_smoke_http import _parse_sse_response

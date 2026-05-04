@@ -3,7 +3,7 @@ from __future__ import annotations
 import json
 import os
 import time
-from dataclasses import asdict, dataclass
+from dataclasses import dataclass
 from pathlib import Path
 
 from campus_contracts import (
@@ -100,7 +100,9 @@ def run_smoke(*, report_path: Path = DEFAULT_REPORT_PATH) -> dict[str, object]:
         ],
     }
     report_path.parent.mkdir(parents=True, exist_ok=True)
-    report_path.write_text(json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
+    report_path.write_text(
+        json.dumps(report, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
     return report
 
 
@@ -156,10 +158,8 @@ def _env_summary(settings: ApiSettings) -> dict[str, object]:
         "agent_prompt_model": settings.agent_prompt_model,
         "prompt_runtime_base_url_present": bool(settings.prompt_runtime_base_url),
         "prompt_runtime_api_key_present": bool(settings.prompt_runtime_api_key),
-        "structured_query_base_url_present": bool(_env("SUPERVISOR_STRUCTURED_QUERY_BASE_URL")),
-        "structured_query_secret_present": bool(
-            _env("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET")
-        ),
+        "internal_query_base_url_present": bool(_env("SUPERVISOR_INTERNAL_QUERY_BASE_URL")),
+        "internal_query_secret_present": bool(_env("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET")),
     }
 
 

@@ -93,6 +93,12 @@ class _ToolExecutionRecord:
     result_projection: dict[str, object]
 
 
+@dataclass(frozen=True, slots=True)
+class _ValidatedToolArguments:
+    arguments: dict[str, object]
+    argument_keys: tuple[str, ...]
+
+
 def run_agents_sdk_runner_shell(
     request: AgentRequest,
     *,
@@ -226,7 +232,7 @@ def _response_from_runner_result(
         )
     tool_call = _single_tool_call(result.tool_calls)
     descriptor = _descriptor_for_tool_call(tool_call, tool_descriptors)
-    argument_keys = _validate_tool_arguments(
+    validated_arguments = _validate_tool_arguments(
         tool_call,
         descriptor=descriptor,
         tool_registry=tool_registry,
@@ -236,7 +242,11 @@ def _response_from_runner_result(
             "sdk_tool_not_executed",
             "Agents SDK runner did not execute the required repo-owned tool",
         )
-    _validate_tool_execution_records(tool_call, argument_keys, tool_execution_records)
+    _validate_tool_execution_records(
+        tool_call,
+        validated_arguments,
+        tool_execution_records,
+    )
     final_output = _final_output_text(result.final_output)
     runner_projection: dict[str, object] = {
         "schema_version": AGENTS_SDK_RUNNER_PROJECTION_SCHEMA_VERSION,
@@ -244,7 +254,7 @@ def _response_from_runner_result(
         "tool_names": [tool_call.name],
         "model_tool_call_ref": tool_call.call_id,
         "model_response_ref": result.model_response_ref,
-        "argument_keys": argument_keys,
+        "argument_keys": list(validated_arguments.argument_keys),
         "tool_execution_count": len(tool_execution_records),
     }
     if tool_execution_records:
@@ -255,7 +265,7 @@ def _response_from_runner_result(
         runtime_posture=descriptor.runtime_posture,
         tool_call_count=1,
         tool_execution_count=len(tool_execution_records),
-        tool_argument_keys=argument_keys,
+        tool_argument_keys=list(validated_arguments.argument_keys),
         tool_outcome="sdk_completed",
         result_outcome="sdk_completed",
         tool_attempted=True,
@@ -329,14 +339,14 @@ class _ToolExecutionRecorder:
             call_id=execution.call_id,
         )
         descriptor = _descriptor_for_tool_call(tool_call, self._tool_descriptors)
-        argument_keys = _validate_tool_arguments(
+        validated_arguments = _validate_tool_arguments(
             tool_call,
             descriptor=descriptor,
             tool_registry=self._tool_registry,
         )
         normalized_execution = AgentsSdkToolExecutionRequest(
             name=tool_call.name,
-            arguments=dict(tool_call.arguments),
+            arguments=dict(validated_arguments.arguments),
             call_id=tool_call.call_id,
         )
         try:
@@ -353,7 +363,7 @@ class _ToolExecutionRecorder:
             _ToolExecutionRecord(
                 request=normalized_execution,
                 arguments=normalized_execution.arguments,
-                argument_keys=tuple(argument_keys),
+                argument_keys=validated_arguments.argument_keys,
                 result_projection=_bounded_tool_result_projection(result),
             )
         )
@@ -403,13 +413,13 @@ def _validate_tool_arguments(
     *,
     descriptor: AgentsSdkToolDescriptor,
     tool_registry: ToolSpecRegistry,
-) -> list[str]:
+) -> _ValidatedToolArguments:
     if not isinstance(tool_call.arguments, dict):
         raise AgentsSdkRunnerError(
             "sdk_bad_arguments",
             f"Agents SDK tool arguments must be an object: {tool_call.name}",
         )
-    arguments = dict(tool_call.arguments)
+    arguments = _normalize_tool_arguments(dict(tool_call.arguments), descriptor.parameters)
     _validate_arguments_against_schema(arguments, descriptor.parameters, tool_call.name)
     payload_class = tool_registry.payload_class_for_tool(tool_call.name)
     try:
@@ -419,12 +429,31 @@ def _validate_tool_arguments(
             "sdk_bad_arguments",
             f"Agents SDK tool arguments do not match {tool_call.name}: {exc}",
         ) from exc
-    return sorted(arguments)
+    return _ValidatedToolArguments(
+        arguments=arguments,
+        argument_keys=tuple(sorted(arguments)),
+    )
+
+
+def _normalize_tool_arguments(
+    arguments: dict[str, object],
+    parameters: dict[str, Any],
+) -> dict[str, object]:
+    properties = parameters.get("properties")
+    if not isinstance(properties, dict):
+        return arguments
+    normalized: dict[str, object] = {}
+    for key, value in arguments.items():
+        property_schema = properties.get(key)
+        if value is None and isinstance(property_schema, dict) and _allows_null(property_schema):
+            continue
+        normalized[key] = value
+    return normalized
 
 
 def _validate_tool_execution_records(
     tool_call: AgentsSdkToolCall,
-    argument_keys: list[str],
+    validated_arguments: _ValidatedToolArguments,
     records: tuple[_ToolExecutionRecord, ...],
 ) -> None:
     if len(records) > 1:
@@ -445,12 +474,15 @@ def _validate_tool_execution_records(
             "sdk_tool_execution_mismatch",
             "Agents SDK runner final tool call id does not match executed tool",
         )
-    if tuple(argument_keys) != record.argument_keys:
+    if validated_arguments.argument_keys != record.argument_keys:
         raise AgentsSdkRunnerError(
             "sdk_tool_execution_mismatch",
             "Agents SDK runner final tool arguments do not match executed tool",
         )
-    if isinstance(tool_call.arguments, dict) and dict(tool_call.arguments) != record.arguments:
+    if (
+        isinstance(tool_call.arguments, dict)
+        and dict(validated_arguments.arguments) != record.arguments
+    ):
         raise AgentsSdkRunnerError(
             "sdk_tool_execution_mismatch",
             "Agents SDK runner final tool argument values do not match executed tool",

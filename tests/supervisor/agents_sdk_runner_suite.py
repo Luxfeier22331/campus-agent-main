@@ -327,6 +327,74 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
         assert response.agent_observability is not None
         self.assertEqual(response.agent_observability.failure_class, "sdk_bad_arguments")
 
+    def test_runner_shell_normalizes_nullable_optional_tool_arguments_before_execution(
+        self,
+    ) -> None:
+        captured_execution: AgentsSdkToolExecutionRequest | None = None
+
+        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+            self.assertIsNotNone(run_request.execute_tool)
+            assert run_request.execute_tool is not None
+            run_request.execute_tool(
+                AgentsSdkToolExecutionRequest(
+                    name="campus_notice_discover",
+                    arguments={
+                        "query_text": "烟雾测试通知",
+                        "temporal_query": None,
+                        "source_families": None,
+                        "target_surfaces": None,
+                        "max_results": None,
+                    },
+                    call_id="call-null-optionals",
+                )
+            )
+            return AgentsSdkRunResult(
+                final_output="已找到烟雾测试通知：https://example.invalid/notices/smoke",
+                tool_calls=(
+                    AgentsSdkToolCall(
+                        name="campus_notice_discover",
+                        arguments={
+                            "query_text": "烟雾测试通知",
+                            "temporal_query": None,
+                            "source_families": None,
+                            "target_surfaces": None,
+                            "max_results": None,
+                        },
+                        call_id="call-null-optionals",
+                    ),
+                ),
+            )
+
+        def execute_tool(execution: AgentsSdkToolExecutionRequest) -> dict[str, object]:
+            nonlocal captured_execution
+            captured_execution = execution
+            return {
+                "outcome": "resolved_current",
+                "notice_card_count": 1,
+                "titles": ["烟雾测试通知"],
+                "source_urls": ["https://example.invalid/notices/smoke"],
+                "source_ref_count": 1,
+            }
+
+        response = run_agents_sdk_runner_shell(
+            _notice_discover_request(),
+            runner=fake_runner,
+            enabled=True,
+            execute_tool=execute_tool,
+            require_tool_execution=True,
+            tool_registry=_sdk_test_tool_registry(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIsNotNone(captured_execution)
+        assert captured_execution is not None
+        self.assertEqual(captured_execution.arguments, {"query_text": "烟雾测试通知"})
+        self.assertIsNotNone(response.agent_observability)
+        assert response.agent_observability is not None
+        projection = response.agent_observability.safe_details["agents_sdk_runner_projection"]
+        self.assertEqual(projection["argument_keys"], ["query_text"])
+        self.assertEqual(projection["tool_execution_count"], 1)
+
     def test_runner_shell_rejects_malformed_final_output(self) -> None:
         response = run_agents_sdk_runner_shell(
             _notice_discover_request(),
