@@ -26,6 +26,12 @@ PROVIDER_RUNTIME_POSTURES = frozenset(
         "provider_loop_open",
     }
 )
+SDK_ADAPTER_RUNTIME_POSTURES = frozenset(
+    {
+        "sdk_adapter_candidate",
+        "sdk_adapter_admitted",
+    }
+)
 
 
 class AgentsSdkToolBridgeError(ValueError):
@@ -103,10 +109,10 @@ def _validate_tool_admitted_for_sdk_bridge(tool: ToolSpec) -> None:
             "function_schema_not_strict",
             f"ToolSpec function schema is not strict: {tool.name}",
         )
-    if tool.runtime_posture not in PROVIDER_RUNTIME_POSTURES:
+    if tool.runtime_posture not in SDK_ADAPTER_RUNTIME_POSTURES:
         raise _bridge_error(
             "runtime_posture_not_admitted",
-            "SDK tool bridge requires a provider runtime posture for "
+            "SDK tool bridge requires an SDK adapter runtime posture for "
             f"{tool.name}: {tool.runtime_posture}",
         )
 

@@ -279,7 +279,7 @@ def _response_from_runner_result(
             tool_attempted=True,
             tool_outcome="sdk_completed",
             result_outcome="sdk_completed",
-            source_ref_count=0,
+            source_ref_count=_tool_execution_source_ref_count(tool_execution_records),
             access_decision="not_evaluated",
             safe_details={
                 "agents_sdk_runner_projection": runner_projection,
@@ -680,6 +680,18 @@ def _runtime_posture_for_request(request: AgentRequest, registry: ToolSpecRegist
 
 def _tool_execution_count(recorder: _ToolExecutionRecorder | None) -> int:
     return len(recorder.records) if recorder is not None else 0
+
+
+def _tool_execution_source_ref_count(
+    records: tuple[_ToolExecutionRecord, ...],
+) -> int:
+    if not records:
+        return 0
+    latest = records[-1].result_projection
+    count = latest.get("source_ref_count")
+    if isinstance(count, int) and count >= 0:
+        return count
+    return 0
 
 
 __all__ = [

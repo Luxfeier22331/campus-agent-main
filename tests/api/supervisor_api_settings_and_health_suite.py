@@ -74,7 +74,9 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 "allowed_tools": [],
                 "runtime_enabled": False,
                 "runtime_admitted": False,
-                "runtime_posture": "domain_agent_adapter_pilot",
+                "runtime_posture": "domain_agent_adapter_candidate",
+                "admitted_pairs": [],
+                "blocked_pairs": [],
             },
         )
         self.assertNotIn("transport_runtime", ready.json_body)

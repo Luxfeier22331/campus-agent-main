@@ -28,7 +28,9 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                 "allowed_tools": [],
                 "runtime_enabled": False,
                 "runtime_admitted": False,
-                "runtime_posture": "domain_agent_adapter_pilot",
+                "runtime_posture": "domain_agent_adapter_candidate",
+                "admitted_pairs": [],
+                "blocked_pairs": [],
             },
         )
 
@@ -107,6 +109,30 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
         self.assertEqual(status["allowed_targets"], ["notice-agent"])
         self.assertEqual(status["allowed_tools"], ["campus_notice_discover"])
 
+    def test_status_reports_target_tool_matrix_for_admitted_notice_candidate(self) -> None:
+        status = agents_sdk_runtime_status(
+            enabled=True,
+            allowed_targets=("notice-agent",),
+            allowed_tools=("campus_notice_discover",),
+            prompt_runtime_provider="openai-responses",
+            agent_model="gpt-agent",
+            sdk_available=True,
+        )
+
+        self.assertTrue(status["admitted"])
+        self.assertEqual(status["runtime_posture"], "domain_agent_adapter_candidate")
+        self.assertEqual(
+            status["admitted_pairs"],
+            [
+                {
+                    "target": "notice-agent",
+                    "tool": "campus_notice_discover",
+                    "tool_runtime_posture": "sdk_adapter_candidate",
+                }
+            ],
+        )
+        self.assertEqual(status["blocked_pairs"], [])
+
     def test_status_rejects_stale_notice_get_sdk_tool(self) -> None:
         status = agents_sdk_runtime_status(
             enabled=True,
@@ -120,6 +146,30 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
         self.assertFalse(status["admitted"])
         self.assertEqual(status["admission_reason"], "unsupported_allowed_tool")
         self.assertEqual(status["allowed_tools"], ["campus_notice_get"])
+
+    def test_status_rejects_service_status_without_sdk_tool_posture(self) -> None:
+        status = agents_sdk_runtime_status(
+            enabled=True,
+            allowed_targets=("campus-services-agent",),
+            allowed_tools=("service_status_lookup",),
+            prompt_runtime_provider="openai-responses",
+            agent_model="gpt-agent",
+            sdk_available=True,
+        )
+
+        self.assertFalse(status["admitted"])
+        self.assertEqual(status["admission_reason"], "tool_not_sdk_candidate")
+        self.assertEqual(
+            status["blocked_pairs"],
+            [
+                {
+                    "target": "campus-services-agent",
+                    "tool": "service_status_lookup",
+                    "reason": "tool_not_sdk_candidate",
+                    "tool_runtime_posture": "typed_handoff_only",
+                }
+            ],
+        )
 
 
 if __name__ == "__main__":

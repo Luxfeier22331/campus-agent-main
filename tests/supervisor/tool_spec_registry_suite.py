@@ -49,6 +49,30 @@ class ToolSpecRegistryTest(unittest.TestCase):
         self.assertTrue(service_status.function_schema.available)
         self.assertEqual(service_status.runtime_posture, "typed_handoff_only")
 
+    def test_notice_discover_is_first_sdk_adapter_candidate(self) -> None:
+        registry = load_tool_spec_registry()
+        notice_discover = registry.tool_by_name("campus_notice_discover")
+        campus_service_tools = {
+            tool.name: tool
+            for tool in registry.tools
+            if tool.owner_agent == "campus-services-agent"
+        }
+
+        self.assertIsNotNone(notice_discover)
+        assert notice_discover is not None
+        self.assertEqual(notice_discover.surface, "structured_handoff")
+        self.assertTrue(notice_discover.function_schema.available)
+        self.assertTrue(notice_discover.function_schema.strict)
+        self.assertEqual(notice_discover.runtime_posture, "sdk_adapter_candidate")
+        self.assertEqual(
+            campus_service_tools["service_status_lookup"].runtime_posture,
+            "typed_handoff_only",
+        )
+        self.assertEqual(
+            campus_service_tools["transport_schedule_lookup"].runtime_posture,
+            "typed_handoff_only",
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

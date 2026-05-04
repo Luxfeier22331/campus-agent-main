@@ -59,6 +59,8 @@ def build_agents_sdk_trace_projection(
     tool_attempted: bool = False,
     latency_ms: int = 0,
     model_response_ref: str = "",
+    model_name: str = "",
+    estimated_cost_microusd: int | None = None,
 ) -> dict[str, object]:
     projection: dict[str, object] = {
         "schema_version": AGENTS_SDK_TRACE_PROJECTION_SCHEMA_VERSION,
@@ -76,7 +78,10 @@ def build_agents_sdk_trace_projection(
         "tool_attempted": bool(tool_attempted),
         "latency_ms": max(0, int(latency_ms)),
         "model_response_ref": model_response_ref,
+        "model_name": model_name.strip(),
     }
+    if estimated_cost_microusd is not None:
+        projection["estimated_cost_microusd"] = max(0, int(estimated_cost_microusd))
     reject_unsafe_agents_sdk_projection(projection)
     return projection
 

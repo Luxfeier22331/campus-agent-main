@@ -131,6 +131,7 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             projection["tool_result_projection"]["outcome"],
             "resolved_current",
         )
+        self.assertEqual(response.agent_observability.source_ref_count, 1)
 
     def test_runner_shell_fails_closed_when_required_tool_execution_is_missing(self) -> None:
         response = run_agents_sdk_runner_shell(
@@ -405,7 +406,7 @@ def _sdk_test_tool_registry() -> ToolSpecRegistry:
     return replace(
         registry,
         tools=tuple(
-            replace(tool, runtime_posture="provider_loop_pilot")
+            replace(tool, runtime_posture="sdk_adapter_candidate")
             if tool.name == "campus_notice_discover"
             else tool
             for tool in registry.tools
