@@ -60,6 +60,7 @@ class FakeCampusServicesQueryService:
             ),
             guide_sections=(
                 ServiceGuideSection(
+                    section_id="service:handbook:check-in:section:procedure",
                     section_type="procedure",
                     title="公寓楼新生办理入住手续流程",
                     content="1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",

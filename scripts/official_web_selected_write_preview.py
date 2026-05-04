@@ -39,23 +39,49 @@ def run_selected_write_preview(
     source_bucket: str = DEFAULT_BUCKET_SOURCE,
     derived_bucket: str | None = None,
     declarations_path: Path | None = None,
+    release_tasks: list[dict[str, Any]] | None = None,
 ) -> dict[str, Any]:
     load_worker_env()
     settings = ObjectStoreSettings.from_env()
     object_store = S3ObjectStoreAdmin(settings)
     release_store = build_official_web_release_task_store_from_env()
     normalized_task_ids = [item.strip() for item in task_ids if item.strip()]
-    if not normalized_task_ids:
+    normalized_release_tasks = [
+        dict(item) for item in (release_tasks or []) if isinstance(item, dict)
+    ]
+    if not normalized_task_ids and not normalized_release_tasks:
         raise ValueError("at least one task id is required")
     output_dir.mkdir(parents=True, exist_ok=True)
     results: list[dict[str, Any]] = []
+    tasks_to_preview: list[tuple[str, dict[str, Any], str, str]] = []
     for task_id in normalized_task_ids:
         task = release_store.get_task(task_id)
         if task is None:
             raise RuntimeError(f"official web release task not found: {task_id}")
+        tasks_to_preview.append(
+            (
+                task_id,
+                {**task.to_payload(), "status": "claimed"},
+                task.task_type,
+                task.inventory_id,
+            )
+        )
+    for task_payload in normalized_release_tasks:
+        task_id = str(task_payload.get("taskId") or task_payload.get("task_id") or "").strip()
+        if not task_id:
+            raise ValueError("release task payload must contain taskId")
+        tasks_to_preview.append(
+            (
+                task_id,
+                {**task_payload, "status": "claimed"},
+                str(task_payload.get("taskType") or task_payload.get("task_type") or "").strip(),
+                str(task_payload.get("inventoryId") or task_payload.get("inventory_id") or "").strip(),
+            )
+        )
+    for task_id, release_task_payload, task_type, inventory_id in tasks_to_preview:
         task_output_dir = output_dir / task_id
         preview = preview_official_web_selected_write(
-            release_task={**task.to_payload(), "status": "claimed"},
+            release_task=release_task_payload,
             object_store=object_store,
             work_dir=task_output_dir,
             object_store_settings=settings,
@@ -80,8 +106,8 @@ def run_selected_write_preview(
                     preview.full_bundle,
                     preview.collection,
                 ),
-                "task_type": task.task_type,
-                "inventory_id": task.inventory_id,
+                "task_type": task_type,
+                "inventory_id": inventory_id,
             }
         )
     summary = {
