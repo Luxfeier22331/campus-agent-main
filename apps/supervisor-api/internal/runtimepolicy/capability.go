@@ -23,6 +23,9 @@ func InferCapabilityFromGoal(userGoal string, policy IntentPolicyArtifact) strin
 	if normalized == "" {
 		return "knowledge"
 	}
+	if isDirectoryLookupGuideQuery(normalized) {
+		return "campus_services"
+	}
 	if containsAny(normalized, policy.Signals("structured_service_guide_subject")) &&
 		containsAny(normalized, policy.Signals("structured_service_guide_action")) {
 		return "campus_services"
