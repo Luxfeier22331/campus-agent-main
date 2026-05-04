@@ -133,6 +133,12 @@ raw/source-truth/projection/document/chunk/index`
 - supervisor 长期拥有 workflow plan ownership：它决定本次请求是 terminal、
   direct structured runtime、single-agent execution 还是 multi-agent workflow，并显式限制
   allowed agents、allowed tools、step budget、timeout 与 fail-close terminal policy
+- 长期必须有 repo-owned `AgentSpec` registry 作为 agent-level canonical artifact；新增稳定
+  domain agent 不得只在 planner / prompt / runtime delegate map 中添加字符串 target
+- multi-agent runtime 的 canonical lifecycle 固定为
+  `Turn -> WorkflowRun -> AgentInvocation -> ToolCall -> Evidence/Projection ->
+  Finalization`；provider-native trace、SDK run state 或框架 agent graph 只能作为内部
+  debug input，不能替代 repo-owned sanitized projection
 - supervisor runtime control plane 长期由 Docker-side Go runtime 承接 deterministic
   execution lifecycle、cancel、timeout、queue、per-lane budget、runtime metrics、audit
   writer 与 fail-close envelope
@@ -142,6 +148,9 @@ raw/source-truth/projection/document/chunk/index`
 - domain agent 负责明确能力边界内的 planning / evidence consumption / answer shaping
 - domain agent 可以作为 manager-style workflow 中的 bounded specialist；其输出必须先收敛为
   `StepOutputProjection` 或同等 bounded result projection，才能供后续 agent 或 finalizer 消费
+- context inheritance 必须按 agent role 最小化；supervisor 不得把完整 conversation、
+  完整上游 answer、raw evidence dump、raw OCR、raw provider trace 或未裁剪 source body
+  广播给后续 agent
 - `campus-services-agent` 长期承接只读校园服务结构化查询，包括 transport
   schedule、service status、service guide、temporary override 与 later-wave contact
   directory 等结构化校园服务真相；其中 `service_guide_lookup` 只回答办理指南、材料、
@@ -240,6 +249,17 @@ tool 与 deterministic query function 的边界必须保持清晰：
 - canonical notice body、OCR owner text、inline image text 与附件正文不得作为 provider
   function tool output 直接进入 public answer；只允许进入 bounded summary、fact extraction、
   downstream materialization 或 source-linked context projection。
+
+长期 agent 与 tool registry 的边界必须保持清晰：
+
+- `AgentSpec` 定义 domain-agent 的能力边界、input/output projection、allowed tools、
+  context filter、opening gate、timeout/budget、trace projection 与 eval denominator
+- `ToolSpec` 定义 agent 内部可调用的 read-only capability 或受控 function surface
+- Go `WorkflowPlan` 只能选择已注册且 gate-ready 的 agents / tools
+- Python worker delegate map 与 provider-native function schema 必须从这些 repo-owned
+  artifacts 派生或被 drift test 校验
+- 新增 agent、打开 explicit handoff、打开 parallel fanout 或新增 state-changing tool，都必须先
+  补 contract、eval denominator 与 trace projection，不得只靠 prompt 约束
 
 长期需要一个 repo-owned `ToolSpec` registry 作为 canonical artifact。该 registry 至少固定：
 

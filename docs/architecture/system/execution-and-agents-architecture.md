@@ -318,6 +318,13 @@ agent 是稳定能力边界，不等于某个底层框架对象。
 `Go supervisor-api -> WorkflowPlan -> bounded specialist agent calls ->
 StepOutputProjection -> next step / finalizer`
 
+外部 agent 框架与 Codex CLI / Agents SDK / LangGraph 等 runtime 的共同启发只作为
+supporting design input：它们证明 manager-style specialist call、explicit handoff、
+tool orchestration、trace 与 agent graph 都应是一等 runtime concern。repo 的 canonical
+truth 仍由 `WorkflowPlan`、`AgentRequest`、`AgentResponse`、
+`StepOutputProjection` 与 `workflow_trace_summary` 拥有；不得把任何 SDK-native graph、
+provider trace 或框架状态提升为 shared contract。
+
 固定 owner 如下：
 
 - Go `apps/supervisor-api`
@@ -343,6 +350,56 @@ StepOutputProjection -> next step / finalizer`
   - 必须携带显式 handoff target、allowed tools、history filter / context projection 与
     eval denominator
 
+### AgentSpec Registry Target
+
+长期必须有 repo-owned `AgentSpec` registry，作为 `ToolSpec` 的 agent-level 等价物。
+新增或打开稳定 domain agent 时，不得只在 planner 中添加字符串 target；必须先注册
+`AgentSpec` 或同等 canonical artifact。
+
+`AgentSpec` 至少固定：
+
+- agent id / forward family label / owner package / runtime adapter
+- accepted `AgentRequest` payload kinds 与 input projection schema
+- output projection schema，例如 `StepOutputProjection` family
+- allowed tools 与 deterministic query functions 的边界
+- context filter / history inheritance policy
+- clarification ownership：routing clarification 还是 agent-owned clarification
+- readiness / opening gate 与 capability lane
+- timeout、budget、parallelism、retry / replan posture
+- observability labels、trace projection policy 与 eval denominator
+
+`AgentSpec` 应生成或校验：
+
+- Go `WorkflowPlan.allowed_agents`
+- Go structured planner target / payload-kind admission
+- Python worker delegate map
+- domain-agent adapter dispatch table
+- workflow trace `AgentInvocation` projection
+- `packages/evals` handoff / context / finalization denominator
+
+### Agent Invocation Graph Target
+
+multi-agent runtime 的 canonical lifecycle 应显式建模为：
+
+`Turn -> WorkflowRun -> AgentInvocation -> ToolCall -> Evidence/Projection -> Finalization`
+
+当前 `WorkflowRunStore` 与 `workflow_trace_summary` 是这条线的 foundation；后续需要补齐
+agent invocation graph projection。该 projection 只保存 sanitized contract，不保存 raw
+prompt、raw model response、raw provider trace、raw OCR、raw source HTML 或未裁剪附件正文。
+
+每个 `AgentInvocation` 至少应包含：
+
+- invocation id、parent invocation id、workflow run ref、turn / request correlation
+- agent id、capability family、workflow step id、status 与 terminal reason
+- input projection refs 与 context projection ids
+- allowed tools / actually used tools / deterministic query functions
+- output projection id、business outcome、fail-close reason
+- latency / token / cost summary 的安全摘要
+- source refs / evidence refs / projection hashes
+
+这条 graph 的用途是 runtime observability、operator-safe projection、debugging 与 eval。
+它不是用户可见回答内容，也不是 provider-native trace 的镜像。
+
 跨 agent 传递内容必须使用 bounded typed artifact。推荐长期 artifact family 包括：
 
 - `ScheduleBaseline`
@@ -357,6 +414,27 @@ StepOutputProjection -> next step / finalizer`
 workflow trace、operator projection 或 eval artifact 前，必须经过长度、来源、hash、
 safety summary 与 visibility posture 裁剪。不得把 provider raw response、完整上游答案、
 raw snippets、raw source HTML 或未裁剪附件 OCR dump 直接作为 cross-agent context。
+
+### Context Projection Policy
+
+context inheritance 必须按 agent role 最小化。supervisor 不得把完整 conversation、
+完整上游 answer、完整 evidence bundle 或 raw source dump 广播给所有 agents。
+
+默认 context projection 规则：
+
+- `rag-agent` 只接收 query intent、scope/version frame、bounded retrieval plan context、
+  upstream projection refs 与必要 evidence summary
+- `campus-services-agent` 只接收 service intent、slots、campus / temporal context、
+  admitted structured tool list 与 projection-backed service refs
+- `notice-agent` 只接收 notice discovery/ref resolution intent、selected notice refs、
+  source family / category / date filters 与 bounded notice card context
+- `navigation-agent` 只接收 place / point / route intent、service point refs、transport
+  stop refs 与 visibility-safe spatial context
+
+context projection 必须记录 projection kind、source step、content hash、visibility posture、
+length budget、source refs 与 safety summary。缺失 required projection 或 projection
+visibility 不匹配时，workflow 必须 fail closed 或进入 clarification，不得回退到 raw
+history / raw evidence prompt stuffing。
 
 ## Agent Framework / Agents SDK Boundary
 
