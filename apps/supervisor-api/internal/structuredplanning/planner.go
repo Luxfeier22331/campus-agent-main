@@ -50,6 +50,7 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 		return nil
 	}
 	if request.EffectiveCapability == "campus_services" {
+		serviceGuideFocus := classifyServiceGuideFocus(normalizedGoal, policy)
 		if isTransportBoardingStatusLookup(normalizedGoal, policy) {
 			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
@@ -62,7 +63,7 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_guide_lookup",
-				Payload:      serviceGuidePayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
+				Payload:      serviceGuidePayloadWithFocus(request.UserGoal, normalizedGoal, request.VersionQuery, policy, serviceGuideFocus),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup"),
 			})
 		}
@@ -72,6 +73,16 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 				PayloadKind:  "transport_schedule_lookup",
 				Payload:      transportSchedulePayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "transport_schedule_lookup"),
+			})
+		}
+		if isServiceGuideLookup(normalizedGoal, policy) &&
+			serviceGuideFocus != "contact" &&
+			serviceGuideFocus != "procedure" {
+			return SingleHandoffPlan(Handoff{
+				Target:       "campus-services-agent",
+				PayloadKind:  "service_guide_lookup",
+				Payload:      serviceGuidePayloadWithFocus(request.UserGoal, normalizedGoal, request.VersionQuery, policy, serviceGuideFocus),
+				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup"),
 			})
 		}
 		if containsAny(normalizedGoal, policy.Signals("structured_service_status")) {
@@ -95,7 +106,7 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "service_guide_lookup",
-				Payload:      serviceGuidePayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
+				Payload:      serviceGuidePayloadWithFocus(request.UserGoal, normalizedGoal, request.VersionQuery, policy, serviceGuideFocus),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup"),
 			})
 		}
@@ -229,9 +240,25 @@ func serviceGuidePayload(
 	versionQuery VersionQuery,
 	policy runtimepolicy.IntentPolicyArtifact,
 ) map[string]any {
+	return serviceGuidePayloadWithFocus(
+		userGoal,
+		normalizedGoal,
+		versionQuery,
+		policy,
+		classifyServiceGuideFocus(normalizedGoal, policy),
+	)
+}
+
+func serviceGuidePayloadWithFocus(
+	userGoal string,
+	normalizedGoal string,
+	versionQuery VersionQuery,
+	policy runtimepolicy.IntentPolicyArtifact,
+	guideFocus string,
+) map[string]any {
 	payload := map[string]any{
 		"service_query":  userGoal,
-		"guide_focus":    classifyServiceGuideFocus(normalizedGoal, policy),
+		"guide_focus":    guideFocus,
 		"temporal_query": temporalQueryPayload(versionQuery, normalizedGoal, policy),
 		"audience":       "unknown",
 	}
@@ -498,7 +525,11 @@ func classifyServiceGuideFocus(
 	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_contact")) {
 		return "contact"
 	}
-	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_eligibility")) {
+	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_eligibility")) ||
+		strings.Contains(normalizedGoal, "哪些人能办") ||
+		strings.Contains(normalizedGoal, "哪些人可以办") ||
+		strings.Contains(normalizedGoal, "什么人能办") ||
+		strings.Contains(normalizedGoal, "谁可以办") {
 		return "eligibility"
 	}
 	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_full_guide")) {

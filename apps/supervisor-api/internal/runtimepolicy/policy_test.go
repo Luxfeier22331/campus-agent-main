@@ -94,6 +94,7 @@ func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
 		{name: "custom place lookup signal", goal: "北楼藏在哪里", want: "place_lookup"},
 		{name: "contact directory signal", goal: "招生办电话是多少", want: "campus_services"},
 		{name: "vpn service guide signal", goal: "VPN入口在哪里", want: "campus_services"},
+		{name: "vpn install service guide signal", goal: "VPN客户端怎么安装", want: "campus_services"},
 		{name: "network auth service guide signal", goal: "校园网认证入口在哪里", want: "campus_services"},
 		{name: "email service guide signal", goal: "校园邮箱需要什么材料", want: "campus_services"},
 		{name: "information disclosure contact signal", goal: "信息公开联系电话是多少", want: "campus_services"},

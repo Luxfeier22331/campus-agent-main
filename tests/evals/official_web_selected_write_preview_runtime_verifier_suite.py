@@ -82,7 +82,10 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
                 expected_selected_tool="service_guide_lookup",
                 expected_outcome="resolved_current",
                 expected_resolved_display_name="中央民族大学 VPN 使用说明",
+                expected_guide_focus="entry",
+                max_selected_section_count=1,
                 required_body_tokens=("vpn.muc.edu.cn",),
+                forbidden_body_tokens=("EasyConnect", "下载客户端", "Install EasyConnect.pkg"),
             ),
             OfficialWebSelectedWritePreviewRuntimeCase(
                 case_id="contact-runtime-1",
@@ -171,6 +174,38 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
             artifact["summary"]["report_path"],
             str(report_path.resolve()),
         )
+
+    def test_default_vpn_cases_define_focus_and_section_thresholds(self) -> None:
+        cases = {
+            case.case_id: case for case in default_official_web_selected_write_preview_runtime_cases()
+        }
+
+        entry_case = cases["service-guide-vpn-entry"]
+        self.assertEqual(entry_case.expected_guide_focus, "entry")
+        self.assertEqual(entry_case.max_selected_section_count, 1)
+        self.assertIn("下载客户端", entry_case.forbidden_body_tokens)
+
+        install_case = cases["service-guide-vpn-client-install"]
+        self.assertEqual(install_case.expected_guide_focus, "procedure")
+        self.assertEqual(
+            install_case.required_selected_section_ids,
+            ("service:official_web:vpn:procedure_group:client_install",),
+        )
+        self.assertEqual(install_case.max_selected_section_count, 1)
+        self.assertIn("直接登录", install_case.forbidden_body_tokens)
+
+    def test_default_cases_cover_office_hours_and_eligibility_focuses(self) -> None:
+        cases = {
+            case.case_id: case for case in default_official_web_selected_write_preview_runtime_cases()
+        }
+
+        office_hours_case = cases["service-guide-campus-card-office-hours"]
+        self.assertEqual(office_hours_case.expected_guide_focus, "office_hours")
+        self.assertIn("09:00-17:00", office_hours_case.required_body_tokens)
+
+        eligibility_case = cases["service-guide-campus-card-eligibility"]
+        self.assertEqual(eligibility_case.expected_guide_focus, "eligibility")
+        self.assertIn("学生和教职工均可办理", eligibility_case.required_body_tokens)
 
     def test_runtime_verifier_passes_full_impact_scope_to_runner(self) -> None:
         preview_report = {
@@ -421,6 +456,7 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
                     "service-guide-information-disclosure-entry-fail-close",
                     "service-guide-email-materials",
                     "service-guide-vpn-entry",
+                    "service-guide-vpn-client-install",
                 },
             )
             return {

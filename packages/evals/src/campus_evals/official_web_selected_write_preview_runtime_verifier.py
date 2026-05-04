@@ -33,7 +33,11 @@ class OfficialWebSelectedWritePreviewRuntimeCase:
     expected_resolved_display_name: str = ""
     expected_fail_close_reason: str = ""
     expected_field_status: dict[str, str] | None = None
+    expected_guide_focus: str = ""
+    required_selected_section_ids: tuple[str, ...] = ()
+    max_selected_section_count: int | None = None
     required_body_tokens: tuple[str, ...] = ()
+    forbidden_body_tokens: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -80,6 +84,7 @@ def default_official_web_selected_write_preview_runtime_cases() -> tuple[
             expected_selected_tool="service_guide_lookup",
             expected_outcome="resolved_current",
             expected_resolved_display_name="中央民族大学信息公开依申请公开工作流程",
+            expected_guide_focus="procedure",
             required_body_tokens=("15个工作日", "学校信息公开办公室"),
         ),
         OfficialWebSelectedWritePreviewRuntimeCase(
@@ -93,6 +98,7 @@ def default_official_web_selected_write_preview_runtime_cases() -> tuple[
             expected_selected_tool="service_guide_lookup",
             expected_outcome="temporarily_unverifiable",
             expected_fail_close_reason="field_not_provided_by_source",
+            expected_guide_focus="entry",
             expected_field_status={"service_entry": "source_not_provided"},
         ),
         OfficialWebSelectedWritePreviewRuntimeCase(
@@ -132,6 +138,7 @@ def default_official_web_selected_write_preview_runtime_cases() -> tuple[
             expected_selected_tool="service_guide_lookup",
             expected_outcome="resolved_current",
             expected_resolved_display_name="学生校园卡服务",
+            expected_guide_focus="contact",
             required_body_tokens=("010-68933381", "010-83878225"),
         ),
         OfficialWebSelectedWritePreviewRuntimeCase(
@@ -145,7 +152,36 @@ def default_official_web_selected_write_preview_runtime_cases() -> tuple[
             expected_selected_tool="service_guide_lookup",
             expected_outcome="resolved_current",
             expected_resolved_display_name="学生校园卡服务",
+            expected_guide_focus="entry",
             required_body_tokens=("自助补卡机", "校园卡管理中心前台"),
+        ),
+        OfficialWebSelectedWritePreviewRuntimeCase(
+            case_id="service-guide-campus-card-office-hours",
+            collection="service_guide",
+            inventory_id="muc-it-student-campus-card-service-guide",
+            mode="planner_runtime",
+            user_goal="校园卡补办办公时间是什么",
+            expected_target="campus-services-agent",
+            expected_payload_kind="service_guide_lookup",
+            expected_selected_tool="service_guide_lookup",
+            expected_outcome="resolved_current",
+            expected_resolved_display_name="学生校园卡服务",
+            expected_guide_focus="office_hours",
+            required_body_tokens=("09:00-17:00",),
+        ),
+        OfficialWebSelectedWritePreviewRuntimeCase(
+            case_id="service-guide-campus-card-eligibility",
+            collection="service_guide",
+            inventory_id="muc-it-student-campus-card-service-guide",
+            mode="planner_runtime",
+            user_goal="校园卡补办哪些人能办",
+            expected_target="campus-services-agent",
+            expected_payload_kind="service_guide_lookup",
+            expected_selected_tool="service_guide_lookup",
+            expected_outcome="resolved_current",
+            expected_resolved_display_name="学生校园卡服务",
+            expected_guide_focus="eligibility",
+            required_body_tokens=("学生和教职工均可办理",),
         ),
         OfficialWebSelectedWritePreviewRuntimeCase(
             case_id="service-guide-network-auth-entry",
@@ -158,6 +194,7 @@ def default_official_web_selected_write_preview_runtime_cases() -> tuple[
             expected_selected_tool="service_guide_lookup",
             expected_outcome="resolved_current",
             expected_resolved_display_name="中央民族大学校园网认证及使用说明",
+            expected_guide_focus="entry",
             required_body_tokens=("中央民族大学校园网新版认证系统", "rz.muc.edu.cn"),
         ),
         OfficialWebSelectedWritePreviewRuntimeCase(
@@ -171,6 +208,7 @@ def default_official_web_selected_write_preview_runtime_cases() -> tuple[
             expected_selected_tool="service_guide_lookup",
             expected_outcome="resolved_current",
             expected_resolved_display_name="中央民族大学校园电子邮件服务",
+            expected_guide_focus="required_materials",
             required_body_tokens=("申请表格", "中央民族大学教工电子邮件申请表"),
         ),
         OfficialWebSelectedWritePreviewRuntimeCase(
@@ -184,7 +222,29 @@ def default_official_web_selected_write_preview_runtime_cases() -> tuple[
             expected_selected_tool="service_guide_lookup",
             expected_outcome="resolved_current",
             expected_resolved_display_name="中央民族大学 VPN 使用说明",
+            expected_guide_focus="entry",
+            max_selected_section_count=1,
             required_body_tokens=("https://vpn.muc.edu.cn",),
+            forbidden_body_tokens=("EasyConnect", "下载客户端", "Install EasyConnect.pkg"),
+        ),
+        OfficialWebSelectedWritePreviewRuntimeCase(
+            case_id="service-guide-vpn-client-install",
+            collection="service_guide",
+            inventory_id="muc-it-vpn-service-guide",
+            mode="planner_runtime",
+            user_goal="VPN客户端怎么安装",
+            expected_target="campus-services-agent",
+            expected_payload_kind="service_guide_lookup",
+            expected_selected_tool="service_guide_lookup",
+            expected_outcome="resolved_current",
+            expected_resolved_display_name="中央民族大学 VPN 使用说明",
+            expected_guide_focus="procedure",
+            required_selected_section_ids=(
+                "service:official_web:vpn:procedure_group:client_install",
+            ),
+            max_selected_section_count=1,
+            required_body_tokens=("下载客户端", "Install EasyConnect.pkg"),
+            forbidden_body_tokens=("直接登录", "移动端", "https://vpn.muc.edu.cn"),
         ),
     )
 

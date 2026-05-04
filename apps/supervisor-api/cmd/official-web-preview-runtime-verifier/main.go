@@ -37,7 +37,11 @@ type runtimeCase struct {
 	ExpectedResolvedDisplayName string            `json:"expected_resolved_display_name"`
 	ExpectedFailCloseReason     string            `json:"expected_fail_close_reason"`
 	ExpectedFieldStatus         map[string]string `json:"expected_field_status"`
+	ExpectedGuideFocus          string            `json:"expected_guide_focus"`
+	RequiredSelectedSectionIDs  []string          `json:"required_selected_section_ids"`
+	MaxSelectedSectionCount     *int              `json:"max_selected_section_count"`
 	RequiredBodyTokens          []string          `json:"required_body_tokens"`
+	ForbiddenBodyTokens         []string          `json:"forbidden_body_tokens"`
 }
 
 type previewReport struct {
@@ -195,6 +199,15 @@ func evaluateCase(
 			if len(handoff.AllowedTools) == 1 {
 				observed.SelectedTool = strings.TrimSpace(handoff.AllowedTools[0])
 			}
+			if item.ExpectedGuideFocus != "" {
+				observedGuideFocus := stringValue(handoff.Payload["guide_focus"])
+				if observedGuideFocus != strings.TrimSpace(item.ExpectedGuideFocus) {
+					failures = append(
+						failures,
+						fmt.Sprintf("guide_focus=%s expected=%s", observedGuideFocus, item.ExpectedGuideFocus),
+					)
+				}
+			}
 			if observed.Target != strings.TrimSpace(item.ExpectedTarget) {
 				failures = append(
 					failures,
@@ -268,12 +281,41 @@ func evaluateCase(
 				}
 			}
 			bodyText := bodyText(body)
+			selectedSectionIDs := stringSlice(body["selected_section_ids"])
+			for _, expectedSectionID := range item.RequiredSelectedSectionIDs {
+				expectedSectionID = strings.TrimSpace(expectedSectionID)
+				if expectedSectionID == "" {
+					continue
+				}
+				if !stringSliceContains(selectedSectionIDs, expectedSectionID) {
+					failures = append(failures, "missing_selected_section_id="+expectedSectionID)
+				}
+			}
+			if item.MaxSelectedSectionCount != nil && len(selectedSectionIDs) > *item.MaxSelectedSectionCount {
+				failures = append(
+					failures,
+					fmt.Sprintf(
+						"selected_section_count=%d expected_max=%d",
+						len(selectedSectionIDs),
+						*item.MaxSelectedSectionCount,
+					),
+				)
+			}
 			for _, token := range item.RequiredBodyTokens {
 				if strings.TrimSpace(token) == "" {
 					continue
 				}
 				if !strings.Contains(bodyText, token) {
 					failures = append(failures, "missing_body_token="+token)
+				}
+			}
+			for _, token := range item.ForbiddenBodyTokens {
+				token = strings.TrimSpace(token)
+				if token == "" {
+					continue
+				}
+				if strings.Contains(bodyText, token) {
+					failures = append(failures, "forbidden_body_token="+token)
 				}
 			}
 		}
@@ -329,7 +371,7 @@ func executePreviewRuntime(
 	if err != nil {
 		return structuredquery.Response{}, err
 	}
-	trustedTime := previewTrustedTime(targetPreview.Bundle)
+	trustedTime := previewTrustedTime(bundleMap)
 	switch strings.TrimSpace(handoff.PayloadKind) {
 	case structuredquery.ToolServiceGuideLookup:
 		runtime := structuredquery.NewRuntime(structuredquery.Options{
@@ -461,4 +503,33 @@ func stringValue(value any) string {
 		return ""
 	}
 	return strings.TrimSpace(fmt.Sprint(value))
+}
+
+func stringSlice(value any) []string {
+	items, ok := value.([]any)
+	if !ok {
+		return []string{}
+	}
+	result := make([]string, 0, len(items))
+	for _, item := range items {
+		text := stringValue(item)
+		if text == "" {
+			continue
+		}
+		result = append(result, text)
+	}
+	return result
+}
+
+func stringSliceContains(values []string, needle string) bool {
+	needle = strings.TrimSpace(needle)
+	if needle == "" {
+		return false
+	}
+	for _, value := range values {
+		if strings.TrimSpace(value) == needle {
+			return true
+		}
+	}
+	return false
 }

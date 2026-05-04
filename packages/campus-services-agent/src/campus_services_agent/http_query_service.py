@@ -20,6 +20,8 @@ from campus_contracts import (
     ServiceGuideLookupResult,
     ServiceGuideMaterial,
     ServiceGuideOfficeHours,
+    ServiceGuideProcedureGroup,
+    ServiceGuideProcedureStep,
     ServiceGuideSection,
     ServiceGuideServiceRef,
     ServiceStatusLookupResult,
@@ -227,6 +229,11 @@ def _service_guide_result_from_dict(
             for item in _list(body.get("guide_sections"))
             if (section := _service_guide_section(item)) is not None
         ),
+        procedure_groups=tuple(
+            group
+            for item in _list(body.get("procedure_groups"))
+            if (group := _service_guide_procedure_group(item)) is not None
+        ),
         required_materials=tuple(
             material
             for item in _list(body.get("required_materials"))
@@ -260,6 +267,9 @@ def _service_guide_result_from_dict(
         clarification_reason=_string(body.get("clarification_reason")),
         fail_close_reason=_string(body.get("fail_close_reason")),
         matched_service_category=_string(body.get("matched_service_category")),
+        selected_section_ids=_string_tuple(body.get("selected_section_ids")),
+        omitted_section_ids=_string_tuple(body.get("omitted_section_ids")),
+        omitted_section_reasons=_string_mapping(body.get("omitted_section_reasons")),
         field_status=_string_mapping(body.get("field_status")),
     )
 
@@ -371,9 +381,41 @@ def _service_guide_section(value: object) -> ServiceGuideSection | None:
     if item is None:
         return None
     return ServiceGuideSection(
+        section_id=_string(item.get("section_id")),
         section_type=_string(item.get("section_type")),
         title=_string(item.get("title")),
         content=_string(item.get("content")),
+        source_refs=_string_tuple(item.get("source_refs")),
+    )
+
+
+def _service_guide_procedure_step(value: object) -> ServiceGuideProcedureStep | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return ServiceGuideProcedureStep(
+        step_id=_string(item.get("step_id")),
+        content=_string(item.get("content")),
+        source_refs=_string_tuple(item.get("source_refs")),
+    )
+
+
+def _service_guide_procedure_group(value: object) -> ServiceGuideProcedureGroup | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    steps = tuple(
+        step
+        for raw_step in _list(item.get("steps"))
+        if (step := _service_guide_procedure_step(raw_step)) is not None
+    )
+    if not steps:
+        return None
+    return ServiceGuideProcedureGroup(
+        group_id=_string(item.get("group_id")),
+        title=_string(item.get("title")),
+        focus_tags=_string_tuple(item.get("focus_tags")),
+        steps=steps,
         source_refs=_string_tuple(item.get("source_refs")),
     )
 

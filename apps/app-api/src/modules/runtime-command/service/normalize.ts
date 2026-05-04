@@ -784,6 +784,7 @@ function collectCampusServiceTraceRefsFromRecord(input: {
 		...recordObjectArray(input.record, "location_refs", "locationRefs"),
 		...recordObjectArray(input.record, "office_hours", "officeHours"),
 		...recordObjectArray(input.record, "guide_sections", "guideSections"),
+		...recordObjectArray(input.record, "procedure_groups", "procedureGroups"),
 		...recordObjectArray(input.record, "required_materials", "requiredMaterials"),
 		...recordObjectArray(input.record, "entry_refs", "entryRefs"),
 		...recordObjectArray(input.record, "contact_refs", "contactRefs"),
@@ -952,9 +953,16 @@ function collectNestedSourceRefs(value: unknown): string[] {
 	if (!Array.isArray(value)) {
 		return [];
 	}
-	return value.flatMap((entry) =>
-		isRecord(entry) ? recordStringArray(entry, "source_refs", "sourceRefs") : [],
-	);
+	return value.flatMap((entry) => {
+		if (!isRecord(entry)) {
+			return [];
+		}
+		return [
+			...recordStringArray(entry, "source_refs", "sourceRefs"),
+			...collectNestedSourceRefs(entry.steps),
+			...collectNestedSourceRefs(entry.procedure_groups ?? entry.procedureGroups),
+		];
+	});
 }
 
 function appendSourceSummary(text: string, referenceCandidates: string[]): string {
@@ -1457,6 +1465,10 @@ function renderServiceGuideLookupAnswer(toolResult: Record<string, unknown>): st
 	const serviceName = resolvedService
 		? (recordString(resolvedService, "display_name", "displayName") ?? "该服务")
 		: "该服务";
+	const procedureGroups = recordObjectArray(toolResult, "procedure_groups", "procedureGroups")
+		.map(formatServiceGuideProcedureGroup)
+		.filter((group): group is string => Boolean(group))
+		.slice(0, 2);
 	const guideSections = recordObjectArray(toolResult, "guide_sections", "guideSections")
 		.map(formatServiceGuideSection)
 		.filter((section): section is string => Boolean(section))
@@ -1483,7 +1495,11 @@ function renderServiceGuideLookupAnswer(toolResult: Record<string, unknown>): st
 		"eligibilityNotes",
 	).slice(0, 3);
 	const clauses = [
-		guideSections.length > 0 ? `${serviceName}：${guideSections.join("；")}` : "",
+		procedureGroups.length > 0
+			? `${serviceName}：${procedureGroups.join("；")}`
+			: guideSections.length > 0
+				? `${serviceName}：${guideSections.join("；")}`
+				: "",
 		materials.length > 0 ? `所需材料：${materials.join("、")}` : "",
 		entryRefs.length > 0 ? `可用入口：${entryRefs.join("、")}` : "",
 		officeHours.length > 0 ? `办理时间：${officeHours.join("、")}` : "",
@@ -1496,6 +1512,7 @@ function renderServiceGuideLookupAnswer(toolResult: Record<string, unknown>): st
 	const referenceCandidates = [
 		...recordStringArray(toolResult, "source_refs", "sourceRefs"),
 		...recordStringArray(toolResult, "related_notice_refs", "relatedNoticeRefs"),
+		...collectNestedSourceRefs(toolResult.procedure_groups ?? toolResult.procedureGroups),
 		...collectNestedSourceRefs(toolResult.guide_sections ?? toolResult.guideSections),
 		...collectNestedSourceRefs(toolResult.required_materials ?? toolResult.requiredMaterials),
 		...collectNestedSourceRefs(toolResult.entry_refs ?? toolResult.entryRefs),
@@ -1512,6 +1529,19 @@ function formatServiceGuideSection(section: Record<string, unknown>): string | n
 	}
 	const title = recordString(section, "title", "title");
 	return title ? `${title}：${content}` : content;
+}
+
+function formatServiceGuideProcedureGroup(group: Record<string, unknown>): string | null {
+	const steps = recordObjectArray(group, "steps", "steps")
+		.map((step) => recordString(step, "content", "content"))
+		.filter((content): content is string => Boolean(content))
+		.slice(0, 4);
+	if (steps.length === 0) {
+		return null;
+	}
+	const title = recordString(group, "title", "title");
+	const body = steps.join("；");
+	return title ? `${title}：${body}` : body;
 }
 
 function formatServiceGuideMaterial(material: Record<string, unknown>): string | null {

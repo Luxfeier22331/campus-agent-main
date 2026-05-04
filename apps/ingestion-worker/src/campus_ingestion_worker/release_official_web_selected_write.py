@@ -872,8 +872,10 @@ def _record_inventory_ids(records: Sequence[Mapping[str, object]]) -> set[str]:
 
 
 def _official_web_inventory_id_from_source_ref(source_ref: str) -> str:
+    if not source_ref.startswith("official_web:"):
+        return ""
     parts = source_ref.split(":", 2)
-    if len(parts) < 3 or parts[0] != "official_web":
+    if len(parts) < 3:
         return ""
     return parts[1].strip()
 
@@ -973,7 +975,9 @@ def _contact_record_from_candidate(
                 display_name,
                 source_title,
                 _target_label(selected_write_task),
-                *_official_web_contact_aliases(display_name=display_name, source_title=source_title),
+                *_official_web_contact_aliases(
+                    display_name=display_name, source_title=source_title
+                ),
                 *_string_list(typed_candidate.get("aliases")),
             ]
         ),
@@ -982,7 +986,8 @@ def _contact_record_from_candidate(
         "phones": [
             {
                 "phone_id": f"{contact_id}:phone:{index}",
-                "label": _contact_point_label(contact_points=contact_points, phone=phone) or "电话号码",
+                "label": _contact_point_label(contact_points=contact_points, phone=phone)
+                or "电话号码",
                 "number": phone,
                 "source_refs": [source_ref],
             }
@@ -1044,6 +1049,7 @@ def _service_guide_record_from_candidate(
         },
     )
     process_steps = _string_list(typed_candidate.get("process_steps"))
+    procedure_groups = _mapping_list(typed_candidate.get("procedure_groups"))
     materials = _string_list(typed_candidate.get("materials"))
     entry_points = _string_list(typed_candidate.get("entry_points"))
     responsible_offices = _string_list(typed_candidate.get("responsible_office"))
@@ -1051,6 +1057,11 @@ def _service_guide_record_from_candidate(
     process_source_refs = _candidate_field_source_refs(
         field_source_urls=field_source_urls,
         field_name="process_steps",
+        fallback_source_ref=source_ref,
+    )
+    procedure_group_source_refs = _candidate_field_source_refs(
+        field_source_urls=field_source_urls,
+        field_name="procedure_groups",
         fallback_source_ref=source_ref,
     )
     material_source_refs = _candidate_field_source_refs(
@@ -1104,7 +1115,9 @@ def _service_guide_record_from_candidate(
                 display_name,
                 source_title,
                 _target_label(selected_write_task),
-                *_official_web_service_aliases(display_name=display_name, source_title=source_title),
+                *_official_web_service_aliases(
+                    display_name=display_name, source_title=source_title
+                ),
                 *_string_list(typed_candidate.get("aliases")),
             ]
         ),
@@ -1115,6 +1128,11 @@ def _service_guide_record_from_candidate(
         "effective_until": "9999-12-31T23:59:59+00:00",
         "source_refs": [source_ref],
         "guide_sections": guide_sections,
+        "procedure_groups": _service_guide_procedure_groups(
+            service_id=service_id,
+            procedure_groups=procedure_groups,
+            fallback_source_refs=procedure_group_source_refs,
+        ),
         "materials": [
             {
                 "material_id": f"{service_id}:material:{index}",
@@ -1129,10 +1147,8 @@ def _service_guide_record_from_candidate(
             {
                 "entry_id": f"{service_id}:entry:{index}",
                 "label": entry,
-                "entry_type": "online_url"
-                if entry.startswith(("http://", "https://"))
-                else "web_page",
-                "url": entry if entry.startswith(("http://", "https://")) else "",
+                "entry_type": "online_url" if _service_entry_url(entry) else "web_page",
+                "url": _service_entry_url(entry),
                 "location_ref": "",
                 "source_refs": entry_source_refs,
             }
@@ -1211,6 +1227,10 @@ def _service_guide_record_from_candidates(
         field_name="process_steps",
         fallback_source_ref=source_ref,
     )
+    procedure_groups = _merged_service_guide_procedure_groups(
+        candidates=candidates,
+        fallback_source_ref=source_ref,
+    )
     material_items = _service_guide_items_by_source(
         candidates=candidates,
         field_name="materials",
@@ -1243,7 +1263,9 @@ def _service_guide_record_from_candidates(
                 display_name,
                 source_title,
                 _target_label(selected_write_task),
-                *_official_web_service_aliases(display_name=display_name, source_title=source_title),
+                *_official_web_service_aliases(
+                    display_name=display_name, source_title=source_title
+                ),
                 *[
                     alias
                     for typed in typed_candidates
@@ -1266,6 +1288,11 @@ def _service_guide_record_from_candidates(
             office_items=office_items,
             fallback_source_ref=source_ref,
         ),
+        "procedure_groups": _service_guide_procedure_groups(
+            service_id=service_id,
+            procedure_groups=procedure_groups,
+            fallback_source_refs=source_refs,
+        ),
         "materials": [
             {
                 "material_id": f"{service_id}:material:{index}",
@@ -1280,10 +1307,8 @@ def _service_guide_record_from_candidates(
             {
                 "entry_id": f"{service_id}:entry:{index}",
                 "label": item["text"],
-                "entry_type": "online_url"
-                if item["text"].startswith(("http://", "https://"))
-                else "web_page",
-                "url": item["text"] if item["text"].startswith(("http://", "https://")) else "",
+                "entry_type": "online_url" if _service_entry_url(item["text"]) else "web_page",
+                "url": _service_entry_url(item["text"]),
                 "location_ref": "",
                 "source_refs": [item["source_ref"]],
             }
@@ -1328,10 +1353,38 @@ def _with_public_service_guide_source_refs(
             for item in _mapping_list(value)
         ]
 
+    def replace_procedure_group_sources(value: object) -> list[dict[str, object]]:
+        groups: list[dict[str, object]] = []
+        for group in _mapping_list(value):
+            steps = [
+                {
+                    **step,
+                    "source_refs": _public_item_source_refs(
+                        item=step,
+                        public_source_refs=source_refs,
+                        fallback_source_ref=primary_source_ref,
+                    ),
+                }
+                for step in _mapping_list(group.get("steps"))
+            ]
+            groups.append(
+                {
+                    **group,
+                    "steps": steps,
+                    "source_refs": _public_item_source_refs(
+                        item=group,
+                        public_source_refs=source_refs,
+                        fallback_source_ref=primary_source_ref,
+                    ),
+                }
+            )
+        return groups
+
     return {
         **record,
         "source_refs": source_refs,
         "guide_sections": replace_item_sources(record.get("guide_sections")),
+        "procedure_groups": replace_procedure_group_sources(record.get("procedure_groups")),
         "materials": replace_item_sources(record.get("materials")),
         "entry_refs": replace_item_sources(record.get("entry_refs")),
         "office_hours": replace_item_sources(record.get("office_hours")),
@@ -1367,13 +1420,26 @@ def _selected_write_effective_from(
     generated_at: str,
 ) -> str:
     if task_created_at.tzinfo is not None:
-        return task_created_at.astimezone(UTC).replace(
-            hour=0,
-            minute=0,
-            second=0,
-            microsecond=0,
-        ).isoformat()
+        return (
+            task_created_at.astimezone(UTC)
+            .replace(
+                hour=0,
+                minute=0,
+                second=0,
+                microsecond=0,
+            )
+            .isoformat()
+        )
     return generated_at
+
+
+def _service_entry_url(entry: str) -> str:
+    normalized = entry.strip()
+    if normalized.startswith(("http://", "https://")):
+        return normalized
+    if normalized.lower() in {"rz.muc.edu.cn", "mail.muc.edu.cn", "vpn.muc.edu.cn"}:
+        return f"https://{normalized.lower()}"
+    return ""
 
 
 def _official_web_service_aliases(*, display_name: str, source_title: str) -> list[str]:
@@ -1570,6 +1636,81 @@ def _service_guide_items_by_source(
     return items
 
 
+def _merged_service_guide_procedure_groups(
+    *,
+    candidates: Sequence[Mapping[str, object]],
+    fallback_source_ref: str,
+) -> list[dict[str, object]]:
+    merged: list[dict[str, object]] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        typed_candidate = _object_mapping(candidate.get("typed_candidate"))
+        for group in _mapping_list(typed_candidate.get("procedure_groups")):
+            group_id = str(group.get("group_id") or "").strip()
+            if not group_id or group_id in seen:
+                continue
+            seen.add(group_id)
+            merged.append(
+                {
+                    **group,
+                    "source_refs": _unique_strings(
+                        _string_list(group.get("source_refs"))
+                        or [_candidate_public_source_ref(candidate) or fallback_source_ref]
+                    ),
+                }
+            )
+    return merged
+
+
+def _service_guide_procedure_groups(
+    *,
+    service_id: str,
+    procedure_groups: Sequence[Mapping[str, object]],
+    fallback_source_refs: Sequence[str],
+) -> list[dict[str, object]]:
+    groups: list[dict[str, object]] = []
+    for order, group in enumerate(procedure_groups, start=1):
+        group_id = str(group.get("group_id") or "").strip() or f"{service_id}:procedure_group:{order}"
+        title = str(group.get("title") or "").strip()
+        if not title:
+            continue
+        raw_steps = _mapping_list(group.get("steps"))
+        steps: list[dict[str, object]] = []
+        for step_order, raw_step in enumerate(raw_steps, start=1):
+            content = str(raw_step.get("content") or "").strip()
+            if not content:
+                continue
+            step_id = (
+                str(raw_step.get("step_id") or "").strip()
+                or f"{group_id}:step:{step_order}"
+            )
+            steps.append(
+                {
+                    "step_id": step_id,
+                    "content": content,
+                    "order": step_order,
+                    "source_refs": _unique_strings(
+                        _string_list(raw_step.get("source_refs")) or list(fallback_source_refs)
+                    ),
+                }
+            )
+        if not steps:
+            continue
+        groups.append(
+            {
+                "group_id": group_id,
+                "title": title,
+                "focus_tags": _string_list(group.get("focus_tags")),
+                "order": int(group.get("order") or order),
+                "steps": steps,
+                "source_refs": _unique_strings(
+                    _string_list(group.get("source_refs")) or list(fallback_source_refs)
+                ),
+            }
+        )
+    return groups
+
+
 def _merged_service_guide_contacts(
     candidates: Sequence[Mapping[str, object]],
 ) -> dict[str, object]:
@@ -1580,7 +1721,9 @@ def _merged_service_guide_contacts(
         "phones": [],
     }
     for candidate in candidates:
-        contacts = _object_mapping(_object_mapping(candidate.get("typed_candidate")).get("contacts"))
+        contacts = _object_mapping(
+            _object_mapping(candidate.get("typed_candidate")).get("contacts")
+        )
         for key in merged:
             merged[key].extend(_string_list(contacts.get(key)))
     return {key: _unique_strings(values) for key, values in merged.items()}
@@ -1730,21 +1873,19 @@ def _candidate_source_ref(
 def _candidate_public_source_ref(candidate: Mapping[str, object]) -> str:
     typed_candidate = _object_mapping(candidate.get("typed_candidate"))
     return str(
-        typed_candidate.get("source_url")
-        or candidate.get("normalized_canonical_url")
-        or ""
+        typed_candidate.get("source_url") or candidate.get("normalized_canonical_url") or ""
     ).strip()
 
 
-def _public_source_refs_for_selected_write_task(selected_write_task: dict[str, object]) -> list[str]:
+def _public_source_refs_for_selected_write_task(
+    selected_write_task: dict[str, object],
+) -> list[str]:
     evidence = _evidence(selected_write_task)
     urls = _string_list(evidence.get("sourceUrls") or evidence.get("source_urls"))
     refs = []
     for item in _mapping_list(evidence.get("sourceRefs") or evidence.get("source_refs")):
         ref_url = str(
-            item.get("normalized_canonical_url")
-            or item.get("normalizedCanonicalUrl")
-            or ""
+            item.get("normalized_canonical_url") or item.get("normalizedCanonicalUrl") or ""
         ).strip()
         if ref_url:
             refs.append(ref_url)

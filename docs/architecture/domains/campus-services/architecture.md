@@ -121,6 +121,8 @@ later-wave 已冻结方向包括：
     closed；是否开放以 release gate + E2E verdict 为准
 - `service_guide_lookup`
   - 只读 `campus_services/service_guide` guide-oriented projection
+  - procedure 类事实以 `procedure_groups` 为 canonical truth；
+    `guide_sections.procedure` 只保留兼容摘要，不承担 query-time 反解析职责
   - 长期 runtime 通过 PostgreSQL `structured_projection_current` current pointer 与
     `service_guide_read_model` typed read model 读取当前 release
   - 文件 projection path runtime fallback 已下线；本地 fixture / smoke / bootstrap

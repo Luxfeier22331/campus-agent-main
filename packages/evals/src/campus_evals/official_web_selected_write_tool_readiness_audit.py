@@ -133,6 +133,21 @@ def _audit_service_guide_bundle(bundle: dict[str, Any]) -> list[str]:
     section_types = set(_section_types(record.get("guide_sections")))
     if "procedure" not in section_types:
         failures.append("missing procedure section for service_guide selected-write preview")
+    procedure_groups = _procedure_groups(record.get("procedure_groups"))
+    if procedure_groups:
+        for group in procedure_groups:
+            group_source_refs = _string_list(group.get("source_refs"))
+            if not group_source_refs:
+                failures.append("service_guide procedure_group missing source_refs")
+            steps = _mapping_list(group.get("steps"))
+            if not steps:
+                failures.append("service_guide procedure_group missing steps")
+                continue
+            for step in steps:
+                if not str(step.get("content") or "").strip():
+                    failures.append("service_guide procedure_group step missing content")
+                if not _string_list(step.get("source_refs")):
+                    failures.append("service_guide procedure_group step missing source_refs")
     failures.extend(_audit_known_service_guide_composition(record, source_refs))
     return failures
 
@@ -228,6 +243,16 @@ def _section_types(value: object) -> list[str]:
         if text:
             section_types.append(text)
     return section_types
+
+
+def _mapping_list(value: object) -> list[dict[str, Any]]:
+    if not isinstance(value, list | tuple):
+        return []
+    return [dict(item) for item in value if isinstance(item, dict)]
+
+
+def _procedure_groups(value: object) -> list[dict[str, Any]]:
+    return _mapping_list(value)
 
 
 __all__ = [

@@ -66,6 +66,10 @@ _SERVICE_PROCESS_RE = re.compile(
     r"申请人|承办部门|工作日|领取|发放|携带|支付)"
 )
 _SERVICE_ENTRY_RE = re.compile(r"(入口|系统|APP|小程序|自助|线下|窗口|前台)", re.IGNORECASE)
+_SERVICE_HOST_ENTRY_RE = re.compile(
+    r"(?<![A-Za-z0-9.-])((?:mail|vpn|rz)\.muc\.edu\.cn)(?![A-Za-z0-9.-])",
+    re.IGNORECASE,
+)
 _SERVICE_MATERIAL_RE = re.compile(r"(材料|申请表|证明|身份证|证件|附件)")
 _SERVICE_EXPLANATION_PREFIX_RE = re.compile(r"^\s*(?:服务说明|业务说明|说明)[:：]")
 _SERVICE_MATERIAL_DECLARATION_RE = re.compile(
@@ -91,6 +95,11 @@ _SERVICE_SELF_SERVICE_MACHINE_RE = re.compile(r"(自助补卡机|圈存机|自�
 _SERVICE_OFFLINE_ENTRY_RE = re.compile(
     r"(?:到|至|前往|在)(?P<label>[^，。；;\n]{2,36}(?:前台|窗口))"
 )
+_SERVICE_ORDERED_STEP_RE = re.compile(r"^\s*(?:\d{1,2}|[一二三四五六七八九十]+)[、.)．）]")
+_SERVICE_ORDERED_STEP_SIGNAL_RE = re.compile(
+    r"(访问|登录|登陆|输入|下载|安装|点击|打开|选择|填写|提交|进入|使用|完成|申请|办理|"
+    r"携带|领取|支付|递交|上传|确认|根据提示)"
+)
 _RESPONSIBLE_OFFICE_RE = re.compile(
     r"(?:由)?(?P<office>[\u4e00-\u9fff（）()]{2,30}?"
     r"(?:办公室|承办部门|部门|处|中心|单位|学院))"
@@ -109,6 +118,26 @@ _TARGET_CONSUMER_FAMILIES = frozenset(
 _TARGET_MATERIALIZATION_POLICIES = frozenset(
     {"candidate_only", "release_gate_required", "inventory_only"}
 )
+_SERVICE_GUIDE_COMPOSITION_SPECS: dict[str, dict[str, object]] = {
+    "information_disclosure": {
+        "primary_role": "procedure_source",
+        "allowed_roles": frozenset(
+            {"policy_source", "procedure_source", "material_source", "contact_source"}
+        ),
+        "service_target_roles": frozenset(
+            {"procedure_source", "material_source", "contact_source"}
+        ),
+    },
+    "email_service": {
+        "primary_role": "policy_source",
+        "allowed_roles": frozenset(
+            {"policy_source", "entry_source", "material_source", "contact_source"}
+        ),
+        "service_target_roles": frozenset(
+            {"policy_source", "entry_source", "material_source", "contact_source"}
+        ),
+    },
+}
 
 
 def replay_official_web_source_truth_local(
@@ -444,9 +473,7 @@ def _build_consumer_projection_overrides(
     overrides: dict[tuple[str, str], dict[str, object]] = {}
     for (_, composition_group), group_contexts in grouped_contexts.items():
         if composition_group == "information_disclosure":
-            overrides.update(
-                _build_information_disclosure_projection_overrides(group_contexts)
-            )
+            overrides.update(_build_information_disclosure_projection_overrides(group_contexts))
         elif composition_group == "email_service":
             overrides.update(_build_email_service_projection_overrides(group_contexts))
     return overrides
@@ -455,132 +482,141 @@ def _build_consumer_projection_overrides(
 def _build_information_disclosure_projection_overrides(
     page_contexts: list[dict[str, object]],
 ) -> dict[tuple[str, str], dict[str, object]]:
-    procedure_context: dict[str, object] | None = None
-    material_contexts: list[dict[str, object]] = []
-    contact_contexts: list[dict[str, object]] = []
-    suppressed_page_keys: set[tuple[str, str]] = set()
-
-    for page_context in page_contexts:
-        manifest = dict(page_context["manifest"])
-        raw_page = dict(page_context["raw_page"])
-        page_lineage = _page_lineage_fields(manifest=manifest, raw_page=raw_page)
-        composition_role = _require_optional_text(page_lineage.get("compositionRole"))
-        target_matches = list(page_context["target_matches"])
-        if _find_consumer_match(target_matches, "service_guide_candidate") is not None:
-            if composition_role == "procedure_source":
-                procedure_context = page_context
-            elif composition_role in {"material_source", "contact_source"}:
-                suppressed_page_keys.add(_page_identity(manifest))
-        if composition_role == "material_source":
-            material_contexts.append(page_context)
-        elif composition_role == "contact_source":
-            contact_contexts.append(page_context)
-
-    if procedure_context is None:
-        return {
-            page_key: {
-                "candidate_pages": [],
-                "skip_consumer_families": ["service_guide_candidate"],
-                "force_candidate_action": True,
-            }
-            for page_key in suppressed_page_keys
-        }
+    role_contexts, primary_context, suppressed_page_keys, invalid_group = (
+        _resolve_service_guide_composition_group(
+            page_contexts,
+            composition_group="information_disclosure",
+        )
+    )
+    if invalid_group:
+        return _empty_service_guide_composition_overrides(suppressed_page_keys)
+    if primary_context is None:
+        return {}
 
     procedure_target_lineage = _find_consumer_match(
-        list(procedure_context["target_matches"]),
+        list(primary_context["target_matches"]),
         "service_guide_candidate",
     )
     if procedure_target_lineage is None:
         return {}
 
-    overrides: dict[tuple[str, str], dict[str, object]] = {}
-    procedure_manifest = dict(procedure_context["manifest"])
-    overrides[_page_identity(procedure_manifest)] = {
-        "candidate_pages": [
-            _build_information_disclosure_service_candidate_page(
-                procedure_context=procedure_context,
-                material_contexts=material_contexts,
-                contact_contexts=contact_contexts,
-                target_lineage=procedure_target_lineage,
-            )
-        ],
-        "skip_consumer_families": ["service_guide_candidate"],
-        "force_candidate_action": True,
-    }
-    for page_key in suppressed_page_keys:
-        overrides[page_key] = {
-            "candidate_pages": [],
-            "skip_consumer_families": ["service_guide_candidate"],
-            "force_candidate_action": True,
-        }
-    return overrides
+    procedure_manifest = dict(primary_context["manifest"])
+    return _merge_service_guide_primary_with_suppressed_overrides(
+        primary_page_key=_page_identity(procedure_manifest),
+        primary_candidate_page=_build_information_disclosure_service_candidate_page(
+            procedure_context=primary_context,
+            material_contexts=role_contexts.get("material_source", []),
+            contact_contexts=role_contexts.get("contact_source", []),
+            target_lineage=procedure_target_lineage,
+        ),
+        suppressed_page_keys=suppressed_page_keys,
+    )
 
 
 def _build_email_service_projection_overrides(
     page_contexts: list[dict[str, object]],
 ) -> dict[tuple[str, str], dict[str, object]]:
-    policy_context: dict[str, object] | None = None
-    entry_contexts: list[dict[str, object]] = []
-    material_contexts: list[dict[str, object]] = []
-    contact_contexts: list[dict[str, object]] = []
-    suppressed_page_keys: set[tuple[str, str]] = set()
-
-    for page_context in page_contexts:
-        manifest = dict(page_context["manifest"])
-        raw_page = dict(page_context["raw_page"])
-        page_lineage = _page_lineage_fields(manifest=manifest, raw_page=raw_page)
-        composition_role = _require_optional_text(page_lineage.get("compositionRole"))
-        target_matches = list(page_context["target_matches"])
-        if _find_consumer_match(target_matches, "service_guide_candidate") is not None:
-            if composition_role == "policy_source":
-                policy_context = page_context
-            elif composition_role in {"entry_source", "material_source", "contact_source"}:
-                suppressed_page_keys.add(_page_identity(manifest))
-        if composition_role == "entry_source":
-            entry_contexts.append(page_context)
-        elif composition_role == "material_source":
-            material_contexts.append(page_context)
-        elif composition_role == "contact_source":
-            contact_contexts.append(page_context)
-
-    if policy_context is None:
-        return {
-            page_key: {
-                "candidate_pages": [],
-                "skip_consumer_families": ["service_guide_candidate"],
-                "force_candidate_action": True,
-            }
-            for page_key in suppressed_page_keys
-        }
+    role_contexts, primary_context, suppressed_page_keys, invalid_group = (
+        _resolve_service_guide_composition_group(
+            page_contexts,
+            composition_group="email_service",
+        )
+    )
+    if invalid_group:
+        return _empty_service_guide_composition_overrides(suppressed_page_keys)
+    if primary_context is None:
+        return {}
 
     policy_target_lineage = _find_consumer_match(
-        list(policy_context["target_matches"]),
+        list(primary_context["target_matches"]),
         "service_guide_candidate",
     )
     if policy_target_lineage is None:
         return {}
 
-    overrides: dict[tuple[str, str], dict[str, object]] = {}
-    policy_manifest = dict(policy_context["manifest"])
-    overrides[_page_identity(policy_manifest)] = {
-        "candidate_pages": [
-            _build_email_service_candidate_page(
-                policy_context=policy_context,
-                entry_contexts=entry_contexts,
-                material_contexts=material_contexts,
-                contact_contexts=contact_contexts,
-                target_lineage=policy_target_lineage,
-            )
-        ],
-        "skip_consumer_families": ["service_guide_candidate"],
-        "force_candidate_action": True,
-    }
-    for page_key in suppressed_page_keys:
-        overrides[page_key] = {
+    policy_manifest = dict(primary_context["manifest"])
+    return _merge_service_guide_primary_with_suppressed_overrides(
+        primary_page_key=_page_identity(policy_manifest),
+        primary_candidate_page=_build_email_service_candidate_page(
+            policy_context=primary_context,
+            entry_contexts=role_contexts.get("entry_source", []),
+            material_contexts=role_contexts.get("material_source", []),
+            contact_contexts=role_contexts.get("contact_source", []),
+            target_lineage=policy_target_lineage,
+        ),
+        suppressed_page_keys=suppressed_page_keys,
+    )
+
+
+def _resolve_service_guide_composition_group(
+    page_contexts: list[dict[str, object]],
+    *,
+    composition_group: str,
+) -> tuple[
+    dict[str, list[dict[str, object]]],
+    dict[str, object] | None,
+    set[tuple[str, str]],
+    bool,
+]:
+    spec = _SERVICE_GUIDE_COMPOSITION_SPECS[composition_group]
+    primary_role = str(spec["primary_role"])
+    allowed_roles = set(spec["allowed_roles"])
+    service_target_roles = set(spec["service_target_roles"])
+
+    role_contexts: dict[str, list[dict[str, object]]] = {}
+    service_target_page_keys: set[tuple[str, str]] = set()
+    invalid_service_target_page_keys: set[tuple[str, str]] = set()
+
+    for page_context in page_contexts:
+        manifest = dict(page_context["manifest"])
+        raw_page = dict(page_context["raw_page"])
+        page_key = _page_identity(manifest)
+        page_lineage = _page_lineage_fields(manifest=manifest, raw_page=raw_page)
+        composition_role = _require_optional_text(page_lineage.get("compositionRole"))
+        if composition_role is not None:
+            role_contexts.setdefault(composition_role, []).append(page_context)
+
+        target_matches = list(page_context["target_matches"])
+        if _find_consumer_match(target_matches, "service_guide_candidate") is None:
+            continue
+        service_target_page_keys.add(page_key)
+        if composition_role is None or composition_role not in allowed_roles:
+            invalid_service_target_page_keys.add(page_key)
+            continue
+        if composition_role not in service_target_roles:
+            invalid_service_target_page_keys.add(page_key)
+
+    primary_contexts = role_contexts.get(primary_role, [])
+    primary_context = primary_contexts[0] if len(primary_contexts) == 1 else None
+    invalid_group = bool(invalid_service_target_page_keys) or len(primary_contexts) != 1
+    return role_contexts, primary_context, service_target_page_keys, invalid_group
+
+
+def _empty_service_guide_composition_overrides(
+    page_keys: set[tuple[str, str]],
+) -> dict[tuple[str, str], dict[str, object]]:
+    return {
+        page_key: {
             "candidate_pages": [],
             "skip_consumer_families": ["service_guide_candidate"],
             "force_candidate_action": True,
         }
+        for page_key in page_keys
+    }
+
+
+def _merge_service_guide_primary_with_suppressed_overrides(
+    *,
+    primary_page_key: tuple[str, str],
+    primary_candidate_page: dict[str, object],
+    suppressed_page_keys: set[tuple[str, str]],
+) -> dict[tuple[str, str], dict[str, object]]:
+    overrides = _empty_service_guide_composition_overrides(suppressed_page_keys)
+    overrides[primary_page_key] = {
+        "candidate_pages": [primary_candidate_page],
+        "skip_consumer_families": ["service_guide_candidate"],
+        "force_candidate_action": True,
+    }
     return overrides
 
 
@@ -624,17 +660,11 @@ def _build_email_service_candidate_page(
         ]
         materials = _unique(materials)
     responsible_office = _unique(
-        _extract_responsible_offices(policy_lines)
-        + _extract_responsible_offices(contact_lines)
+        _extract_responsible_offices(policy_lines) + _extract_responsible_offices(contact_lines)
     )
     if not responsible_office and any("网络中心" in line for line in policy_lines):
         responsible_office = ["网络中心"]
-    entry_points = _unique(
-        _extract_service_entry_points(policy_lines)
-        + _extract_service_entry_points(entry_lines)
-        + _extract_mail_host_entry_points(policy_lines)
-        + _extract_mail_host_entry_points(entry_lines)
-    )
+    entry_points = _unique(_extract_service_entry_points([*policy_lines, *entry_lines]))
     contact_text_lines = _unique(contact_lines + policy_lines + entry_lines)
     field_source_urls = {
         "process_steps": [
@@ -756,15 +786,9 @@ def _build_information_disclosure_service_candidate_page(
         procedure_lines
     )
     responsible_office = _unique(
-        _extract_responsible_offices(procedure_lines)
-        + _extract_responsible_offices(contact_lines)
+        _extract_responsible_offices(procedure_lines) + _extract_responsible_offices(contact_lines)
     )
-    entry_points = _unique(
-        _extract_service_entry_points(procedure_lines)
-        + _extract_service_entry_points(material_lines)
-        + _extract_mail_host_entry_points(procedure_lines)
-        + _extract_mail_host_entry_points(material_lines)
-    )
+    entry_points = _unique(_extract_service_entry_points([*procedure_lines, *material_lines]))
     contact_text_lines = _unique(contact_lines + procedure_lines)
     field_source_urls = {
         "process_steps": [
@@ -858,7 +882,9 @@ def _combined_main_content_lines(page_contexts: list[dict[str, object]]) -> list
 
 def _composition_source_urls(page_contexts: list[dict[str, object]]) -> list[str]:
     return _unique(
-        _require_text(dict(page_context["manifest"]).get("normalizedCanonicalUrl"), "normalizedCanonicalUrl")
+        _require_text(
+            dict(page_context["manifest"]).get("normalizedCanonicalUrl"), "normalizedCanonicalUrl"
+        )
         for page_context in page_contexts
     )
 
@@ -886,7 +912,9 @@ def _composition_source_refs(page_contexts: list[dict[str, object]]) -> list[dic
     return refs
 
 
-def _combined_main_content_blocks(page_contexts: list[dict[str, object]]) -> list[dict[str, object]]:
+def _combined_main_content_blocks(
+    page_contexts: list[dict[str, object]],
+) -> list[dict[str, object]]:
     blocks: list[dict[str, object]] = []
     for page_context in page_contexts:
         blocks.extend(_main_content_blocks(list(page_context["blocks"])))
@@ -929,9 +957,7 @@ def _skipped_consumer_families(
     if not isinstance(raw_families, list):
         return set()
     return {
-        str(item).strip()
-        for item in raw_families
-        if isinstance(item, str) and str(item).strip()
+        str(item).strip() for item in raw_families if isinstance(item, str) and str(item).strip()
     }
 
 
@@ -1065,10 +1091,14 @@ def _build_typed_candidate(
 
     if consumer_family == "service_guide_candidate":
         process_steps = _extract_service_process_steps(lines)
-        materials = _extract_service_materials(lines)
-        entry_points = _unique(
-            _extract_service_entry_points(lines) + _extract_mail_host_entry_points(lines)
+        procedure_groups = _extract_service_procedure_groups(
+            title=title,
+            target_lineage=target_lineage,
+            normalized_canonical_url=normalized_canonical_url,
+            process_steps=process_steps,
         )
+        materials = _extract_service_materials(lines)
+        entry_points = _extract_service_entry_points(lines)
         responsible_office = _extract_responsible_offices(lines)
         typed_candidate = {
             "service_name": _service_candidate_name(
@@ -1076,6 +1106,7 @@ def _build_typed_candidate(
                 target_lineage=target_lineage,
             ),
             "process_steps": process_steps,
+            "procedure_groups": procedure_groups,
             "materials": materials,
             "responsible_office": responsible_office,
             "entry_points": entry_points,
@@ -1084,6 +1115,16 @@ def _build_typed_candidate(
                 "emails": emails,
                 "locations": locations,
                 "office_hours": office_hours,
+            },
+            "field_source_urls": {
+                "process_steps": [normalized_canonical_url] if process_steps else [],
+                "procedure_groups": [normalized_canonical_url] if procedure_groups else [],
+                "materials": [normalized_canonical_url] if materials else [],
+                "entry_points": [normalized_canonical_url] if entry_points else [],
+                "responsible_office": [normalized_canonical_url] if responsible_office else [],
+                "contacts": [normalized_canonical_url]
+                if (phones or emails or locations or office_hours)
+                else [],
             },
             "source_url": normalized_canonical_url,
             "source_title": title,
@@ -1276,12 +1317,151 @@ def _extract_service_process_steps(lines: list[str]) -> list[str]:
     return _unique(line for line in lines if _is_service_process_line(line))
 
 
+def _extract_service_procedure_groups(
+    *,
+    title: str,
+    target_lineage: dict[str, object] | None,
+    normalized_canonical_url: str,
+    process_steps: list[str],
+) -> list[dict[str, object]]:
+    if not process_steps:
+        return []
+    service_seed = _service_procedure_group_seed(
+        title=title,
+        target_lineage=target_lineage,
+        normalized_canonical_url=normalized_canonical_url,
+    )
+    public_source_refs = [normalized_canonical_url]
+    cleaned_steps = [
+        _clean_service_procedure_step_content(step)
+        for step in process_steps
+        if _clean_service_procedure_step_content(step)
+    ]
+    if not cleaned_steps:
+        return []
+    if service_seed == "vpn":
+        grouped_steps: dict[str, list[str]] = {
+            "direct_login": [],
+            "client_install": [],
+            "mobile_usage": [],
+        }
+        for step in cleaned_steps:
+            bucket = _vpn_procedure_group_kind(step)
+            grouped_steps[bucket].append(step)
+        procedure_groups: list[dict[str, object]] = []
+        for order, (group_key, title_text, focus_tags) in enumerate(
+            (
+                ("direct_login", "直接登录", ["entry", "direct_login"]),
+                ("client_install", "客户端安装", ["procedure", "install", "client"]),
+                ("mobile_usage", "移动端使用", ["procedure", "mobile"]),
+            ),
+            start=1,
+        ):
+            steps = grouped_steps[group_key]
+            if not steps:
+                continue
+            group_id = f"service:official_web:{service_seed}:procedure_group:{group_key}"
+            procedure_groups.append(
+                {
+                    "group_id": group_id,
+                    "title": title_text,
+                    "focus_tags": focus_tags,
+                    "steps": [
+                        {
+                            "step_id": f"{group_id}:step:{index}",
+                            "content": content,
+                            "source_refs": public_source_refs,
+                        }
+                        for index, content in enumerate(steps, start=1)
+                    ],
+                    "source_refs": public_source_refs,
+                    "order": order,
+                }
+            )
+        return procedure_groups
+
+    group_id = f"service:official_web:{service_seed}:procedure_group:default"
+    return [
+        {
+            "group_id": group_id,
+            "title": "办理步骤",
+            "focus_tags": ["procedure"],
+            "steps": [
+                {
+                    "step_id": f"{group_id}:step:{index}",
+                    "content": content,
+                    "source_refs": public_source_refs,
+                }
+                for index, content in enumerate(cleaned_steps, start=1)
+            ],
+            "source_refs": public_source_refs,
+            "order": 1,
+        }
+    ]
+
+
+def _service_procedure_group_seed(
+    *,
+    title: str,
+    target_lineage: dict[str, object] | None,
+    normalized_canonical_url: str,
+) -> str:
+    target_label = (
+        _require_optional_text(
+            (target_lineage or {}).get("targetLabel") or (target_lineage or {}).get("target_label")
+        )
+        or ""
+    )
+    combined = f"{title}\n{target_label}\n{normalized_canonical_url}".lower()
+    if "vpn" in combined:
+        return "vpn"
+    if "信息公开" in f"{title}{target_label}":
+        return "information_disclosure"
+    if any(token in combined for token in ("电子邮件", "邮箱", "mail")):
+        return "email"
+    if "校园卡" in f"{title}{target_label}" or "一卡通" in f"{title}{target_label}":
+        return "campus_card"
+    if "认证" in f"{title}{target_label}" or "rz.muc.edu.cn" in combined:
+        return "network_auth"
+    path_tail = normalized_canonical_url.rstrip("/").rsplit("/", 1)[-1]
+    normalized_tail = re.sub(r"[^a-z0-9]+", "-", path_tail.lower()).strip("-")
+    if normalized_tail:
+        return normalized_tail
+    return hashlib.sha256(normalized_canonical_url.encode("utf-8")).hexdigest()[:8]
+
+
+def _clean_service_procedure_step_content(step: str) -> str:
+    return re.sub(
+        r"\s+",
+        " ",
+        _SERVICE_ORDERED_STEP_RE.sub("", step.strip(), count=1),
+    ).strip(" ，,；;")
+
+
+def _vpn_procedure_group_kind(step: str) -> Literal["direct_login", "client_install", "mobile_usage"]:
+    normalized = step.lower()
+    if any(token in step for token in ("移动端", "手机端", "安卓端", "iOS")) or any(
+        token in normalized for token in ("easyconnect app", "android", "ios", "mobile")
+    ):
+        return "mobile_usage"
+    if any(
+        token in step
+        for token in ("客户端", "安装", "下载", "EasyConnect", "Install EasyConnect")
+    ) or any(token in normalized for token in ("easyconnect", ".pkg", ".exe", "install")):
+        return "client_install"
+    return "direct_login"
+
+
 def _is_service_process_line(line: str) -> bool:
     normalized = line.strip()
     if not normalized:
         return False
     if _is_service_material_only_line(normalized):
         return False
+    if _SERVICE_ORDERED_STEP_RE.search(normalized) and _SERVICE_ORDERED_STEP_SIGNAL_RE.search(
+        normalized
+    ):
+        return True
     return bool(_SERVICE_PROCESS_RE.search(normalized))
 
 
@@ -1350,9 +1530,14 @@ def _extract_declared_material_items(fragment: str) -> list[str]:
 def _extract_service_entry_points(lines: list[str]) -> list[str]:
     entries: list[str] = []
     for line in lines:
-        if not _SERVICE_ENTRY_RE.search(line) and not _SERVICE_URL_RE.search(line):
+        if (
+            not _SERVICE_ENTRY_RE.search(line)
+            and not _SERVICE_URL_RE.search(line)
+            and not _SERVICE_HOST_ENTRY_RE.search(line)
+        ):
             continue
         entries.extend(_SERVICE_URL_RE.findall(line))
+        entries.extend(match.lower() for match in _SERVICE_HOST_ENTRY_RE.findall(line))
         entries.extend(_SERVICE_SELF_SERVICE_MACHINE_RE.findall(line))
         for pattern in (_SERVICE_APP_RE, _SERVICE_MINIPROGRAM_RE, _SERVICE_OFFLINE_ENTRY_RE):
             for match in pattern.finditer(line):
@@ -1398,9 +1583,37 @@ def _target_label_from_lineage(target_lineage: dict[str, object] | None) -> str:
 
 def _filter_service_entry_points(entries: list[str]) -> list[str]:
     filtered: list[str] = []
+    host_entries = {
+        entry.lower().removeprefix("https://").removeprefix("http://").rstrip("/")
+        for entry in entries
+        if _SERVICE_HOST_ENTRY_RE.fullmatch(
+            entry.lower().removeprefix("https://").removeprefix("http://").rstrip("/")
+        )
+    }
+    url_host_entries = {
+        entry.lower().removeprefix("https://").removeprefix("http://").rstrip("/")
+        for entry in entries
+        if entry.lower().startswith(("https://", "http://"))
+        and _SERVICE_HOST_ENTRY_RE.fullmatch(
+            entry.lower().removeprefix("https://").removeprefix("http://").rstrip("/")
+        )
+    }
     for entry in entries:
         normalized = entry.strip()
         if not normalized:
+            continue
+        if normalized in {"APP", "app"}:
+            continue
+        normalized_host = normalized.lower()
+        if normalized_host in url_host_entries and not normalized.lower().startswith(
+            ("https://", "http://")
+        ):
+            continue
+        if (
+            normalized.endswith(("系统", "平台"))
+            and host_entries
+            and ("认证" in normalized or "VPN" in normalized or "邮箱" in normalized)
+        ):
             continue
         if normalized.endswith("系统") and not (
             "认证" in normalized or "VPN" in normalized or "邮箱" in normalized
@@ -1413,11 +1626,7 @@ def _filter_service_entry_points(entries: list[str]) -> list[str]:
 def _extract_mail_host_entry_points(lines: list[str]) -> list[str]:
     entries: list[str] = []
     for line in lines:
-        for match in re.findall(
-            r"(?<![A-Za-z0-9.-])((?:mail|vpn|rz)\.muc\.edu\.cn)(?![A-Za-z0-9.-])",
-            line,
-            re.IGNORECASE,
-        ):
+        for match in _SERVICE_HOST_ENTRY_RE.findall(line):
             entries.append(match.lower())
     return _unique(entries)
 

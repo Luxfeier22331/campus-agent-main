@@ -281,7 +281,88 @@ class StructuredProjectionPostgresPublisherTest(unittest.TestCase):
                 {
                     "service_id": "service:transport-reservation:subway-shuttle",
                     "display_name": "地铁接驳车预约说明",
+                    "guide_sections": [
+                        {
+                            "section_id": "service:transport-reservation:subway-shuttle:section:procedure",
+                            "section_type": "procedure",
+                            "title": "预约流程",
+                            "content": "1. 打开民大通。 2. 选择地铁接驳车预约。",
+                            "order": 1,
+                            "source_refs": ["notice:muc_internal_portal:354777"],
+                        }
+                    ],
+                    "procedure_groups": [
+                        {
+                            "group_id": (
+                                "service:transport-reservation:subway-shuttle:"
+                                "procedure_group:reservation"
+                            ),
+                            "title": "预约流程",
+                            "focus_tags": ["procedure", "reservation"],
+                            "order": 1,
+                            "steps": [
+                                {
+                                    "step_id": (
+                                        "service:transport-reservation:subway-shuttle:"
+                                        "procedure_group:reservation:step:1"
+                                    ),
+                                    "content": "打开民大通。",
+                                    "order": 1,
+                                    "source_refs": ["notice:muc_internal_portal:354777"],
+                                }
+                            ],
+                            "source_refs": ["notice:muc_internal_portal:354777"],
+                        }
+                    ],
+                    "materials": [
+                        {
+                            "material_id": "service:transport-reservation:subway-shuttle:material:1",
+                            "name": "预约凭证",
+                            "required": True,
+                            "note": "上车时出示",
+                            "source_refs": ["notice:muc_internal_portal:354777"],
+                        }
+                    ],
+                    "entry_refs": [
+                        {
+                            "entry_id": "service:transport-reservation:subway-shuttle:entry:1",
+                            "label": "民大通",
+                            "entry_type": "app",
+                            "url": "",
+                            "location_ref": "",
+                            "source_refs": ["notice:muc_internal_portal:354777"],
+                        }
+                    ],
+                    "office_hours": [
+                        {
+                            "hours_id": "service:transport-reservation:subway-shuttle:hours:1",
+                            "label": "预约开放时间",
+                            "day_pattern": "工作日",
+                            "time_range": "09:00-22:00",
+                            "effective_note": "",
+                            "source_refs": ["notice:muc_internal_portal:354777"],
+                        }
+                    ],
+                    "contact_refs": [
+                        {
+                            "contact_id": "service:transport-reservation:subway-shuttle:contact:1",
+                            "label": "后勤保障处",
+                            "department": "后勤保障处",
+                            "phone": "010-68930000",
+                            "email": "",
+                            "location_ref": "",
+                            "source_refs": ["notice:muc_internal_portal:354777"],
+                        }
+                    ],
+                    "eligibility_notes": ["仅限在校学生预约。"],
+                    "field_status": {
+                        "service_process": "present",
+                        "service_entry": "present",
+                        "office_hours": "present",
+                        "phone": "present",
+                    },
                     "source_refs": ["notice:muc_internal_portal:354777"],
+                    "extraction_status": "ready",
                 }
             ],
             "conflict_records": [{"service_id": "service:conflicted"}],
@@ -314,6 +395,110 @@ class StructuredProjectionPostgresPublisherTest(unittest.TestCase):
         self.assertIn("service_guide_manual_review_sources", executed_sql)
         self.assertIn("service_id", executed_sql)
         self.assertIn("search_text", executed_sql)
+        self.assertIn("procedure_groups", executed_sql)
+        self.assertIn("field_status", executed_sql)
+        self.assertIn("entry_refs", executed_sql)
+        self.assertIn("office_hours", executed_sql)
+        self.assertIn("contact_refs", executed_sql)
+        typed_insert_index = next(
+            index
+            for index, (query, _params) in enumerate(cursor.execute_calls)
+            if "service_guide_read_model" in query and "jsonb_to_recordset" in query
+        )
+        typed_payload = json.loads(cursor.execute_calls[typed_insert_index][1][0])
+        self.assertEqual(
+            typed_payload[0]["procedure_groups"][0]["group_id"],
+            "service:transport-reservation:subway-shuttle:procedure_group:reservation",
+        )
+        self.assertEqual(
+            typed_payload[0]["entry_refs"][0]["label"],
+            "民大通",
+        )
+        self.assertEqual(
+            typed_payload[0]["office_hours"][0]["label"],
+            "预约开放时间",
+        )
+        self.assertEqual(
+            typed_payload[0]["contact_refs"][0]["phone"],
+            "010-68930000",
+        )
+        self.assertEqual(
+            typed_payload[0]["eligibility_notes"],
+            ["仅限在校学生预约。"],
+        )
+        self.assertEqual(
+            typed_payload[0]["field_status"]["service_process"],
+            "present",
+        )
+
+    def test_publish_service_guide_release_keeps_flat_legacy_record_compatible(self) -> None:
+        publisher = object.__new__(PostgresStructuredProjectionPublisher)
+        publisher.database_url = "postgresql://projection.example/db"
+        publisher.schema = "ingestion_projection"
+        bundle = {
+            "schema_version": "campus_services_service_guide_projection.v1",
+            "service_guide_records": [
+                {
+                    "service_id": "service:handbook:legacy-check-in",
+                    "display_name": "宿舍入住办理",
+                    "aliases": ["宿舍入住", "入住"],
+                    "category": "student_housing",
+                    "campus_scope": "all",
+                    "audience": ["student"],
+                    "effective_from": "2018-09-01T00:00:00+08:00",
+                    "effective_until": "2099-12-31T23:59:59+08:00",
+                    "source_refs": ["handbook:student_rules:pages:252-255#page=253"],
+                    "guide_sections": [
+                        {
+                            "section_id": "service:handbook:legacy-check-in:section:procedure",
+                            "section_type": "procedure",
+                            "title": "宿舍入住办理",
+                            "content": "1. 持通知书到院系注册。 2. 到指定公寓楼报到。",
+                            "order": 1,
+                            "source_refs": ["handbook:student_rules:pages:252-255#page=253"],
+                        }
+                    ],
+                    "materials": [],
+                    "entry_refs": [],
+                    "office_hours": [],
+                    "contact_refs": [],
+                    "eligibility_notes": ["新生"],
+                    "extraction_status": "ready",
+                }
+            ],
+            "conflict_records": [],
+            "manual_review_sources": [],
+        }
+        cursor = _RecordingCursor()
+
+        with patch(
+            "campus_ingestion_core.structured_projection_postgres._postgres_connection",
+            return_value=_FakeConnectionContextManager(cursor),
+        ):
+            publisher.publish_release(
+                corpus="campus_services",
+                collection="service_guide",
+                release_id="service-guide-legacy-20260504T090000",
+                generated_at="2026-05-04T09:00:00+08:00",
+                schema_version="campus_services_service_guide_projection.v1",
+                artifact_object_key=(
+                    "campus_services/releases/service_guide/service-guide-"
+                    "legacy-20260504T090000/service-guide-projection.json"
+                ),
+                artifact_checksum="sha256:test",
+                bundle=bundle,
+                validation_status="valid",
+            )
+
+        typed_insert_index = next(
+            index
+            for index, (query, _params) in enumerate(cursor.execute_calls)
+            if "service_guide_read_model" in query and "jsonb_to_recordset" in query
+        )
+        typed_payload = json.loads(cursor.execute_calls[typed_insert_index][1][0])
+        self.assertEqual(typed_payload[0]["record"]["service_id"], "service:handbook:legacy-check-in")
+        self.assertEqual(typed_payload[0]["procedure_groups"], None)
+        self.assertEqual(typed_payload[0]["field_status"], None)
 
     def test_publish_service_status_release_writes_pg_read_model(self) -> None:
         publisher = object.__new__(PostgresStructuredProjectionPublisher)

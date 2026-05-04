@@ -349,6 +349,20 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "vpn client install",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "VPN客户端怎么安装",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "VPN客户端怎么安装",
+				"guide_focus":   "procedure",
+			},
+		},
+		{
 			name: "network auth entry",
 			request: Request{
 				EffectiveCapability: "campus_services",
@@ -374,6 +388,34 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantPayload: map[string]any{
 				"service_query": "校园邮箱需要什么材料",
 				"guide_focus":   "required_materials",
+			},
+		},
+		{
+			name: "campus card office hours",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校园卡补办办公时间是什么",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校园卡补办办公时间是什么",
+				"guide_focus":   "office_hours",
+			},
+		},
+		{
+			name: "campus card eligibility",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校园卡补办哪些人能办",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校园卡补办哪些人能办",
+				"guide_focus":   "eligibility",
 			},
 		},
 		{

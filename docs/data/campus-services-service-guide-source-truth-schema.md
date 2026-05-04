@@ -168,6 +168,7 @@ ServiceGuideRecord
 - effective_until: RFC3339 datetime
 - source_refs[]: str
 - guide_sections[]: ServiceGuideSectionRecord
+- procedure_groups[]: ServiceGuideProcedureGroupRecord
 - materials[]: ServiceGuideMaterialRecord
 - entry_refs[]: ServiceGuideEntryRecord
 - office_hours[]: ServiceGuideOfficeHoursRecord
@@ -186,6 +187,8 @@ ServiceGuideRecord
 - `category` 用于 observability 与 panel filter，不作为权限边界
 - `effective_from/effective_until` 为空或非法时不得发布为 current-ready record
 - `source_refs` 必须覆盖 record-level provenance
+- `procedure_groups` 是 procedure 类事实的 canonical projection truth；
+  `guide_sections` 中的 `procedure` section 仅保留兼容摘要，不再承担细粒度步骤分组语义
 - `extraction_status != ready` 的 record 不得返回 `resolved_current`；新 release 不接受
   人工审核状态，无法机器确认的来源必须阻断发布或标记为 `incomplete`
 
@@ -214,6 +217,36 @@ ServiceGuideSectionRecord
 - `entry` section 只能描述入口，不得包含 executable transaction payload
 - `content` 必须来自 source truth 或人工审核后的 normalized text
 - 缺 `source_refs` 的 section 必须进入 manual review
+
+## Procedure Group Record
+
+```text
+ServiceGuideProcedureGroupRecord
+- group_id: str
+- title: str
+- focus_tags[]: str
+- order: int
+- steps[]: ServiceGuideProcedureStepRecord
+- source_refs[]: str
+```
+
+```text
+ServiceGuideProcedureStepRecord
+- step_id: str
+- content: str
+- order: int
+- source_refs[]: str
+```
+
+固定语义：
+
+- `procedure_groups` 只表达 source-backed grouped procedure truth，不在 query time 从
+  `guide_sections.content` 反解析
+- `focus_tags` 用于 deterministic focused answer selection，例如 `entry`、
+  `direct_login`、`install`、`client`、`mobile`
+- group 和 step 都必须保留 `source_refs`
+- 同一 record 可同时保留 `guide_sections.procedure` 与 `procedure_groups`，但二者必须来自同一
+  admitted source family，不得跨 source 拼接
 
 ## Material Record
 

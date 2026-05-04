@@ -118,12 +118,16 @@ ServiceGuideLookupResult
   - temporarily_unverifiable
 - resolved_service: ServiceGuideServiceRef | null
 - guide_sections[]: ServiceGuideSection
+- procedure_groups[]: ServiceGuideProcedureGroup
 - required_materials[]: ServiceGuideMaterial
 - entry_refs[]: ServiceGuideEntryRef
 - office_hours[]: ServiceGuideOfficeHours
 - contact_refs[]: ServiceGuideContactRef
 - eligibility_notes[]: str
 - source_refs[]: str
+- selected_section_ids[]: str
+- omitted_section_ids[]: str
+- omitted_section_reasons: map[str, str]
 - candidate_services[]: ServiceGuideCandidate
 - queried_time_anchor: RFC3339 datetime
 - effective_from: RFC3339 datetime
@@ -157,6 +161,7 @@ ServiceGuideServiceRef
 
 ```text
 ServiceGuideSection
+- section_id: str
 - section_type:
   - overview
   - procedure
@@ -166,6 +171,26 @@ ServiceGuideSection
   - contact
   - eligibility
 - title: str
+- content: str
+- source_refs[]: str
+```
+
+### `ServiceGuideProcedureGroup`
+
+```text
+ServiceGuideProcedureGroup
+- group_id: str
+- title: str
+- focus_tags[]: str
+- steps[]: ServiceGuideProcedureStep
+- source_refs[]: str
+```
+
+### `ServiceGuideProcedureStep`
+
+```text
+ServiceGuideProcedureStep
+- step_id: str
 - content: str
 - source_refs[]: str
 ```
@@ -231,10 +256,14 @@ ServiceGuideCandidate
 
 - `resolved_current` 时必须给出 `resolved_service` 与至少一个 source-linked
   guide fact
+- `procedure_groups` 是 canonical procedure truth；`guide_sections` 仍保留为兼容字段，
+  但 focused procedure answer 优先消费 `procedure_groups`
 - `clarification_required` 时必须给出 `candidate_services` 或明确的
   `clarification_reason`
 - `temporarily_unverifiable` 时必须给出 `fail_close_reason`
 - `source_refs` 必须覆盖最终返回的每个事实来源
+- `selected_section_ids` / `omitted_section_ids` / `omitted_section_reasons`
+  用于表达 focused runtime answer 的选择结果，不得要求前端自行重算
 - `entry_refs` 只能表达“入口说明”，不能表达可执行 transaction payload
 - `contact_refs` 可由 guide projection 内嵌，也可引用 contact projection 派生事实；纯联系人查询仍应走
   `contact_directory_lookup`

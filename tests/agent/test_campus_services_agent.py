@@ -20,6 +20,8 @@ from campus_contracts import (
     ServiceGuideLookupResult,
     ServiceGuideMaterial,
     ServiceGuideOfficeHours,
+    ServiceGuideProcedureGroup,
+    ServiceGuideProcedureStep,
     ServiceGuideSection,
     ServiceGuideServiceRef,
     ServiceStatusLookupPayload,
@@ -96,15 +98,11 @@ class CampusServicesAgentTest(unittest.TestCase):
             },
         )
         self.assertNotIn("agent_plan", response.agent_observability.safe_details)
-        self.assertEqual(
-            response.agent_observability.safe_details["result_guardrail"],
-            {
-                "schema_version": "agent-result-guardrail-v1",
-                "outcome": "source_backed",
-                "source_ref_count": 1,
-                "access_decision": "allowed",
-            },
-        )
+        result_guardrail = response.agent_observability.safe_details["result_guardrail"]
+        self.assertEqual(result_guardrail["schema_version"], "agent-result-guardrail-v1")
+        self.assertEqual(result_guardrail["outcome"], "source_backed")
+        self.assertEqual(result_guardrail["source_ref_count"], 1)
+        self.assertEqual(result_guardrail["access_decision"], "allowed")
         self.assertEqual(
             query_service.last_service_status_query,
             ServiceStatusQuery(
@@ -364,6 +362,157 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("急诊证明", response.answer_text)
         self.assertIn("住院收据", response.answer_text)
 
+    def test_service_guide_procedure_response_renders_selected_vpn_group_only(self) -> None:
+        response = campus_services_tool_adapter._service_guide_response(
+            ServiceGuideLookupResult(
+                service_query="VPN客户端怎么安装",
+                guide_focus="procedure",
+                outcome="resolved_current",
+                resolved_service=ServiceGuideServiceRef(
+                    service_id="service:official_web:vpn",
+                    display_name="中央民族大学 VPN 使用说明",
+                    aliases=("VPN",),
+                    category="campus_service",
+                    campus_scope="all",
+                    audience=("student",),
+                ),
+                guide_sections=(
+                    ServiceGuideSection(
+                        section_id="service:official_web:vpn:section:procedure:client_install",
+                        section_type="procedure",
+                        title="客户端安装",
+                        content="1. 首次使用请根据系统提示下载客户端。\n2. 双击 Install EasyConnect.pkg 完成安装。",
+                        source_refs=("https://met.muc.edu.cn/info/1046/1674.htm",),
+                    ),
+                ),
+                procedure_groups=(),
+                selected_section_ids=("service:official_web:vpn:procedure_group:client_install",),
+                omitted_section_ids=(
+                    "service:official_web:vpn:procedure_group:direct_login",
+                    "service:official_web:vpn:procedure_group:mobile_usage",
+                ),
+                omitted_section_reasons={
+                    "service:official_web:vpn:procedure_group:direct_login": "focus_mismatch",
+                    "service:official_web:vpn:procedure_group:mobile_usage": "focus_mismatch",
+                },
+                source_refs=("https://met.muc.edu.cn/info/1046/1674.htm",),
+                queried_time_anchor="2026-05-04T10:30:00+08:00",
+                effective_from="2026-05-01T00:00:00+08:00",
+                effective_until="2099-12-31T23:59:59+08:00",
+                matched_service_category="campus_service",
+            )
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("客户端安装", response.answer_text)
+        self.assertIn("Install EasyConnect.pkg", response.answer_text)
+        self.assertNotIn("统一身份认证账号和密码登录", response.answer_text)
+        self.assertEqual(
+            response.agent_observability.safe_details["selected_section_ids"],
+            ["service:official_web:vpn:procedure_group:client_install"],
+        )
+
+    def test_service_guide_procedure_response_deduplicates_grouped_and_compatibility_sections(self) -> None:
+        response = campus_services_tool_adapter._service_guide_response(
+            ServiceGuideLookupResult(
+                service_query="VPN客户端怎么安装",
+                guide_focus="procedure",
+                outcome="resolved_current",
+                resolved_service=ServiceGuideServiceRef(
+                    service_id="service:official_web:vpn",
+                    display_name="中央民族大学 VPN 使用说明",
+                    aliases=("VPN",),
+                    category="campus_service",
+                    campus_scope="all",
+                    audience=("student",),
+                ),
+                guide_sections=(
+                    ServiceGuideSection(
+                        section_id="service:official_web:vpn:procedure_group:client_install",
+                        section_type="procedure",
+                        title="客户端安装",
+                        content="1. 首次使用请根据系统提示下载客户端。\n2. 双击 Install EasyConnect.pkg 完成安装。",
+                        source_refs=("https://met.muc.edu.cn/info/1046/1674.htm",),
+                    ),
+                ),
+                procedure_groups=(
+                    ServiceGuideProcedureGroup(
+                        group_id="service:official_web:vpn:procedure_group:client_install",
+                        title="客户端安装",
+                        focus_tags=("client", "install", "客户端"),
+                        steps=(
+                            ServiceGuideProcedureStep(
+                                step_id="step-1",
+                                content="首次使用请根据系统提示下载客户端。",
+                                source_refs=("https://met.muc.edu.cn/info/1046/1674.htm",),
+                            ),
+                            ServiceGuideProcedureStep(
+                                step_id="step-2",
+                                content="双击 Install EasyConnect.pkg 完成安装。",
+                                source_refs=("https://met.muc.edu.cn/info/1046/1674.htm",),
+                            ),
+                        ),
+                        source_refs=("https://met.muc.edu.cn/info/1046/1674.htm",),
+                    ),
+                ),
+                selected_section_ids=("service:official_web:vpn:procedure_group:client_install",),
+                source_refs=("https://met.muc.edu.cn/info/1046/1674.htm",),
+                queried_time_anchor="2026-05-04T10:30:00+08:00",
+                effective_from="2026-05-01T00:00:00+08:00",
+                effective_until="2099-12-31T23:59:59+08:00",
+                matched_service_category="campus_service",
+            )
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.answer_text.count("客户端安装"), 1)
+        self.assertEqual(response.answer_text.count("首次使用请根据系统提示下载客户端。"), 1)
+        self.assertEqual(response.answer_text.count("Install EasyConnect.pkg"), 1)
+
+    def test_service_guide_observability_includes_focus_service_and_source_summary(self) -> None:
+        response = campus_services_tool_adapter._service_guide_response(
+            ServiceGuideLookupResult(
+                service_query="校园卡在哪里补办",
+                guide_focus="entry",
+                outcome="resolved_current",
+                resolved_service=ServiceGuideServiceRef(
+                    service_id="service:campus-card:lost-reissue",
+                    display_name="校园卡挂失与补卡",
+                    aliases=("校园卡丢了",),
+                    category="campus_card",
+                    campus_scope="all",
+                    audience=("student",),
+                ),
+                entry_refs=(
+                    ServiceGuideEntryRef(
+                        label="学生自助补卡机",
+                        entry_type="offline_location",
+                        location_ref="中慧楼二层",
+                        source_refs=("official_web:campus-card",),
+                    ),
+                ),
+                source_refs=("official_web:campus-card", "https://ids.muc.edu.cn/campus-card"),
+                selected_section_ids=("service:campus-card:lost-reissue:entry:self-service",),
+                queried_time_anchor="2026-05-04T10:30:00+08:00",
+                effective_from="2026-05-01T00:00:00+08:00",
+                effective_until="2099-12-31T23:59:59+08:00",
+                matched_service_category="campus_card",
+            )
+        )
+
+        safe_details = response.agent_observability.safe_details
+        self.assertEqual(safe_details["guide_focus"], "entry")
+        self.assertEqual(safe_details["resolved_service_id"], "service:campus-card:lost-reissue")
+        self.assertEqual(safe_details["resolved_service_display_name"], "校园卡挂失与补卡")
+        self.assertEqual(
+            safe_details["source_refs_used"],
+            ["official_web:campus-card", "https://ids.muc.edu.cn/campus-card"],
+        )
+        self.assertEqual(
+            safe_details["result_guardrail"]["focus_guardrail"],
+            "narrow_focus",
+        )
+
     def test_service_guide_full_guide_response_combines_all_fact_groups(self) -> None:
         response = campus_services_tool_adapter._service_guide_response(
             ServiceGuideLookupResult(
@@ -380,6 +529,7 @@ class CampusServicesAgentTest(unittest.TestCase):
                 ),
                 guide_sections=(
                     ServiceGuideSection(
+                        section_id="service:campus-card:lost-reissue:section:procedure",
                         section_type="procedure",
                         title="挂失与补卡流程",
                         content="先通过民大通办理挂失，再到自助补卡机补卡。",
@@ -449,6 +599,7 @@ class CampusServicesAgentTest(unittest.TestCase):
                 ),
                 guide_sections=(
                     ServiceGuideSection(
+                        section_id="service:official-web:information-disclosure-application:section:procedure",
                         section_type="procedure",
                         title="申请流程",
                         content="申请人填写申请表后提交学校信息公开办公室。",
@@ -789,6 +940,7 @@ class CampusServicesAgentTest(unittest.TestCase):
                 },
                 "guide_sections": [
                     {
+                        "section_id": "service:handbook:check-in:section:procedure",
                         "section_type": "procedure",
                         "title": "公寓楼新生办理入住手续流程",
                         "content": "1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",

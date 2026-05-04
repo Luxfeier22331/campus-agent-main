@@ -17,6 +17,7 @@ type serviceGuideResult struct {
 	Outcome                string                  `json:"outcome"`
 	ResolvedService        *serviceGuideServiceRef `json:"resolved_service,omitempty"`
 	GuideSections          []serviceGuideSection   `json:"guide_sections,omitempty"`
+	ProcedureGroups        []serviceGuideProcedureGroup `json:"procedure_groups,omitempty"`
 	RequiredMaterials      []serviceGuideMaterial  `json:"required_materials,omitempty"`
 	EntryRefs              []serviceGuideEntryRef  `json:"entry_refs,omitempty"`
 	OfficeHours            []serviceGuideHours     `json:"office_hours,omitempty"`
@@ -30,6 +31,9 @@ type serviceGuideResult struct {
 	ClarificationReason    string                  `json:"clarification_reason,omitempty"`
 	FailCloseReason        string                  `json:"fail_close_reason,omitempty"`
 	MatchedServiceCategory string                  `json:"matched_service_category,omitempty"`
+	SelectedSectionIDs     []string                `json:"selected_section_ids,omitempty"`
+	OmittedSectionIDs      []string                `json:"omitted_section_ids,omitempty"`
+	OmittedSectionReasons  map[string]string       `json:"omitted_section_reasons,omitempty"`
 	FieldStatus            map[string]string       `json:"field_status,omitempty"`
 }
 
@@ -43,10 +47,25 @@ type serviceGuideServiceRef struct {
 }
 
 type serviceGuideSection struct {
+	SectionID   string   `json:"section_id"`
 	SectionType string   `json:"section_type"`
 	Title       string   `json:"title"`
 	Content     string   `json:"content"`
 	SourceRefs  []string `json:"source_refs"`
+}
+
+type serviceGuideProcedureStep struct {
+	StepID     string   `json:"step_id"`
+	Content    string   `json:"content"`
+	SourceRefs []string `json:"source_refs"`
+}
+
+type serviceGuideProcedureGroup struct {
+	GroupID   string                      `json:"group_id"`
+	Title     string                      `json:"title"`
+	FocusTags []string                    `json:"focus_tags"`
+	Steps     []serviceGuideProcedureStep `json:"steps"`
+	SourceRefs []string                   `json:"source_refs"`
 }
 
 type serviceGuideMaterial struct {
@@ -97,6 +116,7 @@ type serviceGuideRecord struct {
 	EffectiveUntil   string                       `json:"effective_until"`
 	SourceRefs       []string                     `json:"source_refs"`
 	GuideSections    []serviceGuideSectionRecord  `json:"guide_sections"`
+	ProcedureGroups  []serviceGuideProcedureGroupRecord `json:"procedure_groups"`
 	Materials        []serviceGuideMaterialRecord `json:"materials"`
 	EntryRefs        []serviceGuideEntryRecord    `json:"entry_refs"`
 	OfficeHours      []serviceGuideHoursRecord    `json:"office_hours"`
@@ -113,6 +133,22 @@ type serviceGuideSectionRecord struct {
 	Content     string   `json:"content"`
 	Order       int      `json:"order"`
 	SourceRefs  []string `json:"source_refs"`
+}
+
+type serviceGuideProcedureStepRecord struct {
+	StepID     string   `json:"step_id"`
+	Content    string   `json:"content"`
+	Order      int      `json:"order"`
+	SourceRefs []string `json:"source_refs"`
+}
+
+type serviceGuideProcedureGroupRecord struct {
+	GroupID    string                            `json:"group_id"`
+	Title      string                            `json:"title"`
+	FocusTags  []string                          `json:"focus_tags"`
+	Order      int                               `json:"order"`
+	Steps      []serviceGuideProcedureStepRecord `json:"steps"`
+	SourceRefs []string                          `json:"source_refs"`
 }
 
 type serviceGuideMaterialRecord struct {

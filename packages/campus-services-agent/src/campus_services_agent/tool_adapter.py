@@ -481,6 +481,20 @@ def _contact_directory_response(result: ContactDirectoryLookupResult) -> AgentRe
 
 def _service_guide_text(result: ServiceGuideLookupResult) -> str:
     parts: list[str] = []
+    selected_groups = getattr(result, "procedure_groups", ()) or ()
+    if selected_groups:
+        for group in selected_groups:
+            step_lines = [step.content for step in getattr(group, "steps", ()) if step.content]
+            if not step_lines:
+                continue
+            parts.append(f"{group.title}：" + "\n".join(step_lines))
+    skip_guide_section_ids: set[str] = set()
+    if str(getattr(result, "guide_focus", "") or "") == "procedure" and selected_groups:
+        skip_guide_section_ids = {
+            str(getattr(group, "group_id", "") or "").strip()
+            for group in selected_groups
+            if str(getattr(group, "group_id", "") or "").strip()
+        }
     if result.guide_sections:
         parts.extend(
             (
@@ -490,6 +504,7 @@ def _service_guide_text(result: ServiceGuideLookupResult) -> str:
             )
             for section in result.guide_sections
             if section.content
+            and str(getattr(section, "section_id", "") or "").strip() not in skip_guide_section_ids
         )
     if result.required_materials:
         parts.append(
@@ -694,6 +709,7 @@ def _agent_observability(tool_name: str, result) -> AgentObservability:
         access_decision="allowed",
         safe_details=_agent_safe_details(
             tool_name=tool_name,
+            result=result,
             result_type=result.__class__.__name__,
             outcome=outcome,
             source_ref_count=source_ref_count,
@@ -707,6 +723,7 @@ def _agent_observability(tool_name: str, result) -> AgentObservability:
 def _agent_safe_details(
     *,
     tool_name: str,
+    result,
     result_type: str,
     outcome: str,
     source_ref_count: int,
@@ -714,11 +731,21 @@ def _agent_safe_details(
     failure_class: str,
     field_status: dict[str, str],
 ) -> dict[str, object]:
+    guide_focus = str(getattr(result, "guide_focus", "") or "").strip()
+    resolved_service = getattr(result, "resolved_service", None)
+    source_refs_used = tuple(
+        dict.fromkeys(
+            str(source_ref).strip()
+            for source_ref in (getattr(result, "source_refs", ()) or ())
+            if str(source_ref).strip()
+        )
+    )
     result_guardrail: dict[str, object] = {
         "schema_version": "agent-result-guardrail-v1",
         "outcome": result_guardrail_outcome(outcome, source_ref_count),
         "source_ref_count": source_ref_count,
         "access_decision": access_decision,
+        "focus_guardrail": "full_guide" if guide_focus == "full_guide" else "narrow_focus",
     }
     if failure_class:
         result_guardrail["failure_class"] = failure_class
@@ -733,8 +760,30 @@ def _agent_safe_details(
         },
         "result_guardrail": result_guardrail,
     }
+    if guide_focus:
+        details["guide_focus"] = guide_focus
+    if resolved_service is not None:
+        resolved_service_id = str(getattr(resolved_service, "service_id", "") or "").strip()
+        resolved_service_display_name = str(
+            getattr(resolved_service, "display_name", "") or ""
+        ).strip()
+        if resolved_service_id:
+            details["resolved_service_id"] = resolved_service_id
+        if resolved_service_display_name:
+            details["resolved_service_display_name"] = resolved_service_display_name
+    if source_refs_used:
+        details["source_refs_used"] = list(source_refs_used)
     if field_status:
         details["field_status"] = dict(field_status)
+    selected_section_ids = tuple(getattr(result, "selected_section_ids", ()) or ())
+    omitted_section_ids = tuple(getattr(result, "omitted_section_ids", ()) or ())
+    omitted_section_reasons = getattr(result, "omitted_section_reasons", {}) or {}
+    if selected_section_ids:
+        details["selected_section_ids"] = list(selected_section_ids)
+    if omitted_section_ids:
+        details["omitted_section_ids"] = list(omitted_section_ids)
+    if omitted_section_reasons:
+        details["omitted_section_reasons"] = dict(omitted_section_reasons)
     return details
 
 
@@ -810,6 +859,7 @@ def _error_response(
             access_decision=access_decision,
             safe_details=_agent_safe_details(
                 tool_name=tool_name,
+                result={},
                 result_type="ErrorInfo",
                 outcome=code,
                 source_ref_count=0,

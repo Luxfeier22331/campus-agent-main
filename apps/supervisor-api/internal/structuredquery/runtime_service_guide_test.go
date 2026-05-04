@@ -2,7 +2,10 @@ package structuredquery
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -575,6 +578,167 @@ func TestLookupServiceGuideReadsPostgresReadModelWithoutProjectionPath(t *testin
 	}
 }
 
+func TestLookupServiceGuideReadsGroupedProcedureFromPostgresReadModel(t *testing.T) {
+	store := &fakeServiceGuideReadModelStore{
+		bundle:    mustProjectionBundle(t, serviceGuideVPNProjectionFixture()),
+		releaseID: "service-guide-vpn-current-release",
+	}
+	runtime := NewRuntime(Options{
+		ServiceGuideReadModelStore: store,
+		TrustedTimeRFC3339:         "2026-05-04T10:30:00+08:00",
+	})
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"VPN客户端怎么安装",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if len(store.loadedReleaseIDs) != 1 || store.loadedReleaseIDs[0] != "service-guide-vpn-current-release" {
+		t.Fatalf("loadedReleaseIDs = %#v, want current pointer release only", store.loadedReleaseIDs)
+	}
+	if len(result.ProcedureGroups) != 1 {
+		t.Fatalf("procedure_groups = %#v, want 1 selected group", result.ProcedureGroups)
+	}
+	if result.ProcedureGroups[0].GroupID != "service:official_web:vpn:procedure_group:client_install" {
+		t.Fatalf("group_id = %q, want client_install", result.ProcedureGroups[0].GroupID)
+	}
+	if len(result.GuideSections) != 1 || !strings.Contains(result.GuideSections[0].Content, "下载客户端") {
+		t.Fatalf("guide_sections = %#v, want focused grouped procedure section", result.GuideSections)
+	}
+}
+
+func TestLookupServiceGuideMixedBundleKeepsLegacyFlatProcedureCompatibility(t *testing.T) {
+	store := &fakeServiceGuideReadModelStore{
+		bundle: mustProjectionBundle(
+			t,
+			`{
+				"schema_version":"campus_services_service_guide_projection.v1",
+				"generated_at":"2026-05-04T10:00:00+08:00",
+				"source_families":["mixed_projection"],
+				"service_guide_records":[
+					{
+						"service_id":"service:handbook:legacy-check-in",
+						"display_name":"宿舍入住办理",
+						"aliases":["宿舍入住","入住"],
+						"category":"student_housing",
+						"campus_scope":"all",
+						"audience":["student"],
+						"effective_from":"2018-09-01T00:00:00+08:00",
+						"effective_until":"2099-12-31T23:59:59+08:00",
+						"source_refs":["handbook:student_rules:pages:252-255#page=253"],
+						"guide_sections":[
+							{
+								"section_id":"service:handbook:legacy-check-in:section:procedure",
+								"section_type":"procedure",
+								"title":"宿舍入住办理",
+								"content":"1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",
+								"order":1,
+								"source_refs":["handbook:student_rules:pages:252-255#page=253"]
+							}
+						],
+						"materials":[],
+						"entry_refs":[],
+						"office_hours":[],
+						"contact_refs":[],
+						"eligibility_notes":["新生"],
+						"extraction_status":"ready"
+					},
+					{
+						"service_id":"service:official_web:vpn",
+						"display_name":"中央民族大学 VPN 使用说明",
+						"aliases":["VPN","vpn","中央民族大学VPN系统使用说明"],
+						"category":"campus_service",
+						"campus_scope":"all",
+						"audience":["student","faculty","unknown"],
+						"effective_from":"2026-05-01T00:00:00+08:00",
+						"effective_until":"2099-12-31T23:59:59+08:00",
+						"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"],
+						"guide_sections":[
+							{
+								"section_id":"service:official_web:vpn:section:procedure",
+								"section_type":"procedure",
+								"title":"中央民族大学 VPN 使用说明",
+								"content":"1. 访问 https://vpn.muc.edu.cn。\n2. 输入统一身份认证账号和密码登录。\n3. 首次使用请根据系统提示下载客户端。",
+								"order":1,
+								"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"]
+							}
+						],
+						"procedure_groups":[
+							{
+								"group_id":"service:official_web:vpn:procedure_group:client_install",
+								"title":"客户端安装",
+								"focus_tags":["procedure","install","client","客户端"],
+								"order":1,
+								"steps":[
+									{
+										"step_id":"service:official_web:vpn:procedure_group:client_install:step:1",
+										"content":"首次使用请根据系统提示下载客户端。",
+										"order":1,
+										"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"]
+									}
+								],
+								"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"]
+							}
+						],
+						"materials":[],
+						"entry_refs":[],
+						"office_hours":[],
+						"contact_refs":[],
+						"eligibility_notes":[],
+						"field_status":{"service_process":"present"},
+						"extraction_status":"ready"
+					}
+				],
+				"conflict_records":[],
+				"manual_review_sources":[]
+			}`,
+		),
+		releaseID: "service-guide-mixed-current-release",
+	}
+	runtime := NewRuntime(Options{
+		ServiceGuideReadModelStore: store,
+		TrustedTimeRFC3339:         "2026-05-04T10:30:00+08:00",
+	})
+
+	legacyResponse := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"宿舍入住怎么办理",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+	legacyResult := legacyResponse.Body.(serviceGuideResult)
+	if legacyResult.Outcome != "resolved_current" {
+		t.Fatalf("legacy outcome = %q, want resolved_current", legacyResult.Outcome)
+	}
+	if len(legacyResult.ProcedureGroups) != 0 {
+		t.Fatalf("legacy procedure_groups = %#v, want none for flat legacy record", legacyResult.ProcedureGroups)
+	}
+	if len(legacyResult.GuideSections) != 1 || !strings.Contains(legacyResult.GuideSections[0].Content, "到指定公寓楼报到") {
+		t.Fatalf("legacy guide_sections = %#v, want flat procedure section fallback", legacyResult.GuideSections)
+	}
+
+	groupedResponse := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"VPN客户端怎么安装",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+	groupedResult := groupedResponse.Body.(serviceGuideResult)
+	if groupedResult.Outcome != "resolved_current" {
+		t.Fatalf("grouped outcome = %q, want resolved_current", groupedResult.Outcome)
+	}
+	if len(groupedResult.ProcedureGroups) != 1 ||
+		groupedResult.ProcedureGroups[0].GroupID != "service:official_web:vpn:procedure_group:client_install" {
+		t.Fatalf("grouped procedure_groups = %#v, want grouped procedure path", groupedResult.ProcedureGroups)
+	}
+}
+
 func TestLookupServiceGuideLoadsOnlyCurrentPointerRelease(t *testing.T) {
 	store := &fakeServiceGuideReadModelStore{
 		bundle:    mustProjectionBundle(t, serviceGuideTransportReservationProjectionFixture()),
@@ -680,6 +844,102 @@ func TestLookupServiceGuideResolvesCampusCardEntryAndContactFocus(t *testing.T) 
 		contactResult.ContactRefs[0].Phone != "010-68933381" ||
 		contactResult.ContactRefs[1].Phone != "010-83878225" {
 		t.Fatalf("contact_refs = %#v", contactResult.ContactRefs)
+	}
+}
+
+func TestLookupServiceGuideSelectsFocusedVPNProcedureGroup(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideVPNProjectionFixture(),
+		"2026-05-04T10:30:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"VPN客户端怎么安装",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if len(result.ProcedureGroups) != 1 {
+		t.Fatalf("procedure_groups = %#v, want 1 selected group", result.ProcedureGroups)
+	}
+	if result.ProcedureGroups[0].GroupID != "service:official_web:vpn:procedure_group:client_install" {
+		t.Fatalf("group_id = %q, want client_install", result.ProcedureGroups[0].GroupID)
+	}
+	if len(result.ProcedureGroups[0].Steps) != 2 {
+		t.Fatalf("steps = %#v, want 2 install steps", result.ProcedureGroups[0].Steps)
+	}
+	if !strings.Contains(result.ProcedureGroups[0].Steps[0].Content, "下载客户端") {
+		t.Fatalf("steps = %#v, want download client step", result.ProcedureGroups[0].Steps)
+	}
+	if len(result.GuideSections) != 1 || !strings.Contains(result.GuideSections[0].Content, "下载客户端") {
+		t.Fatalf("guide_sections = %#v, want focused procedure section", result.GuideSections)
+	}
+	if len(result.SelectedSectionIDs) != 1 ||
+		result.SelectedSectionIDs[0] != "service:official_web:vpn:procedure_group:client_install" {
+		t.Fatalf("selected_section_ids = %#v", result.SelectedSectionIDs)
+	}
+	if len(result.OmittedSectionIDs) == 0 {
+		t.Fatalf("omitted_section_ids = %#v, want non-selected procedure groups", result.OmittedSectionIDs)
+	}
+}
+
+func TestLookupServiceGuideMatchesCanonicalVPNGroupedProcedureFixture(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideVPNProjectionFixture(),
+		"2026-05-04T10:30:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"VPN客户端怎么安装",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	rawFixture, err := os.ReadFile(
+		filepath.Join("..", "..", "..", "..", "tests", "fixtures", "service_guide_vpn_grouped_procedure_result.json"),
+	)
+	if err != nil {
+		t.Fatalf("read canonical fixture: %v", err)
+	}
+	var fixture serviceGuideResult
+	if err := json.Unmarshal(rawFixture, &fixture); err != nil {
+		t.Fatalf("parse canonical fixture: %v", err)
+	}
+
+	if result.GuideFocus != fixture.GuideFocus {
+		t.Fatalf("guide_focus = %q, want %q", result.GuideFocus, fixture.GuideFocus)
+	}
+	if result.ResolvedService == nil || fixture.ResolvedService == nil {
+		t.Fatalf("resolved service missing: %#v %#v", result.ResolvedService, fixture.ResolvedService)
+	}
+	if result.ResolvedService.DisplayName != fixture.ResolvedService.DisplayName {
+		t.Fatalf(
+			"resolved_display_name = %q, want %q",
+			result.ResolvedService.DisplayName,
+			fixture.ResolvedService.DisplayName,
+		)
+	}
+	if len(result.ProcedureGroups) != len(fixture.ProcedureGroups) {
+		t.Fatalf("procedure_groups len = %d, want %d", len(result.ProcedureGroups), len(fixture.ProcedureGroups))
+	}
+	if result.ProcedureGroups[0].GroupID != fixture.ProcedureGroups[0].GroupID {
+		t.Fatalf("group_id = %q, want %q", result.ProcedureGroups[0].GroupID, fixture.ProcedureGroups[0].GroupID)
+	}
+	if len(result.SelectedSectionIDs) != len(fixture.SelectedSectionIDs) ||
+		result.SelectedSectionIDs[0] != fixture.SelectedSectionIDs[0] {
+		t.Fatalf("selected_section_ids = %#v, want %#v", result.SelectedSectionIDs, fixture.SelectedSectionIDs)
+	}
+	if len(result.OmittedSectionIDs) != len(fixture.OmittedSectionIDs) {
+		t.Fatalf("omitted_section_ids = %#v, want %#v", result.OmittedSectionIDs, fixture.OmittedSectionIDs)
 	}
 }
 

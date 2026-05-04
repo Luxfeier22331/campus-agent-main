@@ -1,6 +1,14 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from tests.contracts.contract_models_test_support import *
+
+
+VPN_GROUPED_PROCEDURE_FIXTURE_PATH = Path(
+    "tests/fixtures/service_guide_vpn_grouped_procedure_result.json"
+)
 
 
 class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
@@ -133,6 +141,7 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             ),
             guide_sections=(
                 ServiceGuideSection(
+                    section_id="service:handbook:check-in:section:procedure",
                     section_type="procedure",
                     title="公寓楼新生办理入住手续流程",
                     content="1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",
@@ -156,6 +165,94 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             ("handbook:student_rules:pages:252-255#page=253",),
         )
         self.assertEqual(asdict(result)["field_status"], {"contact": "source_not_provided"})
+
+    def test_service_guide_contract_exposes_grouped_procedure_and_focus_metadata(self) -> None:
+        result_fields = {field.name for field in fields(ServiceGuideLookupResult)}
+        self.assertTrue(
+            {
+                "procedure_groups",
+                "selected_section_ids",
+                "omitted_section_ids",
+                "omitted_section_reasons",
+            }.issubset(result_fields)
+        )
+        self.assertIn("section_id", {field.name for field in fields(ServiceGuideSection)})
+
+    def test_service_guide_vpn_grouped_procedure_fixture_matches_contract(self) -> None:
+        payload = json.loads(VPN_GROUPED_PROCEDURE_FIXTURE_PATH.read_text(encoding="utf-8"))
+        procedure_groups = tuple(
+            ServiceGuideProcedureGroup(
+                group_id=str(group["group_id"]),
+                title=str(group["title"]),
+                focus_tags=tuple(group.get("focus_tags") or ()),
+                steps=tuple(
+                    ServiceGuideProcedureStep(
+                        step_id=str(step["step_id"]),
+                        content=str(step["content"]),
+                        source_refs=tuple(step.get("source_refs") or ()),
+                    )
+                    for step in (group.get("steps") or [])
+                ),
+                source_refs=tuple(group.get("source_refs") or ()),
+            )
+            for group in payload["procedure_groups"]
+        )
+        result = ServiceGuideLookupResult(
+            service_query=str(payload["service_query"]),
+            guide_focus=str(payload["guide_focus"]),
+            outcome=str(payload["outcome"]),
+            resolved_service=ServiceGuideServiceRef(
+                service_id=str(payload["resolved_service"]["service_id"]),
+                display_name=str(payload["resolved_service"]["display_name"]),
+                aliases=tuple(payload["resolved_service"].get("aliases") or ()),
+                category=str(payload["resolved_service"]["category"]),
+                campus_scope=str(payload["resolved_service"]["campus_scope"]),
+                audience=tuple(payload["resolved_service"].get("audience") or ()),
+            ),
+            guide_sections=tuple(
+                ServiceGuideSection(
+                    section_id=str(section["section_id"]),
+                    section_type=str(section["section_type"]),
+                    title=str(section["title"]),
+                    content=str(section["content"]),
+                    source_refs=tuple(section.get("source_refs") or ()),
+                )
+                for section in payload["guide_sections"]
+            ),
+            procedure_groups=procedure_groups,
+            source_refs=tuple(payload["source_refs"]),
+            queried_time_anchor=str(payload["queried_time_anchor"]),
+            effective_from=str(payload["effective_from"]),
+            effective_until=str(payload["effective_until"]),
+            matched_service_category=str(payload["matched_service_category"]),
+            selected_section_ids=tuple(payload["selected_section_ids"]),
+            omitted_section_ids=tuple(payload["omitted_section_ids"]),
+            omitted_section_reasons=dict(payload["omitted_section_reasons"]),
+            field_status=dict(payload["field_status"]),
+        )
+
+        rendered = asdict(result)
+        self.assertEqual(
+            rendered["procedure_groups"][0]["group_id"],
+            "service:official_web:vpn:procedure_group:client_install",
+        )
+        self.assertEqual(
+            tuple(rendered["selected_section_ids"]),
+            ("service:official_web:vpn:procedure_group:client_install",),
+        )
+        self.assertEqual(
+            tuple(rendered["omitted_section_ids"]),
+            (
+                "service:official_web:vpn:procedure_group:direct_login",
+                "service:official_web:vpn:procedure_group:mobile_usage",
+            ),
+        )
+        self.assertEqual(
+            rendered["omitted_section_reasons"][
+                "service:official_web:vpn:procedure_group:direct_login"
+            ],
+            "focus_mismatch",
+        )
 
     def test_service_guide_result_requires_fail_close_reason(self) -> None:
         with self.assertRaisesRegex(

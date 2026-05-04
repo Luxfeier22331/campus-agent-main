@@ -374,12 +374,15 @@ class ServiceGuideServiceRef:
 
 @dataclass(frozen=True, slots=True)
 class ServiceGuideSection:
+    section_id: str
     section_type: ServiceGuideFocus | str
     title: str
     content: str
     source_refs: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
+        if not self.section_id.strip():
+            raise ValueError("section_id must not be empty")
         if self.section_type == "full_guide":
             raise ValueError("section_type must be a concrete service guide section")
         _validate_service_guide_focus(self.section_type)
@@ -468,6 +471,40 @@ class ServiceGuideCandidate:
 
 
 @dataclass(frozen=True, slots=True)
+class ServiceGuideProcedureStep:
+    step_id: str
+    content: str
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.step_id.strip():
+            raise ValueError("step_id must not be empty")
+        if not self.content.strip():
+            raise ValueError("content must not be empty")
+        if not self.source_refs:
+            raise ValueError("source_refs must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceGuideProcedureGroup:
+    group_id: str
+    title: str
+    focus_tags: tuple[str, ...] = field(default_factory=tuple)
+    steps: tuple[ServiceGuideProcedureStep, ...] = field(default_factory=tuple)
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.group_id.strip():
+            raise ValueError("group_id must not be empty")
+        if not self.title.strip():
+            raise ValueError("title must not be empty")
+        if not self.steps:
+            raise ValueError("steps must not be empty")
+        if not self.source_refs:
+            raise ValueError("source_refs must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
 class ServiceGuideLookupPayload:
     service_query: str
     guide_focus: ServiceGuideFocus | str
@@ -492,6 +529,7 @@ class ServiceGuideLookupResult:
     outcome: ToolBusinessOutcome
     resolved_service: ServiceGuideServiceRef | None = None
     guide_sections: tuple[ServiceGuideSection, ...] = field(default_factory=tuple)
+    procedure_groups: tuple[ServiceGuideProcedureGroup, ...] = field(default_factory=tuple)
     required_materials: tuple[ServiceGuideMaterial, ...] = field(default_factory=tuple)
     entry_refs: tuple[ServiceGuideEntryRef, ...] = field(default_factory=tuple)
     office_hours: tuple[ServiceGuideOfficeHours, ...] = field(default_factory=tuple)
@@ -505,6 +543,9 @@ class ServiceGuideLookupResult:
     clarification_reason: ServiceGuideClarificationReason | str = field(default="", compare=False)
     fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
     matched_service_category: str = ""
+    selected_section_ids: tuple[str, ...] = field(default_factory=tuple)
+    omitted_section_ids: tuple[str, ...] = field(default_factory=tuple)
+    omitted_section_reasons: dict[str, str] = field(default_factory=dict, compare=False)
     field_status: dict[str, str] = field(default_factory=dict, compare=False)
 
     def __post_init__(self) -> None:

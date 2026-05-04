@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-02
+updated: 2026-05-04
 ---
 # Official Web Architecture
 
@@ -105,6 +105,13 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
   `information_disclosure`、`email_service`），但组合后的 candidate 仍必须由单一 admitted
   target 驱动，且所有字段都必须可回链到明确 source page；不得借 composition 恢复 broad crawl
   或生成 query-time fetch 依赖
+- 对带 composition 的 `service_guide_candidate`，必须显式声明 group-specific role contract：
+  恰好一个 primary role 页面负责主 guide candidate，其余可选 role 仅能来自该 group 允许的页面类型；
+  missing / duplicate / unknown role 必须在 candidate extraction 阶段 fail close，不得退回单页
+  candidate 发布
+- 对 `service_guide_candidate`，official-web extraction 必须直接产出 canonical grouped
+  procedure fields（如 `procedure_groups`），不得把多模式流程只压平成一段 procedure 文本后期再
+  由 runtime 反解析
 
 ### Target Source Map
 

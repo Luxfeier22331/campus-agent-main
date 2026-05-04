@@ -118,7 +118,7 @@ document/index release`
   target，不创建 `/chat`、`/docs`、`/panel`、`/map`、`/services` 或 `/notices`
   这类 fake internal browser route shell
 - 不开放 generic `/api/*` proxy；未知 browser path fail-closed
-- `legacy-wiki` 只是指向 `https://muc.wiki` 的 external legacy card；`/wiki`
+- `muc-wiki` 只是指向 `https://muc.wiki` 的 MUC Wiki 主站 external card；`/wiki`
   不是 internal hub slug
 - 不代理、镜像、迁移或重新服务 MediaWiki 页面内容、上传媒体或账号
 - 不拥有 auth/session/principal truth；canonical identity 仍属于 `apps/app-api`

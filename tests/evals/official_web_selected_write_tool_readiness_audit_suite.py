@@ -36,6 +36,20 @@ class OfficialWebSelectedWriteToolReadinessAuditTest(unittest.TestCase):
                                     {"section_type": "procedure"},
                                     {"section_type": "entry"},
                                 ],
+                                "procedure_groups": [
+                                    {
+                                        "group_id": "service:official_web:campus_card:procedure_group:default",
+                                        "source_refs": ["https://met.muc.edu.cn/info/1027/1127.htm"],
+                                        "steps": [
+                                            {
+                                                "content": "先办理挂失，再在自助补卡机补卡。",
+                                                "source_refs": [
+                                                    "https://met.muc.edu.cn/info/1027/1127.htm"
+                                                ],
+                                            }
+                                        ],
+                                    }
+                                ],
                                 "source_refs": ["https://met.muc.edu.cn/info/1027/1127.htm"],
                                 "field_status": {
                                     "service_name": "present",
@@ -253,6 +267,62 @@ class OfficialWebSelectedWriteToolReadinessAuditTest(unittest.TestCase):
         self.assertFalse(result.passed)
         self.assertIn(
             "information disclosure service guide must include material/source page: https://xxgk.muc.edu.cn/info/1007/1114.htm",
+            result.record_results[0].failures,
+        )
+
+    def test_audit_fails_when_procedure_group_step_loses_source_refs(self) -> None:
+        report = {
+            "schema_version": "official_web_selected_write_preview_report.v1",
+            "results": [
+                {
+                    "selected_write_id": "owrelease_selected_write_service",
+                    "collection": "service_guide",
+                    "inventory_id": "muc-it-vpn-service-guide",
+                    "record_count": 1,
+                    "full_record_count": 1,
+                    "task_scope_display_names": ["中央民族大学 VPN 使用说明"],
+                    "full_impact_display_names": ["中央民族大学 VPN 使用说明"],
+                    "bundle": {
+                        "service_guide_records": [
+                            {
+                                "display_name": "中央民族大学 VPN 使用说明",
+                                "guide_sections": [{"section_type": "procedure"}],
+                                "procedure_groups": [
+                                    {
+                                        "group_id": "service:official_web:vpn:procedure_group:client_install",
+                                        "source_refs": ["https://met.muc.edu.cn/info/1027/1137.htm"],
+                                        "steps": [{"content": "下载客户端。", "source_refs": []}],
+                                    }
+                                ],
+                                "source_refs": ["https://met.muc.edu.cn/info/1027/1137.htm"],
+                                "field_status": {
+                                    "service_name": "present",
+                                    "process_steps": "present",
+                                    "source_url": "present",
+                                    "source_version_evidence": "present",
+                                },
+                            }
+                        ]
+                    },
+                }
+            ],
+        }
+
+        with TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+            report_path = output_dir / "preview-report.json"
+            report_path.write_text(
+                json.dumps(report, ensure_ascii=False, indent=2) + "\n",
+                encoding="utf-8",
+            )
+            result = audit_selected_write_preview_report(
+                report_path=report_path,
+                output_dir=output_dir,
+            )
+
+        self.assertFalse(result.passed)
+        self.assertIn(
+            "service_guide procedure_group step missing source_refs",
             result.record_results[0].failures,
         )
 

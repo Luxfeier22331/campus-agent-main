@@ -811,6 +811,107 @@ func serviceGuideCampusCardProjectionFixture() string {
 	}`
 }
 
+func serviceGuideVPNProjectionFixture() string {
+	return `{
+		"schema_version":"campus_services_service_guide_projection.v1",
+		"generated_at":"2026-05-04T10:00:00+08:00",
+		"source_families":["official_web_curated_service_guide_v1"],
+		"service_guide_records":[
+			{
+				"service_id":"service:official_web:vpn",
+				"display_name":"中央民族大学 VPN 使用说明",
+				"aliases":["VPN","vpn","中央民族大学VPN系统使用说明"],
+				"category":"campus_service",
+				"campus_scope":"all",
+				"audience":["student","faculty","unknown"],
+				"effective_from":"2026-05-01T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"],
+				"guide_sections":[
+					{
+						"section_id":"service:official_web:vpn:section:procedure",
+						"section_type":"procedure",
+						"title":"中央民族大学 VPN 使用说明",
+						"content":"1. 访问 https://vpn.muc.edu.cn。\n2. 输入统一身份认证账号和密码登录。\n3. 首次使用请根据系统提示下载客户端。\n4. 双击Install EasyConnect.pkg，根据提示完成安装。",
+						"order":1,
+						"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"]
+					}
+				],
+				"procedure_groups":[
+					{
+						"group_id":"service:official_web:vpn:procedure_group:direct_login",
+						"title":"直接登录",
+						"focus_tags":["entry","direct_login","vpn"],
+						"order":1,
+						"steps":[
+							{
+								"step_id":"service:official_web:vpn:procedure_group:direct_login:step:1",
+								"content":"访问 https://vpn.muc.edu.cn，进入中央民族大学VPN系统。",
+								"order":1,
+								"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"]
+							},
+							{
+								"step_id":"service:official_web:vpn:procedure_group:direct_login:step:2",
+								"content":"输入统一身份认证账号和密码登录。",
+								"order":2,
+								"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"]
+							}
+						],
+						"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"]
+					},
+					{
+						"group_id":"service:official_web:vpn:procedure_group:client_install",
+						"title":"客户端安装",
+						"focus_tags":["procedure","install","client","客户端"],
+						"order":2,
+						"steps":[
+							{
+								"step_id":"service:official_web:vpn:procedure_group:client_install:step:1",
+								"content":"首次使用请根据系统提示下载客户端。",
+								"order":1,
+								"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"]
+							},
+							{
+								"step_id":"service:official_web:vpn:procedure_group:client_install:step:2",
+								"content":"双击Install EasyConnect.pkg，根据提示完成安装。",
+								"order":2,
+								"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"]
+							}
+						],
+						"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"]
+					},
+					{
+						"group_id":"service:official_web:vpn:procedure_group:mobile_usage",
+						"title":"移动端使用",
+						"focus_tags":["procedure","mobile","移动端"],
+						"order":3,
+						"steps":[
+							{
+								"step_id":"service:official_web:vpn:procedure_group:mobile_usage:step:1",
+								"content":"移动端可在企业应用中心打开 EasyConnect。",
+								"order":1,
+								"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"]
+							}
+						],
+						"source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"]
+					}
+				],
+				"materials":[],
+				"entry_refs":[
+					{"entry_id":"service:official_web:vpn:entry:1","label":"https://vpn.muc.edu.cn","entry_type":"online_url","url":"https://vpn.muc.edu.cn","location_ref":"","source_refs":["https://met.muc.edu.cn/info/1046/1674.htm"]}
+				],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":[],
+				"field_status":{"service_process":"present","service_entry":"present"},
+				"extraction_status":"ready"
+			}
+		],
+		"conflict_records":[],
+		"manual_review_sources":[]
+	}`
+}
+
 func serviceGuideContactProjectionFixture() string {
 	return strings.Replace(
 		serviceGuidePublicMedicalProjectionFixture(),

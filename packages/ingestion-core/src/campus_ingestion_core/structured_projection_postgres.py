@@ -58,7 +58,7 @@ class _TypedColumn:
             return f"{self.name} integer"
         if self.kind == "boolean":
             return f"{self.name} boolean"
-        if self.kind in {"text_array", "jsonb"}:
+        if self.kind in {"text_array", "jsonb", "jsonb_object"}:
             return f"{self.name} jsonb"
         raise ValueError(f"unsupported typed column kind: {self.kind}")
 
@@ -74,6 +74,8 @@ class _TypedColumn:
             return f"coalesce(item.{self.name}, false) as {self.name}"
         if self.kind == "jsonb":
             return f"coalesce(item.{self.name}, '[]'::jsonb) as {self.name}"
+        if self.kind == "jsonb_object":
+            return f"coalesce(item.{self.name}, '{{}}'::jsonb) as {self.name}"
         if self.kind == "text_array":
             alias = f"{self.name}_values"
             return (
@@ -119,6 +121,14 @@ _TYPED_TABLE_COLUMNS: dict[str, tuple[_TypedColumn, ...]] = {
         _TypedColumn("effective_from", "timestamptz", "timestamptz"),
         _TypedColumn("effective_until", "timestamptz", "timestamptz"),
         _TypedColumn("source_refs", "text_array", "text[] not null default '{}'"),
+        _TypedColumn("guide_sections", "jsonb", "jsonb not null default '[]'::jsonb"),
+        _TypedColumn("procedure_groups", "jsonb", "jsonb not null default '[]'::jsonb"),
+        _TypedColumn("materials", "jsonb", "jsonb not null default '[]'::jsonb"),
+        _TypedColumn("entry_refs", "jsonb", "jsonb not null default '[]'::jsonb"),
+        _TypedColumn("office_hours", "jsonb", "jsonb not null default '[]'::jsonb"),
+        _TypedColumn("contact_refs", "jsonb", "jsonb not null default '[]'::jsonb"),
+        _TypedColumn("eligibility_notes", "text_array", "text[] not null default '{}'"),
+        _TypedColumn("field_status", "jsonb_object", "jsonb not null default '{}'::jsonb"),
         _TypedColumn("extraction_status", "text", "text not null default ''"),
         _COMMON_SEARCH_COLUMN,
     ),
