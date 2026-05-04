@@ -29,10 +29,10 @@ app-api proxying or MediaWiki identity leakage.
   React Router, Tailwind and lucide icons.
 - Hub route namespace is implemented for `/`, `/account`, `/account/login`,
   `/account/register`, `/account/forgot-password`, `/account/reset-password`,
-  `/chat`, `/docs`, `/map`, `/services`, `/notices` and `/panel`.
-- Hub launcher uses a typed manifest with `available`, `preview`, `gated` and
-  `external_legacy` states.
-- Legacy Wiki is exposed only as `legacy-wiki` external card linking to
+  app links for chat and docs plus the MUC Wiki external main-site entry.
+- Hub launcher uses a typed manifest with `available`, `preview`, `gated`,
+  `planned` and `external` states.
+- MUC Wiki is exposed only as the `muc-wiki` external card linking to
   `https://muc.wiki`; `/wiki` remains intentionally absent.
 - Hub Worker only forwards allowlisted same-site app-api seams through `APP_API`
   Service Binding:

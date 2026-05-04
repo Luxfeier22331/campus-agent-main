@@ -81,8 +81,18 @@ describe("hub worker boundary", () => {
 
 	it("fails closed for unknown browser paths instead of serving fake app routes", async () => {
 		const env = createEnv();
-		const unknown = await worker.fetch(new Request("https://hub.muc.wiki/unknown"), env);
-		const chat = await worker.fetch(new Request("https://hub.muc.wiki/chat"), env);
+		const unknown = await worker.fetch(
+			new Request("https://hub.muc.wiki/unknown", {
+				headers: { accept: "application/json" },
+			}),
+			env,
+		);
+		const chat = await worker.fetch(
+			new Request("https://hub.muc.wiki/chat", {
+				headers: { accept: "application/json" },
+			}),
+			env,
+		);
 		const account = await worker.fetch(new Request("https://hub.muc.wiki/account/login"), env);
 
 		expect(unknown.status).toBe(404);
@@ -94,6 +104,39 @@ describe("hub worker boundary", () => {
 		});
 		expect(account.status).toBe(200);
 		expect(account.headers.get("content-type")).toContain("text/html");
+	});
+
+	it("serves the hub not-found shell for browser HTML requests", async () => {
+		const response = await worker.fetch(
+			new Request("https://hub.muc.wiki/unknown", {
+				headers: { accept: "text/html" },
+			}),
+			createEnv(),
+		);
+
+		expect(response.status).toBe(404);
+		expect(response.headers.get("content-type")).toContain("text/html");
+		expect(await response.text()).toContain("__HUB_AUTH_CONFIG__");
+	});
+
+	it("passes Vite development module requests to the asset runtime", async () => {
+		const seen: string[] = [];
+		const env = createEnv();
+		env.ASSETS = {
+			fetch(request) {
+				seen.push(new URL(request.url).pathname);
+				return new Response("dev module", {
+					headers: { "content-type": "application/javascript" },
+				});
+			},
+		};
+
+		const viteClient = await worker.fetch(new Request("https://hub.muc.wiki/@vite/client"), env);
+		const sourceModule = await worker.fetch(new Request("https://hub.muc.wiki/src/main.tsx"), env);
+
+		expect(viteClient.status).toBe(200);
+		expect(sourceModule.status).toBe(200);
+		expect(seen).toEqual(["/@vite/client", "/src/main.tsx"]);
 	});
 
 	it("keeps Turnstile challenge origins admitted by hub CSP", async () => {

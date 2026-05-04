@@ -20,4 +20,5 @@ export {
 	isHubOwnedShellPath,
 	requireHubEntryBySlug,
 	resolveHubAuthCompatPath,
+	resolveHubEntryHref,
 } from "../routes/route-registry";

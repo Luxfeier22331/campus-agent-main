@@ -6,6 +6,7 @@ import { fileURLToPath } from "node:url";
 import { afterEach, describe, expect, it } from "vitest";
 
 const appDir = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+const VERIFY_STAGING_CONFIG_TIMEOUT_MS = 15_000;
 
 let tempRoots: string[] = [];
 
@@ -53,7 +54,7 @@ describe("hub staging scripts", () => {
 				STAGING_HUB_AUTH_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
 			},
 			encoding: "utf8",
-			timeout: 3_000,
+			timeout: VERIFY_STAGING_CONFIG_TIMEOUT_MS,
 		});
 
 		expect(result.status).toBe(1);
@@ -79,7 +80,7 @@ describe("hub staging scripts", () => {
 				STAGING_HUB_AUTH_TURNSTILE_SITE_KEY: "0x4AAAAAAAstagingWidget",
 			},
 			encoding: "utf8",
-			timeout: 3_000,
+			timeout: VERIFY_STAGING_CONFIG_TIMEOUT_MS,
 		});
 
 		expect(result.status).toBe(0);

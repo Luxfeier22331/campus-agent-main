@@ -153,3 +153,11 @@ export async function resetHubPassword(input: HubResetPasswordSubmission): Promi
 		throw new HubAuthSubmissionError(classifyRecoveryError(message), message);
 	}
 }
+
+export async function signOutHubAccount(): Promise<void> {
+	const response = await hubAuthClient.signOut();
+	if (response?.error) {
+		const message = readAuthErrorMessage(response, "退出登录失败。");
+		throw new HubAuthSubmissionError("failed", message);
+	}
+}

@@ -36,6 +36,14 @@ const HUB_ALLOWED_APP_API_PATHS = new Set([
 
 const HUB_API_PATH_PREFIX = "/api/";
 const HUB_AUTH_PATH_PREFIX = "/api/auth/";
+const HUB_VITE_DEV_ASSET_PREFIXES = [
+	"/@fs/",
+	"/@id/",
+	"/@react-refresh",
+	"/@vite/",
+	"/node_modules/",
+	"/src/",
+] as const;
 
 const BASE_FORWARDED_HEADERS = [
 	"accept",
@@ -121,7 +129,14 @@ const worker = {
 		}
 
 		if (request.method === "GET" || request.method === "HEAD") {
-			if (!isHubOwnedShellPath(url.pathname)) {
+			if (
+				!(isHubOwnedShellPath(url.pathname) || isViteDevAssetPath(url.pathname)) &&
+				acceptsHtml(request)
+			) {
+				return serveHubShell(request, env, { status: 404 });
+			}
+
+			if (!(isHubOwnedShellPath(url.pathname) || isViteDevAssetPath(url.pathname))) {
 				return jsonResponse(404, {
 					error: {
 						code: "not_found",
@@ -244,12 +259,21 @@ function isHubAuthRequest(pathname: string): boolean {
 	return pathname.slice(0, HUB_AUTH_PATH_PREFIX.length) === HUB_AUTH_PATH_PREFIX;
 }
 
+function isViteDevAssetPath(pathname: string): boolean {
+	return HUB_VITE_DEV_ASSET_PREFIXES.some((prefix) => pathname.startsWith(prefix));
+}
+
 function getForwardedHeaders(pathname: string) {
 	return isHubAuthRequest(pathname) ? AUTH_FORWARDED_HEADERS : BASE_FORWARDED_HEADERS;
 }
 
 function shouldForwardBody(method: string): boolean {
 	return method !== "GET" && method !== "HEAD";
+}
+
+function acceptsHtml(request: Request): boolean {
+	const accept = request.headers.get("accept") ?? "";
+	return accept.includes("text/html") || accept.includes("*/*");
 }
 
 function appApiBridgeNotConfiguredResponse(): Response {
@@ -261,7 +285,11 @@ function appApiBridgeNotConfiguredResponse(): Response {
 	});
 }
 
-async function serveHubShell(request: Request, env: Env): Promise<Response> {
+async function serveHubShell(
+	request: Request,
+	env: Env,
+	options: { status?: number } = {},
+): Promise<Response> {
 	if (!env.ASSETS) {
 		return jsonResponse(503, {
 			error: {
@@ -282,7 +310,7 @@ async function serveHubShell(request: Request, env: Env): Promise<Response> {
 	applyHubSecurityHeaders(headers);
 	return new Response(injectAuthRuntimeConfig(await response.text(), env), {
 		headers,
-		status: response.status,
+		status: options.status ?? response.status,
 		statusText: response.statusText,
 	});
 }

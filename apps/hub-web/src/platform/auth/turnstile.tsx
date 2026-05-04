@@ -18,6 +18,10 @@ export interface AuthTurnstileController {
 	resetToken: () => void;
 }
 
+export interface AuthTurnstileControllerState {
+	isConfigured: boolean;
+}
+
 interface TurnstileWidget {
 	execute?: (widgetId: string) => void;
 	remove?: (widgetId: string) => void;
@@ -89,8 +93,9 @@ async function loadTurnstileScript(): Promise<void> {
 export function AuthTurnstileField(props: {
 	action: AuthTurnstileAction;
 	onController?: (controller: AuthTurnstileController | null) => void;
+	onStateChange?: (state: AuthTurnstileControllerState) => void;
 }) {
-	const { action, onController } = props;
+	const { action, onController, onStateChange } = props;
 	const [errorMessage, setErrorMessage] = useState<string | null>(null);
 	const [challengeRequestId, setChallengeRequestId] = useState(0);
 	const [isPrimed, setIsPrimed] = useState(false);
@@ -124,7 +129,7 @@ export function AuthTurnstileField(props: {
 
 	const ensureToken = useEffectEvent(async () => {
 		if (!siteKey) {
-			setErrorMessage("暂时无法加载安全验证。");
+			setErrorMessage("账号安全验证暂不可用，无法提交。");
 			return false;
 		}
 
@@ -153,6 +158,10 @@ export function AuthTurnstileField(props: {
 	useEffect(() => {
 		setRuntimeConfig(readTurnstileRuntimeConfig());
 	}, []);
+
+	useEffect(() => {
+		onStateChange?.({ isConfigured: Boolean(siteKey) });
+	}, [onStateChange, siteKey]);
 
 	useEffect(() => {
 		if (!(isPrimed && siteKey && widgetRef.current)) {
@@ -218,7 +227,7 @@ export function AuthTurnstileField(props: {
 			})
 			.catch(() => {
 				if (!cancelled) {
-					setErrorMessage("暂时无法加载安全验证。");
+					setErrorMessage("账号安全验证暂不可用，无法提交。");
 					resolvePendingEnsures(false);
 				}
 			});
@@ -271,7 +280,7 @@ export function AuthTurnstileField(props: {
 			{siteKey ? (
 				<div data-slot="auth-turnstile" id={containerId} ref={widgetRef} />
 			) : (
-				<p className="text-sm text-destructive">暂时无法加载安全验证。</p>
+				<p className="text-sm text-destructive">账号安全验证暂不可用，无法提交。</p>
 			)}
 			{errorMessage ? <p className="text-sm text-destructive">{errorMessage}</p> : null}
 		</div>
