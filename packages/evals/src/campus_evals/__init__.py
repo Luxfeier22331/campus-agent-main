@@ -28,6 +28,13 @@ from campus_evals.agents_sdk_posture_decision import (
     AgentsSdkRuntimePostureDecision,
     decide_agents_sdk_runtime_posture,
 )
+from campus_evals.agents_sdk_promotion_gate import (
+    AGENTS_SDK_CAMPUS_SERVICES_ADOPTION_MATRIX,
+    AGENTS_SDK_PROMOTION_GATE_SCHEMA_VERSION,
+    AgentsSdkPromotionGateEvidence,
+    AgentsSdkPromotionGateResult,
+    evaluate_agents_sdk_promotion_gate,
+)
 from campus_evals.answer_quality_contract import (
     ANSWER_QUALITY_CASES_PATH,
     AnswerQualityCase,
@@ -419,7 +426,9 @@ def build_inprocess_handbook_live_executor(*args, **kwargs):
 __all__ = [
     "AGENTIC_RETRIEVAL_PLAN_CASES_PATH",
     "AGENTS_SDK_NOTICE_GET_PARITY_FIXTURE_PATH",
+    "AGENTS_SDK_CAMPUS_SERVICES_ADOPTION_MATRIX",
     "AGENTS_SDK_POSTURE_DECISION_SCHEMA_VERSION",
+    "AGENTS_SDK_PROMOTION_GATE_SCHEMA_VERSION",
     "AGENTS_SDK_RUNTIME_POSTURES",
     "ANSWER_QUALITY_CASES_PATH",
     "AUTHZ_PRIVACY_CASES_PATH",
@@ -452,6 +461,8 @@ __all__ = [
     "AgentsSdkPilotParityReport",
     "AgentsSdkPilotParityResult",
     "AgentsSdkPostureEvidence",
+    "AgentsSdkPromotionGateEvidence",
+    "AgentsSdkPromotionGateResult",
     "AgentsSdkRuntimePostureDecision",
     "AnswerQualityCase",
     "AnswerQualityCaseSet",
@@ -608,6 +619,7 @@ __all__ = [
     "curriculum_release_gate_cases",
     "curriculum_smoke_cases",
     "decide_agents_sdk_runtime_posture",
+    "evaluate_agents_sdk_promotion_gate",
     "default_query_enabled_retrieval_qrels_paths",
     "derive_eval_operations_observations_from_artifacts",
     "dispatchable_profile_ids",
