@@ -20,6 +20,7 @@ from campus_retrieval_core import (
 )
 from campus_retrieval_core import (
     RetrievalExecutionResult,
+    RetrievalPlan,
     execute_retrieval_plan,
 )
 from campus_retrieval_core import (
@@ -176,18 +177,13 @@ def build_rag_retrieval_context(
     )
 
 
-def execute_rag_retrieval_context(
+def build_retrieval_plan_for_context(
     *,
     request: AgentRequest,
     effective_scope: KnowledgeScope,
     user_goal: str,
-    effective_user_goal: str,
-    personalization_hint,
-    retriever: Retriever,
     retrieval_context: RagRetrievalContext,
-    retrieval_observation_sink: RetrievalObservationSink | None = None,
-    include_retrieval_observation_query_text: bool = False,
-) -> RagRetrievalResult:
+) -> RetrievalPlan:
     runtime_profile = load_runtime_profile(
         effective_scope.corpus, retrieval_context.retrieval_collection
     )
@@ -197,7 +193,7 @@ def execute_rag_retrieval_context(
         user_goal=user_goal,
         version_mode=retrieval_context.version_answer_context.mode,
     )
-    retrieval_plan = build_ordered_retrieval_plan(
+    return build_ordered_retrieval_plan(
         query_text=retrieval_context.retrieval_goal,
         scope=effective_scope,
         retrieval_collection=retrieval_context.retrieval_collection,
@@ -215,6 +211,21 @@ def execute_rag_retrieval_context(
         comparison_version_id=retrieval_context.version_answer_context.comparison_version_id,
         allow_live_source_lookup=runtime_profile.live_search_fallback_allowed,
     )
+
+
+def execute_rag_retrieval_context(
+    *,
+    request: AgentRequest,
+    effective_scope: KnowledgeScope,
+    user_goal: str,
+    effective_user_goal: str,
+    personalization_hint,
+    retriever: Retriever,
+    retrieval_context: RagRetrievalContext,
+    retrieval_plan: RetrievalPlan,
+    retrieval_observation_sink: RetrievalObservationSink | None = None,
+    include_retrieval_observation_query_text: bool = False,
+) -> RagRetrievalResult:
     execution_result = execute_retrieval_plan(
         retrieval_plan,
         authorized_filter=request.context.authorization.retrieval_filter,

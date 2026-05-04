@@ -200,7 +200,7 @@ def build_ragas_scorer(
     run_config = RunConfig(
         timeout=int(settings.request_timeout_seconds),
         max_retries=0,
-        max_workers=1,
+        max_workers=settings.max_workers,
     )
 
     def _score(projection: RagasProjection) -> tuple[SupplementalResult, ...]:

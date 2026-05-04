@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from campus_contracts import AgentRequest, AgentResponse, EvidenceBundle, KnowledgeScope
+from campus_contracts import AgentRequest, AgentResponse, ErrorInfo, EvidenceBundle, KnowledgeScope
 from campus_retrieval_core import RetrievalExecutionResult
 
 from campus_rag_agent.intent import PersonalizationHint, RagIntentFrame
@@ -64,9 +64,58 @@ def build_restricted_access_denied_response(context: RagOutcomeContext) -> Agent
             curriculum_plan=context.curriculum_plan,
             curriculum_course_plan=context.curriculum_course_plan,
             curriculum_program_family_plan=context.curriculum_program_family_plan,
+            request_id=context.request.request_id,
             no_answer_reason="restricted_access_denied",
             semantic_outcome="restricted_access_denied",
         ),
+    )
+
+
+def build_corpus_query_disabled_error_response(
+    context: RagOutcomeContext,
+    *,
+    message: str,
+) -> AgentResponse:
+    return AgentResponse(
+        target="rag-agent",
+        status="error",
+        confidence="low",
+        result=_build_rag_result_payload(
+            evidence=_build_empty_evidence(context.resolved_scope, context.user_goal),
+            retrieved_evidence=context.retrieved_evidence,
+            retrieval_execution_result=context.retrieval_execution_result,
+            resolved_scope=context.resolved_scope,
+            handbook_plan=context.handbook_plan,
+            curriculum_plan=context.curriculum_plan,
+            curriculum_course_plan=context.curriculum_course_plan,
+            curriculum_program_family_plan=context.curriculum_program_family_plan,
+            request_id=context.request.request_id,
+        ),
+        error=ErrorInfo(code="corpus_not_query_enabled", message=message, retryable=False),
+    )
+
+
+def build_retrieval_backend_error_response(
+    context: RagOutcomeContext,
+    *,
+    message: str,
+) -> AgentResponse:
+    return AgentResponse(
+        target="rag-agent",
+        status="error",
+        confidence="low",
+        result=_build_rag_result_payload(
+            evidence=_build_empty_evidence(context.resolved_scope, context.user_goal),
+            retrieved_evidence=context.retrieved_evidence,
+            retrieval_execution_result=context.retrieval_execution_result,
+            resolved_scope=context.resolved_scope,
+            handbook_plan=context.handbook_plan,
+            curriculum_plan=context.curriculum_plan,
+            curriculum_course_plan=context.curriculum_course_plan,
+            curriculum_program_family_plan=context.curriculum_program_family_plan,
+            request_id=context.request.request_id,
+        ),
+        error=ErrorInfo(code="retrieval_failed", message=message, retryable=False),
     )
 
 
@@ -105,6 +154,7 @@ def build_empty_retrieval_no_answer_response(
                 curriculum_plan=context.curriculum_plan,
                 curriculum_course_plan=context.curriculum_course_plan,
                 curriculum_program_family_plan=context.curriculum_program_family_plan,
+                request_id=context.request.request_id,
                 no_answer_reason=no_answer_reason,
                 semantic_outcome=semantic_outcome,
                 retrieval_adequacy=_empty_evidence_retrieval_adequacy(no_answer_reason),
@@ -156,6 +206,7 @@ def maybe_build_evidence_clarification_response(
                 handbook_plan=context.handbook_plan,
                 curriculum_plan=context.curriculum_plan,
                 curriculum_course_plan=context.curriculum_course_plan,
+                request_id=context.request.request_id,
                 retrieval_adequacy=ambiguous_retrieval_adequacy(
                     _retrieval_ambiguity_reason(effective_user_goal, evidence)
                 ),
@@ -223,6 +274,7 @@ def maybe_build_resolved_policy_clause_fail_closed_response(
             curriculum_plan=context.curriculum_plan,
             curriculum_course_plan=context.curriculum_course_plan,
             curriculum_program_family_plan=context.curriculum_program_family_plan,
+            request_id=context.request.request_id,
             no_answer_reason=_resolved_policy_no_answer_reason(context.handbook_plan),
             semantic_outcome="unsupported_by_evidence",
             retrieval_adequacy=insufficient_retrieval_adequacy("resolved_policy_clause_not_found"),
@@ -266,6 +318,7 @@ def _build_unsupported_by_evidence_response(
                 curriculum_plan=context.curriculum_plan,
                 curriculum_course_plan=context.curriculum_course_plan,
                 curriculum_program_family_plan=context.curriculum_program_family_plan,
+                request_id=context.request.request_id,
                 no_answer_reason=no_answer_reason,
                 semantic_outcome="unsupported_by_evidence",
                 retrieval_adequacy=insufficient_retrieval_adequacy(retrieval_adequacy_reason),

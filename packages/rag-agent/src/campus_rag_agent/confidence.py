@@ -8,7 +8,21 @@ from campus_retrieval_core.evidence_ranking import (
 )
 
 _POSITIVE_SUPPORT_ROLES = frozenset(
-    {"procedure", "requirement", "eligibility", "time_rule", "deadline", "table_fact", "definition"}
+    {
+        "procedure",
+        "requirement",
+        "eligibility",
+        "time_rule",
+        "deadline",
+        "table_fact",
+        "family_membership",
+        "semester",
+        "semester_course_list",
+        "audience",
+        "definition",
+        "scope_rule",
+        "primary_content",
+    }
 )
 _CURATED_FACT_COLLECTIONS = frozenset(
     {"course_facts", "program_family_facts", "program_semester_facts"}
@@ -36,9 +50,7 @@ def derive_confidence(evidence: EvidenceBundle) -> str:
     )
     primary_doc_chunk_count = len({source.chunk_id for source in primary_doc_sources})
     primary_doc_positive_support_count = sum(
-        1
-        for source in primary_doc_sources
-        if source.is_answer_bearing or source.content_role in _POSITIVE_SUPPORT_ROLES
+        1 for source in primary_doc_sources if _has_positive_answer_support(source)
     )
     named_doc_id = next(
         (
@@ -49,6 +61,8 @@ def derive_confidence(evidence: EvidenceBundle) -> str:
         None,
     )
     named_doc_chunk_count = primary_doc_chunk_count if named_doc_id is not None else 0
+    if named_doc_id is not None and primary_doc_positive_support_count == 0:
+        return "low"
 
     if (
         top_score >= 0.85
@@ -83,6 +97,7 @@ def derive_confidence(evidence: EvidenceBundle) -> str:
     if (
         query_targets_source_title(query_text=evidence.query_text, source=supporting_sources[0])
         and top_score >= 0.4
+        and _has_positive_answer_support(supporting_sources[0])
     ):
         return "medium"
     if top_score >= 0.55 and medium_support_count >= 1:
@@ -104,6 +119,12 @@ def _is_official_web_title_targeted_single_doc_hit(
     top_source = supporting_sources[0]
     if top_source.source_channel != "official_web":
         return False
+    if not _has_positive_answer_support(top_source):
+        return False
     if not query_targets_source_title(query_text=evidence.query_text, source=top_source):
         return False
     return len({source.doc_id for source in supporting_sources}) == 1
+
+
+def _has_positive_answer_support(source) -> bool:
+    return bool(source.is_answer_bearing or source.content_role in _POSITIVE_SUPPORT_ROLES)

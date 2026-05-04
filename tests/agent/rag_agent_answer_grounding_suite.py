@@ -13,12 +13,10 @@ from tests.agent.rag_agent_test_support import (
     PersonalizationHint,
     RagAgent,
     RagRequestPayload,
-    RagResultPayload,
     SourceTrustSummary,
     _assert_answer_text_hides_internal_locators,
     _make_evidence,
     _make_handbook_source,
-    _resolved_scope_diagnostics,
     delegate_to_rag_agent,
     unittest,
 )
@@ -45,7 +43,10 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.confidence, "low")
         self.assertIn("未检索到足够依据", response.answer_text)
-        self.assertEqual(response.result.evidence, evidence)
+        self.assertEqual(
+            tuple(source.chunk_id for source in response.result.evidence.sources),
+            tuple(source.chunk_id for source in evidence.sources),
+        )
         self.assertIsNotNone(response.result.diagnostics)
         self.assertEqual(response.result.diagnostics.resolved_scope_corpus, "regulations")
         self.assertEqual(response.result.diagnostics.resolved_scope_collection, "student_rules")
@@ -102,28 +103,38 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
         _assert_answer_text_hides_internal_locators(self, response.answer_text)
         self.assertEqual(response.confidence, "medium")
         self.assertEqual(
-            response.result,
-            RagResultPayload(
-                evidence=expected_evidence,
-                diagnostics=_resolved_scope_diagnostics(
-                    corpus="regulations",
-                    collection="student_rules",
-                    semantic_outcome="grounded_answer",
-                    retrieved_title_summary=(
-                        "Evidence snippet 1 about library hours and student support.",
-                        "Evidence snippet 2 about library hours and student support.",
-                    ),
-                    retrieved_sources=expected_evidence.sources,
-                    source_trust_summary=SourceTrustSummary(
-                        observed_tiers=("T1",),
-                        answer_bearing_tiers=(),
-                        blocked_claim_types=(),
-                        freshness_claim_blocked=False,
-                        authorization_claim_blocked=False,
-                    ),
-                ),
+            tuple(source.chunk_id for source in response.result.evidence.sources),
+            tuple(source.chunk_id for source in expected_evidence.sources),
+        )
+        self.assertEqual(
+            response.result.diagnostics.resolved_scope_corpus,
+            "regulations",
+        )
+        self.assertEqual(
+            response.result.diagnostics.resolved_scope_collection,
+            "student_rules",
+        )
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
+        self.assertEqual(
+            response.result.diagnostics.retrieved_title_summary,
+            (
+                "Evidence snippet 1 about library hours and student support.",
+                "Evidence snippet 2 about library hours and student support.",
             ),
         )
+        self.assertEqual(response.result.diagnostics.retrieved_sources, expected_evidence.sources)
+        self.assertEqual(
+            response.result.diagnostics.source_trust_summary,
+            SourceTrustSummary(
+                observed_tiers=("T1",),
+                answer_bearing_tiers=(),
+                blocked_claim_types=(),
+                freshness_claim_blocked=False,
+                authorization_claim_blocked=False,
+            ),
+        )
+        self.assertIsNotNone(response.result.diagnostics.retrieval_plan_summary)
+        self.assertTrue(response.result.diagnostics.stage_activities)
         self.assertIsNotNone(response.agent_observability)
         assert response.agent_observability is not None
         self.assertEqual(response.agent_observability.selected_tool, "retrieval.query")

@@ -34,7 +34,10 @@ updated: 2026-05-04
   39 个 unique expected docs、25 条 release acceptance，`curriculum_plan` 已达到
   60 条 qrels、49 个 unique expected docs、30 条 release acceptance，四个当前 RAG
   消费面 maturity status 均为 `baseline_ready`。人工扩编 backlog 记录在
-  `packages/evals/fixtures/rag_eval_maturity_backlog.v1.json`。
+  `packages/evals/fixtures/rag_eval_maturity_backlog.v1.json`。当前另有 core RAG
+  split-metric RAGAS diagnostic 作为非阻塞质量诊断，证据位于
+  `./evidence/retrieval-quality/ragas-diagnostic/ragas-diagnostic.combined.json`；其范围仅覆盖
+  `student_rules`、`institutional_rules` 与 `curriculum_plan`，不纳入 `official_web/fresh_news`。
   `Phase 5B` 的正式 golden dataset expansion 继续等待 domain 数据补全。
   当前没有独立编号的 Phase 14；`Total Phases = 14` 是因为 Phase 5 被拆为 5A/5B。
 

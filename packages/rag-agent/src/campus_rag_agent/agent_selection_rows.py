@@ -3,6 +3,7 @@ from __future__ import annotations
 from campus_contracts import EvidenceSource
 from campus_retrieval_core.evidence_ranking import query_targets_source_title
 
+from .agent_answer_shape import AnswerShape
 from .agent_curriculum_terms import (
     _is_curriculum_course_list_query,
     _is_curriculum_lookup_query,
@@ -30,18 +31,25 @@ def _select_answer_support_rows(
     query_text: str,
     sources: tuple[EvidenceSource, ...],
     max_sources: int,
+    answer_shape: AnswerShape | None = None,
 ) -> tuple[tuple[EvidenceSource, tuple[str, ...]], ...]:
     if not sources or max_sources <= 0:
         return ()
 
     mode = _query_mode(query_text)
+    shape = answer_shape or AnswerShape.GENERAL_SUMMARY
     course_list_query = _is_curriculum_course_list_query(query_text)
     curriculum_lookup_query = _is_curriculum_lookup_query(query_text)
     consumable_sources = tuple(
         source for source in sources if not _should_ignore_official_web_source(source)
     )
     ranked_source_input = consumable_sources or sources
-    max_seen_statements = 6 if course_list_query or curriculum_lookup_query else 3
+    if course_list_query or curriculum_lookup_query:
+        max_seen_statements = 6
+    elif shape == AnswerShape.CONDITION_OVERVIEW:
+        max_seen_statements = max(3, max_sources)
+    else:
+        max_seen_statements = 3
     ranked_sources = (
         tuple(ranked_source_input)
         if course_list_query or curriculum_lookup_query
@@ -58,6 +66,11 @@ def _select_answer_support_rows(
 
     for index, source in enumerate(ranked_sources):
         ranked_statements = _rank_source_statements(query_text, source, mode=mode)
+        if shape == AnswerShape.DETAIL_CLAUSE:
+            ranked_statements = _filter_statements_for_query_critical_terms(
+                query_text=query_text,
+                statements=ranked_statements,
+            )
         novel_statements = tuple(
             statement
             for statement in ranked_statements
@@ -72,7 +85,8 @@ def _select_answer_support_rows(
         if _should_stop_after_official_web_reference_rows(query_text=query_text, rows=tuple(rows)):
             break
         if (
-            not course_list_query
+            shape != AnswerShape.CONDITION_OVERVIEW
+            and not course_list_query
             and index == 0
             and len(novel_statements) >= 2
             and not _is_official_web_reference_query(query_text=query_text, source=source)
@@ -116,6 +130,43 @@ def _answer_source_sort_key(
     best_score = scored[0][0]
     total_score = sum(score for score, _ in scored[:3])
     return (best_score, total_score, len(scored), 1 if source.is_answer_bearing else 0)
+
+
+def _filter_statements_for_query_critical_terms(
+    *,
+    query_text: str,
+    statements: tuple[str, ...],
+) -> tuple[str, ...]:
+    critical_groups = _query_critical_term_groups(query_text)
+    if not critical_groups:
+        return statements
+    return tuple(
+        statement
+        for statement in statements
+        if _statement_covers_critical_groups(statement, critical_groups)
+    )
+
+
+def _query_critical_term_groups(query_text: str) -> tuple[tuple[str, ...], ...]:
+    normalized = _normalize_snippet(query_text)
+    groups: list[tuple[str, ...]] = []
+    if "论文" in normalized:
+        groups.append(("论文", "发表"))
+    if "著作" in normalized:
+        groups.append(("著作", "出版"))
+    if "专利" in normalized:
+        groups.append(("专利", "发明"))
+    if "竞赛" in normalized:
+        groups.append(("竞赛", "比赛"))
+    return tuple(groups)
+
+
+def _statement_covers_critical_groups(
+    statement: str,
+    groups: tuple[tuple[str, ...], ...],
+) -> bool:
+    normalized = _normalize_snippet(statement)
+    return all(any(term in normalized for term in group) for group in groups)
 
 
 def _should_lock_official_web_reference_answer(
@@ -195,6 +246,7 @@ def _should_stop_after_official_web_reference_rows(
 
 __all__ = [
     "_answer_source_sort_key",
+    "_filter_statements_for_query_critical_terms",
     "_select_answer_support_rows",
     "_should_ignore_official_web_source",
     "_should_lock_official_web_reference_answer",

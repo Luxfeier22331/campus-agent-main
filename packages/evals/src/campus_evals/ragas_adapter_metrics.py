@@ -17,7 +17,7 @@ DEFAULT_RAGAS_METRIC_NAMES = (
     "context_precision",
     "context_recall",
 )
-_PROMPT_ADAPTATION_CACHE: dict[tuple[str, str, str, bool], object] = {}
+_PROMPT_ADAPTATION_CACHE: dict[tuple[str, str, str, int, int, bool], object] = {}
 
 
 @dataclass(frozen=True, slots=True)
@@ -130,7 +130,14 @@ def _resolve_adapted_prompt(
     settings: RagasSettings,
 ) -> object:
     target_language = str(settings.target_language or "").strip()
-    cache_key = (metric_name, prompt_name, target_language, settings.adapt_instruction)
+    cache_key = (
+        metric_name,
+        prompt_name,
+        target_language,
+        id(prompt),
+        id(llm),
+        settings.adapt_instruction,
+    )
     cached = _PROMPT_ADAPTATION_CACHE.get(cache_key)
     if cached is not None:
         return cached

@@ -33,6 +33,7 @@ from .service_diagnostics_curriculum import (
     _resolve_curriculum_diagnostics_follow_up,
 )
 from .service_diagnostics_retrieval import _build_retrieval_plan_summary
+from .service_stage_diagnostics import build_rag_stage_activity_summaries
 
 
 def _build_rag_result_payload(
@@ -43,6 +44,7 @@ def _build_rag_result_payload(
     curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
+    request_id: str = "",
     no_answer_reason: str = "",
     allow_session_follow_up: bool = False,
     semantic_outcome: str = "",
@@ -66,6 +68,7 @@ def _build_rag_result_payload(
         curriculum_plan=curriculum_plan,
         curriculum_course_plan=curriculum_course_plan,
         curriculum_program_family_plan=curriculum_program_family_plan,
+        request_id=request_id,
         no_answer_reason=no_answer_reason,
         allow_session_follow_up=allow_session_follow_up,
         semantic_outcome=semantic_outcome,
@@ -96,6 +99,7 @@ def _build_rag_result_diagnostics(
     curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
+    request_id: str = "",
     no_answer_reason: str = "",
     allow_session_follow_up: bool = False,
     semantic_outcome: str = "",
@@ -145,6 +149,17 @@ def _build_rag_result_diagnostics(
             remote_content_suspicion_summary=effective_remote_content_suspicion_summary,
             source_trust_summary=effective_source_trust_summary,
             retrieval_plan_summary=_build_retrieval_plan_summary(retrieval_execution_result),
+            stage_activities=build_rag_stage_activity_summaries(
+                request_id=request_id,
+                evidence=evidence,
+                retrieved_evidence=retrieved_evidence,
+                retrieval_execution_result=retrieval_execution_result,
+                retrieval_adequacy=retrieval_adequacy,
+                semantic_outcome=semantic_outcome,
+                no_answer_reason=no_answer_reason,
+                grounding_verdict=grounding_verdict,
+                prompt_runtime_state=prompt_runtime_state,
+            ),
             **kwargs,
         )
 

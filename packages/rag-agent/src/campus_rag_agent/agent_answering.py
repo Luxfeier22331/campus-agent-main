@@ -13,6 +13,7 @@ from .agent_curriculum_answering import (
 from .agent_curriculum_terms import _is_curriculum_semester_course_list_query
 from .agent_official_web import _compose_official_web_answer
 from .agent_selection_query import _query_mode
+from .agent_shared import _answer_prefix
 
 
 def _compose_direct_answer(
@@ -52,7 +53,20 @@ def _compose_direct_answer(
     return _compose_generic_answer(evidence=evidence, selected_rows=selected_rows)
 
 
+def _compose_title_lookup_answer(
+    *,
+    evidence: EvidenceBundle,
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> str:
+    lead_source = selected_rows[0][0]
+    title = lead_source.source_title.strip() or lead_source.doc_id.split(":", 1)[-1].strip()
+    if not title:
+        return ""
+    return f"{_answer_prefix(evidence)}，已找到《{title}》。"
+
+
 __all__ = [
     "_compose_direct_answer",
+    "_compose_title_lookup_answer",
     "_render_supporting_contexts",
 ]

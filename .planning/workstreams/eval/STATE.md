@@ -42,7 +42,10 @@ eval denominator：仅覆盖 `regulations/student_rules`、`regulations/institut
 `official_web/fresh_news`；`institutional_rules` 的 `institutional-rules-release-baseline`
 composite gate 已纳入 RAG eval coverage/audit。RAG eval coverage report 已升级到 v2，
 区分 minimum gate 与 maturity：当前 minimum gate 与 maturity gate 均通过，`student_rules`
-与 `curriculum_plan` 已完成人工扩编并达到 baseline_ready。
+与 `curriculum_plan` 已完成人工扩编并达到 baseline_ready。随后新增 core RAG 小样本
+RAGAS diagnostic runner，并以 split-metric 方式完成 9-case 非阻塞诊断：context precision
+稳定满分，context recall 暴露 scholarship 泛问多文档覆盖不足，answer relevancy 暴露若干
+title/query 场景的 answer draft 选段偏离，faithfulness 仅保留 3-case smoke 以控制规模与耗时。
 
 ## Current Slice
 
@@ -161,6 +164,32 @@ composite gate 已纳入 RAG eval coverage/audit。RAG eval coverage report 已�
     `.planning/workstreams/eval/evidence/rag-eval-coverage/rag-eval-coverage.json`
   - 当前 retrieval quality gate evidence:
     `.planning/workstreams/eval/evidence/retrieval-quality/gate/rag-retrieval-quality-gate.current.json`
+  - 当前 RAGAS diagnostic evidence:
+    `.planning/workstreams/eval/evidence/retrieval-quality/ragas-diagnostic/ragas-diagnostic.combined.json`
+  - RAGAS diagnostic 仅作为非阻塞质量诊断，不进入当前 release-blocking retrieval gate；当前
+    执行口径为 core RAG 三条 surface：`regulations/student_rules`、
+    `regulations/institutional_rules`、`curriculum/curriculum_plan`。`official_web/fresh_news`
+    不属于本轮 RAG 消费面，`official_web/stable_reference` 仍保留在 coverage truth 但不纳入
+    本轮 refreshed RAGAS diagnostic。
+  - 当前 RAGAS 小样本结果：
+    - `context_precision`: 9 cases，mean/min/max = `1.0 / 1.0 / 1.0`
+    - `context_recall`: 9 cases，mean/min/max =
+      `0.9166666666666666 / 0.25 / 1.0`
+    - `answer_relevancy`: 9 cases，mean/min/max =
+      `0.7468359492908837 / 0.5680662256246307 / 0.8859837318548726`
+    - `faithfulness`: 3-case smoke，mean/min/max =
+      `0.9398148148148149 / 0.875 / 1.0`
+  - 当前 RAGAS low-score follow-up：
+    - `semantic-scholarship-eligibility`: `context_recall = 0.25`，query 为
+      “申请奖学金需要满足什么条件”；expected 覆盖 4 个 scholarship/aid policy docs，但 answer
+      draft 只支撑 `handbook:a531a3c85de862c737d0576e957bf59598822c54`，属于泛问多政策覆盖不足。
+    - `policy-alias-national-scholarship-article-nine`: retrieval 命中 expected doc，但
+      `answer_relevancy = 0.5680662256246307`；draft 回答了体育竞赛条件，偏离用户问的
+      “论文和著作”要求，属于 chunk/answer evidence selection 问题。
+    - `ethnology-plan-title`、`history-strong-base-title` 与
+      `digital-economy-plan-paraphrase`: retrieval 命中 expected curriculum doc，但 answer
+      relevancy 低于 0.8；draft 倾向抽课程片段而不是返回标题级培养方案定位，属于
+      curriculum title/query 的 answer drafting 口径问题。
   - 当前 RAG surface coverage:
     - `regulations/student_rules`: handbook profile，52 条 qrels，46 个 unique expected
       docs，25 条 release acceptance；minimum gate 通过，maturity status =

@@ -274,6 +274,7 @@ class RagasScorerDefaultsTest(unittest.TestCase):
                 "EMBEDDING_API_KEY": "embed-key",
                 "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "45",
+                "RAGAS_MAX_WORKERS": "2",
             }
         )
 
@@ -331,5 +332,5 @@ class RagasScorerDefaultsTest(unittest.TestCase):
             all(call["kwargs"]["run_config"].max_retries == 0 for call in captured_calls)
         )
         self.assertTrue(
-            all(call["kwargs"]["run_config"].max_workers == 1 for call in captured_calls)
+            all(call["kwargs"]["run_config"].max_workers == 2 for call in captured_calls)
         )

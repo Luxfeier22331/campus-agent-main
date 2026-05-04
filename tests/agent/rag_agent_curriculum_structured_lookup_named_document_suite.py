@@ -332,7 +332,7 @@ class RagAgentCurriculumStructuredLookupNamedDocumentTest(unittest.TestCase):
                 rewritten_query=retriever_call["query_text"],
                 semantic_outcome="grounded_answer",
                 retrieved_title_summary=(target_title,),
-                retrieved_sources=response.result.evidence.sources,
+                retrieved_sources=evidence.sources,
                 source_trust_summary=SourceTrustSummary(
                     observed_tiers=("T1",),
                     answer_bearing_tiers=("T1",),
@@ -340,6 +340,7 @@ class RagAgentCurriculumStructuredLookupNamedDocumentTest(unittest.TestCase):
                     freshness_claim_blocked=False,
                     authorization_claim_blocked=False,
                 ),
+                retrieval_plan_summary=response.result.diagnostics.retrieval_plan_summary,
             ),
         )
 

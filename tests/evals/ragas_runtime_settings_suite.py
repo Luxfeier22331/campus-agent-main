@@ -79,6 +79,7 @@ class RagasSettingsTest(unittest.TestCase):
                 "RAGAS_REASONING_EFFORT": "none",
                 "RAGAS_TEXT_VERBOSITY": "low",
                 "RAGAS_MAX_OUTPUT_TOKENS": "256",
+                "RAGAS_MAX_WORKERS": "2",
             }
         )
 
@@ -97,6 +98,7 @@ class RagasSettingsTest(unittest.TestCase):
         self.assertEqual(settings.reasoning_effort, "none")
         self.assertEqual(settings.text_verbosity, "low")
         self.assertEqual(settings.max_output_tokens, 256)
+        self.assertEqual(settings.max_workers, 2)
 
     def test_from_env_reads_request_pacing_override(self) -> None:
         settings = RagasSettings.from_env(

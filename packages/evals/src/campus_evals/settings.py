@@ -215,6 +215,7 @@ class RagasSettings:
     reasoning_effort: str | None = None
     text_verbosity: str | None = None
     max_output_tokens: int | None = None
+    max_workers: int = 1
     target_language: str | None = None
     adapt_instruction: bool = False
     faithfulness_nli_batch_size: int = DEFAULT_FAITHFULNESS_NLI_BATCH_SIZE
@@ -248,6 +249,8 @@ class RagasSettings:
             raise ValueError("RAGAS_TEXT_VERBOSITY must be one of low, medium, high")
         if self.max_output_tokens is not None and self.max_output_tokens <= 0:
             raise ValueError("RAGAS_MAX_OUTPUT_TOKENS must be greater than zero")
+        if self.max_workers <= 0:
+            raise ValueError("RAGAS_MAX_WORKERS must be greater than zero")
         if self.faithfulness_nli_batch_size <= 0:
             raise ValueError("faithfulness_nli_batch_size must be greater than zero")
 
@@ -294,6 +297,7 @@ class RagasSettings:
             reasoning_effort=_read_optional_str(source.get("RAGAS_REASONING_EFFORT")),
             text_verbosity=_read_optional_str(source.get("RAGAS_TEXT_VERBOSITY")),
             max_output_tokens=_read_optional_int(source.get("RAGAS_MAX_OUTPUT_TOKENS")),
+            max_workers=_read_optional_int(source.get("RAGAS_MAX_WORKERS")) or 1,
             target_language=_read_first_non_empty(source, "EVAL_RAGAS_TARGET_LANGUAGE"),
             adapt_instruction=_read_bool(source.get("RAGAS_ADAPT_INSTRUCTION"), default=False),
             faithfulness_nli_batch_size=faithfulness_nli_batch_size,

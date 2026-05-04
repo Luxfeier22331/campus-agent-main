@@ -368,6 +368,11 @@ def _resolved_curriculum_diagnostics_from_response(
     result = response.result
     if not isinstance(result, RagResultPayload):
         raise AssertionError("expected RagResultPayload for curriculum diagnostics assertion")
+    if result.diagnostics is not None:
+        kwargs.setdefault("retrieval_plan_summary", result.diagnostics.retrieval_plan_summary)
+        kwargs.setdefault("stage_activities", result.diagnostics.stage_activities)
+        kwargs.setdefault("source_trust_summary", result.diagnostics.source_trust_summary)
+        kwargs.setdefault("retrieved_sources", result.diagnostics.retrieved_sources)
     if (
         response.status == "completed"
         and "semantic_outcome" not in kwargs
@@ -378,7 +383,6 @@ def _resolved_curriculum_diagnostics_from_response(
     return _resolved_scope_diagnostics(
         corpus="curriculum",
         collection="curriculum_plan",
-        retrieved_sources=result.evidence.sources,
         **kwargs,
     )
 

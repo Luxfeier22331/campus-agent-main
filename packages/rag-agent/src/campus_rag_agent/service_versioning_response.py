@@ -54,6 +54,7 @@ def _build_version_filter_unresolved_response(
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
+            request_id=request.request_id,
             no_answer_reason="version_filter_unresolved",
             semantic_outcome="unsupported_by_evidence",
             retrieval_adequacy=insufficient_retrieval_adequacy("version_filter_unresolved"),
@@ -73,6 +74,7 @@ def _build_compare_support_incomplete_response(
     curriculum_plan: CurriculumQueryPlan | None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None,
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None,
+    request_id: str = "",
 ) -> AgentResponse:
     return AgentResponse(
         target="rag-agent",
@@ -88,6 +90,7 @@ def _build_compare_support_incomplete_response(
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
+            request_id=request_id,
             no_answer_reason="compare_support_incomplete",
             semantic_outcome="unsupported_by_evidence",
             retrieval_adequacy=insufficient_retrieval_adequacy("compare_support_incomplete"),
@@ -109,6 +112,7 @@ def _build_version_aware_completed_response(
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None,
     confidence: str,
     version_answer_context: _VersionAnswerContext,
+    request_id: str = "",
 ) -> AgentResponse:
     answer_text = _build_version_aware_answer_text(
         evidence=evidence,
@@ -129,6 +133,7 @@ def _build_version_aware_completed_response(
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
+            request_id=request_id,
             semantic_outcome=semantic_outcome,
             retrieval_adequacy=sufficient_retrieval_adequacy(),
             grounding_verdict="grounded",
