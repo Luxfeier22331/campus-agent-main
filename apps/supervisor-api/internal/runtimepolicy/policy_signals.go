@@ -65,6 +65,9 @@ func isPlannableCampusServicesSubtype(normalizedGoal string, policy IntentPolicy
 	if matchStructuredContactDirectoryCandidate(normalizedGoal, policy) != "" {
 		return true
 	}
+	if isDirectoryLookupGuideQuery(normalizedGoal) {
+		return true
+	}
 	serviceSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_subject"))
 	if serviceSubject == "" {
 		return matchStructuredServiceGuideCandidate(normalizedGoal, policy) != ""
@@ -77,6 +80,12 @@ func matchStructuredServiceGuideCandidate(
 	normalizedGoal string,
 	policy IntentPolicyArtifact,
 ) string {
+	if isDirectoryLookupGuideQuery(normalizedGoal) {
+		if strings.Contains(normalizedGoal, "办公电话") {
+			return "办公电话"
+		}
+		return "通讯录"
+	}
 	serviceGuideSubject := firstMatch(normalizedGoal, policy.Signals("structured_service_guide_subject"))
 	if serviceGuideSubject == "" {
 		return ""
@@ -85,6 +94,19 @@ func matchStructuredServiceGuideCandidate(
 		return ""
 	}
 	return serviceGuideSubject
+}
+
+func isDirectoryLookupGuideQuery(normalizedGoal string) bool {
+	if !(strings.Contains(normalizedGoal, "办公电话") || strings.Contains(normalizedGoal, "通讯录")) {
+		return false
+	}
+	return strings.Contains(normalizedGoal, "怎么查") ||
+		strings.Contains(normalizedGoal, "如何查") ||
+		strings.Contains(normalizedGoal, "怎么找") ||
+		strings.Contains(normalizedGoal, "如何找") ||
+		strings.Contains(normalizedGoal, "在哪里找") ||
+		strings.Contains(normalizedGoal, "在哪找") ||
+		strings.Contains(normalizedGoal, "在哪儿找")
 }
 
 func matchStructuredContactDirectoryCandidate(

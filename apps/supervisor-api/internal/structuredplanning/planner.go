@@ -472,6 +472,9 @@ func isServiceGuideLookup(
 	normalizedGoal string,
 	policy runtimepolicy.IntentPolicyArtifact,
 ) bool {
+	if runtimepolicyDirectoryLookupGuideQuery(normalizedGoal) {
+		return true
+	}
 	return containsAny(normalizedGoal, policy.Signals("structured_service_guide_subject")) &&
 		containsAny(normalizedGoal, policy.Signals("structured_service_guide_action"))
 }
@@ -513,10 +516,7 @@ func classifyServiceGuideFocus(
 	normalizedGoal string,
 	policy runtimepolicy.IntentPolicyArtifact,
 ) string {
-	if strings.Contains(normalizedGoal, "办公电话怎么查") ||
-		strings.Contains(normalizedGoal, "通讯录怎么查") ||
-		strings.Contains(normalizedGoal, "办公电话如何查") ||
-		strings.Contains(normalizedGoal, "通讯录如何查") {
+	if runtimepolicyDirectoryLookupGuideQuery(normalizedGoal) {
 		return "procedure"
 	}
 	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_required_materials")) {
@@ -574,6 +574,19 @@ func containsAny(value string, signals []string) bool {
 		}
 	}
 	return false
+}
+
+func runtimepolicyDirectoryLookupGuideQuery(normalizedGoal string) bool {
+	if !(strings.Contains(normalizedGoal, "办公电话") || strings.Contains(normalizedGoal, "通讯录")) {
+		return false
+	}
+	return strings.Contains(normalizedGoal, "怎么查") ||
+		strings.Contains(normalizedGoal, "如何查") ||
+		strings.Contains(normalizedGoal, "怎么找") ||
+		strings.Contains(normalizedGoal, "如何找") ||
+		strings.Contains(normalizedGoal, "在哪里找") ||
+		strings.Contains(normalizedGoal, "在哪找") ||
+		strings.Contains(normalizedGoal, "在哪儿找")
 }
 
 func defaultString(value string, fallback string) string {

@@ -45,6 +45,8 @@ must be admitted only when they serve one or more rows below.
 | `owsp-it-vpn-guide` | `campus_service_guide` | 校外怎么用 VPN 访问校园网资源？ | `service_guide_lookup` | VPN entry URL, login requirements, client/direct modes, source refs | step summary plus entry refs |
 | `owsp-it-network-auth` | `campus_service_guide` | 校园网怎么认证登录？ | `service_guide_lookup` | wired/wireless login flow, account/password basis, source refs | procedure with campus/audience caveats |
 | `owsp-it-password-reset` | `campus_service_guide` | 统一身份认证密码怎么改？ | `service_guide_lookup` | portal entry, reset/change steps, source refs | short procedure and entry URL |
+| `owsp-it-enterprise-wechat-guide` | `campus_service_guide` | 企业微信怎么绑定？ | `service_guide_lookup` | enterprise WeChat binding/login steps, source refs | short onboarding procedure |
+| `owsp-it-directory-lookup-guide` | `campus_service_guide` | 办公电话怎么查？通讯录在哪里找？ | `service_guide_lookup` | portal/enterprise-WeChat/app directory lookup steps, source refs | short lookup procedure with entry hints |
 | `owsp-it-email-guide` | `campus_service_guide` | 校园邮箱怎么申请？登录入口是什么？申请表在哪下载？ | `service_guide_lookup` plus composition | procedure, login entry, material/download refs, source refs | composed service guide answer |
 | `owsp-it-email-policy` | `institutional_policy_reference` | 民大邮箱谁可以用？邮箱后缀是什么？ | `regulations/institutional_rules` or `official_web/stable_reference` | eligibility, domain suffix, application rules, source refs | policy answer; not service-guide-only |
 | `owsp-info-disclosure-scope` | `institutional_policy_reference` | 哪些学校信息可以公开？哪些不能公开？ | `regulations/institutional_rules` or `official_web/stable_reference` | active disclosure scope, non-disclosure categories, source refs | policy summary with citation |
