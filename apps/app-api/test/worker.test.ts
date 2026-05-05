@@ -3,7 +3,6 @@ import stagingPreflightSource from "../../../scripts/run-worker-staging-prefligh
 import packageManifestRaw from "../package.json?raw";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import runWithStagingDbEnvSource from "../scripts/run-with-staging-db-env.mjs?raw";
-import stagingChatSmokeSource from "../scripts/staging-chat-smoke.ts?raw";
 import { createWorkerRuntime } from "../src/index";
 import localSmokeWranglerConfig from "../wrangler.local-smoke.toml?raw";
 import wranglerConfig from "../wrangler.toml?raw";
@@ -162,8 +161,10 @@ describe("app-api worker foundation", () => {
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
 		expect(deployStagingSource).toContain("loadRepoEnvFile");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
-		expect(stagingChatSmokeSource).toContain("assertExpectedStagingChatSmokeResultKind");
-		expect(stagingChatSmokeSource).toContain("expectResultKind");
+		expect(packageManifest.scripts?.["chat:e2e:staging"]).toContain(
+			"chat-e2e.ts --profile staging",
+		);
+		expect(packageManifest.scripts?.["chat:smoke:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);

@@ -290,7 +290,9 @@ pnpm db:adopt-shared -- --json
 pnpm db:reconcile-shared-drift -- --json
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' pnpm smoke-identity:provision -- \
   --email help_bot@outlook.com --name "Help Bot"
-pnpm chat:smoke:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
+pnpm chat:e2e:dev -- --prompt "中央民族大学本科学生国家奖学金评审办法"
+pnpm chat:e2e:local-real-provider
+pnpm chat:e2e:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm docs:gated:smoke:staging
 pnpm official-web:drain-projection -- --limit 50
 pnpm collection-rename:audit
@@ -315,7 +317,7 @@ APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
   STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
   pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name \
   "Help Bot"
-pnpm chat:smoke:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
+pnpm chat:e2e:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm docs:gated:smoke:staging
 pnpm dev
 ```
@@ -332,10 +334,13 @@ Deploy note:
   `/api/operator/official-web/runs` 会一起退化成 `internal_error`
 - `db:bootstrap:staging` 负责补齐 `app_auth.*` / `chat.*` shared-product 面；现有
   staging 若只跑 `db:migrate:staging`，不会自动得到 `chat.messages.structured_parts_json`
-- `chat:smoke:staging` and `docs:gated:smoke:staging` do not require local
+- `chat:e2e:staging` and `docs:gated:smoke:staging` do not require local
   staging DB credentials; they reset the fixed smoke identity through the
   deployed staging internal smoke endpoint protected by
   `APP_API_STAGING_SMOKE_AUTH_SECRET`
+- `chat:e2e:dev` is the local public/chat wrapper. It starts local supervisor
+  runtime, runs `db:bootstrap`, provisions the smoke identity, starts or reuses
+  `public-chat-web dev:live-smoke`, and then runs `chat:e2e -- --profile dev`.
 
 Testing lanes:
 

@@ -1,13 +1,16 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
-import { DEFAULT_SMOKE_EMAIL, DEFAULT_SMOKE_NAME } from "./seed-request-smoke.args";
 import {
-	DEFAULT_STAGING_APP_API_READYZ_URL,
-	DEFAULT_STAGING_CHAT_BASE_URL,
-} from "./staging-chat-smoke.args";
+	DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL,
+	DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL,
+} from "./chat-e2e.args";
+import { DEFAULT_SMOKE_EMAIL, DEFAULT_SMOKE_NAME } from "./seed-request-smoke.args";
 
 export const DEFAULT_STAGING_DOCS_BASE_URL = "https://campus-docs-staging.ayafeed.com";
+export const DEFAULT_STAGING_DOCS_GATED_APP_API_READYZ_URL =
+	DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL;
+export const DEFAULT_STAGING_DOCS_GATED_CHAT_BASE_URL = DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL;
 export const DEFAULT_GATED_NAVIGATION_UNAUTHENTICATED_STATUS = 404;
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
@@ -153,8 +156,8 @@ export function parseStagingDocsGatedSmokeArgs(
 ): StagingDocsGatedSmokeArgs {
 	let email = DEFAULT_SMOKE_EMAIL;
 	let name = DEFAULT_SMOKE_NAME;
-	let chatBaseUrl = DEFAULT_STAGING_CHAT_BASE_URL;
-	let appApiReadyzUrl = DEFAULT_STAGING_APP_API_READYZ_URL;
+	let chatBaseUrl = DEFAULT_STAGING_DOCS_GATED_CHAT_BASE_URL;
+	let appApiReadyzUrl = DEFAULT_STAGING_DOCS_GATED_APP_API_READYZ_URL;
 	let docsBaseUrl = DEFAULT_STAGING_DOCS_BASE_URL;
 	let gatedCollectionNavigationPath: string | null = null;
 	let gatedReaderPath: string | null = null;

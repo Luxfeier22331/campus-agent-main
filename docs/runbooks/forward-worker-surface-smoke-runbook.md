@@ -117,10 +117,40 @@ pnpm --dir apps/public-chat-web dev:live-smoke
   `public-chat-web` 的 same-site `/api/*` service binding 能命中真实 Worker runtime
 - 不要再把 `pnpm --dir apps/public-chat-web dev` 和 `pnpm --dir apps/app-api dev`
   作为本地 browser smoke 的前提；分开会话适合单 app 调试，但不是 canonical browser smoke 拓扑
-- 如需真实登录与发问链路，先用 `pnpm --dir apps/app-api smoke-identity:provision` 预置 smoke
-  identity
+- 如需真实登录与发问链路，优先使用 `pnpm --dir apps/app-api chat:e2e:dev`
+  让 repo-owned wrapper 预置 smoke identity 并执行请求
 - `db:reconcile-shared-drift` 不能替代 `db:bootstrap`：前者只覆盖 drizzle shared-db
   adoption truth，不覆盖 `chat.*` 的 shared-product bootstrap migration
+
+## Public Chat E2E Profiles
+
+public/chat 的 E2E contract 不应由 staging 域名定义。当前 repo-owned 入口是：
+
+```bash
+pnpm --dir apps/app-api chat:e2e:dev
+pnpm --dir apps/app-api chat:e2e:staging
+pnpm --dir apps/app-api chat:e2e:local-real-provider
+```
+
+profile 语义：
+
+- `dev`：面向 repo-local dev URLs；wrapper 会启动 local supervisor runtime，
+  预置 smoke identity，启动或复用 `public-chat-web dev:live-smoke`，再通过
+  `http://127.0.0.1:27011 -> service binding app-api -> http://127.0.0.1:27051`
+  执行真实 public/chat 请求
+- `staging`：部署验收 profile，默认使用 `campus-chat-staging` /
+  `campus-api-staging` / `exec-staging`
+- `local-real-provider`：复用真实 provider + Agents SDK structured-query smoke，
+  证明 `supervisor-api -> supervisor-agent-worker -> Agents SDK -> tool -> PG read
+  model` 链路；它不是 deployed staging smoke
+
+`chat:e2e:dev` 要求 `APP_API_SMOKE_IDENTITY_PASSWORD`；它会读取
+`apps/app-api/.env` / `.dev.vars`，执行 `db:bootstrap` 和
+`smoke-identity:provision`。底层 `chat:e2e -- --profile dev` 只登录预置身份，
+不使用 staging internal smoke session mint，也不要求单独暴露 `apps/app-api`
+HTTP 端口；`public-chat-web /readyz` 负责证明 APP_API service binding 已连到真实
+Worker runtime。`staging` profile 会在 readyz 失败时输出结构化 `blocked_by`，且不会
+重置 smoke identity 或发起 chat request。
 
 ## 这组 smoke 证明什么
 

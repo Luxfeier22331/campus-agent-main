@@ -5,11 +5,9 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import {
-	DEFAULT_STAGING_APP_API_READYZ_URL,
-	DEFAULT_STAGING_CHAT_BASE_URL,
-} from "../scripts/staging-chat-smoke.args";
-import {
 	DEFAULT_STAGING_DOCS_BASE_URL,
+	DEFAULT_STAGING_DOCS_GATED_APP_API_READYZ_URL,
+	DEFAULT_STAGING_DOCS_GATED_CHAT_BASE_URL,
 	parseStagingDocsGatedSmokeArgs,
 	resolveStagingDocsGatedSmokeTargets,
 } from "../scripts/staging-docs-gated-smoke.args";
@@ -21,8 +19,8 @@ describe("staging docs gated smoke args", () => {
 				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
 			} as NodeJS.ProcessEnv),
 		).toEqual({
-			appApiReadyzUrl: DEFAULT_STAGING_APP_API_READYZ_URL,
-			chatBaseUrl: DEFAULT_STAGING_CHAT_BASE_URL,
+			appApiReadyzUrl: DEFAULT_STAGING_DOCS_GATED_APP_API_READYZ_URL,
+			chatBaseUrl: DEFAULT_STAGING_DOCS_GATED_CHAT_BASE_URL,
 			docsBaseUrl: DEFAULT_STAGING_DOCS_BASE_URL,
 			gatedCollectionNavigationPath: null,
 			gatedCollectionNavigationUnauthenticatedStatus: 404,
