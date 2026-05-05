@@ -4,6 +4,7 @@ import type { OfficialWebDynamicShellDiscoveryAudit } from "./dynamic-shell-disc
 import type {
 	OfficialWebFailureRecord,
 	OfficialWebHostSummaryRecord,
+	OfficialWebPageTargetMatch,
 	OfficialWebPageObservationRecord,
 	OfficialWebUrlResultRecord,
 } from "./official-web-core.ts";
@@ -31,6 +32,7 @@ export interface CollectorRequestUserData {
 	depth: number;
 	knownPage?: OfficialWebPlannerPageCandidate;
 	knownPages?: OfficialWebPlannerPageCandidate[];
+	inheritedTargetLineages?: OfficialWebPageTargetMatch[];
 }
 
 export interface CollectorAggregatedResults {

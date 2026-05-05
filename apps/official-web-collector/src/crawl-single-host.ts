@@ -207,7 +207,11 @@ export async function crawlSingleHost(
 							discoveryMethod: userData.discoveryMethod,
 							discoveredFromUrl: userData.discoveredFromUrl,
 							fetchedAt: new Date().toISOString(),
-							targetLineages: buildTargetLineages(knownPages, input.sourcePackLineageOverrides),
+							targetLineages: buildTargetLineages(
+								knownPages,
+								userData.inheritedTargetLineages,
+								input.sourcePackLineageOverrides,
+							),
 							html: context.$,
 						});
 						pages.push(pageArtifact);
@@ -424,14 +428,23 @@ function buildTargetLineage(
 
 function buildTargetLineages(
 	knownPages: OfficialWebPlannerPageCandidate[],
+	inheritedTargetLineages: OfficialWebPageTargetMatch[] | undefined,
 	sourcePackLineageOverrides?: Record<string, CollectorSourcePackLineageOverride>,
 ): OfficialWebPageTargetMatch[] | undefined {
 	if (knownPages.length === 0) {
-		return;
+		return inheritedTargetLineages?.length ? inheritedTargetLineages : undefined;
 	}
-	return knownPages
+	const derived = knownPages
 		.map((page) => buildTargetLineage(page, sourcePackLineageOverrides))
 		.filter((item): item is OfficialWebPageTargetMatch => item != null);
+	if (!inheritedTargetLineages?.length) {
+		return derived.length > 0 ? derived : undefined;
+	}
+	const merged = new Map<string, OfficialWebPageTargetMatch>();
+	for (const lineage of [...derived, ...inheritedTargetLineages]) {
+		merged.set(`${lineage.targetJobId}:${lineage.targetCandidateId ?? ""}:${lineage.targetId}`, lineage);
+	}
+	return [...merged.values()];
 }
 
 function resolveSourcePackLineageOverride(

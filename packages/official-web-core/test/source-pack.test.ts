@@ -565,6 +565,24 @@ function writeSourcePackFixtureRoot(): string {
 						extraction_gate: "deterministic_source_backed",
 						eval_questions: ["信息公开怎么申请？"],
 					},
+					{
+						entry_id: "institutional-rules-column",
+						url: "https://www.example.edu/rules/",
+						content_family: "institutional_policy_reference",
+						source_kind: "html_page",
+						answer_bearing: false,
+						demand_ids: ["owsp-rules-column"],
+						owner_surfaces: ["regulations/institutional_rules"],
+						release_targets: ["regulations/institutional_rules"],
+						expected_facts: ["regulation_text"],
+						composition_group: null,
+						composition_role: null,
+						capture_policy: "one_time",
+						refresh_posture: "manifest_refresh_only",
+						extraction_gate: "deterministic_source_backed",
+						target_workset_expansion: "same_host_manual_requeue",
+						eval_questions: [],
+					},
 				],
 			},
 			null,
@@ -586,11 +604,16 @@ describe("official web source pack config", () => {
 			siteId: "campus_public",
 			sourcePackId: "tool-driven-first-slice.v1",
 		});
-		expect(config.sourcePackManifest.entries).toHaveLength(3);
+		expect(config.sourcePackManifest.entries).toHaveLength(4);
 		expect(config.sourcePackManifest.entries[1]).toMatchObject({
 			entryId: "campus-card-contact",
 			ownerSurfaces: ["service_guide_lookup", "contact_directory_lookup"],
 			releaseTargets: ["campus_services/service_guide", "campus_services/contact_directory"],
+		});
+		expect(config.sourcePackManifest.entries[3]).toMatchObject({
+			entryId: "institutional-rules-column",
+			answerBearing: false,
+			targetWorksetExpansion: "same_host_manual_requeue",
 		});
 	});
 
@@ -729,6 +752,53 @@ describe("official web source pack config", () => {
 
 		expect(() => loadOfficialWebConfig("campus_public", { configRoot })).toThrow(
 			/academic calendar row must use academic_calendar_reference content_family/u,
+		);
+	});
+
+	it("fails closed when a target-workset expansion row is marked answer-bearing", () => {
+		const configRoot = writeSourcePackFixtureRoot();
+		const manifestPath = resolve(
+			configRoot,
+			"campus_public",
+			"source-packs",
+			"tool-driven-first-slice.v1.json",
+		);
+
+		writeFileSync(
+			manifestPath,
+			JSON.stringify(
+				{
+					schema_version: "official_web_source_pack_manifest.v1",
+					site_id: "campus_public",
+					source_pack_id: "tool-driven-first-slice.v1",
+					entries: [
+						{
+							entry_id: "bad-discovery-answer-bearing",
+							url: "https://www.example.edu/rules/",
+							content_family: "institutional_policy_reference",
+							source_kind: "html_page",
+							answer_bearing: true,
+							demand_ids: ["owsp-rules-column"],
+							owner_surfaces: ["regulations/institutional_rules"],
+							release_targets: ["regulations/institutional_rules"],
+							expected_facts: ["regulation_text"],
+							composition_group: null,
+							composition_role: null,
+							capture_policy: "one_time",
+							refresh_posture: "manifest_refresh_only",
+							extraction_gate: "deterministic_source_backed",
+							target_workset_expansion: "same_host_manual_requeue",
+							eval_questions: ["学校规章有哪些？"],
+						},
+					],
+				},
+				null,
+				2,
+			),
+		);
+
+		expect(() => loadOfficialWebConfig("campus_public", { configRoot })).toThrow(
+			/target-workset expansion row must not be answer-bearing/u,
 		);
 	});
 });

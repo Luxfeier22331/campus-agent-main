@@ -4,6 +4,7 @@ import {
 	buildSourcePackExecutionPlan,
 	type SourcePackExecutionPlanEntry,
 } from "../src/source-pack-plan";
+import { writeTestConfigRoot } from "./test-support";
 
 describe("official web source-pack execution plan", () => {
 	it("builds one deterministic execution row per manifest entry", () => {
@@ -214,5 +215,24 @@ describe("official web source-pack execution plan", () => {
 				sourcePackEntryId: entryId,
 			});
 		}
+	});
+
+	it("preserves target-workset discovery expansion metadata for non-answer-bearing source-pack rows", () => {
+		const plan = buildSourcePackExecutionPlan("campus_public", {
+			configRoot: writeTestConfigRoot().configRoot,
+		});
+		const row = plan.rows.find(
+			(item) => item.entryId === "institutional-rules-column",
+		) as SourcePackExecutionPlanEntry;
+
+		expect(row.url).toBe("https://www.example.edu/rules/");
+		expect(row.answerBearing).toBe(false);
+		expect(row.targetWorksetExpansion).toBe("same_host_manual_requeue");
+		expect(row.targetMatches).toHaveLength(1);
+		expect(row.targetMatches[0]).toMatchObject({
+			targetId: "official-web-institutional-rules",
+			selectedWriteTarget: "regulations/institutional_rules",
+			sourcePackEntryId: "institutional-rules-column",
+		});
 	});
 });

@@ -44,6 +44,7 @@ export type {
 	OfficialWebSourcePackRefreshPosture,
 	OfficialWebSourcePackReleaseTarget,
 	OfficialWebSourcePackSourceKind,
+	OfficialWebSourcePackTargetWorksetExpansion,
 	OfficialWebTargetInventory,
 	OfficialWebTargetInventoryEntry,
 	OfficialWebTargetRetentionPolicy,
@@ -72,6 +73,7 @@ export {
 	OFFICIAL_WEB_SOURCE_PACK_REFRESH_POSTURES,
 	OFFICIAL_WEB_SOURCE_PACK_RELEASE_TARGETS,
 	OFFICIAL_WEB_SOURCE_PACK_SOURCE_KINDS,
+	OFFICIAL_WEB_SOURCE_PACK_TARGET_WORKSET_EXPANSIONS,
 	OFFICIAL_WEB_TARGET_RETENTION_POLICIES,
 } from "./config-models.ts";
 export {

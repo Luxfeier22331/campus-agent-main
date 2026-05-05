@@ -32,6 +32,7 @@ import {
 	asSourcePackRefreshPosture,
 	asSourcePackReleaseTarget,
 	asSourcePackSourceKind,
+	asSourcePackTargetWorksetExpansion,
 	asString,
 	asStringArray,
 	asTargetRetentionPolicy,
@@ -348,6 +349,10 @@ function loadSourcePackManifestEntry(item: Record<string, unknown>) {
 		capturePolicy: asSourcePackCapturePolicy(item.capture_policy),
 		refreshPosture: asSourcePackRefreshPosture(item.refresh_posture),
 		extractionGate: asSourcePackExtractionGate(item.extraction_gate),
+		targetWorksetExpansion:
+			item.target_workset_expansion == null
+				? null
+				: asSourcePackTargetWorksetExpansion(item.target_workset_expansion),
 		evalQuestions: asStringArray(item.eval_questions),
 	};
 }

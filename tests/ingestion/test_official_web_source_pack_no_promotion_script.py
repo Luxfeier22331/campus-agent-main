@@ -8,8 +8,8 @@ from unittest.mock import patch
 from scripts.official_web_source_pack_no_promotion import (
     assert_source_pack_seam_report,
     build_collector_command,
-    build_source_pack_seed_plan,
     build_source_pack_seam_report,
+    build_source_pack_seed_plan,
     load_source_pack_execution_plan,
     rebuild_source_pack_seam_report_from_output_root,
     write_source_pack_lineage_overrides,
@@ -25,21 +25,20 @@ class OfficialWebSourcePackNoPromotionScriptTest(unittest.TestCase):
         self.assertIn("sys.path.insert(0, str(Path(__file__).resolve().parents[1]))", path)
 
     def test_load_source_pack_execution_plan_reads_manifest_plan(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            with patch(
-                "scripts.official_web_source_pack_no_promotion.run_json_command",
-                return_value={
-                    "siteId": "muc_public",
-                    "sourcePackId": "tool-driven-first-slice.v1",
-                    "rows": [],
-                },
-            ) as run_json_command:
-                plan = load_source_pack_execution_plan(
-                    Path.cwd(),
-                    site_id="muc_public",
-                    source_pack_id="tool-driven-first-slice.v1",
-                    output_root=Path(temp_dir),
-                )
+        with TemporaryDirectory() as temp_dir, patch(
+            "scripts.official_web_source_pack_no_promotion.run_json_command",
+            return_value={
+                "siteId": "muc_public",
+                "sourcePackId": "tool-driven-first-slice.v1",
+                "rows": [],
+            },
+        ) as run_json_command:
+            plan = load_source_pack_execution_plan(
+                Path.cwd(),
+                site_id="muc_public",
+                source_pack_id="tool-driven-first-slice.v1",
+                output_root=Path(temp_dir),
+            )
 
         self.assertEqual(plan["sourcePackId"], "tool-driven-first-slice.v1")
         command = run_json_command.call_args.args[1]
@@ -468,6 +467,68 @@ class OfficialWebSourcePackNoPromotionScriptTest(unittest.TestCase):
             self.assertEqual(report["actual_run_id"], "owrun_current")
             self.assertEqual(report["consumer"]["status"], "staged")
             assert_source_pack_seam_report(report)
+
+    def test_assert_source_pack_seam_report_allows_expanded_consumer_counts_beyond_seed_rows(
+        self,
+    ) -> None:
+        report = {
+            "collector": {
+                "status": "completed",
+                "retained_source_truth_pages": 5,
+                "source_truth_target_matches": [
+                    {
+                        "normalizedCanonicalUrl": "https://www.example.edu/rules/index.htm",
+                        "targetJobId": "owtarget_reg_student",
+                        "targetCandidateId": "owcand_reg_student",
+                    }
+                ],
+            },
+            "app_api": {
+                "target_attempts": [
+                    {
+                        "normalizedCanonicalUrl": "https://www.example.edu/rules/index.htm",
+                    },
+                    {
+                        "normalizedCanonicalUrl": "https://www.example.edu/rules/detail-a.htm",
+                    },
+                ],
+                "target_job_ids": ["owtarget_reg_student"],
+                "db_run": {
+                    "ingestion_dispatch_status": "dispatched",
+                    "ingestion_execution_status": "staged",
+                    "ingestion_execution_error_code": None,
+                },
+            },
+            "consumer": {
+                "status": "staged",
+                "promotion_decision": "staged",
+                "import_is_null": True,
+                "error_is_null": True,
+                "target_lineage_issues": [],
+                "target_family_counts": {
+                    "regulation_candidate": 3,
+                },
+                "target_materialization_policy_counts": {
+                    "release_gate_required": 3,
+                },
+                "selected_write": {"decision": "not_ready"},
+                "target_field_reviews": [],
+                "release_tasks": {},
+            },
+            "target_seed": {
+                "seededRows": [
+                    {
+                        "consumerFamily": "regulation_candidate",
+                        "materializationPolicy": "release_gate_required",
+                        "targetCandidateId": "owcand_reg_student",
+                        "targetJobId": "owtarget_reg_student",
+                        "targetUrl": "https://www.example.edu/rules/index.htm",
+                    }
+                ]
+            },
+        }
+
+        assert_source_pack_seam_report(report)
 
 
 if __name__ == "__main__":

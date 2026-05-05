@@ -742,6 +742,11 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 		ensureUnique(entry.releaseTargets, `sourcePackManifest ${entry.entryId}.releaseTargets`);
 		ensureUnique(entry.expectedFacts, `sourcePackManifest ${entry.entryId}.expectedFacts`);
 		ensureUnique(entry.evalQuestions, `sourcePackManifest ${entry.entryId}.evalQuestions`);
+		if (entry.targetWorksetExpansion != null && entry.answerBearing) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} target-workset expansion row must not be answer-bearing`,
+			);
+		}
 		if (entry.answerBearing) {
 			if (entry.demandIds.length === 0) {
 				throw new Error(`sourcePackManifest ${entry.entryId} must define demandIds`);
@@ -758,6 +763,11 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 			if (entry.evalQuestions.length === 0) {
 				throw new Error(`sourcePackManifest ${entry.entryId} must define evalQuestions`);
 			}
+		} else if (entry.targetWorksetExpansion == null && entry.evalQuestions.length > 0) {
+			// Non-answer-bearing rows stay discovery-only; eval questions only belong to answer-bearing rows
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} non-answer-bearing row must not define evalQuestions`,
+			);
 		}
 		if (entry.sourceKind === "dynamic_shell_excluded" && entry.answerBearing) {
 			throw new Error(

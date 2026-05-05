@@ -244,8 +244,8 @@ def main(argv: Sequence[str] | None = None) -> None:
             write_json(output_root / "seam-report.json", seam_report)
             print(json.dumps(seam_report, ensure_ascii=False, indent=2))
             return
-        except BaseException:
-            raise closeout_error
+        except BaseException as rebuild_error:
+            raise closeout_error from rebuild_error
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -915,16 +915,20 @@ def assert_source_pack_seam_report(report: Mapping[str, object]) -> None:
         for row in seeded_rows
     )
     actual_target_family_counts = _int_mapping(consumer.get("target_family_counts"))
-    if actual_target_family_counts != dict(expected_target_family_counts):
-        raise RuntimeError("consumer target family counts did not match source-pack seed rows")
+    if not _counter_covers_seed_rows(
+        actual_counts=actual_target_family_counts,
+        expected_seed_counts=dict(expected_target_family_counts),
+    ):
+        raise RuntimeError("consumer target family counts did not cover source-pack seed rows")
     actual_target_materialization_policy_counts = _int_mapping(
         consumer.get("target_materialization_policy_counts")
     )
-    if actual_target_materialization_policy_counts != dict(
-        expected_materialization_policy_counts
+    if not _counter_covers_seed_rows(
+        actual_counts=actual_target_materialization_policy_counts,
+        expected_seed_counts=dict(expected_materialization_policy_counts),
     ):
         raise RuntimeError(
-            "consumer target materialization policy counts did not match source-pack seed rows"
+            "consumer target materialization policy counts did not cover source-pack seed rows"
         )
     selected_write = _object_mapping(consumer.get("selected_write"))
     target_field_reviews = _object_list(consumer.get("target_field_reviews"))
@@ -968,6 +972,17 @@ def assert_source_pack_seam_report(report: Mapping[str, object]) -> None:
 
 def _seeded_rows(target_seed: Mapping[str, object]) -> list[dict[str, object]]:
     return [row for row in _object_list(target_seed.get("seededRows") or target_seed.get("seeded_rows")) if isinstance(row, dict)]
+
+
+def _counter_covers_seed_rows(
+    *,
+    actual_counts: Mapping[str, int],
+    expected_seed_counts: Mapping[str, int],
+) -> bool:
+    for key, expected_count in expected_seed_counts.items():
+        if int(actual_counts.get(key) or 0) < int(expected_count):
+            return False
+    return True
 
 
 def _source_truth_target_matches(

@@ -39,6 +39,7 @@ export interface SourcePackExecutionPlanEntry {
 	refreshPosture: string;
 	releaseTargets: OfficialWebSourcePackReleaseTarget[];
 	sourceKind: string;
+	targetWorksetExpansion: string | null;
 	targetMatches: SourcePackExecutionTargetMatch[];
 	url: string;
 }
@@ -109,6 +110,7 @@ function buildExecutionPlanEntry(
 		refreshPosture: entry.refreshPosture,
 		releaseTargets: [...entry.releaseTargets],
 		sourceKind: entry.sourceKind,
+		targetWorksetExpansion: entry.targetWorksetExpansion,
 		targetMatches,
 		url: entry.url,
 	};

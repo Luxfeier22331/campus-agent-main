@@ -78,6 +78,9 @@ export const OFFICIAL_WEB_SOURCE_PACK_SOURCE_KINDS = [
 export const OFFICIAL_WEB_SOURCE_PACK_CAPTURE_POLICIES = ["one_time"] as const;
 export const OFFICIAL_WEB_SOURCE_PACK_REFRESH_POSTURES = ["manifest_refresh_only"] as const;
 export const OFFICIAL_WEB_SOURCE_PACK_EXTRACTION_GATES = ["deterministic_source_backed"] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_TARGET_WORKSET_EXPANSIONS = [
+	"same_host_manual_requeue",
+] as const;
 export const OFFICIAL_WEB_SOURCE_PACK_OWNER_SURFACES = [
 	"service_guide_lookup",
 	"contact_directory_lookup",
@@ -156,6 +159,8 @@ export type OfficialWebSourcePackRefreshPosture =
 	(typeof OFFICIAL_WEB_SOURCE_PACK_REFRESH_POSTURES)[number];
 export type OfficialWebSourcePackExtractionGate =
 	(typeof OFFICIAL_WEB_SOURCE_PACK_EXTRACTION_GATES)[number];
+export type OfficialWebSourcePackTargetWorksetExpansion =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_TARGET_WORKSET_EXPANSIONS)[number];
 export type OfficialWebSourcePackOwnerSurface =
 	(typeof OFFICIAL_WEB_SOURCE_PACK_OWNER_SURFACES)[number];
 export type OfficialWebSourcePackReleaseTarget =
@@ -386,6 +391,7 @@ export interface OfficialWebSourcePackManifestEntry {
 	capturePolicy: OfficialWebSourcePackCapturePolicy;
 	refreshPosture: OfficialWebSourcePackRefreshPosture;
 	extractionGate: OfficialWebSourcePackExtractionGate;
+	targetWorksetExpansion: OfficialWebSourcePackTargetWorksetExpansion | null;
 	evalQuestions: string[];
 }
 

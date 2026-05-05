@@ -21,6 +21,7 @@ import {
 	OFFICIAL_WEB_SOURCE_PACK_REFRESH_POSTURES,
 	OFFICIAL_WEB_SOURCE_PACK_RELEASE_TARGETS,
 	OFFICIAL_WEB_SOURCE_PACK_SOURCE_KINDS,
+	OFFICIAL_WEB_SOURCE_PACK_TARGET_WORKSET_EXPANSIONS,
 	OFFICIAL_WEB_TARGET_RETENTION_POLICIES,
 	type OfficialWebConsumerEnforcementMode,
 	type OfficialWebConsumerFamily,
@@ -43,6 +44,7 @@ import {
 	type OfficialWebSourcePackRefreshPosture,
 	type OfficialWebSourcePackReleaseTarget,
 	type OfficialWebSourcePackSourceKind,
+	type OfficialWebSourcePackTargetWorksetExpansion,
 	type OfficialWebTargetRetentionPolicy,
 } from "./config-models.ts";
 
@@ -272,6 +274,18 @@ export function asSourcePackExtractionGate(value: unknown): OfficialWebSourcePac
 	const normalized = asString(value) as OfficialWebSourcePackExtractionGate;
 	if (!OFFICIAL_WEB_SOURCE_PACK_EXTRACTION_GATES.includes(normalized)) {
 		throw new Error(`unsupported official_web source-pack extraction gate: ${String(value)}`);
+	}
+	return normalized;
+}
+
+export function asSourcePackTargetWorksetExpansion(
+	value: unknown,
+): OfficialWebSourcePackTargetWorksetExpansion {
+	const normalized = asString(value) as OfficialWebSourcePackTargetWorksetExpansion;
+	if (!OFFICIAL_WEB_SOURCE_PACK_TARGET_WORKSET_EXPANSIONS.includes(normalized)) {
+		throw new Error(
+			`unsupported official_web source-pack target workset expansion: ${String(value)}`,
+		);
 	}
 	return normalized;
 }

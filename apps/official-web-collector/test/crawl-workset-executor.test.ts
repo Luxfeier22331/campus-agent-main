@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 
 import type { OfficialWebPlannerPageCandidate } from "../src/control-plane";
 import { buildInitialRequests, collectNavigationRequests } from "../src/crawl-discovery-requests";
+import { buildListingRequeueRequests } from "../src/crawl-discovery-requeue";
 import type { CollectorRobotsState } from "../src/crawl-internal-types";
 import { buildPageObservationFromCollectedPage } from "../src/crawl-observations";
 import {
@@ -169,6 +170,97 @@ describe("official web target workset executor", () => {
 		});
 
 		expect(requests.map((request) => request.url)).toEqual(["https://www.example.edu/contact/"]);
+	});
+
+	it("allows admitted source-pack discovery rows to manually requeue same-host detail pages with inherited lineage", () => {
+		const fixture = buildFixture();
+		const discoverySeed = buildPlannerPage({
+			consumerFamily: "regulation_candidate",
+			discoveryMethod: "manual_requeue",
+			host: "www.example.edu",
+			hostPolicy: {
+				host: "www.example.edu",
+				sourceHost: "www.example.edu",
+			},
+			normalizedCanonicalUrl: "https://www.example.edu/rules/",
+			pageFamily: "target_candidate",
+			pageTitleNormalized: "规章制度",
+			selectedWriteTarget: "regulations/institutional_rules",
+			materializationPolicy: "release_gate_required",
+			reviewPolicy: "release_gate_required",
+			targetCandidateId: "owcand_rules_column",
+			targetDeclarationVersion: "campus_public_target_source_map_v2",
+			targetId: "official-web-institutional-rules",
+			targetJobId: "owtarget_rules",
+			worksetReason: "source_pack_preview_seed",
+		});
+		const page = buildCollectedPageArtifacts({
+			bundle: fixture.bundle,
+			plan: fixture.plan,
+			hostPolicy: fixture.hostPolicy,
+			requestedUrl: "https://www.example.edu/rules/",
+			finalUrl: "https://www.example.edu/rules/",
+			declaredCanonicalUrl: null,
+			responseBody:
+				"<html><head><title>规章制度</title></head><body><main><a href='/rules/policy-a'>制度A</a><a href='/rules/policy-b'>制度B</a></main></body></html>",
+			responseHeaders: {
+				"content-type": "text/html; charset=utf-8",
+			},
+			httpStatus: 200,
+			contentType: "text/html",
+			discoveryMethod: "manual_requeue",
+			discoveredFromUrl: null,
+			fetchedAt: "2026-05-01T08:00:00.000Z",
+			targetLineage: {
+				targetJobId: discoverySeed.targetJobId,
+				targetCandidateId: discoverySeed.targetCandidateId,
+				targetId: discoverySeed.targetId,
+				targetDeclarationVersion: discoverySeed.targetDeclarationVersion,
+				consumerFamily: "regulation_candidate",
+				retentionPolicy: "retain_source_truth",
+				materializationPolicy: "release_gate_required",
+				selectedWriteTarget: discoverySeed.selectedWriteTarget,
+				reviewPolicy: discoverySeed.reviewPolicy,
+				worksetReason: discoverySeed.worksetReason,
+				sourcePackId: "tool-driven-first-slice.v1",
+				sourcePackEntryId: "institutional-rules-column",
+				compositionGroup: null,
+				compositionRole: null,
+			},
+			html: load(
+				"<html><head><title>规章制度</title></head><body><main><a href='/rules/policy-a'>制度A</a><a href='/rules/policy-b'>制度B</a></main></body></html>",
+			),
+		});
+		page.pageManifest.pageFamily = "listing_page";
+
+		const requests = buildListingRequeueRequests({
+			bundle: fixture.bundle,
+			hostPolicy: fixture.hostPolicy,
+			hostSummary: fixture.hostSummary,
+			knownPage: discoverySeed,
+			page,
+			plannerPageLookup: new Map([[discoverySeed.normalizedCanonicalUrl, discoverySeed]]),
+			robotsState: fixture.robotsState,
+			depth: 1,
+			targetWorksetOnly: true,
+		});
+
+		expect(requests.map((request) => request.url)).toEqual([
+			"https://www.example.edu/rules/policy-a",
+			"https://www.example.edu/rules/policy-b",
+		]);
+		expect(requests[0]?.userData.discoveryMethod).toBe("manual_requeue");
+		expect(requests[0]?.userData.knownPage).toBeUndefined();
+		expect(requests[0]?.userData.inheritedTargetLineages).toMatchObject([
+			{
+				targetId: "official-web-institutional-rules",
+				targetJobId: "owtarget_rules",
+				targetCandidateId: "owcand_rules_column",
+				sourcePackId: "tool-driven-first-slice.v1",
+				sourcePackEntryId: "institutional-rules-column",
+				selectedWriteTarget: "regulations/institutional_rules",
+			},
+		]);
 	});
 
 	it("writes target lineage to page manifests using camelCase keys", () => {

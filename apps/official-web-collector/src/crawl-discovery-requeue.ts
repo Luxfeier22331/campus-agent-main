@@ -64,7 +64,10 @@ export function buildListingRequeueRequests(input: {
 		}
 
 		const knownPage = input.plannerPageLookup.get(link.normalizedUrl);
-		if (input.targetWorksetOnly && !knownPage) {
+		const inheritedTargetLineages = shouldInheritTargetLineagesFromPage(input.page, knownPage)
+			? [...(input.page.pageManifest.targetMatches ?? [])]
+			: undefined;
+		if (input.targetWorksetOnly && !knownPage && !inheritedTargetLineages?.length) {
 			input.hostSummary.admissionRejected += 1;
 			continue;
 		}
@@ -79,6 +82,7 @@ export function buildListingRequeueRequests(input: {
 				discoveredFromUrl: input.page.pageManifest.normalizedCanonicalUrl,
 				depth: input.depth,
 				knownPage,
+				...(inheritedTargetLineages ? { inheritedTargetLineages } : {}),
 			},
 		});
 
@@ -88,6 +92,24 @@ export function buildListingRequeueRequests(input: {
 	}
 
 	return [...requests.values()];
+}
+
+function shouldInheritTargetLineagesFromPage(
+	page: CollectedPageArtifact,
+	knownPage: OfficialWebPlannerPageCandidate | undefined,
+): boolean {
+	if (knownPage) {
+		return false;
+	}
+	if (page.pageManifest.pageFamily !== "listing_page") {
+		return false;
+	}
+	if (page.pageManifest.targetMatches == null || page.pageManifest.targetMatches.length === 0) {
+		return false;
+	}
+	return page.pageManifest.targetMatches.every(
+		(match) => match.sourcePackEntryId != null && match.sourcePackId != null,
+	);
 }
 
 export async function buildDynamicShellRequeueRequests(input: {
