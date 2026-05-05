@@ -282,9 +282,9 @@ func TestWorkflowSourceIDsCollectsStringSliceRefs(t *testing.T) {
 	})
 
 	if len(sourceIDs) != 2 ||
-		sourceIDs[0] != "official_web:campus-card-guide" ||
-		sourceIDs[1] != "notice:muc_internal_portal:353903" {
-		t.Fatalf("sourceIDs = %#v, want string slice source refs", sourceIDs)
+		sourceIDs[0] != "notice:muc_internal_portal:353903" ||
+		sourceIDs[1] != "official_web:campus-card-guide" {
+		t.Fatalf("sourceIDs = %#v, want stable sorted string slice source refs", sourceIDs)
 	}
 }
 
