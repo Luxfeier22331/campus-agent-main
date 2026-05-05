@@ -62,6 +62,7 @@ def run_smoke(*, report_path: Path = DEFAULT_REPORT_PATH) -> dict[str, object]:
         settings=settings,
         rag_prompt_executor=None,
         campus_services_query_service=None,
+        calendar_query_service=None,
         notice_query_service=query_service,
         agents_sdk_runner=runner,
     )

@@ -242,7 +242,7 @@ deploy shell 还需要可用的 staging shared DB 管理连接：
 - `STAGING_APP_API_MANAGEMENT_DATABASE_URL`（legacy alias）
 - 可选：`STAGING_APP_API_DATABASE_SSLMODE=require`
 - `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
-  `STAGING_APP_API_SMOKE_AUTH_SECRET`，用于 `chat:smoke:staging` 与
+  `STAGING_APP_API_SMOKE_AUTH_SECRET`，用于 `chat:e2e:staging` 与
   `docs:gated:smoke:staging`；本机 operator copy 可放在 ignored repo-root
   `.env.staging.local`
 - 只有在你手工运行低层 smoke identity reset 时，shell 才需要 `APP_API_SMOKE_IDENTITY_PASSWORD`
@@ -373,7 +373,7 @@ pnpm --dir apps/protected-panel-web exec wrangler login
 - 当前 canonical automation 命令：
 
 ```bash
-pnpm --dir apps/app-api chat:smoke:staging
+pnpm --dir apps/app-api chat:e2e:staging
 pnpm --dir apps/app-api docs:gated:smoke:staging
 ```
 
@@ -388,7 +388,7 @@ pnpm --dir apps/app-api docs:gated:smoke:staging
   `POST /api/internal/staging-smoke/auth/session` 重置 smoke identity 并铸造真实
   staging session cookie，然后真实请求 `campus-chat-staging` 或
   `campus-docs-staging`
-- `chat:smoke:staging` 默认要求 chat request 返回 `answer`
+- `chat:e2e:staging` 默认要求 chat request 返回 `answer`
   (`request.resultKind`)；如果返回 `error` 等 typed outcome，脚本会退出非零并输出对应
   `requestId` / `traceId`，避免把 supervisor timeout 或 upstream failure 误判为通过
 - 它要求当前 shell 有 `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
@@ -410,7 +410,7 @@ pnpm --dir apps/app-api smoke-identity:provision:staging -- --email \
 - browser smoke 只使用这个固定 identity 登录；不要在 staging 页面继续创建 ad-hoc end-user 账号
 - 如果未来 staging admit 了专用 `public-chat smoke` 邮箱，应直接复用同一脚本切换到新邮箱，不再改回浏览器临时注册
 - 只有在明确做 transport-only 调试时，才允许临时执行
-  `pnpm --dir apps/app-api chat:smoke:staging -- --expect-result-kind any`；
+  `pnpm --dir apps/app-api chat:e2e:staging -- --expect-result-kind any`；
   该模式不作为 release / staging closeout gate
 - 对真实 admitted Turnstile widget 的最终 staging smoke，必须使用真实浏览器 session；不要把
   Playwright / Selenium / Cypress 的 live-widget 结果当作 closeout gate。Cloudflare 官方

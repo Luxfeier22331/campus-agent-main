@@ -141,8 +141,6 @@ export PROMPT_RUNTIME_MAX_CONNECTIONS=32
 export PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS=16
 export PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS=30
 export SUPERVISOR_AGENT_WORKER_THREADS=8
-export SUPERVISOR_INTERNAL_QUERY_BASE_URL=http://supervisor-api:8000
-export SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
 export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS=1
 ```
 
@@ -160,9 +158,10 @@ audit writer 负责回流到 `app-api` internal ingest。
 
 `SUPERVISOR_INTERNAL_QUERY_BASE_URL` / `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`
 是 supervisor runtime harness 注入的内部 wiring，只用于 Python worker 调用同一
-supervisor runtime 内 Go `supervisor-api` 的 internal query seam。普通 repo `.env`
-不需要手写这两个值；未由 harness 注入时，structured query service 保持 unavailable，
-不会打开产品 serving gate。
+supervisor runtime 内 Go `supervisor-api` 的 internal
+`/internal/query/campus-services/*` seam。普通 repo `.env` 不需要手写这两个值；
+未由 harness 注入时，`campus-services-agent` 继续保持 internal query service
+unavailable，不会打开产品 serving gate。
 
 ## Retrieval Observation Env
 

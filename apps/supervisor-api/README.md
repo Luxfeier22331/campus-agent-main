@@ -148,17 +148,18 @@ Current cancellation boundary:
 Current structured query runtime boundary:
 
 - Internal query routes require `x-supervisor-query-auth`.
-- Structured product serving gates for `campus_services` and `notice` are
-  closed by default. `SUPERVISOR_API_OPEN_CAPABILITIES` is the Go-owned allowlist
-  for opening those capabilities after eval / product admission evidence exists.
-  It only accepts
-  `campus_services`, `notice`, or `campus_services,notice`; wildcard values such
-  as `*` or `all` are rejected.
-- `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` enables internal query auth.
+- Structured product serving gates for `campus_services`, `academic_calendar`,
+  and `notice` are closed by default. `SUPERVISOR_API_OPEN_CAPABILITIES` is the
+  Go-owned allowlist for opening those capabilities after eval / product
+  admission evidence exists. It only accepts
+  `campus_services`, `academic_calendar`, `notice`, or comma-separated combinations
+  of these values; wildcard values such as `*` or `all` are rejected.
+- `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` enables internal query auth and is
+  injected by the supervisor runtime harness.
 - `CAMPUS_SHARED_POSTGRES_URL` is the single PostgreSQL connection used by
-  `service_status_lookup`, `transport_schedule_lookup`, and
-  `service_guide_lookup` for the release catalog, current pointer, and typed
-  read models.
+  `service_status_lookup`, `transport_schedule_lookup`, `service_guide_lookup`,
+  `contact_directory_lookup`, and `academic_calendar_lookup` for the release
+  catalog, current pointer, and typed read models.
 - Structured projection schema and read-model table names are fixed by the
   `ingestion_projection` contract, not runtime env.
 - `SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime time
@@ -178,10 +179,9 @@ Current structured query runtime boundary:
 - The runtime is not browser-facing and not an `app-api` product surface. It
   does not open `place_lookup`; navigation / map-backed place lookup remains
   deferred until the map product rollout.
-- Python orchestration can consume this seam only when
-  `SUPERVISOR_INTERNAL_QUERY_BASE_URL` and
-  `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` are configured in the
-  `supervisor-api` worker container.
+- Python orchestration can consume this seam only when the supervisor runtime
+  harness injects `SUPERVISOR_INTERNAL_QUERY_BASE_URL` and
+  `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` into the worker container.
 - The Go direct structured answer path uses the same projection-backed query
   runtime internally after the structured capability opening gate admits the
   request; this applies to both non-stream answer and lifecycle SSE answer
@@ -280,7 +280,6 @@ export SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
 export SUPERVISOR_AGENT_WORKER_TIMEOUT_MS=35000
 export SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS=500
 export SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES=1048576
-export SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret
 export CAMPUS_SHARED_POSTGRES_URL=
 export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
 export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS=1000

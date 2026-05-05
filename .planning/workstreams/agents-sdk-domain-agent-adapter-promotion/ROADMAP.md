@@ -257,7 +257,7 @@ git diff --check
 
 - The selected posture is recorded with target/tool granularity.
 - Env defaults are limited to the single SDK runtime kill switch.
-- Current decision: default-on SDK adapter for ToolSpec-admitted tools. Missing provider/model/key
+- Current decision: default-on SDK adapter for admitted ToolSpec tools. Missing provider/model/key
   or dependency degrades readiness and fails closed instead of falling back to bespoke loops.
 
 ## Phase 9: Closeout And Architecture Update
@@ -290,6 +290,7 @@ git diff --check
 - `transport_schedule_lookup`: `typed_handoff_only`
 - `service_guide_lookup`: `sdk_adapter_admitted`
 - `contact_directory_lookup`: `sdk_adapter_admitted`
+- `academic_calendar_lookup`: `sdk_adapter_admitted`
 
 **Implemented gates:**
 
@@ -301,6 +302,9 @@ git diff --check
 - `notice-agent` routes `campus_notice_discover` through SDK shell when admitted by ToolSpec.
 - `campus-services-agent` routes `service_guide_lookup` and `contact_directory_lookup` through SDK
   shell when admitted by ToolSpec.
+- `calendar-agent` routes `academic_calendar_lookup` through SDK shell when admitted by ToolSpec.
+- `service_status_lookup` and `transport_schedule_lookup` remain deterministic direct-runtime
+  tools.
 - `campus_notice_get` remains closed for SDK/provider routing.
 - Eval gate records the admitted SDK adapter matrix; latency/cost/error-rate evidence remains a
   release and observability signal, not a pre-production blocker.

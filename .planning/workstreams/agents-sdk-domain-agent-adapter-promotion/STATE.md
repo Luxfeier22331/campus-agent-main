@@ -17,8 +17,8 @@ updated: 2026-05-05
 **Last Activity:** 2026-05-05
 **Last Activity Description:** Promoted Agents SDK to the default worker-side domain-agent adapter
 for ToolSpec-admitted tools, expanded admission to notice discover / service guide / contact
-directory, and cleared the local public/chat dev E2E blockers exposed during real-provider
-validation.
+directory / academic calendar, and cleared the local public/chat dev E2E blockers exposed during
+real-provider validation.
 
 ## Baseline Facts
 
@@ -27,8 +27,9 @@ validation.
 - `_build_agents_sdk_runner` is target-agnostic and only builds the OpenAI Agents SDK runner after
   runtime gate, provider, model and API key are configured.
 - `campus_notice_get` is `agent_internal` with `runtime_posture=closed`.
-- `campus_notice_discover`, `service_guide_lookup` and `contact_directory_lookup` are live
-  read-only agent-facing ToolSpec SDK adapters with `runtime_posture=sdk_adapter_admitted`.
+- `campus_notice_discover`、`service_guide_lookup`、`contact_directory_lookup` and
+  `academic_calendar_lookup` are live read-only agent-facing ToolSpec SDK adapters with
+  `runtime_posture=sdk_adapter_admitted`.
 - `service_status_lookup` and `transport_schedule_lookup` remain `typed_handoff_only`.
 - SDK target/tool eligibility is derived from AgentSpec, ToolSpec and Go
   `AgentRequest.allowed_tools`; worker env no longer carries a target/tool allowlist.
@@ -59,6 +60,12 @@ go test ./internal/runtimepolicy ./internal/httpapi ./internal/config
 pnpm docs:lint
 git diff --check -- .planning/workstreams/agents-sdk-domain-agent-adapter-promotion apps/supervisor-agent-worker/src/campus_supervisor_agent_worker apps/supervisor-api/internal/runtimepolicy configs/runtime/tools.v1.json packages/evals/src/campus_evals tests/supervisor tests/evals docs/contracts/campus-notice-runtime-contract.md docs/architecture/system/execution-and-agents-architecture.md
 ```
+
+Fresh targeted unit evidence, 2026-05-05:
+
+- `uv run --all-packages python -m unittest tests.supervisor.agents_sdk_runtime_policy_suite tests.supervisor.agents_sdk_notice_get_pilot_suite tests.supervisor.agents_sdk_tool_bridge_suite tests.supervisor.agents_sdk_runner_suite tests.supervisor.agents_sdk_trace_projection_suite tests.supervisor.tool_spec_registry_suite tests.supervisor.agents_sdk_closeout_guardrails_suite tests.api.supervisor_api_settings_and_health_suite tests.evals.agents_sdk_promotion_gate_suite -q`
+- `Ran 68 tests`
+- `OK`
 
 Fresh smoke evidence, 2026-05-04:
 
@@ -93,7 +100,7 @@ Structured-query E2E smoke evidence, 2026-05-04:
 - `old_internal_query_env_absent=true`
 
 This proves `SDK -> notice-agent -> Go structured-query -> temporary PG internal_notice_read_model`
-for the selected SDK adapter.
+for the selected explicit-gated adapter.
 
 Public chat dev E2E evidence, 2026-05-05:
 

@@ -118,13 +118,16 @@ curl --noproxy '*' -sS -i https://exec-staging.ayafeed.com/readyz
 
 ## Step 4. Authenticated Chat Smoke
 
-优先使用 repo-owned automation：
+优先使用 repo-owned staging profile automation：
 
 ```bash
-pnpm --dir apps/app-api chat:smoke:staging
+pnpm --dir apps/app-api chat:e2e:staging
 ```
 
-`chat:smoke:staging` 与 `docs:gated:smoke:staging` 都通过
+新的 public/chat E2E contract 由 `apps/app-api/scripts/chat-e2e.ts` 定义；
+staging 只是其中一个 profile，不再定义 E2E 本身。
+
+`chat:e2e:staging` 与 `docs:gated:smoke:staging` 都通过
 `apps/app-api/scripts/run-with-staging-smoke-env.mjs` 加载 staging smoke env。
 该 runner 会使用 repo-local `.tmp/staging-smoke.lock` 串行化命令，避免两个
 smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要绕过 runner
@@ -132,6 +135,9 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 
 这条命令会：
 
+1. 先检查 `exec-staging`、`app-api-staging` 与 `chat-staging` 的 `readyz`
+1. 若 readyz 阻塞，输出结构化 `blocked_by`，且不重置 smoke identity、不发起
+   chat request
 1. 用固定 smoke identity `help_bot@outlook.com` 重建 staging 账号并清理旧聊天数据
 1. 通过部署态 `app-api-staging`
    `POST /api/internal/staging-smoke/auth/session` 铸造真实 staging session cookie
@@ -160,7 +166,7 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 
 通过标准：
 
-- `chat:smoke:staging` 返回 `0`
+- `chat:e2e:staging` 返回 `0`
 - 它输出的 `request.resultKind` 是 `answer`
 - `POST /api/chat/requests` 返回 `200`
 - `api/chat/conversations` 在请求后包含新 `conversationId`
@@ -169,6 +175,11 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 只有在明确做 transport-only 调试时，才允许临时追加
 `-- --expect-result-kind any`，该模式不作为 staging closeout gate。
 
+如果 `exec-staging.ayafeed.com` 的 Cloudflare Tunnel 不可达，命令应失败并输出
+`blocked_by=supervisor_exec_tunnel_unreachable` 与
+`chat_request_attempted=false`。这表示部署依赖阻塞，不表示 local
+Agents SDK / provider adapter 链路失败。
+
 ## Step 5. 记录链路证据
 
 至少记录：
@@ -176,7 +187,7 @@ smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要�
 - `infra/local/staging/status-supervisor-api-staging.sh --check`
 - `https://exec-staging.ayafeed.com/readyz`
 - `https://campus-api-staging.ayafeed.com/readyz`
-- `pnpm --dir apps/app-api chat:smoke:staging` 的 JSON 摘要
+- `pnpm --dir apps/app-api chat:e2e:staging` 的 JSON 摘要
 - 当前 execution origin 是否复用了既有 `exec-staging.ayafeed.com`
 
 ## Rollback

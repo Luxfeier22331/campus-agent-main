@@ -25,7 +25,8 @@ trace、tool schema 或 run state 提升为 shared contract truth。
 
 - status: completed, default-on domain-agent adapter admitted
 - current phase: closed
-- current slice: notice discover, service guide and contact directory SDK adapter tools
+- current slice: notice discover, service guide, contact directory and academic calendar SDK
+  adapter tools
 - product posture: SDK adapter defaults on and fails closed when provider/model/key/dependency is
   missing; `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED=false` is the kill switch
 - deferred decision: broad multi-agent orchestration ownership remains out of scope
@@ -74,8 +75,8 @@ Go supervisor-api
 
 推荐推广顺序：
 
-1. `notice-agent + campus_notice_discover` as SDK adapter
-1. selected `campus-services-agent` read-only guide/contact tools as SDK adapters
+1. `notice-agent + campus_notice_discover` as explicit-gated adapter
+1. selected `campus-services-agent` read-only tools only if SDK adds value over direct runtime
 1. defer `rag-agent` until agentic retrieval rearchitecture stabilizes
 1. keep `navigation-agent` blocked until navigation product/runtime admission opens
 
@@ -84,7 +85,8 @@ Current decision:
 - `campus_notice_discover` has `runtime_posture=sdk_adapter_admitted`.
 - `campus_notice_get` remains `closed` and agent-internal only.
 - `service_status_lookup` and `transport_schedule_lookup` remain direct-runtime preferred.
-- `service_guide_lookup` and `contact_directory_lookup` are `sdk_adapter_admitted`.
+- `service_guide_lookup`、`contact_directory_lookup` and `academic_calendar_lookup` are
+  `sdk_adapter_admitted`.
 - Runtime target/tool eligibility is derived from AgentSpec, ToolSpec and Go
   `AgentRequest.allowed_tools`; worker env no longer carries a target/tool allowlist.
 

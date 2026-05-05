@@ -33,9 +33,9 @@ Notice user-facing output is card-first and source-link-first.
   resolve/context function.
 - Provider function schema generation must not emit `campus_notice_get`.
 - Agents SDK and provider-loop notice-get pilots are closed.
-- Agents SDK defaults on as a worker adapter, but tool eligibility is derived
-  only from AgentSpec / ToolSpec / Go `AgentRequest.allowed_tools`; no worker
-  target/tool env allowlist exists.
+- Agents SDK may only expose repo-owned ToolSpec-admitted read-only tools.
+  `campus_notice_get` remains closed; current notice-family SDK exposure is
+  limited to `notice-agent + campus_notice_discover`.
 - Public answers, workflow traces, panel assets and eval canonical artifacts
   must not carry full `normalized_body`, OCR owner text, inline image text or
   attachment body.

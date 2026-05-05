@@ -675,9 +675,7 @@ class DoctorEnvTest(unittest.TestCase):
 
             self.assertTrue(status["overall_ready"])
             self.assertTrue(
-                status["settings"]["required"]["staging_hub_auth_turnstile_site_key"][
-                    "present"
-                ]
+                status["settings"]["required"]["staging_hub_auth_turnstile_site_key"]["present"]
             )
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 

@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-19
-updated: 2026-05-04
+updated: 2026-05-05
 ---
 
 <!-- markdownlint-disable MD013 MD060 -->
@@ -28,6 +28,9 @@ updated: 2026-05-04
   - 单条 workstream 的固定顺序与 phase 状态
 - `.planning/workstreams/<slug>/REQUIREMENTS.md`
   - 单条 workstream 的目标、范围、non-goals 与 success criteria
+- `.planning/workstreams/<slug>/GAP-LEDGER.md`
+  - completed workstream 的缺口账本与 completion audit；用于把 success criteria 映射到
+    owner / files / tests / evidence，避免用 phase summary 或 registry 状态替代验收证据
 - `.planning/seeds/`
   - dormant future follow-up；记录 why / trigger / breadcrumbs，供后续 milestone 或新 workstream 恢复时再拾起
   - current seeds: `SEED-001` conditional moderation lane, `SEED-002` conditional HITL
@@ -44,14 +47,17 @@ updated: 2026-05-04
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5B blocked` | `Phase 1-5A`、Phase 6 workflow trace runtime gate、Phase 7 observed regression review workflow 与 Phase 8-13 deterministic eval seams 已完成；RAG-only coverage/audit 已收口为 `student_rules`、`institutional_rules`、`curriculum_plan`、`official_web/stable_reference`，`fresh_news` 不计入当前 RAG eval；RAG minimum gate 与 maturity gate 均通过，`student_rules` 为 45 qrels / 39 unique docs / 25 release acceptance，`curriculum_plan` 为 60 qrels / 49 unique docs / 30 release acceptance；5B repo-wide accepted golden expansion 仍因 domain 数据补全阻塞；当前没有独立编号的 Phase 14，Total Phases=14 来自 Phase 5A/5B 拆分 |
-| `rag-agent agentic retrieval rearchitecture` | `agentic-rag-runtime-rearchitecture` | `yes` | `.planning/workstreams/agentic-rag-runtime-rearchitecture/README.md` | `Phase 1 next` | phase 0 admission / truth audit complete; planner-first runtime refactor queued |
 | `document site and canonical reader` | `document-site-and-canonical-reader` | `yes` | `.planning/workstreams/document-site-and-canonical-reader/README.md` | `Phase 7` | 类型化 chat 来源列表已本地实现；app-api/public-chat 定向验证与仓库级 `web:lint` 已通过 |
-| `authenticated notice fetch admission operator wiring` | `authenticated-notice-fetch-admission-operator-wiring` | `yes` | `.planning/workstreams/authenticated-notice-fetch-admission-operator-wiring/README.md` | `Phase 8 next` | 状态机 contract hardening 已完成；下一步优先对已采集 authenticated notice 内容跑 captured-content smoke，验证分流、fetch omission、media readiness、closeout、cleanup 与下游 admission。fresh collector smoke 降级为 auth 可用后的 manifest-consumption proof |
 
 ## Completed
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
+| `agentic retrieval runtime completion` | `agentic-retrieval-runtime-completion` | `yes` | `.planning/workstreams/agentic-retrieval-runtime-completion/README.md` | 只有在 planner decision truth 再次退化为诊断摘要、非 live typed retrieval steps 退回 unsupported/opaque execution、semantic replan 可扩大 scope/selector/budget 或切 live branch、projection context 泄漏 raw payload 或无法归因到 planning framing、claim/evidence gate 不再约束 completed answer，或 eval 无法区分 planner/step graph/replan/claim graph 失败时恢复 |
+| `authenticated notice fetch admission operator wiring` | `authenticated-notice-fetch-admission-operator-wiring` | `yes` | `.planning/workstreams/authenticated-notice-fetch-admission-operator-wiring/README.md` | 只有在 authenticated-notice attachment fetch admission、target-blocking media lifecycle、closeout provenance、cleanup protection、search-only vs target-admission split，或 captured-content state-machine acceptance evidence 漂移时恢复；fresh collector smoke 仅作为 auth 可用后的 manifest-consumption proof |
+| `campus agentic RAG depth completion` | `campus-agentic-rag-depth-completion` | `yes` | `.planning/workstreams/campus-agentic-rag-depth-completion/README.md` | 只有在 planner decomposition 再次不可观测、projection context evidence use 无法审计、replan 原因不可归因、claim/evidence graph 缺失，或 eval 无法区分 decomposition/replan/claim graph 失败时恢复 |
+| `rag-agent agentic retrieval rearchitecture` | `agentic-rag-runtime-rearchitecture` | `yes` | `.planning/workstreams/agentic-rag-runtime-rearchitecture/README.md` | 只有在 `title_lookup` 或其他 answer-shape heuristic 再次绕过 answer-bearing evidence / grounding 决定 answer success、planner/retrieval/evidence_selection/synthesis/grounding observability 退化成 opaque prompt output、supporting evidence 丢失 retrieval plan / step / replan provenance、RAGAS diagnostic 无法按 stage 归因 relevancy / faithfulness failure，或 executable retrieval seam types 泄漏到 `packages/contracts` / 产品 scope owner 时恢复 |
+| `campus-bounded autonomous RAG completion` | `campus-bounded-autonomous-rag-completion` | `yes` | `.planning/workstreams/campus-bounded-autonomous-rag-completion/README.md` | 只有在 query-time RAG 再次依赖 unbounded web/source fetch、丢失显式 query mode/source-trust/fail-close planning、消费 raw cross-agent context 而不是 bounded projection refs、retrieved content 能改变 instruction/tool policy、失去 answer-quality stage attribution，或 production path regression 无法归因到 planner/retrieval/evidence/grounding/guardrail/runtime stage 时恢复 |
 | `supervisor multi-agent runtime contract hardening` | `supervisor-multi-agent-runtime-contract-hardening` | `yes` | `.planning/workstreams/supervisor-multi-agent-runtime-contract-hardening/README.md` | 只有在新增 agent/tool 绕过 AgentSpec/ToolSpec、workflow trace 缺少 invocation/projection/tool provenance、raw provider/source payload 泄漏到 contracts/eval/panel/workflow trace，或 deferred multi-agent runtime 实现改写 contract boundary 时恢复 |
 | `canonical retrieval release hardening` | `canonical-retrieval-release-hardening` | `yes` | `.planning/workstreams/canonical-retrieval-release-hardening/README.md` | 只有在新增 query-enabled scope 缺少 qrels / release acceptance coverage、release manifest / point payload provenance 与 runtime profile 漂移、runtime drift guard 失效、embedding cache identity 变更未失效旧 cache，或 retrieval tuning 开始无 deterministic evidence 地改写生产 profile 时恢复 |
 | `hub product entry and legacy wiki identity` | `hub-product-entry-and-legacy-wiki-identity` | `yes` | `.planning/workstreams/hub-product-entry-and-legacy-wiki-identity/README.md` | 只有在 `hub.muc.wiki/[slug]` route namespace、hub Worker + Vite React substrate、account shell ownership、app-api auth origin policy、MediaWiki external-link-only posture、generic app-api proxy guard 或 MediaWiki identity leakage guard 被显式改写时恢复 |
