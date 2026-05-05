@@ -38,6 +38,18 @@ class SmokeStructuredProjectionPostgresWorkerTest(unittest.TestCase):
                 "transport_schedule",
                 "service_guide",
                 "contact_directory",
+                "academic_calendar",
+            ],
+        )
+        corpora = [call["corpus"] for call in publisher.publish_calls]
+        self.assertEqual(
+            corpora,
+            [
+                "campus_services",
+                "campus_services",
+                "campus_services",
+                "campus_services",
+                "calendar",
             ],
         )
         contact_call = publisher.publish_calls[3]
@@ -52,6 +64,10 @@ class SmokeStructuredProjectionPostgresWorkerTest(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertEqual(
             payload["releases"]["contact_directory"]["counts"]["contact_records"],
+            1,
+        )
+        self.assertEqual(
+            payload["releases"]["academic_calendar"]["counts"]["academic_calendar_records"],
             1,
         )
 
@@ -76,6 +92,7 @@ class _RecordingPublisher:
             "scheduled_departures": len(bundle.get("scheduled_departures", [])),
             "service_guide_records": len(bundle.get("service_guide_records", [])),
             "contact_records": len(bundle.get("contact_records", [])),
+            "academic_calendar_records": len(bundle.get("academic_calendar_records", [])),
         }
         return SimpleNamespace(release_id=release_id, counts=counts)
 

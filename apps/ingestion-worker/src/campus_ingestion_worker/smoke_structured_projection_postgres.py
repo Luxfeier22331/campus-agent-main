@@ -37,10 +37,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         ("transport_schedule", _smoke_transport_schedule_bundle()),
         ("service_guide", _smoke_service_guide_bundle()),
         ("contact_directory", _smoke_contact_directory_bundle()),
+        ("academic_calendar", _smoke_academic_calendar_bundle()),
     ):
+        corpus = "calendar" if collection == "academic_calendar" else "campus_services"
         release_id = f"{release_id_prefix}-{collection.replace('_', '-')}"
         report = publisher.publish_release(
-            corpus="campus_services",
+            corpus=corpus,
             collection=collection,
             release_id=release_id,
             generated_at=generated_at,
@@ -54,7 +56,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             validation_status="smoke_valid",
         )
         current_release_id = publisher.get_current_release(
-            corpus="campus_services",
+            corpus=corpus,
             collection=collection,
         )
         if current_release_id != release_id:
@@ -235,6 +237,26 @@ def _smoke_contact_directory_bundle() -> dict[str, object]:
         ],
         "conflict_records": [],
         "manual_review_sources": [],
+    }
+
+
+def _smoke_academic_calendar_bundle() -> dict[str, object]:
+    return {
+        "schema_version": "academic_calendar_projection.v1",
+        "academic_calendar_records": [
+            {
+                "academic_year_label": "2025-2026学年",
+                "term_label": "春季学期",
+                "start_date": "2026-04-20",
+                "end_date": "2026-04-26",
+                "week_index": 8,
+                "day_kind": "teaching_day",
+                "class_day_pattern": "",
+                "is_makeup_class": False,
+                "holiday_name": "",
+                "source_refs": ["smoke:academic-calendar"],
+            }
+        ],
     }
 
 
