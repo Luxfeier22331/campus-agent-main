@@ -1,8 +1,8 @@
 ---
 doc_type: requirements
-status: active
+status: completed
 created: 2026-04-21
-updated: 2026-04-28
+updated: 2026-05-05
 ---
 
 # Requirements: Document Site And Canonical Reader

@@ -31,7 +31,10 @@
 - planning 执行面当前按原生 workstream-first 多线推进；repo 级总览固定收口到 `.planning/WORKSTREAMS.md`，单条线的当前真相固定收口到 `.planning/workstreams/<slug>/`
 - repo 级默认 agent execution 入口现已提升为 `scripts.workstream_harness`：底层继续复用 `workstream_claim` lease/heartbeat substrate，但默认终态已收口为 `completed / blocked / failed_needs_repair` 的 harness contract；runtime ledger 只写入 gitignored `.planning/runtime/harness/`
 - shared `apps/app-api` Worker backend、`apps/public-chat-web`、`apps/protected-panel-web` 已在当前工作树落地
-- 正式 `apps/public-docs` docs shell 已在当前工作树落地；当前仍由 `document-site-and-canonical-reader` workstream 继续收口 published reader assets、same-site docs control-plane 与 shell consumption truth
+- 正式 `apps/public-docs` docs shell 已在当前工作树落地；`document-site-and-canonical-reader`
+  workstream 已在 2026-05-05 completed，published reader assets、same-site docs
+  control-plane、restricted / historical reader handoff 与 chat `source_items`
+  browser contract 已收口
 - `public-chat-web` 当前 public auth family 已覆盖 `/login`、`/register`、`/forgot-password`、`/reset-password`；`protected-panel-web` 的 `/login` 继续只代表 Cloudflare Access reentry
 - panel `Requests` 已接上 `apps/app-api` 的 runtime-owned request projection APIs；不得绕回 audit log、telemetry sink、consumer chat tables 或 `apps/supervisor-api`
 - `official_web` control plane 已在 shared `apps/app-api` 落地，collector admission、crawl-run ledger、operator query 与 ingestion handoff 继续收口在同一 Worker backend；`apps/ingestion-worker` 继续只是 offline executor
