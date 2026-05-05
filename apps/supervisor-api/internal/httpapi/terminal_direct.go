@@ -84,6 +84,12 @@ func terminalSupervisorResponse(
 	for key, value := range envelope {
 		response[key] = value
 	}
+	if _, exists := response["result"]; !exists {
+		response["result"] = nil
+	}
+	if _, exists := response["error"]; !exists {
+		response["error"] = nil
+	}
 	if _, exists := response["workflow_trace_summary"]; !exists {
 		target, _ := response["selected_target"].(string)
 		status, _ := response["status"].(string)

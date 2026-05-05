@@ -51,11 +51,32 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             dockerfile,
         )
         self.assertIn(
+            "COPY configs/runtime/agents.v1.json /src/configs/runtime/agents.v1.json",
+            dockerfile,
+        )
+        self.assertIn(
+            "COPY configs/runtime/tools.v1.json /src/configs/runtime/tools.v1.json",
+            dockerfile,
+        )
+        self.assertIn(
             "COPY configs/runtime/intent-policy.v1.json /etc/campus-agent/intent-policy.v1.json",
             dockerfile,
         )
         self.assertIn(
+            "COPY configs/runtime/agents.v1.json /etc/campus-agent/agents.v1.json",
+            dockerfile,
+        )
+        self.assertIn(
+            "COPY tests/fixtures/service_guide_vpn_grouped_procedure_result.json "
+            "/src/tests/fixtures/service_guide_vpn_grouped_procedure_result.json",
+            dockerfile,
+        )
+        self.assertIn(
             "SUPERVISOR_API_INTENT_POLICY_PATH=/etc/campus-agent/intent-policy.v1.json",
+            dockerfile,
+        )
+        self.assertIn(
+            "SUPERVISOR_API_AGENT_SPEC_PATH=/etc/campus-agent/agents.v1.json",
             dockerfile,
         )
 
@@ -137,6 +158,12 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
 
         self.assertIn("uv sync --project /app --all-packages --no-dev", dockerfile)
         self.assertNotIn("--package campus-supervisor-agent-worker --no-dev", dockerfile)
+
+    def test_supervisor_agent_worker_docker_workspace_includes_runtime_specs(self) -> None:
+        dockerfile_path = ROOT / "apps/supervisor-agent-worker/Dockerfile"
+        dockerfile = dockerfile_path.read_text(encoding="utf-8")
+
+        self.assertIn("COPY configs/runtime ./configs/runtime", dockerfile)
 
     def test_local_runtime_smoke_script_exercises_mock_runtime_readiness_and_terminal_gate(
         self,

@@ -122,6 +122,21 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             }.issubset(patterns)
         )
 
+    def test_dockerignore_keeps_supervisor_api_runtime_policy_inputs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        patterns = _dockerignore_patterns(repo_root)
+
+        self.assertTrue(
+            {
+                "!configs/runtime/",
+                "!configs/runtime/agents.v1.json",
+                "!configs/runtime/intent-policy.v1.json",
+                "!configs/runtime/query-serving-scopes.v1.json",
+                "!configs/runtime/tools.v1.json",
+                "!tests/fixtures/service_guide_vpn_grouped_procedure_result.json",
+            }.issubset(patterns)
+        )
+
     def test_supervisor_api_dockerfile_copies_contract_fixtures_before_tests(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         dockerfile = (repo_root / "apps/supervisor-api/Dockerfile").read_text(encoding="utf-8")

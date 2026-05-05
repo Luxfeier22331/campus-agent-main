@@ -65,6 +65,54 @@ func TestFinalizeAgentBridgeResponseBuildsSupervisorEnvelope(t *testing.T) {
 	}
 }
 
+func TestTerminalSupervisorResponseIncludesCanonicalNullableFields(t *testing.T) {
+	response := terminalSupervisorResponse(
+		map[string]any{
+			"selected_target":    nil,
+			"status":             "no_answer",
+			"answer_text":        "该请求无法进入当前已开放的校园助理执行链路。",
+			"follow_up_question": "",
+			"confidence":         "low",
+			"observability": map[string]any{
+				"fail_closed": true,
+			},
+		},
+		"trace-terminal-canonical",
+		supervisorFinalizerContext{
+			Branch: "terminal",
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				ContextPreflightState: "not_follow_up",
+				FailCloseReason:       "agent_spec_admission_failed",
+				PlanningOutcome:       "invalid_plan",
+				PolicyGateDecision:    "delegate",
+				RoutingNextAction:     "delegate",
+				ScopeGateDecision:     "in_scope",
+			},
+		},
+	)
+
+	if _, exists := response["result"]; !exists {
+		t.Fatal("terminal response missing result key")
+	}
+	if response["result"] != nil {
+		t.Fatalf("result = %#v, want nil", response["result"])
+	}
+	if _, exists := response["error"]; !exists {
+		t.Fatal("terminal response missing error key")
+	}
+	if response["error"] != nil {
+		t.Fatalf("error = %#v, want nil", response["error"])
+	}
+
+	rawResponse, err := json.Marshal(response)
+	if err != nil {
+		t.Fatalf("marshal terminal response: %v", err)
+	}
+	if _, err := contractsv1.DecodeSupervisorResponseWireJSON(rawResponse); err != nil {
+		t.Fatalf("decode terminal supervisor response wire: %v; body=%s", err, string(rawResponse))
+	}
+}
+
 func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{

@@ -136,6 +136,24 @@ func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
 	}
 }
 
+func TestResolveCapabilityTreatsExplicitNoticeMarkerAsNotice(t *testing.T) {
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load default intent policy: %v", err)
+	}
+
+	resolution := ResolveCapability(CapabilityResolutionRequest{
+		UserGoal: "找一下春假通知",
+	}, policy)
+
+	if resolution.EffectiveCapability != "notice" {
+		t.Fatalf("capability = %q, want notice", resolution.EffectiveCapability)
+	}
+	if resolution.Source != "inferred" {
+		t.Fatalf("source = %q, want inferred", resolution.Source)
+	}
+}
+
 func TestIntentPolicyArtifactLoadsEnvConfiguredPath(t *testing.T) {
 	defaultPath := resolveIntentPolicyPath("")
 	raw, err := os.ReadFile(defaultPath)

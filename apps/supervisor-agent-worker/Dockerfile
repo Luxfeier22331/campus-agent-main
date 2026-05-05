@@ -5,6 +5,7 @@ ENV UV_LINK_MODE=copy
 
 COPY apps/supervisor-agent-worker ./apps/supervisor-agent-worker
 COPY configs/ingestion ./configs/ingestion
+COPY configs/runtime ./configs/runtime
 COPY packages/campus-services-agent ./packages/campus-services-agent
 COPY packages/contracts ./packages/contracts
 COPY packages/ingestion-core ./packages/ingestion-core
