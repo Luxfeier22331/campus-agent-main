@@ -4,18 +4,23 @@
 	"updated_at": "2026-04-29",
 	"cases": [
 		{
-			"case_id": "workflow-direct-structured-service-status",
+			"case_id": "workflow-service-status-sdk",
 			"family": "workflow_trace",
-			"description": "campus services status direct structured branch",
+			"description": "campus services status SDK-admitted single handoff branch",
 			"expectation": {
-				"direct_vs_delegate_branch": "direct",
-				"workflow_mode": "direct_runtime",
+				"direct_vs_delegate_branch": "delegate",
+				"workflow_mode": "single_handoff",
 				"selected_target": "campus-services-agent",
 				"selected_tools": ["service_status_lookup"],
 				"handoff": {
 					"target": "campus-services-agent"
 				},
-				"handoff_chain": [],
+				"handoff_chain": [
+					{
+						"target": "campus-services-agent",
+						"selected_tool": "service_status_lookup"
+					}
+				],
 				"tool_argument_summary": {
 					"payload_kind": "service_status_lookup",
 					"selected_tool": "service_status_lookup",
@@ -23,14 +28,17 @@
 				},
 				"tool_call_summaries": [
 					{
+						"result_projection": "bounded_summary",
+						"raw_result_included": false,
 						"tool_name": "service_status_lookup",
 						"result_status": "completed",
+						"business_outcome": "sdk_completed",
 						"argument_summary": {
 							"payload_kind": "service_status_lookup",
 							"selected_tool": "service_status_lookup",
 							"temporal_query_mode": "current"
 						},
-						"source_ids": []
+						"source_ids": ["smoke:service-status"]
 					}
 				],
 				"guardrail_outcomes": {
@@ -40,18 +48,23 @@
 			}
 		},
 		{
-			"case_id": "workflow-transport-schedule-direct",
+			"case_id": "workflow-transport-schedule-sdk",
 			"family": "workflow_trace",
-			"description": "campus services transport schedule direct structured branch",
+			"description": "campus services transport schedule SDK-admitted single handoff branch",
 			"expectation": {
-				"direct_vs_delegate_branch": "direct",
-				"workflow_mode": "direct_runtime",
+				"direct_vs_delegate_branch": "delegate",
+				"workflow_mode": "single_handoff",
 				"selected_target": "campus-services-agent",
 				"selected_tools": ["transport_schedule_lookup"],
 				"handoff": {
 					"target": "campus-services-agent"
 				},
-				"handoff_chain": [],
+				"handoff_chain": [
+					{
+						"target": "campus-services-agent",
+						"selected_tool": "transport_schedule_lookup"
+					}
+				],
 				"tool_argument_summary": {
 					"payload_kind": "transport_schedule_lookup",
 					"selected_tool": "transport_schedule_lookup",
@@ -59,14 +72,17 @@
 				},
 				"tool_call_summaries": [
 					{
+						"result_projection": "bounded_summary",
+						"raw_result_included": false,
 						"tool_name": "transport_schedule_lookup",
 						"result_status": "completed",
+						"business_outcome": "sdk_completed",
 						"argument_summary": {
 							"payload_kind": "transport_schedule_lookup",
 							"selected_tool": "transport_schedule_lookup",
 							"snapshot_query_mode": "current"
 						},
-						"source_ids": []
+						"source_ids": ["smoke:transport-schedule"]
 					}
 				],
 				"guardrail_outcomes": {
@@ -76,18 +92,23 @@
 			}
 		},
 		{
-			"case_id": "workflow-service-guide-direct",
+			"case_id": "workflow-service-guide-sdk",
 			"family": "workflow_trace",
-			"description": "campus services guide direct structured branch",
+			"description": "campus services guide SDK-admitted single handoff branch",
 			"expectation": {
-				"direct_vs_delegate_branch": "direct",
-				"workflow_mode": "direct_runtime",
+				"direct_vs_delegate_branch": "delegate",
+				"workflow_mode": "single_handoff",
 				"selected_target": "campus-services-agent",
 				"selected_tools": ["service_guide_lookup"],
 				"handoff": {
 					"target": "campus-services-agent"
 				},
-				"handoff_chain": [],
+				"handoff_chain": [
+					{
+						"target": "campus-services-agent",
+						"selected_tool": "service_guide_lookup"
+					}
+				],
 				"tool_argument_summary": {
 					"payload_kind": "service_guide_lookup",
 					"selected_tool": "service_guide_lookup",
@@ -97,8 +118,11 @@
 				},
 				"tool_call_summaries": [
 					{
+						"result_projection": "bounded_summary",
+						"raw_result_included": false,
 						"tool_name": "service_guide_lookup",
 						"result_status": "completed",
+						"business_outcome": "sdk_completed",
 						"argument_summary": {
 							"payload_kind": "service_guide_lookup",
 							"selected_tool": "service_guide_lookup",
@@ -106,7 +130,7 @@
 							"temporal_query_mode": "current",
 							"audience": "unknown"
 						},
-						"source_ids": []
+						"source_ids": ["smoke:service-guide"]
 					}
 				],
 				"guardrail_outcomes": {
@@ -116,18 +140,23 @@
 			}
 		},
 		{
-			"case_id": "workflow-contact-directory-direct",
+			"case_id": "workflow-contact-directory-sdk",
 			"family": "workflow_trace",
-			"description": "campus services contact directory direct structured branch",
+			"description": "campus services contact directory SDK-admitted single handoff branch",
 			"expectation": {
-				"direct_vs_delegate_branch": "direct",
-				"workflow_mode": "direct_runtime",
+				"direct_vs_delegate_branch": "delegate",
+				"workflow_mode": "single_handoff",
 				"selected_target": "campus-services-agent",
 				"selected_tools": ["contact_directory_lookup"],
 				"handoff": {
 					"target": "campus-services-agent"
 				},
-				"handoff_chain": [],
+				"handoff_chain": [
+					{
+						"target": "campus-services-agent",
+						"selected_tool": "contact_directory_lookup"
+					}
+				],
 				"tool_argument_summary": {
 					"payload_kind": "contact_directory_lookup",
 					"selected_tool": "contact_directory_lookup",
@@ -137,8 +166,11 @@
 				},
 				"tool_call_summaries": [
 					{
+						"result_projection": "bounded_summary",
+						"raw_result_included": false,
 						"tool_name": "contact_directory_lookup",
 						"result_status": "completed",
+						"business_outcome": "sdk_completed",
 						"argument_summary": {
 							"payload_kind": "contact_directory_lookup",
 							"selected_tool": "contact_directory_lookup",
@@ -146,7 +178,7 @@
 							"temporal_query_mode": "current",
 							"audience": "unknown"
 						},
-						"source_ids": []
+						"source_ids": ["smoke:contact-directory"]
 					}
 				],
 				"guardrail_outcomes": {
@@ -156,18 +188,23 @@
 			}
 		},
 		{
-			"case_id": "workflow-notice-discover-direct",
+			"case_id": "workflow-notice-discover-sdk",
 			"family": "workflow_trace",
-			"description": "notice discover direct structured branch",
+			"description": "notice discover SDK-admitted single handoff branch",
 			"expectation": {
-				"direct_vs_delegate_branch": "direct",
-				"workflow_mode": "direct_runtime",
+				"direct_vs_delegate_branch": "delegate",
+				"workflow_mode": "single_handoff",
 				"selected_target": "notice-agent",
 				"selected_tools": ["campus_notice_discover"],
 				"handoff": {
 					"target": "notice-agent"
 				},
-				"handoff_chain": [],
+				"handoff_chain": [
+					{
+						"target": "notice-agent",
+						"selected_tool": "campus_notice_discover"
+					}
+				],
 				"tool_argument_summary": {
 					"payload_kind": "campus_notice_discover",
 					"selected_tool": "campus_notice_discover",
@@ -175,14 +212,17 @@
 				},
 				"tool_call_summaries": [
 					{
+						"result_projection": "bounded_summary",
+						"raw_result_included": false,
 						"tool_name": "campus_notice_discover",
 						"result_status": "completed",
+						"business_outcome": "sdk_completed",
 						"argument_summary": {
 							"payload_kind": "campus_notice_discover",
 							"selected_tool": "campus_notice_discover",
 							"temporal_query_mode": "current"
 						},
-						"source_ids": []
+						"source_ids": ["smoke:notice-discover"]
 					}
 				],
 				"guardrail_outcomes": {
@@ -192,23 +232,43 @@
 			}
 		},
 		{
-			"case_id": "workflow-notice-detail-direct",
+			"case_id": "workflow-academic-calendar-sdk",
 			"family": "workflow_trace",
-			"description": "notice detail direct structured branch",
+			"description": "academic calendar SDK-admitted single handoff branch",
 			"expectation": {
-				"direct_vs_delegate_branch": "direct",
-				"workflow_mode": "direct_runtime",
-				"selected_target": "notice-agent",
-				"selected_tools": [],
+				"direct_vs_delegate_branch": "delegate",
+				"workflow_mode": "single_handoff",
+				"selected_target": "calendar-agent",
+				"selected_tools": ["academic_calendar_lookup"],
 				"handoff": {
-					"target": "notice-agent"
+					"target": "calendar-agent"
 				},
-				"handoff_chain": [],
+				"handoff_chain": [
+					{
+						"target": "calendar-agent",
+						"selected_tool": "academic_calendar_lookup"
+					}
+				],
 				"tool_argument_summary": {
-					"payload_kind": "campus_notice_get",
-					"source_family": "wechat_public_notice"
+					"payload_kind": "academic_calendar_lookup",
+					"selected_tool": "academic_calendar_lookup",
+					"temporal_query_mode": "current"
 				},
-				"tool_call_summaries": [],
+				"tool_call_summaries": [
+					{
+						"result_projection": "bounded_summary",
+						"raw_result_included": false,
+						"tool_name": "academic_calendar_lookup",
+						"result_status": "completed",
+						"business_outcome": "sdk_completed",
+						"argument_summary": {
+							"payload_kind": "academic_calendar_lookup",
+							"selected_tool": "academic_calendar_lookup",
+							"temporal_query_mode": "current"
+						},
+						"source_ids": ["smoke:academic-calendar"]
+					}
+				],
 				"guardrail_outcomes": {
 					"scope_gate": "in_scope"
 				},

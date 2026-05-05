@@ -280,7 +280,7 @@ func TestAnswerRecordsRuntimePolicyDecisionMetricsBeforeBridge(t *testing.T) {
 	}
 }
 
-func TestAnswerAllowsOpenedStructuredRuntimeWithoutPythonBridge(t *testing.T) {
+func TestAnswerRequiresBridgeForOpenedAgentsSdkAdmittedStructuredRuntime(t *testing.T) {
 	bridgeCalls := 0
 	bridgeClient := &fakeBridge{
 		configured: true,
@@ -314,19 +314,19 @@ func TestAnswerAllowsOpenedStructuredRuntimeWithoutPythonBridge(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
-	if bridgeCalls != 0 {
-		t.Fatalf("bridge calls = %d, want 0", bridgeCalls)
+	if bridgeCalls != 1 {
+		t.Fatalf("bridge calls = %d, want 1", bridgeCalls)
 	}
 	body := decodeBody(t, response)
 	if body["selected_target"] != "campus-services-agent" {
 		t.Fatalf("selected_target = %v, want campus-services-agent", body["selected_target"])
 	}
-	if body["status"] != "no_answer" {
-		t.Fatalf("status = %v, want no_answer", body["status"])
+	if body["status"] != "completed" {
+		t.Fatalf("status = %v, want completed", body["status"])
 	}
 }
 
-func TestAnswerDirectStructuredDuplicateRequestIDReturnsConflict(t *testing.T) {
+func TestAnswerAgentsSdkAdmittedStructuredBridgeDuplicateRequestIDReturnsConflict(t *testing.T) {
 	server := NewServer(config.Config{
 		AuthMode:              "bearer",
 		BearerToken:           "secret-token",
@@ -334,18 +334,7 @@ func TestAnswerDirectStructuredDuplicateRequestIDReturnsConflict(t *testing.T) {
 		RequestBodyLimitBytes: 1_048_576,
 		MaxConcurrentAnswers:  8,
 		OpenCapabilities:      []string{"campus_services"},
-	}, nil)
-	useStructuredQueryRuntimeFixture(
-		t,
-		server,
-		`{
-			"schema_version":"campus_services_projection.v1",
-			"service_status_records":[{"service_id":"shuttle_bus","status":"open","source_ref":"notice:bus"}],
-			"transport_schedule_snapshots":[{"snapshot_id":"snapshot:bus","is_current":true}],
-			"service_guide_records":[{"service_id":"shuttle_bus","service_name":"校车","required_materials":[],"contact_refs":[]}]
-		}`,
-		"2026-04-24T20:30:00+08:00",
-	)
+	}, &fakeBridge{configured: true})
 	_, _, err := server.lifecycle.Register(context.Background(), lifecycle.Metadata{
 		RequestID:           "req-structured-duplicate",
 		Lane:                "campus_services",
@@ -368,43 +357,7 @@ func TestAnswerDirectStructuredDuplicateRequestIDReturnsConflict(t *testing.T) {
 	assertError(t, response, http.StatusConflict, "execution_already_in_flight")
 }
 
-func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
-	projectionFixture := `{
-		"schema_version":"campus_services_projection_bundle.v1",
-		"transport_schedule_snapshots":[
-			{
-				"snapshot_id":"snapshot:bus:2026-04-20",
-				"published_at":"2026-04-20T18:00:00+08:00",
-				"effective_from":"2026-04-21T00:00:00+08:00",
-				"source_ref":"notice:bus-schedule-2026-04-20",
-				"is_current":true
-			}
-		],
-		"transport_routes":[
-			{
-				"route_id":"route:haidian-to-fengtai",
-				"display_name":"海淀到丰台通勤车",
-				"service_family":"intercampus_commute",
-				"origin_campus":"haidian",
-				"destination_campus":"fengtai",
-				"stops":[
-					{"stop_id":"stop:haidian-east-gate","display_name":"海淀东门"},
-					{"stop_id":"stop:fengtai-main-gate","display_name":"丰台南门"}
-				]
-			}
-		],
-		"scheduled_departures":[
-			{
-				"snapshot_id":"snapshot:bus:2026-04-20",
-				"route_id":"route:haidian-to-fengtai",
-				"service_dates":["2026-04-25"],
-				"departure_time":"06:50",
-				"arrival_time":"08:05",
-				"origin_stop_id":"stop:haidian-east-gate",
-				"destination_stop_id":"stop:fengtai-main-gate"
-			}
-		]
-	}`
+func TestAnswerDelegatesOpenedTransportScheduleToAgentsSdkAdmittedBridge(t *testing.T) {
 	bridgeCalls := 0
 	server := NewServer(config.Config{
 		AuthMode:                          "bearer",
@@ -418,19 +371,28 @@ func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 		configured: true,
 		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
 			bridgeCalls++
+			payload := decodeJSONRecord(t, request.Payload)
+			runtimeDecisions := expectRecord(t, payload["runtime_decisions"], "runtime_decisions")
+			handoff := expectRecord(t, runtimeDecisions["handoff"], "runtime_decisions.handoff")
+			if handoff["target"] != "campus-services-agent" {
+				t.Fatalf("handoff.target = %v, want campus-services-agent", handoff["target"])
+			}
+			allowedTools, ok := handoff["allowed_tools"].([]any)
+			if !ok || len(allowedTools) != 1 || allowedTools[0] != "transport_schedule_lookup" {
+				t.Fatalf("handoff.allowed_tools = %#v, want transport_schedule_lookup", handoff["allowed_tools"])
+			}
+			agentRequest := expectRecord(t, handoff["agent_request"], "handoff.agent_request")
+			agentPayload := expectRecord(t, agentRequest["payload"], "handoff.agent_request.payload")
+			if agentPayload["kind"] != "transport_schedule_lookup" {
+				t.Fatalf("agent_request.payload.kind = %v, want transport_schedule_lookup", agentPayload["kind"])
+			}
 			return bridge.ExecuteResponse{
 				StatusCode: http.StatusOK,
 				Kind:       "agent_response",
-				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"bridge"}`),
+				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"两校区通勤班车下一班 06:50 发车。","agent_observability":{"selected_tool":"transport_schedule_lookup","tool_attempted":true,"tool_outcome":"sdk_completed","result_outcome":"resolved_current","source_ref_count":1,"safe_details":{"agent_execution_projection":{"schema_version":"agent-execution-projection-v1","projection_owner":"campus-services-agent","selected_tool":"transport_schedule_lookup","payload_kind":"transport_schedule_lookup","tool_selection_reason":"agents_sdk_adapter"},"result_guardrail":{"schema_version":"agent-result-guardrail-v1","outcome":"source_backed","source_ref_count":1,"access_decision":"allowed"}}}}`),
 			}, nil
 		},
 	})
-	useStructuredQueryRuntimeFixture(
-		t,
-		server,
-		projectionFixture,
-		"2026-04-24T20:30:00+08:00",
-	)
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
@@ -445,8 +407,8 @@ func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
-	if bridgeCalls != 0 {
-		t.Fatalf("bridge calls = %d, want 0", bridgeCalls)
+	if bridgeCalls != 1 {
+		t.Fatalf("bridge calls = %d, want 1", bridgeCalls)
 	}
 	body := decodeBody(t, response)
 	if body["selected_target"] != "campus-services-agent" {
@@ -458,17 +420,9 @@ func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 	if body["trace_id"] != "trace-structured-direct" {
 		t.Fatalf("trace_id = %v, want trace-structured-direct", body["trace_id"])
 	}
-	result := expectRecord(t, body["result"], "result")
-	if result["outcome"] != "resolved_current" {
-		t.Fatalf("result.outcome = %v, want resolved_current", result["outcome"])
-	}
-	observability := expectRecord(t, body["observability"], "observability")
-	if observability["selected_tool"] != "transport_schedule_lookup" {
-		t.Fatalf("observability.selected_tool = %v, want transport_schedule_lookup", observability["selected_tool"])
-	}
 	traceSummary := expectRecord(t, body["workflow_trace_summary"], "workflow_trace_summary")
-	if traceSummary["workflow_mode"] != "direct_runtime" {
-		t.Fatalf("workflow_mode = %v, want direct_runtime", traceSummary["workflow_mode"])
+	if traceSummary["workflow_mode"] != "single_handoff" {
+		t.Fatalf("workflow_mode = %v, want single_handoff", traceSummary["workflow_mode"])
 	}
 	if traceSummary["selected_target"] != "campus-services-agent" {
 		t.Fatalf("trace selected_target = %v, want campus-services-agent", traceSummary["selected_target"])
@@ -480,6 +434,9 @@ func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 	toolCall := expectRecord(t, toolCalls[0], "tool_call_summary")
 	if toolCall["tool_name"] != "transport_schedule_lookup" {
 		t.Fatalf("tool_name = %v, want transport_schedule_lookup", toolCall["tool_name"])
+	}
+	if toolCall["business_outcome"] != "sdk_completed" {
+		t.Fatalf("business_outcome = %v, want sdk_completed", toolCall["business_outcome"])
 	}
 	safeDetails := expectRecord(t, toolCall["safe_details"], "tool_call.safe_details")
 	executionProjection := expectRecord(
@@ -494,6 +451,77 @@ func TestAnswerExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 	resultGuardrail := expectRecord(t, safeDetails["result_guardrail"], "result_guardrail")
 	if resultGuardrail["outcome"] != "source_backed" || resultGuardrail["source_ref_count"] != float64(1) {
 		t.Fatalf("result_guardrail = %#v, want source_backed with one source", resultGuardrail)
+	}
+}
+
+func TestAnswerDelegatesOpenedServiceStatusToAgentsSdkAdmittedBridge(t *testing.T) {
+	bridgeCalls := 0
+	server := NewServer(config.Config{
+		AuthMode:                          "bearer",
+		BearerToken:                       "secret-token",
+		DefaultActorID:                    "runtime-bearer-user",
+		RequestBodyLimitBytes:             1_048_576,
+		MaxConcurrentAnswers:              8,
+		OpenCapabilities:                  []string{"campus_services"},
+		StructuredQueryTrustedTimeRFC3339: "2026-04-24T20:30:00+08:00",
+	}, &fakeBridge{
+		configured: true,
+		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
+			bridgeCalls++
+			payload := decodeJSONRecord(t, request.Payload)
+			runtimeDecisions := expectRecord(t, payload["runtime_decisions"], "runtime_decisions")
+			handoff := expectRecord(t, runtimeDecisions["handoff"], "runtime_decisions.handoff")
+			allowedTools, ok := handoff["allowed_tools"].([]any)
+			if !ok || len(allowedTools) != 1 || allowedTools[0] != "service_status_lookup" {
+				t.Fatalf("handoff.allowed_tools = %#v, want service_status_lookup", handoff["allowed_tools"])
+			}
+			agentRequest := expectRecord(t, handoff["agent_request"], "handoff.agent_request")
+			agentPayload := expectRecord(t, agentRequest["payload"], "handoff.agent_request.payload")
+			if agentPayload["kind"] != "service_status_lookup" {
+				t.Fatalf("agent_request.payload.kind = %v, want service_status_lookup", agentPayload["kind"])
+			}
+			return bridge.ExecuteResponse{
+				StatusCode: http.StatusOK,
+				Kind:       "agent_response",
+				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"海淀校区图书馆当前正常开放。","agent_observability":{"selected_tool":"service_status_lookup","tool_attempted":true,"tool_outcome":"sdk_completed","result_outcome":"resolved_current","source_ref_count":1,"safe_details":{"agent_execution_projection":{"schema_version":"agent-execution-projection-v1","projection_owner":"campus-services-agent","selected_tool":"service_status_lookup","payload_kind":"service_status_lookup","tool_selection_reason":"agents_sdk_adapter"},"result_guardrail":{"schema_version":"agent-result-guardrail-v1","outcome":"source_backed","source_ref_count":1,"access_decision":"allowed"}}}}`),
+			}, nil
+		},
+	})
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		strings.NewReader(`{"user_goal":"图书馆今天开门吗","request_id":"req-service-status-sdk"}`),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+	request.Header.Set("x-trace-id", "trace-service-status-sdk")
+
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	if bridgeCalls != 1 {
+		t.Fatalf("bridge calls = %d, want 1", bridgeCalls)
+	}
+	body := decodeBody(t, response)
+	if body["selected_target"] != "campus-services-agent" {
+		t.Fatalf("selected_target = %v, want campus-services-agent", body["selected_target"])
+	}
+	traceSummary := expectRecord(t, body["workflow_trace_summary"], "workflow_trace_summary")
+	if traceSummary["workflow_mode"] != "single_handoff" {
+		t.Fatalf("workflow_mode = %v, want single_handoff", traceSummary["workflow_mode"])
+	}
+	toolCalls, ok := traceSummary["tool_call_summaries"].([]any)
+	if !ok || len(toolCalls) != 1 {
+		t.Fatalf("tool_call_summaries = %#v, want one delegated tool call", traceSummary["tool_call_summaries"])
+	}
+	toolCall := expectRecord(t, toolCalls[0], "tool_call_summary")
+	if toolCall["tool_name"] != "service_status_lookup" {
+		t.Fatalf("tool_name = %v, want service_status_lookup", toolCall["tool_name"])
+	}
+	if toolCall["business_outcome"] != "sdk_completed" {
+		t.Fatalf("business_outcome = %v, want sdk_completed", toolCall["business_outcome"])
 	}
 }
 
@@ -519,18 +547,14 @@ func TestAnswerUsesStartupIntentPolicySnapshot(t *testing.T) {
 		RequestBodyLimitBytes: 1_048_576,
 		MaxConcurrentAnswers:  8,
 		OpenCapabilities:      []string{"campus_services"},
-	}, nil)
-	useStructuredQueryRuntimeFixture(
-		t,
-		server,
-		`{
-			"schema_version":"campus_services_projection.v1",
-			"service_status_records":[{"service_id":"shuttle_bus","status":"open","source_ref":"notice:bus"}],
-			"transport_schedule_snapshots":[{"snapshot_id":"snapshot:bus","is_current":true}],
-			"service_guide_records":[{"service_id":"shuttle_bus","service_name":"校车","required_materials":[],"contact_refs":[]}]
-		}`,
-		"2026-04-24T20:30:00+08:00",
-	)
+	}, &fakeBridge{
+		configured: true,
+		response: bridge.ExecuteResponse{
+			StatusCode: http.StatusOK,
+			Kind:       "agent_response",
+			Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"ok"}`),
+		},
+	})
 	if err := os.Remove(policyPath); err != nil {
 		t.Fatalf("remove intent policy fixture after startup: %v", err)
 	}

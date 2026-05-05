@@ -329,40 +329,40 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             output_dir=Path("/tmp/smoke"),
             profile="rag_delegate_institutional_rules",
         )
-        structured_open = build_process_smoke_plan(
+        transport_schedule = build_process_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/smoke"),
-            profile="structured_direct_opened",
+            profile="transport_schedule_sdk_opened",
         )
-        structured_stream = build_process_smoke_plan(
+        transport_schedule_stream = build_process_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/smoke"),
-            profile="structured_direct_opened_stream",
+            profile="transport_schedule_sdk_opened_stream",
         )
         service_status = build_process_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/smoke"),
-            profile="service_status_direct_opened",
+            profile="service_status_sdk_opened",
         )
         service_guide = build_process_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/smoke"),
-            profile="service_guide_direct_opened",
+            profile="service_guide_sdk_opened",
         )
         contact_directory = build_process_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/smoke"),
-            profile="contact_directory_direct_opened",
+            profile="contact_directory_sdk_opened",
         )
         notice_discover = build_process_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/smoke"),
-            profile="notice_discover_direct_opened",
+            profile="notice_discover_sdk_opened",
         )
-        notice_get = build_process_smoke_plan(
+        academic_calendar = build_process_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/smoke"),
-            profile="notice_get_direct_opened",
+            profile="academic_calendar_sdk_opened",
         )
         multi_step_notice = build_process_smoke_plan(
             repo_root=Path("/repo"),
@@ -404,27 +404,48 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         self.assertIn("grounded_answer", institutional_rag.expected_body_tokens)
         self.assertIn("中央民族大学研究生", institutional_rag.expected_body_tokens)
         self.assertIn("三助", institutional_rag.expected_body_tokens)
-        self.assertEqual(structured_open.expected_status, 200)
+        self.assertEqual(transport_schedule.expected_status, 200)
         self.assertEqual(
-            structured_open.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            transport_schedule.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
             "campus_services",
         )
         self.assertEqual(
-            structured_open.processes[1].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
+            transport_schedule.processes[1].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
             "2026-04-24T20:30:00+08:00",
         )
-        self.assertIn("direct_runtime", structured_open.expected_body_tokens)
-        self.assertIn("agent_execution_projection", structured_open.expected_body_tokens)
-        self.assertIn("result_guardrail", structured_open.expected_body_tokens)
+        self.assertIn("single_handoff", transport_schedule.expected_body_tokens)
+        self.assertIn("sdk_completed", transport_schedule.expected_body_tokens)
+        self.assertIn("agent_execution_projection", transport_schedule.expected_body_tokens)
+        self.assertIn("result_guardrail", transport_schedule.expected_body_tokens)
         self.assertEqual(
-            structured_open.answer_payload["requested_capability"],
+            transport_schedule.answer_payload["requested_capability"],
             "campus_services",
         )
-        self.assertEqual(structured_stream.answer_path, "/api/v1/answer/stream")
-        self.assertEqual(structured_stream.answer_response_kind, "sse")
-        self.assertIn("event: execution.completed", structured_stream.expected_body_tokens)
+        transport_processes = {process.label: process for process in transport_schedule.processes}
         self.assertEqual(
-            structured_stream.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            transport_processes["supervisor-agent-worker"].env["SUPERVISOR_INTERNAL_QUERY_BASE_URL"],
+            "http://127.0.0.1:27051",
+        )
+        self.assertEqual(
+            transport_processes["supervisor-agent-worker"].env[
+                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"
+            ],
+            transport_processes["supervisor-api"].env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"],
+        )
+        self.assertEqual(
+            transport_processes["supervisor-agent-worker"].env[
+                "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED"
+            ],
+            "true",
+        )
+        for process in transport_schedule.processes:
+            self.assertNotIn("SUPERVISOR_STRUCTURED_QUERY_BASE_URL", process.env)
+            self.assertNotIn("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET", process.env)
+        self.assertEqual(transport_schedule_stream.answer_path, "/api/v1/answer/stream")
+        self.assertEqual(transport_schedule_stream.answer_response_kind, "sse")
+        self.assertIn("event: execution.completed", transport_schedule_stream.expected_body_tokens)
+        self.assertEqual(
+            transport_schedule_stream.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
             "campus_services",
         )
         self.assertEqual(service_status.expected_status, 200)
@@ -437,7 +458,8 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             "campus_services",
         )
         self.assertIn("service_status_lookup", service_status.expected_body_tokens)
-        self.assertIn("direct_runtime", service_status.expected_body_tokens)
+        self.assertIn("single_handoff", service_status.expected_body_tokens)
+        self.assertIn("sdk_completed", service_status.expected_body_tokens)
         self.assertEqual(service_guide.expected_status, 200)
         self.assertEqual(
             service_guide.processes[1].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
@@ -448,6 +470,7 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             "campus_services",
         )
         self.assertIn("service_guide_lookup", service_guide.expected_body_tokens)
+        self.assertIn("single_handoff", service_guide.expected_body_tokens)
         self.assertIn("agent_execution_projection", service_guide.expected_body_tokens)
         self.assertEqual(contact_directory.expected_status, 200)
         self.assertEqual(
@@ -459,6 +482,7 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             "campus_services",
         )
         self.assertIn("contact_directory_lookup", contact_directory.expected_body_tokens)
+        self.assertIn("single_handoff", contact_directory.expected_body_tokens)
         self.assertIn("result_guardrail", contact_directory.expected_body_tokens)
         notice_discover_processes = {
             process.label: process for process in notice_discover.processes
@@ -468,29 +492,37 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             notice_discover_processes["supervisor-api"].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
             "notice",
         )
-        self.assertIn("s3-smoke-object-store", notice_discover_processes)
-        self.assertEqual(
-            notice_discover_processes["supervisor-api"].env["OBJECT_STORE_ENDPOINT"],
-            "http://127.0.0.1:27061",
-        )
+        self.assertNotIn("s3-smoke-object-store", notice_discover_processes)
+        self.assertNotIn("OBJECT_STORE_ENDPOINT", notice_discover_processes["supervisor-api"].env)
         self.assertIn("campus_notice_discover", notice_discover.expected_body_tokens)
-        self.assertIn("direct_runtime", notice_discover.expected_body_tokens)
-        notice_processes = {process.label: process for process in notice_get.processes}
-        self.assertEqual(notice_get.answer_payload["requested_capability"], "notice")
+        self.assertIn("single_handoff", notice_discover.expected_body_tokens)
+        self.assertIn("sdk_completed", notice_discover.expected_body_tokens)
         self.assertEqual(
-            notice_get.answer_payload["context"]["session"]["selected_notice_ref"]["notice_id"],
-            "notice:smoke:001",
-        )  # type: ignore[index]
-        self.assertEqual(
-            notice_processes["supervisor-api"].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
-            "notice",
+            notice_discover_processes["supervisor-agent-worker"].env[
+                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
+            ],
+            "http://127.0.0.1:27051",
         )
-        self.assertIn("s3-smoke-object-store", notice_processes)
+        academic_processes = {process.label: process for process in academic_calendar.processes}
+        self.assertEqual(academic_calendar.expected_status, 200)
         self.assertEqual(
-            notice_processes["supervisor-api"].env["OBJECT_STORE_ENDPOINT"],
-            "http://127.0.0.1:27061",
+            academic_calendar.answer_payload["requested_capability"],
+            "academic_calendar",
         )
-        self.assertIn("campus_notice_get", notice_get.expected_body_tokens)
+        self.assertEqual(
+            academic_processes["supervisor-api"].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
+            "academic_calendar",
+        )
+        self.assertEqual(
+            academic_processes["supervisor-agent-worker"].env[
+                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
+            ],
+            "http://127.0.0.1:27051",
+        )
+        self.assertIn("calendar-agent", academic_calendar.expected_body_tokens)
+        self.assertIn("academic_calendar_lookup", academic_calendar.expected_body_tokens)
+        self.assertIn("single_handoff", academic_calendar.expected_body_tokens)
+        self.assertIn("sdk_completed", academic_calendar.expected_body_tokens)
         multi_step_processes = {process.label: process for process in multi_step_notice.processes}
         self.assertEqual(multi_step_notice.expected_status, 200)
         self.assertEqual(multi_step_notice.answer_payload["requested_capability"], "knowledge")
@@ -577,11 +609,12 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         )
 
         for profile in (
-            "structured_direct_opened",
-            "structured_direct_opened_stream",
-            "service_status_direct_opened",
-            "service_guide_direct_opened",
-            "contact_directory_direct_opened",
+            "transport_schedule_sdk_opened",
+            "transport_schedule_sdk_opened_stream",
+            "service_status_sdk_opened",
+            "service_guide_sdk_opened",
+            "contact_directory_sdk_opened",
+            "academic_calendar_sdk_opened",
         ):
             with self.subTest(profile=profile):
                 plan = build_process_smoke_plan(
@@ -621,7 +654,7 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             _processes_with_env_overlay,
         )
 
-        for profile in ("notice_discover_direct_opened", "notice_get_direct_opened"):
+        for profile in ("notice_discover_sdk_opened",):
             with self.subTest(profile=profile):
                 plan = build_process_smoke_plan(
                     repo_root=Path("/repo"),

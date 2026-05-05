@@ -16,6 +16,8 @@ from campus_contracts import (
     CampusNoticeDiscoverPayload,
     ContactDirectoryLookupPayload,
     ServiceGuideLookupPayload,
+    ServiceStatusLookupPayload,
+    TransportScheduleLookupPayload,
 )
 from campus_navigation_agent import delegate_to_navigation_agent
 from campus_notice_agent import NoticeHTTPQueryService, delegate_to_notice_agent
@@ -27,6 +29,8 @@ from campus_services_agent import (
     CampusServicesHTTPQueryService,
     ContactDirectoryQuery,
     ServiceGuideQuery,
+    ServiceStatusQuery,
+    TransportScheduleQuery,
     delegate_to_campus_services_agent,
 )
 from campus_shared import PromptRuntimeHTTPSettings, PromptRuntimeProviderConfig
@@ -301,6 +305,19 @@ def _execute_campus_services_tool(
     agent_request: AgentRequest,
     query_service: CampusServicesHTTPQueryService,
 ) -> dict[str, object]:
+    if execution.name == "service_status_lookup":
+        payload = ServiceStatusLookupPayload(**execution.arguments)
+        result = query_service.lookup_service_status(
+            ServiceStatusQuery(
+                payload=payload,
+                access_context=_campus_services_access_context(agent_request),
+            )
+        )
+        return _bounded_sdk_tool_result(
+            result,
+            query_key="subject_query",
+            query_value=result.subject_query,
+        )
     if execution.name == "service_guide_lookup":
         payload = ServiceGuideLookupPayload(**execution.arguments)
         result = query_service.lookup_service_guide(
@@ -313,6 +330,19 @@ def _execute_campus_services_tool(
             result,
             query_key="service_query",
             query_value=result.service_query,
+        )
+    if execution.name == "transport_schedule_lookup":
+        payload = TransportScheduleLookupPayload(**execution.arguments)
+        result = query_service.lookup_transport_schedule(
+            TransportScheduleQuery(
+                payload=payload,
+                access_context=_campus_services_access_context(agent_request),
+            )
+        )
+        return _bounded_sdk_tool_result(
+            result,
+            query_key="query_text",
+            query_value=result.query_text,
         )
     if execution.name == "contact_directory_lookup":
         payload = ContactDirectoryLookupPayload(**execution.arguments)
@@ -378,6 +408,8 @@ def _bounded_sdk_tool_result(
     for key in (
         "guide_focus",
         "contact_focus",
+        "resolved_subject",
+        "observed_status",
         "resolved_date",
         "academic_year_label",
         "term_label",
@@ -389,6 +421,9 @@ def _bounded_sdk_tool_result(
         "queried_time_anchor",
         "effective_from",
         "effective_until",
+        "intent",
+        "service_status",
+        "requested_service_date",
     ):
         value = payload.get(key)
         if value not in {None, "", ()}:
@@ -404,7 +439,13 @@ def _source_ref_count_from_payload(payload: object) -> int:
             return
         if isinstance(value, Mapping):
             for key, item in value.items():
-                if str(key).endswith("source_refs") and isinstance(item, tuple | list):
+                normalized_key = str(key)
+                if normalized_key == "source_ref" and isinstance(item, str) and item.strip():
+                    refs.add(item.strip())
+                    continue
+                if normalized_key.endswith(("source_refs", "notice_refs")) and isinstance(
+                    item, tuple | list
+                ):
                     refs.update(str(ref).strip() for ref in item if str(ref).strip())
                     continue
                 collect(item)
@@ -522,6 +563,12 @@ def _build_agents_sdk_runner(settings: ApiSettings) -> AgentsSdkRunner | None:
     if not settings.agents_sdk_runtime_enabled:
         return None
     provider = settings.prompt_runtime_provider or settings.runtime_provider
+    if provider == "mock-runtime":
+        if not settings.agent_prompt_model:
+            return None
+        from campus_supervisor_agent_worker.agents_sdk_mock_runner import MockAgentsSdkRunner
+
+        return MockAgentsSdkRunner()
     if not provider or not settings.prompt_runtime_api_key or not settings.agent_prompt_model:
         return None
     try:

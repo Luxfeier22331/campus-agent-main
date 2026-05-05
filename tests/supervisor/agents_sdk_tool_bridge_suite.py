@@ -33,12 +33,42 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
 
         self.assertEqual(caught.exception.reason, "unknown_tool")
 
+    def test_admits_all_campus_services_read_only_tools(self) -> None:
+        descriptors = build_agents_sdk_tool_descriptors(
+            (
+                "service_status_lookup",
+                "service_guide_lookup",
+                "transport_schedule_lookup",
+                "contact_directory_lookup",
+            )
+        )
+
+        self.assertEqual(
+            [(descriptor.name, descriptor.owner_agent) for descriptor in descriptors],
+            [
+                ("service_status_lookup", "campus-services-agent"),
+                ("service_guide_lookup", "campus-services-agent"),
+                ("transport_schedule_lookup", "campus-services-agent"),
+                ("contact_directory_lookup", "campus-services-agent"),
+            ],
+        )
+        for descriptor in descriptors:
+            self.assertEqual(descriptor.runtime_posture, "sdk_adapter_admitted")
+            self.assertTrue(descriptor.read_only)
+            self.assertTrue(descriptor.function_schema_strict)
+
     def test_rejects_typed_handoff_only_tool_before_sdk_surface(self) -> None:
         with self.assertRaisesRegex(
             AgentsSdkToolBridgeError,
             "runtime_posture_not_admitted",
         ) as caught:
-            build_agents_sdk_tool_descriptors(("service_status_lookup",))
+            build_agents_sdk_tool_descriptors(
+                ("service_status_lookup",),
+                registry=_sdk_candidate_tool_registry(
+                    "service_status_lookup",
+                    runtime_posture="typed_handoff_only",
+                ),
+            )
 
         self.assertEqual(caught.exception.reason, "runtime_posture_not_admitted")
 

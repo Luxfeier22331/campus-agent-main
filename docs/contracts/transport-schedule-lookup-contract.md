@@ -31,6 +31,13 @@ updated: 2026-04-28
 
 - `transport_schedule_lookup` 已通过 `campus-services-product-path` opening gate，
   tool-level verdict 为 `open`（Phase 6，2026-04-27）。
+- `transport_schedule_lookup` 当前是 ToolSpec-admitted Agents SDK domain-agent adapter
+  tool；SDK 只承接 agent-side argument completion / single tool loop。projection-backed
+  schedule query、route/snapshot temporal policy、source provenance、Go admission
+  与 Go finalization 仍归 repo-owned runtime。
+- 公开 answer / stream 入口对该 tool 走 Go-owned `single_handoff` bridge lane，不再使用
+  Go direct-runtime 快捷路径。内部 structured query endpoint 仍由 Go runtime 提供，
+  作为 SDK tool adapter 的只读 backend。
 - `packages/contracts`、Go structured query runtime、Python thin adapter 与
   projection-backed data-plane 均已纳入 opening gate denominator。
 - local gate 判定命令：

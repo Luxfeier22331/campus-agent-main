@@ -22,16 +22,14 @@ from scripts.supervisor_runtime_process_smoke_http import (
 from scripts.supervisor_runtime_process_smoke_profiles import profile_answer_expectation
 
 STRUCTURED_DIRECT_OPENED_TRUSTED_TIME = "2026-04-24T20:30:00+08:00"
-CAMPUS_SERVICES_DIRECT_OPENED_PROFILES = {
-    "structured_direct_opened",
-    "structured_direct_opened_stream",
-    "service_status_direct_opened",
-    "service_guide_direct_opened",
-    "contact_directory_direct_opened",
-}
-NOTICE_DIRECT_OPENED_PROFILES = {
-    "notice_discover_direct_opened",
-    "notice_get_direct_opened",
+SDK_STRUCTURED_OPENED_PROFILES = {
+    "transport_schedule_sdk_opened",
+    "transport_schedule_sdk_opened_stream",
+    "service_status_sdk_opened",
+    "service_guide_sdk_opened",
+    "contact_directory_sdk_opened",
+    "notice_discover_sdk_opened",
+    "academic_calendar_sdk_opened",
 }
 MULTI_STEP_WORKFLOW_PROFILES = {
     "multi_step_notice_knowledge_followthrough",
@@ -213,16 +211,26 @@ def _profile_api_env(
     object_store_base_url: str,
     structured_query_secret: str,
 ) -> dict[str, str]:
-    if profile in CAMPUS_SERVICES_DIRECT_OPENED_PROFILES:
+    if profile in _campus_services_sdk_profiles():
         return {
             "SUPERVISOR_API_OPEN_CAPABILITIES": "campus_services",
             "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
                 STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
             ),
+            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
-    if profile in NOTICE_DIRECT_OPENED_PROFILES:
+    if profile == "academic_calendar_sdk_opened":
+        return {
+            "SUPERVISOR_API_OPEN_CAPABILITIES": "academic_calendar",
+            "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
+                STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
+            ),
+            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+        }
+    if profile == "notice_discover_sdk_opened":
         env = {
             "SUPERVISOR_API_OPEN_CAPABILITIES": "notice",
+            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
         if _profile_requires_object_store(profile):
             env.update(
@@ -253,12 +261,13 @@ def _profile_worker_env(
     api_base_url: str,
     structured_query_secret: str,
 ) -> dict[str, str]:
-    if profile not in MULTI_STEP_WORKFLOW_PROFILES:
+    if profile not in MULTI_STEP_WORKFLOW_PROFILES and profile not in SDK_STRUCTURED_OPENED_PROFILES:
         return {}
     return {
         "SUPERVISOR_INTERNAL_QUERY_BASE_URL": api_base_url,
         "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS": "1.0",
+        "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "true",
     }
 
 
@@ -268,16 +277,16 @@ def _env_or_default(key: str, default: str) -> str:
 
 
 def _profile_requires_object_store(profile: str) -> bool:
-    return profile in NOTICE_DIRECT_OPENED_PROFILES or profile in MULTI_STEP_WORKFLOW_PROFILES
+    return profile in MULTI_STEP_WORKFLOW_PROFILES
 
 
 def _profile_requires_structured_projection(profile: str) -> bool:
-    return profile in CAMPUS_SERVICES_DIRECT_OPENED_PROFILES
+    return profile in _campus_services_sdk_profiles() or profile == "academic_calendar_sdk_opened"
 
 
 def _profile_requires_notice_read_model(profile: str) -> bool:
     return (
-        profile in NOTICE_DIRECT_OPENED_PROFILES
+        profile == "notice_discover_sdk_opened"
         or profile in MULTI_STEP_WORKFLOW_PROFILES
         or profile in AGENTS_SDK_NOTICE_PROFILES
     )
@@ -301,6 +310,16 @@ def _notice_smoke_body() -> str:
         "这是一条用于 notice-agent direct runtime smoke 的通知正文。"
         "通知事项需要结合学生手册相关规定理解。\n"
     )
+
+
+def _campus_services_sdk_profiles() -> set[str]:
+    return {
+        "transport_schedule_sdk_opened",
+        "transport_schedule_sdk_opened_stream",
+        "service_status_sdk_opened",
+        "service_guide_sdk_opened",
+        "contact_directory_sdk_opened",
+    }
 
 
 def run_process_smoke(
@@ -578,7 +597,7 @@ def _create_temporary_postgres_database(management_url: str, database_name: str)
         import psycopg
         from psycopg import sql
     except ImportError as exc:  # pragma: no cover
-        raise RuntimeError("psycopg is required for structured_direct_opened smoke") from exc
+        raise RuntimeError("psycopg is required for SDK structured process smoke") from exc
 
     with (
         psycopg.connect(management_url, autocommit=True) as connection,

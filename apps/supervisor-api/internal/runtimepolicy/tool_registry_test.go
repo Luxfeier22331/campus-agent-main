@@ -55,9 +55,9 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 	if !ok {
 		t.Fatal("service_status_lookup missing from ToolSpec")
 	}
-	if !serviceStatus.FunctionSchema.Available || serviceStatus.RuntimePosture != "typed_handoff_only" {
+	if !serviceStatus.FunctionSchema.Available || serviceStatus.RuntimePosture != "sdk_adapter_admitted" {
 		t.Fatalf(
-			"service_status_lookup function/runtime posture = %#v/%q, want available typed_handoff_only",
+			"service_status_lookup function/runtime posture = %#v/%q, want available sdk_adapter_admitted",
 			serviceStatus.FunctionSchema,
 			serviceStatus.RuntimePosture,
 		)
@@ -77,9 +77,9 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 	if !ok {
 		t.Fatal("transport_schedule_lookup missing from ToolSpec")
 	}
-	if !transport.FunctionSchema.Available || transport.RuntimePosture != "typed_handoff_only" {
+	if !transport.FunctionSchema.Available || transport.RuntimePosture != "sdk_adapter_admitted" {
 		t.Fatalf(
-			"transport_schedule_lookup function/runtime posture = %#v/%q, want available typed_handoff_only",
+			"transport_schedule_lookup function/runtime posture = %#v/%q, want available sdk_adapter_admitted",
 			transport.FunctionSchema,
 			transport.RuntimePosture,
 		)

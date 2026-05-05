@@ -198,7 +198,17 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             [
                 {
                     "target": "campus-services-agent",
+                    "tool": "service_status_lookup",
+                    "tool_runtime_posture": "sdk_adapter_admitted",
+                },
+                {
+                    "target": "campus-services-agent",
                     "tool": "service_guide_lookup",
+                    "tool_runtime_posture": "sdk_adapter_admitted",
+                },
+                {
+                    "target": "campus-services-agent",
+                    "tool": "transport_schedule_lookup",
                     "tool_runtime_posture": "sdk_adapter_admitted",
                 },
                 {

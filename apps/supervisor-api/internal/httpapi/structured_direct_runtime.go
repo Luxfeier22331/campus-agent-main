@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/runtimepolicy"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
 )
 
@@ -32,6 +33,48 @@ func structuredQueryPayload(
 		"payload":        handoff.Payload,
 		"access_context": accessContext,
 	})
+}
+
+func (s *Server) shouldExecuteDirectStructuredHandoff(
+	handoff *execution.RuntimeHandoff,
+) bool {
+	if handoff == nil || !isStructuredPayloadKind(handoff.PayloadKind) {
+		return false
+	}
+	selectedTool := selectedToolForDirectStructuredHandoff(handoff)
+	if selectedTool == "" {
+		return false
+	}
+	registry, ok := runtimepolicy.DefaultToolSpecRegistry()
+	if !ok {
+		return false
+	}
+	return directStructuredHandoffDecision(handoff, registry)
+}
+
+func directStructuredHandoffDecision(
+	handoff *execution.RuntimeHandoff,
+	registry runtimepolicy.ToolSpecRegistry,
+) bool {
+	if handoff == nil || !isStructuredPayloadKind(handoff.PayloadKind) {
+		return false
+	}
+	selectedTool := selectedToolForDirectStructuredHandoff(handoff)
+	if selectedTool == "" {
+		return false
+	}
+	tool, ok := registry.ToolByName(selectedTool)
+	if !ok || tool.PayloadKind != handoff.PayloadKind || tool.OwnerAgent != handoff.Target {
+		return false
+	}
+	return tool.RuntimePosture == "typed_handoff_only"
+}
+
+func selectedToolForDirectStructuredHandoff(handoff *execution.RuntimeHandoff) string {
+	if handoff == nil || len(handoff.AllowedTools) != 1 {
+		return ""
+	}
+	return handoff.AllowedTools[0]
 }
 
 func (s *Server) executeStructuredRuntime(

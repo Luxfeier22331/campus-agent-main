@@ -27,6 +27,13 @@ updated: 2026-04-25
 
 - `service_status_lookup` 已通过 `campus-services-product-path` opening gate，
   tool-level verdict 为 `open`（Phase 6，2026-04-27）。
+- `service_status_lookup` 当前是 ToolSpec-admitted Agents SDK domain-agent adapter
+  tool；SDK 只承接 agent-side argument completion / single tool loop。projection-backed
+  structured query、current/effective temporal policy、source provenance、Go
+  admission 与 Go finalization 仍归 repo-owned runtime。
+- 公开 answer / stream 入口对该 tool 走 Go-owned `single_handoff` bridge lane，不再使用
+  Go direct-runtime 快捷路径。内部 structured query endpoint 仍由 Go runtime 提供，
+  作为 SDK tool adapter 的只读 backend。
 - local gate 判定命令：
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   campus-services-product-path --json`

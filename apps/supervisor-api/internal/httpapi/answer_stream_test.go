@@ -146,43 +146,7 @@ func TestAnswerStreamBridgeNotConfiguredEmitsTelemetryAndExecutionAudit(t *testi
 	}
 }
 
-func TestAnswerStreamExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
-	projectionFixture := `{
-		"schema_version":"campus_services_projection_bundle.v1",
-		"transport_schedule_snapshots":[
-			{
-				"snapshot_id":"snapshot:bus:2026-04-20",
-				"published_at":"2026-04-20T18:00:00+08:00",
-				"effective_from":"2026-04-21T00:00:00+08:00",
-				"source_ref":"notice:bus-schedule-2026-04-20",
-				"is_current":true
-			}
-		],
-		"transport_routes":[
-			{
-				"route_id":"route:haidian-to-fengtai",
-				"display_name":"海淀到丰台通勤车",
-				"service_family":"intercampus_commute",
-				"origin_campus":"haidian",
-				"destination_campus":"fengtai",
-				"stops":[
-					{"stop_id":"stop:haidian-east-gate","display_name":"海淀东门"},
-					{"stop_id":"stop:fengtai-main-gate","display_name":"丰台南门"}
-				]
-			}
-		],
-		"scheduled_departures":[
-			{
-				"snapshot_id":"snapshot:bus:2026-04-20",
-				"route_id":"route:haidian-to-fengtai",
-				"service_dates":["2026-04-25"],
-				"departure_time":"06:50",
-				"arrival_time":"08:05",
-				"origin_stop_id":"stop:haidian-east-gate",
-				"destination_stop_id":"stop:fengtai-main-gate"
-			}
-		]
-	}`
+func TestAnswerStreamDelegatesOpenedStructuredRuntimeToAgentsSdkAdmittedBridge(t *testing.T) {
 	bridgeCalls := 0
 	server := NewServer(config.Config{
 		AuthMode:                          "bearer",
@@ -196,19 +160,20 @@ func TestAnswerStreamExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 		configured: true,
 		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {
 			bridgeCalls++
+			payload := decodeJSONRecord(t, request.Payload)
+			runtimeDecisions := expectRecord(t, payload["runtime_decisions"], "runtime_decisions")
+			handoff := expectRecord(t, runtimeDecisions["handoff"], "runtime_decisions.handoff")
+			allowedTools, ok := handoff["allowed_tools"].([]any)
+			if !ok || len(allowedTools) != 1 || allowedTools[0] != "transport_schedule_lookup" {
+				t.Fatalf("handoff.allowed_tools = %#v, want transport_schedule_lookup", handoff["allowed_tools"])
+			}
 			return bridge.ExecuteResponse{
 				StatusCode: http.StatusOK,
 				Kind:       "agent_response",
-				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"bridge"}`),
+				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"两校区通勤班车下一班 06:50 发车。","agent_observability":{"selected_tool":"transport_schedule_lookup","tool_attempted":true,"tool_outcome":"sdk_completed","result_outcome":"resolved_current","source_ref_count":1,"safe_details":{"agent_execution_projection":{"schema_version":"agent-execution-projection-v1","projection_owner":"campus-services-agent","selected_tool":"transport_schedule_lookup","payload_kind":"transport_schedule_lookup","tool_selection_reason":"agents_sdk_adapter"},"result_guardrail":{"schema_version":"agent-result-guardrail-v1","outcome":"source_backed","source_ref_count":1,"access_decision":"allowed"}}}}`),
 			}, nil
 		},
 	})
-	useStructuredQueryRuntimeFixture(
-		t,
-		server,
-		projectionFixture,
-		"2026-04-24T20:30:00+08:00",
-	)
 	response := httptest.NewRecorder()
 	request := newTestRequest(
 		http.MethodPost,
@@ -223,8 +188,8 @@ func TestAnswerStreamExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 	if response.Code != http.StatusOK {
 		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
 	}
-	if bridgeCalls != 0 {
-		t.Fatalf("bridge calls = %d, want 0", bridgeCalls)
+	if bridgeCalls != 1 {
+		t.Fatalf("bridge calls = %d, want 1", bridgeCalls)
 	}
 	body := response.Body.String()
 	for _, snippet := range []string{
@@ -236,6 +201,9 @@ func TestAnswerStreamExecutesOpenedStructuredRuntimeDirectlyInGo(t *testing.T) {
 		`"selected_target":"campus-services-agent"`,
 		`"status":"completed"`,
 		`"outcome":"supervisor_response"`,
+		`"workflow_mode":"single_handoff"`,
+		`"selected_tool":"transport_schedule_lookup"`,
+		`"tool_outcome":"sdk_completed"`,
 	} {
 		if !strings.Contains(body, snippet) {
 			t.Fatalf("stream body missing %q:\n%s", snippet, body)

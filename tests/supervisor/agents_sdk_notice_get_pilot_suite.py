@@ -563,14 +563,37 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
         assert response.agent_observability is not None
         self.assertEqual(response.agent_observability.selected_tool, "academic_calendar_lookup")
 
-    def test_agent_delegates_keep_deterministic_services_off_sdk(self) -> None:
+    def test_agent_delegates_route_service_status_to_sdk_when_tool_is_admitted(self) -> None:
         runner_called = False
         query_service = _FakeCampusServicesQueryService()
 
-        def fake_runner(_run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
             nonlocal runner_called
             runner_called = True
-            raise AssertionError("deterministic service tools must not route to SDK")
+            self.assertEqual(run_request.allowed_tools, ("service_status_lookup",))
+            assert run_request.execute_tool is not None
+            tool_result = run_request.execute_tool(
+                AgentsSdkToolExecutionRequest(
+                    name="service_status_lookup",
+                    arguments={"subject_query": "海淀校区图书馆"},
+                    call_id="call-service-status",
+                )
+            )
+            self.assertEqual(tool_result["outcome"], "resolved_current")
+            self.assertEqual(tool_result["subject_query"], "海淀校区图书馆")
+            self.assertEqual(tool_result["observed_status"], "open")
+            self.assertEqual(tool_result["source_ref_count"], 1)
+            return AgentsSdkRunResult(
+                final_output="海淀校区图书馆当前正常开放。",
+                tool_calls=(
+                    AgentsSdkToolCall(
+                        name="service_status_lookup",
+                        arguments={"subject_query": "海淀校区图书馆"},
+                        call_id="call-service-status",
+                    ),
+                ),
+                model_response_ref="resp-service-status",
+            )
 
         delegates = _build_agent_delegates(
             settings=ApiSettings(agents_sdk_runtime_enabled=True),
@@ -582,16 +605,97 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
         )
 
         status_response = delegates["campus-services-agent"](_service_status_request())
+
+        self.assertTrue(runner_called)
+        self.assertIsNotNone(query_service.last_service_status_query)
+        self.assertIsNone(query_service.last_transport_schedule_query)
+        self.assertEqual(status_response.status, "completed")
+        assert status_response.agent_observability is not None
+        self.assertEqual(
+            status_response.agent_observability.selected_tool,
+            "service_status_lookup",
+        )
+        projection = status_response.agent_observability.safe_details[
+            "agents_sdk_runner_projection"
+        ]
+        self.assertEqual(projection["tool_result_projection"]["source_ref_count"], 1)
+
+    def test_agent_delegates_route_transport_schedule_to_sdk_when_tool_is_admitted(
+        self,
+    ) -> None:
+        runner_called = False
+        query_service = _FakeCampusServicesQueryService()
+
+        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+            nonlocal runner_called
+            runner_called = True
+            self.assertEqual(run_request.allowed_tools, ("transport_schedule_lookup",))
+            assert run_request.execute_tool is not None
+            tool_result = run_request.execute_tool(
+                AgentsSdkToolExecutionRequest(
+                    name="transport_schedule_lookup",
+                    arguments={
+                        "query_text": "今天两校区班车几点发",
+                        "intent": "next_departure",
+                    },
+                    call_id="call-transport",
+                )
+            )
+            self.assertEqual(tool_result["outcome"], "resolved_current")
+            self.assertEqual(tool_result["query_text"], "今天两校区班车几点发")
+            self.assertEqual(tool_result["intent"], "next_departure")
+            self.assertEqual(tool_result["service_status"], "running")
+            self.assertEqual(tool_result["source_ref_count"], 1)
+            return AgentsSdkRunResult(
+                final_output="两校区通勤班车下一班 08:00 发车。",
+                tool_calls=(
+                    AgentsSdkToolCall(
+                        name="transport_schedule_lookup",
+                        arguments={
+                            "query_text": "今天两校区班车几点发",
+                            "intent": "next_departure",
+                        },
+                        call_id="call-transport",
+                    ),
+                ),
+                model_response_ref="resp-transport",
+            )
+
+        delegates = _build_agent_delegates(
+            settings=ApiSettings(agents_sdk_runtime_enabled=True),
+            rag_prompt_executor=None,
+            campus_services_query_service=query_service,
+            calendar_query_service=None,
+            notice_query_service=None,
+            agents_sdk_runner=fake_runner,
+        )
+
         transport_response = delegates["campus-services-agent"](_transport_schedule_request())
 
-        self.assertFalse(runner_called)
-        self.assertIsNotNone(query_service.last_service_status_query)
+        self.assertTrue(runner_called)
+        self.assertIsNone(query_service.last_service_status_query)
         self.assertIsNotNone(query_service.last_transport_schedule_query)
-        self.assertEqual(status_response.status, "completed")
         self.assertEqual(transport_response.status, "completed")
+        assert transport_response.agent_observability is not None
+        self.assertEqual(
+            transport_response.agent_observability.selected_tool,
+            "transport_schedule_lookup",
+        )
+        projection = transport_response.agent_observability.safe_details[
+            "agents_sdk_runner_projection"
+        ]
+        self.assertEqual(projection["tool_result_projection"]["source_ref_count"], 1)
 
     def test_agents_sdk_runner_builder_is_target_agnostic_and_fail_closed(self) -> None:
         self.assertIsNone(_build_agents_sdk_runner(ApiSettings()))
+        self.assertIsNone(
+            _build_agents_sdk_runner(
+                ApiSettings(
+                    agents_sdk_runtime_enabled=True,
+                    prompt_runtime_provider="mock-runtime",
+                )
+            )
+        )
         self.assertIsNone(
             _build_agents_sdk_runner(
                 ApiSettings(
@@ -626,6 +730,18 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
 
         self.assertIsNotNone(runner)
         self.assertEqual(runner.__class__.__name__, "OpenAIAgentsSdkRunner")
+
+    def test_agents_sdk_runner_builder_creates_mock_runner_for_local_process_smoke(self) -> None:
+        runner = _build_agents_sdk_runner(
+            ApiSettings(
+                agents_sdk_runtime_enabled=True,
+                prompt_runtime_provider="mock-runtime",
+                agent_prompt_model="mock-agent",
+            )
+        )
+
+        self.assertIsNotNone(runner)
+        self.assertEqual(runner.__class__.__name__, "MockAgentsSdkRunner")
 
 
 def _notice_get_request() -> AgentRequest:

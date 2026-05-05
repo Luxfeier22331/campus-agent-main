@@ -154,7 +154,7 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
         self.assertEqual(case_set.case_family, "workflow_trace_gate.v1")
         self.assertGreaterEqual(len(case_set.cases), 4)
         self.assertIn(
-            "workflow-transport-schedule-direct",
+            "workflow-transport-schedule-sdk",
             {case.case_id for case in case_set.cases},
         )
 
@@ -165,12 +165,12 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
 
         self.assertTrue(
             {
-                "workflow-direct-structured-service-status",
-                "workflow-service-guide-direct",
-                "workflow-contact-directory-direct",
-                "workflow-transport-schedule-direct",
-                "workflow-notice-discover-direct",
-                "workflow-notice-detail-direct",
+                "workflow-service-status-sdk",
+                "workflow-service-guide-sdk",
+                "workflow-contact-directory-sdk",
+                "workflow-transport-schedule-sdk",
+                "workflow-notice-discover-sdk",
+                "workflow-academic-calendar-sdk",
                 "workflow-knowledge-delegate",
                 "workflow-notice-knowledge-followthrough-multistep",
                 "workflow-curriculum-delegate",
@@ -794,17 +794,22 @@ class WorkflowTraceGateEvaluatorTest(unittest.TestCase):
                 json.dumps(
                     {
                         "schema_version": "supervisor_runtime_process_smoke.v1",
-                        "profile": "structured_direct_opened",
+                        "profile": "transport_schedule_sdk_opened",
                         "passed": True,
                         "answer": {
                             "workflow_trace_summary": {
                                 "routing_frame": {"scope_gate_decision": "allow"},
                                 "context_resolution": {"state": "ok"},
                                 "planning_outcome": "preplanned",
-                                "direct_vs_delegate_branch": "direct",
-                                "workflow_mode": "direct_runtime",
+                                "direct_vs_delegate_branch": "delegate",
+                                "workflow_mode": "single_handoff",
                                 "handoff": {"target": "campus-services-agent"},
-                                "handoff_chain": [],
+                                "handoff_chain": [
+                                    {
+                                        "target": "campus-services-agent",
+                                        "selected_tool": "transport_schedule_lookup",
+                                    }
+                                ],
                                 "selected_target": "campus-services-agent",
                                 "selected_tools": ["transport_schedule_lookup"],
                                 "tool_argument_summary": {
@@ -827,11 +832,22 @@ class WorkflowTraceGateEvaluatorTest(unittest.TestCase):
                                         "retry_count": 0,
                                     },
                                 ],
+                                "agent_invocations": [
+                                    {
+                                        "invocation_id": "agent-invocation:campus-services-agent:1",
+                                        "workflow_run_ref": "single_handoff:campus-services-agent:transport_schedule_lookup",
+                                        "step_id": "handoff:campus-services-agent:transport_schedule_lookup",
+                                        "agent_id": "campus-services-agent",
+                                        "status": "completed",
+                                    }
+                                ],
                                 "tool_call_summaries": [
                                     {
+                                        "result_projection": "bounded_summary",
+                                        "raw_result_included": False,
                                         "tool_name": "transport_schedule_lookup",
                                         "result_status": "completed",
-                                        "source_ids": [],
+                                        "source_ids": ["smoke:transport-schedule"],
                                     }
                                 ],
                                 "guardrail_outcomes": {"scope_gate": "allow"},
@@ -848,13 +864,13 @@ class WorkflowTraceGateEvaluatorTest(unittest.TestCase):
             summaries = load_process_smoke_workflow_trace_summaries(
                 (report_path,),
                 profile_case_ids={
-                    "structured_direct_opened": "workflow-transport-schedule-direct",
+                    "transport_schedule_sdk_opened": "workflow-transport-schedule-sdk",
                 },
             )
 
-        self.assertIn("workflow-transport-schedule-direct", summaries)
+        self.assertIn("workflow-transport-schedule-sdk", summaries)
         self.assertEqual(
-            summaries["workflow-transport-schedule-direct"].selected_tools,
+            summaries["workflow-transport-schedule-sdk"].selected_tools,
             ("transport_schedule_lookup",),
         )
 

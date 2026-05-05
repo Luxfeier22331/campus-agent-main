@@ -60,5 +60,5 @@ domain-agent adapter substrate, without changing repo orchestration ownership.
 
 - Make every request multi-agent.
 - Make SDK handoffs the repo canonical handoff mechanism.
-- Replace deterministic direct runtime for projection-backed service/status/schedule answers.
+- Replace projection-backed service/status/schedule data ownership or Go finalization.
 - Reopen `agents-sdk-domain-agent-adapter-pilot` except as historical context.

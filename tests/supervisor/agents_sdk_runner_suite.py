@@ -257,6 +257,7 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             ),
             runner=lambda _run_request: AgentsSdkRunResult(final_output="x"),
             enabled=True,
+            tool_registry=_typed_handoff_only_tool_registry("service_status_lookup"),
         )
 
         self.assertEqual(response.status, "error")
@@ -476,6 +477,19 @@ def _sdk_test_tool_registry() -> ToolSpecRegistry:
         tools=tuple(
             replace(tool, runtime_posture="sdk_adapter_admitted")
             if tool.name == "campus_notice_discover"
+            else tool
+            for tool in registry.tools
+        ),
+    )
+
+
+def _typed_handoff_only_tool_registry(tool_name: str) -> ToolSpecRegistry:
+    registry = default_tool_spec_registry()
+    return replace(
+        registry,
+        tools=tuple(
+            replace(tool, runtime_posture="typed_handoff_only")
+            if tool.name == tool_name
             else tool
             for tool in registry.tools
         ),

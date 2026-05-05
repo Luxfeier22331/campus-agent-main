@@ -92,7 +92,17 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
             [
                 {
                     "target": "campus-services-agent",
+                    "tool": "service_status_lookup",
+                    "tool_runtime_posture": "sdk_adapter_admitted",
+                },
+                {
+                    "target": "campus-services-agent",
                     "tool": "service_guide_lookup",
+                    "tool_runtime_posture": "sdk_adapter_admitted",
+                },
+                {
+                    "target": "campus-services-agent",
+                    "tool": "transport_schedule_lookup",
                     "tool_runtime_posture": "sdk_adapter_admitted",
                 },
                 {
@@ -126,19 +136,13 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
         self.assertEqual(
             [pair["tool"] for pair in status["admitted_pairs"]],
             [
+                "service_status_lookup",
                 "service_guide_lookup",
+                "transport_schedule_lookup",
                 "contact_directory_lookup",
                 "academic_calendar_lookup",
                 "campus_notice_discover",
             ],
-        )
-        self.assertNotIn(
-            "service_status_lookup",
-            [pair["tool"] for pair in status["admitted_pairs"]],
-        )
-        self.assertNotIn(
-            "transport_schedule_lookup",
-            [pair["tool"] for pair in status["admitted_pairs"]],
         )
 
     def test_status_fails_closed_when_registry_has_no_sdk_admitted_tool(self) -> None:

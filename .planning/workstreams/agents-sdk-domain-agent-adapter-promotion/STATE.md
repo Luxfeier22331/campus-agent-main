@@ -16,9 +16,10 @@ updated: 2026-05-05
 **Current Phase:** Closed
 **Last Activity:** 2026-05-05
 **Last Activity Description:** Promoted Agents SDK to the default worker-side domain-agent adapter
-for ToolSpec-admitted tools, expanded admission to notice discover / service guide / contact
-directory / academic calendar, and cleared the local public/chat dev E2E blockers exposed during
-real-provider validation.
+for ToolSpec-admitted tools, expanded admission to notice discover / all campus-services
+read-only structured tools / academic calendar, cleared stale Go direct-runtime process smoke and
+workflow eval cases, and added deterministic mock SDK process-smoke support for local public/chat
+style validation without fake provider keys.
 
 ## Baseline Facts
 
@@ -27,10 +28,15 @@ real-provider validation.
 - `_build_agents_sdk_runner` is target-agnostic and only builds the OpenAI Agents SDK runner after
   runtime gate, provider, model and API key are configured.
 - `campus_notice_get` is `agent_internal` with `runtime_posture=closed`.
-- `campus_notice_discover`、`service_guide_lookup`、`contact_directory_lookup` and
-  `academic_calendar_lookup` are live read-only agent-facing ToolSpec SDK adapters with
+- `campus_notice_discover`、`service_status_lookup`、`service_guide_lookup`、
+  `transport_schedule_lookup`、`contact_directory_lookup` and `academic_calendar_lookup` are
+  live read-only agent-facing ToolSpec SDK adapters with
   `runtime_posture=sdk_adapter_admitted`.
-- `service_status_lookup` and `transport_schedule_lookup` remain `typed_handoff_only`.
+- Public `/api/v1/answer` and `/api/v1/answer/stream` skip Go direct structured execution for
+  SDK-admitted structured handoffs and run them through the bridge-backed `single_handoff` lane.
+- Local process smoke profiles for opened read-only structured tools use SDK profile names
+  (`*_sdk_opened`) and assert `single_handoff` / `sdk_completed`; public `notice_get` direct smoke
+  is no longer part of the opened profile denominator.
 - SDK target/tool eligibility is derived from AgentSpec, ToolSpec and Go
   `AgentRequest.allowed_tools`; worker env no longer carries a target/tool allowlist.
 - Go `supervisor-api` remains AgentSpec / ToolSpec / WorkflowPlan / finalizer owner.
@@ -55,11 +61,20 @@ Current targeted verification:
 ```bash
 uv run --all-packages python -m scripts.agents_sdk_notice_discover_smoke
 uv run --all-packages python -m scripts.agents_sdk_notice_discover_e2e_smoke --timeout-seconds 90 --startup-timeout-seconds 180
-uv run --all-packages python -m unittest tests.test_supervisor_runtime_process_smoke tests.test_agents_sdk_notice_discover_e2e_smoke tests.supervisor.agents_sdk_tool_bridge_suite tests.supervisor.tool_spec_registry_suite tests.supervisor.agents_sdk_runtime_policy_suite tests.supervisor.agents_sdk_runner_suite tests.supervisor.agents_sdk_trace_projection_suite tests.supervisor.agents_sdk_notice_get_pilot_suite tests.supervisor.agents_sdk_closeout_guardrails_suite tests.api.supervisor_api_settings_and_health_suite tests.evals.agents_sdk_promotion_gate_suite -q
-go test ./internal/runtimepolicy ./internal/httpapi ./internal/config
+uv run --all-packages python -m unittest tests.test_supervisor_runtime_process_smoke tests.test_agents_sdk_notice_discover_e2e_smoke tests.supervisor.agents_sdk_tool_bridge_suite tests.supervisor.tool_spec_registry_suite tests.supervisor.agents_sdk_runtime_policy_suite tests.supervisor.agents_sdk_runner_suite tests.supervisor.agents_sdk_trace_projection_suite tests.supervisor.agents_sdk_notice_get_pilot_suite tests.supervisor.agents_sdk_closeout_guardrails_suite tests.api.supervisor_api_settings_and_health_suite tests.evals.agents_sdk_promotion_gate_suite tests.evals.multi_agent_product_path_eval_gate_profile_suite tests.evals.workflow_trace_gate_suite -q
+go test ./internal/runtimepolicy ./internal/config ./internal/httpapi
 pnpm docs:lint
-git diff --check -- .planning/workstreams/agents-sdk-domain-agent-adapter-promotion apps/supervisor-agent-worker/src/campus_supervisor_agent_worker apps/supervisor-api/internal/runtimepolicy configs/runtime/tools.v1.json packages/evals/src/campus_evals tests/supervisor tests/evals docs/contracts/campus-notice-runtime-contract.md docs/architecture/system/execution-and-agents-architecture.md
+git diff --check -- .planning/workstreams/agents-sdk-domain-agent-adapter-promotion apps/supervisor-agent-worker/src/campus_supervisor_agent_worker apps/supervisor-api/internal/runtimepolicy apps/supervisor-api/internal/httpapi configs/runtime/tools.v1.json packages/evals/src/campus_evals packages/evals/fixtures/workflow_trace_gate_cases.v1.json scripts tests/supervisor tests/evals tests/test_supervisor_runtime_process_smoke.py docs/contracts docs/architecture/system/execution-and-agents-architecture.md
 ```
+
+Fresh targeted unit/eval evidence, 2026-05-05:
+
+- `uv run --all-packages python -m unittest tests.test_supervisor_runtime_process_smoke tests.supervisor.agents_sdk_notice_get_pilot_suite -q`
+- `Ran 29 tests`
+- `OK`
+- `uv run --all-packages python -m unittest tests.evals.agents_sdk_promotion_gate_suite tests.evals.multi_agent_product_path_eval_gate_profile_suite tests.evals.workflow_trace_gate_suite -q`
+- `Ran 40 tests`
+- `OK`
 
 Fresh targeted unit evidence, 2026-05-05:
 

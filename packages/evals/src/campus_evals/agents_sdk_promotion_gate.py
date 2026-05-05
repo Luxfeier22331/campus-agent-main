@@ -9,8 +9,8 @@ from campus_evals.agents_sdk_pilot_parity import (
 
 AGENTS_SDK_PROMOTION_GATE_SCHEMA_VERSION = "agents-sdk-promotion-gate-v1"
 AGENTS_SDK_CAMPUS_SERVICES_ADOPTION_MATRIX = {
-    "service_status_lookup": "direct_runtime_preferred",
-    "transport_schedule_lookup": "direct_runtime_preferred",
+    "service_status_lookup": "sdk_adapter_admitted",
+    "transport_schedule_lookup": "sdk_adapter_admitted",
     "service_guide_lookup": "sdk_adapter_admitted",
     "contact_directory_lookup": "sdk_adapter_admitted",
     "academic_calendar_lookup": "sdk_adapter_admitted",

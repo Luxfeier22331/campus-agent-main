@@ -69,7 +69,8 @@ git diff --check
   - model configured
   - target/tool admission result
   - selected posture
-- Produce selected target matrix:
+- Produce selected target matrix. Historical Phase 1 default matrix, superseded by the
+  implementation closeout below:
   - first candidate: `notice-agent + campus_notice_discover`
   - second-wave candidates: `service_guide_lookup`, `contact_directory_lookup`
   - direct-runtime preferred by default: `service_status_lookup`, `transport_schedule_lookup`
@@ -159,7 +160,7 @@ git diff --check
 
 ## Phase 5: Structured Tool Family Adoption Matrix
 
-**Goal:** avoid adding SDK where deterministic direct runtime is the correct architecture.
+**Goal:** avoid confusing SDK adapter ownership with structured-query source-truth ownership.
 
 **Tasks:**
 
@@ -169,21 +170,22 @@ git diff --check
   - `service_guide_lookup`
   - `contact_directory_lookup`
 - Classify:
-  - direct-runtime preferred
   - SDK adapter useful for argument completion / clarification
+  - Go structured-query backend remains deterministic source-truth execution
   - defer
-- Default classification before evidence:
-  - `service_status_lookup`: direct-runtime preferred
-  - `transport_schedule_lookup`: direct-runtime preferred
-  - `service_guide_lookup`: SDK candidate only for argument completion / clarification
-  - `contact_directory_lookup`: SDK candidate only for argument completion / clarification
-- Do not move projection-backed deterministic answer path behind SDK.
-- If one candidate is selected, implement only a gated thin adapter path.
+- Final classification:
+  - `service_status_lookup`: SDK-admitted adapter, Go structured-query backend
+  - `transport_schedule_lookup`: SDK-admitted adapter, Go structured-query backend
+  - `service_guide_lookup`: SDK-admitted adapter, Go structured-query backend
+  - `contact_directory_lookup`: SDK-admitted adapter, Go structured-query backend
+- Do not move projection-backed deterministic source-truth/query policy behind SDK.
+- SDK owns only agent-side argument completion and the single repo-owned tool loop.
 
 **Exit Criteria:**
 
-- Campus-services SDK adoption has a per-tool decision, not a blanket migration.
-- Direct-runtime preferred tools cannot be routed through SDK without reopening this phase.
+- Campus-services SDK adoption has a per-tool ToolSpec posture.
+- SDK-admitted tools still fail closed through Go opening gate, ToolSpec admission and
+  projection/read-model readiness.
 
 ## Phase 6: Eval And Parity Gate Expansion
 
@@ -191,7 +193,7 @@ git diff --check
 
 **Tasks:**
 
-- Build shared fixture cases for SDK vs existing provider loop/direct runtime.
+- Build shared fixture cases for SDK-admitted adapter behavior and legacy path parity.
 - Cover:
   - correct tool selection
   - no-tool correctness
@@ -286,8 +288,8 @@ git diff --check
 
 - `campus_notice_discover`: `sdk_adapter_admitted`
 - `campus_notice_get`: `closed`, agent-internal only
-- `service_status_lookup`: `typed_handoff_only`
-- `transport_schedule_lookup`: `typed_handoff_only`
+- `service_status_lookup`: `sdk_adapter_admitted`
+- `transport_schedule_lookup`: `sdk_adapter_admitted`
 - `service_guide_lookup`: `sdk_adapter_admitted`
 - `contact_directory_lookup`: `sdk_adapter_admitted`
 - `academic_calendar_lookup`: `sdk_adapter_admitted`
@@ -303,8 +305,11 @@ git diff --check
 - `campus-services-agent` routes `service_guide_lookup` and `contact_directory_lookup` through SDK
   shell when admitted by ToolSpec.
 - `calendar-agent` routes `academic_calendar_lookup` through SDK shell when admitted by ToolSpec.
-- `service_status_lookup` and `transport_schedule_lookup` remain deterministic direct-runtime
-  tools.
+- `service_status_lookup` and `transport_schedule_lookup` route through the SDK shell when
+  admitted by ToolSpec and Go handoff; their data backing remains deterministic
+  projection-backed structured query.
+- Public answer and answer stream entrypoints skip Go direct-runtime interception for
+  `sdk_adapter_admitted` ToolSpec tools and execute them through `single_handoff` bridge lane.
 - `campus_notice_get` remains closed for SDK/provider routing.
 - Eval gate records the admitted SDK adapter matrix; latency/cost/error-rate evidence remains a
   release and observability signal, not a pre-production blocker.

@@ -55,14 +55,14 @@ class AgentsSdkPromotionGateTest(unittest.TestCase):
         self.assertFalse(result.adapter_admitted)
         self.assertIn("sdk_tool_execution_missing", result.blockers)
 
-    def test_campus_services_matrix_keeps_deterministic_tools_out_of_sdk(self) -> None:
+    def test_campus_services_matrix_admits_opened_read_only_tools_to_sdk(self) -> None:
         self.assertEqual(
             AGENTS_SDK_CAMPUS_SERVICES_ADOPTION_MATRIX["service_status_lookup"],
-            "direct_runtime_preferred",
+            "sdk_adapter_admitted",
         )
         self.assertEqual(
             AGENTS_SDK_CAMPUS_SERVICES_ADOPTION_MATRIX["transport_schedule_lookup"],
-            "direct_runtime_preferred",
+            "sdk_adapter_admitted",
         )
         self.assertEqual(
             AGENTS_SDK_CAMPUS_SERVICES_ADOPTION_MATRIX["service_guide_lookup"],

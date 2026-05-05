@@ -23,9 +23,14 @@ updated: 2026-05-01
 `app-api -> supervisor-api -> supervisor-agent-worker private bridge ->
 agent -> retrieval-core -> evidence -> supervisor response`
 
-已打开的 deterministic structured capability 是这条语义链路的例外分支：
+已打开但仍保持 `typed_handoff_only` 的 deterministic structured capability 是这条语义链路的
+例外分支：
 
 `app-api -> supervisor-api -> Go structured runtime -> supervisor-style response`
+
+已进入 `runtime_posture=sdk_adapter_admitted` 的 structured tool 不再被公开 answer
+入口的 Go direct-runtime 抢走；它们走 Go-owned `single_handoff` plan，再由 Python
+domain-agent adapter / Agents SDK shell 调用 repo-owned structured query backend。
 
 长期目标态在同一 governance boundary 内扩展为：
 
@@ -96,10 +101,11 @@ Docker-side Go runtime control plane 长期负责：
 - execution request envelope validation、trace / actor / context projection 的结构校验
 - deterministic capability routing gate、scope opening gate 与 query-enabled collection
   gate 中不依赖 LLM 的部分
-- structured runtime dispatch，例如 projection-backed `transport_schedule_lookup`、
-  `service_status_lookup`、`service_guide_lookup`、
+- structured runtime backend dispatch，例如 projection-backed
+  `transport_schedule_lookup`、`service_status_lookup`、`service_guide_lookup`、
   `academic_calendar_lookup`、`campus_notice_discover`、internal selected notice
-  resolve (`payload_kind=campus_notice_get`)
+  resolve (`payload_kind=campus_notice_get`)；公开 answer 入口是否 direct-execute 由
+  ToolSpec runtime posture 决定
 - runtime metrics、structured logs、audit writer、cost / token / latency accounting
   与 failure fingerprint
 - transport / timeout / bridge unavailable / policy unavailable 等 fail-close response
@@ -193,11 +199,12 @@ Docker-side Go runtime control plane 长期负责：
   请求 fail-closed，不再在 bridge 主路径重新做 product-scope、approval-required、
   context-follow-up 或 terminal 裁决；non-delegate terminal routing 由 Go direct
   terminal path 返回
-- Go `supervisor-api` 已拥有 non-stream 与 lifecycle SSE direct structured answer path：
-  `campus_services` / `academic_calendar` / `notice` opening gate 放行后的
-  deterministic structured payload 可直接调用 Go structured runtime，并由 Go shape
-  supervisor-style response；Python bridge 不再是这些 opened structured payload 的必经
-  runtime hop
+- Go `supervisor-api` 已拥有 non-stream 与 lifecycle SSE direct structured answer path，
+  但 direct answer 只保留给 ToolSpec 中仍为 `typed_handoff_only` 的 structured
+  payload。`sdk_adapter_admitted` 的 structured payload 在公开 answer / stream 入口
+  进入 `single_handoff` bridge lane；Go 仍负责 opening gate、admission、
+  `WorkflowPlan`、ToolSpec admission、structured query backend、fail-close envelope
+  与 finalization
 - Go runtime policy 当前从 `configs/runtime/intent-policy.v1.json` 加载 versioned
   intent policy artifact；artifact 固定 policy / classifier / intent schema /
   case-set version、reason code registry 与 signal group taxonomy，避免 runtime
@@ -260,8 +267,8 @@ Python semantic orchestration 长期继续负责：
   shape
 - Go 不接管 `apps/app-api` 的 product-layer auth/session/conversation truth
 - Go 不接管 ingestion、OCR、chunking、index build 或 retrieval backend 细节
-- structured deterministic query service 和 opened direct answer path 可以迁 Go；
-  domain-agent 仍保留 semantic capability owner 与 thin adapter 边界
+- structured deterministic query service 和 posture-gated direct answer path
+  可以迁 Go；domain-agent 仍保留 semantic capability owner 与 thin adapter 边界
 
 ## Capability-Neutral Routing Model
 
@@ -475,7 +482,7 @@ Agents SDK 可以作为后续 Python `apps/supervisor-agent-worker` / domain-age
 但它不能替代以下 repo-owned truth：
 
 - Go `apps/supervisor-api` 的 deterministic runtime kernel、admission、routing policy、
-  direct structured runtime branch、fail-close envelope 与 finalization
+  posture-gated direct structured runtime branch、fail-close envelope 与 finalization
 - `apps/app-api` 的 surface capability policy、auth/session/principal、conversation、
   request projection 与 operator read model
 - `packages/contracts` 的 `AgentRequest` / `AgentResponse` seam
@@ -581,9 +588,13 @@ notice-get provider tool runtime 当前最终姿态是 closed：
 Agents SDK 当前不承载 `campus_notice_get`。SDK runner shell、tool bridge 与 trace
 projection 是 domain-agent adapter substrate；stale `campus_notice_get` request 必须返回
 unsupported/closed。当前已接纳的 SDK adapter tools 是
-`campus_notice_discover`、`service_guide_lookup`、`contact_directory_lookup` 与
-`academic_calendar_lookup`。`service_status_lookup` 与 `transport_schedule_lookup`
-保持 deterministic direct-runtime preferred，不通过 SDK adapter。SDK runtime 默认开启；
+`campus_notice_discover`、`service_status_lookup`、`service_guide_lookup`、
+`transport_schedule_lookup`、`contact_directory_lookup` 与
+`academic_calendar_lookup`。其中 `service_status_lookup` 与 `transport_schedule_lookup`
+在公开 answer / stream 入口同样走 `single_handoff` bridge lane；SDK shell 只承接
+agent-side argument completion / tool loop，projection-backed structured query、
+temporal policy、source truth、Go opening gate/admission、ToolSpec gate 与 Go
+finalization 仍由 repo-owned runtime 承担。SDK runtime 默认开启；
 provider、model、API key 或 SDK dependency 缺失时 readiness 降级并 fail closed。唯一 runtime
 开关是 `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED=false`；target/tool eligibility 由
 repo-owned AgentSpec、ToolSpec 与 Go handoff `AgentRequest.allowed_tools` 派生，不能再通过

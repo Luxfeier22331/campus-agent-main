@@ -107,11 +107,11 @@ def profile_answer_expectation(
             "json",
             (200,),
         )
-    if profile == "structured_direct_opened":
+    if profile == "transport_schedule_sdk_opened":
         return (
             {
                 "user_goal": "我明天早上要去丰台上课，最早的班车是几点",
-                "request_id": "process-smoke-structured-direct-opened",
+                "request_id": "process-smoke-transport-schedule-sdk-opened",
                 "requested_capability": "campus_services",
                 "context": context,
             },
@@ -120,7 +120,8 @@ def profile_answer_expectation(
                 "campus-services-agent",
                 "transport_schedule_lookup",
                 "resolved_current",
-                "direct_runtime",
+                "single_handoff",
+                "sdk_completed",
                 "agent_execution_projection",
                 "result_guardrail",
             ),
@@ -128,11 +129,11 @@ def profile_answer_expectation(
             "json",
             (200,),
         )
-    if profile == "structured_direct_opened_stream":
+    if profile == "transport_schedule_sdk_opened_stream":
         return (
             {
                 "user_goal": "我明天早上要去丰台上课，最早的班车是几点",
-                "request_id": "process-smoke-structured-direct-opened-stream",
+                "request_id": "process-smoke-transport-schedule-sdk-opened-stream",
                 "requested_capability": "campus_services",
                 "context": context,
             },
@@ -142,7 +143,8 @@ def profile_answer_expectation(
                 "campus-services-agent",
                 "transport_schedule_lookup",
                 "resolved_current",
-                "direct_runtime",
+                "single_handoff",
+                "sdk_completed",
                 "agent_execution_projection",
                 "result_guardrail",
             ),
@@ -150,11 +152,11 @@ def profile_answer_expectation(
             "sse",
             (200,),
         )
-    if profile == "service_status_direct_opened":
+    if profile == "service_status_sdk_opened":
         return (
             {
                 "user_goal": "校园卡现在开放吗",
-                "request_id": "process-smoke-service-status-direct-opened",
+                "request_id": "process-smoke-service-status-sdk-opened",
                 "requested_capability": "campus_services",
                 "context": context,
             },
@@ -163,7 +165,8 @@ def profile_answer_expectation(
                 "campus-services-agent",
                 "service_status_lookup",
                 "resolved_current",
-                "direct_runtime",
+                "single_handoff",
+                "sdk_completed",
                 "agent_execution_projection",
                 "result_guardrail",
             ),
@@ -171,11 +174,11 @@ def profile_answer_expectation(
             "json",
             (200,),
         )
-    if profile == "service_guide_direct_opened":
+    if profile == "service_guide_sdk_opened":
         return (
             {
                 "user_goal": "公费医疗报销需要什么材料",
-                "request_id": "process-smoke-service-guide-direct-opened",
+                "request_id": "process-smoke-service-guide-sdk-opened",
                 "requested_capability": "campus_services",
                 "context": context,
             },
@@ -184,7 +187,8 @@ def profile_answer_expectation(
                 "campus-services-agent",
                 "service_guide_lookup",
                 "resolved_current",
-                "direct_runtime",
+                "single_handoff",
+                "sdk_completed",
                 "agent_execution_projection",
                 "result_guardrail",
             ),
@@ -192,11 +196,11 @@ def profile_answer_expectation(
             "json",
             (200,),
         )
-    if profile == "contact_directory_direct_opened":
+    if profile == "contact_directory_sdk_opened":
         return (
             {
                 "user_goal": "卡务中心联系电话是多少",
-                "request_id": "process-smoke-contact-directory-direct-opened",
+                "request_id": "process-smoke-contact-directory-sdk-opened",
                 "requested_capability": "campus_services",
                 "context": context,
             },
@@ -205,7 +209,8 @@ def profile_answer_expectation(
                 "campus-services-agent",
                 "contact_directory_lookup",
                 "resolved_current",
-                "direct_runtime",
+                "single_handoff",
+                "sdk_completed",
                 "agent_execution_projection",
                 "result_guardrail",
             ),
@@ -213,11 +218,11 @@ def profile_answer_expectation(
             "json",
             (200,),
         )
-    if profile == "notice_discover_direct_opened":
+    if profile == "notice_discover_sdk_opened":
         return (
             {
                 "user_goal": "烟雾测试通知",
-                "request_id": "process-smoke-notice-discover-direct-opened",
+                "request_id": "process-smoke-notice-discover-sdk-opened",
                 "requested_capability": "notice",
                 "context": context,
             },
@@ -227,7 +232,8 @@ def profile_answer_expectation(
                 "campus_notice_discover",
                 "resolved_current",
                 "烟雾测试通知",
-                "direct_runtime",
+                "single_handoff",
+                "sdk_completed",
                 "agent_execution_projection",
                 "result_guardrail",
             ),
@@ -235,32 +241,21 @@ def profile_answer_expectation(
             "json",
             (200,),
         )
-    if profile == "notice_get_direct_opened":
-        notice_context = {
-            **context,
-            "session": {
-                "selected_notice_ref": {
-                    "notice_id": "notice:smoke:001",
-                    "source_family": "wechat_public_notice",
-                    "title": "烟雾测试通知",
-                },
-                "turn_count": 2,
-            },
-        }
+    if profile == "academic_calendar_sdk_opened":
         return (
             {
-                "user_goal": "这条通知详情",
-                "request_id": "process-smoke-notice-get-direct-opened",
-                "requested_capability": "notice",
-                "context": notice_context,
+                "user_goal": "今天第几教学周",
+                "request_id": "process-smoke-academic-calendar-sdk-opened",
+                "requested_capability": "academic_calendar",
+                "context": context,
             },
             200,
             (
-                "notice-agent",
-                "campus_notice_get",
+                "calendar-agent",
+                "academic_calendar_lookup",
                 "resolved_current",
-                "烟雾测试通知",
-                "direct_runtime",
+                "single_handoff",
+                "sdk_completed",
                 "agent_execution_projection",
                 "result_guardrail",
             ),

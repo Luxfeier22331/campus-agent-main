@@ -17,7 +17,7 @@ func (s *Server) handleDirectStructuredAnswer(
 	startedAt time.Time,
 ) bool {
 	handoff := executionRequest.StructuredHandoff
-	if handoff == nil || !isStructuredPayloadKind(handoff.PayloadKind) {
+	if !s.shouldExecuteDirectStructuredHandoff(handoff) {
 		return false
 	}
 
@@ -110,7 +110,7 @@ func (s *Server) handleDirectStructuredAnswerStream(
 	startedAt time.Time,
 ) bool {
 	handoff := executionRequest.StructuredHandoff
-	if handoff == nil || !isStructuredPayloadKind(handoff.PayloadKind) {
+	if !s.shouldExecuteDirectStructuredHandoff(handoff) {
 		return false
 	}
 
