@@ -280,6 +280,87 @@ class OfficialWebReleaseTaskAdmissionTest(unittest.TestCase):
             ],
         )
 
+    def test_builds_academic_calendar_selected_write_release_task(self) -> None:
+        task = build_selected_write_release_task_from_candidate(
+            {
+                "candidate_key": "owcand_academic_calendar_ready",
+                "field_status": {
+                    "academic_year_label": "present",
+                    "term_label": "present",
+                    "date_range": "present",
+                    "calendar_arrangement": "present",
+                    "source_url": "present",
+                    "source_version_evidence": "present",
+                    "holiday_name": "present",
+                    "week_index": "present",
+                    "class_day_pattern": "source_not_provided",
+                },
+                "inventory_id": "muc-public-academic-calendar",
+                "matched_evidence": ["calendar_arrangement"],
+                "normalized_canonical_url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                "ready_for_selected_write": True,
+                "optional_evidence": [],
+                "optional_fields": ["holiday_name", "week_index", "class_day_pattern"],
+                "required_evidence": ["calendar_arrangement"],
+                "required_fields": [
+                    "academic_year_label",
+                    "term_label",
+                    "date_range",
+                    "calendar_arrangement",
+                    "source_url",
+                    "source_version_evidence",
+                ],
+                "review_verdict": "pending_review",
+                "selected_write_target": "calendar/academic_calendar",
+                "source_ref": {
+                    "raw_asset_id": "owasset_calendar",
+                    "raw_version_id": "owver_calendar",
+                    "normalized_canonical_url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                },
+                "target_job_id": "owtarget_academic_calendar",
+                "typed_candidate": {
+                    "academic_year_label": "2025-2026学年",
+                    "term_label": "春季学期",
+                    "date_range": "2026-05-09 至 2026-05-09",
+                    "calendar_arrangement": "2026-05-09 执行周一课表。",
+                    "holiday_name": "",
+                    "week_index": 10,
+                    "class_day_pattern": "执行周一课表",
+                    "records": [
+                        {
+                            "academic_year_label": "2025-2026学年",
+                            "term_label": "春季学期",
+                            "start_date": "2026-05-09",
+                            "end_date": "2026-05-09",
+                            "week_index": 10,
+                            "day_kind": "makeup_class_day",
+                            "class_day_pattern": "执行周一课表",
+                            "is_makeup_class": True,
+                            "holiday_name": "",
+                        }
+                    ],
+                    "source_title": "中央民族大学校历",
+                    "source_url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                },
+                "typed_candidate_schema_version": "official_web_academic_calendar_candidate.v1",
+            },
+            run_id="owrun_calendar",
+            source_object_keys=[
+                "official_web/muc_public/runs/owrun_calendar/source-truth-bundle.json"
+            ],
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+
+        self.assertEqual(task.task_type, "official_web_selected_write_academic_calendar")
+        self.assertEqual(task.inventory_id, "muc-public-academic-calendar")
+        self.assertEqual(task.input_ref["fieldStatus"]["calendar_arrangement"], "present")
+        self.assertEqual(task.input_ref["fieldStatus"]["week_index"], "present")
+        self.assertEqual(task.input_ref["requiredEvidence"], ["calendar_arrangement"])
+        self.assertEqual(
+            task.input_ref["optionalFields"],
+            ["holiday_name", "week_index", "class_day_pattern"],
+        )
+
     def test_admits_ready_selected_write_candidates_from_partial_review(self) -> None:
         store = InMemoryOfficialWebReleaseTaskStore()
 

@@ -24,11 +24,11 @@ export async function buildInitialRequests(input: {
 	disableConditionalHeaders?: boolean;
 }): Promise<Array<{ url: string; uniqueKey: string; userData: CollectorRequestUserData }>> {
 	const candidates: Array<{
-			url: string;
-			discoveryMethod: CollectorRequestUserData["discoveryMethod"];
-			discoveredFromUrl?: string | null;
-			knownPage?: OfficialWebPlannerPageCandidate;
-			knownPages?: OfficialWebPlannerPageCandidate[];
+		url: string;
+		discoveryMethod: CollectorRequestUserData["discoveryMethod"];
+		discoveredFromUrl?: string | null;
+		knownPage?: OfficialWebPlannerPageCandidate;
+		knownPages?: OfficialWebPlannerPageCandidate[];
 	}> = [];
 
 	if (input.executionMode !== "target-workset") {
@@ -135,12 +135,9 @@ export async function buildInitialRequests(input: {
 			uniqueKey: admission.normalizedUrl,
 			userData: {
 				discoveryMethod: candidate.discoveryMethod,
-				conditionalHeaders: buildConditionalHeaders(
-					selectPrimaryKnownPage(mergedKnownPages),
-					{
-						disabled: input.disableConditionalHeaders,
-					},
-				),
+				conditionalHeaders: buildConditionalHeaders(selectPrimaryKnownPage(mergedKnownPages), {
+					disabled: input.disableConditionalHeaders,
+				}),
 				discoveredFromUrl: candidate.discoveredFromUrl ?? null,
 				depth: 0,
 				...(mergedKnownPages.length > 0
@@ -242,7 +239,9 @@ function mergeKnownPages(
 	for (const page of incoming) {
 		merged.set(buildKnownPageKey(page), page);
 	}
-	return [...merged.values()].sort((left, right) => buildKnownPageKey(left).localeCompare(buildKnownPageKey(right)));
+	return [...merged.values()].sort((left, right) =>
+		buildKnownPageKey(left).localeCompare(buildKnownPageKey(right)),
+	);
 }
 
 function buildKnownPageKey(page: OfficialWebPlannerPageCandidate): string {

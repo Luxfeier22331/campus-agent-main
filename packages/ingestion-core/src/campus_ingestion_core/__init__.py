@@ -221,6 +221,11 @@ from campus_ingestion_core.official_web_projection import (
     replay_official_web_source_truth_local,
     validate_official_web_projection_output,
 )
+from campus_ingestion_core.official_web_regulation_materialization import (
+    OfficialWebRegulationMaterializationReport,
+    build_official_web_regulation_candidate_documents,
+    materialize_official_web_regulation_candidates,
+)
 from campus_ingestion_core.process import (
     IndexableChunk,
     build_indexable_chunks_from_jsonl,
@@ -430,6 +435,7 @@ __all__ = [
     "OfficialWebProjectionDeclarationsConfig",
     "OfficialWebProjectionReplayReport",
     "OfficialWebProjectionValidationReport",
+    "OfficialWebRegulationMaterializationReport",
     "OnlineOcrClient",
     "OnlineOcrProviderResult",
     "PostgresAuthenticatedNoticeCloseoutStore",
@@ -501,6 +507,7 @@ __all__ = [
     "build_internal_notice_regulation_promotion_manifest",
     "build_mock_embedding_model",
     "build_mock_sparse_embedding_model",
+    "build_official_web_regulation_candidate_documents",
     "build_official_web_run_artifact_key",
     "build_operations_artifact_key",
     "build_processed_asset_artifact_key",
@@ -555,6 +562,7 @@ __all__ = [
     "load_regulation_rag_release_admission_manifest",
     "load_split_manifest",
     "materialize_institutional_regulations_from_internal_notice_scope",
+    "materialize_official_web_regulation_candidates",
     "migrate_student_handbook_source_faithful",
     "normalize_curriculum_provider_result",
     "normalize_handbook_body_text",

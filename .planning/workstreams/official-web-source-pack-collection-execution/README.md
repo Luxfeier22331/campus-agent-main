@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-05-03
-updated: 2026-05-03
+updated: 2026-05-05
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -27,7 +27,8 @@ narrower execution question:
 - status: `completed`
 - current phase: `Phase 7 closeout complete`
 - current slice: source-pack batch no-promotion seam, offline composition and ingestion-owned
-  selected-write admission proof are implemented and verified
+  selected-write admission proof are implemented and verified; academic calendar structured
+  release evidence is recorded as a one-time curated projection follow-up
 - active implementation: none
 - owner: Codex session
 
@@ -92,3 +93,23 @@ Accepted closeout semantics:
   consumer review reaches `dry_run_ready` or `partial_dry_run_ready`
 - current-truth mutation remains out of scope for this workstream; that belongs to the ingestion
   release lane
+
+## Academic Calendar Evidence
+
+Academic calendar facts are not handled by reopening official-web collection. They are covered by a
+curated structured projection under `calendar/academic_calendar`.
+
+- release evidence:
+  [publish-report.json](/home/reptilian/code/campus-agent/.planning/workstreams/official-web-source-pack-collection-execution/evidence/academic-calendar-structured-release/publish-report.json)
+- runtime smoke:
+  [runtime-smoke-report.json](/home/reptilian/code/campus-agent/.planning/workstreams/official-web-source-pack-collection-execution/evidence/academic-calendar-structured-release/runtime-smoke-report.json)
+- config:
+  [README.md](/home/reptilian/code/campus-agent/configs/ingestion/calendar/academic_calendar/README.md)
+
+Accepted semantics:
+
+- one-time curated source truth feeds selected-write structured projection publish
+- current runtime consumes `calendar/academic_calendar` for teaching week, holiday, and makeup-class
+  facts
+- official-web page/image refs remain evidence, not query-time web fetch or recurring collector
+  scope

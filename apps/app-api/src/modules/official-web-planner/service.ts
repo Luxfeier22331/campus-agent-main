@@ -7,6 +7,7 @@ export type OfficialWebPlannerFetchDisposition = OfficialWebFetchDisposition | "
 const CANONICAL_CONSUMER_FAMILIES = new Set([
 	"contact_directory_candidate",
 	"service_guide_candidate",
+	"academic_calendar_candidate",
 	"stable_reference_candidate",
 	"regulation_candidate",
 	"notice_news_candidate",

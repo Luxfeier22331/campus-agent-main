@@ -266,6 +266,22 @@ function writeSourcePackFixtureRoot(): string {
 						review_policy: "selected_write_requires_review",
 					},
 					{
+						consumer_family: "academic_calendar_candidate",
+						owner_surface: "academic_calendar_lookup",
+						owner_agent_or_runtime: "calendar-agent",
+						materialization_policy: "candidate_only",
+						page_families: ["article_detail", "generic_content_page"],
+						title_keywords: ["校历", "教学周", "放假安排"],
+						path_patterns: ["calendar", "xiaoli"],
+						required_evidence: ["calendar_arrangement"],
+						optional_evidence: [],
+						minimum_matched_evidence_count: 1,
+						requires_keyword_or_path_match: true,
+						negative_patterns: ["新闻", "通知", "公告"],
+						selected_write_target: "calendar/academic_calendar",
+						review_policy: "selected_write_requires_review",
+					},
+					{
 						consumer_family: "stable_reference_candidate",
 						owner_surface: "official_web/stable_reference",
 						owner_agent_or_runtime: "rag-agent",
@@ -523,10 +539,7 @@ function writeSourcePackFixtureRoot(): string {
 						answer_bearing: true,
 						demand_ids: ["owsp-it-campus-card-guide", "owsp-it-campus-card-contact"],
 						owner_surfaces: ["service_guide_lookup", "contact_directory_lookup"],
-						release_targets: [
-							"campus_services/service_guide",
-							"campus_services/contact_directory",
-						],
+						release_targets: ["campus_services/service_guide", "campus_services/contact_directory"],
 						expected_facts: ["service_process", "phone", "location"],
 						composition_group: null,
 						composition_role: null,
@@ -577,10 +590,7 @@ describe("official web source pack config", () => {
 		expect(config.sourcePackManifest.entries[1]).toMatchObject({
 			entryId: "campus-card-contact",
 			ownerSurfaces: ["service_guide_lookup", "contact_directory_lookup"],
-			releaseTargets: [
-				"campus_services/service_guide",
-				"campus_services/contact_directory",
-			],
+			releaseTargets: ["campus_services/service_guide", "campus_services/contact_directory"],
 		});
 	});
 
@@ -673,6 +683,52 @@ describe("official web source pack config", () => {
 
 		expect(() => loadOfficialWebConfig("campus_public", { configRoot })).toThrow(
 			/attempts to open official_web\/fresh_news or official_web\/news_archive/u,
+		);
+	});
+
+	it("fails closed when an academic-calendar source-pack row is typed as a service guide", () => {
+		const configRoot = writeSourcePackFixtureRoot();
+		const manifestPath = resolve(
+			configRoot,
+			"campus_public",
+			"source-packs",
+			"tool-driven-first-slice.v1.json",
+		);
+
+		writeFileSync(
+			manifestPath,
+			JSON.stringify(
+				{
+					schema_version: "official_web_source_pack_manifest.v1",
+					site_id: "campus_public",
+					source_pack_id: "tool-driven-first-slice.v1",
+					entries: [
+						{
+							entry_id: "bad-calendar-family",
+							url: "https://www.example.edu/calendar",
+							content_family: "campus_service_guide",
+							source_kind: "html_page",
+							answer_bearing: true,
+							demand_ids: ["owsp-academic-calendar"],
+							owner_surfaces: ["academic_calendar_lookup"],
+							release_targets: ["calendar/academic_calendar"],
+							expected_facts: ["calendar_arrangement"],
+							composition_group: null,
+							composition_role: null,
+							capture_policy: "one_time",
+							refresh_posture: "manifest_refresh_only",
+							extraction_gate: "deterministic_source_backed",
+							eval_questions: ["今天第几教学周？"],
+						},
+					],
+				},
+				null,
+				2,
+			),
+		);
+
+		expect(() => loadOfficialWebConfig("campus_public", { configRoot })).toThrow(
+			/academic calendar row must use academic_calendar_reference content_family/u,
 		);
 	});
 });

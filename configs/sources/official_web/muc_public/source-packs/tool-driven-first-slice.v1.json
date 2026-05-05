@@ -154,7 +154,11 @@
 			"capture_policy": "one_time",
 			"refresh_posture": "manifest_refresh_only",
 			"extraction_gate": "deterministic_source_backed",
-			"eval_questions": ["统一身份认证密码怎么改？", "忘记统一身份认证密码怎么办？", "密码修改入口是什么？"]
+			"eval_questions": [
+				"统一身份认证密码怎么改？",
+				"忘记统一身份认证密码怎么办？",
+				"密码修改入口是什么？"
+			]
 		},
 		{
 			"entry_id": "owsp-network-account-1106",
@@ -208,6 +212,43 @@
 			"eval_questions": ["企业微信怎么绑定？", "企业微信怎么登录？"]
 		},
 		{
+			"entry_id": "owsp-enterprise-wechat-faq-2499",
+			"url": "https://met.muc.edu.cn/info/1068/2499.htm",
+			"content_family": "campus_service_guide",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-it-enterprise-wechat-faq"],
+			"owner_surfaces": ["service_guide_lookup"],
+			"release_targets": ["campus_services/service_guide"],
+			"expected_facts": ["service_process"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": [
+				"企业微信提示需要同事扫码验证怎么办？",
+				"手机号登录企业微信后提示需要同事扫码验证怎么办？"
+			]
+		},
+		{
+			"entry_id": "owsp-enterprise-wechat-phone-update-2669",
+			"url": "https://met.muc.edu.cn/info/1068/2669.htm",
+			"content_family": "campus_service_guide",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-it-enterprise-wechat-phone-update"],
+			"owner_surfaces": ["service_guide_lookup"],
+			"release_targets": ["campus_services/service_guide"],
+			"expected_facts": ["service_process"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["企业微信绑定手机号怎么改？", "企业微信手机号怎么修改？"]
+		},
+		{
 			"entry_id": "owsp-directory-lookup-1831",
 			"url": "https://met.muc.edu.cn/info/1068/1831.htm",
 			"content_family": "campus_service_guide",
@@ -225,6 +266,40 @@
 			"eval_questions": ["办公电话怎么查？", "通讯录在哪里找？"]
 		},
 		{
+			"entry_id": "owsp-academic-calendar-guide-1832",
+			"url": "https://met.muc.edu.cn/info/1068/1832.htm",
+			"content_family": "campus_service_guide",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-it-academic-calendar-guide"],
+			"owner_surfaces": ["service_guide_lookup"],
+			"release_targets": ["campus_services/service_guide"],
+			"expected_facts": ["service_process"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["校历怎么看？", "校历在哪里看？"]
+		},
+		{
+			"entry_id": "owsp-public-academic-calendar-mdxl",
+			"url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+			"content_family": "academic_calendar_reference",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-public-academic-calendar-facts"],
+			"owner_surfaces": ["academic_calendar_lookup"],
+			"release_targets": ["calendar/academic_calendar"],
+			"expected_facts": ["calendar_arrangement"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["今天第几教学周？", "哪周补课？", "五一放几天？"]
+		},
+		{
 			"entry_id": "owsp-email-policy-1090",
 			"url": "https://met.muc.edu.cn/info/1024/1090.htm",
 			"content_family": "campus_service_guide",
@@ -240,6 +315,142 @@
 			"refresh_posture": "manifest_refresh_only",
 			"extraction_gate": "deterministic_source_backed",
 			"eval_questions": ["校园邮箱怎么申请？", "校园邮箱适用对象有哪些？"]
+		},
+		{
+			"entry_id": "owsp-it-information-system-management-policy-1085",
+			"url": "https://met.muc.edu.cn/info/1024/1085.htm",
+			"content_family": "institutional_policy_reference",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-it-service-regulations"],
+			"owner_surfaces": ["regulations/institutional_rules"],
+			"release_targets": ["regulations/institutional_rules"],
+			"expected_facts": ["regulation_text"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["学校的信息系统建设和管理办法有哪些要求？"]
+		},
+		{
+			"entry_id": "owsp-it-network-security-policy-1188",
+			"url": "https://met.muc.edu.cn/info/1024/1188.htm",
+			"content_family": "institutional_policy_reference",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-it-service-regulations"],
+			"owner_surfaces": ["regulations/institutional_rules"],
+			"release_targets": ["regulations/institutional_rules"],
+			"expected_facts": ["regulation_text"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["学校网络与信息安全管理办法有哪些要求？"]
+		},
+		{
+			"entry_id": "owsp-it-campus-network-account-policy-1084",
+			"url": "https://met.muc.edu.cn/info/1024/1084.htm",
+			"content_family": "institutional_policy_reference",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-it-service-regulations"],
+			"owner_surfaces": ["regulations/institutional_rules"],
+			"release_targets": ["regulations/institutional_rules"],
+			"expected_facts": ["regulation_text"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["学校校园网账号管理办法有哪些要求？"]
+		},
+		{
+			"entry_id": "owsp-it-campus-card-policy-1086",
+			"url": "https://met.muc.edu.cn/info/1024/1086.htm",
+			"content_family": "institutional_policy_reference",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-it-service-regulations"],
+			"owner_surfaces": ["regulations/institutional_rules"],
+			"release_targets": ["regulations/institutional_rules"],
+			"expected_facts": ["regulation_text"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["学校校园一卡通管理办法有哪些要求？"]
+		},
+		{
+			"entry_id": "owsp-it-information-portal-policy-1088",
+			"url": "https://met.muc.edu.cn/info/1024/1088.htm",
+			"content_family": "institutional_policy_reference",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-it-service-regulations"],
+			"owner_surfaces": ["regulations/institutional_rules"],
+			"release_targets": ["regulations/institutional_rules"],
+			"expected_facts": ["regulation_text"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["学校信息门户管理办法有哪些要求？"]
+		},
+		{
+			"entry_id": "owsp-it-office-automation-policy-1089",
+			"url": "https://met.muc.edu.cn/info/1024/1089.htm",
+			"content_family": "institutional_policy_reference",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-it-service-regulations"],
+			"owner_surfaces": ["regulations/institutional_rules"],
+			"release_targets": ["regulations/institutional_rules"],
+			"expected_facts": ["regulation_text"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["学校办公自动化系统管理规定有哪些要求？"]
+		},
+		{
+			"entry_id": "owsp-it-secondary-website-policy-1091",
+			"url": "https://met.muc.edu.cn/info/1024/1091.htm",
+			"content_family": "institutional_policy_reference",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-it-service-regulations"],
+			"owner_surfaces": ["regulations/institutional_rules"],
+			"release_targets": ["regulations/institutional_rules"],
+			"expected_facts": ["regulation_text"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["学校二级网站管理办法有哪些要求？"]
+		},
+		{
+			"entry_id": "owsp-it-campus-network-access-policy-1083",
+			"url": "https://met.muc.edu.cn/info/1024/1083.htm",
+			"content_family": "institutional_policy_reference",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-it-service-regulations"],
+			"owner_surfaces": ["regulations/institutional_rules"],
+			"release_targets": ["regulations/institutional_rules"],
+			"expected_facts": ["regulation_text"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["学校校园网接入管理规定有哪些要求？"]
 		},
 		{
 			"entry_id": "owsp-email-entry-1932",
@@ -290,7 +501,11 @@
 			"capture_policy": "one_time",
 			"refresh_posture": "manifest_refresh_only",
 			"extraction_gate": "deterministic_source_backed",
-			"eval_questions": ["网络服务电话是多少？", "一卡通服务电话是多少？", "多媒体教室服务电话是多少？"]
+			"eval_questions": [
+				"网络服务电话是多少？",
+				"一卡通服务电话是多少？",
+				"多媒体教室服务电话是多少？"
+			]
 		},
 		{
 			"entry_id": "owsp-logistics-contact-hqfw",
@@ -307,7 +522,11 @@
 			"capture_policy": "one_time",
 			"refresh_posture": "manifest_refresh_only",
 			"extraction_gate": "deterministic_source_backed",
-			"eval_questions": ["后勤服务热线是多少？", "学生公寓管理服务中心电话是多少？", "会务服务中心电话是多少？"]
+			"eval_questions": [
+				"后勤服务热线是多少？",
+				"学生公寓管理服务中心电话是多少？",
+				"会务服务中心电话是多少？"
+			]
 		},
 		{
 			"entry_id": "owsp-info-disclosure-policy-1107",

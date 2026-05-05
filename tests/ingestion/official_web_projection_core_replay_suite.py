@@ -823,6 +823,246 @@ class OfficialWebProjectionCoreReplayTest(unittest.TestCase):
                 "第一条 为了推进学校信息公开工作，制定本实施细则。",
             )
 
+    def test_target_workset_regulation_candidate_allows_public_information_body_text(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            regulation_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/institutional_rules",
+                target_id="official-web-institutional-rules",
+                review_policy="release_gate_required",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_projection_001",
+                    "collectionMode": "target-workset",
+                    "pages": [
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_info_disclosure",
+                            raw_version_id="owver_info_disclosure",
+                            normalized_canonical_url="https://www.example.edu/info/1005/1107.htm",
+                            page_family="article_detail",
+                            target_matches=[regulation_match],
+                        )
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_info_disclosure",
+                raw_version_id="owver_info_disclosure",
+                normalized_canonical_url="https://www.example.edu/info/1005/1107.htm",
+                page_title="中央民族大学信息公开实施细则",
+                page_family="article_detail",
+                target_matches=[regulation_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_info_disclosure",
+                        raw_version_id="owver_info_disclosure",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学信息公开实施细则",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_info_disclosure",
+                        raw_version_id="owver_info_disclosure",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="第一条 学校应当主动公开规章制度、办事程序和服务事项。",
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+
+            candidate = report.consumer_candidate_pages[0]
+            self.assertEqual(candidate["consumer_family"], "regulation_candidate")
+            self.assertEqual(candidate["quality_gate"], {"decision": "pass", "reason_codes": []})
+            self.assertEqual(
+                candidate["typed_candidate"]["regulation_text"],
+                "第一条 学校应当主动公开规章制度、办事程序和服务事项。",
+            )
+
+    def test_target_workset_regulation_candidate_rejects_footer_only_body_text(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            regulation_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/institutional_rules",
+                target_id="official-web-institutional-rules",
+                review_policy="release_gate_required",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_projection_footer_only",
+                    "collectionMode": "target-workset",
+                    "pages": [
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_footer_only_rule",
+                            raw_version_id="owver_footer_only_rule",
+                            normalized_canonical_url="https://www.example.edu/info/1005/1198.htm",
+                            page_family="article_detail",
+                            target_matches=[regulation_match],
+                        )
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_footer_only_rule",
+                raw_version_id="owver_footer_only_rule",
+                normalized_canonical_url="https://www.example.edu/info/1005/1198.htm",
+                page_title="中央民族大学学术委员会章程",
+                page_family="article_detail",
+                target_matches=[regulation_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_footer_only_rule",
+                        raw_version_id="owver_footer_only_rule",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学学术委员会章程",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_footer_only_rule",
+                        raw_version_id="owver_footer_only_rule",
+                        row_id="footer-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="Copyright@ 2018 -- 党委办公室 校长办公室 All Rights Reserved",
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+
+            candidate = report.consumer_candidate_pages[0]
+            self.assertEqual(candidate["consumer_family"], "regulation_candidate")
+            self.assertEqual(candidate["quality_gate"]["decision"], "reject")
+            self.assertIn(
+                "missing_answer_bearing_regulation_body",
+                candidate["quality_gate"]["reason_codes"],
+            )
+
+    def test_target_workset_regulation_candidate_rejects_notice_like_page_title(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            regulation_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/institutional_rules",
+                target_id="official-web-institutional-rules",
+                review_policy="release_gate_required",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_projection_notice_like_regulation",
+                    "collectionMode": "target-workset",
+                    "pages": [
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_notice_like_rule",
+                            raw_version_id="owver_notice_like_rule",
+                            normalized_canonical_url="https://www.example.edu/info/1005/1199.htm",
+                            page_family="article_detail",
+                            target_matches=[regulation_match],
+                        )
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_notice_like_rule",
+                raw_version_id="owver_notice_like_rule",
+                normalized_canonical_url="https://www.example.edu/info/1005/1199.htm",
+                page_title="中央民族大学家具采购项目比选公告",
+                page_family="article_detail",
+                target_matches=[regulation_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_notice_like_rule",
+                        raw_version_id="owver_notice_like_rule",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学家具采购项目比选公告",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_notice_like_rule",
+                        raw_version_id="owver_notice_like_rule",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="第一条 本公告仅用于采购项目比选，不是学校现行规章制度。",
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+
+            candidate = report.consumer_candidate_pages[0]
+            self.assertEqual(candidate["consumer_family"], "regulation_candidate")
+            self.assertEqual(candidate["quality_gate"]["decision"], "reject")
+            self.assertIn(
+                "selected_write_suppressed_page_type",
+                candidate["quality_gate"]["reason_codes"],
+            )
+
     def test_target_workset_contact_candidate_uses_footer_contact_facts(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

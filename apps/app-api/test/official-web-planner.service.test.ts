@@ -206,6 +206,34 @@ describe("official web planner service", () => {
 		expect(result.plan.duePages).toEqual([candidate]);
 	});
 
+	it("accepts academic_calendar_candidate workset rows for academic calendar targets", async () => {
+		const candidate = buildTargetCandidate({
+			consumerFamily: "academic_calendar_candidate",
+			selectedWriteTarget: "calendar/academic_calendar",
+			targetCandidateId: "owcand_academic_calendar",
+			targetId: "official-web-academic-calendar",
+			targetJobId: "owtarget_academic_calendar",
+		});
+		const store: OfficialWebPlannerStore = {
+			listDuePages: vi.fn().mockResolvedValue([candidate]),
+		};
+		const service = buildOfficialWebPlannerService({ store });
+
+		const result = await service.resolve({
+			payload: {
+				hostFilter: ["jwc.muc.edu.cn"],
+				maxPagesPerHost: 1,
+				maxTotalPages: 1,
+				now: "2026-05-01T09:00:00.000Z",
+				runIntent: "hot",
+				siteId: "muc_public",
+			},
+			principal: collectorPrincipal,
+		});
+
+		expect(result.plan.duePages).toEqual([candidate]);
+	});
+
 	it("rejects non-canonical target family names before returning a workset", async () => {
 		const store: OfficialWebPlannerStore = {
 			listDuePages: vi.fn().mockResolvedValue([

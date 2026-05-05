@@ -314,6 +314,36 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.qdrant_index_binding.alias_name, "transport_schedule")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "transport_schedule")
 
+    def test_load_academic_calendar_runtime_profile(self) -> None:
+        profile = load_runtime_profile("calendar", "academic_calendar")
+
+        self.assertEqual(profile.corpus, "calendar")
+        self.assertEqual(profile.collection, "academic_calendar")
+        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertTrue(profile.structured_query_enabled)
+        self.assertEqual(profile.structured_query_tools, ("academic_calendar_lookup",))
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ())
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.cleaning_policy_version, "academic_calendar_projection_v1")
+        self.assertEqual(profile.chunk_profile_version, "academic_calendar_projection_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "academic_calendar")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "academic_calendar")
+
+    def test_load_academic_calendar_chunk_profile(self) -> None:
+        profile = load_chunk_profile("calendar", "academic_calendar")
+
+        self.assertEqual(profile.corpus, "calendar")
+        self.assertEqual(profile.collection, "academic_calendar")
+        self.assertEqual(profile.chunk_profile_version, "academic_calendar_projection_v1")
+        self.assertEqual(profile.structured_input, "academic_calendar_projection_json")
+        self.assertEqual(profile.cleaning_policy_version, "academic_calendar_projection_v1")
+        self.assertEqual(profile.runtime_defaults.strategy_name, "academic_calendar_projection_v1")
+
     def test_load_internal_notice_runtime_profile_uses_mineru_primary_source_ocr(self) -> None:
         profile = load_runtime_profile("campus_notices", "internal_notice")
 
@@ -573,6 +603,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
                 ("service_guide_lookup", "campus_services", "service_guide"),
                 ("contact_directory_lookup", "campus_services", "contact_directory"),
                 ("transport_schedule_lookup", "campus_services", "transport_schedule"),
+                ("academic_calendar_lookup", "calendar", "academic_calendar"),
             )
         }
 

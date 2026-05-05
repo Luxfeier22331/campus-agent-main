@@ -187,6 +187,12 @@ function matchConsumerFamily(
 	) {
 		return null;
 	}
+	if (
+		rule.consumerFamily === "academic_calendar_candidate" &&
+		!matchedEvidence.includes("calendar_arrangement")
+	) {
+		return null;
+	}
 
 	return {
 		consumerFamily: rule.consumerFamily,
@@ -230,6 +236,9 @@ function resolveMatchedEvidence(
 	}
 	if (/(材料|申请表|证明|身份证|证件|附件)/u.test(pageText)) {
 		availableEvidence.add("service_material");
+	}
+	if (/(校历|教学周|补课安排|放假安排|节假日安排|学期安排|学年安排)/u.test(pageText)) {
+		availableEvidence.add("calendar_arrangement");
 	}
 	if (isStableReferenceCandidate(rule, page, pageText)) {
 		availableEvidence.add("stable_reference");

@@ -15,7 +15,7 @@ describe("official web target inventory report", () => {
 		const report = buildOfficialWebTargetInventoryReport(config);
 
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 24,
+			candidate: 36,
 		});
 		expect(report.entries[0]).toMatchObject({
 			inventoryId: "muc-main-homepage-contact",
@@ -249,7 +249,7 @@ describe("official web target inventory report", () => {
 			reviewState: "previewed",
 		});
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 23,
+			candidate: 35,
 			previewed: 1,
 		});
 	});
@@ -267,10 +267,21 @@ describe("official web target inventory report", () => {
 				"muc-it-network-account-management-guide",
 				"muc-it-staff-campus-card-service-guide",
 				"muc-it-enterprise-wechat-guide",
+				"muc-it-enterprise-wechat-faq-guide",
+				"muc-it-enterprise-wechat-phone-update-guide",
 				"muc-it-directory-lookup-guide",
+				"muc-it-academic-calendar-guide",
 				"muc-it-service-contacts",
 				"muc-logistics-service-contacts",
 				"muc-it-email-policy-reference",
+				"muc-it-information-system-management-policy-reference",
+				"muc-it-network-security-policy-reference",
+				"muc-it-campus-network-account-policy-reference",
+				"muc-it-campus-card-policy-reference",
+				"muc-it-information-portal-policy-reference",
+				"muc-it-office-automation-policy-reference",
+				"muc-it-secondary-website-policy-reference",
+				"muc-it-campus-network-access-policy-reference",
 				"muc-academic-committee-charter",
 				"muc-staff-congress-procedure",
 				"muc-administrative-offices-reference",

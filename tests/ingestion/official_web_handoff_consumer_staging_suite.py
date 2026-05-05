@@ -352,6 +352,103 @@ class OfficialWebHandoffConsumerStagingTest(unittest.TestCase):
             "ready_for_selected_write",
         )
 
+    def test_machine_field_review_marks_academic_calendar_candidate_ready(self) -> None:
+        candidate_key = "owcand_academic_calendar_ready"
+
+        review = build_consumer_candidate_review_report(
+            replay_report={
+                "site_id": "muc_public",
+                "crawl_run_id": "owrun_calendar_ready",
+                "documents": [],
+                "consumer_candidate_pages": [
+                    {
+                        "candidate_key": candidate_key,
+                        "consumer_family": "academic_calendar_candidate",
+                        "materialization_policy": "candidate_only",
+                        "selected_write_target": "calendar/academic_calendar",
+                        "review_policy": "selected_write_requires_review",
+                        "title": "中央民族大学校历",
+                        "normalized_canonical_url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                        "matched_evidence": ["calendar_arrangement"],
+                        "raw_asset_id": "owasset_calendar",
+                        "raw_version_id": "owver_calendar",
+                        "target_id": "official-web-academic-calendar",
+                        "target_job_id": "owtarget_muc_public_calendar",
+                        "typed_candidate_schema_version": "official_web_academic_calendar_candidate.v1",
+                        "typed_candidate": {
+                            "academic_year_label": "2025-2026学年",
+                            "term_label": "春季学期",
+                            "date_range": "2026-05-09 至 2026-05-09",
+                            "calendar_arrangement": "2026-05-09 执行周一课表。",
+                            "holiday_name": "",
+                            "week_index": 10,
+                            "class_day_pattern": "执行周一课表",
+                            "records": [
+                                {
+                                    "academic_year_label": "2025-2026学年",
+                                    "term_label": "春季学期",
+                                    "start_date": "2026-05-09",
+                                    "end_date": "2026-05-09",
+                                    "week_index": 10,
+                                    "day_kind": "makeup_class_day",
+                                    "class_day_pattern": "执行周一课表",
+                                    "is_makeup_class": True,
+                                    "holiday_name": "",
+                                }
+                            ],
+                            "source_url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                            "source_title": "中央民族大学校历",
+                        },
+                        "quality_gate": {"decision": "pass"},
+                    }
+                ],
+            },
+            target_inventory_manifest={
+                "schema_version": "official_web_target_inventory.v1",
+                "site_id": "muc_public",
+                "inventory_version": "test_target_inventory_calendar_v1",
+                "entries": [
+                    {
+                        "inventory_id": "muc-public-academic-calendar",
+                        "admission_target_id": "official-web-academic-calendar",
+                        "source_urls": ["https://www.muc.edu.cn/ggfw/mdxl.htm"],
+                        "required_fields": [
+                            "academic_year_label",
+                            "term_label",
+                            "date_range",
+                            "calendar_arrangement",
+                            "source_url",
+                            "source_version_evidence",
+                        ],
+                        "optional_fields": ["holiday_name", "week_index", "class_day_pattern"],
+                        "optional_evidence": [],
+                        "required_evidence": ["calendar_arrangement"],
+                    }
+                ],
+            },
+        )
+
+        self.assertEqual(review["selectedWrite"]["decision"], "dry_run_ready")
+        self.assertTrue(review["candidates"][0]["ready_for_selected_write"])
+        self.assertEqual(
+            review["candidates"][0]["field_status"],
+            {
+                "academic_year_label": "present",
+                "term_label": "present",
+                "date_range": "present",
+                "calendar_arrangement": "present",
+                "source_url": "present",
+                "source_version_evidence": "present",
+                "holiday_name": "source_not_provided",
+                "week_index": "present",
+                "class_day_pattern": "present",
+            },
+        )
+        self.assertEqual(
+            review["targetFieldReviews"][0]["summary"]["selectedWriteTarget"],
+            "calendar/academic_calendar",
+        )
+
     def test_machine_field_review_reports_partial_dry_run_ready_for_mixed_selected_write_batch(
         self,
     ) -> None:

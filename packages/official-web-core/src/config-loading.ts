@@ -24,8 +24,6 @@ import {
 	asPublicKind,
 	asRecord,
 	asRunIntent,
-	asString,
-	asStringArray,
 	asSourcePackCapturePolicy,
 	asSourcePackContentFamily,
 	asSourcePackExpectedFact,
@@ -34,6 +32,8 @@ import {
 	asSourcePackRefreshPosture,
 	asSourcePackReleaseTarget,
 	asSourcePackSourceKind,
+	asString,
+	asStringArray,
 	asTargetRetentionPolicy,
 	readJson,
 } from "./config-parsing.ts";
@@ -343,8 +343,7 @@ function loadSourcePackManifestEntry(item: Record<string, unknown>) {
 		ownerSurfaces: asStringArray(item.owner_surfaces).map(asSourcePackOwnerSurface),
 		releaseTargets: asStringArray(item.release_targets).map(asSourcePackReleaseTarget),
 		expectedFacts: asStringArray(item.expected_facts).map(asSourcePackExpectedFact),
-		compositionGroup:
-			item.composition_group == null ? null : asString(item.composition_group),
+		compositionGroup: item.composition_group == null ? null : asString(item.composition_group),
 		compositionRole: item.composition_role == null ? null : asString(item.composition_role),
 		capturePolicy: asSourcePackCapturePolicy(item.capture_policy),
 		refreshPosture: asSourcePackRefreshPosture(item.refresh_posture),

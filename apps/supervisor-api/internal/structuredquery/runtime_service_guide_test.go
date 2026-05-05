@@ -1153,6 +1153,61 @@ func TestLookupServiceGuideResolvesEnterpriseWechatProcedure(t *testing.T) {
 	}
 }
 
+func TestLookupServiceGuideResolvesEnterpriseWechatFaqProcedure(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideITAdditionalTargetsProjectionFixture(),
+		"2026-05-04T12:00:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"企业微信提示需要同事扫码验证怎么办",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"unknown"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedService == nil || result.ResolvedService.ServiceID != "service:official_web:enterprise-wechat-faq" {
+		t.Fatalf("resolved_service = %#v", result.ResolvedService)
+	}
+	if len(result.ProcedureGroups) != 1 {
+		t.Fatalf("procedure_groups = %#v", result.ProcedureGroups)
+	}
+	if len(result.GuideSections) != 1 || !strings.Contains(result.GuideSections[0].Content, "重新完成关注和验证") {
+		t.Fatalf("guide_sections = %#v", result.GuideSections)
+	}
+}
+
+func TestLookupServiceGuideResolvesEnterpriseWechatPhoneUpdateProcedure(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideITAdditionalTargetsProjectionFixture(),
+		"2026-05-04T12:00:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"企业微信绑定手机号怎么改",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"unknown"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedService == nil || result.ResolvedService.ServiceID != "service:official_web:enterprise-wechat-phone-update" {
+		t.Fatalf("resolved_service = %#v", result.ResolvedService)
+	}
+	if len(result.GuideSections) != 1 || !strings.Contains(result.GuideSections[0].Content, "个人中心") {
+		t.Fatalf("guide_sections = %#v", result.GuideSections)
+	}
+}
+
 func TestLookupServiceGuideResolvesDirectoryLookupProcedure(t *testing.T) {
 	runtime := newRuntimeWithServiceGuideReadModel(
 		t,
@@ -1175,6 +1230,32 @@ func TestLookupServiceGuideResolvesDirectoryLookupProcedure(t *testing.T) {
 		t.Fatalf("resolved_service = %#v", result.ResolvedService)
 	}
 	if len(result.GuideSections) != 1 || !strings.Contains(result.GuideSections[0].Content, "信息门户通讯录") {
+		t.Fatalf("guide_sections = %#v", result.GuideSections)
+	}
+}
+
+func TestLookupServiceGuideResolvesAcademicCalendarProcedure(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideITAdditionalTargetsProjectionFixture(),
+		"2026-05-04T12:00:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"校历怎么看",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"unknown"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedService == nil || result.ResolvedService.ServiceID != "service:official_web:academic-calendar-guide" {
+		t.Fatalf("resolved_service = %#v", result.ResolvedService)
+	}
+	if len(result.GuideSections) != 1 || !strings.Contains(result.GuideSections[0].Content, "校历栏目") {
 		t.Fatalf("guide_sections = %#v", result.GuideSections)
 	}
 }

@@ -724,6 +724,7 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 	const allowedOwnerToTarget = new Map<string, string>([
 		["service_guide_lookup", "campus_services/service_guide"],
 		["contact_directory_lookup", "campus_services/contact_directory"],
+		["academic_calendar_lookup", "calendar/academic_calendar"],
 		["official_web/stable_reference", "official_web/stable_reference"],
 		["future_notice_runtime", "official_web/fresh_news"],
 		["regulations/institutional_rules", "regulations/institutional_rules"],
@@ -777,12 +778,20 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 			entry.contentFamily === "public_notice_news" &&
 			entry.answerBearing &&
 			entry.releaseTargets.some(
-				(target) =>
-					target === "official_web/fresh_news" || target === "official_web/news_archive",
+				(target) => target === "official_web/fresh_news" || target === "official_web/news_archive",
 			)
 		) {
 			throw new Error(
 				`sourcePackManifest ${entry.entryId} attempts to open official_web/fresh_news or official_web/news_archive`,
+			);
+		}
+		if (
+			(entry.ownerSurfaces.includes("academic_calendar_lookup") ||
+				entry.releaseTargets.includes("calendar/academic_calendar")) &&
+			entry.contentFamily !== "academic_calendar_reference"
+		) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} academic calendar row must use academic_calendar_reference content_family`,
 			);
 		}
 		if (entry.ownerSurfaces.length !== entry.releaseTargets.length) {

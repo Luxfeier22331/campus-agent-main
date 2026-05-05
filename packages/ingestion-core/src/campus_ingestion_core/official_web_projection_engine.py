@@ -8,6 +8,10 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Literal
 
+from campus_ingestion_core.official_web_academic_calendar_projection import (
+    block_has_academic_calendar_image_ref,
+    build_academic_calendar_typed_candidate,
+)
 from campus_ingestion_core.official_web_projection_config import (
     _load_official_web_projection_routing_if_present,
     _resolve_projection_routing_route,
@@ -61,6 +65,25 @@ _CONTACT_POINT_RE = re.compile(
 _SELECTED_WRITE_SUPPRESSION_RE = re.compile(
     r"(采购|招标|中标|中选|比选|竞价|结果公示|公示期|公开招聘|招聘启事|新闻|通知|公告)"
 )
+_REGULATION_BODY_SIGNAL_RE = re.compile(
+    r"(^第[一二三四五六七八九十百千万\d]+[章节条]|"
+    r"^[一二三四五六七八九十]+、|"
+    r"^[（(][一二三四五六七八九十\d]+[）)]|"
+    r"本(?:办法|规定|章程|细则|规程)|"
+    r"制定本(?:办法|规定|章程|细则|规程))"
+)
+_REGULATION_NON_BODY_RE = re.compile(
+    r"(copyright|all rights reserved|"
+    r"发布时间|更新时间|作者[:：]|来源[:：]|"
+    r"上一篇|下一篇|上一条|下一条)",
+    re.IGNORECASE,
+)
+_REGULATION_FORMAL_TITLE_RE = re.compile(
+    r"(办法|规定|章程|细则|规程|制度)(?:（(?:试行|暂行|最新)）)?$"
+)
+_REGULATION_NOTICE_TITLE_SUPPRESSION_RE = re.compile(
+    r"(采购|招标|中标|中选|比选|竞价|结果公示|公示期|公开招聘|招聘启事|新闻|通知|公告)"
+)
 _SERVICE_PROCESS_RE = re.compile(
     r"(办理流程|工作流程|流程|步骤|受理|审核|答复|提交|补正|办理|申请方法|补办|挂失|解挂|报销|预约|"
     r"申请人|承办部门|工作日|领取|发放|携带|支付)"
@@ -110,6 +133,7 @@ _TARGET_CONSUMER_FAMILIES = frozenset(
     {
         "contact_directory_candidate",
         "service_guide_candidate",
+        "academic_calendar_candidate",
         "stable_reference_candidate",
         "regulation_candidate",
         "notice_news_candidate",
@@ -1141,10 +1165,40 @@ def _build_typed_candidate(
             evidence_spans,
         )
 
+    if consumer_family == "academic_calendar_candidate":
+        typed_candidate = build_academic_calendar_typed_candidate(
+            lines=lines,
+            candidate_blocks=candidate_blocks,
+            normalized_canonical_url=normalized_canonical_url,
+            title=title,
+        )
+        calendar_arrangement = str(typed_candidate.get("calendar_arrangement") or "").strip()
+        calendar_records = typed_candidate.get("records")
+        calendar_image_refs = typed_candidate.get("calendar_image_refs")
+        has_required_evidence = bool(calendar_arrangement and calendar_records)
+        missing_reason = (
+            "missing_structured_calendar_records"
+            if calendar_arrangement and calendar_image_refs and not calendar_records
+            else "missing_required_evidence"
+        )
+        return (
+            "official_web_academic_calendar_candidate.v1",
+            typed_candidate,
+            _quality_gate(
+                suppressed=suppressed,
+                has_identity=bool(title.strip()),
+                has_required_evidence=has_required_evidence,
+                has_source=bool(normalized_canonical_url.strip()),
+                missing_required_evidence_reason=missing_reason,
+            ),
+            evidence_spans,
+        )
+
     if consumer_family == "regulation_candidate":
-        normalized_summary = _build_regulation_content_summary(lines)
+        answer_bearing_lines = _regulation_answer_bearing_lines(lines)
+        normalized_summary = _build_regulation_content_summary(answer_bearing_lines)
         regulation_text = "\n".join(
-            line for line in lines if line.strip() and line.strip() != title.strip()
+            line for line in answer_bearing_lines if line.strip() and line.strip() != title.strip()
         )
         typed_candidate = {
             "reference_title": title,
@@ -1159,10 +1213,11 @@ def _build_typed_candidate(
             "official_web_regulation_candidate.v1",
             typed_candidate,
             _quality_gate(
-                suppressed=suppressed,
+                suppressed=_regulation_selected_write_suppressed(title=title),
                 has_identity=bool(title.strip()),
                 has_required_evidence=bool(normalized_summary),
                 has_source=bool(normalized_canonical_url.strip()),
+                missing_required_evidence_reason="missing_answer_bearing_regulation_body",
             ),
             evidence_spans,
         )
@@ -1187,6 +1242,7 @@ def _quality_gate(
     has_identity: bool,
     has_required_evidence: bool,
     has_source: bool,
+    missing_required_evidence_reason: str = "missing_required_evidence",
 ) -> dict[str, object]:
     reason_codes: list[str] = []
     if suppressed:
@@ -1194,7 +1250,7 @@ def _quality_gate(
     if not has_identity:
         reason_codes.append("missing_candidate_identity")
     if not has_required_evidence:
-        reason_codes.append("missing_required_evidence")
+        reason_codes.append(missing_required_evidence_reason)
     if not has_source:
         reason_codes.append("missing_source_url")
     return {
@@ -1220,6 +1276,14 @@ def _candidate_content_blocks(
     blocks: list[dict[str, object]],
     consumer_family: str,
 ) -> list[dict[str, object]]:
+    if consumer_family == "academic_calendar_candidate":
+        return [
+            block
+            for block in blocks
+            if bool(block.get("isMainContent"))
+            or block.get("blockRole") == "title"
+            or block_has_academic_calendar_image_ref(block)
+        ]
     if consumer_family != "contact_directory_candidate":
         return _main_content_blocks(blocks)
     candidate_blocks: list[dict[str, object]] = []
@@ -1438,15 +1502,16 @@ def _clean_service_procedure_step_content(step: str) -> str:
     ).strip(" ，,；;")
 
 
-def _vpn_procedure_group_kind(step: str) -> Literal["direct_login", "client_install", "mobile_usage"]:
+def _vpn_procedure_group_kind(
+    step: str,
+) -> Literal["direct_login", "client_install", "mobile_usage"]:
     normalized = step.lower()
     if any(token in step for token in ("移动端", "手机端", "安卓端", "iOS")) or any(
         token in normalized for token in ("easyconnect app", "android", "ios", "mobile")
     ):
         return "mobile_usage"
     if any(
-        token in step
-        for token in ("客户端", "安装", "下载", "EasyConnect", "Install EasyConnect")
+        token in step for token in ("客户端", "安装", "下载", "EasyConnect", "Install EasyConnect")
     ) or any(token in normalized for token in ("easyconnect", ".pkg", ".exe", "install")):
         return "client_install"
     return "direct_login"
@@ -1684,6 +1749,13 @@ def _selected_write_suppressed(*, title: str, lines: list[str]) -> bool:
         return True
     non_boilerplate_text = "\n".join(lines[:3])
     return bool(_SELECTED_WRITE_SUPPRESSION_RE.search(non_boilerplate_text))
+
+
+def _regulation_selected_write_suppressed(*, title: str) -> bool:
+    normalized_title = re.sub(r"\s+", "", title.strip())
+    if _REGULATION_FORMAL_TITLE_RE.search(normalized_title):
+        return False
+    return bool(_REGULATION_NOTICE_TITLE_SUPPRESSION_RE.search(normalized_title))
 
 
 def _build_evidence_spans(blocks: list[dict[str, object]]) -> list[dict[str, object]]:
@@ -1993,6 +2065,17 @@ def _build_regulation_content_summary(lines: list[str]) -> str:
         return ""
     summary = " ".join(normalized_lines[:3]).strip()
     return re.sub(r"\s+", " ", summary)[:500]
+
+
+def _regulation_answer_bearing_lines(lines: list[str]) -> list[str]:
+    candidates = [
+        line.strip()
+        for line in lines
+        if line.strip() and not _REGULATION_NON_BODY_RE.search(line.strip())
+    ]
+    if not any(_REGULATION_BODY_SIGNAL_RE.search(line) for line in candidates):
+        return []
+    return candidates
 
 
 def _string_list(value: object) -> list[str]:

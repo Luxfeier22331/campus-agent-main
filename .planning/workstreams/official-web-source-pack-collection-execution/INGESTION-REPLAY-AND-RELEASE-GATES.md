@@ -2,7 +2,7 @@
 doc_type: plan
 status: active
 created: 2026-05-03
-updated: 2026-05-03
+updated: 2026-05-05
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -89,6 +89,21 @@ For `regulations/*`:
 - materialization must not flatten rule pages into service-guide-only records.
 - if scope is not opened for runtime serving, output remains release candidate or stable reference
   according to existing regulation release policy.
+
+## Academic Calendar Structured Projection Gate
+
+For `calendar/academic_calendar`:
+
+- source truth is a curated structured calendar artifact, backed by official public calendar page
+  and image refs as evidence.
+- image-only official-web capture must not be promoted directly to current facts without curated
+  structured records.
+- release writes through selected-write structured projection publish, not broad crawl or query-time
+  web composition.
+- runtime answers may consume teaching week, holiday, makeup-class day, and effective-window facts
+  from the current projection.
+- publish evidence must include validation summary, release manifest, publish report, and runtime
+  smoke for representative teaching-week / holiday / makeup-class questions.
 
 ## Multi-Page Composition Gate
 

@@ -76,6 +76,9 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
   需要 review 或 deterministic extraction 后才可写 current read model
 - `service_guide_candidate`：只进入 service guide selected-write candidate；需要
   review 或 deterministic extraction 后才可写 current read model
+- `academic_calendar_candidate`：只进入 `calendar/academic_calendar` 结构化投影
+  selected-write / curated release lane；官方网页与校历图片只保留 source evidence，必须经
+  人工/OCR 校验后的结构化 records 才可写 current read model
 - `stable_reference_candidate`：只进入 `official_web/stable_reference` release gate
 - `regulation_candidate`：只进入 `regulations/institutional_rules` release gate；
   不再把校级规章候选页混入 `official_web/stable_reference`

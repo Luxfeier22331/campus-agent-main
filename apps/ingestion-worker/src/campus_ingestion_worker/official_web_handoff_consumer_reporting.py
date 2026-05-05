@@ -648,8 +648,13 @@ def _unique_strings(values: list[str]) -> list[str]:
 
 
 _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
+    "academic_year_label": ("academic_year_label",),
+    "calendar_arrangement": ("calendar_arrangement",),
+    "class_day_pattern": ("class_day_pattern",),
     "authoritative_source_url": ("source_url",),
+    "date_range": ("date_range",),
     "email": ("emails", "contacts.emails"),
+    "holiday_name": ("holiday_name",),
     "location": ("locations", "contacts.locations"),
     "normalized_content_summary": ("normalized_content_summary", "summary"),
     "office_hours": ("office_hours", "contacts.office_hours"),
@@ -665,6 +670,8 @@ _FIELD_ALIASES: dict[str, tuple[str, ...]] = {
     "service_name": ("service_name",),
     "service_process": ("process_steps",),
     "source_url": ("source_url",),
+    "term_label": ("term_label",),
+    "week_index": ("week_index",),
 }
 
 

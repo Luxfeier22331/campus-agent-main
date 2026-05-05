@@ -11,7 +11,7 @@ import urllib.error
 import urllib.request
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 from scripts.supervisor_runtime_process_smoke_http import wait_for_status
@@ -263,9 +263,14 @@ def _resolve_trusted_time_rfc3339(*, repo_root: Path) -> str:
     override = os.getenv("SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339", "").strip()
     if override:
         return override
-    preview_report_path = repo_root / "var" / "official-web-service-guide-no-promotion-proof" / (
-        "owrun_source_pack_replay_partial_20260503T033001Z"
-    ) / "selected-write-preview" / "official-web-selected-write-preview-report.json"
+    preview_report_path = (
+        repo_root
+        / "var"
+        / "official-web-service-guide-no-promotion-proof"
+        / ("owrun_source_pack_replay_partial_20260503T033001Z")
+        / "selected-write-preview"
+        / "official-web-selected-write-preview-report.json"
+    )
     if preview_report_path.exists():
         try:
             payload = json.loads(preview_report_path.read_text(encoding="utf-8"))
@@ -283,7 +288,7 @@ def _resolve_trusted_time_rfc3339(*, repo_root: Path) -> str:
                         continue
                     parsed = datetime.fromisoformat(
                         effective_from.replace("Z", "+00:00")
-                    ).astimezone(timezone.utc)
+                    ).astimezone(UTC)
                     return (parsed + timedelta(seconds=1)).isoformat().replace("+00:00", "Z")
         except Exception:
             pass

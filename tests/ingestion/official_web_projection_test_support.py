@@ -220,11 +220,11 @@ def _write_output_page(
                 {
                     "consumerDenominatorVersion": "test_consumer_denominator_v1",
                     "consumerMatches": consumer_matches,
-            "consumerRetentionDecision": "retain_source_truth",
-            "consumerRejectionReason": None,
-        }
-        if consumer_matches is not None
-        else {}
+                    "consumerRetentionDecision": "retain_source_truth",
+                    "consumerRejectionReason": None,
+                }
+                if consumer_matches is not None
+                else {}
             ),
             **(
                 {
@@ -306,6 +306,8 @@ def _block(
     is_main_content: bool = True,
     is_navigation: bool = False,
     is_boilerplate: bool = False,
+    html_fragment: str | None = None,
+    link_target: str | None = None,
 ) -> dict[str, object]:
     return {
         "schemaVersion": "official_web_content_block.v1",
@@ -324,8 +326,8 @@ def _block(
         "tableColIndex": None,
         "textRaw": text,
         "textNormalized": text,
-        "htmlFragment": None,
-        "linkTarget": None,
+        "htmlFragment": html_fragment,
+        "linkTarget": link_target,
         "linkText": None,
         "tableHtml": None,
         "tableCells": None,

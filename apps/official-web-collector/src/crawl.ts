@@ -143,9 +143,7 @@ export async function crawlSite(
 		options.maxPagesPerHost ??
 		Math.max(1, ...selectedHosts.map((plannedHost) => plannedHost.maxPagesPerRun));
 	const maxTotalPages = options.maxTotalPages ?? plan.runLimits.maxTotalPagesPerRun;
-	const sourcePackLineageOverrides = loadSourcePackLineageOverrides(
-		options.sourcePackLineagePath,
-	);
+	const sourcePackLineageOverrides = loadSourcePackLineageOverrides(options.sourcePackLineagePath);
 
 	if (options.controlPlaneClient) {
 		const started = await options.controlPlaneClient.startRun({

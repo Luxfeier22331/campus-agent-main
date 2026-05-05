@@ -1,6 +1,5 @@
-import { describe, expect, it, vi } from "vitest";
-
 import { loadOfficialWebConfig } from "official-web-core";
+import { describe, expect, it, vi } from "vitest";
 import { sourcePackPlanMain } from "../src/source-pack-plan-cli";
 import { validateSourcePackConfig, validateSourcePackMain } from "../src/validate-source-pack";
 
@@ -12,7 +11,7 @@ describe("official-web-collector source-pack seam", () => {
 		expect(config.sourcePackManifest.entries.length).toBeGreaterThan(0);
 		expect(
 			config.sourcePackManifest.entries.some((entry) =>
-			entry.ownerSurfaces.includes("service_guide_lookup"),
+				entry.ownerSurfaces.includes("service_guide_lookup"),
 			),
 		).toBe(true);
 	});

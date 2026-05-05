@@ -122,6 +122,23 @@ const SAMPLE_SERVICE_MATERIAL_PAGE_HTML = `
 </html>
 `.trim();
 
+const SAMPLE_ACADEMIC_CALENDAR_PAGE_HTML = `
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <title>民大校历 - 中央民族大学</title>
+  </head>
+  <body>
+    <main>
+      <h1>民大校历</h1>
+      <p>2026-2027学年秋季学期教学周安排。</p>
+      <p>第1教学周：9月1日至9月7日。</p>
+      <p>国庆放假安排及补课安排另见校历标注。</p>
+    </main>
+  </body>
+</html>
+`.trim();
+
 describe("official web consumer denominator", () => {
 	it("loads consumer denominator config with explicit downstream owners", () => {
 		const { configRoot } = writeTestConfigRoot({
@@ -133,6 +150,7 @@ describe("official web consumer denominator", () => {
 		expect(bundle.consumerDenominator.consumerFamilies.map((item) => item.consumerFamily)).toEqual([
 			"contact_directory_candidate",
 			"service_guide_candidate",
+			"academic_calendar_candidate",
 			"stable_reference_candidate",
 			"regulation_candidate",
 			"notice_news_candidate",
@@ -232,6 +250,38 @@ describe("official web consumer denominator", () => {
 				(item) => item.consumerFamily === "service_guide_candidate",
 			)?.matchedEvidence,
 		).toContain("service_process");
+	});
+
+	it("classifies academic calendar pages with calendar arrangement evidence", () => {
+		const { configRoot } = writeTestConfigRoot({
+			consumerDenominatorEnforcementMode: "retain_matching_only",
+		});
+		const bundle = loadOfficialWebConfig("campus_public", { configRoot });
+		const page = createCollectedPageArtifactForTest({
+			configRoot,
+			crawlRunId: "owrun_consumer_calendar",
+			requestedUrl: "https://www.example.edu/calendar.htm",
+			finalUrl: "https://www.example.edu/calendar.htm",
+			declaredCanonicalUrl: null,
+			responseBody: SAMPLE_ACADEMIC_CALENDAR_PAGE_HTML,
+			fetchedAt: "2026-05-01T10:00:00.000Z",
+		});
+
+		const evaluation = evaluateOfficialWebConsumerDenominator({
+			consumerDenominator: bundle.consumerDenominator,
+			page,
+		});
+
+		const calendarMatch = evaluation.consumerMatches.find(
+			(item) => item.consumerFamily === "academic_calendar_candidate",
+		);
+		expect(evaluation.retentionDecision).toBe("retain_source_truth");
+		expect(calendarMatch).toMatchObject({
+			consumerFamily: "academic_calendar_candidate",
+			ownerSurface: "academic_calendar_lookup",
+			selectedWriteTarget: "calendar/academic_calendar",
+		});
+		expect(calendarMatch?.matchedEvidence).toEqual(["calendar_arrangement"]);
 	});
 
 	it("retains service material pages as source-truth candidates without making material release-blocking", () => {

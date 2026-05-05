@@ -257,6 +257,7 @@ def _dispatch_release_task(
     if task.task_type in {
         "official_web_selected_write_contact_directory",
         "official_web_selected_write_service_guide",
+        "official_web_selected_write_academic_calendar",
     }:
         if release_selected_write_func is None:
             raise RuntimeError("selected-write release function is not configured")

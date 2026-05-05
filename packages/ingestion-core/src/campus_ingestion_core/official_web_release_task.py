@@ -9,6 +9,7 @@ OFFICIAL_WEB_RELEASE_TASK_TYPES = frozenset(
     {
         "official_web_selected_write_contact_directory",
         "official_web_selected_write_service_guide",
+        "official_web_selected_write_academic_calendar",
         "official_web_stable_reference",
     }
 )

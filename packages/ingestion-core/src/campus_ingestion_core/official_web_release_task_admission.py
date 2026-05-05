@@ -14,6 +14,7 @@ from campus_ingestion_core.official_web_release_task_store import OfficialWebRel
 _SELECTED_WRITE_TASK_TYPE_BY_TARGET = {
     "campus_services/contact_directory": "official_web_selected_write_contact_directory",
     "campus_services/service_guide": "official_web_selected_write_service_guide",
+    "calendar/academic_calendar": "official_web_selected_write_academic_calendar",
 }
 _SELECTED_WRITE_ADMISSION_POLICY_VERSION = "official_web_selected_write_release_task_admission.v4"
 

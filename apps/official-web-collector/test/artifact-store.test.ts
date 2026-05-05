@@ -31,6 +31,7 @@ describe("official-web artifact store", () => {
 			Key: "official_web/campus_public/runs/owrun_01JQTEST/crawl-run.json",
 			Body: data,
 			ContentType: "application/json",
+			ContentLength: data.byteLength,
 		});
 		expect(result).toEqual({
 			objectKey: "official_web/campus_public/runs/owrun_01JQTEST/crawl-run.json",
@@ -38,6 +39,46 @@ describe("official-web artifact store", () => {
 			byteSize: data.byteLength,
 			recordCount: 1,
 		});
+	});
+
+	it("retries retryable object-store upload failures before succeeding", async () => {
+		const sleep = vi.fn().mockResolvedValue(undefined);
+		const client = {
+			send: vi
+				.fn()
+				.mockRejectedValueOnce({
+					name: "SlowDownWrite",
+					Code: "SlowDownWrite",
+					$metadata: { httpStatusCode: 503 },
+				})
+				.mockRejectedValueOnce({
+					name: "IncompleteBody",
+					Code: "IncompleteBody",
+					$metadata: { httpStatusCode: 400 },
+				})
+				.mockResolvedValue({}),
+		};
+		const store = new S3ArtifactStore({
+			bucket: "campus-rag-source",
+			client,
+			sleep,
+			retryBackoffMs: 25,
+		});
+		const data = new TextEncoder().encode(
+			'{"schemaVersion":"official_web_source_truth_bundle.v1"}',
+		);
+
+		await store.putObject({
+			objectKey: "official_web/campus_public/runs/owrun_01JQTEST/source-truth-bundle.json",
+			data,
+			contentType: "application/json",
+			recordCount: 1,
+		});
+
+		expect(client.send).toHaveBeenCalledTimes(3);
+		expect(sleep).toHaveBeenCalledTimes(2);
+		expect(sleep).toHaveBeenNthCalledWith(1, 25);
+		expect(sleep).toHaveBeenNthCalledWith(2, 50);
 	});
 
 	it("returns undefined when object-store env is absent", () => {

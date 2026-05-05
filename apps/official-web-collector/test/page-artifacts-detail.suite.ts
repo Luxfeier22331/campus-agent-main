@@ -34,6 +34,46 @@ const SAMPLE_ENGINE2_PARAGRAPH_HEAVY_DETAIL_WITH_LINKS_HTML = `
   </body>
 </html>`;
 
+const SAMPLE_VSB_BR_REGULATION_DETAIL_WITH_FOOTER_HTML = `
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <title>中央民族大学学术委员会章程-中央民族大学信息公开</title>
+  </head>
+  <body>
+    <div class="top-nav">
+      <a href="/index.htm">首页</a>
+      <a href="/gzzd.htm">规章制度</a>
+    </div>
+    <form name="_newscontent_fromname">
+      <div class="gcontent">
+        <center>
+          <h1 align="center">中央民族大学学术委员会章程</h1>
+        </center>
+        <center>
+          <span>作者：admin 来源：未知更新时间：14-11-06 17:56</span>
+        </center>
+        <div id="vsb_content" class="gtext">
+          <div class="v_news_content">
+            民大校发〔2013〕140号<br />
+            第一章 总 则<br />
+            第一条 为进一步提高我校科研水平和服务社会能力，努力把我校建设成为特色鲜明、国际知名的高水平研究型大学，根据《中华人民共和国高等教育法》，特制定本章程。<br />
+            第二条 中央民族大学学术委员会是由本校专家学者代表组成的学术评议、审议和学术决策、咨询机构。<br />
+            第三条 中央民族大学学术工作的重要决策一般须经校学术委员会审议通过后，由学校发布实施。<br />
+            第二章 组织机构<br />
+            第四条 校学术委员会由学术造诣高、学风端正的具有正高级专业技术职称人员组成。<br />
+            第五条 校学术委员会设主任1名，由校长担任。<br />
+            第六条 校学术委员会下设若干学科组，负责授权的学术评议和审议工作。<br />
+          </div>
+        </div>
+      </div>
+    </form>
+    <div class="footer">
+      <p style="text-align: center;">Copyright@ 2018 -- 党委办公室 校长办公室 All Rights Reserved</p>
+    </div>
+  </body>
+</html>`;
+
 export function registerPageArtifactsDetailSuite() {
 	it("extracts a checked-in real article detail fixture into stable article blocks", () => {
 		const pageArtifacts = buildContentSiteArtifactsForTest({
@@ -156,5 +196,35 @@ export function registerPageArtifactsDetailSuite() {
 				(item) => item.isMainContent && (item.textNormalized ?? "").includes("暂无歌词"),
 			),
 		).toBe(false);
+	});
+
+	it("recovers VSB br-separated regulation body when footer is the only initial paragraph", () => {
+		const pageArtifacts = buildContentSiteArtifactsForTest({
+			crawlRunId: "owrun_test_vsb_regulation_recovery",
+			requestedUrl: "https://www.example.edu/info/1198/4101.htm",
+			finalUrl: "https://www.example.edu/info/1198/4101.htm",
+			responseBody: SAMPLE_VSB_BR_REGULATION_DETAIL_WITH_FOOTER_HTML,
+			discoveryMethod: "manual_requeue",
+			discoveredFromUrl: "https://www.example.edu/gzzd.htm",
+			fetchedAt: "2026-05-05T09:00:00.000Z",
+		});
+
+		expect(pageArtifacts.pageManifest.mainContentBlockCount).toBeGreaterThanOrEqual(6);
+		expect(pageArtifacts.providerExtraction.pageSignals.mainContentCharacterCount).toBeGreaterThan(
+			240,
+		);
+		expect(
+			pageArtifacts.contentBlocks.some(
+				(item) =>
+					item.isMainContent &&
+					(item.textNormalized ?? "").includes("第一条 为进一步提高我校科研水平"),
+			),
+		).toBe(true);
+		expect(
+			pageArtifacts.contentBlocks.some(
+				(item) => item.isMainContent && (item.textNormalized ?? "").includes("Copyright@ 2018"),
+			),
+		).toBe(false);
+		expect(pageArtifacts.pageManifest.pageFamily).toBe("article_detail");
 	});
 }

@@ -50,15 +50,6 @@ export interface SourcePackExecutionPlan {
 	sourcePackId: string;
 }
 
-const OWNER_TO_TARGET_ID: Record<OfficialWebSourcePackOwnerSurface, string> = {
-	"contact_directory_lookup": "campus-services-contact-directory",
-	"future_notice_runtime": "official-web-notice-news-inventory",
-	"official_web/stable_reference": "official-web-stable-reference",
-	"regulations/institutional_rules": "official-web-institutional-rules",
-	"regulations/scoped_rules": "official-web-stable-reference",
-	"service_guide_lookup": "campus-services-service-guide",
-};
-
 export function buildSourcePackExecutionPlan(
 	siteId: string,
 	options: { configRoot?: string; repoRoot?: string } = {},
@@ -78,11 +69,14 @@ function buildExecutionPlanEntry(
 ): SourcePackExecutionPlanEntry {
 	const targetMatches = entry.ownerSurfaces.map((ownerSurface, index) => {
 		const releaseTarget = entry.releaseTargets[index];
-		const targetId = OWNER_TO_TARGET_ID[ownerSurface];
-		const target = config.targetSourceMap.targets.find((item) => item.targetId === targetId);
+		const target = config.targetSourceMap.targets.find(
+			(item) =>
+				item.ownerSurface === ownerSurface &&
+				item.selectedWriteTarget === normalizedWriteTarget(releaseTarget),
+		);
 		if (!target) {
 			throw new Error(
-				`source-pack entry ${entry.entryId} cannot resolve admitted target ${targetId}`,
+				`source-pack entry ${entry.entryId} cannot resolve admitted target for ${ownerSurface} -> ${releaseTarget}`,
 			);
 		}
 		return {
@@ -122,4 +116,14 @@ function buildExecutionPlanEntry(
 
 function buildTargetJobId(siteId: string, targetId: string): string {
 	return `owtarget_${siteId}_${targetId}`.toLowerCase().replace(/[^a-z0-9]+/g, "_");
+}
+
+function normalizedWriteTarget(releaseTarget: OfficialWebSourcePackReleaseTarget): string {
+	if (
+		releaseTarget === "official_web/fresh_news" ||
+		releaseTarget === "official_web/news_archive"
+	) {
+		return "";
+	}
+	return releaseTarget;
 }

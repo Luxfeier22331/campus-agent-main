@@ -66,6 +66,22 @@ function writeMinimalConsumerDenominator(siteRoot: string): void {
 						review_policy: "selected_write_requires_review",
 					},
 					{
+						consumer_family: "academic_calendar_candidate",
+						owner_surface: "academic_calendar_lookup",
+						owner_agent_or_runtime: "calendar-agent",
+						materialization_policy: "candidate_only",
+						page_families: ["article_detail", "generic_content_page"],
+						title_keywords: ["校历", "教学周", "放假安排"],
+						path_patterns: ["calendar", "xiaoli"],
+						required_evidence: ["calendar_arrangement"],
+						optional_evidence: [],
+						minimum_matched_evidence_count: 1,
+						requires_keyword_or_path_match: true,
+						negative_patterns: ["新闻", "通知", "公告"],
+						selected_write_target: "calendar/academic_calendar",
+						review_policy: "selected_write_requires_review",
+					},
+					{
 						consumer_family: "stable_reference_candidate",
 						owner_surface: "official_web/stable_reference",
 						owner_agent_or_runtime: "rag-agent",
@@ -168,6 +184,22 @@ function writeMinimalTargetSourceMap(siteRoot: string): void {
 						inventory_only: false,
 						notes: "test institutional rules target",
 					},
+					{
+						target_id: "academic-calendar",
+						consumer_family: "academic_calendar_candidate",
+						owner_surface: "academic_calendar_lookup",
+						selected_write_target: "calendar/academic_calendar",
+						source_hosts: ["www.example.edu"],
+						url_hints: ["calendar"],
+						title_hints: ["校历", "教学周"],
+						required_evidence: ["calendar_arrangement"],
+						optional_evidence: [],
+						retention_policy: "retain_source_truth",
+						review_policy: "selected_write_requires_review",
+						materialization_policy: "candidate_only",
+						inventory_only: false,
+						notes: "test academic calendar target",
+					},
 				],
 			},
 			null,
@@ -233,6 +265,32 @@ function writeMinimalTargetInventory(siteRoot: string): void {
 						preview_status: "candidate",
 						notes: "test institutional rules inventory entry",
 					},
+					{
+						inventory_id: "academic-calendar-page",
+						admission_target_id: "academic-calendar",
+						target_label: "Academic calendar page",
+						consumer_family: "academic_calendar_candidate",
+						owner_surface: "academic_calendar_lookup",
+						owner_agent_or_runtime: "calendar-agent",
+						selected_write_target: "calendar/academic_calendar",
+						source_hosts: ["www.example.edu"],
+						source_urls: ["https://www.example.edu/calendar"],
+						required_fields: [
+							"academic_year_label",
+							"calendar_arrangement",
+							"source_url",
+							"source_version_evidence",
+						],
+						optional_fields: ["holiday_name", "week_index"],
+						required_evidence: ["calendar_arrangement"],
+						optional_evidence: [],
+						materialization_policy: "candidate_only",
+						review_policy: "selected_write_requires_review",
+						inventory_only: false,
+						release_blockers: ["no_preview_evidence"],
+						preview_status: "candidate",
+						notes: "test academic calendar inventory entry",
+					},
 				],
 			},
 			null,
@@ -267,6 +325,23 @@ function writeMinimalSourcePackManifest(siteRoot: string): void {
 						refresh_posture: "manifest_refresh_only",
 						extraction_gate: "deterministic_source_backed",
 						eval_questions: ["怎么办理？"],
+					},
+					{
+						entry_id: "academic-calendar-entry",
+						url: "https://www.example.edu/calendar",
+						content_family: "academic_calendar_reference",
+						source_kind: "html_page",
+						answer_bearing: true,
+						demand_ids: ["owsp-academic-calendar"],
+						owner_surfaces: ["academic_calendar_lookup"],
+						release_targets: ["calendar/academic_calendar"],
+						expected_facts: ["calendar_arrangement"],
+						composition_group: null,
+						composition_role: null,
+						capture_policy: "one_time",
+						refresh_posture: "manifest_refresh_only",
+						extraction_gate: "deterministic_source_backed",
+						eval_questions: ["今天第几教学周？"],
 					},
 				],
 			},
@@ -347,6 +422,7 @@ describe("official-web-core config loading", () => {
 		expect(config.targetSourceMap.targets.map((target) => target.targetId)).toEqual([
 			"campus-services-contact-directory",
 			"campus-services-service-guide",
+			"official-web-academic-calendar",
 			"official-web-stable-reference",
 			"official-web-institutional-rules",
 			"official-web-notice-news-inventory",
@@ -373,7 +449,17 @@ describe("official-web-core config loading", () => {
 			titleHints: expect.arrayContaining(["校园卡", "一卡通"]),
 			urlHints: expect.arrayContaining(["fwzn", "xsfw"]),
 		});
-		expect(config.targetSourceMap.targets[3]).toMatchObject({
+		expect(config.targetSourceMap.targets[2]).toMatchObject({
+			consumerFamily: "academic_calendar_candidate",
+			inventoryOnly: false,
+			materializationPolicy: "candidate_only",
+			requiredEvidence: ["calendar_arrangement"],
+			retentionPolicy: "retain_source_truth",
+			reviewPolicy: "selected_write_requires_review",
+			selectedWriteTarget: "calendar/academic_calendar",
+			sourceHosts: ["www.muc.edu.cn"],
+		});
+		expect(config.targetSourceMap.targets[4]).toMatchObject({
 			consumerFamily: "regulation_candidate",
 			inventoryOnly: false,
 			materializationPolicy: "release_gate_required",
@@ -383,7 +469,7 @@ describe("official-web-core config loading", () => {
 			selectedWriteTarget: "regulations/institutional_rules",
 			sourceHosts: ["xxgk.muc.edu.cn", "met.muc.edu.cn"],
 		});
-		expect(config.targetSourceMap.targets[4]).toMatchObject({
+		expect(config.targetSourceMap.targets[5]).toMatchObject({
 			consumerFamily: "notice_news_candidate",
 			inventoryOnly: true,
 			materializationPolicy: "inventory_only",
@@ -391,7 +477,7 @@ describe("official-web-core config loading", () => {
 			reviewPolicy: "inventory_only",
 			selectedWriteTarget: "",
 		});
-		expect(config.targetInventory.inventoryVersion).toBe("muc_public_target_inventory_v8");
+		expect(config.targetInventory.inventoryVersion).toBe("muc_public_target_inventory_v12");
 		expect(config.targetInventory.entries.map((entry) => entry.inventoryId)).toEqual([
 			"muc-main-homepage-contact",
 			"muc-information-disclosure-contact",
@@ -404,11 +490,23 @@ describe("official-web-core config loading", () => {
 			"muc-it-network-account-management-guide",
 			"muc-it-staff-campus-card-service-guide",
 			"muc-it-enterprise-wechat-guide",
+			"muc-it-enterprise-wechat-faq-guide",
+			"muc-it-enterprise-wechat-phone-update-guide",
 			"muc-it-directory-lookup-guide",
+			"muc-it-academic-calendar-guide",
+			"muc-public-academic-calendar",
 			"muc-it-service-contacts",
 			"muc-logistics-service-contacts",
 			"muc-information-disclosure-regulation-reference",
 			"muc-it-email-policy-reference",
+			"muc-it-information-system-management-policy-reference",
+			"muc-it-network-security-policy-reference",
+			"muc-it-campus-network-account-policy-reference",
+			"muc-it-campus-card-policy-reference",
+			"muc-it-information-portal-policy-reference",
+			"muc-it-office-automation-policy-reference",
+			"muc-it-secondary-website-policy-reference",
+			"muc-it-campus-network-access-policy-reference",
 			"muc-academic-committee-charter",
 			"muc-staff-congress-procedure",
 			"muc-school-introduction-reference",
@@ -500,6 +598,28 @@ describe("official-web-core config loading", () => {
 		});
 		expect(
 			config.targetInventory.entries.find(
+				(entry) => entry.inventoryId === "muc-it-enterprise-wechat-faq-guide",
+			),
+		).toMatchObject({
+			admissionTargetId: "campus-services-service-guide",
+			consumerFamily: "service_guide_candidate",
+			requiredEvidence: ["service_process"],
+			sourceHosts: ["met.muc.edu.cn"],
+			sourceUrls: ["https://met.muc.edu.cn/info/1068/2499.htm"],
+		});
+		expect(
+			config.targetInventory.entries.find(
+				(entry) => entry.inventoryId === "muc-it-enterprise-wechat-phone-update-guide",
+			),
+		).toMatchObject({
+			admissionTargetId: "campus-services-service-guide",
+			consumerFamily: "service_guide_candidate",
+			requiredEvidence: ["service_process"],
+			sourceHosts: ["met.muc.edu.cn"],
+			sourceUrls: ["https://met.muc.edu.cn/info/1068/2669.htm"],
+		});
+		expect(
+			config.targetInventory.entries.find(
 				(entry) => entry.inventoryId === "muc-it-directory-lookup-guide",
 			),
 		).toMatchObject({
@@ -508,6 +628,28 @@ describe("official-web-core config loading", () => {
 			requiredEvidence: ["service_process"],
 			sourceHosts: ["met.muc.edu.cn"],
 			sourceUrls: ["https://met.muc.edu.cn/info/1068/1831.htm"],
+		});
+		expect(
+			config.targetInventory.entries.find(
+				(entry) => entry.inventoryId === "muc-it-academic-calendar-guide",
+			),
+		).toMatchObject({
+			admissionTargetId: "campus-services-service-guide",
+			consumerFamily: "service_guide_candidate",
+			requiredEvidence: ["service_process"],
+			sourceHosts: ["met.muc.edu.cn"],
+			sourceUrls: ["https://met.muc.edu.cn/info/1068/1832.htm"],
+		});
+		expect(
+			config.targetInventory.entries.find(
+				(entry) => entry.inventoryId === "muc-public-academic-calendar",
+			),
+		).toMatchObject({
+			admissionTargetId: "official-web-academic-calendar",
+			consumerFamily: "academic_calendar_candidate",
+			requiredEvidence: ["calendar_arrangement"],
+			sourceHosts: ["www.muc.edu.cn"],
+			sourceUrls: ["https://www.muc.edu.cn/ggfw/mdxl.htm"],
 		});
 		expect(
 			config.targetInventory.entries.find(
@@ -522,6 +664,36 @@ describe("official-web-core config loading", () => {
 		});
 		expect(
 			config.targetInventory.entries.find(
+				(entry) => entry.inventoryId === "muc-it-information-system-management-policy-reference",
+			),
+		).toMatchObject({
+			admissionTargetId: "official-web-institutional-rules",
+			consumerFamily: "regulation_candidate",
+			requiredEvidence: ["regulation_text"],
+			sourceUrls: ["https://met.muc.edu.cn/info/1024/1085.htm"],
+		});
+		expect(
+			config.targetInventory.entries.find(
+				(entry) => entry.inventoryId === "muc-it-network-security-policy-reference",
+			),
+		).toMatchObject({
+			admissionTargetId: "official-web-institutional-rules",
+			consumerFamily: "regulation_candidate",
+			requiredEvidence: ["regulation_text"],
+			sourceUrls: ["https://met.muc.edu.cn/info/1024/1188.htm"],
+		});
+		expect(
+			config.targetInventory.entries.find(
+				(entry) => entry.inventoryId === "muc-it-information-portal-policy-reference",
+			),
+		).toMatchObject({
+			admissionTargetId: "official-web-institutional-rules",
+			consumerFamily: "regulation_candidate",
+			requiredEvidence: ["regulation_text"],
+			sourceUrls: ["https://met.muc.edu.cn/info/1024/1088.htm"],
+		});
+		expect(
+			config.targetInventory.entries.find(
 				(entry) => entry.inventoryId === "muc-logistics-service-contacts",
 			),
 		).toMatchObject({
@@ -532,9 +704,7 @@ describe("official-web-core config loading", () => {
 			sourceUrls: ["https://www.muc.edu.cn/ggfw/hqfw.htm"],
 		});
 		expect(
-			config.targetInventory.entries.find(
-				(entry) => entry.inventoryId === "muc-library-reference",
-			),
+			config.targetInventory.entries.find((entry) => entry.inventoryId === "muc-library-reference"),
 		).toMatchObject({
 			admissionTargetId: "official-web-stable-reference",
 			consumerFamily: "stable_reference_candidate",

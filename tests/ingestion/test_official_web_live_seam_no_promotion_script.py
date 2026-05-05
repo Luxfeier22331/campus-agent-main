@@ -7,7 +7,9 @@ from unittest.mock import patch
 
 from scripts.official_web_live_seam_no_promotion import (
     assert_seam_report,
+    build_app_api_dev_command,
     build_collector_command,
+    build_collector_env,
     build_parser,
     build_seam_report,
     extract_last_json_object,
@@ -128,6 +130,21 @@ INFO CheerioCrawler: Queue head still returned requests {"requests":[{"id":"abc"
 
         self.assertIn("--target-candidate-id", command)
         self.assertEqual(command[command.index("--target-candidate-id") + 1], "owcand_exact")
+
+    def test_build_app_api_dev_command_uses_explicit_custom_port(self) -> None:
+        command = build_app_api_dev_command(27123)
+
+        self.assertEqual(command[:6], ("pnpm", "--dir", "apps/app-api", "exec", "wrangler", "dev"))
+        self.assertIn("--port", command)
+        self.assertEqual(command[command.index("--port") + 1], "27123")
+
+    def test_build_collector_env_uses_custom_app_api_port(self) -> None:
+        env = build_collector_env(
+            Path.cwd(),
+            app_api_port=27123,
+        )
+
+        self.assertEqual(env["OFFICIAL_WEB_APP_API_BASE_URL"], "http://127.0.0.1:27123")
 
     def test_build_seam_report_includes_target_first_proof_fields(self) -> None:
         with TemporaryDirectory() as temp_dir:

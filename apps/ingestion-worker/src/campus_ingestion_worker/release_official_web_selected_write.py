@@ -16,6 +16,15 @@ from campus_ingestion_core import (
     ObjectStoreSettings,
     replay_official_web_source_truth_local,
 )
+from campus_ingestion_core.academic_calendar_projection import (
+    ACADEMIC_CALENDAR_COLLECTION,
+    ACADEMIC_CALENDAR_CORPUS,
+    ACADEMIC_CALENDAR_PROJECTION_FILENAME,
+    ACADEMIC_CALENDAR_PROJECTION_SCHEMA_VERSION,
+    OFFICIAL_WEB_CURATED_ACADEMIC_CALENDAR_SOURCE_FAMILY,
+    assert_academic_calendar_projection_release_ready,
+    write_academic_calendar_projection_release,
+)
 from campus_ingestion_core.contact_directory_projection import (
     CONTACT_DIRECTORY_COLLECTION,
     CONTACT_DIRECTORY_CORPUS,
@@ -369,6 +378,16 @@ def _prepare_selected_write_projection(
             )
             collection = SERVICE_GUIDE_COLLECTION
             corpus = SERVICE_GUIDE_CORPUS
+        elif selected_write_target == "calendar/academic_calendar":
+            bundle = _build_academic_calendar_bundle(
+                candidates=candidates,
+                selected_write_task=selected_write_task,
+                generated_at=generated_at,
+                object_store=derived_object_store,
+                derived_bucket=runtime_derived_bucket,
+            )
+            collection = ACADEMIC_CALENDAR_COLLECTION
+            corpus = ACADEMIC_CALENDAR_CORPUS
         else:
             raise OfficialWebSelectedWriteReleaseError(
                 code="unsupported_selected_write_target",
@@ -490,6 +509,35 @@ def _publish_selected_write_projection(
                 _mapping_list(prepared.task_scope_bundle.get("service_guide_records"))
             ),
         )
+    if prepared.collection == ACADEMIC_CALENDAR_COLLECTION:
+        report = write_academic_calendar_projection_release(
+            bundle=prepared.bundle,
+            output_dir=output_dir,
+            release_id=release_id,
+            generated_at=generated_at,
+            manual_review_sources=[],
+            object_store=derived_object_store,
+            bucket=derived_bucket,
+        )
+        structured_projection_publisher.publish_release(
+            corpus=prepared.corpus,
+            collection=prepared.collection,
+            release_id=report.release_id,
+            generated_at=generated_at,
+            schema_version=ACADEMIC_CALENDAR_PROJECTION_SCHEMA_VERSION,
+            artifact_object_key=report.release_object_key,
+            artifact_checksum=projection_artifact_checksum(prepared.bundle),
+            bundle=prepared.bundle,
+            validation_status="valid",
+        )
+        return _ProjectionReleaseResult(
+            corpus=prepared.corpus,
+            collection=prepared.collection,
+            release_id=report.release_id,
+            record_count=len(
+                _mapping_list(prepared.task_scope_bundle.get("academic_calendar_records"))
+            ),
+        )
     raise OfficialWebSelectedWriteReleaseError(
         code="unsupported_selected_write_target",
         message=f"unsupported selected-write collection: {prepared.collection}",
@@ -501,6 +549,8 @@ def _projection_record_count(bundle: Mapping[str, object], collection: str) -> i
         return len(_mapping_list(bundle.get("contact_records")))
     if collection == SERVICE_GUIDE_COLLECTION:
         return len(_mapping_list(bundle.get("service_guide_records")))
+    if collection == ACADEMIC_CALENDAR_COLLECTION:
+        return len(_mapping_list(bundle.get("academic_calendar_records")))
     return 0
 
 
@@ -518,6 +568,8 @@ def _records_field_for_collection(collection: str) -> str:
         return "contact_records"
     if collection == SERVICE_GUIDE_COLLECTION:
         return "service_guide_records"
+    if collection == ACADEMIC_CALENDAR_COLLECTION:
+        return "academic_calendar_records"
     raise OfficialWebSelectedWriteReleaseError(
         code="unsupported_selected_write_target",
         message=f"unsupported selected-write collection: {collection}",
@@ -698,6 +750,13 @@ def _build_service_guide_bundle(
         "conflict_records": [],
         "manual_review_sources": [],
     }
+    bundle["service_guide_records"] = [
+        _with_public_service_guide_source_refs(
+            record=record,
+            selected_write_task=selected_write_task,
+        )
+        for record in _mapping_list(bundle.get("service_guide_records"))
+    ]
     bundle = _merge_current_projection_bundle(
         current_bundle=_load_current_projection_bundle(
             object_store=object_store,
@@ -712,6 +771,147 @@ def _build_service_guide_bundle(
     )
     assert_service_guide_projection_release_ready(bundle)
     return bundle
+
+
+def _build_academic_calendar_bundle(
+    *,
+    candidates: list[dict[str, object]],
+    selected_write_task: dict[str, object],
+    generated_at: str,
+    object_store: OfficialWebSelectedWriteObjectStore,
+    derived_bucket: str,
+) -> dict[str, object]:
+    bundle = {
+        "schema_version": ACADEMIC_CALENDAR_PROJECTION_SCHEMA_VERSION,
+        "generated_at": generated_at,
+        "source_families": [OFFICIAL_WEB_CURATED_ACADEMIC_CALENDAR_SOURCE_FAMILY],
+        "source_documents": [_source_document(selected_write_task=selected_write_task)],
+        "academic_calendar_records": [
+            record
+            for candidate in candidates
+            for record in _academic_calendar_records_from_candidate(
+                candidate=candidate,
+                selected_write_task=selected_write_task,
+            )
+        ],
+        "manual_review_sources": [],
+    }
+    bundle = _merge_current_projection_bundle(
+        current_bundle=_load_current_projection_bundle(
+            object_store=object_store,
+            bucket=derived_bucket,
+            corpus=ACADEMIC_CALENDAR_CORPUS,
+            collection=ACADEMIC_CALENDAR_COLLECTION,
+            filename=ACADEMIC_CALENDAR_PROJECTION_FILENAME,
+        ),
+        new_bundle=bundle,
+        records_field="academic_calendar_records",
+        id_field="calendar_record_id",
+    )
+    assert_academic_calendar_projection_release_ready(bundle)
+    return bundle
+
+
+def _academic_calendar_records_from_candidate(
+    *,
+    candidate: dict[str, object],
+    selected_write_task: dict[str, object],
+) -> list[dict[str, object]]:
+    typed_candidate = _object_mapping(candidate.get("typed_candidate"))
+    raw_records = _mapping_list(typed_candidate.get("records"))
+    if raw_records:
+        return [
+            _academic_calendar_record_payload(
+                raw_record=raw_record,
+                candidate=candidate,
+                selected_write_task=selected_write_task,
+            )
+            for raw_record in raw_records
+        ]
+    return [
+        _academic_calendar_record_payload(
+            raw_record=typed_candidate,
+            candidate=candidate,
+            selected_write_task=selected_write_task,
+        )
+    ]
+
+
+def _academic_calendar_record_from_candidate(
+    *,
+    candidate: dict[str, object],
+    selected_write_task: dict[str, object],
+) -> dict[str, object]:
+    records = _academic_calendar_records_from_candidate(
+        candidate=candidate,
+        selected_write_task=selected_write_task,
+    )
+    if not records:
+        raise OfficialWebSelectedWriteReleaseError(
+            code="missing_selected_write_candidate",
+            message="academic calendar selected-write candidate produced no records.",
+        )
+    return records[0]
+
+
+def _academic_calendar_record_payload(
+    *,
+    raw_record: Mapping[str, object],
+    candidate: dict[str, object],
+    selected_write_task: dict[str, object],
+) -> dict[str, object]:
+    source_ref = _candidate_source_ref(candidate=candidate, selected_write_task=selected_write_task)
+    typed_candidate = _object_mapping(candidate.get("typed_candidate"))
+    selected_write_field_review = _selected_write_field_review(selected_write_task)
+    academic_year_label = _require_text(
+        raw_record.get("academic_year_label") or typed_candidate.get("academic_year_label"),
+        "typed_candidate.academic_year_label",
+    )
+    term_label = _require_text(
+        raw_record.get("term_label") or typed_candidate.get("term_label"),
+        "typed_candidate.term_label",
+    )
+    start_date = _require_text(raw_record.get("start_date"), "typed_candidate.start_date")
+    end_date = _require_text(raw_record.get("end_date"), "typed_candidate.end_date")
+    day_kind = _require_text(raw_record.get("day_kind"), "typed_candidate.day_kind")
+    week_index = int(raw_record.get("week_index") or 0)
+    class_day_pattern = str(raw_record.get("class_day_pattern") or "").strip()
+    holiday_name = str(raw_record.get("holiday_name") or "").strip()
+    is_makeup_class = bool(raw_record.get("is_makeup_class") is True)
+    calendar_record_id = _stable_record_id(
+        prefix="calendar:official_web",
+        seed={
+            "inventory_id": selected_write_task.get("inventoryId"),
+            "academic_year_label": academic_year_label,
+            "term_label": term_label,
+            "start_date": start_date,
+            "end_date": end_date,
+            "day_kind": day_kind,
+            "week_index": week_index,
+            "holiday_name": holiday_name,
+            "class_day_pattern": class_day_pattern,
+        },
+    )
+    return {
+        "calendar_record_id": calendar_record_id,
+        "academic_year_label": academic_year_label,
+        "term_label": term_label,
+        "start_date": start_date,
+        "end_date": end_date,
+        "week_index": week_index,
+        "day_kind": day_kind,
+        "class_day_pattern": class_day_pattern,
+        "is_makeup_class": is_makeup_class,
+        "holiday_name": holiday_name,
+        "source_refs": _unique_strings(
+            [
+                source_ref,
+                *_string_list(raw_record.get("source_refs")),
+                *_public_source_refs_for_selected_write_task(selected_write_task),
+            ]
+        ),
+        **selected_write_field_review,
+    }
 
 
 def _load_current_projection_bundle(
@@ -1926,6 +2126,7 @@ def _assert_selected_write_release_task(task: OfficialWebReleaseTask) -> None:
     if task.task_type not in {
         "official_web_selected_write_contact_directory",
         "official_web_selected_write_service_guide",
+        "official_web_selected_write_academic_calendar",
     }:
         raise OfficialWebSelectedWriteReleaseError(
             code="unsupported_selected_write_release_task_type",
@@ -2008,6 +2209,8 @@ def _selected_write_target_from_task(task: OfficialWebReleaseTask) -> str:
         return "campus_services/contact_directory"
     if task.task_type == "official_web_selected_write_service_guide":
         return "campus_services/service_guide"
+    if task.task_type == "official_web_selected_write_academic_calendar":
+        return "calendar/academic_calendar"
     return ""
 
 

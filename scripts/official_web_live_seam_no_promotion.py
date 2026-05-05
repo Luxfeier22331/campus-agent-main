@@ -25,11 +25,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     output_root.mkdir(parents=True, exist_ok=True)
 
     preflight_ports(args.app_api_port, args.handoff_port)
-    collector_env = {
-        **os.environ,
-        **load_env_file(repo_root / ".env"),
-        **load_env_file(repo_root / "apps" / "official-web-collector" / ".env"),
-    }
+    collector_env = build_collector_env(repo_root, app_api_port=args.app_api_port)
     app_env_files = {
         **load_env_file(repo_root / "apps" / "app-api" / ".env"),
         **load_env_file(repo_root / "apps" / "app-api" / ".dev.vars"),
@@ -63,12 +59,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         processes.append(
             start_process(
                 repo_root,
-                ("pnpm", "--dir", "apps/app-api", "dev"),
-                env={
-                    "APP_API_OFFICIAL_WEB_HANDOFF_URL": handoff_url,
-                    "APP_API_OFFICIAL_WEB_HANDOFF_TOKEN": handoff_token,
-                    "APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS": "8000",
-                },
+                build_app_api_dev_command(args.app_api_port),
+                env=build_app_api_dev_env(
+                    repo_root,
+                    handoff_url=handoff_url,
+                    handoff_token=handoff_token,
+                ),
                 log_path=output_root / "app-api.log",
             )
         )
@@ -475,6 +471,53 @@ def build_collector_command(
     if target_candidate_id:
         command.extend(("--target-candidate-id", target_candidate_id))
     return tuple(command)
+
+
+def build_collector_env(
+    repo_root: Path,
+    *,
+    app_api_port: int,
+) -> dict[str, str]:
+    return {
+        **os.environ,
+        **load_env_file(repo_root / ".env"),
+        **load_env_file(repo_root / "apps" / "official-web-collector" / ".env"),
+        "OFFICIAL_WEB_APP_API_BASE_URL": f"http://127.0.0.1:{app_api_port}",
+    }
+
+
+def build_app_api_dev_command(app_api_port: int) -> tuple[str, ...]:
+    return (
+        "pnpm",
+        "--dir",
+        "apps/app-api",
+        "exec",
+        "wrangler",
+        "dev",
+        "-e",
+        "local",
+        "--ip",
+        "127.0.0.1",
+        "--port",
+        str(app_api_port),
+    )
+
+
+def build_app_api_dev_env(
+    repo_root: Path,
+    *,
+    handoff_url: str,
+    handoff_token: str,
+) -> dict[str, str]:
+    return {
+        **load_env_file(repo_root / "apps" / "app-api" / ".env"),
+        **load_env_file(repo_root / "apps" / "app-api" / ".dev.vars"),
+        "APP_API_OFFICIAL_WEB_HANDOFF_URL": handoff_url,
+        "APP_API_OFFICIAL_WEB_HANDOFF_TOKEN": handoff_token,
+        "APP_API_OFFICIAL_WEB_HANDOFF_TIMEOUT_MS": "8000",
+        "WRANGLER_DISABLE_EXPERIMENTAL_WARNING": "1",
+        "XDG_CONFIG_HOME": "./.wrangler-home",
+    }
 
 
 def load_env_file(path: Path) -> dict[str, str]:

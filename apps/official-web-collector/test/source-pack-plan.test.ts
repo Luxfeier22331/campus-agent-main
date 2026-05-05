@@ -23,10 +23,7 @@ describe("official web source-pack execution plan", () => {
 
 		expect(row.url).toBe("https://met.muc.edu.cn/info/1027/1127.htm");
 		expect(row.host).toBe("met.muc.edu.cn");
-		expect(row.ownerSurfaces).toEqual([
-			"service_guide_lookup",
-			"contact_directory_lookup",
-		]);
+		expect(row.ownerSurfaces).toEqual(["service_guide_lookup", "contact_directory_lookup"]);
 		expect(row.releaseTargets).toEqual([
 			"campus_services/service_guide",
 			"campus_services/contact_directory",
@@ -104,7 +101,9 @@ describe("official web source-pack execution plan", () => {
 		) as SourcePackExecutionPlanEntry;
 
 		expect(row.targetMatches).toHaveLength(2);
-		expect(row.targetMatches.find((item) => item.targetId === "campus-services-service-guide")).toMatchObject({
+		expect(
+			row.targetMatches.find((item) => item.targetId === "campus-services-service-guide"),
+		).toMatchObject({
 			compositionGroup: "email_service",
 			compositionRole: "policy_source",
 			targetId: "campus-services-service-guide",
@@ -112,7 +111,9 @@ describe("official web source-pack execution plan", () => {
 			selectedWriteTarget: "campus_services/service_guide",
 			sourcePackEntryId: "owsp-email-policy-1090",
 		});
-		expect(row.targetMatches.find((item) => item.targetId === "official-web-institutional-rules")).toMatchObject({
+		expect(
+			row.targetMatches.find((item) => item.targetId === "official-web-institutional-rules"),
+		).toMatchObject({
 			compositionGroup: "email_service",
 			compositionRole: "policy_source",
 			targetId: "official-web-institutional-rules",
@@ -146,7 +147,10 @@ describe("official web source-pack execution plan", () => {
 			"owsp-network-account-1106",
 			"owsp-staff-campus-card-1107",
 			"owsp-enterprise-wechat-1828",
+			"owsp-enterprise-wechat-faq-2499",
+			"owsp-enterprise-wechat-phone-update-2669",
 			"owsp-directory-lookup-1831",
+			"owsp-academic-calendar-guide-1832",
 		]) {
 			const row = plan.rows.find(
 				(item) => item.entryId === entryId,
@@ -160,6 +164,53 @@ describe("official web source-pack execution plan", () => {
 				targetId: "campus-services-service-guide",
 				consumerFamily: "service_guide_candidate",
 				selectedWriteTarget: "campus_services/service_guide",
+				sourcePackEntryId: entryId,
+			});
+		}
+	});
+
+	it("admits the public academic calendar page on the academic-calendar target", () => {
+		const plan = buildSourcePackExecutionPlan("muc_public");
+		const row = plan.rows.find(
+			(item) => item.entryId === "owsp-public-academic-calendar-mdxl",
+		) as SourcePackExecutionPlanEntry;
+
+		expect(row.url).toBe("https://www.muc.edu.cn/ggfw/mdxl.htm");
+		expect(row.ownerSurfaces).toEqual(["academic_calendar_lookup"]);
+		expect(row.releaseTargets).toEqual(["calendar/academic_calendar"]);
+		expect(row.targetMatches).toHaveLength(1);
+		expect(row.targetMatches[0]).toMatchObject({
+			targetId: "official-web-academic-calendar",
+			consumerFamily: "academic_calendar_candidate",
+			selectedWriteTarget: "calendar/academic_calendar",
+			sourcePackEntryId: "owsp-public-academic-calendar-mdxl",
+		});
+	});
+
+	it("admits newly added met regulation pages on the institutional-rules target", () => {
+		const plan = buildSourcePackExecutionPlan("muc_public");
+
+		for (const entryId of [
+			"owsp-it-information-system-management-policy-1085",
+			"owsp-it-network-security-policy-1188",
+			"owsp-it-campus-network-account-policy-1084",
+			"owsp-it-campus-card-policy-1086",
+			"owsp-it-information-portal-policy-1088",
+			"owsp-it-office-automation-policy-1089",
+			"owsp-it-secondary-website-policy-1091",
+			"owsp-it-campus-network-access-policy-1083",
+		]) {
+			const row = plan.rows.find(
+				(item) => item.entryId === entryId,
+			) as SourcePackExecutionPlanEntry;
+			expect(row.ownerSurfaces).toContain("regulations/institutional_rules");
+			expect(row.releaseTargets).toContain("regulations/institutional_rules");
+			expect(
+				row.targetMatches.find((item) => item.targetId === "official-web-institutional-rules"),
+			).toMatchObject({
+				targetId: "official-web-institutional-rules",
+				consumerFamily: "regulation_candidate",
+				selectedWriteTarget: "regulations/institutional_rules",
 				sourcePackEntryId: entryId,
 			});
 		}

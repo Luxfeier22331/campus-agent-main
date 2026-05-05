@@ -67,11 +67,12 @@ def _selected_write_task(
     *,
     selected_write_target: str = "campus_services/contact_directory",
 ) -> dict[str, object]:
-    task_type = (
-        "official_web_selected_write_service_guide"
-        if selected_write_target == "campus_services/service_guide"
-        else "official_web_selected_write_contact_directory"
-    )
+    if selected_write_target == "campus_services/service_guide":
+        task_type = "official_web_selected_write_service_guide"
+    elif selected_write_target == "calendar/academic_calendar":
+        task_type = "official_web_selected_write_academic_calendar"
+    else:
+        task_type = "official_web_selected_write_contact_directory"
     input_ref: dict[str, object]
     if selected_write_target == "campus_services/service_guide":
         input_ref = {
@@ -101,6 +102,37 @@ def _selected_write_task(
             ],
             "sourceUrls": ["https://www.muc.edu.cn/"],
             "targetLabel": "中央民族大学学生校园卡服务",
+        }
+    elif selected_write_target == "calendar/academic_calendar":
+        input_ref = {
+            "fieldStatus": {
+                "academic_year_label": "present",
+                "term_label": "present",
+                "date_range": "present",
+                "calendar_arrangement": "present",
+                "source_url": "present",
+                "source_version_evidence": "present",
+                "holiday_name": "source_not_provided",
+                "week_index": "present",
+                "class_day_pattern": "present",
+            },
+            "optionalEvidence": [],
+            "optionalFields": ["holiday_name", "week_index", "class_day_pattern"],
+            "policyVersion": "official_web_selected_write_admission.v1",
+            "requiredEvidence": ["calendar_arrangement"],
+            "requiredFields": [
+                "academic_year_label",
+                "term_label",
+                "date_range",
+                "calendar_arrangement",
+                "source_url",
+                "source_version_evidence",
+            ],
+            "sourceObjectKeys": [
+                "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json"
+            ],
+            "sourceUrls": ["https://www.muc.edu.cn/ggfw/mdxl.htm"],
+            "targetLabel": "中央民族大学公开校历",
         }
     else:
         input_ref = {
@@ -400,6 +432,106 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
                 (
                     "campus-rag-derived",
                     "campus_services/releases/service_guide/current/service-guide-projection.json",
+                ),
+                object_store.objects,
+            )
+
+    def test_preview_selected_write_academic_calendar_builds_bundle_without_publish_side_effects(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            object_store = _FakeObjectStore(
+                {
+                    (
+                        "campus-rag-source",
+                        "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json",
+                    ): json.dumps(
+                        {
+                            "pages": [],
+                            "runId": "owrun_contact",
+                            "siteId": "muc_public",
+                        }
+                    ).encode("utf-8")
+                }
+            )
+            task = {
+                **_selected_write_task(selected_write_target="calendar/academic_calendar"),
+                "inventoryId": "muc-public-academic-calendar",
+            }
+
+            def fake_replay(**_: object) -> dict[str, object]:
+                return {
+                    "consumer_candidate_pages": [
+                        {
+                            "consumer_family": "academic_calendar_candidate",
+                            "materialization_policy": "candidate_only",
+                            "normalized_canonical_url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                            "quality_gate": {"decision": "pass"},
+                            "raw_asset_id": "owasset_calendar",
+                            "raw_version_id": "owver_calendar",
+                            "selected_write_target": "calendar/academic_calendar",
+                            "target_job_id": "owtarget_contact",
+                            "typed_candidate": {
+                                "academic_year_label": "2025-2026学年",
+                                "term_label": "春季学期",
+                                "date_range": "2026-05-09 至 2026-05-09",
+                                "calendar_arrangement": "2026-05-09 执行周一课表。",
+                                "holiday_name": "",
+                                "week_index": 10,
+                                "class_day_pattern": "执行周一课表",
+                                "records": [
+                                    {
+                                        "academic_year_label": "2025-2026学年",
+                                        "term_label": "春季学期",
+                                        "start_date": "2026-05-09",
+                                        "end_date": "2026-05-09",
+                                        "week_index": 10,
+                                        "day_kind": "makeup_class_day",
+                                        "class_day_pattern": "执行周一课表",
+                                        "is_makeup_class": True,
+                                        "holiday_name": "",
+                                    }
+                                ],
+                                "source_title": "中央民族大学校历",
+                                "source_url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                            },
+                            "typed_candidate_schema_version": (
+                                "official_web_academic_calendar_candidate.v1"
+                            ),
+                        }
+                    ]
+                }
+
+            with (
+                patch(
+                    "campus_ingestion_worker.release_official_web_selected_write.materialize_replay_input"
+                ),
+                patch(
+                    "campus_ingestion_worker.release_official_web_selected_write.replay_official_web_source_truth_local",
+                    side_effect=fake_replay,
+                ),
+            ):
+                result = preview_official_web_selected_write(
+                    release_task=task,
+                    object_store=object_store,
+                    work_dir=root / "selected-write-preview",
+                    projection_reporter=_FakeProjectionReporter(),
+                )
+
+            self.assertEqual(result.status, "previewed")
+            self.assertEqual(result.collection, "academic_calendar")
+            self.assertEqual(result.record_count, 1)
+            self.assertEqual(result.full_record_count, 1)
+            record = result.bundle["academic_calendar_records"][0]
+            self.assertEqual(record["academic_year_label"], "2025-2026学年")
+            self.assertEqual(record["week_index"], 10)
+            self.assertEqual(record["class_day_pattern"], "执行周一课表")
+            self.assertTrue(record["is_makeup_class"])
+            self.assertNotIn(
+                (
+                    "campus-rag-derived",
+                    "calendar/releases/academic_calendar/current/academic-calendar-projection.json",
                 ),
                 object_store.objects,
             )
@@ -1133,6 +1265,114 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
             )
             self.assertEqual(record["release_record_state"], "newly_selected")
 
+    def test_releases_academic_calendar_candidate_to_structured_projection(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            current_key = "calendar/releases/academic_calendar/current/academic-calendar-projection.json"
+            object_store = _FakeObjectStore(
+                {
+                    (
+                        "campus-rag-source",
+                        "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json",
+                    ): json.dumps(
+                        {
+                            "pages": [],
+                            "runId": "owrun_contact",
+                            "siteId": "muc_public",
+                        }
+                    ).encode("utf-8")
+                }
+            )
+            task = {
+                **_selected_write_task(selected_write_target="calendar/academic_calendar"),
+                "inventoryId": "muc-public-academic-calendar",
+            }
+            publisher = _FakeStructuredProjectionPublisher()
+
+            def fake_replay(**_: object) -> dict[str, object]:
+                return {
+                    "consumer_candidate_pages": [
+                        {
+                            "consumer_family": "academic_calendar_candidate",
+                            "materialization_policy": "candidate_only",
+                            "normalized_canonical_url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                            "quality_gate": {"decision": "pass"},
+                            "raw_asset_id": "owasset_calendar",
+                            "raw_version_id": "owver_calendar",
+                            "selected_write_target": "calendar/academic_calendar",
+                            "target_job_id": "owtarget_contact",
+                            "typed_candidate": {
+                                "academic_year_label": "2025-2026学年",
+                                "term_label": "春季学期",
+                                "date_range": "2026-05-01 至 2026-05-05",
+                                "calendar_arrangement": "2026-05-01 至 2026-05-05 劳动节假期。",
+                                "holiday_name": "劳动节假期",
+                                "week_index": 9,
+                                "class_day_pattern": "",
+                                "records": [
+                                    {
+                                        "academic_year_label": "2025-2026学年",
+                                        "term_label": "春季学期",
+                                        "start_date": "2026-05-01",
+                                        "end_date": "2026-05-05",
+                                        "week_index": 9,
+                                        "day_kind": "holiday",
+                                        "class_day_pattern": "",
+                                        "is_makeup_class": False,
+                                        "holiday_name": "劳动节假期",
+                                    }
+                                ],
+                                "source_title": "中央民族大学校历",
+                                "source_url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                            },
+                            "typed_candidate_schema_version": (
+                                "official_web_academic_calendar_candidate.v1"
+                            ),
+                        }
+                    ]
+                }
+
+            with (
+                patch(
+                    "campus_ingestion_worker.release_official_web_selected_write.materialize_replay_input"
+                ),
+                patch(
+                    "campus_ingestion_worker.release_official_web_selected_write.replay_official_web_source_truth_local",
+                    side_effect=fake_replay,
+                ),
+            ):
+                result = release_official_web_selected_write(
+                    release_task=task,
+                    object_store=object_store,
+                    derived_object_store=object_store,
+                    projection_reporter=_FakeProjectionReporter(),
+                    structured_projection_publisher=publisher,
+                    work_dir=root / "selected-write",
+                    derived_bucket="campus-rag-derived",
+                )
+
+            self.assertEqual(result.status, "published")
+            self.assertEqual(result.collection, "academic_calendar")
+            self.assertEqual(result.record_count, 1)
+            self.assertEqual(result.full_record_count, 1)
+            self.assertEqual(publisher.published[0]["collection"], "academic_calendar")
+            bundle = json.loads(object_store.objects[("campus-rag-derived", current_key)])
+            record = bundle["academic_calendar_records"][0]
+            self.assertEqual(record["holiday_name"], "劳动节假期")
+            self.assertEqual(record["day_kind"], "holiday")
+            self.assertEqual(record["field_status"]["calendar_arrangement"], "present")
+            self.assertEqual(
+                record["required_fields"],
+                [
+                    "academic_year_label",
+                    "term_label",
+                    "date_range",
+                    "calendar_arrangement",
+                    "source_url",
+                    "source_version_evidence",
+                ],
+            )
+
     def test_service_guide_composition_uses_all_selected_write_sources(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -1546,6 +1786,7 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
             self.assertEqual(
                 record["source_refs"],
                 [
+                    "official_web:muc-information-disclosure-application-process:owver_info_procedure",
                     "https://xxgk.muc.edu.cn/info/1007/1113.htm",
                     "https://xxgk.muc.edu.cn/info/1007/1114.htm",
                     "https://xxgk.muc.edu.cn/xxgk/lxfs.htm",

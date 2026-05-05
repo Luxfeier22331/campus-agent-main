@@ -207,10 +207,7 @@ export async function crawlSingleHost(
 							discoveryMethod: userData.discoveryMethod,
 							discoveredFromUrl: userData.discoveredFromUrl,
 							fetchedAt: new Date().toISOString(),
-							targetLineages: buildTargetLineages(
-								knownPages,
-								input.sourcePackLineageOverrides,
-							),
+							targetLineages: buildTargetLineages(knownPages, input.sourcePackLineageOverrides),
 							html: context.$,
 						});
 						pages.push(pageArtifact);
@@ -404,10 +401,7 @@ function buildTargetLineage(
 	if (!knownPage) {
 		return;
 	}
-	const sourcePackLineage = resolveSourcePackLineageOverride(
-		knownPage,
-		sourcePackLineageOverrides,
-	);
+	const sourcePackLineage = resolveSourcePackLineageOverride(knownPage, sourcePackLineageOverrides);
 
 	return {
 		sourcePackId: sourcePackLineage?.sourcePackId,
@@ -454,9 +448,7 @@ function resolveSourcePackLineageOverride(
 	return sourcePackLineageOverrides[candidateId];
 }
 
-function resolveKnownPages(
-	userData: CollectorRequestUserData,
-): OfficialWebPlannerPageCandidate[] {
+function resolveKnownPages(userData: CollectorRequestUserData): OfficialWebPlannerPageCandidate[] {
 	if (Array.isArray(userData.knownPages) && userData.knownPages.length > 0) {
 		return userData.knownPages;
 	}

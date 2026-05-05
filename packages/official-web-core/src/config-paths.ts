@@ -59,11 +59,7 @@ export function resolveOfficialWebConfigPaths(
 		consumerDenominatorPath: resolve(siteRoot, "consumer-denominator.json"),
 		targetSourceMapPath: resolve(siteRoot, "target-source-map.json"),
 		targetInventoryPath: resolve(siteRoot, "target-inventory.json"),
-		sourcePackManifestPath: resolve(
-			siteRoot,
-			"source-packs",
-			"tool-driven-first-slice.v1.json",
-		),
+		sourcePackManifestPath: resolve(siteRoot, "source-packs", "tool-driven-first-slice.v1.json"),
 		schedulerPolicyPath: resolve(siteRoot, "scheduler-policy.json"),
 		qcPolicyPath: resolve(siteRoot, "qc-policy.json"),
 	};

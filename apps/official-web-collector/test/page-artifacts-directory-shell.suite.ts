@@ -143,6 +143,28 @@ export function registerPageArtifactsDirectoryShellSuite() {
 		expect(pageArtifacts.pageManifest.pageFamily).toBe("structural_shell_page");
 	});
 
+	it("retains source-truth image references without promoting image-only pages to text content", () => {
+		const pageArtifacts = buildContentSiteArtifactsForTest({
+			crawlRunId: "owrun_test_012c_media",
+			requestedUrl: "https://www.example.edu/overview/dean.htm",
+			finalUrl: "https://www.example.edu/overview/dean.htm",
+			responseBody: SAMPLE_IMAGE_STRUCTURAL_SHELL_PAGE_HTML,
+			fetchedAt: "2026-03-29T09:02:00.000Z",
+		});
+
+		const mediaBlocks = pageArtifacts.contentBlocks.filter(
+			(item) =>
+				item.blockRole === "metadata" &&
+				item.linkTarget === "https://www.example.edu/images/dean-message.png",
+		);
+
+		expect(mediaBlocks).toHaveLength(1);
+		expect(mediaBlocks[0]?.isMainContent).toBe(false);
+		expect(mediaBlocks[0]?.htmlFragment).toContain("<img");
+		expect(pageArtifacts.pageManifest.mainContentBlockCount).toBe(0);
+		expect(pageArtifacts.pageManifest.pageFamily).toBe("structural_shell_page");
+	});
+
 	it("classifies repeated-navigation zero-text shells as structural shell pages", () => {
 		const pageArtifacts = buildContentSiteArtifactsForTest({
 			crawlRunId: "owrun_test_012d",

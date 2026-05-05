@@ -26,6 +26,7 @@ export const OFFICIAL_WEB_PROJECTION_ACTIONS = ["emit_document", "manual_review"
 export const OFFICIAL_WEB_CONSUMER_FAMILIES = [
 	"contact_directory_candidate",
 	"service_guide_candidate",
+	"academic_calendar_candidate",
 	"stable_reference_candidate",
 	"regulation_candidate",
 	"notice_news_candidate",
@@ -47,6 +48,7 @@ export const OFFICIAL_WEB_CONSUMER_REQUIRED_EVIDENCE = [
 	"service_process",
 	"service_entry",
 	"service_material",
+	"calendar_arrangement",
 	"stable_reference",
 	"regulation_text",
 	"notice_news",
@@ -59,6 +61,7 @@ export const OFFICIAL_WEB_CONSUMER_ENFORCEMENT_MODES = [
 export const OFFICIAL_WEB_SOURCE_PACK_CONTENT_FAMILIES = [
 	"campus_service_guide",
 	"service_contact_directory",
+	"academic_calendar_reference",
 	"institutional_policy_reference",
 	"university_core_reference",
 	"public_fee_reference",
@@ -78,6 +81,7 @@ export const OFFICIAL_WEB_SOURCE_PACK_EXTRACTION_GATES = ["deterministic_source_
 export const OFFICIAL_WEB_SOURCE_PACK_OWNER_SURFACES = [
 	"service_guide_lookup",
 	"contact_directory_lookup",
+	"academic_calendar_lookup",
 	"official_web/stable_reference",
 	"future_notice_runtime",
 	"regulations/institutional_rules",
@@ -86,6 +90,7 @@ export const OFFICIAL_WEB_SOURCE_PACK_OWNER_SURFACES = [
 export const OFFICIAL_WEB_SOURCE_PACK_RELEASE_TARGETS = [
 	"campus_services/service_guide",
 	"campus_services/contact_directory",
+	"calendar/academic_calendar",
 	"official_web/stable_reference",
 	"official_web/fresh_news",
 	"official_web/news_archive",
@@ -96,6 +101,7 @@ export const OFFICIAL_WEB_SOURCE_PACK_EXPECTED_FACTS = [
 	"service_process",
 	"service_entry",
 	"service_material",
+	"calendar_arrangement",
 	"phone",
 	"email",
 	"location",

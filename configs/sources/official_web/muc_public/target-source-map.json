@@ -42,6 +42,22 @@
 			"notes": "Targeted public-web evidence for source-faithful informational service-guide answers, not transactional submission. Process evidence is release-blocking; entry, material, contact, location and office-hour evidence are retained only when the source provides them."
 		},
 		{
+			"target_id": "official-web-academic-calendar",
+			"consumer_family": "academic_calendar_candidate",
+			"owner_surface": "academic_calendar_lookup",
+			"selected_write_target": "calendar/academic_calendar",
+			"source_hosts": ["www.muc.edu.cn"],
+			"url_hints": ["mdxl", "calendar", "xiaoli"],
+			"title_hints": ["民大校历", "校历", "教学周", "放假安排", "补课安排"],
+			"required_evidence": ["calendar_arrangement"],
+			"optional_evidence": [],
+			"retention_policy": "retain_source_truth",
+			"review_policy": "selected_write_requires_review",
+			"materialization_policy": "candidate_only",
+			"inventory_only": false,
+			"notes": "Targeted public-web academic calendar facts. Release-blocking evidence is source-backed calendar arrangement, not service-guide procedure text."
+		},
+		{
 			"target_id": "official-web-stable-reference",
 			"consumer_family": "stable_reference_candidate",
 			"owner_surface": "official_web/stable_reference",

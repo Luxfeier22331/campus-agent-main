@@ -46,7 +46,17 @@
 			"owner_agent_or_runtime": "campus-services-agent",
 			"materialization_policy": "candidate_only",
 			"page_families": ["article_detail", "directory_page", "generic_content_page"],
-			"title_keywords": ["办理", "申请", "补办", "挂失", "指南", "服务", "入口", "校园卡", "一卡通"],
+			"title_keywords": [
+				"办理",
+				"申请",
+				"补办",
+				"挂失",
+				"指南",
+				"服务",
+				"入口",
+				"校园卡",
+				"一卡通"
+			],
 			"path_patterns": ["service", "guide", "card", "apply", "ywzn", "bszn", "fwzn", "xsfw"],
 			"required_evidence": ["service_process"],
 			"optional_evidence": [
@@ -74,6 +84,22 @@
 				"公告"
 			],
 			"selected_write_target": "campus_services/service_guide",
+			"review_policy": "selected_write_requires_review"
+		},
+		{
+			"consumer_family": "academic_calendar_candidate",
+			"owner_surface": "academic_calendar_lookup",
+			"owner_agent_or_runtime": "calendar-agent",
+			"materialization_policy": "candidate_only",
+			"page_families": ["article_detail", "generic_content_page"],
+			"title_keywords": ["校历", "教学周", "放假安排", "补课安排", "节假日安排"],
+			"path_patterns": ["calendar", "xiaoli", "jwc", "jwgl"],
+			"required_evidence": ["calendar_arrangement"],
+			"optional_evidence": [],
+			"minimum_matched_evidence_count": 1,
+			"requires_keyword_or_path_match": true,
+			"negative_patterns": ["新闻", "通知公告", "采购", "招标", "中标"],
+			"selected_write_target": "calendar/academic_calendar",
 			"review_policy": "selected_write_requires_review"
 		},
 		{
