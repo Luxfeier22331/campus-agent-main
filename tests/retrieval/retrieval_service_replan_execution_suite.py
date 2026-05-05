@@ -166,6 +166,96 @@ class RetrievalServiceReplanExecutionTest(unittest.TestCase):
         )
         self.assertEqual(len(result.merged_evidence.sources), 1)
 
+    def test_execute_retrieval_plan_replans_low_quality_grounding_without_dropping_references(
+        self,
+    ) -> None:
+        seen_requests: list[RetrievalRequest] = []
+
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            seen_requests.append(request)
+            if len(seen_requests) == 1:
+                return EvidenceBundle(
+                    query_text=request.query_text,
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    sources=(
+                        _make_source(
+                            chunk_id="student-card-closing",
+                            snippet="附则 本办法由学生处负责解释。",
+                            score=0.91,
+                            content_role="closing_provision",
+                        ),
+                    ),
+                )
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(
+                    _make_source(
+                        chunk_id="student-card-procedure",
+                        snippet="学生证遗失后，应及时挂失并填写补办申请。",
+                        score=0.73,
+                        content_role="procedure",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        plan = RetrievalPlan(
+            plan_id="regulations:student_rules:low-quality-replan",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            budget=RetrievalPlanBudget(max_steps=2, max_replans=1),
+            steps=(
+                RetrievalStep(
+                    step_id="indexed-lookup",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text="学生证丢了怎么办？",
+                    need_ids=("need:1:procedure",),
+                    selector=RetrievalSelector(target_document_ids=("handbook:student-card",)),
+                    budget=RetrievalStepBudget(top_k=2),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(
+            plan,
+            retrieve_step=fake_retrieve_step,
+            replan_callback=lambda _plan, _results, last_result: (
+                (
+                    RetrievalStep(
+                        step_id="indexed-lookup-semantic-replan",
+                        step_type="indexed_lookup",
+                        scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                        query_text="学生证补办 挂失 办理步骤",
+                        need_ids=last_result.activity.need_ids if last_result.activity else (),
+                        depends_on_step_ids=(last_result.step_id,),
+                        selector=RetrievalSelector(target_document_ids=("handbook:student-card",)),
+                        budget=RetrievalStepBudget(top_k=2),
+                    ),
+                )
+                if last_result.status == "empty"
+                else ()
+            ),
+        )
+
+        self.assertEqual(
+            [request.query_text for request in seen_requests],
+            ["学生证丢了怎么办？", "学生证补办 挂失 办理步骤"],
+        )
+        self.assertEqual(result.replan_count, 1)
+        self.assertEqual(
+            tuple(step_result.status for step_result in result.step_results),
+            ("empty", "succeeded"),
+        )
+        self.assertEqual(result.step_results[0].references[0].chunk_id, "student-card-closing")
+        self.assertEqual(
+            tuple(source.chunk_id for source in result.merged_evidence.sources),
+            ("student-card-procedure",),
+        )
+
     def test_execute_retrieval_plan_emits_sanitized_monitoring_observation_without_raw_query(
         self,
     ) -> None:

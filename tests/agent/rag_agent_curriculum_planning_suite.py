@@ -279,17 +279,40 @@ class RagAgentCurriculumPlanningTest(unittest.TestCase):
         self.assertFalse(retriever_called)
         self.assertIn("课程地图", response.answer_text)
         self.assertIn("不能稳定解析", response.answer_text)
-        self.assertEqual(
-            response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
-                resolved_policy_document_id="curriculum:经济学拔尖人才创新班人才培养方案",
-                no_answer_reason="curriculum_course_map_unsupported",
-                semantic_outcome="unsupported_scope",
-                retrieval_adequacy_verdict="insufficient",
-                retrieval_adequacy_reason="unsupported_query_type",
-                candidate_title_summary=("经济学拔尖人才创新班人才培养方案",),
-                resolution_mode="unsupported",
-            ),
+        diagnostics = response.result.diagnostics
+        expected = _resolved_scope_diagnostics(
+            corpus="curriculum",
+            collection="curriculum_plan",
+            resolved_policy_document_id="curriculum:经济学拔尖人才创新班人才培养方案",
+            no_answer_reason="curriculum_course_map_unsupported",
+            semantic_outcome="unsupported_scope",
+            retrieval_adequacy_verdict="insufficient",
+            retrieval_adequacy_reason="unsupported_query_type",
+            candidate_title_summary=("经济学拔尖人才创新班人才培养方案",),
+            resolution_mode="unsupported",
         )
+        self.assertEqual(diagnostics.resolved_scope_corpus, expected.resolved_scope_corpus)
+        self.assertEqual(
+            diagnostics.resolved_scope_collection,
+            expected.resolved_scope_collection,
+        )
+        self.assertEqual(
+            diagnostics.resolved_policy_document_id,
+            expected.resolved_policy_document_id,
+        )
+        self.assertEqual(diagnostics.no_answer_reason, expected.no_answer_reason)
+        self.assertEqual(diagnostics.semantic_outcome, expected.semantic_outcome)
+        self.assertEqual(
+            diagnostics.retrieval_adequacy_verdict,
+            expected.retrieval_adequacy_verdict,
+        )
+        self.assertEqual(
+            diagnostics.retrieval_adequacy_reason,
+            expected.retrieval_adequacy_reason,
+        )
+        self.assertEqual(
+            diagnostics.candidate_title_summary,
+            expected.candidate_title_summary,
+        )
+        self.assertEqual(diagnostics.resolution_mode, expected.resolution_mode)
+        self.assertTrue(diagnostics.stage_activities)

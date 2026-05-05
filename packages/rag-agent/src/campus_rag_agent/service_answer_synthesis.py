@@ -1,6 +1,13 @@
 from __future__ import annotations
 
-from campus_contracts import AgentRequest, AgentResponse, EvidenceBundle, KnowledgeScope
+from campus_contracts import (
+    AgentRequest,
+    AgentResponse,
+    EvidenceBundle,
+    KnowledgeScope,
+    RagPlannerInformationNeed,
+    RagProjectionContextSummary,
+)
 from campus_retrieval_core import RetrievalExecutionResult
 from campus_shared import PromptRuntimeValidationError, classify_prompt_runtime_failure
 
@@ -44,6 +51,8 @@ def build_grounded_answer_response(
     confidence: str,
     prompt_executor: RagPromptExecutor | None,
     intent_frame: RagIntentFrame,
+    planner_information_needs: tuple[RagPlannerInformationNeed, ...] = (),
+    projection_context_summaries: tuple[RagProjectionContextSummary, ...] = (),
 ) -> AgentResponse:
     should_use_prompt_answer = False
     prompt_trace = None
@@ -120,6 +129,8 @@ def build_grounded_answer_response(
                         remote_content_suspicion_summary=remote_content_suspicion_summary,
                         prompt_runtime_state=blocked_prompt_runtime_state,
                         prompt_runtime_detail=blocked_prompt_runtime_detail,
+                        planner_information_needs=planner_information_needs,
+                        projection_context_summaries=projection_context_summaries,
                     ),
                     blocked_prompt_trace,
                 ),
@@ -201,10 +212,69 @@ def build_grounded_answer_response(
                                 source_trust_summary=grounding.source_trust_summary,
                                 prompt_runtime_state=downgraded_prompt_runtime_state,
                                 prompt_runtime_detail=downgraded_prompt_runtime_detail,
+                                planner_information_needs=planner_information_needs,
+                                projection_context_summaries=projection_context_summaries,
                             ),
                             downgraded_prompt_trace,
                         ),
                     )
+    if grounding is None:
+        grounding = validate_prompt_answer_grounding(
+            answer_text=answer_text,
+            evidence=finalized_evidence,
+        )
+    if grounding.verdict != "grounded":
+        (
+            downgraded_answer_text,
+            downgraded_prompt_trace,
+            downgraded_prompt_runtime_state,
+            downgraded_prompt_runtime_detail,
+        ) = _compose_no_answer_response(
+            request=request,
+            resolved_scope=resolved_scope,
+            evidence=finalized_evidence,
+            no_answer_reason="insufficient_grounding",
+            fallback_answer=_build_no_answer_response(
+                finalized_evidence,
+                resolved_policy_title=_resolved_policy_title(handbook_plan),
+            ),
+            prompt_executor=prompt_executor,
+            intent_frame=intent_frame,
+        )
+        return AgentResponse(
+            target="rag-agent",
+            status="no_answer",
+            answer_text=downgraded_answer_text,
+            confidence="low",
+            result=_with_prompt_trace(
+                _build_rag_result_payload(
+                    evidence=finalized_evidence,
+                    retrieved_evidence=evidence,
+                    retrieval_execution_result=retrieval_execution_result,
+                    resolved_scope=resolved_scope,
+                    handbook_plan=handbook_plan,
+                    curriculum_plan=curriculum_plan,
+                    curriculum_course_plan=curriculum_course_plan,
+                    curriculum_program_family_plan=curriculum_program_family_plan,
+                    request_id=request.request_id,
+                    no_answer_reason="insufficient_grounding",
+                    semantic_outcome="unsupported_by_evidence",
+                    retrieval_adequacy=sufficient_retrieval_adequacy(),
+                    claim_supports=grounding.claim_supports,
+                    unsupported_fields=grounding.unsupported_fields,
+                    grounding_verdict=grounding.verdict,
+                    grounding_downgraded=True,
+                    remote_content_suspicion_summary=remote_content_suspicion_summary,
+                    source_trust_summary=grounding.source_trust_summary,
+                    prompt_runtime_state=downgraded_prompt_runtime_state,
+                    prompt_runtime_detail=downgraded_prompt_runtime_detail,
+                    planner_information_needs=planner_information_needs,
+                    projection_context_summaries=projection_context_summaries,
+                ),
+                downgraded_prompt_trace,
+            ),
+        )
+
     return AgentResponse(
         target="rag-agent",
         status="completed",
@@ -224,14 +294,14 @@ def build_grounded_answer_response(
                 allow_session_follow_up=True,
                 semantic_outcome="grounded_answer",
                 retrieval_adequacy=sufficient_retrieval_adequacy(),
-                claim_supports=grounding.claim_supports if should_use_prompt_answer else (),
+                claim_supports=grounding.claim_supports,
                 grounding_verdict="grounded",
                 remote_content_suspicion_summary=remote_content_suspicion_summary,
-                source_trust_summary=(
-                    grounding.source_trust_summary if should_use_prompt_answer else None
-                ),
+                source_trust_summary=grounding.source_trust_summary,
                 prompt_runtime_state=prompt_runtime_state,
                 prompt_runtime_detail=prompt_runtime_detail,
+                planner_information_needs=planner_information_needs,
+                projection_context_summaries=projection_context_summaries,
             ),
             (
                 prompt_trace

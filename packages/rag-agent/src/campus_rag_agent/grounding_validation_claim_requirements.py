@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from .grounding_validation_claim_models import ExtractedClaim
 from .grounding_validation_claim_normalization import (
     _normalize_material_claim,
@@ -11,6 +13,7 @@ from .grounding_validation_claim_patterns import (
     _LOW_SIGNAL_REQUIREMENT_PHRASES,
     _MATERIAL_ACTION_RE,
     _MATERIAL_DIRECT_RE,
+    _MATERIAL_LIST_RE,
     _PROCEDURE_CLAIM_PATTERNS,
 )
 from .grounding_validation_text import _normalize_text, _sanitize_answer_text
@@ -30,6 +33,8 @@ def _extract_requirement_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
 
 
 def _extract_material_requirement_claims(clause: str) -> tuple[ExtractedClaim, ...]:
+    if _is_missing_information_clause(clause):
+        return ()
     claims: list[ExtractedClaim] = []
     for match in _MATERIAL_DIRECT_RE.finditer(clause):
         claim_text = _normalize_material_claim(match.group(1))
@@ -53,11 +58,25 @@ def _extract_material_requirement_claims(clause: str) -> tuple[ExtractedClaim, .
                 unsupported_summary_field="requirement_claims",
             )
         )
+    for match in _MATERIAL_LIST_RE.finditer(clause):
+        for item in _split_material_list(match.group(1)):
+            claim_text = _normalize_material_claim(item)
+            if not claim_text or claim_text in _LOW_SIGNAL_REQUIREMENT_PHRASES:
+                continue
+            claims.append(
+                ExtractedClaim(
+                    claim_type="material_requirement",
+                    claim_text=claim_text,
+                    unsupported_summary_field="requirement_claims",
+                )
+            )
     return tuple(claims)
 
 
 def _extract_procedure_step_claims(clause: str) -> tuple[ExtractedClaim, ...]:
     claims: list[ExtractedClaim] = []
+    if _is_missing_information_clause(clause):
+        return ()
     if not any(
         token in clause
         for token in (
@@ -112,3 +131,39 @@ __all__ = [
     "_extract_procedure_step_claims",
     "_extract_requirement_claims",
 ]
+
+
+def _split_material_list(raw_materials: str) -> tuple[str, ...]:
+    normalized = raw_materials.strip("，,；;：:。 ")
+    normalized = _trim_material_list_before_procedure(normalized)
+    parts = [
+        part.strip("，,；;：:。 ")
+        for part in re.split(r"(?:、|，|,|/|以及|及|和)", normalized)
+        if part.strip("，,；;：:。 ")
+    ]
+    if len(parts) <= 1:
+        return (normalized,) if normalized else ()
+    return tuple(dict.fromkeys(parts))
+
+
+def _trim_material_list_before_procedure(normalized: str) -> str:
+    for marker in ("并到", "再到", "然后到", "后到", "并由", "再由", "然后由"):
+        if marker in normalized:
+            return normalized.split(marker, 1)[0].strip("，,；;：:。 ")
+    return normalized
+
+
+def _is_missing_information_clause(clause: str) -> bool:
+    return any(
+        marker in clause
+        for marker in (
+            "未提供",
+            "没有提供",
+            "未说明",
+            "没有说明",
+            "未给出",
+            "没有给出",
+            "未包含",
+            "没有包含",
+        )
+    )

@@ -9,7 +9,6 @@ from tests.agent.rag_agent_test_support import (
     RagRequestPayload,
     _make_evidence,
     _make_program_semester_source,
-    _resolved_scope_diagnostics,
     build_curriculum_program_semester_fact_document_id,
     delegate_to_rag_agent,
     unittest,
@@ -175,20 +174,22 @@ class RagAgentCurriculumResolutionBiasTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "no_answer")
+        diagnostics = response.result.diagnostics
+        self.assertEqual(diagnostics.resolved_scope_corpus, "curriculum")
+        self.assertEqual(diagnostics.resolved_scope_collection, "curriculum_plan")
         self.assertEqual(
-            response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
-                resolved_policy_document_id="curriculum:历史学（强基计划）本科人才培养方案",
-                resolved_policy_title="历史学（强基计划）本科人才培养方案",
-                rewritten_query="历史学（强基计划）本科人才培养方案 我这个专业的基地班第四学期有什么课",
-                semantic_outcome="unsupported_by_evidence",
-                resolution_mode="resolved_single",
-                used_verified_identity=True,
-                used_soft_preference=False,
-            ),
+            diagnostics.resolved_policy_document_id,
+            "curriculum:历史学（强基计划）本科人才培养方案",
         )
+        self.assertEqual(diagnostics.resolved_policy_title, "历史学（强基计划）本科人才培养方案")
+        self.assertEqual(
+            diagnostics.rewritten_query,
+            "历史学（强基计划）本科人才培养方案 我这个专业的基地班第四学期有什么课",
+        )
+        self.assertEqual(diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(diagnostics.resolution_mode, "resolved_single")
+        self.assertTrue(diagnostics.used_verified_identity)
+        self.assertFalse(diagnostics.used_soft_preference)
 
     def test_curriculum_deictic_experimental_class_with_verified_major_still_needs_clarification(
         self,
@@ -220,3 +221,6 @@ class RagAgentCurriculumResolutionBiasTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertFalse(retriever_called)
+        self.assertIn("实验班", response.follow_up_question)
+        self.assertIn("历史学", response.follow_up_question)
+        self.assertIn("第四学期", response.follow_up_question)

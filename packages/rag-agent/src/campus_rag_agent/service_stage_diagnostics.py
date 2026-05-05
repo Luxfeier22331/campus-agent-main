@@ -28,7 +28,9 @@ def build_rag_stage_activity_summaries(
         if retrieval_execution_result is not None
         else "current"
     )
-    candidate_count = len(retrieved_evidence.sources) if retrieved_evidence is not None else 0
+    candidate_count = _retrieval_candidate_count(retrieval_execution_result)
+    if not candidate_count and retrieved_evidence is not None:
+        candidate_count = len(retrieved_evidence.sources)
     if not candidate_count:
         candidate_count = len(evidence.sources)
     supporting_evidence_count = len(evidence.sources)
@@ -151,6 +153,16 @@ def _retrieval_latency_ms(execution_result: RetrievalExecutionResult | None) -> 
     if execution_result is None:
         return 0
     return sum(activity.latency_ms or 0 for activity in execution_result.step_activities)
+
+
+def _retrieval_candidate_count(execution_result: RetrievalExecutionResult | None) -> int:
+    if execution_result is None:
+        return 0
+    seen_candidates = set()
+    for result in execution_result.step_results:
+        for source in result.references:
+            seen_candidates.add(source.chunk_id or repr(source))
+    return len(seen_candidates)
 
 
 def _retrieval_stage_status(

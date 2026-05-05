@@ -7,7 +7,10 @@ from campus_contracts import AgentRequest, AgentResponse, RagRequestPayload
 from campus_rag_agent.prompt_execution import RagPromptExecutor
 
 from .service_answer_synthesis import build_grounded_answer_response
-from .service_diagnostics_payload import _build_rag_result_payload
+from .service_diagnostics_payload import (
+    _build_rag_result_payload,
+    build_projection_context_summaries_from_request,
+)
 from .service_evidence_stage import execute_rag_evidence_selection_stage
 from .service_observability import with_rag_agent_observability
 from .service_outcome_context import build_outcome_context
@@ -113,6 +116,8 @@ def _build_rag_agent_response(
     retrieval_plan = planner_stage.retrieval_plan
     if retrieval_context is None or retrieval_plan is None:
         raise RuntimeError("planner stage completed without retrieval context or plan")
+    planner_information_needs = planner_stage.information_needs
+    projection_context_summaries = build_projection_context_summaries_from_request(request)
 
     retrieval_stage = execute_rag_retrieval_stage(
         request=request,
@@ -131,6 +136,8 @@ def _build_rag_agent_response(
         retriever=retriever,
         retrieval_observation_sink=retrieval_observation_sink,
         include_retrieval_observation_query_text=include_retrieval_observation_query_text,
+        planner_information_needs=planner_information_needs,
+        projection_context_summaries=projection_context_summaries,
     )
     if retrieval_stage.response is not None:
         return retrieval_stage.response
@@ -151,6 +158,8 @@ def _build_rag_agent_response(
         curriculum_program_family_plan=curriculum_program_family_plan,
         evidence=evidence,
         retrieval_execution_result=retrieval_execution_result,
+        planner_information_needs=planner_information_needs,
+        projection_context_summaries=projection_context_summaries,
     )
     if not evidence.sources:
         no_answer_reason, semantic_outcome, freshness_fail_closed = _resolve_no_answer_semantics(
@@ -200,6 +209,9 @@ def _build_rag_agent_response(
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
+            request_id=request.request_id,
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
         )
 
     confidence = evidence_selection_stage.confidence
@@ -230,6 +242,8 @@ def _build_rag_agent_response(
             confidence=confidence,
             version_answer_context=version_answer_context,
             request_id=request.request_id,
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
         )
 
     return build_grounded_answer_response(
@@ -246,4 +260,6 @@ def _build_rag_agent_response(
         confidence=confidence,
         prompt_executor=prompt_executor,
         intent_frame=intent_frame,
+        planner_information_needs=planner_information_needs,
+        projection_context_summaries=projection_context_summaries,
     )

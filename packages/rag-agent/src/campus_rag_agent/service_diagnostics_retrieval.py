@@ -21,6 +21,7 @@ def _build_retrieval_plan_summary(
                 corpus=activity.corpus,
                 collection=activity.collection,
                 status=activity.status,
+                need_ids=activity.need_ids,
                 top_k=activity.top_k,
                 latency_ms=activity.latency_ms,
                 candidate_count=activity.candidate_count,

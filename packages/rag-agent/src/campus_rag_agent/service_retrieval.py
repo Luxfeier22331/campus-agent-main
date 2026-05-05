@@ -28,8 +28,10 @@ from campus_retrieval_core import (
 )
 from campus_retrieval_core.curriculum_query_resolution import interpret_curriculum_query
 
+from campus_rag_agent.agentic_depth_diagnostics import build_planner_information_needs
 from campus_rag_agent.remote_content_hardening import apply_remote_content_suspicion_labels
 from campus_rag_agent.retrieval_plan import build_ordered_retrieval_plan
+from campus_rag_agent.semantic_replan import build_semantic_replan_steps
 
 from .service_common import (
     _execute_retrieval_request_with_callable_retriever,
@@ -193,6 +195,12 @@ def build_retrieval_plan_for_context(
         user_goal=user_goal,
         version_mode=retrieval_context.version_answer_context.mode,
     )
+    information_needs = build_planner_information_needs(
+        user_goal=user_goal,
+        effective_scope=effective_scope,
+        retrieval_collection=retrieval_context.retrieval_collection,
+        query_mode=retrieval_query_mode,
+    )
     return build_ordered_retrieval_plan(
         query_text=retrieval_context.retrieval_goal,
         scope=effective_scope,
@@ -209,6 +217,7 @@ def build_retrieval_plan_for_context(
         version_query=request.payload.version_query,
         primary_version_id=retrieval_context.version_answer_context.primary_version_id,
         comparison_version_id=retrieval_context.version_answer_context.comparison_version_id,
+        need_ids=tuple(need.need_id for need in information_needs),
         allow_live_source_lookup=runtime_profile.live_search_fallback_allowed,
     )
 
@@ -234,6 +243,7 @@ def execute_rag_retrieval_context(
             retriever,
             retrieval_request,
         ),
+        replan_callback=build_semantic_replan_steps,
         observation_sink=retrieval_observation_sink,
         observation_request_id=request.request_id,
         include_observation_query_text=include_retrieval_observation_query_text,

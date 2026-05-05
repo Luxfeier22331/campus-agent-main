@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from campus_contracts import EvidenceBundle
+from campus_contracts import EvidenceBundle, EvidenceSource
 
 from campus_retrieval_core.models import (
     RetrievalPlan,
@@ -10,6 +10,37 @@ from campus_retrieval_core.models import (
     RetrievalStepBudget,
     RetrievalStepFailure,
     RetrievalStepResult,
+)
+
+_NEGATIVE_GROUNDING_CONTENT_ROLES = frozenset(
+    {
+        "appendix",
+        "background",
+        "closing_provision",
+        "navigation",
+        "source_attribution",
+        "boilerplate",
+        "media_caption",
+    }
+)
+_POSITIVE_GROUNDING_CONTENT_ROLES = frozenset(
+    {
+        "audience",
+        "course_fact",
+        "deadline",
+        "definition",
+        "eligibility",
+        "family_membership",
+        "primary_content",
+        "procedure",
+        "reference_fact",
+        "requirement",
+        "scope_rule",
+        "semester",
+        "semester_course_list",
+        "table_fact",
+        "time_rule",
+    }
 )
 
 
@@ -104,11 +135,15 @@ def build_succeeded_step_result(
     reranker_degraded: bool = False,
     reranker_failure_kind: str = "",
 ) -> RetrievalStepResult:
-    status = "succeeded" if evidence.sources else "empty"
+    grounding = _select_grounding_sources(evidence.sources)
+    status = "succeeded" if grounding else "empty"
+    failure_kind = "reranker_degraded" if reranker_degraded else None
+    if status == "empty" and evidence.sources:
+        failure_kind = "no_grounding"
     return RetrievalStepResult(
         step_id=step.step_id,
         status=status,
-        grounding=evidence.sources,
+        grounding=grounding,
         references=evidence.sources,
         activity=RetrievalStepActivity(
             step_id=step.step_id,
@@ -117,17 +152,36 @@ def build_succeeded_step_result(
             collection=step.scope.collection,
             status=status,
             query_text=step.query_text,
+            need_ids=step.need_ids,
             target_document_ids=step.selector.target_document_ids,
             target_version_ids=step.selector.target_version_ids,
             top_k=step.budget.top_k,
             latency_ms=latency_ms,
             candidate_count=len(evidence.sources),
             reference_count=len(evidence.sources),
-            failure_kind="reranker_degraded" if reranker_degraded else None,
+            failure_kind=failure_kind,
             reranker_degraded=reranker_degraded,
             reranker_failure_kind=reranker_failure_kind,
         ),
     )
+
+
+def _select_grounding_sources(sources: tuple[EvidenceSource, ...]) -> tuple[EvidenceSource, ...]:
+    if not sources:
+        return ()
+    if any(_is_positive_grounding_source(source) for source in sources):
+        return tuple(source for source in sources if not _is_negative_grounding_source(source))
+    if all(_is_negative_grounding_source(source) for source in sources):
+        return ()
+    return sources
+
+
+def _is_positive_grounding_source(source: EvidenceSource) -> bool:
+    return source.is_answer_bearing or source.content_role in _POSITIVE_GROUNDING_CONTENT_ROLES
+
+
+def _is_negative_grounding_source(source: EvidenceSource) -> bool:
+    return source.content_role in _NEGATIVE_GROUNDING_CONTENT_ROLES
 
 
 def build_decision_step_result(
@@ -145,6 +199,7 @@ def build_decision_step_result(
             collection=step.scope.collection,
             status=status,
             query_text=step.query_text,
+            need_ids=step.need_ids,
             target_document_ids=step.selector.target_document_ids,
             target_version_ids=step.selector.target_version_ids,
             top_k=step.budget.top_k,
@@ -170,6 +225,7 @@ def build_blocked_step_result(
             collection=step.scope.collection,
             status="blocked",
             query_text=step.query_text,
+            need_ids=step.need_ids,
             target_document_ids=step.selector.target_document_ids,
             target_version_ids=step.selector.target_version_ids,
             top_k=step.budget.top_k,
@@ -198,6 +254,7 @@ def build_failed_step_result(
             collection=step.scope.collection,
             status="failed",
             query_text=step.query_text,
+            need_ids=step.need_ids,
             target_document_ids=step.selector.target_document_ids,
             target_version_ids=step.selector.target_version_ids,
             top_k=step.budget.top_k,

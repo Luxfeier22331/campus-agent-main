@@ -40,6 +40,7 @@ def build_ordered_retrieval_plan(
     version_query: VersionQuery | None = None,
     primary_version_id: str = "",
     comparison_version_id: str = "",
+    need_ids: tuple[str, ...] = (),
     max_replans: int = 1,
     allow_live_source_lookup: bool = False,
     indexed_lookup_timeout_ms: int | None = DEFAULT_INDEXED_LOOKUP_TIMEOUT_MS,
@@ -64,13 +65,17 @@ def build_ordered_retrieval_plan(
             )
         steps = (
             RetrievalStep(
-                step_id="indexed-lookup-primary",
-                step_type="indexed_lookup",
+                step_id="compare-pair-lookup",
+                step_type="compare_pair_lookup",
                 scope=admitted_scope,
                 query_text=query_text,
+                need_ids=need_ids,
                 selector=RetrievalSelector(
                     target_document_ids=base_selector.target_document_ids,
-                    target_version_ids=(normalized_primary_version_id,),
+                    target_version_ids=(
+                        normalized_primary_version_id,
+                        normalized_comparison_version_id,
+                    ),
                     target_revision_track=base_selector.target_revision_track,
                     preferred_document_ids=base_selector.preferred_document_ids,
                     canonical_course_ids=base_selector.canonical_course_ids,
@@ -78,16 +83,20 @@ def build_ordered_retrieval_plan(
                     canonical_program_family_ids=base_selector.canonical_program_family_ids,
                 ),
                 budget=step_budget,
-                expected_output="candidate_set",
+                expected_output="compare_inputs",
             ),
+        )
+    elif query_mode in {"historical", "as_of"}:
+        steps = (
             RetrievalStep(
-                step_id="indexed-lookup-comparison",
-                step_type="indexed_lookup",
+                step_id="historical-version-lookup",
+                step_type="historical_version_lookup",
                 scope=admitted_scope,
                 query_text=query_text,
+                need_ids=need_ids,
                 selector=RetrievalSelector(
                     target_document_ids=base_selector.target_document_ids,
-                    target_version_ids=(normalized_comparison_version_id,),
+                    target_version_ids=target_version_ids,
                     target_revision_track=base_selector.target_revision_track,
                     preferred_document_ids=base_selector.preferred_document_ids,
                     canonical_course_ids=base_selector.canonical_course_ids,
@@ -105,6 +114,7 @@ def build_ordered_retrieval_plan(
                 step_type="freshness_gate",
                 scope=admitted_scope,
                 query_text=query_text,
+                need_ids=need_ids,
                 selector=base_selector,
                 budget=step_budget,
                 expected_output="freshness_decision",
@@ -114,6 +124,7 @@ def build_ordered_retrieval_plan(
                 step_type="indexed_lookup",
                 scope=admitted_scope,
                 query_text=query_text,
+                need_ids=need_ids,
                 depends_on_step_ids=("freshness-gate",),
                 selector=RetrievalSelector(
                     target_document_ids=base_selector.target_document_ids,
@@ -135,6 +146,7 @@ def build_ordered_retrieval_plan(
                 step_type="freshness_gate",
                 scope=admitted_scope,
                 query_text=query_text,
+                need_ids=need_ids,
                 selector=base_selector,
                 budget=step_budget,
                 expected_output="freshness_decision",
@@ -144,6 +156,7 @@ def build_ordered_retrieval_plan(
                 step_type="live_source_lookup",
                 scope=admitted_scope,
                 query_text=query_text,
+                need_ids=need_ids,
                 depends_on_step_ids=("freshness-gate",),
                 selector=base_selector,
                 budget=step_budget,
@@ -151,12 +164,46 @@ def build_ordered_retrieval_plan(
             ),
         )
     else:
+        needs_entity_resolution = bool(
+            base_selector.canonical_course_ids
+            or base_selector.canonical_course_family_ids
+            or base_selector.canonical_program_family_ids
+            or base_selector.entity_keys
+        )
+        entity_step = (
+            (
+                RetrievalStep(
+                    step_id="entity-resolution",
+                    step_type="entity_resolution",
+                    scope=admitted_scope,
+                    query_text=query_text,
+                    need_ids=need_ids,
+                    selector=RetrievalSelector(
+                        target_document_ids=base_selector.target_document_ids,
+                        target_version_ids=target_version_ids,
+                        target_revision_track=base_selector.target_revision_track,
+                        preferred_document_ids=base_selector.preferred_document_ids,
+                        canonical_course_ids=base_selector.canonical_course_ids,
+                        canonical_course_family_ids=base_selector.canonical_course_family_ids,
+                        canonical_program_family_ids=base_selector.canonical_program_family_ids,
+                        entity_keys=base_selector.entity_keys,
+                    ),
+                    budget=step_budget,
+                    expected_output="entity_matches",
+                ),
+            )
+            if needs_entity_resolution
+            else ()
+        )
         steps = (
+            *entity_step,
             RetrievalStep(
                 step_id="indexed-lookup",
                 step_type="indexed_lookup",
                 scope=admitted_scope,
                 query_text=query_text,
+                need_ids=need_ids,
+                depends_on_step_ids=("entity-resolution",) if needs_entity_resolution else (),
                 selector=RetrievalSelector(
                     target_document_ids=base_selector.target_document_ids,
                     target_version_ids=target_version_ids,

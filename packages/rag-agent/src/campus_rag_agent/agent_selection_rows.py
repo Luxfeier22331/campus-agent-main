@@ -61,6 +61,10 @@ def _select_answer_support_rows(
             )
         )
     )
+    if shape == AnswerShape.TITLE_LOOKUP and not course_list_query and not curriculum_lookup_query:
+        ranked_sources = _filter_title_lookup_sources_for_answer_bearing_overview(ranked_sources)
+        if not ranked_sources:
+            return ()
     rows: list[tuple[EvidenceSource, tuple[str, ...]]] = []
     seen_statements: set[str] = set()
 
@@ -119,6 +123,16 @@ def _should_ignore_official_web_source(source: EvidenceSource) -> bool:
         _is_official_web_source(source)
         and source.content_role in _OFFICIAL_WEB_IGNORED_CONTENT_ROLES
     )
+
+
+def _filter_title_lookup_sources_for_answer_bearing_overview(
+    sources: tuple[EvidenceSource, ...],
+) -> tuple[EvidenceSource, ...]:
+    return tuple(source for source in sources if not _is_table_like_answer_source(source))
+
+
+def _is_table_like_answer_source(source: EvidenceSource) -> bool:
+    return source.content_role == "table_fact" or source.content_kind == "table_unit"
 
 
 def _answer_source_sort_key(
@@ -247,6 +261,7 @@ def _should_stop_after_official_web_reference_rows(
 __all__ = [
     "_answer_source_sort_key",
     "_filter_statements_for_query_critical_terms",
+    "_filter_title_lookup_sources_for_answer_bearing_overview",
     "_select_answer_support_rows",
     "_should_ignore_official_web_source",
     "_should_lock_official_web_reference_answer",

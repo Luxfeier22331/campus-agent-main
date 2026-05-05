@@ -2,7 +2,14 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from campus_contracts import AgentRequest, AgentResponse, EvidenceBundle, KnowledgeScope
+from campus_contracts import (
+    AgentRequest,
+    AgentResponse,
+    EvidenceBundle,
+    KnowledgeScope,
+    RagPlannerInformationNeed,
+    RagProjectionContextSummary,
+)
 from campus_retrieval_core import RetrievalPlan
 
 from campus_rag_agent.intent import PersonalizationHint, RagIntentFrame
@@ -52,6 +59,8 @@ def execute_rag_retrieval_stage(
     retriever: Retriever,
     retrieval_observation_sink: RetrievalObservationSink | None,
     include_retrieval_observation_query_text: bool,
+    planner_information_needs: tuple[RagPlannerInformationNeed, ...] = (),
+    projection_context_summaries: tuple[RagProjectionContextSummary, ...] = (),
 ) -> RagRetrievalStageResult:
     evidence = _build_empty_evidence(effective_scope, user_goal)
     retrieval_execution_result = None
@@ -89,6 +98,8 @@ def execute_rag_retrieval_stage(
                 curriculum_program_family_plan=curriculum_program_family_plan,
                 evidence=evidence,
                 retrieval_execution_result=retrieval_execution_result,
+                planner_information_needs=planner_information_needs,
+                projection_context_summaries=projection_context_summaries,
             ),
             message=str(exc),
         )
@@ -107,6 +118,8 @@ def execute_rag_retrieval_stage(
                 curriculum_program_family_plan=curriculum_program_family_plan,
                 evidence=evidence,
                 retrieval_execution_result=retrieval_execution_result,
+                planner_information_needs=planner_information_needs,
+                projection_context_summaries=projection_context_summaries,
             )
         )
     except RetrievalBackendError as exc:
@@ -124,6 +137,8 @@ def execute_rag_retrieval_stage(
                 curriculum_program_family_plan=curriculum_program_family_plan,
                 evidence=evidence,
                 retrieval_execution_result=retrieval_execution_result,
+                planner_information_needs=planner_information_needs,
+                projection_context_summaries=projection_context_summaries,
             ),
             message=str(exc),
         )
@@ -149,6 +164,8 @@ def _outcome_context(
     curriculum_program_family_plan,
     evidence: EvidenceBundle,
     retrieval_execution_result: object | None,
+    planner_information_needs=(),
+    projection_context_summaries=(),
 ):
     return build_outcome_context(
         request=request,
@@ -163,6 +180,8 @@ def _outcome_context(
         curriculum_program_family_plan=curriculum_program_family_plan,
         evidence=evidence,
         retrieval_execution_result=retrieval_execution_result,
+        planner_information_needs=planner_information_needs,
+        projection_context_summaries=projection_context_summaries,
     )
 
 

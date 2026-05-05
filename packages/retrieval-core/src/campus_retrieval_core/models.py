@@ -188,6 +188,7 @@ class RetrievalStepActivity:
     collection: str
     status: RetrievalStepStatus | str
     query_text: str
+    need_ids: tuple[str, ...] = field(default_factory=tuple)
     target_document_ids: tuple[str, ...] = field(default_factory=tuple)
     target_version_ids: tuple[str, ...] = field(default_factory=tuple)
     top_k: int = 0
@@ -208,6 +209,9 @@ class RetrievalStepActivity:
             raise ValueError(f"unsupported retrieval step status: {self.status}")
         if self.top_k < 0:
             raise ValueError("top_k must not be negative")
+        normalized_need_ids = _normalize_non_empty_string_tuple(self.need_ids)
+        if normalized_need_ids != self.need_ids:
+            object.__setattr__(self, "need_ids", normalized_need_ids)
         if self.latency_ms is not None and self.latency_ms < 0:
             raise ValueError("latency_ms must not be negative")
         if self.candidate_count < 0:
@@ -227,6 +231,7 @@ class RetrievalStep:
     step_type: RetrievalStepType | str
     scope: RetrievalScope
     query_text: str
+    need_ids: tuple[str, ...] = field(default_factory=tuple)
     depends_on_step_ids: tuple[str, ...] = field(default_factory=tuple)
     selector: RetrievalSelector = field(default_factory=RetrievalSelector)
     budget: RetrievalStepBudget = field(default_factory=RetrievalStepBudget)
@@ -245,6 +250,9 @@ class RetrievalStep:
             raise ValueError("query_text must not be empty")
         if normalized_query_text != self.query_text:
             object.__setattr__(self, "query_text", normalized_query_text)
+        normalized_need_ids = _normalize_non_empty_string_tuple(self.need_ids)
+        if normalized_need_ids != self.need_ids:
+            object.__setattr__(self, "need_ids", normalized_need_ids)
         normalized_depends_on_step_ids = tuple(
             step_id.strip()
             for step_id in self.depends_on_step_ids
@@ -328,6 +336,10 @@ class RetrievalExecutionResult:
     @property
     def step_activities(self) -> tuple[RetrievalStepActivity, ...]:
         return tuple(result.activity for result in self.step_results if result.activity is not None)
+
+
+def _normalize_non_empty_string_tuple(values: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(value.strip() for value in values if isinstance(value, str) and value.strip())
 
 
 @dataclass(frozen=True, slots=True)

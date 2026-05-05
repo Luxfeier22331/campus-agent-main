@@ -1,0 +1,523 @@
+from __future__ import annotations
+
+import unittest
+from unittest.mock import patch
+
+from campus_contracts import (
+    AgentRequest,
+    EvidenceBundle,
+    KnowledgeScope,
+    RagRequestPayload,
+    WorkflowAgentContext,
+)
+from campus_rag_agent.query_planning import plan_curriculum_course_query
+from campus_rag_agent.semantic_replan import build_semantic_replan_steps
+from campus_rag_agent.service import delegate_to_rag_agent
+from campus_rag_agent.service_diagnostics_payload import _build_rag_result_diagnostics
+from campus_rag_agent.service_planner_stage import execute_rag_planner_stage
+from campus_retrieval_core import (
+    RetrievalExecutionResult,
+    RetrievalPlan,
+    RetrievalPlanBudget,
+    RetrievalScope,
+    RetrievalSelector,
+    RetrievalSourceTrustPolicy,
+    RetrievalStep,
+    RetrievalStepActivity,
+    RetrievalStepBudget,
+    RetrievalStepResult,
+)
+
+from tests.agent.rag_agent_test_support import _make_handbook_source
+
+
+class RagAgentAgenticDepthRuntimeTest(unittest.TestCase):
+    def test_planner_stage_returns_typed_decision(self) -> None:
+        request = AgentRequest(
+            target="rag-agent",
+            user_goal="公费医疗报销需要什么材料",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+            ),
+        )
+
+        result = execute_rag_planner_stage(
+            request=request,
+            effective_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+            user_goal=request.user_goal,
+            effective_user_goal=request.user_goal,
+            handbook_plan=None,
+            curriculum_plan=None,
+            curriculum_course_plan=plan_curriculum_course_query(request.user_goal),
+            curriculum_program_family_plan=None,
+        )
+
+        self.assertIsNotNone(result.planner_decision)
+        self.assertEqual(result.planner_decision.query_mode, "current")
+        self.assertEqual(result.planner_decision.planned_steps[0].step_type, "indexed_lookup")
+        self.assertEqual(
+            tuple(
+                need.expected_evidence_kind for need in result.planner_decision.information_needs
+            ),
+            ("requirement",),
+        )
+
+    def test_planner_stage_exposes_information_needs_for_multi_part_question(self) -> None:
+        result = _plan_student_rules("公费医疗报销需要什么材料，并说明审核流程")
+
+        self.assertGreaterEqual(len(result.information_needs), 2)
+        self.assertEqual(
+            tuple(need.expected_evidence_kind for need in result.information_needs),
+            ("requirement", "procedure"),
+        )
+        self.assertTrue(
+            all(need.target_collection == "student_rules" for need in result.information_needs)
+        )
+        self.assertIs(result.information_needs, result.planner_decision.information_needs)
+
+    def test_planner_stage_links_information_needs_to_retrieval_steps(self) -> None:
+        result = _plan_student_rules("公费医疗报销需要什么材料，并说明审核流程")
+
+        need_ids = tuple(need.need_id for need in result.information_needs)
+        self.assertEqual(tuple(step.need_ids for step in result.retrieval_plan.steps), (need_ids,))
+        self.assertEqual(
+            tuple(step.need_ids for step in result.planner_decision.planned_steps),
+            (need_ids,),
+        )
+
+    def test_planner_stage_exposes_canonical_entity_resolution_summary(self) -> None:
+        request = AgentRequest(
+            target="rag-agent",
+            user_goal="习概第几学期开？",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+            ),
+        )
+
+        result = execute_rag_planner_stage(
+            request=request,
+            effective_scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan"),
+            user_goal=request.user_goal,
+            effective_user_goal=request.user_goal,
+            handbook_plan=None,
+            curriculum_plan=None,
+            curriculum_course_plan=plan_curriculum_course_query(request.user_goal),
+            curriculum_program_family_plan=None,
+        )
+
+        summary = result.planner_decision.entity_resolution_summary
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary.resolution_status, "resolved")
+        self.assertEqual(summary.entity_type, "course")
+        self.assertEqual(summary.canonical_id, "course:muc.xigai")
+        self.assertEqual(summary.target_collection, "course_facts")
+        self.assertEqual(summary.resolution_source, "canonical_alias_governance")
+        self.assertGreaterEqual(summary.confidence, 0.9)
+        self.assertEqual(result.retrieval_plan.steps[0].step_type, "entity_resolution")
+
+    def test_completed_answer_diagnostics_expose_safe_entity_resolution_summary(self) -> None:
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="习概第几学期开？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: EvidenceBundle(
+                query_text="习概第几学期开？",
+                corpus="curriculum",
+                collection="course_facts",
+                sources=(
+                    _make_handbook_source(
+                        doc_id="course:muc.xigai",
+                        title="习近平新时代中国特色社会主义思想概论",
+                        snippet="习近平新时代中国特色社会主义思想概论通常安排在第 3 学期开设。",
+                        score=0.93,
+                        chunk_id_suffix="xigai-semester-fact",
+                        content_role="course_fact",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            ),
+        )
+
+        summary = response.result.diagnostics.entity_resolution_summary
+        self.assertIsNotNone(summary)
+        self.assertEqual(summary.canonical_id, "course:muc.xigai")
+        self.assertEqual(summary.resolution_source, "canonical_alias_governance")
+        self.assertNotIn("RetrievalStep", str(summary))
+        self.assertNotIn("raw_payload", str(summary))
+
+    def test_completed_answer_preserves_need_level_support_provenance(self) -> None:
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="公费医疗报销需要什么材料，并说明审核流程",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: _medical_evidence(
+                query_text="公费医疗报销需要什么材料，并说明审核流程"
+            ),
+        )
+
+        self.assertEqual(response.status, "completed")
+        expected_need_ids = tuple(
+            need.need_id for need in response.result.diagnostics.planner_information_needs
+        )
+        self.assertEqual(
+            tuple(
+                source.anchor["retrieval_need_ids"] for source in response.result.evidence.sources
+            ),
+            (expected_need_ids, expected_need_ids),
+        )
+        self.assertTrue(
+            all(
+                entry.support_need_ids == expected_need_ids
+                for entry in response.result.diagnostics.claim_evidence_graph
+            )
+        )
+
+    def test_delegate_to_rag_agent_uses_bounded_semantic_replan_for_empty_support(self) -> None:
+        calls: list[str] = []
+
+        def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
+            calls.append(query)
+            if len(calls) == 1:
+                return EvidenceBundle(
+                    query_text=query,
+                    corpus=str(kwargs["corpus"]),
+                    collection=str(kwargs["collection"]),
+                    sources=(),
+                )
+            return _medical_evidence(query_text=query)
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="公费医疗报销需要什么材料",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(calls, ["公费医疗报销需要什么材料", "公费医疗报销 所需材料 条件 要求"])
+        self.assertEqual(response.result.diagnostics.retrieval_plan_summary.replan_count, 1)
+        self.assertEqual(
+            response.result.diagnostics.replan_decision_summary.trigger_reason,
+            "empty_supporting_evidence",
+        )
+
+    def test_projection_context_marks_planning_use_without_raw_payload(self) -> None:
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="结合前序通知，公费医疗报销需要什么材料？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+                workflow_context=WorkflowAgentContext(
+                    target="rag-agent",
+                    required_projection_kind="CanonicalNoticeContext",
+                    projection_refs=(
+                        {
+                            "projection_id": "notice-proj-1",
+                            "source_step_id": "notice-step",
+                            "projection_kind": "CanonicalNoticeContext",
+                            "content_hash": "a" * 64,
+                            "safety": {"projection_safe": True},
+                        },
+                    ),
+                ),
+            ),
+            retriever=lambda *args, **kwargs: _medical_evidence(
+                query_text="公费医疗报销需要什么材料"
+            ),
+        )
+
+        summaries = response.result.diagnostics.projection_context_summaries
+        self.assertEqual(len(summaries), 1)
+        self.assertEqual(summaries[0].projection_id, "notice-proj-1")
+        self.assertEqual(summaries[0].evidence_use, "planning_framing")
+        self.assertNotIn("raw_payload", summaries[0].safety_summary)
+
+    def test_semantic_replan_preserves_triggering_step_expected_output(self) -> None:
+        replanned_steps = build_semantic_replan_steps(
+            _single_step_plan(
+                plan_id="curriculum:course_facts:entity-replan",
+                corpus="curriculum",
+                collection="course_facts",
+                step_type="entity_resolution",
+                expected_output="entity_matches",
+                selector=RetrievalSelector(canonical_course_ids=("course:muc.xigai",)),
+            ),
+            (RetrievalStepResult(step_id="entity-resolution", status="empty"),),
+            RetrievalStepResult(step_id="entity-resolution", status="empty"),
+        )
+
+        self.assertEqual(len(replanned_steps), 1)
+        self.assertEqual(replanned_steps[0].step_type, "indexed_lookup")
+        self.assertEqual(replanned_steps[0].expected_output, "entity_matches")
+
+    def test_semantic_replan_rewrites_query_for_missing_procedure_need(self) -> None:
+        replanned_steps = build_semantic_replan_steps(
+            _single_step_plan(
+                query_text="公费医疗报销需要什么材料，并说明审核流程",
+                need_ids=("need:1:requirement", "need:2:procedure"),
+            ),
+            (RetrievalStepResult(step_id="indexed-lookup", status="empty"),),
+            RetrievalStepResult(step_id="indexed-lookup", status="empty"),
+        )
+
+        self.assertEqual(len(replanned_steps), 1)
+        self.assertIn("审核流程", replanned_steps[0].query_text)
+        self.assertNotIn("材料", replanned_steps[0].query_text)
+        self.assertEqual(replanned_steps[0].need_ids, ("need:2:procedure",))
+        self.assertEqual(replanned_steps[0].budget.top_k, 2)
+
+    def test_semantic_replan_rewrites_loss_procedure_query_with_reissue_terms(self) -> None:
+        replanned_steps = build_semantic_replan_steps(
+            _single_step_plan(
+                query_text="学生证丢了怎么办？",
+                need_ids=("need:1:procedure",),
+            ),
+            (RetrievalStepResult(step_id="indexed-lookup", status="empty"),),
+            RetrievalStepResult(step_id="indexed-lookup", status="empty"),
+        )
+
+        self.assertEqual(len(replanned_steps), 1)
+        self.assertIn("学生证", replanned_steps[0].query_text)
+        self.assertIn("挂失", replanned_steps[0].query_text)
+        self.assertIn("补办", replanned_steps[0].query_text)
+        self.assertIn("办理步骤", replanned_steps[0].query_text)
+
+    def test_deterministic_answer_fails_closed_when_material_claim_lacks_support(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="公费医疗报销需要什么材料",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:medical",
+                    title="中央民族大学学生公费医疗管理办法",
+                    snippet="学生申请公费医疗报销时，应提交门诊收费票据和诊断证明。",
+                    score=0.91,
+                    chunk_id_suffix="medical-grounding-support",
+                    content_role="requirement",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        class UnsupportedClaimAgent:
+            def build_answer(self, _evidence):
+                from campus_rag_agent.agent import AnswerDraft
+
+                return AnswerDraft(
+                    answer_text="需要门诊收费票据、诊断证明和银行卡。",
+                    supporting_sources=evidence.sources,
+                )
+
+        with patch("campus_rag_agent.service_answer_synthesis.RagAgent", UnsupportedClaimAgent):
+            response = delegate_to_rag_agent(
+                AgentRequest(
+                    target="rag-agent",
+                    user_goal="公费医疗报销需要什么材料",
+                    payload=RagRequestPayload(
+                        scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                    ),
+                ),
+                retriever=lambda *args, **kwargs: evidence,
+            )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "insufficient_grounding")
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "unsupported")
+        self.assertTrue(
+            any(
+                entry.support_status == "unsupported"
+                for entry in response.result.diagnostics.claim_evidence_graph
+            )
+        )
+
+    def test_completed_answer_diagnostics_include_claim_evidence_graph(self) -> None:
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="公费医疗报销需要什么材料",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: _medical_evidence(
+                query_text="公费医疗报销需要什么材料"
+            ),
+        )
+
+        graph = response.result.diagnostics.claim_evidence_graph
+        self.assertTrue(graph)
+        self.assertEqual(graph[0].support_status, "supported")
+        self.assertEqual(graph[0].support_source_doc_ids, ("handbook:medical",))
+
+    def test_no_answer_diagnostics_preserve_planner_information_needs(self) -> None:
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="公费医疗报销需要什么材料，并说明审核流程",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: EvidenceBundle(
+                query_text="公费医疗报销需要什么材料，并说明审核流程",
+                corpus="regulations",
+                collection="student_rules",
+                sources=(),
+            ),
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(
+            tuple(
+                need.expected_evidence_kind
+                for need in response.result.diagnostics.planner_information_needs
+            ),
+            ("requirement", "procedure"),
+        )
+
+    def test_diagnostics_preserve_semantic_replan_summary(self) -> None:
+        source = _medical_source("medical-replan-support")
+        execution_result = RetrievalExecutionResult(
+            plan=_single_step_plan(),
+            replan_count=1,
+            merged_evidence=EvidenceBundle(
+                query_text="公费医疗报销需要什么材料",
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            ),
+            step_results=(
+                RetrievalStepResult(
+                    step_id="indexed-lookup",
+                    status="succeeded",
+                    grounding=(source,),
+                    references=(source,),
+                    activity=RetrievalStepActivity(
+                        step_id="indexed-lookup",
+                        step_type="indexed_lookup",
+                        corpus="regulations",
+                        collection="student_rules",
+                        status="succeeded",
+                        query_text="公费医疗报销需要什么材料",
+                        top_k=2,
+                        candidate_count=1,
+                        reference_count=1,
+                    ),
+                ),
+            ),
+        )
+
+        diagnostics = _build_rag_result_diagnostics(
+            evidence=execution_result.merged_evidence,
+            resolved_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+            handbook_plan=None,
+            retrieval_execution_result=execution_result,
+        )
+
+        self.assertIsNotNone(diagnostics.replan_decision_summary)
+        self.assertEqual(diagnostics.replan_decision_summary.replan_count, 1)
+        self.assertEqual(diagnostics.replan_decision_summary.trigger_reason, "evidence_expansion")
+
+
+def _plan_student_rules(user_goal: str):
+    request = AgentRequest(
+        target="rag-agent",
+        user_goal=user_goal,
+        payload=RagRequestPayload(
+            scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+        ),
+    )
+    return execute_rag_planner_stage(
+        request=request,
+        effective_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+        user_goal=request.user_goal,
+        effective_user_goal=request.user_goal,
+        handbook_plan=None,
+        curriculum_plan=None,
+        curriculum_course_plan=None,
+        curriculum_program_family_plan=None,
+    )
+
+
+def _single_step_plan(
+    *,
+    plan_id: str = "regulations:student_rules:current",
+    corpus: str = "regulations",
+    collection: str = "student_rules",
+    step_type: str = "indexed_lookup",
+    query_text: str = "公费医疗报销需要什么材料",
+    need_ids: tuple[str, ...] = (),
+    selector: RetrievalSelector | None = None,
+    expected_output: str = "candidate_set",
+) -> RetrievalPlan:
+    step_id = "entity-resolution" if step_type == "entity_resolution" else "indexed-lookup"
+    return RetrievalPlan(
+        plan_id=plan_id,
+        query_mode="current",
+        admitted_scopes=(RetrievalScope(corpus=corpus, collection=collection),),
+        budget=RetrievalPlanBudget(max_steps=2, max_replans=1),
+        source_trust_policy=RetrievalSourceTrustPolicy(minimum_tier="T1"),
+        steps=(
+            RetrievalStep(
+                step_id=step_id,
+                step_type=step_type,
+                scope=RetrievalScope(corpus=corpus, collection=collection),
+                query_text=query_text,
+                need_ids=need_ids,
+                selector=selector or RetrievalSelector(),
+                budget=RetrievalStepBudget(top_k=2),
+                expected_output=expected_output,
+            ),
+        ),
+    )
+
+
+def _medical_evidence(*, query_text: str) -> EvidenceBundle:
+    return EvidenceBundle(
+        query_text=query_text,
+        corpus="regulations",
+        collection="student_rules",
+        sources=(
+            _medical_source("medical-need-support-1"),
+            _make_handbook_source(
+                doc_id="handbook:medical",
+                title="中央民族大学学生公费医疗管理办法",
+                snippet="报销材料经校医院审核后，按学校公费医疗管理办法办理。",
+                score=0.88,
+                chunk_id_suffix="medical-need-support-2",
+                content_role="procedure",
+                is_answer_bearing=True,
+            ),
+        ),
+    )
+
+
+def _medical_source(chunk_id_suffix: str):
+    return _make_handbook_source(
+        doc_id="handbook:medical",
+        title="中央民族大学学生公费医疗管理办法",
+        snippet="学生申请公费医疗报销时，应提交门诊收费票据、诊断证明和本人校园卡信息。",
+        score=0.91,
+        chunk_id_suffix=chunk_id_suffix,
+        content_role="requirement",
+        is_answer_bearing=True,
+    )
+
+
+if __name__ == "__main__":
+    unittest.main()

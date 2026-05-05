@@ -9,7 +9,6 @@ from tests.agent.rag_agent_test_support import (
     SourceTrustSummary,
     _make_evidence,
     _make_handbook_source,
-    _resolved_scope_diagnostics,
     delegate_to_rag_agent,
     unittest,
 )
@@ -259,14 +258,12 @@ class RagAgentCurriculumStructuredLookupNamedDocumentTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertFalse(retriever_called)
-        self.assertEqual(
-            response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="regulations",
-                collection="student_rules",
-                clarification_reason="policy_object_missing",
-            ),
-        )
+        diagnostics = response.result.diagnostics
+        self.assertEqual(diagnostics.resolved_scope_corpus, "regulations")
+        self.assertEqual(diagnostics.resolved_scope_collection, "student_rules")
+        self.assertEqual(diagnostics.clarification_reason, "policy_object_missing")
+        self.assertEqual(diagnostics.retrieval_adequacy_verdict, "ambiguous")
+        self.assertTrue(diagnostics.stage_activities)
 
     def test_handbook_policy_alias_passes_target_document_ids_to_retriever(self) -> None:
         retriever_call: dict[str, object] = {}
@@ -322,27 +319,27 @@ class RagAgentCurriculumStructuredLookupNamedDocumentTest(unittest.TestCase):
         )
         self.assertIn(target_title, retriever_call["query_text"])
         self.assertEqual(response.status, "completed")
+        diagnostics = response.result.diagnostics
+        self.assertEqual(diagnostics.resolved_scope_corpus, "regulations")
+        self.assertEqual(diagnostics.resolved_scope_collection, "student_rules")
+        self.assertEqual(diagnostics.resolved_policy_document_id, target_doc_id)
+        self.assertEqual(diagnostics.resolved_policy_title, target_title)
+        self.assertEqual(diagnostics.rewritten_query, retriever_call["query_text"])
+        self.assertEqual(diagnostics.semantic_outcome, "grounded_answer")
+        self.assertEqual(diagnostics.retrieved_title_summary, (target_title,))
+        self.assertEqual(diagnostics.retrieved_sources, evidence.sources)
         self.assertEqual(
-            response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="regulations",
-                collection="student_rules",
-                resolved_policy_document_id=target_doc_id,
-                resolved_policy_title=target_title,
-                rewritten_query=retriever_call["query_text"],
-                semantic_outcome="grounded_answer",
-                retrieved_title_summary=(target_title,),
-                retrieved_sources=evidence.sources,
-                source_trust_summary=SourceTrustSummary(
-                    observed_tiers=("T1",),
-                    answer_bearing_tiers=("T1",),
-                    blocked_claim_types=(),
-                    freshness_claim_blocked=False,
-                    authorization_claim_blocked=False,
-                ),
-                retrieval_plan_summary=response.result.diagnostics.retrieval_plan_summary,
+            diagnostics.source_trust_summary,
+            SourceTrustSummary(
+                observed_tiers=("T1",),
+                answer_bearing_tiers=("T1",),
+                blocked_claim_types=(),
+                freshness_claim_blocked=False,
+                authorization_claim_blocked=False,
             ),
         )
+        self.assertIsNotNone(diagnostics.retrieval_plan_summary)
+        self.assertTrue(diagnostics.stage_activities)
 
     def test_handbook_student_card_alias_passes_target_document_ids_to_retriever(self) -> None:
         retriever_call: dict[str, object] = {}

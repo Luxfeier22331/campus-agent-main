@@ -2,7 +2,15 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from campus_contracts import AgentRequest, AgentResponse, ErrorInfo, EvidenceBundle, KnowledgeScope
+from campus_contracts import (
+    AgentRequest,
+    AgentResponse,
+    ErrorInfo,
+    EvidenceBundle,
+    KnowledgeScope,
+    RagPlannerInformationNeed,
+    RagProjectionContextSummary,
+)
 from campus_retrieval_core import RetrievalExecutionResult
 
 from campus_rag_agent.intent import PersonalizationHint, RagIntentFrame
@@ -48,6 +56,8 @@ class RagOutcomeContext:
     curriculum_program_family_plan: object | None
     retrieved_evidence: EvidenceBundle
     retrieval_execution_result: RetrievalExecutionResult | None
+    planner_information_needs: tuple[RagPlannerInformationNeed, ...] = ()
+    projection_context_summaries: tuple[RagProjectionContextSummary, ...] = ()
 
 
 def build_restricted_access_denied_response(context: RagOutcomeContext) -> AgentResponse:
@@ -67,6 +77,8 @@ def build_restricted_access_denied_response(context: RagOutcomeContext) -> Agent
             request_id=context.request.request_id,
             no_answer_reason="restricted_access_denied",
             semantic_outcome="restricted_access_denied",
+            planner_information_needs=context.planner_information_needs,
+            projection_context_summaries=context.projection_context_summaries,
         ),
     )
 
@@ -90,6 +102,8 @@ def build_corpus_query_disabled_error_response(
             curriculum_course_plan=context.curriculum_course_plan,
             curriculum_program_family_plan=context.curriculum_program_family_plan,
             request_id=context.request.request_id,
+            planner_information_needs=context.planner_information_needs,
+            projection_context_summaries=context.projection_context_summaries,
         ),
         error=ErrorInfo(code="corpus_not_query_enabled", message=message, retryable=False),
     )
@@ -114,6 +128,8 @@ def build_retrieval_backend_error_response(
             curriculum_course_plan=context.curriculum_course_plan,
             curriculum_program_family_plan=context.curriculum_program_family_plan,
             request_id=context.request.request_id,
+            planner_information_needs=context.planner_information_needs,
+            projection_context_summaries=context.projection_context_summaries,
         ),
         error=ErrorInfo(code="retrieval_failed", message=message, retryable=False),
     )
@@ -127,6 +143,11 @@ def build_empty_retrieval_no_answer_response(
     semantic_outcome: str,
     freshness_fail_closed: bool,
 ) -> AgentResponse:
+    retrieval_adequacy_reason = (
+        "weak_supporting_evidence"
+        if _retrieval_reference_count(context.retrieval_execution_result)
+        else no_answer_reason
+    )
     answer_text, prompt_trace, prompt_runtime_state, prompt_runtime_detail = (
         _compose_no_answer_response(
             request=context.request,
@@ -157,11 +178,13 @@ def build_empty_retrieval_no_answer_response(
                 request_id=context.request.request_id,
                 no_answer_reason=no_answer_reason,
                 semantic_outcome=semantic_outcome,
-                retrieval_adequacy=_empty_evidence_retrieval_adequacy(no_answer_reason),
+                retrieval_adequacy=_empty_evidence_retrieval_adequacy(retrieval_adequacy_reason),
                 freshness_fail_closed=freshness_fail_closed,
                 prompt_runtime_state=prompt_runtime_state,
                 prompt_runtime_detail=prompt_runtime_detail,
                 retrieval_execution_result=context.retrieval_execution_result,
+                planner_information_needs=context.planner_information_needs,
+                projection_context_summaries=context.projection_context_summaries,
             ),
             prompt_trace,
         ),
@@ -213,6 +236,8 @@ def maybe_build_evidence_clarification_response(
                 prompt_runtime_state=prompt_runtime_state,
                 prompt_runtime_detail=prompt_runtime_detail,
                 retrieval_execution_result=context.retrieval_execution_result,
+                planner_information_needs=context.planner_information_needs,
+                projection_context_summaries=context.projection_context_summaries,
             ),
             prompt_trace,
         ),
@@ -224,11 +249,24 @@ def build_no_supporting_evidence_response(
     *,
     supporting_evidence: EvidenceBundle,
 ) -> AgentResponse:
+    retrieved_source_count = _retrieval_reference_count(context.retrieval_execution_result)
+    if not retrieved_source_count and context.retrieved_evidence is not None:
+        retrieved_source_count = len(context.retrieved_evidence.sources)
     return _build_unsupported_by_evidence_response(
         context,
         evidence=supporting_evidence,
         no_answer_reason=_resolved_policy_no_answer_reason(context.handbook_plan),
-        retrieval_adequacy_reason="no_supporting_sources",
+        retrieval_adequacy_reason=(
+            "weak_supporting_evidence" if retrieved_source_count else "no_supporting_sources"
+        ),
+    )
+
+
+def _retrieval_reference_count(retrieval_execution_result: RetrievalExecutionResult | None) -> int:
+    if retrieval_execution_result is None:
+        return 0
+    return sum(
+        len(step_result.references) for step_result in retrieval_execution_result.step_results
     )
 
 
@@ -278,6 +316,8 @@ def maybe_build_resolved_policy_clause_fail_closed_response(
             no_answer_reason=_resolved_policy_no_answer_reason(context.handbook_plan),
             semantic_outcome="unsupported_by_evidence",
             retrieval_adequacy=insufficient_retrieval_adequacy("resolved_policy_clause_not_found"),
+            planner_information_needs=context.planner_information_needs,
+            projection_context_summaries=context.projection_context_summaries,
         ),
     )
 
@@ -324,6 +364,8 @@ def _build_unsupported_by_evidence_response(
                 retrieval_adequacy=insufficient_retrieval_adequacy(retrieval_adequacy_reason),
                 prompt_runtime_state=prompt_runtime_state,
                 prompt_runtime_detail=prompt_runtime_detail,
+                planner_information_needs=context.planner_information_needs,
+                projection_context_summaries=context.projection_context_summaries,
             ),
             prompt_trace,
         ),

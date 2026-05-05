@@ -4,10 +4,12 @@ import unittest
 
 from campus_contracts import EvidenceBundle
 from campus_rag_agent import RagAgent
+from campus_rag_agent.agent_answer_shape import AnswerShape
 
 from tests.agent.rag_agent_test_support import (
     _make_curriculum_plan_source,
     _make_handbook_source,
+    _select_answer_support_rows,
 )
 
 
@@ -119,6 +121,80 @@ class RagAgentAnswerQualityRegressionTest(unittest.TestCase):
         self.assertNotIn("已找到", draft.answer_text)
         self.assertIn("培养目标", draft.answer_text)
         self.assertNotIn("0304-1-05-04", draft.answer_text)
+
+    def test_curriculum_title_lookup_selection_excludes_table_facts_when_narrative_exists(
+        self,
+    ) -> None:
+        title = "民族学本科人才培养方案"
+
+        rows = _select_answer_support_rows(
+            query_text=title,
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0012",
+                    source_title=title,
+                    snippet="五、课程设置和修读建议 课程号 | 课程名称 | 学分 0304-1-05-04 | 民族学前沿研究 | 2",
+                    score=0.92,
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0001",
+                    source_title=title,
+                    snippet="民族学本科人才培养方案 一、培养目标 本专业培养具有民族学理论基础和田野调查能力的人才。",
+                    score=0.9,
+                    is_answer_bearing=True,
+                ),
+            ),
+            max_sources=3,
+            answer_shape=AnswerShape.TITLE_LOOKUP,
+        )
+
+        statements = " ".join(
+            statement for _, row_statements in rows for statement in row_statements
+        )
+        self.assertEqual(tuple(source.content_role for source, _ in rows), ("",))
+        self.assertIn("培养目标", statements)
+        self.assertNotIn("0304-1-05-04", statements)
+
+    def test_curriculum_title_lookup_does_not_use_table_only_chunks_as_overview(
+        self,
+    ) -> None:
+        title = "民族学本科人才培养方案"
+        evidence = EvidenceBundle(
+            query_text=title,
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0012",
+                    source_title=title,
+                    snippet="五、课程设置和修读建议 课程号 | 课程名称 | 学分 0304-1-05-04 | 民族学前沿研究 | 2",
+                    score=0.92,
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0013",
+                    source_title=title,
+                    snippet="课程号 | 课程名称 | 学分 0304-1-05-05 | 民族理论专题 | 2",
+                    score=0.91,
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertEqual(draft.answer_text, "")
+        self.assertEqual(draft.supporting_sources, ())
 
 
 def _make_policy_source(

@@ -4,6 +4,8 @@ from campus_contracts import (
     AgentResponse,
     EvidenceBundle,
     KnowledgeScope,
+    RagPlannerInformationNeed,
+    RagProjectionContextSummary,
 )
 from campus_retrieval_core import RetrievalExecutionResult
 
@@ -75,6 +77,8 @@ def _build_compare_support_incomplete_response(
     curriculum_course_plan: CurriculumCourseQueryPlan | None,
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None,
     request_id: str = "",
+    planner_information_needs: tuple[RagPlannerInformationNeed, ...] = (),
+    projection_context_summaries: tuple[RagProjectionContextSummary, ...] = (),
 ) -> AgentResponse:
     return AgentResponse(
         target="rag-agent",
@@ -94,6 +98,8 @@ def _build_compare_support_incomplete_response(
             no_answer_reason="compare_support_incomplete",
             semantic_outcome="unsupported_by_evidence",
             retrieval_adequacy=insufficient_retrieval_adequacy("compare_support_incomplete"),
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
         ),
     )
 
@@ -113,6 +119,8 @@ def _build_version_aware_completed_response(
     confidence: str,
     version_answer_context: _VersionAnswerContext,
     request_id: str = "",
+    planner_information_needs: tuple[RagPlannerInformationNeed, ...] = (),
+    projection_context_summaries: tuple[RagProjectionContextSummary, ...] = (),
 ) -> AgentResponse:
     answer_text = _build_version_aware_answer_text(
         evidence=evidence,
@@ -137,6 +145,8 @@ def _build_version_aware_completed_response(
             semantic_outcome=semantic_outcome,
             retrieval_adequacy=sufficient_retrieval_adequacy(),
             grounding_verdict="grounded",
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
         ),
     )
 

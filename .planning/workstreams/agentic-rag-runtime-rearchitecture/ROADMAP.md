@@ -24,8 +24,9 @@ updated: 2026-05-04
 - [x] **Phase 4: Observability, Eval, And Performance Diagnostics** — 已补齐 ragas diagnostic
   case-level failure attribution 与 performance breakdown，并保留 stage-level runtime
   diagnostics。
-- [ ] **Phase 5: Heuristic Cleanup And Closeout** — 收口或移除 `title_lookup` 与其他旧
-  answer-shape shortcuts，更新 docs / state / reopen rule。
+- [x] **Phase 5: Heuristic Cleanup And Closeout** — 已移除旧 `title_lookup` found-copy
+  answer authority，保留 title shape 为 evidence-selection hint，补齐 curriculum textual
+  support confidence，并完成 closeout / reopen rule。
 
 ## Phase 0: Admission And Codebase Truth Audit
 
@@ -193,7 +194,7 @@ contract，而不是只有“多打点”的泛化口号。
 
 ## Phase 5: Heuristic Cleanup And Closeout
 
-**Status:** pending.
+**Status:** completed.
 
 **Goal:** 收口旧 heuristic shortcuts，并把新的 rag-agent truth 写回 planning / architecture。
 
@@ -212,9 +213,10 @@ contract，而不是只有“多打点”的泛化口号。
 
 **Exit Criteria:**
 
-- 代码路径不再依赖旧式 shape heuristic 维持主语义。
-- workstream 能明确说明 remaining gaps 与后续 reopen trigger。
-- closeout 时可明确写出“已 promotion 的 truth”“仍 deferred 的 follow-up”与“reopen 条件”。
+- 代码路径不再依赖旧式 shape heuristic 维持主语义：`title_lookup` 不再直接生成
+  `已找到《title》` copy，也不能独立决定 answer success。
+- Workstream 已明确说明 remaining gaps 与后续 reopen trigger。
+- Closeout 已写出当前 worktree promoted truth、仍 deferred 的 follow-up 与 reopen 条件。
 
 **Planning Artifacts:**
 

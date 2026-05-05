@@ -87,6 +87,8 @@ def _empty_evidence_retrieval_adequacy(no_answer_reason: str):
         return insufficient_retrieval_adequacy("freshness_fail_close")
     if no_answer_reason == "version_filter_unresolved":
         return insufficient_retrieval_adequacy("version_filter_unresolved")
+    if no_answer_reason == "weak_supporting_evidence":
+        return insufficient_retrieval_adequacy("weak_supporting_evidence")
     return insufficient_retrieval_adequacy("no_supporting_sources")
 
 

@@ -6,6 +6,7 @@ from contextlib import redirect_stdout
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 from campus_contracts import EvidenceBundle
 from campus_evals.ragas_diagnostic_runner import (
@@ -28,13 +29,14 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
             "ragas-diagnostic-sample-manifest.v1",
         )
         self.assertEqual(manifest["sample_limit_per_surface"], 3)
-        self.assertEqual(len(manifest["cases"]), 9)
+        self.assertEqual(len(manifest["cases"]), 12)
         self.assertEqual(
             {case["surface_key"] for case in manifest["cases"]},
             {
                 "regulations/student_rules",
                 "regulations/institutional_rules",
                 "curriculum/curriculum_plan",
+                "official_web/stable_reference",
             },
         )
         self.assertEqual(
@@ -69,12 +71,12 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
         )
 
         self.assertTrue(report["passed"])
-        self.assertEqual(report["summary"]["total_cases"], 3)
+        self.assertEqual(report["summary"]["total_cases"], 4)
         self.assertEqual(report["summary"]["failed_cases"], 0)
         self.assertEqual(report["run_config"]["sample_limit_per_surface"], 1)
         self.assertEqual(report["run_config"]["top_k"], 5)
         self.assertEqual(report["run_config"]["metric_names"], ["faithfulness"])
-        self.assertEqual(len(seen_bundles), 3)
+        self.assertEqual(len(seen_bundles), 4)
         self.assertTrue(report["cases"][0]["answer_text"])
         self.assertEqual(report["cases"][0]["answer_shape"], "general_summary")
         self.assertEqual(report["cases"][0]["scores"]["faithfulness"], 0.91)
@@ -121,14 +123,46 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
         self.assertEqual(
             first_case["failure_attribution"]["metric_failures"],
             {
-                "answer_relevancy": "synthesis",
+                "answer_relevancy": "retrieval",
                 "context_recall": "retrieval",
             },
         )
         self.assertEqual(first_case["failure_attribution"]["primary_stage"], "retrieval")
-        self.assertEqual(report["summary"]["failure_attribution"]["retrieval"], 3)
-        self.assertEqual(report["summary"]["performance_breakdown"]["case_count"], 3)
+        self.assertEqual(report["summary"]["failure_attribution"]["retrieval"], 4)
+        self.assertEqual(report["summary"]["performance_breakdown"]["case_count"], 4)
         self.assertIn("retrieval_ms", report["summary"]["performance_breakdown"])
+
+    def test_run_ragas_diagnostic_attributes_answer_quality_to_evidence_selection_when_raw_retrieval_had_expected_doc(
+        self,
+    ) -> None:
+        class MixedBackend:
+            def retrieve(self, request):
+                return EvidenceBundle(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    query_text=request.query_text,
+                    sources=(
+                        _source(doc_id="wrong:doc"),
+                        _source(
+                            doc_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                        ),
+                    ),
+                )
+
+        report = run_ragas_diagnostic(
+            backend=MixedBackend(),
+            scorer=lambda projection: {"answer_relevancy": 0.4},
+            sample_limit_per_surface=1,
+            metric_names=("answer_relevancy",),
+        )
+
+        first_case = report["cases"][0]
+        self.assertEqual(first_case["status"], "completed")
+        self.assertEqual(
+            first_case["failure_attribution"]["metric_failures"],
+            {"answer_relevancy": "evidence_selection"},
+        )
+        self.assertEqual(first_case["failure_attribution"]["primary_stage"], "evidence_selection")
 
     def test_run_ragas_diagnostic_respects_case_workers_and_preserves_order(self) -> None:
         class FakeBackend:
@@ -150,7 +184,7 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
 
         self.assertTrue(report["passed"])
         self.assertEqual(report["run_config"]["case_workers"], 2)
-        self.assertEqual(len(report["cases"]), 6)
+        self.assertEqual(len(report["cases"]), 8)
         self.assertEqual(report["cases"][0]["case_id"], "policy-title-scholarship")
         self.assertEqual(
             report["cases"][1]["case_id"], "policy-alias-national-scholarship-article-nine"
@@ -167,9 +201,24 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
             )
 
     def test_cli_writes_manifest_and_report_with_fake_runtime(self) -> None:
+        class FakeBackend:
+            def retrieve(self, request):
+                return EvidenceBundle(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    query_text=request.query_text,
+                    sources=(_source(doc_id=f"{request.collection}:doc"),),
+                )
+
         with TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir)
-            with redirect_stdout(StringIO()):
+            with (
+                patch(
+                    "campus_evals.ragas_diagnostic_runner.build_retrieval_backend",
+                    return_value=FakeBackend(),
+                ),
+                redirect_stdout(StringIO()),
+            ):
                 exit_code = main(
                     [
                         "--output-dir",
@@ -191,13 +240,13 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
             summary = json.loads((output_dir / "ragas-diagnostic.summary.json").read_text())
 
         self.assertEqual(exit_code, 0)
-        self.assertEqual(len(manifest["cases"]), 3)
+        self.assertEqual(len(manifest["cases"]), 4)
         self.assertTrue(report["passed"])
         self.assertEqual(report["run_config"]["metric_names"], ["context_precision"])
         self.assertEqual(report["run_config"]["case_workers"], 2)
-        self.assertEqual(metric_report["summary"]["metrics"]["context_precision"]["count"], 3)
-        self.assertEqual(summary["total_cases"], 3)
-        self.assertEqual(summary["metrics"]["context_precision"]["count"], 3)
+        self.assertEqual(metric_report["summary"]["metrics"]["context_precision"]["count"], 4)
+        self.assertEqual(summary["total_cases"], 4)
+        self.assertEqual(summary["metrics"]["context_precision"]["count"], 4)
         self.assertNotIn("faithfulness", summary["metrics"])
         self.assertEqual(
             DEFAULT_RAGAS_DIAGNOSTIC_SAMPLE_LIMIT_PER_SURFACE,

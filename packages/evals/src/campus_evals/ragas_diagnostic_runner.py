@@ -17,6 +17,10 @@ from campus_shared import load_repo_env
 from campus_evals.benchmark import RetrievalQrelsCase, load_retrieval_qrels_dataset
 from campus_evals.ragas_adapter import build_ragas_scorer
 from campus_evals.ragas_adapter_projection import RagasProjection
+from campus_evals.ragas_diagnostic_fixtures import (
+    PREFERRED_RAGAS_DIAGNOSTIC_CASE_IDS,
+    SURFACE_QRELS_FIXTURES,
+)
 from campus_evals.retrieval_live_benchmark import _build_retrieval_request
 from campus_evals.settings import RagasSettings
 
@@ -33,57 +37,6 @@ DEFAULT_RAGAS_DIAGNOSTIC_METRIC_NAMES = (
     "context_recall",
 )
 
-_SURFACE_QRELS_FIXTURES = {
-    "regulations/student_rules": "student_handbook_retrieval_qrels.json",
-    "regulations/institutional_rules": "institutional_rules_retrieval_qrels.json",
-    "curriculum/curriculum_plan": "curriculum_plan_retrieval_qrels.json",
-}
-
-_PREFERRED_CASE_IDS = {
-    "regulations/student_rules": (
-        "policy-title-scholarship",
-        "policy-alias-national-scholarship-article-nine",
-        "semantic-scholarship-eligibility",
-        "short-fact-attendance-discipline-threshold",
-        "semantic-disciplinary-relief",
-        "policy-title-recommend-postgraduate-exemption",
-        "semantic-study-abroad-management",
-        "semantic-innovation-education-credit",
-        "policy-title-temporary-hardship-subsidy",
-        "policy-title-national-grant",
-        "policy-title-student-aid-management",
-        "policy-title-funded-student-public-service",
-    ),
-    "regulations/institutional_rules": (
-        "institutional-title-exact-ff711d1185f9",
-        "institutional-title-exact-81401d3a02d6",
-        "institutional-title-exact-7da72ac3d796",
-        "institutional-title-exact-40d4d65809c5",
-        "institutional-title-exact-e593d7a51e16",
-        "institutional-title-exact-ccd8fad3cd06",
-        "institutional-title-exact-580644ffc701",
-        "institutional-title-exact-6ad2032144d0",
-        "institutional-title-exact-a7716c82cbe1",
-        "institutional-title-exact-eb3f2445780f",
-        "institutional-title-exact-3c69a0dd5d82",
-        "institutional-title-exact-f2860d036974",
-    ),
-    "curriculum/curriculum_plan": (
-        "ethnology-plan-title",
-        "history-strong-base-title",
-        "digital-economy-plan-paraphrase",
-        "ethnology-second-degree-academic-years",
-        "ethnology-total-credits",
-        "economics-course-settings-table",
-        "general-english-total-credits",
-        "hanyu-international-students-total-credits",
-        "law-ethnic-class-fourth-semester-courses",
-        "semantic-philosophy-strong-base-paraphrase",
-        "curriculum-title-general-chinese-culture",
-        "curriculum-title-social-practice",
-    ),
-}
-
 
 def build_ragas_diagnostic_sample_manifest(
     *,
@@ -95,12 +48,12 @@ def build_ragas_diagnostic_sample_manifest(
         raise ValueError("sample_limit_per_surface must be greater than zero")
     root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[4]
     cases: list[dict[str, object]] = []
-    for surface_key in _SURFACE_QRELS_FIXTURES:
+    for surface_key in SURFACE_QRELS_FIXTURES:
         dataset = load_retrieval_qrels_dataset(_qrels_path(root=root, surface_key=surface_key))
         by_case_id = {case.case_id: case for case in dataset.cases}
         selected = [
             by_case_id[case_id]
-            for case_id in _PREFERRED_CASE_IDS[surface_key]
+            for case_id in PREFERRED_RAGAS_DIAGNOSTIC_CASE_IDS[surface_key]
             if case_id in by_case_id
         ][:sample_limit_per_surface]
         cases.extend(_manifest_case(surface_key=surface_key, case=case) for case in selected)
@@ -514,12 +467,32 @@ def _attribute_metric_failure(*, metric_name: str, projection: RagasProjection) 
     if metric_name in {"context_recall", "context_precision"}:
         return "retrieval"
     if metric_name in {"faithfulness", "answer_relevancy"}:
+        if _reference_doc_ids(projection).isdisjoint(_raw_retrieved_doc_ids(projection)):
+            return "retrieval"
+        if _reference_doc_ids(projection).isdisjoint(_supporting_doc_ids(projection)):
+            return "evidence_selection"
         return "synthesis"
-    if not projection.retrieved_context_ids:
-        return "retrieval"
-    if not set(projection.retrieved_context_ids).intersection(projection.reference_context_ids):
+    if _reference_doc_ids(projection).isdisjoint(_raw_retrieved_doc_ids(projection)):
         return "retrieval"
     return "diagnostic"
+
+
+def _reference_doc_ids(projection: RagasProjection) -> set[str]:
+    return {str(item) for item in projection.reference_context_ids if str(item).strip()}
+
+
+def _raw_retrieved_doc_ids(projection: RagasProjection) -> set[str]:
+    values = projection.metadata.get("retrieved_doc_ids")
+    if isinstance(values, list | tuple):
+        return {str(item) for item in values if str(item).strip()}
+    return {str(item) for item in projection.retrieved_context_ids if str(item).strip()}
+
+
+def _supporting_doc_ids(projection: RagasProjection) -> set[str]:
+    values = projection.metadata.get("supporting_doc_ids")
+    if isinstance(values, list | tuple):
+        return {str(item) for item in values if str(item).strip()}
+    return {str(item) for item in projection.retrieved_context_ids if str(item).strip()}
 
 
 def _primary_failure_stage(metric_failures: Mapping[str, str]) -> str:
@@ -764,7 +737,7 @@ def _load_case(*, root: Path, surface_key: str, case_id: str) -> RetrievalQrelsC
 
 
 def _qrels_path(*, root: Path, surface_key: str) -> Path:
-    return root / "packages" / "evals" / "fixtures" / _SURFACE_QRELS_FIXTURES[surface_key]
+    return root / "packages" / "evals" / "fixtures" / SURFACE_QRELS_FIXTURES[surface_key]
 
 
 def _reference_for_case(case: RetrievalQrelsCase) -> str:

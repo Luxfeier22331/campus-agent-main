@@ -41,6 +41,17 @@ def _maybe_return_pre_retrieval_response(
         curriculum_program_family_plan=curriculum_program_family_plan,
     ):
         empty_evidence = _build_empty_evidence(effective_scope, user_goal)
+        clarification_reason, clarification_candidates = _pre_retrieval_clarification_context(
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+        )
+        confirmed_slot_terms = _pre_retrieval_confirmed_slot_terms(
+            request=request,
+            confirmed_slot_terms=personalization_hint.confirmed_slot_terms,
+            clarification_reason=clarification_reason,
+            user_goal=user_goal,
+        )
         return build_pre_retrieval_clarification_response(
             request=request,
             effective_scope=effective_scope,
@@ -51,7 +62,9 @@ def _maybe_return_pre_retrieval_response(
                 user_goal,
                 empty_evidence,
                 recent_goal=personalization_hint.recent_goal,
-                confirmed_slot_terms=personalization_hint.confirmed_slot_terms,
+                confirmed_slot_terms=confirmed_slot_terms,
+                clarification_reason=clarification_reason,
+                clarification_candidates=clarification_candidates,
             ),
             retrieval_adequacy=_clarification_retrieval_adequacy(
                 resolved_scope=effective_scope,
@@ -156,3 +169,41 @@ def _maybe_return_pre_retrieval_response(
             curriculum_program_family_plan=curriculum_program_family_plan,
         )
     return None
+
+
+def _pre_retrieval_clarification_context(
+    *,
+    handbook_plan,
+    curriculum_plan,
+    curriculum_program_family_plan,
+) -> tuple[str, tuple[str, ...]]:
+    if handbook_plan is not None and handbook_plan.status == "needs_clarification":
+        return handbook_plan.clarification_reason, ()
+    if (
+        curriculum_program_family_plan is not None
+        and curriculum_program_family_plan.resolution_mode == "needs_clarification"
+    ):
+        return (
+            curriculum_program_family_plan.clarification_reason,
+            curriculum_program_family_plan.clarification_candidates,
+        )
+    if curriculum_plan is not None and curriculum_plan.status == "needs_clarification":
+        return curriculum_plan.clarification_reason, curriculum_plan.clarification_candidates
+    return "", ()
+
+
+def _pre_retrieval_confirmed_slot_terms(
+    *,
+    request: AgentRequest,
+    confirmed_slot_terms: tuple[str, ...],
+    clarification_reason: str,
+    user_goal: str,
+) -> tuple[str, ...]:
+    if clarification_reason != "curriculum_program_family_alias":
+        return confirmed_slot_terms
+    if "我这个专业" not in user_goal and "本专业" not in user_goal:
+        return confirmed_slot_terms
+    major = request.context.actor.major.strip()
+    if not major or major in confirmed_slot_terms:
+        return confirmed_slot_terms
+    return (*confirmed_slot_terms, major)

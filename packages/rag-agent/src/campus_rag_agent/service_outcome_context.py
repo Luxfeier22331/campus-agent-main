@@ -19,6 +19,8 @@ def build_outcome_context(
     curriculum_program_family_plan,
     evidence,
     retrieval_execution_result,
+    planner_information_needs=(),
+    projection_context_summaries=(),
 ) -> RagOutcomeContext:
     return RagOutcomeContext(
         request=request,
@@ -33,4 +35,6 @@ def build_outcome_context(
         curriculum_program_family_plan=curriculum_program_family_plan,
         retrieved_evidence=evidence,
         retrieval_execution_result=retrieval_execution_result,
+        planner_information_needs=planner_information_needs,
+        projection_context_summaries=projection_context_summaries,
     )

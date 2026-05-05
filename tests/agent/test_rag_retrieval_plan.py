@@ -65,12 +65,53 @@ class RagRetrievalPlanTest(unittest.TestCase):
         )
 
         self.assertEqual(plan.query_mode, "compare")
-        self.assertEqual(plan.budget.max_steps, 3)
-        self.assertEqual(len(plan.steps), 2)
-        self.assertEqual(plan.steps[0].step_id, "indexed-lookup-primary")
-        self.assertEqual(plan.steps[1].step_id, "indexed-lookup-comparison")
+        self.assertEqual(plan.budget.max_steps, 2)
+        self.assertEqual(len(plan.steps), 1)
+        self.assertEqual(plan.steps[0].step_id, "compare-pair-lookup")
+        self.assertEqual(plan.steps[0].step_type, "compare_pair_lookup")
+        self.assertEqual(plan.steps[0].expected_output, "compare_inputs")
+        self.assertEqual(
+            plan.steps[0].selector.target_version_ids,
+            ("v1:national-scholarship", "v2:national-scholarship"),
+        )
+
+    def test_build_ordered_retrieval_plan_uses_historical_step_for_versioned_query(
+        self,
+    ) -> None:
+        plan = build_ordered_retrieval_plan(
+            query_text="旧版国奖第九条怎么规定？",
+            scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+            retrieval_collection="student_rules",
+            query_mode="historical",
+            target_document_ids=("handbook:national-scholarship",),
+            target_version_ids=("v1:national-scholarship",),
+            top_k=3,
+            version_query=VersionQuery(mode="historical"),
+        )
+
+        self.assertEqual(len(plan.steps), 1)
+        self.assertEqual(plan.steps[0].step_type, "historical_version_lookup")
+        self.assertEqual(plan.steps[0].expected_output, "candidate_set")
         self.assertEqual(plan.steps[0].selector.target_version_ids, ("v1:national-scholarship",))
-        self.assertEqual(plan.steps[1].selector.target_version_ids, ("v2:national-scholarship",))
+
+    def test_build_ordered_retrieval_plan_uses_entity_resolution_for_entity_selector(
+        self,
+    ) -> None:
+        plan = build_ordered_retrieval_plan(
+            query_text="西概课程安排",
+            scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan"),
+            retrieval_collection="course_facts",
+            query_mode="current",
+            canonical_course_ids=("course:muc.xigai",),
+            top_k=3,
+            version_query=VersionQuery(mode="current"),
+        )
+
+        self.assertEqual(len(plan.steps), 2)
+        self.assertEqual(plan.steps[0].step_type, "entity_resolution")
+        self.assertEqual(plan.steps[0].expected_output, "entity_matches")
+        self.assertEqual(plan.steps[1].step_type, "indexed_lookup")
+        self.assertEqual(plan.steps[1].depends_on_step_ids, ("entity-resolution",))
 
     def test_build_ordered_retrieval_plan_uses_freshness_gate_for_freshness_sensitive_query(
         self,

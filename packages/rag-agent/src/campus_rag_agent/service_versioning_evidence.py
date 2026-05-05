@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_retrieval_core.evidence_ranking import (
     select_supporting_evidence_sources,
@@ -59,13 +61,32 @@ def _build_compare_supporting_evidence(
         max_sources=2,
     )
     ordered_sources: dict[str, EvidenceSource] = {}
-    for source in (*selected_primary_sources, *selected_comparison_sources):
+    for source in (
+        *(
+            _with_compare_version_side(source, version_side="primary")
+            for source in selected_primary_sources
+        ),
+        *(
+            _with_compare_version_side(source, version_side="comparison")
+            for source in selected_comparison_sources
+        ),
+    ):
         ordered_sources.setdefault(source.chunk_id, source)
     return EvidenceBundle(
         query_text=evidence.query_text,
         corpus=evidence.corpus,
         collection=evidence.collection,
         sources=tuple(ordered_sources.values()),
+    )
+
+
+def _with_compare_version_side(source: EvidenceSource, *, version_side: str) -> EvidenceSource:
+    return replace(
+        source,
+        anchor={
+            **source.anchor,
+            "retrieval_version_side": version_side,
+        },
     )
 
 

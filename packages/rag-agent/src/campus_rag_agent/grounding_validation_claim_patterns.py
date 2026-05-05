@@ -22,6 +22,10 @@ _MATERIAL_ACTION_RE = re.compile(
     r"([\u4e00-\u9fffA-Za-z0-9（）()]{1,16}"
     r"(?:申请表|书面申请|申请|原件|复印件|材料|证明|证件|身份证|学生证))"
 )
+_MATERIAL_LIST_RE = re.compile(
+    r"(?:需要|需|应提交|须提交|提交|准备|提供|携带)"
+    r"([\u4e00-\u9fffA-Za-z0-9、，,和及以及/（）()]{2,48})"
+)
 _PROCEDURE_CLAIM_PATTERNS = (
     re.compile(r"(学院审核|部门审核|审核|审批|备案|盖章|挂失|报到|选课|缴费|注册)"),
 )
@@ -108,6 +112,7 @@ __all__ = [
     "_LOW_SIGNAL_REQUIREMENT_PHRASES",
     "_MATERIAL_ACTION_RE",
     "_MATERIAL_DIRECT_RE",
+    "_MATERIAL_LIST_RE",
     "_OFFERING_UNIT_NAME_RE",
     "_OFFERING_UNIT_PREFIX_CUES",
     "_OFFERING_UNIT_SUFFIX_CUES",

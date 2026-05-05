@@ -67,7 +67,8 @@ def _with_step_level_support_provenance(
     if retrieval_execution_result is None or not evidence.sources:
         return evidence
     step_ids_by_chunk = _step_ids_by_chunk_id(retrieval_execution_result)
-    if not step_ids_by_chunk:
+    need_ids_by_chunk = _need_ids_by_chunk_id(retrieval_execution_result)
+    if not step_ids_by_chunk and not need_ids_by_chunk:
         return evidence
     return EvidenceBundle(
         query_text=evidence.query_text,
@@ -79,6 +80,7 @@ def _with_step_level_support_provenance(
                 plan_id=retrieval_execution_result.plan.plan_id,
                 replan_count=retrieval_execution_result.replan_count,
                 step_ids=step_ids_by_chunk.get(source.chunk_id, ()),
+                need_ids=need_ids_by_chunk.get(source.chunk_id, ()),
             )
             for source in evidence.sources
         ),
@@ -99,24 +101,43 @@ def _step_ids_by_chunk_id(
     return {chunk_id: tuple(step_ids) for chunk_id, step_ids in step_ids_by_chunk.items()}
 
 
+def _need_ids_by_chunk_id(
+    retrieval_execution_result: RetrievalExecutionResult,
+) -> dict[str, tuple[str, ...]]:
+    need_ids_by_chunk: dict[str, list[str]] = {}
+    for step_result in retrieval_execution_result.step_results:
+        if step_result.activity is None:
+            continue
+        for source in (*step_result.grounding, *step_result.references):
+            if not source.chunk_id:
+                continue
+            need_ids = need_ids_by_chunk.setdefault(source.chunk_id, [])
+            for need_id in step_result.activity.need_ids:
+                if need_id not in need_ids:
+                    need_ids.append(need_id)
+    return {chunk_id: tuple(need_ids) for chunk_id, need_ids in need_ids_by_chunk.items()}
+
+
 def _with_source_step_provenance(
     source,
     *,
     plan_id: str,
     replan_count: int,
     step_ids: tuple[str, ...],
+    need_ids: tuple[str, ...],
 ):
-    if not step_ids:
+    if not step_ids and not need_ids:
         return source
-    return replace(
-        source,
-        anchor={
-            **source.anchor,
-            "retrieval_plan_id": plan_id,
-            "retrieval_step_ids": step_ids,
-            "retrieval_replan_count": replan_count,
-        },
-    )
+    anchor = {
+        **source.anchor,
+        "retrieval_plan_id": plan_id,
+        "retrieval_replan_count": replan_count,
+    }
+    if step_ids:
+        anchor["retrieval_step_ids"] = step_ids
+    if need_ids:
+        anchor["retrieval_need_ids"] = need_ids
+    return replace(source, anchor=anchor)
 
 
 def _step_support_count(evidence: EvidenceBundle) -> int:

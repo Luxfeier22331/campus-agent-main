@@ -47,6 +47,14 @@ RetrievalObservationEventEmitter = Callable[[str, dict[str, object]], None]
 ReplanStepCallback = Callable[
     [RetrievalPlan, tuple[RetrievalStepResult, ...], RetrievalStepResult], Sequence[RetrievalStep]
 ]
+_INDEX_BACKED_RETRIEVAL_STEP_TYPES = frozenset(
+    {
+        "indexed_lookup",
+        "entity_resolution",
+        "historical_version_lookup",
+        "compare_pair_lookup",
+    }
+)
 
 
 def build_retrieval_backend(
@@ -160,7 +168,9 @@ def execute_retrieval_plan(
     include_observation_query_text: bool = False,
 ) -> RetrievalExecutionResult:
     runtime_backend = backend
-    needs_indexed_executor = any(step.step_type == "indexed_lookup" for step in plan.steps)
+    needs_indexed_executor = any(
+        step.step_type in _INDEX_BACKED_RETRIEVAL_STEP_TYPES for step in plan.steps
+    )
     if runtime_backend is None and retrieve_step is None and needs_indexed_executor:
         runtime_backend = build_retrieval_backend()
     if retrieve_step is not None:
@@ -198,7 +208,7 @@ def execute_retrieval_plan(
                 retrieve_live_step=retrieve_live_step,
                 attempted_live_lookup_count=live_lookup_count,
             )
-        elif step.step_type != "indexed_lookup":
+        elif step.step_type not in _INDEX_BACKED_RETRIEVAL_STEP_TYPES:
             result = build_blocked_step_result(
                 step,
                 failure_kind="unsupported_step_type",
@@ -209,23 +219,18 @@ def execute_retrieval_plan(
                 result = build_blocked_step_result(
                     step,
                     failure_kind="executor_error",
-                    message="indexed lookup executor is unavailable for this runtime path",
+                    message="index-backed retrieval executor is unavailable for this runtime path",
                 )
                 executed_steps.append(step)
                 step_results.append(result)
                 completed_step_ids.add(step.step_id)
                 break
-            request = build_retrieval_request_from_step(
-                step,
-                authorized_filter=authorized_filter,
-                personalization_hint=personalization_hint,
-            )
-            started_at = time.perf_counter()
             try:
-                evidence = request_executor(request)
-                evidence, reranker_failure_kind = _apply_profile_gated_reranker(
-                    request=request,
-                    evidence=evidence,
+                result = _execute_index_backed_step(
+                    step,
+                    authorized_filter=authorized_filter,
+                    personalization_hint=personalization_hint,
+                    request_executor=request_executor,
                     rerank_step=rerank_step,
                 )
             except Exception as exc:
@@ -250,14 +255,6 @@ def execute_retrieval_plan(
                         include_query_text=include_observation_query_text,
                     )
                 raise
-            latency_ms = max(0, round((time.perf_counter() - started_at) * 1000))
-            result = build_succeeded_step_result(
-                step,
-                evidence=evidence,
-                latency_ms=latency_ms,
-                reranker_degraded=bool(reranker_failure_kind),
-                reranker_failure_kind=reranker_failure_kind,
-            )
 
         executed_steps.append(step)
         step_results.append(result)
@@ -350,6 +347,118 @@ def _classify_retrieval_exception_failure_kind(exc: Exception) -> str:
     return "executor_error"
 
 
+def _execute_index_backed_step(
+    step: RetrievalStep,
+    *,
+    authorized_filter: AuthorizedRetrievalFilter | None,
+    personalization_hint: PersonalizationHint | None,
+    request_executor: ExecutableRetrievalRequestFn,
+    rerank_step: ExecutableRerankFn | None,
+) -> RetrievalStepResult:
+    validation_error = _validate_index_backed_step(step)
+    if validation_error is not None:
+        return build_blocked_step_result(
+            step,
+            failure_kind="unsupported_step_type",
+            message=validation_error,
+        )
+
+    started_at = time.perf_counter()
+    reranker_failure_kind = ""
+    if step.step_type == "compare_pair_lookup":
+        evidence_chunks: list[EvidenceBundle] = []
+        for request in _build_compare_pair_requests(
+            step,
+            authorized_filter=authorized_filter,
+            personalization_hint=personalization_hint,
+        ):
+            evidence = request_executor(request)
+            evidence, current_reranker_failure_kind = _apply_profile_gated_reranker(
+                request=request,
+                evidence=evidence,
+                rerank_step=rerank_step,
+            )
+            if current_reranker_failure_kind and not reranker_failure_kind:
+                reranker_failure_kind = current_reranker_failure_kind
+            evidence_chunks.append(evidence)
+        evidence = _merge_evidence_chunks(
+            query_text=step.query_text,
+            corpus=step.scope.corpus,
+            collection=step.scope.collection,
+            chunks=tuple(evidence_chunks),
+        )
+    else:
+        request = build_retrieval_request_from_step(
+            step,
+            authorized_filter=authorized_filter,
+            personalization_hint=personalization_hint,
+        )
+        evidence = request_executor(request)
+        evidence, reranker_failure_kind = _apply_profile_gated_reranker(
+            request=request,
+            evidence=evidence,
+            rerank_step=rerank_step,
+        )
+    latency_ms = max(0, round((time.perf_counter() - started_at) * 1000))
+    return build_succeeded_step_result(
+        step,
+        evidence=evidence,
+        latency_ms=latency_ms,
+        reranker_degraded=bool(reranker_failure_kind),
+        reranker_failure_kind=reranker_failure_kind,
+    )
+
+
+def _validate_index_backed_step(step: RetrievalStep) -> str | None:
+    if step.step_type == "historical_version_lookup" and not step.selector.target_version_ids:
+        return "historical_version_lookup requires target_version_ids"
+    if step.step_type == "compare_pair_lookup":
+        if len(step.selector.target_version_ids) != 2:
+            return "compare_pair_lookup requires exactly two target_version_ids"
+        if step.selector.target_version_ids[0] == step.selector.target_version_ids[1]:
+            return "compare_pair_lookup requires distinct target_version_ids"
+    return None
+
+
+def _build_compare_pair_requests(
+    step: RetrievalStep,
+    *,
+    authorized_filter: AuthorizedRetrievalFilter | None,
+    personalization_hint: PersonalizationHint | None,
+) -> tuple[RetrievalRequest, ...]:
+    return tuple(
+        build_retrieval_request_from_step(
+            replace(
+                step,
+                selector=replace(step.selector, target_version_ids=(version_id,)),
+            ),
+            authorized_filter=authorized_filter,
+            personalization_hint=personalization_hint,
+        )
+        for version_id in step.selector.target_version_ids
+    )
+
+
+def _merge_evidence_chunks(
+    *,
+    query_text: str,
+    corpus: str,
+    collection: str,
+    chunks: tuple[EvidenceBundle, ...],
+) -> EvidenceBundle:
+    ordered_sources = {}
+    for chunk in chunks:
+        for source in chunk.sources:
+            dedupe_key = source.chunk_id or repr(source)
+            ordered_sources.setdefault(dedupe_key, source)
+    return EvidenceBundle(
+        query_text=query_text,
+        corpus=corpus,
+        collection=collection,
+        sources=tuple(ordered_sources.values()),
+    )
+
+
 def _build_execution_result(
     *,
     plan: RetrievalPlan,
@@ -415,8 +524,8 @@ def _build_retrieval_observation(
         "schema_version": "retrieval-runtime-observation-v1",
         "request_id": request_id,
         "plan_id": execution.plan.plan_id,
-        "step_id": activity.step_id,
-        "query_mode": execution.plan.query_mode,
+            "step_id": activity.step_id,
+            "query_mode": execution.plan.query_mode,
         "retrieval_mode": _observation_retrieval_mode(
             query_mode=execution.plan.query_mode,
             step_type=activity.step_type,
@@ -432,10 +541,11 @@ def _build_retrieval_observation(
         "top_score": top_score,
         "score_gap": _score_gap(scores),
         "top_source_ids": tuple(source.doc_id for source in result.references[:5]),
-        "target_document_ids": activity.target_document_ids,
-        "target_version_ids": activity.target_version_ids,
-        "latency_ms": activity.latency_ms,
-    }
+            "target_document_ids": activity.target_document_ids,
+            "target_version_ids": activity.target_version_ids,
+            "need_ids": activity.need_ids,
+            "latency_ms": activity.latency_ms,
+        }
     observation["canonical_index_truth"] = observation["retrieval_mode"] != "live_assisted"
     source_timestamps = tuple(
         str(source.anchor.get("source_timestamp") or "")
