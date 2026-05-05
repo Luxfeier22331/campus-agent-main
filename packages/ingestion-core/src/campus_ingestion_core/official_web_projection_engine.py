@@ -46,6 +46,10 @@ from campus_ingestion_core.official_web_projection_units import (
     _render_canonical_markdown,
     _resolve_document_title,
 )
+from campus_ingestion_core.official_web_regulation_titles import (
+    normalize_official_web_regulation_title,
+    official_web_regulation_title_metadata,
+)
 from campus_ingestion_core.official_web_target_labeling import (
     choose_official_web_contact_display_name,
     choose_official_web_service_name,
@@ -1004,12 +1008,23 @@ def _build_consumer_candidate_page(
         "normalizedCanonicalUrl",
     )
     raw_version_id = _require_text(manifest.get("rawVersionId"), "rawVersionId")
+    candidate_title = title
+    title_projection_fields: dict[str, object] = {}
+    if consumer_family == "regulation_candidate":
+        title_info = normalize_official_web_regulation_title(title)
+        candidate_title = title_info.display_title
+        title_projection_fields = {
+            "title_raw": title_info.raw_title,
+            "title_base": title_info.base_title,
+            **official_web_regulation_title_metadata(title_info),
+        }
     typed_candidate_schema_version, typed_candidate, quality_gate, evidence_spans = (
         _build_typed_candidate(
             blocks=blocks,
             consumer_family=consumer_family,
             normalized_canonical_url=normalized_canonical_url,
-            title=title,
+            raw_title=title,
+            title=candidate_title,
             target_lineage=target_lineage,
         )
     )
@@ -1027,7 +1042,8 @@ def _build_consumer_candidate_page(
         "normalized_canonical_url": normalized_canonical_url,
         "raw_asset_id": manifest["rawAssetId"],
         "raw_version_id": raw_version_id,
-        "title": title,
+        "title": candidate_title,
+        **title_projection_fields,
         "matched_evidence": matched_evidence,
         "selected_write_target": selected_write_target,
         "review_policy": review_policy,
@@ -1071,6 +1087,7 @@ def _build_typed_candidate(
     blocks: list[dict[str, object]],
     consumer_family: str,
     normalized_canonical_url: str,
+    raw_title: str | None = None,
     title: str,
     target_lineage: dict[str, object] | None = None,
 ) -> tuple[str, dict[str, object], dict[str, object], list[dict[str, object]]]:
@@ -1195,19 +1212,25 @@ def _build_typed_candidate(
         )
 
     if consumer_family == "regulation_candidate":
+        title_info = normalize_official_web_regulation_title(raw_title or title)
         answer_bearing_lines = _regulation_answer_bearing_lines(lines)
         normalized_summary = _build_regulation_content_summary(answer_bearing_lines)
         regulation_text = "\n".join(
             line for line in answer_bearing_lines if line.strip() and line.strip() != title.strip()
         )
+        release_scope = _regulation_release_scope(target_lineage)
         typed_candidate = {
-            "reference_title": title,
+            "reference_title": title_info.display_title,
+            "title_base": title_info.base_title,
+            "title_raw": title_info.raw_title,
+            **official_web_regulation_title_metadata(title_info),
             "normalized_content_summary": normalized_summary,
             "regulation_text": regulation_text,
             "authoritative_source_url": normalized_canonical_url,
-            "release_scope": "regulations/institutional_rules",
+            "release_scope": release_scope,
             "source_url": normalized_canonical_url,
-            "source_title": title,
+            "source_title": title_info.display_title,
+            "source_title_raw": title_info.raw_title,
         }
         return (
             "official_web_regulation_candidate.v1",
@@ -2051,12 +2074,37 @@ def _target_from_consumer_match(match: dict[str, object]) -> tuple[str, str]:
         corpus, collection = selected_write_target.split("/", 1)
         if corpus and collection:
             return corpus, collection
+    target_corpus = _require_optional_text(match.get("targetCorpus") or match.get("target_corpus"))
+    target_collection = _require_optional_text(
+        match.get("targetCollection") or match.get("target_collection")
+    )
+    if target_corpus and target_collection:
+        return target_corpus, target_collection
     consumer_family = str(match.get("consumerFamily") or match.get("consumer_family") or "")
     if consumer_family == "regulation_candidate":
         return "regulations", "institutional_rules"
     if consumer_family == "notice_news_candidate":
         return "official_web_public_notice", "inventory"
     return "official_web", "muc_public_pages"
+
+
+def _regulation_release_scope(target_lineage: dict[str, object] | None) -> str:
+    if target_lineage is None:
+        return "regulations/institutional_rules"
+    selected_write_target = _require_optional_text(
+        target_lineage.get("selectedWriteTarget") or target_lineage.get("selected_write_target")
+    )
+    if selected_write_target and selected_write_target.startswith("regulations/"):
+        return selected_write_target
+    target_corpus = _require_optional_text(
+        target_lineage.get("targetCorpus") or target_lineage.get("target_corpus")
+    )
+    target_collection = _require_optional_text(
+        target_lineage.get("targetCollection") or target_lineage.get("target_collection")
+    )
+    if target_corpus == "regulations" and target_collection:
+        return f"{target_corpus}/{target_collection}"
+    return "regulations/institutional_rules"
 
 
 def _build_regulation_content_summary(lines: list[str]) -> str:

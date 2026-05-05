@@ -903,6 +903,143 @@ class OfficialWebProjectionCoreReplayTest(unittest.TestCase):
                 "第一条 学校应当主动公开规章制度、办事程序和服务事项。",
             )
 
+    def test_target_workset_regulation_candidate_derives_target_scope_from_selected_write_target(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            student_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/student_rules",
+                target_id="official-web-student-rules",
+                review_policy="release_gate_required",
+            )
+            scoped_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/scoped_rules",
+                target_id="official-web-scoped-rules",
+                review_policy="release_gate_required",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_projection_scope_derivation",
+                    "collectionMode": "target-workset",
+                    "pages": [
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_student_rule",
+                            raw_version_id="owver_student_rule",
+                            normalized_canonical_url="https://www.example.edu/rules/student-award.htm",
+                            page_family="article_detail",
+                            target_matches=[student_match],
+                        ),
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_scoped_rule",
+                            raw_version_id="owver_scoped_rule",
+                            normalized_canonical_url="https://www.example.edu/rules/summer-lab.htm",
+                            page_family="article_detail",
+                            target_matches=[scoped_match],
+                        ),
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_student_rule",
+                raw_version_id="owver_student_rule",
+                normalized_canonical_url="https://www.example.edu/rules/student-award.htm",
+                page_title="中央民族大学学生奖学金评定办法",
+                page_family="article_detail",
+                target_matches=[student_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_student_rule",
+                        raw_version_id="owver_student_rule",
+                        row_id="student-title",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学学生奖学金评定办法",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_student_rule",
+                        raw_version_id="owver_student_rule",
+                        row_id="student-p1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="第一条 为规范学生奖学金评定工作，制定本办法。",
+                    ),
+                ],
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_scoped_rule",
+                raw_version_id="owver_scoped_rule",
+                normalized_canonical_url="https://www.example.edu/rules/summer-lab.htm",
+                page_title="中央民族大学暑期实验室安全管理规定",
+                page_family="article_detail",
+                target_matches=[scoped_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_scoped_rule",
+                        raw_version_id="owver_scoped_rule",
+                        row_id="scoped-title",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学暑期实验室安全管理规定",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_scoped_rule",
+                        raw_version_id="owver_scoped_rule",
+                        row_id="scoped-p1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="第一条 为规范暑期实验室开放期间的安全管理，制定本规定。",
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+
+            by_target_id = {
+                candidate["target_id"]: candidate for candidate in report.consumer_candidate_pages
+            }
+            self.assertEqual(
+                by_target_id["official-web-student-rules"]["target_collection"],
+                "student_rules",
+            )
+            self.assertEqual(
+                by_target_id["official-web-student-rules"]["typed_candidate"]["release_scope"],
+                "regulations/student_rules",
+            )
+            self.assertEqual(
+                by_target_id["official-web-scoped-rules"]["target_collection"],
+                "scoped_rules",
+            )
+            self.assertEqual(
+                by_target_id["official-web-scoped-rules"]["typed_candidate"]["release_scope"],
+                "regulations/scoped_rules",
+            )
+
     def test_target_workset_regulation_candidate_rejects_footer_only_body_text(
         self,
     ) -> None:
@@ -1061,6 +1198,137 @@ class OfficialWebProjectionCoreReplayTest(unittest.TestCase):
             self.assertIn(
                 "selected_write_suppressed_page_type",
                 candidate["quality_gate"]["reason_codes"],
+            )
+
+    def test_target_workset_regulation_candidate_normalizes_display_title_and_preserves_raw_title(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            regulation_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/institutional_rules",
+                target_id="official-web-institutional-rules",
+                review_policy="release_gate_required",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_projection_regulation_title_normalization",
+                    "collectionMode": "target-workset",
+                    "pages": [
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_spaced_card_rule",
+                            raw_version_id="owver_spaced_card_rule",
+                            normalized_canonical_url="https://www.example.edu/info/1024/1086.htm",
+                            page_family="article_detail",
+                            target_matches=[regulation_match],
+                        ),
+                        _page_bundle_entry(
+                            raw_asset_id="owasset_latest_network_rule",
+                            raw_version_id="owver_latest_network_rule",
+                            normalized_canonical_url="https://www.example.edu/info/1024/1188.htm",
+                            page_family="article_detail",
+                            target_matches=[regulation_match],
+                        ),
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_spaced_card_rule",
+                raw_version_id="owver_spaced_card_rule",
+                normalized_canonical_url="https://www.example.edu/info/1024/1086.htm",
+                page_title="校 园 一 卡 通 管 理 规 定",
+                page_family="article_detail",
+                target_matches=[regulation_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_spaced_card_rule",
+                        raw_version_id="owver_spaced_card_rule",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="校 园 一 卡 通 管 理 规 定",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_spaced_card_rule",
+                        raw_version_id="owver_spaced_card_rule",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="第一条 为规范校园一卡通管理，制定本规定。",
+                    ),
+                ],
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_latest_network_rule",
+                raw_version_id="owver_latest_network_rule",
+                normalized_canonical_url="https://www.example.edu/info/1024/1188.htm",
+                page_title="中央民族大学网络与信息安全管理办法（最新）",
+                page_family="article_detail",
+                target_matches=[regulation_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_latest_network_rule",
+                        raw_version_id="owver_latest_network_rule",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学网络与信息安全管理办法（最新）",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_latest_network_rule",
+                        raw_version_id="owver_latest_network_rule",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="第一条 为加强网络与信息安全管理，制定本办法。",
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+
+            candidates_by_url = {
+                candidate["normalized_canonical_url"]: candidate
+                for candidate in report.consumer_candidate_pages
+            }
+            card = candidates_by_url["https://www.example.edu/info/1024/1086.htm"]
+            network = candidates_by_url["https://www.example.edu/info/1024/1188.htm"]
+            self.assertEqual(card["title"], "校园一卡通管理规定")
+            self.assertEqual(card["title_raw"], "校 园 一 卡 通 管 理 规 定")
+            self.assertEqual(card["typed_candidate"]["reference_title"], "校园一卡通管理规定")
+            self.assertEqual(card["typed_candidate"]["source_title"], "校园一卡通管理规定")
+            self.assertEqual(
+                card["typed_candidate"]["source_title_raw"],
+                "校 园 一 卡 通 管 理 规 定",
+            )
+            self.assertEqual(network["title"], "中央民族大学网络与信息安全管理办法")
+            self.assertEqual(network["title_source_marker"], "最新")
+            self.assertEqual(
+                network["typed_candidate"]["title_base"],
+                "中央民族大学网络与信息安全管理办法",
             )
 
     def test_target_workset_contact_candidate_uses_footer_contact_facts(self) -> None:

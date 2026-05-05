@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import hashlib
 import json
-import re
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -16,30 +15,28 @@ from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.models import RawAssetRecord
 from campus_ingestion_core.object_store import build_document_artifact_key
 from campus_ingestion_core.official_web_projection import replay_official_web_source_truth_local
+from campus_ingestion_core.official_web_regulation_titles import (
+    NormalizedOfficialWebRegulationTitle,
+    normalize_official_web_regulation_title,
+    official_web_regulation_title_metadata,
+)
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 _TARGET_CORPUS = "regulations"
-_TARGET_COLLECTION = "institutional_rules"
-_TARGET_SCOPE = (_TARGET_CORPUS, _TARGET_COLLECTION)
 _IMPORT_SOURCE = "official_web_regulation_source_truth_materialization"
 _PARSER_VERSION = "official_web_regulation_materialization.v1"
 _NORMALIZER_VERSION = "official_web_regulation_normalizer.v1"
 _DOCUMENT_UNITS_SCHEMA_VERSION = "official_web_regulation_document_units.v1"
 _CLEANING_POLICY_VERSION = "institutional_rules_cleaning_v1"
 _EMBEDDING_MODEL = "Qwen3-Embedding-4B"
-_TRIAL_TITLE_QUALIFIERS = frozenset({"试行", "暂行"})
-_SOURCE_TITLE_MARKERS = frozenset({"最新"})
-_CJK_RE = re.compile(r"[\u3400-\u9fff]")
-_SPACED_CJK_RUN_RE = re.compile(
-    r"(?<![A-Za-z0-9])(?:[\u3400-\u9fff]\s+){2,}[\u3400-\u9fff](?![A-Za-z0-9])"
-)
 
 
 @dataclass(frozen=True, slots=True)
 class OfficialWebRegulationMaterializationReport:
     candidate_count: int
     materialized_document_count: int
+    materialized_scopes: tuple[str, ...]
     created_document_ids: tuple[str, ...]
     updated_document_ids: tuple[str, ...]
     skipped_document_ids: tuple[str, ...]
@@ -48,16 +45,6 @@ class OfficialWebRegulationMaterializationReport:
     import_failed_count: int
     errors: tuple[str, ...]
     projection_report_path: str
-
-
-@dataclass(frozen=True, slots=True)
-class _NormalizedRegulationTitle:
-    display_title: str
-    base_title: str
-    raw_title: str
-    source_title_marker: str | None = None
-    status_kind: str | None = None
-    status_qualifier: str | None = None
 
 
 def materialize_official_web_regulation_candidates(
@@ -79,31 +66,18 @@ def materialize_official_web_regulation_candidates(
         declarations_path=declarations_path,
     )
     candidates = _select_release_ready_regulation_candidates(replay_report.consumer_candidate_pages)
-    documents = [
-        _build_document_import(candidate=candidate, output_dir=source_truth_output_dir)
-        for candidate in candidates
-    ]
-    raw_records = tuple(
-        _build_raw_asset_record(candidate=candidate, document=document)
-        for candidate, document in zip(candidates, documents, strict=True)
-    )
-    for raw_record in raw_records:
-        raw_asset_registry.upsert(raw_record)
-    runtime_profile = load_runtime_profile(_TARGET_CORPUS, _TARGET_COLLECTION)
-    stats = collect_import_document_stats(
-        documents=documents,
-        registry=document_registry,
+    stats = _materialize_candidates_by_scope(
+        candidates=candidates,
+        output_dir=source_truth_output_dir,
+        object_store=object_store,
+        document_registry=document_registry,
         raw_asset_registry=raw_asset_registry,
-        writer=object_store,
-        object_store=object_store_settings,
-        parser_version=_PARSER_VERSION,
-        embedding_model=_EMBEDDING_MODEL,
-        cleaning_policy_version=runtime_profile.cleaning_policy_version or _CLEANING_POLICY_VERSION,
-        default_visibility_scope=None,
-        scope_refresh=_TARGET_SCOPE if scope_refresh else None,
+        object_store_settings=object_store_settings,
+        scope_refresh=scope_refresh,
     )
     return _build_report(
         candidate_count=len(candidates),
+        materialized_scopes=tuple(sorted({"/".join(_candidate_scope(candidate)) for candidate in candidates})),
         stats=stats,
         projection_report_path=projection_output_dir / "projection-report.json",
         source_urls=tuple(str(candidate["normalized_canonical_url"]) for candidate in candidates),
@@ -132,14 +106,11 @@ def _select_release_ready_regulation_candidates(
             continue
         if str(raw_candidate.get("consumer_family") or "").strip() != "regulation_candidate":
             continue
-        if (
-            str(raw_candidate.get("selected_write_target") or "").strip()
-            != "regulations/institutional_rules"
-        ):
+        selected_write_target = str(raw_candidate.get("selected_write_target") or "").strip()
+        if not selected_write_target.startswith("regulations/"):
             continue
-        if str(raw_candidate.get("target_corpus") or "").strip() != _TARGET_CORPUS:
-            continue
-        if str(raw_candidate.get("target_collection") or "").strip() != _TARGET_COLLECTION:
+        target_corpus, target_collection = _candidate_scope(raw_candidate)
+        if target_corpus != _TARGET_CORPUS or not target_collection:
             continue
         quality_gate = raw_candidate.get("quality_gate")
         decision = (
@@ -164,7 +135,7 @@ def _build_document_import(
     output_dir: Path,
 ) -> DocumentImportInput:
     typed_candidate = _require_dict(candidate.get("typed_candidate"), "typed_candidate")
-    title_info = _normalize_regulation_title(
+    title_info = normalize_official_web_regulation_title(
         _require_text(typed_candidate.get("reference_title"), "reference_title")
     )
     title = title_info.display_title
@@ -173,7 +144,9 @@ def _build_document_import(
     )
     raw_asset_id = _require_text(candidate.get("raw_asset_id"), "raw_asset_id")
     raw_version_id = _require_text(candidate.get("raw_version_id"), "raw_version_id")
-    body_lines = _normalize_regulation_lines(str(typed_candidate.get("regulation_text") or ""))
+    body_lines = _normalize_regulation_lines(
+        str(typed_candidate.get("regulation_text") or ""), title_info=title_info
+    )
     if not body_lines:
         raise ValueError(f"missing regulation body text for {source_url}")
     document_id = _build_document_id(source_url=source_url)
@@ -218,7 +191,12 @@ def _build_document_import(
             "visibility_level": "public",
         }
     )
-    metadata.update(_title_status_metadata(title_info))
+    metadata.update(official_web_regulation_title_metadata(title_info))
+    target_corpus, target_collection = _candidate_scope(candidate)
+    runtime_profile = load_runtime_profile(target_corpus, target_collection)
+    metadata["cleaning_policy_version"] = (
+        runtime_profile.cleaning_policy_version or _CLEANING_POLICY_VERSION
+    )
     return DocumentImportInput(
         source_label=title,
         document_units_bytes=document_units_bytes,
@@ -233,8 +211,8 @@ def _build_document_import(
         revision_track="current-effective",
         source_channel="official_web",
         is_current=True,
-        corpus=_TARGET_CORPUS,
-        collection=_TARGET_COLLECTION,
+        corpus=target_corpus,
+        collection=target_collection,
         raw_source_uri=source_url,
         raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
@@ -256,7 +234,7 @@ def _build_document_units(
     raw_version_id: str,
     source_url: str,
     title: str,
-    title_info: _NormalizedRegulationTitle,
+    title_info: NormalizedOfficialWebRegulationTitle,
     version_id: str,
 ) -> tuple[dict[str, object], ...]:
     base_metadata = {
@@ -269,14 +247,14 @@ def _build_document_units(
         "host": _optional_text(candidate.get("host")),
         "page_family": _optional_text(candidate.get("page_family")) or "article_detail",
         "consumer_family": "regulation_candidate",
-        "selected_write_target": "regulations/institutional_rules",
+        "selected_write_target": _candidate_selected_write_target(candidate),
         "target_id": _optional_text(candidate.get("target_id")),
         "target_candidate_id": _optional_text(candidate.get("target_candidate_id")),
         "target_declaration_version": _optional_text(candidate.get("target_declaration_version")),
         "materialization_policy": _optional_text(candidate.get("materialization_policy")),
         "review_policy": _optional_text(candidate.get("review_policy")),
         "normalizer_version": _NORMALIZER_VERSION,
-        "cleaning_policy_version": _CLEANING_POLICY_VERSION,
+        "cleaning_policy_version": _candidate_cleaning_policy_version(candidate),
         "document_units_schema_version": _DOCUMENT_UNITS_SCHEMA_VERSION,
         "normalization_quality": "passed",
         "regulation_lane": "formal_regulation",
@@ -288,7 +266,7 @@ def _build_document_units(
             "candidate_key": _optional_text(candidate.get("candidate_key")),
         },
     }
-    base_metadata.update(_title_status_metadata(title_info))
+    base_metadata.update(official_web_regulation_title_metadata(title_info))
     units: list[dict[str, object]] = []
     for index, unit_lines in enumerate(_group_regulation_lines(body_lines), start=1):
         text = "\n".join(unit_lines).strip()
@@ -331,7 +309,7 @@ def _build_document_units(
 
 def _candidate_document_projection(candidate: dict[str, object]) -> dict[str, object]:
     typed_candidate = _require_dict(candidate.get("typed_candidate"), "typed_candidate")
-    title_info = _normalize_regulation_title(
+    title_info = normalize_official_web_regulation_title(
         _require_text(typed_candidate.get("reference_title"), "reference_title")
     )
     title = title_info.display_title
@@ -339,7 +317,9 @@ def _candidate_document_projection(candidate: dict[str, object]) -> dict[str, ob
         candidate.get("normalized_canonical_url"), "normalized_canonical_url"
     )
     raw_version_id = _require_text(candidate.get("raw_version_id"), "raw_version_id")
-    body_lines = _normalize_regulation_lines(str(typed_candidate.get("regulation_text") or ""))
+    body_lines = _normalize_regulation_lines(
+        str(typed_candidate.get("regulation_text") or ""), title_info=title_info
+    )
     document_id = _build_document_id(source_url=source_url)
     version_id = _build_version_id(
         raw_version_id=raw_version_id,
@@ -353,15 +333,15 @@ def _candidate_document_projection(candidate: dict[str, object]) -> dict[str, ob
         "title": title,
         "title_base": title_info.base_title,
         "title_raw": title_info.raw_title,
-        **_title_status_metadata(title_info),
-        "target_corpus": _TARGET_CORPUS,
-        "target_collection": _TARGET_COLLECTION,
+        **official_web_regulation_title_metadata(title_info),
+        "target_corpus": _candidate_scope(candidate)[0],
+        "target_collection": _candidate_scope(candidate)[1],
         "normalized_canonical_url": source_url,
         "raw_asset_id": candidate.get("raw_asset_id"),
         "raw_version_id": raw_version_id,
         "canonical_markdown_object_key": build_document_artifact_key(
-            corpus=_TARGET_CORPUS,
-            collection=_TARGET_COLLECTION,
+            corpus=_candidate_scope(candidate)[0],
+            collection=_candidate_scope(candidate)[1],
             document_id=document_id,
             revision_track="current-effective",
             version_id=version_id,
@@ -370,8 +350,8 @@ def _candidate_document_projection(candidate: dict[str, object]) -> dict[str, ob
             year=_year_from_candidate(candidate),
         ),
         "document_units_object_key": build_document_artifact_key(
-            corpus=_TARGET_CORPUS,
-            collection=_TARGET_COLLECTION,
+            corpus=_candidate_scope(candidate)[0],
+            collection=_candidate_scope(candidate)[1],
             document_id=document_id,
             revision_track="current-effective",
             version_id=version_id,
@@ -417,6 +397,7 @@ def _build_raw_asset_record(
 def _build_report(
     *,
     candidate_count: int,
+    materialized_scopes: tuple[str, ...],
     stats: PersistImportStats,
     projection_report_path: Path,
     source_urls: tuple[str, ...],
@@ -424,6 +405,7 @@ def _build_report(
     return OfficialWebRegulationMaterializationReport(
         candidate_count=candidate_count,
         materialized_document_count=stats.success_count,
+        materialized_scopes=materialized_scopes,
         created_document_ids=stats.created_document_ids,
         updated_document_ids=stats.updated_document_ids,
         skipped_document_ids=stats.skipped_document_ids,
@@ -435,6 +417,87 @@ def _build_report(
     )
 
 
+def _materialize_candidates_by_scope(
+    *,
+    candidates: tuple[dict[str, object], ...],
+    output_dir: Path,
+    object_store: ObjectStoreWriter,
+    document_registry: DocumentRegistry,
+    raw_asset_registry: RawAssetRegistry,
+    object_store_settings: ObjectStoreSettings,
+    scope_refresh: bool,
+) -> PersistImportStats:
+    grouped: dict[tuple[str, str], list[dict[str, object]]] = {}
+    for candidate in candidates:
+        grouped.setdefault(_candidate_scope(candidate), []).append(candidate)
+
+    success_count = 0
+    skipped_count = 0
+    failed_count = 0
+    raw_uploaded_count = 0
+    raw_reused_count = 0
+    document_ids: list[str] = []
+    created_document_ids: list[str] = []
+    updated_document_ids: list[str] = []
+    skipped_document_ids: list[str] = []
+    errors: list[str] = []
+    timestamp = ""
+
+    for scope in sorted(grouped):
+        scope_candidates = tuple(_dedupe_candidates_by_url(grouped[scope]))
+        documents = [
+            _build_document_import(candidate=candidate, output_dir=output_dir)
+            for candidate in scope_candidates
+        ]
+        raw_records = tuple(
+            _build_raw_asset_record(candidate=candidate, document=document)
+            for candidate, document in zip(scope_candidates, documents, strict=True)
+        )
+        for raw_record in raw_records:
+            raw_asset_registry.upsert(raw_record)
+        runtime_profile = load_runtime_profile(*scope)
+        stats = collect_import_document_stats(
+            documents=documents,
+            registry=document_registry,
+            raw_asset_registry=raw_asset_registry,
+            writer=object_store,
+            object_store=object_store_settings,
+            parser_version=_PARSER_VERSION,
+            embedding_model=_EMBEDDING_MODEL,
+            cleaning_policy_version=runtime_profile.cleaning_policy_version
+            or _CLEANING_POLICY_VERSION,
+            default_visibility_scope=None,
+            scope_refresh=scope if scope_refresh else None,
+        )
+        success_count += stats.success_count
+        skipped_count += stats.skipped_count
+        failed_count += stats.failed_count
+        raw_uploaded_count += stats.raw_uploaded_count
+        raw_reused_count += stats.raw_reused_count
+        document_ids.extend(stats.document_ids)
+        created_document_ids.extend(stats.created_document_ids)
+        updated_document_ids.extend(stats.updated_document_ids)
+        skipped_document_ids.extend(stats.skipped_document_ids)
+        errors.extend(stats.errors)
+        if stats.timestamp:
+            timestamp = stats.timestamp
+
+    return PersistImportStats(
+        success_count=success_count,
+        skipped_count=skipped_count,
+        failed_count=failed_count,
+        raw_uploaded_count=raw_uploaded_count,
+        raw_reused_count=raw_reused_count,
+        document_ids=tuple(document_ids),
+        unresolved_source_pdfs=(),
+        errors=tuple(errors),
+        timestamp=timestamp,
+        created_document_ids=tuple(created_document_ids),
+        updated_document_ids=tuple(updated_document_ids),
+        skipped_document_ids=tuple(skipped_document_ids),
+    )
+
+
 def _dedupe_candidates_by_url(candidates: list[dict[str, object]]) -> tuple[dict[str, object], ...]:
     by_url: dict[str, dict[str, object]] = {}
     for candidate in candidates:
@@ -443,82 +506,54 @@ def _dedupe_candidates_by_url(candidates: list[dict[str, object]]) -> tuple[dict
     return tuple(by_url[url] for url in sorted(by_url))
 
 
-def _normalize_regulation_lines(text: str) -> tuple[str, ...]:
-    return tuple(line.strip() for line in text.splitlines() if line.strip())
+def _candidate_selected_write_target(candidate: dict[str, object]) -> str:
+    return _require_text(candidate.get("selected_write_target"), "selected_write_target")
 
 
-def _normalize_regulation_title(title: str) -> _NormalizedRegulationTitle:
-    raw_title = title.strip()
-    normalized = _collapse_spaced_cjk_runs(raw_title)
-    normalized = re.sub(r"\s+", " ", normalized).strip()
-    marker: str | None = None
-    status_qualifier: str | None = None
-    status_kind: str | None = None
-    while True:
-        stripped_title, qualifier = _strip_terminal_parenthetical(normalized)
-        if qualifier is None:
-            break
-        normalized_qualifier = qualifier.strip()
-        if normalized_qualifier in _SOURCE_TITLE_MARKERS:
-            marker = normalized_qualifier
-            normalized = stripped_title
-            continue
-        if normalized_qualifier in _TRIAL_TITLE_QUALIFIERS:
-            status_qualifier = normalized_qualifier
-            status_kind = "trial"
-            normalized = f"{stripped_title}（{normalized_qualifier}）"
-            break
-        break
-    base_title = normalized
-    if status_qualifier is not None:
-        base_title = normalized.removesuffix(f"（{status_qualifier}）").strip()
-    return _NormalizedRegulationTitle(
-        display_title=normalized,
-        base_title=base_title,
-        raw_title=raw_title,
-        source_title_marker=marker,
-        status_kind=status_kind,
-        status_qualifier=status_qualifier,
-    )
+def _candidate_scope(candidate: dict[str, object]) -> tuple[str, str]:
+    selected_write_target = _candidate_selected_write_target(candidate)
+    if "/" in selected_write_target:
+        corpus, collection = selected_write_target.split("/", 1)
+        if corpus and collection:
+            return corpus, collection
+    target_corpus = _require_text(candidate.get("target_corpus"), "target_corpus")
+    target_collection = _require_text(candidate.get("target_collection"), "target_collection")
+    return target_corpus, target_collection
 
 
-def _collapse_spaced_cjk_runs(value: str) -> str:
-    def replace(match: re.Match[str]) -> str:
-        candidate = match.group(0)
-        without_spaces = re.sub(r"\s+", "", candidate)
-        return without_spaces if _CJK_RE.search(without_spaces) else candidate
-
-    previous = value
-    while True:
-        current = _SPACED_CJK_RUN_RE.sub(replace, previous)
-        if current == previous:
-            return current
-        previous = current
+def _candidate_cleaning_policy_version(candidate: dict[str, object]) -> str:
+    target_corpus, target_collection = _candidate_scope(candidate)
+    runtime_profile = load_runtime_profile(target_corpus, target_collection)
+    return runtime_profile.cleaning_policy_version or _CLEANING_POLICY_VERSION
 
 
-def _strip_terminal_parenthetical(value: str) -> tuple[str, str | None]:
-    stripped = value.strip()
-    for left, right in (("（", "）"), ("(", ")")):
-        if not stripped.endswith(right):
-            continue
-        start = stripped.rfind(left)
-        if start <= 0:
-            continue
-        qualifier = stripped[start + 1 : -1].strip()
-        if qualifier:
-            return stripped[:start].strip(), qualifier
-    return stripped, None
+def _normalize_regulation_lines(
+    text: str, *, title_info: NormalizedOfficialWebRegulationTitle | None = None
+) -> tuple[str, ...]:
+    lines = tuple(line.strip() for line in text.splitlines() if line.strip())
+    if title_info is None:
+        return lines
+    title_line_keys = _title_line_keys(title_info)
+    while lines and _regulation_line_key(lines[0]) in title_line_keys:
+        lines = lines[1:]
+    return lines
 
 
-def _title_status_metadata(title_info: _NormalizedRegulationTitle) -> dict[str, object]:
-    metadata: dict[str, object] = {}
+def _title_line_keys(title_info: NormalizedOfficialWebRegulationTitle) -> frozenset[str]:
+    titles = {
+        title_info.raw_title,
+        title_info.display_title,
+        title_info.base_title,
+    }
     if title_info.source_title_marker is not None:
-        metadata["title_source_marker"] = title_info.source_title_marker
-    if title_info.status_qualifier is not None:
-        metadata["title_status_qualifier"] = title_info.status_qualifier
-    if title_info.status_kind is not None:
-        metadata["title_status_kind"] = title_info.status_kind
-    return metadata
+        titles.add(f"{title_info.display_title}（{title_info.source_title_marker}）")
+        titles.add(f"{title_info.base_title}（{title_info.source_title_marker}）")
+    return frozenset(_regulation_line_key(title) for title in titles if title.strip())
+
+
+def _regulation_line_key(value: str) -> str:
+    title_info = normalize_official_web_regulation_title(value)
+    return title_info.display_title.replace(" ", "")
 
 
 def _group_regulation_lines(

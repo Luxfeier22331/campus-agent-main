@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import shutil
 from collections.abc import Sequence
 from dataclasses import asdict
 from datetime import UTC, datetime
@@ -26,7 +27,12 @@ from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.official_web_handoff_consumer_runtime import materialize_replay_input
 
 _SCHEMA_VERSION = "official_web_regulation_materialization_worker.v1"
-_TARGET_SCOPE = ("regulations", "institutional_rules")
+_READER_PUBLISH_SCOPES = frozenset(
+    {
+        ("regulations", "institutional_rules"),
+        ("regulations", "student_rules"),
+    }
+)
 
 
 class LocalFilesystemObjectStore:
@@ -58,7 +64,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         description=(
             "Materialize already-collected official_web regulation candidates into "
-            "regulations/institutional_rules canonical artifacts and reader assets."
+            "regulations/* canonical artifacts and allowed reader assets."
         )
     )
     parser.add_argument("--source-truth-output-dir")
@@ -110,7 +116,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     reader_report_payload = None
     docs_read_model_manifest_path = None
     if not args.no_reader_assets:
-        records = _select_current_scope_records(runtime["document_registry"])
+        records = _select_current_reader_scope_records(runtime["document_registry"])
         reader_report = publish_document_reader_assets(
             bucket_derived=settings.bucket_derived,
             generated_at=_generated_at_from_report(materialization_report_path),
@@ -119,6 +125,12 @@ def main(argv: Sequence[str] | None = None) -> None:
         )
         docs_read_model_manifest_path = output_dir / "docs-read-model-manifest.json"
         _write_json(docs_read_model_manifest_path, reader_report.manifest)
+        if args.object_store_root and args.scope_refresh:
+            _prune_local_scope_document_artifacts(
+                object_store_root=Path(args.object_store_root),
+                bucket_derived=settings.bucket_derived,
+                records=records,
+            )
         reader_report_payload = {
             "asset_count": reader_report.asset_count,
             "collection_count": reader_report.collection_count,
@@ -129,7 +141,8 @@ def main(argv: Sequence[str] | None = None) -> None:
 
     summary = {
         "schema_version": _SCHEMA_VERSION,
-        "target_scope": "/".join(_TARGET_SCOPE),
+        "materialized_scopes": sorted(materialization_report.materialized_scopes),
+        "reader_publish_scopes": sorted("/".join(scope) for scope in _READER_PUBLISH_SCOPES),
         "materialization_report": asdict(materialization_report),
         "materialization_report_path": str(materialization_report_path.resolve()),
         "docs_read_model_manifest_path": (
@@ -221,10 +234,38 @@ def _load_source_truth_bundle(
         "--source-truth-bundle-key is required"
     )
 
+def _select_current_reader_scope_records(registry: object) -> tuple[DocumentRegistryRecord, ...]:
+    records: list[DocumentRegistryRecord] = []
+    for scope in sorted(_READER_PUBLISH_SCOPES):
+        scoped_records = registry.list_by_scope(*scope)
+        records.extend(
+            record
+            for record in scoped_records
+            if record.is_current and record.status == "active"
+        )
+    return tuple(records)
 
-def _select_current_scope_records(registry: object) -> tuple[DocumentRegistryRecord, ...]:
-    records = registry.list_by_scope(*_TARGET_SCOPE)
-    return tuple(record for record in records if record.is_current and record.status == "active")
+
+def _prune_local_scope_document_artifacts(
+    *,
+    object_store_root: Path,
+    bucket_derived: str,
+    records: tuple[DocumentRegistryRecord, ...],
+) -> None:
+    records_by_scope: dict[tuple[str, str], set[str]] = {}
+    for record in records:
+        scope = (record.corpus, record.collection)
+        referenced = records_by_scope.setdefault(scope, set())
+        for key in (record.document_units_object_key, record.canonical_markdown_object_key):
+            if key and len(Path(key).parts) >= 4:
+                referenced.add(Path(key).parts[3])
+    for scope, referenced_document_dirs in records_by_scope.items():
+        scope_dir = object_store_root / bucket_derived / scope[0] / "documents" / scope[1]
+        if not scope_dir.exists():
+            continue
+        for child in scope_dir.iterdir():
+            if child.is_dir() and child.name not in referenced_document_dirs:
+                shutil.rmtree(child)
 
 
 def _resolve_object_store_settings(

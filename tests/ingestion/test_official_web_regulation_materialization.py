@@ -15,7 +15,12 @@ from campus_ingestion_core.official_web_regulation_materialization import (
     materialize_official_web_regulation_candidates,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
-from campus_ingestion_worker.materialize_official_web_regulations import _generated_at_from_report
+from campus_ingestion_worker.materialize_official_web_regulations import (
+    _generated_at_from_report,
+)
+from campus_ingestion_worker.materialize_official_web_regulations import (
+    main as materialize_worker_main,
+)
 
 from tests.ingestion.official_web_projection_test_support import (
     _block,
@@ -399,6 +404,18 @@ class OfficialWebRegulationMaterializationTest(unittest.TestCase):
                 bucket="campus-rag-derived",
                 key=network.canonical_markdown_object_key or "",
             ).decode("utf-8")
+            card_units = _read_units(
+                object_store.get_bytes(
+                    bucket="campus-rag-derived",
+                    key=card.document_units_object_key or "",
+                )
+            )
+            network_units = _read_units(
+                object_store.get_bytes(
+                    bucket="campus-rag-derived",
+                    key=network.document_units_object_key or "",
+                )
+            )
             portal_units = _read_units(
                 object_store.get_bytes(
                     bucket="campus-rag-derived",
@@ -407,10 +424,13 @@ class OfficialWebRegulationMaterializationTest(unittest.TestCase):
             )
 
             self.assertIn("# 校园一卡通管理规定", card_canonical)
+            self.assertNotIn("校 园 一 卡 通 管 理 规 定", card_canonical)
+            self.assertNotIn("校 园 一 卡 通 管 理 规 定", card_units[0]["clean_text"])
             self.assertIn("校园一卡通管理规定", card.canonical_markdown_object_key or "")
             self.assertNotIn("校-园-一-卡-通", card.canonical_markdown_object_key or "")
             self.assertIn("# 中央民族大学网络与信息安全管理办法", network_canonical)
-            self.assertNotIn("（最新）", network_canonical.splitlines()[0])
+            self.assertNotIn("（最新）", network_canonical)
+            self.assertNotIn("（最新）", network_units[0]["clean_text"])
             self.assertNotIn("最新", network.canonical_markdown_object_key or "")
             self.assertEqual(
                 portal_units[0]["metadata"]["title"],
@@ -421,6 +441,105 @@ class OfficialWebRegulationMaterializationTest(unittest.TestCase):
             self.assertEqual(
                 portal_units[0]["metadata"]["title_base"], "中央民族大学信息门户运行管理办法"
             )
+
+    def test_worker_scope_refresh_prunes_stale_local_document_artifact_directories(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            declarations_path = root / "projection-declarations.json"
+            object_store_root = root / "object-store"
+            worker_output_dir = root / "worker-output"
+            stale_dir = (
+                object_store_root
+                / "campus-rag-derived"
+                / "regulations"
+                / "documents"
+                / "institutional_rules"
+                / "校-园-一-卡-通-管-理-规-定--old"
+            )
+            stale_dir.mkdir(parents=True)
+            (stale_dir / "current-effective").mkdir()
+            _write_json(declarations_path, _declarations_payload())
+            regulation_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/institutional_rules",
+                target_id="official-web-institutional-rules",
+                review_policy="release_gate_required",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_regulation_local_prune_test",
+                    "collectionMode": "target-workset",
+                    "pages": [
+                        _page(
+                            raw_asset_id="owasset_card",
+                            raw_version_id="owver_card",
+                            normalized_canonical_url="https://met.example.edu/info/1024/1086.htm",
+                            target_matches=[regulation_match],
+                        )
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="met.example.edu",
+                raw_asset_id="owasset_card",
+                raw_version_id="owver_card",
+                normalized_canonical_url="https://met.example.edu/info/1024/1086.htm",
+                page_title="校 园 一 卡 通 管 理 规 定",
+                page_family="article_detail",
+                target_matches=[regulation_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_card",
+                        raw_version_id="owver_card",
+                        row_id="card-title",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="校 园 一 卡 通 管 理 规 定",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_card",
+                        raw_version_id="owver_card",
+                        row_id="card-p1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="第一条 为规范校园一卡通管理，制定本规定。",
+                    ),
+                ],
+            )
+
+            materialize_worker_main(
+                [
+                    "--source-truth-output-dir",
+                    str(output_dir),
+                    "--declarations-path",
+                    str(declarations_path),
+                    "--output-dir",
+                    str(worker_output_dir),
+                    "--object-store-root",
+                    str(object_store_root),
+                    "--scope-refresh",
+                ]
+            )
+
+            scope_dir = (
+                object_store_root
+                / "campus-rag-derived"
+                / "regulations"
+                / "documents"
+                / "institutional_rules"
+            )
+            document_dirs = sorted(path.name for path in scope_dir.iterdir() if path.is_dir())
+            self.assertEqual(len(document_dirs), 1)
+            self.assertTrue(document_dirs[0].startswith("校园一卡通管理规定--"))
 
     def test_document_identity_stays_stable_across_title_cleanup(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -520,6 +639,144 @@ class OfficialWebRegulationMaterializationTest(unittest.TestCase):
             )
             self.assertEqual(reader_report.document_count, len(expected_urls))
             self.assertEqual(reader_report.public_entry_count, len(expected_urls))
+
+    def test_materializes_regulation_candidates_into_multiple_selected_write_scopes(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            work_dir = root / "work"
+            _write_json(declarations_path, _declarations_payload())
+            student_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/student_rules",
+                target_id="official-web-student-rules",
+                review_policy="release_gate_required",
+            )
+            scoped_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/scoped_rules",
+                target_id="official-web-scoped-rules",
+                review_policy="release_gate_required",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_official_web_multi_scope_regulations",
+                    "collectionMode": "target-workset",
+                    "pages": [
+                        _page(
+                            raw_asset_id="owasset_student_rule",
+                            raw_version_id="owver_student_rule",
+                            normalized_canonical_url="https://www.example.edu/rules/student-award.htm",
+                            target_matches=[student_match],
+                        ),
+                        _page(
+                            raw_asset_id="owasset_scoped_rule",
+                            raw_version_id="owver_scoped_rule",
+                            normalized_canonical_url="https://www.example.edu/rules/summer-lab.htm",
+                            target_matches=[scoped_match],
+                        ),
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_student_rule",
+                raw_version_id="owver_student_rule",
+                normalized_canonical_url="https://www.example.edu/rules/student-award.htm",
+                page_title="中央民族大学学生奖学金评定办法",
+                page_family="article_detail",
+                target_matches=[student_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_student_rule",
+                        raw_version_id="owver_student_rule",
+                        row_id="student-title",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学学生奖学金评定办法",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_student_rule",
+                        raw_version_id="owver_student_rule",
+                        row_id="student-p1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="第一条 为规范学生奖学金评定工作，制定本办法。",
+                    ),
+                ],
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_scoped_rule",
+                raw_version_id="owver_scoped_rule",
+                normalized_canonical_url="https://www.example.edu/rules/summer-lab.htm",
+                page_title="中央民族大学暑期实验室安全管理规定",
+                page_family="article_detail",
+                target_matches=[scoped_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_scoped_rule",
+                        raw_version_id="owver_scoped_rule",
+                        row_id="scoped-title",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学暑期实验室安全管理规定",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_scoped_rule",
+                        raw_version_id="owver_scoped_rule",
+                        row_id="scoped-p1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="第一条 为规范暑期实验室开放期间的安全管理，制定本规定。",
+                    ),
+                ],
+            )
+
+            object_store = _FakeObjectStore()
+            registry = InMemoryDocumentRegistry()
+            raw_registry = InMemoryRawAssetRegistry()
+            report = materialize_official_web_regulation_candidates(
+                source_truth_output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                work_dir=work_dir,
+                declarations_path=declarations_path,
+                object_store=object_store,
+                document_registry=registry,
+                raw_asset_registry=raw_registry,
+                object_store_settings=_object_store_settings(),
+                scope_refresh=True,
+            )
+
+            self.assertEqual(report.candidate_count, 2)
+            self.assertEqual(report.materialized_document_count, 2)
+            student_records = registry.list_by_scope("regulations", "student_rules")
+            scoped_records = registry.list_by_scope("regulations", "scoped_rules")
+            self.assertEqual(len(student_records), 1)
+            self.assertEqual(len(scoped_records), 1)
+            self.assertEqual(
+                student_records[0].source_uri,
+                "https://www.example.edu/rules/student-award.htm",
+            )
+            self.assertEqual(
+                scoped_records[0].source_uri,
+                "https://www.example.edu/rules/summer-lab.htm",
+            )
 
 
 def _object_store_settings() -> ObjectStoreSettings:
