@@ -64,21 +64,12 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 "runtime_posture": "closed",
             },
         )
-        self.assertEqual(
-            ready.json_body["agents_sdk_runtime"],
-            {
-                "enabled": False,
-                "admitted": False,
-                "admission_reason": "disabled",
-                "allowed_targets": [],
-                "allowed_tools": [],
-                "runtime_enabled": False,
-                "runtime_admitted": False,
-                "runtime_posture": "domain_agent_adapter_candidate",
-                "admitted_pairs": [],
-                "blocked_pairs": [],
-            },
-        )
+        agents_sdk = ready.json_body["agents_sdk_runtime"]
+        self.assertTrue(agents_sdk["enabled"])
+        self.assertFalse(agents_sdk["admitted"])
+        self.assertEqual(agents_sdk["admission_reason"], "provider_config_missing")
+        self.assertEqual(agents_sdk["runtime_posture"], "domain_agent_adapter_admitted")
+        self.assertEqual(agents_sdk["admitted_pairs"], [])
         self.assertNotIn("transport_runtime", ready.json_body)
         self.assertFalse(ready.json_body["prompt_http_pool"]["healthy"])
         self.assertNotIn("audit_runtime", ready.json_body)
@@ -142,9 +133,9 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "SUPERVISOR_AGENT_WORKER_CANCEL_FLAG_TTL_SECONDS": "123",
             "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ENABLED": "true",
             "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS": "",
-            "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "true",
-            "SUPERVISOR_AGENTS_SDK_ALLOWED_TARGETS": "notice-agent",
-            "SUPERVISOR_AGENTS_SDK_ALLOWED_TOOLS": "campus_notice_discover",
+            "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "false",
+            "SUPERVISOR_AGENTS_SDK_" + "ALLOWED_TARGETS": "stale-target",
+            "SUPERVISOR_AGENTS_SDK_" + "ALLOWED_TOOLS": "stale-tool",
         }
 
         with patch.dict(os.environ, env, clear=True):
@@ -170,12 +161,12 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(settings.cancel_flag_ttl_seconds, 123)
         self.assertTrue(settings.provider_tool_runtime_enabled)
         self.assertEqual(settings.provider_tool_runtime_allowed_tools, ())
-        self.assertTrue(settings.agents_sdk_runtime_enabled)
-        self.assertEqual(settings.agents_sdk_runtime_allowed_targets, ("notice-agent",))
-        self.assertEqual(settings.agents_sdk_runtime_allowed_tools, ("campus_notice_discover",))
+        self.assertFalse(settings.agents_sdk_runtime_enabled)
+        self.assertFalse(hasattr(settings, "agents_sdk_runtime_allowed_targets"))
+        self.assertFalse(hasattr(settings, "agents_sdk_runtime_allowed_tools"))
         self.assertFalse(hasattr(settings, "transport" + "_max_concurrent_answers"))
 
-    def test_bridge_readyz_degrades_when_agents_sdk_runtime_enabled_without_allowed_tool(
+    def test_bridge_readyz_admits_agents_sdk_runtime_from_repo_registry_when_enabled(
         self,
     ) -> None:
         app = create_bridge_app(
@@ -188,7 +179,6 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 prompt_runtime_api_key="test-key",
                 prompt_runtime_base_url="https://api.openai.com/v1",
                 agents_sdk_runtime_enabled=True,
-                agents_sdk_runtime_allowed_targets=("notice-agent",),
             )
         )
 
@@ -198,12 +188,40 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             headers={"x-supervisor-bridge-auth": "bridge-secret"},
         )
 
-        self.assertEqual(ready.status_code, 503)
+        self.assertEqual(ready.status_code, 200)
         self.assertEqual(
             ready.json_body["agents_sdk_runtime"]["admission_reason"],
-            "allowed_tool_missing",
+            "admitted",
         )
+        self.assertEqual(
+            ready.json_body["agents_sdk_runtime"]["admitted_pairs"],
+            [
+                {
+                    "target": "campus-services-agent",
+                    "tool": "service_guide_lookup",
+                    "tool_runtime_posture": "sdk_adapter_admitted",
+                },
+                {
+                    "target": "campus-services-agent",
+                    "tool": "contact_directory_lookup",
+                    "tool_runtime_posture": "sdk_adapter_admitted",
+                },
+                {
+                    "target": "notice-agent",
+                    "tool": "campus_notice_discover",
+                    "tool_runtime_posture": "sdk_adapter_admitted",
+                },
+            ],
+        )
+        self.assertNotIn("allowed_targets", ready.json_body["agents_sdk_runtime"])
+        self.assertNotIn("allowed_tools", ready.json_body["agents_sdk_runtime"])
         app.close()
+
+    def test_api_settings_from_env_enables_agents_sdk_runtime_by_default(self) -> None:
+        with patch.dict(os.environ, {}, clear=True):
+            settings = ApiSettings.from_env()
+
+        self.assertTrue(settings.agents_sdk_runtime_enabled)
 
     def test_api_settings_from_env_reads_retrieval_observation_settings(self) -> None:
         env = {
@@ -230,8 +248,8 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 prompt_runtime_provider="openai-responses",
                 prompt_runtime_api_key="test-key",
                 prompt_runtime_base_url="https://api.openai.com/v1",
-                structured_query_base_url="https://supervisor-api.internal",
-                structured_query_shared_secret="structured-secret",
+                internal_query_base_url="https://supervisor-api.internal",
+                internal_query_shared_secret="structured-secret",
                 provider_tool_runtime_enabled=True,
             )
         )
@@ -376,8 +394,8 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         delegates = _build_agent_delegates(
             settings=ApiSettings(
                 provider_tool_runtime_enabled=True,
-                structured_query_base_url="https://supervisor-api.internal",
-                structured_query_shared_secret="structured-secret",
+                internal_query_base_url="https://supervisor-api.internal",
+                internal_query_shared_secret="structured-secret",
             ),
             rag_prompt_executor=None,
             campus_services_query_service=None,

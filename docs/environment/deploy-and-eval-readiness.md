@@ -65,7 +65,7 @@ Conditional readiness:
   `SUPERVISOR_API_EXECUTION_AUDIT_URL` and
   `SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET`
 - if `SUPERVISOR_API_OPEN_CAPABILITIES` opens `campus_services` or `notice`,
-  doctor requires `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` and
+  doctor requires `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` and
   `CAMPUS_SHARED_POSTGRES_URL`; notice-open additionally requires notice read-model/object-store
   runtime dependencies
 

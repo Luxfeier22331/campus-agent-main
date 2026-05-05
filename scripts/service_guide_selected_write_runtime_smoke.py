@@ -77,8 +77,8 @@ def build_service_guide_selected_write_runtime_smoke_plan(
     )
     resolved_secret = _required_text(
         structured_query_secret
-        or os.getenv("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET")
-        or _root_env_value(repo_root, "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET")
+        or os.getenv("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET")
+        or _root_env_value(repo_root, "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET")
         or "query-secret",
         "structured_query_secret",
     )
@@ -109,7 +109,7 @@ def build_service_guide_selected_write_runtime_smoke_plan(
             ),
             "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED": "false",
             "SUPERVISOR_API_OTEL_ENABLED": "false",
-            "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET": resolved_secret,
+            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": resolved_secret,
             "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS": os.getenv(
                 "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS",
                 "2000",

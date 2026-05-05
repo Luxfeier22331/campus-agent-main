@@ -317,8 +317,8 @@ product/control-plane endpoint。
   S3-compatible source-backed bounded context query runtime；notice 请求使用
   `payload + access_context` envelope 以在 Go 内执行 restricted notice fail-close
   authorization
-- Python orchestration 仅在配置 `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` 与
-  `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` 时消费该 internal query seam
+- Python orchestration 仅在配置 `SUPERVISOR_INTERNAL_QUERY_BASE_URL` 与
+  `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` 时消费该 internal query seam
 - 这不打开 `campus_services` 或 `notice` 产品 serving surface；产品主路由 opening
   gate 仍需 release-gate regression / eval evidence 与 app-owned observability 证据
 

@@ -125,8 +125,8 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
             app = create_bridge_app(
                 settings=ApiSettings(
                     bridge_shared_secret="bridge-secret",
-                    structured_query_base_url=f"http://127.0.0.1:{query_server.server_port}",
-                    structured_query_shared_secret="query-secret",
+                    internal_query_base_url=f"http://127.0.0.1:{query_server.server_port}",
+                    internal_query_shared_secret="query-secret",
                     structured_query_timeout_seconds=0.75,
                 )
             )
@@ -216,8 +216,8 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
             app = create_bridge_app(
                 settings=ApiSettings(
                     bridge_shared_secret="bridge-secret",
-                    structured_query_base_url=f"http://127.0.0.1:{query_server.server_port}",
-                    structured_query_shared_secret="query-secret",
+                    internal_query_base_url=f"http://127.0.0.1:{query_server.server_port}",
+                    internal_query_shared_secret="query-secret",
                     structured_query_timeout_seconds=0.75,
                 )
             )

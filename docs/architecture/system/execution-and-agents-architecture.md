@@ -576,14 +576,16 @@ notice-get provider tool runtime 当前最终姿态是 closed：
 - Python `/internal/bridge/readyz` 只能发布 closed/degraded admission summary，不能把
   notice-get provider loop 描述成 admitted runtime truth
 
-Agents SDK 试点当前也不承载 `campus_notice_get`。SDK runner shell、tool bridge 与 trace
-projection 可以继续作为 default-off infrastructure lane 存在，用于后续新 denominator
-评估；但 notice-get SDK pilot 已关闭，stale `campus_notice_get` allowed tool 必须返回
-unsupported/closed。当前可选的 SDK adapter candidate 仅限 `notice-agent +
-campus_notice_discover`，并且仍然必须通过 repo-owned allowlist、ToolSpec posture 与
-eval gate 才能运行。SDK `FunctionTool` surface 只能由 repo-owned ToolSpec
-派生；SDK run / trace / native state 不得进入 `packages/contracts`、panel、eval 或
-`workflow_trace_summary`。
+Agents SDK 当前也不承载 `campus_notice_get`。SDK runner shell、tool bridge 与 trace
+projection 是 worker-side default-on domain-agent adapter lane；但只有 AgentSpec 允许、
+ToolSpec 标记为 `sdk_adapter_admitted` 的 read-only `structured_handoff` tool 可以进入
+SDK。notice-get SDK pilot 已关闭，stale `campus_notice_get` allowed tool 必须返回
+unsupported/closed。当前 admitted SDK adapter 工具是 `notice-agent +
+campus_notice_discover`、`campus-services-agent + service_guide_lookup` 与
+`campus-services-agent + contact_directory_lookup`；`service_status_lookup` 和
+`transport_schedule_lookup` 仍保持 deterministic direct runtime。SDK `FunctionTool`
+surface 只能由 repo-owned ToolSpec 派生；SDK run / trace / native state 不得进入
+`packages/contracts`、panel、eval 或 `workflow_trace_summary`。
 
 notice-family 的目标态需要把 agent-facing tool 与内部 query function 分开。通知用户面默认
 是 source-link / card-first：`title`、official URL、source family、发布时间、短摘要或

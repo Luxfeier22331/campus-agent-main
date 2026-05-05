@@ -49,7 +49,7 @@ class ToolSpecRegistryTest(unittest.TestCase):
         self.assertTrue(service_status.function_schema.available)
         self.assertEqual(service_status.runtime_posture, "typed_handoff_only")
 
-    def test_notice_discover_is_first_sdk_adapter_candidate(self) -> None:
+    def test_domain_agent_sdk_adapter_admitted_tools_are_explicit(self) -> None:
         registry = load_tool_spec_registry()
         notice_discover = registry.tool_by_name("campus_notice_discover")
         campus_service_tools = {
@@ -63,14 +63,22 @@ class ToolSpecRegistryTest(unittest.TestCase):
         self.assertEqual(notice_discover.surface, "structured_handoff")
         self.assertTrue(notice_discover.function_schema.available)
         self.assertTrue(notice_discover.function_schema.strict)
-        self.assertEqual(notice_discover.runtime_posture, "sdk_adapter_candidate")
+        self.assertEqual(notice_discover.runtime_posture, "sdk_adapter_admitted")
         self.assertEqual(
             campus_service_tools["service_status_lookup"].runtime_posture,
             "typed_handoff_only",
         )
         self.assertEqual(
+            campus_service_tools["service_guide_lookup"].runtime_posture,
+            "sdk_adapter_admitted",
+        )
+        self.assertEqual(
             campus_service_tools["transport_schedule_lookup"].runtime_posture,
             "typed_handoff_only",
+        )
+        self.assertEqual(
+            campus_service_tools["contact_directory_lookup"].runtime_posture,
+            "sdk_adapter_admitted",
         )
 
 

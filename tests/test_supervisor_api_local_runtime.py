@@ -102,8 +102,8 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         compose = compose_path.read_text(encoding="utf-8")
         script = script_path.read_text(encoding="utf-8")
 
-        self.assertIn("SUPERVISOR_STRUCTURED_QUERY_BASE_URL: http://supervisor-api:8000", compose)
-        self.assertIn("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET", compose)
+        self.assertIn("SUPERVISOR_INTERNAL_QUERY_BASE_URL: http://supervisor-api:8000", compose)
+        self.assertIn("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET", compose)
         self.assertIn("CAMPUS_SHARED_POSTGRES_URL", compose)
         service_status_url_key = "SERVICE_STATUS" + "_READ_MODEL_DATABASE_URL"
         transport_url_key = "TRANSPORT_SCHEDULE" + "_READ_MODEL_DATABASE_URL"
@@ -121,7 +121,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertNotIn(structured_schema_key, compose)
         self.assertIn("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", compose)
         self.assertIn("OBJECT_STORE_ENDPOINT", compose)
-        self.assertIn('"SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"', script)
+        self.assertIn('"SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"', script)
         self.assertNotIn(f'"{service_status_url_key}"', script)
         self.assertNotIn(f'"{transport_url_key}"', script)
         self.assertNotIn(f'"{service_guide_url_key}"', script)

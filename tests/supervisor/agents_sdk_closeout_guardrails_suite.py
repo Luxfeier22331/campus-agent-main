@@ -10,22 +10,29 @@ WORKSTREAM_DIR = REPO_ROOT / ".planning/workstreams/agents-sdk-domain-agent-adap
 
 
 class AgentsSdkCloseoutGuardrailsTest(unittest.TestCase):
-    def test_sdk_runtime_defaults_stay_off_and_notice_get_not_admitted(self) -> None:
+    def test_sdk_runtime_defaults_on_with_repo_registry_admission_only(self) -> None:
         settings_source = (SDK_SOURCE_DIR / "settings.py").read_text(encoding="utf-8")
         delegates_source = (SDK_SOURCE_DIR / "agent_delegates.py").read_text(encoding="utf-8")
         policy_source = (SDK_SOURCE_DIR / "agents_sdk_runtime_policy.py").read_text(
             encoding="utf-8"
         )
 
-        self.assertRegex(settings_source, r"agents_sdk_runtime_enabled:\s*bool\s*=\s*False")
+        self.assertRegex(settings_source, r"agents_sdk_runtime_enabled:\s*bool\s*=\s*True")
         self.assertRegex(
             settings_source,
-            r'"SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED",\s*default=False',
+            r'"SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED",\s*default=True',
         )
         self.assertNotIn(
             'settings.agents_sdk_runtime_allowed_tools == ("campus_notice_get",)', delegates_source
         )
-        self.assertIn('"campus_notice_get" in allowed_tools', policy_source)
+        self.assertIn('tool.runtime_posture == "sdk_adapter_admitted"', delegates_source)
+        self.assertNotIn("agents_sdk_runtime_allowed_targets", settings_source)
+        self.assertNotIn("agents_sdk_runtime_allowed_tools", settings_source)
+        self.assertNotIn("SUPERVISOR_AGENTS_SDK_" + "ALLOWED_TARGETS", settings_source)
+        self.assertNotIn("SUPERVISOR_AGENTS_SDK_" + "ALLOWED_TOOLS", settings_source)
+        self.assertNotIn("agents_sdk_runtime_allowed_targets", delegates_source)
+        self.assertNotIn("agents_sdk_runtime_allowed_tools", delegates_source)
+        self.assertIn("sdk_tool_missing", policy_source)
 
     def test_sdk_source_does_not_admit_hosted_or_stateful_tool_surfaces(self) -> None:
         forbidden_patterns = {

@@ -59,7 +59,7 @@ type Config struct {
 	WorkflowRunDatabaseURL            string
 	WorkflowRunAutoMigrate            bool
 	QueryServingScopesPath            string
-	StructuredQuerySharedSecret       string
+	InternalQuerySharedSecret         string
 	StructuredQueryTrustedTimeRFC3339 string
 	StructuredQueryTimeoutMS          int
 	StructuredProjectionDatabaseURL   string
@@ -129,7 +129,7 @@ type envValues struct {
 	ExecutionAuditSpoolMaxBytes       int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES" envDefault:"10485760"`
 	WorkflowRunDatabaseURL            string  `env:"SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL"`
 	QueryServingScopesPath            string  `env:"SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH"`
-	StructuredQuerySharedSecret       string  `env:"SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"`
+	InternalQuerySharedSecret         string  `env:"SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"`
 	StructuredQueryTrustedTimeRFC3339 string  `env:"SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
 	StructuredQueryTimeoutMS          int     `env:"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS" envDefault:"1000"`
 	PromptRuntimeTransport            string  `env:"PROMPT_RUNTIME_TRANSPORT" envDefault:"responses"`
@@ -232,7 +232,7 @@ func LoadFromEnv() (Config, error) {
 		WorkflowRunDatabaseURL:            readWorkflowRunDatabaseURL(values),
 		WorkflowRunAutoMigrate:            workflowRunAutoMigrate,
 		QueryServingScopesPath:            strings.TrimSpace(values.QueryServingScopesPath),
-		StructuredQuerySharedSecret:       strings.TrimSpace(values.StructuredQuerySharedSecret),
+		InternalQuerySharedSecret:         strings.TrimSpace(values.InternalQuerySharedSecret),
 		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
 		StructuredQueryTimeoutMS:          values.StructuredQueryTimeoutMS,
 		StructuredProjectionDatabaseURL:   readStructuredProjectionDatabaseURL(),

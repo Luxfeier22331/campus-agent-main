@@ -49,13 +49,6 @@ def _read_provider_tool_runtime_allowed_tools(name: str) -> tuple[str, ...]:
     return normalized
 
 
-def _read_csv_tuple(name: str) -> tuple[str, ...]:
-    value = os.getenv(name)
-    if value is None:
-        return ()
-    return tuple(item.strip() for item in value.split(",") if item.strip())
-
-
 def _read_int(name: str, *, default: int) -> int:
     value = os.getenv(name)
     if value is None:
@@ -114,16 +107,14 @@ class ApiSettings:
     prompt_strict_structured_outputs: bool = True
     bridge_worker_threads: int = 8
     bridge_request_body_limit_bytes: int = DEFAULT_BRIDGE_REQUEST_BODY_LIMIT_BYTES
-    structured_query_base_url: str = ""
-    structured_query_shared_secret: str = ""
+    internal_query_base_url: str = ""
+    internal_query_shared_secret: str = ""
     structured_query_timeout_seconds: float = 1.0
     provider_tool_runtime_enabled: bool = False
     provider_tool_runtime_allowed_tools: tuple[str, ...] = (
         DEFAULT_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS
     )
-    agents_sdk_runtime_enabled: bool = False
-    agents_sdk_runtime_allowed_targets: tuple[str, ...] = ()
-    agents_sdk_runtime_allowed_tools: tuple[str, ...] = ()
+    agents_sdk_runtime_enabled: bool = True
     retrieval_observation_jsonl_path: str = ""
     retrieval_runtime_event_jsonl_path: str = ""
     retrieval_observation_include_query_text: bool = False
@@ -258,12 +249,12 @@ class ApiSettings:
                 "SUPERVISOR_AGENT_WORKER_REQUEST_BODY_LIMIT_BYTES",
                 default=DEFAULT_BRIDGE_REQUEST_BODY_LIMIT_BYTES,
             ),
-            structured_query_base_url=os.getenv(
-                "SUPERVISOR_STRUCTURED_QUERY_BASE_URL",
+            internal_query_base_url=os.getenv(
+                "SUPERVISOR_INTERNAL_QUERY_BASE_URL",
                 "",
             ).strip(),
-            structured_query_shared_secret=os.getenv(
-                "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",
+            internal_query_shared_secret=os.getenv(
+                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
                 "",
             ).strip(),
             structured_query_timeout_seconds=_read_float(
@@ -279,12 +270,8 @@ class ApiSettings:
             ),
             agents_sdk_runtime_enabled=_read_bool(
                 "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED",
-                default=False,
+                default=True,
             ),
-            agents_sdk_runtime_allowed_targets=_read_csv_tuple(
-                "SUPERVISOR_AGENTS_SDK_ALLOWED_TARGETS"
-            ),
-            agents_sdk_runtime_allowed_tools=_read_csv_tuple("SUPERVISOR_AGENTS_SDK_ALLOWED_TOOLS"),
             retrieval_observation_jsonl_path=os.getenv(
                 "SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH",
                 "",

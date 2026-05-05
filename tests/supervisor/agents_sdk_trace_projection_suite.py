@@ -48,7 +48,7 @@ class AgentsSdkTraceProjectionTest(unittest.TestCase):
         trace = safe_details["agents_sdk_trace_projection"]
         self.assertEqual(trace["schema_version"], "agents-sdk-trace-projection-v1")
         self.assertEqual(trace["adapter_lane"], "agents_sdk_domain_agent_adapter")
-        self.assertEqual(trace["runtime_posture"], "sdk_adapter_candidate")
+        self.assertEqual(trace["runtime_posture"], "sdk_adapter_admitted")
         self.assertEqual(trace["target"], "notice-agent")
         self.assertEqual(trace["selected_tool"], "campus_notice_discover")
         self.assertEqual(trace["tool_call_count"], 1)
@@ -172,7 +172,7 @@ def _sdk_test_tool_registry() -> ToolSpecRegistry:
     return replace(
         registry,
         tools=tuple(
-            replace(tool, runtime_posture="sdk_adapter_candidate")
+            replace(tool, runtime_posture="sdk_adapter_admitted")
             if tool.name == "campus_notice_discover"
             else tool
             for tool in registry.tools

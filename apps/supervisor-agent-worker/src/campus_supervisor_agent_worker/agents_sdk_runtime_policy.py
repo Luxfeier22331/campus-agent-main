@@ -11,10 +11,9 @@ from campus_supervisor_agent_worker.tool_spec_registry import (
     default_tool_spec_registry,
 )
 
-DEFAULT_AGENTS_SDK_RUNTIME_POSTURE = "domain_agent_adapter_candidate"
+DEFAULT_AGENTS_SDK_RUNTIME_POSTURE = "domain_agent_adapter_admitted"
 SDK_ADAPTER_TOOL_RUNTIME_POSTURES = frozenset(
     {
-        "sdk_adapter_candidate",
         "sdk_adapter_admitted",
     }
 )
@@ -23,8 +22,6 @@ SDK_ADAPTER_TOOL_RUNTIME_POSTURES = frozenset(
 def agents_sdk_runtime_status(
     *,
     enabled: bool,
-    allowed_targets: tuple[str, ...],
-    allowed_tools: tuple[str, ...],
     prompt_runtime_provider: str,
     agent_model: str,
     prompt_runtime_admitted: bool = True,
@@ -38,8 +35,6 @@ def agents_sdk_runtime_status(
     resolved_agent_registry = agent_registry or default_agent_spec_registry()
     resolved_tool_registry = tool_registry or default_tool_spec_registry()
     pair_status = _agents_sdk_pair_status(
-        allowed_targets=allowed_targets,
-        allowed_tools=allowed_tools,
         agent_registry=resolved_agent_registry,
         tool_registry=resolved_tool_registry,
     )
@@ -49,22 +44,18 @@ def agents_sdk_runtime_status(
         prompt_runtime_provider=prompt_runtime_provider,
         prompt_runtime_admitted=prompt_runtime_admitted,
         agent_model=agent_model,
-        allowed_targets=allowed_targets,
-        allowed_tools=allowed_tools,
-        blocked_pairs=pair_status["blocked_pairs"],
+        admitted_pairs=pair_status["admitted_pairs"],
     )
     admitted = enabled and admission_reason == "admitted"
     return {
         "enabled": enabled,
         "admitted": admitted,
         "admission_reason": admission_reason,
-        "allowed_targets": list(allowed_targets),
-        "allowed_tools": list(allowed_tools),
         "runtime_enabled": enabled,
         "runtime_admitted": admitted,
         "runtime_posture": DEFAULT_AGENTS_SDK_RUNTIME_POSTURE,
         "admitted_pairs": pair_status["admitted_pairs"] if admitted else [],
-        "blocked_pairs": pair_status["blocked_pairs"] if enabled else [],
+        "blocked_pairs": [] if admitted or not enabled else pair_status["blocked_pairs"],
     }
 
 
@@ -75,9 +66,7 @@ def _agents_sdk_runtime_admission_reason(
     prompt_runtime_provider: str,
     prompt_runtime_admitted: bool,
     agent_model: str,
-    allowed_targets: tuple[str, ...],
-    allowed_tools: tuple[str, ...],
-    blocked_pairs: list[dict[str, object]],
+    admitted_pairs: list[dict[str, object]],
 ) -> str:
     if not enabled:
         return "disabled"
@@ -87,12 +76,8 @@ def _agents_sdk_runtime_admission_reason(
         return "provider_config_missing"
     if not agent_model.strip():
         return "model_missing"
-    if not allowed_targets:
-        return "allowed_target_missing"
-    if not allowed_tools:
-        return "allowed_tool_missing"
-    if blocked_pairs:
-        return str(blocked_pairs[0]["reason"])
+    if not admitted_pairs:
+        return "sdk_tool_missing"
     return "admitted"
 
 
@@ -102,39 +87,16 @@ def _is_agents_sdk_dependency_available() -> bool:
 
 def _agents_sdk_pair_status(
     *,
-    allowed_targets: tuple[str, ...],
-    allowed_tools: tuple[str, ...],
     agent_registry: AgentSpecRegistry,
     tool_registry: ToolSpecRegistry,
 ) -> dict[str, list[dict[str, object]]]:
     admitted_pairs: list[dict[str, object]] = []
     blocked_pairs: list[dict[str, object]] = []
-    for target in allowed_targets:
-        agent = agent_registry.agent_by_id(target)
-        target_tools = allowed_tools or ("",)
-        if agent is None:
-            for tool_name in target_tools:
-                blocked_pairs.append(
-                    {
-                        "target": target,
-                        "tool": tool_name,
-                        "reason": "unknown_target",
-                        "tool_runtime_posture": "",
-                    }
-                )
-            continue
+    for agent in agent_registry.agents:
+        target = agent.agent_id
         if not agent.active or agent.opening_gate != "open":
-            for tool_name in target_tools:
-                blocked_pairs.append(
-                    {
-                        "target": target,
-                        "tool": tool_name,
-                        "reason": "target_not_open",
-                        "tool_runtime_posture": "",
-                    }
-                )
             continue
-        for tool_name in target_tools:
+        for tool_name in agent.allowed_structured_handoff_tools:
             tool = tool_registry.tool_by_name(tool_name)
             tool_posture = tool.runtime_posture if tool is not None else ""
             if tool_name == "campus_notice_get":
@@ -182,7 +144,7 @@ def _agents_sdk_pair_status(
                     {
                         "target": target,
                         "tool": tool_name,
-                        "reason": "tool_not_sdk_candidate",
+                        "reason": "tool_not_sdk_admitted",
                         "tool_runtime_posture": tool_posture,
                     }
                 )

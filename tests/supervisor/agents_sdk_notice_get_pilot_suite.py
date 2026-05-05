@@ -134,8 +134,6 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             settings=ApiSettings(
                 provider_tool_runtime_enabled=True,
                 agents_sdk_runtime_enabled=True,
-                agents_sdk_runtime_allowed_targets=("notice-agent",),
-                agents_sdk_runtime_allowed_tools=("campus_notice_get",),
             ),
             rag_prompt_executor=None,
             campus_services_query_service=None,
@@ -158,7 +156,7 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             response.agent_observability.safe_details,
         )
 
-    def test_agent_delegates_route_notice_discover_to_sdk_when_explicitly_admitted(self) -> None:
+    def test_agent_delegates_route_notice_discover_to_sdk_when_toolspec_admitted(self) -> None:
         runner_called = False
         query_service = _FakeNoticeGetQueryService()
 
@@ -193,8 +191,6 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
         delegates = _build_agent_delegates(
             settings=ApiSettings(
                 agents_sdk_runtime_enabled=True,
-                agents_sdk_runtime_allowed_targets=("notice-agent",),
-                agents_sdk_runtime_allowed_tools=("campus_notice_discover",),
             ),
             rag_prompt_executor=None,
             campus_services_query_service=None,
@@ -227,8 +223,6 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
         delegates = _build_agent_delegates(
             settings=ApiSettings(
                 agents_sdk_runtime_enabled=False,
-                agents_sdk_runtime_allowed_targets=("notice-agent",),
-                agents_sdk_runtime_allowed_tools=("campus_notice_discover",),
             ),
             rag_prompt_executor=None,
             campus_services_query_service=None,
@@ -250,16 +244,12 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
         )
 
     def test_agents_sdk_runner_builder_is_target_agnostic_and_fail_closed(self) -> None:
-        self.assertIsNone(_build_agents_sdk_runner(ApiSettings()))
         self.assertIsNone(
             _build_agents_sdk_runner(
                 ApiSettings(
                     agents_sdk_runtime_enabled=True,
-                    agents_sdk_runtime_allowed_targets=("notice-agent",),
-                    agents_sdk_runtime_allowed_tools=("campus_notice_get",),
                     prompt_runtime_provider="openai-responses",
                     prompt_runtime_api_key="test-key",
-                    agent_prompt_model="gpt-agent",
                 )
             )
         )
@@ -267,9 +257,18 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             _build_agents_sdk_runner(
                 ApiSettings(
                     agents_sdk_runtime_enabled=True,
-                    agents_sdk_runtime_allowed_targets=("notice-agent",),
-                    agents_sdk_runtime_allowed_tools=("campus_notice_discover",),
                     prompt_runtime_provider="openai-responses",
+                    agent_prompt_model="gpt-agent",
+                )
+            )
+        )
+        self.assertIsNotNone(
+            _build_agents_sdk_runner(
+                ApiSettings(
+                    agents_sdk_runtime_enabled=True,
+                    prompt_runtime_provider="openai-responses",
+                    prompt_runtime_api_key="test-key",
+                    prompt_runtime_base_url="https://api.openai.com/v1",
                     agent_prompt_model="gpt-agent",
                 )
             )
@@ -281,8 +280,6 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
         runner = _build_agents_sdk_runner(
             ApiSettings(
                 agents_sdk_runtime_enabled=True,
-                agents_sdk_runtime_allowed_targets=("notice-agent",),
-                agents_sdk_runtime_allowed_tools=("campus_notice_discover",),
                 prompt_runtime_provider="openai-responses",
                 prompt_runtime_api_key="test-key",
                 prompt_runtime_base_url="https://api.openai.com/v1",

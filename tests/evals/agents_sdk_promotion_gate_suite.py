@@ -32,12 +32,12 @@ class AgentsSdkPromotionGateTest(unittest.TestCase):
             )
         )
 
-        self.assertTrue(result.candidate_admitted)
+        self.assertTrue(result.adapter_admitted)
         self.assertFalse(result.default_on_allowed)
-        self.assertEqual(result.decision, "keep_explicit_gate")
+        self.assertEqual(result.decision, "keep_explicit_runtime_gate")
         self.assertEqual(result.blockers, ("live_latency_cost_evidence_missing",))
 
-    def test_missing_tool_execution_blocks_candidate(self) -> None:
+    def test_missing_tool_execution_blocks_adapter_admission(self) -> None:
         result = evaluate_agents_sdk_promotion_gate(
             AgentsSdkPromotionGateEvidence(
                 target="notice-agent",
@@ -52,7 +52,7 @@ class AgentsSdkPromotionGateTest(unittest.TestCase):
             )
         )
 
-        self.assertFalse(result.candidate_admitted)
+        self.assertFalse(result.adapter_admitted)
         self.assertIn("sdk_tool_execution_missing", result.blockers)
 
     def test_campus_services_matrix_keeps_deterministic_tools_out_of_sdk(self) -> None:
@@ -66,11 +66,11 @@ class AgentsSdkPromotionGateTest(unittest.TestCase):
         )
         self.assertEqual(
             AGENTS_SDK_CAMPUS_SERVICES_ADOPTION_MATRIX["service_guide_lookup"],
-            "defer_sdk_argument_completion_candidate",
+            "sdk_adapter_admitted",
         )
         self.assertEqual(
             AGENTS_SDK_CAMPUS_SERVICES_ADOPTION_MATRIX["contact_directory_lookup"],
-            "defer_sdk_argument_completion_candidate",
+            "sdk_adapter_admitted",
         )
 
 

@@ -28,7 +28,6 @@ PROVIDER_RUNTIME_POSTURES = frozenset(
 )
 SDK_ADAPTER_RUNTIME_POSTURES = frozenset(
     {
-        "sdk_adapter_candidate",
         "sdk_adapter_admitted",
     }
 )

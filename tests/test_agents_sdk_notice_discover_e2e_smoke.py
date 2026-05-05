@@ -45,11 +45,8 @@ class AgentsSdkNoticeDiscoverE2ESmokeTest(unittest.TestCase):
             api_env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"],
         )
         self.assertEqual(worker_env["SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED"], "true")
-        self.assertEqual(worker_env["SUPERVISOR_AGENTS_SDK_ALLOWED_TARGETS"], "notice-agent")
-        self.assertEqual(
-            worker_env["SUPERVISOR_AGENTS_SDK_ALLOWED_TOOLS"],
-            "campus_notice_discover",
-        )
+        self.assertNotIn("SUPERVISOR_AGENTS_SDK_" + "ALLOWED_TARGETS", worker_env)
+        self.assertNotIn("SUPERVISOR_AGENTS_SDK_" + "ALLOWED_TOOLS", worker_env)
         self.assertEqual(worker_env["PROMPT_RUNTIME_PROVIDER"], "openai")
         self.assertEqual(worker_env["PROMPT_RUNTIME_MODEL"], "gpt-5.5-mini")
         self.assertEqual(worker_env["PROMPT_RUNTIME_API_KEY"], "test-key")

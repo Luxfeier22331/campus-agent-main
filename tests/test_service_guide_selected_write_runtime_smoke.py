@@ -29,7 +29,7 @@ class ServiceGuideSelectedWriteRuntimeSmokeTest(unittest.TestCase):
             process.env["CAMPUS_SHARED_POSTGRES_URL"],
             "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
         )
-        self.assertEqual(process.env["SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"], "query-secret")
+        self.assertEqual(process.env["SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"], "query-secret")
         self.assertNotIn("SUPERVISOR_API_OPEN_CAPABILITIES", process.env)
         command_words = [word for command in plan.processes for word in command.command]
         self.assertNotIn("docker", command_words)

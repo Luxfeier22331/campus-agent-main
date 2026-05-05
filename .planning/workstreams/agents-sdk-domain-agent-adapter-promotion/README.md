@@ -2,7 +2,7 @@
 doc_type: index
 status: completed
 created: 2026-05-04
-updated: 2026-05-04
+updated: 2026-05-05
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -11,8 +11,9 @@ updated: 2026-05-04
 
 这是 `agents-sdk-domain-agent-adapter-promotion` 的 native workstream 入口。
 
-本 workstream 负责把 OpenAI Agents SDK 从已完成的 default-off
-`agents-sdk-domain-agent-adapter-pilot` 推进到 selected domain-agent adapter substrate。
+本 workstream 负责把 OpenAI Agents SDK 从已完成的
+`agents-sdk-domain-agent-adapter-pilot` 推进到 default-on selected domain-agent adapter
+substrate。
 它的目标是减少 repo 自写 provider/tool loop glue，同时继续保留 Go `supervisor-api` 的
 deterministic governance、AgentSpec / ToolSpec admission、workflow planning、fail-close 与
 finalization ownership。
@@ -22,11 +23,15 @@ trace、tool schema 或 run state 提升为 shared contract truth。
 
 ## Current Status
 
-- status: completed, explicit-gated candidate evidence complete
+- status: completed, default-on domain-agent adapter admitted
 - current phase: closed
-- current slice: `notice-agent + campus_notice_discover` explicit-gated SDK adapter candidate
-- product posture: no default runtime changed; SDK remains env/allowlist gated
-- deferred decision: default-on promotion still requires broader live latency/cost/error evidence
+- current slice: notice discover, service guide and contact directory SDK adapter tools
+- product posture: SDK adapter defaults on and fails closed when provider/model/key/dependency is
+  missing; `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED=false` is the kill switch
+- deferred decision: broad multi-agent orchestration ownership remains out of scope
+- public/chat dev evidence: `pnpm --dir apps/app-api chat:e2e:dev` passes through the local
+  product entrypoint with a knowledge answer after the supervisor runtime image carries AgentSpec
+  and canonical terminal responses include nullable `result` / `error`
 - primary owner boundary: `apps/supervisor-agent-worker` + `apps/supervisor-api` +
   `packages/contracts` + `packages/evals`
 
@@ -69,19 +74,19 @@ Go supervisor-api
 
 推荐推广顺序：
 
-1. `notice-agent + campus_notice_discover` as explicit-gated candidate
-1. selected `campus-services-agent` read-only tools only if SDK adds value over direct runtime
+1. `notice-agent + campus_notice_discover` as SDK adapter
+1. selected `campus-services-agent` read-only guide/contact tools as SDK adapters
 1. defer `rag-agent` until agentic retrieval rearchitecture stabilizes
 1. keep `navigation-agent` blocked until navigation product/runtime admission opens
 
 Current decision:
 
-- `campus_notice_discover` has `runtime_posture=sdk_adapter_candidate`.
+- `campus_notice_discover` has `runtime_posture=sdk_adapter_admitted`.
 - `campus_notice_get` remains `closed` and agent-internal only.
 - `service_status_lookup` and `transport_schedule_lookup` remain direct-runtime preferred.
-- `service_guide_lookup` and `contact_directory_lookup` are not migrated; they remain deferred
-  candidates only for future argument completion / clarification evidence.
-- Default-on promotion is blocked until real SDK smoke records latency/cost/error evidence.
+- `service_guide_lookup` and `contact_directory_lookup` are `sdk_adapter_admitted`.
+- Runtime target/tool eligibility is derived from AgentSpec, ToolSpec and Go
+  `AgentRequest.allowed_tools`; worker env no longer carries a target/tool allowlist.
 
 ## Native Planning Truth
 

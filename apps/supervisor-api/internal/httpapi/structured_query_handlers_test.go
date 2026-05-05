@@ -31,7 +31,7 @@ func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
-		StructuredQuerySharedSecret:       "query-secret",
+		InternalQuerySharedSecret:       "query-secret",
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	}, nil)
 	useStructuredQueryRuntimeFixture(
@@ -124,7 +124,7 @@ func TestStructuredQueryTransportScheduleUsesConfiguredProjectionBundle(t *testi
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
-		StructuredQuerySharedSecret:       "query-secret",
+		InternalQuerySharedSecret:       "query-secret",
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T20:30:00+08:00",
 	}, nil)
 	useStructuredQueryRuntimeFixture(
@@ -215,7 +215,7 @@ func TestStructuredQueryServiceGuideUsesConfiguredProjectionBundle(t *testing.T)
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
-		StructuredQuerySharedSecret:       "query-secret",
+		InternalQuerySharedSecret:       "query-secret",
 		StructuredQueryTrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
 	}, nil)
 	useStructuredQueryRuntimeFixtures(
@@ -300,7 +300,7 @@ func TestStructuredQueryContactDirectoryUsesConfiguredProjectionBundle(t *testin
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
-		StructuredQuerySharedSecret:       "query-secret",
+		InternalQuerySharedSecret:       "query-secret",
 		StructuredQueryTrustedTimeRFC3339: "2026-04-27T10:30:00+08:00",
 	}, nil)
 	useStructuredQueryRuntimeFixture(
@@ -358,7 +358,7 @@ func TestStructuredQueryTransportScheduleFailsClosedWhenProjectionUnavailable(t 
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
-		StructuredQuerySharedSecret:       "query-secret",
+		InternalQuerySharedSecret:       "query-secret",
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	}, nil)
 
@@ -394,7 +394,7 @@ func TestStructuredQueryNoticeDiscoverRequiresQueryAuth(t *testing.T) {
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:        8,
 		RequestBodyLimitBytes:       1_048_576,
-		StructuredQuerySharedSecret: "query-secret",
+		InternalQuerySharedSecret: "query-secret",
 	}, nil)
 
 	response := httptest.NewRecorder()
@@ -414,7 +414,7 @@ func TestStructuredQueryNoticeDiscoverFailsClosedWhenReadModelUnavailable(t *tes
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
-		StructuredQuerySharedSecret:       "query-secret",
+		InternalQuerySharedSecret:       "query-secret",
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	}, nil)
 

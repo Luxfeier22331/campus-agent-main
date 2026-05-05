@@ -11,8 +11,8 @@ AGENTS_SDK_PROMOTION_GATE_SCHEMA_VERSION = "agents-sdk-promotion-gate-v1"
 AGENTS_SDK_CAMPUS_SERVICES_ADOPTION_MATRIX = {
     "service_status_lookup": "direct_runtime_preferred",
     "transport_schedule_lookup": "direct_runtime_preferred",
-    "service_guide_lookup": "defer_sdk_argument_completion_candidate",
-    "contact_directory_lookup": "defer_sdk_argument_completion_candidate",
+    "service_guide_lookup": "sdk_adapter_admitted",
+    "contact_directory_lookup": "sdk_adapter_admitted",
 }
 
 
@@ -34,7 +34,7 @@ class AgentsSdkPromotionGateResult:
     schema_version: str
     target: str
     tool: str
-    candidate_admitted: bool
+    adapter_admitted: bool
     default_on_allowed: bool
     decision: str
     blockers: tuple[str, ...]
@@ -64,7 +64,7 @@ def evaluate_agents_sdk_promotion_gate(
     if not evidence.rollback_path_documented:
         blockers.append("rollback_path_missing")
 
-    candidate_admitted = not blockers
+    adapter_admitted = not blockers
     default_on_blockers = list(blockers)
     if not evidence.live_latency_cost_evidence_present:
         default_on_blockers.append("live_latency_cost_evidence_missing")
@@ -73,9 +73,9 @@ def evaluate_agents_sdk_promotion_gate(
         schema_version=AGENTS_SDK_PROMOTION_GATE_SCHEMA_VERSION,
         target=evidence.target,
         tool=evidence.tool,
-        candidate_admitted=candidate_admitted,
+        adapter_admitted=adapter_admitted,
         default_on_allowed=not default_on_blockers,
-        decision="keep_explicit_gate" if candidate_admitted else "keep_closed",
+        decision="keep_explicit_runtime_gate" if adapter_admitted else "keep_closed",
         blockers=tuple(default_on_blockers),
         adoption_matrix=dict(AGENTS_SDK_CAMPUS_SERVICES_ADOPTION_MATRIX),
     )

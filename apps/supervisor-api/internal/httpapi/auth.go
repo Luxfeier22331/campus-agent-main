@@ -19,7 +19,7 @@ func (s *Server) internalWorkerAuthorized(request *http.Request) bool {
 }
 
 func (s *Server) structuredQueryAuthorized(request *http.Request) bool {
-	secret := strings.TrimSpace(s.config.StructuredQuerySharedSecret)
+	secret := strings.TrimSpace(s.config.InternalQuerySharedSecret)
 	if secret == "" {
 		return false
 	}

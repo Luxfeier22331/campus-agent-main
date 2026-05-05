@@ -2,7 +2,7 @@
 doc_type: roadmap
 status: completed
 created: 2026-05-04
-updated: 2026-05-04
+updated: 2026-05-05
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -62,8 +62,6 @@ git diff --check
   - optional future `sdk_adapter_admitted`
 - Define env gates:
   - runtime enabled
-  - allowed targets
-  - allowed tools
   - optional mode: `off` / `shadow` / `admitted`
 - Define readiness output:
   - dependency available
@@ -227,7 +225,7 @@ git diff --check
 - Add local/staging smoke command.
 - Define rollback:
   - disable SDK runtime
-  - restrict target/tool allowlist
+  - remove SDK posture from ToolSpec or close the incoming Go handoff
   - fall back to existing path
 
 **Exit Criteria:**
@@ -258,9 +256,9 @@ git diff --check
 **Exit Criteria:**
 
 - The selected posture is recorded with target/tool granularity.
-- Env defaults are changed only if evidence supports default-on.
-- Current decision: keep `notice-agent + campus_notice_discover` explicit-gated. Do not promote to
-  default-on from a single E2E smoke.
+- Env defaults are limited to the single SDK runtime kill switch.
+- Current decision: default-on SDK adapter for ToolSpec-admitted tools. Missing provider/model/key
+  or dependency degrades readiness and fails closed instead of falling back to bespoke loops.
 
 ## Phase 9: Closeout And Architecture Update
 
@@ -282,40 +280,48 @@ git diff --check
 
 ## Implementation Closeout
 
-**Selected posture:** `notice-agent + campus_notice_discover` is now an explicit-gated
-SDK adapter candidate. It is not default-on.
+**Selected posture:** Agents SDK is the default domain-agent adapter for admitted ToolSpec tools.
 
 **Current ToolSpec posture:**
 
-- `campus_notice_discover`: `sdk_adapter_candidate`
+- `campus_notice_discover`: `sdk_adapter_admitted`
 - `campus_notice_get`: `closed`, agent-internal only
 - `service_status_lookup`: `typed_handoff_only`
 - `transport_schedule_lookup`: `typed_handoff_only`
-- `service_guide_lookup`: `typed_handoff_only`
-- `contact_directory_lookup`: `typed_handoff_only`
+- `service_guide_lookup`: `sdk_adapter_admitted`
+- `contact_directory_lookup`: `sdk_adapter_admitted`
 
 **Implemented gates:**
 
-- Python ToolSpec and Go runtimepolicy validate `sdk_adapter_candidate` /
-  `sdk_adapter_admitted`.
+- Python ToolSpec and Go runtimepolicy validate SDK adapter posture.
 - SDK tool bridge admits only SDK adapter postures, not generic provider-loop postures.
 - `/readyz` SDK runtime status reports target/tool admitted and blocked pairs.
 - `_build_agents_sdk_runner` is target-agnostic and builds `OpenAIAgentsSdkRunner` only after
-  runtime gate, target/tool allowlist, provider, model and API key are present.
-- `notice-agent` routes `campus_notice_discover` through SDK shell only when explicitly gated.
+  runtime gate, provider, model and API key are present.
+- `notice-agent` routes `campus_notice_discover` through SDK shell when admitted by ToolSpec.
+- `campus-services-agent` routes `service_guide_lookup` and `contact_directory_lookup` through SDK
+  shell when admitted by ToolSpec.
 - `campus_notice_get` remains closed for SDK/provider routing.
-- Eval gate keeps the candidate explicit-gated until live latency/cost evidence exists.
+- Eval gate records the admitted SDK adapter matrix; latency/cost/error-rate evidence remains a
+  release and observability signal, not a pre-production blocker.
 
-**Follow-up evidence before default-on:**
+**Release follow-up evidence:**
 
 - Re-run the structured-query E2E smoke:
   `uv run --all-packages python -m scripts.agents_sdk_notice_discover_e2e_smoke --timeout-seconds 90 --startup-timeout-seconds 180`.
-- Keep `SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED=true`,
-  `SUPERVISOR_AGENTS_SDK_ALLOWED_TARGETS=notice-agent`,
-  `SUPERVISOR_AGENTS_SDK_ALLOWED_TOOLS=campus_notice_discover` and complete prompt runtime
-  provider config explicit in the E2E lane.
+- Keep prompt runtime provider config explicit in the E2E lane.
 - Record live latency/cost/error evidence across multiple runs.
-- Re-run parity, redaction and rollback gates before changing defaults.
+- Re-run parity, redaction and rollback gates before broadening the admitted ToolSpec set.
+
+**Public chat dev E2E evidence recorded 2026-05-05:**
+
+- `pnpm --dir apps/app-api chat:e2e:dev`
+- `passed=true`
+- `resultKind=answer`
+- entrypoint: local `public-chat-web` + `app-api` auth/session + Docker-first
+  `supervisor-api -> supervisor-agent-worker -> rag-agent`
+- blocker fixed: supervisor runtime image now carries runtime AgentSpec; terminal supervisor
+  envelopes include canonical nullable `result` and `error`
 
 **Structured-query E2E evidence recorded 2026-05-04:**
 

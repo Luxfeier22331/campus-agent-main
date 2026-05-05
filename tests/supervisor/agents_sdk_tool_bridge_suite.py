@@ -51,30 +51,42 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
 
         self.assertEqual(caught.exception.reason, "unsupported_tool_surface")
 
-    def test_admits_sdk_adapter_candidate_notice_discover_tool(self) -> None:
+    def test_admits_sdk_adapter_admitted_domain_agent_tools(self) -> None:
         descriptors = build_agents_sdk_tool_descriptors(
-            ("campus_notice_discover",),
-            registry=_sdk_candidate_tool_registry("campus_notice_discover"),
-        )
-
-        self.assertEqual(len(descriptors), 1)
-        descriptor = descriptors[0]
-        self.assertEqual(descriptor.name, "campus_notice_discover")
-        self.assertEqual(descriptor.owner_agent, "notice-agent")
-        self.assertEqual(descriptor.runtime_posture, "sdk_adapter_candidate")
-        self.assertTrue(descriptor.read_only)
-        self.assertTrue(descriptor.function_schema_strict)
-
-    def test_admits_sdk_adapter_admitted_notice_discover_tool(self) -> None:
-        descriptors = build_agents_sdk_tool_descriptors(
-            ("campus_notice_discover",),
-            registry=_sdk_candidate_tool_registry(
+            (
                 "campus_notice_discover",
-                runtime_posture="sdk_adapter_admitted",
-            ),
+                "service_guide_lookup",
+                "contact_directory_lookup",
+            )
         )
 
-        self.assertEqual(descriptors[0].runtime_posture, "sdk_adapter_admitted")
+        self.assertEqual(
+            [(descriptor.name, descriptor.owner_agent) for descriptor in descriptors],
+            [
+                ("campus_notice_discover", "notice-agent"),
+                ("service_guide_lookup", "campus-services-agent"),
+                ("contact_directory_lookup", "campus-services-agent"),
+            ],
+        )
+        for descriptor in descriptors:
+            self.assertEqual(descriptor.runtime_posture, "sdk_adapter_admitted")
+            self.assertTrue(descriptor.read_only)
+            self.assertTrue(descriptor.function_schema_strict)
+
+    def test_rejects_legacy_sdk_adapter_candidate_before_admitted_posture(self) -> None:
+        with self.assertRaisesRegex(
+            AgentsSdkToolBridgeError,
+            "runtime_posture_not_admitted",
+        ) as caught:
+            build_agents_sdk_tool_descriptors(
+                ("campus_notice_discover",),
+                registry=_sdk_candidate_tool_registry(
+                    "campus_notice_discover",
+                    runtime_posture="sdk_adapter_candidate",
+                ),
+            )
+
+        self.assertEqual(caught.exception.reason, "runtime_posture_not_admitted")
 
     def test_bridge_module_does_not_import_or_execute_sdk_runtime(self) -> None:
         source = Path(
@@ -104,7 +116,7 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
 def _sdk_candidate_tool_registry(
     tool_name: str,
     *,
-    runtime_posture: str = "sdk_adapter_candidate",
+    runtime_posture: str = "sdk_adapter_admitted",
 ):
     registry = default_tool_spec_registry()
     return replace(

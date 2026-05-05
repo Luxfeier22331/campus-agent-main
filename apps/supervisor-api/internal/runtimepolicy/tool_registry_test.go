@@ -58,13 +58,46 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 			serviceStatus.RuntimePosture,
 		)
 	}
+	serviceGuide, ok := registry.ToolByName("service_guide_lookup")
+	if !ok {
+		t.Fatal("service_guide_lookup missing from ToolSpec")
+	}
+	if !serviceGuide.FunctionSchema.Available || serviceGuide.RuntimePosture != "sdk_adapter_admitted" {
+		t.Fatalf(
+			"service_guide_lookup function/runtime posture = %#v/%q, want available sdk_adapter_admitted",
+			serviceGuide.FunctionSchema,
+			serviceGuide.RuntimePosture,
+		)
+	}
+	transport, ok := registry.ToolByName("transport_schedule_lookup")
+	if !ok {
+		t.Fatal("transport_schedule_lookup missing from ToolSpec")
+	}
+	if !transport.FunctionSchema.Available || transport.RuntimePosture != "typed_handoff_only" {
+		t.Fatalf(
+			"transport_schedule_lookup function/runtime posture = %#v/%q, want available typed_handoff_only",
+			transport.FunctionSchema,
+			transport.RuntimePosture,
+		)
+	}
+	contact, ok := registry.ToolByName("contact_directory_lookup")
+	if !ok {
+		t.Fatal("contact_directory_lookup missing from ToolSpec")
+	}
+	if !contact.FunctionSchema.Available || contact.RuntimePosture != "sdk_adapter_admitted" {
+		t.Fatalf(
+			"contact_directory_lookup function/runtime posture = %#v/%q, want available sdk_adapter_admitted",
+			contact.FunctionSchema,
+			contact.RuntimePosture,
+		)
+	}
 	noticeDiscover, ok := registry.ToolByName("campus_notice_discover")
 	if !ok {
 		t.Fatal("campus_notice_discover missing from ToolSpec")
 	}
-	if !noticeDiscover.FunctionSchema.Available || noticeDiscover.RuntimePosture != "sdk_adapter_candidate" {
+	if !noticeDiscover.FunctionSchema.Available || noticeDiscover.RuntimePosture != "sdk_adapter_admitted" {
 		t.Fatalf(
-			"campus_notice_discover function/runtime posture = %#v/%q, want available sdk_adapter_candidate",
+			"campus_notice_discover function/runtime posture = %#v/%q, want available sdk_adapter_admitted",
 			noticeDiscover.FunctionSchema,
 			noticeDiscover.RuntimePosture,
 		)

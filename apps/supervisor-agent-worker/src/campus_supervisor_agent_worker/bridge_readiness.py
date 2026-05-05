@@ -155,7 +155,7 @@ def default_provider_tool_runtime_status(
         allowed_tools=settings.provider_tool_runtime_allowed_tools,
         prompt_runtime_admitted=admitted,
         structured_query_configured=bool(
-            settings.structured_query_base_url and settings.structured_query_shared_secret
+            settings.internal_query_base_url and settings.internal_query_shared_secret
         ),
     )
 
@@ -167,8 +167,6 @@ def default_agents_sdk_runtime_status(
 ) -> dict[str, object]:
     return agents_sdk_runtime_status(
         enabled=settings.agents_sdk_runtime_enabled,
-        allowed_targets=settings.agents_sdk_runtime_allowed_targets,
-        allowed_tools=settings.agents_sdk_runtime_allowed_tools,
         prompt_runtime_provider=settings.prompt_runtime_provider or settings.runtime_provider,
         prompt_runtime_admitted=admitted,
         agent_model=settings.agent_prompt_model,

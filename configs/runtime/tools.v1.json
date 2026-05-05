@@ -35,7 +35,7 @@
 				"available": true,
 				"strict": true
 			},
-			"runtime_posture": "typed_handoff_only",
+			"runtime_posture": "sdk_adapter_admitted",
 			"description": "Lookup stable campus service guide entries and current release material."
 		},
 		{
@@ -71,7 +71,7 @@
 				"available": true,
 				"strict": true
 			},
-			"runtime_posture": "typed_handoff_only",
+			"runtime_posture": "sdk_adapter_admitted",
 			"description": "Lookup governed campus contact directory records."
 		},
 		{
@@ -89,7 +89,7 @@
 				"available": true,
 				"strict": true
 			},
-			"runtime_posture": "sdk_adapter_candidate",
+			"runtime_posture": "sdk_adapter_admitted",
 			"description": "Discover governed campus notices by topic, family, and target surface."
 		},
 		{

@@ -335,7 +335,7 @@ def run_service_guide_isolated_publish_proof(
             output_dir=smoke_output_dir,
             database_url=runtime_database_url,
             structured_query_secret=os.getenv(
-                "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET", "query-secret"
+                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET", "query-secret"
             ),
             trusted_time_rfc3339=trusted_time_rfc3339,
         )

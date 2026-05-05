@@ -59,8 +59,6 @@ def build_e2e_smoke_plan(
         "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": _QUERY_SECRET,
         "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS": "3.0",
         "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "true",
-        "SUPERVISOR_AGENTS_SDK_ALLOWED_TARGETS": "notice-agent",
-        "SUPERVISOR_AGENTS_SDK_ALLOWED_TOOLS": "campus_notice_discover",
     }
     api_env = {
         **common_env,

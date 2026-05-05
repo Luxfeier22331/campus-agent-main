@@ -144,16 +144,12 @@ def _smoke_settings() -> ApiSettings:
         agent_prompt_model=model,
         prompt_runtime_model=model,
         agents_sdk_runtime_enabled=True,
-        agents_sdk_runtime_allowed_targets=("notice-agent",),
-        agents_sdk_runtime_allowed_tools=("campus_notice_discover",),
     )
 
 
 def _env_summary(settings: ApiSettings) -> dict[str, object]:
     return {
         "agents_sdk_runtime_enabled": settings.agents_sdk_runtime_enabled,
-        "allowed_targets": list(settings.agents_sdk_runtime_allowed_targets),
-        "allowed_tools": list(settings.agents_sdk_runtime_allowed_tools),
         "prompt_runtime_provider": settings.prompt_runtime_provider,
         "agent_prompt_model": settings.agent_prompt_model,
         "prompt_runtime_base_url_present": bool(settings.prompt_runtime_base_url),

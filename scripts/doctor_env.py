@@ -264,8 +264,8 @@ _SURFACE_SPECS = {
             "execution_audit_shared_secret": ("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET",),
             "execution_audit_batch_size": ("SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE",),
             "execution_audit_spool_dir": ("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR",),
-            "structured_query_base_url": ("SUPERVISOR_STRUCTURED_QUERY_BASE_URL",),
-            "structured_query_shared_secret": ("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",),
+            "internal_query_base_url": ("SUPERVISOR_INTERNAL_QUERY_BASE_URL",),
+            "internal_query_shared_secret": ("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",),
             "structured_query_timeout_ms": ("SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS",),
             "structured_query_timeout_seconds": ("SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",),
             "internal_notice_read_model_database_url": ("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",),
@@ -548,8 +548,8 @@ def _collect_surface_conditions(
     )
     structured_missing: list[str] = []
     if structured_runtime_required:
-        if not _setting_present(optional_settings, "structured_query_shared_secret"):
-            structured_missing.append("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET")
+        if not _setting_present(optional_settings, "internal_query_shared_secret"):
+            structured_missing.append("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET")
         if not shared_postgres_present:
             structured_missing.append("CAMPUS_SHARED_POSTGRES_URL")
     conditions["structured_runtime_contract"] = {

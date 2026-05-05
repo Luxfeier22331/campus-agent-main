@@ -474,7 +474,7 @@ def _sdk_test_tool_registry() -> ToolSpecRegistry:
     return replace(
         registry,
         tools=tuple(
-            replace(tool, runtime_posture="sdk_adapter_candidate")
+            replace(tool, runtime_posture="sdk_adapter_admitted")
             if tool.name == "campus_notice_discover"
             else tool
             for tool in registry.tools

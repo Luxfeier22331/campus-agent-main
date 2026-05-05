@@ -33,9 +33,9 @@ Notice user-facing output is card-first and source-link-first.
   resolve/context function.
 - Provider function schema generation must not emit `campus_notice_get`.
 - Agents SDK and provider-loop notice-get pilots are closed.
-- If Agents SDK is used at all, only
-  `notice-agent + campus_notice_discover` may be admitted as an
-  explicit-gated candidate until live evidence supports any broader promotion.
+- Agents SDK defaults on as a worker adapter, but tool eligibility is derived
+  only from AgentSpec / ToolSpec / Go `AgentRequest.allowed_tools`; no worker
+  target/tool env allowlist exists.
 - Public answers, workflow traces, panel assets and eval canonical artifacts
   must not carry full `normalized_body`, OCR owner text, inline image text or
   attachment body.
@@ -145,7 +145,7 @@ Python calls Go through private internal routes:
 
 Required header:
 
-- `x-supervisor-query-auth: <SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET>`
+- `x-supervisor-query-auth: <SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET>`
 
 Request body:
 

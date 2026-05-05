@@ -44,7 +44,7 @@ updated: 2026-04-27
 - conditional:
   - 启用 execution audit 时：`SUPERVISOR_API_EXECUTION_AUDIT_URL`、
     `SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET`
-  - 打开 `campus_services` / `notice` capability 时：`SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET`、
+  - 打开 `campus_services` / `notice` capability 时：`SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`、
     `CAMPUS_SHARED_POSTGRES_URL`；notice 还需要 object-store/read-model 依赖
 
 禁止把 deploy-only secret 写回 repo-tracked `.env.example`。

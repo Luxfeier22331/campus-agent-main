@@ -1,16 +1,27 @@
 from __future__ import annotations
 
 from collections.abc import Callable, Mapping
+from dataclasses import asdict
 
 import httpx
-from campus_contracts import AgentRequest
-from campus_contracts import CampusNoticeDiscoverPayload
+from campus_contracts import (
+    AgentRequest,
+    CampusNoticeDiscoverPayload,
+    ContactDirectoryLookupPayload,
+    ServiceGuideLookupPayload,
+)
 from campus_navigation_agent import delegate_to_navigation_agent
 from campus_notice_agent import NoticeHTTPQueryService, delegate_to_notice_agent
 from campus_notice_agent.query_service import NoticeAccessContext, NoticeDiscoverQuery
 from campus_rag_agent.service import delegate_to_rag_agent
 from campus_retrieval_core import build_jsonl_retrieval_observation_sink
-from campus_services_agent import CampusServicesHTTPQueryService, delegate_to_campus_services_agent
+from campus_services_agent import (
+    CampusServicesAccessContext,
+    CampusServicesHTTPQueryService,
+    ContactDirectoryQuery,
+    ServiceGuideQuery,
+    delegate_to_campus_services_agent,
+)
 from campus_shared import PromptRuntimeHTTPSettings, PromptRuntimeProviderConfig
 
 from campus_supervisor_agent_worker.agent_dispatch import (
@@ -31,6 +42,7 @@ from campus_supervisor_agent_worker.retrieval_observation_bridge import (
     compose_retrieval_observation_sinks,
 )
 from campus_supervisor_agent_worker.settings import ApiSettings
+from campus_supervisor_agent_worker.tool_spec_registry import default_tool_spec_registry
 
 ProviderFunctionToolProvider = Callable[[object], Mapping[str, object]]
 
@@ -106,9 +118,11 @@ def _build_agent_delegates(
     }
     if campus_services_query_service is not None:
         agent_delegates["campus-services-agent"] = lambda agent_request: (
-            delegate_to_campus_services_agent(
+            _delegate_to_campus_services_agent(
                 agent_request,
+                settings=settings,
                 query_service=campus_services_query_service,
+                agents_sdk_runner=agents_sdk_runner,
             )
         )
     if notice_query_service is not None:
@@ -131,7 +145,7 @@ def _delegate_to_notice_agent(
     agents_sdk_runner: AgentsSdkRunner | None,
 ):
     _ = provider_tool_provider
-    if _should_route_notice_discover_to_agents_sdk(
+    if _should_route_to_agents_sdk(
         agent_request,
         settings=settings,
         agents_sdk_runner=agents_sdk_runner,
@@ -153,19 +167,54 @@ def _delegate_to_notice_agent(
     )
 
 
-def _should_route_notice_discover_to_agents_sdk(
+def _delegate_to_campus_services_agent(
+    agent_request: AgentRequest,
+    *,
+    settings: ApiSettings,
+    query_service: CampusServicesHTTPQueryService,
+    agents_sdk_runner: AgentsSdkRunner | None,
+):
+    if _should_route_to_agents_sdk(
+        agent_request,
+        settings=settings,
+        agents_sdk_runner=agents_sdk_runner,
+    ):
+        return run_agents_sdk_runner_shell(
+            agent_request,
+            runner=agents_sdk_runner,
+            enabled=True,
+            execute_tool=lambda execution: _execute_campus_services_tool(
+                execution,
+                agent_request=agent_request,
+                query_service=query_service,
+            ),
+            require_tool_execution=True,
+        )
+    return delegate_to_campus_services_agent(
+        agent_request,
+        query_service=query_service,
+    )
+
+
+def _should_route_to_agents_sdk(
     agent_request: AgentRequest,
     *,
     settings: ApiSettings,
     agents_sdk_runner: AgentsSdkRunner | None,
 ) -> bool:
+    if not settings.agents_sdk_runtime_enabled or agents_sdk_runner is None:
+        return False
+    if len(agent_request.allowed_tools) != 1:
+        return False
+    tool_name = agent_request.allowed_tools[0]
+    tool = default_tool_spec_registry().tool_by_name(tool_name)
+    if tool is None:
+        return False
     return (
-        settings.agents_sdk_runtime_enabled
-        and agents_sdk_runner is not None
-        and agent_request.target in settings.agents_sdk_runtime_allowed_targets
-        and isinstance(agent_request.payload, CampusNoticeDiscoverPayload)
-        and agent_request.allowed_tools == ("campus_notice_discover",)
-        and settings.agents_sdk_runtime_allowed_tools == ("campus_notice_discover",)
+        tool.active
+        and tool.surface == "structured_handoff"
+        and tool.owner_agent == agent_request.target
+        and tool.runtime_posture == "sdk_adapter_admitted"
     )
 
 
@@ -199,6 +248,95 @@ def _execute_notice_discover_tool(
     }
 
 
+def _execute_campus_services_tool(
+    execution: AgentsSdkToolExecutionRequest,
+    *,
+    agent_request: AgentRequest,
+    query_service: CampusServicesHTTPQueryService,
+) -> dict[str, object]:
+    if execution.name == "service_guide_lookup":
+        payload = ServiceGuideLookupPayload(**execution.arguments)
+        result = query_service.lookup_service_guide(
+            ServiceGuideQuery(
+                payload=payload,
+                access_context=_campus_services_access_context(agent_request),
+            )
+        )
+        return _bounded_sdk_tool_result(
+            result,
+            query_key="service_query",
+            query_value=result.service_query,
+        )
+    if execution.name == "contact_directory_lookup":
+        payload = ContactDirectoryLookupPayload(**execution.arguments)
+        result = query_service.lookup_contact_directory(
+            ContactDirectoryQuery(
+                payload=payload,
+                access_context=_campus_services_access_context(agent_request),
+            )
+        )
+        return _bounded_sdk_tool_result(
+            result,
+            query_key="query_text",
+            query_value=result.query_text,
+        )
+    raise ValueError(f"campus-services-agent cannot execute SDK tool: {execution.name}")
+
+
+def _campus_services_access_context(agent_request: AgentRequest) -> CampusServicesAccessContext:
+    return CampusServicesAccessContext(
+        actor=agent_request.actor,
+        authorization=agent_request.context.authorization,
+    )
+
+
+def _bounded_sdk_tool_result(
+    result: object,
+    *,
+    query_key: str,
+    query_value: str,
+) -> dict[str, object]:
+    payload = asdict(result)
+    bounded: dict[str, object] = {
+        "status": "completed",
+        "outcome": str(payload.get("outcome") or ""),
+        query_key: query_value,
+        "source_ref_count": _source_ref_count_from_payload(payload),
+    }
+    for key in (
+        "guide_focus",
+        "contact_focus",
+        "queried_time_anchor",
+        "effective_from",
+        "effective_until",
+    ):
+        value = payload.get(key)
+        if value not in {None, "", ()}:
+            bounded[key] = value
+    return bounded
+
+
+def _source_ref_count_from_payload(payload: object) -> int:
+    refs: set[str] = set()
+
+    def collect(value: object) -> None:
+        if isinstance(value, str):
+            return
+        if isinstance(value, Mapping):
+            for key, item in value.items():
+                if str(key).endswith("source_refs") and isinstance(item, tuple | list):
+                    refs.update(str(ref).strip() for ref in item if str(ref).strip())
+                    continue
+                collect(item)
+            return
+        if isinstance(value, tuple | list):
+            for item in value:
+                collect(item)
+
+    collect(payload)
+    return len(refs)
+
+
 def _wrap_with_cancel_checks(agent_handler, cancel_flags: CancelFlagStore):
     def guarded_agent_handler(
         request,
@@ -217,11 +355,11 @@ def _wrap_with_cancel_checks(agent_handler, cancel_flags: CancelFlagStore):
 def _build_campus_services_query_service(
     settings: ApiSettings,
 ) -> CampusServicesHTTPQueryService | None:
-    if not settings.structured_query_base_url or not settings.structured_query_shared_secret:
+    if not settings.internal_query_base_url or not settings.internal_query_shared_secret:
         return None
     return CampusServicesHTTPQueryService(
-        base_url=settings.structured_query_base_url,
-        shared_secret=settings.structured_query_shared_secret,
+        base_url=settings.internal_query_base_url,
+        shared_secret=settings.internal_query_shared_secret,
         timeout_seconds=settings.structured_query_timeout_seconds,
     )
 
@@ -229,11 +367,11 @@ def _build_campus_services_query_service(
 def _build_notice_query_service(
     settings: ApiSettings,
 ) -> NoticeHTTPQueryService | None:
-    if not settings.structured_query_base_url or not settings.structured_query_shared_secret:
+    if not settings.internal_query_base_url or not settings.internal_query_shared_secret:
         return None
     return NoticeHTTPQueryService(
-        base_url=settings.structured_query_base_url,
-        shared_secret=settings.structured_query_shared_secret,
+        base_url=settings.internal_query_base_url,
+        shared_secret=settings.internal_query_shared_secret,
         timeout_seconds=settings.structured_query_timeout_seconds,
     )
 
@@ -252,8 +390,8 @@ def _build_provider_tool_provider(
         not provider
         or not settings.prompt_runtime_api_key
         or not settings.agent_prompt_model
-        or not settings.structured_query_base_url
-        or not settings.structured_query_shared_secret
+        or not settings.internal_query_base_url
+        or not settings.internal_query_shared_secret
     ):
         return None
     http_settings = PromptRuntimeHTTPSettings(
@@ -290,10 +428,6 @@ def _build_provider_tool_provider(
 
 def _build_agents_sdk_runner(settings: ApiSettings) -> AgentsSdkRunner | None:
     if not settings.agents_sdk_runtime_enabled:
-        return None
-    if settings.agents_sdk_runtime_allowed_targets != ("notice-agent",):
-        return None
-    if settings.agents_sdk_runtime_allowed_tools != ("campus_notice_discover",):
         return None
     provider = settings.prompt_runtime_provider or settings.runtime_provider
     if not provider or not settings.prompt_runtime_api_key or not settings.agent_prompt_model:
