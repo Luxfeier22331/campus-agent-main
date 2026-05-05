@@ -75,6 +75,24 @@
 			"description": "Lookup governed campus contact directory records."
 		},
 		{
+			"name": "academic_calendar_lookup",
+			"owner_agent": "calendar-agent",
+			"capability": "academic_calendar",
+			"payload_kind": "academic_calendar_lookup",
+			"payload_schema_ref": "campus_contracts.models_tools.AcademicCalendarLookupPayload",
+			"result_schema_ref": "campus_contracts.models_tools.AcademicCalendarLookupResult",
+			"backend": "internal_structured_query_service",
+			"surface": "structured_handoff",
+			"read_only": true,
+			"active": true,
+			"function_schema": {
+				"available": true,
+				"strict": true
+			},
+			"runtime_posture": "sdk_adapter_admitted",
+			"description": "Lookup governed academic calendar facts such as teaching week, holiday and makeup-class arrangement."
+		},
+		{
 			"name": "campus_notice_discover",
 			"owner_agent": "notice-agent",
 			"capability": "notice",

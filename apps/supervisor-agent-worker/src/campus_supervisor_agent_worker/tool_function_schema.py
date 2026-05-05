@@ -72,6 +72,16 @@ def _parameters_for_tool(tool: ToolSpec) -> dict[str, Any]:
 
 
 def _parameters_for_payload_kind(payload_kind: str) -> dict[str, Any]:
+    if payload_kind == "academic_calendar_lookup":
+        return _strict_object(
+            {
+                "query_text": _string("Original academic calendar fact question."),
+                "temporal_query": _temporal_query_schema(),
+                "academic_year_label": _string("Optional explicit academic year label such as 2026-2027学年."),
+                "date_hint": _string("Optional ISO date to resolve week, holiday, or makeup-class arrangement."),
+            },
+            required=("query_text",),
+        )
     if payload_kind == "service_status_lookup":
         return _strict_object(
             {

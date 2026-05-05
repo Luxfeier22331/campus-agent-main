@@ -101,6 +101,11 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                     "tool_runtime_posture": "sdk_adapter_admitted",
                 },
                 {
+                    "target": "calendar-agent",
+                    "tool": "academic_calendar_lookup",
+                    "tool_runtime_posture": "sdk_adapter_admitted",
+                },
+                {
                     "target": "notice-agent",
                     "tool": "campus_notice_discover",
                     "tool_runtime_posture": "sdk_adapter_admitted",
@@ -109,7 +114,7 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
         )
         self.assertEqual(status["blocked_pairs"], [])
 
-    def test_status_keeps_notice_get_and_deterministic_tools_out_of_sdk_pairs(self) -> None:
+    def test_status_ignores_non_sdk_structured_tools_when_deriving_admission(self) -> None:
         status = agents_sdk_runtime_status(
             enabled=True,
             prompt_runtime_provider="openai-responses",
@@ -117,12 +122,24 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
             sdk_available=True,
         )
 
-        tools = [pair["tool"] for pair in status["admitted_pairs"]]
-        blocked_tools = [pair["tool"] for pair in status["blocked_pairs"]]
-        self.assertNotIn("campus_notice_get", tools)
-        self.assertNotIn("campus_notice_get", blocked_tools)
-        self.assertNotIn("service_status_lookup", tools)
-        self.assertNotIn("transport_schedule_lookup", tools)
+        self.assertTrue(status["admitted"])
+        self.assertEqual(
+            [pair["tool"] for pair in status["admitted_pairs"]],
+            [
+                "service_guide_lookup",
+                "contact_directory_lookup",
+                "academic_calendar_lookup",
+                "campus_notice_discover",
+            ],
+        )
+        self.assertNotIn(
+            "service_status_lookup",
+            [pair["tool"] for pair in status["admitted_pairs"]],
+        )
+        self.assertNotIn(
+            "transport_schedule_lookup",
+            [pair["tool"] for pair in status["admitted_pairs"]],
+        )
 
     def test_status_fails_closed_when_registry_has_no_sdk_admitted_tool(self) -> None:
         from dataclasses import replace
@@ -139,6 +156,7 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                 for tool in registry.tools
             ),
         )
+
         status = agents_sdk_runtime_status(
             enabled=True,
             prompt_runtime_provider="openai-responses",
@@ -159,6 +177,19 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
             },
             status["blocked_pairs"],
         )
+
+    def test_status_keeps_notice_get_out_of_derived_sdk_pairs(self) -> None:
+        status = agents_sdk_runtime_status(
+            enabled=True,
+            prompt_runtime_provider="openai-responses",
+            agent_model="gpt-agent",
+            sdk_available=True,
+        )
+
+        tools = [pair["tool"] for pair in status["admitted_pairs"]]
+        blocked_tools = [pair["tool"] for pair in status["blocked_pairs"]]
+        self.assertNotIn("campus_notice_get", tools)
+        self.assertNotIn("campus_notice_get", blocked_tools)
 
 
 if __name__ == "__main__":

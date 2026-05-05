@@ -177,3 +177,29 @@ func TestMetricsUsesServiceGuideRouteLabel(t *testing.T) {
 		t.Fatalf("metrics body should not put service-guide under unknown route:\n%s", body)
 	}
 }
+
+func TestMetricsUsesAcademicCalendarRouteLabel(t *testing.T) {
+	server := NewServer(config.Config{MaxConcurrentAnswers: 8}, nil)
+
+	academicCalendar := httptest.NewRecorder()
+	server.ServeHTTP(
+		academicCalendar,
+		newTestRequest(
+			http.MethodPost,
+			"/internal/query/calendar/academic-calendar",
+			strings.NewReader(`{}`),
+		),
+	)
+	assertError(t, academicCalendar, http.StatusUnauthorized, "unauthorized")
+
+	metrics := httptest.NewRecorder()
+	server.ServeHTTP(metrics, newTestRequest(http.MethodGet, "/metrics", nil))
+	body := metrics.Body.String()
+	expected := `campus_supervisor_api_requests_total{route="/internal/query/calendar/academic-calendar",outcome="unauthorized",status_class="4xx"} 1`
+	if !strings.Contains(body, expected) {
+		t.Fatalf("metrics body missing academic-calendar route label:\n%s", body)
+	}
+	if strings.Contains(body, `campus_supervisor_api_requests_total{route="/__unknown__",outcome="unauthorized"`) {
+		t.Fatalf("metrics body should not put academic-calendar under unknown route:\n%s", body)
+	}
+}

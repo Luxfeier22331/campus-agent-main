@@ -119,7 +119,10 @@ def _agents_sdk_pair_status(
                     }
                 )
                 continue
-            if tool.owner_agent != target or tool.name not in agent.allowed_structured_handoff_tools:
+            if (
+                tool.owner_agent != target
+                or tool.name not in agent.allowed_structured_handoff_tools
+            ):
                 blocked_pairs.append(
                     {
                         "target": target,

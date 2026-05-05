@@ -53,6 +53,8 @@ func domainCandidatesForCapability(capability string, request Request) []string 
 		return []string{"campus_services"}
 	case "notice":
 		return []string{"notice"}
+	case "academic_calendar":
+		return []string{"academic_calendar"}
 	default:
 		return knowledgeDomains(request)
 	}
@@ -66,6 +68,8 @@ func taskKindForCapability(capability string) string {
 		return "campus_services_lookup"
 	case "notice":
 		return "notice_lookup"
+	case "academic_calendar":
+		return "academic_calendar_lookup"
 	default:
 		return "knowledge_lookup"
 	}

@@ -17,6 +17,7 @@ var supportedToolOwnerCapabilities = map[string]string{
 	"rag-agent":             "knowledge",
 	"navigation-agent":      "place_lookup",
 	"campus-services-agent": "campus_services",
+	"calendar-agent":        "academic_calendar",
 	"notice-agent":          "notice",
 }
 

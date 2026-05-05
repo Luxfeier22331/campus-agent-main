@@ -31,7 +31,7 @@ func TestStructuredQueryServiceStatusUsesConfiguredProjectionBundle(t *testing.T
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
-		InternalQuerySharedSecret:       "query-secret",
+		InternalQuerySharedSecret:         "query-secret",
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	}, nil)
 	useStructuredQueryRuntimeFixture(
@@ -124,7 +124,7 @@ func TestStructuredQueryTransportScheduleUsesConfiguredProjectionBundle(t *testi
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
-		InternalQuerySharedSecret:       "query-secret",
+		InternalQuerySharedSecret:         "query-secret",
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T20:30:00+08:00",
 	}, nil)
 	useStructuredQueryRuntimeFixture(
@@ -215,7 +215,7 @@ func TestStructuredQueryServiceGuideUsesConfiguredProjectionBundle(t *testing.T)
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
-		InternalQuerySharedSecret:       "query-secret",
+		InternalQuerySharedSecret:         "query-secret",
 		StructuredQueryTrustedTimeRFC3339: "2026-04-25T10:30:00+08:00",
 	}, nil)
 	useStructuredQueryRuntimeFixtures(
@@ -300,7 +300,7 @@ func TestStructuredQueryContactDirectoryUsesConfiguredProjectionBundle(t *testin
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
-		InternalQuerySharedSecret:       "query-secret",
+		InternalQuerySharedSecret:         "query-secret",
 		StructuredQueryTrustedTimeRFC3339: "2026-04-27T10:30:00+08:00",
 	}, nil)
 	useStructuredQueryRuntimeFixture(
@@ -354,11 +354,79 @@ func TestStructuredQueryContactDirectoryUsesConfiguredProjectionBundle(t *testin
 	}
 }
 
+func TestStructuredQueryAcademicCalendarUsesConfiguredProjectionBundle(t *testing.T) {
+	academicCalendarProjectionFixture := `{
+		"schema_version":"academic_calendar_projection.v1",
+		"academic_calendar_records":[
+			{
+				"academic_year_label":"2025-2026学年",
+				"term_label":"春季学期",
+				"start_date":"2026-05-04",
+				"end_date":"2026-05-10",
+				"week_index":10,
+				"day_kind":"teaching_day",
+				"class_day_pattern":"",
+				"is_makeup_class":false,
+				"holiday_name":"",
+				"source_refs":["official_web:muc-public-academic-calendar:owver"]
+			}
+		]
+	}`
+	server := NewServer(config.Config{
+		MaxConcurrentAnswers:              8,
+		RequestBodyLimitBytes:             1_048_576,
+		InternalQuerySharedSecret:         "query-secret",
+		StructuredQueryTrustedTimeRFC3339: "2026-05-04T09:00:00+08:00",
+	}, nil)
+	useStructuredQueryRuntimeFixture(
+		t,
+		server,
+		academicCalendarProjectionFixture,
+		"2026-05-04T09:00:00+08:00",
+	)
+
+	request := newTestRequest(
+		http.MethodPost,
+		"/internal/query/calendar/academic-calendar",
+		strings.NewReader(`{
+			"query_text":"今天第几教学周",
+			"temporal_query":{"mode":"current"},
+			"date_hint":"2026-05-04"
+		}`),
+	)
+	request.Header.Set("x-supervisor-query-auth", "query-secret")
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, request)
+
+	if response.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
+	}
+	body := decodeBody(t, response)
+	if body["outcome"] != "resolved_current" {
+		t.Fatalf("outcome = %v, want resolved_current", body["outcome"])
+	}
+	if body["week_index"] != float64(10) {
+		t.Fatalf("week_index = %v, want 10", body["week_index"])
+	}
+	if body["resolved_date"] != "2026-05-04" {
+		t.Fatalf("resolved_date = %v, want 2026-05-04", body["resolved_date"])
+	}
+
+	metricsResponse := httptest.NewRecorder()
+	server.ServeHTTP(metricsResponse, newTestRequest(http.MethodGet, "/metrics", nil))
+	if !strings.Contains(
+		metricsResponse.Body.String(),
+		`campus_supervisor_api_structured_query_requests_total{tool="academic_calendar_lookup",outcome="resolved_current",status_class="2xx"} 1`,
+	) {
+		t.Fatalf("metrics missing structured query counter:\n%s", metricsResponse.Body.String())
+	}
+}
+
 func TestStructuredQueryTransportScheduleFailsClosedWhenProjectionUnavailable(t *testing.T) {
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
-		InternalQuerySharedSecret:       "query-secret",
+		InternalQuerySharedSecret:         "query-secret",
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	}, nil)
 
@@ -392,8 +460,8 @@ func TestStructuredQueryTransportScheduleFailsClosedWhenProjectionUnavailable(t 
 
 func TestStructuredQueryNoticeDiscoverRequiresQueryAuth(t *testing.T) {
 	server := NewServer(config.Config{
-		MaxConcurrentAnswers:        8,
-		RequestBodyLimitBytes:       1_048_576,
+		MaxConcurrentAnswers:      8,
+		RequestBodyLimitBytes:     1_048_576,
 		InternalQuerySharedSecret: "query-secret",
 	}, nil)
 
@@ -414,7 +482,7 @@ func TestStructuredQueryNoticeDiscoverFailsClosedWhenReadModelUnavailable(t *tes
 	server := NewServer(config.Config{
 		MaxConcurrentAnswers:              8,
 		RequestBodyLimitBytes:             1_048_576,
-		InternalQuerySharedSecret:       "query-secret",
+		InternalQuerySharedSecret:         "query-secret",
 		StructuredQueryTrustedTimeRFC3339: "2026-04-24T10:30:00+08:00",
 	}, nil)
 

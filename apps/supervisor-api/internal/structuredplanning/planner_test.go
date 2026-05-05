@@ -82,6 +82,46 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantPayload: map[string]any{"intent": "service_window"},
 		},
 		{
+			name: "academic calendar teaching week",
+			request: Request{
+				EffectiveCapability: "academic_calendar",
+				UserGoal:            "今天第几教学周",
+			},
+			wantTarget: "calendar-agent",
+			wantKind:   "academic_calendar_lookup",
+			wantTool:   "academic_calendar_lookup",
+			wantPayload: map[string]any{
+				"query_text": "今天第几教学周",
+			},
+		},
+		{
+			name: "academic calendar makeup class day",
+			request: Request{
+				EffectiveCapability: "academic_calendar",
+				UserGoal:            "4月25日上周几的课",
+			},
+			wantTarget: "calendar-agent",
+			wantKind:   "academic_calendar_lookup",
+			wantTool:   "academic_calendar_lookup",
+			wantPayload: map[string]any{
+				"query_text": "4月25日上周几的课",
+			},
+		},
+		{
+			name: "academic calendar explicit year holiday arrangement",
+			request: Request{
+				EffectiveCapability: "academic_calendar",
+				UserGoal:            "2026-2027学年春假怎么安排",
+			},
+			wantTarget: "calendar-agent",
+			wantKind:   "academic_calendar_lookup",
+			wantTool:   "academic_calendar_lookup",
+			wantPayload: map[string]any{
+				"query_text":          "2026-2027学年春假怎么安排",
+				"academic_year_label": "2026-2027学年",
+			},
+		},
+		{
 			name: "transport how to board routes to service guide",
 			request: Request{
 				EffectiveCapability: "campus_services",
@@ -503,6 +543,34 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "enterprise wechat faq",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "企业微信提示需要同事扫码验证怎么办",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "企业微信提示需要同事扫码验证怎么办",
+				"guide_focus":   "procedure",
+			},
+		},
+		{
+			name: "enterprise wechat phone update",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "企业微信绑定手机号怎么改",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "企业微信绑定手机号怎么改",
+				"guide_focus":   "procedure",
+			},
+		},
+		{
 			name: "directory lookup guide",
 			request: Request{
 				EffectiveCapability: "campus_services",
@@ -527,6 +595,20 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantTool:   "service_guide_lookup",
 			wantPayload: map[string]any{
 				"service_query": "通讯录在哪里找",
+				"guide_focus":   "procedure",
+			},
+		},
+		{
+			name: "academic calendar guide",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校历怎么看",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校历怎么看",
 				"guide_focus":   "procedure",
 			},
 		},

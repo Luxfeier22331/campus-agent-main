@@ -29,6 +29,8 @@ func routeLabelFor(method string, path string) string {
 		return "/internal/query/campus-services/transport-schedule"
 	case method == http.MethodPost && path == "/internal/query/campus-services/contact-directory":
 		return "/internal/query/campus-services/contact-directory"
+	case method == http.MethodPost && path == "/internal/query/calendar/academic-calendar":
+		return "/internal/query/calendar/academic-calendar"
 	case method == http.MethodPost && path == "/internal/query/notices/discover":
 		return "/internal/query/notices/discover"
 	case method == http.MethodPost && path == "/internal/query/notices/get":

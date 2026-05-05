@@ -699,6 +699,62 @@ class StructuredProjectionPostgresPublisherTest(unittest.TestCase):
         self.assertEqual(contact_payload[0]["record_id"], "contact:handbook:1234")
         self.assertEqual(contact_payload[0]["display_name"], "保卫处")
 
+    def test_publish_academic_calendar_release_writes_pg_read_model(self) -> None:
+        publisher = object.__new__(PostgresStructuredProjectionPublisher)
+        publisher.database_url = "postgresql://projection.example/db"
+        publisher.schema = "ingestion_projection"
+        bundle = {
+            "schema_version": "academic_calendar_projection.v1",
+            "academic_calendar_records": [
+                {
+                    "academic_year_label": "2025-2026学年",
+                    "term_label": "春季学期",
+                    "start_date": "2026-05-01",
+                    "end_date": "2026-05-05",
+                    "week_index": 9,
+                    "day_kind": "holiday",
+                    "class_day_pattern": "",
+                    "is_makeup_class": False,
+                    "holiday_name": "劳动节假期",
+                    "source_refs": ["official_web:muc-public-academic-calendar:owver"],
+                }
+            ],
+        }
+        cursor = _RecordingCursor()
+
+        with patch(
+            "campus_ingestion_core.structured_projection_postgres._postgres_connection",
+            return_value=_FakeConnectionContextManager(cursor),
+        ):
+            publisher.publish_release(
+                corpus="calendar",
+                collection="academic_calendar",
+                release_id="academic-calendar-20260504T090000",
+                generated_at="2026-05-04T09:00:00+08:00",
+                schema_version="academic_calendar_projection.v1",
+                artifact_object_key=(
+                    "calendar/releases/academic_calendar/academic-calendar-20260504T090000/"
+                    "academic-calendar-projection.json"
+                ),
+                artifact_checksum="sha256:test",
+                bundle=bundle,
+                validation_status="valid",
+            )
+
+        executed_sql = "\n".join(query for query, _params in cursor.execute_calls)
+        self.assertIn("academic_calendar_read_model", executed_sql)
+        self.assertIn("week_index", executed_sql)
+        self.assertIn("holiday_name", executed_sql)
+        typed_insert_index = next(
+            index
+            for index, (query, _params) in enumerate(cursor.execute_calls)
+            if "academic_calendar_read_model" in query and "jsonb_to_recordset" in query
+        )
+        typed_payload = json.loads(cursor.execute_calls[typed_insert_index][1][0])
+        self.assertEqual(typed_payload[0]["record"]["term_label"], "春季学期")
+        self.assertEqual(typed_payload[0]["holiday_name"], "劳动节假期")
+        self.assertEqual(typed_payload[0]["week_index"], 9)
+
     def test_typed_insert_outer_select_reads_cte_columns_not_recordset_alias(self) -> None:
         query = PostgresStructuredProjectionPublisher._recordset_insert_query(
             "service_status_read_model",

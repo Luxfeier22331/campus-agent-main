@@ -31,6 +31,10 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 	if got := registry.AllowedToolsForTarget("rag-agent"); len(got) != 0 {
 		t.Fatalf("rag-agent structured tools = %#v, want none", got)
 	}
+	wantCalendar := []string{"academic_calendar_lookup"}
+	if got := registry.AllowedToolsForTarget("calendar-agent"); !sameStrings(got, wantCalendar) {
+		t.Fatalf("calendar tools = %#v, want %#v", got, wantCalendar)
+	}
 	noticeGet, ok := registry.ToolByName("campus_notice_get")
 	if !ok {
 		t.Fatal("campus_notice_get missing from ToolSpec")
@@ -91,6 +95,17 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 			contact.RuntimePosture,
 		)
 	}
+	calendar, ok := registry.ToolByName("academic_calendar_lookup")
+	if !ok {
+		t.Fatal("academic_calendar_lookup missing from ToolSpec")
+	}
+	if !calendar.FunctionSchema.Available || calendar.RuntimePosture != "sdk_adapter_admitted" {
+		t.Fatalf(
+			"academic_calendar_lookup function/runtime posture = %#v/%q, want available sdk_adapter_admitted",
+			calendar.FunctionSchema,
+			calendar.RuntimePosture,
+		)
+	}
 	noticeDiscover, ok := registry.ToolByName("campus_notice_discover")
 	if !ok {
 		t.Fatal("campus_notice_discover missing from ToolSpec")
@@ -113,6 +128,7 @@ func TestRuntimePolicyAllowedToolsMatchDefaultToolSpec(t *testing.T) {
 		"rag-agent",
 		"navigation-agent",
 		"campus-services-agent",
+		"calendar-agent",
 		"notice-agent",
 	} {
 		if got, want := AllowedToolsForTarget(target), registry.AllowedToolsForTarget(target); !sameStrings(got, want) {

@@ -97,6 +97,7 @@ class AgentDispatcher:
 _PAYLOAD_KIND_BY_CLASS_NAME = {
     "RagRequestPayload": "rag_request",
     "PlaceLookupPayload": "place_lookup",
+    "AcademicCalendarLookupPayload": "academic_calendar_lookup",
     "ServiceGuideLookupPayload": "service_guide_lookup",
     "ServiceStatusLookupPayload": "service_status_lookup",
     "TransportScheduleLookupPayload": "transport_schedule_lookup",

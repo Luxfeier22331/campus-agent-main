@@ -72,6 +72,10 @@ class AgentsSdkPromotionGateTest(unittest.TestCase):
             AGENTS_SDK_CAMPUS_SERVICES_ADOPTION_MATRIX["contact_directory_lookup"],
             "sdk_adapter_admitted",
         )
+        self.assertEqual(
+            AGENTS_SDK_CAMPUS_SERVICES_ADOPTION_MATRIX["academic_calendar_lookup"],
+            "sdk_adapter_admitted",
+        )
 
 
 def _passing_report() -> AgentsSdkPilotParityReport:

@@ -49,6 +49,14 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 	if normalizedGoal == "" || isDelegatedTransactionAction(normalizedGoal, policy) {
 		return nil
 	}
+	if request.EffectiveCapability == "academic_calendar" {
+		return SingleHandoffPlan(Handoff{
+			Target:       "calendar-agent",
+			PayloadKind:  "academic_calendar_lookup",
+			Payload:      academicCalendarPayload(request.UserGoal, normalizedGoal, request.VersionQuery),
+			AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("calendar-agent", "academic_calendar_lookup"),
+		})
+	}
 	if request.EffectiveCapability == "campus_services" {
 		serviceGuideFocus := classifyServiceGuideFocus(normalizedGoal, policy)
 		if isContactDirectoryLookup(normalizedGoal, policy) &&
@@ -167,6 +175,27 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 		})
 	}
 	return nil
+}
+
+var academicYearLabelPattern = regexp.MustCompile(`(20\d{2}-20\d{2}学年)`)
+
+func academicCalendarPayload(
+	userGoal string,
+	normalizedGoal string,
+	versionQuery VersionQuery,
+) map[string]any {
+	payload := map[string]any{
+		"query_text":     userGoal,
+		"temporal_query": temporalQueryPayload(versionQuery, normalizedGoal, runtimepolicy.IntentPolicyArtifact{}),
+	}
+	if academicYearLabel := extractAcademicYearLabel(userGoal); academicYearLabel != "" {
+		payload["academic_year_label"] = academicYearLabel
+	}
+	return payload
+}
+
+func extractAcademicYearLabel(userGoal string) string {
+	return academicYearLabelPattern.FindString(strings.TrimSpace(userGoal))
 }
 
 func isNoticeKnowledgeFollowthrough(
@@ -475,6 +504,9 @@ func isServiceGuideLookup(
 	if runtimepolicyDirectoryLookupGuideQuery(normalizedGoal) {
 		return true
 	}
+	if isAcademicCalendarGuideQuery(normalizedGoal) {
+		return true
+	}
 	return containsAny(normalizedGoal, policy.Signals("structured_service_guide_subject")) &&
 		containsAny(normalizedGoal, policy.Signals("structured_service_guide_action"))
 }
@@ -517,6 +549,9 @@ func classifyServiceGuideFocus(
 	policy runtimepolicy.IntentPolicyArtifact,
 ) string {
 	if runtimepolicyDirectoryLookupGuideQuery(normalizedGoal) {
+		return "procedure"
+	}
+	if isAcademicCalendarGuideQuery(normalizedGoal) {
 		return "procedure"
 	}
 	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_required_materials")) {
@@ -587,6 +622,19 @@ func runtimepolicyDirectoryLookupGuideQuery(normalizedGoal string) bool {
 		strings.Contains(normalizedGoal, "在哪里找") ||
 		strings.Contains(normalizedGoal, "在哪找") ||
 		strings.Contains(normalizedGoal, "在哪儿找")
+}
+
+func isAcademicCalendarGuideQuery(normalizedGoal string) bool {
+	if !strings.Contains(normalizedGoal, "校历") {
+		return false
+	}
+	return strings.Contains(normalizedGoal, "怎么看") ||
+		strings.Contains(normalizedGoal, "如何看") ||
+		strings.Contains(normalizedGoal, "在哪里看") ||
+		strings.Contains(normalizedGoal, "在哪看") ||
+		strings.Contains(normalizedGoal, "在哪儿看") ||
+		strings.Contains(normalizedGoal, "怎么查") ||
+		strings.Contains(normalizedGoal, "如何查")
 }
 
 func defaultString(value string, fallback string) string {

@@ -159,6 +159,14 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("uv sync --project /app --all-packages --no-dev", dockerfile)
         self.assertNotIn("--package campus-supervisor-agent-worker --no-dev", dockerfile)
 
+    def test_supervisor_agent_worker_docker_workspace_includes_calendar_agent(self) -> None:
+        dockerfile_path = ROOT / "apps/supervisor-agent-worker/Dockerfile"
+        dockerfile = dockerfile_path.read_text(encoding="utf-8")
+
+        self.assertIn("COPY packages/calendar-agent ./packages/calendar-agent", dockerfile)
+        self.assertIn('"packages/calendar-agent"', dockerfile)
+        self.assertIn("/app/packages/calendar-agent/src", dockerfile)
+
     def test_supervisor_agent_worker_docker_workspace_includes_runtime_specs(self) -> None:
         dockerfile_path = ROOT / "apps/supervisor-agent-worker/Dockerfile"
         dockerfile = dockerfile_path.read_text(encoding="utf-8")

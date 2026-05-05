@@ -6,6 +6,7 @@ import unittest
 from pathlib import Path
 
 from campus_contracts import (
+    AcademicCalendarLookupPayload,
     ActorContext,
     AgentRequest,
     AgentResponse,
@@ -284,6 +285,14 @@ class AgentDispatchTest(unittest.TestCase):
             "contact_directory_lookup": (
                 "campus-services-agent",
                 ContactDirectoryLookupPayload(query_text="校园卡电话", contact_focus="phone"),
+            ),
+            "academic_calendar_lookup": (
+                "calendar-agent",
+                AcademicCalendarLookupPayload(
+                    query_text="校历",
+                    academic_year_label="2026",
+                    date_hint="春季学期",
+                ),
             ),
             "campus_notice_discover": (
                 "notice-agent",

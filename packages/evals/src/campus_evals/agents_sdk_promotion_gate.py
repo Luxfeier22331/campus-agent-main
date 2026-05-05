@@ -13,6 +13,7 @@ AGENTS_SDK_CAMPUS_SERVICES_ADOPTION_MATRIX = {
     "transport_schedule_lookup": "direct_runtime_preferred",
     "service_guide_lookup": "sdk_adapter_admitted",
     "contact_directory_lookup": "sdk_adapter_admitted",
+    "academic_calendar_lookup": "sdk_adapter_admitted",
 }
 
 

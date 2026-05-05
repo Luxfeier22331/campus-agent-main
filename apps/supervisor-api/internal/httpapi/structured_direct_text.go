@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
@@ -51,6 +52,10 @@ func structuredAnswerText(payloadKind string, result map[string]any, status stri
 			if contact != "" {
 				return contact
 			}
+		case structuredquery.ToolAcademicCalendarLookup:
+			if calendarText := academicCalendarAnswerText(result); calendarText != "" {
+				return calendarText
+			}
 		case structuredquery.ToolCampusNoticeDiscover:
 			titles := noticeTitles(result["notice_cards"])
 			if titles != "" {
@@ -97,6 +102,14 @@ func structuredAnswerText(payloadKind string, result map[string]any, status stri
 			return "请明确你要查询的部门或联系对象。"
 		}
 		return "当前还不能稳定确认这项联系方式。"
+	case structuredquery.ToolAcademicCalendarLookup:
+		if stringValue(result["outcome"]) == "not_found" {
+			return "当前没有找到对应的校历安排。"
+		}
+		if stringValue(result["outcome"]) == "clarification_required" {
+			return "请明确你要查询的日期、假期名称或学年。"
+		}
+		return "当前还不能稳定确认这项校历安排。"
 	case structuredquery.ToolCampusNoticeDiscover:
 		if stringValue(result["outcome"]) == "not_found" {
 			return "当前没有找到对应通知。"
@@ -175,6 +188,61 @@ func serviceGuideAnswerContents(result map[string]any) string {
 		return contacts
 	}
 	return strings.Join(stringSliceValue(result["eligibility_notes"]), "、")
+}
+
+func academicCalendarAnswerText(result map[string]any) string {
+	parts := []string{}
+	resolvedDate := stringValue(result["resolved_date"])
+	academicYearLabel := stringValue(result["academic_year_label"])
+	termLabel := stringValue(result["term_label"])
+	holidayName := stringValue(result["holiday_name"])
+	classDayPattern := stringValue(result["class_day_pattern"])
+	dayKind := stringValue(result["day_kind"])
+	weekIndex := intValue(result["week_index"])
+	isMakeupClass, hasMakeupClass := boolValue(result["is_makeup_class"])
+
+	if resolvedDate != "" && weekIndex > 0 {
+		parts = append(parts, resolvedDate+"是第"+itoa(weekIndex)+"教学周")
+	} else if weekIndex > 0 {
+		parts = append(parts, "当前是第"+itoa(weekIndex)+"教学周")
+	}
+	if holidayName != "" {
+		if resolvedDate != "" {
+			parts = append(parts, resolvedDate+"属于"+holidayName)
+		} else {
+			parts = append(parts, "假期："+holidayName)
+		}
+	}
+	if classDayPattern != "" {
+		parts = append(parts, "执行课表："+classDayPattern)
+	}
+	if hasMakeupClass && isMakeupClass {
+		parts = append(parts, "当天属于补课安排")
+	}
+	if dayKind != "" && dayKind != "teaching_day" {
+		parts = append(parts, "日期类型："+dayKind)
+	}
+	if termLabel != "" {
+		parts = append(parts, termLabel)
+	}
+	if academicYearLabel != "" {
+		parts = append(parts, academicYearLabel)
+	}
+	return joinCalendarParts(parts)
+}
+
+func joinCalendarParts(parts []string) string {
+	filtered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			filtered = append(filtered, part)
+		}
+	}
+	if len(filtered) == 0 {
+		return ""
+	}
+	return strings.Join(filtered, "；") + "。"
 }
 
 func serviceGuideMaterialContents(raw any) string {
@@ -395,4 +463,28 @@ func stringValue(value any) string {
 		return ""
 	}
 	return strings.TrimSpace(text)
+}
+
+func intValue(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int32:
+		return int(typed)
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	default:
+		return 0
+	}
+}
+
+func boolValue(value any) (bool, bool) {
+	typed, ok := value.(bool)
+	return typed, ok
+}
+
+func itoa(value int) string {
+	return strconv.Itoa(value)
 }

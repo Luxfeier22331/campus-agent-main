@@ -2,7 +2,11 @@ from __future__ import annotations
 
 import unittest
 
-from campus_contracts import RagRequestPayload, ServiceStatusLookupPayload
+from campus_contracts import (
+    AcademicCalendarLookupPayload,
+    RagRequestPayload,
+    ServiceStatusLookupPayload,
+)
 from campus_supervisor_agent_worker.tool_spec_registry import load_tool_spec_registry
 
 
@@ -16,6 +20,10 @@ class ToolSpecRegistryTest(unittest.TestCase):
         }
 
         self.assertIs(payload_classes["service_status_lookup"], ServiceStatusLookupPayload)
+        self.assertIs(
+            payload_classes["academic_calendar_lookup"],
+            AcademicCalendarLookupPayload,
+        )
 
     def test_agent_internal_retrieval_query_is_not_structured_handoff(self) -> None:
         registry = load_tool_spec_registry()
@@ -80,6 +88,12 @@ class ToolSpecRegistryTest(unittest.TestCase):
             campus_service_tools["contact_directory_lookup"].runtime_posture,
             "sdk_adapter_admitted",
         )
+        calendar_tool = registry.tool_by_name("academic_calendar_lookup")
+        self.assertIsNotNone(calendar_tool)
+        assert calendar_tool is not None
+        self.assertEqual(calendar_tool.owner_agent, "calendar-agent")
+        self.assertEqual(calendar_tool.capability, "academic_calendar")
+        self.assertEqual(calendar_tool.runtime_posture, "sdk_adapter_admitted")
 
 
 if __name__ == "__main__":

@@ -22,7 +22,11 @@ class AgentSpecRegistryTest(unittest.TestCase):
         self.assertEqual(registry.known_agent_ids(), ALLOWED_AGENT_TARGETS)
         self.assertEqual(
             registry.active_agent_ids(),
-            ("rag-agent", "campus-services-agent", "notice-agent"),
+            ("rag-agent", "campus-services-agent", "calendar-agent", "notice-agent"),
+        )
+        self.assertEqual(
+            registry.payload_kinds_for_agent("calendar-agent"),
+            ("academic_calendar_lookup",),
         )
         self.assertEqual(
             registry.payload_kinds_for_agent("campus-services-agent"),
@@ -34,7 +38,9 @@ class AgentSpecRegistryTest(unittest.TestCase):
             ),
         )
 
-    def test_notice_agent_keeps_internal_notice_get_outside_structured_handoff_surface(self) -> None:
+    def test_notice_agent_keeps_internal_notice_get_outside_structured_handoff_surface(
+        self,
+    ) -> None:
         agent_registry = load_agent_spec_registry()
         tool_registry = load_tool_spec_registry()
         notice_agent = agent_registry.agent_by_id("notice-agent")
@@ -57,6 +63,7 @@ class AgentSpecRegistryTest(unittest.TestCase):
             settings=_fake_settings(),
             rag_prompt_executor=None,
             campus_services_query_service=None,
+            calendar_query_service=None,
             notice_query_service=None,
         )
 
@@ -69,7 +76,9 @@ class AgentSpecRegistryTest(unittest.TestCase):
                 "registry_version": "test",
                 "agents": [
                     _agent("rag-agent", capability="knowledge", active=True, opening_gate="open"),
-                    _agent("rag-agent", capability="campus_services", active=True, opening_gate="open"),
+                    _agent(
+                        "rag-agent", capability="campus_services", active=True, opening_gate="open"
+                    ),
                 ],
             }
         )
@@ -84,7 +93,9 @@ class AgentSpecRegistryTest(unittest.TestCase):
                 "registry_version": "test",
                 "agents": [
                     {
-                        **_agent("rag-agent", capability="knowledge", active=True, opening_gate="open"),
+                        **_agent(
+                            "rag-agent", capability="knowledge", active=True, opening_gate="open"
+                        ),
                         "id": "external-agent",
                     }
                 ],
@@ -120,7 +131,9 @@ class AgentSpecRegistryTest(unittest.TestCase):
                 "registry_version": "test",
                 "agents": [
                     {
-                        **_agent("notice-agent", capability="notice", active=True, opening_gate="open"),
+                        **_agent(
+                            "notice-agent", capability="notice", active=True, opening_gate="open"
+                        ),
                         "payload_kinds": ["campus_notice_discover", "campus_notice_get"],
                         "allowed_structured_handoff_tools": [
                             "campus_notice_discover",
@@ -177,6 +190,14 @@ def _agent(
             "delegate_module": "campus_services_agent",
             "delegate_symbol": "delegate_to_campus_services_agent",
         },
+        "calendar-agent": {
+            "owner_package": "packages/calendar-agent",
+            "payload_kinds": ["academic_calendar_lookup"],
+            "allowed_structured_handoff_tools": ["academic_calendar_lookup"],
+            "context_projection_kinds": ["calendar_fact"],
+            "delegate_module": "campus_calendar_agent",
+            "delegate_symbol": "delegate_to_calendar_agent",
+        },
         "notice-agent": {
             "owner_package": "packages/notice-agent",
             "payload_kinds": ["campus_notice_discover", "campus_notice_get"],
@@ -215,8 +236,8 @@ def _fake_settings():
         retrieval_observation_jsonl_path = ""
         retrieval_runtime_event_jsonl_path = ""
         retrieval_observation_include_query_text = False
-        structured_query_base_url = ""
-        structured_query_shared_secret = ""
+        internal_query_base_url = ""
+        internal_query_shared_secret = ""
         structured_query_timeout_seconds = 5.0
         provider_tool_runtime_enabled = False
         provider_tool_runtime_allowed_tools = ()

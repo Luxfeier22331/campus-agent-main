@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from campus_contracts import (
+    AcademicCalendarLookupPayload,
     CampusNoticeDiscoverPayload,
     CampusNoticeGetPayload,
     ContactDirectoryEntitySelector,
@@ -32,6 +33,7 @@ AgentPayload = (
     | ServiceStatusLookupPayload
     | ServiceGuideLookupPayload
     | ContactDirectoryLookupPayload
+    | AcademicCalendarLookupPayload
     | CampusNoticeDiscoverPayload
     | CampusNoticeGetPayload
     | RagRequestPayload
@@ -47,6 +49,17 @@ def parse_agent_payload_by_kind(payload_kind: str, payload: dict[str, object]) -
     if payload_kind == "place_lookup":
         return PlaceLookupPayload(
             query_text=require_string(payload.get("query_text"), field_name="query_text"),
+        )
+    if payload_kind == "academic_calendar_lookup":
+        return AcademicCalendarLookupPayload(
+            query_text=require_string(payload.get("query_text"), field_name="query_text"),
+            temporal_query=parse_temporal_query(payload.get("temporal_query")),
+            academic_year_label=parse_optional_string(
+                payload.get("academic_year_label"),
+                field_name="academic_year_label",
+            )
+            or "",
+            date_hint=parse_optional_string(payload.get("date_hint"), field_name="date_hint") or "",
         )
     if payload_kind == "transport_schedule_lookup":
         route_selector = payload.get("route_selector")

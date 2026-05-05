@@ -20,6 +20,7 @@ class ToolFunctionSchemaTest(unittest.TestCase):
                 "service_guide_lookup",
                 "transport_schedule_lookup",
                 "contact_directory_lookup",
+                "academic_calendar_lookup",
                 "campus_notice_discover",
             ),
         )

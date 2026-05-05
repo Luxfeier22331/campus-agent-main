@@ -36,6 +36,9 @@ func isTargetedPoliticalPersuasion(normalizedGoal string, policy IntentPolicyArt
 }
 
 func matchStructuredRuntimeCandidate(normalizedGoal string, policy IntentPolicyArtifact) string {
+	if signal := matchAcademicCalendarCandidate(normalizedGoal, policy); signal != "" {
+		return signal
+	}
 	if signal := firstMatch(normalizedGoal, policy.Signals("structured_transport")); signal != "" {
 		return signal
 	}
@@ -56,6 +59,59 @@ func matchStructuredRuntimeCandidate(normalizedGoal string, policy IntentPolicyA
 		return ""
 	}
 	return serviceSubject
+}
+
+func matchAcademicCalendarCandidate(normalizedGoal string, policy IntentPolicyArtifact) string {
+	if signal := firstMatch(normalizedGoal, policy.Signals("academic_calendar_week_query")); signal != "" {
+		return signal
+	}
+	if signal := firstMatch(normalizedGoal, policy.Signals("academic_calendar_makeup_query")); signal != "" {
+		return signal
+	}
+	holidaySignal := firstMatch(normalizedGoal, policy.Signals("academic_calendar_holiday_query"))
+	if holidaySignal == "" {
+		return ""
+	}
+	if containsAny(normalizedGoal, policy.Signals("academic_calendar_semantic_subject")) {
+		return holidaySignal
+	}
+	if hasAcademicCalendarHolidaySubject(normalizedGoal, policy) &&
+		hasAcademicCalendarHolidayAction(normalizedGoal, policy) {
+		return holidaySignal
+	}
+	return ""
+}
+
+func hasAcademicCalendarHolidaySubject(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	for _, signal := range policy.Signals("academic_calendar_holiday_query") {
+		normalizedSignal := NormalizeGoal(signal)
+		if normalizedSignal == "" || isAcademicCalendarHolidayActionSignal(normalizedSignal) {
+			continue
+		}
+		if strings.Contains(normalizedGoal, normalizedSignal) {
+			return true
+		}
+	}
+	return false
+}
+
+func hasAcademicCalendarHolidayAction(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	for _, signal := range policy.Signals("academic_calendar_holiday_query") {
+		normalizedSignal := NormalizeGoal(signal)
+		if normalizedSignal == "" || !strings.Contains(normalizedGoal, normalizedSignal) {
+			continue
+		}
+		if isAcademicCalendarHolidayActionSignal(normalizedSignal) {
+			return true
+		}
+	}
+	return false
+}
+
+func isAcademicCalendarHolidayActionSignal(normalizedSignal string) bool {
+	return strings.Contains(normalizedSignal, "放") ||
+		strings.Contains(normalizedSignal, "安排") ||
+		strings.Contains(normalizedSignal, "怎么")
 }
 
 func isPlannableCampusServicesSubtype(normalizedGoal string, policy IntentPolicyArtifact) bool {
@@ -107,6 +163,19 @@ func isDirectoryLookupGuideQuery(normalizedGoal string) bool {
 		strings.Contains(normalizedGoal, "在哪里找") ||
 		strings.Contains(normalizedGoal, "在哪找") ||
 		strings.Contains(normalizedGoal, "在哪儿找")
+}
+
+func isAcademicCalendarGuideQuery(normalizedGoal string) bool {
+	if !strings.Contains(normalizedGoal, "校历") {
+		return false
+	}
+	return strings.Contains(normalizedGoal, "怎么看") ||
+		strings.Contains(normalizedGoal, "如何看") ||
+		strings.Contains(normalizedGoal, "在哪里看") ||
+		strings.Contains(normalizedGoal, "在哪看") ||
+		strings.Contains(normalizedGoal, "在哪儿看") ||
+		strings.Contains(normalizedGoal, "怎么查") ||
+		strings.Contains(normalizedGoal, "如何查")
 }
 
 func matchStructuredContactDirectoryCandidate(

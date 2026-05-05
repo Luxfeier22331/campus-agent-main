@@ -29,6 +29,12 @@ func InferCapabilityFromGoal(userGoal string, policy IntentPolicyArtifact) strin
 	if containsAny(normalized, policy.Signals("structured_notice")) {
 		return "notice"
 	}
+	if isAcademicCalendarGuideQuery(normalized) {
+		return "campus_services"
+	}
+	if isAcademicCalendarFactQuery(normalized, policy) {
+		return "academic_calendar"
+	}
 	if containsAny(normalized, policy.Signals("structured_service_guide_subject")) &&
 		containsAny(normalized, policy.Signals("structured_service_guide_action")) {
 		return "campus_services"
@@ -60,6 +66,10 @@ func InferCapabilityFromGoal(userGoal string, policy IntentPolicyArtifact) strin
 		return "campus_services"
 	}
 	return "knowledge"
+}
+
+func isAcademicCalendarFactQuery(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	return matchAcademicCalendarCandidate(normalizedGoal, policy) != ""
 }
 
 func effectiveCapability(

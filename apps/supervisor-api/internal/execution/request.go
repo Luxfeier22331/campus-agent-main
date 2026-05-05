@@ -394,6 +394,8 @@ func laneForCapability(requestedCapability string) string {
 		return "navigation"
 	case "campus_services":
 		return "campus_services"
+	case "academic_calendar":
+		return "academic_calendar"
 	case "notice":
 		return "notice"
 	default:
@@ -403,7 +405,7 @@ func laneForCapability(requestedCapability string) string {
 
 func isAllowedRequestedCapability(requestedCapability string) bool {
 	switch requestedCapability {
-	case "knowledge", "place_lookup", "campus_services", "notice":
+	case "knowledge", "place_lookup", "campus_services", "academic_calendar", "notice":
 		return true
 	default:
 		return false

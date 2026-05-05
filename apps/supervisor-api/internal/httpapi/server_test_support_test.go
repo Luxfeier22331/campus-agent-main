@@ -110,6 +110,9 @@ func useStructuredQueryRuntimeFixture(
 		ContactDirectoryReadModelStore: &fakeStructuredReadModelStore{
 			bundle: bundle,
 		},
+		AcademicCalendarReadModelStore: &fakeStructuredReadModelStore{
+			bundle: bundle,
+		},
 		TrustedTimeRFC3339: trustedTime,
 	})
 }
@@ -134,6 +137,9 @@ func useStructuredQueryRuntimeFixtures(
 			bundle: decodeProjectionBundleFixture(t, serviceGuideBody),
 		},
 		ContactDirectoryReadModelStore: &fakeStructuredReadModelStore{
+			bundle: decodeProjectionBundleFixture(t, serviceGuideBody),
+		},
+		AcademicCalendarReadModelStore: &fakeStructuredReadModelStore{
 			bundle: decodeProjectionBundleFixture(t, serviceGuideBody),
 		},
 		TrustedTimeRFC3339: trustedTime,
@@ -175,7 +181,8 @@ func (s *fakeStructuredReadModelStore) ProjectionReady(context.Context) (bool, e
 	return len(s.bundle.ServiceStatusRecords) > 0 ||
 		len(s.bundle.TransportScheduleSnapshots) > 0 ||
 		len(s.bundle.ServiceGuideRecords) > 0 ||
-		len(s.bundle.ContactDirectoryRecords) > 0, nil
+		len(s.bundle.ContactDirectoryRecords) > 0 ||
+		len(s.bundle.AcademicCalendarRecords) > 0, nil
 }
 
 func (s *fakeStructuredReadModelStore) LoadBundleForRelease(

@@ -25,6 +25,8 @@
 !tests/fixtures/service_guide_vpn_grouped_procedure_result.json
 !tests/fixtures/supervisor_execution_contract/
 !tests/fixtures/supervisor_execution_contract/**
+!packages/calendar-agent/
+!packages/calendar-agent/**
 !packages/campus-services-agent/
 !packages/campus-services-agent/**
 !packages/contracts/

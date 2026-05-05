@@ -115,6 +115,10 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 		frame.DomainCandidates = []string{"notice"}
 		frame.ScopeClass = "in_scope"
 		frame.ScopeReason = scopeGate.Reason
+	case "academic_calendar":
+		frame.DomainCandidates = []string{"academic_calendar"}
+		frame.ScopeClass = "in_scope"
+		frame.ScopeReason = scopeGate.Reason
 	default:
 		if scopeGate.Decision == "out_of_scope" {
 			frame.DomainCandidates = []string{"out_of_scope"}

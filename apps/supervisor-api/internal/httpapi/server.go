@@ -250,6 +250,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleStructuredQuery(writer, request, structuredquery.ToolTransportScheduleLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/campus-services/contact-directory":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolContactDirectoryLookup)
+	case request.Method == http.MethodPost && path == "/internal/query/calendar/academic-calendar":
+		s.handleStructuredQuery(writer, request, structuredquery.ToolAcademicCalendarLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/discover":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeDiscover)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/get":

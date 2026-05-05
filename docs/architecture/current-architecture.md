@@ -247,6 +247,9 @@ document/index release`
   planning、clarification、grounded answer synthesis
 - `packages/navigation-agent` 已接受的 navigation capability boundary；当前 package /
   contract truth 存在，但产品主路径对 `place_lookup` 仍保持 fail-close，直到地图产品正式上线
+- `packages/calendar-agent` 是 `calendar-agent` capability boundary；当前只承接
+  `academic_calendar_lookup`，消费 `calendar/academic_calendar`
+  projection-backed read model，不负责校历查看入口说明
 - `packages/retrieval-core` retrieval abstraction、metadata pre-filter、evidence
   shaping
 - `packages/ingestion-core` ingestion/data-plane consumption logic
@@ -260,6 +263,7 @@ document/index release`
   - `navigation-agent`
 - 当前额外冻结的 forward family label 继续包括：
   - `campus-services-agent`
+  - `calendar-agent`
   - `notice-agent`
 - 对 `rag` / `navigation` 两条 capability family，forward family label 与 current
   runtime truth 已经对齐；active canonical surface 不再维护单独的 legacy

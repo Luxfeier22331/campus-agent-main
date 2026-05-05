@@ -164,6 +164,19 @@ _TYPED_TABLE_COLUMNS: dict[str, tuple[_TypedColumn, ...]] = {
         _TypedColumn("line", "text", "text not null default ''"),
         _COMMON_SEARCH_COLUMN,
     ),
+    "academic_calendar_read_model": (
+        _TypedColumn("academic_year_label", "text", "text not null default ''"),
+        _TypedColumn("term_label", "text", "text not null default ''"),
+        _TypedColumn("start_date", "text", "text not null default ''"),
+        _TypedColumn("end_date", "text", "text not null default ''"),
+        _TypedColumn("week_index", "integer", "integer not null default 0"),
+        _TypedColumn("day_kind", "text", "text not null default ''"),
+        _TypedColumn("class_day_pattern", "text", "text not null default ''"),
+        _TypedColumn("is_makeup_class", "boolean", "boolean not null default false"),
+        _TypedColumn("holiday_name", "text", "text not null default ''"),
+        _TypedColumn("source_refs", "text_array", "text[] not null default '{}'"),
+        _COMMON_SEARCH_COLUMN,
+    ),
     "transport_schedule_snapshots": (
         _TypedColumn("snapshot_id", "text", "text not null default ''"),
         _TypedColumn("published_at", "timestamptz", "timestamptz"),
@@ -423,6 +436,7 @@ class PostgresStructuredProjectionPublisher:
             "contact_directory_read_model",
             "contact_directory_conflicts",
             "contact_directory_manual_review_sources",
+            "academic_calendar_read_model",
         ):
             _ensure_table_schema(cursor, table_name=f"{self.schema}.{table_name}")
         cursor.execute(
@@ -759,6 +773,25 @@ def _typed_recordsets(
                 ),
             ),
         )
+    if collection == "academic_calendar":
+        return (
+            (
+                "academic_calendar_read_model",
+                _records(
+                    release_id,
+                    bundle.get("academic_calendar_records"),
+                    id_fields=(
+                        "academic_year_label",
+                        "term_label",
+                        "start_date",
+                        "end_date",
+                        "day_kind",
+                    ),
+                    source_ref_field="source_refs",
+                    table_name="academic_calendar_read_model",
+                ),
+            ),
+        )
     raise ValueError(f"unsupported structured projection collection: {collection}")
 
 
@@ -884,6 +917,10 @@ def _projection_counts(collection: str, bundle: Mapping[str, Any]) -> dict[str, 
             "conflict_records": len(_list(bundle.get("conflict_records"))),
             "manual_review_sources": len(_list(bundle.get("manual_review_sources"))),
         }
+    if collection == "academic_calendar":
+        return {
+            "academic_calendar_records": len(_list(bundle.get("academic_calendar_records"))),
+        }
     raise ValueError(f"unsupported structured projection collection: {collection}")
 
 
@@ -912,6 +949,8 @@ def _collection_table_names(collection: str) -> tuple[str, ...]:
             "contact_directory_conflicts",
             "contact_directory_manual_review_sources",
         )
+    if collection == "academic_calendar":
+        return ("academic_calendar_read_model",)
     raise ValueError(f"unsupported structured projection collection: {collection}")
 
 

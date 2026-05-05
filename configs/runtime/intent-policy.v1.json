@@ -433,6 +433,25 @@
 			"服务大厅",
 			"后勤服务大厅"
 		],
+		"academic_calendar_week_query": ["第几教学周", "第几周", "教学周"],
+		"academic_calendar_holiday_query": [
+			"放几天",
+			"放假安排",
+			"怎么安排",
+			"假期安排",
+			"春假",
+			"寒假",
+			"暑假",
+			"五一",
+			"十一",
+			"国庆",
+			"元旦",
+			"端午",
+			"中秋",
+			"清明"
+		],
+		"academic_calendar_makeup_query": ["补课", "上周几的课", "上星期几的课", "调休上课", "执行周", "执行周几"],
+		"academic_calendar_semantic_subject": ["校历", "教学周", "学年", "学期", "春假", "寒假", "暑假", "节假日"],
 		"structured_transport": ["校车", "班车", "通勤车", "接驳车"],
 		"structured_transport_boarding_status": [
 			"在哪里上车",
