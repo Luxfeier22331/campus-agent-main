@@ -63,6 +63,61 @@ from campus_contracts.models_temporal import TemporalQuery
 
 
 @dataclass(frozen=True, slots=True)
+class AcademicCalendarLookupPayload:
+    query_text: str
+    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
+    academic_year_label: str = ""
+    date_hint: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.query_text.strip():
+            raise ValueError("query_text must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class AcademicCalendarLookupResult:
+    query_text: str
+    outcome: ToolBusinessOutcome
+    requested_date: str = ""
+    resolved_date: str = ""
+    academic_year_label: str = ""
+    term_label: str = ""
+    week_index: int | None = None
+    day_kind: str = ""
+    class_day_pattern: str = ""
+    is_makeup_class: bool | None = None
+    holiday_name: str = ""
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+    queried_time_anchor: str = ""
+    effective_from: str = ""
+    effective_until: str = ""
+    fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
+
+    def __post_init__(self) -> None:
+        if not self.query_text.strip():
+            raise ValueError("query_text must not be empty")
+        _validate_tool_business_outcome(self.outcome)
+        if self.fail_close_reason:
+            _validate_tool_fail_close_reason(self.fail_close_reason)
+        if self.outcome == "resolved_current":
+            if not self.source_refs:
+                raise ValueError("source_refs must not be empty for resolved academic calendar")
+            if (
+                not self.resolved_date.strip()
+                and self.week_index is None
+                and not self.holiday_name.strip()
+                and not self.class_day_pattern.strip()
+            ):
+                raise ValueError(
+                    "resolved academic calendar results must include resolved_date, week_index, holiday_name, or class_day_pattern"
+                )
+        if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
+            raise ValueError(
+                "fail_close_reason must not be empty for fail-closed academic calendar results"
+            )
+
+
+@dataclass(frozen=True, slots=True)
 class GeoPoint:
     longitude: float
     latitude: float

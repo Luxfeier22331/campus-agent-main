@@ -309,6 +309,11 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                 "retrieval_plan_summary": None,
                 "stage_activities": (),
                 "retrieved_sources": (),
+                "planner_information_needs": (),
+                "projection_context_summaries": (),
+                "entity_resolution_summary": None,
+                "replan_decision_summary": None,
+                "claim_evidence_graph": (),
                 "prompt_trace": None,
             },
         )

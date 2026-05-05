@@ -35,6 +35,8 @@ from campus_contracts.models_shared import (
     SupervisorStatus,
 )
 from campus_contracts.models_tools import (
+    AcademicCalendarLookupPayload,
+    AcademicCalendarLookupResult,
     CampusNoticeDiscoverPayload,
     CampusNoticeDiscoverResult,
     CampusNoticeGetPayload,
@@ -75,6 +77,13 @@ _FORBIDDEN_WORKFLOW_TRACE_VALUE_TOKENS = (
     "token=",
 )
 _JWT_VALUE_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b")
+_REQUIRED_WORKFLOW_PROJECTION_REF_FIELDS = (
+    "projection_id",
+    "source_step_id",
+    "projection_kind",
+    "content_hash",
+    "safety",
+)
 
 
 def _normalize_workflow_trace_key_token(value: str) -> str:
@@ -108,6 +117,24 @@ def _reject_raw_workflow_trace_value(value: str, field_name: str) -> None:
         raise ValueError(f"{field_name} contains forbidden raw workflow trace value")
     if _JWT_VALUE_RE.search(value):
         raise ValueError(f"{field_name} contains forbidden raw workflow trace value")
+
+
+def _validate_workflow_projection_refs(projection_refs: tuple[dict[str, Any], ...]) -> None:
+    for index, projection_ref in enumerate(projection_refs):
+        if not isinstance(projection_ref, dict):
+            raise ValueError(f"workflow_context.projection_refs[{index}] must be an object")
+        for field_name in _REQUIRED_WORKFLOW_PROJECTION_REF_FIELDS:
+            value = projection_ref.get(field_name)
+            if field_name == "safety":
+                if not isinstance(value, dict) or not value:
+                    raise ValueError(
+                        f"workflow_context.projection_refs[{index}].{field_name} is required"
+                    )
+                continue
+            if not str(value or "").strip():
+                raise ValueError(
+                    f"workflow_context.projection_refs[{index}].{field_name} is required"
+                )
 
 
 @dataclass(frozen=True, slots=True)
@@ -190,6 +217,7 @@ class WorkflowAgentContext:
         ):
             raise ValueError("workflow_context required projection is missing")
         _reject_raw_workflow_trace_keys(self.projection_refs, "workflow_context.projection_refs")
+        _validate_workflow_projection_refs(self.projection_refs)
 
 
 @dataclass(frozen=True, slots=True)
@@ -309,6 +337,7 @@ class AgentRequest:
     payload: (
         RagRequestPayload
         | PlaceLookupPayload
+        | AcademicCalendarLookupPayload
         | ServiceGuideLookupPayload
         | ServiceStatusLookupPayload
         | TransportScheduleLookupPayload
@@ -349,6 +378,7 @@ class AgentResponse:
     result: (
         RagResultPayload
         | PlaceLookupResult
+        | AcademicCalendarLookupResult
         | ServiceGuideLookupResult
         | ServiceStatusLookupResult
         | TransportScheduleLookupResult
@@ -379,6 +409,7 @@ class SupervisorResponse:
     result: (
         RagResultPayload
         | PlaceLookupResult
+        | AcademicCalendarLookupResult
         | ServiceGuideLookupResult
         | ServiceStatusLookupResult
         | TransportScheduleLookupResult

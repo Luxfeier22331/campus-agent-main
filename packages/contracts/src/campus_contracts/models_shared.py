@@ -20,6 +20,7 @@ AgentTarget = Literal[
     "rag-agent",
     "navigation-agent",
     "campus-services-agent",
+    "calendar-agent",
     "notice-agent",
 ]
 AgentToolName = Literal[
@@ -27,9 +28,16 @@ AgentToolName = Literal[
     "service_guide_lookup",
     "transport_schedule_lookup",
     "contact_directory_lookup",
+    "academic_calendar_lookup",
     "campus_notice_discover",
 ]
-RequestedCapability = Literal["knowledge", "place_lookup", "campus_services", "notice"]
+RequestedCapability = Literal[
+    "knowledge",
+    "place_lookup",
+    "campus_services",
+    "academic_calendar",
+    "notice",
+]
 SupervisorStatus = Literal[
     "completed",
     "needs_clarification",
@@ -180,6 +188,7 @@ ALLOWED_AGENT_TARGETS = (
     "rag-agent",
     "navigation-agent",
     "campus-services-agent",
+    "calendar-agent",
     "notice-agent",
 )
 ALLOWED_AGENT_TOOL_NAMES = (
@@ -187,9 +196,16 @@ ALLOWED_AGENT_TOOL_NAMES = (
     "service_guide_lookup",
     "transport_schedule_lookup",
     "contact_directory_lookup",
+    "academic_calendar_lookup",
     "campus_notice_discover",
 )
-ALLOWED_REQUESTED_CAPABILITIES = ("knowledge", "place_lookup", "campus_services", "notice")
+ALLOWED_REQUESTED_CAPABILITIES = (
+    "knowledge",
+    "place_lookup",
+    "campus_services",
+    "academic_calendar",
+    "notice",
+)
 ALLOWED_SUPERVISOR_STATUSES = (
     "completed",
     "needs_clarification",

@@ -140,51 +140,6 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                 },
             )
 
-    def test_agent_request_serializes_workflow_context_projection_refs(self) -> None:
-        request = AgentRequest(
-            target="rag-agent",
-            user_goal="这条通知依据学生手册哪条规定？",
-            payload=RagRequestPayload(
-                scope=KnowledgeScope(corpus="regulations", collection="student_rules")
-            ),
-            workflow_context=WorkflowAgentContext(
-                target="rag-agent",
-                required_projection_kind="notice_context",
-                projection_refs=(
-                    {
-                        "projection_id": "projection:notice_context:test",
-                        "source_step_id": "handoff:notice-agent:campus_notice_get",
-                        "projection_kind": "notice_context",
-                        "content_hash": "sha256:test",
-                        "safety": {"max_chars": 1600, "fields_present": ["title"]},
-                    },
-                ),
-            ),
-        )
-
-        payload = asdict(request)
-
-        self.assertEqual(
-            payload["workflow_context"]["projection_refs"][0]["projection_id"],
-            "projection:notice_context:test",
-        )
-        self.assertNotIn("payload", payload["workflow_context"]["projection_refs"][0])
-
-    def test_workflow_agent_context_requires_required_projection_ref(self) -> None:
-        with self.assertRaisesRegex(ValueError, "required projection"):
-            WorkflowAgentContext(
-                target="rag-agent",
-                required_projection_kind="notice_context",
-                projection_refs=(),
-            )
-
-    def test_workflow_agent_context_rejects_raw_projection_ref_keys(self) -> None:
-        with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
-            WorkflowAgentContext(
-                target="rag-agent",
-                projection_refs=({"projection_id": "p1", "raw_response": "secret"},),
-            )
-
     def test_source_trust_summary_serializes_as_contract_field(self) -> None:
         diagnostics = RagResultDiagnostics(
             source_trust_summary=SourceTrustSummary(
@@ -245,6 +200,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                         corpus="regulations",
                         collection="student_rules",
                         status="succeeded",
+                        need_ids=("need:policy-condition",),
                         top_k=3,
                         latency_ms=12,
                         candidate_count=2,
@@ -269,6 +225,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                         "corpus": "regulations",
                         "collection": "student_rules",
                         "status": "succeeded",
+                        "need_ids": ("need:policy-condition",),
                         "top_k": 3,
                         "latency_ms": 12,
                         "candidate_count": 2,

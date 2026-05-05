@@ -56,6 +56,7 @@ components:
         - rag-agent
         - navigation-agent
         - campus-services-agent
+        - calendar-agent
         - notice-agent
     RequestedCapability:
       type: string
@@ -63,6 +64,7 @@ components:
         - knowledge
         - place_lookup
         - campus_services
+        - academic_calendar
         - notice
     ConfidenceLevel:
       type: string

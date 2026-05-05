@@ -23,16 +23,18 @@ const (
 	AgentTargetRagAgent            AgentTarget = "rag-agent"
 	AgentTargetNavigationAgent     AgentTarget = "navigation-agent"
 	AgentTargetCampusServicesAgent AgentTarget = "campus-services-agent"
+	AgentTargetCalendarAgent       AgentTarget = "calendar-agent"
 	AgentTargetNoticeAgent         AgentTarget = "notice-agent"
 )
 
 type RequestedCapability string
 
 const (
-	RequestedCapabilityKnowledge      RequestedCapability = "knowledge"
-	RequestedCapabilityPlaceLookup    RequestedCapability = "place_lookup"
-	RequestedCapabilityCampusServices RequestedCapability = "campus_services"
-	RequestedCapabilityNotice         RequestedCapability = "notice"
+	RequestedCapabilityKnowledge        RequestedCapability = "knowledge"
+	RequestedCapabilityPlaceLookup      RequestedCapability = "place_lookup"
+	RequestedCapabilityCampusServices   RequestedCapability = "campus_services"
+	RequestedCapabilityAcademicCalendar RequestedCapability = "academic_calendar"
+	RequestedCapabilityNotice           RequestedCapability = "notice"
 )
 
 type ConfidenceLevel string

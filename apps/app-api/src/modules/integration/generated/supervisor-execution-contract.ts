@@ -12,12 +12,14 @@ export const AGENT_TARGETS = [
 	"rag-agent",
 	"navigation-agent",
 	"campus-services-agent",
+	"calendar-agent",
 	"notice-agent",
 ] as const;
 export const REQUESTED_CAPABILITIES = [
 	"knowledge",
 	"place_lookup",
 	"campus_services",
+	"academic_calendar",
 	"notice",
 ] as const;
 export const CONFIDENCE_LEVELS = ["high", "medium", "low"] as const;

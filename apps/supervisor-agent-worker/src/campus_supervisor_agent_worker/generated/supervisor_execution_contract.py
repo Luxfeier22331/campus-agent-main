@@ -16,12 +16,14 @@ AgentTarget = Literal[
     "rag-agent",
     "navigation-agent",
     "campus-services-agent",
+    "calendar-agent",
     "notice-agent",
 ]
 RequestedCapability = Literal[
     "knowledge",
     "place_lookup",
     "campus_services",
+    "academic_calendar",
     "notice",
 ]
 ConfidenceLevel = Literal[

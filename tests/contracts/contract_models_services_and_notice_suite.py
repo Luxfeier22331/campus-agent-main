@@ -5,13 +5,44 @@ from pathlib import Path
 
 from tests.contracts.contract_models_test_support import *
 
-
 VPN_GROUPED_PROCEDURE_FIXTURE_PATH = Path(
     "tests/fixtures/service_guide_vpn_grouped_procedure_result.json"
 )
 
 
 class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
+    def test_academic_calendar_payload_and_result_serialize(self) -> None:
+        payload = AcademicCalendarLookupPayload(
+            query_text="今天第几教学周",
+            temporal_query=TemporalQuery(mode="current"),
+        )
+        result = AcademicCalendarLookupResult(
+            query_text="今天第几教学周",
+            outcome="resolved_current",
+            resolved_date="2026-05-04",
+            academic_year_label="2025-2026学年",
+            term_label="春季学期",
+            week_index=12,
+            day_kind="teaching_day",
+            source_refs=("official_web:muc-academic-calendar-2025-2026:owver",),
+        )
+
+        self.assertEqual(asdict(payload)["query_text"], "今天第几教学周")
+        self.assertEqual(asdict(result)["week_index"], 12)
+        self.assertEqual(asdict(result)["academic_year_label"], "2025-2026学年")
+
+    def test_academic_calendar_result_requires_source_refs_when_resolved(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "source_refs must not be empty for resolved academic calendar",
+        ):
+            AcademicCalendarLookupResult(
+                query_text="今天第几教学周",
+                outcome="resolved_current",
+                resolved_date="2026-05-04",
+                week_index=12,
+            )
+
     def test_session_summary_exposes_selected_notice_ref_field(self) -> None:
         summary = SessionSummary(
             selected_notice_ref=SelectedNoticeRef(
@@ -70,6 +101,19 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
         )
 
         self.assertEqual(request.allowed_tools, ("contact_directory_lookup",))
+
+    def test_agent_request_accepts_calendar_agent_allowed_tool(self) -> None:
+        request = AgentRequest(
+            target="calendar-agent",
+            user_goal="今天第几教学周",
+            payload=AcademicCalendarLookupPayload(
+                query_text="今天第几教学周",
+                temporal_query=TemporalQuery(mode="current"),
+            ),
+            allowed_tools=("academic_calendar_lookup",),
+        )
+
+        self.assertEqual(request.allowed_tools, ("academic_calendar_lookup",))
 
     def test_temporal_query_requires_as_of_anchor_when_mode_is_as_of(self) -> None:
         with self.assertRaisesRegex(ValueError, "as_of is required when temporal mode is as_of"):
