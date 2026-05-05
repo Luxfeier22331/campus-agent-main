@@ -76,6 +76,13 @@ class CurriculumQueryInterpretation:
     curriculum_lookup_target: Literal["", "course_map", "course_settings", "study_advice"] = ""
 
 
+@dataclass(frozen=True, slots=True)
+class _CurriculumFamilyAliasConfig:
+    alias: str
+    candidate_terms: tuple[str, ...]
+    major_candidates: dict[str, tuple[str, ...]]
+
+
 def interpret_curriculum_query(query_text: str) -> CurriculumQueryInterpretation:
     normalized_query_text = _normalize_curriculum_query_text(query_text)
     semester_labels = _extract_semester_labels(normalized_query_text)
@@ -100,6 +107,12 @@ def matching_curriculum_doc_ids(
     interpretation = interpret_curriculum_query(query_text)
     if not interpretation.program_compact_key:
         return ()
+    family_doc_ids = _matching_family_alias_doc_ids(
+        interpretation=interpretation,
+        sources=sources,
+    )
+    if family_doc_ids:
+        return family_doc_ids
     exact_doc_ids: list[str] = []
     partial_doc_ids: list[str] = []
     for source in sources:
@@ -193,15 +206,7 @@ def _normalize_curriculum_query_text(query_text: str) -> str:
 
 @lru_cache(maxsize=1)
 def _load_safe_alias_replacements() -> tuple[tuple[str, str], ...]:
-    config_path = (
-        Path(__file__).resolve().parents[4]
-        / "configs"
-        / "ingestion"
-        / "curriculum"
-        / "curriculum_plan"
-        / "query-planning.json"
-    )
-    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    payload = _load_query_planning_payload()
     return tuple(
         (
             str(item.get("alias", "")).strip(),
@@ -212,6 +217,48 @@ def _load_safe_alias_replacements() -> tuple[tuple[str, str], ...]:
         and str(item.get("alias", "")).strip()
         and str(item.get("canonical", "")).strip()
     )
+
+
+@lru_cache(maxsize=1)
+def _load_family_alias_configs() -> tuple[_CurriculumFamilyAliasConfig, ...]:
+    payload = _load_query_planning_payload()
+    return tuple(
+        _CurriculumFamilyAliasConfig(
+            alias=str(item.get("alias", "")).strip(),
+            candidate_terms=tuple(
+                term.strip()
+                for term in item.get("candidate_terms", ())
+                if isinstance(term, str) and term.strip()
+            ),
+            major_candidates={
+                str(major).strip(): tuple(
+                    str(document_id).strip()
+                    for document_id in document_ids
+                    if isinstance(document_id, str) and document_id.strip()
+                )
+                for major, document_ids in item.get("major_candidates", {}).items()
+                if isinstance(major, str)
+                and major.strip()
+                and isinstance(document_ids, (list, tuple))
+            },
+        )
+        for item in payload.get("family_aliases", ())
+        if isinstance(item, dict) and str(item.get("alias", "")).strip()
+    )
+
+
+@lru_cache(maxsize=1)
+def _load_query_planning_payload() -> dict[str, object]:
+    config_path = (
+        Path(__file__).resolve().parents[4]
+        / "configs"
+        / "ingestion"
+        / "curriculum"
+        / "curriculum_plan"
+        / "query-planning.json"
+    )
+    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    return payload if isinstance(payload, dict) else {}
 
 
 def _extract_semester_labels(query_text: str) -> tuple[str, ...]:
@@ -259,10 +306,83 @@ def _source_matches_program(
 ) -> bool:
     if not interpretation.program_compact_key:
         return False
+    if source.doc_id in _matching_family_alias_doc_ids(
+        interpretation=interpretation,
+        sources=(source,),
+    ):
+        return True
     compact_keys = {
         _compact_curriculum_title_key(candidate) for candidate in _source_title_candidates(source)
     }
     return interpretation.program_compact_key in compact_keys
+
+
+def _matching_family_alias_doc_ids(
+    *,
+    interpretation: CurriculumQueryInterpretation,
+    sources: Sequence[EvidenceSource],
+) -> tuple[str, ...]:
+    query_compact_key = _compact_curriculum_title_key(interpretation.normalized_query_text)
+    if not query_compact_key:
+        return ()
+    available_doc_ids = tuple(
+        dict.fromkeys(source.doc_id for source in sources if _is_curriculum_source(source))
+    )
+    if not available_doc_ids:
+        return ()
+    configured_doc_ids: list[str] = []
+    for family_alias in _load_family_alias_configs():
+        if not _query_contains_family_marker(
+            interpretation=interpretation,
+            family_alias=family_alias,
+        ):
+            continue
+        for document_id in _major_scoped_family_document_ids(
+            family_alias=family_alias,
+            query_compact_key=query_compact_key,
+        ):
+            if document_id not in configured_doc_ids:
+                configured_doc_ids.append(document_id)
+    if not configured_doc_ids:
+        return ()
+    configured_doc_id_set = set(configured_doc_ids)
+    return tuple(doc_id for doc_id in available_doc_ids if doc_id in configured_doc_id_set)
+
+
+def _query_contains_family_marker(
+    *,
+    interpretation: CurriculumQueryInterpretation,
+    family_alias: _CurriculumFamilyAliasConfig,
+) -> bool:
+    query_text = interpretation.normalized_query_text
+    return any(
+        marker and marker in query_text
+        for marker in (family_alias.alias, *family_alias.candidate_terms)
+    )
+
+
+def _major_scoped_family_document_ids(
+    *,
+    family_alias: _CurriculumFamilyAliasConfig,
+    query_compact_key: str,
+) -> tuple[str, ...]:
+    matched_major_candidates: list[tuple[int, tuple[str, ...]]] = []
+    for major, document_ids in family_alias.major_candidates.items():
+        major_compact_key = _compact_curriculum_title_key(major)
+        if not major_compact_key or major_compact_key not in query_compact_key:
+            continue
+        matched_major_candidates.append((len(major_compact_key), document_ids))
+    if not matched_major_candidates:
+        return ()
+    max_major_length = max(length for length, _ in matched_major_candidates)
+    scoped_document_ids: list[str] = []
+    for length, document_ids in matched_major_candidates:
+        if length != max_major_length:
+            continue
+        for document_id in document_ids:
+            if document_id not in scoped_document_ids:
+                scoped_document_ids.append(document_id)
+    return tuple(scoped_document_ids)
 
 
 def _source_matches_semester(source: EvidenceSource, semester_labels: tuple[str, ...]) -> bool:

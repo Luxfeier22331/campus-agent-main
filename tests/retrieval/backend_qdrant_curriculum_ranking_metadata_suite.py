@@ -219,6 +219,63 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
         self.assertEqual(sources[0].detail_label, "第十二条")
         self.assertTrue(sources[0].is_answer_bearing)
 
+    def test_build_evidence_sources_recovers_legacy_policy_page_body_from_preface_text(
+        self,
+    ) -> None:
+        registry = InMemoryDocumentRegistry()
+        embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=Mock(),
+            embedding_model=embedding_model,
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        sources = build_evidence_sources(
+            backend,
+            (
+                qdrant_models.ScoredPoint(
+                    id="point-student-card-closing",
+                    version=0,
+                    score=0.77,
+                    payload={
+                        "document_id": "handbook:student-card",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:student-card",
+                        "chunk_id": "student-card-closing",
+                        "collection": "student_rules",
+                        "visibility_level": "public",
+                        "canonical_url": "https://campus.example/handbook/student-card",
+                        "latest_url": "https://campus.example/handbook/student-card",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "title": "中央民族大学本科(预科)学生证管理办法",
+                        "unit_type": "policy_page",
+                        "content_role": "closing_provision",
+                        "anchor": {"section_path": ["十八、附则"]},
+                        "display_text": "十八、本办法由学生处负责解释。",
+                        "preface_text": (
+                            "六、学生如将学生证遗失或损坏，应及时挂失。"
+                            "七、申请补办学生证应提交书面申请。"
+                            "八、每周四下午办理补办手续。"
+                        ),
+                    },
+                ),
+            ),
+        )
+
+        self.assertEqual(len(sources), 1)
+        self.assertIn("学生证遗失", sources[0].snippet)
+        self.assertIn("补办手续", sources[0].snippet)
+        self.assertNotIn("本办法由学生处负责解释", sources[0].snippet)
+        self.assertEqual(sources[0].content_kind, "policy_page")
+        self.assertEqual(sources[0].content_role, "procedure")
+        self.assertTrue(sources[0].is_answer_bearing)
+
     def test_build_evidence_sources_maps_canonical_parent_and_semester_unit_metadata(self) -> None:
         registry = InMemoryDocumentRegistry()
         embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))

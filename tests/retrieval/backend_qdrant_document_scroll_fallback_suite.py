@@ -1,0 +1,222 @@
+from __future__ import annotations
+
+from tests.retrieval.backend_qdrant_test_support import (
+    InMemoryDocumentRegistry,
+    Mock,
+    QdrantRetrievalBackend,
+    RetrievalRequest,
+    RetrievalSettings,
+    qdrant_models,
+    unittest,
+)
+
+
+class BackendQdrantDocumentScrollFallbackTest(unittest.TestCase):
+    def test_backend_scrolls_target_document_when_hybrid_lookup_returns_no_sources(
+        self,
+    ) -> None:
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = True
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(
+            aliases=[]
+        )
+        qdrant_client.query_points.return_value = qdrant_models.QueryResponse(points=[])
+        qdrant_client.scroll.return_value = (
+            [
+                qdrant_models.Record(
+                    id="point-student-card-policy-page",
+                    payload={
+                        "document_id": "handbook:student-card",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:student-card",
+                        "chunk_id": "handbook:student-card:chunk-0001",
+                        "corpus": "regulations",
+                        "collection": "student_rules",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/handbook/student-card",
+                        "canonical_url": "https://campus.example/handbook/student-card",
+                        "latest_url": "https://campus.example/handbook/student-card",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "title": "中央民族大学本科(预科)学生证管理办法",
+                        "unit_type": "policy_page",
+                        "content_role": "procedure",
+                        "is_answer_bearing": True,
+                        "anchor": {"section_path": ["中央民族大学本科(预科)学生证管理办法"]},
+                        "display_text": ("学生证遗失后，应及时挂失，并提交书面申请办理补办手续。"),
+                    },
+                )
+            ],
+            None,
+        )
+        backend = _backend(qdrant_client=qdrant_client)
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="学生证丢了怎么办？",
+                corpus="regulations",
+                collection="student_rules",
+                target_document_ids=("handbook:student-card",),
+                top_k=3,
+            )
+        )
+
+        self.assertEqual(qdrant_client.query_points.call_count, 1)
+        qdrant_client.scroll.assert_called_once()
+        self.assertEqual(
+            tuple(source.chunk_id for source in result.sources),
+            ("handbook:student-card:chunk-0001",),
+        )
+        scroll_filter = qdrant_client.scroll.call_args.kwargs["scroll_filter"]
+        document_conditions = [
+            condition
+            for condition in scroll_filter.must or ()
+            if getattr(condition, "key", None) == "document_id"
+        ]
+        self.assertEqual(len(document_conditions), 1)
+        self.assertEqual(
+            getattr(getattr(document_conditions[0], "match", None), "value", None),
+            "handbook:student-card",
+        )
+
+    def test_backend_supplements_exact_curriculum_title_lookup_with_same_document_overview(
+        self,
+    ) -> None:
+        title = "民族学本科人才培养方案"
+        doc_id = f"curriculum:{title}"
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = True
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(
+            aliases=[]
+        )
+        qdrant_client.query_points.return_value = qdrant_models.QueryResponse(
+            points=[
+                qdrant_models.ScoredPoint(
+                    id="point-ethnology-table",
+                    version=0,
+                    score=0.91,
+                    payload={
+                        "document_id": doc_id,
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:ethnology",
+                        "chunk_id": f"{doc_id}:chunk-0012",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/curriculum/ethnology",
+                        "canonical_url": "https://campus.example/curriculum/ethnology",
+                        "latest_url": "https://campus.example/curriculum/ethnology",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "anchor": {
+                            "section_path": [title, "五、课程设置和修读建议"],
+                            "table_group_id": "page-12-table-1",
+                        },
+                        "text": (
+                            "五、课程设置和修读建议\n"
+                            "课程清单如下:\n"
+                            "课程号 | 课程名称 | 学分 | 学时 | 修读学期\n"
+                            "0304-1-05-04 | 民族学前沿研究 | 2 | 36 | 4"
+                        ),
+                    },
+                ),
+            ]
+        )
+        qdrant_client.scroll.return_value = (
+            [
+                qdrant_models.Record(
+                    id="point-ethnology-overview",
+                    payload={
+                        "document_id": doc_id,
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:ethnology",
+                        "chunk_id": f"{doc_id}:chunk-0001",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/curriculum/ethnology",
+                        "canonical_url": "https://campus.example/curriculum/ethnology",
+                        "latest_url": "https://campus.example/curriculum/ethnology",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "title": title,
+                        "unit_type": "section_text",
+                        "content_role": "lead_overview",
+                        "is_answer_bearing": True,
+                        "anchor": {"section_path": [title, "一、培养目标"]},
+                        "text": (
+                            "民族学本科人才培养方案 一、培养目标 "
+                            "本专业培养具有民族学理论基础和田野调查能力的人才。"
+                        ),
+                    },
+                ),
+                qdrant_models.Record(
+                    id="point-ethnology-table",
+                    payload={
+                        "document_id": doc_id,
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:ethnology",
+                        "chunk_id": f"{doc_id}:chunk-0012",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/curriculum/ethnology",
+                        "canonical_url": "https://campus.example/curriculum/ethnology",
+                        "latest_url": "https://campus.example/curriculum/ethnology",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "anchor": {
+                            "section_path": [title, "五、课程设置和修读建议"],
+                            "table_group_id": "page-12-table-1",
+                        },
+                        "text": (
+                            "五、课程设置和修读建议\n"
+                            "课程清单如下:\n"
+                            "课程号 | 课程名称 | 学分 | 学时 | 修读学期\n"
+                            "0304-1-05-04 | 民族学前沿研究 | 2 | 36 | 4"
+                        ),
+                    },
+                ),
+            ],
+            None,
+        )
+        backend = _backend(qdrant_client=qdrant_client)
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text=title,
+                corpus="curriculum",
+                collection="curriculum_plan",
+                top_k=3,
+            )
+        )
+
+        self.assertEqual(qdrant_client.query_points.call_count, 1)
+        qdrant_client.scroll.assert_called_once()
+        self.assertIn(f"{doc_id}:chunk-0001", tuple(source.chunk_id for source in result.sources))
+        self.assertIn("培养目标", " ".join(source.snippet for source in result.sources))
+
+
+def _backend(*, qdrant_client: object) -> QdrantRetrievalBackend:
+    embedding_model = Mock()
+    embedding_model.get_query_embedding.return_value = (0.1, 0.2, 0.3)
+    sparse_embedding_model = Mock()
+    sparse_embedding_model.build_query.return_value = "sparse-query"
+    return QdrantRetrievalBackend(
+        settings=RetrievalSettings(
+            qdrant_url=":memory:",
+            document_registry_database_url="postgresql://registry.example/postgres",
+        ),
+        registry=InMemoryDocumentRegistry(),
+        qdrant_client=qdrant_client,
+        embedding_model=embedding_model,
+        sparse_embedding_model=sparse_embedding_model,
+    )
+
+
+if __name__ == "__main__":
+    unittest.main()

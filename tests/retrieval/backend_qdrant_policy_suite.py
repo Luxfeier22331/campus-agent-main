@@ -27,7 +27,10 @@ class BackendQdrantPolicyTest(unittest.TestCase):
                     snippet="信息与计算科学（民族实验班）本科人才培养方案 一、培养目标。",
                     score=0.82,
                     source_title="信息与计算科学（民族实验班）本科人才培养方案",
-                    structural_path=("信息与计算科学（民族实验班）本科人才培养方案", "一、培养目标"),
+                    structural_path=(
+                        "信息与计算科学（民族实验班）本科人才培养方案",
+                        "一、培养目标",
+                    ),
                 ),
                 _make_source(
                     doc_id="curriculum:信息与计算科学本科人才培养方案",
@@ -45,6 +48,102 @@ class BackendQdrantPolicyTest(unittest.TestCase):
             ("curriculum:信息与计算科学本科人才培养方案",),
         )
 
+    def test_finalize_retrieval_sources_uses_curriculum_family_alias_major_candidates(
+        self,
+    ) -> None:
+        profile = _make_runtime_profile(corpus="curriculum", collection="curriculum_plan")
+
+        finalized = finalize_retrieval_sources(
+            profile=profile,
+            query_text="中国少数民族语言文学强基计划本科人才培养方案",
+            sources=(
+                _make_source(
+                    doc_id="curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                    chunk_id="curriculum:minority-language-strong-base:chunk-0001",
+                    snippet="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案 一、培养目标。",
+                    score=0.91,
+                    source_title="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                    structural_path=(
+                        "中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                        "一、培养目标",
+                    ),
+                ),
+                _make_source(
+                    doc_id="curriculum:中国少数民族语言文学本科人才培养方案",
+                    chunk_id="curriculum:minority-language-ordinary:chunk-0001",
+                    snippet="中国少数民族语言文学本科人才培养方案 一、培养目标。",
+                    score=0.89,
+                    source_title="中国少数民族语言文学本科人才培养方案",
+                    structural_path=("中国少数民族语言文学本科人才培养方案", "一、培养目标"),
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            tuple(source.doc_id for source in finalized),
+            ("curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",),
+        )
+
+    def test_finalize_retrieval_sources_prefers_curriculum_title_overview_before_tables(
+        self,
+    ) -> None:
+        profile = _make_runtime_profile(corpus="curriculum", collection="curriculum_plan")
+        title = "民族学本科人才培养方案"
+
+        finalized = finalize_retrieval_sources(
+            profile=profile,
+            query_text=title,
+            sources=(
+                _make_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0012",
+                    snippet=(
+                        "五、课程设置和修读建议 课程号 | 课程名称 | 学分 | 学时 | "
+                        "实践学时 | 修读学期 1026030031 | 民族学导论 | 2 | 36 | 8 | 1"
+                    ),
+                    score=0.92,
+                    source_title=title,
+                    structural_path=(title, "五、课程设置和修读建议", "(一) 大类培养"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                _make_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0001",
+                    snippet=(
+                        "民族学本科人才培养方案 一、培养目标 本专业培养具有民族学理论基础"
+                        "和田野调查能力的人才。"
+                    ),
+                    score=0.64,
+                    source_title=title,
+                    structural_path=(title, "一、培养目标"),
+                    content_kind="section_text",
+                    content_role="",
+                    is_answer_bearing=False,
+                ),
+                _make_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0005",
+                    snippet="三、学制、总学分和学位授予 学制:4年 总学分:159 学分 学位授予:法学学士",
+                    score=0.63,
+                    source_title=title,
+                    structural_path=(title, "三、学制、总学分和学位授予"),
+                    content_kind="section_text",
+                    content_role="",
+                    is_answer_bearing=False,
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            tuple(source.chunk_id for source in finalized[:2]),
+            (
+                f"curriculum:{title}:chunk-0001",
+                f"curriculum:{title}:chunk-0005",
+            ),
+        )
+
     def test_finalize_retrieval_sources_locks_curriculum_course_query_to_unique_program_semester(
         self,
     ) -> None:
@@ -58,8 +157,7 @@ class BackendQdrantPolicyTest(unittest.TestCase):
                     doc_id="curriculum:信息与计算科学（民族实验班）本科人才培养方案",
                     chunk_id="curriculum:ics-ethnic:chunk-0004",
                     snippet=(
-                        "信息与计算科学（民族实验班）本科人才培养方案\n"
-                        "第四学期 | 数学分析 | 4"
+                        "信息与计算科学（民族实验班）本科人才培养方案\n第四学期 | 数学分析 | 4"
                     ),
                     score=0.86,
                     source_title="信息与计算科学（民族实验班）本科人才培养方案",
@@ -135,6 +233,57 @@ class BackendQdrantPolicyTest(unittest.TestCase):
                     score=0.89,
                     collection="muc_public_pages",
                     source_title="中央民族大学与北京丰台人才集团共建就业实习实践基地",
+                    content_role="primary_content",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        self.assertEqual(filtered, ())
+
+    def test_apply_official_web_low_signal_policy_fail_closes_unanchored_stable_reference_service_query(
+        self,
+    ) -> None:
+        profile = _make_runtime_profile(
+            corpus="official_web",
+            collection="stable_reference",
+            serving_surface="stable_reference",
+        )
+
+        filtered = _apply_official_web_low_signal_policy(
+            profile=profile,
+            query_text="中央民族大学火星校区宇宙签证办理处",
+            sources=(
+                _make_source(
+                    doc_id="official_web:muc_public:article_detail:school-overview",
+                    chunk_id="official-web:school-overview:chunk-0001",
+                    snippet="学校现有北京海淀、丰台和海南陵水黎安国际教育创新试验区三个校区。",
+                    score=0.92,
+                    collection="stable_reference",
+                    source_channel="official_web",
+                    source_title="学校概况",
+                    content_role="primary_content",
+                    is_answer_bearing=True,
+                ),
+                _make_source(
+                    doc_id="official_web:muc_public:article_detail:school-profile",
+                    chunk_id="official-web:school-profile:chunk-0001",
+                    snippet="中央民族大学是党和国家为解决民族问题而创建的一所特色鲜明的高等院校。",
+                    score=0.91,
+                    collection="stable_reference",
+                    source_channel="official_web",
+                    source_title="学校简介",
+                    content_role="primary_content",
+                    is_answer_bearing=True,
+                ),
+                _make_source(
+                    doc_id="official_web:muc_public:article_detail:leaders",
+                    chunk_id="official-web:leaders:chunk-0001",
+                    snippet="现任领导包括学校党委和行政领导。",
+                    score=0.9,
+                    collection="stable_reference",
+                    source_channel="official_web",
+                    source_title="现任领导",
                     content_role="primary_content",
                     is_answer_bearing=True,
                 ),

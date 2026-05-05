@@ -16,9 +16,11 @@ from campus_evals.benchmark_metrics import (
 )
 from campus_evals.benchmark_models import (
     ALLOWED_HYBRID_QUERY_CATEGORIES,
+    ALLOWED_HYBRID_QUERY_EXPECTED_STATUSES,
     ALLOWED_HYBRID_QUERY_SCOPE_KEYS,
     FixtureValidationSeverity,
     HybridQueryCategory,
+    HybridQueryExpectedStatus,
     RetrievalBenchmarkRun,
     RetrievalCaseMetrics,
     RetrievalHybridQueryCase,
@@ -46,9 +48,11 @@ from campus_evals.benchmark_tuning import (
 
 __all__ = [
     "ALLOWED_HYBRID_QUERY_CATEGORIES",
+    "ALLOWED_HYBRID_QUERY_EXPECTED_STATUSES",
     "ALLOWED_HYBRID_QUERY_SCOPE_KEYS",
     "FixtureValidationSeverity",
     "HybridQueryCategory",
+    "HybridQueryExpectedStatus",
     "RetrievalBenchmarkRun",
     "RetrievalCaseMetrics",
     "RetrievalHybridQueryCase",

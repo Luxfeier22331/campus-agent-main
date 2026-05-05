@@ -55,6 +55,9 @@
 		"effective_date": [
 			"institutional-graduate-employment-reward-effective-scope"
 		],
+		"semantic_institutional_rule": [
+			"institutional-three-assists"
+		],
 		"authz_denied": [
 			"institutional-student-association-management-authz-deny"
 		],
@@ -107,6 +110,26 @@
 		]
 	},
 	"cases": [
+		{
+			"case_id": "institutional-three-assists",
+			"split": "regression_locked",
+			"query": "研究生助教助研助管工作应该依据哪份管理办法？",
+			"request_overrides": {
+				"entitlement_groups": [
+					"campus_members"
+				],
+				"visibility_scope": "campus",
+				"visibility_level": "restricted"
+			},
+			"expected_sources": [
+				{
+					"doc_id": "institutional_regulation:muc:中央民族大学研究生-三助-工作管理办法:49319e7c44d3",
+					"version_id": "sha256:8a1815fa0ad3ecd53cb47e6bc10a9df41022bed2c7442c5221ed256c59572386:effective-undated:revision-none",
+					"grade": 2,
+					"rationale": "自然语言消费问法必须命中当前校级制度版本。"
+				}
+			]
+		},
 		{
 			"case_id": "institutional-title-exact-ff711d1185f9",
 			"split": "release_gate",

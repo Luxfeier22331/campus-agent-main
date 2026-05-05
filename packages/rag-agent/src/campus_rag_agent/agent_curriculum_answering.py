@@ -18,6 +18,7 @@ from .agent_shared import (
     _lead_source_title,
     _normalize_snippet,
     _render_source_support,
+    _source_context_label,
 )
 
 _CURRICULUM_TOTAL_CREDITS_FACT_RE = re.compile(r"总学分[^0-9]{0,12}([0-9]{2,3})(?:\s*学分)?")
@@ -38,6 +39,7 @@ def _compose_curriculum_semester_course_list_answer(
         return ""
 
     if evidence.collection == "program_semester_facts":
+        lead_title = _program_semester_source_title(selected_rows)
         course_titles = list(
             _extract_program_semester_course_titles(
                 query_text=evidence.query_text,
@@ -46,7 +48,11 @@ def _compose_curriculum_semester_course_list_answer(
         )
         if not course_titles:
             return ""
-        return f"{_answer_prefix(evidence)}，{semester_labels[0]}有{'、'.join(course_titles)}。"
+        title_prefix = f"《{lead_title}》" if lead_title else ""
+        return (
+            f"{_answer_prefix(evidence)}，{title_prefix}{semester_labels[0]}有"
+            f"{'、'.join(course_titles)}。"
+        )
 
     course_titles: list[str] = []
     seen_titles: set[str] = set()
@@ -85,6 +91,11 @@ def _compose_curriculum_lookup_answer(
         credits = _extract_curriculum_total_credits(statements)
         if credits:
             return _curriculum_fact_sentence(lead_title, f"总学分为{credits}")
+    if selected_rows:
+        source = selected_rows[0][0]
+        context_label = _source_context_label(evidence=evidence, source=source)
+        if context_label:
+            return f"{_answer_prefix(evidence)}，{context_label}明确：{'；'.join(statements[:3])}"
     return ""
 
 
@@ -131,6 +142,20 @@ def _curriculum_fact_sentence(lead_title: str, body: str) -> str:
     if lead_title:
         return f"《{lead_title}》{body}。"
     return f"{body}。"
+
+
+def _program_semester_source_title(
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> str:
+    if not selected_rows:
+        return ""
+    source = selected_rows[0][0]
+    for label in source.structural_path:
+        normalized = _normalize_snippet(label)
+        if normalized and "课程事实" not in normalized:
+            return normalized
+    title = _lead_source_title((source,))
+    return re.sub(r"\s*第[一二三四五六七八九十0-9]+学期课程事实$", "", title).strip()
 
 
 __all__ = [

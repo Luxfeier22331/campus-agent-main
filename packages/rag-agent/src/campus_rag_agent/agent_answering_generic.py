@@ -5,9 +5,9 @@ from campus_contracts import EvidenceBundle, EvidenceSource
 from .agent_selection_query import _CJK_SEGMENT_RE, _PROCEDURE_QUERY_HINTS
 from .agent_shared import (
     _answer_prefix,
-    _lead_source_title,
     _normalize_snippet,
     _render_source_support,
+    _source_context_label,
 )
 
 
@@ -22,10 +22,16 @@ def _compose_generic_answer(
 
     answer_prefix = _answer_prefix(evidence)
     supporting_sources = tuple(source for source, _ in selected_rows)
-    lead_title = _lead_source_title(supporting_sources)
+    context_label = (
+        _source_context_label(evidence=evidence, source=supporting_sources[0])
+        if supporting_sources
+        else ""
+    )
     topic_label = _query_topic_label(evidence.query_text)
-    if lead_title and _normalize_snippet(lead_title) in _normalize_snippet(evidence.query_text):
-        return f"{answer_prefix}，《{lead_title}》明确：{'；'.join(fragments)}"
+    if context_label and _normalize_snippet(context_label) not in _normalize_snippet(
+        " ".join(fragments)
+    ):
+        return f"{answer_prefix}，{context_label}明确：{'；'.join(fragments)}"
     if topic_label and topic_label not in _normalize_snippet(" ".join(fragments)):
         return f"{answer_prefix}，关于{topic_label}：{'；'.join(fragments)}"
     return f"{answer_prefix}，{'；'.join(fragments)}"

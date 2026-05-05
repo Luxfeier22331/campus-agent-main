@@ -44,7 +44,7 @@ _ELIGIBILITY_CLAIM_PATTERNS = (
 _OFFERING_UNIT_NAME_RE = re.compile(
     r"([\u4e00-\u9fffA-Za-z0-9（）()]{1,20}(?:学院|系|部|中心|教研室|研究院))"
 )
-_OFFERING_UNIT_PREFIX_CUES = ("由", "是", "开设单位", "开课单位", "开课学院", "负责单位")
+_OFFERING_UNIT_PREFIX_CUES = ("由", "开设单位", "开课单位", "开课学院", "负责单位")
 _OFFERING_UNIT_SUFFIX_CUES = ("开设", "开课", "开的", "负责")
 _AUDIENCE_MAJOR_GROUP_RE = re.compile(
     r"((?:[\u4e00-\u9fffA-Za-z0-9]{1,16}专业(?:、|，|,|/|和|及|以及)?)+)"

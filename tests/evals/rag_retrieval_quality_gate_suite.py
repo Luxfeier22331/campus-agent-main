@@ -32,7 +32,7 @@ class RagRetrievalQualityGateSuite(unittest.TestCase):
         self.assertEqual(by_surface["regulations/student_rules"].doc_recall_at_5, 1.0)
         self.assertEqual(by_surface["regulations/student_rules"].forbidden_hit_rate, 0.0)
         self.assertEqual(by_surface["regulations/student_rules"].readiness_status, "ready")
-        self.assertEqual(by_surface["regulations/institutional_rules"].live_total_cases, 45)
+        self.assertEqual(by_surface["regulations/institutional_rules"].live_total_cases, 46)
         self.assertEqual(by_surface["curriculum/curriculum_plan"].live_total_cases, 60)
         self.assertEqual(
             report.excluded_surfaces["official_web/fresh_news"],

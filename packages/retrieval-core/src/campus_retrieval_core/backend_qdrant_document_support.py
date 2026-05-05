@@ -141,17 +141,40 @@ def _expand_named_document_support(
         query_text=request.query_text,
         source=target_source,
     )
+    source_scoped_filter = _build_source_scoped_qdrant_filter(
+        request=request,
+        profile=profile,
+        source=target_source,
+    )
+    if _normalize_low_signal_query(support_query_text) == _normalize_low_signal_query(
+        request.query_text
+    ):
+        scrolled_sources = _scroll_same_document_sources(
+            backend,
+            qdrant_collection_name=qdrant_collection_name,
+            scroll_filter=source_scoped_filter,
+            default_score=target_source.score,
+            deadline=deadline,
+        )
+        merged_sources = _merge_evidence_sources(
+            preferred=sources,
+            additional=scrolled_sources,
+        )
+        return _recover_official_web_lead_chunk_support(
+            backend,
+            request=request,
+            profile=profile,
+            qdrant_collection_name=qdrant_collection_name,
+            target_source=target_source,
+            sources=merged_sources,
+            deadline=deadline,
+        )
     support_request = replace(request, query_text=support_query_text)
     try:
         support_dense_query_embedding = get_dense_query_embedding(
             backend,
             support_request.query_text,
             profile=profile,
-        )
-        source_scoped_filter = _build_source_scoped_qdrant_filter(
-            request=support_request,
-            profile=profile,
-            source=target_source,
         )
         response = _retry_qdrant_read(
             lambda: backend.qdrant_client.query_points(
@@ -267,6 +290,128 @@ def _supplement_curriculum_same_doc_semester_sources(
     boosted_score = max(default_score, 1.0)
     return tuple(
         replace(source, score=max(source.score, boosted_score)) for source in selected_sources
+    )
+
+
+def _supplement_target_document_scroll_fallback(
+    backend: object,
+    *,
+    request: RetrievalRequest,
+    profile: CollectionRuntimeProfile,
+    qdrant_collection_name: str,
+    sources: Sequence[EvidenceSource],
+    deadline: _RetrievalDeadline,
+) -> tuple[EvidenceSource, ...]:
+    if deadline.is_expired():
+        return tuple(sources)
+    if not request.target_document_ids:
+        return tuple(sources)
+    if _has_grounding_source(sources):
+        return tuple(sources)
+
+    default_score = max((source.score for source in sources), default=1.0)
+    supplemental_sources: tuple[EvidenceSource, ...] = ()
+    for document_id in request.target_document_ids:
+        if deadline.is_expired():
+            break
+        scroll_filter = _build_target_document_scroll_filter(
+            request=request,
+            profile=profile,
+            document_id=document_id,
+        )
+        supplemental_sources = _merge_evidence_sources(
+            preferred=supplemental_sources,
+            additional=_scroll_same_document_sources(
+                backend,
+                qdrant_collection_name=qdrant_collection_name,
+                scroll_filter=scroll_filter,
+                default_score=default_score,
+                deadline=deadline,
+            ),
+        )
+    return _merge_evidence_sources(preferred=sources, additional=supplemental_sources)
+
+
+def _build_target_document_scroll_filter(
+    *,
+    request: RetrievalRequest,
+    profile: CollectionRuntimeProfile,
+    document_id: str,
+) -> qdrant_models.Filter:
+    base_filter = _build_qdrant_filter(
+        replace(request, target_document_ids=()),
+        profile=profile,
+    )
+    return qdrant_models.Filter(
+        must=[
+            *(base_filter.must or ()),
+            qdrant_models.FieldCondition(
+                key="document_id",
+                match=qdrant_models.MatchValue(value=document_id),
+            ),
+        ],
+        should=base_filter.should,
+        must_not=base_filter.must_not,
+        min_should=base_filter.min_should,
+    )
+
+
+def _scroll_same_document_sources(
+    backend: object,
+    *,
+    qdrant_collection_name: str,
+    scroll_filter: qdrant_models.Filter,
+    default_score: float,
+    deadline: _RetrievalDeadline,
+) -> tuple[EvidenceSource, ...]:
+    offset: int | str | None = None
+    records: list[qdrant_models.Record] = []
+    while len(records) < _SAME_DOC_SCROLL_MAX_RECORDS:
+        if deadline.is_expired():
+            return ()
+        remaining = _SAME_DOC_SCROLL_MAX_RECORDS - len(records)
+        limit = min(_SAME_DOC_SCROLL_BATCH_LIMIT, remaining)
+        try:
+            batch, offset = _retry_qdrant_read(
+                lambda limit=limit, offset=offset: backend.qdrant_client.scroll(
+                    collection_name=qdrant_collection_name,
+                    scroll_filter=scroll_filter,
+                    limit=limit,
+                    offset=offset,
+                    with_payload=True,
+                    with_vectors=False,
+                    timeout=deadline.qdrant_timeout_seconds(),
+                ),
+                deadline=deadline,
+            )
+        except Exception:
+            return ()
+        if not batch:
+            break
+        records.extend(batch)
+        if offset is None:
+            break
+    if not records:
+        return ()
+    return build_evidence_sources_from_records(
+        backend,
+        records,
+        default_score=default_score,
+    )
+
+
+def _has_grounding_source(sources: Sequence[EvidenceSource]) -> bool:
+    negative_roles = {
+        "appendix",
+        "background",
+        "closing_provision",
+        "navigation",
+        "source_attribution",
+        "boilerplate",
+        "media_caption",
+    }
+    return any(
+        source.is_answer_bearing or source.content_role not in negative_roles for source in sources
     )
 
 

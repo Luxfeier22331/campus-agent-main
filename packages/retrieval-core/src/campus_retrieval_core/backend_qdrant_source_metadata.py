@@ -11,11 +11,31 @@ def _record_to_text_node(point_id: object, payload: dict[str, object]) -> TextNo
     if isinstance(node_content, str):
         parsed = TextNode.model_validate_json(node_content)
         if parsed.metadata:
+            recovered_text, recovered_metadata = _recover_legacy_policy_page_body(
+                metadata={**payload, **dict(parsed.metadata)},
+                text=str(getattr(parsed, "text", "") or ""),
+            )
+            if recovered_text is not None:
+                return TextNode(
+                    id_=str(point_id),
+                    text=recovered_text,
+                    metadata=recovered_metadata,
+                )
             return parsed
 
     text = _coerce_text_payload(payload)
     if not text:
         return None
+    recovered_text, recovered_metadata = _recover_legacy_policy_page_body(
+        metadata=payload,
+        text=text,
+    )
+    if recovered_text is not None:
+        return TextNode(
+            id_=str(point_id),
+            text=recovered_text,
+            metadata=recovered_metadata,
+        )
     return TextNode(
         id_=str(point_id),
         text=text,
@@ -29,6 +49,50 @@ def _coerce_text_payload(payload: dict[str, object]) -> str:
         if isinstance(value, str) and value.strip():
             return value
     return ""
+
+
+def _recover_legacy_policy_page_body(
+    *,
+    metadata: dict[str, object],
+    text: str,
+) -> tuple[str, dict[str, object]] | tuple[None, dict[str, object]]:
+    if _optional_text(metadata.get("unit_type")) != "policy_page":
+        return None, metadata
+    preface_text = _optional_text(metadata.get("preface_text"))
+    if preface_text is None:
+        return None, metadata
+    if not _looks_like_low_signal_policy_page_text(metadata=metadata, text=text):
+        return None, metadata
+    recovered_metadata = dict(metadata)
+    recovered_metadata["content_role"] = "procedure"
+    recovered_metadata["is_answer_bearing"] = True
+    return preface_text, recovered_metadata
+
+
+def _looks_like_low_signal_policy_page_text(
+    *,
+    metadata: dict[str, object],
+    text: str,
+) -> bool:
+    explicit_role = _optional_text(metadata.get("content_role"))
+    if explicit_role == "closing_provision":
+        return True
+    anchor = _coerce_dict(metadata.get("anchor"))
+    structural_path = _coerce_structural_path(anchor.get("section_path"))
+    if any(segment.endswith("附则") or segment == "附则" for segment in structural_path):
+        return True
+    normalized_text = unicodedata.normalize("NFKC", text)
+    return any(
+        cue in normalized_text
+        for cue in (
+            "负责解释",
+            "由本",
+            "解释权",
+            "自发布之日起",
+            "自印发之日起",
+            "同时废止",
+        )
+    )
 
 
 def _coerce_dict(value: object) -> dict[str, object]:

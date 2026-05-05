@@ -64,9 +64,12 @@ _ACADEMIC_YEARS_FACT_RE = re.compile(r"学制[:： ]*(?:\d+|[一二三四五六�
 
 def _extract_source_statements(source: EvidenceSource) -> tuple[str, ...]:
     title = _normalize_snippet(source.source_title)
+    structural_labels = tuple(
+        _normalize_snippet(item) for item in source.structural_path if item.strip()
+    )
     ignored_lines = {
         title,
-        *(_normalize_snippet(item) for item in source.structural_path if item.strip()),
+        *structural_labels,
     }
     if source.detail_label.strip():
         ignored_lines.add(_normalize_snippet(source.detail_label))
@@ -89,9 +92,68 @@ def _extract_source_statements(source: EvidenceSource) -> tuple[str, ...]:
         statements.append(line)
 
     if statements:
-        return tuple(dict.fromkeys(statements))
+        statements = _prepend_structural_short_fact_labels(
+            statements=statements,
+            structural_labels=structural_labels,
+        )
+        return tuple(dict.fromkeys(_merge_short_fact_label_value_statements(statements)))
     rendered = _render_source_support(source)
     return (rendered,) if rendered else ()
+
+
+def _prepend_structural_short_fact_labels(
+    *,
+    statements: list[str],
+    structural_labels: tuple[str, ...],
+) -> list[str]:
+    if len(statements) != 1:
+        return statements
+    value = _normalize_snippet(statements[0])
+    if not value:
+        return statements
+    for label in reversed(structural_labels):
+        normalized_label = _normalize_short_fact_label(label)
+        if _combine_short_fact_label_with_value(normalized_label, value):
+            return [f"{normalized_label} {value}"]
+    return statements
+
+
+def _normalize_short_fact_label(label: str) -> str:
+    normalized = _normalize_snippet(label).rstrip(":：")
+    normalized = _LEADING_ENUM_RE.sub("", normalized).strip()
+    normalized = re.sub(r"^[（(]?[一二三四五六七八九十百]+[)）]\s*", "", normalized).strip()
+    return normalized.rstrip(":：")
+
+
+def _merge_short_fact_label_value_statements(statements: list[str]) -> list[str]:
+    merged: list[str] = []
+    index = 0
+    while index < len(statements):
+        statement = statements[index]
+        next_statement = statements[index + 1] if index + 1 < len(statements) else ""
+        combined = _combine_short_fact_label_with_value(statement, next_statement)
+        if combined:
+            merged.append(combined)
+            index += 2
+            continue
+        merged.append(statement)
+        index += 1
+    return merged
+
+
+def _combine_short_fact_label_with_value(label: str, value: str) -> str:
+    normalized_label = _normalize_snippet(label).rstrip(":：")
+    normalized_value = _normalize_snippet(value)
+    if not normalized_label or not normalized_value:
+        return ""
+    if normalized_label == "学制" and re.fullmatch(
+        r"(?:\d+|[一二三四五六七八九十两]+)年",
+        normalized_value,
+    ):
+        return f"{normalized_label} {normalized_value}"
+    if normalized_label == "总学分" and re.fullmatch(r"\d{2,3}(?:\s*学分)?", normalized_value):
+        return f"{normalized_label} {normalized_value}"
+    return ""
 
 
 def _score_statement(

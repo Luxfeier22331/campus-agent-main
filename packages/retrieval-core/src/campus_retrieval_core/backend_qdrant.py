@@ -1,10 +1,11 @@
 from __future__ import annotations
 
 from collections import OrderedDict
+from collections.abc import Sequence
 from dataclasses import dataclass, field
 from threading import RLock
 
-from campus_contracts import EvidenceBundle
+from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.models import DocumentRegistryRecord
@@ -27,6 +28,7 @@ from campus_retrieval_core.backend_qdrant_document_support import (
     _expand_named_document_support,
     _resolve_initial_query_limit,
     _should_expand_named_document_support,
+    _supplement_target_document_scroll_fallback,
 )
 from campus_retrieval_core.backend_qdrant_embeddings import get_dense_query_embedding
 from campus_retrieval_core.backend_qdrant_errors import (
@@ -67,6 +69,7 @@ from campus_retrieval_core.backend_qdrant_runtime import (
 from campus_retrieval_core.curriculum_query_resolution import interpret_curriculum_query
 from campus_retrieval_core.evidence_ranking import (
     prioritize_evidence_sources,
+    query_targets_source_title,
 )
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
@@ -213,6 +216,7 @@ class QdrantRetrievalBackend:
             sources=raw_sources,
             timeout_seconds=deadline.qdrant_timeout_seconds(),
         )
+        rescued_doc_ids = _newly_rescued_doc_ids(before=raw_sources, after=rescued_sources)
         initial_sources = _apply_no_hit_policy(
             profile=profile,
             query_text=query_text,
@@ -223,6 +227,14 @@ class QdrantRetrievalBackend:
             query_text=query_text,
             sources=initial_sources,
         )
+        initial_sources = _supplement_target_document_scroll_fallback(
+            self,
+            request=request,
+            profile=profile,
+            qdrant_collection_name=qdrant_collection_name,
+            sources=initial_sources,
+            deadline=deadline,
+        )
         ranked_sources = prioritize_evidence_sources(
             query_text=query_text,
             sources=initial_sources,
@@ -231,14 +243,17 @@ class QdrantRetrievalBackend:
             sources=ranked_sources,
             preferred_document_ids=request.preferred_document_ids,
         )
+        should_expand_named_document_support = _should_expand_named_document_support(
+            request=request,
+            profile=profile,
+            sources=ranked_sources,
+        ) and not _targets_newly_rescued_doc(
+            query_text=query_text,
+            sources=ranked_sources,
+            rescued_doc_ids=rescued_doc_ids,
+        )
         expanded_sources = (
-            tuple(ranked_sources)
-            if not _should_expand_named_document_support(
-                request=request,
-                profile=profile,
-                sources=ranked_sources,
-            )
-            else _expand_named_document_support(
+            _expand_named_document_support(
                 self,
                 request=request,
                 profile=profile,
@@ -246,6 +261,8 @@ class QdrantRetrievalBackend:
                 sources=ranked_sources,
                 deadline=deadline,
             )
+            if should_expand_named_document_support
+            else tuple(ranked_sources)
         )
         ranked_final_sources = finalize_retrieval_sources(
             profile=profile,
@@ -259,3 +276,31 @@ class QdrantRetrievalBackend:
             collection=request.collection,
             sources=ranked_final_sources[: request.top_k],
         )
+
+
+def _newly_rescued_doc_ids(
+    *,
+    before: Sequence[EvidenceSource],
+    after: Sequence[EvidenceSource],
+) -> frozenset[str]:
+    before_chunk_ids = {source.chunk_id for source in before}
+    return frozenset(
+        source.doc_id
+        for source in after
+        if source.chunk_id not in before_chunk_ids and source.doc_id
+    )
+
+
+def _targets_newly_rescued_doc(
+    *,
+    query_text: str,
+    sources: Sequence[EvidenceSource],
+    rescued_doc_ids: frozenset[str],
+) -> bool:
+    if not rescued_doc_ids:
+        return False
+    return any(
+        source.doc_id in rescued_doc_ids
+        and query_targets_source_title(query_text=query_text, source=source)
+        for source in sources
+    )

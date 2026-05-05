@@ -63,6 +63,7 @@ def _build_source_support_candidates(source: EvidenceSource) -> tuple[SupportCan
         *(item.strip() for item in source.structural_path if item.strip()),
         source.snippet.strip(),
     ]
+    snippets.extend(_derive_structured_fact_snippets(source.snippet))
     candidates: list[SupportCandidate] = []
     for snippet in snippets:
         haystack = _normalize_matching_text(snippet)
@@ -88,6 +89,30 @@ def _build_source_support_candidates(source: EvidenceSource) -> tuple[SupportCan
             )
         )
     return tuple(_dedupe_support_candidates(candidates))
+
+
+def _derive_structured_fact_snippets(snippet: str) -> list[str]:
+    snippets: list[str] = []
+    for line in re.split(r"[\r\n]+", snippet):
+        normalized_line = line.strip()
+        if not normalized_line:
+            continue
+        total_credits = _derive_total_credit_fact(normalized_line)
+        if total_credits:
+            snippets.append(total_credits)
+    return snippets
+
+
+def _derive_total_credit_fact(line: str) -> str:
+    if "总学分" not in line:
+        return ""
+    match = re.search(r"(?:^|[|｜])\s*总学分\s*(?:[|｜][^0-9\r\n]*)*([0-9]{2,3})\s*$", line)
+    if match:
+        return f"总学分:{match.group(1)}学分"
+    match = re.search(r"总学分[^0-9]{0,24}([0-9]{2,3})(?:\s*学分)?", line)
+    if match:
+        return f"总学分:{match.group(1)}学分"
+    return ""
 
 
 def _dedupe_support_candidates(

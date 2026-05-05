@@ -8,7 +8,7 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from campus_contracts import EvidenceBundle
+from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle
 from campus_evals.ragas_diagnostic_runner import (
     DEFAULT_RAGAS_DIAGNOSTIC_SAMPLE_LIMIT_PER_SURFACE,
     build_ragas_diagnostic_sample_manifest,
@@ -42,6 +42,62 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
         self.assertEqual(
             manifest["cases"][0]["case_id"],
             "policy-title-scholarship",
+        )
+
+    def test_build_sample_manifest_prioritizes_semantic_restricted_institutional_case(
+        self,
+    ) -> None:
+        manifest = build_ragas_diagnostic_sample_manifest(sample_limit_per_surface=1)
+        cases_by_surface = {
+            case["surface_key"]: case for case in manifest["cases"] if isinstance(case, dict)
+        }
+
+        self.assertEqual(
+            cases_by_surface["regulations/institutional_rules"]["case_id"],
+            "institutional-three-assists",
+        )
+        self.assertEqual(
+            cases_by_surface["regulations/institutional_rules"]["query"],
+            "研究生助教助研助管工作应该依据哪份管理办法？",
+        )
+
+    def test_run_ragas_diagnostic_passes_restricted_institutional_authorization_to_backend(
+        self,
+    ) -> None:
+        seen_requests = []
+
+        class FakeBackend:
+            def retrieve(self, request):
+                seen_requests.append(request)
+                return EvidenceBundle(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    query_text=request.query_text,
+                    sources=(_source(doc_id=f"{request.collection}:doc"),),
+                )
+
+        report = run_ragas_diagnostic(
+            backend=FakeBackend(),
+            scorer=lambda projection: {"faithfulness": 1.0},
+            sample_limit_per_surface=1,
+            metric_names=("faithfulness",),
+        )
+
+        institutional_request = next(
+            request for request in seen_requests if request.collection == "institutional_rules"
+        )
+        self.assertTrue(report["passed"])
+        self.assertEqual(
+            institutional_request.query_text,
+            "研究生助教助研助管工作应该依据哪份管理办法？",
+        )
+        self.assertEqual(
+            institutional_request.authorized_filter,
+            AuthorizedRetrievalFilter(
+                entitlement_groups=("campus_members",),
+                visibility_scope="campus",
+                visibility_level="restricted",
+            ),
         )
 
     def test_run_ragas_diagnostic_uses_retrieved_evidence_and_fake_scorer(self) -> None:

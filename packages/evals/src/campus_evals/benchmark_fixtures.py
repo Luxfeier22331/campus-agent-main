@@ -356,10 +356,21 @@ def _load_hybrid_query_case(payload: dict[str, object]) -> RetrievalHybridQueryC
         category=category,
         query=str(payload["query"]),
         scope=scope,
+        expected_status=str(
+            payload.get("expected_status") or _default_hybrid_expected_status(category)
+        ),
         expected_keywords=tuple(str(item) for item in payload.get("expected_keywords") or ()),
         forbidden_doc_ids=tuple(str(item) for item in payload.get("forbidden_doc_ids") or ()),
         notes=str(payload.get("notes") or ""),
     )
+
+
+def _default_hybrid_expected_status(category: str) -> str:
+    if category == "no_hit":
+        return "no_answer"
+    if category == "needs_clarification":
+        return "needs_clarification"
+    return "completed"
 
 
 def _load_source_ref(payload: dict[str, object]) -> RetrievalQrelsSourceRef:

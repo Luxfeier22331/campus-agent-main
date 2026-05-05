@@ -15,9 +15,9 @@
 			"case_id": "article-number-degree-procedure",
 			"category": "article_number_exact_match",
 			"query": "中央民族大学全日制本科学生学士学位授予规定 第十条",
-			"expected_keywords": ["学士学位授予规定", "第十条"],
+			"expected_keywords": ["学士学位授予规定"],
 			"forbidden_doc_ids": [],
-			"notes": "验证条款号 exact-match 与制度标题联合命中。"
+			"notes": "验证制度标题 + 条款号问法能回到目标制度；当前源文档分节不含第十条文本，因此不把第十条作为答案关键词。"
 		},
 		{
 			"case_id": "policy-title-scholarship",
@@ -55,9 +55,10 @@
 			"case_id": "policy-alias-national-scholarship-author-affiliation",
 			"category": "policy_alias_targeted",
 			"query": "民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？",
-			"expected_keywords": ["国家奖学金", "第一作者", "第二作者"],
+			"expected_status": "no_answer",
+			"expected_keywords": ["国家奖学金", "第一作者"],
 			"forbidden_doc_ids": ["handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7"],
-			"notes": "验证高词面污染问题仍然锁定国奖文档，而不是被综合素质测评办法吸走。"
+			"notes": "验证高词面污染问题仍然锁定国奖文档，而不是被综合素质测评办法吸走；作者单位/第二作者得分结论缺少直接制度依据，agent 应 fail-close。"
 		},
 		{
 			"case_id": "no-hit-impossible-query",

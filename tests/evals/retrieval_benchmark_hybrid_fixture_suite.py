@@ -180,6 +180,107 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
         }
         self.assertEqual(scoped_case_ids, set())
 
+    def test_load_hybrid_fixture_accepts_expected_status(self) -> None:
+        load_fixture = campus_evals.load_retrieval_hybrid_query_dataset
+
+        with TemporaryDirectory() as temp_dir:
+            fixture_path = Path(temp_dir) / "hybrid.json"
+            fixture_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "regulations",
+                        "collection": "student_rules",
+                        "baseline": {"dense_model": "Qwen3-Embedding-4B"},
+                        "cases": [
+                            {
+                                "case_id": "fail-close-case",
+                                "category": "policy_alias_targeted",
+                                "query": "缺少直接制度依据的问题",
+                                "expected_status": "no_answer",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            dataset = load_fixture(fixture_path)
+
+        self.assertEqual(dataset.cases[0].expected_status, "no_answer")
+
+    def test_load_hybrid_fixture_derives_default_expected_status_from_category(self) -> None:
+        load_fixture = campus_evals.load_retrieval_hybrid_query_dataset
+
+        with TemporaryDirectory() as temp_dir:
+            fixture_path = Path(temp_dir) / "hybrid.json"
+            fixture_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "regulations",
+                        "collection": "student_rules",
+                        "baseline": {"dense_model": "Qwen3-Embedding-4B"},
+                        "cases": [
+                            {
+                                "case_id": "missing-case",
+                                "category": "no_hit",
+                                "query": "不存在的问题",
+                            },
+                            {
+                                "case_id": "ambiguous-case",
+                                "category": "needs_clarification",
+                                "query": "转专业",
+                            },
+                            {
+                                "case_id": "answer-case",
+                                "category": "policy_title_exact_match",
+                                "query": "中央民族大学本科学生国家奖学金评审办法",
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            dataset = load_fixture(fixture_path)
+
+        self.assertEqual(
+            tuple(case.expected_status for case in dataset.cases),
+            ("no_answer", "needs_clarification", "completed"),
+        )
+
+    def test_load_hybrid_fixture_rejects_unsupported_expected_status(self) -> None:
+        load_fixture = campus_evals.load_retrieval_hybrid_query_dataset
+
+        with TemporaryDirectory() as temp_dir:
+            fixture_path = Path(temp_dir) / "hybrid.json"
+            fixture_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "regulations",
+                        "collection": "student_rules",
+                        "baseline": {"dense_model": "Qwen3-Embedding-4B"},
+                        "cases": [
+                            {
+                                "case_id": "bad-status-case",
+                                "category": "policy_alias_targeted",
+                                "query": "缺少直接制度依据的问题",
+                                "expected_status": "unsupported",
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "unsupported hybrid query expected_status"):
+                load_fixture(fixture_path)
+
     def test_hybrid_fixture_uses_queries_grounded_in_current_manifest_titles(self) -> None:
         fixture = json.loads(HYBRID_FIXTURE_PATH.read_text(encoding="utf-8"))
         cases_by_id = {case["case_id"]: case for case in fixture["cases"]}
@@ -204,7 +305,11 @@ class StudentHandbookHybridFixtureTest(unittest.TestCase):
             cases_by_id["policy-alias-national-scholarship-author-affiliation"][
                 "expected_keywords"
             ],
-            ["国家奖学金", "第一作者", "第二作者"],
+            ["国家奖学金", "第一作者"],
+        )
+        self.assertEqual(
+            cases_by_id["policy-alias-national-scholarship-author-affiliation"]["expected_status"],
+            "no_answer",
         )
 
     def test_validate_hybrid_fixture_rejects_restricted_scope_and_titleless_fixed_phrase_drift(

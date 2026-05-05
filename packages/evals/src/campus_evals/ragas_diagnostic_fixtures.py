@@ -23,6 +23,7 @@ PREFERRED_RAGAS_DIAGNOSTIC_CASE_IDS = {
         "policy-title-funded-student-public-service",
     ),
     "regulations/institutional_rules": (
+        "institutional-three-assists",
         "institutional-title-exact-ff711d1185f9",
         "institutional-title-exact-81401d3a02d6",
         "institutional-title-exact-7da72ac3d796",

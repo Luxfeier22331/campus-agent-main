@@ -43,6 +43,7 @@
 			"required_classes": ["positive", "no_hit", "forbidden", "version_locked", "authz"],
 			"required_scenarios": [
 				"institutional_policy_title",
+				"semantic_institutional_rule",
 				"effective_date",
 				"authz_denied",
 				"version_locked",
@@ -50,6 +51,11 @@
 			],
 			"scenario_denominator_classes": {
 				"institutional_policy_title": ["exact_title_or_policy_name", "citation_backlink"],
+				"semantic_institutional_rule": [
+					"entity_alias_or_abbreviation",
+					"long_form_semantic_answer",
+					"citation_backlink"
+				],
 				"effective_date": ["long_form_semantic_answer", "citation_backlink"],
 				"authz_denied": ["authz_filtered"],
 				"version_locked": ["historical_version", "current_only"],

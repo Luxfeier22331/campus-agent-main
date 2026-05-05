@@ -44,6 +44,18 @@ _OFFICIAL_WEB_SPECIFICITY_HINT_TERMS = (
     "部门",
     "联系方式",
 )
+_OFFICIAL_WEB_UNANCHORED_STABLE_REFERENCE_SERVICE_TERMS = (
+    "办理",
+    "办理处",
+    "办公室",
+    "服务",
+    "规章",
+    "规则",
+    "电话",
+    "校区",
+    "学院",
+    "实验室",
+)
 _OFFICIAL_WEB_FRESHNESS_QUERY_TERMS = (
     "今天",
     "今日",
@@ -104,6 +116,12 @@ def _apply_official_web_low_signal_policy(
     if any(
         term in normalized_query for term in _OFFICIAL_WEB_UNANCHORED_LIFE_SERVICE_TERMS
     ) and not any(term in normalized_query for term in _OFFICIAL_WEB_SPECIFICITY_HINT_TERMS):
+        return ()
+    if _is_unanchored_stable_reference_service_query(
+        normalized_query=normalized_query,
+        query_text=query_text,
+        sources=sources,
+    ):
         return ()
     return tuple(sources)
 
@@ -421,6 +439,23 @@ def _official_web_source_chunk_ordinal(source: EvidenceSource) -> int | None:
 
 def _normalize_low_signal_query(query_text: str) -> str:
     return "".join(character for character in query_text.strip() if not character.isspace())
+
+
+def _is_unanchored_stable_reference_service_query(
+    *,
+    normalized_query: str,
+    query_text: str,
+    sources: Sequence[EvidenceSource],
+) -> bool:
+    if any(term in normalized_query for term in _OFFICIAL_WEB_STABLE_REFERENCE_QUERY_TERMS):
+        return False
+    if any(term in normalized_query for term in _OFFICIAL_WEB_SPECIFICITY_HINT_TERMS):
+        return False
+    if any(query_targets_source_title(query_text=query_text, source=source) for source in sources):
+        return False
+    return any(
+        term in normalized_query for term in _OFFICIAL_WEB_UNANCHORED_STABLE_REFERENCE_SERVICE_TERMS
+    )
 
 
 def _is_official_web_freshness_sensitive_query(query_text: str) -> bool:

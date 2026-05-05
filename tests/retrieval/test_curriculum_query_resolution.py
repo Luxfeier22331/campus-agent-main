@@ -226,6 +226,38 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
         self.assertTrue(scope_applied)
         self.assertEqual(tuple(source.chunk_id for source in scoped_sources), ("law-1",))
 
+    def test_filter_curriculum_query_sources_uses_family_alias_major_candidates(self) -> None:
+        scoped_sources, scope_applied = filter_curriculum_query_sources(
+            query_text="中国少数民族语言文学强基计划本科人才培养方案",
+            sources=(
+                _source(
+                    doc_id="curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                    chunk_id="strong-base-overview",
+                    snippet="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案 一、培养目标。",
+                    score=0.91,
+                    source_title="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                    structural_path=(
+                        "中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                        "一、培养目标",
+                    ),
+                ),
+                _source(
+                    doc_id="curriculum:中国少数民族语言文学本科人才培养方案",
+                    chunk_id="ordinary-overview",
+                    snippet="中国少数民族语言文学本科人才培养方案 一、培养目标。",
+                    score=0.89,
+                    source_title="中国少数民族语言文学本科人才培养方案",
+                    structural_path=("中国少数民族语言文学本科人才培养方案", "一、培养目标"),
+                ),
+            ),
+        )
+
+        self.assertTrue(scope_applied)
+        self.assertEqual(
+            tuple(source.doc_id for source in scoped_sources),
+            ("curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
