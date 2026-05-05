@@ -1,7 +1,7 @@
 ---
 workstream: authenticated-notice-fetch-admission-operator-wiring
 created: 2026-04-30
-updated: 2026-04-30
+updated: 2026-05-05
 ---
 
 # Project State
@@ -10,15 +10,15 @@ updated: 2026-04-30
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** Phase 7 completed; Phase 8 next
-**Last Activity:** 2026-04-30
-**Last Activity Description:** Hardened the media extraction state machine contract. Fact readiness now admits target multimodal only from explicit `target_blocking` candidates, media lifecycle uses canonical `pending` / `completed` / `skipped` / `manual_review` / `failed_retryable` / `failed_terminal` states, closeout preserves result manifest provenance, and attachment fetch admission now treats stale object refs without upload state as bytes-missing.
+**Status:** Completed
+**Current Phase:** Phase 8 completed
+**Last Activity:** 2026-05-05
+**Last Activity Description:** Completed captured-content smoke against already collected authenticated notice content. Current-code replay produced 338 source-truth candidates/searchable units, recomputed 0 fetch requests from current refs, rebuilt 60 target media candidates, verified all 60 source objects, replayed transport/service-status/regulation downstream admission by title, applied available OCR/manual terminal closeout evidence, and passed both state-machine audits with 0 findings.
 
 ## Progress
 
-**Phases Complete:** 7
-**Current Plan:** `ROADMAP.md`
+**Phases Complete:** 8
+**Current Plan:** Workstream closed. Fresh selected collector smoke remains an auth-dependent manifest-consumption proof, not a blocker for the captured-content state-machine acceptance.
 
 ## Phase 1 Result
 
@@ -41,17 +41,40 @@ updated: 2026-04-30
 - Multimodal readiness produces 3 `schedule_image_ocr` candidates with object refs.
 - Schedule image OCR mini-batch manifest selects 1 notice / 3 images / 0 blocked candidates.
 
-## Next Slice
+## Phase 8 Result
 
-Run captured-content smoke against already collected authenticated notice content.
-This is higher priority than fresh selected collector smoke because it validates
-the state machine we just changed: notice routing, fetch omission, media
-readiness, fact readiness, closeout, cleanup gate, and downstream admission over
-existing source-truth/searchable replay evidence.
+- Reimport preview replayed 58 captured runs into 338 source-truth candidates
+  and 338 searchable units; 18 invalid captures remain deferred by collector-run
+  verification state and no searchable unit is missing.
+- Fetch request recompute over 282 current notice refs produced 0 fetch requests
+  and 0 required source-object fetches.
+- Media readiness rebuilt 60 pending candidates: 56 released-file PDFs for
+  owner-text extraction and 4 schedule images for OCR.
+- Live source-object verification checked all 60 media source objects and
+  verified all 60.
+- Downstream admission by title:
+  - transport schedule: 4 entries, 2 admitted, 2 `needs_multimodal`.
+  - service status: 3 entries, 1 admitted, 2 deferred.
+  - regulation: 42 entries, all `needs_multimodal` pending owner-document text.
+- Known selected examples route correctly:
+  - `355867` remains target-blocking from 3 schedule-image OCR candidates until
+    closeout; OCR closeout completes 2 images and maps the low-confidence image
+    to `manual_review`.
+  - manual terminal closeout maps the low-confidence `355867` image to
+    `failed_terminal`.
+  - `355122` still has 1 target-blocking schedule image after available
+    closeout evidence.
+  - text-complete transport notices `355512` and `355881` admit from body facts.
+- Cleanup dry-run blocks 4 quarantine refs while pending, releases 2 after OCR
+  closeout, and releases 3 after manual terminal closeout.
+- State-machine audit and media-closeout audit both passed with 0 findings.
 
-Fresh selected collector export remains a secondary auth-dependent
-manifest-consumption proof; it should not block captured-content state-machine
-acceptance.
+Evidence:
+
+- `evidence/phase-08-captured-content-smoke/captured-content-smoke-summary.json`
+- `evidence/phase-08-captured-content-smoke/media-closeout-state-machine-audit-current.stdout.json`
+- `evidence/phase-08-captured-content-smoke/state-machine-audit-current/state-machine-audit.json`
+- `evidence/phase-08-captured-content-smoke/source-object-verification/media-source-object-verification-report.json`
 
 ## Phase 6 Result
 
@@ -66,7 +89,7 @@ acceptance.
 
 ## Session Continuity
 
-**Stopped At:** Phase 7 state-machine contract hardening complete; Phase 8 captured-content smoke should run next
+**Stopped At:** Workstream closed after Phase 8 captured-content state-machine acceptance.
 **Resume File:** None
 
 ## Phase 7 Result

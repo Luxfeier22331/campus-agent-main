@@ -34,6 +34,7 @@ def cleanup_protected_refs(cleanup_report: Mapping[str, Any]) -> set[tuple[str, 
     rows: list[Mapping[str, Any]] = []
     for key in (
         "blocked_quarantine_objects",
+        "blocked_quarantine_inventory_rows",
         "protected_objects",
         "retained_objects",
         "skipped_active_objects",

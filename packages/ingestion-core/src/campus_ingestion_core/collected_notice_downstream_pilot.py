@@ -10,6 +10,7 @@ from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
 from campus_ingestion_core.collected_notice_fact_readiness import (
     TARGET_ADMISSION_NEEDS_MULTIMODAL,
     build_transport_schedule_fact_readiness,
+    fact_readiness_entry_fields,
 )
 from campus_ingestion_core.collected_notice_transport_baseline_policy import (
     multimodal_policy,
@@ -485,9 +486,7 @@ def _admission_entry(
         "target_surface": TRANSPORT_SCHEDULE_TARGET_SURFACE if decision.admitted else None,
         "target_hints": unit.get("target_hints") or {},
         "multimodal_policy": multimodal_policy(unit),
-        "fact_readiness_state": decision.fact_readiness["fact_readiness_state"],
-        "target_admission_state": decision.fact_readiness["target_admission_state"],
-        "fact_readiness": decision.fact_readiness,
+        **fact_readiness_entry_fields(decision.fact_readiness),
         **baseline_policy,
         "reason_codes": (
             list(

@@ -81,6 +81,8 @@ class CollectedNoticeScheduleImageOcrMiniBatchTests(unittest.TestCase):
         )
         self.assertEqual(closeout["results"][0]["candidate_id"], "notice-mm:a")
         self.assertEqual(closeout["results"][0]["status"], "completed")
+        self.assertEqual(closeout["results"][0]["attempt_id"], "notice-mm:a:attempt:1")
+        self.assertEqual(closeout["results"][0]["attempt_number"], 1)
 
 
 def _consumer_manifest() -> dict[str, object]:

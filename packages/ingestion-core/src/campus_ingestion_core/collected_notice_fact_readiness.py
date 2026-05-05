@@ -256,6 +256,17 @@ def _payload(
     return payload
 
 
+def fact_readiness_entry_fields(fact_readiness: Mapping[str, Any]) -> dict[str, Any]:
+    return {
+        "fact_readiness_state": fact_readiness["fact_readiness_state"],
+        "target_admission_state": fact_readiness["target_admission_state"],
+        "required_fact_groups": list(fact_readiness.get("required_fact_groups") or ()),
+        "ready_fact_groups": list(fact_readiness.get("ready_fact_groups") or ()),
+        "missing_fact_groups": list(fact_readiness.get("missing_fact_groups") or ()),
+        "fact_readiness": dict(fact_readiness),
+    }
+
+
 __all__ = [
     "FACT_READINESS_BLOCKED_BY_REQUIRED_MEDIA",
     "FACT_READINESS_MISSING",
@@ -270,4 +281,5 @@ __all__ = [
     "build_regulation_fact_readiness",
     "build_service_status_fact_readiness",
     "build_transport_schedule_fact_readiness",
+    "fact_readiness_entry_fields",
 ]

@@ -315,6 +315,45 @@ class CollectedNoticeMediaCloseoutStateMachineAuditTests(unittest.TestCase):
             {"target_admission_manifest_missing_candidate_unit": 1},
         )
 
+    def test_audit_does_not_require_target_manifest_for_search_only_candidate(self) -> None:
+        inventory = _candidate_inventory()
+        candidate = inventory["candidates"][0]  # type: ignore[index]
+        candidate["target_hints"] = []
+        candidate["classification"] = {
+            "primary_route": "notice_level_query",
+            "target_candidates": [],
+        }
+
+        audit = build_collected_notice_media_closeout_state_machine_audit(
+            candidate_inventory=inventory,
+            attempt_ledger={
+                "attempts": [
+                    _attempt(
+                        "candidate:schedule",
+                        status="pending",
+                        retry_budget_remaining=2,
+                        source_key="objects/schedule.png",
+                    )
+                ]
+            },
+            closeout_candidate_inventory=inventory,
+            target_admission_manifests=[
+                {
+                    "entries": [
+                        {
+                            "searchable_unit_id": "unit:other",
+                            "target_admission_state": "needs_multimodal",
+                        }
+                    ]
+                }
+            ],
+            cleanup_report=_cleanup_report(protected_keys=("objects/schedule.png",)),
+            object_verification_report=_object_verification_report(source_hash="a" * 64),
+        )
+
+        self.assertEqual(audit["verdict"], "passed")
+        self.assertEqual(audit["finding_count"], 0)
+
     def test_audit_fails_cleanup_dry_run_for_active_blocker(self) -> None:
         audit = build_collected_notice_media_closeout_state_machine_audit(
             candidate_inventory=_candidate_inventory(),
@@ -611,6 +650,37 @@ class CollectedNoticeMediaCloseoutStateMachineAuditTests(unittest.TestCase):
             {"cleanup_report_missing_active_blocking_quarantine_object": 1},
         )
 
+    def test_audit_does_not_require_cleanup_protection_for_permanent_source_truth_candidate(
+        self,
+    ) -> None:
+        inventory = _candidate_inventory()
+        candidate = inventory["candidates"][0]  # type: ignore[index]
+        candidate["media_kind"] = "pdf"
+        candidate["processing_family"] = "released_file_text_extraction"
+        candidate["attachment_ref"] = {
+            "retention_class": "permanent_source_truth",
+            "attachment_capture_policy": "fetch_required_for_source_truth",
+        }
+
+        audit = build_collected_notice_media_closeout_state_machine_audit(
+            candidate_inventory=inventory,
+            attempt_ledger={
+                "attempts": [
+                    _attempt(
+                        "candidate:schedule",
+                        status="pending",
+                        retry_budget_remaining=2,
+                        source_key="objects/schedule.png",
+                    )
+                ]
+            },
+            cleanup_report=_cleanup_report(protected_keys=()),
+            strict_gate=False,
+        )
+
+        self.assertEqual(audit["verdict"], "passed")
+        self.assertEqual(audit["finding_count"], 0)
+
     def test_audit_fails_cleanup_report_with_matching_key_wrong_bucket(self) -> None:
         audit = build_collected_notice_media_closeout_state_machine_audit(
             candidate_inventory=_candidate_inventory(),
@@ -638,6 +708,30 @@ class CollectedNoticeMediaCloseoutStateMachineAuditTests(unittest.TestCase):
             {"cleanup_report_missing_active_blocking_quarantine_object": 1},
         )
 
+    def test_audit_accepts_cleanup_summary_with_blocked_inventory_rows(self) -> None:
+        audit = build_collected_notice_media_closeout_state_machine_audit(
+            candidate_inventory=_candidate_inventory(),
+            attempt_ledger={
+                "attempts": [
+                    _attempt(
+                        "candidate:schedule",
+                        status="pending",
+                        retry_budget_remaining=2,
+                        source_key="objects/schedule.png",
+                    )
+                ]
+            },
+            cleanup_report={
+                "blocked_quarantine_inventory_rows": [
+                    {"bucket": "campus-rag-source", "object_key": "objects/schedule.png"}
+                ]
+            },
+            strict_gate=False,
+        )
+
+        self.assertEqual(audit["verdict"], "passed")
+        self.assertEqual(audit["finding_count"], 0)
+
 
 def _candidate_inventory() -> dict[str, object]:
     return {
@@ -660,6 +754,12 @@ def _candidate_inventory() -> dict[str, object]:
                     "key": "objects/schedule.png",
                     "sha256": "a" * 64,
                     "byte_size": 123,
+                },
+                "attachment_ref": {
+                    "attachment_ref_id": "attachment-0001",
+                    "attachment_capture_policy": "fetch_to_quarantine",
+                    "attachment_capture_state": "uploaded_quarantine",
+                    "retention_class": "quarantine_candidate",
                 },
                 "normalized_output_refs": {"plain_text": {"key": "ocr.txt"}},
             }

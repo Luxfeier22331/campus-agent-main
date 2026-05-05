@@ -642,6 +642,8 @@ def _target_admission_findings(
         }
         manifest_unit_ids.discard("")
         for candidate in candidates:
+            if not _requires_target_admission_manifest(candidate):
+                continue
             unit_id = str(candidate.get("unit_id") or "")
             if unit_id and unit_id not in manifest_unit_ids:
                 findings.append(
@@ -655,6 +657,10 @@ def _target_admission_findings(
     return findings
 
 
+def _requires_target_admission_manifest(candidate: Mapping[str, Any]) -> bool:
+    return bool(_candidate_targets(candidate) - {"unknown"})
+
+
 def _cleanup_findings(
     *,
     candidates: Sequence[Mapping[str, Any]],
@@ -665,7 +671,7 @@ def _cleanup_findings(
     active_refs = {
         _object_ref_identity(candidate)
         for candidate in candidates
-        if bool(candidate.get("target_blocking")) and _status(candidate) in _NONTERMINAL
+        if _requires_quarantine_cleanup_protection(candidate)
     }
     active_refs.discard(None)
     findings: list[dict[str, Any]] = []
@@ -705,6 +711,22 @@ def _cleanup_findings(
             )
         )
     return findings
+
+
+def _requires_quarantine_cleanup_protection(candidate: Mapping[str, Any]) -> bool:
+    if not bool(candidate.get("target_blocking")) or _status(candidate) not in _NONTERMINAL:
+        return False
+    attachment_ref = candidate.get("attachment_ref")
+    retention_class = ""
+    capture_policy = ""
+    if isinstance(attachment_ref, Mapping):
+        retention_class = str(attachment_ref.get("retention_class") or "").strip()
+        capture_policy = str(attachment_ref.get("attachment_capture_policy") or "").strip()
+    if not retention_class:
+        retention_class = str(candidate.get("retention_class") or "").strip()
+    if not capture_policy:
+        capture_policy = str(candidate.get("attachment_capture_policy") or "").strip()
+    return retention_class == "quarantine_candidate" or capture_policy == "fetch_to_quarantine"
 
 
 __all__ = [

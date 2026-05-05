@@ -2,7 +2,7 @@
 doc_type: roadmap
 status: active
 created: 2026-04-30
-updated: 2026-04-30
+updated: 2026-05-05
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -18,7 +18,7 @@ updated: 2026-04-30
 - [x] **Phase 5: Media Extraction Closeout Lane** — schedule OCR and owner-text execution outputs now emit canonical closeout result manifests, and a dry-run closeout CLI updates media extraction candidate inventory terminal states.
 - [x] **Phase 6: Offline Closeout Verification** — selected notice `355867` proves readiness -> OCR post-run closeout -> cleanup gate behavior, including low-confidence non-terminal preservation and manual terminal release.
 - [x] **Phase 7: State Machine Contract Hardening** — target admission, media lifecycle states, closeout provenance, candidate inventory validation, and attachment bytes availability are now explicit and test-covered.
-- [ ] **Phase 8: Captured Content Smoke** — replay already collected authenticated notice content through the hardened state machine before spending priority on fresh live collector smoke.
+- [x] **Phase 8: Captured Content Smoke** — replayed already collected authenticated notice content through the hardened state machine before spending priority on fresh live collector smoke.
 
 ## Phase 1: Operator Manifest Builder And Docs Wiring
 
@@ -258,6 +258,39 @@ Scope:
 - Confirm downstream routing decisions by title and body: target candidates
   proceed only when facts are ready or explicit blocking media exists; discover
   notices stay search-only.
+
+Result:
+
+- Replayed 58 captured runs into 338 source-truth candidates and 338 searchable
+  units; 18 invalid captures remained deferred by collector-run verification
+  state and no searchable unit was missing.
+- Recomputed attachment fetch requests for 282 notices and produced 0 fetch
+  requests / 0 required source-object fetches from the current captured refs.
+- Rebuilt 60 media extraction candidates: 56 released-file text extraction PDFs
+  and 4 schedule-image OCR candidates.
+- Verified all 60 target media source objects against live object storage.
+- Replayed downstream admission by title:
+  - transport schedule: 4 entries, 2 downstream admitted, 2 still
+    `needs_multimodal`.
+  - service status: 3 entries, 1 downstream admitted, 2 deferred for missing
+    status/effective-window facts.
+  - regulation: 42 file-release candidates, all `needs_multimodal` until
+    owner-document text extraction completes.
+- Applied available closeout evidence for selected schedule images:
+  OCR closeout completed 2 candidates and mapped the low-confidence result to
+  `manual_review`; manual terminal closeout then mapped that candidate to
+  `failed_terminal`.
+- Cleanup dry-run respected blocking media state: 4 objects blocked while
+  pending, 2 released after OCR closeout, and 3 released after manual terminal
+  closeout.
+- State-machine audit and media-closeout audit both passed with 0 findings.
+
+Evidence:
+
+- `evidence/phase-08-captured-content-smoke/captured-content-smoke-summary.json`
+- `evidence/phase-08-captured-content-smoke/media-closeout-state-machine-audit-current.stdout.json`
+- `evidence/phase-08-captured-content-smoke/source-object-verification/media-source-object-verification-report.json`
+- `phases/phase-08-captured-content-smoke/SUMMARY.md`
 - Apply available closeout result manifests and verify cleanup gate behavior for
   terminal, manual-review, and retryable media states.
 - Produce a smoke summary listing titles by outcome, not just numeric ids:

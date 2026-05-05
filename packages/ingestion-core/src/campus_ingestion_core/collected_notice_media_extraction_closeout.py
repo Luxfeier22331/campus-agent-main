@@ -136,6 +136,8 @@ def build_schedule_image_ocr_media_extraction_closeout_result_manifest(
                 status=status,
                 reason_codes=reason_codes,
                 output_refs=dict(entry.get("normalized_output_refs") or {}),
+                attempt_id=_attempt_id(entry),
+                attempt_number=_attempt_number(entry),
             )
         )
     return _result_manifest(
@@ -174,6 +176,8 @@ def build_owner_text_media_extraction_closeout_result_manifest(
                 status=closeout_status,
                 reason_codes=reason_codes,
                 output_refs=dict(item.get("written_refs") or {}),
+                attempt_id=str(item.get("attempt_id") or ""),
+                attempt_number=_attempt_number(item),
             )
         )
     return _result_manifest(
@@ -216,15 +220,24 @@ def _result_row(
     status: str,
     reason_codes: Sequence[str],
     output_refs: Mapping[str, Any],
+    attempt_id: str = "",
+    attempt_number: object = None,
 ) -> dict[str, Any]:
     normalized_status = _normalize_status(status)
-    return {
+    row = {
         "candidate_id": candidate_id,
         "status": normalized_status,
         "media_text_status": normalized_status,
         "reason_codes": _clean_reason_codes(reason_codes),
         "output_refs": dict(output_refs),
     }
+    normalized_attempt_id = str(attempt_id or "").strip()
+    if normalized_attempt_id:
+        row["attempt_id"] = normalized_attempt_id
+    normalized_attempt_number = _positive_int_or_none(attempt_number)
+    if normalized_attempt_number is not None:
+        row["attempt_number"] = normalized_attempt_number
+    return row
 
 
 def _result_by_candidate_id(
@@ -404,6 +417,28 @@ def _canonical_candidate(candidate: Mapping[str, Any]) -> dict[str, Any]:
 
 def _clean_reason_codes(values: Sequence[object]) -> list[str]:
     return list(dict.fromkeys(str(item).strip() for item in values if str(item).strip()))
+
+
+def _positive_int_or_none(value: object) -> int | None:
+    try:
+        parsed = int(value)
+    except (TypeError, ValueError):
+        return None
+    return parsed if parsed > 0 else None
+
+
+def _attempt_number(row: Mapping[str, Any]) -> int:
+    return _positive_int_or_none(row.get("attempt_number")) or 1
+
+
+def _attempt_id(row: Mapping[str, Any]) -> str:
+    explicit = str(row.get("attempt_id") or "").strip()
+    if explicit:
+        return explicit
+    candidate_id = str(row.get("candidate_id") or "").strip()
+    if not candidate_id:
+        return ""
+    return f"{candidate_id}:attempt:{_attempt_number(row)}"
 
 
 def _counter(rows: Sequence[Mapping[str, Any]], key: str) -> dict[str, int]:

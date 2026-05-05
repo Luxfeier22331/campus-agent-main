@@ -10,6 +10,7 @@ from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
 from campus_ingestion_core.collected_notice_fact_readiness import (
     build_policy_hold_fact_readiness,
     build_regulation_fact_readiness,
+    fact_readiness_entry_fields,
 )
 from campus_ingestion_core.collected_notice_regulation_admission_support import (
     INSTITUTIONAL_TARGET_COLLECTION,
@@ -138,9 +139,7 @@ def build_collected_notice_regulation_admission_preview_from_paths(
             "searchable_preview": str(searchable_notice_preview_path),
             "multimodal_inventory": str(multimodal_candidate_inventory_path),
             "queue_consume_trace": str(queue_consume_trace_path or ""),
-            "owner_text_execution_report": ";".join(
-                str(path) for path in owner_text_report_paths
-            ),
+            "owner_text_execution_report": ";".join(str(path) for path in owner_text_report_paths),
         },
     )
 
@@ -264,9 +263,7 @@ def build_recovered_owner_text_by_unit_from_execution_reports(
             payload = {
                 "owner_text": owner_text.strip(),
                 "written_refs": {
-                    key: dict(value)
-                    for key, value in refs.items()
-                    if isinstance(value, Mapping)
+                    key: dict(value) for key, value in refs.items() if isinstance(value, Mapping)
                 },
                 "provider": result.get("provider"),
                 "model": result.get("model"),
@@ -752,9 +749,7 @@ def _admission_entry(decision: _RegulationDecision) -> dict[str, Any]:
         "multimodal_policy": _multimodal_policy(unit),
         "owner_text_status": _owner_text_status(unit),
         "owner_text_recovery": unit.get("owner_text_recovery") or {},
-        "fact_readiness_state": decision.fact_readiness["fact_readiness_state"],
-        "target_admission_state": decision.fact_readiness["target_admission_state"],
-        "fact_readiness": decision.fact_readiness,
+        **fact_readiness_entry_fields(decision.fact_readiness),
         "reason_codes": list(decision.reason_codes),
         "preconditions": _preconditions(decision),
         "searchable_unit_id": unit.get("unit_id"),
