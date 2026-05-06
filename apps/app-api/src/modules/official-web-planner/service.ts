@@ -10,6 +10,7 @@ const CANONICAL_CONSUMER_FAMILIES = new Set([
 	"academic_calendar_candidate",
 	"stable_reference_candidate",
 	"regulation_candidate",
+	"student_regulation_candidate",
 	"notice_news_candidate",
 ]);
 

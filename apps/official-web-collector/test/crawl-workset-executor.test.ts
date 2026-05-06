@@ -202,7 +202,7 @@ describe("official web target workset executor", () => {
 			finalUrl: "https://www.example.edu/rules/",
 			declaredCanonicalUrl: null,
 			responseBody:
-				"<html><head><title>规章制度</title></head><body><main><a href='/rules/policy-a'>制度A</a><a href='/rules/policy-b'>制度B</a></main></body></html>",
+				"<html><head><title>规章制度</title></head><body><main><a href='/rules/policy-a.html'>中央民族大学岗位设置与聘用管理暂行办法</a><a href='/rules/policy-b.html'>中央民族大学劳动人事争议调解委员会工作实施细则</a></main></body></html>",
 			responseHeaders: {
 				"content-type": "text/html; charset=utf-8",
 			},
@@ -228,7 +228,7 @@ describe("official web target workset executor", () => {
 				compositionRole: null,
 			},
 			html: load(
-				"<html><head><title>规章制度</title></head><body><main><a href='/rules/policy-a'>制度A</a><a href='/rules/policy-b'>制度B</a></main></body></html>",
+				"<html><head><title>规章制度</title></head><body><main><a href='/rules/policy-a.html'>中央民族大学岗位设置与聘用管理暂行办法</a><a href='/rules/policy-b.html'>中央民族大学劳动人事争议调解委员会工作实施细则</a></main></body></html>",
 			),
 		});
 		page.pageManifest.pageFamily = "listing_page";
@@ -246,8 +246,8 @@ describe("official web target workset executor", () => {
 		});
 
 		expect(requests.map((request) => request.url)).toEqual([
-			"https://www.example.edu/rules/policy-a",
-			"https://www.example.edu/rules/policy-b",
+			"https://www.example.edu/rules/policy-a.html",
+			"https://www.example.edu/rules/policy-b.html",
 		]);
 		expect(requests[0]?.userData.discoveryMethod).toBe("manual_requeue");
 		expect(requests[0]?.userData.knownPage).toBeUndefined();
@@ -260,6 +260,315 @@ describe("official web target workset executor", () => {
 				sourcePackEntryId: "institutional-rules-column",
 				selectedWriteTarget: "regulations/institutional_rules",
 			},
+		]);
+	});
+
+	it("allows regulation source-pack preview directory pages to manually requeue same-host detail pages", () => {
+		const fixture = buildFixture();
+		const discoverySeed = buildPlannerPage({
+			consumerFamily: "student_regulation_candidate",
+			discoveryMethod: "manual_requeue",
+			host: "www.example.edu",
+			hostPolicy: {
+				host: "www.example.edu",
+				sourceHost: "www.example.edu",
+			},
+			normalizedCanonicalUrl: "https://www.example.edu/xsgz/jwgl/",
+			pageFamily: "target_candidate",
+			pageTitleNormalized: "教务管理",
+			selectedWriteTarget: "regulations/student_rules",
+			materializationPolicy: "release_gate_required",
+			reviewPolicy: "release_gate_required",
+			targetCandidateId: "owcand_student_rules_column",
+			targetDeclarationVersion: "campus_public_target_source_map_v2",
+			targetId: "official-web-student-rules",
+			targetJobId: "owtarget_student_rules",
+			worksetReason: "source_pack_preview_seed",
+		});
+		const page = buildCollectedPageArtifacts({
+			bundle: fixture.bundle,
+			plan: fixture.plan,
+			hostPolicy: fixture.hostPolicy,
+			requestedUrl: "https://www.example.edu/xsgz/jwgl/",
+			finalUrl: "https://www.example.edu/xsgz/jwgl/",
+			declaredCanonicalUrl: null,
+			responseBody:
+				"<html><head><title>教务管理</title></head><body><main><a href='/info/1247/4911.htm'>本科生转专业实施细则</a><a href='/info/1247/4881.htm'>本科生学籍管理规定</a></main></body></html>",
+			responseHeaders: {
+				"content-type": "text/html; charset=utf-8",
+			},
+			httpStatus: 200,
+			contentType: "text/html",
+			discoveryMethod: "manual_requeue",
+			discoveredFromUrl: null,
+			fetchedAt: "2026-05-01T08:00:00.000Z",
+			targetLineage: {
+				targetJobId: discoverySeed.targetJobId,
+				targetCandidateId: discoverySeed.targetCandidateId,
+				targetId: discoverySeed.targetId,
+				targetDeclarationVersion: discoverySeed.targetDeclarationVersion,
+				consumerFamily: "student_regulation_candidate",
+				retentionPolicy: "retain_source_truth",
+				materializationPolicy: "release_gate_required",
+				selectedWriteTarget: discoverySeed.selectedWriteTarget,
+				reviewPolicy: discoverySeed.reviewPolicy,
+				worksetReason: discoverySeed.worksetReason,
+				sourcePackId: "official-web-regulation-expansion.v1",
+				sourcePackEntryId: "owsp-student-rules-jwgl-listing",
+				compositionGroup: null,
+				compositionRole: null,
+			},
+			html: load(
+				"<html><head><title>教务管理</title></head><body><main><a href='/info/1247/4911.htm'>本科生转专业实施细则</a><a href='/info/1247/4881.htm'>本科生学籍管理规定</a></main></body></html>",
+			),
+		});
+		page.pageManifest.pageFamily = "directory_page";
+		discoverySeed.mainContentHash = page.pageManifest.mainContentHash;
+
+		const requests = buildListingRequeueRequests({
+			bundle: fixture.bundle,
+			hostPolicy: fixture.hostPolicy,
+			hostSummary: fixture.hostSummary,
+			knownPage: discoverySeed,
+			page,
+			plannerPageLookup: new Map([[discoverySeed.normalizedCanonicalUrl, discoverySeed]]),
+			robotsState: fixture.robotsState,
+			depth: 1,
+			targetWorksetOnly: true,
+		});
+
+		expect(requests.map((request) => request.url)).toEqual([
+			"https://www.example.edu/info/1247/4911.htm",
+			"https://www.example.edu/info/1247/4881.htm",
+		]);
+		expect(requests[0]?.userData.inheritedTargetLineages).toMatchObject([
+			{
+				targetId: "official-web-student-rules",
+				targetJobId: "owtarget_student_rules",
+				targetCandidateId: "owcand_student_rules_column",
+				sourcePackId: "official-web-regulation-expansion.v1",
+				sourcePackEntryId: "owsp-student-rules-jwgl-listing",
+				selectedWriteTarget: "regulations/student_rules",
+				worksetReason: "source_pack_preview_seed",
+			},
+		]);
+	});
+
+	it("filters non-regulation navigation links from regulation source-pack preview requeue", () => {
+		const fixture = buildFixture();
+		const discoverySeed = buildPlannerPage({
+			consumerFamily: "regulation_candidate",
+			discoveryMethod: "manual_requeue",
+			host: "www.example.edu",
+			hostPolicy: {
+				host: "www.example.edu",
+				sourceHost: "www.example.edu",
+			},
+			normalizedCanonicalUrl: "https://www.example.edu/rules/",
+			pageFamily: "target_candidate",
+			pageTitleNormalized: "人事制度",
+			selectedWriteTarget: "regulations/institutional_rules",
+			materializationPolicy: "release_gate_required",
+			reviewPolicy: "release_gate_required",
+			targetCandidateId: "owcand_rules_column",
+			targetDeclarationVersion: "campus_public_target_source_map_v2",
+			targetId: "official-web-institutional-rules",
+			targetJobId: "owtarget_rules",
+			worksetReason: "source_pack_preview_seed",
+		});
+		const page = buildCollectedPageArtifacts({
+			bundle: fixture.bundle,
+			plan: fixture.plan,
+			hostPolicy: fixture.hostPolicy,
+			requestedUrl: "https://www.example.edu/rules/",
+			finalUrl: "https://www.example.edu/rules/",
+			declaredCanonicalUrl: null,
+			responseBody: `
+				<html>
+					<head><title>人事制度</title></head>
+					<body>
+						<nav>
+							<a href="/gbrs/">干部人事</a>
+							<a href="/index/gsgg/">公示公告</a>
+						</nav>
+						<main>
+							<a href="/rules/policy-a.html">中央民族大学岗位设置与聘用管理暂行办法</a>
+							<a href="/rules/policy-b.html">中央民族大学登记备案人员因私出国（境）管理办法</a>
+							<a href="/rules/not-policy.html">办公地点</a>
+							<a href="/">首页</a>
+						</main>
+					</body>
+				</html>
+			`,
+			responseHeaders: {
+				"content-type": "text/html; charset=utf-8",
+			},
+			httpStatus: 200,
+			contentType: "text/html",
+			discoveryMethod: "manual_requeue",
+			discoveredFromUrl: null,
+			fetchedAt: "2026-05-01T08:00:00.000Z",
+			targetLineage: {
+				targetJobId: discoverySeed.targetJobId,
+				targetCandidateId: discoverySeed.targetCandidateId,
+				targetId: discoverySeed.targetId,
+				targetDeclarationVersion: discoverySeed.targetDeclarationVersion,
+				consumerFamily: "regulation_candidate",
+				retentionPolicy: "retain_source_truth",
+				materializationPolicy: "release_gate_required",
+				selectedWriteTarget: discoverySeed.selectedWriteTarget,
+				reviewPolicy: discoverySeed.reviewPolicy,
+				worksetReason: discoverySeed.worksetReason,
+				sourcePackId: "official-web-regulation-expansion.v1",
+				sourcePackEntryId: "owsp-institutional-rules-rszd-listing",
+				compositionGroup: null,
+				compositionRole: null,
+			},
+			html: load(`
+				<html>
+					<head><title>人事制度</title></head>
+					<body>
+						<nav>
+							<a href="/gbrs/">干部人事</a>
+							<a href="/index/gsgg/">公示公告</a>
+						</nav>
+						<main>
+							<a href="/rules/policy-a.html">中央民族大学岗位设置与聘用管理暂行办法</a>
+							<a href="/rules/policy-b.html">中央民族大学登记备案人员因私出国（境）管理办法</a>
+							<a href="/rules/not-policy.html">办公地点</a>
+							<a href="/">首页</a>
+						</main>
+					</body>
+				</html>
+			`),
+		});
+		page.pageManifest.pageFamily = "directory_page";
+		discoverySeed.mainContentHash = page.pageManifest.mainContentHash;
+
+		const requests = buildListingRequeueRequests({
+			bundle: fixture.bundle,
+			hostPolicy: fixture.hostPolicy,
+			hostSummary: fixture.hostSummary,
+			knownPage: discoverySeed,
+			page,
+			plannerPageLookup: new Map([[discoverySeed.normalizedCanonicalUrl, discoverySeed]]),
+			robotsState: fixture.robotsState,
+			depth: 1,
+			targetWorksetOnly: true,
+		});
+
+		expect(requests.map((request) => request.url)).toEqual([
+			"https://www.example.edu/rules/policy-a.html",
+			"https://www.example.edu/rules/policy-b.html",
+		]);
+	});
+
+	it("keeps explicit target-workset seed ordering ahead of source-pack preview requeue", async () => {
+		const fixture = buildFixture();
+		const listingSeed = buildPlannerPage({
+			consumerFamily: "student_regulation_candidate",
+			discoveryMethod: "manual_requeue",
+			host: "www.example.edu",
+			hostPolicy: {
+				host: "www.example.edu",
+				sourceHost: "www.example.edu",
+			},
+			normalizedCanonicalUrl: "https://www.example.edu/xsgz/jwgl/",
+			pageTitleNormalized: "教务管理",
+			selectedWriteTarget: "regulations/student_rules",
+			materializationPolicy: "release_gate_required",
+			reviewPolicy: "release_gate_required",
+			targetCandidateId: "owcand_student_rules_column",
+			targetDeclarationVersion: "campus_public_target_source_map_v2",
+			targetId: "official-web-student-rules",
+			targetJobId: "owtarget_student_rules",
+			worksetReason: "source_pack_preview_seed",
+		});
+		const directSeed = buildPlannerPage({
+			consumerFamily: "regulation_candidate",
+			discoveryMethod: "manual_requeue",
+			host: "www.example.edu",
+			hostPolicy: {
+				host: "www.example.edu",
+				sourceHost: "www.example.edu",
+			},
+			normalizedCanonicalUrl: "https://www.example.edu/gzzd/direct-policy.htm",
+			pageTitleNormalized: "校园网用户管理规定",
+			selectedWriteTarget: "regulations/institutional_rules",
+			materializationPolicy: "release_gate_required",
+			reviewPolicy: "release_gate_required",
+			targetCandidateId: "owcand_direct_policy",
+			targetDeclarationVersion: "campus_public_target_source_map_v2",
+			targetId: "official-web-institutional-rules",
+			targetJobId: "owtarget_rules",
+			worksetReason: "source_pack_preview_seed",
+		});
+		const initialRequests = await buildInitialRequests({
+			...fixture,
+			executionMode: "target-workset",
+			plannerPages: [listingSeed, directSeed],
+		});
+		const listingPage = buildCollectedPageArtifacts({
+			bundle: fixture.bundle,
+			plan: fixture.plan,
+			hostPolicy: fixture.hostPolicy,
+			requestedUrl: listingSeed.normalizedCanonicalUrl,
+			finalUrl: listingSeed.normalizedCanonicalUrl,
+			declaredCanonicalUrl: null,
+			responseBody:
+				"<html><head><title>教务管理</title></head><body><main><a href='/info/1247/4911.htm'>本科生转专业实施细则</a></main></body></html>",
+			responseHeaders: {
+				"content-type": "text/html; charset=utf-8",
+			},
+			httpStatus: 200,
+			contentType: "text/html",
+			discoveryMethod: "manual_requeue",
+			discoveredFromUrl: null,
+			fetchedAt: "2026-05-01T08:00:00.000Z",
+			targetLineage: {
+				targetJobId: listingSeed.targetJobId,
+				targetCandidateId: listingSeed.targetCandidateId,
+				targetId: listingSeed.targetId,
+				targetDeclarationVersion: listingSeed.targetDeclarationVersion,
+				consumerFamily: "student_regulation_candidate",
+				retentionPolicy: "retain_source_truth",
+				materializationPolicy: "release_gate_required",
+				selectedWriteTarget: listingSeed.selectedWriteTarget,
+				reviewPolicy: listingSeed.reviewPolicy,
+				worksetReason: listingSeed.worksetReason,
+				sourcePackId: "official-web-public-regulation-closeout.v1",
+				sourcePackEntryId: "owsp-closeout-student-rules-jwgl-listing",
+				compositionGroup: null,
+				compositionRole: null,
+			},
+			html: load(
+				"<html><head><title>教务管理</title></head><body><main><a href='/info/1247/4911.htm'>本科生转专业实施细则</a></main></body></html>",
+			),
+		});
+		listingPage.pageManifest.pageFamily = "directory_page";
+		listingSeed.mainContentHash = listingPage.pageManifest.mainContentHash;
+
+		const requeueRequests = buildListingRequeueRequests({
+			bundle: fixture.bundle,
+			hostPolicy: fixture.hostPolicy,
+			hostSummary: fixture.hostSummary,
+			knownPage: listingSeed,
+			page: listingPage,
+			plannerPageLookup: new Map([
+				[listingSeed.normalizedCanonicalUrl, listingSeed],
+				[directSeed.normalizedCanonicalUrl, directSeed],
+			]),
+			robotsState: fixture.robotsState,
+			depth: 1,
+			targetWorksetOnly: true,
+		});
+
+		expect(initialRequests.map((request) => request.url)).toEqual([
+			"https://www.example.edu/xsgz/jwgl/",
+			"https://www.example.edu/gzzd/direct-policy.htm",
+		]);
+		expect(requeueRequests.map((request) => request.url)).toEqual([
+			"https://www.example.edu/info/1247/4911.htm",
 		]);
 	});
 

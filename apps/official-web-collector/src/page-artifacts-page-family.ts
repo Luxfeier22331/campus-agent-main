@@ -303,7 +303,8 @@ export function classifyPageFamily(input: {
 	if (
 		input.pageSignals.contactLikeMainBlockCount >= 2 &&
 		input.pageSignals.mainContentBlockCount <= 5 &&
-		input.pageSignals.mainParagraphCount <= 2
+		input.pageSignals.mainParagraphCount <= 2 &&
+		input.pageSignals.mainContentCharacterCount <= 240
 	) {
 		if (directoryHint || input.hostPolicy.publicKind === "directory_site") {
 			return {

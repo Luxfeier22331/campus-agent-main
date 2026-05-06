@@ -254,7 +254,9 @@ export async function crawlSingleHost(
 						dynamicShellDiscoveryAudits.push(...dynamicShellRequests.audits);
 						const requeueRequests = [...promotedRequests, ...dynamicShellRequests.requests];
 						if (requeueRequests.length > 0) {
-							await context.crawler.addRequests(requeueRequests, { forefront: true });
+							await context.crawler.addRequests(requeueRequests, {
+								forefront: shouldPrioritizeManualRequeue(knownPage),
+							});
 						}
 					} catch (error) {
 						hostSummary.failures += 1;
@@ -466,4 +468,13 @@ function resolveKnownPages(userData: CollectorRequestUserData): OfficialWebPlann
 		return userData.knownPages;
 	}
 	return userData.knownPage ? [userData.knownPage] : [];
+}
+
+function shouldPrioritizeManualRequeue(
+	knownPage: OfficialWebPlannerPageCandidate | undefined,
+): boolean {
+	if (!knownPage) {
+		return true;
+	}
+	return knownPage.worksetReason !== "source_pack_preview_seed";
 }

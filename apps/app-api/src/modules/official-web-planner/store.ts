@@ -154,6 +154,12 @@ function resolveFetchLimit(filters: NormalizedOfficialWebPlannerFilters): number
 	return Math.max(filters.maxTotalPages * 4, filters.maxPagesPerHost * hostCount * 2);
 }
 
+function shouldApplyFreshnessDueFilter(input: {
+	targetCandidateIds: string[];
+}): boolean {
+	return input.targetCandidateIds.length === 0;
+}
+
 function selectBudgetedRows<T extends { host: string; normalizedCanonicalUrl: string; targetJobId: string }>(
 	rows: T[],
 	filters: NormalizedOfficialWebPlannerFilters,
@@ -217,6 +223,7 @@ function selectBudgetedRows<T extends { host: string; normalizedCanonicalUrl: st
 export const __officialWebPlannerStoreTestUtils = {
 	resolvePlannerPageTitle,
 	selectBudgetedRows,
+	shouldApplyFreshnessDueFilter,
 };
 
 export function createPgOfficialWebPlannerStore(env: Env): OfficialWebPlannerStore {
@@ -291,11 +298,15 @@ export function createPgOfficialWebPlannerStore(env: Env): OfficialWebPlannerSto
 					eq(officialWebTargetJobCandidates.siteId, filters.siteId),
 					inArray(officialWebTargetJobs.status, ["declared", "active"]),
 					inArray(officialWebTargetJobCandidates.status, ["eligible", "pending", "queued"]),
-					or(
-						isNull(pageFreshness.nextEligibleFetchAt),
-						lte(pageFreshness.nextEligibleFetchAt, new Date(filters.now)),
-					),
 				];
+				if (shouldApplyFreshnessDueFilter(filters)) {
+					conditions.push(
+						or(
+							isNull(pageFreshness.nextEligibleFetchAt),
+							lte(pageFreshness.nextEligibleFetchAt, new Date(filters.now)),
+						),
+					);
+				}
 				if (filters.targetCandidateIds.length === 0) {
 					conditions.push(
 						or(

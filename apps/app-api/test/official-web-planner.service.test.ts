@@ -241,6 +241,20 @@ describe("official web planner service", () => {
 		]);
 	});
 
+	it("bypasses freshness due gating for explicit target candidate worksets", () => {
+		expect(
+			__officialWebPlannerStoreTestUtils.shouldApplyFreshnessDueFilter({
+				targetCandidateIds: [],
+			}),
+		).toBe(true);
+
+		expect(
+			__officialWebPlannerStoreTestUtils.shouldApplyFreshnessDueFilter({
+				targetCandidateIds: ["owcand_explicit"],
+			}),
+		).toBe(false);
+	});
+
 	it("accepts regulation_candidate workset rows for institutional-rules targets", async () => {
 		const candidate = buildTargetCandidate({
 			consumerFamily: "regulation_candidate",
@@ -250,6 +264,36 @@ describe("official web planner service", () => {
 			targetCandidateId: "owcand_institutional_rule",
 			targetId: "official-web-institutional-rules",
 			targetJobId: "owtarget_institutional_rules",
+		});
+		const store: OfficialWebPlannerStore = {
+			listDuePages: vi.fn().mockResolvedValue([candidate]),
+		};
+		const service = buildOfficialWebPlannerService({ store });
+
+		const result = await service.resolve({
+			payload: {
+				hostFilter: ["xxgk.muc.edu.cn"],
+				maxPagesPerHost: 1,
+				maxTotalPages: 1,
+				now: "2026-05-01T09:00:00.000Z",
+				runIntent: "hot",
+				siteId: "muc_public",
+			},
+			principal: collectorPrincipal,
+		});
+
+		expect(result.plan.duePages).toEqual([candidate]);
+	});
+
+	it("accepts student_regulation_candidate workset rows for student-rules targets", async () => {
+		const candidate = buildTargetCandidate({
+			consumerFamily: "student_regulation_candidate",
+			materializationPolicy: "release_gate_required",
+			reviewPolicy: "release_gate_required",
+			selectedWriteTarget: "regulations/student_rules",
+			targetCandidateId: "owcand_student_rule",
+			targetId: "official-web-student-rules",
+			targetJobId: "owtarget_student_rules",
 		});
 		const store: OfficialWebPlannerStore = {
 			listDuePages: vi.fn().mockResolvedValue([candidate]),

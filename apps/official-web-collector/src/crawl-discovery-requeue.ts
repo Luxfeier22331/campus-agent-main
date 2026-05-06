@@ -12,6 +12,7 @@ import {
 	buildOfficialWebFailureRecord,
 	type OfficialWebConfigBundle,
 	type OfficialWebCrawlPlan,
+	type OfficialWebDiscoveredLinkRecord,
 	type OfficialWebFailureRecord,
 	type OfficialWebHostPolicy,
 	type OfficialWebHostSummaryRecord,
@@ -46,7 +47,8 @@ export function buildListingRequeueRequests(input: {
 	for (const link of input.page.discoveredLinks) {
 		if (
 			!(link.admitted && link.normalizedUrl) ||
-			link.normalizedUrl === input.page.pageManifest.normalizedCanonicalUrl
+			link.normalizedUrl === input.page.pageManifest.normalizedCanonicalUrl ||
+			!shouldPromoteSourcePackExpansionLink(input.page, link)
 		) {
 			continue;
 		}
@@ -101,7 +103,7 @@ function shouldInheritTargetLineagesFromPage(
 	if (knownPage) {
 		return false;
 	}
-	if (page.pageManifest.pageFamily !== "listing_page") {
+	if (!isSourcePackExpansionRequeuePage(page)) {
 		return false;
 	}
 	if (page.pageManifest.targetMatches == null || page.pageManifest.targetMatches.length === 0) {
@@ -109,6 +111,79 @@ function shouldInheritTargetLineagesFromPage(
 	}
 	return page.pageManifest.targetMatches.every(
 		(match) => match.sourcePackEntryId != null && match.sourcePackId != null,
+	);
+}
+
+function shouldPromoteSourcePackExpansionLink(
+	page: CollectedPageArtifact,
+	link: OfficialWebDiscoveredLinkRecord,
+): boolean {
+	if (!isSourcePackExpansionRequeuePage(page)) {
+		return true;
+	}
+	const targetMatches = page.pageManifest.targetMatches ?? [];
+	if (!isRegulationPreviewSeedTargetMatches(targetMatches)) {
+		return true;
+	}
+	return looksLikeRegulationDetailLink(page, link);
+}
+
+function isRegulationPreviewSeedTargetMatches(
+	targetMatches: NonNullable<CollectedPageArtifact["pageManifest"]["targetMatches"]>,
+): boolean {
+	if (targetMatches.length === 0) {
+		return false;
+	}
+	return targetMatches.every(
+		(match) =>
+			match.worksetReason === "source_pack_preview_seed" &&
+			(match.consumerFamily === "regulation_candidate" ||
+				match.consumerFamily === "student_regulation_candidate"),
+	);
+}
+
+function looksLikeRegulationDetailLink(
+	page: CollectedPageArtifact,
+	link: OfficialWebDiscoveredLinkRecord,
+): boolean {
+	if (!link.normalizedUrl) {
+		return false;
+	}
+	let pathname = "";
+	try {
+		pathname = new URL(link.normalizedUrl).pathname.toLowerCase();
+	} catch {
+		return false;
+	}
+	if (!/\.(?:htm|html)$/i.test(pathname)) {
+		return false;
+	}
+	if (!mainContentLinkSet(page).has(link.normalizedUrl)) {
+		return false;
+	}
+
+	const linkText = (link.linkText ?? "").trim();
+	if (!linkText) {
+		return false;
+	}
+	if (
+		/(?:首页|主页|信息公开|干部人事|学生工作|公示公告|公告|公示|新闻|下载|跳转|办公地点|电话|邮箱|流程|结果)/u.test(
+			linkText,
+		)
+	) {
+		return false;
+	}
+	if (/(?:上页|下页|尾页|首页|上一页|下一页|\d{1,3})/u.test(linkText)) {
+		return false;
+	}
+	return true;
+}
+
+function mainContentLinkSet(page: CollectedPageArtifact): Set<string> {
+	return new Set(
+		page.contentBlocks
+			.filter((block) => block.blockRole === "link" && block.isMainContent && block.linkTarget)
+			.map((block) => block.linkTarget as string),
 	);
 }
 
@@ -224,14 +299,37 @@ function shouldPromoteListingRequeue(input: {
 	knownPage?: OfficialWebPlannerPageCandidate;
 	page: CollectedPageArtifact;
 }): boolean {
-	if (input.page.pageManifest.pageFamily !== "listing_page") {
+	const sourcePackExpansionPage = isSourcePackExpansionRequeuePage(input.page);
+	if (!sourcePackExpansionPage && input.page.pageManifest.pageFamily !== "listing_page") {
 		return false;
 	}
 	if (!input.knownPage) {
 		return true;
 	}
+	if (sourcePackExpansionPage && input.knownPage.worksetReason === "source_pack_preview_seed") {
+		return true;
+	}
 
 	return input.knownPage.mainContentHash !== input.page.pageManifest.mainContentHash;
+}
+
+function isSourcePackExpansionRequeuePage(page: CollectedPageArtifact): boolean {
+	if (page.pageManifest.pageFamily === "listing_page") {
+		return true;
+	}
+	if (page.pageManifest.pageFamily !== "directory_page") {
+		return false;
+	}
+	const targetMatches = page.pageManifest.targetMatches ?? [];
+	if (targetMatches.length === 0) {
+		return false;
+	}
+	return targetMatches.every(
+		(match) =>
+			match.sourcePackId != null &&
+			match.sourcePackEntryId != null &&
+			match.worksetReason === "source_pack_preview_seed",
+	);
 }
 
 function normalizeDynamicShellDiscovererOutput(

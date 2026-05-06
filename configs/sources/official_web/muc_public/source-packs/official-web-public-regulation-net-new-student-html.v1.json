@@ -1,0 +1,41 @@
+{
+	"schema_version": "official_web_source_pack_manifest.v1",
+	"site_id": "muc_public",
+	"source_pack_id": "official-web-public-regulation-net-new-student-html.v1",
+	"entries": [
+		{
+			"entry_id": "owsp-net-new-adult-course-assessment-6641",
+			"url": "https://xxgk.muc.edu.cn/info/1247/6641.htm",
+			"content_family": "institutional_policy_reference",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-net-new-student-html-expansion"],
+			"owner_surfaces": ["regulations/student_rules"],
+			"release_targets": ["regulations/student_rules"],
+			"expected_facts": ["regulation_text"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["成人高等学历教育课程考核与学生成绩管理办法有哪些要求？"]
+		},
+		{
+			"entry_id": "owsp-net-new-adult-bachelor-degree-6631",
+			"url": "https://xxgk.muc.edu.cn/info/1269/6631.htm",
+			"content_family": "institutional_policy_reference",
+			"source_kind": "html_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-net-new-student-html-expansion"],
+			"owner_surfaces": ["regulations/student_rules"],
+			"release_targets": ["regulations/student_rules"],
+			"expected_facts": ["regulation_text"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["授予成人高等学历教育本科毕业生学士学位规定有哪些条件？"]
+		}
+	]
+}

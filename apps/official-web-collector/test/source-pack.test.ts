@@ -88,4 +88,60 @@ describe("official-web-collector source-pack seam", () => {
 			spy.mockRestore();
 		}
 	});
+
+	it("validates the public regulation closeout source-pack manifest", () => {
+		const report = validateSourcePackConfig("muc_public", {
+			sourcePackId: "official-web-public-regulation-closeout.v1",
+		});
+
+		expect(report.valid).toBe(true);
+		expect(report.sourcePackId).toBe("official-web-public-regulation-closeout.v1");
+		expect(report.entryCount).toBe(16);
+		expect(
+			report.entries.some(
+				(entry) =>
+					entry.entryId === "owsp-closeout-it-campus-card-policy-1086" &&
+					entry.url === "https://met.muc.edu.cn/info/1024/1086.htm",
+			),
+		).toBe(true);
+		expect(
+			report.entries.some(
+				(entry) =>
+					entry.entryId === "owsp-closeout-student-rules-jlycf-listing" &&
+					entry.url === "https://xxgk.muc.edu.cn/xsgz/jlycf/1.htm",
+			),
+		).toBe(true);
+	});
+
+	it("validates the public regulation net-new student html source-pack manifest", () => {
+		const report = validateSourcePackConfig("muc_public", {
+			sourcePackId: "official-web-public-regulation-net-new-student-html.v1",
+		});
+
+		expect(report.valid).toBe(true);
+		expect(report.sourcePackId).toBe("official-web-public-regulation-net-new-student-html.v1");
+		expect(report.entryCount).toBe(2);
+		expect(
+			report.entries.map((entry) => entry.entryId).sort(),
+		).toEqual([
+			"owsp-net-new-adult-bachelor-degree-6631",
+			"owsp-net-new-adult-course-assessment-6641",
+		]);
+	});
+
+	it("validates the public regulation net-new download-reference follow-up manifest", () => {
+		const report = validateSourcePackConfig("muc_public", {
+			sourcePackId: "official-web-public-regulation-net-new-download-followup.v1",
+		});
+
+		expect(report.valid).toBe(true);
+		expect(report.sourcePackId).toBe(
+			"official-web-public-regulation-net-new-download-followup.v1",
+		);
+		expect(report.entryCount).toBe(2);
+		expect(report.entries.map((entry) => entry.entryId).sort()).toEqual([
+			"owsp-net-new-degree-award-rules-download-5381",
+			"owsp-net-new-discipline-relief-download-5211",
+		]);
+	});
 });

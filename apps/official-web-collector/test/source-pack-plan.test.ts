@@ -257,4 +257,45 @@ describe("official web source-pack execution plan", () => {
 			sourcePackEntryId: "student-rules-column",
 		});
 	});
+
+	it("builds the public regulation closeout pack with direct regulation rows and listing expansion rows", () => {
+		const plan = buildSourcePackExecutionPlan("muc_public", {
+			sourcePackId: "official-web-public-regulation-closeout.v1",
+		});
+		const directRow = plan.rows.find(
+			(item) => item.entryId === "owsp-closeout-it-campus-card-policy-1086",
+		) as SourcePackExecutionPlanEntry;
+		const listingRow = plan.rows.find(
+			(item) => item.entryId === "owsp-closeout-student-rules-jlycf-listing",
+		) as SourcePackExecutionPlanEntry;
+
+		expect(plan.sourcePackId).toBe("official-web-public-regulation-closeout.v1");
+		expect(plan.entryCount).toBe(16);
+
+		expect(directRow.answerBearing).toBe(true);
+		expect(directRow.url).toBe("https://met.muc.edu.cn/info/1024/1086.htm");
+		expect(directRow.ownerSurfaces).toEqual(["regulations/institutional_rules"]);
+		expect(directRow.releaseTargets).toEqual(["regulations/institutional_rules"]);
+		expect(directRow.targetMatches).toHaveLength(1);
+		expect(directRow.targetMatches[0]).toMatchObject({
+			targetId: "official-web-institutional-rules",
+			consumerFamily: "regulation_candidate",
+			selectedWriteTarget: "regulations/institutional_rules",
+			sourcePackEntryId: "owsp-closeout-it-campus-card-policy-1086",
+			sourcePackId: "official-web-public-regulation-closeout.v1",
+		});
+
+		expect(listingRow.answerBearing).toBe(false);
+		expect(listingRow.targetWorksetExpansion).toBe("same_host_manual_requeue");
+		expect(listingRow.ownerSurfaces).toEqual(["regulations/student_rules"]);
+		expect(listingRow.releaseTargets).toEqual(["regulations/student_rules"]);
+		expect(listingRow.targetMatches).toHaveLength(1);
+		expect(listingRow.targetMatches[0]).toMatchObject({
+			targetId: "official-web-student-rules",
+			consumerFamily: "student_regulation_candidate",
+			selectedWriteTarget: "regulations/student_rules",
+			sourcePackEntryId: "owsp-closeout-student-rules-jlycf-listing",
+			sourcePackId: "official-web-public-regulation-closeout.v1",
+		});
+	});
 });

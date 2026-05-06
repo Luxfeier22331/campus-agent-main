@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-05-03
-updated: 2026-05-05
+updated: 2026-05-06
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -26,9 +26,10 @@ narrower execution question:
 
 - status: `completed`
 - current phase: `Phase 7 closeout complete`
-- current slice: source-pack batch no-promotion seam, offline composition and ingestion-owned
-  selected-write admission proof are implemented and verified; academic calendar structured
-  release evidence is recorded as a one-time curated projection follow-up
+- current slice: source-pack batch no-promotion seam, public regulation closeout expansion,
+  offline composition and ingestion-owned selected-write admission proof are implemented and
+  verified; academic calendar structured release evidence is recorded as a one-time curated
+  projection follow-up
 - active implementation: none
 - owner: Codex session
 
@@ -126,3 +127,82 @@ Additional public regulation expansion remains target-first and one-time:
 - `official-web-regulation-expansion.v1` is the repo-tracked student/public
   regulation expansion manifest for one-time listing-page requeue on
   `xxgk.muc.edu.cn`
+
+## Public Regulation Materialization Evidence
+
+The successful source-pack replay has now been carried one step further into
+public regulation materialization proof without reopening broad crawl or moving
+release ownership into app-api.
+
+- materialization summary:
+  [official-web-regulation-materialization-summary.json](/home/reptilian/code/campus-agent/.planning/workstreams/official-web-source-pack-collection-execution/evidence/public-regulation-materialization-proof-20260506/official-web-regulation-materialization-summary.json)
+- canonical/report detail:
+  [materialization-report.json](/home/reptilian/code/campus-agent/.planning/workstreams/official-web-source-pack-collection-execution/evidence/public-regulation-materialization-proof-20260506/materialization-report.json)
+- docs read-model manifest:
+  [docs-read-model-manifest.json](/home/reptilian/code/campus-agent/.planning/workstreams/official-web-source-pack-collection-execution/evidence/public-regulation-materialization-proof-20260506/docs-read-model-manifest.json)
+
+Accepted current result:
+
+- `official-web-regulation-expansion.v1` currently materializes `8` public regulation documents
+- scopes:
+  - `regulations/institutional_rules = 7`
+  - `regulations/student_rules = 1`
+- docs reader assets were generated for all `8` materialized documents
+- obvious non-rule fragments such as `引进高端人才需提交材料` are now fail-closed before
+  regulation candidate materialization
+- rejected or attachment-only source-pack preview regulation pages no longer fall back into
+  ordinary `official_web/muc_public_pages` document projection; the current proof records
+  `emitted_documents=0`
+
+## Public Regulation Closeout Evidence
+
+The expanded closeout batch now proves the full one-time public regulation closeout path:
+explicit source-pack seed capture, same-host listing expansion, no-promotion live seam, and
+regulation materialization into canonical docs-reader-ready assets.
+
+- live seam evidence:
+  [seam-report.json](/home/reptilian/code/campus-agent/var/official-web-source-pack-live-seam/owrun_source_pack_live_20260506T092515Z/seam-report.json)
+- materialization summary:
+  [official-web-regulation-materialization-summary.json](/home/reptilian/code/campus-agent/.planning/workstreams/official-web-source-pack-collection-execution/evidence/public-regulation-closeout-20260506/official-web-regulation-materialization-summary.json)
+- canonical/report detail:
+  [materialization-report.json](/home/reptilian/code/campus-agent/.planning/workstreams/official-web-source-pack-collection-execution/evidence/public-regulation-closeout-20260506/materialization-report.json)
+- docs read-model manifest:
+  [docs-read-model-manifest.json](/home/reptilian/code/campus-agent/.planning/workstreams/official-web-source-pack-collection-execution/evidence/public-regulation-closeout-20260506/docs-read-model-manifest.json)
+
+Accepted closeout result:
+
+- source-pack: `official-web-public-regulation-closeout.v1`
+- retained source-truth pages: `40`
+- consumer target family counts:
+  - `regulation_candidate = 23`
+  - `student_regulation_candidate = 17`
+- materialized documents: `23`
+- scope split:
+  - `regulations/institutional_rules = 17`
+  - `regulations/student_rules = 6`
+- docs reader assets:
+  - `document_count = 23`
+  - `public_entry_count = 23`
+- closeout captured both explicit regulation references and downstream-consumed listing expansions
+  without reopening broad crawl
+- post-fix refresh now includes:
+  - `https://xxgk.muc.edu.cn/info/1005/1107.htm`
+  - `中央民族大学信息公开实施细则`
+- downstream consumption closeout is now explicit and repo-tracked:
+  - one shared manifest:
+    [public-regulation-consumption.v1.json](/home/reptilian/code/campus-agent/configs/ingestion/regulations/public-regulation-consumption.v1.json)
+  - `23` docs are grouped for docs/read-model consumption into:
+    - `student = 6`
+    - `public_service = 10`
+    - `staff_governance = 7`
+  - `public-docs` real-docs and published-reader surfaces now consume the same grouping manifest
+  - `regulations/institutional_rules` default RAG exposure now fail-closes to the `public_service`
+    subset unless the query matches explicit staff-governance titles or governance signal terms
+  - repo-tracked overlap/version ledger now distinguishes handbook overlap from `net_new` official-web
+    regulation docs:
+    [public-regulation-handbook-overlap-ledger.v1.json](/home/reptilian/code/campus-agent/configs/ingestion/regulations/public-regulation-handbook-overlap-ledger.v1.json)
+  - next one-time source-pack expansion is split explicitly into:
+    - HTML-direct `net_new` student/public regulations:
+      [official-web-public-regulation-net-new-student-html.v1.json](/home/reptilian/code/campus-agent/configs/sources/official_web/muc_public/source-packs/official-web-public-regulation-net-new-student-html.v1.json)
+    - download-reference follow-up pages waiting on shared file-asset admission:
+      [official-web-public-regulation-net-new-download-followup.v1.json](/home/reptilian/code/campus-agent/configs/sources/official_web/muc_public/source-packs/official-web-public-regulation-net-new-download-followup.v1.json)

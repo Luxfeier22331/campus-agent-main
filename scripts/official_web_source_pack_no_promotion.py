@@ -2,15 +2,34 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import secrets
 import sys
 from collections import Counter
 from collections.abc import Mapping, Sequence
+from dataclasses import asdict
 from datetime import UTC, datetime
 from pathlib import Path
 
 if __package__ in {None, ""}:
     sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+from campus_ingestion_core.official_web_release_task_store import (
+    build_official_web_release_task_store_from_env,
+)
+from campus_ingestion_core.in_memory_registries import (
+    InMemoryDocumentRegistry,
+    InMemoryRawAssetRegistry,
+)
+from campus_ingestion_worker.official_web_handoff_consumer import (
+    OfficialWebHandoffConsumerSettings,
+    consume_official_web_handoffs,
+)
+from campus_ingestion_worker.official_web_handoff_consumer_models import (
+    DEFAULT_BUCKET_SOURCE,
+    HttpOfficialWebExecutionStatusReporter,
+    OfficialWebExecutionStatusReporter,
+)
 
 from scripts.official_web_live_seam_no_promotion import (
     assert_collector_token_ready,
@@ -174,31 +193,14 @@ def main(argv: Sequence[str] | None = None) -> None:
         handoff_path = handoff_path_for_run(output_root / "handoffs", actual_run_id)
         event_id = handoff_path.stem
         internal_secret = app_env_files.get("APP_API_INTERNAL_SHARED_SECRET", "")
-        consumer_result = run_json_command(
-            repo_root,
-            (
-                "uv",
-                "run",
-                "--all-packages",
-                "campus-ingestion-consume-official-web-handoffs",
-                "--event-id",
-                event_id,
-                "--limit",
-                "1",
-                "--force",
-                "--admit-release-tasks",
-            ),
-            env={
-                **load_env_file(repo_root / ".env"),
-                "INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_INBOX_DIR": str(output_root / "handoffs"),
-                "INGESTION_WORKER_OFFICIAL_WEB_HANDOFF_EXECUTION_ROOT_DIR": str(
-                    output_root / "executions"
-                ),
-                "INGESTION_WORKER_OFFICIAL_WEB_PROMOTE_IMPORT": "false",
-                "INGESTION_WORKER_APP_API_BASE_URL": f"http://127.0.0.1:{args.app_api_port}",
-                "INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET": internal_secret,
-            },
-            log_path=output_root / "consumer.log",
+        consumer_result = build_local_artifact_backed_consumer_result(
+            repo_root=repo_root,
+            output_root=output_root,
+            site_id=str(args.site_id),
+            run_id=actual_run_id,
+            event_id=event_id,
+            app_api_base_url=f"http://127.0.0.1:{args.app_api_port}",
+            internal_shared_secret=internal_secret,
         )
         execution_report_path = Path(
             _object_mapping(_object_list(consumer_result.get("results"))[0]).get(
@@ -366,6 +368,127 @@ def load_source_pack_execution_plan(
     return plan
 
 
+class ArtifactBackedOfficialWebSourceObjectStore:
+    def __init__(
+        self,
+        *,
+        collector_output_dir: Path,
+        site_id: str,
+        run_id: str,
+    ) -> None:
+        self._collector_output_dir = collector_output_dir
+        self._site_id = site_id
+        self._run_id = run_id
+        self._derived_root = collector_output_dir.parent / "_derived-object-store"
+
+    def get_bytes(self, *, bucket: str, key: str) -> bytes:
+        path = self._path_for_key(key)
+        try:
+            return path.read_bytes()
+        except FileNotFoundError as exc:
+            raise FileNotFoundError(f"artifact-backed object not found: {bucket}/{key}") from exc
+
+    def put_bytes(self, *, bucket: str, key: str, data: bytes, content_type: str) -> None:
+        path = self._derived_root / bucket / Path(*key.split("/"))
+        path.parent.mkdir(parents=True, exist_ok=True)
+        path.write_bytes(data)
+        _ = content_type
+
+    def _path_for_key(self, key: str) -> Path:
+        normalized = key.strip().strip("/")
+        if normalized == self._bundle_key:
+            return self._collector_output_dir / "source-truth-bundle.json"
+        segments = normalized.split("/")
+        if len(segments) < 5 or segments[0] != "official_web":
+            raise FileNotFoundError(f"unsupported artifact-backed key: {key}")
+        raw_asset_id = segments[1]
+        year_label = segments[2]
+        raw_version_id = segments[3]
+        remainder = segments[4:]
+        if year_label != "undated":
+            raise FileNotFoundError(f"unsupported official_web year label for local seam: {key}")
+        if not remainder:
+            raise FileNotFoundError(f"unsupported official_web artifact key: {key}")
+        return (
+            self._collector_output_dir
+            / "source-assets"
+            / raw_asset_id
+            / raw_version_id
+            / Path(*remainder)
+        )
+
+    @property
+    def _bundle_key(self) -> str:
+        return f"official_web/{self._site_id}/runs/{self._run_id}/source-truth-bundle.json"
+
+
+def build_local_artifact_backed_consumer_result(
+    *,
+    repo_root: Path,
+    output_root: Path,
+    site_id: str,
+    run_id: str,
+    event_id: str,
+    app_api_base_url: str,
+    internal_shared_secret: str,
+    status_reporter: OfficialWebExecutionStatusReporter | None = None,
+) -> dict[str, object]:
+    collector_output_dir = output_root / "collector-output"
+    object_store = ArtifactBackedOfficialWebSourceObjectStore(
+        collector_output_dir=collector_output_dir,
+        site_id=site_id,
+        run_id=run_id,
+    )
+    settings = OfficialWebHandoffConsumerSettings(
+        inbox_dir=output_root / "handoffs",
+        execution_root_dir=output_root / "executions",
+        source_bucket=_resolve_source_bucket(repo_root),
+        promote_import=False,
+    )
+    runtime_status_reporter = status_reporter
+    if runtime_status_reporter is None and internal_shared_secret.strip():
+        runtime_status_reporter = HttpOfficialWebExecutionStatusReporter(
+            base_url=app_api_base_url,
+            internal_shared_secret=internal_shared_secret,
+        )
+    release_task_env = {
+        **os.environ,
+        **load_env_file(repo_root / ".env"),
+        **load_env_file(repo_root / "apps" / "app-api" / ".env"),
+        **load_env_file(repo_root / "apps" / "app-api" / ".dev.vars"),
+    }
+    release_task_store = build_official_web_release_task_store_from_env(release_task_env)
+    report = consume_official_web_handoffs(
+        settings=settings,
+        object_store=object_store,
+        derived_object_store=object_store,
+        document_registry=InMemoryDocumentRegistry(),
+        raw_asset_registry=InMemoryRawAssetRegistry(),
+        event_id=event_id,
+        limit=1,
+        force=True,
+        promote_import=False,
+        status_reporter=runtime_status_reporter,
+        release_task_store=release_task_store,
+    )
+    result = asdict(report)
+    (output_root / "consumer.log").write_text(
+        json.dumps(result, ensure_ascii=False, indent=2),
+        encoding="utf-8",
+    )
+    return result
+
+
+def _resolve_source_bucket(repo_root: Path) -> str:
+    bucket = (
+        load_env_file(repo_root / ".env").get("OBJECT_STORE_BUCKET_SOURCE")
+        or os.environ.get("OBJECT_STORE_BUCKET_SOURCE")
+        or DEFAULT_BUCKET_SOURCE
+    )
+    normalized = str(bucket).strip()
+    return normalized or DEFAULT_BUCKET_SOURCE
+
+
 def build_source_pack_seed_plan(source_pack_plan: Mapping[str, object]) -> dict[str, object]:
     site_id = _require_text(source_pack_plan.get("siteId"), "siteId")
     source_pack_id = _require_text(source_pack_plan.get("sourcePackId"), "sourcePackId")
@@ -381,6 +504,7 @@ def build_source_pack_seed_plan(source_pack_plan: Mapping[str, object]) -> dict[
         source_host = _require_text(row.get("host"), "host")
         composition_group = _optional_text(row.get("compositionGroup"))
         composition_role = _optional_text(row.get("compositionRole"))
+        target_workset_expansion = _optional_text(row.get("targetWorksetExpansion"))
         for raw_target_match in _object_list(row.get("targetMatches")):
             target_match = _object_mapping(raw_target_match)
             target_id = _require_text(target_match.get("targetId"), "targetId")
@@ -418,6 +542,7 @@ def build_source_pack_seed_plan(source_pack_plan: Mapping[str, object]) -> dict[
                     or composition_group,
                     "compositionRole": _optional_text(target_match.get("compositionRole"))
                     or composition_role,
+                    "worksetExpansion": target_workset_expansion,
                 }
             )
     return {
@@ -613,6 +738,7 @@ def seed_source_pack_workset(
         targetId: String(row.targetId),
         targetJobId: String(row.targetJobId),
         targetUrl,
+        worksetExpansion: row.worksetExpansion ?? null,
       });
     }
     for (const jobId of targetJobIds) {
@@ -705,14 +831,34 @@ def build_collector_command(
     hosts = _sorted_unique(row.get("sourceHost") for row in seeded_rows)
     target_candidate_ids = _sorted_unique(row.get("targetCandidateId") for row in seeded_rows)
     unique_urls = _sorted_unique(row.get("targetUrl") for row in seeded_rows)
+    source_pack_preview_seed_count = sum(
+        1
+        for row in seeded_rows
+        if str(row.get("worksetExpansion") or "").strip() == "same_host_manual_requeue"
+    )
+    source_pack_preview_seed_count_by_host = Counter(
+        _require_text(row.get("sourceHost"), "sourceHost")
+        for row in seeded_rows
+        if str(row.get("worksetExpansion") or "").strip() == "same_host_manual_requeue"
+    )
     per_host_page_counts = Counter(
         _require_text(row.get("sourceHost"), "sourceHost") for row in seeded_rows
     )
     max_pages_per_host = max(
         int(args.max_pages_per_host),
-        max(per_host_page_counts.values(), default=0),
+        max(
+            (
+                per_host_page_counts[host]
+                + source_pack_preview_seed_count_by_host.get(host, 0) * 4
+                for host in per_host_page_counts
+            ),
+            default=0,
+        ),
     )
-    max_total_pages = max(int(args.max_total_pages), len(unique_urls))
+    max_total_pages = max(
+        int(args.max_total_pages),
+        len(unique_urls) + source_pack_preview_seed_count * 4,
+    )
     command = [
         "pnpm",
         "--dir",

@@ -9,6 +9,7 @@ import {
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	SAMPLE_FEATURE_LIST_PAGE_HTML,
 	SAMPLE_GALLERY_KEYWORD_LISTING_PAGE_HTML,
+	SAMPLE_INFORMATION_DISCLOSURE_REGULATION_PAGE_HTML,
 	SAMPLE_IMAGE_STRUCTURAL_SHELL_PAGE_HTML,
 	SAMPLE_ORGANIZATION_DIRECTORY_PAGE_HTML,
 	SAMPLE_POSITION_CONTENT_PAGE_HTML,
@@ -16,6 +17,7 @@ import {
 	SAMPLE_ROSTER_DIRECTORY_PAGE_HTML,
 	SAMPLE_STRUCTURAL_SHELL_PAGE_HTML,
 } from "./page-artifacts-test-support";
+import { classifyPageFamily } from "../src/page-artifacts-page-family";
 
 export function registerPageArtifactsDirectoryShellSuite() {
 	it("extracts dt-based bulletin listings as main content while demoting top-bar and breadcrumb links", () => {
@@ -275,5 +277,39 @@ export function registerPageArtifactsDirectoryShellSuite() {
 		expect(pageArtifacts.providerExtraction.pageSignals.mainHeadingCount).toBeGreaterThanOrEqual(3);
 		expect(pageArtifacts.providerExtraction.pageSignals.mainLinkCount).toBe(0);
 		expect(pageArtifacts.pageManifest.pageFamily).toBe("directory_page");
+	});
+
+	it("keeps long-form information disclosure regulations as article_detail even when contact fields appear in body text", () => {
+		const classification = classifyPageFamily({
+			hostPolicy: {
+				host: "xxgk.muc.edu.cn",
+				publicKind: "content_site",
+				parserProfile: "default",
+				allowedPathPrefixes: ["/"],
+			},
+			finalUrl: "https://xxgk.muc.edu.cn/info/1005/1107.htm",
+			pageTitleNormalized: "中央民族大学信息公开实施细则",
+			pageSignals: {
+				mainContentBlockCount: 3,
+				mainHeadingCount: 1,
+				mainParagraphCount: 2,
+				mainListItemCount: 0,
+				mainLinkCount: 0,
+				shortMainLinkCount: 0,
+				mainTableCount: 0,
+				listingTableCount: 0,
+				galleryTableCount: 0,
+				contactLikeMainBlockCount: 2,
+				dateLikeMainBlockCount: 0,
+				repeatedNonMainBlockCount: 2,
+				mainContentCharacterCount: 4242,
+				zeroMainContent: false,
+				structuralShellSignal: false,
+				dynamicShellSignal: false,
+			},
+		});
+
+		expect(classification.pageFamily).toBe("article_detail");
+		expect(classification.reason).toBe("paragraph_dominant_main_content");
 	});
 }

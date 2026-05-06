@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import unittest
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from scripts.official_web_source_pack_no_promotion import (
+    ArtifactBackedOfficialWebSourceObjectStore,
     assert_source_pack_seam_report,
     build_collector_command,
+    build_local_artifact_backed_consumer_result,
     build_source_pack_seam_report,
     build_source_pack_seed_plan,
     load_source_pack_execution_plan,
@@ -68,6 +71,273 @@ class OfficialWebSourcePackNoPromotionScriptTest(unittest.TestCase):
             "official-web-regulation-expansion.v1",
         )
 
+    def test_artifact_backed_object_store_reads_run_bundle_and_page_artifacts(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            output_root = Path(temp_dir)
+            collector_output = output_root / "collector-output"
+            page_dir = (
+                collector_output
+                / "source-assets"
+                / "owasset_123"
+                / "owver_456"
+                / "source-truth"
+            )
+            page_dir.mkdir(parents=True, exist_ok=True)
+            bundle_path = collector_output / "source-truth-bundle.json"
+            bundle_path.write_text(
+                json_dumps(
+                    {
+                        "siteId": "muc_public",
+                        "crawlRunId": "owrun_current",
+                        "pages": [
+                            {
+                                "rawAssetId": "owasset_123",
+                                "rawVersionId": "owver_456",
+                                "pageManifestObjectKey": "official_web/owasset_123/undated/owver_456/source-truth/page-manifest.json",
+                                "contentBlocksObjectKey": "official_web/owasset_123/undated/owver_456/source-truth/content-blocks.jsonl",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (page_dir / "page-manifest.json").write_text('{"host":"www.muc.edu.cn"}', encoding="utf-8")
+            (page_dir / "content-blocks.jsonl").write_text(
+                '{"rowId":"1","textNormalized":"hello"}\n',
+                encoding="utf-8",
+            )
+
+            store = ArtifactBackedOfficialWebSourceObjectStore(
+                collector_output_dir=collector_output,
+                site_id="muc_public",
+                run_id="owrun_current",
+            )
+
+            bundle_bytes = store.get_bytes(
+                bucket="source",
+                key="official_web/muc_public/runs/owrun_current/source-truth-bundle.json",
+            )
+            manifest_bytes = store.get_bytes(
+                bucket="source",
+                key="official_web/owasset_123/undated/owver_456/source-truth/page-manifest.json",
+            )
+            blocks_bytes = store.get_bytes(
+                bucket="source",
+                key="official_web/owasset_123/undated/owver_456/source-truth/content-blocks.jsonl",
+            )
+
+        self.assertIn('"crawlRunId": "owrun_current"', bundle_bytes.decode("utf-8"))
+        self.assertEqual('{"host":"www.muc.edu.cn"}', manifest_bytes.decode("utf-8"))
+        self.assertIn('"textNormalized":"hello"', blocks_bytes.decode("utf-8"))
+
+    def test_build_local_artifact_backed_consumer_result_replays_without_object_store_env(self) -> None:
+        class _NoopReporter:
+            def report(self, *, run_id: str, payload: dict[str, object]) -> None:
+                _ = (run_id, payload)
+
+        with TemporaryDirectory() as temp_dir:
+            output_root = Path(temp_dir)
+            handoff_dir = output_root / "handoffs"
+            execution_root = output_root / "executions"
+            collector_output = output_root / "collector-output"
+            page_dir = (
+                collector_output
+                / "source-assets"
+                / "owasset_123"
+                / "owver_456"
+                / "source-truth"
+            )
+            page_dir.mkdir(parents=True, exist_ok=True)
+            handoff_dir.mkdir(parents=True, exist_ok=True)
+            bundle_payload = {
+                "schemaVersion": "official_web_source_truth_bundle.v1",
+                "siteId": "muc_public",
+                "crawlRunId": "owrun_current",
+                "collectionMode": "target-workset",
+                "pages": [
+                    {
+                        "rawAssetId": "owasset_123",
+                        "rawVersionId": "owver_456",
+                        "normalizedCanonicalUrl": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                        "pageFamily": "article_detail",
+                        "pageManifestObjectKey": "official_web/owasset_123/undated/owver_456/source-truth/page-manifest.json",
+                        "contentBlocksObjectKey": "official_web/owasset_123/undated/owver_456/source-truth/content-blocks.jsonl",
+                        "consumerMatches": [],
+                        "consumerRetentionDecision": "retain_source_truth",
+                        "targetMatches": [
+                            {
+                                "targetJobId": "owtarget_muc_public_official_web_stable_reference",
+                                "targetCandidateId": "owcand_123",
+                                "targetId": "official-web-stable-reference",
+                                "targetDeclarationVersion": "muc_public_target_source_map_v2",
+                                "consumerFamily": "stable_reference_candidate",
+                                "retentionPolicy": "retain_source_truth",
+                                "materializationPolicy": "release_gate_required",
+                                "selectedWriteTarget": "official_web/stable_reference",
+                                "reviewPolicy": "release_gate_required",
+                                "worksetReason": "source_pack_seed",
+                            }
+                        ],
+                    }
+                ],
+            }
+            (collector_output / "source-truth-bundle.json").write_text(
+                json_dumps(bundle_payload),
+                encoding="utf-8",
+            )
+            (page_dir / "page-manifest.json").write_text(
+                json_dumps(
+                    {
+                        "schemaVersion": "official_web_page_manifest.v1",
+                        "sourceChannel": "official_web",
+                        "siteId": "muc_public",
+                        "host": "www.muc.edu.cn",
+                        "rawAssetId": "owasset_123",
+                        "rawVersionId": "owver_456",
+                        "requestedUrl": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                        "finalUrl": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                        "declaredCanonicalUrl": None,
+                        "normalizedCanonicalUrl": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                        "urlIdentityBasis": "final_url",
+                        "fetchedAt": "2026-05-06T00:00:00+00:00",
+                        "publishedAt": None,
+                        "httpStatus": 200,
+                        "contentType": "text/html; charset=utf-8",
+                        "etag": None,
+                        "lastModified": None,
+                        "redirectChain": ["https://www.muc.edu.cn/xxgk1/xxjj.htm"],
+                        "responseBodyHash": "hash",
+                        "retainedSnapshotHash": "hash",
+                        "fetcherName": "test",
+                        "fetcherVersion": "1",
+                        "parserName": "test",
+                        "parserVersion": "1",
+                        "pageTitleRaw": "学校简介",
+                        "pageTitleNormalized": "学校简介",
+                        "languageHint": "zh-CN",
+                        "pageFamily": "article_detail",
+                        "pageFamilyConfidence": 0.9,
+                        "pageFamilyReason": None,
+                        "mainContentHash": "mainhash",
+                        "blockCount": 1,
+                        "mainContentBlockCount": 1,
+                        "navigationBlockCount": 0,
+                        "boilerplateBlockCount": 0,
+                        "discoveredFromUrl": None,
+                        "discoveryMethod": "seed",
+                        "crawlRunId": "owrun_current",
+                        "hostPolicyVersion": "v1",
+                        "crawlPolicyVersion": "v1",
+                        "credentialsMode": "public",
+                        "consumerDenominatorVersion": "v1",
+                        "consumerMatches": [],
+                        "consumerRetentionDecision": "retain_source_truth",
+                        "targetMatches": [
+                            {
+                                "targetJobId": "owtarget_muc_public_official_web_stable_reference",
+                                "targetCandidateId": "owcand_123",
+                                "targetId": "official-web-stable-reference",
+                                "targetDeclarationVersion": "muc_public_target_source_map_v2",
+                                "consumerFamily": "stable_reference_candidate",
+                                "retentionPolicy": "retain_source_truth",
+                                "materializationPolicy": "release_gate_required",
+                                "selectedWriteTarget": "official_web/stable_reference",
+                                "reviewPolicy": "release_gate_required",
+                                "worksetReason": "source_pack_seed",
+                            }
+                        ],
+                    }
+                ),
+                encoding="utf-8",
+            )
+            (page_dir / "content-blocks.jsonl").write_text(
+                json.dumps(
+                    {
+                        "schemaVersion": "official_web_content_block.v1",
+                        "rawAssetId": "owasset_123",
+                        "rawVersionId": "owver_456",
+                        "rowId": "row1",
+                        "rowIndex": 0,
+                        "blockOrder": 0,
+                        "blockRole": "paragraph",
+                        "headingLevel": None,
+                        "domPath": None,
+                        "parentHeadingPath": [],
+                        "listLevel": None,
+                        "tableId": None,
+                        "tableRowIndex": None,
+                        "tableColIndex": None,
+                        "textRaw": "学校简介",
+                        "textNormalized": "学校简介",
+                        "htmlFragment": None,
+                        "linkTarget": None,
+                        "linkText": None,
+                        "tableHtml": None,
+                        "tableCells": None,
+                        "isNavigation": False,
+                        "isBoilerplate": False,
+                        "isMainContent": True,
+                        "isRepeatedCandidate": False,
+                        "mainContentScore": 1,
+                        "titleCandidateScore": 0,
+                        "sectionHint": None,
+                        "classificationConfidence": 1,
+                        "classificationReason": None,
+                        "parentHeadingHint": None,
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            record_path = handoff_dir / "owevt_current.json"
+            record_path.write_text(
+                json_dumps(
+                    {
+                        "eventId": "owevt_current",
+                        "processingStatus": "pending",
+                        "processingAttemptCount": 0,
+                        "payload": {
+                            "eventId": "owevt_current",
+                            "runId": "owrun_current",
+                            "siteId": "muc_public",
+                            "runIntent": "target_workset",
+                            "status": "completed",
+                            "artifacts": [],
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            with patch(
+                "scripts.official_web_source_pack_no_promotion.build_official_web_release_task_store_from_env",
+                return_value=None,
+            ), patch(
+                "scripts.official_web_source_pack_no_promotion.query_app_api_run",
+                return_value={"crawl_run_id": "owrun_current"},
+            ):
+                consumer_result = build_local_artifact_backed_consumer_result(
+                    repo_root=Path.cwd(),
+                    output_root=output_root,
+                    site_id="muc_public",
+                    run_id="owrun_current",
+                    event_id="owevt_current",
+                    app_api_base_url="http://127.0.0.1:27031",
+                    internal_shared_secret="secret",
+                    status_reporter=_NoopReporter(),
+                )
+
+            self.assertEqual(consumer_result["counts"]["failed"], 0)
+            self.assertEqual(consumer_result["counts"]["staged"], 1)
+            execution_report_path = Path(consumer_result["results"][0]["execution_report_path"])
+            execution_report = json.loads(execution_report_path.read_text(encoding="utf-8"))
+            self.assertEqual(execution_report["status"], "staged")
+            self.assertEqual(
+                execution_report["bundleObjectKey"],
+                "official_web/muc_public/runs/owrun_current/source-truth-bundle.json",
+            )
+
     def test_build_source_pack_seed_plan_expands_per_target_rows(self) -> None:
         source_pack_plan = {
             "siteId": "muc_public",
@@ -112,6 +382,7 @@ class OfficialWebSourcePackNoPromotionScriptTest(unittest.TestCase):
                     "host": "xxgk.muc.edu.cn",
                     "compositionGroup": "information_disclosure",
                     "compositionRole": "procedure_source",
+                    "targetWorksetExpansion": "same_host_manual_requeue",
                     "targetMatches": [
                         {
                             "sourcePackId": "tool-driven-first-slice.v1",
@@ -149,6 +420,7 @@ class OfficialWebSourcePackNoPromotionScriptTest(unittest.TestCase):
         )
         self.assertEqual(procedure_row["compositionGroup"], "information_disclosure")
         self.assertEqual(procedure_row["compositionRole"], "procedure_source")
+        self.assertEqual(procedure_row["worksetExpansion"], "same_host_manual_requeue")
 
     def test_build_collector_command_uses_single_batch_run_for_source_pack(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -197,6 +469,90 @@ class OfficialWebSourcePackNoPromotionScriptTest(unittest.TestCase):
             command[command.index("--source-pack-lineage-path") + 1],
             str(lineage_path),
         )
+
+    def test_build_collector_command_adds_discovery_headroom_for_source_pack_preview_seeds(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            args = type(
+                "Args",
+                (),
+                {
+                    "site_id": "muc_public",
+                    "max_pages_per_host": 6,
+                    "max_total_pages": 6,
+                },
+            )()
+            target_seed = {
+                "seededRows": [
+                    {
+                        "sourceHost": "xxgk.muc.edu.cn",
+                        "targetCandidateId": "owcand_student_listing",
+                        "targetUrl": "https://xxgk.muc.edu.cn/xsgz/jwgl.htm",
+                        "worksetExpansion": "same_host_manual_requeue",
+                    },
+                    {
+                        "sourceHost": "xxgk.muc.edu.cn",
+                        "targetCandidateId": "owcand_student_xszz",
+                        "targetUrl": "https://xxgk.muc.edu.cn/xsgz/xszz.htm",
+                        "worksetExpansion": "same_host_manual_requeue",
+                    },
+                    {
+                        "sourceHost": "met.muc.edu.cn",
+                        "targetCandidateId": "owcand_direct_rule",
+                        "targetUrl": "https://met.muc.edu.cn/info/1024/1086.htm",
+                        "worksetExpansion": None,
+                    },
+                ]
+            }
+            lineage_path = Path(temp_dir) / "lineage.json"
+
+            command = build_collector_command(
+                args=args,
+                local_run_id="owrun_source_pack_live_test",
+                output_root=Path(temp_dir),
+                target_seed=target_seed,
+                source_pack_lineage_path=lineage_path,
+            )
+
+        max_pages_per_host = command[command.index("--max-pages-per-host") + 1]
+        max_total_pages = command[command.index("--max-total-pages") + 1]
+        self.assertEqual(max_pages_per_host, "10")
+        self.assertEqual(max_total_pages, "11")
+
+    def test_build_collector_command_uses_returned_target_seed_workset_expansion_metadata(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            args = type(
+                "Args",
+                (),
+                {
+                    "site_id": "muc_public",
+                    "max_pages_per_host": 6,
+                    "max_total_pages": 6,
+                },
+            )()
+            target_seed = {
+                "seededRows": [
+                    {
+                        "sourceHost": "xxgk.muc.edu.cn",
+                        "targetCandidateId": "owcand_student_listing",
+                        "targetUrl": "https://xxgk.muc.edu.cn/xsgz/jwgl.htm",
+                        "worksetExpansion": "same_host_manual_requeue",
+                    }
+                ]
+            }
+            lineage_path = Path(temp_dir) / "lineage.json"
+
+            command = build_collector_command(
+                args=args,
+                local_run_id="owrun_source_pack_live_test",
+                output_root=Path(temp_dir),
+                target_seed=target_seed,
+                source_pack_lineage_path=lineage_path,
+            )
+
+        max_pages_per_host = command[command.index("--max-pages-per-host") + 1]
+        max_total_pages = command[command.index("--max-total-pages") + 1]
+        self.assertEqual(max_pages_per_host, "6")
+        self.assertEqual(max_total_pages, "6")
 
     def test_script_uses_direct_wrangler_command_for_custom_app_api_port(self) -> None:
         path = Path("scripts/official_web_source_pack_no_promotion.py").read_text(
@@ -614,6 +970,10 @@ class OfficialWebSourcePackNoPromotionScriptTest(unittest.TestCase):
         }
 
         assert_source_pack_seam_report(report)
+
+
+def json_dumps(payload: object) -> str:
+    return json.dumps(payload, ensure_ascii=False, indent=2)
 
 
 if __name__ == "__main__":

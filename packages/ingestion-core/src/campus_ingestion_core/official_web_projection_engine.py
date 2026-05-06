@@ -46,6 +46,10 @@ from campus_ingestion_core.official_web_projection_units import (
     _render_canonical_markdown,
     _resolve_document_title,
 )
+from campus_ingestion_core.official_web_regulation_structure import (
+    build_official_web_regulation_structure,
+    build_regulation_content_summary,
+)
 from campus_ingestion_core.official_web_regulation_titles import (
     normalize_official_web_regulation_title,
     official_web_regulation_title_metadata,
@@ -87,6 +91,9 @@ _REGULATION_FORMAL_TITLE_RE = re.compile(
 )
 _REGULATION_NOTICE_TITLE_SUPPRESSION_RE = re.compile(
     r"(采购|招标|中标|中选|比选|竞价|结果公示|公示期|公开招聘|招聘启事|新闻|通知|公告)"
+)
+_REGULATION_NON_RULE_FRAGMENT_TITLE_RE = re.compile(
+    r"(?:申请材料|所需材料|办理材料|提交材料|材料清单|需提交|须提交|需提供|须提供|请提供)$"
 )
 _SERVICE_PROCESS_RE = re.compile(
     r"(办理流程|工作流程|流程|步骤|受理|审核|答复|提交|补正|办理|申请方法|补办|挂失|解挂|报销|预约|"
@@ -422,6 +429,8 @@ def _resolve_consumer_projection(
 ) -> dict[str, object] | None:
     if not matches and composition_override is None:
         return None
+    if _is_non_answer_bearing_source_pack_preview_seed(manifest=manifest, matches=matches):
+        return {"action": "candidate", "candidate_pages": []}
     stable_match = _find_consumer_match(matches, "stable_reference_candidate")
     if stable_match is not None:
         return {
@@ -480,9 +489,38 @@ def _resolve_consumer_projection(
                 title=title,
             )
         )
+        if candidate_pages and not candidate_pages[-1]:
+            candidate_pages.pop()
+            force_candidate_action = True
     if candidate_pages or force_candidate_action:
         return {"action": "candidate", "candidate_pages": candidate_pages}
     return None
+
+
+def _is_non_answer_bearing_source_pack_preview_seed(
+    *,
+    manifest: dict[str, object],
+    matches: list[dict[str, object]],
+) -> bool:
+    if str(manifest.get("pageFamily") or manifest.get("page_family") or "").strip() not in {
+        "directory_page",
+        "listing_page",
+    }:
+        return False
+    source_pack_id = _require_optional_text(
+        manifest.get("sourcePackId") or manifest.get("source_pack_id")
+    )
+    source_pack_entry_id = _require_optional_text(
+        manifest.get("sourcePackEntryId") or manifest.get("source_pack_entry_id")
+    )
+    if source_pack_id is None or source_pack_entry_id is None or not matches:
+        return False
+    return all(
+        _require_optional_text(match.get("worksetReason") or match.get("workset_reason"))
+        == "source_pack_preview_seed"
+        for match in matches
+        if isinstance(match, dict)
+    )
 
 
 def _build_consumer_projection_overrides(
@@ -1011,7 +1049,7 @@ def _build_consumer_candidate_page(
     raw_version_id = _require_text(manifest.get("rawVersionId"), "rawVersionId")
     candidate_title = title
     title_projection_fields: dict[str, object] = {}
-    if consumer_family == "regulation_candidate":
+    if consumer_family in {"regulation_candidate", "student_regulation_candidate"}:
         title_info = normalize_official_web_regulation_title(title)
         candidate_title = title_info.display_title
         title_projection_fields = {
@@ -1029,6 +1067,13 @@ def _build_consumer_candidate_page(
             target_lineage=target_lineage,
         )
     )
+    if _should_skip_empty_source_pack_preview_regulation_candidate(
+        blocks=blocks,
+        consumer_family=consumer_family,
+        manifest=manifest,
+        quality_gate=quality_gate,
+    ):
+        return {}
     candidate = {
         "candidate_key": _build_candidate_key(
             consumer_family=consumer_family,
@@ -1213,12 +1258,13 @@ def _build_typed_candidate(
         )
 
     if consumer_family in {"regulation_candidate", "student_regulation_candidate"}:
-        title_info = normalize_official_web_regulation_title(raw_title or title)
-        answer_bearing_lines = _regulation_answer_bearing_lines(lines)
-        normalized_summary = _build_regulation_content_summary(answer_bearing_lines)
-        regulation_text = "\n".join(
-            line for line in answer_bearing_lines if line.strip() and line.strip() != title.strip()
+        structure = build_official_web_regulation_structure(
+            source_title=raw_title or title,
+            lines=lines,
         )
+        title_info = structure.title_info
+        source_title_info = normalize_official_web_regulation_title(raw_title or title)
+        normalized_summary = build_regulation_content_summary(structure.answer_bearing_lines)
         release_scope = _regulation_release_scope(target_lineage)
         typed_candidate = {
             "reference_title": title_info.display_title,
@@ -1226,12 +1272,13 @@ def _build_typed_candidate(
             "title_raw": title_info.raw_title,
             **official_web_regulation_title_metadata(title_info),
             "normalized_content_summary": normalized_summary,
-            "regulation_text": regulation_text,
+            "regulation_text": structure.regulation_text,
+            "regulation_lines": list(structure.regulation_lines),
             "authoritative_source_url": normalized_canonical_url,
             "release_scope": release_scope,
             "source_url": normalized_canonical_url,
-            "source_title": title_info.display_title,
-            "source_title_raw": title_info.raw_title,
+            "source_title": source_title_info.display_title,
+            "source_title_raw": source_title_info.raw_title,
         }
         return (
             "official_web_regulation_candidate.v1",
@@ -1281,6 +1328,67 @@ def _quality_gate(
         "decision": "pass" if not reason_codes else "reject",
         "reason_codes": reason_codes,
     }
+
+
+def _should_skip_empty_source_pack_preview_regulation_candidate(
+    *,
+    blocks: list[dict[str, object]],
+    consumer_family: str,
+    manifest: dict[str, object],
+    quality_gate: dict[str, object],
+) -> bool:
+    if consumer_family not in {"regulation_candidate", "student_regulation_candidate"}:
+        return False
+    if not _is_source_pack_preview_regulation_manifest(manifest):
+        return False
+    title = _resolve_document_title(manifest=manifest, blocks=blocks)
+    if _regulation_selected_write_suppressed(title=title):
+        return True
+    if "missing_answer_bearing_regulation_body" not in _string_list(
+        quality_gate.get("reason_codes")
+    ):
+        return False
+    return _looks_like_attachment_only_regulation_page(blocks)
+
+
+def _is_source_pack_preview_regulation_manifest(manifest: dict[str, object]) -> bool:
+    target_matches = _target_matches(manifest)
+    if not target_matches:
+        return False
+    return all(
+        _require_optional_text(match.get("worksetReason") or match.get("workset_reason"))
+        == "source_pack_preview_seed"
+        and _require_optional_text(
+            match.get("selectedWriteTarget") or match.get("selected_write_target")
+        )
+        in {"regulations/institutional_rules", "regulations/student_rules"}
+        for match in target_matches
+    )
+
+
+def _looks_like_attachment_only_regulation_page(blocks: list[dict[str, object]]) -> bool:
+    main_blocks = [block for block in blocks if bool(block.get("isMainContent"))]
+    if not main_blocks:
+        return False
+    substantive_lines = 0
+    for block in main_blocks:
+        text = _normalize_block_text(block)
+        if not text or _REGULATION_NON_BODY_RE.search(text):
+            continue
+        if str(block.get("blockRole") or block.get("block_role") or "") == "link":
+            link_target = str(block.get("linkTarget") or block.get("link_target") or "").strip()
+            if link_target and re.search(
+                r"(?:/__local/|\.docx?(?:\?|$)|\.pdf(?:\?|$)|\.xls[x]?(?:\?|$))",
+                link_target,
+                re.IGNORECASE,
+            ):
+                continue
+        if str(block.get("blockRole") or block.get("block_role") or "") == "heading":
+            continue
+        if len(re.sub(r"\s+", "", text)) <= 12:
+            continue
+        substantive_lines += 1
+    return substantive_lines == 0
 
 
 def _main_content_lines(blocks: list[dict[str, object]]) -> list[str]:
@@ -1777,6 +1885,8 @@ def _selected_write_suppressed(*, title: str, lines: list[str]) -> bool:
 
 def _regulation_selected_write_suppressed(*, title: str) -> bool:
     normalized_title = re.sub(r"\s+", "", title.strip())
+    if _REGULATION_NON_RULE_FRAGMENT_TITLE_RE.search(normalized_title):
+        return True
     if _REGULATION_FORMAL_TITLE_RE.search(normalized_title):
         return False
     return bool(_REGULATION_NOTICE_TITLE_SUPPRESSION_RE.search(normalized_title))
@@ -2108,25 +2218,6 @@ def _regulation_release_scope(target_lineage: dict[str, object] | None) -> str:
     if target_corpus == "regulations" and target_collection:
         return f"{target_corpus}/{target_collection}"
     return "regulations/institutional_rules"
-
-
-def _build_regulation_content_summary(lines: list[str]) -> str:
-    normalized_lines = [line.strip() for line in lines if line.strip()]
-    if not normalized_lines:
-        return ""
-    summary = " ".join(normalized_lines[:3]).strip()
-    return re.sub(r"\s+", " ", summary)[:500]
-
-
-def _regulation_answer_bearing_lines(lines: list[str]) -> list[str]:
-    candidates = [
-        line.strip()
-        for line in lines
-        if line.strip() and not _REGULATION_NON_BODY_RE.search(line.strip())
-    ]
-    if not any(_REGULATION_BODY_SIGNAL_RE.search(line) for line in candidates):
-        return []
-    return candidates
 
 
 def _string_list(value: object) -> list[str]:
