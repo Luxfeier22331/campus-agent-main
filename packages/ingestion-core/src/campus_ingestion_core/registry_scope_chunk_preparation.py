@@ -46,7 +46,6 @@ MANDATORY_PREPARATION_SCOPES = frozenset(
         ("regulations", "scoped_rules"),
     }
 )
-_OFFICIAL_WEB_REGULATION_NORMALIZER_VERSION = "official_web_regulation_normalizer.v1"
 
 
 class RegistryScopePreparationObjectStore(Protocol):
@@ -845,8 +844,6 @@ def _assert_current_cleaning_provenance(
 
 
 def _allowed_regulation_normalizer_versions(*, record: DocumentRegistryRecord) -> tuple[str, ...]:
-    if record.source_channel == "official_web":
-        return (_OFFICIAL_WEB_REGULATION_NORMALIZER_VERSION,)
     return (REGULATION_CANONICAL_NORMALIZER_VERSION,)
 
 

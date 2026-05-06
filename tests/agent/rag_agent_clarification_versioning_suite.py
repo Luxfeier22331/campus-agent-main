@@ -7,6 +7,7 @@ from tests.agent.rag_agent_test_support import (
     AuthorizedRetrievalFilter,
     ContextProjection,
     EvidenceBundle,
+    EvidenceSource,
     KnowledgeScope,
     PersonalizationHint,
     ProfileMemoryItem,
@@ -53,6 +54,7 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("具体", response.follow_up_question)
+        self.assertEqual(response.answer_text, response.follow_up_question)
         self.assertEqual(response.confidence, "low")
         self.assertEqual(
             response.result.evidence,
@@ -96,6 +98,7 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertEqual(response.follow_up_question, "你具体想问哪一项制度？")
+        self.assertEqual(response.answer_text, "你具体想问哪一项制度？")
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_clarify_v1")
 
     def test_generic_scholarship_question_maps_to_needs_clarification_without_retrieval(
@@ -121,6 +124,7 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("奖学金", response.follow_up_question)
+        self.assertEqual(response.answer_text, response.follow_up_question)
         self.assertFalse(retriever_called)
         diagnostics = response.result.diagnostics
         expected = _resolved_scope_diagnostics(
@@ -431,10 +435,34 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
 
     def test_resolved_historical_version_query_passes_version_filters_to_retriever(self) -> None:
         captured_kwargs: dict[str, object] = {}
-        expected_evidence = _make_evidence(
-            query_text="国奖",
-            scores=(0.82,),
-            doc_ids=("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
+        expected_evidence = EvidenceBundle(
+            query_text="国奖第九条怎么要求论文和著作？",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                EvidenceSource(
+                    doc_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                    revision_track="source-faithful",
+                    version_id="v1:national-scholarship",
+                    chunk_id=(
+                        "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15:"
+                        "source-faithful:v1:national-scholarship:chunk-0001"
+                    ),
+                    anchor={"page_start": 1, "page_end": 1},
+                    canonical_url="https://campus.example/handbook/national-scholarship",
+                    latest_url="https://campus.example/handbook/national-scholarship",
+                    source_channel="pdf_ocr",
+                    collection="student_rules",
+                    is_current=False,
+                    snippet="第九条 在前10%的基础上，应当提交论文、著作证明材料。",
+                    score=0.92,
+                    source_title="中央民族大学本科学生国家奖学金评审办法",
+                    structural_path=("中央民族大学本科学生国家奖学金评审办法",),
+                    detail_label="第九条",
+                    content_role="requirement",
+                    is_answer_bearing=True,
+                ),
+            ),
         )
 
         def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
@@ -464,7 +492,7 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
             response = delegate_to_rag_agent(
                 AgentRequest(
                     target="rag-agent",
-                    user_goal="国奖怎么办",
+                    user_goal="国奖第九条怎么要求论文和著作？",
                     payload=RagRequestPayload(
                         scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                         version_query=VersionQuery(mode="historical"),
@@ -474,7 +502,9 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
             )
 
         self.assertEqual(response.status, "completed")
-        self.assertIn("国家奖学金", captured_kwargs["query"])
+        self.assertIn("第九条", captured_kwargs["query"])
+        self.assertIn("论文", captured_kwargs["query"])
+        self.assertIn("著作", captured_kwargs["query"])
         self.assertEqual(
             captured_kwargs["target_document_ids"],
             ("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
@@ -484,6 +514,9 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
             ("v1:national-scholarship",),
         )
         self.assertEqual(captured_kwargs["target_revision_track"], "source-faithful")
+        self.assertEqual(captured_kwargs["focus_detail_labels"], ("第九条",))
+        self.assertEqual(captured_kwargs["focus_article_nos"], ("9",))
+        self.assertEqual(captured_kwargs["focus_terms"], ("论文", "著作"))
 
     def test_unresolved_historical_version_query_fails_closed_before_retrieval(self) -> None:
         retriever_called = False

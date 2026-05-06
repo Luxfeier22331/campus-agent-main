@@ -81,6 +81,7 @@ def _build_rag_agent_response(
             target="rag-agent",
             status="needs_clarification",
             confidence="low",
+            answer_text="请先说明你想查询的校内知识范围或资料集合。",
             follow_up_question="请先说明你想查询的校内知识范围或资料集合。",
         )
     prompt_executor = pipeline.prompt_executor

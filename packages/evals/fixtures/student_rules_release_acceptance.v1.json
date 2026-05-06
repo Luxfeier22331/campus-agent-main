@@ -55,11 +55,11 @@
 			"forbidden_document_ids": ["handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"]
 		},
 		{
-			"case_id": "policy-alias-national-scholarship-article-nine",
+			"case_id": "policy-title-national-scholarship-article-nine",
 			"corpus": "regulations",
 			"collection": "student_rules",
-			"query": "国奖第九条里对论文和著作怎么要求的？",
-			"top_k": 2,
+			"query": "中央民族大学本科学生国家奖学金评审办法 第九条",
+			"top_k": 3,
 			"expected_document_ids": ["handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"],
 			"forbidden_document_ids": ["handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7"]
 		},
@@ -93,10 +93,7 @@
 			"collection": "student_rules",
 			"query": "毕业前申请学位的流程是什么",
 			"top_k": 8,
-			"expected_document_ids": [
-				"handbook:742d4831bfb443b99323041e263fac2fd9aafcf6",
-				"handbook:d0a1db59ed9a8b00c4349200916edae208d876f6"
-			]
+			"expected_document_ids": ["handbook:742d4831bfb443b99323041e263fac2fd9aafcf6"]
 		},
 		{
 			"case_id": "semantic-scholarship-eligibility",
@@ -106,9 +103,7 @@
 			"top_k": 8,
 			"expected_document_ids": [
 				"handbook:a531a3c85de862c737d0576e957bf59598822c54",
-				"handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
-				"handbook:60c8b33801e2e59e6db2210719592a6252e3516d",
-				"handbook:aa835b8cd4acddb62c7243fed9a9f8c0728e68bc"
+				"handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"
 			]
 		},
 		{

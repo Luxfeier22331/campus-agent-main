@@ -11,14 +11,17 @@ from campus_ingestion_core.chunking import (
     build_chunk_text_context,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
-from campus_ingestion_core.process_candidate_aggregation import build_collection_semantic_metadata
-from campus_ingestion_core.process_candidate_aggregation import build_table_release_metadata
+from campus_ingestion_core.process_candidate_aggregation import (
+    build_collection_semantic_metadata,
+    build_table_release_metadata,
+)
 from campus_ingestion_core.process_candidate_postprocess import (
     postprocess_curriculum_chunk_candidates,
     postprocess_default_chunk_candidates,
     postprocess_institutional_regulation_chunk_candidates,
     postprocess_internal_notice_chunk_candidates,
     postprocess_scoped_rule_chunk_candidates,
+    postprocess_student_rules_chunk_candidates,
 )
 from campus_ingestion_core.process_loading import (
     build_curriculum_runtime_chunk_profile,
@@ -28,6 +31,7 @@ from campus_ingestion_core.process_loading import (
     build_handbook_chunk_profile,
     build_official_web_runtime_chunk_profile,
     build_regulation_unit_pieces,
+    build_student_rules_unit_pieces,
     load_curriculum_runtime_structured_units,
     load_default_structured_units,
     load_internal_notice_structured_units,
@@ -73,10 +77,10 @@ _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = 
     ("regulations", "student_rules"): _CollectionChunkStrategy(
         build_chunk_profile=build_handbook_chunk_profile,
         load_structured_units=load_default_structured_units,
-        build_unit_pieces=build_default_unit_pieces,
+        build_unit_pieces=build_student_rules_unit_pieces,
         resolve_unit_chunk_profile=resolve_default_unit_chunk_profile,
         should_skip_unit=should_skip_handbook_unit,
-        postprocess_candidates=postprocess_default_chunk_candidates,
+        postprocess_candidates=postprocess_student_rules_chunk_candidates,
     ),
     ("curriculum", "curriculum_plan"): _CollectionChunkStrategy(
         build_chunk_profile=build_curriculum_runtime_chunk_profile,

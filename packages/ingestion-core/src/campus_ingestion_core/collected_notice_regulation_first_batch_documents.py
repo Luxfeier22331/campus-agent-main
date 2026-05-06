@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import hashlib
-import json
 import re
 from collections.abc import Mapping
 from typing import Any
@@ -15,86 +14,17 @@ from campus_ingestion_core.collected_notice_regulation_text_normalization import
 from campus_ingestion_core.internal_notice_regulation_projection import (
     build_institutional_regulation_version_id,
 )
+from campus_ingestion_core.regulation_document_units import (
+    INSTITUTIONAL_TARGET_COLLECTION,
+    SCOPED_TARGET_COLLECTION,
+    regulation_common_metadata,
+    serialize_regulation_document_units,
+)
 
-INSTITUTIONAL_TARGET_COLLECTION = "institutional_rules"
-SCOPED_TARGET_COLLECTION = "scoped_rules"
 PHASE_09_ID = "phase-09-first-batch-regulation-promotion-write-gate"
 
 _TARGET_IMPORT_SOURCE = "collected_notice_regulation_first_batch_promotion"
 _TARGET_SOURCE_CHANNEL = "authenticated_notice_portal"
-_DOCUMENT_UNITS_SCHEMA_VERSION = "document_units_jsonl"
-_CHINESE_NUMBER = "一二三四五六七八九十百千万〇零两0-9"
-_STRUCTURAL_BLOCK_START_RE = re.compile(
-    rf"(?=^(?:第[{_CHINESE_NUMBER}]+[章节条]|[{_CHINESE_NUMBER}]+、|[（(][{_CHINESE_NUMBER}]+[)）]))",
-    re.MULTILINE,
-)
-_ARTICLE_LABEL_RE = re.compile(rf"^(?P<label>第[{_CHINESE_NUMBER}]+条)")
-_ARTICLE_HEADING_LEAF_RE = re.compile(
-    rf"^第[{_CHINESE_NUMBER}]+条\s*(?P<body>[^。；，,：:]{{1,30}})$"
-)
-_ARTICLE_HEADING_KEYWORDS = (
-    "条件",
-    "材料",
-    "程序",
-    "政策",
-    "标准",
-    "要求",
-    "范围",
-    "对象",
-    "资格",
-    "办法",
-    "原则",
-    "职责",
-    "纪律",
-    "监督",
-    "附则",
-    "类型",
-)
-_ARTICLE_BODY_VERB_MARKERS = (
-    "应",
-    "须",
-    "需",
-    "由",
-    "负责",
-    "符合",
-    "适用",
-    "执行",
-    "遵守",
-    "不得",
-    "可以",
-    "按照",
-    "根据",
-)
-_BODY_LIST_ITEM_MARKERS = (
-    *_ARTICLE_BODY_VERB_MARKERS,
-    "认定",
-    "给予",
-    "下列",
-    "违反",
-    "处理",
-)
-_CHAPTER_OR_SECTION_HEADING_RE = re.compile(rf"^第[{_CHINESE_NUMBER}]+[章节][^。；]*$")
-_TOP_LEVEL_HEADING_RE = re.compile(rf"^(?P<label>[{_CHINESE_NUMBER}]+、)[^。；]{{1,60}}$")
-_SUBSECTION_HEADING_RE = re.compile(
-    rf"^(?P<label>[（(][{_CHINESE_NUMBER}]+[)）][、.]?)[^。；]{{0,60}}$"
-)
-_SUBSECTION_LABEL_RE = re.compile(rf"^(?P<label>[（(][{_CHINESE_NUMBER}]+[)）][、.]?)")
-_NUMERIC_ITEM_RE = re.compile(r"^(?P<label>[0-9]+[.、])")
-_POLICY_DOC_NO_RE = re.compile(
-    r"^[\u4e00-\u9fffA-Za-z]{2,20}[〔（(\[]\d{4}[〕）)\]]\d{1,8}号$"
-)
-_EDITION_NOTE_RE = re.compile(r"^[（(][^（）()]{0,12}(?:试行|修订|暂行|草案)[）)]$")
-_IMPRINT_DATE_LINE_RE = re.compile(r"^\d{4}年\d{1,2}月\d{1,2}日(?:印发|发布|公布|施行)?$")
-_SHORT_CONTEXT_HEADING_RE = re.compile(
-    r"^[^\n。；;,，]{0,24}(?:包括|如下|义务|权利|职责|条件|材料|范围|对象|类型|奖项)[：:]$"
-)
-_BARE_ATTACHMENT_MARKER_RE = re.compile(r"^(?:附件|附表)\s*\d*$")
-_SHORT_SUBSECTION_LIST_HEADING_RE = re.compile(
-    rf"^[（(][{_CHINESE_NUMBER}]+[)）][、.]?\s*[^\n。；;,，]{{1,24}}[；;]$"
-)
-_STRUCTURAL_HEADING_RE = re.compile(
-    rf"^(?:第[{_CHINESE_NUMBER}]+[章节][^。；]*|[{_CHINESE_NUMBER}]+、[^。；]{{1,60}}|[（(][{_CHINESE_NUMBER}]+[)）][、.]?[^。；]{{0,60}})$"
-)
 
 
 def build_document_import_input(
@@ -166,9 +96,6 @@ def serialize_document_units(
 ) -> bytes:
     target_collection = _required_text(document.get("target_collection"), "target_collection")
     title = _required_text(document.get("title"), "title")
-    body_chunks = _canonical_body_chunks(
-        _required_text(document.get("canonical_markdown"), "canonical_markdown")
-    )
     source_notice_ids = [str(item) for item in document.get("source_notice_ids") or () if str(item)]
     source_document_ids = [
         str(item) for item in document.get("source_document_ids") or () if str(item)
@@ -187,28 +114,26 @@ def serialize_document_units(
         normalization_quality.get("normalizer_version") or REGULATION_CANONICAL_NORMALIZER_VERSION
     )
     cleaning_policy_version = f"{target_collection}_cleaning_v1"
-    common_metadata = {
-        "title": title,
-        "promotion_source_collection": "authenticated_documents/file_release_source",
-        "source_notice_ids": source_notice_ids,
-        "source_document_ids": source_document_ids,
-        "source_notice_document_id": source_notice_document_id,
-        "semantic_owner_document_id": semantic_owner_document_id,
-        "semantic_owner_kind": semantic_owner_kind,
-        "source_attachment_document_id": source_attachment_document_id,
-        "regulation_title_normalized": title,
-        "source_title_literal": title,
-        "semantic_content_hash": semantic_content_hash,
-        "normalizer_version": normalizer_version,
-        "cleaning_policy_version": cleaning_policy_version,
-        "document_units_schema_version": _DOCUMENT_UNITS_SCHEMA_VERSION,
-        "normalization_quality": normalization_quality,
-    }
+    common_metadata = regulation_common_metadata(
+        title=title,
+        title_base=title,
+        title_raw=title,
+        normalizer_version=normalizer_version,
+        cleaning_policy_version=cleaning_policy_version,
+        normalization_quality=normalization_quality,
+        extra_metadata={
+            "promotion_source_collection": "authenticated_documents/file_release_source",
+            "source_notice_ids": source_notice_ids,
+            "source_document_ids": source_document_ids,
+            "source_notice_document_id": source_notice_document_id,
+            "semantic_owner_document_id": semantic_owner_document_id,
+            "semantic_owner_kind": semantic_owner_kind,
+            "source_attachment_document_id": source_attachment_document_id,
+            "regulation_title_normalized": title,
+            "source_title_literal": title,
+        },
+    )
     if target_collection == INSTITUTIONAL_TARGET_COLLECTION:
-        title_unit_type = "regulation_title"
-        body_unit_type = "regulation_body"
-        title_content_role = "regulation_title"
-        body_content_role = "regulation_body"
         collection_metadata = {
             "content_kind": "institutional_regulation",
             "promotion_class": "formal_regulation",
@@ -216,10 +141,6 @@ def serialize_document_units(
             "regulation_display_title": title,
         }
     else:
-        title_unit_type = "scoped_rule_title"
-        body_unit_type = "scoped_rule_body"
-        title_content_role = "scoped_rule_title"
-        body_content_role = "scoped_rule_body"
         collection_metadata = {
             "content_kind": "scoped_rule",
             "document_nature": _resolve_scoped_rule_document_nature(document),
@@ -227,154 +148,18 @@ def serialize_document_units(
             "cycle_year": _resolve_cycle_year(document),
             "school_unit_name": _resolve_school_unit_name(document),
         }
-    rows = [
-        _document_unit_row(
-            document_id=target_document_id,
-            version_id=version_id,
-            index=1,
-            unit_type=title_unit_type,
-            text=title,
-            title=title,
-            source_url=_source_url(document),
-            metadata={
-                **common_metadata,
-                **collection_metadata,
-                "content_role": title_content_role,
-                "section_path": [],
-                "is_answer_bearing": True,
-            },
-        )
-    ]
-    current_section_path: tuple[str, ...] = ()
-    for offset, chunk in enumerate(body_chunks, start=2):
-        structure = _resolve_first_batch_block_structure(
-            chunk, current_section_path=current_section_path
-        )
-        current_section_path = structure["next_section_path"]
-        rows.append(
-            _document_unit_row(
-                document_id=target_document_id,
-                version_id=version_id,
-                index=offset,
-                row_type=structure["row_type"],
-                unit_type=body_unit_type,
-                text=chunk,
-                title=title,
-                source_url=_source_url(document),
-                metadata={
-                    **common_metadata,
-                    **collection_metadata,
-                    "content_role": body_content_role,
-                    "section_path": list(structure["section_path"]),
-                    "article_label": structure["article_label"],
-                    "provision_label": structure["provision_label"],
-                    "is_answer_bearing": structure["row_type"] != "heading",
-                },
-            )
-        )
-    return "".join(json.dumps(row, ensure_ascii=False) + "\n" for row in rows).encode("utf-8")
-
-
-def _document_unit_row(
-    *,
-    document_id: str,
-    version_id: str,
-    index: int,
-    unit_type: str,
-    text: str,
-    title: str,
-    source_url: str,
-    metadata: Mapping[str, Any],
-    row_type: str | None = None,
-) -> dict[str, Any]:
-    row_id = f"{document_id}:unit-{index:04d}"
-    raw_section_path = metadata.get("section_path")
-    section_path = (
-        list(raw_section_path)
-        if isinstance(raw_section_path, list)
-        else ([title] if index == 1 else [])
-    )
-    anchor: dict[str, Any] = {"section_path": section_path} if section_path else {}
-    article_label = str(metadata.get("article_label") or "").strip()
-    if article_label:
-        anchor["article_label"] = article_label
-    provision_label = str(metadata.get("provision_label") or "").strip()
-    if provision_label:
-        anchor["provision_label"] = provision_label
-    return {
-        "doc_id": document_id,
-        "version_id": version_id,
-        "chunk_id": row_id,
-        "row_id": row_id,
-        "row_type": row_type or ("paragraph" if index > 1 else "heading"),
-        "clean_text": text.strip(),
-        "source_pdf": source_url.rsplit("/", 1)[-1] if source_url else "source.pdf",
-        "source_url": source_url,
-        "source": {"id": source_url},
-        "page_start": None,
-        "page_end": None,
-        "entitlement_groups": ["campus_members"],
-        "visibility_scope": "campus",
-        "visibility_level": "restricted",
-        "policy_projection_version": DEFAULT_POLICY_PROJECTION_VERSION,
-        "unit_type": unit_type,
-        "root_unit_id": row_id,
-        "anchor": anchor,
-        "metadata": dict(metadata),
-    }
-
-
-def _canonical_body_chunks(canonical_markdown: str) -> tuple[str, ...]:
-    lines = canonical_markdown.strip().splitlines()
-    if lines and lines[0].startswith("# "):
-        body = "\n".join(lines[1:]).strip()
-    else:
-        body = canonical_markdown.strip()
-    if not body:
-        return ()
-    starts = [match.start() for match in _STRUCTURAL_BLOCK_START_RE.finditer(body)]
-    if not starts:
-        return tuple(_split_blank_blocks(body)) or (body,)
-    chunks: list[str] = []
-    prefix = body[: starts[0]].strip()
-    chunks.extend(_split_blank_blocks(prefix))
-    for index, start in enumerate(starts):
-        end = starts[index + 1] if index + 1 < len(starts) else len(body)
-        chunks.extend(_split_structural_region(body[start:end].strip()))
-    return tuple(chunks)
-
-
-def _split_structural_region(text: str) -> tuple[str, ...]:
-    normalized = text.strip()
-    if not normalized:
-        return ()
-    lines = normalized.splitlines()
-    first_line_index = next((index for index, line in enumerate(lines) if line.strip()), None)
-    if first_line_index is None:
-        return ()
-    first_line = lines[first_line_index].strip()
-    remainder = "\n".join(lines[first_line_index + 1 :]).strip()
-    if _ARTICLE_LABEL_RE.match(first_line):
-        if _looks_like_article_heading_leaf(first_line) and remainder:
-            return (first_line, *_split_blank_blocks(remainder))
-        return (normalized,)
-    if _looks_like_first_batch_structural_heading(first_line) and remainder:
-        return (first_line, *_split_blank_blocks(remainder))
-    return tuple(_split_blank_blocks(normalized)) or (normalized,)
-
-
-def _split_blank_blocks(text: str) -> tuple[str, ...]:
-    return tuple(chunk.strip() for chunk in re.split(r"\n{2,}", text.strip()) if chunk.strip())
-
-
-def _looks_like_first_batch_structural_heading(text: str) -> bool:
-    normalized = text.strip()
-    if _looks_like_body_list_item(normalized):
-        return False
-    return bool(
-        _CHAPTER_OR_SECTION_HEADING_RE.match(normalized)
-        or _TOP_LEVEL_HEADING_RE.match(normalized)
-        or _SUBSECTION_HEADING_RE.match(normalized)
+    return serialize_regulation_document_units(
+        target_collection=target_collection,
+        target_document_id=target_document_id,
+        version_id=version_id,
+        title=title,
+        canonical_markdown=_required_text(document.get("canonical_markdown"), "canonical_markdown"),
+        source_url=_source_url(document),
+        visibility_level="restricted",
+        visibility_scope="campus",
+        entitlement_groups=["campus_members"],
+        common_metadata={**common_metadata, **collection_metadata},
+        semantic_content_hash=semantic_content_hash,
     )
 
 
@@ -388,183 +173,6 @@ def _resolve_scoped_rule_document_nature(document: Mapping[str, Any]) -> str:
         if value:
             return value
     return "time_bound_operational_rule"
-
-
-def _resolve_first_batch_block_structure(
-    text: str,
-    *,
-    current_section_path: tuple[str, ...],
-) -> dict[str, Any]:
-    first_line = next((line.strip() for line in text.splitlines() if line.strip()), "")
-    if _POLICY_DOC_NO_RE.match(first_line):
-        return {
-            "row_type": "heading",
-            "section_path": current_section_path,
-            "article_label": None,
-            "provision_label": None,
-            "next_section_path": current_section_path,
-        }
-    if _is_non_contextual_heading_line(first_line):
-        return {
-            "row_type": "heading",
-            "section_path": current_section_path,
-            "article_label": None,
-            "provision_label": None,
-            "next_section_path": current_section_path,
-        }
-    article_match = _ARTICLE_LABEL_RE.match(first_line)
-    if article_match is not None:
-        article_label = article_match.group("label").strip()
-        article_body = first_line[article_match.end() :].strip()
-        current_article_scope = _drop_trailing_transient_context(current_section_path)
-        if article_body and _looks_like_article_heading_leaf(first_line):
-            return {
-                "row_type": "heading",
-                "section_path": current_article_scope,
-                "article_label": article_label,
-                "provision_label": None,
-                "next_section_path": (*current_article_scope, first_line),
-            }
-        return {
-            "row_type": "paragraph" if article_body else "heading",
-            "section_path": current_article_scope,
-            "article_label": article_label,
-            "provision_label": None,
-            "next_section_path": current_article_scope,
-        }
-    if _CHAPTER_OR_SECTION_HEADING_RE.match(first_line) or _TOP_LEVEL_HEADING_RE.match(first_line):
-        return {
-            "row_type": "heading",
-            "section_path": (first_line,),
-            "article_label": None,
-            "provision_label": None,
-            "next_section_path": (first_line,),
-        }
-    body_list_match = _body_list_item_match(first_line)
-    if body_list_match is not None:
-        return {
-            "row_type": "paragraph",
-            "section_path": current_section_path,
-            "article_label": None,
-            "provision_label": body_list_match.group("label").strip(),
-            "next_section_path": current_section_path,
-        }
-    subsection_match = _SUBSECTION_HEADING_RE.match(first_line)
-    if subsection_match is not None:
-        parent_path = _drop_trailing_transient_context(current_section_path)
-        return {
-            "row_type": "heading",
-            "section_path": (*parent_path, first_line) if parent_path else (first_line,),
-            "article_label": None,
-            "provision_label": None,
-            "next_section_path": (*parent_path, first_line) if parent_path else (first_line,),
-        }
-    if _is_short_context_heading_line(first_line):
-        parent_path = _drop_trailing_transient_context(current_section_path)
-        section_path = (*parent_path, first_line) if parent_path else (first_line,)
-        return {
-            "row_type": "heading",
-            "section_path": section_path,
-            "article_label": None,
-            "provision_label": None,
-            "next_section_path": section_path,
-        }
-    numeric_item = _NUMERIC_ITEM_RE.match(first_line)
-    if numeric_item is not None:
-        return {
-            "row_type": "paragraph",
-            "section_path": current_section_path,
-            "article_label": None,
-            "provision_label": numeric_item.group("label").strip(),
-            "next_section_path": current_section_path,
-        }
-    return {
-        "row_type": "paragraph",
-        "section_path": current_section_path,
-        "article_label": None,
-        "provision_label": None,
-        "next_section_path": current_section_path,
-    }
-
-
-def _is_non_contextual_heading_line(text: str) -> bool:
-    normalized = text.strip()
-    return (
-        _POLICY_DOC_NO_RE.match(normalized) is not None
-        or _EDITION_NOTE_RE.match(normalized) is not None
-        or _IMPRINT_DATE_LINE_RE.match(normalized) is not None
-        or _BARE_ATTACHMENT_MARKER_RE.match(normalized) is not None
-    )
-
-
-def _is_short_context_heading_line(text: str) -> bool:
-    normalized = text.strip()
-    return (
-        _SHORT_CONTEXT_HEADING_RE.match(normalized) is not None
-    )
-
-
-def _looks_like_article_heading_leaf(text: str) -> bool:
-    match = _ARTICLE_HEADING_LEAF_RE.match(text.strip())
-    if match is None:
-        return False
-    body = match.group("body").strip()
-    return bool(
-        body
-        and len(body) <= 12
-        and not any(marker in body for marker in _ARTICLE_BODY_VERB_MARKERS)
-        and any(body.endswith(keyword) for keyword in _ARTICLE_HEADING_KEYWORDS)
-    )
-
-
-def _drop_trailing_article_heading(section_path: tuple[str, ...]) -> tuple[str, ...]:
-    if section_path and _looks_like_article_heading_leaf(section_path[-1]):
-        return section_path[:-1]
-    return section_path
-
-
-def _drop_trailing_transient_context(section_path: tuple[str, ...]) -> tuple[str, ...]:
-    pruned = _drop_trailing_article_heading(section_path)
-    pruned = _drop_trailing_short_context_heading(pruned)
-    return _drop_trailing_same_level_subsection(pruned)
-
-
-def _drop_trailing_same_level_subsection(section_path: tuple[str, ...]) -> tuple[str, ...]:
-    pruned = section_path
-    while pruned and _SUBSECTION_HEADING_RE.match(pruned[-1]):
-        pruned = pruned[:-1]
-    return pruned
-
-
-def _drop_trailing_short_context_heading(section_path: tuple[str, ...]) -> tuple[str, ...]:
-    pruned = section_path
-    while pruned and _is_short_context_heading_line(pruned[-1]):
-        pruned = pruned[:-1]
-    return pruned
-
-
-def _body_list_item_match(text: str) -> re.Match[str] | None:
-    match = _SUBSECTION_LABEL_RE.match(text.strip())
-    if match is not None and _looks_like_body_list_item(text):
-        return match
-    return None
-
-
-def _looks_like_body_list_item(text: str) -> bool:
-    normalized = text.strip()
-    match = _SUBSECTION_LABEL_RE.match(normalized)
-    if match is None:
-        return False
-    body = normalized[match.end("label") :].strip()
-    if not body:
-        return False
-    if normalized.endswith(("；", ";", "。", "，", ",", "：", ":")) and (
-        len(body) > 18 or any(marker in body for marker in _BODY_LIST_ITEM_MARKERS)
-    ):
-        return True
-    if len(body) > 18 and any(marker in body for marker in _BODY_LIST_ITEM_MARKERS):
-        return True
-    return len(body) > 28
 
 
 def _resolve_source_notice_release_time(document: Mapping[str, Any]) -> str:

@@ -148,6 +148,140 @@ class RagAgentAnswerQualityRegressionTest(unittest.TestCase):
         self.assertIn("第一作者", draft.answer_text)
         self.assertIn("第一、二作者", draft.answer_text)
 
+    def test_judgment_query_prefers_rank_exception_clause_over_unrelated_subconditions(self) -> None:
+        title = "中央民族大学本科学生国家奖学金评审办法"
+        evidence = EvidenceBundle(
+            query_text="成绩没前十还能评国奖吗？",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                _make_policy_source(
+                    doc_id="handbook:national",
+                    title=title,
+                    snippet=(
+                        "第九条 参评本科学生国家奖学金还须具备以下条件之一: "
+                        "学习成绩优异,所评学年学习成绩排名与综合测评排名均位于前10%以内。"
+                    ),
+                    score=0.95,
+                    chunk="national-top-ten",
+                    detail_label="第九条",
+                ),
+                _make_policy_source(
+                    doc_id="handbook:national",
+                    title=title,
+                    snippet=(
+                        "第九条 学习成绩排名或综合测评排名超出前10%,但均位于前30%,"
+                        "且单科成绩不低于80分,平均成绩不低于85分,必须在某一方面表现特别优秀"
+                        "且可提供相应证明材料。"
+                    ),
+                    score=0.94,
+                    chunk="national-rank-exception",
+                    detail_label="第九条",
+                ),
+                _make_policy_source(
+                    doc_id="handbook:national",
+                    title=title,
+                    snippet="在体育竞赛中取得显著成绩,为国家争得荣誉。",
+                    score=0.93,
+                    chunk="national-sports-subcondition",
+                    detail_label="第九条",
+                ),
+                _make_policy_source(
+                    doc_id="handbook:national",
+                    title=title,
+                    snippet="在学术研究上取得显著成绩,以第一作者发表的论文被SCI、EI全文收录。",
+                    score=0.92,
+                    chunk="national-paper-subcondition",
+                    detail_label="第九条",
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("超出前10%", draft.answer_text)
+        self.assertIn("位于前30%", draft.answer_text)
+        self.assertNotIn("体育竞赛", draft.answer_text)
+        self.assertNotIn("学术研究上取得显著成绩", draft.answer_text)
+
+    def test_judgment_query_prefers_paper_clause_without_basic_condition_boilerplate(self) -> None:
+        title = "中央民族大学本科学生国家奖学金评审办法"
+        evidence = EvidenceBundle(
+            query_text="论文能不能算国奖条件？",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                _make_policy_source(
+                    doc_id="handbook:national",
+                    title=title,
+                    snippet=(
+                        "在学术研究上取得显著成绩,以第一作者发表的论文被SCI、EI、ISTP、SSCI全文收录,"
+                        "以第一、二作者出版学术专著(须通过专家鉴定)。"
+                    ),
+                    score=0.95,
+                    chunk="national-paper-condition",
+                    detail_label="第九条",
+                ),
+                _make_policy_source(
+                    doc_id="handbook:national",
+                    title=title,
+                    snippet="参评本科学生国家奖学金还须具备以下条件之一。",
+                    score=0.94,
+                    chunk="national-eligibility-intro",
+                    detail_label="第九条",
+                ),
+                _make_policy_source(
+                    doc_id="handbook:national",
+                    title=title,
+                    snippet="参评本科学生国家奖学金须具备以下基本条件。",
+                    score=0.93,
+                    chunk="national-basic-condition-intro",
+                    detail_label="第八条",
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("发表的论文", draft.answer_text)
+        self.assertNotIn("还须具备以下条件之一", draft.answer_text)
+        self.assertNotIn("须具备以下基本条件", draft.answer_text)
+
+    def test_judgment_query_trims_rank_exception_clause_before_following_examples(self) -> None:
+        title = "中央民族大学本科学生国家奖学金评审办法"
+        evidence = EvidenceBundle(
+            query_text="成绩没前十还能评国奖吗？",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                _make_policy_source(
+                    doc_id="handbook:national",
+                    title=title,
+                    snippet=(
+                        "第九条 参评本科学生国家奖学金还须具备以下条件之一:\n"
+                        "(二)学习成绩排名或综合测评排名超出前10%,但均位于前30%,且单科成绩不低于80分,"
+                        "平均成绩不低于85分,必须在道德风尚、学术研究、学科竞赛、创新发明、社会实践、"
+                        "社会工作、体育竞赛、文艺比赛等某一方面表现特别优秀且可提供相应的证明材料。"
+                        "具体表现如下:\n"
+                        "1. 在社会主义精神文明建设中表现突出。\n"
+                        "2. 在学术研究上取得显著成绩,以第一作者发表的论文被SCI、EI全文收录。\n"
+                        "5. 在体育竞赛中取得显著成绩,为国家争得荣誉。"
+                    ),
+                    score=0.95,
+                    chunk="national-rank-exception-tail",
+                    detail_label="第九条",
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("超出前10%", draft.answer_text)
+        self.assertIn("位于前30%", draft.answer_text)
+        self.assertNotIn("具体表现如下", draft.answer_text)
+        self.assertNotIn("体育竞赛", draft.answer_text)
+        self.assertNotIn("发表的论文", draft.answer_text)
+
     def test_curriculum_title_lookup_preserves_course_teaching_plan_title(self) -> None:
         title = "中央民族大学通识课程“大学英语”课程教学计划"
         evidence = EvidenceBundle(

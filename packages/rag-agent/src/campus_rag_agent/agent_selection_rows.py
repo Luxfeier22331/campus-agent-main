@@ -20,6 +20,7 @@ from .agent_official_web_terms import (
 )
 from .agent_selection_query import _query_mode
 from .agent_selection_statements import (
+    _is_generic_intro_statement,
     _rank_source_statements,
     _score_source_statements,
 )
@@ -48,6 +49,8 @@ def _select_answer_support_rows(
         max_seen_statements = 6
     elif shape in {AnswerShape.CATEGORY_DISCOVERY_LIST, AnswerShape.CONDITION_OVERVIEW}:
         max_seen_statements = max(3, max_sources)
+    elif shape == AnswerShape.JUDGMENT_CLAUSE:
+        max_seen_statements = 1
     else:
         max_seen_statements = 3
     ranked_sources = (
@@ -72,17 +75,32 @@ def _select_answer_support_rows(
 
     for index, source in enumerate(ranked_sources):
         ranked_statements = _rank_source_statements(query_text, source, mode=mode)
-        if shape == AnswerShape.DETAIL_CLAUSE:
+        if shape in {AnswerShape.DETAIL_CLAUSE, AnswerShape.JUDGMENT_CLAUSE}:
             ranked_statements = _filter_statements_for_query_critical_terms(
                 query_text=query_text,
                 statements=ranked_statements,
             )
+            ranked_statements = _prefer_non_intro_statements(ranked_statements)
+        if shape == AnswerShape.JUDGMENT_CLAUSE:
+            ranked_statements = tuple(
+                _trim_judgment_statement_for_query(query_text=query_text, statement=statement)
+                for statement in ranked_statements
+            )
+        if shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
+            ranked_statements = _filter_category_discovery_statements(ranked_statements)
         novel_statements = tuple(
             statement
             for statement in ranked_statements
             if _normalize_snippet(statement).lower() not in seen_statements
         )
         if shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
+            novel_statements = tuple(novel_statements[:1])
+            if not novel_statements:
+                rows.append((source, ()))
+                if len(rows) >= max_sources:
+                    break
+                continue
+        if shape == AnswerShape.JUDGMENT_CLAUSE:
             novel_statements = tuple(novel_statements[:1])
         if not novel_statements:
             continue
@@ -99,6 +117,8 @@ def _select_answer_support_rows(
             and len(novel_statements) >= 2
             and not _is_official_web_reference_query(query_text=query_text, source=source)
         ):
+            break
+        if shape == AnswerShape.JUDGMENT_CLAUSE:
             break
         if (
             (course_list_query or curriculum_lookup_query)
@@ -144,10 +164,17 @@ def _answer_source_sort_key(
 ) -> tuple[int, int, int, int]:
     scored = _score_source_statements(query_text, source, mode=mode)
     if not scored:
-        return (0, 0, 0, 0)
+        return (0, 0, 0, 0, 0, 0)
     best_score = scored[0][0]
     total_score = sum(score for score, _ in scored[:3])
-    return (best_score, total_score, len(scored), 1 if source.is_answer_bearing else 0)
+    return (
+        _query_anchor_match_score(query_text, source),
+        _query_critical_source_match_score(query_text, source),
+        best_score,
+        total_score,
+        len(scored),
+        1 if source.is_answer_bearing else 0,
+    )
 
 
 def _filter_statements_for_query_critical_terms(
@@ -168,6 +195,26 @@ def _filter_statements_for_query_critical_terms(
 def _query_critical_term_groups(query_text: str) -> tuple[tuple[str, ...], ...]:
     normalized = _normalize_snippet(query_text)
     groups: list[tuple[str, ...]] = []
+    if any(
+        cue in normalized
+        for cue in (
+            "没前十",
+            "没前10",
+            "没进前十",
+            "没进前10",
+            "不在前十",
+            "不在前10",
+            "前十之外",
+            "前10之外",
+            "前十以外",
+            "前10以外",
+            "超出前十",
+            "超出前10",
+        )
+    ):
+        groups.append(("前10", "前十"))
+        if "前30" in normalized or "前三十" in normalized:
+            groups.append(("前30", "前三十"))
     if "论文" in normalized:
         groups.append(("论文", "发表"))
     if "著作" in normalized:
@@ -179,12 +226,102 @@ def _query_critical_term_groups(query_text: str) -> tuple[tuple[str, ...], ...]:
     return tuple(groups)
 
 
+def _query_anchor_match_score(query_text: str, source: EvidenceSource) -> int:
+    normalized_query = _normalize_snippet(query_text)
+    if not normalized_query:
+        return 0
+    score = 0
+    if source.detail_label and source.detail_label in normalized_query:
+        score += 2
+    if source.article_no and f"第{source.article_no}条" in normalized_query:
+        score += 2
+    if source.clause_no and f"第{source.clause_no}款" in normalized_query:
+        score += 1
+    return score
+
+
+def _query_critical_source_match_score(query_text: str, source: EvidenceSource) -> int:
+    groups = _query_critical_term_groups(query_text)
+    if not groups:
+        return 0
+    normalized = _normalize_snippet(
+        " ".join(
+            fragment
+            for fragment in (
+                source.source_title,
+                source.detail_label,
+                source.snippet,
+            )
+            if fragment
+        )
+    )
+    if not normalized:
+        return 0
+    return sum(1 for group in groups if any(term in normalized for term in group))
+
+
 def _statement_covers_critical_groups(
     statement: str,
     groups: tuple[tuple[str, ...], ...],
 ) -> bool:
     normalized = _normalize_snippet(statement)
     return all(any(term in normalized for term in group) for group in groups)
+
+
+def _prefer_non_intro_statements(statements: tuple[str, ...]) -> tuple[str, ...]:
+    filtered = tuple(
+        statement for statement in statements if not _is_generic_intro_statement(statement)
+    )
+    return filtered or statements
+
+
+def _filter_category_discovery_statements(statements: tuple[str, ...]) -> tuple[str, ...]:
+    filtered: list[str] = []
+    for statement in statements:
+        normalized = _normalize_snippet(statement)
+        if not normalized:
+            continue
+        if _is_generic_intro_statement(normalized):
+            continue
+        if any(cue in normalized for cue in ("流程", "步骤", "程序", "审核", "审定", "推荐")):
+            continue
+        if any(cue in normalized for cue in ("公示", "审批", "报送学生处", "最终名单")):
+            continue
+        if any(cue in normalized for cue in ("不得", "不得同时", "不能", "不予", "取消")):
+            continue
+        if "同时申请" in normalized:
+            continue
+        filtered.append(statement)
+    return tuple(filtered)
+
+
+def _trim_judgment_statement_for_query(*, query_text: str, statement: str) -> str:
+    normalized_query = _normalize_snippet(query_text)
+    normalized_statement = _normalize_snippet(statement)
+    if not normalized_statement:
+        return ""
+    if any(
+        cue in normalized_query
+        for cue in (
+            "没前十",
+            "没前10",
+            "没进前十",
+            "没进前10",
+            "不在前十",
+            "不在前10",
+            "前十之外",
+            "前10之外",
+            "前十以外",
+            "前10以外",
+            "超出前十",
+            "超出前10",
+        )
+    ):
+        for cue in ("必须在道德风尚", "必须在某一方面表现特别优秀", "且可提供相应的证明材料"):
+            if cue in normalized_statement:
+                normalized_statement = normalized_statement.split(cue, 1)[0].rstrip("，,；;。 ")
+                break
+    return normalized_statement
 
 
 def _should_lock_official_web_reference_answer(

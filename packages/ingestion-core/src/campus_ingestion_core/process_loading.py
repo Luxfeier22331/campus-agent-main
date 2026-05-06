@@ -189,6 +189,15 @@ def build_default_unit_pieces(unit: StructuredUnit, chunk_profile: ChunkProfile)
     )
 
 
+def build_student_rules_unit_pieces(unit: StructuredUnit, chunk_profile: ChunkProfile):
+    return build_regulation_unit_pieces(
+        unit,
+        chunk_profile,
+        require_regulation_body_role=False,
+        answer_ready_roles=True,
+    )
+
+
 def build_curriculum_unit_pieces(unit: StructuredUnit, chunk_profile: ChunkProfile):
     return chunk_curriculum_unit(unit=unit, chunk_profile=chunk_profile)
 
@@ -520,6 +529,7 @@ __all__ = [
     "build_handbook_chunk_profile",
     "build_official_web_runtime_chunk_profile",
     "build_regulation_unit_pieces",
+    "build_student_rules_unit_pieces",
     "derive_internal_notice_document_title",
     "is_curriculum_course_map_section_unit",
     "load_curriculum_runtime_structured_units",

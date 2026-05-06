@@ -7,7 +7,13 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from campus_ingestion_core.regulation_semantics import starts_example_list
+
 _TOKEN_RE = re.compile(r"[\u4e00-\u9fff]|[A-Za-z0-9_]+|[^\s]")
+_ENUMERATED_EXAMPLE_RE = re.compile(r"(^|\n)\s*(?:\d+[.．、]|[（(]\d+[)）])")
+_PROCEDURE_STEP_RE = re.compile(
+    r"(审核|审批|公示|报送|受理|办理|备案|提交申请材料|提交[^。；;\n]{0,12}申请[^。；;\n]{0,12}材料)"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +33,13 @@ class RetrievalChunkQualityAuditReport:
     max_tokens: int
     counts_by_issue: dict[str, int] = field(default_factory=dict)
     counts_by_unit_type: dict[str, int] = field(default_factory=dict)
+    counts_by_answer_role: dict[str, int] = field(default_factory=dict)
+    counts_by_content_role: dict[str, int] = field(default_factory=dict)
+    counts_by_claim_type: dict[str, int] = field(default_factory=dict)
+    answer_ready_chunk_count: int = 0
+    answer_ready_ratio: float = 0.0
+    low_confidence_role_count: int = 0
+    table_answer_ready_count: int = 0
     issues_by_chunk_id: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
@@ -70,10 +83,13 @@ def evaluate_chunk_quality(
             issues.append("duplicate_chunk_id")
         seen_chunk_ids.add(chunk_id)
         text = _required_text(chunk.get("text")) or ""
-        if max_tokens > 0 and _count_tokens(text) > max_tokens:
-            issues.append("token_count_exceeds_budget")
         metadata = chunk.get("metadata") if isinstance(chunk.get("metadata"), Mapping) else {}
         anchor = chunk.get("anchor") if isinstance(chunk.get("anchor"), Mapping) else {}
+        token_count = _coerce_int(metadata.get("final_token_count"))
+        if token_count is None:
+            token_count = _count_tokens(text)
+        if max_tokens > 0 and token_count > max_tokens:
+            issues.append("token_count_exceeds_budget")
         for metadata_field in required_metadata_fields:
             if not (
                 _has_value(chunk.get(metadata_field))
@@ -86,6 +102,20 @@ def evaluate_chunk_quality(
             issues.append("display_text_not_in_chunk_text")
         if _is_table_chunk_missing_context_or_header(metadata=metadata, anchor=anchor):
             issues.append("missing_table_context_or_header")
+        if _answer_clause_is_mixed_with_example_list(metadata=metadata, text=display_text or text):
+            issues.append("answer_clause_mixed_with_example_list")
+        if _category_overview_is_missing_answer_role(metadata=metadata):
+            issues.append("category_overview_missing_answer_role")
+        if _category_overview_is_missing_member_titles(
+            metadata=metadata, text=display_text or text
+        ):
+            issues.append("category_overview_missing_member_titles")
+        if _procedure_step_role_mismatch(metadata=metadata, text=display_text or text):
+            issues.append("procedure_step_role_mismatch")
+        if _answer_bearing_missing_role_confidence(metadata=metadata):
+            issues.append("answer_bearing_missing_role_confidence")
+        if _table_unit_missing_answer_ready_metadata(metadata=metadata):
+            issues.append("table_unit_missing_answer_ready_metadata")
         chunk_rows.append(
             _ChunkQualityRow(
                 chunk_id=chunk_id,
@@ -157,9 +187,34 @@ def build_chunk_quality_audit_report(
         for issue in issues:
             counts_by_issue[issue] = counts_by_issue.get(issue, 0) + 1
     counts_by_unit_type: dict[str, int] = {}
+    counts_by_answer_role: dict[str, int] = {}
+    counts_by_content_role: dict[str, int] = {}
+    counts_by_claim_type: dict[str, int] = {}
+    answer_ready_chunk_count = 0
+    low_confidence_role_count = 0
+    table_answer_ready_count = 0
     for chunk in chunk_rows:
         unit_type = _chunk_unit_type(chunk)
         counts_by_unit_type[unit_type] = counts_by_unit_type.get(unit_type, 0) + 1
+        metadata = chunk.get("metadata") if isinstance(chunk.get("metadata"), Mapping) else {}
+        answer_role = _required_text(metadata.get("answer_role"))
+        content_role = _required_text(metadata.get("content_role"))
+        claim_type = _required_text(metadata.get("claim_type"))
+        if answer_role:
+            counts_by_answer_role[answer_role] = counts_by_answer_role.get(answer_role, 0) + 1
+        if content_role:
+            counts_by_content_role[content_role] = counts_by_content_role.get(content_role, 0) + 1
+        if claim_type:
+            counts_by_claim_type[claim_type] = counts_by_claim_type.get(claim_type, 0) + 1
+        if _is_answer_ready_metadata(metadata):
+            answer_ready_chunk_count += 1
+        if str(metadata.get("role_confidence") or "").strip() == "low":
+            low_confidence_role_count += 1
+        if unit_type == "table_unit" and _is_answer_ready_metadata(metadata):
+            table_answer_ready_count += 1
+    answer_ready_ratio = (
+        answer_ready_chunk_count / quality.chunk_count if quality.chunk_count else 0.0
+    )
     return RetrievalChunkQualityAuditReport(
         status=quality.status,
         chunk_count=quality.chunk_count,
@@ -168,6 +223,13 @@ def build_chunk_quality_audit_report(
         max_tokens=max_tokens,
         counts_by_issue=dict(sorted(counts_by_issue.items())),
         counts_by_unit_type=dict(sorted(counts_by_unit_type.items())),
+        counts_by_answer_role=dict(sorted(counts_by_answer_role.items())),
+        counts_by_content_role=dict(sorted(counts_by_content_role.items())),
+        counts_by_claim_type=dict(sorted(counts_by_claim_type.items())),
+        answer_ready_chunk_count=answer_ready_chunk_count,
+        answer_ready_ratio=answer_ready_ratio,
+        low_confidence_role_count=low_confidence_role_count,
+        table_answer_ready_count=table_answer_ready_count,
         issues_by_chunk_id=quality.issues_by_chunk_id,
     )
 
@@ -183,6 +245,13 @@ def retrieval_chunk_quality_report_to_dict(
         "max_tokens": report.max_tokens,
         "counts_by_issue": report.counts_by_issue,
         "counts_by_unit_type": report.counts_by_unit_type,
+        "counts_by_answer_role": report.counts_by_answer_role,
+        "counts_by_content_role": report.counts_by_content_role,
+        "counts_by_claim_type": report.counts_by_claim_type,
+        "answer_ready_chunk_count": report.answer_ready_chunk_count,
+        "answer_ready_ratio": report.answer_ready_ratio,
+        "low_confidence_role_count": report.low_confidence_role_count,
+        "table_answer_ready_count": report.table_answer_ready_count,
         "issues_by_chunk_id": {
             chunk_id: list(issues) for chunk_id, issues in sorted(report.issues_by_chunk_id.items())
         },
@@ -249,6 +318,123 @@ def _is_table_chunk_missing_context_or_header(
         or _has_value(metadata.get("header_cells"))
         or _has_value(anchor.get("table_columns"))
         or _has_value(metadata.get("table_columns"))
+    )
+
+
+def _answer_clause_is_mixed_with_example_list(
+    *,
+    metadata: Mapping[str, Any],
+    text: str,
+) -> bool:
+    answer_role = str(metadata.get("answer_role") or "").strip()
+    content_role = str(metadata.get("content_role") or "").strip()
+    if answer_role not in {"exception_rule", "eligibility_condition"} and content_role not in {
+        "eligibility",
+        "requirement",
+    }:
+        return False
+    if not starts_example_list(text):
+        return False
+    return len(_ENUMERATED_EXAMPLE_RE.findall(text)) >= 2
+
+
+def _category_overview_is_missing_answer_role(*, metadata: Mapping[str, Any]) -> bool:
+    unit_type = str(metadata.get("unit_type") or "").strip()
+    content_role = str(metadata.get("content_role") or "").strip()
+    if unit_type != "category_overview" and content_role != "policy_list":
+        return False
+    return str(metadata.get("answer_role") or "").strip() != "category_overview"
+
+
+def _category_overview_is_missing_member_titles(
+    *,
+    metadata: Mapping[str, Any],
+    text: str,
+) -> bool:
+    if not _is_category_overview_metadata(metadata):
+        return False
+    member_titles = metadata.get("category_member_titles")
+    if not isinstance(member_titles, list | tuple):
+        return False
+    normalized_text = _normalize_for_contains(text)
+    for title in member_titles:
+        normalized_title = _normalize_for_contains(str(title or ""))
+        if normalized_title and normalized_title not in normalized_text:
+            return True
+    return False
+
+
+def _procedure_step_role_mismatch(*, metadata: Mapping[str, Any], text: str) -> bool:
+    answer_role = str(metadata.get("answer_role") or "").strip()
+    content_role = str(metadata.get("content_role") or "").strip()
+    if answer_role == "procedure_step" or content_role == "procedure":
+        return False
+    if answer_role in {"exclusion_rule", "exception_rule"}:
+        return False
+    if str(metadata.get("claim_type") or "").strip() == "cannot_do":
+        return False
+    if str(metadata.get("polarity") or "").strip() == "negative":
+        return False
+    return _looks_like_actionable_procedure_step(text)
+
+
+def _answer_bearing_missing_role_confidence(*, metadata: Mapping[str, Any]) -> bool:
+    if not bool(metadata.get("is_answer_bearing")):
+        return False
+    return not _has_value(metadata.get("role_confidence"))
+
+
+def _table_unit_missing_answer_ready_metadata(*, metadata: Mapping[str, Any]) -> bool:
+    if str(metadata.get("unit_type") or "").strip() != "table_unit":
+        return False
+    return not (
+        str(metadata.get("answer_role") or "").strip() == "table_fact"
+        and _has_value(metadata.get("table_fact_type"))
+        and _has_value(metadata.get("role_confidence"))
+    )
+
+
+def _is_answer_ready_metadata(metadata: Mapping[str, Any]) -> bool:
+    if not bool(metadata.get("is_answer_bearing")):
+        return False
+    answer_role = str(metadata.get("answer_role") or "").strip()
+    return bool(answer_role and answer_role != "supporting_detail")
+
+
+def _is_category_overview_metadata(metadata: Mapping[str, Any]) -> bool:
+    unit_type = str(metadata.get("unit_type") or "").strip()
+    content_role = str(metadata.get("content_role") or "").strip()
+    return unit_type == "category_overview" or content_role == "policy_list"
+
+
+def _normalize_for_contains(value: str) -> str:
+    return re.sub(r"\s+", "", str(value or "")).strip()
+
+
+def _looks_like_actionable_procedure_step(text: str) -> bool:
+    normalized = _normalize_for_contains(text)
+    first_line = next((line.strip() for line in text.splitlines() if line.strip()), "")
+    if not _PROCEDURE_STEP_RE.search(normalized):
+        return False
+    if any(marker in normalized for marker in ("负责", "职责", "不再受理", "不予受理", "视为放弃")):
+        return False
+    if (
+        "提交申请材料" in normalized
+        and not _ENUMERATED_EXAMPLE_RE.match(first_line)
+        and not any(marker in normalized for marker in ("程序", "流程", "步骤", "公示", "审批", "审核"))
+    ):
+        return False
+    if len(_ENUMERATED_EXAMPLE_RE.findall(text)) >= 2:
+        return True
+    if _ENUMERATED_EXAMPLE_RE.match(first_line):
+        return True
+    if any(marker in normalized for marker in ("申请程序", "办理程序", "按照以下程序", "按如下程序")):
+        return True
+    return bool(
+        re.search(
+            r"(提交[^。；;\n]{0,18}(?:材料|申请)|进行审核|予以公示|申请人.{0,18}提交|本人.{0,18}提交)",
+            normalized,
+        )
     )
 
 

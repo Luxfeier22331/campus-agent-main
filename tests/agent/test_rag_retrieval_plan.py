@@ -13,7 +13,10 @@ from campus_contracts import (
 )
 from campus_ingestion_core.version_resolution import ResolvedVersionQuery, ResolvedVersionSelection
 from campus_rag_agent.retrieval_plan import build_ordered_retrieval_plan
+from campus_rag_agent.service_retrieval import build_rag_retrieval_context, build_retrieval_plan_for_context
+from campus_rag_agent.query_planning import plan_student_handbook_query
 from campus_rag_agent.service import delegate_to_rag_agent
+from tests.agent.rag_agent_test_support import _make_handbook_source
 
 
 class RagRetrievalPlanTest(unittest.TestCase):
@@ -36,6 +39,105 @@ class RagRetrievalPlanTest(unittest.TestCase):
             plan.steps[0].selector.target_document_ids, ("handbook:national-scholarship",)
         )
         self.assertEqual(plan.source_trust_policy.minimum_tier, "T1")
+
+    def test_resolved_policy_clause_query_uses_broad_and_focused_steps(self) -> None:
+        request = AgentRequest(
+            target="rag-agent",
+            user_goal="国奖第九条怎么要求论文和著作？",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+                version_query=VersionQuery(mode="current"),
+            ),
+        )
+        handbook_plan = plan_student_handbook_query(request.user_goal)
+        retrieval_context = build_rag_retrieval_context(
+            request=request,
+            effective_scope=request.payload.scope,
+            user_goal=request.user_goal,
+            effective_user_goal=request.user_goal,
+            handbook_plan=handbook_plan,
+            curriculum_plan=None,
+            curriculum_course_plan=None,
+            curriculum_program_family_plan=None,
+            build_document_registry_from_env_fn=lambda: object(),
+            resolve_version_query_fn=lambda **_: ResolvedVersionQuery(
+                mode="current",
+                status="resolved",
+            ),
+        )
+
+        assert retrieval_context is not None
+        plan = build_retrieval_plan_for_context(
+            request=request,
+            effective_scope=request.payload.scope,
+            user_goal=request.user_goal,
+            retrieval_context=retrieval_context,
+        )
+
+        self.assertEqual(len(plan.steps), 2)
+        self.assertEqual(plan.steps[0].step_id, "policy-broad-lookup")
+        self.assertEqual(plan.steps[0].step_type, "indexed_lookup")
+        self.assertEqual(plan.steps[0].selector.target_document_ids, handbook_plan.target_document_ids)
+        self.assertEqual(plan.steps[1].step_id, "policy-focused-lookup")
+        self.assertEqual(plan.steps[1].step_type, "indexed_lookup")
+        self.assertEqual(plan.steps[1].selector.target_document_ids, handbook_plan.target_document_ids)
+        self.assertEqual(plan.steps[1].selector.focus_detail_labels, ("第九条",))
+        self.assertEqual(plan.steps[1].selector.focus_article_nos, ("9",))
+        self.assertEqual(plan.steps[1].selector.focus_terms, ("论文", "著作"))
+        self.assertEqual(plan.steps[1].depends_on_step_ids, ("policy-broad-lookup",))
+        self.assertIn("第九条", plan.steps[1].query_text)
+        self.assertIn("论文", plan.steps[1].query_text)
+        self.assertIn("著作", plan.steps[1].query_text)
+
+    def test_resolved_policy_historical_clause_query_uses_focused_historical_step(self) -> None:
+        request = AgentRequest(
+            target="rag-agent",
+            user_goal="旧版国奖第九条怎么要求论文和著作？",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+                version_query=VersionQuery(mode="historical"),
+            ),
+        )
+        handbook_plan = plan_student_handbook_query(request.user_goal)
+        retrieval_context = build_rag_retrieval_context(
+            request=request,
+            effective_scope=request.payload.scope,
+            user_goal=request.user_goal,
+            effective_user_goal=request.user_goal,
+            handbook_plan=handbook_plan,
+            curriculum_plan=None,
+            curriculum_course_plan=None,
+            curriculum_program_family_plan=None,
+            build_document_registry_from_env_fn=lambda: object(),
+            resolve_version_query_fn=lambda *args, **kwargs: ResolvedVersionQuery(
+                mode="historical",
+                status="resolved",
+                primary_selection=ResolvedVersionSelection(
+                    document_id="handbook:national-scholarship",
+                    revision_track="source-faithful",
+                    version_id="v1:national-scholarship",
+                    anchor="previous",
+                ),
+            ),
+        )
+
+        assert retrieval_context is not None
+        plan = build_retrieval_plan_for_context(
+            request=request,
+            effective_scope=request.payload.scope,
+            user_goal=request.user_goal,
+            retrieval_context=retrieval_context,
+        )
+
+        self.assertEqual(len(plan.steps), 1)
+        self.assertEqual(plan.steps[0].step_type, "historical_version_lookup")
+        self.assertEqual(plan.steps[0].selector.target_version_ids, ("v1:national-scholarship",))
+        self.assertEqual(plan.steps[0].selector.focus_detail_labels, ("第九条",))
+        self.assertEqual(plan.steps[0].selector.focus_article_nos, ("9",))
+        self.assertEqual(plan.steps[0].selector.focus_terms, ("论文", "著作"))
+        self.assertIn("第九条", plan.steps[0].query_text)
+        self.assertIn("论文", plan.steps[0].query_text)
+        self.assertIn("著作", plan.steps[0].query_text)
 
     def test_build_ordered_retrieval_plan_uses_collection_trust_tier_for_stable_reference(
         self,
@@ -70,6 +172,65 @@ class RagRetrievalPlanTest(unittest.TestCase):
         self.assertEqual(plan.steps[0].step_id, "compare-pair-lookup")
         self.assertEqual(plan.steps[0].step_type, "compare_pair_lookup")
         self.assertEqual(plan.steps[0].expected_output, "compare_inputs")
+        self.assertEqual(
+            plan.steps[0].selector.target_version_ids,
+            ("v1:national-scholarship", "v2:national-scholarship"),
+        )
+
+    def test_resolved_policy_compare_clause_query_uses_focused_compare_step(self) -> None:
+        request = AgentRequest(
+            target="rag-agent",
+            user_goal="国奖第九条旧版和新版对论文、著作有什么变化？",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+                version_query=VersionQuery(mode="compare"),
+            ),
+        )
+        handbook_plan = plan_student_handbook_query(request.user_goal)
+        retrieval_context = build_rag_retrieval_context(
+            request=request,
+            effective_scope=request.payload.scope,
+            user_goal=request.user_goal,
+            effective_user_goal=request.user_goal,
+            handbook_plan=handbook_plan,
+            curriculum_plan=None,
+            curriculum_course_plan=None,
+            curriculum_program_family_plan=None,
+            build_document_registry_from_env_fn=lambda: object(),
+            resolve_version_query_fn=lambda *args, **kwargs: ResolvedVersionQuery(
+                mode="compare",
+                status="resolved",
+                primary_selection=ResolvedVersionSelection(
+                    document_id="handbook:national-scholarship",
+                    revision_track="source-faithful",
+                    version_id="v1:national-scholarship",
+                    anchor="previous",
+                ),
+                comparison_selection=ResolvedVersionSelection(
+                    document_id="handbook:national-scholarship",
+                    revision_track="source-faithful",
+                    version_id="v2:national-scholarship",
+                    anchor="current",
+                ),
+            ),
+        )
+
+        assert retrieval_context is not None
+        plan = build_retrieval_plan_for_context(
+            request=request,
+            effective_scope=request.payload.scope,
+            user_goal=request.user_goal,
+            retrieval_context=retrieval_context,
+        )
+
+        self.assertEqual(len(plan.steps), 1)
+        self.assertEqual(plan.steps[0].step_type, "compare_pair_lookup")
+        self.assertEqual(plan.steps[0].selector.focus_detail_labels, ("第九条",))
+        self.assertEqual(plan.steps[0].selector.focus_article_nos, ("9",))
+        self.assertEqual(plan.steps[0].selector.focus_terms, ("论文", "著作"))
+        self.assertIn("第九条", plan.steps[0].query_text)
+        self.assertIn("论文", plan.steps[0].query_text)
+        self.assertIn("著作", plan.steps[0].query_text)
         self.assertEqual(
             plan.steps[0].selector.target_version_ids,
             ("v1:national-scholarship", "v2:national-scholarship"),
@@ -167,10 +328,27 @@ class RagRetrievalPlanTest(unittest.TestCase):
                 corpus="regulations",
                 collection="student_rules",
                 sources=(
-                    _make_source(
-                        chunk_id=f"{version_id}:chunk-1",
+                    EvidenceSource(
+                        doc_id="handbook:national-scholarship",
+                        revision_track="source-faithful",
                         version_id=version_id,
-                        snippet=f"{version_id} 第九条要求",
+                        chunk_id=f"handbook:national-scholarship:source-faithful:{version_id}:chunk-1",
+                        anchor={"page_start": 1, "page_end": 1},
+                        canonical_url="https://campus.example/handbook/national-scholarship",
+                        latest_url="https://campus.example/handbook/national-scholarship",
+                        source_channel="pdf_ocr",
+                        collection="student_rules",
+                        is_current=version_id.startswith("v2:"),
+                        snippet=(
+                            "第九条 在前10%的基础上，"
+                            f"{'应当提交论文、著作证明材料。' if version_id.startswith('v1:') else '应当提交论文、著作或竞赛证明材料。'}"
+                        ),
+                        score=0.88,
+                        source_title="国家奖学金评审办法",
+                        structural_path=("国家奖学金评审办法",),
+                        content_role="requirement",
+                        detail_label="第九条",
+                        is_answer_bearing=True,
                     ),
                 ),
             )
@@ -203,7 +381,7 @@ class RagRetrievalPlanTest(unittest.TestCase):
             response = delegate_to_rag_agent(
                 AgentRequest(
                     target="rag-agent",
-                    user_goal="国奖第九条旧版和新版有什么变化？",
+                    user_goal="国奖第九条旧版和新版对论文、著作有什么变化？",
                     payload=RagRequestPayload(
                         scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                         version_query=VersionQuery(mode="compare"),

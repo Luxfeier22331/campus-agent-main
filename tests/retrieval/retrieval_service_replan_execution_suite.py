@@ -256,6 +256,116 @@ class RetrievalServiceReplanExecutionTest(unittest.TestCase):
             ("student-card-procedure",),
         )
 
+    def test_execute_retrieval_plan_replans_policy_clause_query_when_anchor_support_is_missing(
+        self,
+    ) -> None:
+        seen_requests: list[RetrievalRequest] = []
+
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            seen_requests.append(request)
+            if len(seen_requests) == 1:
+                return EvidenceBundle(
+                    query_text=request.query_text,
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    sources=(
+                        _make_source(
+                            chunk_id="national-scholarship-article-8",
+                            snippet="第八条 国家奖学金候选人应当坚持德智体美劳全面发展。",
+                            score=0.88,
+                            detail_label="第八条",
+                            content_role="requirement",
+                            is_answer_bearing=True,
+                        ),
+                    ),
+                )
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(
+                    _make_source(
+                        chunk_id="national-scholarship-article-9",
+                        snippet="第九条 在前10%的基础上，必须在论文、著作等方面特别优秀。",
+                        score=0.83,
+                        detail_label="第九条",
+                        content_role="requirement",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            )
+
+        plan = RetrievalPlan(
+            plan_id="regulations:student_rules:policy-clause-replan",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            budget=RetrievalPlanBudget(max_steps=2, max_replans=1),
+            steps=(
+                RetrievalStep(
+                    step_id="policy-focused-lookup",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text="国奖第九条怎么要求论文和著作？",
+                    need_ids=("need:1:policy_clause",),
+                    selector=RetrievalSelector(
+                        target_document_ids=("handbook:national-scholarship",),
+                        focus_detail_labels=("第九条",),
+                        focus_article_nos=("9",),
+                        focus_terms=("论文", "著作"),
+                    ),
+                    budget=RetrievalStepBudget(top_k=2),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(
+            plan,
+            retrieve_step=fake_retrieve_step,
+            replan_callback=lambda _plan, _results, last_result: (
+                (
+                    RetrievalStep(
+                        step_id="policy-focused-lookup-semantic-replan",
+                        step_type="indexed_lookup",
+                        scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                        query_text="国奖第九条 论文 著作 依据 条款 规定",
+                        need_ids=("need:1:policy_clause",),
+                        depends_on_step_ids=(last_result.step_id,),
+                        selector=RetrievalSelector(
+                            target_document_ids=("handbook:national-scholarship",),
+                            focus_detail_labels=("第九条",),
+                            focus_article_nos=("9",),
+                            focus_terms=("论文", "著作"),
+                        ),
+                        budget=RetrievalStepBudget(top_k=2),
+                    ),
+                )
+                if last_result.status == "empty"
+                else ()
+            ),
+        )
+
+        self.assertEqual(
+            [request.focus_detail_labels for request in seen_requests],
+            [("第九条",), ("第九条",)],
+        )
+        self.assertEqual(
+            [request.focus_terms for request in seen_requests],
+            [("论文", "著作"), ("论文", "著作")],
+        )
+        self.assertEqual(
+            [request.query_text for request in seen_requests],
+            ["国奖第九条怎么要求论文和著作？", "国奖第九条 论文 著作 依据 条款 规定"],
+        )
+        self.assertEqual(result.replan_count, 1)
+        self.assertEqual(
+            tuple(step_result.status for step_result in result.step_results),
+            ("empty", "succeeded"),
+        )
+        self.assertEqual(
+            tuple(source.chunk_id for source in result.merged_evidence.sources),
+            ("national-scholarship-article-9",),
+        )
+
     def test_execute_retrieval_plan_replans_when_top_grounding_conflicts_with_query_polarity(
         self,
     ) -> None:

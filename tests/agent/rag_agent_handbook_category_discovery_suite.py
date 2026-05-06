@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+from unittest.mock import patch
+
+from campus_rag_agent import handbook_query_planning
 from campus_rag_agent.agent import RagAgent
 from campus_rag_agent.agent_answer_shape import AnswerShape
+from campus_rag_agent.handbook_query_planning import _load_query_planning_config
 from campus_rag_agent.query_planning import plan_student_handbook_query
 from campus_rag_agent.service_evidence_stage import execute_rag_evidence_selection_stage
 from campus_rag_agent.service_versioning_context import _VersionAnswerContext
@@ -23,6 +27,8 @@ _SCHOLARSHIP_DOC_IDS = (
     "handbook:a531a3c85de862c737d0576e957bf59598822c54",
     "handbook:aa835b8cd4acddb62c7243fed9a9f8c0728e68bc",
 )
+_RECOMMENDATION_POSTGRADUATE_DEFAULT_DOC_ID = "handbook:4b943c3cb67ec0e3c578781fb0c62c1763fd73b9"
+_RECOMMENDATION_POSTGRADUATE_ATHLETE_DOC_ID = "handbook:ceb42210e2431730ef5b1e376b800250fd9eb1fb"
 
 
 class RagAgentHandbookCategoryDiscoveryTest(unittest.TestCase):
@@ -52,6 +58,42 @@ class RagAgentHandbookCategoryDiscoveryTest(unittest.TestCase):
         self.assertEqual(plan.clarification_reason, "ambiguous_procedure")
         self.assertEqual(plan.category_id, "scholarship")
 
+    def test_recommendation_postgraduate_procedure_defaults_to_undergraduate_policy(self) -> None:
+        for query in ("保研流程是什么？", "推免流程是什么？", "推荐免试怎么办理？"):
+            with self.subTest(query=query):
+                plan = plan_student_handbook_query(query)
+
+                self.assertEqual(plan.status, "resolved")
+                self.assertEqual(plan.task_kind, "specific_policy_lookup")
+                self.assertEqual(
+                    plan.target_document_ids,
+                    (_RECOMMENDATION_POSTGRADUATE_DEFAULT_DOC_ID,),
+                )
+                self.assertEqual(
+                    plan.resolved_policy_document_id,
+                    _RECOMMENDATION_POSTGRADUATE_DEFAULT_DOC_ID,
+                )
+                self.assertEqual(plan.category_id, "recommendation_postgraduate")
+                self.assertEqual(plan.clarification_reason, "")
+
+    def test_recommendation_postgraduate_procedure_athlete_query_hits_athlete_policy(self) -> None:
+        for query in ("高水平运动员保研流程是什么？", "运动员推免怎么办理？"):
+            with self.subTest(query=query):
+                plan = plan_student_handbook_query(query)
+
+                self.assertEqual(plan.status, "resolved")
+                self.assertEqual(plan.task_kind, "specific_policy_lookup")
+                self.assertEqual(
+                    plan.target_document_ids,
+                    (_RECOMMENDATION_POSTGRADUATE_ATHLETE_DOC_ID,),
+                )
+                self.assertEqual(
+                    plan.resolved_policy_document_id,
+                    _RECOMMENDATION_POSTGRADUATE_ATHLETE_DOC_ID,
+                )
+                self.assertEqual(plan.category_id, "recommendation_postgraduate")
+                self.assertEqual(plan.clarification_reason, "")
+
     def test_specific_policy_alias_questions_remain_specific_lookup(self) -> None:
         expected_doc_by_query = {
             "成绩没前十还能评国奖吗？": _SCHOLARSHIP_DOC_IDS[0],
@@ -69,6 +111,47 @@ class RagAgentHandbookCategoryDiscoveryTest(unittest.TestCase):
                 self.assertEqual(plan.task_kind, "specific_policy_lookup")
                 self.assertEqual(plan.target_document_ids, (expected_doc_id,))
                 self.assertEqual(plan.preferred_document_ids, ())
+                self.assertEqual(plan.clarification_reason, "")
+
+    def test_specific_policy_lookup_extracts_clause_and_focus_hints(self) -> None:
+        plan = plan_student_handbook_query("国奖第九条怎么要求论文和著作？")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.task_kind, "specific_policy_lookup")
+        self.assertEqual(plan.target_document_ids, (_SCHOLARSHIP_DOC_IDS[0],))
+        self.assertEqual(plan.focus_detail_labels, ("第九条",))
+        self.assertEqual(plan.focus_article_nos, ("9",))
+        self.assertEqual(plan.focus_clause_nos, ())
+        self.assertEqual(plan.focus_terms, ("论文", "著作"))
+        self.assertIn("第九条", plan.focused_query_text)
+        self.assertIn("论文", plan.focused_query_text)
+        self.assertIn("著作", plan.focused_query_text)
+
+    def test_specific_policy_lookup_extracts_judgment_focus_hints(self) -> None:
+        plan = plan_student_handbook_query("成绩没前十还能评国奖吗？")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.task_kind, "specific_policy_lookup")
+        self.assertEqual(plan.target_document_ids, (_SCHOLARSHIP_DOC_IDS[0],))
+        self.assertEqual(plan.focus_detail_labels, ())
+        self.assertEqual(plan.focus_article_nos, ())
+        self.assertEqual(plan.focus_clause_nos, ())
+        self.assertEqual(plan.focus_terms, ("前10", "前30"))
+        self.assertIn("前10", plan.focused_query_text)
+        self.assertIn("前30", plan.focused_query_text)
+
+    def test_exact_policy_title_prevents_short_title_variant_conflict(self) -> None:
+        expected_doc_by_query = {
+            "普通高等学校学生管理规定": "handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
+            "中央民族大学学生管理规定": "handbook:69eef0f78d250946924e6a02187fafdb88852c23",
+        }
+        for query, expected_doc_id in expected_doc_by_query.items():
+            with self.subTest(query=query):
+                plan = plan_student_handbook_query(query)
+
+                self.assertEqual(plan.status, "resolved")
+                self.assertEqual(plan.task_kind, "specific_policy_lookup")
+                self.assertEqual(plan.target_document_ids, (expected_doc_id,))
                 self.assertEqual(plan.clarification_reason, "")
 
     def test_non_scholarship_list_questions_are_category_discovery(self) -> None:
@@ -99,6 +182,31 @@ class RagAgentHandbookCategoryDiscoveryTest(unittest.TestCase):
                 self.assertEqual(plan.category_id, category_id)
                 self.assertEqual(plan.category_display_name, display_name)
                 self.assertEqual(plan.category_member_document_ids, document_ids)
+
+    def test_expanded_registry_categories_support_discovery_queries(self) -> None:
+        expected = {
+            "宿舍相关规定有哪些": "dormitory_management",
+            "公费医疗有哪些规定": "public_medical",
+            "资助与助学有哪些规定": "financial_aid",
+            "推免有哪些规定": "recommendation_postgraduate",
+        }
+        for query, expected_category_id in expected.items():
+            with self.subTest(query=query):
+                plan = plan_student_handbook_query(query)
+
+                self.assertEqual(plan.status, "resolved")
+                self.assertEqual(plan.task_kind, "category_discovery")
+                self.assertEqual(plan.category_id, expected_category_id)
+                self.assertGreaterEqual(len(plan.category_member_document_ids), 1)
+
+    def test_query_planning_uses_shared_student_rules_registry_loader(self) -> None:
+        _load_query_planning_config.cache_clear()
+        with patch(
+            "campus_rag_agent.handbook_query_planning.load_student_rules_discovery_config",
+            wraps=handbook_query_planning.load_student_rules_discovery_config,
+        ) as loader:
+            plan_student_handbook_query("有哪些本科生可以申请的奖学金")
+        loader.assert_called()
 
     def test_category_discovery_enters_retrieval_with_category_policy_set(self) -> None:
         retriever_calls: list[dict[str, object]] = []
@@ -178,6 +286,70 @@ class RagAgentHandbookCategoryDiscoveryTest(unittest.TestCase):
             _SCHOLARSHIP_DOC_IDS[:4],
         )
 
+    def test_category_discovery_evidence_selection_refines_to_one_answer_ready_source_per_doc(
+        self,
+    ) -> None:
+        plan = plan_student_handbook_query("我能申请哪些奖学金？")
+        evidence = EvidenceBundle(
+            query_text="我能申请哪些奖学金？",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                _make_handbook_source(
+                    doc_id=_SCHOLARSHIP_DOC_IDS[0],
+                    title="中央民族大学本科学生国家奖学金评审办法",
+                    snippet="参评本科学生国家奖学金还须具备以下条件之一。",
+                    score=0.95,
+                    chunk_id_suffix="national-eligibility-intro",
+                    content_role="eligibility",
+                    is_answer_bearing=True,
+                ),
+                _category_overview_source(
+                    document_id=_SCHOLARSHIP_DOC_IDS[0],
+                    score=0.31,
+                    suffix="national-overview",
+                ),
+                _make_handbook_source(
+                    doc_id=_SCHOLARSHIP_DOC_IDS[0],
+                    title="中央民族大学本科学生国家奖学金评审办法",
+                    snippet="本科学生国家奖学金按以下程序进行评选。",
+                    score=0.94,
+                    chunk_id_suffix="national-procedure-intro",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+                _make_handbook_source(
+                    doc_id=_SCHOLARSHIP_DOC_IDS[1],
+                    title="中央民族大学本科学生国家励志奖学金评审办法",
+                    snippet="参评本科学生国家励志奖学金需具备以下基本条件。",
+                    score=0.93,
+                    chunk_id_suffix="encouragement-eligibility-intro",
+                    content_role="eligibility",
+                    is_answer_bearing=True,
+                ),
+                _category_overview_source(
+                    document_id=_SCHOLARSHIP_DOC_IDS[1],
+                    score=0.32,
+                    suffix="encouragement-overview",
+                ),
+            ),
+        )
+
+        result = execute_rag_evidence_selection_stage(
+            retrieved_evidence=evidence,
+            version_answer_context=_VersionAnswerContext(mode="current"),
+            handbook_plan=plan,
+        )
+
+        self.assertEqual(
+            tuple(source.doc_id for source in result.supporting_evidence.sources),
+            (_SCHOLARSHIP_DOC_IDS[0], _SCHOLARSHIP_DOC_IDS[1]),
+        )
+        self.assertEqual(
+            tuple(source.content_role for source in result.supporting_evidence.sources),
+            ("definition", "definition"),
+        )
+
     def test_category_discovery_prefers_overview_source_over_exclusion_clause(self) -> None:
         bad_clause = _make_handbook_source(
             doc_id=_SCHOLARSHIP_DOC_IDS[0],
@@ -244,6 +416,15 @@ class RagAgentHandbookCategoryDiscoveryTest(unittest.TestCase):
                     content_role="eligibility",
                     is_answer_bearing=True,
                 ),
+                _make_handbook_source(
+                    doc_id=_SCHOLARSHIP_DOC_IDS[4],
+                    title="中央民族大学社会奖助学金管理办法",
+                    snippet="个人申请->班级或学生组织评比推荐->学院审核->学校审定。",
+                    score=0.031,
+                    chunk_id_suffix="social-procedure",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
             ),
         )
 
@@ -260,6 +441,72 @@ class RagAgentHandbookCategoryDiscoveryTest(unittest.TestCase):
         self.assertNotIn("评定比例按照", draft.answer_text)
         self.assertNotIn("章节：第二章", draft.answer_text)
         self.assertNotIn("条款：第五条", draft.answer_text)
+        self.assertNotIn("个人申请->", draft.answer_text)
+        self.assertNotIn("学校审定", draft.answer_text)
+
+    def test_category_discovery_answer_omits_generic_eligibility_intro_when_only_intro_is_available(
+        self,
+    ) -> None:
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="本科生有哪些奖学金能申请？",
+                corpus="regulations",
+                collection="student_rules",
+                sources=(
+                    _make_handbook_source(
+                        doc_id=_SCHOLARSHIP_DOC_IDS[0],
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="参评本科学生国家奖学金还须具备以下条件之一。",
+                        score=0.91,
+                        chunk_id_suffix="national-eligibility-intro-only",
+                        content_role="eligibility",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            ),
+            answer_shape=AnswerShape.CATEGORY_DISCOVERY_LIST,
+            category_display_name="奖学金",
+            audience="本科生",
+        )
+
+        self.assertIn("《中央民族大学本科学生国家奖学金评审办法》", draft.answer_text)
+        self.assertNotIn("具备以下条件之一", draft.answer_text)
+
+    def test_category_discovery_answer_omits_procedure_public_notice_tail(self) -> None:
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="我能申请哪些奖学金？",
+                corpus="regulations",
+                collection="student_rules",
+                sources=(
+                    _make_handbook_source(
+                        doc_id=_SCHOLARSHIP_DOC_IDS[3],
+                        title="中央民族大学本科学生专项奖学金评定办法",
+                        snippet=(
+                            "中央民族大学本科学生专项奖学金评定办法 / 第五章 评选程序 / 第十五条-第十六条\n"
+                            "第十五条 本科学生专项奖学金按以下程序进行评选:\n"
+                            "个人申请\\rightarrow班级或学生组织评比推荐\\rightarrow学院(系)或职能部门初审"
+                            "\\rightarrow学生处复审并公示\\rightarrow主管校领导审批\\rightarrow确定最终名单。\n"
+                            "第十六条 拟确定的获奖学生初审名单,须在相应范围内公示3个工作日,"
+                            "无异议后报送学生处;学生处复审确定的获奖学生名单,须在全校范围内公示"
+                            "5个工作日,无异议后报主管校领导审批。"
+                        ),
+                        score=0.91,
+                        chunk_id_suffix="special-procedure-public-notice",
+                        content_role="procedure",
+                        is_answer_bearing=True,
+                    ),
+                ),
+            ),
+            answer_shape=AnswerShape.CATEGORY_DISCOVERY_LIST,
+            category_display_name="奖学金",
+            audience="本科生",
+        )
+
+        self.assertIn("《中央民族大学本科学生专项奖学金评定办法》", draft.answer_text)
+        self.assertNotIn("公示3个工作日", draft.answer_text)
+        self.assertNotIn("主管校领导审批", draft.answer_text)
+        self.assertNotIn("按以下程序进行评选", draft.answer_text)
 
     def test_category_discovery_answer_heading_uses_planned_category_context(self) -> None:
         evidence = EvidenceBundle(

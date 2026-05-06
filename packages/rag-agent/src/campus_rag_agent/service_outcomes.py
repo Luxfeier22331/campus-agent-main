@@ -226,6 +226,7 @@ def maybe_build_evidence_clarification_response(
         target="rag-agent",
         status="needs_clarification",
         confidence="low",
+        answer_text=follow_up_question,
         follow_up_question=follow_up_question,
         result=_with_prompt_trace(
             _build_rag_result_payload(

@@ -14,6 +14,7 @@ class AnswerShape(StrEnum):
     CATEGORY_DISCOVERY_LIST = "category_discovery_list"
     CONDITION_OVERVIEW = "condition_overview"
     DETAIL_CLAUSE = "detail_clause"
+    JUDGMENT_CLAUSE = "judgment_clause"
     COURSE_LIST = "course_list"
     FACT_LOOKUP = "fact_lookup"
     GENERAL_SUMMARY = "general_summary"
@@ -31,6 +32,18 @@ _CONDITION_QUERY_HINTS = (
 )
 _OVERVIEW_HINTS = ("什么条件", "哪些条件", "有什么要求", "哪些要求", "需要满足")
 _DETAIL_CLAUSE_HINTS = ("怎么要求", "如何要求", "怎么规定", "如何规定")
+_JUDGMENT_CLAUSE_HINTS = (
+    "能不能",
+    "能否",
+    "可以吗",
+    "可不可以",
+    "还能",
+    "还可以",
+    "是否可以",
+    "算不算",
+    "算吗",
+    "行不行",
+)
 _FACT_QUERY_HINTS = ("学制", "几年", "总学分", "多少", "什么时候", "几点")
 _TITLE_LOOKUP_HINTS = ("想看", "查询", "查看", "培养方案", "规定", "办法")
 _ARTICLE_CLAUSE_RE = re.compile(r"第\s*(?:\d+|[一二三四五六七八九十百零两]+)\s*[条款项]")
@@ -45,6 +58,8 @@ def infer_answer_shape(*, evidence: EvidenceBundle) -> AnswerShape:
         return AnswerShape.FACT_LOOKUP
     if any(hint in normalized_query for hint in _FACT_QUERY_HINTS):
         return AnswerShape.FACT_LOOKUP
+    if _is_judgment_clause_query(normalized_query):
+        return AnswerShape.JUDGMENT_CLAUSE
     if _is_detail_clause_query(normalized_query) and any(
         hint in normalized_query for hint in _CONDITION_QUERY_HINTS
     ):
@@ -63,6 +78,10 @@ def _is_detail_clause_query(normalized_query: str) -> bool:
     return bool(_ARTICLE_CLAUSE_RE.search(normalized_query)) or any(
         hint in normalized_query for hint in _DETAIL_CLAUSE_HINTS
     )
+
+
+def _is_judgment_clause_query(normalized_query: str) -> bool:
+    return any(hint in normalized_query for hint in _JUDGMENT_CLAUSE_HINTS)
 
 
 def answer_shape_support_budget(shape: AnswerShape, default_budget: int) -> int:

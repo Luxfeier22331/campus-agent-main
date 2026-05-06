@@ -150,6 +150,20 @@ def _build_qdrant_filter(
                 match=qdrant_models.MatchAny(any=list(request.target_version_ids)),
             )
         )
+    if request.focus_article_nos:
+        must.append(
+            qdrant_models.FieldCondition(
+                key="article_no",
+                match=qdrant_models.MatchAny(any=list(request.focus_article_nos)),
+            )
+        )
+    if request.focus_clause_nos:
+        must.append(
+            qdrant_models.FieldCondition(
+                key="clause_no",
+                match=qdrant_models.MatchAny(any=list(request.focus_clause_nos)),
+            )
+        )
     if request.canonical_course_ids:
         must.append(
             qdrant_models.FieldCondition(

@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-import json
 import re
 import unicodedata
 from dataclasses import dataclass
 from functools import lru_cache
-from pathlib import Path
 from typing import Literal
+
+from campus_ingestion_core.regulation_semantics import load_student_rules_discovery_config
+
+from .policy_query_focus import extract_policy_query_focus
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _TITLE_PREFIX_PATTERNS = (
@@ -30,12 +32,15 @@ class HandbookPolicyCategory:
     aliases: tuple[str, ...]
     audience: str
     member_policy_document_ids: tuple[str, ...]
+    default_procedure_document_id: str = ""
+    procedure_overrides: tuple[tuple[str, str], ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
 class HandbookQueryPlan:
     status: Literal["pass_through", "resolved", "needs_clarification"]
     rewritten_query_text: str
+    focused_query_text: str = ""
     target_document_ids: tuple[str, ...] = ()
     preferred_document_ids: tuple[str, ...] = ()
     resolved_policy_document_id: str = ""
@@ -50,6 +55,16 @@ class HandbookQueryPlan:
     category_display_name: str = ""
     audience: str = ""
     category_member_document_ids: tuple[str, ...] = ()
+    focus_detail_labels: tuple[str, ...] = ()
+    focus_article_nos: tuple[str, ...] = ()
+    focus_clause_nos: tuple[str, ...] = ()
+    focus_terms: tuple[str, ...] = ()
+    focus_mode: Literal[
+        "none",
+        "anchor_only",
+        "semantic_only",
+        "anchor_and_semantic",
+    ] = "none"
     clarification_reason: str = ""
 
 
@@ -87,6 +102,7 @@ _POLICY_ACTION_REWRITE_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
         "解除处分 申请 条件 程序",
     ),
 )
+_FOCUSED_QUERY_CONTEXT_TERMS = ("条件", "要求", "资格", "程序", "流程", "材料", "申请")
 
 
 def plan_student_handbook_query(query_text: str) -> HandbookQueryPlan:
@@ -94,21 +110,35 @@ def plan_student_handbook_query(query_text: str) -> HandbookQueryPlan:
     matched_objects = _match_policy_objects(normalized_query)
     if len(matched_objects) == 1:
         matched_object = matched_objects[0]
+        rewritten_query_text = _build_rewritten_query(
+            normalized_query=normalized_query,
+            policy_object=matched_object,
+        )
+        focus_hints = extract_policy_query_focus(normalized_query)
         return HandbookQueryPlan(
             status="resolved",
-            rewritten_query_text=_build_rewritten_query(
+            rewritten_query_text=rewritten_query_text,
+            focused_query_text=_build_focused_query(
                 normalized_query=normalized_query,
+                rewritten_query_text=rewritten_query_text,
                 policy_object=matched_object,
+                focus_hints=focus_hints,
             ),
             target_document_ids=(matched_object.document_id,),
             resolved_policy_document_id=matched_object.document_id,
             resolved_policy_title=matched_object.title,
             task_kind="specific_policy_lookup",
+            focus_detail_labels=focus_hints.detail_labels,
+            focus_article_nos=focus_hints.article_nos,
+            focus_clause_nos=focus_hints.clause_nos,
+            focus_terms=focus_hints.focus_terms,
+            focus_mode=focus_hints.focus_mode,
         )
     if len(matched_objects) > 1:
         return HandbookQueryPlan(
             status="needs_clarification",
             rewritten_query_text=normalized_query,
+            focused_query_text=normalized_query,
             task_kind="specific_policy_lookup",
             clarification_reason="policy_object_conflict",
         )
@@ -118,6 +148,7 @@ def plan_student_handbook_query(query_text: str) -> HandbookQueryPlan:
             return HandbookQueryPlan(
                 status="resolved",
                 rewritten_query_text=normalized_query,
+                focused_query_text=normalized_query,
                 preferred_document_ids=matched_category.member_policy_document_ids,
                 task_kind="category_discovery",
                 category_id=matched_category.category_id,
@@ -126,9 +157,34 @@ def plan_student_handbook_query(query_text: str) -> HandbookQueryPlan:
                 category_member_document_ids=matched_category.member_policy_document_ids,
             )
         if _is_ambiguous_category_procedure_query(normalized_query):
+            procedure_document_id = _resolve_category_procedure_document_id(
+                matched_category=matched_category,
+                normalized_query=normalized_query,
+            )
+            if procedure_document_id:
+                matched_object = _policy_object_by_document_id(procedure_document_id)
+                if matched_object is not None:
+                    rewritten_query_text = _build_rewritten_query(
+                        normalized_query=normalized_query,
+                        policy_object=matched_object,
+                    )
+                    return HandbookQueryPlan(
+                        status="resolved",
+                        rewritten_query_text=rewritten_query_text,
+                        focused_query_text=rewritten_query_text,
+                        target_document_ids=(matched_object.document_id,),
+                        resolved_policy_document_id=matched_object.document_id,
+                        resolved_policy_title=matched_object.title,
+                        task_kind="specific_policy_lookup",
+                        category_id=matched_category.category_id,
+                        category_display_name=matched_category.display_name,
+                        audience=matched_category.audience,
+                        category_member_document_ids=matched_category.member_policy_document_ids,
+                    )
             return HandbookQueryPlan(
                 status="needs_clarification",
                 rewritten_query_text=normalized_query,
+                focused_query_text=normalized_query,
                 task_kind="ambiguous_procedure",
                 category_id=matched_category.category_id,
                 category_display_name=matched_category.display_name,
@@ -140,65 +196,42 @@ def plan_student_handbook_query(query_text: str) -> HandbookQueryPlan:
         return HandbookQueryPlan(
             status="needs_clarification",
             rewritten_query_text=normalized_query,
+            focused_query_text=normalized_query,
             task_kind="specific_policy_lookup",
             clarification_reason="policy_object_missing",
         )
     return HandbookQueryPlan(
         status="pass_through",
         rewritten_query_text=normalized_query,
+        focused_query_text=normalized_query,
     )
 
 
 @lru_cache(maxsize=1)
 def _load_query_planning_config() -> HandbookQueryPlanningConfig:
-    config_path = (
-        Path(__file__).resolve().parents[4]
-        / "configs"
-        / "ingestion"
-        / "regulations"
-        / "student_rules"
-        / "query-planning.json"
-    )
-    payload = json.loads(config_path.read_text(encoding="utf-8"))
+    discovery = load_student_rules_discovery_config()
     policy_objects = tuple(
         HandbookPolicyObject(
-            document_id=str(item["document_id"]).strip(),
-            title=str(item["title"]).strip(),
-            aliases=tuple(
-                alias.strip()
-                for alias in item.get("aliases", ())
-                if isinstance(alias, str) and alias.strip()
-            ),
+            document_id=item.document_id,
+            title=item.title,
+            aliases=item.aliases,
         )
-        for item in payload.get("policy_objects", ())
-        if isinstance(item, dict)
+        for item in discovery.policy_objects
     )
     policy_categories = tuple(
         HandbookPolicyCategory(
-            category_id=str(item["category_id"]).strip(),
-            display_name=str(item.get("display_name", "")).strip(),
-            aliases=tuple(
-                alias.strip()
-                for alias in item.get("aliases", ())
-                if isinstance(alias, str) and alias.strip()
-            ),
-            audience=str(item.get("audience", "")).strip(),
-            member_policy_document_ids=tuple(
-                document_id.strip()
-                for document_id in item.get("member_policy_document_ids", ())
-                if isinstance(document_id, str) and document_id.strip()
-            ),
+            category_id=item.category_id,
+            display_name=item.display_name,
+            aliases=item.aliases,
+            audience=item.audience,
+            member_policy_document_ids=item.member_policy_document_ids,
+            default_procedure_document_id=item.default_procedure_document_id,
+            procedure_overrides=item.procedure_overrides,
         )
-        for item in payload.get("policy_categories", ())
-        if isinstance(item, dict) and str(item.get("category_id", "")).strip()
-    )
-    clarification_cues = tuple(
-        cue.strip()
-        for cue in payload.get("clarification_cues", ())
-        if isinstance(cue, str) and cue.strip()
+        for item in discovery.categories
     )
     return HandbookQueryPlanningConfig(
-        clarification_cues=clarification_cues,
+        clarification_cues=discovery.clarification_cues,
         policy_objects=policy_objects,
         policy_categories=policy_categories,
     )
@@ -206,6 +239,13 @@ def _load_query_planning_config() -> HandbookQueryPlanningConfig:
 
 def _match_policy_objects(normalized_query: str) -> tuple[HandbookPolicyObject, ...]:
     compact_query = _compact_text(normalized_query)
+    exact_matches = tuple(
+        policy_object
+        for policy_object in _load_query_planning_config().policy_objects
+        if compact_query == _compact_text(policy_object.title)
+    )
+    if exact_matches:
+        return exact_matches
     matches: list[HandbookPolicyObject] = []
     for policy_object in _load_query_planning_config().policy_objects:
         if any(term in compact_query for term in _match_terms(policy_object)):
@@ -218,6 +258,13 @@ def _match_policy_category(normalized_query: str) -> HandbookPolicyCategory | No
     for category in _load_query_planning_config().policy_categories:
         if any(term in compact_query for term in _category_match_terms(category)):
             return category
+    return None
+
+
+def _policy_object_by_document_id(document_id: str) -> HandbookPolicyObject | None:
+    for policy_object in _load_query_planning_config().policy_objects:
+        if policy_object.document_id == document_id:
+            return policy_object
     return None
 
 
@@ -245,6 +292,18 @@ def _category_match_terms(category: HandbookPolicyCategory) -> tuple[str, ...]:
             if compact_term
         )
     )
+
+
+def _resolve_category_procedure_document_id(
+    *,
+    matched_category: HandbookPolicyCategory,
+    normalized_query: str,
+) -> str:
+    compact_query = _compact_text(normalized_query)
+    for match_term, document_id in matched_category.procedure_overrides:
+        if _compact_text(match_term) in compact_query:
+            return document_id
+    return matched_category.default_procedure_document_id
 
 
 def _title_variants(title: str) -> tuple[str, ...]:
@@ -275,6 +334,30 @@ def _build_policy_action_query(normalized_query: str) -> str:
         if any(_compact_text(cue) in compact_query for cue in cues):
             return rewritten_query
     return ""
+
+
+def _build_focused_query(
+    *,
+    normalized_query: str,
+    rewritten_query_text: str,
+    policy_object: HandbookPolicyObject,
+    focus_hints,
+) -> str:
+    if focus_hints.focus_mode == "none":
+        return rewritten_query_text
+    focused_parts = [policy_object.title]
+    focused_parts.extend(focus_hints.detail_labels)
+    focused_parts.extend(focus_hints.focus_terms)
+    focused_parts.extend(
+        term
+        for term in _FOCUSED_QUERY_CONTEXT_TERMS
+        if term in normalized_query and term not in focused_parts
+    )
+    return " ".join(
+        dict.fromkeys(
+            part.strip() for part in focused_parts if isinstance(part, str) and part.strip()
+        )
+    )
 
 
 def _looks_like_unresolved_policy_object_query(normalized_query: str) -> bool:

@@ -29,7 +29,7 @@ updated: 2026-04-03
 
 - corpus: `regulations`
 - collection: `student_rules`
-- chunk profile version: `student_handbook_semantic_v3`
+- chunk profile version: `student_rules_semantic_v3`
 - tokenizer truth: `Qwen3-Embedding-4B`
 
 当前 handbook 的 chunk budgeting 必须以 embedding tokenizer 为真相源，而不是正则近似 token 计数。
@@ -98,7 +98,7 @@ handbook markdown。
 
 ## Chunk 预算
 
-`student_handbook_semantic_v3` 当前预算固定为：
+`student_rules_semantic_v3` 当前预算固定为：
 
 - `chunk_size = 384`
 - `max_chunk_size = 512`
@@ -120,7 +120,7 @@ handbook markdown。
 
 ## 预算来源
 
-当前 `student_handbook_semantic_v3` 预算不是从旧 `campusRAG` 机械照抄，而是基于下列约束冻结的：
+当前 `student_rules_semantic_v3` 预算不是从旧 `campusRAG` 机械照抄，而是基于下列约束冻结的：
 
 1. 上限必须给 `title + section/article identity + policy_doc_no + 正文` 留出稳定空间。
 1. 预算对象是最终 contextualized text，因此不能把 header 当作“免费 token”。
@@ -245,6 +245,29 @@ chunk 组装必须严格区分三层：
 - 聚合后 anchor 应收敛到公共结构路径，而不是随便继承第一个成员的深层路径
 - `policy_page` 聚合后若缺少显式 `article_label`，display text 必须补回成员小节标签
 
+### Answer-ready 语义片段
+
+`student_rules_semantic_v3` 的在线检索目标不是只生成“不过长的结构块”，还必须生成可被
+retrieval/rerank/answer synthesis 直接使用的 answer-ready evidence。
+
+当前 student rules 的 regulation-aware chunking 会在正文结构识别后补充：
+
+- `answer_role=eligibility_intro`：条件组前导语，默认不是独立答案证据
+- `answer_role=eligibility_condition`：资格、对象、申请条件等可直接回答的条件条款
+- `answer_role=exception_rule`：例外、特殊条件或排名例外等判断条款
+- `answer_role=exclusion_rule`：不得、不能、不予、取消资格等负向条款
+- `answer_role=procedure_step`：申请、审核、审批、公示、报送等流程条款
+- `answer_role=example_evidence`：条件条款下的示例、证明材料或具体表现项
+- `answer_role=category_overview`：由 `query-planning.json` 中 policy category registry
+  生成的类别概览
+
+语义切分不变量：
+
+- 条件组前导语不应和具体条件项合成同一个 answer-bearing chunk
+- 排名例外、不得参评、流程步骤等判断条款不应和后续“具体表现如下”示例列表合成同一个 chunk
+- 示例项可以保留父条款上下文，但不应把 sibling 示例项无差别混入同一个 answer clause
+- category/list discovery 问法应优先命中 `category_overview` / `policy_list` 证据，而不是靠窄条件条款或流程条款充当制度描述
+
 ## Header 规则
 
 handbook chunk 必须带最小必要上下文，但不允许让冗长路径压过正文。
@@ -332,6 +355,7 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 - `tiny_textual_chunk_count`
 - `header_dominant_chunk_count`
 - `small_unaggregated_chunk_count`
+- retrieval chunk quality eval gate 中的 answer-ready semantic checks
 
 其中语义如下：
 
@@ -352,6 +376,8 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 - 不能缺少 contextualization
 - `small_unaggregated_chunk_count == 0`
 - `header_dominant_chunk_count == 0`
+- `policy_list` / `category_overview` chunk 必须带 `answer_role=category_overview`
+- `eligibility` / `exception_rule` chunk 不得同时包含“具体表现如下”等示例列表标记和多个枚举示例项
 
 因此：
 

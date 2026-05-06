@@ -1,8 +1,19 @@
 from __future__ import annotations
 
 import re
+from dataclasses import dataclass
+from typing import Literal
 
 from campus_contracts import EvidenceSource
+
+EvidenceQueryPolarity = Literal["positive", "negative", "neutral"]
+EvidenceQueryAnswerRole = Literal[
+    "procedure",
+    "restriction",
+    "condition",
+    "policy_list",
+    "neutral",
+]
 
 _NEGATIVE_QUERY_CUES = (
     "哪些情况不能",
@@ -31,14 +42,27 @@ _LIFT_DISCIPLINE_QUERY_CUES = (
     "处分",
 )
 _REISSUE_QUERY_CUES = ("补办", "补发", "挂失", "遗失", "丢失", "丢了", "补卡", "补证")
+_CONDITION_QUERY_CUES = ("条件", "要求", "资格", "能不能", "可以吗", "能否", "是否可以")
+_DISCOVERY_QUERY_CUES = ("有哪些", "都有什么", "有什么", "哪些")
+
+
+@dataclass(frozen=True, slots=True)
+class EvidenceQueryIntent:
+    polarity: EvidenceQueryPolarity = "neutral"
+    answer_role: EvidenceQueryAnswerRole = "neutral"
+    action_type: str = ""
+
+    @property
+    def is_strong(self) -> bool:
+        return self.polarity != "neutral" or self.answer_role != "neutral" or bool(self.action_type)
 
 
 def semantic_alignment_score(*, query_text: str, source: EvidenceSource) -> int:
     score = 0
-    query_action = infer_query_action_type(query_text)
-    if query_action and source.action_type == query_action:
+    intent = infer_evidence_query_intent(query_text)
+    if intent.action_type and source.action_type == intent.action_type:
         score += 8
-    if query_requests_negative_polarity(query_text):
+    if intent.polarity == "negative":
         if source_has_negative_polarity(source):
             score += 36
         if source.semantic_role in _NEGATIVE_SOURCE_ROLES:
@@ -48,7 +72,7 @@ def semantic_alignment_score(*, query_text: str, source: EvidenceSource) -> int:
         if source_has_positive_polarity(source) and source.semantic_role in _POSITIVE_SOURCE_ROLES:
             score -= 8
         return score
-    if query_requests_positive_procedure(query_text):
+    if intent.polarity == "positive" and intent.answer_role == "procedure":
         if source_has_negative_polarity(source):
             score -= 42
         if source.semantic_role in _NEGATIVE_SOURCE_ROLES:
@@ -59,9 +83,52 @@ def semantic_alignment_score(*, query_text: str, source: EvidenceSource) -> int:
             score += 24
         if source.semantic_role in _POSITIVE_SOURCE_ROLES:
             score += 16
+    elif intent.polarity == "positive":
+        if source_has_negative_polarity(source):
+            score -= 24
+        if source_has_positive_polarity(source):
+            score += 16
     elif source_has_negative_polarity(source):
         score -= 4
     return score
+
+
+def infer_evidence_query_intent(query_text: str) -> EvidenceQueryIntent:
+    normalized = _normalize_query(query_text)
+    if not normalized:
+        return EvidenceQueryIntent()
+    action_type = infer_query_action_type(query_text)
+    if query_requests_negative_polarity(query_text):
+        return EvidenceQueryIntent(
+            polarity="negative",
+            answer_role="restriction",
+            action_type=action_type,
+        )
+    if any(cue in normalized for cue in _PROCEDURE_QUERY_CUES) or action_type:
+        return EvidenceQueryIntent(
+            polarity="positive",
+            answer_role="procedure",
+            action_type=action_type,
+        )
+    if any(cue in normalized for cue in _DISCOVERY_QUERY_CUES):
+        return EvidenceQueryIntent(
+            polarity="neutral",
+            answer_role="policy_list",
+            action_type=action_type,
+        )
+    if any(cue in normalized for cue in _CONDITION_QUERY_CUES):
+        return EvidenceQueryIntent(
+            polarity="positive",
+            answer_role="condition",
+            action_type=action_type,
+        )
+    if action_type:
+        return EvidenceQueryIntent(
+            polarity="positive",
+            answer_role="procedure",
+            action_type=action_type,
+        )
+    return EvidenceQueryIntent()
 
 
 def source_conflicts_with_query_polarity(
@@ -78,12 +145,8 @@ def source_conflicts_with_query_polarity(
 
 
 def query_requests_positive_procedure(query_text: str) -> bool:
-    normalized = _normalize_query(query_text)
-    if not normalized or query_requests_negative_polarity(query_text):
-        return False
-    if infer_query_action_type(query_text):
-        return True
-    return any(cue in normalized for cue in _PROCEDURE_QUERY_CUES)
+    intent = infer_evidence_query_intent(query_text)
+    return intent.polarity == "positive" and intent.answer_role == "procedure"
 
 
 def query_requests_negative_polarity(query_text: str) -> bool:
@@ -126,6 +189,8 @@ def _normalize_query(value: str) -> str:
 
 
 __all__ = [
+    "EvidenceQueryIntent",
+    "infer_evidence_query_intent",
     "infer_query_action_type",
     "query_requests_negative_polarity",
     "query_requests_positive_procedure",

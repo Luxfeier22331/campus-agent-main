@@ -65,6 +65,8 @@ truth。
 - dense + sparse hybrid retrieval step
 - registry-backed evidence
 - multi-step execution / merge / dedupe
+- 对 resolved specific policy lookup，允许在 admitted document 内执行 broad lookup + focused lookup
+  的文档内多步检索
 - evidence bundle 回链
 - agent 可以在 `curriculum_plan` 选中 scope 下内部切到
   `course_facts`、`program_family_facts`、`program_semester_facts`；selected scope

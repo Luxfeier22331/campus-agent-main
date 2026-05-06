@@ -10,6 +10,10 @@ from campus_ingestion_core.process_shared import (
     _ChunkCandidate,
     _ChunkMember,
 )
+from campus_ingestion_core.regulation_answer_roles import (
+    build_answer_role_metadata,
+    decide_answer_role,
+)
 
 
 def build_collection_semantic_metadata(
@@ -20,7 +24,7 @@ def build_collection_semantic_metadata(
     metadata: dict[str, object],
     text: str,
 ) -> dict[str, object]:
-    if record.collection != "student_rules":
+    if record.corpus != "regulations":
         return {}
     semantics = derive_handbook_semantic_metadata(
         unit_type=unit_type,
@@ -28,7 +32,12 @@ def build_collection_semantic_metadata(
         metadata=metadata,
         text=text,
     )
-    return {
+    release_metadata = build_handbook_answer_role_release_metadata(
+        semantics=semantics,
+        metadata=metadata,
+        text=text,
+    )
+    semantic_metadata = {
         "content_kind": semantics.content_kind,
         "content_role": semantics.content_role,
         "detail_label": semantics.detail_label,
@@ -42,6 +51,112 @@ def build_collection_semantic_metadata(
         "clause_no": semantics.clause_no,
         "section_kind": semantics.section_kind,
     }
+    if _shared_text(release_metadata.get("answer_role")) == "procedure_step":
+        semantic_metadata.update(
+            {
+                "content_role": "procedure",
+                "semantic_role": "procedure_step",
+                "claim_type": "procedure",
+                "is_answer_bearing": True,
+            }
+        )
+    return {
+        **semantic_metadata,
+        **release_metadata,
+    }
+
+
+def build_handbook_answer_role_release_metadata(
+    *,
+    semantics,
+    metadata: dict[str, object],
+    text: str,
+) -> dict[str, object]:
+    explicit_answer_role = _shared_text(metadata.get("answer_role"))
+    if explicit_answer_role:
+        return {
+            "answer_role": explicit_answer_role,
+            "role_confidence": _shared_text(metadata.get("role_confidence")) or "high",
+            "role_reason": _shared_text(metadata.get("role_reason"))
+            or "explicit_answer_role_metadata",
+        }
+    if not semantics.is_answer_bearing:
+        return {}
+    parser_decision = decide_answer_role(text=text)
+    parser_answer_role = _shared_text(parser_decision.get("answer_role"))
+    if _should_prefer_parser_answer_role(
+        semantics=semantics,
+        parser_answer_role=parser_answer_role,
+    ):
+        return {
+            "answer_role": parser_answer_role,
+            "role_confidence": _shared_text(parser_decision.get("role_confidence")) or "high",
+            "role_reason": _shared_text(parser_decision.get("role_reason"))
+            or "derived_from_answer_role_parser",
+        }
+    role = _answer_role_from_handbook_semantics(semantics)
+    if role:
+        return {
+            "answer_role": role,
+            "role_confidence": "medium",
+            "role_reason": (
+                "derived_from_handbook_semantics:"
+                f"{semantics.content_role or semantics.semantic_role or semantics.claim_type}"
+            ),
+        }
+    role_metadata = build_answer_role_metadata(text=text)
+    answer_role = _shared_text(role_metadata.get("answer_role"))
+    if answer_role and answer_role != "supporting_detail":
+        return {
+            "answer_role": answer_role,
+            "role_confidence": _shared_text(role_metadata.get("role_confidence")) or "medium",
+            "role_reason": _shared_text(role_metadata.get("role_reason"))
+            or "derived_from_answer_role_parser",
+        }
+    return {
+        "answer_role": "supporting_detail",
+        "role_confidence": "low",
+        "role_reason": "answer_bearing_without_specific_answer_role",
+    }
+
+
+def _answer_role_from_handbook_semantics(semantics) -> str:
+    if semantics.content_role == "procedure" or semantics.semantic_role == "procedure_step":
+        return "procedure_step"
+    if semantics.semantic_role == "exception":
+        return "exception_rule"
+    if (
+        semantics.claim_type == "cannot_do"
+        or semantics.polarity == "negative"
+        or semantics.semantic_role in {"exclusion", "prohibition"}
+    ):
+        return "exclusion_rule"
+    if semantics.content_role in {"deadline", "time_rule"} or semantics.claim_type in {
+        "time_constraint",
+        "timeline_or_deadline",
+    }:
+        return "time_constraint"
+    if semantics.content_role == "definition" or semantics.semantic_role == "definition":
+        return "definition"
+    if semantics.content_role in {"eligibility", "requirement"} or semantics.semantic_role in {
+        "condition",
+        "intro",
+        "example",
+    }:
+        return "eligibility_condition"
+    if semantics.content_role == "table_fact":
+        return "table_fact"
+    return ""
+
+
+def _should_prefer_parser_answer_role(*, semantics, parser_answer_role: str) -> bool:
+    if parser_answer_role != "procedure_step":
+        return False
+    if semantics.content_role == "procedure" or semantics.semantic_role == "procedure_step":
+        return True
+    return semantics.content_role in {"deadline", "time_rule", "eligibility", "requirement"} or (
+        semantics.semantic_role in {"condition", "intro", "example", "time_constraint"}
+    )
 
 
 def header_ratio(chunk_assembly) -> float:
@@ -294,6 +409,12 @@ def shared_metadata_text(members: Sequence[_ChunkMember], field_name: str) -> st
         if shared_value != normalized:
             return None
     return shared_value if isinstance(shared_value, str) else None
+
+
+def _shared_text(value: object) -> str:
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
 
 
 def _string_list(value: object) -> list[str]:

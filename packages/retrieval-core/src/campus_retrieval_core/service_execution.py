@@ -12,6 +12,10 @@ from campus_retrieval_core.models import (
     RetrievalStepFailure,
     RetrievalStepResult,
 )
+from campus_retrieval_core.query_focus import (
+    query_has_focus_constraints,
+    source_covers_query_focus,
+)
 
 _NEGATIVE_GROUNDING_CONTENT_ROLES = frozenset(
     {
@@ -188,20 +192,36 @@ def _select_grounding_sources(
     ):
         return (), "polarity_conflict"
     if any(_is_positive_grounding_source(source) for source in sources):
-        return (
-            tuple(
-                source
-                for source in sources
-                if not _is_negative_grounding_source(source)
-                and not source_conflicts_with_query_polarity(
-                    query_text=query_text,
-                    source=source,
-                )
-            ),
-            "",
+        positive_grounding = tuple(
+            source
+            for source in sources
+            if not _is_negative_grounding_source(source)
+            and not source_conflicts_with_query_polarity(
+                query_text=query_text,
+                source=source,
+            )
         )
+        if query_has_focus_constraints(query_text):
+            focus_grounding = tuple(
+                source
+                for source in positive_grounding
+                if source_covers_query_focus(query_text=query_text, source=source)
+            )
+            if focus_grounding:
+                return focus_grounding, ""
+            return (), "focus_mismatch"
+        return positive_grounding, ""
     if all(_is_negative_grounding_source(source) for source in sources):
         return (), ""
+    if query_has_focus_constraints(query_text):
+        focus_grounding = tuple(
+            source
+            for source in sources
+            if source_covers_query_focus(query_text=query_text, source=source)
+        )
+        if focus_grounding:
+            return focus_grounding, ""
+        return (), "focus_mismatch"
     return sources, ""
 
 

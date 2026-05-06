@@ -529,6 +529,40 @@ class CollectedNoticeRegulationTextNormalizationTests(unittest.TestCase):
         self.assertEqual(result.quality_verdict, "passed")
         self.assertNotIn("soft_wrap_residue", result.reason_codes)
 
+    def test_official_web_email_rule_keeps_legitimate_capacity_and_audience_lines_and_drops_terminal_office_tail(
+        self,
+    ) -> None:
+        title = "中央民族大学电子邮件管理办法"
+        result = normalize_regulation_owner_text(
+            title=title,
+            owner_text=(
+                f"{title}\n\n"
+                f"{title}\n\n"
+                "第一条 为了加强校园网电子邮件系统的管理，使电子邮件系统更加高效、安全地为教学、科研和管理服务，根据国家有关行政法规、规章的规定，制定本办法。\n"
+                "第二条 校园网电子邮件由网络中心负责运行和维护。\n"
+                "第三条 校园网电子邮箱的域名为：muc.edu.cn，邮箱的域后缀为@muc.edu.cn。\n"
+                "第四条 校园网电子邮箱的服务对象包含以下几类：\n"
+                "学校各单位（即公共邮箱）、全体教职工（包括在职、退休及各单位外聘人员）、全日制在校学生、2014级及之后的毕业生。\n"
+                "邮箱容量为10G，个人网盘容量为2G，邮箱上传附件大小最大为2G。\n"
+                "第五条 每人只允许有一个邮箱，与其工作证号或学生证号对应。\n"
+                "第六条 新邮箱的申请方法：填写《E-MAIL申请表》（见附录一）并递交网络中心批准。\n"
+                "第七条 用户信箱不得借于他人使用,不得私自进入他人信箱。\n"
+                "第八条 任何单位和个人不得利用电子邮件传播违反国家法律法规的信息。违者网络中心有权停止其电子邮件的使用，并报学校有关部门处理，情节严重的将追究其法律责任。\n"
+                "第九条 任何单位和个人不得利用电子邮件传播病毒，不得传播垃圾邮件。网络中心有权对带病毒邮件及垃圾邮件进行处理。\n"
+                "第十条 网络中心不承担因线路中断、设备装置失误及网络故障等事故导致信件的延误或丢失的责任。\n"
+                "第十一条 本办法由网络中心负责解释。\n"
+                "网络中心"
+            ),
+        )
+
+        self.assertEqual(result.quality_verdict, "passed")
+        self.assertNotIn("suspicious_prefix", result.reason_codes)
+        self.assertNotIn("soft_wrap_residue", result.reason_codes)
+        self.assertIn("学校各单位（即公共邮箱）", result.canonical_body)
+        self.assertIn("邮箱容量为10G，个人网盘容量为2G", result.canonical_body)
+        self.assertIn("第十一条 本办法由网络中心负责解释。", result.canonical_body)
+        self.assertFalse(result.canonical_body.endswith("网络中心"))
+
     def test_canonical_cleaning_removes_page_logo_and_form_placeholder_lines(self) -> None:
         title = "中央民族大学本科毕业论文（设计）工作管理办法"
         result = normalize_regulation_owner_text(

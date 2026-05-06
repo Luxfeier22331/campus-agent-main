@@ -60,6 +60,32 @@ _TIME_STATEMENT_HINTS = (
     ":",
 )
 _ACADEMIC_YEARS_FACT_RE = re.compile(r"学制[:： ]*(?:\d+|[一二三四五六七八九十两]+)年")
+_HANDBOOK_METADATA_LINE_RE = re.compile(r"^(?:标题|章节|条款)[:：]")
+_HANDBOOK_INLINE_METADATA_SEGMENT_RE = re.compile(
+    r"(?:^|\s*[|｜]\s*)(?:标题|章节|条款)[:：][^|｜\n\r]+"
+)
+_GENERIC_INTRO_STATEMENT_HINTS = (
+    "具备以下基本条件",
+    "需具备以下基本条件",
+    "须具备以下基本条件",
+    "具备以下条件之一",
+    "还须具备以下条件之一",
+    "符合以下条件之一",
+)
+_RANK_EXCEPTION_QUERY_HINTS = (
+    "没前十",
+    "没前10",
+    "没进前十",
+    "没进前10",
+    "不在前十",
+    "不在前10",
+    "前十之外",
+    "前10之外",
+    "前十以外",
+    "前10以外",
+    "超出前十",
+    "超出前10",
+)
 
 
 def _extract_source_statements(source: EvidenceSource) -> tuple[str, ...]:
@@ -77,6 +103,9 @@ def _extract_source_statements(source: EvidenceSource) -> tuple[str, ...]:
     statements: list[str] = []
     for raw_line in re.split(r"[\r\n]+", source.snippet):
         line = _normalize_snippet(raw_line)
+        if _looks_like_handbook_metadata_line(line):
+            continue
+        line = _strip_handbook_inline_metadata(line)
         if _is_official_web_source(source):
             line = _normalize_official_web_statement_line(line=line, title=title)
         if not line or line in ignored_lines or line.startswith("文号："):
@@ -99,6 +128,29 @@ def _extract_source_statements(source: EvidenceSource) -> tuple[str, ...]:
         return tuple(dict.fromkeys(_merge_short_fact_label_value_statements(statements)))
     rendered = _render_source_support(source)
     return (rendered,) if rendered else ()
+
+
+def _looks_like_handbook_metadata_line(line: str) -> bool:
+    normalized = _normalize_snippet(line)
+    if not normalized:
+        return False
+    compact = normalized.replace(" ", "")
+    if _HANDBOOK_METADATA_LINE_RE.match(compact):
+        return True
+    return (
+        "标题：" in compact
+        and "章节：" in compact
+        and "条款：" in compact
+        and not re.search(r"(第一|第二|第三|第[一二三四五六七八九十0-9]+条)", compact)
+    )
+
+
+def _strip_handbook_inline_metadata(line: str) -> str:
+    normalized = _normalize_snippet(line)
+    if not normalized:
+        return ""
+    stripped = _HANDBOOK_INLINE_METADATA_SEGMENT_RE.sub("", normalized).strip(" |｜")
+    return _normalize_snippet(stripped)
 
 
 def _prepend_structural_short_fact_labels(
@@ -197,6 +249,17 @@ def _score_statement(
             source=source,
             statement=statement,
         )
+    if _is_generic_intro_statement(statement):
+        score -= 3
+    if _query_asks_rank_exception(query_text):
+        if _statement_mentions_rank_exception(normalized):
+            score += 10
+        elif _statement_mentions_top_ten_requirement(normalized):
+            score += 2
+        elif any(
+            cue in normalized for cue in ("体育竞赛", "学术研究", "论文", "专著", "发明专利", "竞赛")
+        ):
+            score -= 3
     return score
 
 
@@ -245,9 +308,33 @@ def _rank_source_statements(
     return tuple(statement for _, statement in scored[:statement_limit])
 
 
+def _is_generic_intro_statement(statement: str) -> bool:
+    normalized = _normalize_snippet(statement)
+    if not normalized:
+        return False
+    return any(cue in normalized for cue in _GENERIC_INTRO_STATEMENT_HINTS)
+
+
+def _query_asks_rank_exception(query_text: str) -> bool:
+    normalized = _normalize_snippet(query_text)
+    return any(cue in normalized for cue in _RANK_EXCEPTION_QUERY_HINTS)
+
+
+def _statement_mentions_rank_exception(normalized_statement: str) -> bool:
+    return (
+        ("超出前10" in normalized_statement or "超出前十" in normalized_statement)
+        and ("前30" in normalized_statement or "前三十" in normalized_statement)
+    )
+
+
+def _statement_mentions_top_ten_requirement(normalized_statement: str) -> bool:
+    return "前10" in normalized_statement or "前十" in normalized_statement
+
+
 __all__ = [
     "_ACADEMIC_YEARS_FACT_RE",
     "_ACTION_STATEMENT_HINTS",
+    "_is_generic_intro_statement",
     "_LEADING_ENUM_RE",
     "_TIME_STATEMENT_HINTS",
     "_candidate_source_statements",

@@ -433,6 +433,7 @@ version = "0.1.0"
 source = { editable = "packages/rag-agent" }
 dependencies = [
     { name = "campus-contracts" },
+    { name = "campus-ingestion-core" },
     { name = "campus-retrieval-core" },
     { name = "campus-shared" },
 ]
@@ -440,6 +441,7 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
     { name = "campus-retrieval-core", editable = "packages/retrieval-core" },
     { name = "campus-shared", editable = "packages/shared" },
 ]

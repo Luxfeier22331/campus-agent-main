@@ -327,8 +327,27 @@ class IndexReleaseAcceptanceTest(unittest.TestCase):
             (),
         )
         self.assertEqual(
+            case_by_id["policy-title-national-scholarship-article-nine"].query,
+            "中央民族大学本科学生国家奖学金评审办法 第九条",
+        )
+        self.assertEqual(
+            case_by_id["policy-title-national-scholarship-article-nine"].expected_document_ids,
+            ("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
+        )
+        self.assertEqual(
             case_by_id["policy-title-national-encouragement-scholarship"].forbidden_document_ids,
             ("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
+        )
+        self.assertEqual(
+            case_by_id["semantic-degree-application"].expected_document_ids,
+            ("handbook:742d4831bfb443b99323041e263fac2fd9aafcf6",),
+        )
+        self.assertEqual(
+            case_by_id["semantic-scholarship-eligibility"].expected_document_ids,
+            (
+                "handbook:a531a3c85de862c737d0576e957bf59598822c54",
+                "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+            ),
         )
         self.assertTrue(case_by_id["no-hit-impossible-query"].expected_no_hit)
 

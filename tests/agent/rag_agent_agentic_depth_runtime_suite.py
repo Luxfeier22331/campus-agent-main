@@ -150,16 +150,17 @@ class RagAgentAgenticDepthRuntimeTest(unittest.TestCase):
         self.assertNotIn("raw_payload", str(summary))
 
     def test_completed_answer_preserves_need_level_support_provenance(self) -> None:
+        query_text = "解除处分需要什么条件，并说明申请流程"
         response = delegate_to_rag_agent(
             AgentRequest(
                 target="rag-agent",
-                user_goal="公费医疗报销需要什么材料，并说明审核流程",
+                user_goal=query_text,
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
-            retriever=lambda *args, **kwargs: _medical_evidence(
-                query_text="公费医疗报销需要什么材料，并说明审核流程"
+            retriever=lambda *args, **kwargs: _discipline_requirement_and_procedure_evidence(
+                query_text=query_text
             ),
         )
 
@@ -295,6 +296,9 @@ class RagAgentAgenticDepthRuntimeTest(unittest.TestCase):
                     scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
                 workflow_context=WorkflowAgentContext(
+                    workflow_run_ref="workflow-run-001",
+                    step_id="notice-step",
+                    agent_id="rag-agent",
                     target="rag-agent",
                     required_projection_kind="CanonicalNoticeContext",
                     projection_refs=(
@@ -438,6 +442,29 @@ class RagAgentAgenticDepthRuntimeTest(unittest.TestCase):
             ("handbook:demerit-relief",),
         )
 
+    def test_semantic_replan_preserves_policy_focus_selector_metadata(self) -> None:
+        replanned_steps = build_semantic_replan_steps(
+            _single_step_plan(
+                query_text="国奖第九条怎么要求论文和著作？",
+                need_ids=("need:1:policy_clause",),
+                selector=RetrievalSelector(
+                    target_document_ids=("handbook:national-scholarship",),
+                    focus_detail_labels=("第九条",),
+                    focus_article_nos=("9",),
+                    focus_terms=("论文", "著作"),
+                ),
+            ),
+            (RetrievalStepResult(step_id="indexed-lookup", status="empty"),),
+            RetrievalStepResult(step_id="indexed-lookup", status="empty"),
+        )
+
+        self.assertEqual(len(replanned_steps), 1)
+        self.assertEqual(replanned_steps[0].selector.target_document_ids, ("handbook:national-scholarship",))
+        self.assertEqual(replanned_steps[0].selector.focus_detail_labels, ("第九条",))
+        self.assertEqual(replanned_steps[0].selector.focus_article_nos, ("9",))
+        self.assertEqual(replanned_steps[0].selector.focus_terms, ("论文", "著作"))
+        self.assertIn("第九条", replanned_steps[0].query_text)
+
     def test_deterministic_answer_fails_closed_when_material_claim_lacks_support(self) -> None:
         evidence = EvidenceBundle(
             query_text="公费医疗报销需要什么材料",
@@ -507,16 +534,17 @@ class RagAgentAgenticDepthRuntimeTest(unittest.TestCase):
         self.assertEqual(graph[0].support_source_doc_ids, ("handbook:medical",))
 
     def test_no_answer_diagnostics_preserve_planner_information_needs(self) -> None:
+        query_text = "解除处分需要什么条件，并说明申请流程"
         response = delegate_to_rag_agent(
             AgentRequest(
                 target="rag-agent",
-                user_goal="公费医疗报销需要什么材料，并说明审核流程",
+                user_goal=query_text,
                 payload=RagRequestPayload(
                     scope=KnowledgeScope(corpus="regulations", collection="student_rules")
                 ),
             ),
             retriever=lambda *args, **kwargs: EvidenceBundle(
-                query_text="公费医疗报销需要什么材料，并说明审核流程",
+                query_text=query_text,
                 corpus="regulations",
                 collection="student_rules",
                 sources=(),
@@ -644,6 +672,42 @@ def _medical_evidence(*, query_text: str) -> EvidenceBundle:
                 chunk_id_suffix="medical-need-support-2",
                 content_role="procedure",
                 is_answer_bearing=True,
+            ),
+        ),
+    )
+
+
+def _discipline_requirement_and_procedure_evidence(*, query_text: str) -> EvidenceBundle:
+    return EvidenceBundle(
+        query_text=query_text,
+        corpus="regulations",
+        collection="student_rules",
+        sources=(
+            _make_handbook_source(
+                doc_id="handbook:demerit-relief",
+                title="中央民族大学解除学生纪律处分实施办法",
+                snippet="第二条 申请解除处分应当满足考察期届满、本人有改正表现等条件。",
+                score=0.92,
+                chunk_id_suffix="discipline-requirement",
+                content_role="requirement",
+                is_answer_bearing=True,
+                semantic_role="eligibility",
+                polarity="positive",
+                action_type="lift_discipline",
+                claim_type="requirement",
+            ),
+            _make_handbook_source(
+                doc_id="handbook:demerit-relief",
+                title="中央民族大学解除学生纪律处分实施办法",
+                snippet="第三条 学生受处分满考察期后，可以申请解除纪律处分。",
+                score=0.91,
+                chunk_id_suffix="discipline-procedure",
+                content_role="procedure",
+                is_answer_bearing=True,
+                semantic_role="procedure_step",
+                polarity="positive",
+                action_type="lift_discipline",
+                claim_type="procedure",
             ),
         ),
     )

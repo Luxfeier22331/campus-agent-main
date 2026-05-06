@@ -14,6 +14,14 @@ from campus_ingestion_core.chunking import (
     resolve_display_budget,
 )
 from campus_ingestion_core.process_shared import StructuredUnit
+from campus_ingestion_core.regulation_answer_roles import (
+    build_answer_role_metadata,
+    build_table_answer_role_metadata,
+    decide_answer_role,
+    is_answer_role_atomic,
+    starts_example_list,
+    starts_procedure_list,
+)
 from campus_ingestion_core.regulation_chunk_quality import is_regulation_body_role
 
 _CHINESE_NUMBER = "一二三四五六七八九十百千万〇零两"
@@ -26,6 +34,7 @@ _SECTION_LABEL_RE = re.compile(
     rf"[（(][{_CHINESE_NUMBER}0-9]+[)）][、.]?)\s*"
 )
 _SHORT_ATOMIC_VALUE_MAX_CHARS = 24
+_TEXTUAL_REGULATION_UNIT_TYPES = frozenset({"article_body", "policy_page", "regulation_body"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,16 +52,27 @@ class _RegulationSegment:
     boundary_rule: str
 
 
+@dataclass(slots=True)
+class _AnswerReadyGroupingState:
+    current_group: list[_RegulationListBlock]
+    current_role: str | None
+    example_list_context: bool
+    pending_prefix_text: str
+
+
 def build_regulation_unit_pieces(
     unit: StructuredUnit,
     chunk_profile: ChunkProfile,
+    *,
+    require_regulation_body_role: bool = True,
+    answer_ready_roles: bool = False,
 ) -> tuple[SemanticChunkPiece, ...]:
     if unit.unit_type == "table_unit":
-        return chunk_table_unit(
-            unit=_structured_unit_chunk_input(unit),
-            chunk_profile=_without_overlap(chunk_profile),
-        )
-    if not is_regulation_body_role(unit.metadata.get("content_role")):
+        return _build_table_unit_pieces(unit=unit, chunk_profile=chunk_profile)
+    if not _should_use_regulation_chunking(
+        unit=unit,
+        require_regulation_body_role=require_regulation_body_role,
+    ):
         return chunk_structured_unit(
             unit=_structured_unit_chunk_input(unit),
             chunk_profile=_without_overlap(chunk_profile),
@@ -72,7 +92,37 @@ def build_regulation_unit_pieces(
                 unit_type=unit.unit_type,
                 root_unit_id=unit.root_unit_id,
                 text=contextualized_text,
+                metadata=_answer_role_metadata(
+                    text=contextualized_text,
+                    prefix_text="",
+                    role_hint=None,
+                )
+                if answer_ready_roles
+                else {},
             ),
+        )
+
+    if answer_ready_roles:
+        answer_ready_segments = _build_answer_ready_regulation_segments(
+            unit=unit,
+            text=cleaned_text,
+            chunk_profile=chunk_profile,
+        )
+        if answer_ready_segments:
+            return _segments_to_pieces(
+                unit=unit,
+                segments=answer_ready_segments,
+                chunk_profile=chunk_profile,
+            )
+        return chunk_structured_unit(
+            unit=StructuredUnitChunkInput(
+                unit_type=unit.unit_type,
+                root_unit_id=unit.root_unit_id,
+                text=cleaned_text,
+                anchor=unit.anchor,
+                metadata=unit.metadata,
+            ),
+            chunk_profile=_without_overlap(chunk_profile),
         )
 
     list_segments = _build_regulation_list_segments(
@@ -97,6 +147,279 @@ def build_regulation_unit_pieces(
         ),
         chunk_profile=_without_overlap(chunk_profile),
     )
+
+
+def _should_use_regulation_chunking(
+    *,
+    unit: StructuredUnit,
+    require_regulation_body_role: bool,
+) -> bool:
+    if require_regulation_body_role:
+        return is_regulation_body_role(unit.metadata.get("content_role"))
+    return unit.unit_type in _TEXTUAL_REGULATION_UNIT_TYPES
+
+
+def _build_table_unit_pieces(
+    *,
+    unit: StructuredUnit,
+    chunk_profile: ChunkProfile,
+) -> tuple[SemanticChunkPiece, ...]:
+    base_pieces = chunk_table_unit(
+        unit=_structured_unit_chunk_input(unit),
+        chunk_profile=_without_overlap(chunk_profile),
+    )
+    return tuple(
+        SemanticChunkPiece(
+            unit_type=piece.unit_type,
+            root_unit_id=piece.root_unit_id,
+            text=piece.text,
+            segment_index=piece.segment_index,
+            segment_total=piece.segment_total,
+            split_reason=piece.split_reason,
+            boundary_rule=piece.boundary_rule,
+            anchor=piece.anchor,
+            metadata={
+                **piece.metadata,
+                **build_table_answer_role_metadata(text=piece.text, metadata=unit.metadata),
+            },
+        )
+        for piece in base_pieces
+    )
+
+
+def _build_answer_ready_regulation_segments(
+    *,
+    unit: StructuredUnit,
+    text: str,
+    chunk_profile: ChunkProfile,
+) -> tuple[_RegulationSegment, ...]:
+    lines = [line.strip() for line in text.splitlines() if line.strip()]
+    item_blocks = _extract_blocks_by_pattern(lines, _GENERIC_ITEM_RE)
+    if len(item_blocks) < 2:
+        return ()
+
+    first_item_line_index = _first_item_line_index(lines, item_blocks[0].label)
+    prefix_text = "\n".join(lines[:first_item_line_index]).strip()
+    display_budget = resolve_display_budget(
+        unit=StructuredUnitChunkInput(
+            unit_type=unit.unit_type,
+            root_unit_id=unit.root_unit_id,
+            text=text,
+            anchor=unit.anchor,
+            metadata=unit.metadata,
+        ),
+        chunk_profile=chunk_profile,
+    )
+    segments: list[_RegulationSegment] = []
+    if prefix_text:
+        intro_role_hint = _intro_role_hint(prefix_text)
+        segments.append(
+            _build_answer_ready_segment(
+                text=prefix_text,
+                label="",
+                prefix_text="",
+                role_hint=intro_role_hint,
+                boundary_rule="regulation_answer_ready_intro",
+            )
+        )
+
+    state = _AnswerReadyGroupingState(
+        current_group=[],
+        current_role=None,
+        example_list_context=False,
+        pending_prefix_text=prefix_text,
+    )
+    for block in item_blocks:
+        if starts_procedure_list(block.text):
+            segments.extend(
+                _flush_answer_ready_group(
+                    state=state,
+                    display_budget=display_budget,
+                    chunk_profile=chunk_profile,
+                )
+            )
+            state.example_list_context = False
+            state.pending_prefix_text = block.text
+            continue
+        role_hint = (
+            "example_evidence"
+            if state.example_list_context and _is_numeric_list_label(block.label)
+            else None
+        )
+        block_role = _answer_role(
+            text=block.text,
+            prefix_text=state.pending_prefix_text,
+            role_hint=role_hint,
+        )
+        if is_answer_role_atomic(block_role):
+            segments.extend(
+                _flush_answer_ready_group(
+                    state=state,
+                    display_budget=display_budget,
+                    chunk_profile=chunk_profile,
+                )
+            )
+            segments.append(
+                _build_answer_ready_segment(
+                    text=block.text,
+                    label=block.label,
+                    prefix_text=state.pending_prefix_text,
+                    role_hint=block_role,
+                    boundary_rule="regulation_answer_ready_atomic_item",
+                )
+            )
+            state.pending_prefix_text = ""
+            if _starts_example_list(block.text):
+                state.example_list_context = True
+            continue
+        if state.current_role is None:
+            state.current_role = block_role
+        if state.current_group and block_role != state.current_role:
+            segments.extend(
+                _flush_answer_ready_group(
+                    state=state,
+                    display_budget=display_budget,
+                    chunk_profile=chunk_profile,
+                )
+            )
+            state.current_role = block_role
+            state.pending_prefix_text = ""
+        state.current_group.append(block)
+        if _starts_example_list(block.text):
+            state.example_list_context = True
+
+    segments.extend(
+        _flush_answer_ready_group(
+            state=state,
+            display_budget=display_budget,
+            chunk_profile=chunk_profile,
+        )
+    )
+    if not any(bool(segment.metadata.get("is_answer_bearing")) for segment in segments):
+        return ()
+    return tuple(segments)
+
+
+def _flush_answer_ready_group(
+    *,
+    state: _AnswerReadyGroupingState,
+    display_budget,
+    chunk_profile: ChunkProfile,
+) -> tuple[_RegulationSegment, ...]:
+    if not state.current_group:
+        return ()
+    segments = _grouped_answer_ready_segments(
+        blocks=tuple(state.current_group),
+        prefix_text=state.pending_prefix_text,
+        display_budget=display_budget,
+        chunk_profile=chunk_profile,
+        role_hint=state.current_role,
+    )
+    state.current_group = []
+    state.current_role = None
+    return segments
+
+
+def _grouped_answer_ready_segments(
+    *,
+    blocks: Sequence[_RegulationListBlock],
+    prefix_text: str,
+    display_budget,
+    chunk_profile: ChunkProfile,
+    role_hint: str | None,
+) -> tuple[_RegulationSegment, ...]:
+    groups: list[list[_RegulationListBlock]] = []
+    current_group: list[_RegulationListBlock] = []
+    for block in blocks:
+        candidate_group = [*current_group, block]
+        candidate_text = _compose_list_segment_text(
+            prefix_text=prefix_text if not groups else "",
+            blocks=candidate_group,
+        )
+        should_split = current_group and (
+            chunk_profile.count_tokens(candidate_text) > display_budget.max_tokens
+            or len(current_group) >= 2
+        )
+        if should_split:
+            groups.append(current_group)
+            current_group = [block]
+            continue
+        current_group.append(block)
+    if current_group:
+        groups.append(current_group)
+
+    return tuple(
+        _build_answer_ready_segment(
+            text=_compose_list_segment_text(
+                prefix_text=prefix_text if index == 0 else "",
+                blocks=group,
+            ),
+            label=_label_range([block.label for block in group]),
+            prefix_text=prefix_text,
+            role_hint=role_hint,
+            boundary_rule="regulation_answer_ready_role_block",
+        )
+        for index, group in enumerate(groups)
+    )
+
+
+def _build_answer_ready_segment(
+    *,
+    text: str,
+    label: str,
+    prefix_text: str,
+    role_hint: str | None,
+    boundary_rule: str,
+) -> _RegulationSegment:
+    label_metadata = _label_overrides(label)
+    role_metadata = _answer_role_metadata(
+        text=text,
+        prefix_text=prefix_text,
+        role_hint=role_hint,
+    )
+    metadata = {**label_metadata, **role_metadata}
+    return _RegulationSegment(
+        text=text,
+        anchor=label_metadata,
+        metadata=metadata,
+        split_reason="structure_boundary",
+        boundary_rule=boundary_rule,
+    )
+
+
+def _answer_role_metadata(
+    *,
+    text: str,
+    prefix_text: str,
+    role_hint: str | None,
+) -> dict[str, object]:
+    return build_answer_role_metadata(text=text, prefix_text=prefix_text, role_hint=role_hint)
+
+
+def _answer_role(
+    *,
+    text: str,
+    prefix_text: str,
+    role_hint: str | None,
+) -> str:
+    return str(
+        decide_answer_role(text=text, prefix_text=prefix_text, role_hint=role_hint)["answer_role"]
+    )
+
+
+def _starts_example_list(text: str) -> bool:
+    return starts_example_list(text)
+
+
+def _is_numeric_list_label(label: str) -> bool:
+    return bool(re.match(r"^\s*(?:\d+[.．、]|[（(]\d+[)）])\s*$", label or ""))
+
+
+def _intro_role_hint(text: str) -> str | None:
+    answer_role = _answer_role(text=text, prefix_text="", role_hint=None)
+    if answer_role in {"procedure_step", "exclusion_rule", "exception_rule"}:
+        return answer_role
+    return "intro"
 
 
 def _build_regulation_list_segments(

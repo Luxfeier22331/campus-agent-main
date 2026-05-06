@@ -169,29 +169,15 @@ def _select_category_discovery_support_sources(
         sources_by_doc_id.setdefault(source.doc_id, []).append(source)
 
     selected: list[EvidenceSource] = []
-    seen_chunk_ids: set[str] = set()
+    seen_doc_ids: set[str] = set()
     for document_id in member_document_ids:
         source = _best_category_source(sources_by_doc_id.get(document_id, ()))
-        if source is None or source.chunk_id in seen_chunk_ids:
+        if source is None or source.doc_id in seen_doc_ids:
             continue
         selected.append(source)
-        seen_chunk_ids.add(source.chunk_id)
+        seen_doc_ids.add(source.doc_id)
         if len(selected) >= max_sources:
             return tuple(selected)
-
-    if len(selected) >= max_sources:
-        return tuple(selected)
-    for source in select_supporting_evidence_sources(
-        query_text=evidence.query_text,
-        sources=evidence.sources,
-        max_sources=max_sources,
-    ):
-        if source.chunk_id in seen_chunk_ids:
-            continue
-        selected.append(source)
-        seen_chunk_ids.add(source.chunk_id)
-        if len(selected) >= max_sources:
-            break
     return tuple(selected)
 
 

@@ -227,6 +227,32 @@ class BackendQdrantFiltersTest(unittest.TestCase):
             any(getattr(condition, "key", None) == "is_current" for condition in conditions)
         )
 
+    def test_build_qdrant_filter_applies_focus_anchor_filters(self) -> None:
+        qdrant_filter = _build_qdrant_filter(
+            RetrievalRequest(
+                query_text="国奖第九条怎么要求论文和著作？",
+                corpus="regulations",
+                collection="student_rules",
+                target_document_ids=("handbook:national-scholarship",),
+                focus_detail_labels=("第九条",),
+                focus_article_nos=("9",),
+                focus_terms=("论文", "著作"),
+                authorized_filter=AuthorizedRetrievalFilter(
+                    entitlement_groups=("students",),
+                    visibility_level="public",
+                    policy_projection_version="phase1-authorization-projection-v1",
+                ),
+            )
+        )
+
+        conditions = qdrant_filter.must or []
+        self.assertTrue(
+            any(getattr(condition, "key", None) == "article_no" for condition in conditions)
+        )
+        self.assertFalse(
+            any(getattr(condition, "key", None) == "detail_label" for condition in conditions)
+        )
+
     def test_backend_fail_closes_scoped_restricted_documents_when_request_has_no_visibility_scope(
         self,
     ) -> None:

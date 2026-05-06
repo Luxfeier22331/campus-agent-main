@@ -14,6 +14,7 @@ from tests.retrieval.backend_qdrant_test_support import (
     build_mock_sparse_embedding_model,
     prioritize_evidence_sources,
     qdrant_models,
+    select_supporting_evidence_sources,
     unittest,
 )
 
@@ -208,6 +209,49 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
 
         self.assertEqual(ranked[0].chunk_id, "discipline-positive-procedure")
 
+    def test_prioritize_evidence_sources_does_not_let_negative_title_match_override_action_intent(
+        self,
+    ) -> None:
+        ranked = prioritize_evidence_sources(
+            query_text="处分怎么消",
+            sources=(
+                _make_source(
+                    doc_id="handbook:demerit-relief",
+                    chunk_id="discipline-negative-title-hit",
+                    snippet="第六条 有下列情形之一的，不予解除处分。",
+                    score=0.99,
+                    collection="student_rules",
+                    source_title="处分怎么消：不予解除处分的情形",
+                    content_kind="text",
+                    content_role="procedure",
+                    detail_label="第六条",
+                    is_answer_bearing=True,
+                    semantic_role="exception",
+                    polarity="negative",
+                    action_type="lift_discipline",
+                    claim_type="cannot_do",
+                ),
+                _make_source(
+                    doc_id="handbook:demerit-relief",
+                    chunk_id="discipline-positive-procedure",
+                    snippet="第三条 学生受处分满考察期后，可以申请解除纪律处分。",
+                    score=0.51,
+                    collection="student_rules",
+                    source_title="中央民族大学解除学生纪律处分实施办法",
+                    content_kind="text",
+                    content_role="procedure",
+                    detail_label="第三条",
+                    is_answer_bearing=True,
+                    semantic_role="procedure_step",
+                    polarity="positive",
+                    action_type="lift_discipline",
+                    claim_type="procedure",
+                ),
+            ),
+        )
+
+        self.assertEqual(ranked[0].chunk_id, "discipline-positive-procedure")
+
     def test_prioritize_evidence_sources_preserves_negative_exception_for_negative_query(
         self,
     ) -> None:
@@ -250,6 +294,50 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
         )
 
         self.assertEqual(ranked[0].chunk_id, "discipline-negative-exception")
+
+    def test_select_supporting_evidence_sources_prefers_action_aligned_evidence_over_conflicting_exception(
+        self,
+    ) -> None:
+        selected = select_supporting_evidence_sources(
+            query_text="处分怎么消",
+            max_sources=2,
+            sources=(
+                _make_source(
+                    doc_id="handbook:demerit-relief",
+                    chunk_id="discipline-negative-title-hit",
+                    snippet="第六条 有下列情形之一的，不予解除处分。",
+                    score=0.99,
+                    collection="student_rules",
+                    source_title="处分怎么消：不予解除处分的情形",
+                    content_kind="text",
+                    content_role="procedure",
+                    detail_label="第六条",
+                    is_answer_bearing=True,
+                    semantic_role="exception",
+                    polarity="negative",
+                    action_type="lift_discipline",
+                    claim_type="cannot_do",
+                ),
+                _make_source(
+                    doc_id="handbook:demerit-relief",
+                    chunk_id="discipline-positive-procedure",
+                    snippet="第三条 学生受处分满考察期后，可以申请解除纪律处分。",
+                    score=0.51,
+                    collection="student_rules",
+                    source_title="中央民族大学解除学生纪律处分实施办法",
+                    content_kind="text",
+                    content_role="procedure",
+                    detail_label="第三条",
+                    is_answer_bearing=True,
+                    semantic_role="procedure_step",
+                    polarity="positive",
+                    action_type="lift_discipline",
+                    claim_type="procedure",
+                ),
+            ),
+        )
+
+        self.assertEqual(selected[0].chunk_id, "discipline-positive-procedure")
 
     def test_build_evidence_sources_maps_structural_metadata_into_contract_fields(self) -> None:
         registry = InMemoryDocumentRegistry()

@@ -38,6 +38,12 @@ _PUBLICATION_IMPRINT_INLINE_RE = re.compile(
 )
 _HTML_TAG_RE = re.compile(r"<\s*/?\s*[A-Za-z][^>]*>")
 _EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
+_DOMAIN_RE = re.compile(r"\b[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+\b")
+_UNIT_QUANTITY_RE = re.compile(
+    r"(?<![A-Za-z0-9])\d+(?:\.\d+)?(?:G|GB|MB|KB|TB|%)"
+    r"(?![A-Za-z])",
+    re.IGNORECASE,
+)
 _ATTACHMENT_HEADING_RE = re.compile(r"^(?:附件|附表)\s*[：:：]?\s*\d*")
 _BARE_ATTACHMENT_MARKER_RE = re.compile(r"^(?:附件|附表)\s*[：:：]?\s*(?:[一二三四五六七八九十百千万]|\d+)?[.．、]?$")
 _SUPPLEMENTARY_ATTACHMENT_LINE_RE = re.compile(
@@ -163,6 +169,7 @@ def normalize_regulation_owner_text(
     body = _normalize_readability_by_line(body)
     readability_normalization_count = int(body != before_readability)
     body, publication_imprint_removed_count = _remove_publication_imprint_tail(body)
+    body, terminal_office_tail_removed_count = _remove_terminal_office_tail(body)
     body = _collapse_blank_lines(body)
     soft_wrap_residue_count = _count_soft_wrap_residue(body)
     mixed_ascii_cjk_artifact_count = _count_mixed_ascii_cjk_artifact_lines(body)
@@ -182,11 +189,13 @@ def normalize_regulation_owner_text(
         reason_codes.append("html_markup_flattened")
     if publication_imprint_removed_count:
         reason_codes.append("publication_imprint_removed")
+    if terminal_office_tail_removed_count:
+        reason_codes.append("terminal_office_tail_removed")
     if soft_wrap_repair_count:
         reason_codes.append("soft_wrap_repaired")
     if readability_normalization_count:
         reason_codes.append("readable_text_normalized")
-    if soft_wrap_residue_count or mixed_ascii_cjk_artifact_count:
+    if mixed_ascii_cjk_artifact_count:
         reason_codes.append("soft_wrap_residue")
     if suspicious_prefix:
         reason_codes.append("suspicious_prefix")
@@ -543,6 +552,19 @@ def _remove_publication_imprint_tail(text: str) -> tuple[str, int]:
     return "\n".join(lines).strip(), removed_count
 
 
+def _remove_terminal_office_tail(text: str) -> tuple[str, int]:
+    lines = text.splitlines()
+    while lines and not lines[-1].strip():
+        lines.pop()
+    if len(lines) < 2:
+        return text, 0
+    tail = lines[-1].strip()
+    previous = lines[-2].strip()
+    if not _looks_like_terminal_office_tail(previous=previous, tail=tail):
+        return text, 0
+    return "\n".join(lines[:-1]).strip(), 1
+
+
 def _normalize_readability_by_line(text: str) -> str:
     return "\n".join(normalize_readable_text(line) for line in text.splitlines())
 
@@ -665,9 +687,21 @@ def _looks_like_mixed_ascii_cjk_artifact(line: str) -> bool:
 def _looks_like_legitimate_mixed_ascii_cjk_line(line: str) -> bool:
     return (
         _EMAIL_RE.search(line) is not None
+        or _DOMAIN_RE.search(line) is not None
+        or _UNIT_QUANTITY_RE.search(line) is not None
         or _looks_like_score_formula_line(line)
         or _looks_like_room_or_address_line(line)
     )
+
+
+def _looks_like_terminal_office_tail(*, previous: str, tail: str) -> bool:
+    if not previous or not tail:
+        return False
+    if "负责解释" not in previous:
+        return False
+    if _PUBLICATION_SIGNATURE_SUFFIX_RE.fullmatch(tail) is None:
+        return False
+    return previous.endswith((f"由{tail}负责解释。", f"由{tail}负责解释"))
 
 
 def _looks_like_score_formula_line(line: str) -> bool:
@@ -696,7 +730,14 @@ def _collapse_blank_lines(text: str) -> str:
 
 
 def _has_suspicious_prefix(text: str) -> bool:
-    prefix = text.strip()[:240]
+    stripped = text.strip()
+    marker = _STRUCTURE_MARKER_RE.search(stripped)
+    if marker is not None:
+        if marker.start() == 0:
+            return False
+        prefix = stripped[: marker.start()]
+    else:
+        prefix = stripped[:240]
     return any(term in prefix for term in _WRAPPER_RESIDUE_TERMS)
 
 

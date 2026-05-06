@@ -22,6 +22,8 @@ _STUDENT_CARD_DOC_ID = "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"
 _DEMERIT_RELIEF_DOC_ID = "handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8"
 _APPEAL_DOC_ID = "handbook:1e404fb7e280b32c46f09280590255c57e6bd72d"
 _DEGREE_DOC_ID = "handbook:742d4831bfb443b99323041e263fac2fd9aafcf6"
+_RECOMMENDATION_POSTGRADUATE_DEFAULT_DOC_ID = "handbook:4b943c3cb67ec0e3c578781fb0c62c1763fd73b9"
+_RECOMMENDATION_POSTGRADUATE_ATHLETE_DOC_ID = "handbook:ceb42210e2431730ef5b1e376b800250fd9eb1fb"
 _STUDENT_STATUS_CATEGORY_DOC_IDS = (
     _STUDENT_CARD_DOC_ID,
     _DEGREE_DOC_ID,
@@ -63,6 +65,9 @@ class RagAgentRealisticE2ESamplesTest(unittest.TestCase):
                 self.assertIn("社会奖助学金", response.answer_text)
                 self.assertIn("以当年通知/学院细则为准", response.answer_text)
                 self.assertNotIn("一定能申请", response.answer_text)
+                self.assertNotIn("个人申请->", response.answer_text)
+                self.assertNotIn("标题：", response.answer_text)
+                self.assertNotIn("条款：", response.answer_text)
 
     def test_fuzzy_scholarship_procedure_clarifies_before_retrieval(self) -> None:
         retriever_called = False
@@ -80,6 +85,53 @@ class RagAgentRealisticE2ESamplesTest(unittest.TestCase):
         self.assertEqual(response.status, "needs_clarification")
         self.assertFalse(retriever_called)
         self.assertEqual(response.result.diagnostics.clarification_reason, "ambiguous_procedure")
+
+    def test_recommendation_postgraduate_procedure_defaults_to_undergraduate_policy(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        response = delegate_to_rag_agent(
+            _handbook_request("保研流程是什么？"),
+            retriever=_single_policy_retriever(
+                retriever_call,
+                doc_id=_RECOMMENDATION_POSTGRADUATE_DEFAULT_DOC_ID,
+                title="中央民族大学推荐应届本科毕业生免试攻读硕士学位研究生管理办法",
+                snippet="学校推荐应届本科毕业生免试攻读硕士学位研究生，应按管理办法完成报名、审核和公示等程序。",
+                suffix="recommendation-postgraduate-default",
+                content_role="procedure",
+            ),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(
+            retriever_call["target_document_ids"],
+            (_RECOMMENDATION_POSTGRADUATE_DEFAULT_DOC_ID,),
+        )
+        self.assertIn("保研", response.answer_text)
+        self.assertIn("步骤", response.answer_text)
+        self.assertIn("报名、审核和公示", response.answer_text)
+
+    def test_recommendation_postgraduate_procedure_athlete_query_hits_athlete_policy(self) -> None:
+        retriever_call: dict[str, object] = {}
+
+        response = delegate_to_rag_agent(
+            _handbook_request("高水平运动员保研流程是什么？"),
+            retriever=_single_policy_retriever(
+                retriever_call,
+                doc_id=_RECOMMENDATION_POSTGRADUATE_ATHLETE_DOC_ID,
+                title="中央民族大学推荐应届优秀高水平运动员免试攻读硕士学位研究生管理办法",
+                snippet="高水平运动员推免应按管理办法完成资格审核、材料报送和推荐程序。",
+                suffix="recommendation-postgraduate-athlete",
+                content_role="procedure",
+            ),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(
+            retriever_call["target_document_ids"],
+            (_RECOMMENDATION_POSTGRADUATE_ATHLETE_DOC_ID,),
+        )
+        self.assertIn("高水平运动员", response.answer_text)
+        self.assertIn("推荐程序", response.answer_text)
 
     def test_national_scholarship_rank_question_locks_to_specific_policy(self) -> None:
         retriever_call: dict[str, object] = {}
@@ -106,7 +158,11 @@ class RagAgentRealisticE2ESamplesTest(unittest.TestCase):
             _handbook_request("论文能不能算国奖条件？"),
             retriever=_national_scholarship_retriever(
                 retriever_call,
-                snippet="同等条件下，在公开刊物上发表高质量学术论文者可优先推荐参评国家奖学金。",
+                snippet=(
+                    "标题：中央民族大学本科学生国家奖学金评审办法 | "
+                    "章节：第三章 评选条件 | 条款：第九条\n"
+                    "同等条件下，在公开刊物上发表高质量学术论文者可优先推荐参评国家奖学金。"
+                ),
                 suffix="paper-condition",
             ),
         )
@@ -116,6 +172,68 @@ class RagAgentRealisticE2ESamplesTest(unittest.TestCase):
         self.assertEqual(retriever_call["preferred_document_ids"], ())
         self.assertIn("学术论文", response.answer_text)
         self.assertIn("国家奖学金", response.answer_text)
+        self.assertNotIn("标题：", response.answer_text)
+        self.assertNotIn("章节：", response.answer_text)
+        self.assertNotIn("条款：", response.answer_text)
+
+    def test_specific_policy_clause_query_uses_focused_follow_up_lookup(self) -> None:
+        retriever_calls: list[dict[str, object]] = []
+
+        def retriever(query_text: str, **kwargs: object) -> EvidenceBundle:
+            retriever_calls.append({"query_text": query_text, **kwargs})
+            if "第九条" in query_text and "论文" in query_text and "著作" in query_text:
+                sources = (
+                    _make_handbook_source(
+                        doc_id=_NATIONAL_SCHOLARSHIP_DOC_ID,
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="第九条 学术研究方面取得显著成绩，以第一作者发表论文或以第一、二作者出版学术著作。",
+                        score=0.95,
+                        chunk_id_suffix="national-paper-book",
+                        detail_label="第九条",
+                        content_role="requirement",
+                        is_answer_bearing=True,
+                    ),
+                )
+            else:
+                sources = (
+                    _make_handbook_source(
+                        doc_id=_NATIONAL_SCHOLARSHIP_DOC_ID,
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="第九条 参评本科学生国家奖学金还须具备以下条件之一：在体育竞赛中取得显著成绩。",
+                        score=0.91,
+                        chunk_id_suffix="national-sports",
+                        detail_label="第九条",
+                        content_role="requirement",
+                        is_answer_bearing=True,
+                    ),
+                )
+            return EvidenceBundle(
+                query_text=query_text,
+                corpus="regulations",
+                collection="student_rules",
+                sources=sources,
+            )
+
+        response = delegate_to_rag_agent(
+            _handbook_request("国奖第九条怎么要求论文和著作？"),
+            retriever=retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(len(retriever_calls), 2)
+        self.assertEqual(
+            tuple(call["target_document_ids"] for call in retriever_calls),
+            (
+                (_NATIONAL_SCHOLARSHIP_DOC_ID,),
+                (_NATIONAL_SCHOLARSHIP_DOC_ID,),
+            ),
+        )
+        self.assertIn("第九条", retriever_calls[1]["query_text"])
+        self.assertIn("论文", retriever_calls[1]["query_text"])
+        self.assertIn("著作", retriever_calls[1]["query_text"])
+        self.assertIn("论文", response.answer_text)
+        self.assertIn("著作", response.answer_text)
+        self.assertNotIn("体育竞赛", response.answer_text)
 
     def test_student_card_lost_question_locks_to_student_card_policy(self) -> None:
         retriever_call: dict[str, object] = {}
