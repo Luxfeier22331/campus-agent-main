@@ -27,6 +27,7 @@ export interface ChatE2eArgs {
 	chatBaseUrl: string;
 	email: string;
 	execReadyzUrl: string;
+	expectPromptRuntimeState: string | null;
 	expectResultKind: ChatE2eExpectedResultKind;
 	name: string;
 	password: string;
@@ -62,6 +63,7 @@ export function parseChatE2eArgs(
 	let chatBaseUrl = DEFAULT_CHAT_E2E_CHAT_BASE_URL;
 	let appApiReadyzUrl: string | null = DEFAULT_CHAT_E2E_APP_API_READYZ_URL;
 	let execReadyzUrl = DEFAULT_CHAT_E2E_EXEC_READYZ_URL;
+	let expectPromptRuntimeState: string | null = null;
 	let expectResultKind: ChatE2eExpectedResultKind = "answer";
 	let profile: ChatE2eProfile = "staging";
 	let password =
@@ -160,6 +162,15 @@ export function parseChatE2eArgs(
 			index += 1;
 			continue;
 		}
+		if (token === "--expect-prompt-runtime-state") {
+			const value = normalizeOptionalValue(argv[index + 1]);
+			if (!value) {
+				throw new Error("--expect-prompt-runtime-state requires a non-empty value.");
+			}
+			expectPromptRuntimeState = value;
+			index += 1;
+			continue;
+		}
 		if (token === "--smoke-auth-secret") {
 			const value = normalizeOptionalValue(argv[index + 1]);
 			if (!value) {
@@ -224,7 +235,9 @@ export function parseChatE2eArgs(
 		);
 	}
 	if (profile !== "staging" && !captchaToken) {
-		if (normalizeOptionalValue(env.AUTH_TURNSTILE_SECRET_KEY) === DEFAULT_TURNSTILE_TEST_SECRET_KEY) {
+		if (
+			normalizeOptionalValue(env.AUTH_TURNSTILE_SECRET_KEY) === DEFAULT_TURNSTILE_TEST_SECRET_KEY
+		) {
 			captchaToken = DEFAULT_TURNSTILE_TEST_TOKEN;
 		} else {
 			throw new Error(
@@ -239,6 +252,7 @@ export function parseChatE2eArgs(
 		chatBaseUrl,
 		email,
 		execReadyzUrl,
+		expectPromptRuntimeState,
 		expectResultKind,
 		name,
 		password,

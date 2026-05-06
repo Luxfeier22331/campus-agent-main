@@ -25,6 +25,7 @@ describe("chat e2e args", () => {
 			chatBaseUrl: DEFAULT_CHAT_E2E_CHAT_BASE_URL,
 			email: "help_bot@outlook.com",
 			execReadyzUrl: DEFAULT_CHAT_E2E_EXEC_READYZ_URL,
+			expectPromptRuntimeState: null,
 			expectResultKind: "answer",
 			name: "Campus Agent Smoke",
 			password: "",
@@ -45,6 +46,7 @@ describe("chat e2e args", () => {
 			captchaToken: "smoke-captcha-token",
 			chatBaseUrl: DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL,
 			execReadyzUrl: DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL,
+			expectPromptRuntimeState: null,
 			profile: "local-real-provider",
 		});
 	});
@@ -60,6 +62,7 @@ describe("chat e2e args", () => {
 			chatBaseUrl: DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL,
 			execReadyzUrl: DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL,
 			captchaToken: "XXXX.DUMMY.TOKEN.XXXX",
+			expectPromptRuntimeState: null,
 			profile: "dev",
 		});
 	});
@@ -84,6 +87,8 @@ describe("chat e2e args", () => {
 					"http://127.0.0.1:27051/readyz",
 					"--expect-result-kind",
 					"any",
+					"--expect-prompt-runtime-state",
+					"rag_sdk_completed",
 					"--password",
 					"dev-smoke-password",
 					"--captcha-token",
@@ -97,6 +102,7 @@ describe("chat e2e args", () => {
 			chatBaseUrl: "http://127.0.0.1:27011",
 			email: "smoke-user@example.edu",
 			execReadyzUrl: "http://127.0.0.1:27051/readyz",
+			expectPromptRuntimeState: "rag_sdk_completed",
 			expectResultKind: "any",
 			name: "Smoke User",
 			password: "dev-smoke-password",

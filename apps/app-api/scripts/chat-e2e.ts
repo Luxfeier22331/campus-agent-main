@@ -1,4 +1,6 @@
 import process from "node:process";
+import { Client, type ClientConfig } from "pg";
+import { buildOperatorDatabaseConfig } from "../src/db/runtime";
 import { type ChatE2eArgs, type ChatE2eProfile, parseChatE2eArgs } from "./chat-e2e.args";
 import { assertExpectedChatE2eResultKind } from "./chat-e2e.result-kind";
 import { buildCookieHeader, expectJsonResponse, readJsonResponse } from "./smoke-auth-runtime";
@@ -28,6 +30,7 @@ export interface ChatE2eDependencies {
 		resetIdentity?: boolean;
 		smokeAuthSecret: string;
 	}) => Promise<string>;
+	readPromptRuntimeState?: (requestId: string) => Promise<string | null>;
 	signInSmokeIdentity?: (input: {
 		captchaToken: string;
 		chatBaseUrl: string;
@@ -48,6 +51,7 @@ interface ChatE2eSuccessSummary {
 	historyCountBefore: number;
 	historyHasConversation: boolean;
 	prompt: string;
+	promptRuntimeState: string | null;
 	requestId: string;
 	resultKind: string;
 	traceId: string;
@@ -115,6 +119,21 @@ async function fetchJsonWithCookie<T>(input: {
 		payload: await expectJsonResponse<T>(response, input.expectedStatus),
 		response,
 	};
+}
+
+async function defaultReadPromptRuntimeState(requestId: string): Promise<string | null> {
+	const client = new Client(buildOperatorDatabaseConfig(process.env) as ClientConfig);
+
+	await client.connect();
+	try {
+		const result = await client.query<{ prompt_runtime_state: string | null }>(
+			'select "prompt_runtime_state" from "runtime"."request_observability_fact" where "request_id" = $1',
+			[requestId],
+		);
+		return result.rows[0]?.prompt_runtime_state ?? null;
+	} finally {
+		await client.end();
+	}
 }
 
 function classifyReadyzBlock(name: ReadyzName, probe: ReadyzProbe): ChatE2eBlockedBy | null {
@@ -283,6 +302,7 @@ export async function runChatE2e(
 		fetchJsonWithCookie: deps.fetchJsonWithCookie ?? fetchJsonWithCookie,
 		fetchReadyz: deps.fetchReadyz ?? defaultFetchReadyz,
 		mintSmokeSession: deps.mintSmokeSession ?? mintStagingSmokeSession,
+		readPromptRuntimeState: deps.readPromptRuntimeState ?? defaultReadPromptRuntimeState,
 		signInSmokeIdentity: deps.signInSmokeIdentity ?? defaultSignInSmokeIdentity,
 	};
 	const readyzResult = await runReadyzChecks(args, resolvedDeps);
@@ -355,6 +375,16 @@ export async function runChatE2e(
 		requestId,
 		traceId,
 	});
+	const promptRuntimeState = args.expectPromptRuntimeState
+		? await resolvedDeps.readPromptRuntimeState(requestId)
+		: null;
+	if (args.expectPromptRuntimeState && promptRuntimeState !== args.expectPromptRuntimeState) {
+		throw new Error(
+			`Expected prompt runtime state ${args.expectPromptRuntimeState} for request ${requestId}, received ${
+				promptRuntimeState ?? "null"
+			}.`,
+		);
+	}
 	const afterConversations = await resolvedDeps.fetchJsonWithCookie<{
 		conversations: Array<{ id: string; title: string }>;
 	}>({
@@ -379,6 +409,7 @@ export async function runChatE2e(
 		historyCountBefore: beforeConversations.payload.conversations.length,
 		historyHasConversation,
 		prompt: args.prompt,
+		promptRuntimeState,
 		requestId,
 		resultKind,
 		traceId,

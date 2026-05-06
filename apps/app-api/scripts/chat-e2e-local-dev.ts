@@ -28,9 +28,12 @@ interface LocalDevChatE2eArgs {
 	chatBaseUrl: string;
 	email: string;
 	execReadyzUrl: string;
+	expectPromptRuntimeState: string | null;
 	expectResultKind: string;
 	name: string;
 	prompt: string;
+	restartPublicChat: boolean;
+	restartSupervisorRuntime: boolean;
 	startupTimeoutMs: number;
 }
 
@@ -63,9 +66,12 @@ function parseArgs(argv: string[], env: NodeJS.ProcessEnv = process.env): LocalD
 		chatBaseUrl: readArgValue(argv, "--chat-base-url") ?? defaultChatBaseUrl,
 		email: (readArgValue(argv, "--email") ?? defaultEmail).toLowerCase(),
 		execReadyzUrl: readArgValue(argv, "--exec-readyz-url") ?? defaultExecReadyzUrl,
+		expectPromptRuntimeState: readArgValue(argv, "--expect-prompt-runtime-state"),
 		expectResultKind: readArgValue(argv, "--expect-result-kind") ?? "answer",
 		name: readArgValue(argv, "--name") ?? defaultName,
 		prompt: readArgValue(argv, "--prompt") ?? defaultPrompt,
+		restartPublicChat: argv.includes("--restart-public-chat"),
+		restartSupervisorRuntime: argv.includes("--restart-supervisor-runtime"),
 		startupTimeoutMs: readPositiveInteger(
 			readArgValue(argv, "--startup-timeout-ms") ??
 				readOptionalValue(env.CHAT_E2E_LOCAL_DEV_STARTUP_TIMEOUT_MS),
@@ -86,6 +92,67 @@ function runChecked(command: string, args: string[], cwd: string, env = process.
 	}
 	if (result.status !== 0) {
 		throw new Error(`${command} ${args.join(" ")} exited with ${result.status ?? "signal"}.`);
+	}
+}
+
+function startSupervisorRuntime(args: LocalDevChatE2eArgs): void {
+	runChecked(
+		"bash",
+		args.restartSupervisorRuntime
+			? [supervisorStartScript, "up", "-d", "--force-recreate", "--no-build"]
+			: [supervisorStartScript],
+		repoRoot,
+	);
+}
+
+function localPortFromUrl(url: string): string | null {
+	try {
+		const parsed = new URL(url);
+		if (!["127.0.0.1", "localhost"].includes(parsed.hostname)) {
+			return null;
+		}
+		return parsed.port || (parsed.protocol === "https:" ? "443" : "80");
+	} catch {
+		return null;
+	}
+}
+
+function stopLocalPublicChatIfRequested(args: LocalDevChatE2eArgs): void {
+	if (!args.restartPublicChat) {
+		return;
+	}
+
+	const port = localPortFromUrl(args.chatBaseUrl);
+	if (!port) {
+		throw new Error("--restart-public-chat only supports localhost chat-base-url values.");
+	}
+
+	const result = spawnSync(
+		"bash",
+		[
+			"-lc",
+			[
+				"command -v lsof >/dev/null || exit 0",
+				`pids="$(lsof -ti tcp:${port})"`,
+				'[ -n "$pids" ] || exit 0',
+				"kill $pids 2>/dev/null || true",
+				'for _ in $(seq 1 20); do [ -z "$(lsof -ti tcp:' +
+					port +
+					')" ] && exit 0; sleep 0.25; done',
+				"kill -KILL $pids 2>/dev/null || true",
+			].join("; "),
+		],
+		{
+			cwd: repoRoot,
+			encoding: "utf8",
+			shell: process.platform === "win32",
+		},
+	);
+	if (result.error) {
+		throw result.error;
+	}
+	if (result.status !== 0) {
+		throw new Error(`Failed to restart public-chat on port ${port}: ${result.stderr.trim()}`);
 	}
 }
 
@@ -137,6 +204,30 @@ function startPublicChatLiveSmoke(): ChildProcess {
 	});
 }
 
+async function waitForReadyzWhileChildAlive(
+	url: string,
+	timeoutMs: number,
+	child: ChildProcess | null,
+): Promise<void> {
+	if (!child) {
+		await waitForReadyz(url, timeoutMs);
+		return;
+	}
+
+	await Promise.race([
+		waitForReadyz(url, timeoutMs),
+		new Promise<never>((_, reject) => {
+			child.once("exit", (code, signal) => {
+				reject(
+					new Error(
+						`public-chat dev:live-smoke exited before ${url} was ready (${signal ?? code ?? "unknown"}).`,
+					),
+				);
+			});
+		}),
+	]);
+}
+
 async function stopChild(child: ChildProcess): Promise<void> {
 	if (child.exitCode !== null || child.signalCode !== null) {
 		return;
@@ -157,8 +248,8 @@ async function main(argv: string[]): Promise<void> {
 		throw new Error("APP_API_SMOKE_IDENTITY_PASSWORD is required for local dev public/chat E2E.");
 	}
 
-	if (!(await isReadyzReady(args.execReadyzUrl))) {
-		runChecked("bash", [supervisorStartScript], repoRoot);
+	if (args.restartSupervisorRuntime || !(await isReadyzReady(args.execReadyzUrl))) {
+		startSupervisorRuntime(args);
 	}
 	await waitForReadyz(args.execReadyzUrl, args.startupTimeoutMs);
 	runChecked("pnpm", ["--dir", appApiDir, "db:bootstrap"], repoRoot);
@@ -177,34 +268,39 @@ async function main(argv: string[]): Promise<void> {
 		repoRoot,
 	);
 
+	const chatE2eArgs = [
+		"--dir",
+		appApiDir,
+		"chat:e2e",
+		"--",
+		"--profile",
+		"dev",
+		"--email",
+		args.email,
+		"--name",
+		args.name,
+		"--prompt",
+		args.prompt,
+		"--chat-base-url",
+		args.chatBaseUrl,
+		"--exec-readyz-url",
+		args.execReadyzUrl,
+		"--expect-result-kind",
+		args.expectResultKind,
+	];
+	if (args.expectPromptRuntimeState) {
+		chatE2eArgs.push("--expect-prompt-runtime-state", args.expectPromptRuntimeState);
+	}
+
 	const chatReadyzUrl = new URL("/readyz", args.chatBaseUrl).toString();
-	const publicChat = (await isReadyzReady(chatReadyzUrl)) ? null : startPublicChatLiveSmoke();
+	stopLocalPublicChatIfRequested(args);
+	const publicChat =
+		!args.restartPublicChat && (await isReadyzReady(chatReadyzUrl))
+			? null
+			: startPublicChatLiveSmoke();
 	try {
-		await waitForReadyz(chatReadyzUrl, args.startupTimeoutMs);
-		runChecked(
-			"pnpm",
-			[
-				"--dir",
-				appApiDir,
-				"chat:e2e",
-				"--",
-				"--profile",
-				"dev",
-				"--email",
-				args.email,
-				"--name",
-				args.name,
-				"--prompt",
-				args.prompt,
-				"--chat-base-url",
-				args.chatBaseUrl,
-				"--exec-readyz-url",
-				args.execReadyzUrl,
-				"--expect-result-kind",
-				args.expectResultKind,
-			],
-			repoRoot,
-		);
+		await waitForReadyzWhileChildAlive(chatReadyzUrl, args.startupTimeoutMs, publicChat);
+		runChecked("pnpm", chatE2eArgs, repoRoot);
 	} finally {
 		if (publicChat) {
 			await stopChild(publicChat);

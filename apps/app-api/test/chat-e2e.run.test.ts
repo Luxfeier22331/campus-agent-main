@@ -161,4 +161,178 @@ describe("chat e2e runner", () => {
 		expect(signInCount).toBe(1);
 		expect(signInCaptchaToken).toBe("dev-captcha-token");
 	});
+
+	it("requires the expected prompt runtime state when requested", async () => {
+		const observedRequestIds: string[] = [];
+		const result = await runChatE2e(
+			[
+				"--profile",
+				"dev",
+				"--chat-base-url",
+				"http://127.0.0.1:27011",
+				"--exec-readyz-url",
+				"http://127.0.0.1:27051/readyz",
+				"--expect-prompt-runtime-state",
+				"rag_sdk_completed",
+			],
+			{
+				APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN: "dev-captcha-token",
+				APP_API_SMOKE_IDENTITY_PASSWORD: "dev-smoke-password",
+			} as NodeJS.ProcessEnv,
+			{
+				async fetchReadyz() {
+					return {
+						payload: {
+							status: "ready",
+						},
+						status: 200,
+					};
+				},
+				async fetchJsonWithCookie<T>(
+					input: Parameters<NonNullable<ChatE2eDependencies["fetchJsonWithCookie"]>>[0],
+				): Promise<{ payload: T; response: Response }> {
+					if (input.url.endsWith("/api/me")) {
+						return jsonResult({
+							permissions: {
+								chat: true,
+								operator: false,
+							},
+							principal: {
+								email: "help_bot@outlook.com",
+								principalId: "user_dev",
+								type: "user",
+							},
+							session: {
+								expiresAt: "2099-01-01T00:00:00Z",
+								sessionId: "session_dev",
+							},
+						} as T);
+					}
+					if (input.url.endsWith("/api/chat/conversations")) {
+						return jsonResult({
+							conversations:
+								input.method === "POST" ? [] : [{ id: "conversation_dev", title: "Smoke" }],
+						} as T);
+					}
+					return jsonResult(
+						{
+							answer: {
+								conversation: {
+									id: "conversation_dev",
+								},
+								result: {
+									kind: "answer",
+									requestId: "request_dev",
+									traceId: "trace_dev",
+								},
+							},
+						} as T,
+						new Response("{}", {
+							headers: {
+								"x-request-id": "request_dev",
+								"x-trace-id": "trace_dev",
+							},
+						}),
+					);
+				},
+				async readPromptRuntimeState(requestId) {
+					observedRequestIds.push(requestId);
+					return "rag_sdk_completed";
+				},
+				async signInSmokeIdentity() {
+					return "session=dev";
+				},
+			},
+		);
+
+		expect(result.passed).toBe(true);
+		expect(observedRequestIds).toEqual(["request_dev"]);
+		expect(result.request?.promptRuntimeState).toBe("rag_sdk_completed");
+	});
+
+	it("fails closed when the expected prompt runtime state is missing", async () => {
+		await expect(
+			runChatE2e(
+				[
+					"--profile",
+					"dev",
+					"--chat-base-url",
+					"http://127.0.0.1:27011",
+					"--exec-readyz-url",
+					"http://127.0.0.1:27051/readyz",
+					"--expect-prompt-runtime-state",
+					"rag_sdk_completed",
+				],
+				{
+					APP_API_SMOKE_IDENTITY_CAPTCHA_TOKEN: "dev-captcha-token",
+					APP_API_SMOKE_IDENTITY_PASSWORD: "dev-smoke-password",
+				} as NodeJS.ProcessEnv,
+				{
+					async fetchReadyz() {
+						return {
+							payload: {
+								status: "ready",
+							},
+							status: 200,
+						};
+					},
+					async fetchJsonWithCookie<T>(
+						input: Parameters<NonNullable<ChatE2eDependencies["fetchJsonWithCookie"]>>[0],
+					): Promise<{ payload: T; response: Response }> {
+						if (input.url.endsWith("/api/me")) {
+							return jsonResult({
+								permissions: {
+									chat: true,
+									operator: false,
+								},
+								principal: {
+									email: "help_bot@outlook.com",
+									principalId: "user_dev",
+									type: "user",
+								},
+								session: {
+									expiresAt: "2099-01-01T00:00:00Z",
+									sessionId: "session_dev",
+								},
+							} as T);
+						}
+						if (input.url.endsWith("/api/chat/conversations")) {
+							return jsonResult({
+								conversations:
+									input.method === "POST" ? [] : [{ id: "conversation_dev", title: "Smoke" }],
+							} as T);
+						}
+						return jsonResult(
+							{
+								answer: {
+									conversation: {
+										id: "conversation_dev",
+									},
+									result: {
+										kind: "answer",
+										requestId: "request_dev",
+										traceId: "trace_dev",
+									},
+								},
+							} as T,
+							new Response("{}", {
+								headers: {
+									"x-request-id": "request_dev",
+									"x-trace-id": "trace_dev",
+								},
+							}),
+						);
+					},
+					async readPromptRuntimeState() {
+						return null;
+					},
+					async signInSmokeIdentity() {
+						return "session=dev";
+					},
+				},
+			),
+		).rejects.toThrow(
+			"Expected prompt runtime state rag_sdk_completed for request request_dev, received null.",
+		);
+	});
 });
