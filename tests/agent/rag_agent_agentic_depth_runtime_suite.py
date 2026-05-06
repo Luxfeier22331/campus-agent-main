@@ -213,6 +213,79 @@ class RagAgentAgenticDepthRuntimeTest(unittest.TestCase):
             "empty_supporting_evidence",
         )
 
+    def test_delegate_to_rag_agent_replans_when_positive_procedure_query_gets_negative_exception(
+        self,
+    ) -> None:
+        calls: list[str] = []
+
+        def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
+            calls.append(query)
+            if len(calls) == 1:
+                return EvidenceBundle(
+                    query_text=query,
+                    corpus=str(kwargs["corpus"]),
+                    collection=str(kwargs["collection"]),
+                    sources=(
+                        _make_handbook_source(
+                            doc_id="handbook:demerit-relief",
+                            title="中央民族大学解除学生纪律处分实施办法",
+                            snippet="第六条 有下列情形之一的，不予解除处分。",
+                            score=0.93,
+                            chunk_id_suffix="discipline-negative-exception",
+                            content_role="procedure",
+                            is_answer_bearing=True,
+                            semantic_role="exception",
+                            polarity="negative",
+                            action_type="lift_discipline",
+                            claim_type="cannot_do",
+                        ),
+                    ),
+                )
+            return EvidenceBundle(
+                query_text=query,
+                corpus=str(kwargs["corpus"]),
+                collection=str(kwargs["collection"]),
+                sources=(
+                    _make_handbook_source(
+                        doc_id="handbook:demerit-relief",
+                        title="中央民族大学解除学生纪律处分实施办法",
+                        snippet="第三条 学生受处分满考察期后，可以申请解除纪律处分。",
+                        score=0.72,
+                        chunk_id_suffix="discipline-positive-procedure",
+                        content_role="procedure",
+                        is_answer_bearing=True,
+                        semantic_role="procedure_step",
+                        polarity="positive",
+                        action_type="lift_discipline",
+                        claim_type="procedure",
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="处分怎么消",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(calls, ["解除处分 申请 条件 程序", "解除处分 申请 条件 程序 办理步骤"])
+        self.assertEqual(
+            tuple(source.chunk_id for source in response.result.evidence.sources),
+            ("handbook:demerit-relief:source-faithful:v1:discipline-positive-procedure",),
+        )
+        self.assertNotIn("不予解除处分", response.answer_text)
+        self.assertEqual(response.result.diagnostics.retrieval_plan_summary.replan_count, 1)
+        self.assertEqual(
+            response.result.diagnostics.replan_decision_summary.trigger_reason,
+            "polarity_conflict",
+        )
+
     def test_projection_context_marks_planning_use_without_raw_payload(self) -> None:
         response = delegate_to_rag_agent(
             AgentRequest(
@@ -295,6 +368,75 @@ class RagAgentAgenticDepthRuntimeTest(unittest.TestCase):
         self.assertIn("挂失", replanned_steps[0].query_text)
         self.assertIn("补办", replanned_steps[0].query_text)
         self.assertIn("办理步骤", replanned_steps[0].query_text)
+
+    def test_semantic_replan_rewrites_positive_procedure_query_after_negative_polarity_conflict(
+        self,
+    ) -> None:
+        replanned_steps = build_semantic_replan_steps(
+            _single_step_plan(
+                query_text="处分怎么消",
+                need_ids=("need:1:procedure",),
+                selector=RetrievalSelector(target_document_ids=("handbook:demerit-relief",)),
+            ),
+            (
+                RetrievalStepResult(
+                    step_id="indexed-lookup",
+                    status="empty",
+                    references=(
+                        _make_handbook_source(
+                            doc_id="handbook:demerit-relief",
+                            title="中央民族大学解除学生纪律处分实施办法",
+                            snippet="第六条 有下列情形之一的，不予解除处分。",
+                            score=0.93,
+                            chunk_id_suffix="discipline-negative-exception",
+                            content_role="procedure",
+                            is_answer_bearing=True,
+                            semantic_role="exception",
+                            polarity="negative",
+                            action_type="lift_discipline",
+                            claim_type="cannot_do",
+                        ),
+                    ),
+                    activity=RetrievalStepActivity(
+                        step_id="indexed-lookup",
+                        step_type="indexed_lookup",
+                        corpus="regulations",
+                        collection="student_rules",
+                        status="empty",
+                        query_text="处分怎么消",
+                        need_ids=("need:1:procedure",),
+                        top_k=2,
+                        candidate_count=1,
+                        reference_count=1,
+                        failure_kind="polarity_conflict",
+                    ),
+                ),
+            ),
+            RetrievalStepResult(
+                step_id="indexed-lookup",
+                status="empty",
+                activity=RetrievalStepActivity(
+                    step_id="indexed-lookup",
+                    step_type="indexed_lookup",
+                    corpus="regulations",
+                    collection="student_rules",
+                    status="empty",
+                    query_text="处分怎么消",
+                    need_ids=("need:1:procedure",),
+                    top_k=2,
+                    candidate_count=1,
+                    reference_count=1,
+                    failure_kind="polarity_conflict",
+                ),
+            ),
+        )
+
+        self.assertEqual(len(replanned_steps), 1)
+        self.assertEqual(replanned_steps[0].query_text, "解除处分 申请 条件 程序 办理步骤")
+        self.assertEqual(
+            replanned_steps[0].selector.target_document_ids,
+            ("handbook:demerit-relief",),
+        )
 
     def test_deterministic_answer_fails_closed_when_material_claim_lacks_support(self) -> None:
         evidence = EvidenceBundle(

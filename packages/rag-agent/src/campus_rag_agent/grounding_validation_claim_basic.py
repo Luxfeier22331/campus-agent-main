@@ -29,6 +29,8 @@ from .grounding_validation_text import (
     _sanitize_answer_text,
 )
 
+_UNCERTAINTY_CUES = ("不能稳定确认", "无法确认", "不能确认", "尚不能确认", "还不能确认")
+
 
 def _extract_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
     claims: list[ExtractedClaim] = []
@@ -117,6 +119,8 @@ def _extract_offering_unit_claims(answer_text: str) -> tuple[ExtractedClaim, ...
     for clause in _CLAUSE_SPLIT_RE.split(sanitized):
         normalized_clause = _normalize_text(clause)
         if not normalized_clause:
+            continue
+        if any(cue in normalized_clause for cue in _UNCERTAINTY_CUES):
             continue
         for match in _OFFERING_UNIT_NAME_RE.finditer(normalized_clause):
             claim_text = _normalize_offering_unit_claim(match.group(1))

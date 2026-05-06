@@ -702,6 +702,61 @@ func TestFinalizeAgentBridgeResponseRejectsRawAgentObservabilityKeys(t *testing.
 	}
 }
 
+func TestFinalizeAgentBridgeResponseRejectsRawRagSdkResultDiagnostics(t *testing.T) {
+	_, err := finalizeAgentBridgeResponse(
+		map[string]any{
+			"target":      "rag-agent",
+			"status":      "completed",
+			"answer_text": "本科生可申请国家奖学金。",
+			"confidence":  "medium",
+			"result": map[string]any{
+				"diagnostics": map[string]any{
+					"prompt_runtime_state": "rag_sdk_completed",
+					"rag_sdk_trace_projection": map[string]any{
+						"schema_version": "rag-sdk-trace-projection-v1",
+						"rawPrompt":      "forbidden",
+					},
+				},
+			},
+			"agent_observability": map[string]any{
+				"selected_tool":  "retrieval.query",
+				"tool_attempted": true,
+				"tool_outcome":   "rag_sdk_completed",
+				"safe_details": map[string]any{
+					"rag_sdk_trace_projection": map[string]any{
+						"schema_version": "rag-sdk-trace-projection-v1",
+						"rollout_mode":   "candidate",
+						"runtime":        "openai_agents_sdk",
+					},
+				},
+			},
+		},
+		"trace-finalizer-rag-sdk-result-raw",
+		supervisorFinalizerContext{
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				ScopeGateDecision:  "allow",
+				PolicyGateDecision: "allow",
+				RoutingNextAction:  "delegate",
+				PlanningOutcome:    "preplanned",
+				SelectedTarget:     "rag-agent",
+				SelectedTool:       "retrieval.query",
+			},
+			Handoff: &execution.RuntimeHandoff{
+				Target:       "rag-agent",
+				PayloadKind:  "rag_request",
+				Payload:      map[string]any{"scope": map[string]any{"corpus": "regulations", "collection": "student_rules"}},
+				AllowedTools: []string{"retrieval.query"},
+			},
+			Branch:       "delegate",
+			SelectedTool: "retrieval.query",
+		},
+	)
+
+	if err == nil {
+		t.Fatal("expected raw RAG SDK result diagnostics to be rejected")
+	}
+}
+
 func TestFinalizeAgentBridgeResponseRejectsUnsupportedTarget(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{

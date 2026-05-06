@@ -71,6 +71,32 @@ def profile_answer_expectation(
             "json",
             (200,),
         )
+    if profile == "rag_delegate_sdk_candidate":
+        return (
+            {
+                "user_goal": "公费医疗报销",
+                "request_id": "process-smoke-rag-delegate-sdk-candidate",
+                "requested_capability": "knowledge",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_rules",
+                },
+                "context": context,
+            },
+            200,
+            (
+                "workflow_trace_summary",
+                "agent_execution_projection",
+                "rag-agent",
+                "retrieval.query",
+                "rag_sdk_completed",
+                "rag-sdk-trace-projection-v1",
+                "中央民族大学学生公费医疗管理办法",
+            ),
+            "/api/v1/answer",
+            "json",
+            (200,),
+        )
     if profile == "rag_delegate_institutional_rules":
         institutional_rules_context = {
             **context,

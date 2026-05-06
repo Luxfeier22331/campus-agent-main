@@ -165,6 +165,92 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
         self.assertEqual(ranked[0].chunk_id, "undergraduate-reference-fact")
         self.assertEqual(ranked[-1].chunk_id, "undergraduate-boilerplate")
 
+    def test_prioritize_evidence_sources_prefers_positive_procedure_over_negative_exception_for_action_query(
+        self,
+    ) -> None:
+        ranked = prioritize_evidence_sources(
+            query_text="处分怎么消",
+            sources=(
+                _make_source(
+                    doc_id="handbook:demerit-relief",
+                    chunk_id="discipline-negative-exception",
+                    snippet="第六条 有下列情形之一的，不予解除处分。",
+                    score=0.94,
+                    collection="student_rules",
+                    source_title="中央民族大学解除学生纪律处分实施办法",
+                    content_kind="text",
+                    content_role="procedure",
+                    detail_label="第六条",
+                    is_answer_bearing=True,
+                    semantic_role="exception",
+                    polarity="negative",
+                    action_type="lift_discipline",
+                    claim_type="cannot_do",
+                ),
+                _make_source(
+                    doc_id="handbook:demerit-relief",
+                    chunk_id="discipline-positive-procedure",
+                    snippet="第三条 学生受处分满考察期后，可以申请解除纪律处分。",
+                    score=0.68,
+                    collection="student_rules",
+                    source_title="中央民族大学解除学生纪律处分实施办法",
+                    content_kind="text",
+                    content_role="procedure",
+                    detail_label="第三条",
+                    is_answer_bearing=True,
+                    semantic_role="procedure_step",
+                    polarity="positive",
+                    action_type="lift_discipline",
+                    claim_type="procedure",
+                ),
+            ),
+        )
+
+        self.assertEqual(ranked[0].chunk_id, "discipline-positive-procedure")
+
+    def test_prioritize_evidence_sources_preserves_negative_exception_for_negative_query(
+        self,
+    ) -> None:
+        ranked = prioritize_evidence_sources(
+            query_text="哪些情况不能解除处分",
+            sources=(
+                _make_source(
+                    doc_id="handbook:demerit-relief",
+                    chunk_id="discipline-positive-procedure",
+                    snippet="第三条 学生受处分满考察期后，可以申请解除纪律处分。",
+                    score=0.68,
+                    collection="student_rules",
+                    source_title="中央民族大学解除学生纪律处分实施办法",
+                    content_kind="text",
+                    content_role="procedure",
+                    detail_label="第三条",
+                    is_answer_bearing=True,
+                    semantic_role="procedure_step",
+                    polarity="positive",
+                    action_type="lift_discipline",
+                    claim_type="procedure",
+                ),
+                _make_source(
+                    doc_id="handbook:demerit-relief",
+                    chunk_id="discipline-negative-exception",
+                    snippet="第六条 有下列情形之一的，不予解除处分。",
+                    score=0.61,
+                    collection="student_rules",
+                    source_title="中央民族大学解除学生纪律处分实施办法",
+                    content_kind="text",
+                    content_role="procedure",
+                    detail_label="第六条",
+                    is_answer_bearing=True,
+                    semantic_role="exception",
+                    polarity="negative",
+                    action_type="lift_discipline",
+                    claim_type="cannot_do",
+                ),
+            ),
+        )
+
+        self.assertEqual(ranked[0].chunk_id, "discipline-negative-exception")
+
     def test_build_evidence_sources_maps_structural_metadata_into_contract_fields(self) -> None:
         registry = InMemoryDocumentRegistry()
         embedding_model = build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8))
@@ -201,6 +287,13 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
                         "unit_type": "article_body",
                         "content_role": "procedure",
                         "is_answer_bearing": True,
+                        "semantic_role": "procedure_step",
+                        "polarity": "positive",
+                        "action_type": "reissue",
+                        "claim_type": "procedure",
+                        "audience_scope": "undergraduate",
+                        "article_no": "第十二条",
+                        "section_kind": "body",
                         "anchor": {
                             "section_path": ["第三章 学籍管理", "学生证管理"],
                             "article_label": "第十二条",
@@ -218,6 +311,13 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
         self.assertEqual(sources[0].content_role, "procedure")
         self.assertEqual(sources[0].detail_label, "第十二条")
         self.assertTrue(sources[0].is_answer_bearing)
+        self.assertEqual(sources[0].semantic_role, "procedure_step")
+        self.assertEqual(sources[0].polarity, "positive")
+        self.assertEqual(sources[0].action_type, "reissue")
+        self.assertEqual(sources[0].claim_type, "procedure")
+        self.assertEqual(sources[0].audience_scope, "undergraduate")
+        self.assertEqual(sources[0].article_no, "第十二条")
+        self.assertEqual(sources[0].section_kind, "body")
 
     def test_build_evidence_sources_recovers_legacy_policy_page_body_from_preface_text(
         self,

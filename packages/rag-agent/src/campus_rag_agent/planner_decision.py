@@ -135,6 +135,16 @@ def _entity_resolution_summary(
             ambiguity_reason=curriculum_program_family_plan.clarification_reason,
         )
     if handbook_plan is not None:
+        if handbook_plan.task_kind == "category_discovery":
+            return RagEntityResolutionSummary(
+                resolution_status="resolved",
+                entity_type="policy_category",
+                canonical_id=handbook_plan.category_id,
+                canonical_title=handbook_plan.category_display_name,
+                target_collection=retrieval_collection,
+                resolution_source="policy_category_registry",
+                confidence=0.9,
+            )
         if handbook_plan.status == "resolved":
             return RagEntityResolutionSummary(
                 resolution_status="resolved",

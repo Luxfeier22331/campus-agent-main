@@ -24,6 +24,7 @@ from .service_outcomes import (
 from .service_pipeline import build_rag_pipeline_context
 from .service_planner_stage import execute_rag_planner_stage
 from .service_preflight import _maybe_return_pre_retrieval_response
+from .rag_sdk_service import RagSdkRunner, maybe_build_rag_sdk_response
 from .service_response_text import _resolve_no_answer_semantics
 from .service_retrieval import retrieve_sources
 from .service_retrieval_stage import execute_rag_retrieval_stage
@@ -43,6 +44,8 @@ def delegate_to_rag_agent(
     prompt_executor: RagPromptExecutor | None = None,
     retrieval_observation_sink: RetrievalObservationSink | None = None,
     include_retrieval_observation_query_text: bool = False,
+    rag_sdk_runner: RagSdkRunner | None = None,
+    rag_sdk_rollout_mode: str = "closed",
 ) -> AgentResponse:
     return with_rag_agent_observability(
         _build_rag_agent_response(
@@ -51,6 +54,8 @@ def delegate_to_rag_agent(
             prompt_executor=prompt_executor,
             retrieval_observation_sink=retrieval_observation_sink,
             include_retrieval_observation_query_text=include_retrieval_observation_query_text,
+            rag_sdk_runner=rag_sdk_runner,
+            rag_sdk_rollout_mode=rag_sdk_rollout_mode,
         )
     )
 
@@ -62,6 +67,8 @@ def _build_rag_agent_response(
     prompt_executor: RagPromptExecutor | None = None,
     retrieval_observation_sink: RetrievalObservationSink | None = None,
     include_retrieval_observation_query_text: bool = False,
+    rag_sdk_runner: RagSdkRunner | None = None,
+    rag_sdk_rollout_mode: str = "closed",
 ) -> AgentResponse:
     if request.target != "rag-agent":
         raise ValueError("delegate_to_rag_agent only accepts target='rag-agent'")
@@ -184,6 +191,7 @@ def _build_rag_agent_response(
     evidence_selection_stage = execute_rag_evidence_selection_stage(
         retrieved_evidence=evidence,
         version_answer_context=version_answer_context,
+        handbook_plan=handbook_plan,
         curriculum_plan=curriculum_plan,
         curriculum_course_plan=curriculum_course_plan,
         retrieval_execution_result=retrieval_execution_result,
@@ -226,6 +234,28 @@ def _build_rag_agent_response(
     )
     if fail_closed_response is not None:
         return fail_closed_response
+
+    sdk_response = maybe_build_rag_sdk_response(
+        request=request,
+        resolved_scope=effective_scope,
+        user_goal=user_goal,
+        supporting_evidence=supporting_evidence,
+        retrieved_evidence=evidence,
+        retrieval_plan=retrieval_plan,
+        retrieval_execution_result=retrieval_execution_result,
+        handbook_plan=handbook_plan,
+        curriculum_plan=curriculum_plan,
+        curriculum_course_plan=curriculum_course_plan,
+        curriculum_program_family_plan=curriculum_program_family_plan,
+        confidence=confidence,
+        intent_frame=intent_frame,
+        runner=rag_sdk_runner,
+        rollout_mode=rag_sdk_rollout_mode,
+        planner_information_needs=planner_information_needs,
+        projection_context_summaries=projection_context_summaries,
+    )
+    if sdk_response is not None:
+        return sdk_response
 
     if version_answer_context.mode in {"historical", "as_of", "compare"}:
         return _build_version_aware_completed_response(

@@ -43,11 +43,12 @@ def build_semantic_replan_decision(
             attempted=False,
             fail_close_reason=f"unsupported_replan_trigger:{last_result.status}",
         )
+    trigger_reason = _trigger_reason(last_result)
     triggering_step = _step_by_id(plan, last_result.step_id)
     if triggering_step is None:
         return SemanticReplanDecision(
             attempted=True,
-            trigger_reason="empty_supporting_evidence",
+            trigger_reason=trigger_reason,
             fail_close_reason="triggering_step_not_found",
         )
     if triggering_step.step_type not in {
@@ -57,7 +58,7 @@ def build_semantic_replan_decision(
     }:
         return SemanticReplanDecision(
             attempted=True,
-            trigger_reason="empty_supporting_evidence",
+            trigger_reason=trigger_reason,
             fail_close_reason="unsupported_step_type",
         )
     follow_up_need_ids = _focused_replan_need_ids(triggering_step.need_ids)
@@ -89,9 +90,18 @@ def build_semantic_replan_decision(
     )
     return SemanticReplanDecision(
         attempted=True,
-        trigger_reason="empty_supporting_evidence",
+        trigger_reason=trigger_reason,
         planned_steps=(follow_up,),
     )
+
+
+def _trigger_reason(last_result: RetrievalStepResult) -> str:
+    if (
+        last_result.activity is not None
+        and last_result.activity.failure_kind == "polarity_conflict"
+    ):
+        return "polarity_conflict"
+    return "empty_supporting_evidence"
 
 
 def _step_by_id(plan: RetrievalPlan, step_id: str) -> RetrievalStep | None:
@@ -113,6 +123,8 @@ def _focused_replan_need_ids(need_ids: tuple[str, ...]) -> tuple[str, ...]:
 
 def _focused_replan_query(*, query_text: str, need_ids: tuple[str, ...]) -> str:
     if any(need_id.endswith(":procedure") for need_id in need_ids):
+        if _is_lift_discipline_procedure_query(query_text):
+            return "解除处分 申请 条件 程序 办理步骤"
         topic = _query_topic_before_first_need_marker(query_text)
         if _is_loss_or_reissue_procedure_query(query_text):
             return f"{topic} 挂失 补办 办理步骤".strip()
@@ -155,6 +167,11 @@ def _query_topic_before_first_need_marker(query_text: str) -> str:
 def _is_loss_or_reissue_procedure_query(query_text: str) -> bool:
     normalized = query_text.strip().lower()
     return any(token in normalized for token in ("丢", "遗失", "挂失", "补办", "补卡", "补证"))
+
+
+def _is_lift_discipline_procedure_query(query_text: str) -> bool:
+    normalized = query_text.strip().lower()
+    return any(token in normalized for token in ("解除处分", "处分怎么消", "消处分", "纪律处分"))
 
 
 __all__ = [

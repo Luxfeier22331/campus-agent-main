@@ -197,6 +197,11 @@ def maybe_build_evidence_clarification_response(
     effective_user_goal: str,
     evidence: EvidenceBundle,
 ) -> AgentResponse | None:
+    if (
+        context.handbook_plan is not None
+        and getattr(context.handbook_plan, "task_kind", "") == "category_discovery"
+    ):
+        return None
     if not _should_clarify_with_evidence(effective_user_goal, evidence):
         return None
     follow_up_question, prompt_trace, prompt_runtime_state, prompt_runtime_detail = (

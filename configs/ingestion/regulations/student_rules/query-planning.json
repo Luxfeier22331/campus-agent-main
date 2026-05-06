@@ -33,6 +33,11 @@
 			"aliases": ["专项奖", "专项奖学金", "专项奖学金评定办法"]
 		},
 		{
+			"document_id": "handbook:aa835b8cd4acddb62c7243fed9a9f8c0728e68bc",
+			"title": "中央民族大学社会奖助学金管理办法",
+			"aliases": ["社会奖学金", "社会奖助学金", "社会奖助学金管理办法"]
+		},
+		{
 			"document_id": "handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7",
 			"title": "中央民族大学本科学生综合素质测评办法",
 			"aliases": ["综测", "综合测评", "综合素质测评", "综合素质测评办法", "测评办法"]
@@ -40,17 +45,40 @@
 		{
 			"document_id": "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
 			"title": "中央民族大学本科(预科)学生证管理办法",
-			"aliases": ["学生证", "学生证丢了", "学生证丢失", "学生证遗失", "学生证补办", "补办学生证"]
+			"aliases": [
+				"学生证",
+				"学生证丢了",
+				"学生证丢失",
+				"学生证遗失",
+				"学生证补办",
+				"补办学生证",
+				"学生证怎么办",
+				"学生证管理"
+			]
 		},
 		{
 			"document_id": "handbook:742d4831bfb443b99323041e263fac2fd9aafcf6",
 			"title": "中央民族大学全日制本科学生学士学位授予规定",
-			"aliases": ["学位申请", "申请学位", "毕业前申请学位", "学士学位授予规定", "学位授予规定"]
+			"aliases": [
+				"学位",
+				"学位要求",
+				"学位有什么要求",
+				"学位条件",
+				"学位申请",
+				"申请学位",
+				"毕业前申请学位",
+				"学士学位",
+				"学士学位授予规定",
+				"学位授予规定"
+			]
 		},
 		{
 			"document_id": "handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8",
 			"title": "中央民族大学解除学生纪律处分实施办法",
 			"aliases": [
+				"处分怎么消",
+				"处分怎么解除",
+				"消处分",
 				"解除处分",
 				"解除学生纪律处分",
 				"申请解除处分",
@@ -62,7 +90,52 @@
 		{
 			"document_id": "handbook:1e404fb7e280b32c46f09280590255c57e6bd72d",
 			"title": "中央民族大学学生申诉管理办法",
-			"aliases": ["处分申诉", "处分决定不服", "不服处分决定", "学生申诉", "申诉管理", "申诉管理办法"]
+			"aliases": [
+				"申诉",
+				"我想申诉",
+				"申诉怎么办",
+				"处分申诉",
+				"处分决定不服",
+				"不服处分决定",
+				"学生申诉",
+				"申诉管理",
+				"申诉管理办法"
+			]
+		}
+	],
+	"policy_categories": [
+		{
+			"category_id": "scholarship",
+			"display_name": "奖学金",
+			"aliases": ["奖学金", "资助", "奖励", "奖助学金"],
+			"audience": "本科生",
+			"member_policy_document_ids": [
+				"handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+				"handbook:1f17ba6234c15963648b3d74656d78621cad77a7",
+				"handbook:60c8b33801e2e59e6db2210719592a6252e3516d",
+				"handbook:a531a3c85de862c737d0576e957bf59598822c54",
+				"handbook:aa835b8cd4acddb62c7243fed9a9f8c0728e68bc"
+			]
+		},
+		{
+			"category_id": "student_status",
+			"display_name": "学籍",
+			"aliases": ["学籍", "学生身份", "学生证", "学位", "学籍有关", "学籍相关"],
+			"audience": "本科生",
+			"member_policy_document_ids": [
+				"handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+				"handbook:742d4831bfb443b99323041e263fac2fd9aafcf6"
+			]
+		},
+		{
+			"category_id": "discipline",
+			"display_name": "处分",
+			"aliases": ["处分", "纪律处分", "处分相关", "处分规定", "处分申诉"],
+			"audience": "学生",
+			"member_policy_document_ids": [
+				"handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8",
+				"handbook:1e404fb7e280b32c46f09280590255c57e6bd72d"
+			]
 		}
 	]
 }

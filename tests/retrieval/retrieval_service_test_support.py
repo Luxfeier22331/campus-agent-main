@@ -19,6 +19,10 @@ def _make_source(
     content_kind: str = "",
     detail_label: str = "",
     is_answer_bearing: bool = False,
+    semantic_role: str = "",
+    polarity: str = "",
+    action_type: str = "",
+    claim_type: str = "",
 ) -> EvidenceSource:
     return EvidenceSource(
         doc_id=doc_id,
@@ -38,4 +42,8 @@ def _make_source(
         content_kind=content_kind,
         detail_label=detail_label,
         is_answer_bearing=is_answer_bearing,
+        semantic_role=semantic_role,
+        polarity=polarity,
+        action_type=action_type,
+        claim_type=claim_type,
     )

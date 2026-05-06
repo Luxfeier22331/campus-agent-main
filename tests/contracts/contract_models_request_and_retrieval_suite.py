@@ -386,6 +386,43 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                 source_trust_tier="T0-derived",
             )
 
+    def test_evidence_source_serializes_semantic_selection_metadata_fields(self) -> None:
+        source = EvidenceSource(
+            doc_id="handbook:demerit-relief",
+            revision_track="source-faithful",
+            version_id="v1:demerit-relief",
+            chunk_id="handbook:demerit-relief:chunk-0003",
+            anchor={"section_path": ["解除处分"], "article_label": "第三条"},
+            canonical_url="https://campus.example/handbook/demerit-relief",
+            latest_url="https://campus.example/handbook/demerit-relief",
+            source_channel="pdf_ocr",
+            collection="student_rules",
+            is_current=True,
+            snippet="学生受处分满考察期后，可以申请解除纪律处分。",
+            score=0.91,
+            source_title="中央民族大学解除学生纪律处分实施办法",
+            content_role="procedure",
+            is_answer_bearing=True,
+            semantic_role="procedure_step",
+            polarity="positive",
+            action_type="lift_discipline",
+            claim_type="procedure",
+            audience_scope="all_students",
+            article_no="第三条",
+            clause_no="",
+            section_kind="body",
+        )
+
+        payload = asdict(source)
+
+        self.assertEqual(payload["semantic_role"], "procedure_step")
+        self.assertEqual(payload["polarity"], "positive")
+        self.assertEqual(payload["action_type"], "lift_discipline")
+        self.assertEqual(payload["claim_type"], "procedure")
+        self.assertEqual(payload["audience_scope"], "all_students")
+        self.assertEqual(payload["article_no"], "第三条")
+        self.assertEqual(payload["section_kind"], "body")
+
     def test_evidence_source_rejects_unknown_remote_content_suspicion_label(self) -> None:
         with self.assertRaises(ValueError):
             EvidenceSource(

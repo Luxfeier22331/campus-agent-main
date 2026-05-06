@@ -256,6 +256,113 @@ class RetrievalServiceReplanExecutionTest(unittest.TestCase):
             ("student-card-procedure",),
         )
 
+    def test_execute_retrieval_plan_replans_when_top_grounding_conflicts_with_query_polarity(
+        self,
+    ) -> None:
+        seen_requests: list[RetrievalRequest] = []
+
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            seen_requests.append(request)
+            if len(seen_requests) == 1:
+                return EvidenceBundle(
+                    query_text=request.query_text,
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    sources=(
+                        _make_source(
+                            chunk_id="discipline-negative-exception",
+                            doc_id="handbook:demerit-relief",
+                            source_title="中央民族大学解除学生纪律处分实施办法",
+                            snippet="第六条 有下列情形之一的，不予解除处分。",
+                            score=0.93,
+                            content_role="procedure",
+                            is_answer_bearing=True,
+                            semantic_role="exception",
+                            polarity="negative",
+                            action_type="lift_discipline",
+                            claim_type="cannot_do",
+                        ),
+                    ),
+                )
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(
+                    _make_source(
+                        chunk_id="discipline-positive-procedure",
+                        doc_id="handbook:demerit-relief",
+                        source_title="中央民族大学解除学生纪律处分实施办法",
+                        snippet="学生受处分满考察期后，可以申请解除纪律处分。",
+                        score=0.72,
+                        content_role="procedure",
+                        is_answer_bearing=True,
+                        semantic_role="procedure_step",
+                        polarity="positive",
+                        action_type="lift_discipline",
+                        claim_type="procedure",
+                    ),
+                ),
+            )
+
+        plan = RetrievalPlan(
+            plan_id="regulations:student_rules:polarity-replan",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            budget=RetrievalPlanBudget(max_steps=2, max_replans=1),
+            steps=(
+                RetrievalStep(
+                    step_id="indexed-lookup",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text="处分怎么消",
+                    need_ids=("need:1:procedure",),
+                    selector=RetrievalSelector(target_document_ids=("handbook:demerit-relief",)),
+                    budget=RetrievalStepBudget(top_k=2),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(
+            plan,
+            retrieve_step=fake_retrieve_step,
+            replan_callback=lambda _plan, _results, last_result: (
+                (
+                    RetrievalStep(
+                        step_id="indexed-lookup-semantic-replan",
+                        step_type="indexed_lookup",
+                        scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                        query_text="解除处分 申请 条件 程序 办理步骤",
+                        need_ids=last_result.activity.need_ids if last_result.activity else (),
+                        depends_on_step_ids=(last_result.step_id,),
+                        selector=RetrievalSelector(
+                            target_document_ids=("handbook:demerit-relief",)
+                        ),
+                        budget=RetrievalStepBudget(top_k=2),
+                    ),
+                )
+                if last_result.status == "empty"
+                else ()
+            ),
+        )
+
+        self.assertEqual(
+            [request.query_text for request in seen_requests],
+            ["处分怎么消", "解除处分 申请 条件 程序 办理步骤"],
+        )
+        self.assertEqual(result.replan_count, 1)
+        self.assertEqual(
+            tuple(step_result.status for step_result in result.step_results),
+            ("empty", "succeeded"),
+        )
+        self.assertEqual(
+            result.step_results[0].references[0].chunk_id, "discipline-negative-exception"
+        )
+        self.assertEqual(
+            tuple(source.chunk_id for source in result.merged_evidence.sources),
+            ("discipline-positive-procedure",),
+        )
+
     def test_execute_retrieval_plan_emits_sanitized_monitoring_observation_without_raw_query(
         self,
     ) -> None:

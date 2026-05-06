@@ -110,11 +110,11 @@ func finalizeAgentBridgeResponse(
 		return nil, errInvalidAgentResponse
 	}
 	result, err := optionalAgentResponseObject(agentResponse, "result")
-	if err != nil {
+	if err != nil || hasForbiddenWorkflowTraceKey(result) {
 		return nil, errInvalidAgentResponse
 	}
 	errorBody, err := optionalAgentResponseObject(agentResponse, "error")
-	if err != nil {
+	if err != nil || hasForbiddenWorkflowTraceKey(errorBody) {
 		return nil, errInvalidAgentResponse
 	}
 	agentObservability, err := optionalAgentResponseObject(agentResponse, "agent_observability")

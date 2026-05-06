@@ -48,9 +48,14 @@ _CURRICULUM_PLAN_NEGATIVE_ROLES = frozenset(
 )
 
 
-def derive_confidence(evidence: EvidenceBundle) -> str:
+def derive_confidence(evidence: EvidenceBundle, *, handbook_plan=None) -> str:
     if not evidence.sources:
         return "low"
+    if (
+        handbook_plan is not None
+        and getattr(handbook_plan, "task_kind", "") == "category_discovery"
+    ):
+        return _derive_category_discovery_confidence(evidence, handbook_plan=handbook_plan)
 
     supporting_sources = select_supporting_evidence_sources(
         query_text=evidence.query_text,
@@ -133,6 +138,29 @@ def derive_confidence(evidence: EvidenceBundle) -> str:
     ):
         return "medium"
     if top_score >= 0.55 and medium_support_count >= 1:
+        return "medium"
+    return "low"
+
+
+def _derive_category_discovery_confidence(evidence: EvidenceBundle, *, handbook_plan) -> str:
+    member_document_ids = tuple(getattr(handbook_plan, "category_member_document_ids", ()) or ())
+    if not member_document_ids:
+        return "low"
+    member_set = set(member_document_ids)
+    positive_member_doc_ids = {
+        source.doc_id
+        for source in evidence.sources
+        if source.doc_id in member_set
+        and _has_positive_answer_support(
+            source,
+            query_text=evidence.query_text,
+            corpus=evidence.corpus,
+            collection=evidence.collection,
+        )
+    }
+    if len(positive_member_doc_ids) >= min(3, len(member_set)):
+        return "medium"
+    if len(positive_member_doc_ids) >= 2 and len(member_set) <= 3:
         return "medium"
     return "low"
 

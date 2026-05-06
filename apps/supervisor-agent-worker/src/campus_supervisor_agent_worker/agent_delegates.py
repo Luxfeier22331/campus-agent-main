@@ -82,6 +82,7 @@ def bind_agent_handler(
             http_client=prompt_http_client,
         ),
         agents_sdk_runner=_build_agents_sdk_runner(settings),
+        rag_sdk_runner=_build_rag_agents_sdk_runner(settings),
     )
 
     return lambda request, runtime_agent_request: dispatch_agent_request(
@@ -100,6 +101,7 @@ def _build_agent_delegates(
     calendar_query_service: CalendarHTTPQueryService | None = None,
     provider_tool_provider: ProviderFunctionToolProvider | None = None,
     agents_sdk_runner: AgentsSdkRunner | None = None,
+    rag_sdk_runner=None,
 ) -> dict[str, AgentDelegate]:
     retrieval_jsonl_observation_sink = (
         build_jsonl_retrieval_observation_sink(settings.retrieval_observation_jsonl_path)
@@ -125,6 +127,8 @@ def _build_agent_delegates(
             include_retrieval_observation_query_text=(
                 settings.retrieval_observation_include_query_text
             ),
+            rag_sdk_runner=rag_sdk_runner,
+            rag_sdk_rollout_mode=("candidate" if rag_sdk_runner is not None else "closed"),
         ),
         "navigation-agent": delegate_to_navigation_agent,
         "campus-services-agent": delegate_to_campus_services_agent,
@@ -599,3 +603,54 @@ def _build_agents_sdk_runner(settings: ApiSettings) -> AgentsSdkRunner | None:
         provider_config=provider_config,
         model_name=settings.agent_prompt_model,
     )
+
+
+def _build_rag_agents_sdk_runner(settings: ApiSettings):
+    if not settings.agents_sdk_runtime_enabled:
+        return None
+    provider = settings.prompt_runtime_provider or settings.runtime_provider
+    model_name = _resolve_rag_agents_sdk_model_name(settings)
+    if provider == "mock-runtime":
+        if not model_name:
+            return None
+        from campus_supervisor_agent_worker.rag_agents_sdk_mock_runner import (
+            MockRagAgentsSdkRunner,
+        )
+
+        return MockRagAgentsSdkRunner()
+    if not provider or not settings.prompt_runtime_api_key or not model_name:
+        return None
+    try:
+        provider_config = PromptRuntimeProviderConfig(
+            provider=provider,
+            transport=settings.prompt_runtime_transport,  # type: ignore[arg-type]
+            api_key=settings.prompt_runtime_api_key,
+            base_url=settings.prompt_runtime_base_url,
+            reasoning_effort=settings.prompt_runtime_reasoning_effort,
+            max_output_tokens=settings.prompt_runtime_max_output_tokens,
+            http_settings=PromptRuntimeHTTPSettings(
+                connect_timeout_seconds=settings.prompt_runtime_connect_timeout_seconds,
+                read_timeout_seconds=settings.prompt_runtime_read_timeout_seconds,
+                write_timeout_seconds=settings.prompt_runtime_write_timeout_seconds,
+                pool_timeout_seconds=settings.prompt_runtime_pool_timeout_seconds,
+                max_connections=settings.prompt_runtime_max_connections,
+                max_keepalive_connections=settings.prompt_runtime_max_keepalive_connections,
+                keepalive_expiry_seconds=settings.prompt_runtime_keepalive_expiry_seconds,
+            ),
+        )
+    except ValueError:
+        return None
+    try:
+        from campus_supervisor_agent_worker.rag_agents_sdk_openai_runner import (
+            OpenAIRagAgentsSdkRunner,
+        )
+    except ImportError:
+        return None
+    return OpenAIRagAgentsSdkRunner(
+        provider_config=provider_config,
+        model_name=model_name,
+    )
+
+
+def _resolve_rag_agents_sdk_model_name(settings: ApiSettings) -> str:
+    return (settings.agent_prompt_model or settings.prompt_runtime_model).strip()

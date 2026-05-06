@@ -15,7 +15,6 @@ from tests.agent.rag_agent_test_support import (
     RagClarifyPromptOutput,
     RagPromptExecutionResult,
     RagRequestPayload,
-    RagResultPayload,
     ResolvedVersionQuery,
     ResolvedVersionSelection,
     SessionSlot,
@@ -56,15 +55,21 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
         self.assertIn("具体", response.follow_up_question)
         self.assertEqual(response.confidence, "low")
         self.assertEqual(
-            response.result,
-            RagResultPayload(
-                evidence=EvidenceBundle(
-                    query_text="这个规定怎么办理？",
-                    corpus="regulations",
-                    collection="student_rules",
-                )
+            response.result.evidence,
+            EvidenceBundle(
+                query_text="这个规定怎么办理？",
+                corpus="regulations",
+                collection="student_rules",
             ),
         )
+        self.assertEqual(response.result.diagnostics.resolved_scope_corpus, "regulations")
+        self.assertEqual(response.result.diagnostics.resolved_scope_collection, "student_rules")
+        self.assertEqual(
+            response.result.diagnostics.clarification_reason,
+            "policy_object_missing",
+        )
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "ambiguous")
+        self.assertTrue(response.result.diagnostics.stage_activities)
         self.assertFalse(retriever_called)
 
     def test_referential_question_uses_injected_prompt_executor_for_clarification(self) -> None:

@@ -11,6 +11,7 @@ from campus_rag_agent.agent import DEFAULT_MAX_ANSWER_SOURCES
 from campus_rag_agent.query_planning import (
     CurriculumCourseQueryPlan,
     CurriculumQueryPlan,
+    HandbookQueryPlan,
 )
 
 from .service_versioning_context import _VersionAnswerContext
@@ -20,12 +21,14 @@ def _build_version_aware_supporting_evidence(
     evidence: EvidenceBundle,
     *,
     version_answer_context: _VersionAnswerContext,
+    handbook_plan: HandbookQueryPlan | None = None,
     curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
 ) -> EvidenceBundle:
     if version_answer_context.mode != "compare":
         return _build_supporting_evidence(
             evidence,
+            handbook_plan=handbook_plan,
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
         )
@@ -116,11 +119,24 @@ def _is_compare_support_incomplete(
 def _build_supporting_evidence(
     evidence: EvidenceBundle,
     *,
+    handbook_plan: HandbookQueryPlan | None = None,
     curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
 ) -> EvidenceBundle:
     max_sources = DEFAULT_MAX_ANSWER_SOURCES
-    if (
+    if handbook_plan is not None and handbook_plan.task_kind == "category_discovery":
+        max_sources = max(DEFAULT_MAX_ANSWER_SOURCES, len(handbook_plan.preferred_document_ids), 8)
+        return EvidenceBundle(
+            query_text=evidence.query_text,
+            corpus=evidence.corpus,
+            collection=evidence.collection,
+            sources=_select_category_discovery_support_sources(
+                evidence=evidence,
+                member_document_ids=handbook_plan.preferred_document_ids,
+                max_sources=max_sources,
+            ),
+        )
+    elif (
         curriculum_course_plan is not None
         and curriculum_course_plan.entity_type == "course_family"
         and curriculum_course_plan.fact_intent == "schedule"
@@ -138,6 +154,93 @@ def _build_supporting_evidence(
             max_sources=max_sources,
         ),
     )
+
+
+def _select_category_discovery_support_sources(
+    *,
+    evidence: EvidenceBundle,
+    member_document_ids: tuple[str, ...],
+    max_sources: int,
+) -> tuple[EvidenceSource, ...]:
+    if max_sources <= 0:
+        return ()
+    sources_by_doc_id: dict[str, list[EvidenceSource]] = {}
+    for source in evidence.sources:
+        sources_by_doc_id.setdefault(source.doc_id, []).append(source)
+
+    selected: list[EvidenceSource] = []
+    seen_chunk_ids: set[str] = set()
+    for document_id in member_document_ids:
+        source = _best_category_source(sources_by_doc_id.get(document_id, ()))
+        if source is None or source.chunk_id in seen_chunk_ids:
+            continue
+        selected.append(source)
+        seen_chunk_ids.add(source.chunk_id)
+        if len(selected) >= max_sources:
+            return tuple(selected)
+
+    if len(selected) >= max_sources:
+        return tuple(selected)
+    for source in select_supporting_evidence_sources(
+        query_text=evidence.query_text,
+        sources=evidence.sources,
+        max_sources=max_sources,
+    ):
+        if source.chunk_id in seen_chunk_ids:
+            continue
+        selected.append(source)
+        seen_chunk_ids.add(source.chunk_id)
+        if len(selected) >= max_sources:
+            break
+    return tuple(selected)
+
+
+def _best_category_source(sources: tuple[EvidenceSource, ...] | list[EvidenceSource]):
+    if not sources:
+        return None
+    return max(
+        sources,
+        key=_category_source_sort_key,
+    )
+
+
+def _category_source_sort_key(source: EvidenceSource) -> tuple[int, int, int, float]:
+    return (
+        _category_source_role_priority(source),
+        _category_source_text_priority(source),
+        1 if source.is_answer_bearing else 0,
+        source.score,
+    )
+
+
+def _category_source_role_priority(source: EvidenceSource) -> int:
+    role = source.content_role.strip()
+    if role in {"definition", "overview", "summary", "audience", "scope_rule"}:
+        return 4
+    if role in {"primary_content", "eligibility"}:
+        return 3
+    if role in {"procedure", "requirement", "time_rule", "deadline"}:
+        return 1
+    return 2
+
+
+def _category_source_text_priority(source: EvidenceSource) -> int:
+    text = " ".join(
+        part
+        for part in (
+            source.detail_label,
+            *source.structural_path,
+            source.snippet,
+        )
+        if part
+    )
+    if any(cue in text for cue in ("奖励对象", "奖励资助对象", "评选对象", "适用范围", "总则")):
+        return 3
+    if any(cue in text for cue in ("不得", "不能", "不得同时", "不予", "取消")):
+        return 0
+    if any(cue in text for cue in ("申请", "评审程序", "评选条件", "同时申请")):
+        return 1
+    return 2
 
 
 __all__ = [

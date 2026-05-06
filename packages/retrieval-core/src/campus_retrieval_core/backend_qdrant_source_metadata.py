@@ -184,6 +184,56 @@ def _resolve_detail_label(
     return ""
 
 
+def _resolve_semantic_role(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("semantic_role")) or ""
+
+
+def _resolve_polarity(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("polarity")) or ""
+
+
+def _resolve_action_type(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("action_type")) or ""
+
+
+def _resolve_claim_type(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("claim_type")) or ""
+
+
+def _resolve_audience_scope(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("audience_scope")) or ""
+
+
+def _resolve_article_no(
+    metadata: dict[str, object],
+    *,
+    anchor: dict[str, object],
+) -> str:
+    return (
+        _optional_text(metadata.get("article_no"))
+        or _optional_text(anchor.get("article_no"))
+        or _optional_text(anchor.get("article_label"))
+        or ""
+    )
+
+
+def _resolve_clause_no(
+    metadata: dict[str, object],
+    *,
+    anchor: dict[str, object],
+) -> str:
+    return (
+        _optional_text(metadata.get("clause_no"))
+        or _optional_text(anchor.get("clause_no"))
+        or _optional_text(anchor.get("provision_label"))
+        or ""
+    )
+
+
+def _resolve_section_kind(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("section_kind")) or ""
+
+
 def _resolve_canonical_source_id(metadata: dict[str, object]) -> str:
     return (
         _optional_text(metadata.get("canonical_source_id"))

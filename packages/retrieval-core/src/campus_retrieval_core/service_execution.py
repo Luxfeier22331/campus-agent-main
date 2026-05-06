@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 
+from campus_retrieval_core.evidence_semantics import source_conflicts_with_query_polarity
 from campus_retrieval_core.models import (
     RetrievalPlan,
     RetrievalSelector,
@@ -135,11 +136,14 @@ def build_succeeded_step_result(
     reranker_degraded: bool = False,
     reranker_failure_kind: str = "",
 ) -> RetrievalStepResult:
-    grounding = _select_grounding_sources(evidence.sources)
+    grounding, grounding_failure_kind = _select_grounding_sources(
+        query_text=step.query_text,
+        sources=evidence.sources,
+    )
     status = "succeeded" if grounding else "empty"
     failure_kind = "reranker_degraded" if reranker_degraded else None
     if status == "empty" and evidence.sources:
-        failure_kind = "no_grounding"
+        failure_kind = grounding_failure_kind or "no_grounding"
     return RetrievalStepResult(
         step_id=step.step_id,
         status=status,
@@ -166,14 +170,39 @@ def build_succeeded_step_result(
     )
 
 
-def _select_grounding_sources(sources: tuple[EvidenceSource, ...]) -> tuple[EvidenceSource, ...]:
+def _select_grounding_sources(
+    *,
+    query_text: str,
+    sources: tuple[EvidenceSource, ...],
+) -> tuple[tuple[EvidenceSource, ...], str]:
     if not sources:
-        return ()
+        return (), ""
+    if (
+        sources
+        and source_conflicts_with_query_polarity(query_text=query_text, source=sources[0])
+        and not any(
+            _is_positive_grounding_source(source)
+            and not source_conflicts_with_query_polarity(query_text=query_text, source=source)
+            for source in sources
+        )
+    ):
+        return (), "polarity_conflict"
     if any(_is_positive_grounding_source(source) for source in sources):
-        return tuple(source for source in sources if not _is_negative_grounding_source(source))
+        return (
+            tuple(
+                source
+                for source in sources
+                if not _is_negative_grounding_source(source)
+                and not source_conflicts_with_query_polarity(
+                    query_text=query_text,
+                    source=source,
+                )
+            ),
+            "",
+        )
     if all(_is_negative_grounding_source(source) for source in sources):
-        return ()
-    return sources
+        return (), ""
+    return sources, ""
 
 
 def _is_positive_grounding_source(source: EvidenceSource) -> bool:

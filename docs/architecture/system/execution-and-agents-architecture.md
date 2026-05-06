@@ -604,6 +604,30 @@ repo-owned ToolSpec 派生；SDK run / trace / native state 不得进入
 notice slice 可运行；长期 latency / cost / error-rate 证据属于 observability 和 release
 gate 输入，不能反向作为保留旧 allowlist 技术债的理由。
 
+`rag-agent` 的 Agents SDK 接入是另一条内部 adapter lane，不属于 ToolSpec
+structured handoff。它固定遵循：
+
+- `retrieval.query` 保持 `agent_internal` / `closed`，不开放为 public ToolSpec、
+  provider tool 或 Go preplanned structured handoff tool
+- Go supervisor 仍拥有 admission、capability routing、workflow plan、opening gate 与
+  finalization；SDK 只承接 Python `rag-agent` 内部 semantic synthesis loop
+- `packages/rag-agent` 只定义 SDK-neutral `RagSdkRunRequest`、bounded evidence
+  projection、claim/list-item support 与 sanitized trace projection；官方 SDK import
+  保留在 `apps/supervisor-agent-worker`
+- SDK `FunctionTool` 只能读取 planner 已产生的 deterministic query slot 和 bounded evidence
+  anchors；模型不能提供 corpus、collection、authz filter、target document ids、version ids、
+  revision track、top-k 或 serving surface
+- accepted SDK output 必须把每个 factual claim 或 list item 绑定到返回 evidence 中的
+  `source_id + chunk_id + excerpt + span_ref`；source-id-only citation 不足以完成回答
+- native SDK tracing 默认关闭，进入 RAG diagnostics / observability 的只能是
+  repo-owned sanitized projection；raw prompt、raw transcript、raw provider response、
+  SDK run state 与 raw evidence dump 不得出现在 shared contracts、panel、
+  workflow trace 或 eval canonical artifact
+- rollout posture 固定为 `closed`、`candidate`、`shadow`、`default_on`、
+  `fallback_only`；当前实现从 worker 注入时以 `candidate` 进入，不新增 target-specific env
+  allowlist。缺 provider、model、API key 或 SDK dependency 时保持旧 deterministic RAG path，
+  而不是隐藏开启第二套 primary synthesis
+
 notice-family 的目标态需要把 agent-facing tool 与内部 query function 分开。通知用户面默认
 是 source-link / card-first：`title`、official URL、source family、发布时间、短摘要或
 匹配原因可以进入 answer/card；canonical body、OCR owner text、inline image text 与附件正文

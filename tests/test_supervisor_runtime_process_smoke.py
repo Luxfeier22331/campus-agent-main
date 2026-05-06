@@ -324,6 +324,11 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             output_dir=Path("/tmp/smoke"),
             profile="rag_delegate",
         )
+        rag_sdk = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="rag_delegate_sdk_candidate",
+        )
         institutional_rag = build_process_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/smoke"),
@@ -388,6 +393,20 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         self.assertIn("中央民族大学学生公费医疗管理办法", rag.expected_body_tokens)
         self.assertEqual(rag.answer_payload["requested_capability"], "knowledge")
         self.assertEqual(rag.answer_payload["user_goal"], "公费医疗报销")
+        rag_sdk_processes = {process.label: process for process in rag_sdk.processes}
+        self.assertEqual(rag_sdk.expected_status, 200)
+        self.assertEqual(rag_sdk.answer_payload["requested_capability"], "knowledge")
+        self.assertEqual(rag_sdk.answer_payload["user_goal"], "公费医疗报销")
+        self.assertEqual(
+            rag_sdk_processes["supervisor-agent-worker"].env[
+                "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED"
+            ],
+            "true",
+        )
+        self.assertIn("rag-agent", rag_sdk.expected_body_tokens)
+        self.assertIn("retrieval.query", rag_sdk.expected_body_tokens)
+        self.assertIn("rag_sdk_completed", rag_sdk.expected_body_tokens)
+        self.assertIn("rag-sdk-trace-projection-v1", rag_sdk.expected_body_tokens)
         self.assertEqual(institutional_rag.expected_status, 200)
         self.assertEqual(institutional_rag.answer_payload["requested_capability"], "knowledge")
         self.assertEqual(
@@ -423,7 +442,9 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         )
         transport_processes = {process.label: process for process in transport_schedule.processes}
         self.assertEqual(
-            transport_processes["supervisor-agent-worker"].env["SUPERVISOR_INTERNAL_QUERY_BASE_URL"],
+            transport_processes["supervisor-agent-worker"].env[
+                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
+            ],
             "http://127.0.0.1:27051",
         )
         self.assertEqual(
@@ -514,9 +535,7 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             "academic_calendar",
         )
         self.assertEqual(
-            academic_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
-            ],
+            academic_processes["supervisor-agent-worker"].env["SUPERVISOR_INTERNAL_QUERY_BASE_URL"],
             "http://127.0.0.1:27051",
         )
         self.assertIn("calendar-agent", academic_calendar.expected_body_tokens)

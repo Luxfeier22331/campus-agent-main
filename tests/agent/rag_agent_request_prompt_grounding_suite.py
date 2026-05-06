@@ -860,6 +860,37 @@ class RagAgentRequestPromptGroundingTest(unittest.TestCase):
         self.assertTrue(quantity_claim.supported)
         self.assertEqual(quantity_claim.support_source_trust_tier, "T0")
 
+    def test_validate_prompt_answer_grounding_accepts_chinese_arabic_year_unit_variants(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="民族学本科第二学士学位人才培养方案学制几年？",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id="curriculum:民族学本科第二学士学位人才培养方案",
+                    chunk_id="curriculum:民族学本科第二学士学位人才培养方案:chunk-0005",
+                    source_title="民族学本科第二学士学位人才培养方案",
+                    snippet="三、学制、总学分和学位授予 学制:2年 总学分:60学分。",
+                    score=0.93,
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        result = validate_prompt_answer_grounding(
+            answer_text="《民族学本科第二学士学位人才培养方案》学制为两年。",
+            evidence=evidence,
+        )
+
+        self.assertEqual(result.verdict, "grounded")
+        time_claim = next(
+            claim for claim in result.claim_supports if claim.claim_type == "time_or_deadline"
+        )
+        self.assertTrue(time_claim.supported)
+        self.assertEqual(time_claim.support_source_trust_tier, "T0")
+
     def test_validate_prompt_answer_grounding_accepts_total_credit_table_unit(
         self,
     ) -> None:

@@ -12,6 +12,7 @@ from campus_retrieval_core import RetrievalExecutionResult
 from campus_shared import PromptRuntimeValidationError, classify_prompt_runtime_failure
 
 from campus_rag_agent.agent import RagAgent
+from campus_rag_agent.agent_answer_shape import AnswerShape
 from campus_rag_agent.grounding_validation import validate_prompt_answer_grounding
 from campus_rag_agent.intent import RagIntentFrame
 from campus_rag_agent.prompt_execution import RagPromptExecutor
@@ -74,7 +75,16 @@ def build_grounded_answer_response(
         finalized_evidence = supporting_evidence
     else:
         agent = RagAgent()
-        answer_draft = agent.build_answer(supporting_evidence)
+        answer_shape = _answer_shape_for_handbook_plan(handbook_plan)
+        if answer_shape is None:
+            answer_draft = agent.build_answer(supporting_evidence)
+        else:
+            answer_draft = agent.build_answer(
+                supporting_evidence,
+                answer_shape=answer_shape,
+                category_display_name=getattr(handbook_plan, "category_display_name", ""),
+                audience=getattr(handbook_plan, "audience", ""),
+            )
         finalized_evidence = EvidenceBundle(
             query_text=supporting_evidence.query_text,
             corpus=supporting_evidence.corpus,
@@ -312,3 +322,9 @@ def build_grounded_answer_response(
             ),
         ),
     )
+
+
+def _answer_shape_for_handbook_plan(handbook_plan) -> AnswerShape | None:
+    if getattr(handbook_plan, "task_kind", "") == "category_discovery":
+        return AnswerShape.CATEGORY_DISCOVERY_LIST
+    return None

@@ -20,7 +20,6 @@ from tests.agent.rag_agent_test_support import (
     SessionSummary,
     _make_evidence,
     _rag_prompt_trace,
-    _resolved_scope_diagnostics,
     delegate_to_rag_agent,
     frame_rag_intent,
     unittest,
@@ -213,19 +212,16 @@ class RagAgentRequestPromptContractTest(unittest.TestCase):
         self.assertEqual(response.error.code, "corpus_not_query_enabled")
         self.assertIn("service_catalog", response.error.message)
         self.assertEqual(
-            response.result,
-            RagResultPayload(
-                evidence=EvidenceBundle(
-                    query_text="宿舍报修流程",
-                    corpus="campus_services",
-                    collection="service_catalog",
-                ),
-                diagnostics=_resolved_scope_diagnostics(
-                    corpus="campus_services",
-                    collection="service_catalog",
-                ),
+            response.result.evidence,
+            EvidenceBundle(
+                query_text="宿舍报修流程",
+                corpus="campus_services",
+                collection="service_catalog",
             ),
         )
+        self.assertEqual(response.result.diagnostics.resolved_scope_corpus, "campus_services")
+        self.assertEqual(response.result.diagnostics.resolved_scope_collection, "service_catalog")
+        self.assertTrue(response.result.diagnostics.stage_activities)
 
     def test_no_evidence_maps_to_no_answer(self) -> None:
         response = delegate_to_rag_agent(
@@ -249,20 +245,24 @@ class RagAgentRequestPromptContractTest(unittest.TestCase):
         self.assertIn("未检索到足够依据", response.answer_text)
         self.assertIn("学生手册", response.answer_text)
         self.assertEqual(
-            response.result,
-            RagResultPayload(
-                evidence=EvidenceBundle(
-                    query_text="library hours",
-                    corpus="regulations",
-                    collection="student_rules",
-                ),
-                diagnostics=_resolved_scope_diagnostics(
-                    corpus="regulations",
-                    collection="student_rules",
-                    semantic_outcome="unsupported_by_evidence",
-                ),
+            response.result.evidence,
+            EvidenceBundle(
+                query_text="library hours",
+                corpus="regulations",
+                collection="student_rules",
             ),
         )
+        self.assertEqual(response.result.diagnostics.resolved_scope_corpus, "regulations")
+        self.assertEqual(response.result.diagnostics.resolved_scope_collection, "student_rules")
+        self.assertEqual(
+            response.result.diagnostics.semantic_outcome,
+            "unsupported_by_evidence",
+        )
+        self.assertEqual(
+            response.result.diagnostics.retrieval_adequacy_verdict,
+            "insufficient",
+        )
+        self.assertTrue(response.result.diagnostics.stage_activities)
 
     def test_no_evidence_uses_injected_prompt_executor_for_no_answer(self) -> None:
         class FakePromptExecutor:

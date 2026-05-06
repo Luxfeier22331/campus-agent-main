@@ -15,6 +15,7 @@ from .evidence_ranking_text import (
     title_compactness,
     title_match_priority,
 )
+from .evidence_semantics import semantic_alignment_score
 
 _NEGATIVE_CONTENT_ROLES = frozenset(
     {
@@ -69,6 +70,7 @@ class SourceRankingFeatures:
     answer_bearing_bonus: int
     content_role_priority: int
     content_kind_priority: int
+    semantic_alignment_score: int
 
 
 @dataclass(frozen=True, slots=True)
@@ -123,6 +125,7 @@ def build_ranking_features(
         answer_bearing_bonus=1 if source.is_answer_bearing else 0,
         content_role_priority=_CONTENT_ROLE_PRIORITY.get(source.content_role, 0),
         content_kind_priority=_CONTENT_KIND_PRIORITY.get(source.content_kind, 0),
+        semantic_alignment_score=semantic_alignment_score(query_text=query_text, source=source),
     )
 
 
@@ -177,11 +180,12 @@ def query_targets_document(
 
 def source_sort_key(
     feature: SourceRankingFeatures,
-) -> tuple[int, int, int, int, int, int, int, float]:
+) -> tuple[int, int, int, int, int, int, int, int, int, float]:
     return (
         feature.title_match_priority,
         feature.title_overlap_count,
         feature.title_compactness,
+        feature.semantic_alignment_score,
         1 if feature.content_role_priority >= 0 else 0,
         feature.detail_support_count + feature.content_support_count,
         feature.answer_bearing_bonus,

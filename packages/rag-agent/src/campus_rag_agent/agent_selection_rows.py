@@ -46,13 +46,15 @@ def _select_answer_support_rows(
     ranked_source_input = consumable_sources or sources
     if course_list_query or curriculum_lookup_query:
         max_seen_statements = 6
-    elif shape == AnswerShape.CONDITION_OVERVIEW:
+    elif shape in {AnswerShape.CATEGORY_DISCOVERY_LIST, AnswerShape.CONDITION_OVERVIEW}:
         max_seen_statements = max(3, max_sources)
     else:
         max_seen_statements = 3
     ranked_sources = (
         tuple(ranked_source_input)
-        if course_list_query or curriculum_lookup_query
+        if course_list_query
+        or curriculum_lookup_query
+        or shape == AnswerShape.CATEGORY_DISCOVERY_LIST
         else tuple(
             sorted(
                 ranked_source_input,
@@ -80,6 +82,8 @@ def _select_answer_support_rows(
             for statement in ranked_statements
             if _normalize_snippet(statement).lower() not in seen_statements
         )
+        if shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
+            novel_statements = tuple(novel_statements[:1])
         if not novel_statements:
             continue
         rows.append((source, novel_statements))
@@ -89,7 +93,7 @@ def _select_answer_support_rows(
         if _should_stop_after_official_web_reference_rows(query_text=query_text, rows=tuple(rows)):
             break
         if (
-            shape != AnswerShape.CONDITION_OVERVIEW
+            shape not in {AnswerShape.CATEGORY_DISCOVERY_LIST, AnswerShape.CONDITION_OVERVIEW}
             and not course_list_query
             and index == 0
             and len(novel_statements) >= 2

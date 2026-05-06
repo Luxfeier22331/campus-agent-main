@@ -39,8 +39,12 @@ AGENTS_SDK_NOTICE_PROFILES = {
 }
 RAG_RETRIEVAL_PROFILES = {
     "rag_delegate",
+    "rag_delegate_sdk_candidate",
     "rag_delegate_institutional_rules",
     *MULTI_STEP_WORKFLOW_PROFILES,
+}
+RAG_SDK_PROFILES = {
+    "rag_delegate_sdk_candidate",
 }
 DEFAULT_STARTUP_TIMEOUT_SECONDS = 180.0
 
@@ -261,7 +265,14 @@ def _profile_worker_env(
     api_base_url: str,
     structured_query_secret: str,
 ) -> dict[str, str]:
-    if profile not in MULTI_STEP_WORKFLOW_PROFILES and profile not in SDK_STRUCTURED_OPENED_PROFILES:
+    if profile in RAG_SDK_PROFILES:
+        return {
+            "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "true",
+        }
+    if (
+        profile not in MULTI_STEP_WORKFLOW_PROFILES
+        and profile not in SDK_STRUCTURED_OPENED_PROFILES
+    ):
         return {}
     return {
         "SUPERVISOR_INTERNAL_QUERY_BASE_URL": api_base_url,
@@ -458,7 +469,11 @@ def run_process_smoke(
 
 
 def _forbidden_body_tokens(profile: str) -> tuple[str, ...]:
-    if profile in {"rag_delegate", "rag_delegate_institutional_rules"}:
+    if profile in {
+        "rag_delegate",
+        "rag_delegate_sdk_candidate",
+        "rag_delegate_institutional_rules",
+    }:
         return ("retrieval_failed", '"status": "no_answer"')
     if profile in RAG_RETRIEVAL_PROFILES:
         return ("retrieval_failed",)

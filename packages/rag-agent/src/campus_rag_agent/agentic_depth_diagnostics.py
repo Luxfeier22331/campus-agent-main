@@ -87,6 +87,21 @@ def build_replan_decision_summary(
         trigger_reason = str(failed_step.failure.failure_kind)
         outcome = "failed_closed" if failed_step.failure.terminal else "scope_preserved"
         fail_close_reason = trigger_reason if failed_step.failure.terminal else ""
+    elif any(
+        result.status == "empty" and result.activity is not None and result.activity.failure_kind
+        for result in retrieval_execution_result.step_results
+    ):
+        trigger_reason = str(
+            next(
+                result.activity.failure_kind
+                for result in retrieval_execution_result.step_results
+                if result.status == "empty"
+                and result.activity is not None
+                and result.activity.failure_kind
+            )
+        )
+        outcome = "scope_preserved"
+        fail_close_reason = ""
     elif any(result.status == "empty" for result in retrieval_execution_result.step_results):
         trigger_reason = "empty_supporting_evidence"
         outcome = "scope_preserved"

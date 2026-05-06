@@ -142,7 +142,9 @@ def _build_clarification_question(
             f"按当前记录理解，你最近在咨询{recent_goal}相关事项；请再具体说明你想确认的政策对象。"
         )
     slot_subject = _clarification_slot_subject(user_goal, confirmed_slot_terms)
-    if slot_subject and not clarification_reason:
+    if slot_subject and (
+        not clarification_reason or clarification_reason == "policy_object_missing"
+    ):
         return f"按当前对话上下文理解，你现在想确认{slot_subject}相关事项；请再具体说明你想确认的政策对象。"
     if clarification_reason == "policy_object_missing":
         return "请具体说明你想咨询哪一项评审、评定或测评办法。"

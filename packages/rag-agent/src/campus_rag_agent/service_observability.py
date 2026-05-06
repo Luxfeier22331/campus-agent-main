@@ -152,7 +152,15 @@ def _safe_details(
         details["agent_plan"] = agent_plan
     if tool_outcome:
         details["result_type"] = tool_outcome
+    details.update(_existing_safe_details(response))
     return details
+
+
+def _existing_safe_details(response: AgentResponse) -> dict[str, Any]:
+    observability = response.agent_observability
+    if observability is None:
+        return {}
+    return dict(observability.safe_details)
 
 
 def _agent_plan(diagnostics: RagResultDiagnostics | None) -> dict[str, Any]:

@@ -261,6 +261,17 @@ def _build_rag_result_diagnostics(
             partial_answer=curriculum_course_plan.partial_answer,
         )
     if handbook_plan is not None and handbook_plan.status != "pass_through":
+        if handbook_plan.task_kind == "category_discovery":
+            return _diagnostics(
+                **base_fields,
+                resolved_policy_document_id=handbook_plan.category_id,
+                resolved_policy_title=handbook_plan.category_display_name,
+                rewritten_query=handbook_plan.rewritten_query_text,
+                retrieved_title_summary=_summarize_retrieved_titles(evidence),
+                candidate_title_summary=handbook_plan.category_member_document_ids,
+                resolution_mode=handbook_plan.task_kind,
+                resolved_entity_type="policy_category",
+            )
         return _diagnostics(
             **base_fields,
             resolved_policy_document_id=handbook_plan.resolved_policy_document_id,
@@ -400,6 +411,20 @@ def _build_entity_resolution_summary(
             resolution_source="program_family_alias_governance",
             confidence=0.95 if status == "resolved" else 0.0,
             ambiguity_reason=curriculum_program_family_plan.clarification_reason,
+        )
+    if (
+        handbook_plan is not None
+        and handbook_plan.status == "resolved"
+        and handbook_plan.task_kind == "category_discovery"
+    ):
+        return RagEntityResolutionSummary(
+            resolution_status="resolved",
+            entity_type="policy_category",
+            canonical_id=handbook_plan.category_id,
+            canonical_title=handbook_plan.category_display_name,
+            target_collection=retrieval_collection,
+            resolution_source="policy_category_registry",
+            confidence=0.9,
         )
     if handbook_plan is not None and handbook_plan.status == "resolved":
         return RagEntityResolutionSummary(

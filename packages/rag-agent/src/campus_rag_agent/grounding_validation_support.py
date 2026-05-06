@@ -100,7 +100,23 @@ def _derive_structured_fact_snippets(snippet: str) -> list[str]:
         total_credits = _derive_total_credit_fact(normalized_line)
         if total_credits:
             snippets.append(total_credits)
+        audience_fact = _derive_audience_fact(normalized_line)
+        if audience_fact:
+            snippets.append(audience_fact)
     return snippets
+
+
+def _derive_audience_fact(line: str) -> str:
+    match = re.search(
+        r"^([\u4e00-\u9fffA-Za-z0-9（）()]{2,30})"
+        r"(?:为|是).{0,24}"
+        r"(所有本预科学生|所有本科学生|全体本科学生|全校学生)"
+        r"(?:应|需|需要|必须|要|可|可以|均|都)",
+        line,
+    )
+    if match:
+        return f"{match.group(1)}面向{match.group(2)}"
+    return ""
 
 
 def _derive_total_credit_fact(line: str) -> str:

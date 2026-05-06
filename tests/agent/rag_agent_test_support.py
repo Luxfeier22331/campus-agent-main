@@ -122,6 +122,10 @@ def _make_handbook_source(
     detail_label: str = "",
     content_role: str = "",
     is_answer_bearing: bool = False,
+    semantic_role: str = "",
+    polarity: str = "",
+    action_type: str = "",
+    claim_type: str = "",
 ) -> EvidenceSource:
     return EvidenceSource(
         doc_id=doc_id,
@@ -141,6 +145,10 @@ def _make_handbook_source(
         detail_label=detail_label,
         content_role=content_role,
         is_answer_bearing=is_answer_bearing,
+        semantic_role=semantic_role,
+        polarity=polarity,
+        action_type=action_type,
+        claim_type=claim_type,
     )
 
 
@@ -153,6 +161,10 @@ def _make_official_web_source(
     chunk_id_suffix: str,
     content_role: str = "",
     is_answer_bearing: bool = False,
+    semantic_role: str = "",
+    polarity: str = "",
+    action_type: str = "",
+    claim_type: str = "",
     anchor: dict[str, object] | None = None,
     structural_path: tuple[str, ...] | None = None,
     collection: str = "muc_public_pages",
@@ -176,6 +188,10 @@ def _make_official_web_source(
         content_role=content_role,
         detail_label=title,
         is_answer_bearing=is_answer_bearing,
+        semantic_role=semantic_role,
+        polarity=polarity,
+        action_type=action_type,
+        claim_type=claim_type,
     )
 
 
@@ -373,6 +389,16 @@ def _resolved_curriculum_diagnostics_from_response(
         kwargs.setdefault("stage_activities", result.diagnostics.stage_activities)
         kwargs.setdefault("source_trust_summary", result.diagnostics.source_trust_summary)
         kwargs.setdefault("retrieved_sources", result.diagnostics.retrieved_sources)
+        kwargs.setdefault(
+            "planner_information_needs",
+            result.diagnostics.planner_information_needs,
+        )
+        kwargs.setdefault(
+            "projection_context_summaries",
+            result.diagnostics.projection_context_summaries,
+        )
+        kwargs.setdefault("claim_supports", result.diagnostics.claim_supports)
+        kwargs.setdefault("claim_evidence_graph", result.diagnostics.claim_evidence_graph)
     if (
         response.status == "completed"
         and "semantic_outcome" not in kwargs

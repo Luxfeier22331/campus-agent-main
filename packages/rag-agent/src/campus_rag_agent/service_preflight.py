@@ -78,7 +78,11 @@ def _maybe_return_pre_retrieval_response(
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
         )
-    if handbook_plan is not None and handbook_plan.status == "needs_clarification":
+    if (
+        handbook_plan is not None
+        and handbook_plan.status == "needs_clarification"
+        and handbook_plan.task_kind != "category_discovery"
+    ):
         empty_evidence = _build_empty_evidence(effective_scope, user_goal)
         return build_pre_retrieval_clarification_response(
             request=request,

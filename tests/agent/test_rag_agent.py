@@ -8,7 +8,9 @@ from tests.agent.rag_agent_curriculum_resolution_suite import *
 from tests.agent.rag_agent_curriculum_semester_answering_suite import *
 from tests.agent.rag_agent_curriculum_semester_selection_suite import *
 from tests.agent.rag_agent_curriculum_structured_lookup_suite import *
+from tests.agent.rag_agent_handbook_category_discovery_suite import *
 from tests.agent.rag_agent_official_web_suite import *
+from tests.agent.rag_agent_realistic_e2e_samples_suite import *
 from tests.agent.rag_agent_request_prompt_suite import *
 from tests.agent.rag_agent_service_structure_suite import *
 

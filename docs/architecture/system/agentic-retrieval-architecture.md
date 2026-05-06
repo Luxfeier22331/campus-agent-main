@@ -336,6 +336,28 @@ agentic retrieval 不是对当前 gate 的替代，而是必须显式经过这�
 这些 execution-side truth 用于 operator observability、quality grading 与 release
 gate， 但不应直接暴露 raw snippets 或 vendor payload。
 
+## Internal Agents SDK Loop
+
+`rag-agent` 可以在 deterministic scope/version/preflight、retrieval plan、retrieval
+execution 与 supporting evidence selection 之后使用官方 OpenAI Agents SDK 作为内部 semantic
+loop runtime。该 SDK loop 只替代或补强 answer synthesis / structured output / internal
+guardrail ergonomics，不拥有 retrieval truth。
+
+固定规则：
+
+- SDK runner 输入只能是 repo-owned `RagSdkRunRequest`、query intent、
+  admitted query slot ids 与 bounded evidence anchors
+- SDK function tool 不能执行新的 backend retrieval、不能改写 selector、不能扩大 scope /
+  authz / version / serving surface；默认只能选择已 admitted query slot
+- bounded semantic replan 若后续打开，必须有显式 budget、reason、trace 和 no-widening gate
+- output guardrail 必须拒绝 forged source id、missing claim support、source-id-only support、
+  uncited list item 与 malformed structured output
+- no evidence、timeout、runtime failure、guardrail failure、malformed output 均
+  fail-closed 为 unsupported/no-answer，不得回落成无观测的第二 primary synthesis path
+- category discovery 例如“有哪些本科生可以申请的奖学金”可以由 RAG 内部 query intent 表达并返回
+  cited list answer；服务/身份流程类问题例如“门户密码忘了怎么办”保持 routing-negative /
+  unsupported-scope eval boundary，不交给 RAG 兜底
+
 ## Evaluation Model
 
 长期 agentic retrieval eval 必须在 classic retrieval qrels 之外补齐：

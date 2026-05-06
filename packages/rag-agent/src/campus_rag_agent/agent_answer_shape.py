@@ -11,6 +11,7 @@ from .agent_shared import _normalize_snippet
 
 class AnswerShape(StrEnum):
     TITLE_LOOKUP = "title_lookup"
+    CATEGORY_DISCOVERY_LIST = "category_discovery_list"
     CONDITION_OVERVIEW = "condition_overview"
     DETAIL_CLAUSE = "detail_clause"
     COURSE_LIST = "course_list"
@@ -65,6 +66,8 @@ def _is_detail_clause_query(normalized_query: str) -> bool:
 
 
 def answer_shape_support_budget(shape: AnswerShape, default_budget: int) -> int:
+    if shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
+        return max(default_budget, 8)
     if shape == AnswerShape.CONDITION_OVERVIEW:
         return max(default_budget, 5)
     return default_budget

@@ -85,9 +85,10 @@ func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
 	policy.SignalGroups["structured_place_entity"] = []string{"北楼"}
 
 	tests := []struct {
-		name string
-		goal string
-		want string
+		name       string
+		goal       string
+		want       string
+		wantSource string
 	}{
 		{name: "custom notice signal", goal: "查一下校内要闻", want: "notice"},
 		{name: "custom transport signal", goal: "摆渡车最早几点", want: "campus_services"},
@@ -98,7 +99,9 @@ func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
 		{name: "network auth service guide signal", goal: "校园网认证入口在哪里", want: "campus_services"},
 		{name: "email service guide signal", goal: "校园邮箱需要什么材料", want: "campus_services"},
 		{name: "unified auth password reset signal", goal: "统一身份认证密码怎么改", want: "campus_services"},
+		{name: "unified auth forgot password signal", goal: "统一身份认证密码忘了怎么办", want: "campus_services"},
 		{name: "portal password reset signal", goal: "信息门户密码怎么改", want: "campus_services"},
+		{name: "plain portal forgot password signal", goal: "门户密码忘了怎么办", want: "campus_services"},
 		{name: "smart portal forgot password signal", goal: "智慧门户忘记密码怎么办", want: "campus_services"},
 		{name: "network auth login signal", goal: "校园网怎么认证登录", want: "campus_services"},
 		{name: "network auth url signal", goal: "校园网认证网址是什么", want: "campus_services"},
@@ -125,6 +128,12 @@ func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
 		{name: "card center service status signal", goal: "卡务中心今天开不开", want: "campus_services"},
 		{name: "bathroom service status signal", goal: "静园10号楼女浴室现在开放吗", want: "campus_services"},
 		{name: "transport boarding point status signal", goal: "摆渡车在哪里上车", want: "campus_services"},
+		{
+			name:       "scholarship category discovery remains knowledge",
+			goal:       "本科生有哪些奖学金能申请",
+			want:       "knowledge",
+			wantSource: "default",
+		},
 	}
 
 	for _, tt := range tests {
@@ -135,8 +144,12 @@ func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
 			if resolution.EffectiveCapability != tt.want {
 				t.Fatalf("capability = %q, want %q", resolution.EffectiveCapability, tt.want)
 			}
-			if resolution.Source != "inferred" {
-				t.Fatalf("source = %q, want inferred", resolution.Source)
+			wantSource := tt.wantSource
+			if wantSource == "" {
+				wantSource = "inferred"
+			}
+			if resolution.Source != wantSource {
+				t.Fatalf("source = %q, want %s", resolution.Source, wantSource)
 			}
 		})
 	}

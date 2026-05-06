@@ -45,6 +45,26 @@ _PROCEDURE_KEYWORDS = (
     "报送",
     "复核",
 )
+_NEGATIVE_POLARITY_KEYWORDS = (
+    "不予",
+    "不能",
+    "不得",
+    "严禁",
+    "禁止",
+    "取消",
+    "不受理",
+    "不予受理",
+    "不再",
+    "无资格",
+    "不得申请",
+)
+_AUDIENCE_SCOPE_KEYWORDS = {
+    "undergraduate": ("本科生", "本科", "预科生", "预科"),
+    "graduate": ("研究生", "硕士", "博士"),
+    "all_students": ("学生", "在校生"),
+}
+_LIFT_DISCIPLINE_KEYWORDS = ("解除处分", "纪律处分", "处分解除", "处分")
+_REISSUE_KEYWORDS = ("补办", "补发", "挂失", "遗失", "丢失", "丢了", "损坏", "补卡", "补证")
 _TERMINAL_PROVISION_KEYWORDS = (
     "负责解释",
     "负责施行",
@@ -77,6 +97,14 @@ class HandbookSemanticMetadata:
     content_role: str
     detail_label: str
     is_answer_bearing: bool
+    semantic_role: str = ""
+    polarity: str = ""
+    action_type: str = ""
+    claim_type: str = ""
+    audience_scope: str = ""
+    article_no: str = ""
+    clause_no: str = ""
+    section_kind: str = ""
 
 
 def derive_handbook_semantic_metadata(
@@ -107,6 +135,24 @@ def derive_handbook_semantic_metadata(
         metadata=resolved_metadata,
         text=text,
     )
+    semantic_role = _resolve_semantic_role(
+        content_role=content_role,
+        detail_label=detail_label,
+        anchor=resolved_anchor,
+        metadata=resolved_metadata,
+        text=text,
+    )
+    polarity = _resolve_polarity(metadata=resolved_metadata, text=text, semantic_role=semantic_role)
+    action_type = _resolve_action_type(
+        anchor=resolved_anchor, metadata=resolved_metadata, text=text
+    )
+    claim_type = _resolve_claim_type(
+        content_role=content_role,
+        semantic_role=semantic_role,
+        polarity=polarity,
+        metadata=resolved_metadata,
+        text=text,
+    )
     return HandbookSemanticMetadata(
         content_kind=content_kind,
         content_role=content_role,
@@ -115,6 +161,23 @@ def derive_handbook_semantic_metadata(
             content_kind=content_kind,
             content_role=content_role,
             detail_label=detail_label,
+            metadata=resolved_metadata,
+        ),
+        semantic_role=semantic_role,
+        polarity=polarity,
+        action_type=action_type,
+        claim_type=claim_type,
+        audience_scope=_resolve_audience_scope(
+            anchor=resolved_anchor,
+            metadata=resolved_metadata,
+            text=text,
+        ),
+        article_no=_resolve_article_no(anchor=resolved_anchor, metadata=resolved_metadata),
+        clause_no=_resolve_clause_no(anchor=resolved_anchor, metadata=resolved_metadata),
+        section_kind=_resolve_section_kind(
+            content_kind=content_kind,
+            content_role=content_role,
+            anchor=resolved_anchor,
             metadata=resolved_metadata,
         ),
     )
@@ -206,6 +269,167 @@ def _resolve_is_answer_bearing(
     }:
         return True
     return bool(detail_label)
+
+
+def _resolve_semantic_role(
+    *,
+    content_role: str,
+    detail_label: str,
+    anchor: Mapping[str, object],
+    metadata: Mapping[str, object],
+    text: str,
+) -> str:
+    explicit_role = _text(metadata.get("semantic_role"))
+    if explicit_role:
+        return explicit_role
+    normalized = _semantic_search_space(detail_label=detail_label, anchor=anchor, text=text)
+    if any(keyword in normalized for keyword in ("不予", "不能", "不得", "取消", "无资格")):
+        if "严禁" in normalized or "禁止" in normalized or "不得" in normalized:
+            return "prohibition"
+        if "除外" in normalized or "情形" in normalized or "不予" in normalized:
+            return "exception"
+        return "exclusion"
+    if content_role == "procedure":
+        return "procedure_step"
+    if content_role in {"eligibility", "requirement"}:
+        return "condition"
+    if content_role in {"deadline", "time_rule"}:
+        return "time_constraint"
+    if content_role == "definition":
+        return "definition"
+    return ""
+
+
+def _resolve_polarity(
+    *,
+    metadata: Mapping[str, object],
+    text: str,
+    semantic_role: str,
+) -> str:
+    explicit_polarity = _text(metadata.get("polarity"))
+    if explicit_polarity:
+        return explicit_polarity
+    normalized = _normalize_text(text)
+    if semantic_role in {"exception", "prohibition", "exclusion"}:
+        return "negative"
+    if any(keyword in normalized for keyword in _NEGATIVE_POLARITY_KEYWORDS):
+        return "negative"
+    if normalized:
+        return "positive"
+    return ""
+
+
+def _resolve_action_type(
+    *,
+    anchor: Mapping[str, object],
+    metadata: Mapping[str, object],
+    text: str,
+) -> str:
+    explicit_action_type = _text(metadata.get("action_type"))
+    if explicit_action_type:
+        return explicit_action_type
+    normalized = _semantic_search_space(detail_label="", anchor=anchor, text=text)
+    if any(keyword in normalized for keyword in _LIFT_DISCIPLINE_KEYWORDS):
+        return "lift_discipline"
+    if any(keyword in normalized for keyword in _REISSUE_KEYWORDS):
+        return "reissue"
+    return ""
+
+
+def _resolve_claim_type(
+    *,
+    content_role: str,
+    semantic_role: str,
+    polarity: str,
+    metadata: Mapping[str, object],
+    text: str,
+) -> str:
+    explicit_claim_type = _text(metadata.get("claim_type"))
+    if explicit_claim_type:
+        return explicit_claim_type
+    if polarity == "negative":
+        return "cannot_do"
+    if content_role == "procedure" or semantic_role == "procedure_step":
+        return "procedure"
+    if content_role in {"eligibility", "requirement"} or semantic_role == "condition":
+        return "condition"
+    if content_role in {"deadline", "time_rule"}:
+        return "time_constraint"
+    if content_role == "definition":
+        return "definition"
+    normalized = _normalize_text(text)
+    if any(marker in normalized for marker in ("可以", "可申请", "应当", "须", "必须")):
+        return "condition"
+    return ""
+
+
+def _resolve_audience_scope(
+    *,
+    anchor: Mapping[str, object],
+    metadata: Mapping[str, object],
+    text: str,
+) -> str:
+    explicit_scope = _text(metadata.get("audience_scope"))
+    if explicit_scope:
+        return explicit_scope
+    normalized = _semantic_search_space(detail_label="", anchor=anchor, text=text)
+    matched_scopes: list[str] = []
+    for scope, keywords in _AUDIENCE_SCOPE_KEYWORDS.items():
+        if any(keyword in normalized for keyword in keywords):
+            matched_scopes.append(scope)
+    if not matched_scopes:
+        return ""
+    if "undergraduate" in matched_scopes:
+        return "undergraduate"
+    if "graduate" in matched_scopes:
+        return "graduate"
+    return matched_scopes[0]
+
+
+def _resolve_article_no(
+    *,
+    anchor: Mapping[str, object],
+    metadata: Mapping[str, object],
+) -> str:
+    return (
+        _text(metadata.get("article_no"))
+        or _text(anchor.get("article_no"))
+        or _text(anchor.get("article_label"))
+    )
+
+
+def _resolve_clause_no(
+    *,
+    anchor: Mapping[str, object],
+    metadata: Mapping[str, object],
+) -> str:
+    return (
+        _text(metadata.get("clause_no"))
+        or _text(anchor.get("clause_no"))
+        or _text(anchor.get("provision_label"))
+    )
+
+
+def _resolve_section_kind(
+    *,
+    content_kind: str,
+    content_role: str,
+    anchor: Mapping[str, object],
+    metadata: Mapping[str, object],
+) -> str:
+    explicit_kind = _text(metadata.get("section_kind"))
+    if explicit_kind:
+        return explicit_kind
+    section_leaf = _section_leaf(anchor)
+    if content_role == "closing_provision" or section_leaf == "附则":
+        return "closing"
+    if content_kind == "appendix" or content_role == "appendix":
+        return "appendix"
+    if content_kind == "navigation" or content_role == "navigation":
+        return "navigation"
+    if content_kind:
+        return "body"
+    return ""
 
 
 def _resolve_detail_label(
@@ -379,6 +603,17 @@ def _meaningful_lines(text: str) -> tuple[str, ...]:
 
 def _first_meaningful_line(text: str) -> str:
     return next(iter(_meaningful_lines(text)), "")
+
+
+def _semantic_search_space(
+    *,
+    detail_label: str,
+    anchor: Mapping[str, object],
+    text: str,
+) -> str:
+    return " ".join(
+        part for part in (detail_label, _section_leaf(anchor), _normalize_text(text)) if part
+    )
 
 
 def _normalize_sequence(value: object) -> list[str]:

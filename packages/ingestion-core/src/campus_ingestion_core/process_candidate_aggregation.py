@@ -33,6 +33,14 @@ def build_collection_semantic_metadata(
         "content_role": semantics.content_role,
         "detail_label": semantics.detail_label,
         "is_answer_bearing": semantics.is_answer_bearing,
+        "semantic_role": semantics.semantic_role,
+        "polarity": semantics.polarity,
+        "action_type": semantics.action_type,
+        "claim_type": semantics.claim_type,
+        "audience_scope": semantics.audience_scope,
+        "article_no": semantics.article_no,
+        "clause_no": semantics.clause_no,
+        "section_kind": semantics.section_kind,
     }
 
 

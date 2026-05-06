@@ -570,8 +570,9 @@ class RagAgentCurriculumSemesterAnsweringTest(unittest.TestCase):
         self.assertEqual(
             draft.answer_text,
             (
-                "根据培养方案相关内容，第四学期有经济学说史、可持续发展经济学、马克思主义哲学原著选读、"
-                "语言学概论、中国民族史概要(一)、中国少数民族民间文学概论、中国民族史。"
+                "根据培养方案相关内容，《法学（民族实验班）本科人才培养方案》第四学期有经济学说史、"
+                "可持续发展经济学、马克思主义哲学原著选读、语言学概论、中国民族史概要(一)、"
+                "中国少数民族民间文学概论、中国民族史。"
             ),
         )
         self.assertNotIn("；展经济学", draft.answer_text)

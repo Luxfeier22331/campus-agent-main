@@ -21,6 +21,12 @@ from campus_retrieval_core import (
 from campus_retrieval_core import (
     RetrievalExecutionResult,
     RetrievalPlan,
+    RetrievalPlanBudget,
+    RetrievalScope,
+    RetrievalSelector,
+    RetrievalSourceTrustPolicy,
+    RetrievalStep,
+    RetrievalStepBudget,
     execute_retrieval_plan,
 )
 from campus_retrieval_core import (
@@ -30,7 +36,11 @@ from campus_retrieval_core.curriculum_query_resolution import interpret_curricul
 
 from campus_rag_agent.agentic_depth_diagnostics import build_planner_information_needs
 from campus_rag_agent.remote_content_hardening import apply_remote_content_suspicion_labels
-from campus_rag_agent.retrieval_plan import build_ordered_retrieval_plan
+from campus_rag_agent.retrieval_plan import (
+    DEFAULT_INDEXED_LOOKUP_TIMEOUT_MS,
+    _default_minimum_source_trust_tier,
+    build_ordered_retrieval_plan,
+)
 from campus_rag_agent.semantic_replan import build_semantic_replan_steps
 
 from .service_common import (
@@ -55,6 +65,8 @@ RestrictedDocumentAccessDeniedError = _RestrictedDocumentAccessDeniedError
 RetrievalBackendError = _RetrievalBackendError
 retrieve_sources = _retrieve_sources
 _COURSE_FAMILY_SCHEDULE_TOP_K = 8
+_HANDBOOK_CATEGORY_DISCOVERY_TOP_K = 10
+_HANDBOOK_CATEGORY_MEMBER_TOP_K = 2
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +75,7 @@ class RagRetrievalContext:
     retrieval_collection: str
     target_document_ids: tuple[str, ...]
     preferred_document_ids: tuple[str, ...]
+    category_member_document_ids: tuple[str, ...]
     canonical_course_ids: tuple[str, ...]
     canonical_course_family_ids: tuple[str, ...]
     canonical_program_family_ids: tuple[str, ...]
@@ -92,6 +105,7 @@ def build_rag_retrieval_context(
     retrieval_goal = user_goal
     target_document_ids: tuple[str, ...] = ()
     preferred_document_ids: tuple[str, ...] = ()
+    category_member_document_ids: tuple[str, ...] = ()
     retrieval_collection = effective_scope.collection
     canonical_course_ids: tuple[str, ...] = ()
     canonical_course_family_ids: tuple[str, ...] = ()
@@ -149,6 +163,15 @@ def build_rag_retrieval_context(
             preferred_document_ids = curriculum_plan.preferred_document_ids
         else:
             retrieval_goal = interpret_curriculum_query(effective_user_goal).normalized_query_text
+    elif (
+        handbook_plan is not None
+        and handbook_plan.status == "resolved"
+        and handbook_plan.task_kind == "category_discovery"
+    ):
+        retrieval_goal = user_goal
+        preferred_document_ids = handbook_plan.preferred_document_ids
+        category_member_document_ids = handbook_plan.category_member_document_ids
+        retrieval_top_k = _HANDBOOK_CATEGORY_DISCOVERY_TOP_K
     elif handbook_plan is not None and handbook_plan.status == "resolved":
         retrieval_goal = handbook_plan.rewritten_query_text
         target_document_ids = handbook_plan.target_document_ids
@@ -171,6 +194,7 @@ def build_rag_retrieval_context(
         retrieval_collection=retrieval_collection,
         target_document_ids=target_document_ids,
         preferred_document_ids=preferred_document_ids,
+        category_member_document_ids=category_member_document_ids,
         canonical_course_ids=canonical_course_ids,
         canonical_course_family_ids=canonical_course_family_ids,
         canonical_program_family_ids=canonical_program_family_ids,
@@ -201,6 +225,19 @@ def build_retrieval_plan_for_context(
         retrieval_collection=retrieval_context.retrieval_collection,
         query_mode=retrieval_query_mode,
     )
+    if retrieval_context.category_member_document_ids:
+        return _build_category_discovery_retrieval_plan(
+            query_text=retrieval_context.retrieval_goal,
+            scope=effective_scope,
+            retrieval_collection=retrieval_context.retrieval_collection,
+            query_mode=retrieval_query_mode,
+            member_document_ids=retrieval_context.category_member_document_ids,
+            preferred_document_ids=retrieval_context.preferred_document_ids,
+            top_k=retrieval_context.retrieval_top_k or runtime_profile.retrieval_top_k,
+            need_ids=tuple(need.need_id for need in information_needs),
+            version_query=request.payload.version_query,
+            allow_live_source_lookup=runtime_profile.live_search_fallback_allowed,
+        )
     return build_ordered_retrieval_plan(
         query_text=retrieval_context.retrieval_goal,
         scope=effective_scope,
@@ -219,6 +256,68 @@ def build_retrieval_plan_for_context(
         comparison_version_id=retrieval_context.version_answer_context.comparison_version_id,
         need_ids=tuple(need.need_id for need in information_needs),
         allow_live_source_lookup=runtime_profile.live_search_fallback_allowed,
+    )
+
+
+def _build_category_discovery_retrieval_plan(
+    *,
+    query_text: str,
+    scope: KnowledgeScope,
+    retrieval_collection: str,
+    query_mode: str,
+    member_document_ids: tuple[str, ...],
+    preferred_document_ids: tuple[str, ...],
+    top_k: int,
+    need_ids: tuple[str, ...],
+    version_query,
+    allow_live_source_lookup: bool,
+) -> RetrievalPlan:
+    admitted_scope = RetrievalScope(corpus=scope.corpus, collection=retrieval_collection)
+    broad_step = RetrievalStep(
+        step_id="category-broad-lookup",
+        step_type="indexed_lookup",
+        scope=admitted_scope,
+        query_text=query_text,
+        need_ids=need_ids,
+        selector=RetrievalSelector(preferred_document_ids=preferred_document_ids),
+        budget=RetrievalStepBudget(top_k=top_k, timeout_ms=DEFAULT_INDEXED_LOOKUP_TIMEOUT_MS),
+        expected_output="candidate_set",
+    )
+    member_steps = tuple(
+        RetrievalStep(
+            step_id=f"category-member-lookup-{index}",
+            step_type="indexed_lookup",
+            scope=admitted_scope,
+            query_text=query_text,
+            need_ids=need_ids,
+            selector=RetrievalSelector(target_document_ids=(document_id,)),
+            budget=RetrievalStepBudget(
+                top_k=_HANDBOOK_CATEGORY_MEMBER_TOP_K,
+                timeout_ms=DEFAULT_INDEXED_LOOKUP_TIMEOUT_MS,
+            ),
+            expected_output="candidate_set",
+        )
+        for index, document_id in enumerate(member_document_ids, start=1)
+    )
+    steps = (broad_step, *member_steps)
+    return RetrievalPlan(
+        plan_id=f"{scope.corpus}:{retrieval_collection}:{query_mode}:category-discovery",
+        query_mode=query_mode,
+        admitted_scopes=(admitted_scope,),
+        version_query=version_query,
+        source_trust_policy=RetrievalSourceTrustPolicy(
+            minimum_tier=_default_minimum_source_trust_tier(
+                retrieval_collection=retrieval_collection,
+                query_mode=query_mode,
+            ),
+            allow_live_source_lookup=allow_live_source_lookup,
+        ),
+        budget=RetrievalPlanBudget(
+            max_steps=len(steps),
+            max_replans=0,
+            max_live_lookups=0,
+        ),
+        steps=steps,
     )
 
 

@@ -9,6 +9,7 @@ from campus_rag_agent.confidence import derive_confidence
 from campus_rag_agent.query_planning import (
     CurriculumCourseQueryPlan,
     CurriculumQueryPlan,
+    HandbookQueryPlan,
 )
 from campus_rag_agent.remote_content_hardening import apply_remote_content_suspicion_labels
 
@@ -32,6 +33,7 @@ def execute_rag_evidence_selection_stage(
     *,
     retrieved_evidence: EvidenceBundle,
     version_answer_context: _VersionAnswerContext,
+    handbook_plan: HandbookQueryPlan | None = None,
     curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
     retrieval_execution_result: RetrievalExecutionResult | None = None,
@@ -39,6 +41,7 @@ def execute_rag_evidence_selection_stage(
     supporting_evidence = _build_version_aware_supporting_evidence(
         retrieved_evidence,
         version_answer_context=version_answer_context,
+        handbook_plan=handbook_plan,
         curriculum_plan=curriculum_plan,
         curriculum_course_plan=curriculum_course_plan,
     )
@@ -50,7 +53,7 @@ def execute_rag_evidence_selection_stage(
     return RagEvidenceSelectionStageResult(
         response=None,
         supporting_evidence=supporting_evidence,
-        confidence=derive_confidence(supporting_evidence),
+        confidence=derive_confidence(supporting_evidence, handbook_plan=handbook_plan),
         compare_support_incomplete=_is_compare_support_incomplete(
             supporting_evidence=supporting_evidence,
             version_answer_context=version_answer_context,

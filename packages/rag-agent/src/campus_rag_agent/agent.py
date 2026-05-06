@@ -5,7 +5,7 @@ from dataclasses import dataclass
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_retrieval_core.evidence_ranking import select_supporting_evidence_sources
 
-from .agent_answer_shape import answer_shape_support_budget, infer_answer_shape
+from .agent_answer_shape import AnswerShape, answer_shape_support_budget, infer_answer_shape
 from .agent_answering import _compose_direct_answer, _render_supporting_contexts
 from .agent_selection_query import _query_mode
 from .agent_selection_rows import _select_answer_support_rows
@@ -32,11 +32,18 @@ class RagAgent:
     runtime_provider: str = ""
     max_answer_sources: int = DEFAULT_MAX_ANSWER_SOURCES
 
-    def build_answer(self, evidence: EvidenceBundle) -> AnswerDraft:
+    def build_answer(
+        self,
+        evidence: EvidenceBundle,
+        *,
+        answer_shape: AnswerShape | None = None,
+        category_display_name: str = "",
+        audience: str = "",
+    ) -> AnswerDraft:
         if not evidence.sources:
             return AnswerDraft(answer_text="", supporting_sources=(), supporting_contexts=())
 
-        answer_shape = infer_answer_shape(evidence=evidence)
+        answer_shape = answer_shape or infer_answer_shape(evidence=evidence)
         support_budget = answer_shape_support_budget(answer_shape, self.max_answer_sources)
         if support_budget > self.max_answer_sources:
             candidate_sources = _select_doc_diverse_answer_sources(
@@ -60,6 +67,9 @@ class RagAgent:
         answer_text = _compose_direct_answer(
             evidence=evidence,
             selected_rows=selected_rows,
+            answer_shape=answer_shape,
+            category_display_name=category_display_name,
+            audience=audience,
         )
         return AnswerDraft(
             answer_text=answer_text,

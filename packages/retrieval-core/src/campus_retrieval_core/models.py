@@ -43,6 +43,7 @@ RetrievalFailureKind = Literal[
     "executor_error",
     "unsupported_step_type",
     "missing_dependency",
+    "polarity_conflict",
     "release_metadata_drift",
     "reranker_degraded",
 ]
@@ -81,6 +82,7 @@ ALLOWED_RETRIEVAL_FAILURE_KINDS = (
     "executor_error",
     "unsupported_step_type",
     "missing_dependency",
+    "polarity_conflict",
     "release_metadata_drift",
     "reranker_degraded",
 )
