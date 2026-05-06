@@ -559,6 +559,36 @@ class RegulationRagReleaseLaneTest(unittest.TestCase):
         self.assertEqual(candidate.ragVerificationStatus, "not_applicable")
         self.assertIn("release admission manifest", candidate.message or "")
 
+    def test_safe_run_without_publish_alias_completes_indexed_without_serving(self) -> None:
+        store = InMemoryRegulationRagReleaseCandidateStore()
+        enqueue_regulation_rag_release_candidates_for_records(
+            store=store,
+            records=(self._record(collection="institutional_rules"),),
+            runtime_profile=self._profile(
+                collection="institutional_rules",
+                query_enabled_by_default=True,
+            ),
+            now=self._now(),
+        )
+
+        process_pending_regulation_rag_release_candidates(
+            store=store,
+            release_executor=lambda candidate: RagReleaseExecutionResult(
+                status="passed",
+                release_id="release-safe-001",
+                verification_status="passed",
+                publish_alias=False,
+            ),
+            now=self._now(),
+        )
+
+        candidate = store.list_candidates()[0]
+        self.assertEqual(candidate.status, "indexed")
+        self.assertEqual(candidate.ragPreparationStatus, "completed")
+        self.assertEqual(candidate.ragIndexStatus, "indexed")
+        self.assertEqual(candidate.ragServingStatus, "not_serving")
+        self.assertEqual(candidate.ragVerificationStatus, "passed")
+
     def test_operator_status_projection_is_sanitized(self) -> None:
         store = InMemoryRegulationRagReleaseCandidateStore()
         enqueue_regulation_rag_release_candidates_for_records(

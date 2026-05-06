@@ -41,7 +41,9 @@ DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY = (
 DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_TABLE = (
     "ingestion_projection.regulation_rag_release_candidate"
 )
-REGULATION_RAG_RELEASE_ELIGIBLE_COLLECTIONS = frozenset({"institutional_rules"})
+REGULATION_RAG_RELEASE_ELIGIBLE_COLLECTIONS = frozenset(
+    {"institutional_rules", "student_rules"}
+)
 
 RagReleaseCandidateStatus = Literal[
     "pending",
@@ -107,6 +109,7 @@ class RagReleaseExecutionResult:
     message: str | None = None
     release_admission_status: str = ""
     release_admission_manifest_key: str | None = None
+    publish_alias: bool = True
 
 
 @dataclass(frozen=True, slots=True)
@@ -542,6 +545,7 @@ def build_registry_scope_rag_release_executor(
                 status="release_admission_blocked",
                 verification_status="failed",
                 message=str(exc),
+                publish_alias=publish_alias,
             )
         prepare_registry_scope_chunks(
             corpus=candidate.corpus,
@@ -591,6 +595,7 @@ def build_registry_scope_rag_release_executor(
                 release_report,
                 "release_admission_manifest_key",
             ),
+            publish_alias=publish_alias,
         )
 
     return execute
@@ -677,9 +682,13 @@ def _candidate_with_release_result(
     updated_at: str,
 ) -> RagReleaseCandidate:
     if result.status == "passed":
-        if _candidate_requires_release_admission(preparing) and (
+        if (
+            result.publish_alias
+            and _candidate_requires_release_admission(preparing)
+            and (
             result.release_admission_status != "passed"
             or not (result.release_admission_manifest_key or "").strip()
+            )
         ):
             return _with_status(
                 preparing,
@@ -690,6 +699,18 @@ def _candidate_with_release_result(
                 rag_serving_status="not_serving",
                 rag_verification_status="not_applicable",
                 message="release admission manifest proof is required before serving publication",
+            )
+        if not result.publish_alias:
+            return _with_status(
+                preparing,
+                status="indexed",
+                updated_at=updated_at,
+                rag_preparation_status="completed",
+                rag_index_status="indexed",
+                rag_serving_status="not_serving",
+                rag_verification_status=result.verification_status or "passed",
+                last_release_id=result.release_id,
+                message=result.message,
             )
         return _with_status(
             preparing,

@@ -146,6 +146,8 @@ def _make_regulation_record(
         "regulations/documents/institutional_rules/rule-001/"
         "current-effective/2026/document-units.jsonl"
     ),
+    source_channel: str = "authenticated_notice_portal",
+    import_source: str = "authenticated_notice_regulation_materialization",
 ) -> DocumentRegistryRecord:
     return DocumentRegistryRecord(
         document_id=document_id,
@@ -163,11 +165,11 @@ def _make_regulation_record(
         ingestion_timestamp="2026-05-02T10:00:00+00:00",
         parser_version="institutional_regulation_materialization_v1",
         embedding_model="mock-embedding-8d",
-        source_channel="authenticated_notice_portal",
+        source_channel=source_channel,
         is_current=True,
         document_units_object_key=object_key,
         processed_object_keys=(object_key,),
-        import_source="authenticated_notice_regulation_materialization",
+        import_source=import_source,
     )
 
 
@@ -578,6 +580,73 @@ class RegistryScopeReleaseTest(unittest.TestCase):
 
         self.assertEqual(published_report.release_admission_status, "passed")
         self.assertEqual(published_report.release_admission_manifest_key, admission_key)
+
+    def test_prepare_registry_scope_accepts_official_web_regulation_provenance(self) -> None:
+        record = _make_regulation_record(
+            document_id="official_web_regulation:001",
+            version_id="owregver:001",
+            object_key=(
+                "regulations/documents/institutional_rules/official-web-rule-001/"
+                "current-effective/2026/document-units.jsonl"
+            ),
+            source_channel="official_web",
+            import_source="official_web_regulation_source_truth_materialization",
+        )
+        document_units_bytes = (
+            json.dumps(
+                {
+                    "doc_id": record.document_id,
+                    "version_id": record.version_id,
+                    "chunk_id": f"{record.document_id}:unit:0001",
+                    "clean_text": "第一条 为规范校园一卡通管理，制定本规定。",
+                    "anchor": {"section_path": ["第一章 总则"]},
+                    "acl": {"level": "public", "allow_groups": []},
+                    "metadata": {
+                        "unit_type": "section_text",
+                        "chunk_lane": "formal_regulation",
+                        "promotion_class": "formal_regulation",
+                        "cleaning_policy_version": "institutional_rules_cleaning_v1",
+                        "chunk_policy_version": "institutional_rules_semantic_v1",
+                        "normalizer_version": "official_web_regulation_normalizer.v1",
+                        "normalization_quality": {
+                            "quality_verdict": "passed",
+                            "cleaning_policy_version": "institutional_rules_cleaning_v1",
+                        },
+                        "source_channel": "official_web",
+                    },
+                },
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+        registry = InMemoryDocumentRegistry((record,))
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", record.document_units_object_key or ""): document_units_bytes
+            }
+        )
+        env = {
+            "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+            "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+            "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+            "EMBEDDING_PROVIDER": "mock",
+            "EMBEDDING_MODEL": "mock-embedding-8d",
+            "SPARSE_PROVIDER": "mock",
+        }
+
+        report = prepare_registry_scope_chunks(
+            corpus="regulations",
+            collection="institutional_rules",
+            preparation_run_id="prep-official-web-001",
+            env=env,
+            registry=registry,
+            object_store=object_store,
+            require_current_cleaning_provenance=True,
+        )
+
+        self.assertEqual(report.validation_status, "passed")
+        self.assertEqual(report.document_count, 1)
 
     def test_release_registry_scope_writes_manifest_without_publishing_alias(self) -> None:
         with TemporaryDirectory() as temp_dir:

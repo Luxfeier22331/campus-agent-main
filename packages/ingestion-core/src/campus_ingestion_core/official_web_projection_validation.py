@@ -16,6 +16,7 @@ _CONSUMER_CANDIDATE_FAMILIES = frozenset(
         "service_guide_candidate",
         "academic_calendar_candidate",
         "regulation_candidate",
+        "student_regulation_candidate",
         "notice_news_candidate",
     }
 )
@@ -34,6 +35,7 @@ _TYPED_CANDIDATE_SCHEMA_BY_FAMILY = {
     "service_guide_candidate": "official_web_service_guide_candidate.v1",
     "academic_calendar_candidate": "official_web_academic_calendar_candidate.v1",
     "regulation_candidate": "official_web_regulation_candidate.v1",
+    "student_regulation_candidate": "official_web_regulation_candidate.v1",
     "notice_news_candidate": "official_web_inventory_candidate.v1",
 }
 
@@ -531,7 +533,7 @@ def _validate_typed_candidate(
                     "message": "academic calendar typed candidate field must be an integer: week_index",
                 }
             )
-    elif consumer_family == "regulation_candidate":
+    elif consumer_family in {"regulation_candidate", "student_regulation_candidate"}:
         for field_name in ("normalized_content_summary", "release_scope"):
             if _optional_text(typed_candidate.get(field_name)) is None:
                 issues.append(

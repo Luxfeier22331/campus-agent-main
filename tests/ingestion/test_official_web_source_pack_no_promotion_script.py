@@ -44,6 +44,30 @@ class OfficialWebSourcePackNoPromotionScriptTest(unittest.TestCase):
         command = run_json_command.call_args.args[1]
         self.assertEqual(command[:4], ("pnpm", "--dir", "apps/official-web-collector", "plan-source-pack"))
 
+    def test_load_source_pack_execution_plan_passes_non_default_source_pack_id(self) -> None:
+        with TemporaryDirectory() as temp_dir, patch(
+            "scripts.official_web_source_pack_no_promotion.run_json_command",
+            return_value={
+                "siteId": "muc_public",
+                "sourcePackId": "official-web-regulation-expansion.v1",
+                "rows": [],
+            },
+        ) as run_json_command:
+            plan = load_source_pack_execution_plan(
+                Path.cwd(),
+                site_id="muc_public",
+                source_pack_id="official-web-regulation-expansion.v1",
+                output_root=Path(temp_dir),
+            )
+
+        self.assertEqual(plan["sourcePackId"], "official-web-regulation-expansion.v1")
+        command = run_json_command.call_args.args[1]
+        self.assertIn("--source-pack-id", command)
+        self.assertEqual(
+            command[command.index("--source-pack-id") + 1],
+            "official-web-regulation-expansion.v1",
+        )
+
     def test_build_source_pack_seed_plan_expands_per_target_rows(self) -> None:
         source_pack_plan = {
             "siteId": "muc_public",
@@ -467,6 +491,67 @@ class OfficialWebSourcePackNoPromotionScriptTest(unittest.TestCase):
             self.assertEqual(report["actual_run_id"], "owrun_current")
             self.assertEqual(report["consumer"]["status"], "staged")
             assert_source_pack_seam_report(report)
+
+    def test_assert_source_pack_seam_report_allows_deleted_seed_row_via_page_observation_lineage(
+        self,
+    ) -> None:
+        report = {
+            "collector": {
+                "status": "completed",
+                "retained_source_truth_pages": 1,
+                "source_truth_target_matches": [],
+                "page_observation_target_matches": [
+                    {
+                        "normalizedCanonicalUrl": "https://met.muc.edu.cn/info/1068/1832.htm",
+                        "targetJobId": "owtarget_service",
+                        "targetCandidateId": "owcand_deleted",
+                        "disposition": "deleted",
+                    }
+                ],
+            },
+            "app_api": {
+                "target_attempts": [
+                    {
+                        "normalizedCanonicalUrl": "https://met.muc.edu.cn/info/1068/1832.htm",
+                    }
+                ],
+                "target_job_ids": ["owtarget_service"],
+                "db_run": {
+                    "ingestion_dispatch_status": "dispatched",
+                    "ingestion_execution_status": "staged",
+                    "ingestion_execution_error_code": None,
+                },
+            },
+            "consumer": {
+                "status": "staged",
+                "promotion_decision": "staged",
+                "import_is_null": True,
+                "error_is_null": True,
+                "target_lineage_issues": [],
+                "target_family_counts": {
+                    "service_guide_candidate": 0,
+                },
+                "target_materialization_policy_counts": {
+                    "candidate_only": 0,
+                },
+                "selected_write": {"decision": "not_ready"},
+                "target_field_reviews": [],
+                "release_tasks": {},
+            },
+            "target_seed": {
+                "seededRows": [
+                    {
+                        "consumerFamily": "service_guide_candidate",
+                        "materializationPolicy": "candidate_only",
+                        "targetCandidateId": "owcand_deleted",
+                        "targetJobId": "owtarget_service",
+                        "targetUrl": "https://met.muc.edu.cn/info/1068/1832.htm",
+                    }
+                ]
+            },
+        }
+
+        assert_source_pack_seam_report(report)
 
     def test_assert_source_pack_seam_report_allows_expanded_consumer_counts_beyond_seed_rows(
         self,

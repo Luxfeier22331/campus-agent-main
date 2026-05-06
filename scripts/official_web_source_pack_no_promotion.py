@@ -352,6 +352,8 @@ def load_source_pack_execution_plan(
             "--",
             "--site-id",
             site_id,
+            "--source-pack-id",
+            source_pack_id,
         ),
         env={},
         log_path=output_root / "source-pack-plan.log",
@@ -824,6 +826,9 @@ def build_source_pack_seam_report(
             "source_truth_target_matches": _source_truth_target_matches(
                 source_truth_bundle_payload
             ),
+            "page_observation_target_matches": _page_observation_target_matches(
+                output_root / "collector-output" / "page-observations.jsonl"
+            ),
         },
         "app_api": {
             "drain": drain_result,
@@ -890,6 +895,9 @@ def assert_source_pack_seam_report(report: Mapping[str, object]) -> None:
     if not app_api.get("target_job_ids"):
         raise RuntimeError("app-api target job ids are missing from seam evidence")
     source_truth_target_matches = _object_list(collector.get("source_truth_target_matches"))
+    page_observation_target_matches = _object_list(
+        collector.get("page_observation_target_matches")
+    )
     for seeded_row in seeded_rows:
         expected_target_url = _require_text(seeded_row.get("targetUrl"), "targetUrl")
         expected_target_job_id = _require_text(seeded_row.get("targetJobId"), "targetJobId")
@@ -903,16 +911,38 @@ def assert_source_pack_seam_report(report: Mapping[str, object]) -> None:
             and match.get("targetCandidateId") == expected_target_candidate_id
             for match in source_truth_target_matches
         )
+        matched_observation = next(
+            (
+                match
+                for match in page_observation_target_matches
+                if isinstance(match, dict)
+                and match.get("normalizedCanonicalUrl") == expected_target_url
+                and match.get("targetJobId") == expected_target_job_id
+                and match.get("targetCandidateId") == expected_target_candidate_id
+            ),
+            None,
+        )
+        if matched_seed_target:
+            continue
+        if isinstance(matched_observation, dict) and matched_observation.get("disposition") in {
+            "deleted",
+            "fetch_failed",
+        }:
+            continue
         if not matched_seed_target:
             raise RuntimeError("source-truth target matches did not cover the seeded target rows")
     if consumer.get("target_lineage_issues"):
         raise RuntimeError("consumer reported target lineage issues")
+    coverage_seed_rows = _coverage_seed_rows(
+        seeded_rows=seeded_rows,
+        page_observation_target_matches=page_observation_target_matches,
+    )
     expected_target_family_counts = Counter(
-        _require_text(row.get("consumerFamily"), "consumerFamily") for row in seeded_rows
+        _require_text(row.get("consumerFamily"), "consumerFamily") for row in coverage_seed_rows
     )
     expected_materialization_policy_counts = Counter(
         _require_text(row.get("materializationPolicy"), "materializationPolicy")
-        for row in seeded_rows
+        for row in coverage_seed_rows
     )
     actual_target_family_counts = _int_mapping(consumer.get("target_family_counts"))
     if not _counter_covers_seed_rows(
@@ -985,6 +1015,35 @@ def _counter_covers_seed_rows(
     return True
 
 
+def _coverage_seed_rows(
+    *,
+    seeded_rows: list[dict[str, object]],
+    page_observation_target_matches: list[object],
+) -> list[dict[str, object]]:
+    skipped_dispositions = {"deleted", "fetch_failed"}
+    skipped_keys = {
+        (
+            _optional_text(match.get("normalizedCanonicalUrl")),
+            _optional_text(match.get("targetJobId")),
+            _optional_text(match.get("targetCandidateId")),
+        )
+        for raw_match in page_observation_target_matches
+        if isinstance(raw_match, dict)
+        for match in [_object_mapping(raw_match)]
+        if _optional_text(match.get("disposition")) in skipped_dispositions
+    }
+    return [
+        row
+        for row in seeded_rows
+        if (
+            _require_text(row.get("targetUrl"), "targetUrl"),
+            _require_text(row.get("targetJobId"), "targetJobId"),
+            _require_text(row.get("targetCandidateId"), "targetCandidateId"),
+        )
+        not in skipped_keys
+    ]
+
+
 def _source_truth_target_matches(
     source_truth_bundle_payload: Mapping[str, object],
 ) -> list[dict[str, object]]:
@@ -1010,6 +1069,56 @@ def _source_truth_target_matches(
                         target_match_mapping.get("target_candidate_id")
                         or target_match_mapping.get("targetCandidateId")
                     ),
+                }
+            )
+    return matches
+
+
+def _page_observation_target_matches(path: Path) -> list[dict[str, object]]:
+    if not path.exists():
+        return []
+    matches: list[dict[str, object]] = []
+    for raw_line in path.read_text(encoding="utf-8").splitlines():
+        if not raw_line.strip():
+            continue
+        observation = _object_mapping(json.loads(raw_line))
+        normalized_canonical_url = _optional_text(
+            observation.get("normalized_canonical_url")
+            or observation.get("normalizedCanonicalUrl")
+        )
+        disposition = _optional_text(observation.get("disposition"))
+        target_matches = _object_list(
+            observation.get("target_matches") or observation.get("targetMatches")
+        )
+        if target_matches:
+            for target_match in target_matches:
+                target_match_mapping = _object_mapping(target_match)
+                matches.append(
+                    {
+                        "normalizedCanonicalUrl": normalized_canonical_url,
+                        "targetJobId": _optional_text(
+                            target_match_mapping.get("target_job_id")
+                            or target_match_mapping.get("targetJobId")
+                        ),
+                        "targetCandidateId": _optional_text(
+                            target_match_mapping.get("target_candidate_id")
+                            or target_match_mapping.get("targetCandidateId")
+                        ),
+                        "disposition": disposition,
+                    }
+                )
+            continue
+        target_job_id = _optional_text(observation.get("target_job_id") or observation.get("targetJobId"))
+        target_candidate_id = _optional_text(
+            observation.get("target_candidate_id") or observation.get("targetCandidateId")
+        )
+        if target_job_id and target_candidate_id:
+            matches.append(
+                {
+                    "normalizedCanonicalUrl": normalized_canonical_url,
+                    "targetJobId": target_job_id,
+                    "targetCandidateId": target_candidate_id,
+                    "disposition": disposition,
                 }
             )
     return matches

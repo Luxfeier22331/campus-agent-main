@@ -125,6 +125,107 @@ class OfficialWebHandoffReceiverTest(unittest.TestCase):
             self.assertIsNone(persisted["processedAt"])
             self.assertIsNone(persisted["lastError"])
 
+    def test_handoff_route_accepts_deleted_and_fetch_failed_changes_without_raw_versions(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            inbox_dir = Path(temp_dir) / "official-web-handoffs"
+            app = create_app(
+                settings=OfficialWebHandoffReceiverSettings(
+                    bearer_token="handoff-secret",
+                    inbox_dir=inbox_dir,
+                )
+            )
+            payload = _handoff_payload(
+                event_id="owevt_completed_01HR",
+            )
+            payload["pageChangeSummary"] = {
+                "changedPages": 0,
+                "deletedPages": 1,
+                "failedFetchPages": 1,
+                "newPages": 0,
+                "notModifiedPages": 0,
+            }
+            payload["pageChanges"] = [
+                {
+                    "changeStatus": "deleted",
+                    "normalizedCanonicalUrl": "https://www.muc.edu.cn/service/deleted",
+                    "observedAt": "2026-03-29T08:17:32.000Z",
+                    "pageFamily": "article_detail",
+                    "rawAssetId": None,
+                    "rawVersionId": None,
+                },
+                {
+                    "changeStatus": "fetch_failed",
+                    "normalizedCanonicalUrl": "https://www.muc.edu.cn/service/fetch-failed",
+                    "observedAt": "2026-03-29T08:17:32.000Z",
+                    "pageFamily": "article_detail",
+                    "rawAssetId": None,
+                    "rawVersionId": None,
+                },
+            ]
+
+            response = dispatch_http_request(
+                app,
+                method="POST",
+                path="/api/official-web/handoffs",
+                headers={
+                    "authorization": "Bearer handoff-secret",
+                    "content-type": "application/json",
+                    "x-official-web-event-id": "owevt_completed_01HR",
+                },
+                raw_body=json.dumps(payload).encode("utf-8"),
+            )
+
+            self.assertEqual(response.status_code, 202)
+            persisted = json.loads(
+                (inbox_dir / "owevt_completed_01HR.json").read_text(encoding="utf-8")
+            )
+            self.assertEqual(
+                persisted["payload"]["pageChanges"][0]["rawAssetId"],
+                None,
+            )
+            self.assertEqual(
+                persisted["payload"]["pageChanges"][1]["rawVersionId"],
+                None,
+            )
+
+    def test_handoff_route_rejects_new_change_without_raw_asset_identity(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            inbox_dir = Path(temp_dir) / "official-web-handoffs"
+            app = create_app(
+                settings=OfficialWebHandoffReceiverSettings(
+                    bearer_token="handoff-secret",
+                    inbox_dir=inbox_dir,
+                )
+            )
+            payload = _handoff_payload(event_id="owevt_completed_01HS")
+            payload["pageChanges"] = [
+                {
+                    "changeStatus": "new",
+                    "normalizedCanonicalUrl": "https://www.muc.edu.cn/admissions",
+                    "observedAt": "2026-03-29T08:17:32.000Z",
+                    "pageFamily": "article_detail",
+                    "rawAssetId": None,
+                    "rawVersionId": None,
+                }
+            ]
+
+            response = dispatch_http_request(
+                app,
+                method="POST",
+                path="/api/official-web/handoffs",
+                headers={
+                    "authorization": "Bearer handoff-secret",
+                    "content-type": "application/json",
+                    "x-official-web-event-id": "owevt_completed_01HS",
+                },
+                raw_body=json.dumps(payload).encode("utf-8"),
+            )
+
+            self.assertEqual(response.status_code, 400)
+            self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+            self.assertIn("pageChanges[].rawAssetId", response.json_body["error"]["message"])
+            self.assertEqual(list(inbox_dir.glob("*.json")), [])
+
     def test_handoff_route_is_idempotent_for_same_event_id(self) -> None:
         with TemporaryDirectory() as temp_dir:
             inbox_dir = Path(temp_dir) / "official-web-handoffs"

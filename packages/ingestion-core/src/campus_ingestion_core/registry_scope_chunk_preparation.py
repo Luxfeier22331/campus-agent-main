@@ -46,6 +46,7 @@ MANDATORY_PREPARATION_SCOPES = frozenset(
         ("regulations", "scoped_rules"),
     }
 )
+_OFFICIAL_WEB_REGULATION_NORMALIZER_VERSION = "official_web_regulation_normalizer.v1"
 
 
 class RegistryScopePreparationObjectStore(Protocol):
@@ -816,13 +817,16 @@ def _assert_current_cleaning_provenance(
         metadata = row.get("metadata")
         if not isinstance(metadata, Mapping):
             raise ValueError(f"{record_label(record)} is missing document-units metadata")
-        if str(metadata.get("normalizer_version") or "") != REGULATION_CANONICAL_NORMALIZER_VERSION:
+        normalizer_version = str(metadata.get("normalizer_version") or "")
+        if normalizer_version not in _allowed_regulation_normalizer_versions(record=record):
             raise ValueError(
                 "canonical cleaning provenance failed for "
                 f"{record_label(record)}: normalizer_version must be "
-                f"{REGULATION_CANONICAL_NORMALIZER_VERSION}"
+                f"one of {_allowed_regulation_normalizer_versions(record=record)}"
             )
         quality = metadata.get("normalization_quality")
+        if isinstance(quality, str):
+            quality = {"quality_verdict": quality}
         if not isinstance(quality, Mapping) or str(quality.get("quality_verdict") or "") != "passed":
             raise ValueError(
                 "canonical cleaning provenance failed for "
@@ -838,6 +842,12 @@ def _assert_current_cleaning_provenance(
                 "canonical cleaning provenance failed for "
                 f"{record_label(record)}: cleaning policy must match runtime profile"
             )
+
+
+def _allowed_regulation_normalizer_versions(*, record: DocumentRegistryRecord) -> tuple[str, ...]:
+    if record.source_channel == "official_web":
+        return (_OFFICIAL_WEB_REGULATION_NORMALIZER_VERSION,)
+    return (REGULATION_CANONICAL_NORMALIZER_VERSION,)
 
 
 def _document_unit_payloads(document_units_bytes: bytes) -> tuple[Mapping[str, Any], ...]:

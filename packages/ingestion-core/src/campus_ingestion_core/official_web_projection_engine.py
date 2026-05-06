@@ -140,6 +140,7 @@ _TARGET_CONSUMER_FAMILIES = frozenset(
         "academic_calendar_candidate",
         "stable_reference_candidate",
         "regulation_candidate",
+        "student_regulation_candidate",
         "notice_news_candidate",
     }
 )
@@ -1211,7 +1212,7 @@ def _build_typed_candidate(
             evidence_spans,
         )
 
-    if consumer_family == "regulation_candidate":
+    if consumer_family in {"regulation_candidate", "student_regulation_candidate"}:
         title_info = normalize_official_web_regulation_title(raw_title or title)
         answer_bearing_lines = _regulation_answer_bearing_lines(lines)
         normalized_summary = _build_regulation_content_summary(answer_bearing_lines)
@@ -2083,6 +2084,8 @@ def _target_from_consumer_match(match: dict[str, object]) -> tuple[str, str]:
     consumer_family = str(match.get("consumerFamily") or match.get("consumer_family") or "")
     if consumer_family == "regulation_candidate":
         return "regulations", "institutional_rules"
+    if consumer_family == "student_regulation_candidate":
+        return "regulations", "student_rules"
     if consumer_family == "notice_news_candidate":
         return "official_web_public_notice", "inventory"
     return "official_web", "muc_public_pages"

@@ -214,12 +214,20 @@ class OfficialWebRegulationMaterializationTest(unittest.TestCase):
             self.assertEqual(units[0]["version_id"], record.version_id)
             self.assertEqual(units[0]["metadata"]["source_channel"], "official_web")
             self.assertEqual(
-                units[0]["metadata"]["normalization_quality"],
+                units[0]["metadata"]["normalization_quality"]["quality_verdict"],
                 "passed",
+            )
+            self.assertEqual(
+                units[0]["metadata"]["normalization_quality"]["normalizer_version"],
+                "official_web_regulation_normalizer.v1",
             )
             self.assertEqual(
                 units[0]["metadata"]["selected_write_target"],
                 "regulations/institutional_rules",
+            )
+            self.assertEqual(
+                units[0]["metadata"]["promotion_class"],
+                "formal_regulation",
             )
 
             reader_report = publish_document_reader_assets(
@@ -540,6 +548,119 @@ class OfficialWebRegulationMaterializationTest(unittest.TestCase):
             document_dirs = sorted(path.name for path in scope_dir.iterdir() if path.is_dir())
             self.assertEqual(len(document_dirs), 1)
             self.assertTrue(document_dirs[0].startswith("校园一卡通管理规定--"))
+
+    def test_worker_materialization_report_includes_selected_documents_for_downstream_reuse(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            declarations_path = root / "projection-declarations.json"
+            object_store_root = root / "object-store"
+            worker_output_dir = root / "worker-output"
+            _write_json(declarations_path, _declarations_payload())
+            regulation_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/institutional_rules",
+                target_id="official-web-institutional-rules",
+                review_policy="release_gate_required",
+            )
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_regulation_report_contract_test",
+                    "collectionMode": "target-workset",
+                    "pages": [
+                        _page(
+                            raw_asset_id="owasset_card",
+                            raw_version_id="owver_card",
+                            normalized_canonical_url="https://met.example.edu/info/1024/1086.htm",
+                            target_matches=[regulation_match],
+                        )
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="met.example.edu",
+                raw_asset_id="owasset_card",
+                raw_version_id="owver_card",
+                normalized_canonical_url="https://met.example.edu/info/1024/1086.htm",
+                page_title="校 园 一 卡 通 管 理 规 定",
+                page_family="article_detail",
+                target_matches=[regulation_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_card",
+                        raw_version_id="owver_card",
+                        row_id="card-title",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="校 园 一 卡 通 管 理 规 定",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_card",
+                        raw_version_id="owver_card",
+                        row_id="card-p1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="第一条 为规范校园一卡通管理，制定本规定。",
+                    ),
+                ],
+            )
+
+            materialize_worker_main(
+                [
+                    "--source-truth-output-dir",
+                    str(output_dir),
+                    "--declarations-path",
+                    str(declarations_path),
+                    "--output-dir",
+                    str(worker_output_dir),
+                    "--object-store-root",
+                    str(object_store_root),
+                ]
+            )
+
+            report = json.loads(
+                (worker_output_dir / "materialization-report.json").read_text(
+                    encoding="utf-8"
+                )
+            )
+            summary = json.loads(
+                (
+                    worker_output_dir
+                    / "official-web-regulation-materialization-summary.json"
+                ).read_text(encoding="utf-8")
+            )
+
+            self.assertEqual(report["materialized_document_count"], 1)
+            self.assertEqual(len(report["selected_target_document_ids"]), 1)
+            self.assertEqual(len(report["materialized_documents"]), 1)
+            materialized = report["materialized_documents"][0]
+            self.assertEqual(
+                report["selected_target_document_ids"],
+                [materialized["target_document_id"]],
+            )
+            self.assertEqual(materialized["target_corpus"], "regulations")
+            self.assertEqual(materialized["target_collection"], "institutional_rules")
+            self.assertEqual(materialized["source_channel"], "official_web")
+            self.assertEqual(
+                materialized["normalization_quality"]["quality_verdict"],
+                "passed",
+            )
+            self.assertEqual(len(materialized["canonical_markdown_sha256"]), 64)
+            self.assertEqual(len(materialized["document_units_sha256"]), 64)
+            self.assertEqual(
+                summary["materialization_report"]["selected_target_document_ids"],
+                report["selected_target_document_ids"],
+            )
 
     def test_document_identity_stays_stable_across_title_cleanup(self) -> None:
         with TemporaryDirectory() as temp_dir:

@@ -12,7 +12,7 @@ from campus_ingestion_core.campusrag_ingestion_support import (
     collect_import_document_stats,
 )
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
-from campus_ingestion_core.models import RawAssetRecord
+from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRecord
 from campus_ingestion_core.object_store import build_document_artifact_key
 from campus_ingestion_core.official_web_projection import replay_official_web_source_truth_local
 from campus_ingestion_core.official_web_regulation_titles import (
@@ -41,6 +41,8 @@ class OfficialWebRegulationMaterializationReport:
     updated_document_ids: tuple[str, ...]
     skipped_document_ids: tuple[str, ...]
     document_ids: tuple[str, ...]
+    selected_target_document_ids: tuple[str, ...]
+    materialized_documents: tuple[dict[str, object], ...]
     source_urls: tuple[str, ...]
     import_failed_count: int
     errors: tuple[str, ...]
@@ -76,8 +78,12 @@ def materialize_official_web_regulation_candidates(
         scope_refresh=scope_refresh,
     )
     return _build_report(
+        candidates=candidates,
         candidate_count=len(candidates),
+        document_registry=document_registry,
         materialized_scopes=tuple(sorted({"/".join(_candidate_scope(candidate)) for candidate in candidates})),
+        object_store=object_store,
+        object_store_settings=object_store_settings,
         stats=stats,
         projection_report_path=projection_output_dir / "projection-report.json",
         source_urls=tuple(str(candidate["normalized_canonical_url"]) for candidate in candidates),
@@ -104,7 +110,10 @@ def _select_release_ready_regulation_candidates(
     for raw_candidate in candidates:
         if not isinstance(raw_candidate, dict):
             continue
-        if str(raw_candidate.get("consumer_family") or "").strip() != "regulation_candidate":
+        if str(raw_candidate.get("consumer_family") or "").strip() not in {
+            "regulation_candidate",
+            "student_regulation_candidate",
+        }:
             continue
         selected_write_target = str(raw_candidate.get("selected_write_target") or "").strip()
         if not selected_write_target.startswith("regulations/"):
@@ -246,7 +255,7 @@ def _build_document_units(
         "site_id": _optional_text(candidate.get("site_id")),
         "host": _optional_text(candidate.get("host")),
         "page_family": _optional_text(candidate.get("page_family")) or "article_detail",
-        "consumer_family": "regulation_candidate",
+        "consumer_family": str(candidate.get("consumer_family") or "regulation_candidate"),
         "selected_write_target": _candidate_selected_write_target(candidate),
         "target_id": _optional_text(candidate.get("target_id")),
         "target_candidate_id": _optional_text(candidate.get("target_candidate_id")),
@@ -256,8 +265,13 @@ def _build_document_units(
         "normalizer_version": _NORMALIZER_VERSION,
         "cleaning_policy_version": _candidate_cleaning_policy_version(candidate),
         "document_units_schema_version": _DOCUMENT_UNITS_SCHEMA_VERSION,
-        "normalization_quality": "passed",
+        "normalization_quality": {
+            "quality_verdict": "passed",
+            "cleaning_policy_version": _candidate_cleaning_policy_version(candidate),
+            "normalizer_version": _NORMALIZER_VERSION,
+        },
         "regulation_lane": "formal_regulation",
+        "promotion_class": "formal_regulation",
         "content_role": "formal_regulation",
         "is_answer_bearing": True,
         "source_version_evidence": {
@@ -396,12 +410,22 @@ def _build_raw_asset_record(
 
 def _build_report(
     *,
+    candidates: tuple[dict[str, object], ...],
     candidate_count: int,
+    document_registry: DocumentRegistry,
     materialized_scopes: tuple[str, ...],
+    object_store: ObjectStoreWriter,
+    object_store_settings: ObjectStoreSettings,
     stats: PersistImportStats,
     projection_report_path: Path,
     source_urls: tuple[str, ...],
 ) -> OfficialWebRegulationMaterializationReport:
+    materialized_documents = _build_materialized_document_reports(
+        candidates=candidates,
+        document_registry=document_registry,
+        object_store=object_store,
+        bucket_derived=object_store_settings.bucket_derived,
+    )
     return OfficialWebRegulationMaterializationReport(
         candidate_count=candidate_count,
         materialized_document_count=stats.success_count,
@@ -410,6 +434,10 @@ def _build_report(
         updated_document_ids=stats.updated_document_ids,
         skipped_document_ids=stats.skipped_document_ids,
         document_ids=stats.document_ids,
+        selected_target_document_ids=tuple(
+            str(item["target_document_id"]) for item in materialized_documents
+        ),
+        materialized_documents=materialized_documents,
         source_urls=source_urls,
         import_failed_count=stats.failed_count,
         errors=stats.errors,
@@ -496,6 +524,89 @@ def _materialize_candidates_by_scope(
         updated_document_ids=tuple(updated_document_ids),
         skipped_document_ids=tuple(skipped_document_ids),
     )
+
+
+def _build_materialized_document_reports(
+    *,
+    candidates: tuple[dict[str, object], ...],
+    document_registry: DocumentRegistry,
+    object_store: ObjectStoreWriter,
+    bucket_derived: str,
+) -> tuple[dict[str, object], ...]:
+    reports: list[dict[str, object]] = []
+    for candidate in candidates:
+        projection = _candidate_document_projection(candidate)
+        target_document_id = str(projection["document_id"])
+        record = document_registry.current_version(
+            target_document_id,
+            preferred_revision_tracks=("current-effective",),
+        )
+        if record is None:
+            continue
+        reports.append(
+            _materialized_document_report(
+                candidate=candidate,
+                projection=projection,
+                record=record,
+                object_store=object_store,
+                bucket_derived=bucket_derived,
+            )
+        )
+    return tuple(reports)
+
+
+def _materialized_document_report(
+    *,
+    candidate: dict[str, object],
+    projection: dict[str, object],
+    record: DocumentRegistryRecord,
+    object_store: ObjectStoreWriter,
+    bucket_derived: str,
+) -> dict[str, object]:
+    canonical_key = record.canonical_markdown_object_key
+    document_units_key = record.document_units_object_key
+    canonical_bytes = (
+        object_store.get_bytes(bucket=bucket_derived, key=canonical_key) if canonical_key else b""
+    )
+    document_units_bytes = (
+        object_store.get_bytes(bucket=bucket_derived, key=document_units_key)
+        if document_units_key
+        else b""
+    )
+    typed_candidate = _require_dict(candidate.get("typed_candidate"), "typed_candidate")
+    title_info = normalize_official_web_regulation_title(
+        _require_text(typed_candidate.get("reference_title"), "reference_title")
+    )
+    return {
+        "target_document_id": record.document_id,
+        "target_corpus": record.corpus,
+        "target_collection": record.collection,
+        "version_id": record.version_id,
+        "content_hash": record.content_hash,
+        "cleaning_policy_version": record.cleaning_policy_version,
+        "normalizer_version": _NORMALIZER_VERSION,
+        "normalization_quality": {
+            "quality_verdict": "passed",
+            "title_raw": title_info.raw_title,
+            "title_display": title_info.display_title,
+            "title_base": title_info.base_title,
+            "title_source_marker": title_info.source_title_marker,
+            "title_status_qualifier": title_info.status_qualifier,
+            "title_status_kind": title_info.status_kind,
+            "source_url": str(projection["normalized_canonical_url"]),
+            "raw_asset_id": candidate.get("raw_asset_id"),
+            "raw_version_id": candidate.get("raw_version_id"),
+        },
+        "source_channel": "official_web",
+        "canonical_markdown_object_key": canonical_key,
+        "canonical_markdown_sha256": hashlib.sha256(canonical_bytes).hexdigest()
+        if canonical_bytes
+        else "",
+        "document_units_object_key": document_units_key,
+        "document_units_sha256": hashlib.sha256(document_units_bytes).hexdigest()
+        if document_units_bytes
+        else "",
+    }
 
 
 def _dedupe_candidates_by_url(candidates: list[dict[str, object]]) -> tuple[dict[str, object], ...]:
