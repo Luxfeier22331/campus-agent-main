@@ -6,8 +6,14 @@
 	},
 	{
 		"type": "dir",
-		"name": "docs",
-		"label": "公开文档",
-		"collapsed": false
+		"name": "student-handbook",
+		"label": "学生手册",
+		"collapsed": true
+	},
+	{
+		"type": "dir",
+		"name": "curriculum-plan",
+		"label": "培养方案",
+		"collapsed": true
 	}
 ]

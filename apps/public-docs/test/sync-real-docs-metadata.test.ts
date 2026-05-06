@@ -95,8 +95,11 @@ describe("public-docs navigation and metadata generation", () => {
 	it("renders public regulation source metadata without leaking internal collection ids", () => {
 		const markdown = buildPublicRegulationMarkdown({
 			doc: {
+				audienceSegment: "public_service",
 				collection: "institutional_rules",
 				collectionLabel: "学校规章",
+				documentId: "official_web_regulation:example",
+				docsNavGroup: "public_service",
 				key: "regulations/documents/institutional_rules/example/source-faithful/2026/document-units.jsonl",
 				slug: "campus-regulation-example",
 				title: "中央民族大学示例规章",

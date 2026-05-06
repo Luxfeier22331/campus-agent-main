@@ -227,7 +227,11 @@ function buildGroupedRegulationDocs(
 
 function buildRegulationRootMeta(
 	groups: Array<{ displayName: string; slug: string }>,
-): Array<string | { collapsed: boolean; label: string; name: string; type: "dir" | "file" }> {
+): Array<
+	| string
+	| { label: string; name: string; type: "file" }
+	| { collapsed: boolean; label: string; name: string; type: "dir" }
+> {
 	return [
 		{ type: "file", name: "index", label: "校内规章" },
 		...groups.map((group) => ({
