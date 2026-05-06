@@ -330,6 +330,18 @@ def parse_workflow_agent_context(raw_context: object) -> WorkflowAgentContext:
             )
             or "agent_private"
         ),
+        workflow_run_ref=require_string(
+            context.get("workflow_run_ref"),
+            field_name="runtime_decisions.handoff.agent_request.workflow_context.workflow_run_ref",
+        ),
+        step_id=require_string(
+            context.get("step_id"),
+            field_name="runtime_decisions.handoff.agent_request.workflow_context.step_id",
+        ),
+        agent_id=require_string(
+            context.get("agent_id"),
+            field_name="runtime_decisions.handoff.agent_request.workflow_context.agent_id",
+        ),
         target=(
             parse_optional_string(
                 context.get("target"),

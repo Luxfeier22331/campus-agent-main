@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-20
-updated: 2026-05-02
+updated: 2026-05-06
 ---
 # Agentic Retrieval Architecture
 
@@ -357,6 +357,17 @@ guardrail ergonomics，不拥有 retrieval truth。
 - category discovery 例如“有哪些本科生可以申请的奖学金”可以由 RAG 内部 query intent 表达并返回
   cited list answer；服务/身份流程类问题例如“门户密码忘了怎么办”保持 routing-negative /
   unsupported-scope eval boundary，不交给 RAG 兜底
+
+SDK loop 的验收口径固定为产品 contract，而不是 provider run success：
+
+- Python SDK suite 必须证明 internal DTO、function tool boundary、guardrail、rollout mode、
+  sanitized trace projection 与 worker runner contract 未漂移
+- public/chat product-path E2E 必须证明 `supervisor-api -> supervisor-agent-worker ->
+  rag-agent SDK loop -> Go finalizer` 返回 canonical `SupervisorResponse`
+- real-provider E2E 只有在本地/部署 Docker runtime 健康时才可作为 acceptance evidence；
+  Docker daemon / WSL backend failure 只能记录为 environment blocker
+- SDK native tracing 上游默认可记录 LLM generation、function tool、handoff 与 guardrail span；
+  本 repo 默认关闭 native trace，只允许 repo-owned sanitized projection 出边界
 
 ## Evaluation Model
 

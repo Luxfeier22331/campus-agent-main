@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
+import hashlib
+import json
 from typing import Any
 
 from campus_contracts import (
@@ -11,6 +13,9 @@ from campus_contracts import (
     ErrorInfo,
 )
 
+from campus_supervisor_agent_worker.agents_sdk_instruction_profiles import (
+    instruction_profile_for_request,
+)
 from campus_supervisor_agent_worker.agents_sdk_tool_bridge import (
     AgentsSdkToolBridgeError,
     AgentsSdkToolDescriptor,
@@ -74,6 +79,10 @@ class AgentsSdkRunRequest:
     request_id: str
     allowed_tools: tuple[str, ...]
     tool_descriptors: tuple[AgentsSdkToolDescriptor, ...]
+    instruction_profile_id: str
+    instructions: str
+    result_usage_mode: str
+    surface_execution_mode: str
     context: object
     execute_tool: AgentsSdkToolExecutor | None = None
 
@@ -119,6 +128,7 @@ def run_agents_sdk_runner_shell(
     registry = tool_registry or default_tool_spec_registry()
     execution_recorder: _ToolExecutionRecorder | None = None
     tool_descriptors: tuple[AgentsSdkToolDescriptor, ...] = ()
+    instruction_profile = instruction_profile_for_request(request)
     try:
         tool_descriptors = build_agents_sdk_tool_descriptors(
             request.allowed_tools,
@@ -138,6 +148,10 @@ def run_agents_sdk_runner_shell(
                 request_id=request.request_id,
                 allowed_tools=request.allowed_tools,
                 tool_descriptors=tool_descriptors,
+                instruction_profile_id=instruction_profile.profile_id,
+                instructions=instruction_profile.instructions,
+                result_usage_mode=instruction_profile.result_usage_mode,
+                surface_execution_mode=instruction_profile.surface_execution_mode,
                 context=request.context,
                 execute_tool=execution_recorder.execute if execute_tool is not None else None,
             )
@@ -150,6 +164,9 @@ def run_agents_sdk_runner_shell(
             tool_execution_records=execution_recorder.records,
             require_tool_execution=require_tool_execution,
             latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
+            instruction_profile_id=instruction_profile.profile_id,
+            result_usage_mode=instruction_profile.result_usage_mode,
+            surface_execution_mode=instruction_profile.surface_execution_mode,
         )
     except AgentsSdkToolBridgeError as exc:
         return _runtime_error_response(
@@ -224,6 +241,9 @@ def _response_from_runner_result(
     tool_execution_records: tuple[_ToolExecutionRecord, ...] = (),
     require_tool_execution: bool = False,
     latency_ms: int = 0,
+    instruction_profile_id: str = "",
+    result_usage_mode: str = "",
+    surface_execution_mode: str = "",
 ) -> AgentResponse:
     if not isinstance(result, AgentsSdkRunResult):
         raise AgentsSdkRunnerError(
@@ -256,9 +276,19 @@ def _response_from_runner_result(
         "model_response_ref": result.model_response_ref,
         "argument_keys": list(validated_arguments.argument_keys),
         "tool_execution_count": len(tool_execution_records),
+        "instruction_profile_id": instruction_profile_id,
+        "result_usage_mode": result_usage_mode,
+        "surface_execution_mode": surface_execution_mode,
     }
     if tool_execution_records:
         runner_projection["tool_result_projection"] = tool_execution_records[-1].result_projection
+    response_result: dict[str, object] | None = None
+    if tool_execution_records:
+        response_result = {
+            "payload_kind": descriptor.payload_kind,
+            "tool_result": tool_execution_records[-1].result_projection,
+        }
+    output_projection_ref = _workflow_output_projection_ref(request, tool_execution_records)
     trace_projection = build_agents_sdk_trace_projection(
         target=request.target,
         selected_tool=tool_call.name,
@@ -271,6 +301,17 @@ def _response_from_runner_result(
         tool_attempted=True,
         latency_ms=latency_ms,
         model_response_ref=result.model_response_ref,
+        instruction_profile_id=instruction_profile_id,
+        result_usage_mode=result_usage_mode,
+        surface_execution_mode=surface_execution_mode,
+        workflow_run_ref=request.workflow_context.workflow_run_ref,
+        step_id=request.workflow_context.step_id,
+        agent_id=request.workflow_context.agent_id,
+        step_status="completed",
+        terminal_reason="",
+        fail_close_reason="",
+        input_projection_refs=request.workflow_context.projection_refs,
+        output_projection_ref=output_projection_ref,
     )
     lifecycle_projection = build_agents_sdk_tool_lifecycle_projection(
         selected_tool=tool_call.name,
@@ -284,6 +325,7 @@ def _response_from_runner_result(
         status="completed",
         answer_text=final_output,
         confidence="medium",
+        result=response_result,
         agent_observability=AgentObservability(
             selected_tool=tool_call.name,
             tool_attempted=True,
@@ -524,7 +566,15 @@ def _safe_projection_value(value: object) -> object:
                 if is_unsafe_agents_sdk_projection_value(item):
                     continue
                 items.append(item[:512])
+            elif isinstance(item, Mapping):
+                nested = _bounded_tool_result_projection(item)
+                if nested:
+                    items.append(nested)
         return items
+    if isinstance(value, Mapping):
+        nested = _bounded_tool_result_projection(value)
+        if nested:
+            return nested
     return None
 
 
@@ -668,6 +718,13 @@ def _runtime_error_response(
         tool_attempted=tool_attempted,
         latency_ms=latency_ms,
         model_response_ref="",
+        workflow_run_ref=request.workflow_context.workflow_run_ref,
+        step_id=request.workflow_context.step_id,
+        agent_id=request.workflow_context.agent_id,
+        step_status="error",
+        terminal_reason=failure_class,
+        fail_close_reason=failure_class,
+        input_projection_refs=request.workflow_context.projection_refs,
     )
     return AgentResponse(
         target=request.target,
@@ -724,6 +781,85 @@ def _tool_execution_source_ref_count(
     if isinstance(count, int) and count >= 0:
         return count
     return 0
+
+
+def _workflow_output_projection_ref(
+    request: AgentRequest,
+    records: tuple[_ToolExecutionRecord, ...],
+) -> dict[str, object] | None:
+    if not records:
+        return None
+    latest = records[-1].result_projection
+    projection = _projection_for_tool_result(
+        request.workflow_context.step_id,
+        request.allowed_tools[0] if request.allowed_tools else "",
+        latest,
+    )
+    return projection
+
+
+def _projection_for_tool_result(
+    source_step_id: str,
+    tool_name: str,
+    tool_result: Mapping[str, object],
+) -> dict[str, object] | None:
+    if tool_name == "transport_schedule_lookup":
+        resolved_route = tool_result.get("resolved_route")
+        if not isinstance(resolved_route, Mapping):
+            return None
+        route_id = str(resolved_route.get("route_id") or "").strip()
+        route_display_name = str(resolved_route.get("display_name") or "").strip()
+        service_family = str(resolved_route.get("service_family") or "").strip()
+        summary = str(tool_result.get("query_text") or "").strip()
+        if not (route_id or route_display_name or service_family or summary):
+            return None
+        payload: dict[str, object] = {
+            "route_id": route_id,
+            "route_display_name": route_display_name,
+            "service_family": service_family,
+            "summary": summary,
+        }
+        source_refs = tool_result.get("source_refs")
+        if isinstance(source_refs, list):
+            normalized_refs = [str(item).strip() for item in source_refs if str(item).strip()]
+            if normalized_refs:
+                payload["source_refs"] = normalized_refs
+        return _safe_projection_ref(source_step_id, "schedule_baseline", payload)
+    if tool_name == "campus_notice_discover":
+        return None
+    return None
+
+
+def _safe_projection_ref(
+    source_step_id: str,
+    projection_kind: str,
+    payload: Mapping[str, object],
+) -> dict[str, object]:
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode(
+        "utf-8"
+    )
+    digest = hashlib.sha256(encoded).hexdigest()
+    fields_present = sorted(key for key, value in payload.items() if _has_projection_value(value))
+    return {
+        "projection_id": f"projection:{projection_kind}:{digest[:16]}",
+        "source_step_id": source_step_id,
+        "projection_kind": projection_kind,
+        "content_hash": f"sha256:{digest}",
+        "safety": {
+            "truncated": False,
+            "redacted": False,
+            "max_chars": 1600,
+            "fields_present": fields_present,
+        },
+    }
+
+
+def _has_projection_value(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list | tuple | dict):
+        return len(value) > 0
+    return value is not None
 
 
 __all__ = [

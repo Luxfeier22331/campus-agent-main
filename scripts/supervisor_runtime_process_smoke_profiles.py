@@ -318,11 +318,67 @@ def profile_answer_expectation(
                 "multi_step",
                 "context_projections",
                 "notice_context",
+                "evidence_bundle",
+                "grounding_verdict",
                 "notice-agent",
                 "campus_notice_get",
                 "rag-agent",
                 "retrieval.query",
                 "agent_execution_projection",
+                "已读取的通知上下文",
+            ),
+            "/api/v1/answer",
+            "json",
+            (200,),
+        )
+    if profile == "multi_step_transport_notice_knowledge_pilot":
+        notice_context = {
+            **context,
+            "authorization": {
+                "retrieval_filter": {
+                    "entitlement_groups": ["students"],
+                    "visibility_level": "restricted",
+                    "visibility_scope": "campus",
+                    "policy_projection_version": "phase1-authorization-projection-v1",
+                }
+            },
+            "session": {
+                "selected_notice_ref": {
+                    "notice_id": "notice:transport:355122",
+                    "source_family": "internal_notice_restricted",
+                    "title": "关于两校区学生通勤班车增加班次的通知",
+                },
+                "turn_count": 2,
+            },
+        }
+        return (
+            {
+                "user_goal": "这条班车通知依据学生手册哪条规定？",
+                "request_id": "process-smoke-multi-step-transport-notice-knowledge",
+                "requested_capability": "campus_services",
+                "requested_scope": {
+                    "corpus": "regulations",
+                    "collection": "student_rules",
+                },
+                "context": notice_context,
+            },
+            200,
+            (
+                "workflow_trace_summary",
+                "multi_step",
+                "context_projections",
+                "schedule_baseline",
+                "notice_context",
+                "evidence_bundle",
+                "grounding_verdict",
+                "campus-services-agent",
+                "transport_schedule_lookup",
+                "notice-agent",
+                "campus_notice_get",
+                "rag-agent",
+                "retrieval.query",
+                "agent_execution_projection",
+                "已读取的班车基线",
                 "已读取的通知上下文",
             ),
             "/api/v1/answer",

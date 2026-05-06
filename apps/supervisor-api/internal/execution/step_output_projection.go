@@ -8,11 +8,17 @@ import (
 )
 
 const MaxNoticeContextProjectionBodyChars = 1600
+const MaxScheduleBaselineProjectionSummaryChars = 1600
+const MaxEvidenceBundleProjectionQueryChars = 1600
+const MaxGroundingVerdictProjectionSummaryChars = 1600
 
 type ProjectionKind string
 
 const (
-	ProjectionKindNoticeContext ProjectionKind = "notice_context"
+	ProjectionKindNoticeContext    ProjectionKind = "notice_context"
+	ProjectionKindScheduleBaseline ProjectionKind = "schedule_baseline"
+	ProjectionKindEvidenceBundle   ProjectionKind = "evidence_bundle"
+	ProjectionKindGroundingVerdict ProjectionKind = "grounding_verdict"
 )
 
 type ProjectionSafetySummary struct {
@@ -64,6 +70,124 @@ func NewNoticeContextProjection(
 	}, true
 }
 
+func NewScheduleBaselineProjection(
+	sourceStepID string,
+	routeID string,
+	routeDisplayName string,
+	serviceFamily string,
+	summary string,
+	sourceRefs []string,
+) (StepOutputProjection, bool) {
+	payload := map[string]any{
+		"route_id":           strings.TrimSpace(routeID),
+		"route_display_name": strings.TrimSpace(routeDisplayName),
+		"service_family":     strings.TrimSpace(serviceFamily),
+		"summary":            "",
+		"source_refs":        normalizedProjectionStringSlice(sourceRefs),
+	}
+	summaryExcerpt, truncated := truncateRunes(
+		strings.TrimSpace(summary),
+		MaxScheduleBaselineProjectionSummaryChars,
+	)
+	payload["summary"] = summaryExcerpt
+	fieldsPresent := projectionFieldsPresentForPayload(payload)
+	if len(fieldsPresent) == 0 {
+		return StepOutputProjection{}, false
+	}
+	contentHash := projectionContentHash(payload)
+	return StepOutputProjection{
+		ProjectionID:   "projection:schedule_baseline:" + strings.TrimPrefix(contentHash, "sha256:")[:16],
+		SourceStepID:   sourceStepID,
+		ProjectionKind: ProjectionKindScheduleBaseline,
+		ContentHash:    contentHash,
+		Payload:        payload,
+		Safety: ProjectionSafetySummary{
+			Truncated:     truncated,
+			Redacted:      false,
+			MaxChars:      MaxScheduleBaselineProjectionSummaryChars,
+			FieldsPresent: fieldsPresent,
+		},
+	}, true
+}
+
+func NewEvidenceBundleProjection(
+	sourceStepID string,
+	corpus string,
+	collection string,
+	queryText string,
+	sourceRefs []string,
+) (StepOutputProjection, bool) {
+	payload := map[string]any{
+		"corpus":     strings.TrimSpace(corpus),
+		"collection": strings.TrimSpace(collection),
+		"query_text": "",
+		"source_refs": normalizedProjectionStringSlice(
+			sourceRefs,
+		),
+	}
+	queryExcerpt, truncated := truncateRunes(
+		strings.TrimSpace(queryText),
+		MaxEvidenceBundleProjectionQueryChars,
+	)
+	payload["query_text"] = queryExcerpt
+	fieldsPresent := projectionFieldsPresentForPayload(payload)
+	if len(fieldsPresent) == 0 {
+		return StepOutputProjection{}, false
+	}
+	contentHash := projectionContentHash(payload)
+	return StepOutputProjection{
+		ProjectionID:   "projection:evidence_bundle:" + strings.TrimPrefix(contentHash, "sha256:")[:16],
+		SourceStepID:   sourceStepID,
+		ProjectionKind: ProjectionKindEvidenceBundle,
+		ContentHash:    contentHash,
+		Payload:        payload,
+		Safety: ProjectionSafetySummary{
+			Truncated:     truncated,
+			Redacted:      false,
+			MaxChars:      MaxEvidenceBundleProjectionQueryChars,
+			FieldsPresent: fieldsPresent,
+		},
+	}, true
+}
+
+func NewGroundingVerdictProjection(
+	sourceStepID string,
+	groundingVerdict string,
+	semanticOutcome string,
+	sourceRefCount int,
+) (StepOutputProjection, bool) {
+	payload := map[string]any{
+		"grounding_verdict": strings.TrimSpace(groundingVerdict),
+		"semantic_outcome":  "",
+	}
+	semanticOutcomeSummary, truncated := truncateRunes(
+		strings.TrimSpace(semanticOutcome),
+		MaxGroundingVerdictProjectionSummaryChars,
+	)
+	payload["semantic_outcome"] = semanticOutcomeSummary
+	if sourceRefCount > 0 {
+		payload["source_ref_count"] = sourceRefCount
+	}
+	fieldsPresent := projectionFieldsPresentForPayload(payload)
+	if len(fieldsPresent) == 0 {
+		return StepOutputProjection{}, false
+	}
+	contentHash := projectionContentHash(payload)
+	return StepOutputProjection{
+		ProjectionID:   "projection:grounding_verdict:" + strings.TrimPrefix(contentHash, "sha256:")[:16],
+		SourceStepID:   sourceStepID,
+		ProjectionKind: ProjectionKindGroundingVerdict,
+		ContentHash:    contentHash,
+		Payload:        payload,
+		Safety: ProjectionSafetySummary{
+			Truncated:     truncated,
+			Redacted:      false,
+			MaxChars:      MaxGroundingVerdictProjectionSummaryChars,
+			FieldsPresent: fieldsPresent,
+		},
+	}, true
+}
+
 func (projection StepOutputProjection) Map() map[string]any {
 	return map[string]any{
 		"projection_id":   projection.ProjectionID,
@@ -106,6 +230,14 @@ func (projection StepOutputProjection) NoticeSourceURL() string {
 	return stringFromProjectionPayload(projection.Payload, "source_url")
 }
 
+func (projection StepOutputProjection) ScheduleRouteDisplayName() string {
+	return stringFromProjectionPayload(projection.Payload, "route_display_name")
+}
+
+func (projection StepOutputProjection) ScheduleSummary() string {
+	return stringFromProjectionPayload(projection.Payload, "summary")
+}
+
 func CloneStepOutputProjection(projection StepOutputProjection) StepOutputProjection {
 	clone := projection
 	clone.Payload = cloneAnyMap(projection.Payload)
@@ -134,11 +266,34 @@ func FirstProjectionOfKind(
 }
 
 func projectionFieldsPresent(payload map[string]any) []string {
+	return projectionFieldsPresentForPayload(payload)
+}
+
+func projectionFieldsPresentForPayload(payload map[string]any) []string {
 	fields := make([]string, 0, len(payload))
-	for _, key := range []string{"title", "body_excerpt", "source_url"} {
+	for _, key := range []string{
+		"title",
+		"body_excerpt",
+		"source_url",
+		"route_id",
+		"route_display_name",
+		"service_family",
+		"summary",
+		"corpus",
+		"collection",
+		"query_text",
+		"grounding_verdict",
+		"semantic_outcome",
+	} {
 		if value, _ := payload[key].(string); strings.TrimSpace(value) != "" {
 			fields = append(fields, key)
 		}
+	}
+	if values, _ := payload["source_refs"].([]string); len(values) > 0 {
+		fields = append(fields, "source_refs")
+	}
+	if value, _ := payload["source_ref_count"].(int); value > 0 {
+		fields = append(fields, "source_ref_count")
 	}
 	return fields
 }
@@ -166,4 +321,25 @@ func truncateRunes(value string, maxRunes int) (string, bool) {
 func stringFromProjectionPayload(payload map[string]any, key string) string {
 	value, _ := payload[key].(string)
 	return strings.TrimSpace(value)
+}
+
+func normalizedProjectionStringSlice(values []string) []string {
+	result := make([]string, 0, len(values))
+	for _, value := range values {
+		normalized := strings.TrimSpace(value)
+		if normalized == "" || containsProjectionString(result, normalized) {
+			continue
+		}
+		result = append(result, normalized)
+	}
+	return result
+}
+
+func containsProjectionString(values []string, expected string) bool {
+	for _, value := range values {
+		if value == expected {
+			return true
+		}
+	}
+	return false
 }

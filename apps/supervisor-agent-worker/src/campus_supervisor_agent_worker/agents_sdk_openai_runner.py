@@ -13,13 +13,6 @@ from campus_supervisor_agent_worker.agents_sdk_runner import (
     AgentsSdkToolExecutionRequest,
 )
 
-_DEFAULT_INSTRUCTIONS = """
-You are a bounded campus domain-agent adapter.
-Use only the supplied repo-owned function tool.
-After the tool result is available, answer the user from that tool result only.
-Do not invent source data, do not call any unavailable tool, and keep the final answer concise.
-""".strip()
-
 
 class OpenAIAgentsSdkRunner:
     def __init__(
@@ -27,12 +20,10 @@ class OpenAIAgentsSdkRunner:
         *,
         provider_config: PromptRuntimeProviderConfig,
         model_name: str,
-        instructions: str = _DEFAULT_INSTRUCTIONS,
         max_turns: int = 3,
     ) -> None:
         self._provider_config = provider_config
         self._model_name = model_name.strip()
-        self._instructions = instructions.strip() or _DEFAULT_INSTRUCTIONS
         self._max_turns = max_turns
         if not self._model_name:
             raise AgentsSdkRunnerError(
@@ -66,7 +57,7 @@ class OpenAIAgentsSdkRunner:
         ]
         agent = Agent(
             name=request.target,
-            instructions=self._instructions,
+            instructions=request.instructions.strip(),
             tools=tools,
             model=self._model_name,
             model_settings=ModelSettings(

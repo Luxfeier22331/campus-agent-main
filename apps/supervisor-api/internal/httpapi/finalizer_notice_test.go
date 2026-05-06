@@ -112,6 +112,25 @@ func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *te
 				ResultStatus: "completed",
 			},
 		},
+		ToolCallSummaries: []execution.ToolCallSummary{
+			{
+				ToolCallID:        "run-multi-001:handoff:rag-agent:rag_request",
+				WorkflowRunRef:    "run-multi-001",
+				StepID:            "handoff:rag-agent:rag_request",
+				LifecycleState:    "completed",
+				ResultProjection:  "bounded_summary",
+				RawResultIncluded: false,
+				ToolName:          "retrieval.query",
+				Target:            "rag-agent",
+				ResultStatus:      "completed",
+				ArgumentSummary: map[string]any{
+					"payload_kind":  "campus_notice_get",
+					"selected_tool": "retrieval.query",
+					"notice_id":     "notice:muc-spring-break-2026",
+				},
+				SourceIDs: []string{"handbook:rule-001"},
+			},
+		},
 	}
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
@@ -161,5 +180,13 @@ func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *te
 	selectedTools, ok := traceSummary["selected_tools"].([]string)
 	if !ok || len(selectedTools) != 1 || selectedTools[0] != "retrieval.query" {
 		t.Fatalf("selected_tools = %#v, want retrieval query only", traceSummary["selected_tools"])
+	}
+	toolCallSummaries, ok := traceSummary["tool_call_summaries"].([]map[string]any)
+	if !ok || len(toolCallSummaries) != 1 {
+		t.Fatalf("tool_call_summaries = %#v, want one recorded tool summary", traceSummary["tool_call_summaries"])
+	}
+	if toolCallSummaries[0]["tool_name"] != "retrieval.query" ||
+		toolCallSummaries[0]["step_id"] != "handoff:rag-agent:rag_request" {
+		t.Fatalf("tool_call_summaries[0] = %#v, want recorded rag tool summary", toolCallSummaries[0])
 	}
 }

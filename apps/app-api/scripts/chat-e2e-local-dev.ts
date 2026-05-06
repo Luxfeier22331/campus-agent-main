@@ -7,6 +7,7 @@ const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appApiDir = resolve(scriptDir, "..");
 const repoRoot = resolve(appApiDir, "../..");
 const publicChatDir = resolve(repoRoot, "apps/public-chat-web");
+const publicChatViteBin = resolve(publicChatDir, "node_modules/vite/bin/vite.js");
 const supervisorStartScript = resolve(repoRoot, "infra/local/start-supervisor-runtime.sh");
 const defaultEmail = "help_bot@outlook.com";
 const defaultName = "Campus Agent Smoke";
@@ -196,36 +197,70 @@ async function isReadyzReady(url: string): Promise<boolean> {
 }
 
 function startPublicChatLiveSmoke(): ChildProcess {
-	return spawn("pnpm", ["--dir", publicChatDir, "dev:live-smoke"], {
-		cwd: repoRoot,
-		env: process.env,
-		shell: process.platform === "win32",
-		stdio: "inherit",
-	});
+	// Keep `public-chat-web dev:live-smoke` as the canonical human-facing entry,
+	// but launch Vite directly here so wrapper-owned teardown does not surface
+	// pnpm ELIFECYCLE noise after a successful E2E run.
+	return spawn(
+		process.execPath,
+		[
+			publicChatViteBin,
+			"--host",
+			"127.0.0.1",
+			"--port",
+			"27011",
+			"--strictPort",
+		],
+		{
+			cwd: publicChatDir,
+			env: {
+				...process.env,
+				WRANGLER_DISABLE_EXPERIMENTAL_WARNING: "1",
+				PUBLIC_CHAT_LIVE_SMOKE: "1",
+				XDG_CONFIG_HOME: "./.wrangler-home",
+			},
+			stdio: "inherit",
+		},
+	);
 }
 
-async function waitForReadyzWhileChildAlive(
+export async function waitForReadyzWhileChildAlive(
 	url: string,
 	timeoutMs: number,
 	child: ChildProcess | null,
+	deps: {
+		waitForReadyz?: (url: string, timeoutMs: number) => Promise<void>;
+	} = {},
 ): Promise<void> {
+	const waitForReadyzImpl = deps.waitForReadyz ?? waitForReadyz;
 	if (!child) {
-		await waitForReadyz(url, timeoutMs);
+		await waitForReadyzImpl(url, timeoutMs);
 		return;
 	}
 
-	await Promise.race([
-		waitForReadyz(url, timeoutMs),
-		new Promise<never>((_, reject) => {
-			child.once("exit", (code, signal) => {
-				reject(
-					new Error(
-						`public-chat dev:live-smoke exited before ${url} was ready (${signal ?? code ?? "unknown"}).`,
-					),
-				);
-			});
-		}),
-	]);
+	let onExit: ((code: number | null, signal: NodeJS.Signals | null) => void) | null = null;
+	let settled = false;
+	const exitWatcher = new Promise<never>((_, reject) => {
+		onExit = (code: number | null, signal: NodeJS.Signals | null) => {
+			if (settled) {
+				return;
+			}
+			reject(
+				new Error(
+					`public-chat dev:live-smoke exited before ${url} was ready (${signal ?? code ?? "unknown"}).`,
+				),
+			);
+		};
+		child.once("exit", onExit);
+	});
+
+	try {
+		await Promise.race([waitForReadyzImpl(url, timeoutMs), exitWatcher]);
+		settled = true;
+	} finally {
+		if (onExit) {
+			child.off("exit", onExit);
+		}
+	}
 }
 
 async function stopChild(child: ChildProcess): Promise<void> {

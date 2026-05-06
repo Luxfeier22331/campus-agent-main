@@ -39,6 +39,9 @@ class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
         payload["runtime_decisions"]["handoff"]["agent_request"]["workflow_context"] = {
             "schema_version": "workflow-agent-context-v1",
             "visibility": "agent_private",
+            "workflow_run_ref": "workflow:req-contract-001",
+            "step_id": "handoff:rag-agent:rag_request",
+            "agent_id": "rag-agent",
             "target": "rag-agent",
             "required_projection_kind": "notice_context",
             "projection_refs": [
@@ -56,6 +59,18 @@ class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
 
         assert envelope.agent_request is not None
         self.assertEqual(
+            envelope.agent_request.workflow_context.workflow_run_ref,
+            "workflow:req-contract-001",
+        )
+        self.assertEqual(
+            envelope.agent_request.workflow_context.step_id,
+            "handoff:rag-agent:rag_request",
+        )
+        self.assertEqual(
+            envelope.agent_request.workflow_context.agent_id,
+            "rag-agent",
+        )
+        self.assertEqual(
             envelope.agent_request.workflow_context.projection_refs[0]["projection_id"],
             "projection:notice_context:test",
         )
@@ -65,6 +80,9 @@ class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
         payload["runtime_decisions"]["handoff"]["agent_request"]["workflow_context"] = {
             "schema_version": "workflow-agent-context-v1",
             "visibility": "agent_private",
+            "workflow_run_ref": "workflow:req-contract-001",
+            "step_id": "handoff:rag-agent:rag_request",
+            "agent_id": "rag-agent",
             "target": "rag-agent",
             "projection_refs": [{"projection_id": "p1", "raw_response": "secret"}],
         }

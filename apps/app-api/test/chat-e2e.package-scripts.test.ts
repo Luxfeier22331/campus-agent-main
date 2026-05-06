@@ -32,7 +32,8 @@ describe("chat e2e package scripts", () => {
 		expect(scriptSource).toContain("isReadyzReady(args.execReadyzUrl)");
 		expect(scriptSource).toContain("db:bootstrap");
 		expect(scriptSource).toContain("smoke-identity:provision");
-		expect(scriptSource).toContain("dev:live-smoke");
+		expect(scriptSource).toContain("PUBLIC_CHAT_LIVE_SMOKE");
+		expect(scriptSource).toContain("node_modules/vite/bin/vite.js");
 		expect(scriptSource).toContain("waitForReadyzWhileChildAlive");
 		expect(scriptSource).toContain("--force-recreate");
 		expect(scriptSource).toContain("--no-build");

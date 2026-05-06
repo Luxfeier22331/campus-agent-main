@@ -9,9 +9,9 @@ from campus_ingestion_core.internal_notice_consumption_admission import (
     build_internal_notice_consumption_admission_store_from_env,
 )
 from campus_ingestion_core.internal_notice_multimodal_processing import (
-    ChatCompletionsInternalNoticeMultimodalProcessor,
     InternalNoticeMultimodalAttemptStore,
     build_internal_notice_multimodal_attempt_store_from_env,
+    build_internal_notice_multimodal_processor_from_env,
 )
 from campus_ingestion_core.internal_notice_read_model import (
     build_internal_notice_read_model_store_from_env,
@@ -37,9 +37,9 @@ class InternalNoticeConsumptionRuntimeSmokeReport:
     projection_entries_missing_admission_count: int
     pending_multimodal_without_attempt_count: int
     read_model_ok: bool
-    chat_endpoint_checked: bool
-    chat_endpoint_ok: bool
-    chat_endpoint_error: str
+    multimodal_runtime_checked: bool
+    multimodal_runtime_ok: bool
+    multimodal_runtime_error: str
     ok: bool
 
 
@@ -54,8 +54,8 @@ def run_internal_notice_consumption_runtime_smoke(
     admission_store: InternalNoticeConsumptionAdmissionStore | None = None,
     attempt_store: InternalNoticeMultimodalAttemptStore | None = None,
     allow_unattempted_pending: bool = False,
-    check_chat_endpoint: bool = False,
-    chat_endpoint_checker: Callable[[Mapping[str, str]], tuple[bool, str]] | None = None,
+    check_multimodal_runtime: bool = False,
+    multimodal_runtime_checker: Callable[[Mapping[str, str]], tuple[bool, str]] | None = None,
 ) -> InternalNoticeConsumptionRuntimeSmokeReport:
     normalized_notice_ids = normalize_notice_ids(notice_ids)
     source = dict(env if env is not None else os.environ)
@@ -121,12 +121,12 @@ def run_internal_notice_consumption_runtime_smoke(
         for attempt_count_for_unit in attempt_counts_by_pending_unit.values()
         if attempt_count_for_unit == 0
     )
-    chat_endpoint_ok = True
-    chat_endpoint_error = ""
-    if check_chat_endpoint:
-        chat_endpoint_ok, chat_endpoint_error = _check_chat_endpoint(
+    multimodal_runtime_ok = True
+    multimodal_runtime_error = ""
+    if check_multimodal_runtime:
+        multimodal_runtime_ok, multimodal_runtime_error = _check_multimodal_runtime(
             source,
-            chat_endpoint_checker=chat_endpoint_checker,
+            multimodal_runtime_checker=multimodal_runtime_checker,
         )
     ok = (
         bool(projection_entries)
@@ -134,7 +134,7 @@ def run_internal_notice_consumption_runtime_smoke(
         and projection_entries_missing_admission_count == 0
         and (allow_unattempted_pending or pending_multimodal_without_attempt_count == 0)
         and consistency.ok
-        and chat_endpoint_ok
+        and multimodal_runtime_ok
     )
     return InternalNoticeConsumptionRuntimeSmokeReport(
         source_corpus=source_corpus,
@@ -147,9 +147,9 @@ def run_internal_notice_consumption_runtime_smoke(
         projection_entries_missing_admission_count=(projection_entries_missing_admission_count),
         pending_multimodal_without_attempt_count=pending_multimodal_without_attempt_count,
         read_model_ok=consistency.ok,
-        chat_endpoint_checked=check_chat_endpoint,
-        chat_endpoint_ok=chat_endpoint_ok,
-        chat_endpoint_error=chat_endpoint_error,
+        multimodal_runtime_checked=check_multimodal_runtime,
+        multimodal_runtime_ok=multimodal_runtime_ok,
+        multimodal_runtime_error=multimodal_runtime_error,
         ok=ok,
     )
 
@@ -163,15 +163,15 @@ def _projection_entry_has_completed_admission(
     return bool(batch_id) and batch_id in completed_admission_batch_ids
 
 
-def _check_chat_endpoint(
+def _check_multimodal_runtime(
     env: Mapping[str, str],
     *,
-    chat_endpoint_checker: Callable[[Mapping[str, str]], tuple[bool, str]] | None,
+    multimodal_runtime_checker: Callable[[Mapping[str, str]], tuple[bool, str]] | None,
 ) -> tuple[bool, str]:
-    if chat_endpoint_checker is not None:
-        return chat_endpoint_checker(env)
+    if multimodal_runtime_checker is not None:
+        return multimodal_runtime_checker(env)
     try:
-        ChatCompletionsInternalNoticeMultimodalProcessor.from_env(env)
+        build_internal_notice_multimodal_processor_from_env(env)
     except Exception as exc:
         return False, str(exc)
     return True, ""

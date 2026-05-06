@@ -430,9 +430,184 @@ def _bounded_sdk_tool_result(
         "requested_service_date",
     ):
         value = payload.get(key)
-        if value not in {None, "", ()}:
+        if _has_scalar_sdk_value(value):
             bounded[key] = value
+    for key in (
+        "source_refs",
+        "related_notice_refs",
+        "override_source_refs",
+    ):
+        value = payload.get(key)
+        if isinstance(value, tuple | list):
+            normalized = [str(item).strip() for item in value if str(item).strip()]
+            if normalized:
+                bounded[key] = normalized
+
+    if isinstance(payload.get("resolved_service"), Mapping):
+        display_name = str(payload["resolved_service"].get("display_name") or "").strip()
+        if display_name:
+            bounded["resolved_service"] = {"display_name": display_name}
+    if isinstance(payload.get("resolved_contact"), Mapping):
+        display_name = str(payload["resolved_contact"].get("display_name") or "").strip()
+        if display_name:
+            bounded["resolved_contact"] = {"display_name": display_name}
+
+    if query_key == "service_query":
+        _copy_nested_sdk_result_list(
+            payload,
+            bounded,
+            key="guide_sections",
+            fields=("section_id", "section_type", "title", "content", "source_refs"),
+        )
+        _copy_nested_sdk_result_list(
+            payload,
+            bounded,
+            key="procedure_groups",
+            fields=("group_id", "title", "source_refs"),
+            nested_list_fields={
+                "steps": ("content", "source_refs"),
+            },
+        )
+        _copy_nested_sdk_result_list(
+            payload,
+            bounded,
+            key="required_materials",
+            fields=("name", "required", "note", "source_refs"),
+        )
+        _copy_nested_sdk_result_list(
+            payload,
+            bounded,
+            key="entry_refs",
+            fields=("label", "entry_type", "location_ref", "url", "source_refs"),
+        )
+        _copy_nested_sdk_result_list(
+            payload,
+            bounded,
+            key="office_hours",
+            fields=("label", "day_pattern", "time_range", "effective_note", "source_refs"),
+        )
+        _copy_nested_sdk_result_list(
+            payload,
+            bounded,
+            key="contact_refs",
+            fields=("label", "department", "phone", "email", "source_refs"),
+        )
+        eligibility_notes = payload.get("eligibility_notes")
+        if isinstance(eligibility_notes, tuple | list):
+            normalized_notes = [
+                str(item).strip() for item in eligibility_notes if str(item).strip()
+            ]
+            if normalized_notes:
+                bounded["eligibility_notes"] = normalized_notes[:6]
+    if query_key == "query_text":
+        contact_focus = str(payload.get("contact_focus") or "").strip()
+        if contact_focus:
+            bounded["contact_focus"] = contact_focus
+        _copy_nested_sdk_result_list(
+            payload,
+            bounded,
+            key="contact_points",
+            fields=("channel_type", "label", "value", "source_refs"),
+        )
+        _copy_nested_sdk_result_list(
+            payload,
+            bounded,
+            key="location_refs",
+            fields=("label", "location_ref", "address_text", "source_refs"),
+        )
+        _copy_nested_sdk_result_list(
+            payload,
+            bounded,
+            key="office_hours",
+            fields=("label", "day_pattern", "time_range", "effective_note", "source_refs"),
+        )
     return bounded
+
+
+def _copy_nested_sdk_result_list(
+    payload: Mapping[str, object],
+    bounded: dict[str, object],
+    *,
+    key: str,
+    fields: tuple[str, ...],
+    nested_list_fields: Mapping[str, tuple[str, ...]] | None = None,
+) -> None:
+    raw_value = payload.get(key)
+    if not isinstance(raw_value, tuple | list):
+        return
+    items: list[dict[str, object]] = []
+    for entry in raw_value[:8]:
+        if not isinstance(entry, Mapping):
+            continue
+        item: dict[str, object] = {}
+        for field_name in fields:
+            value = entry.get(field_name)
+            if value is None:
+                continue
+            if field_name == "source_refs" and isinstance(value, tuple | list):
+                refs = [str(ref).strip() for ref in value if str(ref).strip()]
+                if refs:
+                    item[field_name] = refs
+                continue
+            if isinstance(value, str):
+                normalized = value.strip()
+                if normalized:
+                    item[field_name] = normalized
+                continue
+            if isinstance(value, bool | int | float):
+                item[field_name] = value
+        if nested_list_fields:
+            for nested_key, nested_fields in nested_list_fields.items():
+                nested_value = entry.get(nested_key)
+                if not isinstance(nested_value, tuple | list):
+                    continue
+                nested_items: list[dict[str, object]] = []
+                for nested_entry in nested_value[:12]:
+                    if not isinstance(nested_entry, Mapping):
+                        continue
+                    nested_item: dict[str, object] = {}
+                    for nested_field in nested_fields:
+                        nested_field_value = nested_entry.get(nested_field)
+                        if nested_field_value is None:
+                            continue
+                        if nested_field == "source_refs" and isinstance(
+                            nested_field_value, tuple | list
+                        ):
+                            refs = [
+                                str(ref).strip()
+                                for ref in nested_field_value
+                                if str(ref).strip()
+                            ]
+                            if refs:
+                                nested_item[nested_field] = refs
+                            continue
+                        if isinstance(nested_field_value, str):
+                            normalized = nested_field_value.strip()
+                            if normalized:
+                                nested_item[nested_field] = normalized
+                            continue
+                        if isinstance(nested_field_value, bool | int | float):
+                            nested_item[nested_field] = nested_field_value
+                    if nested_item:
+                        nested_items.append(nested_item)
+                if nested_items:
+                    item[nested_key] = nested_items
+        if item:
+            items.append(item)
+    if items:
+        bounded[key] = items
+
+
+def _has_scalar_sdk_value(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, tuple | list):
+        return len(value) > 0
+    if isinstance(value, Mapping):
+        return len(value) > 0
+    return True
 
 
 def _source_ref_count_from_payload(payload: object) -> int:

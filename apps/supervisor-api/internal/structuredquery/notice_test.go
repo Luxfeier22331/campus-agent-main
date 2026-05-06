@@ -644,6 +644,11 @@ func TestLookupCampusNoticeGetFailsClosedWithoutRestrictedAuthorization(t *testi
 	if result.FailCloseReason != "source_family_unavailable" {
 		t.Fatalf("fail_close_reason = %q, want source_family_unavailable", result.FailCloseReason)
 	}
+	if result.DisplayPolicy.PublicSurface != "card_only" ||
+		!result.DisplayPolicy.FullBodyForbidden ||
+		result.DisplayPolicy.BodyAccess != "none" {
+		t.Fatalf("display_policy = %#v, want default public card-only policy", result.DisplayPolicy)
+	}
 	if store.getCount != 0 {
 		t.Fatalf("get count = %d, want 0", store.getCount)
 	}
@@ -685,8 +690,50 @@ func TestLookupCampusNoticeGetFailsClosedForUnknownSourceFamily(t *testing.T) {
 	if result.FailCloseReason != "source_family_unavailable" {
 		t.Fatalf("fail_close_reason = %q, want source_family_unavailable", result.FailCloseReason)
 	}
+	if result.DisplayPolicy.PublicSurface != "card_only" ||
+		!result.DisplayPolicy.FullBodyForbidden ||
+		result.DisplayPolicy.BodyAccess != "none" {
+		t.Fatalf("display_policy = %#v, want default public card-only policy", result.DisplayPolicy)
+	}
 	if store.getCount != 0 {
 		t.Fatalf("get count = %d, want 0", store.getCount)
+	}
+}
+
+func TestLookupCampusNoticeGetNotFoundKeepsDefaultDisplayPolicy(t *testing.T) {
+	store := &fakeNoticeReadModelStore{}
+	runtime := NewRuntime(Options{
+		NoticeReadModelStore: store,
+	})
+
+	response := runtime.LookupCampusNoticeGet(context.Background(), []byte(`{
+		"payload":{
+			"notice_id":"355222",
+			"source_family":"internal_notice_restricted"
+		},
+		"access_context":{
+			"authorization":{
+				"principal_id":"principal-001",
+				"entitlement_groups":["students"],
+				"retrieval_filter":{
+					"entitlement_groups":["students"],
+					"visibility_level":"restricted"
+				}
+			}
+		}
+	}`))
+
+	result, ok := response.Body.(noticeGetResult)
+	if !ok {
+		t.Fatalf("body = %T, want noticeGetResult", response.Body)
+	}
+	if result.Outcome != "not_found" {
+		t.Fatalf("outcome = %q, want not_found", result.Outcome)
+	}
+	if result.DisplayPolicy.PublicSurface != "card_only" ||
+		!result.DisplayPolicy.FullBodyForbidden ||
+		result.DisplayPolicy.BodyAccess != "none" {
+		t.Fatalf("display_policy = %#v, want default public card-only policy", result.DisplayPolicy)
 	}
 }
 

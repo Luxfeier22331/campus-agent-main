@@ -469,6 +469,17 @@ Agents SDK 可以作为后续 Python `apps/supervisor-agent-worker` / domain-age
 - agent 内部 guardrail / approval checkpoint 的实现 ergonomics
 - resumable state 或 next-turn surface 的局部实现
 
+官方 Agents SDK 的当前 primitive 与 repo 边界对齐方式固定如下：
+
+- `Agent` / `Runner` / function tools 可以替代 Python 内部手写 tool loop glue
+- agents-as-tools 可以用于一个 admitted domain-agent step 内部的 bounded specialist call
+- SDK handoff 只作为实现 substrate；repo-level handoff truth 仍是 Go `WorkflowPlan`
+- SDK guardrails 可以作为内部 input / output / function-tool validation，但 repo-owned authz、
+  ToolSpec、evidence grounding 与 finalizer guardrail 仍是 release acceptance owner
+- SDK tracing 是 debug / evaluation input；默认不得把 raw provider transcript、prompt、
+  tool payload、handoff graph 或 trace dump 写入 repo shared contract、panel、eval canonical
+  fixture 或 public response
+
 框架级 handoff / agents-as-tools 的使用必须服从 repo-owned workflow plan：
 
 - 默认优先采用 agents-as-tools / manager-style bounded specialist calls，让 Go
@@ -504,6 +515,30 @@ Provider-native function calling 的默认接入点同样只能在 domain-agent 
 或 fail-close finalization。Python adapter 只能把 Go handoff 中已经允许的 tool 子集编译成
 provider function schema，并把 tool output 先收敛为 repo-owned typed result，再返回
 `AgentResponse`。
+
+### Agents SDK Expansion Order
+
+SDK 扩展不是 repo-wide switch。后续新增 surface 按以下顺序 admission：
+
+1. Read-only structured domain-agent tools：必须先有 ToolSpec / Go runtime policy / eval
+   denominator，然后由 worker 将 `AgentRequest.allowed_tools` 编译为 SDK function tools。
+1. RAG-internal semantic loop：只能消费 `rag-agent` deterministic planner/retrieval 之后的
+   bounded evidence projection；`retrieval.query` 继续保持 agent-internal / closed。
+1. Multi-step workflow step internals：等待
+   `governed-multi-agent-workflow-runtime` 恢复后，SDK 只能作为每个 admitted step
+   内部 runtime，不能生成或改写全局 workflow plan。
+1. Offline notice multimodal / media review：只能作为 ingestion-side processing adapter，
+   产出 normalized fact/classification projection，不进入 public query-time tool surface。
+
+不进入默认扩展范围：
+
+- hosted web search / file search / code interpreter / remote MCP / shell /
+  filesystem tools
+- raw SQL、object-store、collector、OCR dump、index build 或 ingestion write
+  query-time tools
+- SDK-native session memory 作为产品 conversation truth
+- SDK-native tracing export，除非有单独 redaction/exporter gate
+- 预约、提交、支付、工单等 state-changing tool
 
 引入 SDK 或其他 agent framework 之前，repo-owned workflow runtime 仍需继续补齐：
 
@@ -677,6 +712,26 @@ runtime observability、audit 与 eval 统一使用 repo-owned correlation id：
 - state-changing tool 在没有 approval / HITL / audit / rollback / eval contract 时进入
   public chat 主路径
 - tool output 未裁剪就进入 prompt、workflow trace、panel 或 eval canonical asset
+
+当前 admitted SDK adapter surface 还需要区分两种执行语义，并在 safe observability 中显式记录：
+
+- `sdk_mediated_answer_shaping`
+  - 代表工具返回的是 bounded source-backed material，SDK shell 负责把它改写成用户可读回答
+  - 当前包括 `campus_notice_discover` 与 `service_guide_lookup`
+- `deterministic_lookup_sdk_finalization`
+  - 代表 projection/read-model 已完成事实查找，SDK shell 只负责轻量 final wording，不负责补推理
+  - 当前包括 `service_status_lookup`、`transport_schedule_lookup`、
+    `contact_directory_lookup` 与 `academic_calendar_lookup`
+
+对应的 repo-owned instruction profile / result usage mode 也必须显式分层，而不是把所有 admitted
+surface 折叠成同一个 generic campus-services prompt。至少应保留：
+
+- notice card listing
+- source-backed guidance
+- service status fact
+- transport schedule fact
+- contact directory fact
+- academic calendar fact
 
 ## Structured Runtime Families
 

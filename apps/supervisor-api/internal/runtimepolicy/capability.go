@@ -78,10 +78,11 @@ func effectiveCapability(
 ) string {
 	if request.HasRequestedScope ||
 		(request.VersionQueryMode != "" && request.VersionQueryMode != "current") {
-		if strings.TrimSpace(request.RequestedCapability) == "" {
+		normalizedRequestedCapability := strings.TrimSpace(request.RequestedCapability)
+		if normalizedRequestedCapability == "" {
 			return "knowledge"
 		}
-		return request.RequestedCapability
+		return normalizedRequestedCapability
 	}
 	if request.RequestedCapability != "" && request.RequestedCapability != "knowledge" {
 		return request.RequestedCapability

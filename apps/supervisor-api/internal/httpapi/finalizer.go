@@ -238,7 +238,7 @@ func buildWorkflowTraceSummaryWire(
 		if run.Branch != "" {
 			branch = run.Branch
 		}
-		selectedTools = workflowSelectedToolsFromRun(run, selectedTool)
+		selectedTools = workflowTraceSelectedTools(run, context.Handoff, selectedTool)
 		if traceTarget == "" && len(run.HandoffChain) > 0 {
 			traceTarget = run.HandoffChain[len(run.HandoffChain)-1].Target
 		}
@@ -616,7 +616,7 @@ func workflowTraceRun(
 
 func workflowStateForStatus(status string) execution.WorkflowState {
 	switch status {
-	case "completed":
+	case "completed", "needs_clarification", "no_answer":
 		return execution.WorkflowStateCompleted
 	case "cancelled":
 		return execution.WorkflowStateCanceled
@@ -659,6 +659,17 @@ func workflowSelectedToolsFromRun(run execution.WorkflowRun, fallback string) []
 	return selected
 }
 
+func workflowTraceSelectedTools(
+	run execution.WorkflowRun,
+	handoff *execution.RuntimeHandoff,
+	selectedTool string,
+) []string {
+	if run.Mode == execution.WorkflowModeMultiStep {
+		return workflowSelectedToolsFromRun(run, selectedTool)
+	}
+	return workflowSelectedToolsFromRun(run, selectedTool)
+}
+
 func workflowToolCallParentStep(branch string) string {
 	if branch == "delegate" {
 		return "handoff"
@@ -686,6 +697,9 @@ func workflowToolCallSummaries(
 	agentObservability map[string]any,
 	failCloseReason string,
 ) []map[string]any {
+	if len(run.ToolCallSummaries) > 0 {
+		return run.ToolCallSummaryMaps()
+	}
 	if selectedTool == "" {
 		return []map[string]any{}
 	}

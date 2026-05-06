@@ -233,11 +233,13 @@ Evaluation helpers for campus-agent v2.
   `uv run --all-packages python -m scripts.eval_gate accept --profile
   multi-agent-live-smoke`；它顺序启动 `supervisor-agent-worker`、`supervisor-api`
   以及 notice profile 需要的本地最小 S3-compatible smoke endpoint，不启动 Docker /
-  Wrangler。该 gate 覆盖 closed structured gate、terminal fail-close、RAG delegate、
-  opened structured direct runtime、opened structured stream runtime、campus-services
-  direct runtime、notice discover/detail direct runtime 与 terminal approval-required
-  guardrail，并把真实 supervisor response 中的 `workflow_trace_summary` 回放到
-  blocking workflow trace replay；process smoke 或 trace replay 任一失败都会使 gate 失败。
+  Wrangler。默认 profile 组只覆盖 governed workflow lane：closed structured gate、
+  terminal fail-close、RAG delegate、selected notice context follow-through multi-step，
+  以及 transport + notice + RAG multi-step pilot。single-surface SDK opened profiles
+  继续保留为可选补充 profile 组，不再作为 `governed-multi-agent-workflow-runtime`
+  的默认收口条件。该 gate 会把真实 supervisor response 中的
+  `workflow_trace_summary` 回放到 blocking workflow trace replay；process smoke 或 trace
+  replay 任一失败都会使 gate 失败。
 - `institutional-rules-release-baseline` 是 42 条校级 `regulations/institutional_rules`
   的 release 前组合 baseline，入口为：`uv run --all-packages python -m
   scripts.eval_gate accept --profile institutional-rules-release-baseline

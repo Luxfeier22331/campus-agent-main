@@ -60,7 +60,18 @@ def build_agents_sdk_trace_projection(
     latency_ms: int = 0,
     model_response_ref: str = "",
     model_name: str = "",
+    instruction_profile_id: str = "",
+    result_usage_mode: str = "",
+    surface_execution_mode: str = "",
     estimated_cost_microusd: int | None = None,
+    workflow_run_ref: str = "",
+    step_id: str = "",
+    agent_id: str = "",
+    step_status: str = "",
+    terminal_reason: str = "",
+    fail_close_reason: str = "",
+    input_projection_refs: Sequence[Mapping[str, object]] = (),
+    output_projection_ref: Mapping[str, object] | None = None,
 ) -> dict[str, object]:
     projection: dict[str, object] = {
         "schema_version": AGENTS_SDK_TRACE_PROJECTION_SCHEMA_VERSION,
@@ -79,7 +90,21 @@ def build_agents_sdk_trace_projection(
         "latency_ms": max(0, int(latency_ms)),
         "model_response_ref": model_response_ref,
         "model_name": model_name.strip(),
+        "instruction_profile_id": instruction_profile_id.strip(),
+        "result_usage_mode": result_usage_mode.strip(),
+        "surface_execution_mode": surface_execution_mode.strip(),
+        "workflow_run_ref": workflow_run_ref.strip(),
+        "step_id": step_id.strip(),
+        "agent_id": agent_id.strip(),
+        "step_status": step_status.strip(),
+        "terminal_reason": terminal_reason.strip(),
+        "fail_close_reason": fail_close_reason.strip(),
+        "input_projection_refs": [
+            dict(item) for item in input_projection_refs if isinstance(item, Mapping)
+        ],
     }
+    if output_projection_ref is not None:
+        projection["output_projection_ref"] = dict(output_projection_ref)
     if estimated_cost_microusd is not None:
         projection["estimated_cost_microusd"] = max(0, int(estimated_cost_microusd))
     reject_unsafe_agents_sdk_projection(projection)

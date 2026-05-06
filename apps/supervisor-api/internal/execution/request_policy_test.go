@@ -504,7 +504,7 @@ func TestParseAnswerRequestKeepsVersionedStructuredQueriesOnKnowledgeLane(t *tes
 	}
 }
 
-func TestParseAnswerRequestRejectsKnowledgeScopeForForwardCapabilities(t *testing.T) {
+func TestParseAnswerRequestRejectsNonQueryableScopeForCampusServicesMixedEnvelope(t *testing.T) {
 	_, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
 			"user_goal":"校车时刻表",
@@ -523,10 +523,73 @@ func TestParseAnswerRequestRejectsKnowledgeScopeForForwardCapabilities(t *testin
 	)
 
 	if httpErr == nil {
-		t.Fatal("expected requested_scope to fail for campus_services")
+		t.Fatal("expected non-queryable requested_scope to fail for campus_services")
 	}
-	if httpErr.Code != "invalid_request" {
-		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
+	if httpErr.Code != "disallowed_knowledge_scope" {
+		t.Fatalf("error code = %q, want disallowed_knowledge_scope", httpErr.Code)
+	}
+}
+
+func TestParseAnswerRequestBuildsCampusServicesTransportNoticeMultiStepPlan(t *testing.T) {
+	request, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"这条班车通知依据学生手册哪条规定？",
+			"request_id":"req-campus-services-transport-notice-pilot",
+			"requested_capability":"campus_services",
+			"requested_scope":{"corpus":"regulations","collection":"student_rules"},
+			"context":{
+				"actor":{
+					"user_id":"student-1",
+					"principal_id":"student-1",
+					"principal_type":"student",
+					"roles":["student"]
+				},
+				"authorization":{
+					"retrieval_filter":{
+						"visibility_level":"public",
+						"policy_projection_version":"phase1-authorization-projection-v1"
+					}
+				},
+				"session":{
+					"selected_notice_ref":{
+						"notice_id":"notice:transport:355122",
+						"source_family":"internal_notice_restricted",
+						"title":"关于两校区学生通勤班车增加班次的通知"
+					}
+				}
+			}
+		}`),
+		map[string]string{
+			"x-worker-origin-auth": "worker-secret",
+		},
+		config.Config{
+			AuthMode:                 "trusted-worker",
+			WorkerSharedSecret:       "worker-secret",
+			DefaultActorID:           "runtime-bearer-user",
+			MultiStepWorkflowEnabled: true,
+		},
+	)
+
+	if httpErr != nil {
+		t.Fatalf("unexpected http error: %#v", httpErr)
+	}
+	if request.RequestedCapability != "campus_services" {
+		t.Fatalf("requested capability = %q, want campus_services", request.RequestedCapability)
+	}
+	if request.WorkflowMode != WorkflowModeMultiStep {
+		t.Fatalf("workflow mode = %q, want multi_step", request.WorkflowMode)
+	}
+	if len(request.PlannedHandoffs) != 3 {
+		t.Fatalf("planned handoff count = %d, want 3", len(request.PlannedHandoffs))
+	}
+	if request.PlannedHandoffs[0].PayloadKind != "transport_schedule_lookup" {
+		t.Fatalf("first planned handoff = %#v, want transport_schedule_lookup", request.PlannedHandoffs[0])
+	}
+	if request.PlannedHandoffs[1].PayloadKind != "campus_notice_get" {
+		t.Fatalf("second planned handoff = %#v, want campus_notice_get", request.PlannedHandoffs[1])
+	}
+	if request.PlannedHandoffs[2].PayloadKind != "rag_request" {
+		t.Fatalf("third planned handoff = %#v, want rag_request", request.PlannedHandoffs[2])
 	}
 }
 

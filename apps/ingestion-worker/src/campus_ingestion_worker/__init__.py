@@ -90,6 +90,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "campus_ingestion_worker.audit_official_web_projection_chunking",
         "main",
     ),
+    "audit_official_web_regulation_quality": (
+        "campus_ingestion_worker.audit_official_web_regulation_quality",
+        "audit_official_web_regulation_batch_quality",
+    ),
+    "audit_official_web_regulation_quality_main": (
+        "campus_ingestion_worker.audit_official_web_regulation_quality",
+        "main",
+    ),
     "backfill_historical_handoff_record": (
         "campus_ingestion_worker.official_web_historical_backfill",
         "backfill_historical_handoff_record",

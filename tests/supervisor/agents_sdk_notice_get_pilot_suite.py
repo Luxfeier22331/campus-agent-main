@@ -408,6 +408,11 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             runner_called = True
             self.assertEqual(run_request.target, "campus-services-agent")
             self.assertEqual(run_request.allowed_tools, ("service_guide_lookup",))
+            self.assertEqual(
+                run_request.instruction_profile_id,
+                "service_guide_source_backed_guidance",
+            )
+            self.assertEqual(run_request.result_usage_mode, "source_backed_guidance")
             self.assertIsNotNone(run_request.execute_tool)
             assert run_request.execute_tool is not None
             tool_result = run_request.execute_tool(
@@ -423,6 +428,22 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             self.assertEqual(tool_result["outcome"], "resolved_current")
             self.assertEqual(tool_result["service_query"], "校园卡补办")
             self.assertEqual(tool_result["source_ref_count"], 1)
+            self.assertEqual(
+                tool_result["resolved_service"],
+                {"display_name": "校园卡补办"},
+            )
+            self.assertEqual(
+                tool_result["guide_sections"],
+                [
+                    {
+                        "section_id": "service:campus-card-reissue:procedure",
+                        "section_type": "procedure",
+                        "title": "补办流程",
+                        "content": "学生可在自助补卡机补卡。",
+                        "source_refs": ["official_web:campus-card-guide#section=procedure"],
+                    }
+                ],
+            )
             return AgentsSdkRunResult(
                 final_output="校园卡可在自助补卡机补办。",
                 tool_calls=(
@@ -459,6 +480,13 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
         self.assertEqual(response.agent_observability.tool_outcome, "sdk_completed")
         projection = response.agent_observability.safe_details["agents_sdk_runner_projection"]
         self.assertEqual(projection["tool_result_projection"]["source_ref_count"], 1)
+        self.assertEqual(
+            projection["instruction_profile_id"],
+            "service_guide_source_backed_guidance",
+        )
+        self.assertIsNotNone(response.result)
+        assert response.result is not None
+        self.assertEqual(response.result["payload_kind"], "service_guide_lookup")
 
     def test_agent_delegates_route_contact_directory_to_sdk_when_tool_is_admitted(self) -> None:
         runner_called = False
@@ -468,6 +496,11 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             nonlocal runner_called
             runner_called = True
             self.assertEqual(run_request.allowed_tools, ("contact_directory_lookup",))
+            self.assertEqual(
+                run_request.instruction_profile_id,
+                "contact_directory_fact_lookup",
+            )
+            self.assertEqual(run_request.result_usage_mode, "contact_directory_fact")
             assert run_request.execute_tool is not None
             tool_result = run_request.execute_tool(
                 AgentsSdkToolExecutionRequest(
@@ -482,6 +515,21 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             self.assertEqual(tool_result["outcome"], "resolved_current")
             self.assertEqual(tool_result["query_text"], "校园卡电话")
             self.assertEqual(tool_result["source_ref_count"], 1)
+            self.assertEqual(
+                tool_result["resolved_contact"],
+                {"display_name": "校园卡管理中心"},
+            )
+            self.assertEqual(
+                tool_result["contact_points"],
+                [
+                    {
+                        "channel_type": "phone",
+                        "label": "咨询电话",
+                        "value": "010-68933381",
+                        "source_refs": ["official_web:campus-card-guide#contact"],
+                    }
+                ],
+            )
             return AgentsSdkRunResult(
                 final_output="校园卡管理中心电话是 010-68933381。",
                 tool_calls=(
@@ -513,6 +561,11 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         assert response.agent_observability is not None
         self.assertEqual(response.agent_observability.selected_tool, "contact_directory_lookup")
+        projection = response.agent_observability.safe_details["agents_sdk_runner_projection"]
+        self.assertEqual(projection["instruction_profile_id"], "contact_directory_fact_lookup")
+        self.assertIsNotNone(response.result)
+        assert response.result is not None
+        self.assertEqual(response.result["payload_kind"], "contact_directory_lookup")
 
     def test_agent_delegates_route_academic_calendar_to_sdk_when_tool_is_admitted(self) -> None:
         runner_called = False
@@ -523,6 +576,11 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             runner_called = True
             self.assertEqual(run_request.target, "calendar-agent")
             self.assertEqual(run_request.allowed_tools, ("academic_calendar_lookup",))
+            self.assertEqual(
+                run_request.instruction_profile_id,
+                "academic_calendar_fact_lookup",
+            )
+            self.assertEqual(run_request.result_usage_mode, "academic_calendar_fact")
             assert run_request.execute_tool is not None
             tool_result = run_request.execute_tool(
                 AgentsSdkToolExecutionRequest(
@@ -562,6 +620,8 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         assert response.agent_observability is not None
         self.assertEqual(response.agent_observability.selected_tool, "academic_calendar_lookup")
+        projection = response.agent_observability.safe_details["agents_sdk_runner_projection"]
+        self.assertEqual(projection["instruction_profile_id"], "academic_calendar_fact_lookup")
 
     def test_agent_delegates_route_service_status_to_sdk_when_tool_is_admitted(self) -> None:
         runner_called = False
@@ -571,6 +631,11 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             nonlocal runner_called
             runner_called = True
             self.assertEqual(run_request.allowed_tools, ("service_status_lookup",))
+            self.assertEqual(
+                run_request.instruction_profile_id,
+                "service_status_fact_lookup",
+            )
+            self.assertEqual(run_request.result_usage_mode, "service_status_fact")
             assert run_request.execute_tool is not None
             tool_result = run_request.execute_tool(
                 AgentsSdkToolExecutionRequest(
@@ -619,6 +684,7 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             "agents_sdk_runner_projection"
         ]
         self.assertEqual(projection["tool_result_projection"]["source_ref_count"], 1)
+        self.assertEqual(projection["instruction_profile_id"], "service_status_fact_lookup")
 
     def test_agent_delegates_route_transport_schedule_to_sdk_when_tool_is_admitted(
         self,
@@ -630,6 +696,11 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             nonlocal runner_called
             runner_called = True
             self.assertEqual(run_request.allowed_tools, ("transport_schedule_lookup",))
+            self.assertEqual(
+                run_request.instruction_profile_id,
+                "transport_schedule_temporal_lookup",
+            )
+            self.assertEqual(run_request.result_usage_mode, "transport_schedule_fact")
             assert run_request.execute_tool is not None
             tool_result = run_request.execute_tool(
                 AgentsSdkToolExecutionRequest(
@@ -685,6 +756,10 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             "agents_sdk_runner_projection"
         ]
         self.assertEqual(projection["tool_result_projection"]["source_ref_count"], 1)
+        self.assertEqual(
+            projection["instruction_profile_id"],
+            "transport_schedule_temporal_lookup",
+        )
 
     def test_agents_sdk_runner_builder_is_target_agnostic_and_fail_closed(self) -> None:
         self.assertIsNone(_build_agents_sdk_runner(ApiSettings()))

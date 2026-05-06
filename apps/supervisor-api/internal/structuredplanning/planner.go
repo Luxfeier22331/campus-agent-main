@@ -85,6 +85,34 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 			})
 		}
 		if containsAny(normalizedGoal, policy.Signals("structured_transport")) {
+			if isTransportNoticeKnowledgePilot(normalizedGoal, request, policy) {
+				noticePayload := map[string]any{
+					"notice_id": request.SelectedNoticeRef.NoticeID,
+				}
+				if request.SelectedNoticeRef.SourceFamily != "" {
+					noticePayload["source_family"] = request.SelectedNoticeRef.SourceFamily
+				}
+				return MultiStepTransportNoticeKnowledgePilotPlan(
+					Handoff{
+						Target:       "campus-services-agent",
+						PayloadKind:  "transport_schedule_lookup",
+						Payload:      transportSchedulePayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
+						AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "transport_schedule_lookup"),
+					},
+					Handoff{
+						Target:       "notice-agent",
+						PayloadKind:  "campus_notice_get",
+						Payload:      noticePayload,
+						AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("notice-agent", "campus_notice_get"),
+					},
+					Handoff{
+						Target:       "rag-agent",
+						PayloadKind:  "rag_request",
+						Payload:      ragRequestPayload(request),
+						AllowedTools: runtimepolicy.AllowedToolsForTarget("rag-agent"),
+					},
+				)
+			}
 			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "transport_schedule_lookup",
@@ -207,6 +235,20 @@ func isNoticeKnowledgeFollowthrough(
 		request.HasRequestedScope &&
 		request.SelectedNoticeRef.NoticeID != "" &&
 		containsAny(normalizedGoal, policy.Signals("notice_get_reference")) &&
+		containsAny(normalizedGoal, policy.Signals("notice_knowledge_followthrough"))
+}
+
+func isTransportNoticeKnowledgePilot(
+	normalizedGoal string,
+	request Request,
+	policy runtimepolicy.IntentPolicyArtifact,
+) bool {
+	return request.MultiStepWorkflowEnabled &&
+		request.HasRequestedScope &&
+		request.RequestedScope.Corpus == "regulations" &&
+		request.RequestedScope.Collection == "student_rules" &&
+		request.SelectedNoticeRef.NoticeID != "" &&
+		containsAny(normalizedGoal, policy.Signals("structured_transport")) &&
 		containsAny(normalizedGoal, policy.Signals("notice_knowledge_followthrough"))
 }
 

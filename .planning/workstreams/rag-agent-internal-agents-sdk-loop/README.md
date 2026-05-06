@@ -2,7 +2,7 @@
 doc_type: index
 status: completed
 created: 2026-05-05
-updated: 2026-05-05
+updated: 2026-05-06
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -26,6 +26,9 @@ projection，同时继续保留 repo-owned supervisor、retrieval、contracts �
 - owner boundary: `packages/rag-agent` + `apps/supervisor-agent-worker`
 - downstream boundary: `apps/supervisor-api` remains admission / routing / finalization owner
 - data boundary: `packages/retrieval-core` remains retrieval kernel owner
+- latest acceptance addendum: 2026-05-06 fixture/contract drift check passed; local
+  real-provider public-chat E2E harness is product-path ready but blocked by the current WSL Docker
+  backend, not by SDK loop contract failure
 
 ## Why This Exists
 
@@ -57,6 +60,7 @@ Go supervisor-api
 - requirements: `./REQUIREMENTS.md`
 - roadmap: `./ROADMAP.md`
 - state: `./STATE.md`
+- expansion plan: `./EXPANSION-PLAN.md`
 
 ## Relation To Existing Workstreams
 
@@ -93,3 +97,24 @@ Fixed split:
 - SDK-native run state, handoff graph, raw provider response and raw trace must not enter
   `packages/contracts`, panel APIs, eval canonical fixtures or workflow trace truth.
 - Go `WorkflowPlan`, `AgentRequest`, `AgentResponse` and supervisor finalization remain canonical.
+
+## External Design Inputs
+
+The boundary above intentionally follows the official Agents SDK primitive split:
+
+- Agents are LLMs equipped with instructions and tools.
+- Function tools wrap Python functions and expose schema-validated calls.
+- Agents-as-tools and handoffs are available delegation mechanisms, but repo handoff ownership stays
+  in Go `WorkflowPlan`.
+- Guardrails can validate inputs, outputs and custom function-tool calls; repo evidence/authz
+  guardrails remain the acceptance owner.
+- SDK tracing is enabled by default upstream and can include LLM/tool/handoff/guardrail events, so
+  this repo keeps native tracing disabled unless a separate redaction/exporter gate is admitted.
+
+References:
+
+- `https://openai.github.io/openai-agents-python/`
+- `https://openai.github.io/openai-agents-python/tools/`
+- `https://openai.github.io/openai-agents-python/handoffs/`
+- `https://openai.github.io/openai-agents-python/guardrails/`
+- `https://openai.github.io/openai-agents-python/tracing/`

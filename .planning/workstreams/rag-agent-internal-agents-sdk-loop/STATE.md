@@ -3,7 +3,7 @@ doc_type: state
 workstream: rag-agent-internal-agents-sdk-loop
 status: completed
 created: 2026-05-05
-updated: 2026-05-05
+updated: 2026-05-06
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -14,11 +14,11 @@ updated: 2026-05-05
 
 **Status:** Completed
 **Current Phase:** Complete
-**Last Activity:** 2026-05-05
-**Last Activity Description:** Completed implementation and closeout for the RAG-internal Agents
-SDK loop. The default path remains deterministic RAG unless worker injects the SDK runner in
-`candidate`; `shadow` is observation-only, `default_on` is implemented but not enabled by default,
-and `fallback_only`/`closed` preserve the legacy path.
+**Last Activity:** 2026-05-06
+**Last Activity Description:** Updated acceptance record after Python SDK fixture/contract drift
+recheck and recorded follow-up expansion lanes. The default path remains deterministic RAG unless
+worker injects the SDK runner in `candidate`; `shadow` is observation-only, `default_on` is
+implemented but not enabled by default, and `fallback_only`/`closed` preserve the legacy path.
 
 ## Baseline Facts
 
@@ -60,10 +60,26 @@ Completed slice:
   `AgentObservability.safe_details`, with unsafe projection fail-closed.
 - Architecture docs updated for RAG-internal SDK lane.
 
+Latest acceptance addendum, 2026-05-06:
+
+- Python SDK fixture/contract drift was rechecked with focused suites. The previously observed
+  `EvidenceSource.__init__() got unexpected keyword argument 'semantic_role'` failure is not
+  present in the current worktree; `EvidenceSource` now carries `semantic_role`, `polarity`,
+  `action_type` and `claim_type`, and the focused SDK suites pass.
+- Local public-chat real-provider E2E harness now targets the product path and asserts
+  `prompt_runtime_state=rag_sdk_completed`.
+- Real-provider/public-chat E2E execution is still not accepted because the current WSL Docker
+  backend returns Docker process failures (`SIGBUS` / daemon 500 class), so this remains an
+  environment blocker rather than SDK loop contract evidence.
+- Follow-up SDK expansion planning is captured in `EXPANSION-PLAN.md`; it does not reopen this
+  completed workstream.
+
 ## Blockers
 
 - Existing dirty worktree includes unrelated RAG and app-api changes from other workstreams; this
   closeout must not revert or claim those changes.
+- Real-provider public-chat E2E requires a healthy local Docker backend for supervisor runtime
+  restart. Current WSL Docker failure blocks that acceptance lane.
 
 ## Reopen Rule
 
@@ -95,8 +111,8 @@ pnpm docs:lint
 
 ## Next Step
 
-Workstream complete. Next work belongs to broader product-path E2E or real-provider smoke lanes, not
-this implementation workstream.
+Workstream complete. Next work belongs to broader product-path E2E, real-provider smoke or one of
+the explicit expansion lanes in `EXPANSION-PLAN.md`, not to this closed implementation workstream.
 
 ## Closeout Verification
 
@@ -121,3 +137,14 @@ Latest focused evidence:
 - Docs lint: `Summary: 0 error(s)`
 - Diff whitespace: clean
 - GSD status: `Completed`
+
+Fresh drift-check evidence, 2026-05-06:
+
+```bash
+uv run --all-packages python -m unittest tests.agent.rag_agent_sdk_tools_suite tests.agent.rag_agent_sdk_service_suite tests.agent.rag_agent_sdk_rollout_suite tests.supervisor.rag_agents_sdk_delegate_suite tests.supervisor.rag_agents_sdk_openai_runner_suite -q
+```
+
+Observed result:
+
+- `Ran 24 tests in 0.031s`
+- `OK`

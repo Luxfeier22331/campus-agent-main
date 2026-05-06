@@ -7,7 +7,10 @@ from pathlib import Path
 from campus_contracts import (
     AgentRequest,
     CampusNoticeDiscoverPayload,
+    ContactDirectoryLookupPayload,
+    ServiceGuideLookupPayload,
     ServiceStatusLookupPayload,
+    TransportScheduleLookupPayload,
 )
 from campus_supervisor_agent_worker.agents_sdk_runner import (
     AgentsSdkRunnerTimeoutError,
@@ -56,6 +59,8 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
         self.assertEqual(captured_request.target, "notice-agent")
         self.assertEqual(captured_request.allowed_tools, ("campus_notice_discover",))
         self.assertEqual(captured_request.user_goal, "找春假通知")
+        self.assertEqual(captured_request.instruction_profile_id, "notice_discover_card_search")
+        self.assertIn("notice cards", captured_request.instructions)
         self.assertEqual(
             [tool.name for tool in captured_request.tool_descriptors],
             ["campus_notice_discover"],
@@ -72,7 +77,204 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
         self.assertEqual(projection["model_tool_call_ref"], "call-sdk-001")
         self.assertEqual(projection["model_response_ref"], "resp-sdk-001")
         self.assertEqual(projection["argument_keys"], ["query_text"])
+        self.assertEqual(projection["instruction_profile_id"], "notice_discover_card_search")
 
+    def test_runner_shell_assigns_service_guide_instruction_profile(self) -> None:
+        captured_request: AgentsSdkRunRequest | None = None
+
+        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+            nonlocal captured_request
+            captured_request = run_request
+            return AgentsSdkRunResult(
+                final_output="校园卡补办：学生可在自助补卡机补卡。",
+                tool_calls=(
+                    AgentsSdkToolCall(
+                        name="service_guide_lookup",
+                        arguments={
+                            "service_query": "校园卡丢了怎么办",
+                            "guide_focus": "full_guide",
+                        },
+                        call_id="call-service-guide-001",
+                    ),
+                ),
+                model_response_ref="resp-service-guide-001",
+            )
+
+        response = run_agents_sdk_runner_shell(
+            _service_guide_request(),
+            runner=fake_runner,
+            enabled=True,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIsNotNone(captured_request)
+        assert captured_request is not None
+        self.assertEqual(captured_request.target, "campus-services-agent")
+        self.assertEqual(
+            captured_request.instruction_profile_id,
+            "service_guide_source_backed_guidance",
+        )
+        self.assertIn("service guide", captured_request.instructions)
+        self.assertEqual(captured_request.result_usage_mode, "source_backed_guidance")
+        self.assertEqual(
+            captured_request.surface_execution_mode,
+            "sdk_mediated_answer_shaping",
+        )
+        projection = response.agent_observability.safe_details["agents_sdk_runner_projection"]
+        self.assertEqual(
+            projection["instruction_profile_id"],
+            "service_guide_source_backed_guidance",
+        )
+        self.assertEqual(projection["result_usage_mode"], "source_backed_guidance")
+        self.assertEqual(
+            projection["surface_execution_mode"],
+            "sdk_mediated_answer_shaping",
+        )
+
+    def test_runner_shell_assigns_service_status_instruction_profile(self) -> None:
+        captured_request: AgentsSdkRunRequest | None = None
+
+        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+            nonlocal captured_request
+            captured_request = run_request
+            return AgentsSdkRunResult(
+                final_output="海淀校区图书馆当前正常开放。",
+                tool_calls=(
+                    AgentsSdkToolCall(
+                        name="service_status_lookup",
+                        arguments={"subject_query": "海淀校区图书馆"},
+                        call_id="call-service-status-001",
+                    ),
+                ),
+                model_response_ref="resp-service-status-001",
+            )
+
+        response = run_agents_sdk_runner_shell(
+            AgentRequest(
+                target="campus-services-agent",
+                user_goal="图书馆今天开门吗",
+                request_id="req-sdk-service-status-001",
+                payload=ServiceStatusLookupPayload(subject_query="海淀校区图书馆"),
+                allowed_tools=("service_status_lookup",),
+            ),
+            runner=fake_runner,
+            enabled=True,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIsNotNone(captured_request)
+        assert captured_request is not None
+        self.assertEqual(captured_request.instruction_profile_id, "service_status_fact_lookup")
+        self.assertEqual(captured_request.result_usage_mode, "service_status_fact")
+        self.assertEqual(
+            captured_request.surface_execution_mode,
+            "deterministic_lookup_sdk_finalization",
+        )
+        projection = response.agent_observability.safe_details["agents_sdk_runner_projection"]
+        self.assertEqual(projection["instruction_profile_id"], "service_status_fact_lookup")
+        self.assertEqual(projection["result_usage_mode"], "service_status_fact")
+        trace = response.agent_observability.safe_details["agents_sdk_trace_projection"]
+        self.assertEqual(trace["instruction_profile_id"], "service_status_fact_lookup")
+        self.assertEqual(trace["result_usage_mode"], "service_status_fact")
+        self.assertEqual(
+            trace["surface_execution_mode"],
+            "deterministic_lookup_sdk_finalization",
+        )
+
+    def test_runner_shell_assigns_transport_schedule_instruction_profile(self) -> None:
+        captured_request: AgentsSdkRunRequest | None = None
+
+        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+            nonlocal captured_request
+            captured_request = run_request
+            return AgentsSdkRunResult(
+                final_output="两校区通勤班车下一班 08:00 发车。",
+                tool_calls=(
+                    AgentsSdkToolCall(
+                        name="transport_schedule_lookup",
+                        arguments={
+                            "query_text": "今天两校区班车几点发",
+                            "intent": "next_departure",
+                        },
+                        call_id="call-transport-001",
+                    ),
+                ),
+                model_response_ref="resp-transport-001",
+            )
+
+        response = run_agents_sdk_runner_shell(
+            AgentRequest(
+                target="campus-services-agent",
+                user_goal="今天两校区班车几点发",
+                request_id="req-sdk-transport-001",
+                payload=TransportScheduleLookupPayload(
+                    query_text="今天两校区班车几点发",
+                    intent="next_departure",
+                ),
+                allowed_tools=("transport_schedule_lookup",),
+            ),
+            runner=fake_runner,
+            enabled=True,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIsNotNone(captured_request)
+        assert captured_request is not None
+        self.assertEqual(
+            captured_request.instruction_profile_id,
+            "transport_schedule_temporal_lookup",
+        )
+        self.assertEqual(captured_request.result_usage_mode, "transport_schedule_fact")
+        self.assertEqual(
+            captured_request.surface_execution_mode,
+            "deterministic_lookup_sdk_finalization",
+        )
+
+    def test_runner_shell_assigns_contact_directory_instruction_profile(self) -> None:
+        captured_request: AgentsSdkRunRequest | None = None
+
+        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+            nonlocal captured_request
+            captured_request = run_request
+            return AgentsSdkRunResult(
+                final_output="校园卡管理中心电话是 010-68933381。",
+                tool_calls=(
+                    AgentsSdkToolCall(
+                        name="contact_directory_lookup",
+                        arguments={"query_text": "校园卡电话", "contact_focus": "phone"},
+                        call_id="call-contact-001",
+                    ),
+                ),
+                model_response_ref="resp-contact-001",
+            )
+
+        response = run_agents_sdk_runner_shell(
+            AgentRequest(
+                target="campus-services-agent",
+                user_goal="校园卡管理中心电话",
+                request_id="req-sdk-contact-001",
+                payload=ContactDirectoryLookupPayload(
+                    query_text="校园卡电话",
+                    contact_focus="phone",
+                ),
+                allowed_tools=("contact_directory_lookup",),
+            ),
+            runner=fake_runner,
+            enabled=True,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIsNotNone(captured_request)
+        assert captured_request is not None
+        self.assertEqual(
+            captured_request.instruction_profile_id,
+            "contact_directory_fact_lookup",
+        )
+        self.assertEqual(captured_request.result_usage_mode, "contact_directory_fact")
+        self.assertEqual(
+            captured_request.surface_execution_mode,
+            "deterministic_lookup_sdk_finalization",
+        )
     def test_runner_shell_passes_validated_tool_executor_to_runner(self) -> None:
         captured_execution: AgentsSdkToolExecutionRequest | None = None
 
@@ -132,6 +334,107 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             "resolved_current",
         )
         self.assertEqual(response.agent_observability.source_ref_count, 1)
+
+    def test_runner_shell_returns_service_guide_tool_result_for_downstream_structured_consumption(
+        self,
+    ) -> None:
+        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+            self.assertIsNotNone(run_request.execute_tool)
+            assert run_request.execute_tool is not None
+            tool_result = run_request.execute_tool(
+                AgentsSdkToolExecutionRequest(
+                    name="service_guide_lookup",
+                    arguments={
+                        "service_query": "校园卡丢了怎么办",
+                        "guide_focus": "full_guide",
+                    },
+                    call_id="call-service-guide-exec",
+                )
+            )
+            self.assertEqual(tool_result, _service_guide_tool_result())
+            return AgentsSdkRunResult(
+                final_output="校园卡补办：学生可在自助补卡机补卡。",
+                tool_calls=(
+                    AgentsSdkToolCall(
+                        name="service_guide_lookup",
+                        arguments={
+                            "service_query": "校园卡丢了怎么办",
+                            "guide_focus": "full_guide",
+                        },
+                        call_id="call-service-guide-exec",
+                    ),
+                ),
+                model_response_ref="resp-service-guide-exec",
+            )
+
+        response = run_agents_sdk_runner_shell(
+            _service_guide_request(),
+            runner=fake_runner,
+            enabled=True,
+            execute_tool=lambda _execution: _service_guide_tool_result(),
+            require_tool_execution=True,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIsInstance(response.result, dict)
+        assert isinstance(response.result, dict)
+        self.assertEqual(response.result["payload_kind"], "service_guide_lookup")
+        self.assertEqual(response.result["tool_result"], _service_guide_tool_result())
+
+    def test_runner_shell_returns_contact_directory_tool_result_for_downstream_structured_consumption(
+        self,
+    ) -> None:
+        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+            self.assertIsNotNone(run_request.execute_tool)
+            assert run_request.execute_tool is not None
+            tool_result = run_request.execute_tool(
+                AgentsSdkToolExecutionRequest(
+                    name="contact_directory_lookup",
+                    arguments={
+                        "query_text": "校园卡电话",
+                        "contact_focus": "phone",
+                    },
+                    call_id="call-contact-exec",
+                )
+            )
+            self.assertEqual(tool_result, _contact_directory_tool_result())
+            return AgentsSdkRunResult(
+                final_output="校园卡管理中心电话是 010-68933381。",
+                tool_calls=(
+                    AgentsSdkToolCall(
+                        name="contact_directory_lookup",
+                        arguments={
+                            "query_text": "校园卡电话",
+                            "contact_focus": "phone",
+                        },
+                        call_id="call-contact-exec",
+                    ),
+                ),
+                model_response_ref="resp-contact-exec",
+            )
+
+        response = run_agents_sdk_runner_shell(
+            AgentRequest(
+                target="campus-services-agent",
+                user_goal="校园卡管理中心电话",
+                request_id="req-sdk-contact-structured-001",
+                payload=ContactDirectoryLookupPayload(
+                    query_text="校园卡电话",
+                    contact_focus="phone",
+                ),
+                allowed_tools=("contact_directory_lookup",),
+            ),
+            runner=fake_runner,
+            enabled=True,
+            execute_tool=lambda _execution: _contact_directory_tool_result(),
+            require_tool_execution=True,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIsInstance(response.result, dict)
+        assert isinstance(response.result, dict)
+        self.assertEqual(response.result["payload_kind"], "contact_directory_lookup")
+        self.assertEqual(response.result["tool_result"], _contact_directory_tool_result())
 
     def test_runner_shell_fails_closed_when_required_tool_execution_is_missing(self) -> None:
         response = run_agents_sdk_runner_shell(
@@ -468,6 +771,88 @@ def _notice_discover_request() -> AgentRequest:
         payload=CampusNoticeDiscoverPayload(query_text="春假通知"),
         allowed_tools=("campus_notice_discover",),
     )
+
+
+def _service_guide_request() -> AgentRequest:
+    return AgentRequest(
+        target="campus-services-agent",
+        user_goal="校园卡丢了怎么办",
+        request_id="req-sdk-service-guide-001",
+        payload=ServiceGuideLookupPayload(
+            service_query="校园卡丢了怎么办",
+            guide_focus="full_guide",
+        ),
+        allowed_tools=("service_guide_lookup",),
+    )
+
+
+def _service_guide_tool_result() -> dict[str, object]:
+    return {
+        "outcome": "resolved_current",
+        "service_query": "校园卡丢了怎么办",
+        "source_ref_count": 1,
+        "resolved_service": {
+            "display_name": "校园卡挂失与补卡",
+        },
+        "guide_sections": [
+            {
+                "title": "挂失与补卡流程",
+                "content": "先办理挂失，再在自助补卡机补卡。",
+                "source_refs": ["official_web:campus-card"],
+            }
+        ],
+        "required_materials": [
+            {
+                "name": "本人有效证件",
+                "required": True,
+                "source_refs": ["official_web:campus-card"],
+            }
+        ],
+        "entry_refs": [
+            {
+                "label": "学生自助补卡机",
+                "location_ref": "中慧楼二层",
+                "source_refs": ["official_web:campus-card"],
+            }
+        ],
+        "office_hours": [
+            {
+                "label": "卡务中心",
+                "day_pattern": "工作日",
+                "time_range": "09:00-17:00",
+                "source_refs": ["official_web:campus-card"],
+            }
+        ],
+        "contact_refs": [
+            {
+                "label": "海淀校区校园卡管理中心",
+                "phone": "010-68933381",
+                "source_refs": ["official_web:campus-card"],
+            }
+        ],
+        "eligibility_notes": ["学生和教职工均可办理。"],
+        "source_refs": ["official_web:campus-card"],
+    }
+
+
+def _contact_directory_tool_result() -> dict[str, object]:
+    return {
+        "outcome": "resolved_current",
+        "query_text": "校园卡电话",
+        "contact_focus": "phone",
+        "source_ref_count": 1,
+        "resolved_contact": {
+            "display_name": "校园卡管理中心",
+        },
+        "contact_points": [
+            {
+                "label": "咨询电话",
+                "value": "010-68933381",
+                "source_refs": ["official_web:campus-card"],
+            }
+        ],
+        "source_refs": ["official_web:campus-card"],
+    }
 
 
 def _sdk_test_tool_registry() -> ToolSpecRegistry:

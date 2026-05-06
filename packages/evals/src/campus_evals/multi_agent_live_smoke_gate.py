@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import socket
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
@@ -18,11 +19,14 @@ from scripts.supervisor_runtime_process_smoke import (
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_REPORT_NAME = "multi-agent-live-smoke-gate.json"
 DEFAULT_SCHEMA_VERSION = "multi_agent_live_smoke_gate.v1"
-DEFAULT_PROCESS_SMOKE_PROFILES = (
+DEFAULT_GOVERNED_WORKFLOW_PROCESS_SMOKE_PROFILES = (
     "closed_gate",
     "terminal_fail_close",
     "rag_delegate",
     "multi_step_notice_knowledge_followthrough",
+    "multi_step_transport_notice_knowledge_pilot",
+)
+DEFAULT_SINGLE_SURFACE_SDK_PROCESS_SMOKE_PROFILES = (
     "transport_schedule_sdk_opened",
     "transport_schedule_sdk_opened_stream",
     "service_status_sdk_opened",
@@ -32,11 +36,18 @@ DEFAULT_PROCESS_SMOKE_PROFILES = (
     "academic_calendar_sdk_opened",
     "transactional_approval_required",
 )
+DEFAULT_PROCESS_SMOKE_PROFILES = (
+    *DEFAULT_GOVERNED_WORKFLOW_PROCESS_SMOKE_PROFILES,
+    *DEFAULT_SINGLE_SURFACE_SDK_PROCESS_SMOKE_PROFILES,
+)
 PROFILE_WORKFLOW_TRACE_CASE_IDS = {
     "terminal_fail_close": "workflow-product-scope-fail-close",
     "rag_delegate": "workflow-knowledge-delegate",
     "multi_step_notice_knowledge_followthrough": (
         "workflow-notice-knowledge-followthrough-multistep"
+    ),
+    "multi_step_transport_notice_knowledge_pilot": (
+        "workflow-transport-notice-knowledge-pilot-multistep"
     ),
     "transport_schedule_sdk_opened": "workflow-transport-schedule-sdk",
     "transport_schedule_sdk_opened_stream": "workflow-transport-schedule-sdk",
@@ -53,7 +64,7 @@ def run_multi_agent_live_smoke_gate(
     *,
     output_dir: Path,
     timeout_seconds: float = 45.0,
-    profiles: Sequence[str] = DEFAULT_PROCESS_SMOKE_PROFILES,
+    profiles: Sequence[str] = DEFAULT_GOVERNED_WORKFLOW_PROCESS_SMOKE_PROFILES,
 ) -> dict[str, object]:
     output_dir.mkdir(parents=True, exist_ok=True)
     process_output_dir = output_dir / "process-smoke"
@@ -61,20 +72,23 @@ def run_multi_agent_live_smoke_gate(
     report_paths = []
     for profile in profiles:
         profile_output_dir = process_output_dir / profile
+        api_port, worker_port, object_store_port = _reserve_profile_ports()
         plan = build_process_smoke_plan(
             repo_root=REPO_ROOT,
             output_dir=profile_output_dir,
             profile=profile,
+            api_port=api_port,
+            worker_port=worker_port,
+            object_store_port=object_store_port,
         )
         smoke_summary = run_process_smoke(plan, timeout_seconds=timeout_seconds)
         smoke_summaries.append(smoke_summary)
         report_path = profile_output_dir / "process-smoke-summary.json"
-        if not report_path.exists():
-            report_path.parent.mkdir(parents=True, exist_ok=True)
-            report_path.write_text(
-                json.dumps(smoke_summary, ensure_ascii=False, indent=2, default=str) + "\n",
-                encoding="utf-8",
-            )
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(
+            json.dumps(smoke_summary, ensure_ascii=False, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
         report_paths.append(report_path)
     smoke_by_profile = {str(summary.get("profile") or ""): summary for summary in smoke_summaries}
     passed_profiles = [
@@ -193,6 +207,17 @@ def _profile_case_ids_from_reports(report_paths: Sequence[Path]) -> list[tuple[s
         if case_id:
             profile_case_ids.append((profile, case_id))
     return profile_case_ids
+
+
+def _reserve_profile_ports() -> tuple[int, int, int]:
+    return (_reserve_local_port(), _reserve_local_port(), _reserve_local_port())
+
+
+def _reserve_local_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(1)
+        return int(sock.getsockname()[1])
 
 
 def _unique_case_ids(case_ids: Iterable[str]) -> tuple[str, ...]:

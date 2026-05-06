@@ -173,6 +173,7 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
                 "workflow-academic-calendar-sdk",
                 "workflow-knowledge-delegate",
                 "workflow-notice-knowledge-followthrough-multistep",
+                "workflow-transport-notice-knowledge-pilot-multistep",
                 "workflow-curriculum-delegate",
                 "workflow-ambiguous-follow-up-clarification",
                 "workflow-product-scope-fail-close",
@@ -442,6 +443,71 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
         self.assertFalse(results.trace_projection_completeness.passed)
         self.assertIn(
             "agent_invocations.projection_refs", results.trace_projection_completeness.reason
+        )
+
+    def test_multistep_trace_projection_requires_expected_projection_kind_sequence(self) -> None:
+        case = _workflow_case(
+            direct_vs_delegate_branch="multi_step",
+            workflow_mode="multi_step",
+            selected_target="rag-agent",
+            selected_tools=("retrieval.query",),
+            handoff_chain=(
+                {"target": "notice-agent", "payload_kind": "campus_notice_get"},
+                {"target": "rag-agent", "payload_kind": "rag_request"},
+            ),
+            expected_context_projection_kinds=("notice_context", "evidence_bundle"),
+        )
+        summary = _trace_summary(
+            direct_vs_delegate_branch="multi_step",
+            workflow_mode="multi_step",
+            selected_target="rag-agent",
+            selected_tools=("retrieval.query",),
+            handoff_chain=(
+                {"target": "notice-agent", "payload_kind": "campus_notice_get"},
+                {"target": "rag-agent", "payload_kind": "rag_request"},
+            ),
+            context_projections=(
+                {
+                    "projection_id": "proj-notice-001",
+                    "source_step_id": "handoff:notice-agent:campus_notice_get",
+                    "projection_kind": "notice_context",
+                    "content_hash": "sha256:test",
+                    "safety": {"max_chars": 1600, "fields_present": ["title"]},
+                },
+            ),
+            agent_invocations=(
+                {
+                    "invocation_id": "agent-invocation:notice-agent:campus_notice_get",
+                    "workflow_run_ref": "run-test",
+                    "step_id": "handoff:notice-agent:campus_notice_get",
+                    "agent_id": "notice-agent",
+                    "status": "completed",
+                },
+                {
+                    "invocation_id": "agent-invocation:rag-agent:rag_request",
+                    "parent_invocation_id": "agent-invocation:notice-agent:campus_notice_get",
+                    "workflow_run_ref": "run-test",
+                    "step_id": "handoff:rag-agent:rag_request",
+                    "agent_id": "rag-agent",
+                    "status": "needs_clarification",
+                    "projection_ids": ["proj-notice-001"],
+                },
+            ),
+            tool_call_summaries=(
+                {
+                    "tool_name": "retrieval.query",
+                    "result_status": "needs_clarification",
+                    "source_ids": ["student_rules:leave-policy"],
+                },
+            ),
+            tool_argument_summary={"collection": "student_rules"},
+        )
+
+        results = evaluate_workflow_trace_case(case, summary)
+
+        self.assertFalse(results.trace_projection_completeness.passed)
+        self.assertIn(
+            "context_projections.expected_kinds", results.trace_projection_completeness.reason
         )
 
 

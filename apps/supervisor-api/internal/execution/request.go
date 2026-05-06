@@ -421,6 +421,9 @@ func validateCapabilityEnvelope(
 		return nil
 	}
 	if hasRequestedScope {
+		if requestedCapability == "campus_services" {
+			return nil
+		}
 		if requestedCapability == "place_lookup" {
 			return fmt.Errorf("requested_scope is not allowed for place_lookup requests")
 		}

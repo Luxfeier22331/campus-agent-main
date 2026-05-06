@@ -202,6 +202,9 @@ class WorkflowTraceSummary:
 class WorkflowAgentContext:
     schema_version: str = "workflow-agent-context-v1"
     visibility: str = "agent_private"
+    workflow_run_ref: str = ""
+    step_id: str = ""
+    agent_id: str = ""
     target: str = ""
     required_projection_kind: str = ""
     projection_refs: tuple[dict[str, Any], ...] = field(default_factory=tuple)
@@ -211,6 +214,21 @@ class WorkflowAgentContext:
             raise ValueError("workflow_context.schema_version must be workflow-agent-context-v1")
         if self.visibility != "agent_private":
             raise ValueError("workflow_context.visibility must be agent_private")
+        workflow_used = bool(
+            self.workflow_run_ref.strip()
+            or self.step_id.strip()
+            or self.agent_id.strip()
+            or self.target.strip()
+            or self.required_projection_kind.strip()
+            or self.projection_refs
+        )
+        if workflow_used:
+            if not self.workflow_run_ref.strip():
+                raise ValueError("workflow_context.workflow_run_ref is required")
+            if not self.step_id.strip():
+                raise ValueError("workflow_context.step_id is required")
+            if self.agent_id not in ALLOWED_AGENT_TARGETS:
+                raise ValueError("workflow_context.agent_id is required")
         if self.required_projection_kind and not any(
             str(item.get("projection_kind") or "").strip() == self.required_projection_kind
             for item in self.projection_refs

@@ -989,6 +989,80 @@ func TestPlanWithPolicyBuildsMultiStepNoticeKnowledgeFollowthrough(t *testing.T)
 	}
 }
 
+func TestPlanWithPolicyBuildsMultiStepTransportNoticeKnowledgePilot(t *testing.T) {
+	policy, err := runtimepolicy.LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load intent policy: %v", err)
+	}
+
+	plan := PlanWithPolicy(Request{
+		EffectiveCapability:      "campus_services",
+		UserGoal:                 "这条班车通知依据学生手册哪条规定？",
+		HasRequestedScope:        true,
+		MultiStepWorkflowEnabled: true,
+		RequestedScope: Scope{
+			Corpus:     "regulations",
+			Collection: "student_rules",
+		},
+		SelectedNoticeRef: SelectedNoticeRef{
+			NoticeID:     "notice:transport:355122",
+			SourceFamily: "internal_notice_restricted",
+			Title:        "关于两校区学生通勤班车增加班次的通知",
+		},
+	}, policy)
+
+	if plan == nil {
+		t.Fatal("expected workflow plan")
+	}
+	if plan.WorkflowMode != WorkflowModeMultiStep {
+		t.Fatalf("workflow mode = %q, want multi_step", plan.WorkflowMode)
+	}
+	handoffs := plan.Handoffs()
+	if len(handoffs) != 3 {
+		t.Fatalf("handoff count = %d, want 3", len(handoffs))
+	}
+	if handoffs[0].Target != "campus-services-agent" ||
+		handoffs[0].PayloadKind != "transport_schedule_lookup" {
+		t.Fatalf("first handoff = %#v, want transport schedule", handoffs[0])
+	}
+	if len(handoffs[0].AllowedTools) != 1 || handoffs[0].AllowedTools[0] != "transport_schedule_lookup" {
+		t.Fatalf("first handoff allowed tools = %#v, want transport_schedule_lookup", handoffs[0].AllowedTools)
+	}
+	if handoffs[1].Target != "notice-agent" || handoffs[1].PayloadKind != "campus_notice_get" {
+		t.Fatalf("second handoff = %#v, want notice get", handoffs[1])
+	}
+	if handoffs[1].Payload["notice_id"] != "notice:transport:355122" {
+		t.Fatalf("second handoff notice_id = %#v", handoffs[1].Payload["notice_id"])
+	}
+	if handoffs[2].Target != "rag-agent" || handoffs[2].PayloadKind != "rag_request" {
+		t.Fatalf("third handoff = %#v, want rag request", handoffs[2])
+	}
+	if !plan.ResumePolicy.ResumeSupported {
+		t.Fatal("multi-step pilot plan must declare resume support")
+	}
+	projection := plan.Map()
+	steps, ok := projection["steps"].([]map[string]any)
+	if !ok || len(steps) != 3 {
+		t.Fatalf("projection steps = %#v, want three steps", projection["steps"])
+	}
+	edges, ok := projection["edges"].([]map[string]any)
+	if !ok || len(edges) != 2 {
+		t.Fatalf("projection edges = %#v, want two edges", projection["edges"])
+	}
+	if edges[0]["required_projection_kind"] != "schedule_baseline" {
+		t.Fatalf(
+			"first edge required projection = %#v, want schedule_baseline",
+			edges[0]["required_projection_kind"],
+		)
+	}
+	if edges[1]["required_projection_kind"] != "notice_context" {
+		t.Fatalf(
+			"second edge required projection = %#v, want notice_context",
+			edges[1]["required_projection_kind"],
+		)
+	}
+}
+
 func TestValidateWorkflowPlanWithAgentSpecRejectsInactiveAgent(t *testing.T) {
 	plan := SingleHandoffPlan(Handoff{
 		Target:      "navigation-agent",

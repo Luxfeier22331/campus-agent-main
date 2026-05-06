@@ -33,6 +33,7 @@ SDK_STRUCTURED_OPENED_PROFILES = {
 }
 MULTI_STEP_WORKFLOW_PROFILES = {
     "multi_step_notice_knowledge_followthrough",
+    "multi_step_transport_notice_knowledge_pilot",
 }
 AGENTS_SDK_NOTICE_PROFILES = {
     "agents_sdk_notice_discover_e2e",
@@ -247,7 +248,7 @@ def _profile_api_env(
             )
         return env
     if profile in MULTI_STEP_WORKFLOW_PROFILES:
-        return {
+        env = {
             "SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED": "true",
             "SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE": "true",
             "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
@@ -256,6 +257,16 @@ def _profile_api_env(
             "OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
             "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
         }
+        if profile == "multi_step_transport_notice_knowledge_pilot":
+            env.update(
+                {
+                    "SUPERVISOR_API_OPEN_CAPABILITIES": "campus_services",
+                    "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
+                        STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
+                    ),
+                }
+            )
+        return env
     return {}
 
 
@@ -292,7 +303,11 @@ def _profile_requires_object_store(profile: str) -> bool:
 
 
 def _profile_requires_structured_projection(profile: str) -> bool:
-    return profile in _campus_services_sdk_profiles() or profile == "academic_calendar_sdk_opened"
+    return (
+        profile in _campus_services_sdk_profiles()
+        or profile == "academic_calendar_sdk_opened"
+        or profile == "multi_step_transport_notice_knowledge_pilot"
+    )
 
 
 def _profile_requires_notice_read_model(profile: str) -> bool:
@@ -718,14 +733,40 @@ def _seed_notice_read_model_smoke(
         projection_updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
         updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
     )
-    store.upsert_many((record,))
+    restricted_record = InternalNoticeReadModelEntry(
+        source_family="internal_notice_restricted",
+        source_corpus="campus_notices",
+        source_collection="internal_notice",
+        source_notice_id="notice:transport:355122",
+        unit_id="notice_unit:transport:355122:body",
+        primary_role="notice_window",
+        target_surface="notice_level_query",
+        consumption_status="ready",
+        queryable=True,
+        title="关于两校区学生通勤班车增加班次的通知",
+        visibility_level="restricted",
+        entitlement_groups=("students",),
+        policy_projection_version="phase1-authorization-projection-v1",
+        published_at="2026-03-18T08:00:00+08:00",
+        source_url="https://example.invalid/notices/355122",
+        canonical_url="https://example.invalid/notices/355122",
+        canonical_document_id="doc:transport-notice-355122",
+        canonical_markdown_object_key=(
+            "campus_notices/documents/internal_notice/355122/canonical.md"
+        ),
+        body_excerpt="自 3 月 18 日起增加若干学生通勤班车班次。",
+        search_text="两校区学生通勤班车 增加班次 班车通知 355122",
+        projection_updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+        updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+    )
+    store.upsert_many((record, restricted_record))
     log_path.write_text(
         json.dumps(
             {
                 "status": "ok",
                 "table": store.table_name,
-                "notice_id": record.source_notice_id,
-                "source_family": record.source_family,
+                "notice_ids": [record.source_notice_id, restricted_record.source_notice_id],
+                "source_families": [record.source_family, restricted_record.source_family],
             },
             ensure_ascii=False,
             indent=2,

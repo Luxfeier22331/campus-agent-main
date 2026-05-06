@@ -20,6 +20,7 @@ type WorkflowRunStore interface {
 	AppendStep(context.Context, string, WorkflowStep) (WorkflowRun, error)
 	AppendAgentInvocation(context.Context, string, AgentInvocation) (WorkflowRun, error)
 	AppendStepOutputProjection(context.Context, string, StepOutputProjection) (WorkflowRun, error)
+	AppendToolCallSummary(context.Context, string, ToolCallSummary) (WorkflowRun, error)
 	Complete(context.Context, string, WorkflowState) (WorkflowRun, error)
 }
 
@@ -139,6 +140,25 @@ func (s *InMemoryWorkflowRunStore) AppendStepOutputProjection(
 	return cloneWorkflowRun(run), nil
 }
 
+func (s *InMemoryWorkflowRunStore) AppendToolCallSummary(
+	_ context.Context,
+	runID string,
+	summary ToolCallSummary,
+) (WorkflowRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run, exists := s.runs[runID]
+	if !exists {
+		return WorkflowRun{}, fmt.Errorf("%w: %s", ErrWorkflowRunNotFound, runID)
+	}
+	run.ToolCallSummaries = append(run.ToolCallSummaries, cloneToolCallSummary(summary))
+	if err := validateWorkflowRun(run); err != nil {
+		return WorkflowRun{}, err
+	}
+	s.runs[runID] = cloneWorkflowRun(run)
+	return cloneWorkflowRun(run), nil
+}
+
 func (s *InMemoryWorkflowRunStore) Complete(
 	_ context.Context,
 	runID string,
@@ -212,6 +232,10 @@ func cloneWorkflowRun(run WorkflowRun) WorkflowRun {
 			CloneStepOutputProjection(projection),
 		)
 	}
+	clone.ToolCallSummaries = make([]ToolCallSummary, 0, len(run.ToolCallSummaries))
+	for _, summary := range run.ToolCallSummaries {
+		clone.ToolCallSummaries = append(clone.ToolCallSummaries, cloneToolCallSummary(summary))
+	}
 	return clone
 }
 
@@ -226,5 +250,14 @@ func cloneAgentInvocation(invocation AgentInvocation) AgentInvocation {
 	clone.AllowedTools = append([]string{}, invocation.AllowedTools...)
 	clone.UsedTools = append([]string{}, invocation.UsedTools...)
 	clone.ProjectionIDs = append([]string{}, invocation.ProjectionIDs...)
+	return clone
+}
+
+func cloneToolCallSummary(summary ToolCallSummary) ToolCallSummary {
+	clone := summary
+	clone.ArgumentSummary = cloneAnyMap(summary.ArgumentSummary)
+	clone.SourceIDs = append([]string{}, summary.SourceIDs...)
+	clone.SafeDetails = cloneAnyMap(summary.SafeDetails)
+	clone.ProviderToolCallProjection = cloneAnyMap(summary.ProviderToolCallProjection)
 	return clone
 }

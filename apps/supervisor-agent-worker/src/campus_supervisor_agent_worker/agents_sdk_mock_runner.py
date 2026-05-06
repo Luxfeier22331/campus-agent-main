@@ -84,11 +84,14 @@ def _final_output(
 ) -> str:
     if isinstance(tool_result, dict):
         return (
-            "Mock Agents SDK completed "
+            f"[{request.instruction_profile_id}] Mock Agents SDK completed "
             f"{request.allowed_tools[0]} for {request.target}: "
             f"{json.dumps(tool_result, ensure_ascii=False, sort_keys=True)}"
         )
-    return f"Mock Agents SDK completed {request.allowed_tools[0]}: {tool_result}"
+    return (
+        f"[{request.instruction_profile_id}] Mock Agents SDK completed "
+        f"{request.allowed_tools[0]}: {tool_result}"
+    )
 
 
 __all__ = ["MockAgentsSdkRunner"]

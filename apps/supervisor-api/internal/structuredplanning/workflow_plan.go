@@ -134,6 +134,60 @@ func MultiStepNoticeKnowledgeFollowthroughPlan(
 	}
 }
 
+func MultiStepTransportNoticeKnowledgePilotPlan(
+	transportHandoff Handoff,
+	noticeHandoff Handoff,
+	ragHandoff Handoff,
+) *WorkflowPlan {
+	transportStep := workflowPlanStepForHandoff(transportHandoff)
+	noticeStep := workflowPlanStepForHandoff(noticeHandoff)
+	ragStep := workflowPlanStepForHandoff(ragHandoff)
+	return &WorkflowPlan{
+		SchemaVersion: WorkflowPlanSchemaVersion,
+		PlanID: "plan:multi_step:campus-services-agent:notice-agent:rag-agent:" +
+			"transport_notice_knowledge_pilot",
+		WorkflowMode: WorkflowModeMultiStep,
+		AllowedAgents: []string{
+			transportHandoff.Target,
+			noticeHandoff.Target,
+			ragHandoff.Target,
+		},
+		Steps: []WorkflowPlanStep{
+			transportStep,
+			noticeStep,
+			ragStep,
+		},
+		Edges: []WorkflowPlanEdge{
+			{
+				FromStepID:             transportStep.StepID,
+				ToStepID:               noticeStep.StepID,
+				Condition:              "completed",
+				RequiredProjectionKind: "schedule_baseline",
+			},
+			{
+				FromStepID:             noticeStep.StepID,
+				ToStepID:               ragStep.StepID,
+				Condition:              "completed",
+				RequiredProjectionKind: "notice_context",
+			},
+		},
+		TerminalPolicy: WorkflowTerminalPolicy{
+			FailCloseOnInvalidPlan: true,
+		},
+		ResumePolicy: WorkflowResumePolicy{
+			ResumeSupported: true,
+		},
+		SemanticRetryPolicy: SemanticRetryPolicy{
+			MaxReplans: 1,
+		},
+		handoffs: []Handoff{
+			cloneHandoffValue(transportHandoff),
+			cloneHandoffValue(noticeHandoff),
+			cloneHandoffValue(ragHandoff),
+		},
+	}
+}
+
 func workflowPlanStepForHandoff(handoff Handoff) WorkflowPlanStep {
 	return WorkflowPlanStep{
 		StepID:       "handoff:" + handoff.Target + ":" + handoff.PayloadKind,

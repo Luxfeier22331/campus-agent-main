@@ -13,6 +13,9 @@ class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
             ),
             workflow_context=WorkflowAgentContext(
                 target="rag-agent",
+                workflow_run_ref="workflow:req-test",
+                step_id="handoff:rag-agent:rag_request",
+                agent_id="rag-agent",
                 required_projection_kind="notice_context",
                 projection_refs=(_valid_projection_ref(),),
             ),
@@ -30,6 +33,9 @@ class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "required projection"):
             WorkflowAgentContext(
                 target="rag-agent",
+                workflow_run_ref="workflow:req-test",
+                step_id="handoff:rag-agent:rag_request",
+                agent_id="rag-agent",
                 required_projection_kind="notice_context",
                 projection_refs=(),
             )
@@ -40,7 +46,13 @@ class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
             "raw_response": "secret",
         }
         with self.assertRaisesRegex(ValueError, "forbidden raw workflow trace key"):
-            WorkflowAgentContext(target="rag-agent", projection_refs=(invalid_ref,))
+            WorkflowAgentContext(
+                target="rag-agent",
+                workflow_run_ref="workflow:req-test",
+                step_id="handoff:rag-agent:rag_request",
+                agent_id="rag-agent",
+                projection_refs=(invalid_ref,),
+            )
 
     def test_workflow_agent_context_requires_bounded_projection_ref_metadata(self) -> None:
         for field_name in (
@@ -56,6 +68,9 @@ class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
             ):
                 WorkflowAgentContext(
                     target="rag-agent",
+                    workflow_run_ref="workflow:req-test",
+                    step_id="handoff:rag-agent:rag_request",
+                    agent_id="rag-agent",
                     projection_refs=(
                         {
                             key: value

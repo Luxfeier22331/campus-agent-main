@@ -293,9 +293,10 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 	}
 	if !ok {
 		body := noticeGetResult{
-			NoticeID:     request.NoticeID,
-			Outcome:      "not_found",
-			SourceFamily: sourceFamily,
+			NoticeID:      request.NoticeID,
+			Outcome:       "not_found",
+			SourceFamily:  sourceFamily,
+			DisplayPolicy: noticePublicCardDisplayPolicy(),
 		}
 		return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 	}
@@ -620,6 +621,7 @@ func failClosedNoticeGet(noticeID string, sourceFamily string, reason string) Re
 		NoticeID:        noticeID,
 		Outcome:         "temporarily_unverifiable",
 		SourceFamily:    sourceFamily,
+		DisplayPolicy:   noticePublicCardDisplayPolicy(),
 		FailCloseReason: reason,
 	}
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}

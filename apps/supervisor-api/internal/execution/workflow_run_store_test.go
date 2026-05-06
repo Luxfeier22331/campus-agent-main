@@ -93,6 +93,26 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 	}
 	withInvocation.AgentInvocations[0].AllowedTools[0] = "mutated"
 
+	withToolCallSummary, err := store.AppendToolCallSummary(ctx, "run-001", ToolCallSummary{
+		ToolCallID:        "run-001:tool_call",
+		WorkflowRunRef:    "run-001",
+		StepID:            "tool_call",
+		LifecycleState:    "completed",
+		ResultProjection:  "bounded_summary",
+		RawResultIncluded: false,
+		ToolName:          "retrieval.query",
+		Target:            "rag-agent",
+		ResultStatus:      "completed",
+		ArgumentSummary:   map[string]any{"collection": "student_rules"},
+		SourceIDs:         []string{"student_rules:library"},
+		SafeDetails:       map[string]any{"schema_version": "agent-execution-projection-v1"},
+	})
+	if err != nil {
+		t.Fatalf("append tool call summary: %v", err)
+	}
+	withToolCallSummary.ToolCallSummaries[0].ArgumentSummary["collection"] = "mutated"
+	withToolCallSummary.ToolCallSummaries[0].SourceIDs[0] = "mutated"
+
 	completed, err := store.Complete(ctx, "run-001", WorkflowStateCompleted)
 	if err != nil {
 		t.Fatalf("complete workflow run: %v", err)
@@ -122,6 +142,18 @@ func TestInMemoryWorkflowRunStoreTracksRunStateAndDefensiveCopies(t *testing.T) 
 		t.Fatalf(
 			"stored agent invocation = %#v, want defensive copy",
 			completed.AgentInvocations[0],
+		)
+	}
+	if completed.ToolCallSummaries[0].ArgumentSummary["collection"] != "student_rules" {
+		t.Fatalf(
+			"stored tool call summary argument = %#v, want defensive copy",
+			completed.ToolCallSummaries[0].ArgumentSummary,
+		)
+	}
+	if completed.ToolCallSummaries[0].SourceIDs[0] != "student_rules:library" {
+		t.Fatalf(
+			"stored tool call summary source ids = %#v, want defensive copy",
+			completed.ToolCallSummaries[0].SourceIDs,
 		)
 	}
 }

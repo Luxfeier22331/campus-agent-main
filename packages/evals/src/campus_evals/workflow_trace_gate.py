@@ -31,6 +31,7 @@ class WorkflowTraceExpectation:
     tool_call_summaries: tuple[dict[str, object], ...] = field(default_factory=tuple)
     expected_tool_order: tuple[str, ...] = field(default_factory=tuple)
     expected_tool_result_statuses: dict[str, object] = field(default_factory=dict)
+    expected_context_projection_kinds: tuple[str, ...] = field(default_factory=tuple)
     expected_source_ids: tuple[str, ...] = field(default_factory=tuple)
     fail_close_provenance: dict[str, object] = field(default_factory=dict)
     guardrail_outcomes: dict[str, object] = field(default_factory=dict)
@@ -120,7 +121,7 @@ def evaluate_workflow_trace_case(
             expectation.guardrail_outcomes,
         ),
         fail_close_correctness=_fail_close_result(summary, expectation),
-        trace_projection_completeness=_trace_projection_completeness(summary),
+        trace_projection_completeness=_trace_projection_completeness(summary, expectation),
         tool_order_correctness=_tool_order_result(summary, expectation),
         tool_result_status_correctness=_tool_result_status_result(summary, expectation),
         fail_close_provenance=_mapping_contains(
@@ -264,6 +265,9 @@ def _workflow_trace_case(payload: object) -> WorkflowTraceCase:
             ),
             expected_tool_result_statuses=dict(
                 expectation.get("expected_tool_result_statuses") or {}
+            ),
+            expected_context_projection_kinds=tuple(
+                str(kind) for kind in expectation.get("expected_context_projection_kinds") or ()
             ),
             expected_source_ids=tuple(
                 str(source_id) for source_id in expectation.get("expected_source_ids") or ()
@@ -525,7 +529,10 @@ def _observed_source_ids(summary: WorkflowTraceSummary) -> set[str]:
     return source_ids
 
 
-def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionResult:
+def _trace_projection_completeness(
+    summary: WorkflowTraceSummary,
+    expectation: WorkflowTraceExpectation | None = None,
+) -> DimensionResult:
     missing = []
     if not summary.direct_vs_delegate_branch:
         missing.append("direct_vs_delegate_branch")
@@ -543,6 +550,14 @@ def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionRe
         missing.append("handoff_chain.multi_step")
     if summary.workflow_mode == "multi_step" and not summary.context_projections:
         missing.append("context_projections.multi_step")
+    if expectation is not None and expectation.expected_context_projection_kinds:
+        observed_kinds = tuple(
+            str(item.get("projection_kind") or "").strip()
+            for item in summary.context_projections
+            if str(item.get("projection_kind") or "").strip()
+        )
+        if observed_kinds != expectation.expected_context_projection_kinds:
+            missing.append("context_projections.expected_kinds")
     missing.extend(_context_projection_summary_gaps(summary))
     if summary.workflow_mode in {"single_handoff", "multi_step"} and not summary.agent_invocations:
         missing.append("agent_invocations")

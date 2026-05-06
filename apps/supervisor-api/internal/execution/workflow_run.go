@@ -32,6 +32,7 @@ type WorkflowRun struct {
 	Steps              []WorkflowStep
 	AgentInvocations   []AgentInvocation
 	ContextProjections []StepOutputProjection
+	ToolCallSummaries  []ToolCallSummary
 }
 
 type HandoffStep struct {
@@ -66,6 +67,25 @@ type AgentInvocation struct {
 	UsedTools          []string
 	ProjectionIDs      []string
 	FailCloseReason    string
+}
+
+type ToolCallSummary struct {
+	ToolCallID                 string
+	WorkflowRunRef             string
+	StepID                     string
+	LifecycleState             string
+	ResultProjection           string
+	RawResultIncluded          bool
+	ToolName                   string
+	Target                     string
+	ResultStatus               string
+	BusinessOutcome            string
+	FailCloseReason            string
+	AccessDecision             string
+	ArgumentSummary            map[string]any
+	SourceIDs                  []string
+	SafeDetails                map[string]any
+	ProviderToolCallProjection map[string]any
 }
 
 func (run WorkflowRun) HandoffChainMaps() []map[string]any {
@@ -107,6 +127,14 @@ func (run WorkflowRun) AgentInvocationMaps() []map[string]any {
 	items := make([]map[string]any, 0, len(run.AgentInvocations))
 	for _, invocation := range run.AgentInvocations {
 		items = append(items, invocation.Map())
+	}
+	return items
+}
+
+func (run WorkflowRun) ToolCallSummaryMaps() []map[string]any {
+	items := make([]map[string]any, 0, len(run.ToolCallSummaries))
+	for _, summary := range run.ToolCallSummaries {
+		items = append(items, summary.Map())
 	}
 	return items
 }
@@ -158,6 +186,39 @@ func (invocation AgentInvocation) Map() map[string]any {
 	}
 	if invocation.FailCloseReason != "" {
 		item["fail_close_reason"] = invocation.FailCloseReason
+	}
+	return item
+}
+
+func (summary ToolCallSummary) Map() map[string]any {
+	item := map[string]any{
+		"schema_version":      "tool-call-summary-v1",
+		"tool_call_id":        summary.ToolCallID,
+		"workflow_run_ref":    summary.WorkflowRunRef,
+		"step_id":             summary.StepID,
+		"lifecycle_state":     summary.LifecycleState,
+		"result_projection":   summary.ResultProjection,
+		"raw_result_included": summary.RawResultIncluded,
+		"tool_name":           summary.ToolName,
+		"target":              summary.Target,
+		"result_status":       summary.ResultStatus,
+		"argument_summary":    cloneAnyMap(summary.ArgumentSummary),
+		"source_ids":          append([]string{}, summary.SourceIDs...),
+	}
+	if summary.BusinessOutcome != "" {
+		item["business_outcome"] = summary.BusinessOutcome
+	}
+	if summary.FailCloseReason != "" {
+		item["fail_close_reason"] = summary.FailCloseReason
+	}
+	if summary.AccessDecision != "" {
+		item["access_decision"] = summary.AccessDecision
+	}
+	if len(summary.SafeDetails) > 0 {
+		item["safe_details"] = cloneAnyMap(summary.SafeDetails)
+	}
+	if len(summary.ProviderToolCallProjection) > 0 {
+		item["provider_tool_call_projection"] = cloneAnyMap(summary.ProviderToolCallProjection)
 	}
 	return item
 }

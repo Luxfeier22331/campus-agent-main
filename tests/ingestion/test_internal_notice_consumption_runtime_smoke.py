@@ -179,7 +179,7 @@ class InternalNoticeConsumptionRuntimeSmokeTest(unittest.TestCase):
         self.assertFalse(report.ok)
         self.assertEqual(report.pending_multimodal_without_attempt_count, 1)
 
-    def test_runtime_smoke_can_check_chat_endpoint_with_injected_checker(self) -> None:
+    def test_runtime_smoke_can_check_multimodal_runtime_with_injected_checker(self) -> None:
         projection_store = InMemoryNoticeConsumptionProjectionStore(
             (
                 _entry(
@@ -215,14 +215,17 @@ class InternalNoticeConsumptionRuntimeSmokeTest(unittest.TestCase):
             admission_store=admission_store,
             attempt_store=InMemoryInternalNoticeMultimodalAttemptStore(),
             env={"INTERNAL_NOTICE_MULTIMODAL_BASE_URL": "https://chat.example.test/v1"},
-            check_chat_endpoint=True,
-            chat_endpoint_checker=lambda env: (False, env["INTERNAL_NOTICE_MULTIMODAL_BASE_URL"]),
+            check_multimodal_runtime=True,
+            multimodal_runtime_checker=lambda env: (
+                False,
+                env["INTERNAL_NOTICE_MULTIMODAL_BASE_URL"],
+            ),
         )
 
         self.assertFalse(report.ok)
-        self.assertTrue(report.chat_endpoint_checked)
-        self.assertFalse(report.chat_endpoint_ok)
-        self.assertEqual(report.chat_endpoint_error, "https://chat.example.test/v1")
+        self.assertTrue(report.multimodal_runtime_checked)
+        self.assertFalse(report.multimodal_runtime_ok)
+        self.assertEqual(report.multimodal_runtime_error, "https://chat.example.test/v1")
 
 
 @dataclass(frozen=True, slots=True)

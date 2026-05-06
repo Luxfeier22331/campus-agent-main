@@ -20,8 +20,14 @@ func BridgePayloadForHandoff(
 		return nil, fmt.Errorf("runtime_decisions must be an object")
 	}
 	selectedTool := selectedToolForRuntimeHandoff(handoff)
-	userGoal := bridgeUserGoalForHandoff(payload["user_goal"], handoff, firstNoticeProjection(projections))
-	workflowContext, err := workflowContextForHandoff(handoff, projections)
+	userGoal := bridgeUserGoalForHandoff(
+		payload["user_goal"],
+		handoff,
+		firstScheduleProjection(projections),
+		firstNoticeProjection(projections),
+	)
+	requestID, _ := payload["request_id"].(string)
+	workflowContext, err := workflowContextForHandoff(handoff, requestID, projections)
 	if err != nil {
 		return nil, err
 	}
@@ -61,6 +67,7 @@ func BridgePayloadForHandoff(
 
 func workflowContextForHandoff(
 	handoff RuntimeHandoff,
+	requestID string,
 	projections []StepOutputProjection,
 ) (map[string]any, error) {
 	requiredProjectionKind := strings.TrimSpace(handoff.RequiredProjectionKind)
@@ -81,6 +88,9 @@ func workflowContextForHandoff(
 	return map[string]any{
 		"schema_version":           "workflow-agent-context-v1",
 		"visibility":               "agent_private",
+		"workflow_run_ref":         "workflow:" + strings.TrimSpace(requestID),
+		"step_id":                  "handoff:" + handoff.Target + ":" + handoff.PayloadKind,
+		"agent_id":                 handoff.Target,
 		"target":                   handoff.Target,
 		"required_projection_kind": requiredProjectionKind,
 		"projection_refs":          projectionRefs,
@@ -101,6 +111,10 @@ func projectionAllowedForHandoff(handoff RuntimeHandoff, projection StepOutputPr
 		return false
 	}
 	requiredProjectionKind := strings.TrimSpace(handoff.RequiredProjectionKind)
+	if handoff.Target == "rag-agent" {
+		return projection.ProjectionKind == ProjectionKindScheduleBaseline ||
+			projection.ProjectionKind == ProjectionKindNoticeContext
+	}
 	if requiredProjectionKind != "" {
 		return string(projection.ProjectionKind) == requiredProjectionKind
 	}
@@ -126,24 +140,42 @@ func firstNoticeProjection(projections []StepOutputProjection) StepOutputProject
 	return projection
 }
 
+func firstScheduleProjection(projections []StepOutputProjection) StepOutputProjection {
+	projection, _ := FirstProjectionOfKind(projections, ProjectionKindScheduleBaseline)
+	return projection
+}
+
 func bridgeUserGoalForHandoff(
 	rawUserGoal any,
 	handoff RuntimeHandoff,
-	projection StepOutputProjection,
+	scheduleProjection StepOutputProjection,
+	noticeProjection StepOutputProjection,
 ) string {
 	userGoal, _ := rawUserGoal.(string)
-	if handoff.Target != "rag-agent" || !projection.hasNoticeContext() {
+	if handoff.Target != "rag-agent" {
 		return userGoal
 	}
-	parts := []string{strings.TrimSpace(userGoal), "", "已读取的通知上下文："}
-	if title := projection.NoticeTitle(); title != "" {
-		parts = append(parts, "标题："+title)
+	parts := []string{strings.TrimSpace(userGoal)}
+	if scheduleProjection.hasScheduleBaseline() {
+		parts = append(parts, "", "已读取的班车基线：")
+		if routeName := scheduleProjection.ScheduleRouteDisplayName(); routeName != "" {
+			parts = append(parts, "线路："+routeName)
+		}
+		if summary := scheduleProjection.ScheduleSummary(); summary != "" {
+			parts = append(parts, "摘要："+summary)
+		}
 	}
-	if summary := projection.NoticeBodyExcerpt(); summary != "" {
-		parts = append(parts, "摘要："+summary)
-	}
-	if sourceURL := projection.NoticeSourceURL(); sourceURL != "" {
-		parts = append(parts, "原文链接："+sourceURL)
+	if noticeProjection.hasNoticeContext() {
+		parts = append(parts, "", "已读取的通知上下文：")
+		if title := noticeProjection.NoticeTitle(); title != "" {
+			parts = append(parts, "标题："+title)
+		}
+		if summary := noticeProjection.NoticeBodyExcerpt(); summary != "" {
+			parts = append(parts, "摘要："+summary)
+		}
+		if sourceURL := noticeProjection.NoticeSourceURL(); sourceURL != "" {
+			parts = append(parts, "原文链接："+sourceURL)
+		}
 	}
 	return strings.Join(parts, "\n")
 }
@@ -153,6 +185,11 @@ func (projection StepOutputProjection) hasNoticeContext() bool {
 		(projection.NoticeTitle() != "" ||
 			projection.NoticeBodyExcerpt() != "" ||
 			projection.NoticeSourceURL() != "")
+}
+
+func (projection StepOutputProjection) hasScheduleBaseline() bool {
+	return projection.ProjectionKind == ProjectionKindScheduleBaseline &&
+		(projection.ScheduleRouteDisplayName() != "" || projection.ScheduleSummary() != "")
 }
 
 func selectedToolForRuntimeHandoff(handoff RuntimeHandoff) string {

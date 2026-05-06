@@ -158,6 +158,14 @@
 						}
 					}
 				},
+				"workflow_context": {
+					"schema_version": "workflow-agent-context-v1",
+					"visibility": "agent_private",
+					"workflow_run_ref": "workflow:req-contract-001",
+					"step_id": "handoff:rag-agent:rag_request",
+					"agent_id": "rag-agent",
+					"projection_refs": []
+				},
 				"payload": {
 					"kind": "rag_request",
 					"payload": {

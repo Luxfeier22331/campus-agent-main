@@ -121,7 +121,22 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
         )
         self.assertIn("schema_version", workflow_context["required"])
         self.assertIn("visibility", workflow_context["required"])
+        self.assertIn("workflow_run_ref", workflow_context["required"])
+        self.assertIn("step_id", workflow_context["required"])
+        self.assertIn("agent_id", workflow_context["required"])
         self.assertIn("projection_refs", workflow_context["required"])
+        self.assertEqual(
+            workflow_context["properties"]["workflow_run_ref"],
+            {"type": "string"},
+        )
+        self.assertEqual(
+            workflow_context["properties"]["step_id"],
+            {"type": "string"},
+        )
+        self.assertEqual(
+            workflow_context["properties"]["agent_id"],
+            {"$ref": "#/components/schemas/AgentTarget"},
+        )
         self.assertEqual(
             workflow_context["properties"]["projection_refs"]["items"],
             {"$ref": "#/components/schemas/WorkflowContextProjection"},

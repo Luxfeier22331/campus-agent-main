@@ -56,6 +56,12 @@ class AgentsSdkTraceProjectionTest(unittest.TestCase):
         self.assertEqual(trace["tool_argument_keys"], ["query_text"])
         self.assertEqual(trace["tool_outcome"], "sdk_completed")
         self.assertEqual(trace["result_outcome"], "sdk_completed")
+        self.assertEqual(trace["instruction_profile_id"], "notice_discover_card_search")
+        self.assertEqual(trace["result_usage_mode"], "notice_card_listing")
+        self.assertEqual(
+            trace["surface_execution_mode"],
+            "sdk_mediated_answer_shaping",
+        )
         self.assertEqual(trace["failure_class"], "")
         self.assertFalse(trace["retryable"])
         self.assertTrue(trace["tool_attempted"])

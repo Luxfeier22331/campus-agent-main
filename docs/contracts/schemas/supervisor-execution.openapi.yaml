@@ -190,12 +190,21 @@ components:
       required:
         - schema_version
         - visibility
+        - workflow_run_ref
+        - step_id
+        - agent_id
         - projection_refs
       properties:
         schema_version:
           const: workflow-agent-context-v1
         visibility:
           const: agent_private
+        workflow_run_ref:
+          type: string
+        step_id:
+          type: string
+        agent_id:
+          $ref: "#/components/schemas/AgentTarget"
         target:
           $ref: "#/components/schemas/AgentTarget"
         required_projection_kind:

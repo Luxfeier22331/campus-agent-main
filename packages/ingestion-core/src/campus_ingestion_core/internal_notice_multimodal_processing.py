@@ -52,7 +52,22 @@ from campus_ingestion_core.internal_notice_multimodal_processing_processor impor
     DEFAULT_INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS as DEFAULT_INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS,
 )
 from campus_ingestion_core.internal_notice_multimodal_processing_processor import (
+    DEFAULT_INTERNAL_NOTICE_MULTIMODAL_RUNTIME as DEFAULT_INTERNAL_NOTICE_MULTIMODAL_RUNTIME,
+)
+from campus_ingestion_core.internal_notice_multimodal_processing_processor import (
+    INTERNAL_NOTICE_MULTIMODAL_RUNTIME_AGENTS_SDK as INTERNAL_NOTICE_MULTIMODAL_RUNTIME_AGENTS_SDK,
+)
+from campus_ingestion_core.internal_notice_multimodal_processing_processor import (
+    INTERNAL_NOTICE_MULTIMODAL_RUNTIME_CHAT_COMPLETIONS as INTERNAL_NOTICE_MULTIMODAL_RUNTIME_CHAT_COMPLETIONS,
+)
+from campus_ingestion_core.internal_notice_multimodal_processing_processor import (
+    AgentsSdkInternalNoticeMultimodalProcessor as AgentsSdkInternalNoticeMultimodalProcessor,
+)
+from campus_ingestion_core.internal_notice_multimodal_processing_processor import (
     ChatCompletionsInternalNoticeMultimodalProcessor as ChatCompletionsInternalNoticeMultimodalProcessor,
+)
+from campus_ingestion_core.internal_notice_multimodal_processing_processor import (
+    build_internal_notice_multimodal_processor_from_env as build_internal_notice_multimodal_processor_from_env,
 )
 from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_ANSWERABILITY_BODY_ONLY_ANSWERABLE,
@@ -127,7 +142,7 @@ def process_internal_notice_pending_multimodal_entries(
             runtime_object_store = runtime_object_store or S3ObjectStoreWriter(object_settings)
             runtime_source_bucket = runtime_source_bucket or object_settings.bucket_source
         if runtime_processor is None:
-            runtime_processor = ChatCompletionsInternalNoticeMultimodalProcessor.from_env(source)
+            runtime_processor = build_internal_notice_multimodal_processor_from_env(source)
         if inventory_by_notice_id is None:
             runtime_inventory_store = (
                 runtime_inventory_store
@@ -743,6 +758,10 @@ __all__ = [
     "DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_ENV_KEY",
     "DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_TABLE",
     "DEFAULT_INTERNAL_NOTICE_MULTIMODAL_MAX_ATTEMPTS",
+    "DEFAULT_INTERNAL_NOTICE_MULTIMODAL_RUNTIME",
+    "INTERNAL_NOTICE_MULTIMODAL_RUNTIME_AGENTS_SDK",
+    "INTERNAL_NOTICE_MULTIMODAL_RUNTIME_CHAT_COMPLETIONS",
+    "AgentsSdkInternalNoticeMultimodalProcessor",
     "ChatCompletionsInternalNoticeMultimodalProcessor",
     "InMemoryInternalNoticeMultimodalAttemptStore",
     "InternalNoticeMultimodalAttachment",
@@ -757,6 +776,7 @@ __all__ = [
     "InternalNoticeMultimodalProcessor",
     "PostgresInternalNoticeMultimodalAttemptStore",
     "build_internal_notice_multimodal_attempt_store_from_env",
+    "build_internal_notice_multimodal_processor_from_env",
     "drain_internal_notice_pending_multimodal_entries",
     "process_internal_notice_pending_multimodal_entries",
     "select_internal_notice_pending_multimodal_notice_ids",

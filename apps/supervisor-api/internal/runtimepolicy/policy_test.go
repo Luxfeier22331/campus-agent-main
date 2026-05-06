@@ -173,6 +173,26 @@ func TestResolveCapabilityTreatsExplicitNoticeMarkerAsNotice(t *testing.T) {
 	}
 }
 
+func TestResolveCapabilityPreservesExplicitCampusServicesWithRequestedScope(t *testing.T) {
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load default intent policy: %v", err)
+	}
+
+	resolution := ResolveCapability(CapabilityResolutionRequest{
+		RequestedCapability: "campus_services",
+		UserGoal:            "这条班车通知依据学生手册哪条规定？",
+		HasRequestedScope:   true,
+	}, policy)
+
+	if resolution.EffectiveCapability != "campus_services" {
+		t.Fatalf("capability = %q, want campus_services", resolution.EffectiveCapability)
+	}
+	if resolution.Source != "explicit" {
+		t.Fatalf("source = %q, want explicit", resolution.Source)
+	}
+}
+
 func TestIntentPolicyArtifactLoadsEnvConfiguredPath(t *testing.T) {
 	defaultPath := resolveIntentPolicyPath("")
 	raw, err := os.ReadFile(defaultPath)
