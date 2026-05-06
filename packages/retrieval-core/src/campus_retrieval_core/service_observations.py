@@ -144,8 +144,8 @@ def observation_retrieval_mode(
 
 __all__ = [
     "build_jsonl_retrieval_observation_sink",
-    "build_retrieval_observation_event_sink",
     "build_retrieval_observation",
+    "build_retrieval_observation_event_sink",
     "emit_retrieval_observations",
     "observation_retrieval_mode",
     "score_gap",

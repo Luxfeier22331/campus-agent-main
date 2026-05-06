@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Sequence
 
 from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle, PersonalizationHint
+
 from campus_retrieval_core.models import (
     RetrievalExecutionResult,
     RetrievalPlan,
@@ -258,8 +259,8 @@ def build_execution_result(
 
 __all__ = [
     "ExecutableLiveLookupFn",
-    "ExecutableRetrievalRequestFn",
     "ExecutableRerankFn",
+    "ExecutableRetrievalRequestFn",
     "ReplanStepCallback",
     "build_execution_result",
     "execute_retrieval_plan",

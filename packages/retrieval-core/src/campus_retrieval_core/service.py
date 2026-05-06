@@ -15,9 +15,11 @@ from campus_retrieval_core.service_observations import (
 )
 from campus_retrieval_core.service_plan_execution import (
     ExecutableLiveLookupFn,
-    ExecutableRetrievalRequestFn,
     ExecutableRerankFn,
+    ExecutableRetrievalRequestFn,
     ReplanStepCallback,
+)
+from campus_retrieval_core.service_plan_execution import (
     execute_retrieval_plan as _execute_retrieval_plan,
 )
 from campus_retrieval_core.service_requests import build_single_step_plan

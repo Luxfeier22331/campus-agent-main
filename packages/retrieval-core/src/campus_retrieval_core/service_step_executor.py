@@ -5,6 +5,7 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from campus_contracts import EvidenceBundle
+
 from campus_retrieval_core.models import RetrievalPlan, RetrievalRequest, RetrievalStep
 from campus_retrieval_core.service_execution import (
     build_blocked_step_result,
