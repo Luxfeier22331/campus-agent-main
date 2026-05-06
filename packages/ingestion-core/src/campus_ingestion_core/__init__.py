@@ -226,6 +226,13 @@ from campus_ingestion_core.official_web_regulation_materialization import (
     build_official_web_regulation_candidate_documents,
     materialize_official_web_regulation_candidates,
 )
+from campus_ingestion_core.official_web_regulation_quality_audit import (
+    OFFICIAL_WEB_REGULATION_QUALITY_AUDIT_SCHEMA_VERSION,
+    OfficialWebRegulationQualityAuditDocumentReport,
+    OfficialWebRegulationQualityAuditReport,
+    audit_official_web_regulation_batch_quality,
+    official_web_regulation_quality_audit_report_to_dict,
+)
 from campus_ingestion_core.process import (
     IndexableChunk,
     build_indexable_chunks_from_jsonl,
@@ -435,7 +442,10 @@ __all__ = [
     "OfficialWebProjectionDeclarationsConfig",
     "OfficialWebProjectionReplayReport",
     "OfficialWebProjectionValidationReport",
+    "OFFICIAL_WEB_REGULATION_QUALITY_AUDIT_SCHEMA_VERSION",
     "OfficialWebRegulationMaterializationReport",
+    "OfficialWebRegulationQualityAuditDocumentReport",
+    "OfficialWebRegulationQualityAuditReport",
     "OnlineOcrClient",
     "OnlineOcrProviderResult",
     "PostgresAuthenticatedNoticeCloseoutStore",
@@ -488,6 +498,7 @@ __all__ = [
     "assert_known_corpus",
     "assert_known_scope",
     "audit_official_web_projection_chunking",
+    "audit_official_web_regulation_batch_quality",
     "build_authenticated_notice_closeout_store_from_env",
     "build_authenticated_notice_source_truth_replay_documents",
     "build_document_artifact_key",
@@ -588,6 +599,7 @@ __all__ = [
     "resolve_alias_target",
     "resolve_collection_truth_config",
     "resolve_regulation_rag_release_admission_manifest_key",
+    "official_web_regulation_quality_audit_report_to_dict",
     "resolve_file_release_owner_recovery_readiness",
     "resolve_prefetched_hf_tokenizer_path",
     "resolve_version_query",

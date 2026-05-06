@@ -85,11 +85,14 @@ export interface CurriculumDoc {
 }
 
 export interface PublicRegulationDoc {
+	documentId: string;
 	slug: string;
 	title: string;
 	key: string;
 	collection: string;
 	collectionLabel: string;
+	audienceSegment: "student" | "public_service" | "staff_governance";
+	docsNavGroup: "student" | "public_service" | "staff_governance";
 }
 
 export interface TableCell {

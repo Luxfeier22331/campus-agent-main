@@ -4,6 +4,11 @@ import {
 	convertTableHtmlToMarkdownBlocks,
 	normalizeTableBodyHeaderCells,
 } from "./sync-real-docs/html-table";
+import {
+	buildRegulationConsumptionByDocumentId,
+	resolveRegulationGroupMeta,
+	type RegulationNavGroup,
+} from "./regulation-consumption";
 import { normalizeReadableText } from "./sync-real-docs/readable-text";
 import { APP_ROOT, DOCS_ROOT, escapeHtmlText, formatJsonContent } from "./sync-real-docs/shared";
 import { createS3ObjectStore, type ObjectStoreClient } from "./sync-real-docs/storage";
@@ -460,6 +465,9 @@ function buildCorpusMeta(
 }
 
 function buildCollectionMeta(entries: PublishedReaderDocEntry[]): unknown[] {
+	if (entries[0]?.collection === "institutional_rules") {
+		return buildInstitutionalRulesCollectionMeta(entries);
+	}
 	return [
 		{ type: "file", name: "index", label: "目录" },
 		...entries.map((entry) => ({
@@ -477,6 +485,13 @@ function buildCollectionIndex(
 ): string {
 	const title = resolveCollectionLabel({ collection, corpus } as PublishedReaderDocEntry);
 	const corpusLabel = resolveCorpusLabel(corpus);
+	if (collection === "institutional_rules") {
+		return buildInstitutionalRulesCollectionIndex({
+			corpusLabel,
+			entries,
+			title,
+		});
+	}
 	return [
 		"---",
 		`title: ${JSON.stringify(title)}`,
@@ -497,6 +512,73 @@ function buildCollectionIndex(
 		]),
 		"",
 	].join("\n");
+}
+
+function buildInstitutionalRulesCollectionMeta(entries: PublishedReaderDocEntry[]): unknown[] {
+	const groups = groupInstitutionalRulesEntries(entries);
+	return [
+		{ type: "file", name: "index", label: "目录" },
+		...groups.flatMap((group) => [
+			{ type: "section-header" as const, label: group.displayName },
+			...group.entries.map((entry) => ({
+				type: "file" as const,
+				name: entry.documentSlug,
+				label: entry.title,
+			})),
+		]),
+	];
+}
+
+function buildInstitutionalRulesCollectionIndex(input: {
+	corpusLabel: string;
+	entries: PublishedReaderDocEntry[];
+	title: string;
+}): string {
+	const groups = groupInstitutionalRulesEntries(input.entries);
+	return [
+		"---",
+		`title: ${JSON.stringify(input.title)}`,
+		"footer: false",
+		'documentKind: "collectionLanding"',
+		'readerLayout: "landing"',
+		'readerMeasure: "standard"',
+		'readerOutline: "none"',
+		"outline: false",
+		"---",
+		"",
+		`# ${input.title}`,
+		"",
+		`当前公开发布 ${input.entries.length} 篇文档，归属「${input.corpusLabel}」。`,
+		"",
+		...groups.flatMap((group) => [
+			`## ${group.displayName}`,
+			"",
+			...group.entries.map(
+				(entry) => `- [${escapeMarkdownLinkText(normalizeReadableText(entry.title))}](./${entry.documentSlug})`,
+			),
+			"",
+		]),
+	].join("\n");
+}
+
+function groupInstitutionalRulesEntries(
+	entries: PublishedReaderDocEntry[],
+): Array<{ displayName: string; entries: PublishedReaderDocEntry[]; groupId: RegulationNavGroup }> {
+	const byDocumentId = buildRegulationConsumptionByDocumentId();
+	const grouped = new Map<RegulationNavGroup, PublishedReaderDocEntry[]>();
+	for (const entry of entries) {
+		const groupId = byDocumentId.get(entry.docId ?? "")?.docs_nav_group ?? "public_service";
+		grouped.set(groupId, [...(grouped.get(groupId) ?? []), entry]);
+	}
+	return (["student", "public_service", "staff_governance"] as const)
+		.map((groupId) => ({
+			displayName: resolveRegulationGroupMeta(groupId).displayName,
+			entries: (grouped.get(groupId) ?? []).sort((left, right) =>
+				left.title.localeCompare(right.title, "zh-CN"),
+			),
+			groupId,
+		}))
+		.filter((group) => group.entries.length > 0);
 }
 
 function buildHomePage(entries: PublishedReaderDocEntry[]): string {

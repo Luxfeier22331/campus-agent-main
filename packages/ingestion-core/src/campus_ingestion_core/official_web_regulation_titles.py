@@ -6,9 +6,7 @@ from dataclasses import dataclass
 TRIAL_TITLE_QUALIFIERS = frozenset({"试行", "暂行"})
 SOURCE_TITLE_MARKERS = frozenset({"最新"})
 _CJK_RE = re.compile(r"[\u3400-\u9fff]")
-_SPACED_CJK_RUN_RE = re.compile(
-    r"(?<![A-Za-z0-9])(?:[\u3400-\u9fff]\s+){2,}[\u3400-\u9fff](?![A-Za-z0-9])"
-)
+_CJK_INTERNAL_SPACE_RE = re.compile(r"(?<=[\u3400-\u9fff])\s+(?=[\u3400-\u9fff])")
 
 
 @dataclass(frozen=True, slots=True)
@@ -70,17 +68,12 @@ def official_web_regulation_title_metadata(
 
 
 def _collapse_spaced_cjk_runs(value: str) -> str:
-    def replace(match: re.Match[str]) -> str:
-        candidate = match.group(0)
-        without_spaces = re.sub(r"\s+", "", candidate)
-        return without_spaces if _CJK_RE.search(without_spaces) else candidate
-
-    previous = value
+    current = value
     while True:
-        current = _SPACED_CJK_RUN_RE.sub(replace, previous)
-        if current == previous:
-            return current
-        previous = current
+        updated = _CJK_INTERNAL_SPACE_RE.sub("", current)
+        if updated == current:
+            return updated
+        current = updated
 
 
 def _strip_terminal_parenthetical(value: str) -> tuple[str, str | None]:
