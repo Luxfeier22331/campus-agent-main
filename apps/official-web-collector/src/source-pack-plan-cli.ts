@@ -10,6 +10,7 @@ export function sourcePackPlanMain(argv: string[] = process.argv.slice(2)): void
 			"site-id": { type: "string" },
 			"repo-root": { type: "string" },
 			"config-root": { type: "string" },
+			"source-pack-id": { type: "string" },
 		},
 		allowPositionals: false,
 	});
@@ -22,6 +23,7 @@ export function sourcePackPlanMain(argv: string[] = process.argv.slice(2)): void
 	const plan = buildSourcePackExecutionPlan(siteId, {
 		repoRoot: values["repo-root"],
 		configRoot: values["config-root"],
+		sourcePackId: values["source-pack-id"],
 	});
 	console.log(JSON.stringify(plan, null, 2));
 }

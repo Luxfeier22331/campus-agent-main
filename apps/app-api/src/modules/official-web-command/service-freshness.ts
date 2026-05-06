@@ -225,6 +225,7 @@ export function buildPersistedPageObservations(input: {
 			targetDeclarationVersion: observation.targetDeclarationVersion,
 			targetId: observation.targetId,
 			targetJobId: observation.targetJobId,
+			targetMatches: observation.targetMatches,
 			freshness,
 		});
 		if (

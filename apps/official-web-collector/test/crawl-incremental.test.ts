@@ -393,6 +393,100 @@ describe("official-web-collector incremental crawl", () => {
 		});
 	});
 
+	it("preserves non-empty known-page titles for deleted target-workset observations", async () => {
+		stubRobotsAllowFetch();
+		let finalizeInput: Parameters<OfficialWebControlPlaneClient["finalizeRun"]>[0] | undefined;
+		mockCrawlee(() => ({
+			statusCode: 404,
+			contentType: "text/html",
+			headers: {},
+		}));
+
+		const controlPlaneClient: OfficialWebControlPlaneClient = {
+			startRun: async () => ({
+				run: {
+					runId: "owrun_deleted_title_fallback",
+					siteId: "campus_public",
+					startedAt: "2026-04-01T08:20:00.000Z",
+					status: "accepted",
+				},
+			}),
+			sendHeartbeat: async () => ({
+				run: {
+					runId: "owrun_deleted_title_fallback",
+					status: "accepted",
+				},
+			}),
+			resolvePlan: async () => ({
+				plan: {
+					duePages: [
+						buildKnownPage({
+							discoveryMethod: "manual_requeue",
+							lastFetchDisposition: "never_fetched",
+							normalizedCanonicalUrl: "https://www.example.edu/calendar-guide",
+							pageFamily: "target_candidate",
+							pageTitleNormalized: "校历查看方式",
+							targetCandidateId: "owcand_calendar",
+							targetId: "campus-services-service-guide",
+							targetJobId: "owtarget_calendar",
+						}),
+					],
+					hostFilter: ["www.example.edu"],
+					maxPagesPerHost: 1,
+					maxTotalPages: 1,
+					resolvedAt: "2026-04-01T08:20:00.000Z",
+					runIntent: "hot",
+					siteId: "campus_public",
+					summary: {
+						duePages: 1,
+						listingPages: 0,
+						repairPages: 0,
+						selectedHosts: 1,
+						staticPages: 1,
+						targetJobs: 1,
+						worksetRows: 1,
+					},
+				},
+			}),
+			finalizeRun: async (input) => {
+				finalizeInput = input;
+				return {
+					run: {
+						runId: "owrun_deleted_title_fallback",
+						status: "completed",
+						finishedAt: "2026-04-01T08:20:01.000Z",
+					},
+				};
+			},
+		};
+
+		const { configRoot, outputDir } = writeTestConfigRoot();
+		const { crawlSite } = await import("../src/index");
+		const result = await crawlSite("campus_public", {
+			configRoot,
+			outputDir,
+			crawlRunId: "owrun_deleted_title_fallback",
+			controlPlaneClient,
+			maxPagesPerHost: 1,
+			maxTotalPages: 1,
+		});
+
+		expect(result.urlResults[0]).toMatchObject({
+			httpStatus: 404,
+			outcome: "deleted",
+		});
+		expect(result.pageObservations[0]).toMatchObject({
+			disposition: "deleted",
+			pageTitleNormalized: "校历查看方式",
+		});
+		expect(finalizeInput?.pageObservations).toEqual([
+			expect.objectContaining({
+				disposition: "deleted",
+				pageTitleNormalized: "校历查看方式",
+			}),
+		]);
+	});
+
 	it("falls back to If-Modified-Since when ETag is unavailable", async () => {
 		stubRobotsAllowFetch();
 		const requestHeaders = new Map<string, Record<string, string>>();

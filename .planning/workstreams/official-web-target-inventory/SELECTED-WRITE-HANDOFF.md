@@ -55,8 +55,12 @@ Current target-field review flow:
 - `app-api` persists those reviews in `official_web.target_artifact_verification_summaries`.
 - target inventory projection reads the latest target summary from PG and combines it with preview
   lineage to classify rows as `blocked_fields` or `ready_for_selected_write`.
-- `release_gate_required` targets with complete preview lineage and complete fields stay `previewed`
-  with `release_gate_not_reviewed`; they do not become `ready_for_selected_write`.
+- only `official_web/stable_reference` rows stay `previewed` with
+  `release_gate_not_reviewed`.
+- `regulation_candidate -> regulations/institutional_rules` rows do not use an app-api
+  approve/reject ledger; once preview lineage and required fields pass, the inventory projection
+  marks them `ready_for_selected_write` and the downstream gate moves to the ingestion-owned
+  regulation RAG release lane.
 
 Implemented release split:
 

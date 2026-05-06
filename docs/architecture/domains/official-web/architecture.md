@@ -82,6 +82,9 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 - `stable_reference_candidate`：只进入 `official_web/stable_reference` release gate
 - `regulation_candidate`：只进入 `regulations/institutional_rules` release gate；
   不再把校级规章候选页混入 `official_web/stable_reference`
+- `student_regulation_candidate`：只进入 `regulations/student_rules` release gate；
+  用于信息公开学生工作栏目下的公开学生规章，不再把这类学生向规则硬塞进
+  `regulations/institutional_rules`
 - `notice_news_candidate`：只保留 inventory-only evidence；不得打开
   `fresh_news`、`news_archive` 或 notice/news runtime
 

@@ -21,6 +21,14 @@ site.
   target scope
 - `consumer-denominator.json`: downstream consumer denominator for deciding
   which fetched pages are retained as source-truth candidates during recovery
+- `target-source-map.json`: target-first admitted downstream surfaces,
+  including split public regulation routing for `regulations/institutional_rules`
+  and `regulations/student_rules`
+- `target-inventory.json`: operator-facing inventory truth for admitted
+  target-first pages
+- `source-packs/`: repo-tracked one-time source-pack manifests; current default
+  remains `tool-driven-first-slice.v1`, and expansion batches use explicit
+  alternate source-pack ids instead of reopening broad crawl
 
 Repo-level workflow split:
 
@@ -74,6 +82,19 @@ Consumer-denominator recovery is stricter than host admission:
   write
 - notice/news candidates remain `inventory_only` until a separate runtime
   opening admits them
+- public regulation candidates are split conservatively:
+  - `regulation_candidate` -> `regulations/institutional_rules`
+  - `student_regulation_candidate` -> `regulations/student_rules`
+
+Current public regulation collection posture:
+
+- `tool-driven-first-slice.v1` remains the repo-tracked first batch and current
+  default source-pack manifest
+- larger student/public regulation expansion should use an explicit alternate
+  manifest id, not mutate collector scope back into host-wide crawl
+- student-work listing pages such as `xsgz/jwgl.htm`, `xsgz/xszz.htm`,
+  `xsgz/xwsy.htm`, and `xsgz/jlycf/1.htm` are admitted only as one-time
+  `same_host_manual_requeue` discovery rows
 
 Current v1 declarations stay inside the existing quality-improvement scope:
 

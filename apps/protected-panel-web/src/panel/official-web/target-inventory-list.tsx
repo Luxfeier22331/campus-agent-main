@@ -20,6 +20,7 @@ const targetInventoryFilters = [
 		choices={[
 			{ id: "contact_directory_candidate", name: "联系信息候选" },
 			{ id: "service_guide_candidate", name: "办事指南候选" },
+			{ id: "regulation_candidate", name: "公开规章候选" },
 			{ id: "stable_reference_candidate", name: "稳定参考候选" },
 			{ id: "notice_news_candidate", name: "通知资讯清单" },
 		]}
@@ -32,6 +33,7 @@ const targetInventoryFilters = [
 		choices={[
 			{ id: "contact_directory_lookup", name: "联系信息查询" },
 			{ id: "service_guide_lookup", name: "办事指南查询" },
+			{ id: "regulations/institutional_rules", name: "规章制度" },
 			{ id: "official_web/stable_reference", name: "官网稳定参考" },
 		]}
 		emptyText="全部消费面"

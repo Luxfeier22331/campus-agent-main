@@ -235,4 +235,26 @@ describe("official web source-pack execution plan", () => {
 			sourcePackEntryId: "institutional-rules-column",
 		});
 	});
+
+	it("maps student regulation discovery rows to the student-rules target", () => {
+		const plan = buildSourcePackExecutionPlan("campus_public", {
+			configRoot: writeTestConfigRoot().configRoot,
+		});
+		const row = plan.rows.find(
+			(item) => item.entryId === "student-rules-column",
+		) as SourcePackExecutionPlanEntry;
+
+		expect(row.url).toBe("https://www.example.edu/xsgz/jwgl");
+		expect(row.answerBearing).toBe(false);
+		expect(row.ownerSurfaces).toEqual(["regulations/student_rules"]);
+		expect(row.releaseTargets).toEqual(["regulations/student_rules"]);
+		expect(row.targetWorksetExpansion).toBe("same_host_manual_requeue");
+		expect(row.targetMatches).toHaveLength(1);
+		expect(row.targetMatches[0]).toMatchObject({
+			targetId: "official-web-student-rules",
+			consumerFamily: "student_regulation_candidate",
+			selectedWriteTarget: "regulations/student_rules",
+			sourcePackEntryId: "student-rules-column",
+		});
+	});
 });

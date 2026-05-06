@@ -423,6 +423,17 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 					"regulation_candidate selectedWriteTarget must be regulations/institutional_rules",
 				);
 			}
+		} else if (rule.consumerFamily === "student_regulation_candidate") {
+			if (rule.materializationPolicy !== "release_gate_required") {
+				throw new Error(
+					"student_regulation_candidate must use materializationPolicy=release_gate_required",
+				);
+			}
+			if (rule.selectedWriteTarget !== "regulations/student_rules") {
+				throw new Error(
+					"student_regulation_candidate selectedWriteTarget must be regulations/student_rules",
+				);
+			}
 		} else {
 			assertNonEmpty(
 				rule.selectedWriteTarget,
@@ -728,6 +739,7 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 		["official_web/stable_reference", "official_web/stable_reference"],
 		["future_notice_runtime", "official_web/fresh_news"],
 		["regulations/institutional_rules", "regulations/institutional_rules"],
+		["regulations/student_rules", "regulations/student_rules"],
 		["regulations/scoped_rules", "regulations/scoped_rules"],
 	]);
 	for (const entry of bundle.sourcePackManifest.entries) {

@@ -92,8 +92,8 @@
 			"owner_agent_or_runtime": "calendar-agent",
 			"materialization_policy": "candidate_only",
 			"page_families": ["article_detail", "generic_content_page"],
-			"title_keywords": ["校历", "教学周", "放假安排", "补课安排", "节假日安排"],
-			"path_patterns": ["calendar", "xiaoli", "jwc", "jwgl"],
+			"title_keywords": ["民大校历", "校历", "教学周", "放假安排", "补课安排"],
+			"path_patterns": ["mdxl", "calendar", "xiaoli"],
 			"required_evidence": ["calendar_arrangement"],
 			"optional_evidence": [],
 			"minimum_matched_evidence_count": 1,
@@ -132,6 +132,22 @@
 			"requires_keyword_or_path_match": false,
 			"negative_patterns": ["新闻", "通知", "公告", "讲座", "活动", "公示"],
 			"selected_write_target": "regulations/institutional_rules",
+			"review_policy": "release_gate_required"
+		},
+		{
+			"consumer_family": "student_regulation_candidate",
+			"owner_surface": "regulations/student_rules",
+			"owner_agent_or_runtime": "rag-agent",
+			"materialization_policy": "release_gate_required",
+			"page_families": ["article_detail", "generic_content_page"],
+			"title_keywords": ["办法", "规定", "细则", "制度", "章程", "实施细则"],
+			"path_patterns": ["xsgz", "jwgl", "xszz", "xwsy", "jlycf", "xsgl"],
+			"required_evidence": ["regulation_text"],
+			"optional_evidence": [],
+			"minimum_matched_evidence_count": 1,
+			"requires_keyword_or_path_match": true,
+			"negative_patterns": ["新闻", "通知", "公告", "讲座", "活动", "公示"],
+			"selected_write_target": "regulations/student_rules",
 			"review_policy": "release_gate_required"
 		},
 		{

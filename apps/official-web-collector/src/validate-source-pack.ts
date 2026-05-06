@@ -20,7 +20,7 @@ export interface SourcePackValidationReport {
 
 export function validateSourcePackConfig(
 	siteId: string,
-	options: { configRoot?: string; repoRoot?: string } = {},
+	options: { configRoot?: string; repoRoot?: string; sourcePackId?: string } = {},
 ): SourcePackValidationReport {
 	const config = loadOfficialWebConfig(siteId, options);
 	return {
@@ -44,6 +44,7 @@ export function validateSourcePackMain(argv: string[] = process.argv.slice(2)): 
 			"site-id": { type: "string" },
 			"repo-root": { type: "string" },
 			"config-root": { type: "string" },
+			"source-pack-id": { type: "string" },
 		},
 		allowPositionals: false,
 	});
@@ -56,6 +57,7 @@ export function validateSourcePackMain(argv: string[] = process.argv.slice(2)): 
 	const report = validateSourcePackConfig(siteId, {
 		repoRoot: values["repo-root"],
 		configRoot: values["config-root"],
+		sourcePackId: values["source-pack-id"],
 	});
 	console.log(JSON.stringify(report, null, 2));
 }

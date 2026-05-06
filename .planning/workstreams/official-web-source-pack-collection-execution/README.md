@@ -80,7 +80,7 @@ narrower execution question:
 ## Closeout Evidence
 
 - live seam evidence:
-  [seam-report.json](/home/reptilian/code/campus-agent/var/official-web-source-pack-live-seam/owrun_source_pack_replay_partial_20260503T033001Z/seam-report.json)
+  [seam-report.json](/home/reptilian/code/campus-agent/var/official-web-source-pack-live-seam/owrun_source_pack_live_20260505T122144Z/seam-report.json)
 - closeout script:
   [official_web_source_pack_no_promotion.py](/home/reptilian/code/campus-agent/scripts/official_web_source_pack_no_promotion.py)
 - replay / seam tests:
@@ -113,3 +113,16 @@ Accepted semantics:
   facts
 - official-web page/image refs remain evidence, not query-time web fetch or recurring collector
   scope
+
+## Public Regulation Expansion
+
+Additional public regulation expansion remains target-first and one-time:
+
+- no broad official-web collector restart
+- expansion batches should use explicit alternate source-pack ids
+- public regulation routing is now split conservatively:
+  - `regulation_candidate` -> `regulations/institutional_rules`
+  - `student_regulation_candidate` -> `regulations/student_rules`
+- `official-web-regulation-expansion.v1` is the repo-tracked student/public
+  regulation expansion manifest for one-time listing-page requeue on
+  `xxgk.muc.edu.cn`

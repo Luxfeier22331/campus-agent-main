@@ -49,12 +49,63 @@ function normalizeOptionalString(value: unknown): string | null {
 	return typeof value === "string" && value.trim() ? value.trim() : null;
 }
 
-function summaryMatchesEntrySource(summary: unknown, sourceUrls: string[]): boolean {
-	if (!isRecord(summary)) {
-		return false;
-	}
+function scoreSummaryMatch(
+	summary: Record<string, unknown>,
+	entry: { inventoryId: string; sourceUrls: string[] },
+): number {
+	const inventoryId = normalizeOptionalString(summary.inventoryId);
 	const normalizedCanonicalUrl = normalizeOptionalString(summary.normalizedCanonicalUrl);
-	return !normalizedCanonicalUrl || sourceUrls.includes(normalizedCanonicalUrl);
+	const inventoryMatches = inventoryId === entry.inventoryId;
+	const sourceMatches =
+		normalizedCanonicalUrl !== null && entry.sourceUrls.includes(normalizedCanonicalUrl);
+	if (inventoryMatches && sourceMatches) {
+		return 3;
+	}
+	if (inventoryMatches) {
+		return 2;
+	}
+	if (sourceMatches) {
+		return 1;
+	}
+	return 0;
+}
+
+function extractMatchedSummary(
+	summary: unknown,
+	entry: { inventoryId: string; sourceUrls: string[] },
+): Record<string, unknown> | null {
+	if (!isRecord(summary)) {
+		return null;
+	}
+
+	const reviewSummaries = Array.isArray(summary.reviewSummaries)
+		? summary.reviewSummaries.filter(isRecord)
+		: null;
+	if (reviewSummaries && reviewSummaries.length > 0) {
+		let bestMatch: Record<string, unknown> | null = null;
+		let bestScore = 0;
+		for (const reviewSummary of reviewSummaries) {
+			const score = scoreSummaryMatch(reviewSummary, entry);
+			if (score > bestScore) {
+				bestMatch = reviewSummary;
+				bestScore = score;
+			}
+		}
+		return bestMatch;
+	}
+
+	return scoreSummaryMatch(summary, entry) > 0 ? summary : null;
+}
+
+function extractFieldStatusForEntry(
+	summary: unknown,
+	entry: { inventoryId: string; sourceUrls: string[] },
+): Record<string, OfficialWebTargetInventoryFieldStatus> {
+	const matchedSummary = extractMatchedSummary(summary, entry);
+	if (!matchedSummary) {
+		return {};
+	}
+	return coerceFieldStatus(matchedSummary.fieldStatus);
 }
 
 export function createPgOfficialWebTargetInventoryPreviewEvidenceStore(
@@ -172,19 +223,15 @@ export function createPgOfficialWebTargetInventoryFieldStatusStore(
 					)
 					.limit(10);
 
-				const matched = rows.find((row) =>
-					summaryMatchesEntrySource(row.summary.summaryJson, entry.sourceUrls),
-				);
-				if (!matched) {
-					continue;
-				}
-				const summary = matched.summary.summaryJson;
-				if (!isRecord(summary)) {
-					continue;
-				}
-				const fieldStatus = coerceFieldStatus(summary.fieldStatus);
-				if (Object.keys(fieldStatus).length > 0) {
-					fieldStatusByInventoryId[entry.inventoryId] = fieldStatus;
+				for (const row of rows) {
+					const fieldStatus = extractFieldStatusForEntry(row.summary.summaryJson, {
+						inventoryId: entry.inventoryId,
+						sourceUrls: entry.sourceUrls,
+					});
+					if (Object.keys(fieldStatus).length > 0) {
+						fieldStatusByInventoryId[entry.inventoryId] = fieldStatus;
+						break;
+					}
 				}
 			}
 

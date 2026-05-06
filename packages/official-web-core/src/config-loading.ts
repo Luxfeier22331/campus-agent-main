@@ -43,7 +43,7 @@ import { validateOfficialWebConfig } from "./config-validation.ts";
 
 export function loadOfficialWebConfig(
 	siteId: string,
-	options: { repoRoot?: string; configRoot?: string } = {},
+	options: { repoRoot?: string; configRoot?: string; sourcePackId?: string } = {},
 ): OfficialWebConfigBundle {
 	const paths = resolveOfficialWebConfigPaths(siteId, options);
 	const sitePayload = readJson(paths.sitePath);
@@ -363,7 +363,10 @@ function defaultMaterializationPolicyForConsumerFamily(
 	if (consumerFamily === "stable_reference_candidate") {
 		return "release_gate_required";
 	}
-	if (consumerFamily === "regulation_candidate") {
+	if (
+		consumerFamily === "regulation_candidate" ||
+		consumerFamily === "student_regulation_candidate"
+	) {
 		return "release_gate_required";
 	}
 	if (consumerFamily === "notice_news_candidate") {
@@ -376,7 +379,10 @@ function defaultReviewPolicyForConsumerFamily(consumerFamily: OfficialWebConsume
 	if (consumerFamily === "stable_reference_candidate") {
 		return "release_gate_required";
 	}
-	if (consumerFamily === "regulation_candidate") {
+	if (
+		consumerFamily === "regulation_candidate" ||
+		consumerFamily === "student_regulation_candidate"
+	) {
 		return "release_gate_required";
 	}
 	if (consumerFamily === "notice_news_candidate") {

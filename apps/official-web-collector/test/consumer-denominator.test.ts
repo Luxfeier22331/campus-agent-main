@@ -139,6 +139,22 @@ const SAMPLE_ACADEMIC_CALENDAR_PAGE_HTML = `
 </html>
 `.trim();
 
+const SAMPLE_STUDENT_RULE_PAGE_HTML = `
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <title>中央民族大学学生奖学金评定办法 - Campus public</title>
+  </head>
+  <body>
+    <main>
+      <h1>中央民族大学学生奖学金评定办法</h1>
+      <p>第一条 为规范学生奖学金评定工作，制定本办法。</p>
+      <p>第二条 本办法适用于全日制在校学生。</p>
+    </main>
+  </body>
+</html>
+`.trim();
+
 describe("official web consumer denominator", () => {
 	it("loads consumer denominator config with explicit downstream owners", () => {
 		const { configRoot } = writeTestConfigRoot({
@@ -153,6 +169,7 @@ describe("official web consumer denominator", () => {
 			"academic_calendar_candidate",
 			"stable_reference_candidate",
 			"regulation_candidate",
+			"student_regulation_candidate",
 			"notice_news_candidate",
 		]);
 		expect(
@@ -374,6 +391,38 @@ describe("official web consumer denominator", () => {
 			"phone",
 			"location",
 		]);
+	});
+
+	it("classifies student regulation pages onto the student-rules family", () => {
+		const { configRoot } = writeTestConfigRoot({
+			consumerDenominatorEnforcementMode: "retain_matching_only",
+		});
+		const bundle = loadOfficialWebConfig("campus_public", { configRoot });
+		const page = createCollectedPageArtifactForTest({
+			configRoot,
+			crawlRunId: "owrun_consumer_student_rule",
+			requestedUrl: "https://www.example.edu/xsgz/jwgl/student-award.htm",
+			finalUrl: "https://www.example.edu/xsgz/jwgl/student-award.htm",
+			declaredCanonicalUrl: null,
+			responseBody: SAMPLE_STUDENT_RULE_PAGE_HTML,
+			fetchedAt: "2026-05-01T10:00:00.000Z",
+		});
+
+		const evaluation = evaluateOfficialWebConsumerDenominator({
+			consumerDenominator: bundle.consumerDenominator,
+			page,
+		});
+		const studentMatch = evaluation.consumerMatches.find(
+			(item) => item.consumerFamily === "student_regulation_candidate",
+		);
+
+		expect(evaluation.retentionDecision).toBe("retain_source_truth");
+		expect(studentMatch).toMatchObject({
+			consumerFamily: "student_regulation_candidate",
+			ownerSurface: "regulations/student_rules",
+			selectedWriteTarget: "regulations/student_rules",
+		});
+		expect(studentMatch?.matchedEvidence).toEqual(["regulation_text"]);
 	});
 
 	it("does not classify procurement notices as selected-write contact or service candidates", () => {

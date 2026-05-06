@@ -193,6 +193,13 @@ function matchConsumerFamily(
 	) {
 		return null;
 	}
+	if (
+		(rule.consumerFamily === "regulation_candidate" ||
+			rule.consumerFamily === "student_regulation_candidate") &&
+		!/(办法|规定|细则|制度|章程)/u.test(titleText)
+	) {
+		return null;
+	}
 
 	return {
 		consumerFamily: rule.consumerFamily,
@@ -242,6 +249,15 @@ function resolveMatchedEvidence(
 	}
 	if (isStableReferenceCandidate(rule, page, pageText)) {
 		availableEvidence.add("stable_reference");
+	}
+	if (
+		(rule.consumerFamily === "regulation_candidate" ||
+			rule.consumerFamily === "student_regulation_candidate") &&
+		/(第一条|本(?:办法|规定|章程|细则|规程)|制定本(?:办法|规定|章程|细则|规程)|[一二三四五六七八九十]+、)/u.test(
+			pageText,
+		)
+	) {
+		availableEvidence.add("regulation_text");
 	}
 	if (isNoticeNewsCandidate(rule, page, pageText)) {
 		availableEvidence.add("notice_news");

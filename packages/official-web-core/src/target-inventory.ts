@@ -185,6 +185,13 @@ function releaseGateBlockers(entry: OfficialWebTargetInventoryEntry): string[] {
 	return blockers.length > 0 ? blockers : ["release_gate_not_reviewed"];
 }
 
+function usesAppApiReleaseGate(entry: OfficialWebTargetInventoryEntry): boolean {
+	return (
+		entry.consumerFamily === "stable_reference_candidate" &&
+		entry.selectedWriteTarget === "official_web/stable_reference"
+	);
+}
+
 function buildEntryReport(
 	entry: OfficialWebTargetInventoryEntry,
 	input: {
@@ -209,7 +216,10 @@ function buildEntryReport(
 			if (missingFields.length > 0) {
 				reviewState = "blocked_fields";
 				releaseBlockers = missingFields;
-			} else if (entry.materializationPolicy === "release_gate_required") {
+			} else if (
+				entry.materializationPolicy === "release_gate_required" &&
+				usesAppApiReleaseGate(entry)
+			) {
 				reviewState = "previewed";
 				releaseBlockers = releaseGateBlockers(entry);
 			} else {

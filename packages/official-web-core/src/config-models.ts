@@ -29,6 +29,7 @@ export const OFFICIAL_WEB_CONSUMER_FAMILIES = [
 	"academic_calendar_candidate",
 	"stable_reference_candidate",
 	"regulation_candidate",
+	"student_regulation_candidate",
 	"notice_news_candidate",
 ] as const;
 export const OFFICIAL_WEB_CONSUMER_MATERIALIZATION_POLICIES = [
@@ -88,6 +89,7 @@ export const OFFICIAL_WEB_SOURCE_PACK_OWNER_SURFACES = [
 	"official_web/stable_reference",
 	"future_notice_runtime",
 	"regulations/institutional_rules",
+	"regulations/student_rules",
 	"regulations/scoped_rules",
 ] as const;
 export const OFFICIAL_WEB_SOURCE_PACK_RELEASE_TARGETS = [
@@ -98,6 +100,7 @@ export const OFFICIAL_WEB_SOURCE_PACK_RELEASE_TARGETS = [
 	"official_web/fresh_news",
 	"official_web/news_archive",
 	"regulations/institutional_rules",
+	"regulations/student_rules",
 	"regulations/scoped_rules",
 ] as const;
 export const OFFICIAL_WEB_SOURCE_PACK_EXPECTED_FACTS = [
@@ -448,6 +451,7 @@ export interface OfficialWebConfigPaths {
 	consumerDenominatorPath: string;
 	targetSourceMapPath: string;
 	targetInventoryPath: string;
+	sourcePackId: string;
 	sourcePackManifestPath: string;
 	schedulerPolicyPath: string;
 	qcPolicyPath: string;

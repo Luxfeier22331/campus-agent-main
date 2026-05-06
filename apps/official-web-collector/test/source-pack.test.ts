@@ -66,4 +66,26 @@ describe("official-web-collector source-pack seam", () => {
 			spy.mockRestore();
 		}
 	});
+
+	it("supports alternate source-pack ids from the CLI seam", () => {
+		const spy = vi.spyOn(console, "log").mockImplementation(() => undefined);
+
+		try {
+			validateSourcePackMain([
+				"--site-id",
+				"muc_public",
+				"--source-pack-id",
+				"official-web-regulation-expansion.v1",
+			]);
+			expect(spy).toHaveBeenCalledTimes(1);
+			const payload = JSON.parse(spy.mock.calls[0][0] as string) as {
+				sourcePackId: string;
+				valid: boolean;
+			};
+			expect(payload.valid).toBe(true);
+			expect(payload.sourcePackId).toBe("official-web-regulation-expansion.v1");
+		} finally {
+			spy.mockRestore();
+		}
+	});
 });

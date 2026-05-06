@@ -1,4 +1,5 @@
 import type { OfficialWebCollectorPrincipal } from "../auth";
+import type { OfficialWebPageTargetMatch } from "official-web-core";
 import type {
 	OfficialWebArtifactRecord,
 	OfficialWebCommandStore,
@@ -131,4 +132,5 @@ export interface NormalizedPageObservation {
 	targetDeclarationVersion: string | null;
 	targetId: string | null;
 	targetJobId: string | null;
+	targetMatches: OfficialWebPageTargetMatch[];
 }

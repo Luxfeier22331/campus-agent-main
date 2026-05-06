@@ -53,7 +53,7 @@ export interface SourcePackExecutionPlan {
 
 export function buildSourcePackExecutionPlan(
 	siteId: string,
-	options: { configRoot?: string; repoRoot?: string } = {},
+	options: { configRoot?: string; repoRoot?: string; sourcePackId?: string } = {},
 ): SourcePackExecutionPlan {
 	const config = loadOfficialWebConfig(siteId, options);
 	return {

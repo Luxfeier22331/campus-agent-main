@@ -63,6 +63,32 @@ function buildTargetCandidate(
 }
 
 describe("official web planner service", () => {
+	it("falls back to candidate or job title hints when freshness title is missing", () => {
+		expect(
+			__officialWebPlannerStoreTestUtils.resolvePlannerPageTitle({
+				freshnessTitle: "",
+				candidateTitleHint: "校历查看方式",
+				jobTitleHints: ["办理", "指南"],
+			}),
+		).toBe("校历查看方式");
+
+		expect(
+			__officialWebPlannerStoreTestUtils.resolvePlannerPageTitle({
+				freshnessTitle: "民大校历",
+				candidateTitleHint: "校历查看方式",
+				jobTitleHints: ["办理", "指南"],
+			}),
+		).toBe("民大校历");
+
+		expect(
+			__officialWebPlannerStoreTestUtils.resolvePlannerPageTitle({
+				freshnessTitle: "",
+				candidateTitleHint: "",
+				jobTitleHints: ["办理", "指南"],
+			}),
+		).toBe("办理");
+	});
+
 	it("keeps same-url target candidates together when explicit target candidates are requested", () => {
 		const rows = [
 			buildTargetCandidate({
@@ -174,6 +200,45 @@ describe("official web planner service", () => {
 				targetCandidateIds: ["owcand_requested"],
 			}),
 		);
+	});
+
+	it("keeps explicitly requested deleted candidates eligible for requeue", () => {
+		const rows = [
+			buildTargetCandidate({
+				host: "met.muc.edu.cn",
+				lastFetchDisposition: "deleted",
+				normalizedCanonicalUrl: "https://met.muc.edu.cn/info/1068/1832.htm",
+				targetCandidateId: "owcand_deleted",
+				targetId: "campus-services-service-guide",
+				targetJobId: "owtarget_service_guide",
+			}),
+			buildTargetCandidate({
+				host: "met.muc.edu.cn",
+				normalizedCanonicalUrl: "https://met.muc.edu.cn/info/1068/1830.htm",
+				targetCandidateId: "owcand_live",
+				targetId: "campus-services-service-guide",
+				targetJobId: "owtarget_service_guide",
+			}),
+		];
+
+		const selected = __officialWebPlannerStoreTestUtils.selectBudgetedRows(
+			rows,
+			{
+				hostFilter: ["met.muc.edu.cn"],
+				maxPagesPerHost: 10,
+				maxTotalPages: 10,
+				now: "2026-05-01T09:00:00.000Z",
+				runIntent: "hot",
+				siteId: "muc_public",
+				targetCandidateIds: ["owcand_deleted", "owcand_live"],
+			},
+			{ dedupeByCanonicalUrl: true },
+		);
+
+		expect(selected.map((row) => row.targetCandidateId)).toEqual([
+			"owcand_deleted",
+			"owcand_live",
+		]);
 	});
 
 	it("accepts regulation_candidate workset rows for institutional-rules targets", async () => {

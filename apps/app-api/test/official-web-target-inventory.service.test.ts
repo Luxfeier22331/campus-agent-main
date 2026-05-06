@@ -252,4 +252,88 @@ describe("official web target inventory service", () => {
 		});
 		expect(result.summary.countsByReviewState).toEqual({ ready_for_selected_write: 1 });
 	});
+
+	it("treats regulation inventory rows as ingestion-lane ready instead of app-api release-gated", async () => {
+		const service = buildOfficialWebTargetInventoryService({
+			fieldStatusStore: {
+				listFieldStatus: async () => ({
+					"test-public-regulation": {
+						authoritative_source_url: "present",
+						normalized_content_summary: "present",
+						reference_title: "present",
+						release_scope: "present",
+						source_version_evidence: "present",
+					},
+				}),
+			},
+			previewEvidenceStore: {
+				listPreviewEvidence: async () => [
+					{
+						appApiRunId: "owrun_preview",
+						currentTruthImportWasNull: true,
+						ingestionStatus: "staged",
+						inventoryId: "test-public-regulation",
+						promotionDecision: "staged",
+						rawAssetId: "owasset_preview",
+						rawVersionId: "owver_preview",
+						sourceObjectKeys: [
+							"official_web/muc_public/runs/owrun_preview/source-truth-bundle.json",
+						],
+						targetAttemptId: "owattempt_preview",
+						targetJobId: "owtarget_preview",
+					},
+				],
+			},
+			targetInventory: {
+				entries: [
+					{
+						admissionTargetId: "official-web-institutional-rules",
+						consumerFamily: "regulation_candidate",
+						inventoryId: "test-public-regulation",
+						inventoryOnly: false,
+						materializationPolicy: "release_gate_required",
+						notes: "Public regulation row.",
+						ownerAgentOrRuntime: "rag-agent",
+						ownerSurface: "regulations/institutional_rules",
+						previewStatus: "candidate",
+						releaseBlockers: ["no_preview_evidence", "release_gate_not_reviewed"],
+						optionalEvidence: [],
+						optionalFields: [],
+						requiredEvidence: ["regulation_text"],
+						requiredFields: [
+							"reference_title",
+							"normalized_content_summary",
+							"authoritative_source_url",
+							"release_scope",
+							"source_version_evidence",
+						],
+						selectedWriteTarget: "regulations/institutional_rules",
+						sourceHosts: ["xxgk.muc.edu.cn"],
+						sourceUrls: ["https://xxgk.muc.edu.cn/info/1198/4101.htm"],
+						targetLabel: "测试公开规章",
+					},
+				],
+				inventoryVersion: "test_inventory_v1",
+				schemaVersion: "official_web_target_inventory.v1",
+				siteId: "muc_public",
+			},
+		});
+
+		const result = await service.listTargetInventory({
+			filters: {
+				consumerFamily: "regulation_candidate",
+				ownerSurface: "regulations/institutional_rules",
+				reviewState: "ready_for_selected_write",
+				siteId: "muc_public",
+			},
+			principal: createOperatorPrincipal(),
+		});
+
+		expect(result.entries).toHaveLength(1);
+		expect(result.entries[0]).toMatchObject({
+			inventoryId: "test-public-regulation",
+			releaseBlockers: [],
+			reviewState: "ready_for_selected_write",
+		});
+	});
 });

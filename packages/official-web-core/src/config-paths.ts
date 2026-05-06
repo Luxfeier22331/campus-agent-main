@@ -43,10 +43,11 @@ export function defaultOfficialWebConfigRoot(repoRoot: string = defaultRepoRoot(
 
 export function resolveOfficialWebConfigPaths(
 	siteId: string,
-	options: { repoRoot?: string; configRoot?: string } = {},
+	options: { repoRoot?: string; configRoot?: string; sourcePackId?: string } = {},
 ): OfficialWebConfigPaths {
 	const configRoot = options.configRoot ?? defaultOfficialWebConfigRoot(options.repoRoot);
 	const siteRoot = resolve(configRoot, siteId);
+	const sourcePackId = options.sourcePackId ?? "tool-driven-first-slice.v1";
 	return {
 		siteId,
 		siteRoot,
@@ -59,7 +60,8 @@ export function resolveOfficialWebConfigPaths(
 		consumerDenominatorPath: resolve(siteRoot, "consumer-denominator.json"),
 		targetSourceMapPath: resolve(siteRoot, "target-source-map.json"),
 		targetInventoryPath: resolve(siteRoot, "target-inventory.json"),
-		sourcePackManifestPath: resolve(siteRoot, "source-packs", "tool-driven-first-slice.v1.json"),
+		sourcePackId,
+		sourcePackManifestPath: resolve(siteRoot, "source-packs", `${sourcePackId}.json`),
 		schedulerPolicyPath: resolve(siteRoot, "scheduler-policy.json"),
 		qcPolicyPath: resolve(siteRoot, "qc-policy.json"),
 	};

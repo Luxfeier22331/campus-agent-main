@@ -90,6 +90,22 @@
 			"notes": "School-level institutional regulation candidates admitted from targeted public-web pages; release-gated before entering regulations/institutional_rules."
 		},
 		{
+			"target_id": "official-web-student-rules",
+			"consumer_family": "student_regulation_candidate",
+			"owner_surface": "regulations/student_rules",
+			"selected_write_target": "regulations/student_rules",
+			"source_hosts": ["xxgk.muc.edu.cn"],
+			"url_hints": ["xsgz", "jwgl", "xszz", "xwsy", "jlycf", "xsgl"],
+			"title_hints": ["办法", "规定", "细则", "制度", "章程", "实施细则"],
+			"required_evidence": ["regulation_text"],
+			"optional_evidence": [],
+			"retention_policy": "retain_source_truth",
+			"review_policy": "release_gate_required",
+			"materialization_policy": "release_gate_required",
+			"inventory_only": false,
+			"notes": "Student-facing public regulations admitted from the information-disclosure student-work sections; release-gated before entering regulations/student_rules."
+		},
+		{
 			"target_id": "official-web-notice-news-inventory",
 			"consumer_family": "notice_news_candidate",
 			"owner_surface": "future_notice_runtime",

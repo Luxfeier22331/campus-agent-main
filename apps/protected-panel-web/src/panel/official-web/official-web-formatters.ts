@@ -62,6 +62,7 @@ const OFFICIAL_WEB_FRESHNESS_SUMMARY_LABELS: Record<string, string> = {
 const OFFICIAL_WEB_CONSUMER_FAMILY_LABELS: Record<string, string> = {
 	contact_directory_candidate: "联系信息候选",
 	notice_news_candidate: "通知资讯清单",
+	regulation_candidate: "公开规章候选",
 	service_guide_candidate: "办事指南候选",
 	stable_reference_candidate: "稳定参考候选",
 };

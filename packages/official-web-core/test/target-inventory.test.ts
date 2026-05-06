@@ -15,7 +15,7 @@ describe("official web target inventory report", () => {
 		const report = buildOfficialWebTargetInventoryReport(config);
 
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 36,
+			candidate: 40,
 		});
 		expect(report.entries[0]).toMatchObject({
 			inventoryId: "muc-main-homepage-contact",
@@ -249,8 +249,46 @@ describe("official web target inventory report", () => {
 			reviewState: "previewed",
 		});
 		expect(report.countsByReviewState).toMatchObject({
-			candidate: 35,
+			candidate: 39,
 			previewed: 1,
+		});
+	});
+
+	it("treats release-gated regulation targets as ingestion-lane ready after preview and field checks", () => {
+		const config = loadOfficialWebConfig("muc_public");
+		const evidence: OfficialWebTargetInventoryPreviewEvidence = {
+			appApiRunId: "owrun_rules",
+			currentTruthImportWasNull: true,
+			ingestionStatus: "staged",
+			inventoryId: "muc-academic-committee-charter",
+			promotionDecision: "staged",
+			rawAssetId: "owasset_rules",
+			rawVersionId: "owver_rules",
+			sourceObjectKeys: ["official_web/muc_public/runs/owrun_rules/source-truth-bundle.json"],
+			targetAttemptId: "owattempt_rules",
+			targetJobId: "owtarget_rules",
+		};
+
+		const report = buildOfficialWebTargetInventoryReport(config, {
+			fieldStatusByInventoryId: {
+				"muc-academic-committee-charter": {
+					authoritative_source_url: "present",
+					normalized_content_summary: "present",
+					reference_title: "present",
+					release_scope: "present",
+					source_version_evidence: "present",
+				},
+			},
+			previewEvidence: [evidence],
+		});
+
+		const regulationEntry = report.entries.find(
+			(entry) => entry.inventoryId === "muc-academic-committee-charter",
+		);
+		expect(regulationEntry).toMatchObject({
+			inventoryId: "muc-academic-committee-charter",
+			releaseBlockers: [],
+			reviewState: "ready_for_selected_write",
 		});
 	});
 
@@ -280,6 +318,10 @@ describe("official web target inventory report", () => {
 				"muc-it-campus-card-policy-reference",
 				"muc-it-information-portal-policy-reference",
 				"muc-it-office-automation-policy-reference",
+				"muc-student-status-management-rule",
+				"muc-student-financial-aid-rule",
+				"muc-student-degree-rule",
+				"muc-student-reward-discipline-rule",
 				"muc-it-secondary-website-policy-reference",
 				"muc-it-campus-network-access-policy-reference",
 				"muc-academic-committee-charter",

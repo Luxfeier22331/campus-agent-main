@@ -39,6 +39,36 @@ function normalizePlannerFetchDisposition(
 	return value ?? "never_fetched";
 }
 
+function normalizeOptionalTitle(value: string | null | undefined): string | null {
+	const normalized = value?.trim();
+	return normalized ? normalized : null;
+}
+
+function resolvePlannerPageTitle(input: {
+	freshnessTitle: string | null | undefined;
+	candidateTitleHint: string | null | undefined;
+	jobTitleHints: string[] | null | undefined;
+}): string {
+	const freshnessTitle = normalizeOptionalTitle(input.freshnessTitle);
+	if (freshnessTitle) {
+		return freshnessTitle;
+	}
+
+	const candidateTitleHint = normalizeOptionalTitle(input.candidateTitleHint);
+	if (candidateTitleHint) {
+		return candidateTitleHint;
+	}
+
+	for (const hint of input.jobTitleHints ?? []) {
+		const normalizedHint = normalizeOptionalTitle(hint);
+		if (normalizedHint) {
+			return normalizedHint;
+		}
+	}
+
+	return "";
+}
+
 function toPlannerPageCandidate(row: TargetCandidateRow): OfficialWebPlannerPageCandidate {
 	const freshness = row.freshness;
 	return {
@@ -70,7 +100,11 @@ function toPlannerPageCandidate(row: TargetCandidateRow): OfficialWebPlannerPage
 		nextEligibleFetchAt: (freshness?.nextEligibleFetchAt ?? row.candidate.updatedAt).toISOString(),
 		normalizedCanonicalUrl: row.candidate.normalizedCandidateUrl,
 		pageFamily: freshness?.pageFamily ?? "target_candidate",
-		pageTitleNormalized: freshness?.pageTitleNormalized ?? "",
+		pageTitleNormalized: resolvePlannerPageTitle({
+			freshnessTitle: freshness?.pageTitleNormalized,
+			candidateTitleHint: row.candidate.titleHint,
+			jobTitleHints: row.job.titleHintsJson,
+		}),
 		priorityScore: row.candidate.priorityScore,
 		responseBodyHash: freshness?.responseBodyHash ?? null,
 		retentionPolicy: row.job.retentionPolicy,
@@ -181,6 +215,7 @@ function selectBudgetedRows<T extends { host: string; normalizedCanonicalUrl: st
 }
 
 export const __officialWebPlannerStoreTestUtils = {
+	resolvePlannerPageTitle,
 	selectBudgetedRows,
 };
 
@@ -260,11 +295,15 @@ export function createPgOfficialWebPlannerStore(env: Env): OfficialWebPlannerSto
 						isNull(pageFreshness.nextEligibleFetchAt),
 						lte(pageFreshness.nextEligibleFetchAt, new Date(filters.now)),
 					),
-					or(
-						isNull(pageFreshness.lastFetchDisposition),
-						not(eq(pageFreshness.lastFetchDisposition, "deleted")),
-					),
 				];
+				if (filters.targetCandidateIds.length === 0) {
+					conditions.push(
+						or(
+							isNull(pageFreshness.lastFetchDisposition),
+							not(eq(pageFreshness.lastFetchDisposition, "deleted")),
+						),
+					);
+				}
 
 				if (filters.hostFilter.length > 0) {
 					conditions.push(inArray(officialWebTargetJobCandidates.sourceHost, filters.hostFilter));

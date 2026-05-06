@@ -152,6 +152,12 @@ export interface PersistedOfficialWebPageObservation {
 	targetDeclarationVersion: string | null;
 	targetId: string | null;
 	targetJobId: string | null;
+	targetMatches?: Array<{
+		targetCandidateId: string | null;
+		targetDeclarationVersion: string;
+		targetId: string;
+		targetJobId: string;
+	}>;
 	freshness: {
 		lastChangedAt: string | null;
 		lastNotModifiedAt: string | null;
@@ -531,34 +537,60 @@ export function createPgOfficialWebCommandStore(
 
 					const targetAttempts = input.observations.filter(
 						(observation) =>
-							observation.targetJobId &&
-							observation.targetId &&
-							observation.targetDeclarationVersion,
+							(
+								(observation.targetMatches?.length ?? 0) > 0 ||
+								(
+									observation.targetJobId &&
+									observation.targetId &&
+									observation.targetDeclarationVersion
+								) != null
+							),
 					);
 					if (targetAttempts.length > 0) {
-						await tx.insert(officialWebTargetPageAttempts).values(
-							targetAttempts.map((observation) => ({
-								artifactObjectKey: null,
-								attemptId: `owattempt_${observation.observationId}`,
+						const materializedAttempts = targetAttempts.flatMap((observation) => {
+							const matches =
+								observation.targetMatches && observation.targetMatches.length > 0
+									? observation.targetMatches
+									: observation.targetJobId &&
+											observation.targetId &&
+											observation.targetDeclarationVersion
+										? [
+												{
+													targetCandidateId: observation.targetCandidateId,
+													targetDeclarationVersion:
+														observation.targetDeclarationVersion,
+													targetId: observation.targetId,
+													targetJobId: observation.targetJobId,
+												},
+											]
+										: [];
+							return matches.map((match) => ({
+								attemptId: `owattempt_${observation.observationId}_${match.targetJobId}`,
 								attemptStatus: toTargetAttemptStatus(observation.fetchDisposition),
 								attemptedAt: new Date(observation.observedAt),
-								candidateId: observation.targetCandidateId,
+								candidateId: match.targetCandidateId,
 								completedAt: new Date(observation.observedAt),
 								createdAt: writeTimestamp,
 								httpStatus: observation.httpStatus,
-								jobId: observation.targetJobId as string,
+								jobId: match.targetJobId,
 								normalizedCanonicalUrl: observation.normalizedCanonicalUrl,
 								runId: observation.runId,
 								siteId: observation.siteId,
-								targetId: observation.targetId as string,
+								targetId: match.targetId,
 								updatedAt: writeTimestamp,
-							})),
+								artifactObjectKey: null,
+							}));
+						});
+						await tx.insert(officialWebTargetPageAttempts).values(
+							materializedAttempts,
 						);
 
 						const attemptCountsByJob = new Map<string, number>();
-						for (const observation of targetAttempts) {
-							const jobId = observation.targetJobId as string;
-							attemptCountsByJob.set(jobId, (attemptCountsByJob.get(jobId) ?? 0) + 1);
+						for (const attempt of materializedAttempts) {
+							attemptCountsByJob.set(
+								attempt.jobId,
+								(attemptCountsByJob.get(attempt.jobId) ?? 0) + 1,
+							);
 						}
 						for (const [jobId, attemptCount] of attemptCountsByJob) {
 							await tx

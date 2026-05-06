@@ -113,6 +113,22 @@ function writeMinimalConsumerDenominator(siteRoot: string): void {
 						review_policy: "release_gate_required",
 					},
 					{
+						consumer_family: "student_regulation_candidate",
+						owner_surface: "regulations/student_rules",
+						owner_agent_or_runtime: "rag-agent",
+						materialization_policy: "release_gate_required",
+						page_families: ["article_detail", "generic_content_page"],
+						title_keywords: ["办法", "规定", "细则", "制度"],
+						path_patterns: ["xsgz", "jwgl", "xszz"],
+						required_evidence: ["regulation_text"],
+						optional_evidence: [],
+						minimum_matched_evidence_count: 1,
+						requires_keyword_or_path_match: true,
+						negative_patterns: ["新闻", "通知", "公告"],
+						selected_write_target: "regulations/student_rules",
+						review_policy: "release_gate_required",
+					},
+					{
 						consumer_family: "notice_news_candidate",
 						owner_surface: "future_notice_runtime",
 						owner_agent_or_runtime: "notice-agent",
@@ -183,6 +199,22 @@ function writeMinimalTargetSourceMap(siteRoot: string): void {
 						materialization_policy: "release_gate_required",
 						inventory_only: false,
 						notes: "test institutional rules target",
+					},
+					{
+						target_id: "student-rules",
+						consumer_family: "student_regulation_candidate",
+						owner_surface: "regulations/student_rules",
+						selected_write_target: "regulations/student_rules",
+						source_hosts: ["www.example.edu"],
+						url_hints: ["xsgz", "jwgl"],
+						title_hints: ["办法", "规定", "细则"],
+						required_evidence: ["regulation_text"],
+						optional_evidence: [],
+						retention_policy: "retain_source_truth",
+						review_policy: "release_gate_required",
+						materialization_policy: "release_gate_required",
+						inventory_only: false,
+						notes: "test student rules target",
 					},
 					{
 						target_id: "academic-calendar",
@@ -425,6 +457,7 @@ describe("official-web-core config loading", () => {
 			"official-web-academic-calendar",
 			"official-web-stable-reference",
 			"official-web-institutional-rules",
+			"official-web-student-rules",
 			"official-web-notice-news-inventory",
 		]);
 		expect(config.targetSourceMap.targets[0]).toMatchObject({
@@ -470,6 +503,16 @@ describe("official-web-core config loading", () => {
 			sourceHosts: ["xxgk.muc.edu.cn", "met.muc.edu.cn"],
 		});
 		expect(config.targetSourceMap.targets[5]).toMatchObject({
+			consumerFamily: "student_regulation_candidate",
+			inventoryOnly: false,
+			materializationPolicy: "release_gate_required",
+			requiredEvidence: ["regulation_text"],
+			retentionPolicy: "retain_source_truth",
+			reviewPolicy: "release_gate_required",
+			selectedWriteTarget: "regulations/student_rules",
+			sourceHosts: ["xxgk.muc.edu.cn"],
+		});
+		expect(config.targetSourceMap.targets[6]).toMatchObject({
 			consumerFamily: "notice_news_candidate",
 			inventoryOnly: true,
 			materializationPolicy: "inventory_only",
@@ -477,7 +520,7 @@ describe("official-web-core config loading", () => {
 			reviewPolicy: "inventory_only",
 			selectedWriteTarget: "",
 		});
-		expect(config.targetInventory.inventoryVersion).toBe("muc_public_target_inventory_v12");
+		expect(config.targetInventory.inventoryVersion).toBe("muc_public_target_inventory_v13");
 		expect(config.targetInventory.entries.map((entry) => entry.inventoryId)).toEqual([
 			"muc-main-homepage-contact",
 			"muc-information-disclosure-contact",
@@ -509,6 +552,10 @@ describe("official-web-core config loading", () => {
 			"muc-it-campus-network-access-policy-reference",
 			"muc-academic-committee-charter",
 			"muc-staff-congress-procedure",
+			"muc-student-status-management-rule",
+			"muc-student-financial-aid-rule",
+			"muc-student-degree-rule",
+			"muc-student-reward-discipline-rule",
 			"muc-school-introduction-reference",
 			"muc-administrative-offices-reference",
 			"muc-teaching-research-units-reference",
@@ -551,6 +598,17 @@ describe("official-web-core config loading", () => {
 			requiredEvidence: ["regulation_text"],
 			sourceHosts: ["xxgk.muc.edu.cn"],
 			sourceUrls: ["https://xxgk.muc.edu.cn/info/1005/1107.htm"],
+		});
+		expect(
+			config.targetInventory.entries.find(
+				(entry) => entry.inventoryId === "muc-student-status-management-rule",
+			),
+		).toMatchObject({
+			admissionTargetId: "official-web-student-rules",
+			consumerFamily: "student_regulation_candidate",
+			requiredEvidence: ["regulation_text"],
+			sourceHosts: ["xxgk.muc.edu.cn"],
+			sourceUrls: ["https://xxgk.muc.edu.cn/xsgz/jwgl.htm"],
 		});
 		expect(
 			config.targetInventory.entries.find(

@@ -52,6 +52,21 @@ class OfficialWebTargetDenominatorAlignmentTest(unittest.TestCase):
                     set(target["url_hints"]),
                 )
 
+    def test_student_rules_target_maps_to_student_rules_surface(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        config_root = repo_root / "configs/sources/official_web/muc_public"
+        target_map = json.loads((config_root / "target-source-map.json").read_text(encoding="utf-8"))
+
+        student_target = next(
+            target
+            for target in target_map["targets"]
+            if target["target_id"] == "official-web-student-rules"
+        )
+
+        self.assertEqual(student_target["consumer_family"], "student_regulation_candidate")
+        self.assertEqual(student_target["owner_surface"], "regulations/student_rules")
+        self.assertEqual(student_target["selected_write_target"], "regulations/student_rules")
+
 
 if __name__ == "__main__":
     unittest.main()
