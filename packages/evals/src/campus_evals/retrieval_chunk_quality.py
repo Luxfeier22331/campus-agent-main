@@ -7,6 +7,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+from campus_ingestion_core.answer_ready_contract_quality import (
+    evaluate_answer_ready_contract_metadata,
+)
 from campus_ingestion_core.regulation_semantics import starts_example_list
 
 _TOKEN_RE = re.compile(r"[\u4e00-\u9fff]|[A-Za-z0-9_]+|[^\s]")
@@ -116,6 +119,14 @@ def evaluate_chunk_quality(
             issues.append("answer_bearing_missing_role_confidence")
         if _table_unit_missing_answer_ready_metadata(metadata=metadata):
             issues.append("table_unit_missing_answer_ready_metadata")
+        issues.extend(
+            evaluate_answer_ready_contract_metadata(
+                corpus=str(chunk.get("corpus") or ""),
+                collection=str(chunk.get("collection") or ""),
+                metadata=metadata,
+                anchor=anchor,
+            ).issues
+        )
         chunk_rows.append(
             _ChunkQualityRow(
                 chunk_id=chunk_id,

@@ -2,8 +2,10 @@ from __future__ import annotations
 
 import json
 import unittest
+from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from types import SimpleNamespace
 from unittest.mock import Mock, patch
 
 from campus_contracts import EvidenceBundle, EvidenceSource
@@ -11,6 +13,7 @@ from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.index_release_acceptance import (
     QdrantPhysicalCollectionAcceptanceExecutor,
     ReleaseRetrievalAcceptanceExecutor,
+    evaluate_release_chunk_quality,
     load_release_retrieval_acceptance_cases,
     run_release_retrieval_acceptance,
 )
@@ -19,6 +22,11 @@ from campus_ingestion_core.process import IndexableChunk
 from campus_ingestion_core.process_indexing import index_chunks_to_qdrant
 from campus_ingestion_core.registry_scope_release_support import (
     _validate_default_qrels_coverage_for_scope,
+)
+from campus_ingestion_core.regulation_rag_release_admission import (
+    RegulationRagReleaseAdmissionError,
+    build_regulation_rag_release_admission_manifest,
+    validate_regulation_rag_release_admission_manifest_shape,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.sparse import build_mock_sparse_embedding_model
@@ -249,6 +257,64 @@ class _FakeLowSignalQdrantClient:
 
 
 class IndexReleaseAcceptanceTest(unittest.TestCase):
+    def test_release_chunk_quality_reports_answer_ready_contract_failure_class(self) -> None:
+        record = _make_record()
+        report = evaluate_release_chunk_quality(
+            chunks=(
+                replace(
+                    _make_chunk(record=record),
+                    metadata={
+                        "unit_type": "article_body",
+                        "root_unit_id": "student_rules:handbook:article-rank",
+                        "parent_unit_id": "student_rules:handbook:article-rank",
+                        "display_text": "学习成绩排名与综合考评成绩排名原则上均应位于前10%。",
+                        "final_token_count": 32,
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                        "answer_role": "eligibility_condition",
+                        "content_role": "eligibility",
+                        "claim_type": "condition",
+                        "role_confidence": "high",
+                        "is_answer_bearing": True,
+                    },
+                ),
+            ),
+            max_token_count=512,
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertEqual(report.summary["answer_ready_contract_status"], "failed")
+        self.assertIn("chunk_contract_missing", report.summary["failure_classes"])
+        self.assertIn(
+            "answer_ready_condition_subject_missing",
+            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-0001"],
+        )
+
+    def test_release_admission_manifest_requires_answer_ready_contract_passed(self) -> None:
+        manifest = build_regulation_rag_release_admission_manifest(
+            admission_run_id="run-1",
+            corpus="regulations",
+            collection="student_rules",
+            records=(_make_record(),),
+            runtime_profile=load_runtime_profile("regulations", "student_rules"),
+            preparation_manifest=SimpleNamespace(
+                documents=(
+                    SimpleNamespace(
+                        document_id="student_rules:handbook",
+                        revision_track="current-effective",
+                        version_id="sha256:handbook-v1",
+                        document_units_sha256="sha256-document-units",
+                    ),
+                )
+            ),
+            answer_ready_contract_status="failed",
+        )
+
+        with self.assertRaisesRegex(
+            RegulationRagReleaseAdmissionError,
+            "answer_ready_contract_status_not_passed:failed",
+        ):
+            validate_regulation_rag_release_admission_manifest_shape(manifest)
+
     def test_default_qrels_coverage_uses_denominator_policy_fixture(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

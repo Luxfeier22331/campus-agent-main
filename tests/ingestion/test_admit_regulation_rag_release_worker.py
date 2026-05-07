@@ -54,7 +54,7 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
         )
         admission_manifest = RegulationRagReleaseAdmissionManifest(
             schema_version="regulation_rag_release_admission.v1",
-            policy_version="regulation_rag_release_admission_policy.v1",
+            policy_version="regulation_rag_release_admission_policy.v2",
             admission_run_id="phase09-institutional-release",
             corpus="regulations",
             collection="institutional_rules",

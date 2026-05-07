@@ -44,8 +44,7 @@ def _cleanup_punctuation(text: str) -> str:
     for before, after in replacements:
         while before in normalized:
             normalized = normalized.replace(before, after)
-    normalized = re.sub(r"[；;]\s*$", "。", normalized)
-    return normalized
+    return re.sub(r"[；;]\s*$", "。", normalized)
 
 
 def _trim_non_answer_tail(text: str) -> str:

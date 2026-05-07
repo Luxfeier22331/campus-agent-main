@@ -43,11 +43,11 @@ from campus_rag_agent.retrieval_plan import (
 )
 from campus_rag_agent.semantic_replan import build_semantic_replan_steps
 
+from .institutional_rules_query_planning import plan_institutional_rules_query
 from .service_common import (
     _execute_retrieval_request_with_callable_retriever,
     _with_query_text,
 )
-from .institutional_rules_query_planning import plan_institutional_rules_query
 from .service_curriculum import _resolve_curriculum_course_fact_target_document_ids
 from .service_scope_curriculum import (
     _resolve_curriculum_program_semester_fact_target_document_ids,

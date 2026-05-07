@@ -2,6 +2,10 @@ from __future__ import annotations
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 
+from campus_retrieval_core.evidence_attributes import (
+    EvidenceFallbackDiagnostics,
+    evidence_fallback_diagnostics_for_source,
+)
 from campus_retrieval_core.evidence_semantics import source_conflicts_with_query_polarity
 from campus_retrieval_core.models import (
     RetrievalPlan,
@@ -148,6 +152,7 @@ def build_succeeded_step_result(
     failure_kind = "reranker_degraded" if reranker_degraded else None
     if status == "empty" and evidence.sources:
         failure_kind = grounding_failure_kind or "no_grounding"
+    fallback_diagnostics = _merge_fallback_diagnostics(evidence.sources)
     return RetrievalStepResult(
         step_id=step.step_id,
         status=status,
@@ -170,6 +175,11 @@ def build_succeeded_step_result(
             failure_kind=failure_kind,
             reranker_degraded=reranker_degraded,
             reranker_failure_kind=reranker_failure_kind,
+            fallback_used=fallback_diagnostics.fallback_used,
+            fallback_reason=fallback_diagnostics.fallback_reason,
+            missing_contract_fields=fallback_diagnostics.missing_contract_fields,
+            source_index_contract_version=fallback_diagnostics.source_index_contract_version,
+            fallback_primary_signal=fallback_diagnostics.fallback_primary_signal,
         ),
     )
 
@@ -223,6 +233,51 @@ def _select_grounding_sources(
             return focus_grounding, ""
         return (), "focus_mismatch"
     return sources, ""
+
+
+def _merge_fallback_diagnostics(
+    sources: tuple[EvidenceSource, ...],
+) -> EvidenceFallbackDiagnostics:
+    diagnostics = tuple(evidence_fallback_diagnostics_for_source(source) for source in sources)
+    fallback_diagnostics = tuple(item for item in diagnostics if item.fallback_used)
+    if not fallback_diagnostics:
+        source_index_contract_version = next(
+            (
+                item.source_index_contract_version
+                for item in diagnostics
+                if item.source_index_contract_version
+            ),
+            "",
+        )
+        return EvidenceFallbackDiagnostics(
+            source_index_contract_version=source_index_contract_version,
+        )
+    missing_fields: list[str] = []
+    for diagnostic in fallback_diagnostics:
+        for field_name in diagnostic.missing_contract_fields:
+            if field_name not in missing_fields:
+                missing_fields.append(field_name)
+    return EvidenceFallbackDiagnostics(
+        fallback_used=True,
+        fallback_reason="missing_contract",
+        missing_contract_fields=tuple(missing_fields),
+        source_index_contract_version=next(
+            (
+                diagnostic.source_index_contract_version
+                for diagnostic in fallback_diagnostics
+                if diagnostic.source_index_contract_version
+            ),
+            "",
+        ),
+        fallback_primary_signal=next(
+            (
+                diagnostic.fallback_primary_signal
+                for diagnostic in fallback_diagnostics
+                if diagnostic.fallback_primary_signal
+            ),
+            "",
+        ),
+    )
 
 
 def _is_positive_grounding_source(source: EvidenceSource) -> bool:

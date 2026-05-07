@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_retrieval_core.evidence_ranking import select_supporting_evidence_sources
@@ -9,6 +9,11 @@ from .agent_answer_shape import AnswerShape, answer_shape_support_budget, infer_
 from .agent_answering import _compose_direct_answer, _render_supporting_contexts
 from .agent_selection_query import _query_mode
 from .agent_selection_rows import _select_answer_support_rows
+from .typed_answer_drafts import (
+    TypedAnswerDraft,
+    build_typed_answer_draft,
+    validate_typed_answer_draft,
+)
 
 DEFAULT_MAX_ANSWER_SOURCES = 3
 __all__ = (
@@ -25,6 +30,9 @@ class AnswerDraft:
     answer_text: str
     supporting_sources: tuple[EvidenceSource, ...]
     supporting_contexts: tuple[str, ...] = ()
+    typed_draft: TypedAnswerDraft = field(
+        default_factory=lambda: TypedAnswerDraft(kind="unsupported", unsupported_reason="empty")
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -41,7 +49,15 @@ class RagAgent:
         audience: str = "",
     ) -> AnswerDraft:
         if not evidence.sources:
-            return AnswerDraft(answer_text="", supporting_sources=(), supporting_contexts=())
+            return AnswerDraft(
+                answer_text="",
+                supporting_sources=(),
+                supporting_contexts=(),
+                typed_draft=TypedAnswerDraft(
+                    kind="unsupported",
+                    unsupported_reason="no_supporting_evidence",
+                ),
+            )
 
         answer_shape = answer_shape or infer_answer_shape(evidence=evidence)
         support_budget = answer_shape_support_budget(answer_shape, self.max_answer_sources)
@@ -71,10 +87,22 @@ class RagAgent:
             category_display_name=category_display_name,
             audience=audience,
         )
+        typed_draft = build_typed_answer_draft(
+            answer_shape=answer_shape,
+            selected_rows=selected_rows,
+        )
+        validation = validate_typed_answer_draft(typed_draft)
+        if validation.verdict != "valid":
+            typed_draft = TypedAnswerDraft(
+                kind="unsupported",
+                unsupported_reason=validation.failure_reason,
+            )
+            answer_text = ""
         return AnswerDraft(
             answer_text=answer_text,
             supporting_sources=supporting_sources,
             supporting_contexts=supporting_contexts,
+            typed_draft=typed_draft,
         )
 
     def compose_answer(self, evidence: EvidenceBundle) -> str:

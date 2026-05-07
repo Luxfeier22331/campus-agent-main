@@ -211,11 +211,17 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                             "2. 学院审核并公示。"
                         ),
                         "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "parent_unit_id": "article-procedure",
                         "answer_role": "procedure_step",
                         "content_role": "procedure",
                         "claim_type": "procedure",
                         "is_answer_bearing": True,
                         "role_confidence": "high",
+                        "condition_subject": "application_procedure",
+                        "procedure_step_index": 1,
+                        "procedure_actor": "student",
+                        "procedure_action": "submit_application",
                     },
                 }
             ],
@@ -340,11 +346,14 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "root_unit_id": "article-responsibility",
                         "display_text": "教务处负责与本科生研究训练计划项目有关的立项、审批、中期检查、结题、成绩管理等方面的组织工作。",
                         "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "parent_unit_id": "article-responsibility",
                         "answer_role": "eligibility_condition",
                         "content_role": "requirement",
                         "claim_type": "condition",
                         "role_confidence": "medium",
                         "is_answer_bearing": True,
+                        "condition_subject": "audience_scope",
                     },
                 }
             ],
@@ -394,11 +403,14 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "root_unit_id": "article-deadline",
                         "display_text": "学生在申诉期内未提出申诉的视为放弃申诉，学校不再受理其提出的申诉。",
                         "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "parent_unit_id": "article-deadline",
                         "answer_role": "exclusion_rule",
                         "content_role": "deadline",
                         "claim_type": "cannot_do",
                         "role_confidence": "medium",
                         "is_answer_bearing": True,
+                        "condition_subject": "deadline",
                     },
                 },
             ],
@@ -433,11 +445,14 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                             "并视情节轻重给予相应处分。"
                         ),
                         "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "parent_unit_id": "article-submission-requirement",
                         "answer_role": "eligibility_condition",
                         "content_role": "eligibility",
                         "claim_type": "condition",
                         "role_confidence": "high",
                         "is_answer_bearing": True,
+                        "condition_subject": "material_requirement",
                     },
                 }
             ],
@@ -474,11 +489,14 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                             "5个工作日内决定是否受理,并将结果告知学生。"
                         ),
                         "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "parent_unit_id": "article-negative-procedure-exception",
                         "answer_role": "exclusion_rule",
                         "content_role": "eligibility",
                         "claim_type": "cannot_do",
                         "role_confidence": "high",
                         "is_answer_bearing": True,
+                        "condition_subject": "discipline_relief_exclusion",
                     },
                 }
             ],
@@ -578,6 +596,96 @@ class RetrievalChunkQualityTest(unittest.TestCase):
             report.issues_by_chunk_id["chunk-table"],
         )
 
+    def test_chunk_quality_flags_missing_answer_ready_contract_fields(self) -> None:
+        report = evaluate_chunk_quality(
+            chunks=[
+                {
+                    "document_id": "doc:scholarship",
+                    "version_id": "v1",
+                    "chunk_id": "chunk-condition-missing-subject",
+                    "chunk_order": 1,
+                    "corpus": "regulations",
+                    "collection": "student_rules",
+                    "text": "学习成绩排名与综合考评成绩排名原则上均应位于前10%。",
+                    "source_uri": "s3://derived/doc",
+                    "metadata": {
+                        "unit_type": "article_body",
+                        "root_unit_id": "article-rank",
+                        "parent_unit_id": "article-rank",
+                        "display_text": "学习成绩排名与综合考评成绩排名原则上均应位于前10%。",
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "answer_role": "eligibility_condition",
+                        "content_role": "eligibility",
+                        "claim_type": "condition",
+                        "role_confidence": "high",
+                        "is_answer_bearing": True,
+                    },
+                },
+                {
+                    "document_id": "doc:procedure",
+                    "version_id": "v1",
+                    "chunk_id": "chunk-procedure-missing-fields",
+                    "chunk_order": 2,
+                    "corpus": "regulations",
+                    "collection": "student_rules",
+                    "text": "学生受处分满考察期后，可以提交解除处分申请表。",
+                    "source_uri": "s3://derived/doc",
+                    "metadata": {
+                        "unit_type": "article_body",
+                        "root_unit_id": "article-procedure",
+                        "parent_unit_id": "article-procedure",
+                        "display_text": "学生受处分满考察期后，可以提交解除处分申请表。",
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "answer_role": "procedure_step",
+                        "content_role": "procedure",
+                        "claim_type": "procedure",
+                        "role_confidence": "high",
+                        "is_answer_bearing": True,
+                    },
+                },
+                {
+                    "document_id": "doc:category",
+                    "version_id": "v1",
+                    "chunk_id": "chunk-category-missing-members",
+                    "chunk_order": 3,
+                    "corpus": "regulations",
+                    "collection": "student_rules",
+                    "text": "当前已收录依据中，本科生奖学金相关制度包括国家奖学金。",
+                    "source_uri": "s3://derived/doc",
+                    "metadata": {
+                        "unit_type": "category_overview",
+                        "root_unit_id": "category-scholarship",
+                        "parent_unit_id": "category-scholarship",
+                        "display_text": "当前已收录依据中，本科生奖学金相关制度包括国家奖学金。",
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "answer_role": "category_overview",
+                        "content_role": "policy_list",
+                        "role_confidence": "high",
+                        "is_answer_bearing": True,
+                        "category_id": "scholarship",
+                    },
+                },
+            ],
+            max_tokens=256,
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertIn(
+            "answer_ready_condition_subject_missing",
+            report.issues_by_chunk_id["chunk-condition-missing-subject"],
+        )
+        self.assertIn(
+            "answer_ready_procedure_step_fields_missing",
+            report.issues_by_chunk_id["chunk-procedure-missing-fields"],
+        )
+        self.assertIn(
+            "category_overview_missing_member_document_ids",
+            report.issues_by_chunk_id["chunk-category-missing-members"],
+        )
+
     def test_chunk_quality_audit_report_includes_answer_ready_distribution(self) -> None:
         report = build_chunk_quality_audit_report(
             chunks=[
@@ -595,11 +703,14 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "root_unit_id": "article-condition",
                         "display_text": "1. 申请人应当品行端正。",
                         "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "parent_unit_id": "article-condition",
                         "answer_role": "eligibility_condition",
                         "content_role": "eligibility",
                         "claim_type": "condition",
                         "role_confidence": "high",
                         "is_answer_bearing": True,
+                        "condition_subject": "generic_condition",
                     },
                 },
                 {
@@ -617,6 +728,8 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "root_unit_id": "table-scholarship",
                         "display_text": "奖学金等级 | 奖励金额 | 名额\n一等奖 | 3000元 | 10人",
                         "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "parent_unit_id": "table-scholarship",
                         "answer_role": "table_fact",
                         "content_role": "table_fact",
                         "claim_type": "amount_or_quota",

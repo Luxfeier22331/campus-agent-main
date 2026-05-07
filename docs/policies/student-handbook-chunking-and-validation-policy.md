@@ -2,7 +2,7 @@
 doc_type: policy
 status: active
 created: 2026-03-25
-updated: 2026-04-03
+updated: 2026-05-07
 ---
 # `student_rules` Chunking 与 Validation 规则
 
@@ -261,12 +261,26 @@ retrieval/rerank/answer synthesis 直接使用的 answer-ready evidence。
 - `answer_role=category_overview`：由 `query-planning.json` 中 policy category registry
   生成的类别概览
 
+这些 answer-ready chunks 必须同时携带 retrieval-facing evidence contract metadata：
+
+- `evidence_contract_version=answer_ready_evidence.v1`
+- `parent_unit_id`
+- `condition_subject`，用于排名阈值、论文/发表、材料、截止时间、受众范围、处分解除限制等判断证据
+- `condition_polarity`
+- `procedure_step_index`、`procedure_actor`、`procedure_action`，以及可选
+  `procedure_materials` / `procedure_next_actor`
+- `category_id`、`category_audience`、`category_member_document_ids`、
+  `category_member_titles`
+
 语义切分不变量：
 
 - 条件组前导语不应和具体条件项合成同一个 answer-bearing chunk
 - 排名例外、不得参评、流程步骤等判断条款不应和后续“具体表现如下”示例列表合成同一个 chunk
 - 示例项可以保留父条款上下文，但不应把 sibling 示例项无差别混入同一个 answer clause
 - category/list discovery 问法应优先命中 `category_overview` / `policy_list` 证据，而不是靠窄条件条款或流程条款充当制度描述
+- `procedure_step`、`eligibility_condition`、`exception_rule`、`exclusion_rule`、
+  `example_evidence` 这类原子 answer-ready evidence 不参与相邻短正文聚合。短 chunk
+  回收不能以牺牲可直接回答的证据边界为代价。
 
 ## Header 规则
 
@@ -326,6 +340,8 @@ handbook chunk 必须带最小必要上下文，但不允许让冗长路径压�
 - 不跨 `table_unit` 聚合
 - 不跨文档聚合
 - 不因为首条存在 `preface_text` 就阻断同章相邻条文聚合
+- 不聚合原子 answer-ready evidence；相邻短文本聚合只服务低风险上下文压缩，不用于合并不同
+  evidence contract 的答案证据
 
 聚合后的文本必须保留成员可追溯性：
 
@@ -377,7 +393,12 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 - `small_unaggregated_chunk_count == 0`
 - `header_dominant_chunk_count == 0`
 - `policy_list` / `category_overview` chunk 必须带 `answer_role=category_overview`
-- `eligibility` / `exception_rule` chunk 不得同时包含“具体表现如下”等示例列表标记和多个枚举示例项
+- query-serving `student_rules` answer-ready chunks 必须通过
+  `answer_ready_evidence.v1` contract quality gate；缺 `answer_role`、
+  `parent_unit_id`、`condition_subject`、typed procedure fields 或 category member
+  metadata 时 fail closed
+- `eligibility` / `exception_rule` chunk 不得同时包含“具体表现如下”等示例列表标记和多个
+  枚举示例项
 
 因此：
 

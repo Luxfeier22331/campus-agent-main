@@ -23,6 +23,7 @@ from campus_rag_agent.remote_content_hardening import (
     should_block_remote_content_generation,
 )
 from campus_rag_agent.retrieval_adequacy import sufficient_retrieval_adequacy
+from campus_rag_agent.typed_answer_drafts import validate_typed_answer_draft
 
 from .service_clarification import _should_keep_deterministic_completed_answer
 from .service_curriculum import (
@@ -61,6 +62,7 @@ def build_grounded_answer_response(
     prompt_runtime_detail = ""
     remote_content_suspicion_summary = None
     grounding = None
+    typed_draft_claim_supports = ()
     if curriculum_program_family_plan is not None:
         answer_text = _build_curriculum_program_family_answer(
             evidence=supporting_evidence,
@@ -146,6 +148,58 @@ def build_grounded_answer_response(
                 ),
             )
         answer_text = answer_draft.answer_text
+        typed_draft_validation = validate_typed_answer_draft(answer_draft.typed_draft)
+        if typed_draft_validation.verdict == "valid":
+            typed_draft_claim_supports = typed_draft_validation.claim_supports
+        else:
+            (
+                invalid_draft_answer_text,
+                invalid_draft_prompt_trace,
+                invalid_draft_prompt_runtime_state,
+                invalid_draft_prompt_runtime_detail,
+            ) = _compose_no_answer_response(
+                request=request,
+                resolved_scope=resolved_scope,
+                evidence=finalized_evidence,
+                no_answer_reason="typed_answer_draft_invalid",
+                fallback_answer=_build_no_answer_response(
+                    finalized_evidence,
+                    resolved_policy_title=_resolved_policy_title(handbook_plan),
+                ),
+                prompt_executor=prompt_executor,
+                intent_frame=intent_frame,
+            )
+            return AgentResponse(
+                target="rag-agent",
+                status="no_answer",
+                answer_text=invalid_draft_answer_text,
+                confidence="low",
+                result=_with_prompt_trace(
+                    _build_rag_result_payload(
+                        evidence=finalized_evidence,
+                        retrieved_evidence=evidence,
+                        retrieval_execution_result=retrieval_execution_result,
+                        resolved_scope=resolved_scope,
+                        handbook_plan=handbook_plan,
+                        curriculum_plan=curriculum_plan,
+                        curriculum_course_plan=curriculum_course_plan,
+                        curriculum_program_family_plan=curriculum_program_family_plan,
+                        request_id=request.request_id,
+                        no_answer_reason="typed_answer_draft_invalid",
+                        semantic_outcome="unsupported_by_evidence",
+                        retrieval_adequacy=sufficient_retrieval_adequacy(),
+                        unsupported_fields=(typed_draft_validation.failure_reason,),
+                        grounding_verdict="unsupported",
+                        grounding_downgraded=True,
+                        remote_content_suspicion_summary=remote_content_suspicion_summary,
+                        prompt_runtime_state=invalid_draft_prompt_runtime_state,
+                        prompt_runtime_detail=invalid_draft_prompt_runtime_detail,
+                        planner_information_needs=planner_information_needs,
+                        projection_context_summaries=projection_context_summaries,
+                    ),
+                    invalid_draft_prompt_trace,
+                ),
+            )
         should_attempt_prompt_answer = (
             prompt_executor is not None
             and not _should_keep_deterministic_completed_answer(
@@ -304,7 +358,11 @@ def build_grounded_answer_response(
                 allow_session_follow_up=True,
                 semantic_outcome="grounded_answer",
                 retrieval_adequacy=sufficient_retrieval_adequacy(),
-                claim_supports=grounding.claim_supports,
+                claim_supports=(
+                    grounding.claim_supports
+                    if should_use_prompt_answer
+                    else typed_draft_claim_supports or grounding.claim_supports
+                ),
                 grounding_verdict="grounded",
                 remote_content_suspicion_summary=remote_content_suspicion_summary,
                 source_trust_summary=grounding.source_trust_summary,

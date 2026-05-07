@@ -12,11 +12,13 @@ from campus_contracts import (
     VersionQuery,
 )
 from campus_ingestion_core.version_resolution import ResolvedVersionQuery, ResolvedVersionSelection
-from campus_rag_agent.retrieval_plan import build_ordered_retrieval_plan
-from campus_rag_agent.service_retrieval import build_rag_retrieval_context, build_retrieval_plan_for_context
 from campus_rag_agent.query_planning import plan_student_handbook_query
+from campus_rag_agent.retrieval_plan import build_ordered_retrieval_plan
 from campus_rag_agent.service import delegate_to_rag_agent
-from tests.agent.rag_agent_test_support import _make_handbook_source
+from campus_rag_agent.service_retrieval import (
+    build_rag_retrieval_context,
+    build_retrieval_plan_for_context,
+)
 
 
 class RagRetrievalPlanTest(unittest.TestCase):

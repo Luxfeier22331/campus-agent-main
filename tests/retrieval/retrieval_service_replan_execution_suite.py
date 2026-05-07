@@ -553,6 +553,61 @@ class RetrievalServiceReplanExecutionTest(unittest.TestCase):
 
         self.assertEqual(observations[0]["query"], "校内宇宙签证办理处")
 
+    def test_execute_retrieval_plan_emits_answer_ready_fallback_diagnostics_for_legacy_index(
+        self,
+    ) -> None:
+        observations: list[dict[str, object]] = []
+        plan = RetrievalPlan(
+            plan_id="regulations:student_rules:legacy-contract-diagnostics",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            steps=(
+                RetrievalStep(
+                    step_id="primary",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text="处分怎么消",
+                    budget=RetrievalStepBudget(top_k=3),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(
+            plan,
+            retrieve_step=lambda request: EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(
+                    _make_source(
+                        chunk_id="legacy-discipline-procedure",
+                        snippet="学生受处分满考察期后，可以申请解除纪律处分。",
+                        content_role="procedure",
+                        is_answer_bearing=True,
+                        semantic_role="procedure_step",
+                        polarity="positive",
+                        action_type="lift_discipline",
+                        claim_type="procedure",
+                    ),
+                ),
+            ),
+            observation_sink=observations.append,
+            observation_request_id="req-legacy-contract",
+        )
+
+        self.assertTrue(result.step_results[0].activity.fallback_used)
+        self.assertEqual(result.step_results[0].activity.fallback_reason, "missing_contract")
+        self.assertIn(
+            "evidence_contract_version",
+            result.step_results[0].activity.missing_contract_fields,
+        )
+        self.assertEqual(result.step_results[0].activity.fallback_primary_signal, "public_semantic")
+        self.assertTrue(observations[0]["fallback_used"])
+        self.assertEqual(observations[0]["fallback_reason"], "missing_contract")
+        self.assertIn("answer_role", observations[0]["missing_contract_fields"])
+        self.assertEqual(observations[0]["source_index_contract_version"], "")
+        self.assertEqual(observations[0]["fallback_primary_signal"], "public_semantic")
+
     def test_jsonl_observation_sink_appends_one_json_object_per_line(self) -> None:
         with TemporaryDirectory() as temp_dir:
             output_path = Path(temp_dir) / "runtime-observations.jsonl"

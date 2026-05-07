@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-02
+updated: 2026-05-07
 ---
 # Retrieval Serving Architecture
 
@@ -65,8 +65,8 @@ truth。
 - dense + sparse hybrid retrieval step
 - registry-backed evidence
 - multi-step execution / merge / dedupe
-- 对 resolved specific policy lookup，允许在 admitted document 内执行 broad lookup + focused lookup
-  的文档内多步检索
+- 对 resolved specific policy lookup，允许在 admitted document 内执行 broad lookup +
+  focused lookup 的文档内多步检索
 - evidence bundle 回链
 - agent 可以在 `curriculum_plan` 选中 scope 下内部切到
   `course_facts`、`program_family_facts`、`program_semester_facts`；selected scope
@@ -222,6 +222,12 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - alias publish 前的 chunk quality gate；缺 traceability metadata、超过当前
   collection/profile chunk token budget、出现不可直接 query-serving 的 attachment-ref chunk
   或 regulation heading-only chunk 时，query-serving publish fail closed
+- 对 query-serving `regulations/student_rules` release，chunk quality gate 同时要求
+  answer-ready evidence contract 通过。缺少 `answer_role`、`parent_unit_id`、
+  `evidence_contract_version`、judgment evidence 的 `condition_subject`、procedure
+  evidence 的 typed step fields、category overview 的 member ids / titles 时，
+  release admission 必须 fail closed，并在 release manifest / quality summary 中记录
+  `answer_ready_contract_status`
 - alias publish 前的 qrels coverage gate；默认 query-enabled scope 必须有 declared scenario
   denominator，缺 fixture、缺 required class 或缺 required scenario 都 fail closed
 - release manifest / point payload 中的 dense、sparse、hybrid、chunk、cleaning、

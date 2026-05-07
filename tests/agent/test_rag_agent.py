@@ -1,7 +1,7 @@
 import unittest
 
-from tests.agent.rag_agent_answer_quality_regression_suite import *
 from tests.agent.rag_agent_answer_grounding_suite import *
+from tests.agent.rag_agent_answer_quality_regression_suite import *
 from tests.agent.rag_agent_clarification_versioning_suite import *
 from tests.agent.rag_agent_curriculum_family_facts_suite import *
 from tests.agent.rag_agent_curriculum_planning_suite import *

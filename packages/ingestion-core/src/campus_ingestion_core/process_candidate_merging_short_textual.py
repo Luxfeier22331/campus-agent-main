@@ -26,6 +26,7 @@ from campus_ingestion_core.process_shared import (
     _SHORT_TEXTUAL_MAX_MEMBER_COUNT,
     _ChunkCandidate,
 )
+from campus_ingestion_core.regulation_answer_roles import decide_answer_role, is_answer_role_atomic
 
 _NESTED_NUMBERED_LINE_RE = re.compile(
     r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])"
@@ -196,10 +197,33 @@ def short_textual_candidates_are_compatible(
             return False
     elif not short_textual_section_paths_are_compatible(current=current, incoming=incoming):
         return False
+    if answer_ready_atomic_roles_conflict(current=current, incoming=incoming):
+        return False
     for field_name in ("title", "policy_doc_no"):
         if current.metadata.get(field_name) != incoming.metadata.get(field_name):
             return False
     return True
+
+
+def answer_ready_atomic_roles_conflict(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+) -> bool:
+    current_role = candidate_answer_role(current)
+    incoming_role = candidate_answer_role(incoming)
+    return is_answer_role_atomic(current_role) or is_answer_role_atomic(incoming_role)
+
+
+def candidate_answer_role(candidate: _ChunkCandidate) -> str:
+    for value in (
+        candidate.metadata.get("answer_role"),
+        candidate.piece.metadata.get("answer_role"),
+    ):
+        role = str(value or "").strip()
+        if role:
+            return role
+    return str(decide_answer_role(text=candidate.piece.text).get("answer_role") or "").strip()
 
 
 def policy_page_label_shape_conflicts(
@@ -313,6 +337,8 @@ def is_absorbable_short_textual_candidate(candidate: _ChunkCandidate) -> bool:
 __all__ = [
     "_NESTED_NUMBERED_LINE_RE",
     "absorb_short_textual_candidates",
+    "answer_ready_atomic_roles_conflict",
+    "candidate_answer_role",
     "candidate_contains_nested_numbered_items",
     "candidate_has_explicit_member_label",
     "institutional_regulation_block_section_paths_are_compatible",

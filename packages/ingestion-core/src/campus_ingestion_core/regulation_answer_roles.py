@@ -100,12 +100,17 @@ def decide_answer_role(
         return _role("exclusion_rule", "high", "matched_exclusion_marker")
     if _is_procedure_step(text=text_only, context=context):
         return _role("procedure_step", "high", "matched_procedure_marker")
+    if _is_example_evidence(text_only):
+        return _role("example_evidence", "high", "matched_example_evidence_marker")
     if any(marker in text_only for marker in registry.exception_markers) or (
         "超出" in text_only and "但" in text_only
     ):
         return _role("exception_rule", "high", "matched_exception_marker")
     if any(marker in context for marker in registry.eligibility_markers):
-        if any(marker in text_only for marker in registry.example_list_markers) and "条件" not in text_only:
+        if (
+            any(marker in text_only for marker in registry.example_list_markers)
+            and "条件" not in text_only
+        ):
             return _role("eligibility_intro", "medium", "matched_example_intro_marker")
         return _role("eligibility_condition", "medium", "matched_eligibility_marker")
     return _role("supporting_detail", "low", "no_answer_ready_marker")
@@ -167,6 +172,12 @@ def _is_procedure_step(*, text: str, context: str) -> bool:
         return True
     return any(marker in context for marker in registry.procedure_context_markers) and any(
         marker in text for marker in registry.procedure_contextual_action_markers
+    )
+
+
+def _is_example_evidence(text: str) -> bool:
+    return "取得显著成绩" in text and any(
+        marker in text for marker in ("学术研究", "发表", "专利", "竞赛", "文艺比赛", "体育竞赛")
     )
 
 

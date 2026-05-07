@@ -3,14 +3,13 @@ from __future__ import annotations
 import unittest
 
 from campus_contracts import AgentRequest, KnowledgeScope, RagRequestPayload, VersionQuery
-from campus_rag_agent.service_retrieval import (
-    build_rag_retrieval_context,
-    build_retrieval_plan_for_context,
-)
-
 from campus_rag_agent.institutional_rules_query_planning import (
     public_service_document_ids,
     staff_governance_document_ids,
+)
+from campus_rag_agent.service_retrieval import (
+    build_rag_retrieval_context,
+    build_retrieval_plan_for_context,
 )
 
 

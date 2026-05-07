@@ -290,6 +290,13 @@ class HandbookChunkingPipelineTest(unittest.TestCase):
         self.assertEqual(len(rank_exception_chunks), 1)
         rank_exception = rank_exception_chunks[0]
         self.assertEqual(rank_exception.metadata["answer_role"], "exception_rule")
+        self.assertEqual(rank_exception.metadata["condition_subject"], "rank_threshold")
+        self.assertEqual(rank_exception.metadata["condition_polarity"], "positive")
+        self.assertEqual(rank_exception.metadata["parent_unit_id"], "article-009")
+        self.assertEqual(
+            rank_exception.metadata["evidence_contract_version"],
+            "answer_ready_evidence.v1",
+        )
         self.assertEqual(rank_exception.metadata["content_role"], "eligibility")
         self.assertNotIn("在学术研究上", rank_exception.metadata["display_text"])
         self.assertNotIn("在体育竞赛中", rank_exception.metadata["display_text"])
@@ -302,6 +309,8 @@ class HandbookChunkingPipelineTest(unittest.TestCase):
         self.assertEqual(len(paper_chunks), 1)
         paper_chunk = paper_chunks[0]
         self.assertEqual(paper_chunk.metadata["answer_role"], "example_evidence")
+        self.assertEqual(paper_chunk.metadata["condition_subject"], "paper_or_publication")
+        self.assertEqual(paper_chunk.metadata["parent_unit_id"], "article-009")
         self.assertEqual(paper_chunk.metadata["provision_label"], "2.")
         self.assertNotIn("在体育竞赛中", paper_chunk.metadata["display_text"])
 
@@ -337,6 +346,17 @@ class HandbookChunkingPipelineTest(unittest.TestCase):
         self.assertEqual(overview.metadata["unit_type"], "category_overview")
         self.assertEqual(overview.metadata["content_role"], "policy_list")
         self.assertEqual(overview.metadata["category_id"], "scholarship")
+        self.assertEqual(overview.metadata["answer_role"], "category_overview")
+        self.assertEqual(overview.metadata["category_audience"], "本科生")
+        self.assertEqual(
+            overview.metadata["parent_unit_id"],
+            f"{document_id}:category-overview:scholarship",
+        )
+        self.assertEqual(
+            overview.metadata["evidence_contract_version"],
+            "answer_ready_evidence.v1",
+        )
+        self.assertGreaterEqual(len(overview.metadata["category_member_document_ids"]), 5)
         self.assertIn("本科生奖学金相关制度", overview.metadata["display_text"])
         self.assertIn("中央民族大学本科学生国家奖学金评审办法", overview.metadata["display_text"])
         self.assertIn(
@@ -495,6 +515,15 @@ class HandbookChunkingPipelineTest(unittest.TestCase):
         )
         self.assertTrue(
             all(chunk.metadata["content_role"] == "procedure" for chunk in procedure_chunks)
+        )
+        self.assertEqual(tuple(chunk.metadata["procedure_step_index"] for chunk in procedure_chunks), (1, 2))
+        self.assertTrue(all(chunk.metadata["procedure_actor"] for chunk in procedure_chunks))
+        self.assertTrue(all(chunk.metadata["procedure_action"] for chunk in procedure_chunks))
+        self.assertTrue(
+            all(
+                chunk.metadata["evidence_contract_version"] == "answer_ready_evidence.v1"
+                for chunk in procedure_chunks
+            )
         )
 
     def test_student_rules_procedure_intro_segment_uses_procedure_role(

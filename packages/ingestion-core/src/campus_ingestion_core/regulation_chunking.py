@@ -13,6 +13,7 @@ from campus_ingestion_core.chunking import (
     clean_structured_text,
     resolve_display_budget,
 )
+from campus_ingestion_core.chunking_context import resolve_display_budget as resolve_context_budget
 from campus_ingestion_core.process_shared import StructuredUnit
 from campus_ingestion_core.regulation_answer_roles import (
     build_answer_role_metadata,
@@ -502,17 +503,23 @@ def _segments_to_pieces(
     expanded_segments: list[_RegulationSegment] = []
     fallback_profile = _without_overlap(chunk_profile)
     for segment in segments:
-        if chunk_profile.count_tokens(segment.text) <= chunk_profile.max_chunk_size:
+        segment_unit = StructuredUnitChunkInput(
+            unit_type=unit.unit_type,
+            root_unit_id=unit.root_unit_id,
+            text=segment.text,
+            anchor={**dict(unit.anchor), **segment.anchor},
+            metadata={**dict(unit.metadata), **segment.metadata},
+        )
+        display_budget = (
+            resolve_context_budget(unit=segment_unit, chunk_profile=chunk_profile)
+            if _requires_context_aware_segment_budget(unit=unit)
+            else chunk_profile.resolve_display_budget()
+        )
+        if chunk_profile.count_tokens(segment.text) <= display_budget.max_tokens:
             expanded_segments.append(segment)
             continue
         fallback_pieces = chunk_structured_unit(
-            unit=StructuredUnitChunkInput(
-                unit_type=unit.unit_type,
-                root_unit_id=unit.root_unit_id,
-                text=segment.text,
-                anchor={**dict(unit.anchor), **segment.anchor},
-                metadata={**dict(unit.metadata), **segment.metadata},
-            ),
+            unit=segment_unit,
             chunk_profile=fallback_profile,
         )
         expanded_segments.extend(
@@ -540,6 +547,14 @@ def _segments_to_pieces(
             metadata=segment.metadata,
         )
         for index, segment in enumerate(expanded_segments, start=1)
+    )
+
+
+def _requires_context_aware_segment_budget(*, unit: StructuredUnit) -> bool:
+    return (
+        str(unit.metadata.get("source_channel") or "").strip() == "official_web"
+        and str(unit.metadata.get("page_family") or "").strip() in {"article_detail"}
+        and str(unit.metadata.get("promotion_class") or "").strip() == "formal_regulation"
     )
 
 

@@ -210,6 +210,11 @@ class RetrievalStepActivity:
     failure_kind: RetrievalFailureKind | str | None = None
     reranker_degraded: bool = False
     reranker_failure_kind: str = ""
+    fallback_used: bool = False
+    fallback_reason: str = ""
+    missing_contract_fields: tuple[str, ...] = field(default_factory=tuple)
+    source_index_contract_version: str = ""
+    fallback_primary_signal: str = ""
 
     def __post_init__(self) -> None:
         if not self.step_id.strip():
@@ -235,6 +240,15 @@ class RetrievalStepActivity:
             and self.failure_kind not in ALLOWED_RETRIEVAL_FAILURE_KINDS
         ):
             raise ValueError(f"unsupported retrieval failure kind: {self.failure_kind}")
+        normalized_missing_contract_fields = _normalize_non_empty_string_tuple(
+            self.missing_contract_fields
+        )
+        if normalized_missing_contract_fields != self.missing_contract_fields:
+            object.__setattr__(
+                self,
+                "missing_contract_fields",
+                normalized_missing_contract_fields,
+            )
 
 
 @dataclass(frozen=True, slots=True)

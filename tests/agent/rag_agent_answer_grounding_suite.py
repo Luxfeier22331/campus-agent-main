@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from dataclasses import replace
+
+from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
+
 from tests.agent.rag_agent_test_support import (
     ActorContext,
     AgentRequest,
@@ -164,6 +168,73 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
         self.assertEqual(result_guardrail["retrieval_adequacy_verdict"], "sufficient")
         self.assertEqual(result_guardrail["grounding_verdict"], "grounded")
         self.assertEqual(result_guardrail["source_ref_count"], 2)
+
+    def test_completed_response_projects_typed_draft_support_into_claim_evidence_graph(
+        self,
+    ) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:demerit-relief",
+            title="中央民族大学解除学生纪律处分实施办法",
+            snippet="学生受处分满考察期后，可以提交解除处分申请表，经学院审核后报学生处。",
+            score=0.86,
+            chunk_id_suffix="discipline-procedure",
+            content_role="procedure",
+            is_answer_bearing=True,
+            semantic_role="procedure_step",
+            polarity="positive",
+            action_type="lift_discipline",
+            claim_type="procedure",
+        )
+        source = replace(
+            source,
+            anchor={
+                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                    "answer_role": "procedure_step",
+                    "evidence_contract_version": "answer_ready_evidence.v1",
+                    "parent_unit_id": "handbook:demerit-relief:article-3",
+                    "procedure_step_index": 1,
+                    "procedure_actor": "student",
+                    "procedure_action": "apply_lift_discipline",
+                    "procedure_materials": ("解除处分申请表",),
+                    "procedure_next_actor": "college",
+                    "polarity": "positive",
+                    "action_type": "lift_discipline",
+                    "claim_type": "procedure",
+                }
+            },
+        )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="处分怎么消",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=lambda query, **kwargs: EvidenceBundle(
+                query_text=query,
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            ),
+        )
+
+        self.assertEqual(response.status, "completed")
+        assert response.result.diagnostics is not None
+        self.assertIn(
+            "procedure_step",
+            tuple(support.claim_type for support in response.result.diagnostics.claim_supports),
+        )
+        self.assertTrue(response.result.diagnostics.claim_evidence_graph)
+        self.assertEqual(
+            response.result.diagnostics.claim_evidence_graph[0].support_source_doc_ids,
+            (source.doc_id,),
+        )
+        self.assertEqual(
+            response.result.diagnostics.claim_evidence_graph[0].support_chunk_ids,
+            (source.chunk_id,),
+        )
 
     def test_delegate_passes_context_authorization_filter_to_retriever(self) -> None:
         captured_kwargs: dict[str, object] = {}

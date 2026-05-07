@@ -229,9 +229,12 @@ def _apply_no_hit_policy(
         if _has_institutional_rule_title_support(query_text=query_text, sources=sources):
             return sources
         return ()
-    if _is_student_rules_profile(profile) and _is_student_rule_title_intent_query(query_text):
-        if _has_student_rule_title_support(query_text=query_text, sources=sources):
-            return sources
+    if (
+        _is_student_rules_profile(profile)
+        and _is_student_rule_title_intent_query(query_text)
+        and _has_student_rule_title_support(query_text=query_text, sources=sources)
+    ):
+        return sources
     if _has_query_lexical_support(
         query_text=query_text,
         snippets=tuple(source.snippet for source in sources),

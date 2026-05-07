@@ -17,6 +17,9 @@ from campus_ingestion_core.process_candidate_merging import (
 )
 from campus_ingestion_core.process_loading import build_collection_lane_chunk_profile
 from campus_ingestion_core.process_shared import StructuredUnit, _ChunkCandidate, _ChunkMember
+from campus_ingestion_core.regulation_evidence_contract import (
+    build_category_overview_contract_metadata,
+)
 from campus_ingestion_core.regulation_semantics import build_category_overview_metadata
 
 
@@ -70,9 +73,17 @@ def build_student_rules_category_overview_candidate(
     display_text = str(overview["display_text"])
     anchor = dict(overview["anchor"])
     metadata = dict(overview["metadata"])
+    category_id = str(metadata["category_id"])
+    parent_unit_id = f"{record.document_id}:category-overview:{category_id}"
+    metadata.update(
+        build_category_overview_contract_metadata(
+            category_id=category_id,
+            parent_unit_id=parent_unit_id,
+        )
+    )
     piece = SemanticChunkPiece(
         unit_type="category_overview",
-        root_unit_id=f"{record.document_id}:category-overview:{metadata['category_id']}",
+        root_unit_id=parent_unit_id,
         text=display_text,
         split_reason="registry_category_overview",
         boundary_rule="regulation_policy_category_registry",

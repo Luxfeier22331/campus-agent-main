@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-19
-updated: 2026-05-05
+updated: 2026-05-07
 ---
 
 <!-- markdownlint-disable MD013 MD060 -->
@@ -46,13 +46,14 @@ updated: 2026-05-05
 
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
-| `answer-ready evidence contract closeout` | `answer-ready-evidence-contract-closeout` | `yes` | `.planning/workstreams/answer-ready-evidence-contract-closeout/README.md` | `Phase 0 planned` | 新建 answer-ready evidence metadata contract 清理线；范围限定 ingestion/retrieval/rag-agent/evals，不重开 supervisor、SDK loop、freshness/live 或新 query surface |
 | `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5B blocked` | `Phase 1-5A`、Phase 6 workflow trace runtime gate、Phase 7 observed regression review workflow 与 Phase 8-13 deterministic eval seams 已完成；RAG-only coverage/audit 已收口为 `student_rules`、`institutional_rules`、`curriculum_plan`、`official_web/stable_reference`，`fresh_news` 不计入当前 RAG eval；RAG minimum gate 与 maturity gate 均通过，`student_rules` 为 45 qrels / 39 unique docs / 25 release acceptance，`curriculum_plan` 为 60 qrels / 49 unique docs / 30 release acceptance；5B repo-wide accepted golden expansion 仍因 domain 数据补全阻塞；当前没有独立编号的 Phase 14，Total Phases=14 来自 Phase 5A/5B 拆分 |
 
 ## Completed
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
+| `answer-ready evidence contract closeout` | `answer-ready-evidence-contract-closeout` | `yes` | `.planning/workstreams/answer-ready-evidence-contract-closeout/README.md` | 只有在 query-serving `student_rules` answer-ready chunks 再次缺少 `answer_role` / `condition_subject` / `parent_unit_id` / `evidence_contract_version`、procedure typed fields、category overview member metadata，ranking/selection 回退到 text-cue primary path，release admission 不再 fail closed，或 component eval 无法归因 intent/retrieval/ranking/selection/draft/grounding/chunk-contract failure 时恢复 |
+| `academic calendar campus services consolidation` | `academic-calendar-campus-services-consolidation` | `yes` | `.planning/workstreams/academic-calendar-campus-services-consolidation/README.md` | 只有在 `calendar-agent` 被重新提出为 active runtime agent、`academic_calendar_lookup` owner/capability 漂移出 `campus-services-agent` / `campus_services`、standalone `requested_capability=academic_calendar` 或 `SUPERVISOR_API_OPEN_CAPABILITIES=academic_calendar` 被重新 admission，或 `calendar/academic_calendar` data-plane truth 与 campus-services runtime ownership 边界发生漂移时恢复 |
 | `agentic retrieval runtime completion` | `agentic-retrieval-runtime-completion` | `yes` | `.planning/workstreams/agentic-retrieval-runtime-completion/README.md` | 只有在 planner decision truth 再次退化为诊断摘要、非 live typed retrieval steps 退回 unsupported/opaque execution、semantic replan 可扩大 scope/selector/budget 或切 live branch、projection context 泄漏 raw payload 或无法归因到 planning framing、claim/evidence gate 不再约束 completed answer，或 eval 无法区分 planner/step graph/replan/claim graph 失败时恢复 |
 | `authenticated notice fetch admission operator wiring` | `authenticated-notice-fetch-admission-operator-wiring` | `yes` | `.planning/workstreams/authenticated-notice-fetch-admission-operator-wiring/README.md` | 只有在 authenticated-notice attachment fetch admission、target-blocking media lifecycle、closeout provenance、cleanup protection、search-only vs target-admission split，或 captured-content state-machine acceptance evidence 漂移时恢复；fresh collector smoke 仅作为 auth 可用后的 manifest-consumption proof |
 | `campus agentic RAG depth completion` | `campus-agentic-rag-depth-completion` | `yes` | `.planning/workstreams/campus-agentic-rag-depth-completion/README.md` | 只有在 planner decomposition 再次不可观测、projection context evidence use 无法审计、replan 原因不可归因、claim/evidence graph 缺失，或 eval 无法区分 decomposition/replan/claim graph 失败时恢复 |

@@ -123,6 +123,12 @@ def build_retrieval_observation(
     if activity.reranker_degraded:
         observation["reranker_degraded"] = True
         observation["reranker_failure_kind"] = activity.reranker_failure_kind
+    if activity.fallback_used:
+        observation["fallback_used"] = True
+        observation["fallback_reason"] = activity.fallback_reason
+        observation["missing_contract_fields"] = activity.missing_contract_fields
+        observation["source_index_contract_version"] = activity.source_index_contract_version
+        observation["fallback_primary_signal"] = activity.fallback_primary_signal
     return observation
 
 

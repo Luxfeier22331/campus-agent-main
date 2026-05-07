@@ -13,7 +13,7 @@ from campus_ingestion_core.object_store import build_operations_artifact_key
 
 REGULATION_RAG_RELEASE_ADMISSION_SCHEMA_VERSION = "regulation_rag_release_admission.v1"
 REGULATION_RAG_RELEASE_ADMISSION_POLICY_VERSION = (
-    "regulation_rag_release_admission_policy.v1"
+    "regulation_rag_release_admission_policy.v2"
 )
 REGULATION_RAG_RELEASE_ADMISSION_OPERATION = "regulation-rag-release-admission"
 REGULATION_RAG_RELEASE_ADMISSION_MANIFEST_ENV_KEY = (
@@ -72,6 +72,7 @@ class RegulationRagReleaseAdmissionManifest:
         default_factory=tuple
     )
     chunk_quality_status: str = "passed"
+    answer_ready_contract_status: str = "passed"
     qrels_coverage_status: str = "passed"
     reader_publish_status: str = "passed"
     authz_denial_check_status: str = "passed"
@@ -171,6 +172,7 @@ def build_regulation_rag_release_admission_manifest(
     runtime_profile: CollectionRuntimeProfile,
     preparation_manifest: object,
     admitted_at: str | None = None,
+    answer_ready_contract_status: str = "passed",
     notes: Sequence[str] = (),
 ) -> RegulationRagReleaseAdmissionManifest:
     documents = _expected_document_refs(
@@ -191,6 +193,7 @@ def build_regulation_rag_release_admission_manifest(
         runtime_profile_identity=build_regulation_rag_runtime_profile_identity(runtime_profile),
         document_count=len(documents),
         documents=documents,
+        answer_ready_contract_status=answer_ready_contract_status,
         notes=tuple(str(item) for item in notes if str(item).strip()),
     )
 
@@ -345,6 +348,7 @@ def _manifest_shape_issues(
         issues.append(f"admission_status_not_passed:{manifest.admission_status}")
     for field_name in (
         "chunk_quality_status",
+        "answer_ready_contract_status",
         "qrels_coverage_status",
         "reader_publish_status",
         "authz_denial_check_status",
@@ -456,6 +460,7 @@ def _manifest_from_payload(payload: Mapping[str, object]) -> RegulationRagReleas
             if isinstance(item, Mapping)
         ),
         chunk_quality_status=str(payload.get("chunk_quality_status") or ""),
+        answer_ready_contract_status=str(payload.get("answer_ready_contract_status") or ""),
         qrels_coverage_status=str(payload.get("qrels_coverage_status") or ""),
         reader_publish_status=str(payload.get("reader_publish_status") or ""),
         authz_denial_check_status=str(payload.get("authz_denial_check_status") or ""),

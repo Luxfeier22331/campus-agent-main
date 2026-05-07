@@ -404,8 +404,17 @@ def publish_scope_release(
             validation_summary=validation.summary,
             quality_gate_summary=quality_gate.summary,
         )
+        answer_ready_status = str(
+            quality_gate.summary.get("answer_ready_contract_status") or ""
+        )
+        answer_ready_suffix = (
+            f" answer_ready_contract_status={answer_ready_status}"
+            if answer_ready_status and answer_ready_status != "passed"
+            else ""
+        )
         raise ValueError(
-            f"release quality gate failed for {corpus}/{collection}: {quality_gate.summary}"
+            f"release quality gate failed for {corpus}/{collection}: "
+            f"{quality_gate.summary}{answer_ready_suffix}"
         )
     release_metadata = build_release_metadata_payload(
         manifest=prepublish_manifest,

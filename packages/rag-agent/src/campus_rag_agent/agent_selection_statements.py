@@ -334,11 +334,11 @@ def _statement_mentions_top_ten_requirement(normalized_statement: str) -> bool:
 __all__ = [
     "_ACADEMIC_YEARS_FACT_RE",
     "_ACTION_STATEMENT_HINTS",
-    "_is_generic_intro_statement",
     "_LEADING_ENUM_RE",
     "_TIME_STATEMENT_HINTS",
     "_candidate_source_statements",
     "_extract_source_statements",
+    "_is_generic_intro_statement",
     "_rank_source_statements",
     "_score_source_statements",
     "_score_statement",

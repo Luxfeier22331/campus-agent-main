@@ -99,11 +99,11 @@ def _compose_category_discovery_list_answer(
     category = _normalize_snippet(category_display_name) or "相关"
     audience_prefix = f"{_normalize_snippet(audience)}" if audience else ""
     return finalize_answer_text(
-        (
+
             f"当前已收录依据中，{audience_prefix}{category}相关制度包括："
             + "；".join(items)
             + "。是否可申请、申请时间和名额以当年通知/学院细则为准。"
-        )
+
     )
 
 

@@ -1,0 +1,136 @@
+from __future__ import annotations
+
+import unittest
+
+from campus_contracts import EvidenceSource
+from campus_retrieval_core.backend_qdrant_evidence import build_evidence_sources
+from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
+from qdrant_client.http import models as qdrant_models
+
+from tests.retrieval.backend_qdrant_test_support import (
+    InMemoryDocumentRegistry,
+    Mock,
+    MockEmbeddingSettings,
+    MockSparseEmbeddingSettings,
+    QdrantRetrievalBackend,
+    RetrievalSettings,
+    build_mock_embedding_model,
+    build_mock_sparse_embedding_model,
+)
+
+
+def _make_source(
+    *,
+    semantic_role: str = "",
+    polarity: str = "",
+    action_type: str = "",
+    claim_type: str = "",
+    anchor: dict[str, object] | None = None,
+) -> EvidenceSource:
+    return EvidenceSource(
+        doc_id="handbook:demerit-relief",
+        revision_track="source-faithful",
+        version_id="v1",
+        chunk_id="chunk-1",
+        anchor=anchor or {},
+        canonical_url="https://campus.example/rules",
+        latest_url="https://campus.example/rules",
+        source_channel="pdf_ocr",
+        collection="student_rules",
+        is_current=True,
+        snippet="学生受处分满考察期后，可以申请解除纪律处分。",
+        score=0.7,
+        semantic_role=semantic_role,
+        polarity=polarity,
+        action_type=action_type,
+        claim_type=claim_type,
+        is_answer_bearing=True,
+    )
+
+
+class EvidenceAttributesTest(unittest.TestCase):
+    def test_old_public_evidence_source_remains_readable_with_legacy_fallbacks(self) -> None:
+        source = _make_source(
+            semantic_role="procedure_step",
+            polarity="positive",
+            action_type="lift_discipline",
+            claim_type="procedure",
+        )
+
+        attributes = evidence_attributes_for_source(source)
+
+        self.assertEqual(attributes.answer_role, "procedure_step")
+        self.assertEqual(attributes.polarity, "positive")
+        self.assertEqual(attributes.action_type, "lift_discipline")
+        self.assertEqual(attributes.claim_type, "procedure")
+        self.assertIn("evidence_contract_version", attributes.missing_contract_fields)
+
+    def test_qdrant_payload_projects_answer_ready_metadata_to_internal_accessor(self) -> None:
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=InMemoryDocumentRegistry(),
+            qdrant_client=Mock(),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+            sparse_embedding_model=build_mock_sparse_embedding_model(MockSparseEmbeddingSettings()),
+        )
+
+        sources = build_evidence_sources(
+            backend,
+            (
+                qdrant_models.ScoredPoint(
+                    id="point-discipline-procedure",
+                    version=0,
+                    score=0.83,
+                    payload={
+                        "document_id": "handbook:demerit-relief",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:demerit-relief",
+                        "chunk_id": "discipline-positive-procedure",
+                        "collection": "student_rules",
+                        "canonical_url": "https://campus.example/handbook/demerit-relief",
+                        "latest_url": "https://campus.example/handbook/demerit-relief",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "title": "中央民族大学解除学生纪律处分实施办法",
+                        "unit_type": "article_body",
+                        "content_role": "procedure",
+                        "is_answer_bearing": True,
+                        "answer_role": "procedure_step",
+                        "condition_subject": "discipline_relief_condition",
+                        "parent_unit_id": "handbook:demerit-relief:article-3",
+                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "procedure_step_index": 1,
+                        "procedure_actor": "student",
+                        "procedure_action": "apply_lift_discipline",
+                        "procedure_materials": ["解除处分申请表"],
+                        "procedure_next_actor": "college",
+                        "semantic_role": "procedure_step",
+                        "polarity": "positive",
+                        "action_type": "lift_discipline",
+                        "claim_type": "procedure",
+                        "anchor": {"section_path": ["解除处分"], "article_label": "第三条"},
+                        "text": "学生受处分满考察期后，可以提交解除处分申请表。",
+                    },
+                ),
+            ),
+        )
+
+        attributes = evidence_attributes_for_source(sources[0])
+
+        self.assertEqual(attributes.answer_role, "procedure_step")
+        self.assertEqual(attributes.condition_subject, "discipline_relief_condition")
+        self.assertEqual(attributes.parent_unit_id, "handbook:demerit-relief:article-3")
+        self.assertEqual(attributes.evidence_contract_version, "answer_ready_evidence.v1")
+        self.assertEqual(attributes.procedure.step_index, 1)
+        self.assertEqual(attributes.procedure.actor, "student")
+        self.assertEqual(attributes.procedure.action, "apply_lift_discipline")
+        self.assertEqual(attributes.procedure.materials, ("解除处分申请表",))
+        self.assertEqual(attributes.procedure.next_actor, "college")
+        self.assertEqual(attributes.missing_contract_fields, ())
+
+
+if __name__ == "__main__":
+    unittest.main()

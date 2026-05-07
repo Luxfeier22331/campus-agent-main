@@ -35,6 +35,10 @@ from campus_retrieval_core.backend_qdrant_source_metadata import (
     _resolve_source_unit_key,
     _resolve_source_unit_kind,
 )
+from campus_retrieval_core.evidence_attributes import (
+    INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY,
+    build_internal_evidence_attribute_payload,
+)
 
 DEFAULT_LATEST_REVISION_TRACKS = ("current-effective", "editorial", "source-faithful")
 
@@ -89,6 +93,12 @@ def build_evidence_sources(
             if is_current is None:
                 is_current = record.is_current
         source_title = _resolve_source_title(metadata, document_id=document_id, anchor=anchor)
+        internal_evidence_attributes = build_internal_evidence_attribute_payload(metadata)
+        if internal_evidence_attributes:
+            anchor = {
+                **anchor,
+                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: internal_evidence_attributes,
+            }
         sources.append(
             EvidenceSource(
                 doc_id=document_id,

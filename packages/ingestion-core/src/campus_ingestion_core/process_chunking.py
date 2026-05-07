@@ -55,6 +55,9 @@ from campus_ingestion_core.process_shared import (
     _CollectionChunkStrategy,
 )
 from campus_ingestion_core.regulation_chunk_quality import should_skip_regulation_structural_unit
+from campus_ingestion_core.regulation_evidence_contract import (
+    build_answer_ready_contract_metadata,
+)
 from campus_ingestion_core.sparse import SparseEmbeddingModel
 
 _DEFAULT_COLLECTION_CHUNK_STRATEGY = _CollectionChunkStrategy(
@@ -198,6 +201,44 @@ def build_indexable_chunks_from_jsonl(
             unit_visibility_level=candidate.visibility_level,
             document_entitlement_groups=document_entitlement_groups,
         )
+        semantic_metadata = build_collection_semantic_metadata(
+            record=record,
+            unit_type=candidate.piece.unit_type,
+            anchor=candidate.anchor,
+            metadata=candidate.metadata,
+            text=candidate.piece.text,
+        )
+        anchor_release_metadata = build_anchor_release_metadata(candidate.anchor)
+        table_release_metadata = build_table_release_metadata(candidate.metadata)
+        metadata = {
+            "unit_type": candidate.piece.unit_type,
+            "root_unit_id": candidate.piece.root_unit_id,
+            "segment_index": _resolve_final_segment_value(candidate, "segment_index"),
+            "segment_total": _resolve_final_segment_value(candidate, "segment_total"),
+            "split_reason": candidate.piece.split_reason,
+            "boundary_rule": candidate.piece.boundary_rule,
+            "strategy_name": runtime_profile.strategy_name,
+            "split_strategy": runtime_profile.split_strategy,
+            "chunk_policy_version": runtime_profile.chunk_policy_version,
+            "cleaning_policy_version": runtime_profile.cleaning_policy_version,
+            **candidate.metadata,
+            "display_text": candidate.piece.text,
+            "contextualized_text": candidate.chunk_assembly.header_token_count > 0,
+            "header_mode": candidate.chunk_assembly.header_mode,
+            "header_token_count": candidate.chunk_assembly.header_token_count,
+            "display_token_count": candidate.chunk_assembly.display_token_count,
+            "final_token_count": candidate.chunk_assembly.total_token_count,
+            **anchor_release_metadata,
+            **semantic_metadata,
+            **table_release_metadata,
+        }
+        metadata.update(
+            build_answer_ready_contract_metadata(
+                text=candidate.piece.text,
+                metadata=metadata,
+                root_unit_id=candidate.piece.root_unit_id,
+            )
+        )
         chunks.append(
             IndexableChunk(
                 document_id=record.document_id,
@@ -226,33 +267,7 @@ def build_indexable_chunks_from_jsonl(
                 visibility_level=effective_visibility_level,
                 policy_projection_version=record.policy_projection_version,
                 embedding=embedding,
-                metadata={
-                    "unit_type": candidate.piece.unit_type,
-                    "root_unit_id": candidate.piece.root_unit_id,
-                    "segment_index": _resolve_final_segment_value(candidate, "segment_index"),
-                    "segment_total": _resolve_final_segment_value(candidate, "segment_total"),
-                    "split_reason": candidate.piece.split_reason,
-                    "boundary_rule": candidate.piece.boundary_rule,
-                    "strategy_name": runtime_profile.strategy_name,
-                    "split_strategy": runtime_profile.split_strategy,
-                    "chunk_policy_version": runtime_profile.chunk_policy_version,
-                    "cleaning_policy_version": runtime_profile.cleaning_policy_version,
-                    **candidate.metadata,
-                    "display_text": candidate.piece.text,
-                    "contextualized_text": candidate.chunk_assembly.header_token_count > 0,
-                    "header_mode": candidate.chunk_assembly.header_mode,
-                    "header_token_count": candidate.chunk_assembly.header_token_count,
-                    "display_token_count": candidate.chunk_assembly.display_token_count,
-                    "final_token_count": candidate.chunk_assembly.total_token_count,
-                    **build_collection_semantic_metadata(
-                        record=record,
-                        unit_type=candidate.piece.unit_type,
-                        anchor=candidate.anchor,
-                        metadata=candidate.metadata,
-                        text=candidate.piece.text,
-                    ),
-                    **build_table_release_metadata(candidate.metadata),
-                },
+                metadata=metadata,
             )
         )
     return tuple(chunks)
@@ -356,6 +371,15 @@ def build_chunk_text(
         context_plan=runtime_context_plan,
         chunk_profile=chunk_profile,
     )
+
+
+def build_anchor_release_metadata(anchor: dict[str, object]) -> dict[str, object]:
+    release_metadata: dict[str, object] = {}
+    for field_name in ("article_label", "provision_label"):
+        value = anchor.get(field_name)
+        if isinstance(value, str) and value.strip():
+            release_metadata[field_name] = value.strip()
+    return release_metadata
 
 
 def embed_text(text: str, embedding_model: BaseEmbedding | None) -> tuple[float, ...] | None:

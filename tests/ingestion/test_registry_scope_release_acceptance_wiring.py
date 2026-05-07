@@ -323,6 +323,77 @@ class RegistryScopeReleaseAcceptanceWiringTest(unittest.TestCase):
         upload_keys = [str(item["key"]) for item in object_store.uploads]
         self.assertTrue(any(key.endswith("quality-gate-summary.json") for key in upload_keys))
 
+    def test_publish_scope_release_blocks_student_rules_when_answer_ready_contract_missing(
+        self,
+    ) -> None:
+        record = _make_record()
+        qdrant_client = Mock()
+        qdrant_client.get_aliases.return_value.aliases = []
+        qdrant_client.collection_exists.return_value = False
+        object_store = _FakeObjectStore()
+        bad_chunk = replace(
+            _make_chunk(record=record),
+            text="学习成绩排名与综合考评成绩排名原则上均应位于前10%。",
+            metadata={
+                "unit_type": "article_body",
+                "root_unit_id": "student_rules:handbook:article-rank",
+                "parent_unit_id": "student_rules:handbook:article-rank",
+                "display_text": "学习成绩排名与综合考评成绩排名原则上均应位于前10%。",
+                "final_token_count": 32,
+                "chunk_policy_version": "student_rules_semantic_v3",
+                "answer_role": "eligibility_condition",
+                "content_role": "eligibility",
+                "claim_type": "condition",
+                "role_confidence": "high",
+                "is_answer_bearing": True,
+            },
+        )
+
+        with (
+            patch("campus_ingestion_core.registry_scope_release.index_chunks_to_qdrant") as index,
+            patch("campus_ingestion_core.registry_scope_release.publish_release_alias") as alias,
+            self.assertRaisesRegex(ValueError, "answer_ready_contract_status"),
+        ):
+            publish_scope_release(
+                corpus="regulations",
+                collection="student_rules",
+                records=(record,),
+                chunks=(bad_chunk,),
+                object_store=object_store,
+                qdrant_client=qdrant_client,
+                object_store_settings=_object_store_settings(),
+                runtime_profile=load_runtime_profile("regulations", "student_rules"),
+                sparse_embedding_model=object(),
+                publish_alias=True,
+                upsert_batch_size=128,
+                qrels_coverage_issues=(),
+                acceptance_case_path=str(
+                    _write_cases(
+                        {
+                            "cases": [
+                                {
+                                    "case_id": "expected-hit",
+                                    "corpus": "regulations",
+                                    "collection": "student_rules",
+                                    "query": "学生手册",
+                                    "expected_document_ids": ["student_rules:handbook"],
+                                }
+                            ]
+                        }
+                    )
+                ),
+            )
+
+        index.assert_not_called()
+        alias.assert_not_called()
+        quality_summary = _first_uploaded_json(object_store, filename="quality-gate-summary.json")
+        self.assertEqual(quality_summary["answer_ready_contract_status"], "failed")
+        self.assertIn("chunk_contract_missing", quality_summary["failure_classes"])
+        self.assertIn(
+            "answer_ready_condition_subject_missing",
+            quality_summary["issues_by_chunk_id"]["student_rules:handbook:chunk-0001"],
+        )
+
     def test_publish_scope_release_uses_collection_chunk_profile_budget(self) -> None:
         record = replace(
             _make_record(),
@@ -616,6 +687,14 @@ class RegistryScopeReleaseAcceptanceWiringTest(unittest.TestCase):
                 "table_headers": ["课程", "学分"],
                 "final_token_count": 32,
                 "chunk_policy_version": "student_rules_semantic_v3",
+                "evidence_contract_version": "answer_ready_evidence.v1",
+                "parent_unit_id": "student_rules:handbook:root-segmented",
+                "answer_role": "table_fact",
+                "content_role": "table_fact",
+                "claim_type": "table_fact",
+                "table_fact_type": "curriculum_credit",
+                "role_confidence": "high",
+                "is_answer_bearing": True,
             },
         )
         second = replace(
@@ -630,6 +709,14 @@ class RegistryScopeReleaseAcceptanceWiringTest(unittest.TestCase):
                 "table_headers": ["课程", "学分"],
                 "final_token_count": 32,
                 "chunk_policy_version": "student_rules_semantic_v3",
+                "evidence_contract_version": "answer_ready_evidence.v1",
+                "parent_unit_id": "student_rules:handbook:root-segmented",
+                "answer_role": "table_fact",
+                "content_role": "table_fact",
+                "claim_type": "table_fact",
+                "table_fact_type": "curriculum_credit",
+                "role_confidence": "high",
+                "is_answer_bearing": True,
             },
         )
 

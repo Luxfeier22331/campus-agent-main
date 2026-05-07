@@ -5,6 +5,12 @@ from dataclasses import dataclass, replace
 
 from campus_contracts import EvidenceSource
 
+from .evidence_attributes import (
+    EvidenceAttributes,
+    EvidenceFallbackDiagnostics,
+    evidence_attributes_for_source,
+    evidence_fallback_diagnostics_for_source,
+)
 from .evidence_ranking_text import (
     focused_query_key,
     match_key,
@@ -63,6 +69,8 @@ _CONTENT_KIND_PRIORITY = {
 @dataclass(frozen=True, slots=True)
 class SourceRankingFeatures:
     source: EvidenceSource
+    evidence_attributes: EvidenceAttributes
+    fallback_diagnostics: EvidenceFallbackDiagnostics
     focus_match_score: int
     title_match_priority: int
     title_overlap_count: int
@@ -113,8 +121,12 @@ def build_ranking_features(
         default=0,
     )
     query_intent = infer_evidence_query_intent(query_text)
+    attributes = evidence_attributes_for_source(source)
+    fallback_diagnostics = evidence_fallback_diagnostics_for_source(source)
     return SourceRankingFeatures(
         source=source,
+        evidence_attributes=attributes,
+        fallback_diagnostics=fallback_diagnostics,
         focus_match_score=source_focus_match_score(query_text=query_text, source=source),
         title_match_priority=title_match_priority(query_key=query_key, title_keys=title_keys),
         title_overlap_count=title_overlap_count,
@@ -138,6 +150,16 @@ def build_ranking_features(
 
 
 def is_primary_support_candidate(feature: SourceRankingFeatures) -> bool:
+    if feature.evidence_attributes.answer_role in {
+        "category_overview",
+        "eligibility_condition",
+        "example_evidence",
+        "exception_rule",
+        "exclusion_rule",
+        "procedure_step",
+        "table_fact",
+    }:
+        return True
     if feature.content_role_priority > 0:
         return True
     if feature.detail_support_count > 0 or feature.content_support_count > 0:
@@ -190,11 +212,12 @@ def query_targets_document(
 
 def source_sort_key(
     feature: SourceRankingFeatures,
-) -> tuple[int, int, int, int, int, int, int, int, int, int, float]:
+) -> tuple[int, int, int, int, int, int, int, int, int, int, int, int, float]:
     return (
         feature.focus_match_score,
         feature.query_intent_strength,
         feature.semantic_alignment_score if feature.query_intent_strength else 0,
+        0 if feature.fallback_diagnostics.fallback_used and feature.query_intent_strength else 1,
         feature.title_match_priority,
         feature.title_overlap_count,
         feature.title_compactness,

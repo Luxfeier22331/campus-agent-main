@@ -150,6 +150,8 @@ def _answer_role_from_handbook_semantics(semantics) -> str:
 
 
 def _should_prefer_parser_answer_role(*, semantics, parser_answer_role: str) -> bool:
+    if parser_answer_role in {"exception_rule", "exclusion_rule", "example_evidence"}:
+        return True
     if parser_answer_role != "procedure_step":
         return False
     if semantics.content_role == "procedure" or semantics.semantic_role == "procedure_step":

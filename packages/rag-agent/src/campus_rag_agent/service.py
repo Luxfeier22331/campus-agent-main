@@ -6,6 +6,7 @@ from campus_contracts import AgentRequest, AgentResponse, RagRequestPayload
 
 from campus_rag_agent.prompt_execution import RagPromptExecutor
 
+from .rag_sdk_service import RagSdkRunner, maybe_build_rag_sdk_response
 from .service_answer_synthesis import build_grounded_answer_response
 from .service_diagnostics_payload import (
     _build_rag_result_payload,
@@ -24,7 +25,6 @@ from .service_outcomes import (
 from .service_pipeline import build_rag_pipeline_context
 from .service_planner_stage import execute_rag_planner_stage
 from .service_preflight import _maybe_return_pre_retrieval_response
-from .rag_sdk_service import RagSdkRunner, maybe_build_rag_sdk_response
 from .service_response_text import _resolve_no_answer_semantics
 from .service_retrieval import retrieve_sources
 from .service_retrieval_stage import execute_rag_retrieval_stage

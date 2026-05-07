@@ -26,6 +26,11 @@ from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 
+from campus_ingestion_core.answer_ready_contract_quality import (
+    ANSWER_READY_CONTRACT_FAILURE_CLASS,
+    evaluate_answer_ready_contract_metadata,
+    is_answer_ready_contract_issue,
+)
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
 from campus_ingestion_core.sparse import (
@@ -408,6 +413,14 @@ def evaluate_release_chunk_quality(
             issues.append("display_text_not_in_chunk_text")
         if _is_table_chunk_missing_context_or_header(metadata=metadata, anchor=anchor):
             issues.append("missing_table_context_or_header")
+        issues.extend(
+            evaluate_answer_ready_contract_metadata(
+                corpus=str(_chunk_value(chunk, "corpus") or ""),
+                collection=str(_chunk_value(chunk, "collection") or ""),
+                metadata=metadata,
+                anchor=anchor,
+            ).issues
+        )
         chunk_rows.append(
             _ChunkQualityRow(
                 chunk_id=chunk_id,
@@ -438,8 +451,17 @@ def evaluate_release_chunk_quality(
     )
 
     chunk_issue_count = sum(len(issues) for issues in issues_by_chunk_id.values())
+    answer_ready_contract_issue_count = sum(
+        1
+        for issues in issues_by_chunk_id.values()
+        for issue in issues
+        if is_answer_ready_contract_issue(issue)
+    )
     qrels_issues = tuple(str(issue) for issue in qrels_coverage_issues if str(issue).strip())
     chunk_quality_status = "passed" if chunk_issue_count == 0 else "failed"
+    answer_ready_contract_status = (
+        "passed" if answer_ready_contract_issue_count == 0 else "failed"
+    )
     if not qrels_coverage_required:
         qrels_coverage_status = "not_applicable" if not qrels_issues else "failed"
     else:
@@ -462,6 +484,13 @@ def evaluate_release_chunk_quality(
             "chunk_count": len(chunks),
             "chunk_quality_status": chunk_quality_status,
             "chunk_issue_count": chunk_issue_count,
+            "answer_ready_contract_status": answer_ready_contract_status,
+            "answer_ready_contract_issue_count": answer_ready_contract_issue_count,
+            "failure_classes": (
+                (ANSWER_READY_CONTRACT_FAILURE_CLASS,)
+                if answer_ready_contract_status == "failed"
+                else ()
+            ),
             "issues_by_chunk_id": issues_by_chunk_id,
             "max_token_count": max_token_count,
             "max_token_count_source": max_token_count_source,
