@@ -20,9 +20,7 @@ _SECTION_HEADING_RE = re.compile(
 _STRUCTURE_MARKER_RE = re.compile(
     rf"(第[{_CHINESE_NUMBER}]+[章节条]|[{_CHINESE_NUMBER}]+、|（[{_CHINESE_NUMBER}]+）)"
 )
-_PAGE_ARTIFACT_LINE_RE = re.compile(
-    r"^\s*(?:[-—－]\s*\d+\s*(?:[-—－]|[·•])?|\d+)\s*$"
-)
+_PAGE_ARTIFACT_LINE_RE = re.compile(r"^\s*(?:[-—－]\s*\d+\s*(?:[-—－]|[·•])?|\d+)\s*$")
 _CHAPTER_SPACING_RE = re.compile(rf"(第[{_CHINESE_NUMBER}]+章)(?=\S)")
 _ARTICLE_SPACING_RE = re.compile(rf"(第[{_CHINESE_NUMBER}]+条)(?=\S)")
 _STRUCTURE_HEADING_LINE_RE = re.compile(
@@ -45,7 +43,9 @@ _UNIT_QUANTITY_RE = re.compile(
     re.IGNORECASE,
 )
 _ATTACHMENT_HEADING_RE = re.compile(r"^(?:附件|附表)\s*[：:：]?\s*\d*")
-_BARE_ATTACHMENT_MARKER_RE = re.compile(r"^(?:附件|附表)\s*[：:：]?\s*(?:[一二三四五六七八九十百千万]|\d+)?[.．、]?$")
+_BARE_ATTACHMENT_MARKER_RE = re.compile(
+    r"^(?:附件|附表)\s*[：:：]?\s*(?:[一二三四五六七八九十百千万]|\d+)?[.．、]?$"
+)
 _SUPPLEMENTARY_ATTACHMENT_LINE_RE = re.compile(
     r"^(?:附件|附表)\s*[：:：]?\s*(?:[一二三四五六七八九十百千万]|\d+)?(?:[.．、]\s*)?.*$"
 )
@@ -59,6 +59,11 @@ _WRAPPER_RESIDUE_TERMS = (
     "现印发",
     "请遵照执行",
     "特此通知",
+)
+_REGULATION_PREFACE_RE = re.compile(
+    r"(?:^|[。；;\n])\s*(?:为(?:了|进一步|切实|规范|加强|做好)?|根据|依据|按照)"
+    r"[\s\S]{0,900}?"
+    r"(?:制定|修订|特制定|制订)本(?:暂行)?(?:办法|规定|章程|细则|规程|制度|规划|条例)"
 )
 _LAYOUT_ARTIFACT_LITERAL_LINES = frozenset(
     {
@@ -156,7 +161,9 @@ def normalize_regulation_owner_text(
     body, html_tag_removed_count = _flatten_html_markup(body)
     body, flattened_form_tail_removed_count = _remove_form_attachment_tail(body)
     layout_artifact_count += flattened_form_tail_removed_count
-    body, flattened_supplementary_attachment_tail_removed_count = _remove_supplementary_attachment_tail(body)
+    body, flattened_supplementary_attachment_tail_removed_count = (
+        _remove_supplementary_attachment_tail(body)
+    )
     layout_artifact_count += flattened_supplementary_attachment_tail_removed_count
     body, trailing_bare_attachment_marker_removed_count = _remove_trailing_bare_attachment_marker(
         body
@@ -276,6 +283,9 @@ def _select_body_start(*, title: str, text: str) -> int:
             return position
     marker = _STRUCTURE_MARKER_RE.search(text)
     if marker is not None:
+        prefix = text[: marker.start()].strip()
+        if _looks_like_regulation_preface(prefix):
+            return 0
         return marker.start()
     if standalone_positions:
         return standalone_positions[-1]
@@ -302,6 +312,17 @@ def _is_wrapper_line(*, text: str, position: int) -> bool:
     has_notice_word = "通知" in line
     has_wrapper_verb = any(term in line for term in ("关于", "印发", "发布", "修订"))
     return has_notice_word and has_wrapper_verb
+
+
+def _looks_like_regulation_preface(text: str) -> bool:
+    prefix = text.strip()
+    if not prefix:
+        return False
+    if len(prefix) > 1200:
+        return False
+    if any(term in prefix for term in _WRAPPER_RESIDUE_TERMS):
+        return False
+    return _REGULATION_PREFACE_RE.search(prefix) is not None
 
 
 def _line_at(*, text: str, position: int) -> str:
@@ -413,10 +434,7 @@ def _has_formal_structure_after(lines: list[str], *, start: int) -> bool:
         normalized = line.strip()
         if not normalized:
             continue
-        if (
-            re.match(rf"^第[{_CHINESE_NUMBER}]+[章节条]", normalized)
-            and "|" not in normalized
-        ):
+        if re.match(rf"^第[{_CHINESE_NUMBER}]+[章节条]", normalized) and "|" not in normalized:
             return True
     return False
 
@@ -448,9 +466,7 @@ def _repair_soft_wraps(text: str) -> tuple[str, int]:
         line = lines[index]
         if line == "" and repaired:
             next_index = _next_non_blank_line_index(lines, start=index + 1)
-            if next_index is not None and _should_merge_soft_wrap(
-                repaired[-1], lines[next_index]
-            ):
+            if next_index is not None and _should_merge_soft_wrap(repaired[-1], lines[next_index]):
                 repaired[-1] = f"{repaired[-1].rstrip()}{lines[next_index].lstrip()}"
                 repair_count += 1
                 index = next_index + 1
@@ -519,7 +535,9 @@ def _flatten_html_markup(text: str) -> tuple[str, int]:
         flattened,
         flags=re.IGNORECASE,
     )
-    flattened = re.sub(r"</?\s*(?:p|div|span|html|body)[^>]*>", "\n", flattened, flags=re.IGNORECASE)
+    flattened = re.sub(
+        r"</?\s*(?:p|div|span|html|body)[^>]*>", "\n", flattened, flags=re.IGNORECASE
+    )
     flattened = _HTML_TAG_RE.sub(" ", flattened)
     lines = [re.sub(r"[ \t]+", " ", line).strip() for line in flattened.splitlines()]
     return "\n".join(line for line in lines if line).strip(), tag_count
@@ -626,6 +644,7 @@ def _looks_like_structural_boundary(*, previous: str, following: str) -> bool:
         or _looks_like_attachment_boundary(previous=previous, following=following)
         or _looks_like_reference_boundary(previous=previous, following=following)
         or _looks_like_parenthesized_abbreviation_boundary(previous=previous, following=following)
+        or _looks_like_formula_variable_boundary(previous=previous, following=following)
         or _looks_like_page_or_logo_boundary(previous=previous, following=following)
     )
 
@@ -656,6 +675,12 @@ def _looks_like_parenthesized_abbreviation_boundary(*, previous: str, following:
     )
 
 
+def _looks_like_formula_variable_boundary(*, previous: str, following: str) -> bool:
+    return _looks_like_formula_variable_definition_line(
+        previous
+    ) and _looks_like_formula_variable_definition_line(following)
+
+
 def _looks_like_page_or_logo_boundary(*, previous: str, following: str) -> bool:
     if following.startswith(("-", "－")):
         return True
@@ -664,9 +689,7 @@ def _looks_like_page_or_logo_boundary(*, previous: str, following: str) -> bool:
 
 def _count_mixed_ascii_cjk_artifact_lines(text: str) -> int:
     return sum(
-        1
-        for line in text.splitlines()
-        if _looks_like_mixed_ascii_cjk_artifact(line.strip())
+        1 for line in text.splitlines() if _looks_like_mixed_ascii_cjk_artifact(line.strip())
     )
 
 
@@ -689,6 +712,7 @@ def _looks_like_legitimate_mixed_ascii_cjk_line(line: str) -> bool:
         _EMAIL_RE.search(line) is not None
         or _DOMAIN_RE.search(line) is not None
         or _UNIT_QUANTITY_RE.search(line) is not None
+        or _looks_like_formula_variable_definition_line(line)
         or _looks_like_score_formula_line(line)
         or _looks_like_room_or_address_line(line)
     )
@@ -710,6 +734,10 @@ def _looks_like_score_formula_line(line: str) -> bool:
     if not re.search(r"[=+\-*/％%]", line):
         return False
     return re.search(r"[A-Za-z]\d|\d[A-Za-z]|[A-Za-z]\s*[=+\-*/]", line) is not None
+
+
+def _looks_like_formula_variable_definition_line(line: str) -> bool:
+    return re.match(r"^[A-Za-z]\d{1,3}\s*(?:表示|为|是|指)", line.strip()) is not None
 
 
 def _looks_like_room_or_address_line(line: str) -> bool:

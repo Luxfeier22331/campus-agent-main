@@ -3,6 +3,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts import EvidenceSource
+from campus_shared.answer_ready_evidence_contract import (
+    ANSWER_READY_BASE_REQUIRED_FIELDS,
+    ANSWER_READY_INTERNAL_ATTRIBUTE_FIELDS,
+)
 
 INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY = "_retrieval_evidence_attributes"
 
@@ -21,6 +25,7 @@ class EvidenceAttributes:
     answer_role: str = ""
     condition_subject: str = ""
     parent_unit_id: str = ""
+    clause_unit_id: str = ""
     evidence_contract_version: str = ""
     semantic_role: str = ""
     polarity: str = ""
@@ -36,6 +41,9 @@ class EvidenceAttributes:
     category_member_titles: tuple[str, ...] = field(default_factory=tuple)
     condition_group_id: str = ""
     condition_polarity: str = ""
+    intro_scope: str = ""
+    introduced_condition_group_id: str = ""
+    intro_target_roles: tuple[str, ...] = field(default_factory=tuple)
     procedure: ProcedureAttributes = field(default_factory=ProcedureAttributes)
     missing_contract_fields: tuple[str, ...] = field(default_factory=tuple)
 
@@ -51,7 +59,9 @@ class EvidenceFallbackDiagnostics:
 
 def evidence_attributes_for_source(source: EvidenceSource) -> EvidenceAttributes:
     raw = _coerce_dict(source.anchor.get(INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY))
-    answer_role = _optional_text(raw.get("answer_role")) or source.semantic_role or source.content_role
+    answer_role = (
+        _optional_text(raw.get("answer_role")) or source.semantic_role or source.content_role
+    )
     condition_subject = _optional_text(raw.get("condition_subject")) or ""
     parent_unit_id = (
         _optional_text(raw.get("parent_unit_id"))
@@ -59,6 +69,7 @@ def evidence_attributes_for_source(source: EvidenceSource) -> EvidenceAttributes
         or _optional_text(source.anchor.get("root_unit_id"))
         or ""
     )
+    clause_unit_id = _optional_text(raw.get("clause_unit_id")) or ""
     evidence_contract_version = _optional_text(raw.get("evidence_contract_version")) or ""
     semantic_role = _optional_text(raw.get("semantic_role")) or source.semantic_role
     polarity = _optional_text(raw.get("polarity")) or source.polarity
@@ -85,6 +96,7 @@ def evidence_attributes_for_source(source: EvidenceSource) -> EvidenceAttributes
         answer_role=answer_role,
         condition_subject=condition_subject,
         parent_unit_id=parent_unit_id,
+        clause_unit_id=clause_unit_id,
         evidence_contract_version=evidence_contract_version,
         semantic_role=semantic_role,
         polarity=polarity,
@@ -112,6 +124,11 @@ def evidence_attributes_for_source(source: EvidenceSource) -> EvidenceAttributes
         ),
         condition_group_id=_optional_text(raw.get("condition_group_id")) or "",
         condition_polarity=condition_polarity,
+        intro_scope=_optional_text(raw.get("intro_scope")) or "",
+        introduced_condition_group_id=(
+            _optional_text(raw.get("introduced_condition_group_id")) or ""
+        ),
+        intro_target_roles=_coerce_text_tuple(raw.get("intro_target_roles")),
         procedure=procedure,
         missing_contract_fields=missing,
     )
@@ -136,34 +153,7 @@ def evidence_fallback_diagnostics_for_source(source: EvidenceSource) -> Evidence
 
 def build_internal_evidence_attribute_payload(metadata: dict[str, object]) -> dict[str, object]:
     payload: dict[str, object] = {}
-    for key in (
-        "answer_role",
-        "condition_subject",
-        "parent_unit_id",
-        "evidence_contract_version",
-        "semantic_role",
-        "polarity",
-        "action_type",
-        "claim_type",
-        "audience_scope",
-        "article_no",
-        "clause_no",
-        "section_kind",
-        "category_id",
-        "category_audience",
-        "audience",
-        "category_member_document_ids",
-        "member_policy_document_ids",
-        "category_member_titles",
-        "member_policy_titles",
-        "condition_group_id",
-        "condition_polarity",
-        "procedure_step_index",
-        "procedure_actor",
-        "procedure_action",
-        "procedure_materials",
-        "procedure_next_actor",
-    ):
+    for key in ANSWER_READY_INTERNAL_ATTRIBUTE_FIELDS:
         if key in metadata:
             payload[key] = metadata[key]
     return payload
@@ -171,7 +161,7 @@ def build_internal_evidence_attribute_payload(metadata: dict[str, object]) -> di
 
 def _raw_missing_contract_fields(raw: dict[str, object]) -> tuple[str, ...]:
     missing: list[str] = []
-    for field_name in ("answer_role", "parent_unit_id", "evidence_contract_version"):
+    for field_name in ANSWER_READY_BASE_REQUIRED_FIELDS:
         if not _optional_text(raw.get(field_name)):
             missing.append(field_name)
     return tuple(missing)
@@ -194,12 +184,14 @@ def _missing_contract_fields(
     evidence_contract_version: str,
 ) -> tuple[str, ...]:
     missing: list[str] = []
-    if not answer_role:
-        missing.append("answer_role")
-    if not parent_unit_id:
-        missing.append("parent_unit_id")
-    if not evidence_contract_version:
-        missing.append("evidence_contract_version")
+    values = {
+        "answer_role": answer_role,
+        "parent_unit_id": parent_unit_id,
+        "evidence_contract_version": evidence_contract_version,
+    }
+    for field_name in ANSWER_READY_BASE_REQUIRED_FIELDS:
+        if not values[field_name]:
+            missing.append(field_name)
     return tuple(missing)
 
 

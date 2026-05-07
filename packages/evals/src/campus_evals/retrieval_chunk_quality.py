@@ -344,6 +344,9 @@ def _answer_clause_is_mixed_with_example_list(
         "requirement",
     }:
         return False
+    normalized = _normalize_for_contains(text)
+    if re.search(r"且在[^。；;\n]{0,80}取得显著成绩", normalized):
+        return True
     if not starts_example_list(text):
         return False
     return len(_ENUMERATED_EXAMPLE_RE.findall(text)) >= 2
@@ -432,14 +435,18 @@ def _looks_like_actionable_procedure_step(text: str) -> bool:
     if (
         "提交申请材料" in normalized
         and not _ENUMERATED_EXAMPLE_RE.match(first_line)
-        and not any(marker in normalized for marker in ("程序", "流程", "步骤", "公示", "审批", "审核"))
+        and not any(
+            marker in normalized for marker in ("程序", "流程", "步骤", "公示", "审批", "审核")
+        )
     ):
         return False
     if len(_ENUMERATED_EXAMPLE_RE.findall(text)) >= 2:
         return True
     if _ENUMERATED_EXAMPLE_RE.match(first_line):
         return True
-    if any(marker in normalized for marker in ("申请程序", "办理程序", "按照以下程序", "按如下程序")):
+    if any(
+        marker in normalized for marker in ("申请程序", "办理程序", "按照以下程序", "按如下程序")
+    ):
         return True
     return bool(
         re.search(

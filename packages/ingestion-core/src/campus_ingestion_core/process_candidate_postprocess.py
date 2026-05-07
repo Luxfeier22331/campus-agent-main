@@ -47,14 +47,37 @@ def postprocess_student_rules_chunk_candidates(
         chunk_candidates=chunk_candidates,
         chunk_profile=runtime_profile,
     )
-    overview = build_student_rules_category_overview_candidate(
+    overviews = build_student_rules_category_overview_candidates(
         record=record,
         chunk_candidates=candidates,
         chunk_profile=runtime_profile,
     )
-    if overview is None:
+    if not overviews:
         return candidates
-    return (overview, *candidates)
+    return (*overviews, *candidates)
+
+
+def build_student_rules_category_overview_candidates(
+    *,
+    record: DocumentRegistryRecord,
+    chunk_candidates: tuple[_ChunkCandidate, ...],
+    chunk_profile: ChunkProfile,
+) -> tuple[_ChunkCandidate, ...]:
+    del chunk_candidates
+    overviews = build_category_overview_metadata(
+        collection=record.collection,
+        document_id=record.document_id,
+    )
+    if not overviews:
+        return ()
+    return tuple(
+        _build_student_rules_category_overview_candidate_from_metadata(
+            record=record,
+            chunk_profile=chunk_profile,
+            overview=overview,
+        )
+        for overview in overviews
+    )
 
 
 def build_student_rules_category_overview_candidate(
@@ -63,13 +86,20 @@ def build_student_rules_category_overview_candidate(
     chunk_candidates: tuple[_ChunkCandidate, ...],
     chunk_profile: ChunkProfile,
 ) -> _ChunkCandidate | None:
-    del chunk_candidates
-    overview = build_category_overview_metadata(
-        collection=record.collection,
-        document_id=record.document_id,
+    overviews = build_student_rules_category_overview_candidates(
+        record=record,
+        chunk_candidates=chunk_candidates,
+        chunk_profile=chunk_profile,
     )
-    if overview is None:
-        return None
+    return overviews[0] if overviews else None
+
+
+def _build_student_rules_category_overview_candidate_from_metadata(
+    *,
+    record: DocumentRegistryRecord,
+    chunk_profile: ChunkProfile,
+    overview: dict[str, object],
+) -> _ChunkCandidate:
     display_text = str(overview["display_text"])
     anchor = dict(overview["anchor"])
     metadata = dict(overview["metadata"])
@@ -116,7 +146,7 @@ def build_student_rules_category_overview_candidate(
         metadata=metadata,
         piece=piece,
         chunk_assembly=chunk_assembly,
-            members=(_ChunkMember(unit=unit, piece=piece),),
+        members=(_ChunkMember(unit=unit, piece=piece),),
     )
 
 
@@ -310,6 +340,7 @@ def postprocess_scoped_rule_chunk_candidates(
 
 __all__ = [
     "build_student_rules_category_overview_candidate",
+    "build_student_rules_category_overview_candidates",
     "postprocess_curriculum_chunk_candidates",
     "postprocess_default_chunk_candidates",
     "postprocess_institutional_regulation_chunk_candidates",

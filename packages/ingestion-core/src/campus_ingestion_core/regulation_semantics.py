@@ -1,12 +1,16 @@
 from __future__ import annotations
 
-import json
 import re
 from collections.abc import Mapping
 from dataclasses import dataclass
-from functools import lru_cache
 
-from campus_ingestion_core.scope_catalog import default_config_root
+from campus_shared.regulation_semantic_registry import (
+    RegulationCategoryDefinition,
+    RegulationDiscoveryConfig,
+    RegulationPolicyObjectDefinition,
+    load_student_rules_discovery_config,
+    regulation_categories_for_document,
+)
 
 _WHITESPACE_RE = re.compile(r"\s+")
 
@@ -38,33 +42,6 @@ class RegulationSemanticsRegistry:
     requirement_rule_markers: tuple[str, ...]
     condition_claim_markers: tuple[str, ...]
     deadline_constraint_markers: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class RegulationCategoryDefinition:
-    category_id: str
-    display_name: str
-    aliases: tuple[str, ...]
-    audience: str
-    member_policy_document_ids: tuple[str, ...]
-    overview_document_id: str
-    default_procedure_document_id: str = ""
-    procedure_overrides: tuple[tuple[str, str], ...] = ()
-
-
-@dataclass(frozen=True, slots=True)
-class RegulationPolicyObjectDefinition:
-    document_id: str
-    title: str
-    aliases: tuple[str, ...]
-
-
-@dataclass(frozen=True, slots=True)
-class RegulationDiscoveryConfig:
-    clarification_cues: tuple[str, ...]
-    policy_objects: tuple[RegulationPolicyObjectDefinition, ...]
-    policy_titles_by_document_id: dict[str, str]
-    categories: tuple[RegulationCategoryDefinition, ...]
 
 
 _DEFAULT_REGISTRY = RegulationSemanticsRegistry(
@@ -252,146 +229,56 @@ def infer_table_fact_type(
     return "generic_policy_table"
 
 
-def load_student_rules_discovery_config() -> RegulationDiscoveryConfig:
-    payload = _load_student_rules_query_planning_config()
-    clarification_cues = tuple(
-        str(cue).strip()
-        for cue in payload.get("clarification_cues", ())
-        if str(cue).strip()
-    )
-    policy_objects: list[RegulationPolicyObjectDefinition] = []
-    policy_titles: dict[str, str] = {}
-    for policy_object in payload.get("policy_objects", ()):
-        if not isinstance(policy_object, Mapping):
-            continue
-        document_id = str(policy_object.get("document_id") or "").strip()
-        title = str(policy_object.get("title") or "").strip()
-        if document_id and title:
-            policy_objects.append(
-                RegulationPolicyObjectDefinition(
-                    document_id=document_id,
-                    title=title,
-                    aliases=tuple(
-                        str(alias).strip()
-                        for alias in policy_object.get("aliases", ())
-                        if str(alias).strip()
-                    ),
-                )
-            )
-            policy_titles[document_id] = title
-    categories: list[RegulationCategoryDefinition] = []
-    for item in payload.get("policy_categories", ()):
-        if not isinstance(item, Mapping):
-            continue
-        category_id = str(item.get("category_id") or "").strip()
-        if not category_id:
-            continue
-        member_policy_document_ids = tuple(
-            str(document_id).strip()
-            for document_id in item.get("member_policy_document_ids", ())
-            if str(document_id).strip()
-        )
-        if not member_policy_document_ids:
-            continue
-        overview_document_id = str(
-            item.get("overview_document_id") or member_policy_document_ids[0]
-        ).strip()
-        categories.append(
-            RegulationCategoryDefinition(
-                category_id=category_id,
-                display_name=str(item.get("display_name") or "").strip(),
-                aliases=tuple(
-                    str(alias).strip()
-                    for alias in item.get("aliases", ())
-                    if str(alias).strip()
-                ),
-                audience=str(item.get("audience") or "").strip(),
-                member_policy_document_ids=member_policy_document_ids,
-                overview_document_id=overview_document_id,
-                default_procedure_document_id=str(
-                    item.get("default_procedure_document_id") or ""
-                ).strip(),
-                procedure_overrides=tuple(
-                    (
-                        str(override.get("match_term") or "").strip(),
-                        str(override.get("document_id") or "").strip(),
-                    )
-                    for override in item.get("procedure_overrides", ())
-                    if isinstance(override, Mapping)
-                    and str(override.get("match_term") or "").strip()
-                    and str(override.get("document_id") or "").strip()
-                ),
-            )
-        )
-    return RegulationDiscoveryConfig(
-        clarification_cues=clarification_cues,
-        policy_objects=tuple(policy_objects),
-        policy_titles_by_document_id=policy_titles,
-        categories=tuple(categories),
-    )
-
-
-def regulation_category_for_document(
-    *,
-    collection: str,
-    document_id: str,
-) -> RegulationCategoryDefinition | None:
-    if collection != "student_rules":
-        return None
-    for category in load_student_rules_discovery_config().categories:
-        if document_id in category.member_policy_document_ids:
-            return category
-    return None
-
-
 def build_category_overview_metadata(
     *,
     collection: str,
     document_id: str,
-) -> dict[str, object] | None:
-    category = regulation_category_for_document(collection=collection, document_id=document_id)
-    if category is None:
-        return None
-    if document_id != category.overview_document_id:
-        return None
+) -> tuple[dict[str, object], ...]:
+    categories = regulation_categories_for_document(collection=collection, document_id=document_id)
+    if not categories:
+        return ()
     discovery = load_student_rules_discovery_config()
-    member_titles = tuple(
-        title
-        for member_document_id in category.member_policy_document_ids
-        if (title := discovery.policy_titles_by_document_id.get(member_document_id, ""))
-    )
-    if not member_titles:
-        return None
-    display_text = (
-        f"当前已收录依据中，{category.audience}{category.display_name}相关制度包括："
-        f"{'、'.join(f'《{title}》' for title in member_titles)}。"
-    )
-    return {
-        "display_text": display_text,
-        "anchor": {
-            "section_path": [category.display_name],
-            "provision_label": "category_overview",
-        },
-        "metadata": {
-            "title": f"{category.audience}{category.display_name}相关制度",
-            "category_id": category.category_id,
-            "category_display_name": category.display_name,
-            "category_audience": category.audience,
-            "category_member_document_ids": list(category.member_policy_document_ids),
-            "category_member_titles": list(member_titles),
-            "answer_role": "category_overview",
-            "content_role": "policy_list",
-            "semantic_role": "category_overview",
-            "claim_type": "policy_list",
-            "is_answer_bearing": True,
-        },
-    }
-
-
-@lru_cache(maxsize=1)
-def _load_student_rules_query_planning_config() -> dict[str, object]:
-    path = default_config_root() / "regulations" / "student_rules" / "query-planning.json"
-    return json.loads(path.read_text(encoding="utf-8"))
+    overviews: list[dict[str, object]] = []
+    for category in categories:
+        if document_id != category.overview_document_id:
+            continue
+        member_titles = tuple(
+            title
+            for member_document_id in category.member_policy_document_ids
+            if (title := discovery.policy_titles_by_document_id.get(member_document_id, ""))
+        )
+        if not member_titles:
+            continue
+        display_text = (
+            f"当前已收录依据中，{category.audience}{category.display_name}相关制度包括："
+            f"{'、'.join(f'《{title}》' for title in member_titles)}。"
+        )
+        overviews.append(
+            {
+                "display_text": display_text,
+                "anchor": {
+                    "section_path": [category.display_name],
+                    "provision_label": "category_overview",
+                },
+                "metadata": {
+                    "title": f"{category.audience}{category.display_name}相关制度",
+                    "category_id": category.category_id,
+                    "category_display_name": category.display_name,
+                    "audience": category.audience,
+                    "category_audience": category.audience,
+                    "member_policy_document_ids": list(category.member_policy_document_ids),
+                    "category_member_document_ids": list(category.member_policy_document_ids),
+                    "member_policy_titles": list(member_titles),
+                    "category_member_titles": list(member_titles),
+                    "answer_role": "category_overview",
+                    "content_role": "policy_list",
+                    "semantic_role": "category_overview",
+                    "claim_type": "policy_list",
+                    "is_answer_bearing": True,
+                },
+            }
+        )
+    return tuple(overviews)
 
 
 __all__ = [
@@ -408,7 +295,6 @@ __all__ = [
     "looks_like_condition_claim_text",
     "looks_like_deadline_constraint_text",
     "looks_like_requirement_text",
-    "regulation_category_for_document",
     "starts_example_list",
     "starts_procedure_list",
 ]

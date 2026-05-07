@@ -39,7 +39,9 @@ class AnswerReadyComponentEvalTest(unittest.TestCase):
         self.assertEqual(result.primary_failure_class, "retrieval_miss")
         self.assertEqual(result.failure_classes, ("retrieval_miss",))
 
-    def test_component_eval_reports_ranking_mismatch_when_answer_ready_role_is_not_top(self) -> None:
+    def test_component_eval_reports_ranking_mismatch_when_answer_ready_role_is_not_top(
+        self,
+    ) -> None:
         result = evaluate_answer_ready_component_case(
             _case(),
             _observed(ranked_evidence_roles=("exclusion_rule", "procedure_step")),
@@ -49,7 +51,9 @@ class AnswerReadyComponentEvalTest(unittest.TestCase):
         self.assertEqual(result.primary_failure_class, "ranking_mismatch")
         self.assertEqual(result.failure_classes, ("ranking_mismatch",))
 
-    def test_component_eval_reports_selection_not_answer_ready_for_wrong_selected_role(self) -> None:
+    def test_component_eval_reports_selection_not_answer_ready_for_wrong_selected_role(
+        self,
+    ) -> None:
         result = evaluate_answer_ready_component_case(
             _case(),
             _observed(selected_evidence_roles=("exclusion_rule",)),
@@ -85,6 +89,39 @@ class AnswerReadyComponentEvalTest(unittest.TestCase):
         self.assertTrue(result.passed)
         self.assertEqual(result.primary_failure_class, "")
         self.assertEqual(result.failure_classes, ())
+
+    def test_component_eval_passes_for_student_card_reissue_procedure_case(self) -> None:
+        result = evaluate_answer_ready_component_case(
+            AnswerReadyComponentCase(
+                case_id="student-card-reissue",
+                query="学生证丢了怎么补",
+                collection="student_rules",
+                expected_task_kind="specific_policy_lookup",
+                expected_query_polarity="positive",
+                expected_answer_role="procedure_step",
+                expected_condition_subject="application_procedure",
+                expected_document_ids=("handbook:student-card-reissue",),
+                expected_top_evidence_roles=("procedure_step",),
+                expected_draft_kind="procedure_steps",
+                expected_grounding=True,
+            ),
+            ObservedAnswerReadyComponents(
+                task_kind="specific_policy_lookup",
+                query_polarity="positive",
+                answer_role="procedure_step",
+                condition_subject="application_procedure",
+                retrieved_document_ids=("handbook:student-card-reissue",),
+                ranked_evidence_roles=("procedure_step", "procedure_step"),
+                selected_evidence_roles=("procedure_step",),
+                selected_condition_subjects=("application_procedure",),
+                selected_polarities=("positive",),
+                draft_kind="procedure_steps",
+                grounding_support_present=True,
+            ),
+        )
+
+        self.assertTrue(result.passed)
+        self.assertEqual(result.primary_failure_class, "")
 
 
 def _case() -> AnswerReadyComponentCase:

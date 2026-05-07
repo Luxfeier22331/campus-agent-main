@@ -89,6 +89,26 @@ class CollectedNoticeRegulationTextNormalizationTests(unittest.TestCase):
         self.assertFalse(result.suspicious_prefix)
         self.assertEqual(result.quality_verdict, "passed")
 
+    def test_title_stripped_regulation_preface_before_first_chapter_is_preserved(self) -> None:
+        result = normalize_regulation_owner_text(
+            title="中央民族大学岗位设置与聘用管理暂行办法",
+            owner_text=(
+                "为切实做好学校岗位设置与聘用工作，根据《国家民委事业单位岗位设置管理实施意见》"
+                "等文件精神和经国家民委批复的《中央民族大学岗位设置方案》的有关规定，"
+                "制定本暂行办法。\n\n"
+                "第一章 总 则\n\n"
+                "一、岗位设置与聘用原则\n\n"
+                "根据按需设岗、按岗聘用、竞争上岗、合同管理的要求，坚持按以下原则做好岗位设置与聘用工作。"
+            ),
+        )
+
+        self.assertEqual(result.quality_verdict, "passed")
+        self.assertFalse(result.wrapper_removed)
+        self.assertNotIn("wrapper_removed", result.reason_codes)
+        self.assertTrue(result.canonical_body.startswith("为切实做好学校岗位设置与聘用工作"))
+        self.assertIn("制定本暂行办法。", result.canonical_body)
+        self.assertIn("第一章 总 则", result.canonical_body)
+
     def test_canonical_cleaning_repairs_ocr_soft_wrap_and_cjk_punctuation(self) -> None:
         title = "中央民族大学学生社团管理办法"
         result = normalize_regulation_owner_text(
@@ -523,6 +543,25 @@ class CollectedNoticeRegulationTextNormalizationTests(unittest.TestCase):
                 "其中，综合成绩按百分制计算，由学业成绩和综合素质成绩两部分组成，计算公式为T=X*85%+（Z1+Z2+Z3）/3*15%。\n\n"
                 "咨询邮箱：msyzhaosheng66@163.com\n\n"
                 "办公地址：文华楼13层1318A室"
+            ),
+        )
+
+        self.assertEqual(result.quality_verdict, "passed")
+        self.assertNotIn("soft_wrap_residue", result.reason_codes)
+
+    def test_formula_variable_definition_lines_are_not_mixed_ascii_cjk_artifacts(
+        self,
+    ) -> None:
+        result = normalize_regulation_owner_text(
+            title="中央民族大学岗位设置与聘用管理暂行办法",
+            owner_text=(
+                "中央民族大学岗位设置与聘用管理暂行办法\n\n"
+                "第一章 总 则\n\n"
+                "一、岗位设置与聘用原则\n\n"
+                "（一）教学辅助工作量按下列公式核定。\n\n"
+                "Y1表示该门课程教学时数\n\n"
+                "Y2表示应修该门课程的学生数\n\n"
+                "Y3表示该门课程标准班学生数"
             ),
         )
 

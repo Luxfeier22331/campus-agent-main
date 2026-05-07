@@ -84,6 +84,8 @@ def decide_answer_role(
 ) -> dict[str, object]:
     registry = load_default_regulation_semantics_registry()
     if role_hint:
+        if role_hint == "procedure_step" and _looks_like_procedure_intro_or_category(text):
+            return _role("eligibility_intro", "medium", "procedure_intro_or_category_heading")
         if role_hint == "supporting_detail":
             return _role("supporting_detail", "low", "no_answer_ready_marker")
         answer_role = role_hint if role_hint != "intro" else "eligibility_intro"
@@ -166,6 +168,8 @@ def _role(answer_role: str, confidence: str, reason: str) -> dict[str, object]:
 
 def _is_procedure_step(*, text: str, context: str) -> bool:
     registry = load_default_regulation_semantics_registry()
+    if _looks_like_procedure_intro_or_category(text):
+        return False
     if starts_procedure_list(text) or starts_procedure_list(context):
         return True
     if any(marker in text for marker in registry.procedure_action_markers):
@@ -179,6 +183,20 @@ def _is_example_evidence(text: str) -> bool:
     return "取得显著成绩" in text and any(
         marker in text for marker in ("学术研究", "发表", "专利", "竞赛", "文艺比赛", "体育竞赛")
     )
+
+
+def _looks_like_procedure_intro_or_category(text: str) -> bool:
+    if not text:
+        return False
+    stripped = text.strip()
+    compact = compact_semantic_text(stripped)
+    if stripped.endswith(("程序", "程序:", "程序：", "类别", "类别:", "类别：")):
+        return True
+    if compact.endswith(("程序", "类别")) and len(compact) <= 24:
+        return True
+    if compact.startswith(("免试生类别", "材料报送情况")):
+        return True
+    return False
 
 
 __all__ = [

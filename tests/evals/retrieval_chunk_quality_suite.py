@@ -196,22 +196,16 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                     "chunk_order": 1,
                     "corpus": "regulations",
                     "collection": "student_rules",
-                    "text": (
-                        "奖学金申请流程如下:\n"
-                        "1. 学生本人提交申请材料。\n"
-                        "2. 学院审核并公示。"
-                    ),
+                    "text": ("奖学金申请流程如下:\n1. 学生本人提交申请材料。\n2. 学院审核并公示。"),
                     "source_uri": "s3://derived/doc",
                     "metadata": {
                         "unit_type": "article_body",
                         "root_unit_id": "article-procedure",
                         "display_text": (
-                            "奖学金申请流程如下:\n"
-                            "1. 学生本人提交申请材料。\n"
-                            "2. 学院审核并公示。"
+                            "奖学金申请流程如下:\n1. 学生本人提交申请材料。\n2. 学院审核并公示。"
                         ),
                         "chunk_policy_version": "student_rules_semantic_v3",
-                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
                         "parent_unit_id": "article-procedure",
                         "answer_role": "procedure_step",
                         "content_role": "procedure",
@@ -219,9 +213,14 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "is_answer_bearing": True,
                         "role_confidence": "high",
                         "condition_subject": "application_procedure",
+                        "condition_subject_taxonomy_version": "condition_subject.v1",
+                        "condition_subject_provenance": "metadata:condition_subject",
+                        "condition_group_id": "article-procedure:application_procedure",
                         "procedure_step_index": 1,
                         "procedure_actor": "student",
-                        "procedure_action": "submit_application",
+                        "procedure_action": "submit_materials",
+                        "procedure_action_taxonomy_version": "procedure_action.v1",
+                        "procedure_action_provenance": "keyword:提交+材料",
                     },
                 }
             ],
@@ -230,6 +229,52 @@ class RetrievalChunkQualityTest(unittest.TestCase):
 
         self.assertEqual(report.status, "passed")
         self.assertNotIn("chunk-ruxia", report.issues_by_chunk_id)
+
+    def test_chunk_quality_flags_inline_example_tail_mixed_into_main_clause(self) -> None:
+        report = evaluate_chunk_quality(
+            chunks=[
+                {
+                    "document_id": "doc:inline-example",
+                    "version_id": "v1",
+                    "chunk_id": "chunk-inline-example-tail",
+                    "chunk_order": 1,
+                    "corpus": "regulations",
+                    "collection": "student_rules",
+                    "text": (
+                        "（二）学习成绩排名超出前10%,但位于前30%,且在学术研究上取得显著成绩。"
+                    ),
+                    "source_uri": "s3://derived/doc",
+                    "metadata": {
+                        "unit_type": "article_body",
+                        "root_unit_id": "article-inline-example",
+                        "display_text": (
+                            "（二）学习成绩排名超出前10%,但位于前30%,且在学术研究上取得显著成绩。"
+                        ),
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
+                        "parent_unit_id": "article-inline-example",
+                        "clause_unit_id": "article-inline-example:2",
+                        "answer_role": "exception_rule",
+                        "content_role": "eligibility",
+                        "claim_type": "condition",
+                        "role_confidence": "high",
+                        "is_answer_bearing": True,
+                        "condition_subject": "rank_threshold",
+                        "condition_subject_taxonomy_version": "condition_subject.v1",
+                        "condition_subject_provenance": "keyword:排名综测",
+                        "condition_group_id": "article-inline-example:rank_threshold",
+                        "condition_polarity": "positive",
+                    },
+                }
+            ],
+            max_tokens=256,
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertIn(
+            "answer_clause_mixed_with_example_list",
+            report.issues_by_chunk_id["chunk-inline-example-tail"],
+        )
 
     def test_chunk_quality_flags_category_discovery_missing_answer_role(self) -> None:
         report = evaluate_chunk_quality(
@@ -346,7 +391,7 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "root_unit_id": "article-responsibility",
                         "display_text": "教务处负责与本科生研究训练计划项目有关的立项、审批、中期检查、结题、成绩管理等方面的组织工作。",
                         "chunk_policy_version": "student_rules_semantic_v3",
-                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
                         "parent_unit_id": "article-responsibility",
                         "answer_role": "eligibility_condition",
                         "content_role": "requirement",
@@ -354,6 +399,9 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "role_confidence": "medium",
                         "is_answer_bearing": True,
                         "condition_subject": "audience_scope",
+                        "condition_subject_taxonomy_version": "condition_subject.v1",
+                        "condition_subject_provenance": "metadata:condition_subject",
+                        "condition_group_id": "article-responsibility:audience_scope",
                     },
                 }
             ],
@@ -403,7 +451,7 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "root_unit_id": "article-deadline",
                         "display_text": "学生在申诉期内未提出申诉的视为放弃申诉，学校不再受理其提出的申诉。",
                         "chunk_policy_version": "student_rules_semantic_v3",
-                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
                         "parent_unit_id": "article-deadline",
                         "answer_role": "exclusion_rule",
                         "content_role": "deadline",
@@ -411,6 +459,9 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "role_confidence": "medium",
                         "is_answer_bearing": True,
                         "condition_subject": "deadline",
+                        "condition_subject_taxonomy_version": "condition_subject.v1",
+                        "condition_subject_provenance": "metadata:condition_subject",
+                        "condition_group_id": "article-deadline:deadline",
                     },
                 },
             ],
@@ -445,7 +496,7 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                             "并视情节轻重给予相应处分。"
                         ),
                         "chunk_policy_version": "student_rules_semantic_v3",
-                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
                         "parent_unit_id": "article-submission-requirement",
                         "answer_role": "eligibility_condition",
                         "content_role": "eligibility",
@@ -453,6 +504,11 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "role_confidence": "high",
                         "is_answer_bearing": True,
                         "condition_subject": "material_requirement",
+                        "condition_subject_taxonomy_version": "condition_subject.v1",
+                        "condition_subject_provenance": "metadata:condition_subject",
+                        "condition_group_id": (
+                            "article-submission-requirement:material_requirement"
+                        ),
                     },
                 }
             ],
@@ -489,7 +545,7 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                             "5个工作日内决定是否受理,并将结果告知学生。"
                         ),
                         "chunk_policy_version": "student_rules_semantic_v3",
-                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
                         "parent_unit_id": "article-negative-procedure-exception",
                         "answer_role": "exclusion_rule",
                         "content_role": "eligibility",
@@ -497,6 +553,11 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "role_confidence": "high",
                         "is_answer_bearing": True,
                         "condition_subject": "discipline_relief_exclusion",
+                        "condition_subject_taxonomy_version": "condition_subject.v1",
+                        "condition_subject_provenance": "metadata:condition_subject",
+                        "condition_group_id": (
+                            "article-negative-procedure-exception:discipline_relief_exclusion"
+                        ),
                     },
                 }
             ],
@@ -612,9 +673,10 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "unit_type": "article_body",
                         "root_unit_id": "article-rank",
                         "parent_unit_id": "article-rank",
+                        "provision_label": "（一）",
                         "display_text": "学习成绩排名与综合考评成绩排名原则上均应位于前10%。",
                         "chunk_policy_version": "student_rules_semantic_v3",
-                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
                         "answer_role": "eligibility_condition",
                         "content_role": "eligibility",
                         "claim_type": "condition",
@@ -637,7 +699,7 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "parent_unit_id": "article-procedure",
                         "display_text": "学生受处分满考察期后，可以提交解除处分申请表。",
                         "chunk_policy_version": "student_rules_semantic_v3",
-                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
                         "answer_role": "procedure_step",
                         "content_role": "procedure",
                         "claim_type": "procedure",
@@ -660,7 +722,7 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "parent_unit_id": "category-scholarship",
                         "display_text": "当前已收录依据中，本科生奖学金相关制度包括国家奖学金。",
                         "chunk_policy_version": "student_rules_semantic_v3",
-                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
                         "answer_role": "category_overview",
                         "content_role": "policy_list",
                         "role_confidence": "high",
@@ -675,6 +737,10 @@ class RetrievalChunkQualityTest(unittest.TestCase):
         self.assertEqual(report.status, "failed")
         self.assertIn(
             "answer_ready_condition_subject_missing",
+            report.issues_by_chunk_id["chunk-condition-missing-subject"],
+        )
+        self.assertIn(
+            "answer_ready_clause_unit_id_missing",
             report.issues_by_chunk_id["chunk-condition-missing-subject"],
         )
         self.assertIn(
@@ -703,7 +769,7 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "root_unit_id": "article-condition",
                         "display_text": "1. 申请人应当品行端正。",
                         "chunk_policy_version": "student_rules_semantic_v3",
-                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
                         "parent_unit_id": "article-condition",
                         "answer_role": "eligibility_condition",
                         "content_role": "eligibility",
@@ -711,6 +777,9 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "role_confidence": "high",
                         "is_answer_bearing": True,
                         "condition_subject": "generic_condition",
+                        "condition_subject_taxonomy_version": "condition_subject.v1",
+                        "condition_subject_provenance": "metadata:condition_subject",
+                        "condition_group_id": "article-condition:generic_condition",
                     },
                 },
                 {
@@ -728,11 +797,14 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "root_unit_id": "table-scholarship",
                         "display_text": "奖学金等级 | 奖励金额 | 名额\n一等奖 | 3000元 | 10人",
                         "chunk_policy_version": "student_rules_semantic_v3",
-                        "evidence_contract_version": "answer_ready_evidence.v1",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
                         "parent_unit_id": "table-scholarship",
                         "answer_role": "table_fact",
                         "content_role": "table_fact",
                         "claim_type": "amount_or_quota",
+                        "condition_subject": "amount_or_quota",
+                        "condition_subject_taxonomy_version": "condition_subject.v1",
+                        "condition_subject_provenance": "metadata:condition_subject",
                         "table_fact_type": "amount_or_quota",
                         "role_confidence": "high",
                         "is_answer_bearing": True,

@@ -6,7 +6,7 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Literal
 
-from campus_ingestion_core.regulation_semantics import load_student_rules_discovery_config
+from campus_shared.regulation_semantic_registry import load_student_rules_discovery_config
 
 from .policy_query_focus import extract_policy_query_focus
 

@@ -15,6 +15,7 @@ from campus_retrieval_core.evidence_ranking import (
     prioritize_evidence_sources,
     select_supporting_evidence_sources,
 )
+from campus_shared.regulation_semantic_registry import canonical_regulation_condition_subject
 from qdrant_client.http import models as qdrant_models
 
 from .retrieval_chunk_quality import build_chunk_quality_audit_report
@@ -75,8 +76,9 @@ def audit_answer_ready_closeout(
                 answer_role_counts.get(attributes.answer_role, 0) + 1
             )
         if attributes.condition_subject:
-            condition_subject_counts[attributes.condition_subject] = (
-                condition_subject_counts.get(attributes.condition_subject, 0) + 1
+            canonical_subject = canonical_regulation_condition_subject(attributes.condition_subject)
+            condition_subject_counts[canonical_subject] = (
+                condition_subject_counts.get(canonical_subject, 0) + 1
             )
         fallback = evidence_fallback_diagnostics_for_source(source)
         if fallback.fallback_used and fallback.fallback_primary_signal == "text_cue":
@@ -127,11 +129,15 @@ def _audit_case(
             f"selected_answer_role:{selected_roles} missing {case.expected_selected_answer_role}"
         )
     selected_subjects = tuple(
-        attributes.condition_subject
+        canonical_regulation_condition_subject(attributes.condition_subject)
         for attributes in selected_attributes
         if attributes.condition_subject
     )
-    if case.expected_condition_subject and case.expected_condition_subject not in selected_subjects:
+    if (
+        case.expected_condition_subject
+        and canonical_regulation_condition_subject(case.expected_condition_subject)
+        not in selected_subjects
+    ):
         issues.append(
             "selected_condition_subject:"
             f"{selected_subjects} missing {case.expected_condition_subject}"

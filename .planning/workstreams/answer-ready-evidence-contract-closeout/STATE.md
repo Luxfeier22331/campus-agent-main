@@ -14,14 +14,15 @@ updated: 2026-05-07
 **Status:** completed
 **Current Phase:** Phase 6 completed
 **Last Activity:** 2026-05-07
-**Last Activity Description:** Phase 6 closeout completed; target `student_rules` answer-ready
-contract audit, chunk/retrieval/agent regressions, docs and planning closeout are updated.
+**Last Activity Description:** Phase 6 closeout completed; answer-ready evidence contract was
+extracted as a reusable regulation-family contract with `student_rules` as the first full backfill
+surface and `institutional_rules` covered by contract/gate compatibility tests.
 
 ## Current Slice
 
 All planned phases are closed. The current worktree contains the answer-ready evidence contract
 implementation, fail-close release gates and closeout audit evidence for the target `student_rules`
-cases.
+cases. The reusable contract definition now applies to query-serving regulation-family scopes.
 
 ## Current Phase
 
@@ -37,9 +38,9 @@ regulation RAG release lane and provide a release admission manifest with
 
 - Existing SDK output path remains validated by SDK output guardrails; this workstream did not
   reopen SDK loop ownership/tooling.
-- Full `institutional_rules` backfill is not included in this closeout. The shared regulation
-  chunker can be reused, but complete adoption should be handled as a follow-up workstream if
-  `institutional_rules` answer-ready gates become mandatory.
+- Full `institutional_rules` production backfill / alias publish is not included in this closeout.
+  `institutional_rules` chunk payload and release quality compatibility are covered by tests; real
+  serving adoption still requires the regulation RAG release lane.
 
 ## Blockers
 

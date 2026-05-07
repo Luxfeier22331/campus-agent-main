@@ -388,7 +388,17 @@ class RegistryScopeReleaseAcceptanceWiringTest(unittest.TestCase):
         alias.assert_not_called()
         quality_summary = _first_uploaded_json(object_store, filename="quality-gate-summary.json")
         self.assertEqual(quality_summary["answer_ready_contract_status"], "failed")
+        self.assertEqual(
+            quality_summary["answer_ready_contract_version"],
+            "answer_ready_evidence.v3",
+        )
         self.assertIn("chunk_contract_missing", quality_summary["failure_classes"])
+        self.assertIn(
+            "answer_ready_condition_subject_missing",
+            quality_summary["answer_ready_required_field_failures"],
+        )
+        self.assertEqual(quality_summary["answer_ready_semantic_failures"], [])
+        self.assertEqual(quality_summary["fallback_budget_status"], "not_applicable")
         self.assertIn(
             "answer_ready_condition_subject_missing",
             quality_summary["issues_by_chunk_id"]["student_rules:handbook:chunk-0001"],
@@ -687,12 +697,15 @@ class RegistryScopeReleaseAcceptanceWiringTest(unittest.TestCase):
                 "table_headers": ["课程", "学分"],
                 "final_token_count": 32,
                 "chunk_policy_version": "student_rules_semantic_v3",
-                "evidence_contract_version": "answer_ready_evidence.v1",
+                "evidence_contract_version": "answer_ready_evidence.v3",
                 "parent_unit_id": "student_rules:handbook:root-segmented",
                 "answer_role": "table_fact",
                 "content_role": "table_fact",
                 "claim_type": "table_fact",
-                "table_fact_type": "curriculum_credit",
+                "condition_subject": "amount_or_quota",
+                "condition_subject_taxonomy_version": "condition_subject.v1",
+                "condition_subject_provenance": "metadata:condition_subject",
+                "table_fact_type": "amount_or_quota",
                 "role_confidence": "high",
                 "is_answer_bearing": True,
             },
@@ -709,12 +722,15 @@ class RegistryScopeReleaseAcceptanceWiringTest(unittest.TestCase):
                 "table_headers": ["课程", "学分"],
                 "final_token_count": 32,
                 "chunk_policy_version": "student_rules_semantic_v3",
-                "evidence_contract_version": "answer_ready_evidence.v1",
+                "evidence_contract_version": "answer_ready_evidence.v3",
                 "parent_unit_id": "student_rules:handbook:root-segmented",
                 "answer_role": "table_fact",
                 "content_role": "table_fact",
                 "claim_type": "table_fact",
-                "table_fact_type": "curriculum_credit",
+                "condition_subject": "amount_or_quota",
+                "condition_subject_taxonomy_version": "condition_subject.v1",
+                "condition_subject_provenance": "metadata:condition_subject",
+                "table_fact_type": "amount_or_quota",
                 "role_confidence": "high",
                 "is_answer_bearing": True,
             },

@@ -17,7 +17,7 @@ from tests.agent.rag_agent_test_support import _make_handbook_source
 
 def _answer_ready_anchor(**metadata: object) -> dict[str, object]:
     payload = {
-        "evidence_contract_version": "answer_ready_evidence.v1",
+        "evidence_contract_version": "answer_ready_evidence.v3",
         "parent_unit_id": "handbook:unit:article-1",
         **metadata,
     }
@@ -74,12 +74,12 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
         source = replace(
             source,
             anchor=_answer_ready_anchor(
-                    answer_role="procedure_step",
-                    procedure_step_index=1,
-                    procedure_actor="student",
-                    procedure_action="apply_lift_discipline",
-                    procedure_materials=("解除处分申请表",),
-                    procedure_next_actor="college",
+                answer_role="procedure_step",
+                procedure_step_index=1,
+                procedure_actor="student",
+                procedure_action="submit_materials",
+                procedure_materials=("解除处分申请表",),
+                procedure_next_actor="college",
             ),
         )
 
@@ -112,9 +112,10 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
         source = replace(
             source,
             anchor=_answer_ready_anchor(
-                    answer_role="eligibility_condition",
-                    condition_subject="rank_threshold",
-                    condition_polarity="positive",
+                answer_role="eligibility_condition",
+                condition_subject="rank_threshold",
+                condition_group_id="handbook:unit:article-1:rank_threshold",
+                condition_polarity="positive",
             ),
         )
 
@@ -150,9 +151,10 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
         source = replace(
             source,
             anchor=_answer_ready_anchor(
-                    answer_role="exclusion_rule",
-                    condition_subject="discipline_relief_condition",
-                    condition_polarity="negative",
+                answer_role="exclusion_rule",
+                condition_subject="discipline_relief_condition",
+                condition_group_id="handbook:unit:article-1:discipline_relief_condition",
+                condition_polarity="negative",
             ),
         )
 

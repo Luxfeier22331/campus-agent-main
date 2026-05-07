@@ -18,6 +18,7 @@ from campus_ingestion_core.process_shared import StructuredUnit
 from campus_ingestion_core.regulation_answer_roles import (
     build_answer_role_metadata,
     build_table_answer_role_metadata,
+    compact_for_role,
     decide_answer_role,
     is_answer_role_atomic,
     starts_example_list,
@@ -34,6 +35,10 @@ _SECTION_LABEL_RE = re.compile(
     rf"^(?:第[{_CHINESE_NUMBER}0-9]+[章节条]|[{_CHINESE_NUMBER}0-9]+、|"
     rf"[（(][{_CHINESE_NUMBER}0-9]+[)）][、.]?)\s*"
 )
+_INLINE_EXAMPLE_TAIL_RE = re.compile(
+    r"[，,]?(?P<tail>且在[^。；;\n]{0,80}取得显著成绩[^。；;\n]*)[。；;]?$"
+)
+_INLINE_EXAMPLE_MEMBER_RE = re.compile(r"(?:且)?在[^,，。；;\n]{0,60}?取得显著成绩")
 _SHORT_ATOMIC_VALUE_MAX_CHARS = 24
 _TEXTUAL_REGULATION_UNIT_TYPES = frozenset({"article_body", "policy_page", "regulation_body"})
 
@@ -59,6 +64,10 @@ class _AnswerReadyGroupingState:
     current_role: str | None
     example_list_context: bool
     pending_prefix_text: str
+    current_group_subject: str
+    current_group_key: str
+    group_sequence: int
+    force_condition_group_keys: bool
 
 
 def build_regulation_unit_pieces(
@@ -196,7 +205,7 @@ def _build_answer_ready_regulation_segments(
 ) -> tuple[_RegulationSegment, ...]:
     lines = [line.strip() for line in text.splitlines() if line.strip()]
     item_blocks = _extract_blocks_by_pattern(lines, _GENERIC_ITEM_RE)
-    if len(item_blocks) < 2:
+    if not item_blocks:
         return ()
 
     first_item_line_index = _first_item_line_index(lines, item_blocks[0].label)
@@ -212,6 +221,9 @@ def _build_answer_ready_regulation_segments(
         chunk_profile=chunk_profile,
     )
     segments: list[_RegulationSegment] = []
+    repeated_group_intro_count = sum(
+        1 for block in item_blocks if _looks_like_group_intro(block.text)
+    )
     if prefix_text:
         intro_role_hint = _intro_role_hint(prefix_text)
         segments.append(
@@ -220,6 +232,11 @@ def _build_answer_ready_regulation_segments(
                 label="",
                 prefix_text="",
                 role_hint=intro_role_hint,
+                extra_metadata=_intro_contract_metadata(
+                    prefix_text=prefix_text,
+                    item_blocks=item_blocks,
+                    force_condition_group_keys=repeated_group_intro_count > 1,
+                ),
                 boundary_rule="regulation_answer_ready_intro",
             )
         )
@@ -229,8 +246,25 @@ def _build_answer_ready_regulation_segments(
         current_role=None,
         example_list_context=False,
         pending_prefix_text=prefix_text,
+        current_group_subject="",
+        current_group_key="",
+        group_sequence=0,
+        force_condition_group_keys=repeated_group_intro_count > 1,
     )
     for block in item_blocks:
+        if _looks_like_group_intro(block.text):
+            segments.extend(
+                _flush_answer_ready_group(
+                    state=state,
+                    display_budget=display_budget,
+                    chunk_profile=chunk_profile,
+                )
+            )
+            state.example_list_context = False
+            state.pending_prefix_text = block.text
+            state.current_group_subject = ""
+            state.current_group_key = ""
+            continue
         if starts_procedure_list(block.text):
             segments.extend(
                 _flush_answer_ready_group(
@@ -241,17 +275,51 @@ def _build_answer_ready_regulation_segments(
             )
             state.example_list_context = False
             state.pending_prefix_text = block.text
+            state.current_group_subject = ""
+            state.current_group_key = ""
             continue
         role_hint = (
             "example_evidence"
             if state.example_list_context and _is_numeric_list_label(block.label)
             else None
         )
+        block_prefix_text = state.pending_prefix_text or _single_item_context_prefix(
+            block=block,
+            section_path=_section_path(unit.anchor),
+        )
+        inline_example_segments = _inline_example_tail_segments(
+            block=block,
+            prefix_text=block_prefix_text,
+            role_hint=_inline_example_head_role(
+                text=block.text,
+                prefix_text=block_prefix_text,
+            ),
+            group_sequence=state.group_sequence + 1,
+        )
+        if inline_example_segments:
+            segments.extend(
+                _flush_answer_ready_group(
+                    state=state,
+                    display_budget=display_budget,
+                    chunk_profile=chunk_profile,
+                )
+            )
+            segments.extend(inline_example_segments)
+            continue
         block_role = _answer_role(
             text=block.text,
-            prefix_text=state.pending_prefix_text,
+            prefix_text=block_prefix_text,
             role_hint=role_hint,
         )
+        if (
+            block_role == "supporting_detail"
+            and role_hint is None
+            and block.label.strip()
+            and not _is_terminal_supporting_detail(text=block.text)
+        ):
+            inherited_role = _inherited_scope_role(prefix_text=block_prefix_text)
+            if inherited_role is not None:
+                block_role = inherited_role
         if is_answer_role_atomic(block_role):
             segments.extend(
                 _flush_answer_ready_group(
@@ -264,14 +332,28 @@ def _build_answer_ready_regulation_segments(
                 _build_answer_ready_segment(
                     text=block.text,
                     label=block.label,
-                    prefix_text=state.pending_prefix_text,
-                    role_hint=block_role,
+                    prefix_text=block_prefix_text,
+                    role_hint=(
+                        None
+                        if _atomic_item_should_reparse(
+                            role=block_role, prefix_text=block_prefix_text
+                        )
+                        else block_role
+                    ),
+                    extra_metadata=_atomic_group_contract_metadata(
+                        state=state,
+                        role=block_role,
+                        text=block.text,
+                    ),
                     boundary_rule="regulation_answer_ready_atomic_item",
                 )
             )
-            state.pending_prefix_text = ""
             if _starts_example_list(block.text):
                 state.example_list_context = True
+                state.current_group_subject = _group_subject_for_role_block(
+                    role=block_role,
+                    text=block.text,
+                )
             continue
         if state.current_role is None:
             state.current_role = block_role
@@ -288,6 +370,10 @@ def _build_answer_ready_regulation_segments(
         state.current_group.append(block)
         if _starts_example_list(block.text):
             state.example_list_context = True
+            state.current_group_subject = _group_subject_for_role_block(
+                role=block_role,
+                text=block.text,
+            )
 
     segments.extend(
         _flush_answer_ready_group(
@@ -315,9 +401,12 @@ def _flush_answer_ready_group(
         display_budget=display_budget,
         chunk_profile=chunk_profile,
         role_hint=state.current_role,
+        group_sequence=state.group_sequence + 1,
     )
+    state.group_sequence += len(segments)
     state.current_group = []
     state.current_role = None
+    state.current_group_subject = ""
     return segments
 
 
@@ -328,6 +417,7 @@ def _grouped_answer_ready_segments(
     display_budget,
     chunk_profile: ChunkProfile,
     role_hint: str | None,
+    group_sequence: int,
 ) -> tuple[_RegulationSegment, ...]:
     groups: list[list[_RegulationListBlock]] = []
     current_group: list[_RegulationListBlock] = []
@@ -358,6 +448,12 @@ def _grouped_answer_ready_segments(
             label=_label_range([block.label for block in group]),
             prefix_text=prefix_text,
             role_hint=role_hint,
+            extra_metadata=_group_contract_metadata(
+                group=group,
+                role_hint=role_hint,
+                prefix_text=prefix_text,
+                group_sequence=group_sequence + index,
+            ),
             boundary_rule="regulation_answer_ready_role_block",
         )
         for index, group in enumerate(groups)
@@ -370,6 +466,7 @@ def _build_answer_ready_segment(
     label: str,
     prefix_text: str,
     role_hint: str | None,
+    extra_metadata: dict[str, object] | None = None,
     boundary_rule: str,
 ) -> _RegulationSegment:
     label_metadata = _label_overrides(label)
@@ -378,7 +475,7 @@ def _build_answer_ready_segment(
         prefix_text=prefix_text,
         role_hint=role_hint,
     )
-    metadata = {**label_metadata, **role_metadata}
+    metadata = {**label_metadata, **role_metadata, **dict(extra_metadata or {})}
     return _RegulationSegment(
         text=text,
         anchor=label_metadata,
@@ -397,6 +494,74 @@ def _answer_role_metadata(
     return build_answer_role_metadata(text=text, prefix_text=prefix_text, role_hint=role_hint)
 
 
+def _inline_example_tail_segments(
+    *,
+    block: _RegulationListBlock,
+    prefix_text: str,
+    role_hint: str | None,
+    group_sequence: int,
+) -> tuple[_RegulationSegment, ...]:
+    if role_hint not in {"eligibility_condition", "exception_rule"}:
+        return ()
+    match = _INLINE_EXAMPLE_TAIL_RE.search(block.text)
+    if match is None:
+        return ()
+
+    tail_text = match.group("tail").strip()
+    head_text = block.text[: match.start("tail")].rstrip("，,；;、 ")
+    if not head_text or not tail_text:
+        return ()
+    if _answer_role(text=tail_text, prefix_text=prefix_text, role_hint=None) != "example_evidence":
+        return ()
+    tail_members = tuple(
+        item.strip().rstrip("，,；;、 ")
+        for item in _INLINE_EXAMPLE_MEMBER_RE.findall(tail_text)
+        if item.strip().rstrip("，,；;、 ")
+    )
+    if not tail_members:
+        tail_members = (tail_text,)
+
+    group_subject = _group_subject_for_role_block(role=role_hint, text=head_text)
+    extra_metadata: dict[str, object] = {}
+    if group_subject:
+        extra_metadata["condition_group_subject"] = group_subject
+        extra_metadata["condition_group_key"] = f"group-{group_sequence:02d}:{group_subject}"
+    return (
+        _build_answer_ready_segment(
+            text=head_text,
+            label=block.label,
+            prefix_text=prefix_text,
+            role_hint=role_hint,
+            extra_metadata=extra_metadata,
+            boundary_rule="regulation_answer_ready_inline_head",
+        ),
+        *tuple(
+            _build_answer_ready_segment(
+                text=member_text,
+                label=block.label,
+                prefix_text=prefix_text,
+                role_hint="example_evidence",
+                extra_metadata=extra_metadata,
+                boundary_rule="regulation_answer_ready_inline_example_tail",
+            )
+            for member_text in tail_members
+        ),
+    )
+
+
+def _inline_example_head_role(*, text: str, prefix_text: str) -> str | None:
+    match = _INLINE_EXAMPLE_TAIL_RE.search(text)
+    if match is None:
+        return None
+    head_text = text[: match.start("tail")].rstrip("，,；;、 ")
+    if not head_text:
+        return None
+    head_role = _answer_role(text=head_text, prefix_text=prefix_text, role_hint=None)
+    if head_role in {"eligibility_condition", "exception_rule"}:
+        return head_role
+    return None
+
+
 def _answer_role(
     *,
     text: str,
@@ -408,6 +573,38 @@ def _answer_role(
     )
 
 
+def _inherited_scope_role(*, prefix_text: str) -> str | None:
+    if not prefix_text.strip():
+        return None
+    scope_role = _answer_role(text=prefix_text, prefix_text="", role_hint=None)
+    if scope_role in {
+        "eligibility_condition",
+        "exception_rule",
+        "exclusion_rule",
+        "procedure_step",
+    }:
+        return scope_role
+    return None
+
+
+def _is_terminal_supporting_detail(*, text: str) -> bool:
+    compact = compact_for_role(text)
+    return any(
+        marker in compact
+        for marker in (
+            "负责解释",
+            "负责施行",
+            "自发布之日起实施",
+            "自发布之日起施行",
+            "自印发之日起实施",
+            "自印发之日起施行",
+            "自公布之日起实施",
+            "自公布之日起施行",
+            "同时废止",
+        )
+    )
+
+
 def _starts_example_list(text: str) -> bool:
     return starts_example_list(text)
 
@@ -416,11 +613,161 @@ def _is_numeric_list_label(label: str) -> bool:
     return bool(re.match(r"^\s*(?:\d+[.．、]|[（(]\d+[)）])\s*$", label or ""))
 
 
+def _single_item_context_prefix(
+    *,
+    block: _RegulationListBlock,
+    section_path: tuple[str, ...],
+) -> str:
+    if not block.label.strip():
+        return ""
+    if not section_path:
+        return ""
+    leaf = _strip_section_label(section_path[-1])
+    if any(marker in leaf for marker in ("程序", "流程", "步骤", "办理")):
+        return leaf
+    return ""
+
+
+def _atomic_item_should_reparse(*, role: str, prefix_text: str) -> bool:
+    if role != "procedure_step":
+        return False
+    return bool(prefix_text.strip())
+
+
 def _intro_role_hint(text: str) -> str | None:
     answer_role = _answer_role(text=text, prefix_text="", role_hint=None)
     if answer_role in {"procedure_step", "exclusion_rule", "exception_rule"}:
         return answer_role
     return "intro"
+
+
+def _group_contract_metadata(
+    *,
+    group: Sequence[_RegulationListBlock],
+    role_hint: str | None,
+    prefix_text: str,
+    group_sequence: int,
+) -> dict[str, object]:
+    target_roles = tuple(
+        dict.fromkeys(
+            _answer_role(
+                text=block.text,
+                prefix_text=prefix_text,
+                role_hint=None,
+            )
+            for block in group
+        )
+    )
+    if any(
+        role in target_roles for role in ("exception_rule", "example_evidence", "procedure_step")
+    ):
+        target_roles = tuple(
+            role
+            for role in target_roles
+            if role not in {"eligibility_condition", "supporting_detail"}
+        )
+    result: dict[str, object] = {}
+    if target_roles:
+        result["intro_target_roles"] = target_roles
+    group_subject = _group_subject_for_role_block(
+        role=role_hint,
+        text=_compose_list_segment_text(prefix_text=prefix_text, blocks=group),
+    )
+    if group_subject:
+        result["condition_group_subject"] = group_subject
+        result["condition_group_key"] = f"group-{group_sequence:02d}:{group_subject}"
+    return result
+
+
+def _intro_contract_metadata(
+    *,
+    prefix_text: str,
+    item_blocks: Sequence[_RegulationListBlock],
+    force_condition_group_keys: bool,
+) -> dict[str, object]:
+    target_roles = tuple(
+        dict.fromkeys(
+            _answer_role(text=block.text, prefix_text=prefix_text, role_hint=None)
+            for block in item_blocks
+        )
+    )
+    if any(
+        role in target_roles for role in ("exception_rule", "example_evidence", "procedure_step")
+    ):
+        target_roles = tuple(
+            role
+            for role in target_roles
+            if role not in {"eligibility_condition", "supporting_detail"}
+        )
+    first_group_subject = ""
+    if item_blocks:
+        first_role = _answer_role(text=item_blocks[0].text, prefix_text=prefix_text, role_hint=None)
+        first_group_subject = _group_subject_for_role_block(
+            role=first_role,
+            text=item_blocks[0].text,
+        )
+    metadata: dict[str, object] = {}
+    if target_roles:
+        metadata["intro_target_roles"] = target_roles
+    if first_group_subject:
+        metadata["introduced_condition_subject"] = first_group_subject
+        metadata["condition_group_subject"] = first_group_subject
+        if force_condition_group_keys:
+            metadata["introduced_condition_group_key"] = f"group-01:{first_group_subject}"
+    return metadata
+
+
+def _atomic_group_contract_metadata(
+    *,
+    state: _AnswerReadyGroupingState,
+    role: str,
+    text: str,
+) -> dict[str, object]:
+    group_subject = state.current_group_subject or _group_subject_for_role_block(
+        role=role, text=text
+    )
+    if not group_subject:
+        return {}
+    result = {"condition_group_subject": group_subject}
+    if role == "example_evidence" and state.current_group_subject:
+        if state.force_condition_group_keys and state.current_group_key:
+            result["condition_group_key"] = state.current_group_key
+        return result
+    if not state.force_condition_group_keys:
+        return result
+    if not state.current_group_key:
+        state.group_sequence += 1
+        state.current_group_key = f"group-{state.group_sequence:02d}:{group_subject}"
+    result["condition_group_key"] = state.current_group_key
+    state.current_group_subject = group_subject
+    return result
+
+
+def _group_subject_for_role_block(*, role: str | None, text: str) -> str:
+    compact = text.replace(" ", "")
+    if role == "procedure_step":
+        return "application_procedure"
+    if role in {"eligibility_condition", "exception_rule", "example_evidence"} and any(
+        marker in compact for marker in ("排名", "前10%", "前30%", "综合测评")
+    ):
+        return "rank_threshold"
+    if role == "exclusion_rule" and "处分" in compact:
+        return "discipline_relief_exclusion"
+    return ""
+
+
+def _looks_like_group_intro(text: str) -> bool:
+    compact = text.replace(" ", "")
+    return compact in {
+        "符合下列条件之一:",
+        "符合下列条件之一：",
+        "具备以下条件之一:",
+        "具备以下条件之一：",
+        "有下列情形之一:",
+        "有下列情形之一：",
+        "有以下情形之一:",
+        "有以下情形之一：",
+    }
 
 
 def _build_regulation_list_segments(
@@ -574,6 +921,23 @@ def _extract_blocks_by_pattern(
     current_label: str | None = None
     current_lines: list[str] = []
     for line in lines:
+        if _looks_like_group_intro(line):
+            if current_label is not None and current_lines:
+                blocks.append(
+                    _RegulationListBlock(
+                        label=current_label,
+                        text="\n".join(current_lines).strip(),
+                    )
+                )
+            blocks.append(
+                _RegulationListBlock(
+                    label="",
+                    text=line.strip(),
+                )
+            )
+            current_label = None
+            current_lines = []
+            continue
         match = pattern.match(line)
         if match is not None:
             if current_label is not None and current_lines:

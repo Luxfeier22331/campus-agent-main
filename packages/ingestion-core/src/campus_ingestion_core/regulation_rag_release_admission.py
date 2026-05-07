@@ -10,15 +10,12 @@ from typing import Protocol
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.object_store import build_operations_artifact_key
+from campus_shared.answer_ready_evidence_contract import ANSWER_READY_EVIDENCE_CONTRACT_VERSION
 
 REGULATION_RAG_RELEASE_ADMISSION_SCHEMA_VERSION = "regulation_rag_release_admission.v1"
-REGULATION_RAG_RELEASE_ADMISSION_POLICY_VERSION = (
-    "regulation_rag_release_admission_policy.v2"
-)
+REGULATION_RAG_RELEASE_ADMISSION_POLICY_VERSION = "regulation_rag_release_admission_policy.v2"
 REGULATION_RAG_RELEASE_ADMISSION_OPERATION = "regulation-rag-release-admission"
-REGULATION_RAG_RELEASE_ADMISSION_MANIFEST_ENV_KEY = (
-    "REGULATION_RAG_RELEASE_ADMISSION_MANIFEST_KEY"
-)
+REGULATION_RAG_RELEASE_ADMISSION_MANIFEST_ENV_KEY = "REGULATION_RAG_RELEASE_ADMISSION_MANIFEST_KEY"
 
 
 class RegulationRagReleaseAdmissionError(ValueError):
@@ -68,14 +65,17 @@ class RegulationRagReleaseAdmissionManifest:
     chunk_profile_version: str
     runtime_profile_identity: str
     document_count: int
-    documents: tuple[RegulationRagReleaseAdmissionDocumentRef, ...] = field(
-        default_factory=tuple
-    )
+    documents: tuple[RegulationRagReleaseAdmissionDocumentRef, ...] = field(default_factory=tuple)
     chunk_quality_status: str = "passed"
+    answer_ready_contract_version: str = ANSWER_READY_EVIDENCE_CONTRACT_VERSION
     answer_ready_contract_status: str = "passed"
+    answer_ready_required_field_failures: tuple[str, ...] = ()
+    answer_ready_semantic_failures: tuple[str, ...] = ()
     qrels_coverage_status: str = "passed"
     reader_publish_status: str = "passed"
     authz_denial_check_status: str = "passed"
+    semantic_oracle_status: str = "pending_phase8"
+    fallback_budget_status: str = "not_applicable"
     notes: tuple[str, ...] = ()
 
 
@@ -136,11 +136,14 @@ def require_regulation_rag_release_admission_key(
         explicit_key=explicit_key,
         env=env,
     )
-    if regulation_rag_release_admission_required(
-        corpus=corpus,
-        runtime_profile=runtime_profile,
-        publish_alias=publish_alias,
-    ) and not manifest_key:
+    if (
+        regulation_rag_release_admission_required(
+            corpus=corpus,
+            runtime_profile=runtime_profile,
+            publish_alias=publish_alias,
+        )
+        and not manifest_key
+    ):
         raise RegulationRagReleaseAdmissionError(
             "release admission manifest key is required before query-enabled regulation "
             f"release for {corpus}/{collection}"
@@ -173,6 +176,11 @@ def build_regulation_rag_release_admission_manifest(
     preparation_manifest: object,
     admitted_at: str | None = None,
     answer_ready_contract_status: str = "passed",
+    answer_ready_contract_version: str = ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
+    answer_ready_required_field_failures: Sequence[str] = (),
+    answer_ready_semantic_failures: Sequence[str] = (),
+    semantic_oracle_status: str = "pending_phase8",
+    fallback_budget_status: str = "not_applicable",
     notes: Sequence[str] = (),
 ) -> RegulationRagReleaseAdmissionManifest:
     documents = _expected_document_refs(
@@ -193,7 +201,16 @@ def build_regulation_rag_release_admission_manifest(
         runtime_profile_identity=build_regulation_rag_runtime_profile_identity(runtime_profile),
         document_count=len(documents),
         documents=documents,
+        answer_ready_contract_version=answer_ready_contract_version,
         answer_ready_contract_status=answer_ready_contract_status,
+        answer_ready_required_field_failures=tuple(
+            str(item) for item in answer_ready_required_field_failures if str(item).strip()
+        ),
+        answer_ready_semantic_failures=tuple(
+            str(item) for item in answer_ready_semantic_failures if str(item).strip()
+        ),
+        semantic_oracle_status=semantic_oracle_status,
+        fallback_budget_status=fallback_budget_status,
         notes=tuple(str(item) for item in notes if str(item).strip()),
     )
 
@@ -213,9 +230,7 @@ def write_regulation_rag_release_admission_manifest(
     writer.put_bytes(
         bucket=bucket,
         key=object_key,
-        data=(json.dumps(asdict(manifest), ensure_ascii=False, indent=2) + "\n").encode(
-            "utf-8"
-        ),
+        data=(json.dumps(asdict(manifest), ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
         content_type="application/json",
     )
     return object_key
@@ -275,8 +290,7 @@ def assert_regulation_rag_release_admission_allows_release(
     )
     if issues:
         raise RegulationRagReleaseAdmissionError(
-            "release admission manifest rejected "
-            f"{corpus}/{collection}: {', '.join(issues)}"
+            f"release admission manifest rejected {corpus}/{collection}: {', '.join(issues)}"
         )
     return manifest
 
@@ -348,13 +362,33 @@ def _manifest_shape_issues(
         issues.append(f"admission_status_not_passed:{manifest.admission_status}")
     for field_name in (
         "chunk_quality_status",
+        "answer_ready_contract_version",
         "answer_ready_contract_status",
         "qrels_coverage_status",
         "reader_publish_status",
         "authz_denial_check_status",
+        "semantic_oracle_status",
+        "fallback_budget_status",
     ):
-        if getattr(manifest, field_name) != "passed":
+        value = getattr(manifest, field_name)
+        if field_name == "answer_ready_contract_version":
+            if value != ANSWER_READY_EVIDENCE_CONTRACT_VERSION:
+                issues.append(f"{field_name}_not_passed:{value}")
+            continue
+        if field_name == "semantic_oracle_status":
+            if value not in {"passed", "pending_phase8"}:
+                issues.append(f"{field_name}_not_passed:{value}")
+            continue
+        if field_name == "fallback_budget_status":
+            if value not in {"passed", "not_applicable"}:
+                issues.append(f"{field_name}_not_passed:{value}")
+            continue
+        if value != "passed":
             issues.append(f"{field_name}_not_passed:{getattr(manifest, field_name)}")
+    if manifest.answer_ready_required_field_failures:
+        issues.append("answer_ready_required_field_failures_not_empty")
+    if manifest.answer_ready_semantic_failures:
+        issues.append("answer_ready_semantic_failures_not_empty")
     if manifest.document_count != len(manifest.documents):
         issues.append("document_count_shape_mismatch")
     seen: set[tuple[str, str, str]] = set()
@@ -460,10 +494,19 @@ def _manifest_from_payload(payload: Mapping[str, object]) -> RegulationRagReleas
             if isinstance(item, Mapping)
         ),
         chunk_quality_status=str(payload.get("chunk_quality_status") or ""),
+        answer_ready_contract_version=str(payload.get("answer_ready_contract_version") or ""),
         answer_ready_contract_status=str(payload.get("answer_ready_contract_status") or ""),
+        answer_ready_required_field_failures=tuple(
+            str(item) for item in list(payload.get("answer_ready_required_field_failures") or [])
+        ),
+        answer_ready_semantic_failures=tuple(
+            str(item) for item in list(payload.get("answer_ready_semantic_failures") or [])
+        ),
         qrels_coverage_status=str(payload.get("qrels_coverage_status") or ""),
         reader_publish_status=str(payload.get("reader_publish_status") or ""),
         authz_denial_check_status=str(payload.get("authz_denial_check_status") or ""),
+        semantic_oracle_status=str(payload.get("semantic_oracle_status") or ""),
+        fallback_budget_status=str(payload.get("fallback_budget_status") or ""),
         notes=tuple(str(item) for item in list(payload.get("notes") or [])),
     )
 

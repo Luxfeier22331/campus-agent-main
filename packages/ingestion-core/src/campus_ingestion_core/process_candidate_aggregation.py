@@ -80,6 +80,14 @@ def build_handbook_answer_role_release_metadata(
             "role_reason": _shared_text(metadata.get("role_reason"))
             or "explicit_answer_role_metadata",
         }
+    if semantics.content_role == "procedure" or semantics.semantic_role == "procedure_step":
+        role_metadata = build_answer_role_metadata(text=text, role_hint="procedure_step")
+        return {
+            "answer_role": "procedure_step",
+            "role_confidence": _shared_text(role_metadata.get("role_confidence")) or "high",
+            "role_reason": _shared_text(role_metadata.get("role_reason"))
+            or "derived_from_handbook_semantics:procedure",
+        }
     if not semantics.is_answer_bearing:
         return {}
     parser_decision = decide_answer_role(text=text)

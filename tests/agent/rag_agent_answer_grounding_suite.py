@@ -190,11 +190,13 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
             anchor={
                 INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
                     "answer_role": "procedure_step",
-                    "evidence_contract_version": "answer_ready_evidence.v1",
+                    "evidence_contract_version": "answer_ready_evidence.v3",
                     "parent_unit_id": "handbook:demerit-relief:article-3",
+                    "condition_subject": "application_procedure",
+                    "condition_group_id": "handbook:demerit-relief:article-3:application_procedure",
                     "procedure_step_index": 1,
                     "procedure_actor": "student",
-                    "procedure_action": "apply_lift_discipline",
+                    "procedure_action": "submit_materials",
                     "procedure_materials": ("解除处分申请表",),
                     "procedure_next_actor": "college",
                     "polarity": "positive",

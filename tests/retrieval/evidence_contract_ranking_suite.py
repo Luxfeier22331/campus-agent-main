@@ -14,7 +14,7 @@ from tests.retrieval.backend_qdrant_test_support import _make_source
 
 def _answer_ready_anchor(**metadata: object) -> dict[str, object]:
     payload = {
-        "evidence_contract_version": "answer_ready_evidence.v1",
+        "evidence_contract_version": "answer_ready_evidence.v3",
         "parent_unit_id": "handbook:unit:article-1",
         **metadata,
     }
@@ -151,7 +151,9 @@ class EvidenceContractRankingTest(unittest.TestCase):
 
         self.assertEqual(ranked[0].chunk_id, "national-scholarship-rank-threshold")
 
-    def test_condition_subject_ranks_paper_publication_clause_over_generic_eligibility(self) -> None:
+    def test_condition_subject_ranks_paper_publication_clause_over_generic_eligibility(
+        self,
+    ) -> None:
         ranked = prioritize_evidence_sources(
             query_text="论文能不能算国奖条件",
             sources=(
@@ -306,7 +308,9 @@ class EvidenceContractRankingTest(unittest.TestCase):
             legacy_feature.fallback_diagnostics.missing_contract_fields,
         )
         self.assertEqual(legacy_feature.fallback_diagnostics.source_index_contract_version, "")
-        self.assertEqual(legacy_feature.fallback_diagnostics.fallback_primary_signal, "public_semantic")
+        self.assertEqual(
+            legacy_feature.fallback_diagnostics.fallback_primary_signal, "public_semantic"
+        )
         self.assertFalse(typed_feature.fallback_diagnostics.fallback_used)
         self.assertEqual(typed_feature.fallback_diagnostics.missing_contract_fields, ())
 

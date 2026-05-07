@@ -248,7 +248,8 @@ chunk 组装必须严格区分三层：
 ### Answer-ready 语义片段
 
 `student_rules_semantic_v3` 的在线检索目标不是只生成“不过长的结构块”，还必须生成可被
-retrieval/rerank/answer synthesis 直接使用的 answer-ready evidence。
+retrieval/rerank/answer synthesis 直接使用的 answer-ready evidence。该 evidence contract
+是 regulation-family 通用 contract；学生手册只是当前完整落地的 handbook profile。
 
 当前 student rules 的 regulation-aware chunking 会在正文结构识别后补充：
 
@@ -263,7 +264,7 @@ retrieval/rerank/answer synthesis 直接使用的 answer-ready evidence。
 
 这些 answer-ready chunks 必须同时携带 retrieval-facing evidence contract metadata：
 
-- `evidence_contract_version=answer_ready_evidence.v1`
+- `evidence_contract_version=answer_ready_evidence.v2`
 - `parent_unit_id`
 - `condition_subject`，用于排名阈值、论文/发表、材料、截止时间、受众范围、处分解除限制等判断证据
 - `condition_polarity`
@@ -393,8 +394,8 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 - `small_unaggregated_chunk_count == 0`
 - `header_dominant_chunk_count == 0`
 - `policy_list` / `category_overview` chunk 必须带 `answer_role=category_overview`
-- query-serving `student_rules` answer-ready chunks 必须通过
-  `answer_ready_evidence.v1` contract quality gate；缺 `answer_role`、
+- query-serving regulation-family answer-ready chunks 必须通过
+  `answer_ready_evidence.v2` contract quality gate；缺 `answer_role`、
   `parent_unit_id`、`condition_subject`、typed procedure fields 或 category member
   metadata 时 fail closed
 - `eligibility` / `exception_rule` chunk 不得同时包含“具体表现如下”等示例列表标记和多个

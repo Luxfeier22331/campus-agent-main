@@ -29,6 +29,7 @@ from campus_ingestion_core.process_loading import (
     build_default_unit_pieces,
     build_generic_runtime_chunk_profile,
     build_handbook_chunk_profile,
+    build_institutional_rules_unit_pieces,
     build_official_web_runtime_chunk_profile,
     build_regulation_unit_pieces,
     build_student_rules_unit_pieces,
@@ -112,7 +113,7 @@ _COLLECTION_CHUNK_STRATEGIES: dict[tuple[str, str], _CollectionChunkStrategy] = 
     ("regulations", "institutional_rules"): _CollectionChunkStrategy(
         build_chunk_profile=build_generic_runtime_chunk_profile,
         load_structured_units=load_default_structured_units,
-        build_unit_pieces=build_regulation_unit_pieces,
+        build_unit_pieces=build_institutional_rules_unit_pieces,
         resolve_unit_chunk_profile=resolve_institutional_regulation_unit_chunk_profile,
         should_skip_unit=should_skip_regulation_unit,
         postprocess_candidates=postprocess_institutional_regulation_chunk_candidates,

@@ -5,6 +5,7 @@ from dataclasses import dataclass
 from typing import Literal
 
 from campus_contracts import EvidenceSource
+from campus_shared.regulation_semantic_registry import canonical_regulation_condition_subject
 
 from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 
@@ -113,12 +114,14 @@ def semantic_alignment_score(*, query_text: str, source: EvidenceSource) -> int:
     source_answer_role = attributes.answer_role or source.semantic_role
     source_action_type = attributes.action_type or source.action_type
     source_claim_type = attributes.claim_type or source.claim_type
-    source_condition_subject = attributes.condition_subject
+    source_condition_subject = canonical_regulation_condition_subject(attributes.condition_subject)
     source_category_id = attributes.category_id
     if intent.action_type and source_action_type == intent.action_type:
         score += 8
     if intent.condition_subject:
-        if source_condition_subject == intent.condition_subject:
+        if source_condition_subject == canonical_regulation_condition_subject(
+            intent.condition_subject
+        ):
             score += 34
         elif source_condition_subject:
             score -= 10
@@ -273,6 +276,10 @@ def infer_query_action_type(query_text: str) -> str:
 
 def infer_query_condition_subject(query_text: str) -> str:
     normalized = _normalize_query(query_text)
+    if any(cue in normalized for cue in _LIFT_DISCIPLINE_QUERY_CUES) and any(
+        cue in normalized for cue in _PROCEDURE_QUERY_CUES
+    ):
+        return "application_procedure"
     if any(cue in normalized for cue in _RANK_THRESHOLD_QUERY_CUES):
         return "rank_threshold"
     if any(cue in normalized for cue in _PAPER_PUBLICATION_QUERY_CUES):

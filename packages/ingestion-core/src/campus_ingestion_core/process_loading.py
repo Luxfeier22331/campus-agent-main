@@ -198,6 +198,15 @@ def build_student_rules_unit_pieces(unit: StructuredUnit, chunk_profile: ChunkPr
     )
 
 
+def build_institutional_rules_unit_pieces(unit: StructuredUnit, chunk_profile: ChunkProfile):
+    return build_regulation_unit_pieces(
+        unit,
+        chunk_profile,
+        require_regulation_body_role=True,
+        answer_ready_roles=True,
+    )
+
+
 def build_curriculum_unit_pieces(unit: StructuredUnit, chunk_profile: ChunkProfile):
     return chunk_curriculum_unit(unit=unit, chunk_profile=chunk_profile)
 

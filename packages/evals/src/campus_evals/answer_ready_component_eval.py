@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from campus_shared.regulation_semantic_registry import canonical_regulation_condition_subject
+
 
 @dataclass(frozen=True, slots=True)
 class AnswerReadyComponentCase:
@@ -83,8 +85,8 @@ def _intent_mismatches(
     }
     if case.expected_condition_subject:
         checks["condition_subject"] = (
-            observed.condition_subject,
-            case.expected_condition_subject,
+            canonical_regulation_condition_subject(observed.condition_subject),
+            canonical_regulation_condition_subject(case.expected_condition_subject),
         )
     return _mismatches(checks)
 
@@ -137,7 +139,11 @@ def _selection_mismatches(
     if (
         case.expected_condition_subject
         and observed.selected_condition_subjects
-        and case.expected_condition_subject not in set(observed.selected_condition_subjects)
+        and canonical_regulation_condition_subject(case.expected_condition_subject)
+        not in {
+            canonical_regulation_condition_subject(subject)
+            for subject in observed.selected_condition_subjects
+        }
     ):
         return {
             "selected_condition_subjects": (

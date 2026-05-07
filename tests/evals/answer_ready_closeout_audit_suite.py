@@ -74,6 +74,13 @@ class AnswerReadyCloseoutAuditTest(unittest.TestCase):
                     expected_selected_answer_role="category_overview",
                     expected_condition_subject="audience_scope",
                 ),
+                AnswerReadyCloseoutCase(
+                    case_id="student-card-reissue",
+                    query="学生证丢了怎么补",
+                    expected_top_answer_role="procedure_step",
+                    expected_selected_answer_role="procedure_step",
+                    expected_condition_subject="application_procedure",
+                ),
             ),
         )
 
@@ -149,6 +156,27 @@ def _student_rules_closeout_structured_jsonl() -> bytes:
                 "page_end": 1,
             },
             metadata={"title": "中央民族大学本科学生国家奖学金评审办法"},
+        ),
+        _structured_row(
+            doc_id=record.document_id,
+            version_id=record.version_id,
+            unit_type="article_body",
+            root_unit_id="article-student-card-reissue",
+            clean_text="\n".join(
+                [
+                    "学生证遗失补办按如下程序办理:",
+                    "1. 学生本人先办理挂失。",
+                    "2. 按要求提交补办申请表和本人证件照片。",
+                    "3. 学院审核后报学生处补发。",
+                ]
+            ),
+            anchor={
+                "section_path": ["中央民族大学本科(预科)学生证管理办法", "补办程序"],
+                "article_label": "第五条",
+                "page_start": 1,
+                "page_end": 1,
+            },
+            metadata={"title": "中央民族大学本科(预科)学生证管理办法"},
         ),
     ]
     return (

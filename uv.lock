@@ -322,6 +322,7 @@ source = { editable = "packages/ingestion-core" }
 dependencies = [
     { name = "boto3" },
     { name = "campus-contracts" },
+    { name = "campus-shared" },
     { name = "httpx", extra = ["socks"] },
     { name = "llama-index-core" },
     { name = "llama-index-embeddings-openai" },
@@ -340,6 +341,7 @@ dependencies = [
 requires-dist = [
     { name = "boto3", specifier = ">=1.35.0" },
     { name = "campus-contracts", editable = "packages/contracts" },
+    { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
     { name = "llama-index-core", specifier = ">=0.14.18" },
     { name = "llama-index-embeddings-openai", specifier = ">=0.6.0" },
@@ -443,6 +445,7 @@ source = { editable = "packages/retrieval-core" }
 dependencies = [
     { name = "campus-contracts" },
     { name = "campus-ingestion-core" },
+    { name = "campus-shared" },
     { name = "httpx", extra = ["socks"] },
     { name = "llama-index-core" },
     { name = "llama-index-vector-stores-qdrant" },
@@ -453,6 +456,7 @@ dependencies = [
 requires-dist = [
     { name = "campus-contracts", editable = "packages/contracts" },
     { name = "campus-ingestion-core", editable = "packages/ingestion-core" },
+    { name = "campus-shared", editable = "packages/shared" },
     { name = "httpx", extras = ["socks"], specifier = ">=0.28.1" },
     { name = "llama-index-core", specifier = ">=0.14.18" },
     { name = "llama-index-vector-stores-qdrant", specifier = ">=0.10.0" },

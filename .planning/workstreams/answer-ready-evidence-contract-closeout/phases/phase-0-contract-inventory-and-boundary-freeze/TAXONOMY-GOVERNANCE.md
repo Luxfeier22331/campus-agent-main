@@ -13,7 +13,7 @@ This document freezes the vocabulary governance for answer-ready evidence fields
 
 ## Contract Version
 
-- Initial version: `answer_ready_evidence.v1`
+- Current version: `answer_ready_evidence.v2`
 - Field owner: `packages/ingestion-core` produces metadata; `packages/retrieval-core` owns online
   projection/ranking consumption; `packages/rag-agent` owns draft/grounding consumption.
 - New enum values require tests in ingestion, retrieval ranking/selection and component eval.

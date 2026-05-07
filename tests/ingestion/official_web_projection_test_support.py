@@ -308,6 +308,7 @@ def _block(
     is_boilerplate: bool = False,
     html_fragment: str | None = None,
     link_target: str | None = None,
+    dom_path: str | None = None,
 ) -> dict[str, object]:
     return {
         "schemaVersion": "official_web_content_block.v1",
@@ -318,7 +319,7 @@ def _block(
         "blockOrder": block_order,
         "blockRole": block_role,
         "headingLevel": 1 if block_role in {"title", "heading"} else None,
-        "domPath": None,
+        "domPath": dom_path,
         "parentHeadingPath": parent_heading_path or [],
         "listLevel": None,
         "tableId": None,

@@ -25,6 +25,11 @@ _NON_BODY_RE = re.compile(
     r"(copyright|all rights reserved|发布时间|更新时间|作者[:：]|来源[:：]|上一篇|下一篇|上一条|下一条)",
     re.IGNORECASE,
 )
+_REGULATION_PREFACE_RE = re.compile(
+    r"(?:^|[。；;\n])\s*(?:为(?:了|进一步|切实|规范|加强|做好)?|根据|依据|按照)"
+    r"[\s\S]{0,900}?"
+    r"(?:制定|修订|特制定|制订)本(?:暂行)?(?:办法|规定|章程|细则|规程|制度|规划|条例)"
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -136,9 +141,16 @@ def _normalize_regulation_lines(
     normalized_lines: list[str] = []
     source_title_key = _line_key(source_title)
     formal_title_key = _line_key(title_info.display_title)
+    body_started = False
     for line in lines:
         current = line.strip()
         if not current:
+            continue
+        if not body_started and _is_pre_body_heading(
+            current,
+            source_title_key=source_title_key,
+            formal_title_key=formal_title_key,
+        ):
             continue
         if (
             not normalized_lines
@@ -146,17 +158,50 @@ def _normalize_regulation_lines(
             and source_title_key != formal_title_key
         ):
             continue
-        if not normalized_lines and current.startswith(title_info.display_title):
-            normalized_lines.append(title_info.display_title)
+        if not body_started and current.startswith(title_info.display_title):
+            if not normalized_lines or normalized_lines[-1] != title_info.display_title:
+                normalized_lines.append(title_info.display_title)
             remainder = current[len(title_info.display_title) :].strip()
             if remainder:
                 normalized_lines.append(remainder)
+                body_started = _is_body_start_line(remainder)
             continue
+        if not body_started:
+            body_started = _is_body_start_line(current)
         if normalized_lines or current != title_info.display_title:
             normalized_lines.append(current)
             continue
         normalized_lines.append(current)
     return tuple(normalized_lines)
+
+
+def _is_body_start_line(line: str) -> bool:
+    return _STRUCTURE_MARKER_RE.search(line) is not None or _looks_like_regulation_preface(line)
+
+
+def _is_pre_body_heading(
+    line: str,
+    *,
+    source_title_key: str,
+    formal_title_key: str,
+) -> bool:
+    line_key = _line_key(line)
+    if line_key in {source_title_key, formal_title_key}:
+        return False
+    if _STRUCTURE_MARKER_RE.search(line):
+        return False
+    if _looks_like_regulation_preface(line):
+        return False
+    if _looks_like_source_article_title(line):
+        return False
+    return len(line_key) <= 16
+
+
+def _looks_like_regulation_preface(line: str) -> bool:
+    stripped = line.strip()
+    if not stripped or len(stripped) > 1200:
+        return False
+    return _REGULATION_PREFACE_RE.search(stripped) is not None
 
 
 __all__ = [

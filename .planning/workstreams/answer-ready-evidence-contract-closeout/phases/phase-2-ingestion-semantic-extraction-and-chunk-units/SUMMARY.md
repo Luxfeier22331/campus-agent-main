@@ -21,7 +21,7 @@ kept the extraction generic by answer role, condition subject, parent unit and p
 
 ## Code Changes
 
-- Added `answer_ready_evidence.v1` as the ingestion-side contract version.
+- Added `answer_ready_evidence.v2` as the ingestion-side contract version.
 - Added `parent_unit_id` for answer-ready chunks from stable root/category units.
 - Added condition subject inference for rank threshold, paper/publication, material requirement,
   deadline, audience scope, application procedure and generic condition cases.

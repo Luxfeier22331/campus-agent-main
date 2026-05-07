@@ -222,7 +222,7 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - alias publish 前的 chunk quality gate；缺 traceability metadata、超过当前
   collection/profile chunk token budget、出现不可直接 query-serving 的 attachment-ref chunk
   或 regulation heading-only chunk 时，query-serving publish fail closed
-- 对 query-serving `regulations/student_rules` release，chunk quality gate 同时要求
+- 对 query-serving regulation-family release，chunk quality gate 同时要求
   answer-ready evidence contract 通过。缺少 `answer_role`、`parent_unit_id`、
   `evidence_contract_version`、judgment evidence 的 `condition_subject`、procedure
   evidence 的 typed step fields、category overview 的 member ids / titles 时，

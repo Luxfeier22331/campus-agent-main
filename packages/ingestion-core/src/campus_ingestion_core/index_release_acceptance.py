@@ -28,6 +28,7 @@ from qdrant_client import QdrantClient
 
 from campus_ingestion_core.answer_ready_contract_quality import (
     ANSWER_READY_CONTRACT_FAILURE_CLASS,
+    ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
     evaluate_answer_ready_contract_metadata,
     is_answer_ready_contract_issue,
 )
@@ -457,11 +458,29 @@ def evaluate_release_chunk_quality(
         for issue in issues
         if is_answer_ready_contract_issue(issue)
     )
+    answer_ready_contract_issues = tuple(
+        dict.fromkeys(
+            issue
+            for issues in issues_by_chunk_id.values()
+            for issue in issues
+            if is_answer_ready_contract_issue(issue)
+        )
+    )
+    answer_ready_required_field_failures = tuple(
+        issue
+        for issue in answer_ready_contract_issues
+        if issue.endswith("_missing")
+        or issue
+        in {"answer_ready_procedure_step_fields_missing", "answer_ready_intro_fields_missing"}
+    )
+    answer_ready_semantic_failures = tuple(
+        issue
+        for issue in answer_ready_contract_issues
+        if issue not in answer_ready_required_field_failures
+    )
     qrels_issues = tuple(str(issue) for issue in qrels_coverage_issues if str(issue).strip())
     chunk_quality_status = "passed" if chunk_issue_count == 0 else "failed"
-    answer_ready_contract_status = (
-        "passed" if answer_ready_contract_issue_count == 0 else "failed"
-    )
+    answer_ready_contract_status = "passed" if answer_ready_contract_issue_count == 0 else "failed"
     if not qrels_coverage_required:
         qrels_coverage_status = "not_applicable" if not qrels_issues else "failed"
     else:
@@ -484,8 +503,11 @@ def evaluate_release_chunk_quality(
             "chunk_count": len(chunks),
             "chunk_quality_status": chunk_quality_status,
             "chunk_issue_count": chunk_issue_count,
+            "answer_ready_contract_version": ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
             "answer_ready_contract_status": answer_ready_contract_status,
             "answer_ready_contract_issue_count": answer_ready_contract_issue_count,
+            "answer_ready_required_field_failures": list(answer_ready_required_field_failures),
+            "answer_ready_semantic_failures": list(answer_ready_semantic_failures),
             "failure_classes": (
                 (ANSWER_READY_CONTRACT_FAILURE_CLASS,)
                 if answer_ready_contract_status == "failed"
@@ -499,6 +521,7 @@ def evaluate_release_chunk_quality(
             "qrels_coverage_status": qrels_coverage_status,
             "qrels_coverage_issues": qrels_issues,
             "qrels_coverage_required": qrels_coverage_required,
+            "fallback_budget_status": "not_applicable",
             "release_metadata_consistency_status": release_metadata_consistency_status,
         },
     )

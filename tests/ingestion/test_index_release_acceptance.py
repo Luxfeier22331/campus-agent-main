@@ -193,9 +193,7 @@ class _FakeCurriculumTitleMissQdrantClient:
                         "latest_url": "https://campus.example/curriculum/social-practice",
                         "source_channel": "pdf_ocr",
                         "is_current": True,
-                        "anchor": {
-                            "section_path": ["中央民族大学大学生社会实践环节实施方案"]
-                        },
+                        "anchor": {"section_path": ["中央民族大学大学生社会实践环节实施方案"]},
                         "display_text": "中央民族大学大学生社会实践环节实施方案。",
                     },
                 )
@@ -270,6 +268,7 @@ class IndexReleaseAcceptanceTest(unittest.TestCase):
                         "display_text": "学习成绩排名与综合考评成绩排名原则上均应位于前10%。",
                         "final_token_count": 32,
                         "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
                         "answer_role": "eligibility_condition",
                         "content_role": "eligibility",
                         "claim_type": "condition",
@@ -283,11 +282,267 @@ class IndexReleaseAcceptanceTest(unittest.TestCase):
 
         self.assertEqual(report.status, "failed")
         self.assertEqual(report.summary["answer_ready_contract_status"], "failed")
+        self.assertEqual(
+            report.summary["answer_ready_contract_version"],
+            "answer_ready_evidence.v3",
+        )
+        self.assertEqual(report.summary["fallback_budget_status"], "not_applicable")
         self.assertIn("chunk_contract_missing", report.summary["failure_classes"])
+        self.assertIn(
+            "answer_ready_condition_subject_missing",
+            report.summary["answer_ready_required_field_failures"],
+        )
+        self.assertEqual(report.summary["answer_ready_semantic_failures"], [])
         self.assertIn(
             "answer_ready_condition_subject_missing",
             report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-0001"],
         )
+
+    def test_release_chunk_quality_reports_static_polarity_role_conflicts(self) -> None:
+        record = _make_record()
+        report = evaluate_release_chunk_quality(
+            chunks=(
+                replace(
+                    _make_chunk(record=record),
+                    metadata={
+                        "unit_type": "article_body",
+                        "root_unit_id": "student_rules:handbook:article-discipline",
+                        "parent_unit_id": "student_rules:handbook:article-discipline",
+                        "clause_unit_id": "student_rules:handbook:article-discipline:2",
+                        "display_text": "有下列情形之一的，不予解除处分。",
+                        "final_token_count": 32,
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
+                        "answer_role": "exclusion_rule",
+                        "content_role": "eligibility",
+                        "claim_type": "cannot_do",
+                        "role_confidence": "high",
+                        "is_answer_bearing": True,
+                        "condition_subject": "discipline_relief_exclusion",
+                        "condition_subject_taxonomy_version": "condition_subject.v1",
+                        "condition_subject_provenance": "metadata:condition_subject",
+                        "condition_group_id": (
+                            "student_rules:handbook:article-discipline:discipline_relief_exclusion"
+                        ),
+                        "condition_polarity": "positive",
+                    },
+                ),
+            ),
+            max_token_count=512,
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertIn(
+            "answer_ready_polarity_role_conflict",
+            report.summary["answer_ready_semantic_failures"],
+        )
+
+    def test_release_chunk_quality_reports_intro_answer_bearing_conflict(self) -> None:
+        record = _make_record()
+        report = evaluate_release_chunk_quality(
+            chunks=(
+                replace(
+                    _make_chunk(record=record),
+                    metadata={
+                        "unit_type": "article_body",
+                        "root_unit_id": "student_rules:handbook:article-scholarship",
+                        "parent_unit_id": "student_rules:handbook:article-scholarship",
+                        "display_text": "参评学生还应符合下列条件之一：",
+                        "final_token_count": 18,
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
+                        "answer_role": "eligibility_intro",
+                        "content_role": "eligibility",
+                        "claim_type": "condition_intro",
+                        "role_confidence": "high",
+                        "is_answer_bearing": True,
+                        "condition_subject": "generic_condition",
+                        "condition_subject_taxonomy_version": "condition_subject.v1",
+                        "condition_subject_provenance": "answer_role:eligibility_intro",
+                        "condition_group_id": (
+                            "student_rules:handbook:article-scholarship:group-01:generic_condition"
+                        ),
+                        "intro_scope": "article",
+                        "introduced_condition_group_id": (
+                            "student_rules:handbook:article-scholarship:group-01:generic_condition"
+                        ),
+                        "intro_target_roles": ["eligibility_condition", "exception_rule"],
+                    },
+                ),
+            ),
+            max_token_count=512,
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertIn(
+            "answer_ready_intro_answer_bearing_conflict",
+            report.summary["answer_ready_semantic_failures"],
+        )
+
+    def test_release_chunk_quality_reports_condition_subject_role_conflicts(self) -> None:
+        record = _make_record()
+        report = evaluate_release_chunk_quality(
+            chunks=(
+                replace(
+                    _make_chunk(record=record),
+                    metadata={
+                        "unit_type": "article_body",
+                        "root_unit_id": "student_rules:handbook:article-discipline",
+                        "parent_unit_id": "student_rules:handbook:article-discipline",
+                        "clause_unit_id": "student_rules:handbook:article-discipline:1",
+                        "display_text": "受处分满考察期后，可以申请解除处分。",
+                        "final_token_count": 24,
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
+                        "answer_role": "eligibility_condition",
+                        "content_role": "eligibility",
+                        "claim_type": "condition",
+                        "role_confidence": "high",
+                        "is_answer_bearing": True,
+                        "condition_subject": "discipline_relief_exclusion",
+                        "condition_subject_taxonomy_version": "condition_subject.v1",
+                        "condition_subject_provenance": "metadata:condition_subject",
+                        "condition_group_id": (
+                            "student_rules:handbook:article-discipline:discipline_relief_exclusion"
+                        ),
+                        "condition_polarity": "positive",
+                    },
+                ),
+            ),
+            max_token_count=512,
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertIn(
+            "answer_ready_condition_subject_role_conflict",
+            report.summary["answer_ready_semantic_failures"],
+        )
+
+    def test_release_chunk_quality_reports_procedure_action_role_conflicts(self) -> None:
+        record = _make_record()
+        report = evaluate_release_chunk_quality(
+            chunks=(
+                replace(
+                    _make_chunk(record=record),
+                    metadata={
+                        "unit_type": "article_body",
+                        "root_unit_id": "student_rules:handbook:article-eligibility",
+                        "parent_unit_id": "student_rules:handbook:article-eligibility",
+                        "clause_unit_id": "student_rules:handbook:article-eligibility:1",
+                        "display_text": "申请人应当符合基本条件。",
+                        "final_token_count": 18,
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
+                        "answer_role": "eligibility_condition",
+                        "content_role": "eligibility",
+                        "claim_type": "condition",
+                        "role_confidence": "high",
+                        "is_answer_bearing": True,
+                        "condition_subject": "generic_condition",
+                        "condition_subject_taxonomy_version": "condition_subject.v1",
+                        "condition_subject_provenance": "metadata:condition_subject",
+                        "condition_group_id": (
+                            "student_rules:handbook:article-eligibility:generic_condition"
+                        ),
+                        "condition_polarity": "positive",
+                        "procedure_action": "submit_materials",
+                        "procedure_action_taxonomy_version": "procedure_action.v1",
+                        "procedure_action_provenance": "metadata:procedure_action",
+                    },
+                ),
+            ),
+            max_token_count=512,
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertIn(
+            "answer_ready_procedure_action_role_conflict",
+            report.summary["answer_ready_semantic_failures"],
+        )
+
+    def test_institutional_rules_release_chunk_quality_uses_regulation_contract_gate(
+        self,
+    ) -> None:
+        record = replace(
+            _make_record(),
+            document_id="institutional_rules:rule",
+            collection="institutional_rules",
+            source_uri="https://docs.example/institutional-rule",
+            cleaning_policy_version="institutional_rules_cleaning_v1",
+            document_units_object_key=("regulations/institutional_rules/rule/document-units.jsonl"),
+            processed_object_keys=("regulations/institutional_rules/rule/document-units.jsonl",),
+        )
+        report = evaluate_release_chunk_quality(
+            chunks=(
+                replace(
+                    _make_chunk(record=record),
+                    chunk_id="institutional_rules:rule:chunk-0001",
+                    metadata={
+                        "unit_type": "institutional_regulation_block",
+                        "root_unit_id": "institutional_rules:rule:article-1",
+                        "parent_unit_id": "institutional_rules:rule:article-1",
+                        "display_text": "申请人提交申请材料。",
+                        "final_token_count": 32,
+                        "chunk_policy_version": "institutional_rules_semantic_v1",
+                        "cleaning_policy_version": "institutional_rules_cleaning_v1",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
+                        "answer_role": "procedure_step",
+                        "content_role": "procedure",
+                        "claim_type": "procedure",
+                        "role_confidence": "high",
+                        "is_answer_bearing": True,
+                    },
+                ),
+            ),
+            max_token_count=512,
+        )
+
+        self.assertEqual(report.status, "failed")
+        self.assertEqual(report.summary["answer_ready_contract_status"], "failed")
+        self.assertIn("chunk_contract_missing", report.summary["failure_classes"])
+        self.assertIn(
+            "answer_ready_condition_group_id_missing",
+            report.summary["answer_ready_required_field_failures"],
+        )
+        self.assertIn(
+            "answer_ready_condition_group_id_missing",
+            report.summary["issues_by_chunk_id"]["institutional_rules:rule:chunk-0001"],
+        )
+        self.assertIn(
+            "answer_ready_procedure_step_fields_missing",
+            report.summary["issues_by_chunk_id"]["institutional_rules:rule:chunk-0001"],
+        )
+
+    def test_release_admission_manifest_carries_phase5_answer_ready_quality_fields(self) -> None:
+        manifest = build_regulation_rag_release_admission_manifest(
+            admission_run_id="run-phase5",
+            corpus="regulations",
+            collection="student_rules",
+            records=(_make_record(),),
+            runtime_profile=load_runtime_profile("regulations", "student_rules"),
+            preparation_manifest=SimpleNamespace(
+                documents=(
+                    SimpleNamespace(
+                        document_id="student_rules:handbook",
+                        revision_track="current-effective",
+                        version_id="sha256:handbook-v1",
+                        document_units_sha256="sha256-document-units",
+                    ),
+                )
+            ),
+            answer_ready_contract_status="passed",
+            answer_ready_contract_version="answer_ready_evidence.v3",
+            answer_ready_required_field_failures=(),
+            answer_ready_semantic_failures=(),
+            fallback_budget_status="not_applicable",
+            semantic_oracle_status="pending_phase8",
+        )
+
+        self.assertEqual(manifest.answer_ready_contract_version, "answer_ready_evidence.v3")
+        self.assertEqual(manifest.answer_ready_required_field_failures, ())
+        self.assertEqual(manifest.answer_ready_semantic_failures, ())
+        self.assertEqual(manifest.fallback_budget_status, "not_applicable")
+        self.assertEqual(manifest.semantic_oracle_status, "pending_phase8")
 
     def test_release_admission_manifest_requires_answer_ready_contract_passed(self) -> None:
         manifest = build_regulation_rag_release_admission_manifest(

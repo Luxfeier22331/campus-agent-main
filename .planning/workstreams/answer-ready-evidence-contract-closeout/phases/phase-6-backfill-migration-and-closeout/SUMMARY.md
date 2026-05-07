@@ -32,7 +32,7 @@ restriction, eligibility judgment, paper/example and category-discovery cases.
 ## Docs And Planning
 
 - Updated `docs/policies/student-handbook-chunking-and-validation-policy.md` with the
-  `answer_ready_evidence.v1` metadata contract and atomic evidence merge boundary.
+  `answer_ready_evidence.v2` metadata contract and atomic evidence merge boundary.
 - Updated `docs/architecture/system/retrieval-serving-architecture.md` with the release-lane
   answer-ready contract fail-close requirement.
 - Added `GAP-LEDGER.md` completion audit.

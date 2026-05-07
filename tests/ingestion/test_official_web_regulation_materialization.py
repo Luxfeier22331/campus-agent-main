@@ -795,6 +795,186 @@ class OfficialWebRegulationMaterializationTest(unittest.TestCase):
             self.assertIn("本科生转专业实施细则", record.document_units_object_key or "")
             self.assertNotIn("本科学生学籍管理规定", record.document_units_object_key or "")
 
+    def test_materialization_preserves_regulation_preface_and_drops_inline_link_child_duplicate(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            work_dir = root / "work"
+            _write_json(declarations_path, _declarations_payload())
+            regulation_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/institutional_rules",
+                target_id="official-web-institutional-rules",
+                review_policy="release_gate_required",
+            )
+            source_url = "https://xxgk.muc.edu.cn/info/1290/5651.htm"
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_staff_position_preface_link_regression",
+                    "collectionMode": "target-workset",
+                    "pages": [
+                        _page(
+                            raw_asset_id="owasset_staff_position_5651",
+                            raw_version_id="owver_staff_position_5651",
+                            normalized_canonical_url=source_url,
+                            target_matches=[regulation_match],
+                        )
+                    ],
+                },
+            )
+            title = "中央民族大学岗位设置与聘用管理暂行办法"
+            parent_dom_path = (
+                "body[1] > div[4] > div[1] > div[2] > form[1] > div[1] > div[1] > div[1] > p[134]"
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="xxgk.muc.edu.cn",
+                raw_asset_id="owasset_staff_position_5651",
+                raw_version_id="owver_staff_position_5651",
+                normalized_canonical_url=source_url,
+                page_title=title,
+                page_family="article_detail",
+                target_matches=[regulation_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_staff_position_5651",
+                        raw_version_id="owver_staff_position_5651",
+                        row_id="head-title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text=title,
+                        is_main_content=False,
+                        dom_path="head[1] > title[1]",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_staff_position_5651",
+                        raw_version_id="owver_staff_position_5651",
+                        row_id="sidebar-heading-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="heading",
+                        text="干部人事",
+                        dom_path="body[1] > div[4] > div[1] > div[1] > h1[1]",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_staff_position_5651",
+                        raw_version_id="owver_staff_position_5651",
+                        row_id="title-1",
+                        row_index=2,
+                        block_order=2,
+                        block_role="heading",
+                        text=title,
+                        dom_path=(
+                            "body[1] > div[4] > div[1] > div[2] > form[1] > "
+                            "div[1] > center[1] > h1[1]"
+                        ),
+                    ),
+                    _block(
+                        raw_asset_id="owasset_staff_position_5651",
+                        raw_version_id="owver_staff_position_5651",
+                        row_id="preface-1",
+                        row_index=3,
+                        block_order=3,
+                        block_role="paragraph",
+                        text=(
+                            "为切实做好学校岗位设置与聘用工作，根据《国家民委事业单位岗位设置管理实施意见》"
+                            "等文件精神和经国家民委批复的《中央民族大学岗位设置方案》的有关规定，"
+                            "制定本暂行办法。"
+                        ),
+                        dom_path=(
+                            "body[1] > div[4] > div[1] > div[2] > form[1] > "
+                            "div[1] > div[1] > div[1] > p[1]"
+                        ),
+                    ),
+                    _block(
+                        raw_asset_id="owasset_staff_position_5651",
+                        raw_version_id="owver_staff_position_5651",
+                        row_id="chapter-1",
+                        row_index=4,
+                        block_order=4,
+                        block_role="paragraph",
+                        text="第一章 总 则",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_staff_position_5651",
+                        raw_version_id="owver_staff_position_5651",
+                        row_id="section-1",
+                        row_index=5,
+                        block_order=5,
+                        block_role="paragraph",
+                        text="一、岗位设置与聘用原则",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_staff_position_5651",
+                        raw_version_id="owver_staff_position_5651",
+                        row_id="item-17",
+                        row_index=6,
+                        block_order=6,
+                        block_role="paragraph",
+                        text="(17) 国家科技支撑计划、国际科技合作计划、国家攀登计划、科技基础条件平台建设计划项目主持人。",
+                        dom_path=parent_dom_path,
+                    ),
+                    _block(
+                        raw_asset_id="owasset_staff_position_5651",
+                        raw_version_id="owver_staff_position_5651",
+                        row_id="item-17-link",
+                        row_index=7,
+                        block_order=7,
+                        block_role="link",
+                        text="科技基础条件平台建设计划",
+                        link_target="http://program.most.gov.cn/page/pds/mian1_DD.htm?planId=DD",
+                        dom_path=f"{parent_dom_path} > a[1]",
+                    ),
+                ],
+            )
+
+            object_store = _FakeObjectStore()
+            registry = InMemoryDocumentRegistry()
+            raw_registry = InMemoryRawAssetRegistry()
+            materialize_official_web_regulation_candidates(
+                source_truth_output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                work_dir=work_dir,
+                declarations_path=declarations_path,
+                object_store=object_store,
+                document_registry=registry,
+                raw_asset_registry=raw_registry,
+                object_store_settings=_object_store_settings(),
+            )
+
+            record = registry.list_by_scope("regulations", "institutional_rules")[0]
+            canonical = object_store.get_bytes(
+                bucket="campus-rag-derived",
+                key=record.canonical_markdown_object_key or "",
+            ).decode("utf-8")
+            units = _read_units(
+                object_store.get_bytes(
+                    bucket="campus-rag-derived",
+                    key=record.document_units_object_key or "",
+                )
+            )
+
+            self.assertIn("为切实做好学校岗位设置与聘用工作", canonical)
+            self.assertIn("制定本暂行办法。", canonical)
+            self.assertIn(
+                "为切实做好学校岗位设置与聘用工作", "\n".join(unit["clean_text"] for unit in units)
+            )
+            self.assertNotIn("\n干部人事\n", canonical)
+            self.assertFalse(any(unit["clean_text"] == "干部人事" for unit in units))
+            self.assertIn("科技基础条件平台建设计划项目主持人。", canonical)
+            self.assertNotIn("项目主持人。\n科技基础条件平台建设计划", canonical)
+            self.assertNotIn("项目主持人。科技基础条件平台建设计划", canonical)
+
     def test_materialization_drops_wrapper_heading_and_recovers_formal_title_from_body(
         self,
     ) -> None:
