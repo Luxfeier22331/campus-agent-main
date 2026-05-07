@@ -1,7 +1,11 @@
+import { readFileSync } from "node:fs";
+import { resolve } from "node:path";
 import { loadOfficialWebConfig } from "official-web-core";
 import { describe, expect, it, vi } from "vitest";
 import { sourcePackPlanMain } from "../src/source-pack-plan-cli";
 import { validateSourcePackConfig, validateSourcePackMain } from "../src/validate-source-pack";
+
+const REPO_ROOT = resolve(import.meta.dirname, "../../..");
 
 describe("official-web-collector source-pack seam", () => {
 	it("exposes the repo-tracked source-pack manifest through the shared official-web config bundle", () => {
@@ -96,7 +100,7 @@ describe("official-web-collector source-pack seam", () => {
 
 		expect(report.valid).toBe(true);
 		expect(report.sourcePackId).toBe("official-web-public-regulation-closeout.v1");
-		expect(report.entryCount).toBe(16);
+		expect(report.entryCount).toBe(29);
 		expect(
 			report.entries.some(
 				(entry) =>
@@ -111,6 +115,31 @@ describe("official-web-collector source-pack seam", () => {
 					entry.url === "https://xxgk.muc.edu.cn/xsgz/jlycf/1.htm",
 			),
 		).toBe(true);
+	});
+
+	it("keeps every downstream public regulation consumption target as a direct answer-bearing source-pack row", () => {
+		const config = loadOfficialWebConfig("muc_public", {
+			sourcePackId: "official-web-public-regulation-closeout.v1",
+		});
+		const consumptionManifest = JSON.parse(
+			readFileSync(
+				resolve(
+					REPO_ROOT,
+					"configs/ingestion/regulations/public-regulation-consumption.v1.json",
+				),
+				"utf8",
+			),
+		) as { documents: Array<{ source_url: string; title: string }> };
+		const directAnswerBearingUrls = new Set(
+			config.sourcePackManifest.entries
+				.filter((entry) => entry.answerBearing)
+				.map((entry) => entry.url),
+		);
+		const missing = consumptionManifest.documents
+			.filter((entry) => !directAnswerBearingUrls.has(entry.source_url))
+			.map((entry) => `${entry.title} <${entry.source_url}>`);
+
+		expect(missing).toEqual([]);
 	});
 
 	it("validates the public regulation net-new student html source-pack manifest", () => {

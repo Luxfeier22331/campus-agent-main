@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import unittest
+from dataclasses import replace
 from datetime import datetime
 from pathlib import Path
 from tempfile import TemporaryDirectory
@@ -43,6 +44,25 @@ class _FakeObjectStore:
 
     def get_bytes(self, *, bucket: str, key: str) -> bytes:
         return self.objects[(bucket, key)]
+
+    def delete_prefix(
+        self,
+        *,
+        bucket: str,
+        prefix: str,
+        exclude_keys: tuple[str, ...] = (),
+        include_path_segment_suffix: str | None = None,
+    ) -> None:
+        excluded = set(exclude_keys)
+        for object_key in tuple(self.objects):
+            object_bucket, key = object_key
+            if (
+                object_bucket == bucket
+                and key.startswith(prefix)
+                and key not in excluded
+                and _matches_path_segment_suffix(key, include_path_segment_suffix)
+            ):
+                del self.objects[object_key]
 
 
 class OfficialWebRegulationMaterializationTest(unittest.TestCase):
@@ -457,7 +477,9 @@ class OfficialWebRegulationMaterializationTest(unittest.TestCase):
                 portal_units[0]["metadata"]["title_base"], "中央民族大学信息门户运行管理办法"
             )
 
-    def test_materialization_recovers_structured_regulation_rows_for_dense_public_rule(self) -> None:
+    def test_materialization_recovers_structured_regulation_rows_for_dense_public_rule(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -553,7 +575,8 @@ class OfficialWebRegulationMaterializationTest(unittest.TestCase):
             self.assertTrue(any(unit["row_type"] == "paragraph" for unit in units[1:]))
             self.assertTrue(
                 any(
-                    unit["clean_text"] == "第一章 总则" and unit["metadata"]["is_answer_bearing"] is False
+                    unit["clean_text"] == "第一章 总则"
+                    and unit["metadata"]["is_answer_bearing"] is False
                     for unit in units
                 )
             )
@@ -565,7 +588,216 @@ class OfficialWebRegulationMaterializationTest(unittest.TestCase):
                 )
             )
 
-    def test_materialization_drops_wrapper_heading_and_recovers_formal_title_from_body(self) -> None:
+    def test_materialization_keeps_official_web_page_title_for_public_plan_documents(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            work_dir = root / "work"
+            _write_json(declarations_path, _declarations_payload())
+            regulation_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/institutional_rules",
+                target_id="official-web-institutional-rules",
+                review_policy="release_gate_required",
+            )
+            source_url = "https://xxgk.muc.edu.cn/info/1198/6451.htm"
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_staff_plan_title_regression",
+                    "collectionMode": "target-workset",
+                    "pages": [
+                        _page(
+                            raw_asset_id="owasset_staff_plan_6451",
+                            raw_version_id="owver_staff_plan_6451",
+                            normalized_canonical_url=source_url,
+                            target_matches=[regulation_match],
+                        )
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="xxgk.muc.edu.cn",
+                raw_asset_id="owasset_staff_plan_6451",
+                raw_version_id="owver_staff_plan_6451",
+                normalized_canonical_url=source_url,
+                page_title="中央民族大学事业发展“十三五”规划",
+                page_family="article_detail",
+                target_matches=[regulation_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_staff_plan_6451",
+                        raw_version_id="owver_staff_plan_6451",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学事业发展“十三五”规划",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_staff_plan_6451",
+                        raw_version_id="owver_staff_plan_6451",
+                        row_id="paragraph-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text=(
+                            "第一章 发展基础 根据《中央民族大学章程》，"
+                            "学校制定中央民族大学事业发展“十三五”规划。"
+                            "第一条 本规划用于指导学校事业发展。"
+                        ),
+                    ),
+                ],
+            )
+
+            object_store = _FakeObjectStore()
+            registry = InMemoryDocumentRegistry()
+            raw_registry = InMemoryRawAssetRegistry()
+            materialize_official_web_regulation_candidates(
+                source_truth_output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                work_dir=work_dir,
+                declarations_path=declarations_path,
+                object_store=object_store,
+                document_registry=registry,
+                raw_asset_registry=raw_registry,
+                object_store_settings=_object_store_settings(),
+            )
+
+            record = registry.list_by_scope("regulations", "institutional_rules")[0]
+            canonical = object_store.get_bytes(
+                bucket="campus-rag-derived",
+                key=record.canonical_markdown_object_key or "",
+            ).decode("utf-8")
+            units = _read_units(
+                object_store.get_bytes(
+                    bucket="campus-rag-derived",
+                    key=record.document_units_object_key or "",
+                )
+            )
+
+            self.assertIn("# 中央民族大学事业发展“十三五”规划", canonical)
+            self.assertNotIn("# 中央民族大学章程", canonical)
+            self.assertEqual(units[0]["metadata"]["title"], "中央民族大学事业发展“十三五”规划")
+            self.assertEqual(units[0]["metadata"]["title_raw"], "中央民族大学事业发展“十三五”规划")
+            self.assertIn(
+                "中央民族大学事业发展-十三五-规划", record.document_units_object_key or ""
+            )
+            self.assertNotIn("中央民族大学章程", record.document_units_object_key or "")
+
+    def test_materialization_keeps_source_title_when_body_references_related_rule(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            work_dir = root / "work"
+            _write_json(declarations_path, _declarations_payload())
+            regulation_match = _target_match(
+                consumer_family="student_regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/student_rules",
+                target_id="official-web-student-rules",
+                review_policy="release_gate_required",
+            )
+            source_url = "https://xxgk.muc.edu.cn/info/1247/4911.htm"
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_student_transfer_title_regression",
+                    "collectionMode": "target-workset",
+                    "pages": [
+                        _page(
+                            raw_asset_id="owasset_student_transfer_4911",
+                            raw_version_id="owver_student_transfer_4911",
+                            normalized_canonical_url=source_url,
+                            target_matches=[regulation_match],
+                        )
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="xxgk.muc.edu.cn",
+                raw_asset_id="owasset_student_transfer_4911",
+                raw_version_id="owver_student_transfer_4911",
+                normalized_canonical_url=source_url,
+                page_title="本科生转专业实施细则",
+                page_family="article_detail",
+                target_matches=[regulation_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_student_transfer_4911",
+                        raw_version_id="owver_student_transfer_4911",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="本科生转专业实施细则",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_student_transfer_4911",
+                        raw_version_id="owver_student_transfer_4911",
+                        row_id="paragraph-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text=(
+                            "为充分体现学校“以人为本、以学生为主体”的教育理念，"
+                            "根据《中央民族大学本科学生学籍管理规定》关于学生转专业的有关条款，"
+                            "结合学校实际情况，进一步健全转专业管理制度，特对原有相关办法进行修订。"
+                            "一、基本原则（一）本办法的适用对象为一年级在籍在校本科学生。"
+                        ),
+                    ),
+                ],
+            )
+
+            object_store = _FakeObjectStore()
+            registry = InMemoryDocumentRegistry()
+            raw_registry = InMemoryRawAssetRegistry()
+            materialize_official_web_regulation_candidates(
+                source_truth_output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                work_dir=work_dir,
+                declarations_path=declarations_path,
+                object_store=object_store,
+                document_registry=registry,
+                raw_asset_registry=raw_registry,
+                object_store_settings=_object_store_settings(),
+            )
+
+            record = registry.list_by_scope("regulations", "student_rules")[0]
+            canonical = object_store.get_bytes(
+                bucket="campus-rag-derived",
+                key=record.canonical_markdown_object_key or "",
+            ).decode("utf-8")
+            units = _read_units(
+                object_store.get_bytes(
+                    bucket="campus-rag-derived",
+                    key=record.document_units_object_key or "",
+                )
+            )
+
+            self.assertIn("# 本科生转专业实施细则", canonical)
+            self.assertNotIn("# 中央民族大学本科学生学籍管理规定", canonical)
+            self.assertEqual(units[0]["metadata"]["title"], "本科生转专业实施细则")
+            self.assertEqual(units[0]["metadata"]["title_raw"], "本科生转专业实施细则")
+            self.assertIn("本科生转专业实施细则", record.document_units_object_key or "")
+            self.assertNotIn("本科学生学籍管理规定", record.document_units_object_key or "")
+
+    def test_materialization_drops_wrapper_heading_and_recovers_formal_title_from_body(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             output_dir = root / "collector-output"
@@ -771,6 +1003,162 @@ class OfficialWebRegulationMaterializationTest(unittest.TestCase):
             document_dirs = sorted(path.name for path in scope_dir.iterdir() if path.is_dir())
             self.assertEqual(len(document_dirs), 1)
             self.assertTrue(document_dirs[0].startswith("校园一卡通管理规定--"))
+
+    def test_scope_refresh_prunes_stale_derived_document_objects_for_selected_scope(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            work_dir = root / "work"
+            _write_json(declarations_path, _declarations_payload())
+            regulation_match = _target_match(
+                consumer_family="regulation_candidate",
+                materialization_policy="release_gate_required",
+                selected_write_target="regulations/institutional_rules",
+                target_id="official-web-institutional-rules",
+                review_policy="release_gate_required",
+            )
+            source_url = "https://xxgk.muc.edu.cn/info/1198/6451.htm"
+            document_id = "official_web_regulation:12ce0e9b47598c5d"
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_regulation_stale_artifact_prune_test",
+                    "collectionMode": "target-workset",
+                    "pages": [
+                        _page(
+                            raw_asset_id="owasset_plan",
+                            raw_version_id="owver_plan",
+                            normalized_canonical_url=source_url,
+                            target_matches=[regulation_match],
+                        )
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="xxgk.muc.edu.cn",
+                raw_asset_id="owasset_plan",
+                raw_version_id="owver_plan",
+                normalized_canonical_url=source_url,
+                page_title="中央民族大学事业发展“十三五”规划",
+                page_family="article_detail",
+                target_matches=[regulation_match],
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_plan",
+                        raw_version_id="owver_plan",
+                        row_id="plan-title",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="中央民族大学事业发展“十三五”规划",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_plan",
+                        raw_version_id="owver_plan",
+                        row_id="plan-p1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="第一条 本规划用于指导学校事业发展。",
+                    ),
+                ],
+            )
+
+            object_store = _FakeObjectStore()
+            object_store.put_bytes(
+                bucket="campus-rag-derived",
+                key=(
+                    "regulations/documents/institutional_rules/"
+                    "中央民族大学章程--12ce0e9b/current-effective/undated/document-units.jsonl"
+                ),
+                data=(
+                    json.dumps(
+                        {
+                            "clean_text": "中央民族大学章程",
+                            "doc_id": document_id,
+                            "entitlement_groups": [],
+                            "row_type": "heading",
+                            "visibility_level": "public",
+                        },
+                        ensure_ascii=False,
+                    ).encode("utf-8")
+                    + b"\n"
+                ),
+                content_type="application/x-ndjson",
+            )
+            registry = InMemoryDocumentRegistry()
+            raw_registry = InMemoryRawAssetRegistry()
+
+            materialize_official_web_regulation_candidates(
+                source_truth_output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                work_dir=work_dir,
+                declarations_path=declarations_path,
+                object_store=object_store,
+                document_registry=registry,
+                raw_asset_registry=raw_registry,
+                object_store_settings=_object_store_settings(),
+                scope_refresh=True,
+            )
+            current_record = registry.current_version(document_id)
+            self.assertIsNotNone(current_record)
+            stale_record = replace(
+                current_record,
+                version_id="owregver:stale-title",
+                content_hash="sha256:stale-title",
+                is_current=False,
+                status="superseded",
+                document_units_object_key=(
+                    "regulations/documents/institutional_rules/"
+                    "中央民族大学章程--12ce0e9b/current-effective/undated/document-units.jsonl"
+                ),
+                canonical_markdown_object_key=(
+                    "regulations/documents/institutional_rules/"
+                    "中央民族大学章程--12ce0e9b/current-effective/undated/canonical.md"
+                ),
+                processed_object_keys=(
+                    "regulations/documents/institutional_rules/"
+                    "中央民族大学章程--12ce0e9b/current-effective/undated/canonical.md",
+                    "regulations/documents/institutional_rules/"
+                    "中央民族大学章程--12ce0e9b/current-effective/undated/document-units.jsonl",
+                ),
+            )
+            registry.upsert(stale_record)
+            object_store.put_bytes(
+                bucket="campus-rag-derived",
+                key=(
+                    "regulations/documents/institutional_rules/"
+                    "中央民族大学章程--12ce0e9b/current-effective/undated/canonical.md"
+                ),
+                data=b"# stale title\n",
+                content_type="text/markdown; charset=utf-8",
+            )
+
+            materialize_official_web_regulation_candidates(
+                source_truth_output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                work_dir=work_dir,
+                declarations_path=declarations_path,
+                object_store=object_store,
+                document_registry=registry,
+                raw_asset_registry=raw_registry,
+                object_store_settings=_object_store_settings(),
+                scope_refresh=True,
+            )
+
+            derived_keys = {
+                key for bucket, key in object_store.objects if bucket == "campus-rag-derived"
+            }
+            self.assertFalse(any("中央民族大学章程--12ce0e9b" in key for key in derived_keys))
+            self.assertTrue(
+                any("中央民族大学事业发展-十三五-规划--12ce0e9b" in key for key in derived_keys)
+            )
 
     def test_worker_materialization_report_includes_selected_documents_for_downstream_reuse(
         self,
@@ -1142,6 +1530,12 @@ def _object_store_settings() -> ObjectStoreSettings:
         bucket_derived="campus-rag-derived",
         secure=False,
     )
+
+
+def _matches_path_segment_suffix(key: str, suffix: str | None) -> bool:
+    if suffix is None:
+        return True
+    return any(segment.endswith(suffix) for segment in key.split("/"))
 
 
 def _page(

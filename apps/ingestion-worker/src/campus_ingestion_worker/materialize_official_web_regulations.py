@@ -59,6 +59,49 @@ class LocalFilesystemObjectStore:
         target.parent.mkdir(parents=True, exist_ok=True)
         target.write_bytes(data)
 
+    def delete_prefix(
+        self,
+        *,
+        bucket: str,
+        prefix: str,
+        exclude_keys: tuple[str, ...] = (),
+        include_path_segment_suffix: str | None = None,
+    ) -> None:
+        excluded = set(exclude_keys)
+        root = self.write_root / bucket
+        if not root.exists():
+            return
+        for path in sorted((root / prefix).parent.glob(f"{Path(prefix).name}*")):
+            if not path.exists():
+                continue
+            if path.is_file():
+                relative_key = path.relative_to(root).as_posix()
+                if relative_key not in excluded and _matches_path_segment_suffix(
+                    relative_key,
+                    include_path_segment_suffix,
+                ):
+                    path.unlink()
+                continue
+            for child in sorted(path.rglob("*"), reverse=True):
+                if child.is_dir():
+                    if not any(child.iterdir()):
+                        child.rmdir()
+                    continue
+                relative_key = child.relative_to(root).as_posix()
+                if relative_key not in excluded and _matches_path_segment_suffix(
+                    relative_key,
+                    include_path_segment_suffix,
+                ):
+                    child.unlink()
+            if path.is_dir() and not any(path.iterdir()):
+                path.rmdir()
+
+
+def _matches_path_segment_suffix(key: str, suffix: str | None) -> bool:
+    if suffix is None:
+        return True
+    return any(segment.endswith(suffix) for segment in key.split("/"))
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -234,14 +277,13 @@ def _load_source_truth_bundle(
         "--source-truth-bundle-key is required"
     )
 
+
 def _select_current_reader_scope_records(registry: object) -> tuple[DocumentRegistryRecord, ...]:
     records: list[DocumentRegistryRecord] = []
     for scope in sorted(_READER_PUBLISH_SCOPES):
         scoped_records = registry.list_by_scope(*scope)
         records.extend(
-            record
-            for record in scoped_records
-            if record.is_current and record.status == "active"
+            record for record in scoped_records if record.is_current and record.status == "active"
         )
     return tuple(records)
 

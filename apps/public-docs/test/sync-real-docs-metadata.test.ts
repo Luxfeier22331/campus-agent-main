@@ -113,9 +113,9 @@ describe("public-docs navigation and metadata generation", () => {
 		expect(markdown).toContain('<section class="document-meta-panel"');
 		expect(markdown).toContain("<span>2026 版</span>");
 		expect(markdown).toContain("<span>原文第 1-2 页</span>");
-		expect(markdown).toContain("<span>来源：学校规章</span>");
+		expect(markdown).toContain("<span>来源：校园服务制度</span>");
 		expect(markdown).toContain("<summary>来源详情</summary>");
-		expect(markdown).toContain("<dd>学校规章</dd>");
+		expect(markdown).toContain("<dd>校园服务制度</dd>");
 		expect(markdown).toContain("<dt>原始文件</dt>");
 		expect(markdown).toContain("<dd>regulation-source.pdf</dd>");
 		expect(markdown).not.toContain("<dt>状态</dt>");

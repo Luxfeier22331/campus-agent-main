@@ -265,12 +265,18 @@ describe("official web source-pack execution plan", () => {
 		const directRow = plan.rows.find(
 			(item) => item.entryId === "owsp-closeout-it-campus-card-policy-1086",
 		) as SourcePackExecutionPlanEntry;
+		const staffGovernanceRow = plan.rows.find(
+			(item) => item.entryId === "owsp-closeout-staff-title-review-policy-5731",
+		) as SourcePackExecutionPlanEntry;
+		const studentRuleRow = plan.rows.find(
+			(item) => item.entryId === "owsp-closeout-student-major-transfer-policy-4911",
+		) as SourcePackExecutionPlanEntry;
 		const listingRow = plan.rows.find(
 			(item) => item.entryId === "owsp-closeout-student-rules-jlycf-listing",
 		) as SourcePackExecutionPlanEntry;
 
 		expect(plan.sourcePackId).toBe("official-web-public-regulation-closeout.v1");
-		expect(plan.entryCount).toBe(16);
+		expect(plan.entryCount).toBe(29);
 
 		expect(directRow.answerBearing).toBe(true);
 		expect(directRow.url).toBe("https://met.muc.edu.cn/info/1024/1086.htm");
@@ -282,6 +288,26 @@ describe("official web source-pack execution plan", () => {
 			consumerFamily: "regulation_candidate",
 			selectedWriteTarget: "regulations/institutional_rules",
 			sourcePackEntryId: "owsp-closeout-it-campus-card-policy-1086",
+			sourcePackId: "official-web-public-regulation-closeout.v1",
+		});
+
+		expect(staffGovernanceRow.answerBearing).toBe(true);
+		expect(staffGovernanceRow.url).toBe("https://xxgk.muc.edu.cn/info/1290/5731.htm");
+		expect(staffGovernanceRow.targetMatches[0]).toMatchObject({
+			targetId: "official-web-institutional-rules",
+			consumerFamily: "regulation_candidate",
+			selectedWriteTarget: "regulations/institutional_rules",
+			sourcePackEntryId: "owsp-closeout-staff-title-review-policy-5731",
+			sourcePackId: "official-web-public-regulation-closeout.v1",
+		});
+
+		expect(studentRuleRow.answerBearing).toBe(true);
+		expect(studentRuleRow.url).toBe("https://xxgk.muc.edu.cn/info/1247/4911.htm");
+		expect(studentRuleRow.targetMatches[0]).toMatchObject({
+			targetId: "official-web-student-rules",
+			consumerFamily: "student_regulation_candidate",
+			selectedWriteTarget: "regulations/student_rules",
+			sourcePackEntryId: "owsp-closeout-student-major-transfer-policy-4911",
 			sourcePackId: "official-web-public-regulation-closeout.v1",
 		});
 

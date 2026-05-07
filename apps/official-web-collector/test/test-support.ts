@@ -304,7 +304,7 @@ export function writeTestConfigRoot(
 					{
 						consumer_family: "academic_calendar_candidate",
 						owner_surface: "academic_calendar_lookup",
-						owner_agent_or_runtime: "calendar-agent",
+						owner_agent_or_runtime: "campus-services-agent",
 						materialization_policy: "candidate_only",
 						page_families: ["article_detail", "generic_content_page"],
 						title_keywords: ["校历", "教学周", "放假安排", "补课安排", "节假日安排"],
@@ -593,7 +593,7 @@ export function writeTestConfigRoot(
 						target_label: "Campus academic calendar",
 						consumer_family: "academic_calendar_candidate",
 						owner_surface: "academic_calendar_lookup",
-						owner_agent_or_runtime: "calendar-agent",
+						owner_agent_or_runtime: "campus-services-agent",
 						selected_write_target: "calendar/academic_calendar",
 						source_hosts: ["www.example.edu"],
 						source_urls: ["https://www.example.edu/calendar/"],

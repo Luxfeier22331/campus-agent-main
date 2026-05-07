@@ -56,8 +56,10 @@ export async function discoverPublicRegulationDocs(
 	client: ObjectStoreClient,
 ): Promise<PublicRegulationDoc[]> {
 	const docs: PublicRegulationDoc[] = [];
+	const docsByDocumentId = new Map<string, PublicRegulationDoc>();
 	const seenSlugs = new Set<string>();
 	const consumptionByDocumentId = buildRegulationConsumptionByDocumentId();
+	const discoveredDocumentIds = new Set<string>();
 	for (const [collection, collectionLabel] of PUBLIC_REGULATION_COLLECTIONS) {
 		const prefix = `regulations/documents/${collection}/`;
 		for (const key of await client.listObjectKeys({ prefix })) {
@@ -73,6 +75,17 @@ export async function discoverPublicRegulationDocs(
 			if (!consumption) {
 				continue;
 			}
+			const existingDoc = docsByDocumentId.get(docId);
+			if (existingDoc) {
+				throw new Error(
+					[
+						`duplicate canonical public regulation documents for ${docId}`,
+						`first=${existingDoc.key}`,
+						`second=${key}`,
+					].join(": "),
+				);
+			}
+			discoveredDocumentIds.add(docId);
 			const title = resolveRegulationDocTitle(jsonlText, key);
 			let slug = buildPublicRegulationDocSlug({ collection, docId, title });
 			if (seenSlugs.has(slug)) {
@@ -82,7 +95,7 @@ export async function discoverPublicRegulationDocs(
 				throw new Error(`duplicate public regulation slug discovered: ${slug}`);
 			}
 			seenSlugs.add(slug);
-			docs.push({
+			const doc = {
 				audienceSegment: consumption.audience_segment,
 				collection,
 				collectionLabel,
@@ -91,13 +104,32 @@ export async function discoverPublicRegulationDocs(
 				key,
 				slug,
 				title,
-			});
+			};
+			docsByDocumentId.set(docId, doc);
+			docs.push(doc);
 		}
 	}
+	assertPublicRegulationConsumptionCoverage(discoveredDocumentIds);
 	return docs.sort(
 		(left, right) =>
 			left.docsNavGroup.localeCompare(right.docsNavGroup, "zh-CN") ||
 			left.title.localeCompare(right.title, "zh-CN"),
+	);
+}
+
+function assertPublicRegulationConsumptionCoverage(discoveredDocumentIds: ReadonlySet<string>): void {
+	const missing = [...buildRegulationConsumptionByDocumentId().values()].filter(
+		(entry) => !discoveredDocumentIds.has(entry.document_id),
+	);
+	if (missing.length === 0) {
+		return;
+	}
+	const examples = missing
+		.slice(0, 8)
+		.map((entry) => `${entry.title} <${entry.document_id}>`)
+		.join("; ");
+	throw new Error(
+		`public regulation consumption manifest has ${missing.length} canonical document gaps: ${examples}`,
 	);
 }
 
@@ -285,7 +317,8 @@ function isExplicitPublicRegulationDoc(jsonlText: string): boolean {
 		return false;
 	}
 	for (const row of rows) {
-		if (normalizeText(row.visibility_level) !== "public") {
+		const visibilityLevel = normalizeText(row.visibility_level);
+		if (visibilityLevel && visibilityLevel !== "public") {
 			return false;
 		}
 		const entitlementGroups = row.entitlement_groups;

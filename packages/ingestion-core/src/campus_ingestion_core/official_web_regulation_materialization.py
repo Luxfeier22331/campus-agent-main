@@ -89,7 +89,9 @@ def materialize_official_web_regulation_candidates(
         candidates=candidates,
         candidate_count=len(candidates),
         document_registry=document_registry,
-        materialized_scopes=tuple(sorted({"/".join(_candidate_scope(candidate)) for candidate in candidates})),
+        materialized_scopes=tuple(
+            sorted({"/".join(_candidate_scope(candidate)) for candidate in candidates})
+        ),
         object_store=object_store,
         object_store_settings=object_store_settings,
         stats=stats,
@@ -262,9 +264,7 @@ def _candidate_projection_payload(candidate: dict[str, object]) -> dict[str, obj
         raise ValueError(f"missing regulation body text for {source_url}")
     target_corpus, target_collection = _candidate_scope(candidate)
     runtime_profile = load_runtime_profile(target_corpus, target_collection)
-    cleaning_policy_version = (
-        runtime_profile.cleaning_policy_version or _CLEANING_POLICY_VERSION
-    )
+    cleaning_policy_version = runtime_profile.cleaning_policy_version or _CLEANING_POLICY_VERSION
     normalization = normalize_regulation_owner_text(title=title, owner_text=owner_text)
     canonical_body = normalize_regulation_canonical_body(normalization.canonical_body.strip())
     if not canonical_body:
@@ -312,7 +312,9 @@ def _candidate_projection_payload(candidate: dict[str, object]) -> dict[str, obj
             "selected_write_target": _candidate_selected_write_target(candidate),
             "target_id": _optional_text(candidate.get("target_id")),
             "target_candidate_id": _optional_text(candidate.get("target_candidate_id")),
-            "target_declaration_version": _optional_text(candidate.get("target_declaration_version")),
+            "target_declaration_version": _optional_text(
+                candidate.get("target_declaration_version")
+            ),
             "materialization_policy": _optional_text(candidate.get("materialization_policy")),
             "review_policy": _optional_text(candidate.get("review_policy")),
             "regulation_lane": "formal_regulation",
@@ -486,7 +488,20 @@ def _materialize_candidates_by_scope(
             or _CLEANING_POLICY_VERSION,
             default_visibility_scope=None,
             scope_refresh=scope if scope_refresh else None,
+            scope_refresh_preserve_existing=_preserve_non_official_web_scope_record
+            if scope_refresh
+            else None,
         )
+        if scope_refresh and stats.failed_count == 0:
+            _prune_scope_document_artifacts(
+                object_store=object_store,
+                object_store_settings=object_store_settings,
+                document_registry=document_registry,
+                scope=scope,
+                target_document_ids=tuple(
+                    str(document.metadata["document_id"]) for document in documents
+                ),
+            )
         success_count += stats.success_count
         skipped_count += stats.skipped_count
         failed_count += stats.failed_count
@@ -514,6 +529,62 @@ def _materialize_candidates_by_scope(
         updated_document_ids=tuple(updated_document_ids),
         skipped_document_ids=tuple(skipped_document_ids),
     )
+
+
+def _prune_scope_document_artifacts(
+    *,
+    object_store: ObjectStoreWriter,
+    object_store_settings: ObjectStoreSettings,
+    document_registry: DocumentRegistry,
+    scope: tuple[str, str],
+    target_document_ids: tuple[str, ...],
+) -> None:
+    delete_prefix = getattr(object_store, "delete_prefix", None)
+    if not callable(delete_prefix):
+        raise ValueError(
+            "scope_refresh requires an object store that can delete stale document artifacts"
+        )
+    records = document_registry.list_by_scope(*scope)
+    target_suffixes = tuple(
+        _document_id_short_suffix(document_id) for document_id in target_document_ids
+    )
+    exclude_keys = tuple(
+        key
+        for record in records
+        if _preserve_scope_refresh_artifacts(record)
+        for key in (
+            *tuple(record.processed_object_keys),
+            record.document_units_object_key,
+            record.canonical_markdown_object_key,
+        )
+        if key and not _is_source_truth_key(key)
+    )
+    for target_suffix in target_suffixes:
+        delete_prefix(
+            bucket=object_store_settings.bucket_derived,
+            prefix=f"{scope[0]}/documents/{scope[1]}/",
+            exclude_keys=tuple(dict.fromkeys(exclude_keys)),
+            include_path_segment_suffix=f"--{target_suffix}",
+        )
+
+
+def _is_source_truth_key(key: str) -> bool:
+    return key.startswith("official_web/")
+
+
+def _document_id_short_suffix(document_id: str) -> str:
+    suffix = document_id.strip().split(":")[-1]
+    return suffix[:8] if len(suffix) > 8 else suffix
+
+
+def _preserve_non_official_web_scope_record(record: DocumentRegistryRecord) -> bool:
+    return record.source_channel != "official_web"
+
+
+def _preserve_scope_refresh_artifacts(record: DocumentRegistryRecord) -> bool:
+    if record.source_channel != "official_web":
+        return True
+    return record.is_current and record.status == "active"
 
 
 def _build_materialized_document_reports(
