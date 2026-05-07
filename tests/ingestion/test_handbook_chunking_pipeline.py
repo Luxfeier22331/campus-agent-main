@@ -941,6 +941,85 @@ class HandbookChunkingPipelineTest(unittest.TestCase):
             ("application_procedure", "application_procedure"),
         )
 
+    def test_institutional_rules_deadline_clause_emits_time_constraint(self) -> None:
+        record = _institutional_registry_record("official-web-regulation-appeal-deadline-test")
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="regulation_body",
+                    root_unit_id="official-web-regulation-appeal-deadline-test:unit-0011",
+                    clean_text="学生应当在收到处理决定后5个工作日内提出申诉。",
+                    anchor={
+                        "section_path": ["第三章 申诉程序", "申诉期限"],
+                        "article_label": "第十一条",
+                        "provision_label": "（一）",
+                    },
+                    metadata={
+                        "title": "中央民族大学学生申诉处理办法",
+                        "content_role": "regulation_body",
+                        "promotion_class": "formal_regulation",
+                        "source_channel": "official_web",
+                        "page_family": "article_detail",
+                    },
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        metadata = chunks[0].metadata
+        self.assertEqual(metadata["answer_role"], "time_constraint")
+        self.assertEqual(metadata["condition_subject"], "deadline")
+        self.assertEqual(metadata["claim_type"], "time_constraint")
+
+    def test_institutional_rules_material_clause_emits_material_requirement(self) -> None:
+        record = _institutional_registry_record("official-web-regulation-appeal-material-test")
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="regulation_body",
+                    root_unit_id="official-web-regulation-appeal-material-test:unit-0012",
+                    clean_text="申诉申请应当提交书面申请、相关证明材料。",
+                    anchor={
+                        "section_path": ["第三章 申诉程序", "申诉材料"],
+                        "article_label": "第十二条",
+                        "provision_label": "（二）",
+                    },
+                    metadata={
+                        "title": "中央民族大学学生申诉处理办法",
+                        "content_role": "regulation_body",
+                        "promotion_class": "formal_regulation",
+                        "source_channel": "official_web",
+                        "page_family": "article_detail",
+                    },
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        metadata = chunks[0].metadata
+        self.assertEqual(metadata["answer_role"], "material_requirement")
+        self.assertEqual(metadata["condition_subject"], "material_requirement")
+
     def test_student_rules_procedure_steps_are_not_misclassified_as_eligibility(
         self,
     ) -> None:
