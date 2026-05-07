@@ -415,13 +415,17 @@ describe("curriculum generated markdown", () => {
 		expect(curriculumIndex).toContain('readerOutline: "none"');
 		expect(curriculumIndex).not.toContain("readerProfile:");
 		expect(curriculumIndex).toContain("## 本科专业与专业类");
-		expect(curriculumIndex).toContain(
-			"- [计算机类本科人才培养方案](./undergraduate/computer-science)",
-		);
+		expect(curriculumIndex).toContain("- [计算机类本科人才培养方案](./computer-science)");
 		expect(curriculumIndex).toContain("## 通识课程");
 		expect(curriculumIndex).toContain(
-			"- [中央民族大学通识课程 “大学体育”课程教学计划](./general-education/general-pe)",
+			"- [中央民族大学通识课程 “大学体育”课程教学计划](./general-pe)",
 		);
+		expect(curriculumIndex).not.toContain("./undergraduate/");
+		expect(curriculumIndex).not.toContain("./special-programs/");
+		expect(curriculumIndex).not.toContain("./strong-base/");
+		expect(curriculumIndex).not.toContain("./second-degree/");
+		expect(curriculumIndex).not.toContain("./general-education/");
+		expect(curriculumIndex).not.toContain("./other/");
 		expect(curriculumIndex).not.toContain("当前公开");
 	});
 });

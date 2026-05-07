@@ -21,6 +21,12 @@ describe("public-docs navigation and metadata generation", () => {
 			name: "index",
 			label: "文档首页",
 		});
+		expect(buildTopLevelMetaEntries({ includePublicRegulations: false })[1]).toEqual({
+			type: "dir",
+			name: "docs",
+			label: "公开文档",
+			collapsed: false,
+		});
 		expect(
 			buildHandbookMetaEntries({
 				flowGraphDocs: [
@@ -39,8 +45,18 @@ describe("public-docs navigation and metadata generation", () => {
 				],
 			}),
 		).toEqual([
-			{ type: "dir", name: "workflows", label: "办事流程", collapsed: true },
-			{ type: "dir", name: "academic", label: "学籍与教学", collapsed: true },
+			{ type: "section-header", label: "办事流程" },
+			{
+				type: "file",
+				name: "central-minzu-student-dormitory-management-workflow",
+				label: "中央民族大学学生公寓管理工作流程",
+			},
+			{ type: "section-header", label: "学籍与教学" },
+			{
+				type: "file",
+				name: "credit-system",
+				label: "中央民族大学本科学分制实施办法",
+			},
 		]);
 		expect(
 			buildCurriculumMetaEntries([
@@ -61,9 +77,24 @@ describe("public-docs navigation and metadata generation", () => {
 				},
 			]),
 		).toEqual([
-			{ type: "dir", name: "undergraduate", label: "本科专业与专业类", collapsed: true },
-			{ type: "dir", name: "strong-base", label: "强基计划", collapsed: true },
-			{ type: "dir", name: "general-education", label: "通识课程", collapsed: true },
+			{ type: "section-header", label: "本科专业与专业类" },
+			{
+				type: "file",
+				name: "computer-science",
+				label: "计算机类本科人才培养方案",
+			},
+			{ type: "section-header", label: "强基计划" },
+			{
+				type: "file",
+				name: "philosophy-strong-base",
+				label: "哲学（强基计划）本科人才培养方案",
+			},
+			{ type: "section-header", label: "通识课程" },
+			{
+				type: "file",
+				name: "general-pe",
+				label: "中央民族大学通识课程 “大学体育”课程教学计划",
+			},
 		]);
 	});
 

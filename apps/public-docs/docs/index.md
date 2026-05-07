@@ -17,17 +17,17 @@ outline: false
 </section>
 
 <div class="docs-home-grid">
-<a class="docs-home-card" href="/student-handbook/">
+<a class="docs-home-card" href="/docs/regulations/student_rules/">
 	<strong>学生手册</strong>
 	<span>查询学籍、奖助、纪律、住宿、公费医疗等学生管理制度。</span>
 	<small>按制度类别阅读</small>
 </a>
-<a class="docs-home-card" href="/curriculum-plan/">
+<a class="docs-home-card" href="/docs/curriculum/curriculum_plan/">
 	<strong>培养方案</strong>
 	<span>按专业、实验班、强基计划和通识课程查看培养目标、毕业要求和课程安排。</span>
 	<small>按培养类型阅读</small>
 </a>
-<a class="docs-home-card" href="/campus-regulations/">
+<a class="docs-home-card" href="/docs/regulations/">
 	<strong>校内规章</strong>
 	<span>查看已确认公开发布的校内管理规定和办事依据。</span>
 	<small>按公开规章阅读</small>

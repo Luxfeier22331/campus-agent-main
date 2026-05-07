@@ -53,6 +53,24 @@ describe("public-docs generated-docs checker", () => {
 		);
 	});
 
+	it("rejects legacy grouped public-doc detail roots outside canonical /docs routes", async () => {
+		const { validatePublicDocsGeneratedTree } = await import("../scripts/check-generated-docs");
+		const root = mkdtempSync(join(tmpdir(), "public-docs-check-"));
+		temporaryDirectories.push(root);
+		mkdirSync(join(root, "apps/public-docs/docs/student-handbook/academic"), { recursive: true });
+		writeFileSync(
+			join(root, "apps/public-docs/docs/student-handbook/academic/credit-system.md"),
+			["---", "title: 示例学生手册", "---", "", "正文"].join("\n"),
+			"utf-8",
+		);
+
+		const issues = validatePublicDocsGeneratedTree({ root });
+
+		expect(issues.map((issue) => issue.message)).toContain(
+			"contains legacy grouped public-doc route root: apps/public-docs/docs/student-handbook",
+		);
+	});
+
 	it("rejects subgroup overview files and stale subgroup index metadata", async () => {
 		const { validatePublicDocsGeneratedTree } = await import("../scripts/check-generated-docs");
 		const root = mkdtempSync(join(tmpdir(), "public-docs-check-"));
@@ -202,8 +220,10 @@ describe("public-docs generated-docs checker", () => {
 		const { validatePublicDocsGeneratedFile } = await import("../scripts/check-generated-docs");
 		const root = mkdtempSync(join(tmpdir(), "public-docs-check-"));
 		temporaryDirectories.push(root);
-		const target = join(root, "apps/public-docs/docs/curriculum-plan/index.md");
-		mkdirSync(join(root, "apps/public-docs/docs/curriculum-plan"), { recursive: true });
+		const target = join(root, "apps/public-docs/docs/docs/curriculum/curriculum_plan/index.md");
+		mkdirSync(join(root, "apps/public-docs/docs/docs/curriculum/curriculum_plan"), {
+			recursive: true,
+		});
 		writeFileSync(
 			target,
 			[
@@ -215,7 +235,7 @@ describe("public-docs generated-docs checker", () => {
 				'readerOutline: "none"',
 				"---",
 				"",
-				"- [中国少数民族语言文学本科人才培养方案](./undergraduate/中国少数民族语言文学本科人才培养方案)",
+				"- [中国少数民族语言文学本科人才培养方案](./中国少数民族语言文学本科人才培养方案)",
 				"",
 				"<div><table><tbody><tr><td>&#42;战场医疗救护</td></tr></tbody></table></div>",
 			].join("\n"),
@@ -229,8 +249,10 @@ describe("public-docs generated-docs checker", () => {
 		const { validatePublicDocsGeneratedFile } = await import("../scripts/check-generated-docs");
 		const root = mkdtempSync(join(tmpdir(), "public-docs-check-"));
 		temporaryDirectories.push(root);
-		const target = join(root, "apps/public-docs/docs/curriculum-plan/index.md");
-		mkdirSync(join(root, "apps/public-docs/docs/curriculum-plan"), { recursive: true });
+		const target = join(root, "apps/public-docs/docs/docs/curriculum/curriculum_plan/index.md");
+		mkdirSync(join(root, "apps/public-docs/docs/docs/curriculum/curriculum_plan"), {
+			recursive: true,
+		});
 		writeFileSync(
 			target,
 			[
@@ -243,6 +265,34 @@ describe("public-docs generated-docs checker", () => {
 				"---",
 				"",
 				"目录。",
+			].join("\n"),
+			"utf-8",
+		);
+
+		expect(validatePublicDocsGeneratedFile(target, { root })).toEqual([]);
+	});
+
+	it("allows collection landing lists to contain CJK parentheses in linked titles", async () => {
+		const { validatePublicDocsGeneratedFile } = await import("../scripts/check-generated-docs");
+		const root = mkdtempSync(join(tmpdir(), "public-docs-check-"));
+		temporaryDirectories.push(root);
+		const target = join(root, "apps/public-docs/docs/docs/regulations/student_rules/index.md");
+		mkdirSync(join(root, "apps/public-docs/docs/docs/regulations/student_rules"), {
+			recursive: true,
+		});
+		writeFileSync(
+			target,
+			[
+				"---",
+				"title: 学生手册",
+				'documentKind: "collectionLanding"',
+				'readerLayout: "landing"',
+				'readerMeasure: "standard"',
+				'readerOutline: "none"',
+				"---",
+				"",
+				"- [中央民族大学本(预科)学生证管理办法](./中央民族大学本-预科-学生证管理办法)",
+				"- [中央民族大学学院(系)学生基本情况周查月报制度](./中央民族大学学院-系-学生基本情况周查月报制度)",
 			].join("\n"),
 			"utf-8",
 		);

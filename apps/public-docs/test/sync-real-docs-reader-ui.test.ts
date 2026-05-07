@@ -18,8 +18,8 @@ describe("public-docs reader UI contracts", () => {
 		const nav = readFileSync(join(process.cwd(), "docs/_nav.json"), "utf8");
 
 		expect(nav).toContain('"text": "首页"');
-		expect(nav).toContain('"text": "学生手册"');
-		expect(nav).toContain('"text": "培养方案"');
+		expect(nav).toContain('"text": "公开文档"');
+		expect(nav).toContain('"/docs/"');
 		expect(config).toContain("nav: [],");
 	});
 
@@ -417,7 +417,7 @@ describe("public-docs reader UI contracts", () => {
 		const results = buildLocalSearchFallbackResults("奖学金", [
 			{
 				title: "中央民族大学本科学生国家奖学金评审办法",
-				routePath: "/student-handbook/scholarship/national-scholarship-evaluation",
+				routePath: "/docs/regulations/student_rules/national-scholarship-evaluation",
 				content: "第一条 为规范国家奖学金评审工作。",
 				toc: [{ id: "第一条", text: "第一条", charIndex: 0 }],
 			},
@@ -426,7 +426,7 @@ describe("public-docs reader UI contracts", () => {
 		expect(results[0]).toMatchObject({
 			type: "title",
 			title: "中央民族大学本科学生国家奖学金评审办法",
-			link: "/student-handbook/scholarship/national-scholarship-evaluation",
+			link: "/docs/regulations/student_rules/national-scholarship-evaluation",
 			query: "奖学金",
 		});
 	});
@@ -435,7 +435,7 @@ describe("public-docs reader UI contracts", () => {
 		const results = buildLocalSearchFallbackResults("毕业要求", [
 			{
 				title: "计算机类本科人才培养方案",
-				routePath: "/curriculum-plan/undergraduate/计算机类本科人才培养方案",
+				routePath: "/docs/curriculum/curriculum_plan/计算机类本科人才培养方案",
 				content: "二、毕业要求\n\n软件工程专业毕业要求包括知识、能力和素质要求。",
 				toc: [{ id: "二毕业要求", text: "二、毕业要求", charIndex: 0 }],
 			},
@@ -444,7 +444,7 @@ describe("public-docs reader UI contracts", () => {
 		expect(results.map((result) => result.type)).toEqual(["header", "content"]);
 		expect(results[0]).toMatchObject({
 			header: "计算机类本科人才培养方案 > 二、毕业要求",
-			link: "/curriculum-plan/undergraduate/计算机类本科人才培养方案#二毕业要求",
+			link: "/docs/curriculum/curriculum_plan/计算机类本科人才培养方案#二毕业要求",
 		});
 	});
 });

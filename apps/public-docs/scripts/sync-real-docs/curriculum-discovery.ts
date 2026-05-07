@@ -39,7 +39,7 @@ export function buildCurriculumPlanIndex(curriculumDocs: CurriculumDoc[] = []): 
 		}
 		lines.push(`## ${group.label}`, "");
 		for (const doc of group.docs) {
-			lines.push(`- [${doc.title}](./${group.id}/${doc.slug})`);
+			lines.push(`- [${doc.title}](./${doc.slug})`);
 		}
 		lines.push("");
 	}

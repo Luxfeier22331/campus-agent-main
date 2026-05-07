@@ -5,8 +5,12 @@ import { describe, expect, it } from "vitest";
 
 import {
 	discoverPublicRegulationDocs,
-	syncPublicRegulationDocs,
 } from "../scripts/sync-real-docs/regulations";
+import {
+	buildHandbookDocKey,
+	loadHandbookDocs,
+} from "../scripts/sync-real-docs/handbook";
+import { syncRealDocs } from "../scripts/sync-real-docs";
 import { loadRegulationConsumptionManifest } from "../scripts/regulation-consumption";
 import { FakeObjectStore, temporaryDirectories } from "./sync-real-docs-test-support";
 
@@ -59,11 +63,7 @@ describe("real docs regulation sync", () => {
 		const objectStore = buildCompletePublicRegulationObjectStore();
 
 		const docs = await discoverPublicRegulationDocs(objectStore);
-		await syncPublicRegulationDocs({
-			client: objectStore,
-			docsRoot,
-			regulationDocs: docs,
-		});
+		await syncRealDocs({ client: objectStore, docsRoot });
 
 		expect(docs).toHaveLength(23);
 		expect(docs.map((doc) => [doc.documentId, doc.docsNavGroup])).toEqual(
@@ -83,62 +83,55 @@ describe("real docs regulation sync", () => {
 		expect(staffGovernanceDoc?.title).toBe(STAFF_GOVERNANCE_TITLE);
 		expect(studentDoc?.title).toBe(STUDENT_TITLE);
 
-		expect(readFileSync(join(docsRoot, "campus-regulations", "_meta.json"), "utf8")).toContain(
-			'"name": "student"',
-		);
-		expect(readFileSync(join(docsRoot, "campus-regulations", "_meta.json"), "utf8")).toContain(
-			'"name": "public-service"',
-		);
-		expect(readFileSync(join(docsRoot, "campus-regulations", "_meta.json"), "utf8")).toContain(
-			'"name": "staff-governance"',
-		);
-		expect(readFileSync(join(docsRoot, "campus-regulations", "index.md"), "utf8")).toContain(
-			"[学生规章](./student/)",
-		);
-		expect(readFileSync(join(docsRoot, "campus-regulations", "index.md"), "utf8")).toContain(
-			"[校园服务制度](./public-service/)",
-		);
-		expect(readFileSync(join(docsRoot, "campus-regulations", "index.md"), "utf8")).toContain(
-			"[教职工与校级治理](./staff-governance/)",
-		);
+		expect(
+			readFileSync(join(docsRoot, "docs/regulations/institutional_rules/_meta.json"), "utf8"),
+		).toContain('"type": "section-header"');
+		expect(
+			readFileSync(join(docsRoot, "docs/regulations/institutional_rules/_meta.json"), "utf8"),
+		).toContain("学生规章");
+		expect(
+			readFileSync(join(docsRoot, "docs/regulations/institutional_rules/_meta.json"), "utf8"),
+		).toContain("校园服务制度");
+		expect(
+			readFileSync(join(docsRoot, "docs/regulations/institutional_rules/_meta.json"), "utf8"),
+		).toContain("教职工与校级治理");
+		expect(
+			readFileSync(join(docsRoot, "docs/regulations/institutional_rules/index.md"), "utf8"),
+		).toContain("## 学生规章");
+		expect(
+			readFileSync(join(docsRoot, "docs/regulations/institutional_rules/index.md"), "utf8"),
+		).toContain("## 校园服务制度");
+		expect(
+			readFileSync(join(docsRoot, "docs/regulations/institutional_rules/index.md"), "utf8"),
+		).toContain("## 教职工与校级治理");
 		expect(
 			existsSync(
-				join(docsRoot, "campus-regulations", "public-service", `${publicServiceDoc?.slug}.md`),
+				join(docsRoot, "docs/regulations/institutional_rules", `${publicServiceDoc?.slug}.mdx`),
 			),
 		).toBe(true);
 		expect(
 			existsSync(
-				join(
-					docsRoot,
-					"campus-regulations",
-					"staff-governance",
-					`${staffGovernanceDoc?.slug}.md`,
-				),
+				join(docsRoot, "docs/regulations/institutional_rules", `${staffGovernanceDoc?.slug}.mdx`),
 			),
 		).toBe(true);
 		expect(
-			existsSync(join(docsRoot, "campus-regulations", "student", `${studentDoc?.slug}.md`)),
+			existsSync(join(docsRoot, "docs/regulations/institutional_rules", `${studentDoc?.slug}.mdx`)),
 		).toBe(true);
 		expect(
 			readFileSync(
-				join(docsRoot, "campus-regulations", "public-service", `${publicServiceDoc?.slug}.md`),
+				join(docsRoot, "docs/regulations/institutional_rules", `${publicServiceDoc?.slug}.mdx`),
 				"utf8",
 			),
 		).toContain("来源：校园服务制度");
 		expect(
 			readFileSync(
-				join(
-					docsRoot,
-					"campus-regulations",
-					"staff-governance",
-					`${staffGovernanceDoc?.slug}.md`,
-				),
+				join(docsRoot, "docs/regulations/institutional_rules", `${staffGovernanceDoc?.slug}.mdx`),
 				"utf8",
 			),
 		).toContain("来源：教职工与校级治理");
 		expect(
 			readFileSync(
-				join(docsRoot, "campus-regulations", "student", `${studentDoc?.slug}.md`),
+				join(docsRoot, "docs/regulations/institutional_rules", `${studentDoc?.slug}.mdx`),
 				"utf8",
 			),
 		).toContain("来源：学生规章");
@@ -182,6 +175,30 @@ describe("real docs regulation sync", () => {
 
 function buildCompletePublicRegulationObjectStore(): FakeObjectStore {
 	const objects = new Map<string, string>();
+	for (const handbookDoc of loadHandbookDocs()) {
+		objects.set(
+			buildHandbookDocKey(handbookDoc),
+			[
+				"---",
+				`title: '${handbookDoc.title}'`,
+				`doc_id: ${handbookDoc.documentId}`,
+				"version_id: sha256:handbook-test-version",
+				"source_doc: '学生手册_2018.pdf'",
+				"page_start: 1",
+				"page_end: 2",
+				"---",
+				"",
+				"正文示例。",
+			].join("\n"),
+		);
+	}
+	objects.set(
+		"curriculum/documents/curriculum_plan/computer-science/source-faithful/2022/document-units.jsonl",
+		[
+			'{"doc_id":"curriculum:计算机类本科人才培养方案","version_id":"sha256:curriculum-version","source_pdf":"curriculum-plan-2022.pdf","page_start":1,"page_end":2,"row_type":"heading","clean_text":"计算机类本科人才培养方案","heading_level":1}',
+			'{"doc_id":"curriculum:计算机类本科人才培养方案","version_id":"sha256:curriculum-version","source_pdf":"curriculum-plan-2022.pdf","page_start":2,"page_end":2,"row_type":"paragraph","clean_text":"正文示例"}',
+		].join("\n"),
+	);
 	for (const entry of loadRegulationConsumptionManifest().documents) {
 		const collection = entry.canonical_scope.split("/").at(-1);
 		if (!collection) {
