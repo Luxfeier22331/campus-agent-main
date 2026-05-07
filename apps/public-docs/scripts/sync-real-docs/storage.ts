@@ -88,17 +88,38 @@ class S3ObjectStore implements ObjectStoreClient {
 	}
 
 	private async readBytesObject(input: { bucket?: string; key: string }): Promise<Uint8Array> {
-		const response = await this.client.send(
-			new GetObjectCommand({
-				Bucket: input.bucket ?? DERIVED_BUCKET,
-				Key: input.key,
-			}),
-		);
+		const bucket = input.bucket ?? DERIVED_BUCKET;
+		let response;
+		try {
+			response = await this.client.send(
+				new GetObjectCommand({
+					Bucket: bucket,
+					Key: input.key,
+				}),
+			);
+		} catch (error) {
+			throw enrichObjectStoreReadError(error, { bucket, key: input.key });
+		}
 		if (!response.Body) {
 			throw new Error(`empty object body: ${input.key}`);
 		}
 		return response.Body.transformToByteArray();
 	}
+}
+
+function enrichObjectStoreReadError(
+	error: unknown,
+	input: { bucket: string; key: string },
+): Error {
+	const message = error instanceof Error ? error.message : String(error);
+	const enriched = new Error(
+		`failed to read object ${input.bucket}/${input.key}: ${message}`,
+	);
+	if (error instanceof Error) {
+		enriched.name = error.name;
+		enriched.cause = error;
+	}
+	return enriched;
 }
 
 function requiredEnv(name: string): string {
