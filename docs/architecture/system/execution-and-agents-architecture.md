@@ -753,6 +753,10 @@ query。
   - `academic_calendar_lookup` 只读 `calendar/academic_calendar` projection /
     typed read model；不查询 raw 官网页面、不回退 generic RAG，也不负责
     “校历怎么看 / 校历在哪里看”这类入口说明
+  - `academic_calendar_lookup` 的 contract 显式携带 `query_kind`、
+    `event_query`、`target_date`、`term_label` 等 normalized query fields；
+    trusted execution anchor 仍由服务端解析并通过 `queried_time_anchor`
+    返回，不接受客户端自由写入 `time_anchor`
   - “校历怎么看 / 校历在哪里看”仍属于 `service_guide_lookup` 的只读指南边界
 - `notice-agent`
   - 承接 `campus_notice_discover`、selected notice ref resolution、official source card

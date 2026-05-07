@@ -52,6 +52,12 @@ class ToolFunctionSchemaTest(unittest.TestCase):
             set(transport["route_selector"]["required"]),
             set(transport["route_selector"]["properties"]),
         )
+        academic_calendar = schemas["academic_calendar_lookup"]["parameters"]["properties"]
+        self.assertIn("query_kind", academic_calendar)
+        self.assertIn("event_query", academic_calendar)
+        self.assertIn("target_date", academic_calendar)
+        self.assertEqual(academic_calendar["query_kind"]["type"], "string")
+        self.assertNotIn(None, academic_calendar["query_kind"]["enum"])
 
     def test_notice_body_get_is_not_a_provider_function_schema(self) -> None:
         schemas = {schema["name"]: schema for schema in generate_provider_function_schemas()}

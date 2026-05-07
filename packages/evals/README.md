@@ -136,9 +136,10 @@ Evaluation helpers for campus-agent v2.
   summary，不保存 raw transcript 或 provider raw response
 - public chat entry E2E eval 固定在
   `packages/evals/fixtures/public_chat_entry_cases.v1.json` 与
-  `campus_evals.public_chat_entry_e2e`；它只验证 public chat 入口 request path、
-  request / trace correlation、terminal outcome 与 response card/source contract，不把
-  browser transcript 或 provider raw response 写入 artifact
+  `campus_evals.public_chat_entry_e2e`；它验证 public chat 入口 request path、
+  request / trace correlation、terminal outcome、response card/source contract，以及已开放
+  入口问法的最小 answer-text semantic contract，不把 browser transcript 或 provider raw
+  response 写入 artifact
 - tool-routing product-path eval 固定在
   `packages/evals/fixtures/tool_routing_cases.v1.json` 与
   `campus_evals.tool_routing_product_path`；它用自然语言 user goal 评估 selected tool、

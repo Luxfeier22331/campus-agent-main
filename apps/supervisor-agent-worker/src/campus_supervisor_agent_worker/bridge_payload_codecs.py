@@ -60,6 +60,14 @@ def parse_agent_payload_by_kind(payload_kind: str, payload: dict[str, object]) -
             )
             or "",
             date_hint=parse_optional_string(payload.get("date_hint"), field_name="date_hint") or "",
+            query_kind=require_string(payload.get("query_kind"), field_name="query_kind"),
+            event_query=parse_optional_string(payload.get("event_query"), field_name="event_query")
+            or "",
+            target_date=parse_optional_string(payload.get("target_date"), field_name="target_date")
+            or "",
+            audience=parse_optional_string(payload.get("audience"), field_name="audience") or "",
+            term_label=parse_optional_string(payload.get("term_label"), field_name="term_label")
+            or "",
         )
     if payload_kind == "transport_schedule_lookup":
         route_selector = payload.get("route_selector")

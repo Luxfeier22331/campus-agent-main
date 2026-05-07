@@ -49,7 +49,18 @@ def academic_calendar_response(result: AcademicCalendarLookupResult) -> AgentRes
 
 
 def academic_calendar_answer_text(result: AcademicCalendarLookupResult) -> str:
+    answer_focus = _effective_answer_focus(result)
+    if answer_focus == "holiday_duration":
+        return _holiday_duration_text(result)
+    if answer_focus == "campus_break_window":
+        return _campus_break_window_text(result)
+    if answer_focus == "day_status":
+        return _day_status_text(result)
     parts: list[str] = []
+    if result.event_name and result.display_start_date and result.display_end_date:
+        parts.append(f"{result.event_name}：{result.display_start_date}至{result.display_end_date}")
+    elif result.event_name and result.display_start_date:
+        parts.append(f"{result.event_name}：{result.display_start_date}")
     if result.resolved_date and result.week_index is not None:
         parts.append(f"{result.resolved_date}是第{result.week_index}教学周")
     elif result.week_index is not None:
@@ -69,6 +80,121 @@ def academic_calendar_answer_text(result: AcademicCalendarLookupResult) -> str:
     if not parts:
         parts.append(result.query_text)
     return "；".join(parts) + "。"
+
+
+def _holiday_duration_text(result: AcademicCalendarLookupResult) -> str:
+    start_date = _display_date(result.display_start_date)
+    end_date = _display_date(result.display_end_date)
+    parts: list[str] = []
+    if start_date and end_date and result.duration_days:
+        parts.append(
+            f"{_event_label(result)}是{start_date}到 {end_date}，共 {result.duration_days} 天"
+        )
+    elif start_date and end_date:
+        parts.append(f"{_event_label(result)}是{start_date}到 {end_date}")
+    else:
+        parts.append(f"{_event_label(result)}安排已在校历中确认")
+    related = _first_related_context(result, "overlapping_campus_course_adjustment")
+    if related is not None:
+        related_text = _campus_break_window_clause(related)
+        if related_text:
+            parts.append(related_text)
+    return "；".join(parts) + "。"
+
+
+def _effective_answer_focus(result: AcademicCalendarLookupResult) -> str:
+    if result.answer_focus:
+        return result.answer_focus
+    if result.query_kind == "day_status":
+        return "day_status"
+    if result.event_type == "course_suspension" and "春假" in result.event_aliases:
+        return "campus_break_window"
+    if result.holiday_name and result.duration_days:
+        return "holiday_duration"
+    return ""
+
+
+def _campus_break_window_text(result: AcademicCalendarLookupResult) -> str:
+    parts = [_campus_break_window_clause(result)]
+    related = _first_related_context(result, "overlapping_holiday_window")
+    if related is not None:
+        holiday_text = _related_holiday_clause(related)
+        if holiday_text:
+            parts.append(holiday_text)
+    return "；".join(part for part in parts if part) + "。"
+
+
+def _day_status_text(result: AcademicCalendarLookupResult) -> str:
+    target_date = _display_date(result.resolved_date or result.requested_date)
+    parts: list[str] = []
+    if target_date and result.day_kind == "holiday":
+        if result.event_name:
+            parts.append(f"{target_date}不上课，属于{result.event_name}")
+        else:
+            parts.append(f"{target_date}不上课")
+    elif target_date and result.day_kind == "normal_rest_day":
+        parts.append(f"{target_date}不上课，当天按休息日安排")
+    elif target_date and result.day_kind == "course_suspension":
+        if result.event_name:
+            parts.append(f"{target_date}不上课，属于{result.event_name}")
+        else:
+            parts.append(f"{target_date}不上课")
+    elif target_date and result.is_makeup_class:
+        if result.class_day_pattern:
+            parts.append(f"{target_date}需要上课，执行{result.class_day_pattern}")
+        else:
+            parts.append(f"{target_date}需要上课")
+    elif target_date and result.class_day_pattern:
+        parts.append(f"{target_date}执行{result.class_day_pattern}")
+    elif target_date:
+        parts.append(f"{target_date}按正常教学安排执行")
+    else:
+        parts.append(result.query_text)
+    return "；".join(parts) + "。"
+
+
+def _campus_break_window_clause(result: AcademicCalendarLookupResult) -> str:
+    start_date = _display_date(result.display_start_date)
+    end_date = _display_date(result.display_end_date)
+    range_text = f"{start_date}到 {end_date}" if start_date and end_date else ""
+    parts: list[str] = []
+    if range_text:
+        parts.append(f"如果你说的“春假”是指这段校内连续不上课时间，对应的是{range_text}")
+    else:
+        parts.append("这段校内连续不上课时间已在校历安排中确认")
+    if {"undergraduate", "preparatory", "graduate"}.intersection(result.applies_to):
+        parts.append("本（预）科生、研究生课程停课")
+    return "；".join(parts)
+
+
+def _related_holiday_clause(result: AcademicCalendarLookupResult) -> str:
+    start_date = _display_date(result.display_start_date)
+    end_date = _display_date(result.display_end_date)
+    if start_date and end_date and result.event_name and result.duration_days:
+        return f"其中 {result.event_name}是{start_date}到 {end_date}，共 {result.duration_days} 天"
+    if start_date and end_date and result.event_name:
+        return f"其中 {result.event_name}是{start_date}到 {end_date}"
+    return ""
+
+
+def _event_label(result: AcademicCalendarLookupResult) -> str:
+    return result.holiday_name or result.event_name or "相关校历安排"
+
+
+def _first_related_context(result: AcademicCalendarLookupResult, relation: str):
+    for context in result.related_calendar_contexts:
+        if context.relation == relation:
+            return context
+    return None
+
+
+def _display_date(value: str) -> str:
+    parts = value.strip().split("-")
+    if len(parts) != 3:
+        return value.strip()
+    month = parts[1].lstrip("0") or parts[1]
+    day = parts[2].lstrip("0") or parts[2]
+    return f"{month} 月 {day} 日"
 
 
 def academic_calendar_observability(

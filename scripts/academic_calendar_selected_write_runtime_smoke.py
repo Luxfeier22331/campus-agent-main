@@ -361,16 +361,38 @@ def _default_academic_calendar_runtime_probes() -> tuple[AcademicCalendarRuntime
                 "query_text": "五一放几天",
                 "temporal_query": {"mode": "current"},
             },
-            expected_fields={"holiday_name": "劳动节假期"},
+            expected_fields={
+                "day_kind": "course_suspension",
+                "display_start_date": "2026-04-27",
+                "display_end_date": "2026-05-05",
+            },
+            expected_body_tokens=("运动会、春季社会实践周、劳动节假期课程调整",),
         ),
         AcademicCalendarRuntimeProbe(
-            probe_id="makeup_class_current",
+            probe_id="spring_break_alias_current",
             payload={
-                "query_text": "哪周补课",
-                "temporal_query": {"mode": "current"},
-                "date_hint": "2026-05-09",
+                "query_text": "今年春假是什么时候",
+                "query_kind": "named_event_range",
+                "event_query": "春假",
+                "temporal_query": {"mode": "current_year", "year_hint": "2026"},
             },
-            expected_fields={"class_day_pattern": "执行周一课表", "is_makeup_class": True},
+            expected_body_tokens=("运动会、春季社会实践周、劳动节假期课程调整", "春假"),
+            expected_fields={
+                "day_kind": "course_suspension",
+                "display_start_date": "2026-04-27",
+                "display_end_date": "2026-05-05",
+            },
+        ),
+        AcademicCalendarRuntimeProbe(
+            probe_id="notice_rest_day_current",
+            payload={
+                "query_text": "2026-05-09 上课吗",
+                "query_kind": "day_status",
+                "target_date": "2026-05-09",
+                "temporal_query": {"mode": "current"},
+            },
+            expected_fields={"day_kind": "normal_rest_day", "is_makeup_class": False},
+            expected_body_tokens=("calendar:official_web:baseline-2026-05-09",),
         ),
     )
 

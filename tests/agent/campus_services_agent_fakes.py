@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from campus_contracts import (
+    AcademicCalendarRelatedContext,
     AcademicCalendarLookupResult,
     ContactDirectoryContactPoint,
     ContactDirectoryContactRef,
@@ -164,12 +165,26 @@ class FakeCampusServicesQueryService:
         return AcademicCalendarLookupResult(
             query_text=query.payload.query_text,
             outcome="resolved_current",
+            query_kind=query.payload.query_kind,
+            answer_focus="teaching_week",
             resolved_date="2026-05-05",
             academic_year_label="2025-2026学年",
             term_label="春季学期",
             week_index=11,
             day_kind="teaching_day",
             source_refs=("official_web:academic-calendar-2025-2026",),
+            primary_record_id="calendar:official_web:teaching-week-11",
+            primary_source_refs=("official_web:academic-calendar-2025-2026",),
+            related_calendar_contexts=(
+                AcademicCalendarRelatedContext(
+                    relation="term_context",
+                    event_name="春季学期",
+                    event_type="term_window",
+                    display_start_date="2026-02-23",
+                    display_end_date="2026-07-12",
+                    source_refs=("official_web:academic-calendar-2025-2026",),
+                ),
+            ),
         )
 
 

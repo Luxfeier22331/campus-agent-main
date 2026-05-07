@@ -291,7 +291,11 @@ class AgentDispatchTest(unittest.TestCase):
                 AcademicCalendarLookupPayload(
                     query_text="校历",
                     academic_year_label="2026",
-                    date_hint="春季学期",
+                    query_kind="named_event_range",
+                    event_query="劳动节",
+                    target_date="2026-05-01",
+                    audience="student",
+                    term_label="春季学期",
                 ),
             ),
             "campus_notice_discover": (

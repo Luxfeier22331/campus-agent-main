@@ -525,6 +525,7 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
             self.assertEqual(result.full_record_count, 1)
             record = result.bundle["academic_calendar_records"][0]
             self.assertEqual(record["academic_year_label"], "2025-2026学年")
+            self.assertEqual(record["record_family"], "class_day_override")
             self.assertEqual(record["week_index"], 10)
             self.assertEqual(record["class_day_pattern"], "执行周一课表")
             self.assertTrue(record["is_makeup_class"])
@@ -1268,7 +1269,9 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
     def test_releases_academic_calendar_candidate_to_structured_projection(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
-            current_key = "calendar/releases/academic_calendar/current/academic-calendar-projection.json"
+            current_key = (
+                "calendar/releases/academic_calendar/current/academic-calendar-projection.json"
+            )
             object_store = _FakeObjectStore(
                 {
                     (
@@ -1359,6 +1362,10 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
             bundle = json.loads(object_store.objects[("campus-rag-derived", current_key)])
             record = bundle["academic_calendar_records"][0]
             self.assertEqual(record["holiday_name"], "劳动节假期")
+            self.assertEqual(record["record_family"], "named_event")
+            self.assertEqual(record["event_name"], "劳动节假期")
+            self.assertEqual(record["event_end_date_exclusive"], "2026-05-06")
+            self.assertEqual(record["display_end_date"], "2026-05-05")
             self.assertEqual(record["day_kind"], "holiday")
             self.assertEqual(record["field_status"]["calendar_arrangement"], "present")
             self.assertEqual(
@@ -2100,7 +2107,12 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
                             "selected_write_target": "campus_services/service_guide",
                             "target_job_id": "owtarget_vpn",
                             "typed_candidate": {
-                                "contacts": {"emails": [], "locations": [], "office_hours": [], "phones": []},
+                                "contacts": {
+                                    "emails": [],
+                                    "locations": [],
+                                    "office_hours": [],
+                                    "phones": [],
+                                },
                                 "entry_points": ["https://vpn.muc.edu.cn"],
                                 "materials": [],
                                 "process_steps": [
@@ -2119,15 +2131,21 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
                                             {
                                                 "step_id": "service:official_web:vpn:procedure_group:direct_login:step:1",
                                                 "content": "访问 https://vpn.muc.edu.cn，进入中央民族大学VPN系统。",
-                                                "source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                                "source_refs": [
+                                                    "https://met.muc.edu.cn/info/1046/1674.htm"
+                                                ],
                                             },
                                             {
                                                 "step_id": "service:official_web:vpn:procedure_group:direct_login:step:2",
                                                 "content": "输入统一身份认证账号和密码登录。",
-                                                "source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                                "source_refs": [
+                                                    "https://met.muc.edu.cn/info/1046/1674.htm"
+                                                ],
                                             },
                                         ],
-                                        "source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                        "source_refs": [
+                                            "https://met.muc.edu.cn/info/1046/1674.htm"
+                                        ],
                                     },
                                     {
                                         "group_id": "service:official_web:vpn:procedure_group:client_install",
@@ -2137,15 +2155,21 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
                                             {
                                                 "step_id": "service:official_web:vpn:procedure_group:client_install:step:1",
                                                 "content": "首次使用请根据系统提示下载客户端。",
-                                                "source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                                "source_refs": [
+                                                    "https://met.muc.edu.cn/info/1046/1674.htm"
+                                                ],
                                             },
                                             {
                                                 "step_id": "service:official_web:vpn:procedure_group:client_install:step:2",
                                                 "content": "双击Install EasyConnect.pkg，根据提示完成安装。",
-                                                "source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                                "source_refs": [
+                                                    "https://met.muc.edu.cn/info/1046/1674.htm"
+                                                ],
                                             },
                                         ],
-                                        "source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                        "source_refs": [
+                                            "https://met.muc.edu.cn/info/1046/1674.htm"
+                                        ],
                                     },
                                     {
                                         "group_id": "service:official_web:vpn:procedure_group:mobile_usage",
@@ -2155,16 +2179,22 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
                                             {
                                                 "step_id": "service:official_web:vpn:procedure_group:mobile_usage:step:1",
                                                 "content": "移动端可在企业应用中心打开 EasyConnect。",
-                                                "source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                                "source_refs": [
+                                                    "https://met.muc.edu.cn/info/1046/1674.htm"
+                                                ],
                                             }
                                         ],
-                                        "source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                        "source_refs": [
+                                            "https://met.muc.edu.cn/info/1046/1674.htm"
+                                        ],
                                     },
                                 ],
                                 "field_source_urls": {
                                     "entry_points": ["https://met.muc.edu.cn/info/1046/1674.htm"],
                                     "process_steps": ["https://met.muc.edu.cn/info/1046/1674.htm"],
-                                    "procedure_groups": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                    "procedure_groups": [
+                                        "https://met.muc.edu.cn/info/1046/1674.htm"
+                                    ],
                                 },
                                 "responsible_office": [],
                                 "service_name": "中央民族大学 VPN 使用说明",
@@ -2254,12 +2284,19 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
                             "selected_write_target": "campus_services/service_guide",
                             "target_job_id": "owtarget_vpn",
                             "typed_candidate": {
-                                "contacts": {"emails": [], "locations": [], "office_hours": [], "phones": []},
+                                "contacts": {
+                                    "emails": [],
+                                    "locations": [],
+                                    "office_hours": [],
+                                    "phones": [],
+                                },
                                 "entry_points": ["https://vpn.muc.edu.cn"],
                                 "field_source_urls": {
                                     "entry_points": ["https://met.muc.edu.cn/info/1046/1674.htm"],
                                     "process_steps": ["https://met.muc.edu.cn/info/1046/1674.htm"],
-                                    "procedure_groups": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                    "procedure_groups": [
+                                        "https://met.muc.edu.cn/info/1046/1674.htm"
+                                    ],
                                 },
                                 "materials": [],
                                 "process_steps": [
@@ -2276,10 +2313,14 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
                                             {
                                                 "step_id": "service:official_web:vpn:procedure_group:direct_login:step:1",
                                                 "content": "访问 https://vpn.muc.edu.cn，进入中央民族大学VPN系统。",
-                                                "source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                                "source_refs": [
+                                                    "https://met.muc.edu.cn/info/1046/1674.htm"
+                                                ],
                                             }
                                         ],
-                                        "source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                        "source_refs": [
+                                            "https://met.muc.edu.cn/info/1046/1674.htm"
+                                        ],
                                     },
                                     {
                                         "group_id": "service:official_web:vpn:procedure_group:client_install",
@@ -2289,10 +2330,14 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
                                             {
                                                 "step_id": "service:official_web:vpn:procedure_group:client_install:step:1",
                                                 "content": "首次使用请根据系统提示下载客户端。",
-                                                "source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                                "source_refs": [
+                                                    "https://met.muc.edu.cn/info/1046/1674.htm"
+                                                ],
                                             }
                                         ],
-                                        "source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+                                        "source_refs": [
+                                            "https://met.muc.edu.cn/info/1046/1674.htm"
+                                        ],
                                     },
                                 ],
                                 "responsible_office": [],

@@ -77,10 +77,28 @@ def _parameters_for_payload_kind(payload_kind: str) -> dict[str, Any]:
             {
                 "query_text": _string("Original academic calendar fact question."),
                 "temporal_query": _temporal_query_schema(),
-                "academic_year_label": _string("Optional explicit academic year label such as 2026-2027学年."),
-                "date_hint": _string("Optional ISO date to resolve week, holiday, or makeup-class arrangement."),
+                "academic_year_label": _string(
+                    "Optional explicit academic year label such as 2026-2027学年."
+                ),
+                "date_hint": _string(
+                    "Optional ISO date to resolve week, holiday, or makeup-class arrangement."
+                ),
+                "query_kind": _enum(
+                    (
+                        "date_week",
+                        "named_event_range",
+                        "day_status",
+                        "class_day_pattern",
+                        "term_window",
+                    ),
+                    "Deterministic academic calendar fact query kind.",
+                ),
+                "event_query": _string("Optional named event query such as 春假 or 劳动节."),
+                "target_date": _string("Optional ISO date being queried."),
+                "audience": _string("Optional audience such as student or faculty."),
+                "term_label": _string("Optional term label such as 春季学期."),
             },
-            required=("query_text",),
+            required=("query_text", "query_kind"),
         )
     if payload_kind == "service_status_lookup":
         return _strict_object(

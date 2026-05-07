@@ -251,7 +251,8 @@ document/index release`
   boundary；当前同时承接 `service_status_lookup`、`service_guide_lookup`、
   `transport_schedule_lookup`、`contact_directory_lookup` 与
   `academic_calendar_lookup`。其中 `academic_calendar_lookup` 只消费
-  `calendar/academic_calendar` projection-backed read model，不负责校历查看入口说明
+  `calendar/academic_calendar` projection-backed read model，支持教学周、
+  命名校历事件区间、学期窗口与补课/调休上课事实，不负责校历查看入口说明
 - `packages/retrieval-core` retrieval abstraction、metadata pre-filter、evidence
   shaping
 - `packages/ingestion-core` ingestion/data-plane consumption logic

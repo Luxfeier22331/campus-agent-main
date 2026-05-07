@@ -92,6 +92,22 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantTool:   "academic_calendar_lookup",
 			wantPayload: map[string]any{
 				"query_text": "今天第几教学周",
+				"query_kind": "date_week",
+			},
+		},
+		{
+			name: "academic calendar exact date teaching week",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "2026-05-07 是第几教学周",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "academic_calendar_lookup",
+			wantTool:   "academic_calendar_lookup",
+			wantPayload: map[string]any{
+				"query_text":  "2026-05-07 是第几教学周",
+				"query_kind":  "date_week",
+				"target_date": "2026-05-07",
 			},
 		},
 		{
@@ -105,6 +121,37 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantTool:   "academic_calendar_lookup",
 			wantPayload: map[string]any{
 				"query_text": "4月25日上周几的课",
+				"query_kind": "class_day_pattern",
+			},
+		},
+		{
+			name: "academic calendar class day pattern explicit date",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "2026-04-25 执行哪天课表",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "academic_calendar_lookup",
+			wantTool:   "academic_calendar_lookup",
+			wantPayload: map[string]any{
+				"query_text":  "2026-04-25 执行哪天课表",
+				"query_kind":  "class_day_pattern",
+				"target_date": "2026-04-25",
+			},
+		},
+		{
+			name: "academic calendar date only day status",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "2026-05-01 上课吗",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "academic_calendar_lookup",
+			wantTool:   "academic_calendar_lookup",
+			wantPayload: map[string]any{
+				"query_text":  "2026-05-01 上课吗",
+				"query_kind":  "day_status",
+				"target_date": "2026-05-01",
 			},
 		},
 		{
@@ -119,6 +166,23 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantPayload: map[string]any{
 				"query_text":          "2026-2027学年春假怎么安排",
 				"academic_year_label": "2026-2027学年",
+				"query_kind":          "named_event_range",
+				"event_query":         "春假",
+			},
+		},
+		{
+			name: "academic calendar term window",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "本学期什么时候结束",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "academic_calendar_lookup",
+			wantTool:   "academic_calendar_lookup",
+			wantPayload: map[string]any{
+				"query_text": "本学期什么时候结束",
+				"query_kind": "term_window",
+				"term_label": "春季学期",
 			},
 		},
 		{

@@ -8,6 +8,7 @@ from urllib.request import Request, urlopen
 
 from campus_contracts import (
     AcademicCalendarLookupResult,
+    AcademicCalendarRelatedContext,
     ContactDirectoryCandidate,
     ContactDirectoryContactPoint,
     ContactDirectoryContactRef,
@@ -388,6 +389,7 @@ def _academic_calendar_result_from_dict(
     return AcademicCalendarLookupResult(
         query_text=_string(body.get("query_text")) or fallback_query_text,
         outcome=_string(body.get("outcome")),
+        answer_focus=_string(body.get("answer_focus")),
         requested_date=_string(body.get("requested_date")),
         resolved_date=_string(body.get("resolved_date")),
         academic_year_label=_string(body.get("academic_year_label")),
@@ -402,6 +404,45 @@ def _academic_calendar_result_from_dict(
         effective_from=_string(body.get("effective_from")),
         effective_until=_string(body.get("effective_until")),
         fail_close_reason=_string(body.get("fail_close_reason")),
+        query_kind=_string(body.get("query_kind")),
+        event_name=_string(body.get("event_name")),
+        event_type=_string(body.get("event_type")),
+        event_aliases=_string_tuple(body.get("event_aliases")),
+        event_start_date=_string(body.get("event_start_date")),
+        event_end_date_exclusive=_string(body.get("event_end_date_exclusive")),
+        display_start_date=_string(body.get("display_start_date")),
+        display_end_date=_string(body.get("display_end_date")),
+        applies_to=_string_tuple(body.get("applies_to")),
+        source_title=_string(body.get("source_title")),
+        source_url=_string(body.get("source_url")),
+        calendar_record_id=_string(body.get("calendar_record_id")),
+        conflict_refs=_string_tuple(body.get("conflict_refs")),
+        duration_days=_int_or_none(body.get("duration_days")),
+        primary_record_id=_string(body.get("primary_record_id")),
+        primary_source_refs=_string_tuple(body.get("primary_source_refs")),
+        related_calendar_contexts=tuple(
+            context
+            for item in _list(body.get("related_calendar_contexts"))
+            if (context := _academic_calendar_related_context(item)) is not None
+        ),
+    )
+
+
+def _academic_calendar_related_context(value: object) -> AcademicCalendarRelatedContext | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return AcademicCalendarRelatedContext(
+        relation=_string(item.get("relation")),
+        event_name=_string(item.get("event_name")),
+        event_type=_string(item.get("event_type")),
+        display_start_date=_string(item.get("display_start_date")),
+        display_end_date=_string(item.get("display_end_date")),
+        duration_days=_int_or_none(item.get("duration_days")),
+        applies_to=_string_tuple(item.get("applies_to")),
+        source_refs=_string_tuple(item.get("source_refs")),
+        source_title=_string(item.get("source_title")),
+        source_url=_string(item.get("source_url")),
     )
 
 

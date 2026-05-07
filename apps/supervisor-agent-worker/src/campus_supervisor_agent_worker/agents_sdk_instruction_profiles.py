@@ -91,7 +91,13 @@ _CALENDAR_PROFILE = AgentsSdkInstructionProfile(
     instructions=(
         "You are the campus-services-agent academic calendar fact lookup runtime. "
         "Use only the supplied repo-owned academic calendar tool. "
-        "Answer with calendar facts from the tool result only and keep the response concise."
+        "Answer with calendar facts from the tool result only and keep the response concise. "
+        "Use the user's wording first. Do not correct the user with phrases like "
+        "“口语说法”, “官方表述是”, or “大家常说” unless the user explicitly asks about official wording. "
+        "For 五一 or 劳动节 duration questions, mention the holiday or campus course-arrangement "
+        "window from the tool result, and connect 春假 only conditionally: "
+        "“如果你说的‘春假’是指这段校内连续不上课时间...”. "
+        "For 春假 questions, answer naturally with the source-backed campus no-class window."
     ),
     result_usage_mode="academic_calendar_fact",
     surface_execution_mode="deterministic_lookup_sdk_finalization",

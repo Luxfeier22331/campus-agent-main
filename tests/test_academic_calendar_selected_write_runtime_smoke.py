@@ -74,16 +74,32 @@ class AcademicCalendarSelectedWriteRuntimeSmokeTest(unittest.TestCase):
                 200,
                 {
                     "outcome": "resolved_current",
-                    "holiday_name": "劳动节假期",
-                    "source_refs": ["official_web:muc-public-academic-calendar:owver"],
+                    "day_kind": "course_suspension",
+                    "display_start_date": "2026-04-27",
+                    "display_end_date": "2026-05-05",
+                    "event_name": "运动会、春季社会实践周、劳动节假期课程调整",
+                    "source_refs": ["authenticated_notice:355682"],
                 },
             ),
-            "makeup_class_current": (
+            "spring_break_alias_current": (
                 200,
                 {
                     "outcome": "resolved_current",
-                    "class_day_pattern": "执行周一课表",
-                    "is_makeup_class": True,
+                    "day_kind": "course_suspension",
+                    "display_start_date": "2026-04-27",
+                    "display_end_date": "2026-05-05",
+                    "event_name": "运动会、春季社会实践周、劳动节假期课程调整",
+                    "event_aliases": ["春假", "春季社会实践周"],
+                    "source_refs": ["authenticated_notice:355682"],
+                },
+            ),
+            "notice_rest_day_current": (
+                200,
+                {
+                    "outcome": "resolved_current",
+                    "day_kind": "normal_rest_day",
+                    "is_makeup_class": False,
+                    "conflict_refs": ["calendar:official_web:baseline-2026-05-09"],
                     "source_refs": ["official_web:muc-public-academic-calendar:owver"],
                 },
             ),
@@ -134,7 +150,7 @@ class AcademicCalendarSelectedWriteRuntimeSmokeTest(unittest.TestCase):
             report["processes"][0]["env"]["CAMPUS_SHARED_POSTGRES_URL"],
             "<redacted>",
         )
-        self.assertEqual(len(report["probes"]["academic_calendar_queries"]), 3)
+        self.assertEqual(len(report["probes"]["academic_calendar_queries"]), 4)
         self.assertEqual(report["probes"]["failed_probe_ids"], [])
         killpg.assert_called_once_with(4321, signal.SIGTERM)
 
@@ -157,12 +173,31 @@ class AcademicCalendarSelectedWriteRuntimeSmokeTest(unittest.TestCase):
         ) -> tuple[int, object]:
             if probe.probe_id == "teaching_week_current":
                 return 200, {"outcome": "resolved_current", "week_index": 10, "source_refs": []}
+            if probe.probe_id == "holiday_current":
+                return 200, {
+                    "outcome": probe.expected_outcome,
+                    "day_kind": "course_suspension",
+                    "display_start_date": "2026-04-27",
+                    "display_end_date": "2026-05-05",
+                    "event_name": "运动会、春季社会实践周、劳动节假期课程调整",
+                    "source_refs": ["authenticated_notice:355682"],
+                }
+            if probe.probe_id == "spring_break_alias_current":
+                return 200, {
+                    "outcome": probe.expected_outcome,
+                    "day_kind": "course_suspension",
+                    "display_start_date": "2026-04-27",
+                    "display_end_date": "2026-05-05",
+                    "event_name": "运动会、春季社会实践周、劳动节假期课程调整",
+                    "event_aliases": ["春假", "春季社会实践周"],
+                    "source_refs": ["authenticated_notice:355682"],
+                }
             return 200, {
                 "outcome": probe.expected_outcome,
-                "holiday_name": "劳动节假期",
-                "class_day_pattern": "执行周一课表",
-                "is_makeup_class": True,
-                "source_refs": ["official_web:muc-public-academic-calendar:owver"],
+                "day_kind": "normal_rest_day",
+                "is_makeup_class": False,
+                "conflict_refs": ["calendar:official_web:baseline-2026-05-09"],
+                "source_refs": ["authenticated_notice:355589", "authenticated_notice:355682"],
             }
 
         with tempfile.TemporaryDirectory() as temp_dir:

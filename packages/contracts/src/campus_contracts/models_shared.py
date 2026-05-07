@@ -52,6 +52,22 @@ PlaceEntityType = Literal["building", "service_point", "office", "gate", "stop"]
 CoordinateReferenceSystem = Literal["EPSG:4326"]
 TemporalQueryMode = Literal["current", "latest", "effective", "as_of", "current_year"]
 VersionQueryMode = Literal["current", "historical", "as_of", "compare"]
+AcademicCalendarQueryKind = Literal[
+    "date_week",
+    "named_event_range",
+    "day_status",
+    "class_day_pattern",
+    "term_window",
+]
+AcademicCalendarAnswerFocus = Literal[
+    "teaching_week",
+    "holiday_duration",
+    "campus_break_window",
+    "course_adjustment",
+    "day_status",
+    "term_window",
+    "official_notice_reference",
+]
 ToolBusinessOutcome = Literal[
     "resolved_current",
     "resolved_historical_reference",
@@ -220,6 +236,22 @@ ALLOWED_MEMORY_VISIBILITIES = ("user_visible", "internal_only")
 ALLOWED_PLACE_ENTITY_TYPES = ("building", "service_point", "office", "gate", "stop")
 ALLOWED_TEMPORAL_QUERY_MODES = ("current", "latest", "effective", "as_of", "current_year")
 ALLOWED_VERSION_QUERY_MODES = ("current", "historical", "as_of", "compare")
+ALLOWED_ACADEMIC_CALENDAR_QUERY_KINDS = (
+    "date_week",
+    "named_event_range",
+    "day_status",
+    "class_day_pattern",
+    "term_window",
+)
+ALLOWED_ACADEMIC_CALENDAR_ANSWER_FOCUSES = (
+    "teaching_week",
+    "holiday_duration",
+    "campus_break_window",
+    "course_adjustment",
+    "day_status",
+    "term_window",
+    "official_notice_reference",
+)
 ALLOWED_TOOL_BUSINESS_OUTCOMES = (
     "resolved_current",
     "resolved_historical_reference",
@@ -387,6 +419,16 @@ def _validate_temporal_query_mode(mode: str) -> None:
 def _validate_version_query_mode(mode: str) -> None:
     if mode not in ALLOWED_VERSION_QUERY_MODES:
         raise ValueError(f"unsupported version mode: {mode}")
+
+
+def _validate_academic_calendar_query_kind(query_kind: str) -> None:
+    if query_kind not in ALLOWED_ACADEMIC_CALENDAR_QUERY_KINDS:
+        raise ValueError(f"unsupported academic calendar query_kind: {query_kind}")
+
+
+def _validate_academic_calendar_answer_focus(answer_focus: str) -> None:
+    if answer_focus not in ALLOWED_ACADEMIC_CALENDAR_ANSWER_FOCUSES:
+        raise ValueError(f"unsupported academic calendar answer_focus: {answer_focus}")
 
 
 def _validate_tool_business_outcome(outcome: str) -> None:

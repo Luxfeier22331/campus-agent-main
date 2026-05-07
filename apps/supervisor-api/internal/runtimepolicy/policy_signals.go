@@ -68,6 +68,16 @@ func matchAcademicCalendarCandidate(normalizedGoal string, policy IntentPolicyAr
 	if signal := firstMatch(normalizedGoal, policy.Signals("academic_calendar_makeup_query")); signal != "" {
 		return signal
 	}
+	if hasAcademicCalendarClassDayPatternQuestion(normalizedGoal) {
+		return "执行课表"
+	}
+	if hasAcademicCalendarDateStatusQuestion(normalizedGoal) {
+		return "上课"
+	}
+	if hasAcademicCalendarTermWindowSubject(normalizedGoal) &&
+		hasAcademicCalendarTermWindowAction(normalizedGoal) {
+		return "学期"
+	}
 	holidaySignal := firstMatch(normalizedGoal, policy.Signals("academic_calendar_holiday_query"))
 	if holidaySignal == "" {
 		return ""
@@ -80,6 +90,30 @@ func matchAcademicCalendarCandidate(normalizedGoal string, policy IntentPolicyAr
 		return holidaySignal
 	}
 	return ""
+}
+
+func hasAcademicCalendarClassDayPatternQuestion(normalizedGoal string) bool {
+	return strings.Contains(normalizedGoal, "执行") &&
+		(strings.Contains(normalizedGoal, "课表") || strings.Contains(normalizedGoal, "哪天课"))
+}
+
+func hasAcademicCalendarDateStatusQuestion(normalizedGoal string) bool {
+	return strings.Contains(normalizedGoal, "上课") &&
+		(strings.Contains(normalizedGoal, "吗") || strings.Contains(normalizedGoal, "不上课"))
+}
+
+func hasAcademicCalendarTermWindowSubject(normalizedGoal string) bool {
+	return strings.Contains(normalizedGoal, "本学期") ||
+		strings.Contains(normalizedGoal, "春季学期") ||
+		strings.Contains(normalizedGoal, "秋季学期")
+}
+
+func hasAcademicCalendarTermWindowAction(normalizedGoal string) bool {
+	return strings.Contains(normalizedGoal, "什么时候") ||
+		strings.Contains(normalizedGoal, "哪天") ||
+		strings.Contains(normalizedGoal, "开始") ||
+		strings.Contains(normalizedGoal, "结束") ||
+		strings.Contains(normalizedGoal, "哪段时间")
 }
 
 func hasAcademicCalendarHolidaySubject(normalizedGoal string, policy IntentPolicyArtifact) bool {

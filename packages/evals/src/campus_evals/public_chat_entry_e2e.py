@@ -27,6 +27,7 @@ class PublicChatEntryCase:
     split: str
     expected_terminal_outcome: str
     expected_response_contract: dict[str, object]
+    expected_answer_contract: dict[str, object]
 
 
 @dataclass(frozen=True, slots=True)
@@ -43,6 +44,7 @@ class PublicChatEntryObservation:
     trace_id: str
     terminal_outcome: str
     response_contract: dict[str, object]
+    answer_text: str = ""
     request_path: str = "/api/chat/requests"
 
 
@@ -169,6 +171,16 @@ def _evaluate_case(
                 observation.request_id,
                 observation.trace_id,
             )
+    answer_contract_failure = _answer_contract_failure(case, observation)
+    if answer_contract_failure is not None:
+        return PublicChatEntryResult(
+            case.case_id,
+            False,
+            "answer_contract_mismatch",
+            answer_contract_failure,
+            observation.request_id,
+            observation.trace_id,
+        )
     return PublicChatEntryResult(
         case.case_id,
         True,
@@ -187,6 +199,7 @@ def _load_observations(path: Path | None) -> dict[str, PublicChatEntryObservatio
             trace_id=required_string(item.get("trace_id"), "trace_id"),
             terminal_outcome=required_string(item.get("terminal_outcome"), "terminal_outcome"),
             response_contract=mapping(item.get("response_contract")),
+            answer_text=str(item.get("answer_text") or ""),
             request_path=str(item.get("request_path") or "/api/chat/requests"),
         )
         for case_id, item in load_observation_mapping(path).items()
@@ -205,7 +218,38 @@ def _parse_case(payload: object) -> PublicChatEntryCase:
             "expected_terminal_outcome",
         ),
         expected_response_contract=mapping(payload.get("expected_response_contract")),
+        expected_answer_contract=mapping(payload.get("expected_answer_contract") or {}),
     )
+
+
+def _answer_contract_failure(
+    case: PublicChatEntryCase,
+    observation: PublicChatEntryObservation,
+) -> str | None:
+    if not case.expected_answer_contract:
+        return None
+    answer_text = observation.answer_text.strip()
+    for phrase in _string_list(case.expected_answer_contract.get("must_contain")):
+        if phrase not in answer_text:
+            return f"answer_text missing required phrase: {phrase}"
+    for phrase in _string_list(case.expected_answer_contract.get("must_not_contain")):
+        if phrase in answer_text:
+            return f"answer_text contains forbidden phrase: {phrase}"
+    return None
+
+
+def _string_list(value: object) -> tuple[str, ...]:
+    if value is None:
+        return ()
+    if not isinstance(value, list):
+        raise ValueError("answer contract fields must be lists")
+    items: list[str] = []
+    for item in value:
+        text = str(item).strip()
+        if not text:
+            raise ValueError("answer contract entries must be non-empty strings")
+        items.append(text)
+    return tuple(items)
 
 
 def _reject_duplicate_case_ids(case_ids: object) -> None:

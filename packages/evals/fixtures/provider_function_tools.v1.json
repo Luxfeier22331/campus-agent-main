@@ -662,13 +662,57 @@
               "null"
             ],
             "description": "Optional ISO date to resolve week, holiday, or makeup-class arrangement."
+          },
+          "query_kind": {
+            "type": "string",
+            "enum": [
+              "date_week",
+              "named_event_range",
+              "day_status",
+              "class_day_pattern",
+              "term_window"
+            ],
+            "description": "Deterministic academic calendar fact query kind."
+          },
+          "event_query": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional named event query such as 春假 or 劳动节."
+          },
+          "target_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional ISO date being queried."
+          },
+          "audience": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional audience such as student or faculty."
+          },
+          "term_label": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional term label such as 春季学期."
           }
         },
         "required": [
           "query_text",
           "temporal_query",
           "academic_year_label",
-          "date_hint"
+          "date_hint",
+          "query_kind",
+          "event_query",
+          "target_date",
+          "audience",
+          "term_label"
         ]
       }
     },

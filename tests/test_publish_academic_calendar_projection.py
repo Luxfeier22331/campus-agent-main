@@ -2,10 +2,10 @@ from __future__ import annotations
 
 import json
 import os
-from unittest.mock import patch
 import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
+from unittest.mock import patch
 
 import scripts.publish_academic_calendar_projection as publisher_script
 
@@ -56,7 +56,7 @@ class PublishAcademicCalendarProjectionTest(unittest.TestCase):
                         "target_collection": "academic_calendar",
                         "upstream_source_channel": "official_web",
                         "release_id_prefix": "academic-calendar-curated-test",
-                        "expected_ready_records": 3,
+                        "expected_ready_records": 4,
                         "curated_academic_calendars": [{"path": str(source_path)}],
                     },
                     ensure_ascii=False,
@@ -79,7 +79,7 @@ class PublishAcademicCalendarProjectionTest(unittest.TestCase):
 
         self.assertTrue(report["published"])
         self.assertEqual(report["release_id"], "academic-calendar-curated-test-release")
-        self.assertEqual(report["record_count"], 3)
+        self.assertEqual(report["record_count"], 4)
         self.assertEqual(structured_publisher.published[0]["collection"], "academic_calendar")
         self.assertTrue(structured_publisher.published[0]["promote_current"])
         self.assertIn(
@@ -104,7 +104,7 @@ class PublishAcademicCalendarProjectionTest(unittest.TestCase):
                         "target_collection": "academic_calendar",
                         "upstream_source_channel": "official_web",
                         "release_id_prefix": "academic-calendar-curated-test",
-                        "expected_ready_records": 3,
+                        "expected_ready_records": 4,
                         "curated_academic_calendars": [{"path": str(source_path)}],
                     },
                     ensure_ascii=False,
@@ -124,7 +124,7 @@ class PublishAcademicCalendarProjectionTest(unittest.TestCase):
             )
 
         self.assertFalse(report["published"])
-        self.assertEqual(report["record_count"], 3)
+        self.assertEqual(report["record_count"], 4)
 
     def test_main_loads_repo_env_and_builds_object_store_from_settings(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -145,7 +145,7 @@ class PublishAcademicCalendarProjectionTest(unittest.TestCase):
                         "target_collection": "academic_calendar",
                         "upstream_source_channel": "official_web",
                         "release_id_prefix": "academic-calendar-curated-test",
-                        "expected_ready_records": 3,
+                        "expected_ready_records": 4,
                         "curated_academic_calendars": [{"path": str(source_path)}],
                     },
                     ensure_ascii=False,
@@ -192,7 +192,7 @@ class PublishAcademicCalendarProjectionTest(unittest.TestCase):
             self.assertEqual(exit_code, 0)
             load_repo_env.assert_called_once()
             self.assertEqual(len(constructed_settings), 1)
-            self.assertEqual(report["record_count"], 3)
+            self.assertEqual(report["record_count"], 4)
             self.assertIn(
                 ("campus-rag-derived-test", report["release_object_key"]),
                 object_store.objects,
@@ -217,7 +217,7 @@ class PublishAcademicCalendarProjectionTest(unittest.TestCase):
                         "target_collection": "academic_calendar",
                         "upstream_source_channel": "official_web",
                         "release_id_prefix": "academic-calendar-curated-test",
-                        "expected_ready_records": 3,
+                        "expected_ready_records": 4,
                         "curated_academic_calendars": [{"path": str(source_path)}],
                     },
                     ensure_ascii=False,

@@ -108,6 +108,7 @@ from campus_contracts.models_shared import (
     VersionQueryMode,
 )
 from campus_contracts.models_tools import (
+    AcademicCalendarRelatedContext,
     AcademicCalendarLookupPayload,
     AcademicCalendarLookupResult,
     CampusNoticeDiscoverPayload,
@@ -181,6 +182,7 @@ __all__ = [
     "DEFAULT_POLICY_PROJECTION_VERSION",
     "DEFAULT_REVISION_TRACK",
     "DEFAULT_SOURCE_CHANNEL",
+    "AcademicCalendarRelatedContext",
     "AcademicCalendarLookupPayload",
     "AcademicCalendarLookupResult",
     "ActorContext",

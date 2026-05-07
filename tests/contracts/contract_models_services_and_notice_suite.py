@@ -15,10 +15,14 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
         payload = AcademicCalendarLookupPayload(
             query_text="今天第几教学周",
             temporal_query=TemporalQuery(mode="current"),
+            query_kind="date_week",
+            target_date="2026-05-04",
+            audience="student",
         )
         result = AcademicCalendarLookupResult(
             query_text="今天第几教学周",
             outcome="resolved_current",
+            query_kind="date_week",
             resolved_date="2026-05-04",
             academic_year_label="2025-2026学年",
             term_label="春季学期",
@@ -28,8 +32,41 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
         )
 
         self.assertEqual(asdict(payload)["query_text"], "今天第几教学周")
+        self.assertEqual(asdict(payload)["query_kind"], "date_week")
+        self.assertEqual(asdict(payload)["target_date"], "2026-05-04")
         self.assertEqual(asdict(result)["week_index"], 12)
         self.assertEqual(asdict(result)["academic_year_label"], "2025-2026学年")
+
+    def test_academic_calendar_contract_represents_named_event_ranges(self) -> None:
+        payload = AcademicCalendarLookupPayload(
+            query_text="劳动节放假怎么安排",
+            temporal_query=TemporalQuery(mode="current_year", year_hint="2026"),
+            query_kind="named_event_range",
+            event_query="劳动节",
+            audience="student",
+        )
+        result = AcademicCalendarLookupResult(
+            query_text="劳动节放假怎么安排",
+            outcome="resolved_current",
+            query_kind="named_event_range",
+            event_name="劳动节假期",
+            event_type="holiday",
+            event_aliases=("五一", "劳动节"),
+            event_start_date="2026-05-01",
+            event_end_date_exclusive="2026-05-06",
+            display_start_date="2026-05-01",
+            display_end_date="2026-05-05",
+            applies_to=("all",),
+            source_title="中央民族大学 2025-2026 学年校历",
+            source_url="https://www.muc.edu.cn/ggfw/mdxl.htm",
+            calendar_record_id="academic-calendar:2025-2026:holiday:labor-day",
+            source_refs=("https://www.muc.edu.cn/ggfw/mdxl.htm",),
+        )
+
+        self.assertEqual(asdict(payload)["event_query"], "劳动节")
+        self.assertEqual(asdict(result)["event_end_date_exclusive"], "2026-05-06")
+        self.assertEqual(asdict(result)["display_end_date"], "2026-05-05")
+        self.assertEqual(tuple(asdict(result)["event_aliases"]), ("五一", "劳动节"))
 
     def test_academic_calendar_result_requires_source_refs_when_resolved(self) -> None:
         with self.assertRaisesRegex(
@@ -41,6 +78,20 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
                 outcome="resolved_current",
                 resolved_date="2026-05-04",
                 week_index=12,
+            )
+
+    def test_academic_calendar_payload_rejects_unknown_query_kind(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported academic calendar query_kind"):
+            AcademicCalendarLookupPayload(
+                query_text="今天第几教学周",
+                query_kind="raw_calendar_scan",
+            )
+
+    def test_academic_calendar_payload_requires_query_kind(self) -> None:
+        with self.assertRaisesRegex(ValueError, "query_kind must not be empty"):
+            AcademicCalendarLookupPayload(
+                query_text="今天第几教学周",
+                query_kind="",
             )
 
     def test_session_summary_exposes_selected_notice_ref_field(self) -> None:
@@ -109,6 +160,7 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             payload=AcademicCalendarLookupPayload(
                 query_text="今天第几教学周",
                 temporal_query=TemporalQuery(mode="current"),
+                query_kind="date_week",
             ),
             allowed_tools=("academic_calendar_lookup",),
         )
@@ -120,7 +172,10 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
             AgentRequest(
                 target="calendar-agent",  # type: ignore[arg-type]
                 user_goal="今天第几教学周",
-                payload=AcademicCalendarLookupPayload(query_text="今天第几教学周"),
+                payload=AcademicCalendarLookupPayload(
+                    query_text="今天第几教学周",
+                    query_kind="date_week",
+                ),
                 allowed_tools=("academic_calendar_lookup",),
             )
 

@@ -24,6 +24,8 @@ from campus_contracts.models_notice import (
     NoticeDisplayPolicy as NoticeDisplayPolicy,
 )
 from campus_contracts.models_shared import (
+    AcademicCalendarAnswerFocus,
+    AcademicCalendarQueryKind,
     ContactDirectoryChannelType,
     ContactDirectoryClarificationReason,
     ContactDirectoryEntityType,
@@ -42,6 +44,8 @@ from campus_contracts.models_shared import (
     TransportScheduleIntent,
     TransportServiceDateMode,
     TransportServiceStatusValue,
+    _validate_academic_calendar_answer_focus,
+    _validate_academic_calendar_query_kind,
     _validate_contact_directory_channel_type,
     _validate_contact_directory_clarification_reason,
     _validate_contact_directory_entity_type,
@@ -65,19 +69,50 @@ from campus_contracts.models_temporal import TemporalQuery
 @dataclass(frozen=True, slots=True)
 class AcademicCalendarLookupPayload:
     query_text: str
+    query_kind: AcademicCalendarQueryKind | str
+    answer_focus: AcademicCalendarAnswerFocus | str = ""
     temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
     academic_year_label: str = ""
     date_hint: str = ""
+    event_query: str = ""
+    target_date: str = ""
+    audience: str = ""
+    term_label: str = ""
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():
             raise ValueError("query_text must not be empty")
+        if not str(self.query_kind).strip():
+            raise ValueError("query_kind must not be empty")
+        _validate_academic_calendar_query_kind(str(self.query_kind))
+        if self.answer_focus:
+            _validate_academic_calendar_answer_focus(str(self.answer_focus))
+
+
+@dataclass(frozen=True, slots=True)
+class AcademicCalendarRelatedContext:
+    relation: str
+    event_name: str = ""
+    event_type: str = ""
+    display_start_date: str = ""
+    display_end_date: str = ""
+    duration_days: int | None = None
+    applies_to: tuple[str, ...] = field(default_factory=tuple)
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+    source_title: str = ""
+    source_url: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.relation.strip():
+            raise ValueError("relation must not be empty")
 
 
 @dataclass(frozen=True, slots=True)
 class AcademicCalendarLookupResult:
     query_text: str
     outcome: ToolBusinessOutcome
+    query_kind: AcademicCalendarQueryKind | str = ""
+    answer_focus: AcademicCalendarAnswerFocus | str = ""
     requested_date: str = ""
     resolved_date: str = ""
     academic_year_label: str = ""
@@ -92,10 +127,32 @@ class AcademicCalendarLookupResult:
     effective_from: str = ""
     effective_until: str = ""
     fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
+    event_name: str = ""
+    event_type: str = ""
+    event_aliases: tuple[str, ...] = field(default_factory=tuple)
+    event_start_date: str = ""
+    event_end_date_exclusive: str = ""
+    display_start_date: str = ""
+    display_end_date: str = ""
+    applies_to: tuple[str, ...] = field(default_factory=tuple)
+    source_title: str = ""
+    source_url: str = ""
+    calendar_record_id: str = ""
+    conflict_refs: tuple[str, ...] = field(default_factory=tuple)
+    duration_days: int | None = None
+    primary_record_id: str = ""
+    primary_source_refs: tuple[str, ...] = field(default_factory=tuple)
+    related_calendar_contexts: tuple[AcademicCalendarRelatedContext, ...] = field(
+        default_factory=tuple
+    )
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():
             raise ValueError("query_text must not be empty")
+        if self.query_kind:
+            _validate_academic_calendar_query_kind(self.query_kind)
+        if self.answer_focus:
+            _validate_academic_calendar_answer_focus(self.answer_focus)
         _validate_tool_business_outcome(self.outcome)
         if self.fail_close_reason:
             _validate_tool_fail_close_reason(self.fail_close_reason)
@@ -107,9 +164,10 @@ class AcademicCalendarLookupResult:
                 and self.week_index is None
                 and not self.holiday_name.strip()
                 and not self.class_day_pattern.strip()
+                and not self.event_name.strip()
             ):
                 raise ValueError(
-                    "resolved academic calendar results must include resolved_date, week_index, holiday_name, or class_day_pattern"
+                    "resolved academic calendar results must include resolved_date, week_index, holiday_name, class_day_pattern, or event_name"
                 )
         if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
             raise ValueError(

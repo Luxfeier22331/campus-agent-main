@@ -102,6 +102,12 @@ def extract_academic_calendar_records(lines: list[str]) -> list[dict[str, object
         if week_match:
             records.append(
                 {
+                    **_calendar_event_fields(
+                        record_family="teaching_week",
+                        event_name="",
+                        start_date=week_match.group(2),
+                        end_date=week_match.group(3),
+                    ),
                     "academic_year_label": current_year,
                     "term_label": current_term,
                     "start_date": week_match.group(2),
@@ -120,6 +126,12 @@ def extract_academic_calendar_records(lines: list[str]) -> list[dict[str, object
         if holiday_match:
             records.append(
                 {
+                    **_calendar_event_fields(
+                        record_family="named_event",
+                        event_name=f"{holiday_match.group(3)}假期",
+                        start_date=holiday_match.group(1),
+                        end_date=holiday_match.group(2),
+                    ),
                     "academic_year_label": current_year,
                     "term_label": current_term,
                     "start_date": holiday_match.group(1),
@@ -137,6 +149,12 @@ def extract_academic_calendar_records(lines: list[str]) -> list[dict[str, object
         if makeup_match:
             records.append(
                 {
+                    **_calendar_event_fields(
+                        record_family="class_day_override",
+                        event_name="",
+                        start_date=makeup_match.group(1),
+                        end_date=makeup_match.group(1),
+                    ),
                     "academic_year_label": current_year,
                     "term_label": current_term,
                     "start_date": makeup_match.group(1),
@@ -151,6 +169,58 @@ def extract_academic_calendar_records(lines: list[str]) -> list[dict[str, object
                 }
             )
     return records
+
+
+def _calendar_event_fields(
+    *,
+    record_family: str,
+    event_name: str,
+    start_date: str,
+    end_date: str,
+) -> dict[str, object]:
+    return {
+        "record_family": record_family,
+        "event_name": event_name,
+        "event_type": "holiday" if record_family == "named_event" else "",
+        "event_aliases": _event_aliases(event_name),
+        "event_start_date": start_date if event_name else "",
+        "event_end_date_exclusive": _next_date(end_date),
+        "display_start_date": start_date,
+        "display_end_date": end_date,
+        "applies_to": ["all"],
+    }
+
+
+def _next_date(value: str) -> str:
+    from datetime import datetime, timedelta
+
+    return (datetime.strptime(value, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+
+
+def _event_aliases(event_name: str) -> list[str]:
+    aliases = [event_name] if event_name else []
+    if "劳动节" in event_name:
+        aliases.extend(["劳动节", "五一"])
+    if "国庆" in event_name:
+        aliases.extend(["国庆", "十一"])
+    if "中秋" in event_name:
+        aliases.append("中秋")
+    if "清明" in event_name:
+        aliases.append("清明")
+    if "端午" in event_name:
+        aliases.append("端午")
+    if "元旦" in event_name:
+        aliases.append("元旦")
+    return _unique_strings(aliases)
+
+
+def _unique_strings(values: list[str]) -> list[str]:
+    unique: list[str] = []
+    for value in values:
+        normalized = str(value or "").strip()
+        if normalized and normalized not in unique:
+            unique.append(normalized)
+    return unique
 
 
 def block_has_academic_calendar_image_ref(block: dict[str, object]) -> bool:

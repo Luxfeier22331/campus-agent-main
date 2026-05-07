@@ -39,6 +39,7 @@ class OfficialWebProjectionAcademicCalendarTest(unittest.TestCase):
                     _calendar_block("title-1", 0, "title", "民大校历"),
                     _calendar_block("p-1", 1, "paragraph", "2025-2026学年春季学期教学安排。"),
                     _calendar_block("p-2", 2, "paragraph", "第10教学周：2026-05-04至2026-05-10。"),
+                    _calendar_block("p-3", 3, "paragraph", "2026-05-01 至 2026-05-05 劳动节放假。"),
                     _calendar_block("p-3", 3, "paragraph", "2026-05-09 执行周一课表。"),
                 ],
             )
@@ -62,6 +63,13 @@ class OfficialWebProjectionAcademicCalendarTest(unittest.TestCase):
                 candidate["typed_candidate"]["class_day_pattern"],
                 "执行周一课表",
             )
+            holiday = next(
+                record
+                for record in candidate["typed_candidate"]["records"]
+                if record["holiday_name"] == "劳动节假期"
+            )
+            self.assertEqual(holiday["record_family"], "named_event")
+            self.assertEqual(holiday["event_end_date_exclusive"], "2026-05-06")
             self.assertEqual(candidate["quality_gate"], {"decision": "pass", "reason_codes": []})
 
     def test_academic_calendar_candidate_retains_image_evidence_without_structured_records(

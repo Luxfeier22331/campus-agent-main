@@ -7,7 +7,7 @@ import os
 import shutil
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, is_dataclass
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 from typing import Any, Protocol
 
@@ -878,6 +878,15 @@ def _academic_calendar_record_payload(
     class_day_pattern = str(raw_record.get("class_day_pattern") or "").strip()
     holiday_name = str(raw_record.get("holiday_name") or "").strip()
     is_makeup_class = bool(raw_record.get("is_makeup_class") is True)
+    record_family = str(
+        raw_record.get("record_family") or ""
+    ).strip() or _academic_calendar_record_family(
+        day_kind=day_kind,
+        holiday_name=holiday_name,
+        is_makeup_class=is_makeup_class,
+    )
+    source_title = str(typed_candidate.get("source_title") or "").strip()
+    source_url = str(typed_candidate.get("source_url") or "").strip()
     calendar_record_id = _stable_record_id(
         prefix="calendar:official_web",
         seed={
@@ -894,6 +903,7 @@ def _academic_calendar_record_payload(
     )
     return {
         "calendar_record_id": calendar_record_id,
+        "record_family": record_family,
         "academic_year_label": academic_year_label,
         "term_label": term_label,
         "start_date": start_date,
@@ -903,6 +913,21 @@ def _academic_calendar_record_payload(
         "class_day_pattern": class_day_pattern,
         "is_makeup_class": is_makeup_class,
         "holiday_name": holiday_name,
+        "event_name": str(raw_record.get("event_name") or "").strip()
+        or (holiday_name if record_family == "named_event" else ""),
+        "event_type": str(raw_record.get("event_type") or "").strip()
+        or ("holiday" if record_family == "named_event" else ""),
+        "event_aliases": _string_list(raw_record.get("event_aliases"))
+        or _academic_calendar_event_aliases(holiday_name),
+        "event_start_date": str(raw_record.get("event_start_date") or "").strip()
+        or (start_date if record_family == "named_event" else ""),
+        "event_end_date_exclusive": str(raw_record.get("event_end_date_exclusive") or "").strip()
+        or _academic_calendar_next_date(end_date),
+        "display_start_date": str(raw_record.get("display_start_date") or "").strip() or start_date,
+        "display_end_date": str(raw_record.get("display_end_date") or "").strip() or end_date,
+        "applies_to": _string_list(raw_record.get("applies_to")) or ["all"],
+        "source_title": source_title,
+        "source_url": source_url,
         "source_refs": _unique_strings(
             [
                 source_ref,
@@ -912,6 +937,44 @@ def _academic_calendar_record_payload(
         ),
         **selected_write_field_review,
     }
+
+
+def _academic_calendar_record_family(
+    *,
+    day_kind: str,
+    holiday_name: str,
+    is_makeup_class: bool,
+) -> str:
+    if is_makeup_class or day_kind == "makeup_class_day":
+        return "class_day_override"
+    if holiday_name or day_kind == "holiday":
+        return "named_event"
+    return "teaching_week"
+
+
+def _academic_calendar_next_date(value: str) -> str:
+    return (datetime.strptime(value, "%Y-%m-%d") + timedelta(days=1)).strftime("%Y-%m-%d")
+
+
+def _academic_calendar_event_aliases(event_name: str) -> list[str]:
+    aliases = [event_name] if event_name else []
+    if "劳动节" in event_name:
+        aliases.extend(["劳动节", "五一"])
+    if "国庆" in event_name:
+        aliases.extend(["国庆", "十一"])
+    if "中秋" in event_name:
+        aliases.append("中秋")
+    if "清明" in event_name:
+        aliases.append("清明")
+    if "端午" in event_name:
+        aliases.append("端午")
+    if "元旦" in event_name:
+        aliases.append("元旦")
+    if "寒假" in event_name:
+        aliases.append("寒假")
+    if "暑假" in event_name:
+        aliases.append("暑假")
+    return _unique_strings(aliases)
 
 
 def _load_current_projection_bundle(
@@ -1890,7 +1953,9 @@ def _service_guide_procedure_groups(
 ) -> list[dict[str, object]]:
     groups: list[dict[str, object]] = []
     for order, group in enumerate(procedure_groups, start=1):
-        group_id = str(group.get("group_id") or "").strip() or f"{service_id}:procedure_group:{order}"
+        group_id = (
+            str(group.get("group_id") or "").strip() or f"{service_id}:procedure_group:{order}"
+        )
         title = str(group.get("title") or "").strip()
         if not title:
             continue
@@ -1900,10 +1965,7 @@ def _service_guide_procedure_groups(
             content = str(raw_step.get("content") or "").strip()
             if not content:
                 continue
-            step_id = (
-                str(raw_step.get("step_id") or "").strip()
-                or f"{group_id}:step:{step_order}"
-            )
+            step_id = str(raw_step.get("step_id") or "").strip() or f"{group_id}:step:{step_order}"
             steps.append(
                 {
                     "step_id": step_id,

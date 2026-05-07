@@ -206,6 +206,7 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 }
 
 var academicYearLabelPattern = regexp.MustCompile(`(20\d{2}-20\d{2}学年)`)
+var isoDatePattern = regexp.MustCompile(`20\d{2}-\d{2}-\d{2}`)
 
 func academicCalendarPayload(
 	userGoal string,
@@ -219,11 +220,73 @@ func academicCalendarPayload(
 	if academicYearLabel := extractAcademicYearLabel(userGoal); academicYearLabel != "" {
 		payload["academic_year_label"] = academicYearLabel
 	}
+	queryKind := academicCalendarQueryKindForPlanning(normalizedGoal)
+	payload["query_kind"] = queryKind
+	if targetDate := isoDatePattern.FindString(userGoal); targetDate != "" {
+		payload["target_date"] = targetDate
+	}
+	if eventQuery := academicCalendarEventQueryForPlanning(normalizedGoal); eventQuery != "" {
+		payload["event_query"] = eventQuery
+	}
+	if queryKind == "term_window" {
+		payload["term_label"] = academicCalendarTermLabelForPlanning(normalizedGoal)
+	}
 	return payload
 }
 
 func extractAcademicYearLabel(userGoal string) string {
 	return academicYearLabelPattern.FindString(strings.TrimSpace(userGoal))
+}
+
+func academicCalendarQueryKindForPlanning(normalizedGoal string) string {
+	if strings.Contains(normalizedGoal, "教学周") || strings.Contains(normalizedGoal, "第几周") {
+		return "date_week"
+	}
+	if strings.Contains(normalizedGoal, "补课") ||
+		strings.Contains(normalizedGoal, "上周几的课") ||
+		strings.Contains(normalizedGoal, "上星期几的课") ||
+		strings.Contains(normalizedGoal, "调休上课") ||
+		strings.Contains(normalizedGoal, "执行周") ||
+		(strings.Contains(normalizedGoal, "执行") && strings.Contains(normalizedGoal, "课表")) {
+		return "class_day_pattern"
+	}
+	if (strings.Contains(normalizedGoal, "本学期") ||
+		strings.Contains(normalizedGoal, "春季学期") ||
+		strings.Contains(normalizedGoal, "秋季学期")) &&
+		(strings.Contains(normalizedGoal, "什么时候") ||
+			strings.Contains(normalizedGoal, "哪天") ||
+			strings.Contains(normalizedGoal, "开始") ||
+			strings.Contains(normalizedGoal, "结束") ||
+			strings.Contains(normalizedGoal, "哪段时间")) {
+		return "term_window"
+	}
+	if academicCalendarEventQueryForPlanning(normalizedGoal) != "" {
+		if strings.Contains(normalizedGoal, "上课") || strings.Contains(normalizedGoal, "吗") {
+			return "day_status"
+		}
+		return "named_event_range"
+	}
+	if strings.Contains(normalizedGoal, "上课") &&
+		(strings.Contains(normalizedGoal, "吗") || strings.Contains(normalizedGoal, "不上课")) {
+		return "day_status"
+	}
+	return "date_week"
+}
+
+func academicCalendarEventQueryForPlanning(normalizedGoal string) string {
+	for _, candidate := range []string{"春假", "五一", "劳动节", "国庆", "十一", "元旦", "清明", "端午", "中秋", "寒假", "暑假"} {
+		if strings.Contains(normalizedGoal, candidate) {
+			return candidate
+		}
+	}
+	return ""
+}
+
+func academicCalendarTermLabelForPlanning(normalizedGoal string) string {
+	if strings.Contains(normalizedGoal, "秋季学期") {
+		return "秋季学期"
+	}
+	return "春季学期"
 }
 
 func isNoticeKnowledgeFollowthrough(
