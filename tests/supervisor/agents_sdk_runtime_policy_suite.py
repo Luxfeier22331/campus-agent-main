@@ -111,7 +111,7 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                     "tool_runtime_posture": "sdk_adapter_admitted",
                 },
                 {
-                    "target": "calendar-agent",
+                    "target": "campus-services-agent",
                     "tool": "academic_calendar_lookup",
                     "tool_runtime_posture": "sdk_adapter_admitted",
                 },

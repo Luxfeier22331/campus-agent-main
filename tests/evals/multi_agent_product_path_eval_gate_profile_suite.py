@@ -797,7 +797,7 @@ def _current_workflow_trace_summary(profile: str) -> dict[str, object]:
         )
     if profile == "academic_calendar_sdk_opened":
         return _tool_workflow_trace_summary(
-            target="calendar-agent",
+            target="campus-services-agent",
             tool="academic_calendar_lookup",
             branch="delegate",
             mode="single_handoff",

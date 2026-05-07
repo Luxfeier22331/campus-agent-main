@@ -272,12 +272,12 @@ def profile_answer_expectation(
             {
                 "user_goal": "今天第几教学周",
                 "request_id": "process-smoke-academic-calendar-sdk-opened",
-                "requested_capability": "academic_calendar",
+                "requested_capability": "campus_services",
                 "context": context,
             },
             200,
             (
-                "calendar-agent",
+                "campus-services-agent",
                 "academic_calendar_lookup",
                 "resolved_current",
                 "single_handoff",

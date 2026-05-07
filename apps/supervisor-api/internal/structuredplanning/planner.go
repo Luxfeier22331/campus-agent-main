@@ -49,16 +49,16 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 	if normalizedGoal == "" || isDelegatedTransactionAction(normalizedGoal, policy) {
 		return nil
 	}
-	if request.EffectiveCapability == "academic_calendar" {
-		return SingleHandoffPlan(Handoff{
-			Target:       "calendar-agent",
-			PayloadKind:  "academic_calendar_lookup",
-			Payload:      academicCalendarPayload(request.UserGoal, normalizedGoal, request.VersionQuery),
-			AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("calendar-agent", "academic_calendar_lookup"),
-		})
-	}
 	if request.EffectiveCapability == "campus_services" {
 		serviceGuideFocus := classifyServiceGuideFocus(normalizedGoal, policy)
+		if runtimepolicy.IsAcademicCalendarFactQueryForPlanning(normalizedGoal, policy) {
+			return SingleHandoffPlan(Handoff{
+				Target:       "campus-services-agent",
+				PayloadKind:  "academic_calendar_lookup",
+				Payload:      academicCalendarPayload(request.UserGoal, normalizedGoal, request.VersionQuery),
+				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "academic_calendar_lookup"),
+			})
+		}
 		if isContactDirectoryLookup(normalizedGoal, policy) &&
 			!shouldPreferServiceGuideOverContactDirectory(normalizedGoal, policy) {
 			return SingleHandoffPlan(Handoff{

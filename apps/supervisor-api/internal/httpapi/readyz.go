@@ -205,7 +205,7 @@ func (s *Server) workflowRunStoreStatus(ctx context.Context) map[string]any {
 }
 
 func (s *Server) structuredRuntimeGateApplies(capability string) bool {
-	return capability == "campus_services" || capability == "academic_calendar" || capability == "notice"
+	return capability == "campus_services" || capability == "notice"
 }
 
 func (s *Server) capabilityGateStatus() map[string]any {
@@ -220,10 +220,6 @@ func (s *Server) capabilityGateStatus() map[string]any {
 		},
 		"campus_services": map[string]any{
 			"open": s.config.CapabilityOpen("campus_services"),
-			"gate": "structured_runtime",
-		},
-		"academic_calendar": map[string]any{
-			"open": s.config.CapabilityOpen("academic_calendar"),
 			"gate": "structured_runtime",
 		},
 		"notice": map[string]any{
@@ -247,11 +243,7 @@ func (s *Server) openStructuredRuntimeHealthy(status structuredquery.Status) boo
 			!status.ContactDirectoryProjectionReady ||
 			!status.TransportScheduleReadModelConfigured ||
 			!status.TransportScheduleReadModelHealthy ||
-			!status.TransportScheduleImplemented) {
-		return false
-	}
-	if s.config.CapabilityOpen("academic_calendar") &&
-		(!status.Configured ||
+			!status.TransportScheduleImplemented ||
 			!status.AcademicCalendarReadModelConfigured ||
 			!status.AcademicCalendarReadModelHealthy ||
 			!status.AcademicCalendarProjectionReady) {

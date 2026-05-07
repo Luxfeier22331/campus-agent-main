@@ -224,14 +224,6 @@ def _profile_api_env(
             ),
             "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
-    if profile == "academic_calendar_sdk_opened":
-        return {
-            "SUPERVISOR_API_OPEN_CAPABILITIES": "academic_calendar",
-            "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
-                STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
-            ),
-            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
-        }
     if profile == "notice_discover_sdk_opened":
         env = {
             "SUPERVISOR_API_OPEN_CAPABILITIES": "notice",
@@ -305,7 +297,6 @@ def _profile_requires_object_store(profile: str) -> bool:
 def _profile_requires_structured_projection(profile: str) -> bool:
     return (
         profile in _campus_services_sdk_profiles()
-        or profile == "academic_calendar_sdk_opened"
         or profile == "multi_step_transport_notice_knowledge_pilot"
     )
 
@@ -345,6 +336,7 @@ def _campus_services_sdk_profiles() -> set[str]:
         "service_status_sdk_opened",
         "service_guide_sdk_opened",
         "contact_directory_sdk_opened",
+        "academic_calendar_sdk_opened",
     }
 
 

@@ -63,6 +63,11 @@ app-api -> supervisor-api -> supervisor-agent-worker -> campus-services-agent
   - 只读，不提交申请、不预约、不代办、不创建工单、不修改任何业务状态
 - `contact_directory_lookup`
   - 回答部门电话、邮箱、办公地点、联系人与联系渠道
+- `academic_calendar_lookup`
+  - 回答第几教学周、学期日期窗口、节假日安排与补课/调休上课安排等校历事实
+  - 只读 `calendar/academic_calendar` projection / typed read model；runtime
+    owner 是 `campus-services-agent`，data-plane owner 仍是
+    `calendar/academic_calendar`
 
 later-wave 已冻结方向包括：
 

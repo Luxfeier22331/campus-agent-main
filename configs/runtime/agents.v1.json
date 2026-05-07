@@ -41,32 +41,20 @@
         "service_status_lookup",
         "service_guide_lookup",
         "transport_schedule_lookup",
-        "contact_directory_lookup"
+        "contact_directory_lookup",
+        "academic_calendar_lookup"
       ],
       "allowed_structured_handoff_tools": [
         "service_status_lookup",
         "service_guide_lookup",
         "transport_schedule_lookup",
-        "contact_directory_lookup"
+        "contact_directory_lookup",
+        "academic_calendar_lookup"
       ],
-      "context_projection_kinds": ["service_guide_facts", "schedule_baseline"],
+      "context_projection_kinds": ["service_guide_facts", "schedule_baseline", "calendar_fact"],
       "delegate_module": "campus_services_agent",
       "delegate_symbol": "delegate_to_campus_services_agent",
       "description": "Campus services specialist for structured service queries."
-    },
-    {
-      "id": "calendar-agent",
-      "capability": "academic_calendar",
-      "owner_package": "packages/calendar-agent",
-      "runtime_adapter": "python_delegate",
-      "active": true,
-      "opening_gate": "open",
-      "payload_kinds": ["academic_calendar_lookup"],
-      "allowed_structured_handoff_tools": ["academic_calendar_lookup"],
-      "context_projection_kinds": ["calendar_fact"],
-      "delegate_module": "campus_calendar_agent",
-      "delegate_symbol": "delegate_to_calendar_agent",
-      "description": "Academic calendar specialist for teaching-week, holiday and makeup-class facts."
     },
     {
       "id": "notice-agent",

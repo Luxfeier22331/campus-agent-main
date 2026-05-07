@@ -148,12 +148,12 @@ Current cancellation boundary:
 Current structured query runtime boundary:
 
 - Internal query routes require `x-supervisor-query-auth`.
-- Structured product serving gates for `campus_services`, `academic_calendar`,
-  and `notice` are closed by default. `SUPERVISOR_API_OPEN_CAPABILITIES` is the
-  Go-owned allowlist for opening those capabilities after eval / product
-  admission evidence exists. It only accepts
-  `campus_services`, `academic_calendar`, `notice`, or comma-separated combinations
-  of these values; wildcard values such as `*` or `all` are rejected.
+- Structured product serving gates for `campus_services` and `notice` are
+  closed by default. `SUPERVISOR_API_OPEN_CAPABILITIES` is the Go-owned
+  allowlist for opening those capabilities after eval / product admission
+  evidence exists. It only accepts `campus_services`, `notice`, or
+  comma-separated combinations of these values; wildcard values such as `*` or
+  `all` are rejected.
 - `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` enables internal query auth and is
   injected by the supervisor runtime harness.
 - `CAMPUS_SHARED_POSTGRES_URL` is the single PostgreSQL connection used by

@@ -338,11 +338,15 @@ func TestLoadFromEnvRejectsWildcardOpenCapabilities(t *testing.T) {
 }
 
 func TestLoadFromEnvRejectsUnknownOpenCapabilities(t *testing.T) {
-	t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", "campus_services,unknown_capability")
+	for _, value := range []string{"campus_services,unknown_capability", "academic_calendar"} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", value)
 
-	_, err := LoadFromEnv()
-	if err == nil {
-		t.Fatal("expected unknown open capability to fail")
+			_, err := LoadFromEnv()
+			if err == nil {
+				t.Fatalf("expected SUPERVISOR_API_OPEN_CAPABILITIES=%q to fail", value)
+			}
+		})
 	}
 }
 

@@ -287,7 +287,7 @@ class AgentDispatchTest(unittest.TestCase):
                 ContactDirectoryLookupPayload(query_text="校园卡电话", contact_focus="phone"),
             ),
             "academic_calendar_lookup": (
-                "calendar-agent",
+                "campus-services-agent",
                 AcademicCalendarLookupPayload(
                     query_text="校历",
                     academic_year_label="2026",

@@ -327,8 +327,8 @@ product/control-plane endpoint。
 - Python orchestration 仅在 supervisor runtime harness 注入
   `SUPERVISOR_INTERNAL_QUERY_BASE_URL` 与 `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`
   时消费该 internal query seam
-- 这不打开 `campus_services`、`academic_calendar` 或 `notice` 产品 serving
-  surface；产品主路由 opening gate 仍需 release-gate regression / eval evidence
+- 这不打开 `campus_services` 或 `notice` 产品 serving surface；产品主路由 opening gate 仍需
+  release-gate regression / eval evidence
   与 app-owned observability 证据
 
 ## Execution Audit Backflow
@@ -426,7 +426,7 @@ payload 或 provider raw response。
   时必须为空。它只能用于 personalization，不得参与 authorization filter、serving
   surface、approval 或 tool permission 判定
 - `requested_capability` 当前 wire 允许 `knowledge`、`place_lookup`、
-  `campus_services`、`academic_calendar`、`notice`。这只是 internal execution
+  `campus_services`、`notice`。这只是 internal execution
   capability label，不等于对应 browser surface 已开放；当前公开 chat surface
   仍由 `app-api` surface capability policy 决定允许子集
 - `requested_scope` 可选；当前 wire truth 仍保留这个顶层字段，但它只应被解释为 knowledge-family path 的
@@ -434,7 +434,7 @@ payload 或 provider raw response。
   agent 自主解析最终 serving surface，而不是由 `app-api` 或 `supervisor-api` 伪造默认
   collection。当前 Wave E 的 `place_lookup` request 不传 `requested_scope`，因为
   `place_catalog` 仍是 `navigation-agent` 消费的 internal spatial truth，而不是默认公开
-  query-serving surface；`campus_services`、`academic_calendar` 与 `notice` 同样不得携带
+  query-serving surface；`campus_services` 与 `notice` 同样不得携带
   `requested_scope`
 - `version_query` 可选；当前只允许与 `requested_capability=knowledge` 一起出现。`app-api` 负责把
   browser/eval 路径上的 `camelCase versionQuery` 归一化成 Python-side `snake_case` 形态后传给
@@ -446,7 +446,7 @@ payload 或 provider raw response。
 - 当前产品路径已对 `place_lookup` fail-close，等待地图产品上线后再开放地点查询、
   route planning、地图 UI 或完整 `place_card` product consumption；
   `app-api` 只按 capability/request projection 传递请求，不伪造 retrieval scope
-- `campus_services` / `academic_calendar` / `notice` 只有在上游 surface policy 已显式
+- `campus_services` / `notice` 只有在上游 surface policy 已显式
   admission 时才应传入；
   knowledge path 下的 notice/service-like query 仍保持现有 gate posture，不被这次 wire
   对齐自动打开

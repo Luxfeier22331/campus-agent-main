@@ -137,16 +137,12 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             }.issubset(patterns)
         )
 
-    def test_dockerignore_keeps_calendar_agent_for_supervisor_worker_image(self) -> None:
+    def test_dockerignore_excludes_retired_calendar_agent_package(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]
         patterns = _dockerignore_patterns(repo_root)
 
-        self.assertTrue(
-            {
-                "!packages/calendar-agent/",
-                "!packages/calendar-agent/**",
-            }.issubset(patterns)
-        )
+        self.assertNotIn("!packages/calendar-agent/", patterns)
+        self.assertNotIn("!packages/calendar-agent/**", patterns)
 
     def test_supervisor_api_dockerfile_copies_contract_fixtures_before_tests(self) -> None:
         repo_root = Path(__file__).resolve().parents[1]

@@ -68,7 +68,7 @@ function writeMinimalConsumerDenominator(siteRoot: string): void {
 					{
 						consumer_family: "academic_calendar_candidate",
 						owner_surface: "academic_calendar_lookup",
-						owner_agent_or_runtime: "calendar-agent",
+						owner_agent_or_runtime: "campus-services-agent",
 						materialization_policy: "candidate_only",
 						page_families: ["article_detail", "generic_content_page"],
 						title_keywords: ["校历", "教学周", "放假安排"],
@@ -303,7 +303,7 @@ function writeMinimalTargetInventory(siteRoot: string): void {
 						target_label: "Academic calendar page",
 						consumer_family: "academic_calendar_candidate",
 						owner_surface: "academic_calendar_lookup",
-						owner_agent_or_runtime: "calendar-agent",
+						owner_agent_or_runtime: "campus-services-agent",
 						selected_write_target: "calendar/academic_calendar",
 						source_hosts: ["www.example.edu"],
 						source_urls: ["https://www.example.edu/calendar"],

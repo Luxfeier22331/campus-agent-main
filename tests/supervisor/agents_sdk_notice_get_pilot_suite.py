@@ -2,10 +2,7 @@ from __future__ import annotations
 
 import unittest
 
-from campus_calendar_agent.query_service import AcademicCalendarQuery
 from campus_contracts import (
-    AcademicCalendarLookupPayload,
-    AcademicCalendarLookupResult,
     AgentRequest,
     CampusNoticeDiscoverPayload,
     CampusNoticeDiscoverResult,
@@ -199,27 +196,6 @@ class _FakeCampusServicesQueryService:
         )
 
 
-class _FakeCalendarQueryService:
-    def __init__(self) -> None:
-        self.last_academic_calendar_query: AcademicCalendarQuery | None = None
-
-    def lookup_academic_calendar(
-        self,
-        query: AcademicCalendarQuery,
-    ) -> AcademicCalendarLookupResult:
-        self.last_academic_calendar_query = query
-        return AcademicCalendarLookupResult(
-            query_text=query.payload.query_text,
-            outcome="resolved_current",
-            resolved_date="2026-05-05",
-            academic_year_label="2025-2026学年",
-            term_label="春季学期",
-            week_index=11,
-            day_kind="teaching_day",
-            source_refs=("official_web:academic-calendar-2025-2026",),
-        )
-
-
 class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
     def test_notice_get_pilot_is_closed_even_when_enabled(self) -> None:
         runner_called = False
@@ -290,7 +266,6 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             ),
             rag_prompt_executor=None,
             campus_services_query_service=None,
-            calendar_query_service=None,
             notice_query_service=query_service,
             provider_tool_provider=provider,
             agents_sdk_runner=fake_runner,
@@ -348,7 +323,6 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             ),
             rag_prompt_executor=None,
             campus_services_query_service=None,
-            calendar_query_service=None,
             notice_query_service=query_service,
             agents_sdk_runner=fake_runner,
         )
@@ -381,7 +355,6 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             ),
             rag_prompt_executor=None,
             campus_services_query_service=None,
-            calendar_query_service=None,
             notice_query_service=query_service,
             agents_sdk_runner=fake_runner,
         )
@@ -463,7 +436,6 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             settings=ApiSettings(agents_sdk_runtime_enabled=True),
             rag_prompt_executor=None,
             campus_services_query_service=query_service,
-            calendar_query_service=None,
             notice_query_service=None,
             agents_sdk_runner=fake_runner,
         )
@@ -549,7 +521,6 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             settings=ApiSettings(agents_sdk_runtime_enabled=True),
             rag_prompt_executor=None,
             campus_services_query_service=query_service,
-            calendar_query_service=None,
             notice_query_service=None,
             agents_sdk_runner=fake_runner,
         )
@@ -563,65 +534,8 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
         self.assertEqual(response.agent_observability.selected_tool, "contact_directory_lookup")
         projection = response.agent_observability.safe_details["agents_sdk_runner_projection"]
         self.assertEqual(projection["instruction_profile_id"], "contact_directory_fact_lookup")
-        self.assertIsNotNone(response.result)
         assert response.result is not None
         self.assertEqual(response.result["payload_kind"], "contact_directory_lookup")
-
-    def test_agent_delegates_route_academic_calendar_to_sdk_when_tool_is_admitted(self) -> None:
-        runner_called = False
-        query_service = _FakeCalendarQueryService()
-
-        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
-            nonlocal runner_called
-            runner_called = True
-            self.assertEqual(run_request.target, "calendar-agent")
-            self.assertEqual(run_request.allowed_tools, ("academic_calendar_lookup",))
-            self.assertEqual(
-                run_request.instruction_profile_id,
-                "academic_calendar_fact_lookup",
-            )
-            self.assertEqual(run_request.result_usage_mode, "academic_calendar_fact")
-            assert run_request.execute_tool is not None
-            tool_result = run_request.execute_tool(
-                AgentsSdkToolExecutionRequest(
-                    name="academic_calendar_lookup",
-                    arguments={"query_text": "今天第几教学周"},
-                    call_id="call-calendar",
-                )
-            )
-            self.assertEqual(tool_result["outcome"], "resolved_current")
-            self.assertEqual(tool_result["week_index"], 11)
-            self.assertEqual(tool_result["source_ref_count"], 1)
-            return AgentsSdkRunResult(
-                final_output="今天是第 11 教学周。",
-                tool_calls=(
-                    AgentsSdkToolCall(
-                        name="academic_calendar_lookup",
-                        arguments={"query_text": "今天第几教学周"},
-                        call_id="call-calendar",
-                    ),
-                ),
-                model_response_ref="resp-calendar",
-            )
-
-        delegates = _build_agent_delegates(
-            settings=ApiSettings(agents_sdk_runtime_enabled=True),
-            rag_prompt_executor=None,
-            campus_services_query_service=None,
-            calendar_query_service=query_service,
-            notice_query_service=None,
-            agents_sdk_runner=fake_runner,
-        )
-
-        response = delegates["calendar-agent"](_academic_calendar_request())
-
-        self.assertTrue(runner_called)
-        self.assertIsNotNone(query_service.last_academic_calendar_query)
-        self.assertEqual(response.status, "completed")
-        assert response.agent_observability is not None
-        self.assertEqual(response.agent_observability.selected_tool, "academic_calendar_lookup")
-        projection = response.agent_observability.safe_details["agents_sdk_runner_projection"]
-        self.assertEqual(projection["instruction_profile_id"], "academic_calendar_fact_lookup")
 
     def test_agent_delegates_route_service_status_to_sdk_when_tool_is_admitted(self) -> None:
         runner_called = False
@@ -664,7 +578,6 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             settings=ApiSettings(agents_sdk_runtime_enabled=True),
             rag_prompt_executor=None,
             campus_services_query_service=query_service,
-            calendar_query_service=None,
             notice_query_service=None,
             agents_sdk_runner=fake_runner,
         )
@@ -736,7 +649,6 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             settings=ApiSettings(agents_sdk_runtime_enabled=True),
             rag_prompt_executor=None,
             campus_services_query_service=query_service,
-            calendar_query_service=None,
             notice_query_service=None,
             agents_sdk_runner=fake_runner,
         )
@@ -815,7 +727,6 @@ class AgentsSdkNoticeGetPilotTest(unittest.TestCase):
             )
         )
 
-        self.assertIsNotNone(runner)
         self.assertEqual(runner.__class__.__name__, "MockAgentsSdkRunner")
 
 
@@ -865,16 +776,6 @@ def _contact_directory_request() -> AgentRequest:
     )
 
 
-def _academic_calendar_request() -> AgentRequest:
-    return AgentRequest(
-        target="calendar-agent",
-        user_goal="今天第几教学周",
-        request_id="req-sdk-academic-calendar",
-        payload=AcademicCalendarLookupPayload(query_text="今天第几教学周"),
-        allowed_tools=("academic_calendar_lookup",),
-    )
-
-
 def _service_status_request() -> AgentRequest:
     return AgentRequest(
         target="campus-services-agent",
@@ -896,7 +797,3 @@ def _transport_schedule_request() -> AgentRequest:
         ),
         allowed_tools=("transport_schedule_lookup",),
     )
-
-
-if __name__ == "__main__":
-    unittest.main()

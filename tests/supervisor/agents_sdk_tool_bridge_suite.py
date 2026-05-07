@@ -97,7 +97,7 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
                 ("campus_notice_discover", "notice-agent"),
                 ("service_guide_lookup", "campus-services-agent"),
                 ("contact_directory_lookup", "campus-services-agent"),
-                ("academic_calendar_lookup", "calendar-agent"),
+                ("academic_calendar_lookup", "campus-services-agent"),
             ],
         )
         for descriptor in descriptors:

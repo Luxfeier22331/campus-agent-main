@@ -64,11 +64,10 @@ Conditional readiness:
 - if `SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=true`, doctor requires
   `SUPERVISOR_API_EXECUTION_AUDIT_URL` and
   `SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET`
-- if `SUPERVISOR_API_OPEN_CAPABILITIES` opens `campus_services`,
-  `academic_calendar`, or `notice`, doctor requires
-  `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` and
-  `CAMPUS_SHARED_POSTGRES_URL`; notice-open additionally requires notice read-model/object-store
-  runtime dependencies
+- if `SUPERVISOR_API_OPEN_CAPABILITIES` opens `campus_services` or `notice`,
+  doctor requires `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` and
+  `CAMPUS_SHARED_POSTGRES_URL`; notice-open additionally requires notice
+  read-model/object-store runtime dependencies
 
 Runtime `/readyz` is stricter than liveness:
 

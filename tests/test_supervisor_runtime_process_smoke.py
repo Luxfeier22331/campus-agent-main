@@ -585,17 +585,17 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         self.assertEqual(academic_calendar.expected_status, 200)
         self.assertEqual(
             academic_calendar.answer_payload["requested_capability"],
-            "academic_calendar",
+            "campus_services",
         )
         self.assertEqual(
             academic_processes["supervisor-api"].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
-            "academic_calendar",
+            "campus_services",
         )
         self.assertEqual(
             academic_processes["supervisor-agent-worker"].env["SUPERVISOR_INTERNAL_QUERY_BASE_URL"],
             "http://127.0.0.1:27051",
         )
-        self.assertIn("calendar-agent", academic_calendar.expected_body_tokens)
+        self.assertIn("campus-services-agent", academic_calendar.expected_body_tokens)
         self.assertIn("academic_calendar_lookup", academic_calendar.expected_body_tokens)
         self.assertIn("single_handoff", academic_calendar.expected_body_tokens)
         self.assertIn("sdk_completed", academic_calendar.expected_body_tokens)

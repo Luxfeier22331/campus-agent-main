@@ -121,9 +121,9 @@ Docker-side Go runtime control plane 长期负责：
   RAG prompt execution 和 agent delegation checkpoints 观测取消；provider /
   prompt executor 已进入阻塞 HTTP 调用时仍不承诺 hard-abort
 - Go `supervisor-api` 的 execution envelope 已接受 `knowledge`、`place_lookup`、
-  `campus_services`、`academic_calendar`、`notice` capability label，并将它们映射到
-  `rag`、`navigation`、`campus_services`、`academic_calendar`、`notice` lane；
-  `requested_scope` 仍只允许 knowledge path 使用
+  `campus_services`、`notice` capability label，并将它们映射到
+  `rag`、`navigation`、`campus_services`、`notice` lane；`requested_scope` 仍只允许
+  knowledge path 使用
 - Go `supervisor-api` 已拥有 deterministic effective capability / lane inference：
   当 caller 未显式传 `requested_capability` 时，常见地点、校车/班车、通知/公告/公示
   与 knowledge-family 请求会先被归入对应 runtime lane；versioned / scoped
@@ -237,9 +237,9 @@ Docker-side Go runtime control plane 长期负责：
   runtime profile 的 `query_enabled_by_default=true` 保持一致。disabled knowledge
   scope 在进入 Python bridge 前返回 `403 disallowed_knowledge_scope`
 - Go `supervisor-api` 已拥有 structured runtime opening gate：
-  `campus_services` / `academic_calendar` / `notice` 默认关闭，只有通过
-  `SUPERVISOR_API_OPEN_CAPABILITIES` 显式开放后才允许进入 structured runtime；该变量只接受
-  `campus_services`、`academic_calendar`、`notice` 及其逗号组合，不接受 `*` / `all`
+  `campus_services` / `notice` 默认关闭，只有通过 `SUPERVISOR_API_OPEN_CAPABILITIES`
+  显式开放后才允许进入 structured runtime；该变量只接受 `campus_services`、`notice`
+  及其逗号组合，不接受 `*` / `all`
 - `place_lookup` / navigation 继续 fail-close，等待地图产品上线后再进行 serving admission
   wildcard；关闭时 non-stream request 返回 `503 structured_runtime_closed`，
   lifecycle stream 返回 terminal `execution.failed`
@@ -742,17 +742,17 @@ query。
 
 - `campus-services-agent`
   - 承接 `transport_schedule_lookup`、`service_status_lookup` 与
-    `service_guide_lookup`、`contact_directory_lookup`，以及 later-wave
-    `service_process_lookup`
+    `service_guide_lookup`、`contact_directory_lookup`、`academic_calendar_lookup`，以及
+    later-wave `service_process_lookup`
   - `service_guide_lookup` 只回答只读办理指南、材料、入口说明、服务时间、联系方式与来源引用；
     不执行申请、预约、提交、代办、支付、工单创建或任何状态变更
   - 详细领域边界、projection owner 与 opening gate 统一看
     `docs/architecture/domains/campus-services/architecture.md`
-- `calendar-agent`
-  - 承接 `academic_calendar_lookup`
-  - 回答第几教学周、学期日期窗口、节假日安排与补课/调休上课安排等校历事实
-  - 只读 `calendar/academic_calendar` projection / typed read model；不查询 raw 官网页面、
-    不回退 generic RAG，也不负责“校历怎么看 / 校历在哪里看”这类入口说明
+  - `academic_calendar_lookup` 回答第几教学周、学期日期窗口、节假日安排与
+    补课/调休上课安排等校历事实
+  - `academic_calendar_lookup` 只读 `calendar/academic_calendar` projection /
+    typed read model；不查询 raw 官网页面、不回退 generic RAG，也不负责
+    “校历怎么看 / 校历在哪里看”这类入口说明
   - “校历怎么看 / 校历在哪里看”仍属于 `service_guide_lookup` 的只读指南边界
 - `notice-agent`
   - 承接 `campus_notice_discover`、selected notice ref resolution、official source card
@@ -787,7 +787,7 @@ projection owner 继续显式分层：
   - 只读 `campus_services/*` semantic-owner projection
   - timetable truth、service-status truth、contact truth 与 process truth 不回退成 generic
     RAG seam
-- academic calendar family
+- academic calendar lookup data plane
   - 只读 `calendar/academic_calendar` semantic-owner projection
   - teaching-week、holiday 与 makeup-class truth 不回退成 service-guide 或 generic
     RAG seam
@@ -802,8 +802,8 @@ projection owner 继续显式分层：
 
 ## Structured Runtime Opening Gate
 
-`campus-services-agent` / `calendar-agent` / `notice-agent` 的 owner package、thin
-adapter 与 handoff seam 已存在，不等于这条 runtime lane 已开放。
+`campus-services-agent` / `notice-agent` 的 owner package、thin adapter 与
+handoff seam 已存在，不等于这条 runtime lane 已开放。
 
 固定规则：
 

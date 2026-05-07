@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from campus_contracts import (
+    AcademicCalendarLookupResult,
     ContactDirectoryContactPoint,
     ContactDirectoryContactRef,
     ContactDirectoryLookupResult,
@@ -16,6 +17,7 @@ from campus_contracts import (
     TransportStopRef,
 )
 from campus_services_agent.query_service import (
+    AcademicCalendarQuery,
     ContactDirectoryQuery,
     ServiceGuideQuery,
     ServiceStatusQuery,
@@ -29,6 +31,7 @@ class FakeCampusServicesQueryService:
         self.last_service_guide_query: ServiceGuideQuery | None = None
         self.last_transport_schedule_query: TransportScheduleQuery | None = None
         self.last_contact_directory_query: ContactDirectoryQuery | None = None
+        self.last_academic_calendar_query: AcademicCalendarQuery | None = None
 
     def lookup_service_status(self, query: ServiceStatusQuery) -> ServiceStatusLookupResult:
         self.last_service_status_query = query
@@ -151,6 +154,22 @@ class FakeCampusServicesQueryService:
             source_refs=("handbook:contact-directory:2026#page=261",),
             queried_time_anchor="2026-04-27T10:30:00+08:00",
             field_status={"office_hours": "source_not_provided"},
+        )
+
+    def lookup_academic_calendar(
+        self,
+        query: AcademicCalendarQuery,
+    ) -> AcademicCalendarLookupResult:
+        self.last_academic_calendar_query = query
+        return AcademicCalendarLookupResult(
+            query_text=query.payload.query_text,
+            outcome="resolved_current",
+            resolved_date="2026-05-05",
+            academic_year_label="2025-2026学年",
+            term_label="春季学期",
+            week_index=11,
+            day_kind="teaching_day",
+            source_refs=("official_web:academic-calendar-2025-2026",),
         )
 
 

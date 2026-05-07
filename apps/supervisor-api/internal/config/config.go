@@ -466,7 +466,7 @@ func readLaneBudgetsStrict(
 }
 
 func laneNames() []string {
-	return []string{"rag", "navigation", "campus_services", "academic_calendar", "notice", "default"}
+	return []string{"rag", "navigation", "campus_services", "notice", "default"}
 }
 
 func readStringList(name string) []string {
@@ -490,7 +490,7 @@ func readOpenCapabilitiesStrict() ([]string, error) {
 	values := readStringList("SUPERVISOR_API_OPEN_CAPABILITIES")
 	for _, value := range values {
 		switch strings.TrimSpace(value) {
-		case "campus_services", "academic_calendar", "notice":
+		case "campus_services", "notice":
 		case "*", "all":
 			return nil, fmt.Errorf("SUPERVISOR_API_OPEN_CAPABILITIES does not support wildcard value %q", value)
 		default:

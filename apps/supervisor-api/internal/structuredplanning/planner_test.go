@@ -84,10 +84,10 @@ func TestPlanGoldenCases(t *testing.T) {
 		{
 			name: "academic calendar teaching week",
 			request: Request{
-				EffectiveCapability: "academic_calendar",
+				EffectiveCapability: "campus_services",
 				UserGoal:            "今天第几教学周",
 			},
-			wantTarget: "calendar-agent",
+			wantTarget: "campus-services-agent",
 			wantKind:   "academic_calendar_lookup",
 			wantTool:   "academic_calendar_lookup",
 			wantPayload: map[string]any{
@@ -97,10 +97,10 @@ func TestPlanGoldenCases(t *testing.T) {
 		{
 			name: "academic calendar makeup class day",
 			request: Request{
-				EffectiveCapability: "academic_calendar",
+				EffectiveCapability: "campus_services",
 				UserGoal:            "4月25日上周几的课",
 			},
-			wantTarget: "calendar-agent",
+			wantTarget: "campus-services-agent",
 			wantKind:   "academic_calendar_lookup",
 			wantTool:   "academic_calendar_lookup",
 			wantPayload: map[string]any{
@@ -110,10 +110,10 @@ func TestPlanGoldenCases(t *testing.T) {
 		{
 			name: "academic calendar explicit year holiday arrangement",
 			request: Request{
-				EffectiveCapability: "academic_calendar",
+				EffectiveCapability: "campus_services",
 				UserGoal:            "2026-2027学年春假怎么安排",
 			},
-			wantTarget: "calendar-agent",
+			wantTarget: "campus-services-agent",
 			wantKind:   "academic_calendar_lookup",
 			wantTool:   "academic_calendar_lookup",
 			wantPayload: map[string]any{

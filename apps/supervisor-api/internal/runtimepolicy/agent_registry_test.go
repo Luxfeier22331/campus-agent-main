@@ -11,8 +11,11 @@ func TestLoadAgentSpecRegistryLoadsCurrentInventory(t *testing.T) {
 	if registry.SchemaVersion != AgentSpecSchemaVersion {
 		t.Fatalf("schema_version = %q, want %q", registry.SchemaVersion, AgentSpecSchemaVersion)
 	}
-	if len(registry.Agents) != 5 {
-		t.Fatalf("agents = %#v, want 5 current agents", registry.Agents)
+	if len(registry.Agents) != 4 {
+		t.Fatalf("agents = %#v, want 4 current agents", registry.Agents)
+	}
+	if _, ok := registry.AgentByID("calendar-agent"); ok {
+		t.Fatal("calendar-agent must not be active in AgentSpec")
 	}
 	notice, ok := registry.AgentByID("notice-agent")
 	if !ok {
@@ -21,14 +24,26 @@ func TestLoadAgentSpecRegistryLoadsCurrentInventory(t *testing.T) {
 	if len(notice.AllowedStructuredHandoffTools) != 1 || notice.AllowedStructuredHandoffTools[0] != "campus_notice_discover" {
 		t.Fatalf("notice structured tools = %#v, want campus_notice_discover only", notice.AllowedStructuredHandoffTools)
 	}
-	calendar, ok := registry.AgentByID("calendar-agent")
+	campusServices, ok := registry.AgentByID("campus-services-agent")
 	if !ok {
-		t.Fatal("calendar-agent missing from AgentSpec")
+		t.Fatal("campus-services-agent missing from AgentSpec")
 	}
-	if !calendar.Active || calendar.Capability != "academic_calendar" {
-		t.Fatalf("calendar agent = %#v, want active academic_calendar agent", calendar)
+	if !campusServices.Active || campusServices.Capability != "campus_services" {
+		t.Fatalf("campus services agent = %#v, want active campus_services agent", campusServices)
 	}
-	if len(calendar.AllowedStructuredHandoffTools) != 1 || calendar.AllowedStructuredHandoffTools[0] != "academic_calendar_lookup" {
-		t.Fatalf("calendar structured tools = %#v, want academic_calendar_lookup only", calendar.AllowedStructuredHandoffTools)
+	if !containsString(campusServices.AllowedStructuredHandoffTools, "academic_calendar_lookup") {
+		t.Fatalf(
+			"campus services structured tools = %#v, want academic_calendar_lookup",
+			campusServices.AllowedStructuredHandoffTools,
+		)
 	}
+}
+
+func containsString(values []string, target string) bool {
+	for _, value := range values {
+		if value == target {
+			return true
+		}
+	}
+	return false
 }

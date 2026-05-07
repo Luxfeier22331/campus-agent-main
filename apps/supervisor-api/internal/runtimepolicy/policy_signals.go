@@ -115,6 +115,9 @@ func isAcademicCalendarHolidayActionSignal(normalizedSignal string) bool {
 }
 
 func isPlannableCampusServicesSubtype(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	if matchAcademicCalendarCandidate(normalizedGoal, policy) != "" || isAcademicCalendarGuideQuery(normalizedGoal) {
+		return true
+	}
 	if firstMatch(normalizedGoal, policy.Signals("structured_transport")) != "" {
 		return true
 	}

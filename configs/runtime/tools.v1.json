@@ -76,8 +76,8 @@
 		},
 		{
 			"name": "academic_calendar_lookup",
-			"owner_agent": "calendar-agent",
-			"capability": "academic_calendar",
+			"owner_agent": "campus-services-agent",
+			"capability": "campus_services",
 			"payload_kind": "academic_calendar_lookup",
 			"payload_schema_ref": "campus_contracts.models_tools.AcademicCalendarLookupPayload",
 			"result_schema_ref": "campus_contracts.models_tools.AcademicCalendarLookupResult",

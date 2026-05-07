@@ -500,7 +500,7 @@
 			"target_label": "中央民族大学公开校历",
 			"consumer_family": "academic_calendar_candidate",
 			"owner_surface": "academic_calendar_lookup",
-			"owner_agent_or_runtime": "calendar-agent",
+			"owner_agent_or_runtime": "campus-services-agent",
 			"selected_write_target": "calendar/academic_calendar",
 			"source_hosts": ["www.muc.edu.cn"],
 			"source_urls": ["https://www.muc.edu.cn/ggfw/mdxl.htm"],

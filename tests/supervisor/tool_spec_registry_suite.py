@@ -88,12 +88,14 @@ class ToolSpecRegistryTest(unittest.TestCase):
             campus_service_tools["contact_directory_lookup"].runtime_posture,
             "sdk_adapter_admitted",
         )
-        calendar_tool = registry.tool_by_name("academic_calendar_lookup")
-        self.assertIsNotNone(calendar_tool)
-        assert calendar_tool is not None
-        self.assertEqual(calendar_tool.owner_agent, "calendar-agent")
-        self.assertEqual(calendar_tool.capability, "academic_calendar")
-        self.assertEqual(calendar_tool.runtime_posture, "sdk_adapter_admitted")
+        self.assertEqual(
+            campus_service_tools["academic_calendar_lookup"].capability,
+            "campus_services",
+        )
+        self.assertEqual(
+            campus_service_tools["academic_calendar_lookup"].runtime_posture,
+            "sdk_adapter_admitted",
+        )
 
 
 if __name__ == "__main__":

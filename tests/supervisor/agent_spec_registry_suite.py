@@ -22,11 +22,7 @@ class AgentSpecRegistryTest(unittest.TestCase):
         self.assertEqual(registry.known_agent_ids(), ALLOWED_AGENT_TARGETS)
         self.assertEqual(
             registry.active_agent_ids(),
-            ("rag-agent", "campus-services-agent", "calendar-agent", "notice-agent"),
-        )
-        self.assertEqual(
-            registry.payload_kinds_for_agent("calendar-agent"),
-            ("academic_calendar_lookup",),
+            ("rag-agent", "campus-services-agent", "notice-agent"),
         )
         self.assertEqual(
             registry.payload_kinds_for_agent("campus-services-agent"),
@@ -35,6 +31,7 @@ class AgentSpecRegistryTest(unittest.TestCase):
                 "service_guide_lookup",
                 "transport_schedule_lookup",
                 "contact_directory_lookup",
+                "academic_calendar_lookup",
             ),
         )
 
@@ -63,7 +60,6 @@ class AgentSpecRegistryTest(unittest.TestCase):
             settings=_fake_settings(),
             rag_prompt_executor=None,
             campus_services_query_service=None,
-            calendar_query_service=None,
             notice_query_service=None,
         )
 
@@ -179,24 +175,22 @@ def _agent(
                 "service_guide_lookup",
                 "transport_schedule_lookup",
                 "contact_directory_lookup",
+                "academic_calendar_lookup",
             ],
             "allowed_structured_handoff_tools": [
                 "service_status_lookup",
                 "service_guide_lookup",
                 "transport_schedule_lookup",
                 "contact_directory_lookup",
+                "academic_calendar_lookup",
             ],
-            "context_projection_kinds": ["service_guide_facts"],
+            "context_projection_kinds": [
+                "service_guide_facts",
+                "schedule_baseline",
+                "calendar_fact",
+            ],
             "delegate_module": "campus_services_agent",
             "delegate_symbol": "delegate_to_campus_services_agent",
-        },
-        "calendar-agent": {
-            "owner_package": "packages/calendar-agent",
-            "payload_kinds": ["academic_calendar_lookup"],
-            "allowed_structured_handoff_tools": ["academic_calendar_lookup"],
-            "context_projection_kinds": ["calendar_fact"],
-            "delegate_module": "campus_calendar_agent",
-            "delegate_symbol": "delegate_to_calendar_agent",
         },
         "notice-agent": {
             "owner_package": "packages/notice-agent",

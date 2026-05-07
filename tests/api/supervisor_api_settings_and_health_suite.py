@@ -217,7 +217,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                     "tool_runtime_posture": "sdk_adapter_admitted",
                 },
                 {
-                    "target": "calendar-agent",
+                    "target": "campus-services-agent",
                     "tool": "academic_calendar_lookup",
                     "tool_runtime_posture": "sdk_adapter_admitted",
                 },
@@ -339,7 +339,6 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                     settings=settings,
                     rag_prompt_executor=None,
                     campus_services_query_service=None,
-                    calendar_query_service=None,
                     notice_query_service=None,
                 )
 
@@ -415,7 +414,6 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             ),
             rag_prompt_executor=None,
             campus_services_query_service=None,
-            calendar_query_service=None,
             notice_query_service=query_service,
             provider_tool_provider=provider,
         )

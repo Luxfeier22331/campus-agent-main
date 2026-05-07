@@ -5,7 +5,6 @@ description = "Private supervisor agent worker for campus-agent v2."
 readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
-  "campus-calendar-agent",
   "campus-contracts",
   "campus-shared",
   "httpx>=0.28.1",
@@ -18,7 +17,6 @@ dependencies = [
 package = true
 
 [tool.uv.sources]
-campus-calendar-agent = { workspace = true }
 campus-contracts = { workspace = true }
 campus-shared = { workspace = true }
 

@@ -7,6 +7,7 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from campus_contracts import (
+    AcademicCalendarLookupResult,
     ContactDirectoryCandidate,
     ContactDirectoryContactPoint,
     ContactDirectoryContactRef,
@@ -35,6 +36,7 @@ from campus_contracts import (
 )
 
 from campus_services_agent.query_service import (
+    AcademicCalendarQuery,
     ContactDirectoryQuery,
     ServiceGuideQuery,
     ServiceStatusQuery,
@@ -113,6 +115,22 @@ class CampusServicesHTTPQueryService:
             body,
             fallback_query_text=query.payload.query_text,
             fallback_contact_focus=str(query.payload.contact_focus),
+        )
+
+    def lookup_academic_calendar(
+        self,
+        query: AcademicCalendarQuery,
+    ) -> AcademicCalendarLookupResult:
+        body = self._post(
+            "/internal/query/calendar/academic-calendar",
+            _query_body(
+                payload=asdict(query.payload),
+                access_context=asdict(query.access_context),
+            ),
+        )
+        return _academic_calendar_result_from_dict(
+            body,
+            fallback_query_text=query.payload.query_text,
         )
 
     def lookup_transport_schedule(
@@ -358,6 +376,31 @@ def _transport_schedule_result_from_dict(
             if (notice := _operational_notice(item)) is not None
         ),
         historical_downgrade_reason=_string(body.get("historical_downgrade_reason")),
+        fail_close_reason=_string(body.get("fail_close_reason")),
+    )
+
+
+def _academic_calendar_result_from_dict(
+    body: dict[str, object],
+    *,
+    fallback_query_text: str,
+) -> AcademicCalendarLookupResult:
+    return AcademicCalendarLookupResult(
+        query_text=_string(body.get("query_text")) or fallback_query_text,
+        outcome=_string(body.get("outcome")),
+        requested_date=_string(body.get("requested_date")),
+        resolved_date=_string(body.get("resolved_date")),
+        academic_year_label=_string(body.get("academic_year_label")),
+        term_label=_string(body.get("term_label")),
+        week_index=_int_or_none(body.get("week_index")),
+        day_kind=_string(body.get("day_kind")),
+        class_day_pattern=_string(body.get("class_day_pattern")),
+        is_makeup_class=_bool_or_none(body.get("is_makeup_class")),
+        holiday_name=_string(body.get("holiday_name")),
+        source_refs=_string_tuple(body.get("source_refs")),
+        queried_time_anchor=_string(body.get("queried_time_anchor")),
+        effective_from=_string(body.get("effective_from")),
+        effective_until=_string(body.get("effective_until")),
         fail_close_reason=_string(body.get("fail_close_reason")),
     )
 
@@ -659,6 +702,20 @@ def _string(value: object) -> str:
 
 def _string_tuple(value: object) -> tuple[str, ...]:
     return tuple(_string(item) for item in _list(value) if _string(item))
+
+
+def _int_or_none(value: object) -> int | None:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return None
+
+
+def _bool_or_none(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    return None
 
 
 def _string_mapping(value: object) -> dict[str, str]:

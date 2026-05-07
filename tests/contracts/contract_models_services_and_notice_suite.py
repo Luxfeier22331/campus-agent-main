@@ -102,9 +102,9 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
 
         self.assertEqual(request.allowed_tools, ("contact_directory_lookup",))
 
-    def test_agent_request_accepts_calendar_agent_allowed_tool(self) -> None:
+    def test_agent_request_accepts_academic_calendar_as_campus_service_tool(self) -> None:
         request = AgentRequest(
-            target="calendar-agent",
+            target="campus-services-agent",
             user_goal="今天第几教学周",
             payload=AcademicCalendarLookupPayload(
                 query_text="今天第几教学周",
@@ -114,6 +114,15 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
         )
 
         self.assertEqual(request.allowed_tools, ("academic_calendar_lookup",))
+
+    def test_agent_request_rejects_retired_calendar_agent_target(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported agent target: calendar-agent"):
+            AgentRequest(
+                target="calendar-agent",  # type: ignore[arg-type]
+                user_goal="今天第几教学周",
+                payload=AcademicCalendarLookupPayload(query_text="今天第几教学周"),
+                allowed_tools=("academic_calendar_lookup",),
+            )
 
     def test_temporal_query_requires_as_of_anchor_when_mode_is_as_of(self) -> None:
         with self.assertRaisesRegex(ValueError, "as_of is required when temporal mode is as_of"):

@@ -4,12 +4,6 @@ from collections.abc import Callable, Mapping
 from dataclasses import asdict
 
 import httpx
-from campus_calendar_agent import (
-    AcademicCalendarQuery,
-    CalendarAccessContext,
-    CalendarHTTPQueryService,
-    delegate_to_calendar_agent,
-)
 from campus_contracts import (
     AcademicCalendarLookupPayload,
     AgentRequest,
@@ -25,6 +19,7 @@ from campus_notice_agent.query_service import NoticeAccessContext, NoticeDiscove
 from campus_rag_agent.service import delegate_to_rag_agent
 from campus_retrieval_core import build_jsonl_retrieval_observation_sink
 from campus_services_agent import (
+    AcademicCalendarQuery,
     CampusServicesAccessContext,
     CampusServicesHTTPQueryService,
     ContactDirectoryQuery,
@@ -69,13 +64,11 @@ def bind_agent_handler(
     if agent_handler is not dispatch_agent_request:
         return _wrap_with_cancel_checks(agent_handler, cancel_flags)
     campus_services_query_service = _build_campus_services_query_service(settings)
-    calendar_query_service = _build_calendar_query_service(settings)
     notice_query_service = _build_notice_query_service(settings)
     agent_delegates = _build_agent_delegates(
         settings=settings,
         rag_prompt_executor=rag_prompt_executor,
         campus_services_query_service=campus_services_query_service,
-        calendar_query_service=calendar_query_service,
         notice_query_service=notice_query_service,
         provider_tool_provider=_build_provider_tool_provider(
             settings,
@@ -98,7 +91,6 @@ def _build_agent_delegates(
     rag_prompt_executor: ProviderBackedRagPromptExecutor | None,
     campus_services_query_service: CampusServicesHTTPQueryService | None,
     notice_query_service: NoticeHTTPQueryService | None,
-    calendar_query_service: CalendarHTTPQueryService | None = None,
     provider_tool_provider: ProviderFunctionToolProvider | None = None,
     agents_sdk_runner: AgentsSdkRunner | None = None,
     rag_sdk_runner=None,
@@ -132,7 +124,6 @@ def _build_agent_delegates(
         ),
         "navigation-agent": delegate_to_navigation_agent,
         "campus-services-agent": delegate_to_campus_services_agent,
-        "calendar-agent": delegate_to_calendar_agent,
         "notice-agent": delegate_to_notice_agent,
     }
     if campus_services_query_service is not None:
@@ -143,13 +134,6 @@ def _build_agent_delegates(
                 query_service=campus_services_query_service,
                 agents_sdk_runner=agents_sdk_runner,
             )
-        )
-    if calendar_query_service is not None:
-        agent_delegates["calendar-agent"] = lambda agent_request: _delegate_to_calendar_agent(
-            agent_request,
-            settings=settings,
-            query_service=calendar_query_service,
-            agents_sdk_runner=agents_sdk_runner,
         )
     if notice_query_service is not None:
         agent_delegates["notice-agent"] = lambda agent_request: _delegate_to_notice_agent(
@@ -217,35 +201,6 @@ def _delegate_to_campus_services_agent(
             require_tool_execution=True,
         )
     return delegate_to_campus_services_agent(
-        agent_request,
-        query_service=query_service,
-    )
-
-
-def _delegate_to_calendar_agent(
-    agent_request: AgentRequest,
-    *,
-    settings: ApiSettings,
-    query_service: CalendarHTTPQueryService,
-    agents_sdk_runner: AgentsSdkRunner | None,
-):
-    if _should_route_to_agents_sdk(
-        agent_request,
-        settings=settings,
-        agents_sdk_runner=agents_sdk_runner,
-    ):
-        return run_agents_sdk_runner_shell(
-            agent_request,
-            runner=agents_sdk_runner,
-            enabled=True,
-            execute_tool=lambda execution: _execute_calendar_tool(
-                execution,
-                agent_request=agent_request,
-                query_service=query_service,
-            ),
-            require_tool_execution=True,
-        )
-    return delegate_to_calendar_agent(
         agent_request,
         query_service=query_service,
     )
@@ -361,32 +316,20 @@ def _execute_campus_services_tool(
             query_key="query_text",
             query_value=result.query_text,
         )
-    raise ValueError(f"campus-services-agent cannot execute SDK tool: {execution.name}")
-
-
-def _execute_calendar_tool(
-    execution: AgentsSdkToolExecutionRequest,
-    *,
-    agent_request: AgentRequest,
-    query_service: CalendarHTTPQueryService,
-) -> dict[str, object]:
-    if execution.name != "academic_calendar_lookup":
-        raise ValueError(f"calendar-agent cannot execute SDK tool: {execution.name}")
-    payload = AcademicCalendarLookupPayload(**execution.arguments)
-    result = query_service.lookup_academic_calendar(
-        AcademicCalendarQuery(
-            payload=payload,
-            access_context=CalendarAccessContext(
-                actor=agent_request.actor,
-                authorization=agent_request.context.authorization,
-            ),
+    if execution.name == "academic_calendar_lookup":
+        payload = AcademicCalendarLookupPayload(**execution.arguments)
+        result = query_service.lookup_academic_calendar(
+            AcademicCalendarQuery(
+                payload=payload,
+                access_context=_campus_services_access_context(agent_request),
+            )
         )
-    )
-    return _bounded_sdk_tool_result(
-        result,
-        query_key="query_text",
-        query_value=result.query_text,
-    )
+        return _bounded_sdk_tool_result(
+            result,
+            query_key="query_text",
+            query_value=result.query_text,
+        )
+    raise ValueError(f"campus-services-agent cannot execute SDK tool: {execution.name}")
 
 
 def _campus_services_access_context(agent_request: AgentRequest) -> CampusServicesAccessContext:
@@ -574,9 +517,7 @@ def _copy_nested_sdk_result_list(
                             nested_field_value, tuple | list
                         ):
                             refs = [
-                                str(ref).strip()
-                                for ref in nested_field_value
-                                if str(ref).strip()
+                                str(ref).strip() for ref in nested_field_value if str(ref).strip()
                             ]
                             if refs:
                                 nested_item[nested_field] = refs
@@ -670,18 +611,6 @@ def _build_notice_query_service(
     if not settings.internal_query_base_url or not settings.internal_query_shared_secret:
         return None
     return NoticeHTTPQueryService(
-        base_url=settings.internal_query_base_url,
-        shared_secret=settings.internal_query_shared_secret,
-        timeout_seconds=settings.structured_query_timeout_seconds,
-    )
-
-
-def _build_calendar_query_service(
-    settings: ApiSettings,
-) -> CalendarHTTPQueryService | None:
-    if not settings.internal_query_base_url or not settings.internal_query_shared_secret:
-        return None
-    return CalendarHTTPQueryService(
         base_url=settings.internal_query_base_url,
         shared_secret=settings.internal_query_shared_secret,
         timeout_seconds=settings.structured_query_timeout_seconds,

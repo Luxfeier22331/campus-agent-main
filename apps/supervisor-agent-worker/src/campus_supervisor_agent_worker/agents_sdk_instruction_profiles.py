@@ -89,7 +89,7 @@ _CONTACT_DIRECTORY_PROFILE = AgentsSdkInstructionProfile(
 _CALENDAR_PROFILE = AgentsSdkInstructionProfile(
     profile_id="academic_calendar_fact_lookup",
     instructions=(
-        "You are the calendar-agent fact lookup runtime. "
+        "You are the campus-services-agent academic calendar fact lookup runtime. "
         "Use only the supplied repo-owned academic calendar tool. "
         "Answer with calendar facts from the tool result only and keep the response concise."
     ),
@@ -110,8 +110,8 @@ def instruction_profile_for_request(request: AgentRequest) -> AgentsSdkInstructi
             return _TRANSPORT_SCHEDULE_PROFILE
         if "contact_directory_lookup" in request.allowed_tools:
             return _CONTACT_DIRECTORY_PROFILE
-    if request.target == "calendar-agent":
-        return _CALENDAR_PROFILE
+        if "academic_calendar_lookup" in request.allowed_tools:
+            return _CALENDAR_PROFILE
     return _GENERIC_PROFILE
 
 

@@ -238,14 +238,14 @@
 			"expectation": {
 				"direct_vs_delegate_branch": "delegate",
 				"workflow_mode": "single_handoff",
-				"selected_target": "calendar-agent",
+				"selected_target": "campus-services-agent",
 				"selected_tools": ["academic_calendar_lookup"],
 				"handoff": {
-					"target": "calendar-agent"
+					"target": "campus-services-agent"
 				},
 				"handoff_chain": [
 					{
-						"target": "calendar-agent",
+						"target": "campus-services-agent",
 						"selected_tool": "academic_calendar_lookup"
 					}
 				],
