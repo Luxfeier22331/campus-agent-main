@@ -735,6 +735,7 @@ REGULATION_INTRO_TARGET_ROLE_SUBJECT_RULES: tuple[tuple[str, str, str], ...] = (
     ("procedure_step", "application_procedure", "intro_target_roles:procedure_step"),
     ("material_requirement", "material_requirement", "intro_target_roles:material_requirement"),
     ("time_constraint", "deadline", "intro_target_roles:time_constraint"),
+    ("exclusion_rule", "generic_restriction", "intro_target_roles:exclusion_rule"),
     ("example_evidence", "example_evidence", "intro_target_roles:example_evidence"),
 )
 
@@ -781,6 +782,8 @@ REGULATION_ANSWER_ROLE_EXCLUSION_MARKERS: tuple[str, ...] = (
     "不得",
     "不能",
     "不予",
+    "不合格",
+    "未通过",
     "取消",
     "无资格",
     "禁止",
@@ -1081,7 +1084,18 @@ def resolve_regulation_procedure_actor(
             provenance="metadata:procedure_actor",
         )
 
+    if resolve_regulation_group_intro_kind(text).value in {
+        "condition_group_intro",
+        "exclusion_group_intro",
+    }:
+        return RegulationSemanticAssignment(value="", provenance="")
+
     compact = _compact(text)
+    if any(marker in compact for marker in ("核准后接入校园网", "接入校园网", "审定密级")):
+        return RegulationSemanticAssignment(
+            value="office",
+            provenance="keyword:核准接入校园网职责",
+        )
     actor_assignment = _resolve_procedure_actor_by_action_context(
         compact,
         REGULATION_PROCEDURE_ACTOR_RULES,
@@ -1280,6 +1294,11 @@ def resolve_regulation_condition_subject(
         intro_target_assignment = _resolve_intro_target_role_subject(target_roles)
         if intro_target_assignment.value:
             return intro_target_assignment
+        if "exclusion_rule" in target_roles:
+            return RegulationSemanticAssignment(
+                value="generic_restriction",
+                provenance="intro_target_roles:exclusion_group",
+            )
         if any(role in target_roles for role in ("eligibility_condition", "exception_rule")):
             return RegulationSemanticAssignment(
                 value="generic_condition",
@@ -1521,6 +1540,12 @@ def resolve_regulation_procedure_action(
             provenance="metadata:procedure_action",
         )
 
+    if resolve_regulation_group_intro_kind(text).value in {
+        "condition_group_intro",
+        "exclusion_group_intro",
+    }:
+        return RegulationSemanticAssignment(value="", provenance="")
+
     compact = _compact(text)
     review_signoff_assignment = _resolve_keyword_rule(
         compact,
@@ -1533,6 +1558,11 @@ def resolve_regulation_procedure_action(
         ),
     )
     if review_signoff_assignment.value:
+        if any(marker in compact for marker in ("核准后接入校园网", "接入校园网")):
+            return RegulationSemanticAssignment(
+                value="office_review",
+                provenance="keyword:核准接入校园网+actor:office",
+            )
         if actor == "college":
             return RegulationSemanticAssignment(
                 value="college_review",
@@ -1556,6 +1586,8 @@ def resolve_regulation_procedure_action(
         ),
     )
     if review_assignment.value:
+        if any(marker in compact for marker in ("不合格", "未通过")):
+            return RegulationSemanticAssignment(value="", provenance="")
         if actor == "college":
             return RegulationSemanticAssignment(
                 value="college_review",
@@ -1680,12 +1712,14 @@ def resolve_regulation_group_intro_kind(text: str) -> RegulationSemanticAssignme
 
     compact = _compact(text).rstrip(":：；;，,。")
     if any(
-        compact.endswith(marker)
+        marker in compact
         for marker in (
             "符合下列条件之一",
             "符合以下条件之一",
             "具备下列条件之一",
             "具备以下条件之一",
+            "具有下列条件之一",
+            "具有以下条件之一",
             "还须具备以下条件之一",
             "还应符合下列条件之一",
             "还应符合以下条件之一",
@@ -1886,6 +1920,17 @@ def resolve_regulation_answer_role(
         return RegulationSemanticAssignment(
             value="eligibility_intro",
             provenance="matched_time_intro_marker",
+        )
+    group_intro_assignment = resolve_regulation_group_intro_kind(text)
+    if group_intro_assignment.value == "condition_group_intro":
+        return RegulationSemanticAssignment(
+            value="eligibility_intro",
+            provenance="matched_condition_group_intro",
+        )
+    if group_intro_assignment.value == "exclusion_group_intro":
+        return RegulationSemanticAssignment(
+            value="eligibility_intro",
+            provenance="matched_exclusion_group_intro",
         )
     if _is_procedure_step_answer_role(text=text_only, context=context):
         return RegulationSemanticAssignment(
@@ -2097,6 +2142,13 @@ def _looks_like_time_intro_or_category(text: str) -> bool:
 
 def _is_procedure_step_answer_role(*, text: str, context: str) -> bool:
     if _looks_like_procedure_intro_or_category(text):
+        return False
+    if resolve_regulation_group_intro_kind(text).value in {
+        "condition_group_intro",
+        "exclusion_group_intro",
+    }:
+        return False
+    if any(marker in text for marker in ("不合格", "未通过", "不予", "不得", "不能", "取消资格")):
         return False
     if any(marker in text for marker in ("申报", "报送", "复评", "复审", "拨付", "发放", "公示")):
         return True

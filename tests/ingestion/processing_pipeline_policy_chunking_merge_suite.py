@@ -10,7 +10,10 @@ from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 from campus_ingestion_core.process_candidate_aggregation import (
     build_handbook_answer_role_release_metadata,
 )
-from campus_ingestion_core.process_candidate_merging_short_textual import candidate_answer_role
+from campus_ingestion_core.process_candidate_merging_short_textual import (
+    answer_ready_atomic_roles_conflict,
+    candidate_answer_role,
+)
 from campus_ingestion_core.process_shared import _ChunkCandidate
 
 from .processing_pipeline_test_support import *
@@ -70,6 +73,58 @@ class ProcessingPipelinePolicyChunkingMergeTest(unittest.TestCase):
             role = candidate_answer_role(candidate)
 
         self.assertEqual(role, "time_constraint")
+
+    def test_short_textual_merge_allows_semantic_eligibility_conditions(self) -> None:
+        current = _ChunkCandidate(
+            unit_type="article_body",
+            root_unit_id="article-eligibility-001",
+            source_chunk_id=None,
+            visibility_level="public",
+            anchor={},
+            metadata={
+                "content_role": "requirement",
+                "semantic_role": "condition",
+                "claim_type": "condition",
+                "polarity": "positive",
+                "is_answer_bearing": True,
+            },
+            piece=SemanticChunkPiece(
+                unit_type="article_body",
+                root_unit_id="article-eligibility-001",
+                text="学生应按时注册。",
+            ),
+            chunk_assembly=SimpleNamespace(),
+            members=(),
+        )
+        incoming = _ChunkCandidate(
+            unit_type="article_body",
+            root_unit_id="article-eligibility-002",
+            source_chunk_id=None,
+            visibility_level="public",
+            anchor={},
+            metadata={
+                "content_role": "requirement",
+                "semantic_role": "condition",
+                "claim_type": "condition",
+                "polarity": "positive",
+                "is_answer_bearing": True,
+            },
+            piece=SemanticChunkPiece(
+                unit_type="article_body",
+                root_unit_id="article-eligibility-002",
+                text="学生应按时缴费。",
+            ),
+            chunk_assembly=SimpleNamespace(),
+            members=(),
+        )
+
+        with patch(
+            "campus_ingestion_core.process_candidate_merging_short_textual.decide_answer_role",
+            side_effect=AssertionError("bare role parser should not run"),
+        ):
+            self.assertFalse(
+                answer_ready_atomic_roles_conflict(current=current, incoming=incoming)
+            )
 
     def test_build_indexable_chunks_from_jsonl_rewrites_parent_table_html_to_placeholder(
         self,

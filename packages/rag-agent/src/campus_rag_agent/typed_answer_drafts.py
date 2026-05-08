@@ -7,6 +7,11 @@ from campus_retrieval_core.evidence_attributes import evidence_attributes_for_so
 from campus_shared.answer_ready_evidence_contract import (
     ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
 )
+from campus_shared.regulation_semantic_registry import (
+    RegulationCategoryDefinition,
+    load_regulation_discovery_config,
+    regulation_categories_for_document,
+)
 
 from campus_rag_agent.agent_answer_shape import AnswerShape
 
@@ -76,18 +81,34 @@ class TypedAnswerDraftValidationResult:
     claim_supports: tuple[ClaimSupport, ...] = field(default_factory=tuple)
 
 
+@dataclass(frozen=True, slots=True)
+class CategoryDiscoveryDraftContext:
+    collection: str
+    category_id: str = ""
+    category_display_name: str = ""
+    audience: str = ""
+
+
 def build_typed_answer_draft(
     *,
     answer_shape: AnswerShape,
     selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+    category_discovery_context: CategoryDiscoveryDraftContext | None = None,
 ) -> TypedAnswerDraft:
     if answer_shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
         return TypedAnswerDraft(
             kind="policy_list",
             items=tuple(
-                _build_policy_list_item(source, statements)
+                _build_policy_list_item(
+                    source,
+                    statements,
+                    category_discovery_context=category_discovery_context,
+                )
                 for source, statements in selected_rows
-                if _is_policy_list_source(source)
+                if _is_policy_list_source(
+                    source,
+                    category_discovery_context=category_discovery_context,
+                )
             ),
         )
     if answer_shape == AnswerShape.JUDGMENT_CLAUSE:
@@ -186,14 +207,25 @@ def validate_typed_answer_draft(
 def _build_policy_list_item(
     source: EvidenceSource,
     statements: tuple[str, ...],
+    *,
+    category_discovery_context: CategoryDiscoveryDraftContext | None = None,
 ) -> PolicyListDraftItem:
     attributes = evidence_attributes_for_source(source)
+    category = _resolve_policy_list_category(
+        source=source,
+        category_discovery_context=category_discovery_context,
+    )
+    category_id = attributes.category_id or (category.category_id if category is not None else "")
+    audience = attributes.category_audience or (category.audience if category is not None else "")
+    member_document_ids = attributes.category_member_document_ids or (
+        category.member_policy_document_ids if category is not None else ()
+    )
     return PolicyListDraftItem(
         **_support_kwargs(source, statements),
         text=_policy_item_text(source, statements),
-        category_id=attributes.category_id,
-        audience=attributes.category_audience,
-        member_document_ids=attributes.category_member_document_ids,
+        category_id=category_id,
+        audience=audience,
+        member_document_ids=member_document_ids,
     )
 
 
@@ -275,9 +307,71 @@ def _source_answer_role(source: EvidenceSource) -> str:
     return evidence_attributes_for_source(source).answer_role
 
 
-def _is_policy_list_source(source: EvidenceSource) -> bool:
+def _is_policy_list_source(
+    source: EvidenceSource,
+    *,
+    category_discovery_context: CategoryDiscoveryDraftContext | None = None,
+) -> bool:
     attributes = evidence_attributes_for_source(source)
-    return attributes.answer_role == "category_overview" or source.content_role == "policy_list"
+    if attributes.answer_role == "category_overview" or source.content_role == "policy_list":
+        return True
+    return (
+        _resolve_policy_list_category(
+            source=source,
+            category_discovery_context=category_discovery_context,
+        )
+        is not None
+    )
+
+
+def _resolve_policy_list_category(
+    *,
+    source: EvidenceSource,
+    category_discovery_context: CategoryDiscoveryDraftContext | None,
+) -> RegulationCategoryDefinition | None:
+    if source.collection not in {"student_rules", "institutional_rules"}:
+        return None
+    categories = regulation_categories_for_document(
+        collection=source.collection,
+        document_id=source.doc_id,
+    )
+    if not categories:
+        return None
+    if category_discovery_context is None:
+        return categories[0] if len(categories) == 1 else None
+    if category_discovery_context.collection != source.collection:
+        return None
+    if category_discovery_context.category_id:
+        category = _category_by_id(
+            collection=source.collection,
+            category_id=category_discovery_context.category_id,
+        )
+        if category is not None and source.doc_id in category.member_policy_document_ids:
+            return category
+    if category_discovery_context.category_display_name:
+        normalized_display_name = category_discovery_context.category_display_name.strip()
+        matching = tuple(
+            category
+            for category in categories
+            if category.display_name == normalized_display_name
+            and (
+                not category_discovery_context.audience
+                or category.audience == category_discovery_context.audience
+            )
+        )
+        if len(matching) == 1:
+            return matching[0]
+    return categories[0] if len(categories) == 1 else None
+
+
+def _category_by_id(*, collection: str, category_id: str) -> RegulationCategoryDefinition | None:
+    if not category_id:
+        return None
+    discovery = load_regulation_discovery_config(collection)
+    return next(
+        (category for category in discovery.categories if category.category_id == category_id),
+        None,
+    )
 
 
 def _is_v3_contract_item(item: TypedDraftSupport) -> bool:
@@ -332,6 +426,7 @@ def _invalid(reason: str) -> TypedAnswerDraftValidationResult:
 
 
 __all__ = [
+    "CategoryDiscoveryDraftContext",
     "ConditionTableDraftRow",
     "EligibilityJudgmentDraft",
     "PolicyListDraftItem",

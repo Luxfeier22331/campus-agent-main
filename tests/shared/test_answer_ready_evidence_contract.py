@@ -1016,6 +1016,62 @@ class AnswerReadyEvidenceContractTest(unittest.TestCase):
         self.assertEqual(result.status, "failed")
         self.assertIn("answer_ready_procedure_next_actor_unknown", result.issues)
 
+    def test_v3_validation_fails_when_procedure_actor_uses_generic_fallback_actor(self) -> None:
+        result = validate_answer_ready_evidence_metadata(
+            corpus="regulations",
+            collection="student_rules",
+            metadata={
+                "answer_role": "procedure_step",
+                "evidence_contract_version": "answer_ready_evidence.v3",
+                "parent_unit_id": "doc-c:article-8",
+                "clause_unit_id": "doc-c:article-8:1",
+                "condition_subject": "application_procedure",
+                "condition_group_subject": "application_procedure",
+                "condition_subject_taxonomy_version": "condition_subject.v1",
+                "condition_subject_provenance": "answer_role:procedure_step",
+                "condition_group_id": "doc-c:article-8:application_procedure",
+                "condition_polarity": "positive",
+                "procedure_step_index": 1,
+                "procedure_actor": "responsible_party",
+                "procedure_action": "submit_materials",
+                "procedure_action_taxonomy_version": "procedure_action.v1",
+                "procedure_action_provenance": "metadata:procedure_action",
+            },
+            content_role="procedure",
+            unit_type="article_body",
+        )
+
+        self.assertEqual(result.status, "failed")
+        self.assertIn("answer_ready_procedure_actor_generic_fallback", result.issues)
+
+    def test_v3_validation_fails_when_procedure_action_uses_generic_fallback_action(self) -> None:
+        result = validate_answer_ready_evidence_metadata(
+            corpus="regulations",
+            collection="student_rules",
+            metadata={
+                "answer_role": "procedure_step",
+                "evidence_contract_version": "answer_ready_evidence.v3",
+                "parent_unit_id": "doc-c:article-9",
+                "clause_unit_id": "doc-c:article-9:1",
+                "condition_subject": "application_procedure",
+                "condition_group_subject": "application_procedure",
+                "condition_subject_taxonomy_version": "condition_subject.v1",
+                "condition_subject_provenance": "answer_role:procedure_step",
+                "condition_group_id": "doc-c:article-9:application_procedure",
+                "condition_polarity": "positive",
+                "procedure_step_index": 1,
+                "procedure_actor": "student",
+                "procedure_action": "procedure_step",
+                "procedure_action_taxonomy_version": "procedure_action.v1",
+                "procedure_action_provenance": "resolved:procedure_step",
+            },
+            content_role="procedure",
+            unit_type="article_body",
+        )
+
+        self.assertEqual(result.status, "failed")
+        self.assertIn("answer_ready_procedure_action_generic_fallback", result.issues)
+
     def test_v3_validation_classifies_legacy_v2_as_legacy_not_target_pass(self) -> None:
         result = validate_answer_ready_evidence_metadata(
             corpus="regulations",

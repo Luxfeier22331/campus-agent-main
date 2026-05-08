@@ -14,17 +14,87 @@ updated: 2026-05-08
 **Status:** active
 **Current Phase:** Phase 11 - Legacy Quarantine Docs Closeout
 **Last Activity:** 2026-05-08
-**Last Activity Description:** Phase 9/10 release-manifest field completeness closeout completed:
-new formal audit tooling now loads the published release manifest and linked release-admission
-manifest by `release_id`, verifies the Phase 0 frozen required fields plus cross-manifest
-consistency, and has written local artifact evidence for both `student_rules` and
-`institutional_rules`, closing the remaining prose-only manifest-field audit gap.
+**Last Activity Description:** post-publish release audit now rechecks sampled published target-v3
+payload metadata directly instead of relying only on component-eval counts; sampled payloads with
+fallback provenance such as `condition_subject_provenance=fallback:*` or
+`procedure_action_provenance=fallback:*` now fail closeout audit, and the focused release-audit /
+release-quality suites are green.
 
 ## Current Slice
 
-Phases 1, 9 and 10 are complete. Phases 2-8 are materially advanced but not closed. The current
-closeout slice is Phase 11:
+Phases 1, 9 and 10 are complete. Phases 2-8 now all have explicit completion-audit evidence
+recorded through their phase summaries, while workstream closeout remains owned by Phase 11. The
+current closeout slice is:
 
+- keep planning truth aligned with verified evidence only:
+  - Phase 2 summary now maps shared taxonomy/registry owners to ingestion and category-discovery
+    consumption evidence
+  - Phase 3 summary now maps clause parent-child deliverables to handbook, institutional,
+    retrieval-projection and chunk-quality tests
+  - Phase 4 summary now maps typed extraction deliverables to ingestion, oracle/runtime and
+    validation evidence
+  - Phase 5 summary now maps static chunk/release gate correctness to contract and release-admission
+    tests
+  - Phase 6 summary now maps typed ranking/selection/replan and legacy fallback quarantine to
+    retrieval-core tests
+  - Phase 7 summary now maps clarification / unsupported / grounded fail-close / SDK-path
+    requirements to agent and eval suites
+  - Phase 8 summary now maps stage-attribution and release attachment behavior to deterministic
+    component eval and runtime observation suites
+- finish remaining Phase 11 planning/docs closeout and broader verification before any workstream
+  completion claim
+- post-publish audit no longer has the previously open semantic blind spot:
+  - sampled published target-v3 answer-ready payloads are now revalidated with the shared contract
+  - sampled published target-v3 payloads now fail when unresolved fallback provenance leaks into
+    `condition_subject_provenance` or `procedure_action_provenance`
+  - repaired verification evidence:
+    - `uv run --all-packages python -m unittest tests.ingestion.test_registry_scope_release.RegistryScopeReleaseTest.test_post_publish_audit_fails_when_sampled_payload_keeps_target_v3_fallback_provenance tests.ingestion.test_registry_scope_release.RegistryScopeReleaseTest.test_post_publish_audit_fails_when_sampled_payload_keeps_target_v3_fallback_procedure_provenance -q`
+      passed
+    - `uv run --all-packages python -m unittest tests.ingestion.test_registry_scope_release tests.ingestion.test_index_release_acceptance -q`
+      passed (`Ran 61 tests`, `OK`)
+    - `uv run --all-packages ruff check packages/ingestion-core/src/campus_ingestion_core/registry_scope_release.py tests/ingestion/test_registry_scope_release.py`
+      passed
+    - `uv run --all-packages ruff format packages/ingestion-core/src/campus_ingestion_core/registry_scope_release.py tests/ingestion/test_registry_scope_release.py --check`
+      passed
+- fresh repo-wide `unittest discover` verification now has one fewer failure after the latest
+  in-scope fix:
+  - previous broad result: `FAILED (failures=8, errors=1, skipped=1)`
+  - latest broad result: `FAILED (failures=7, errors=1, skipped=1)`
+  - removed in-scope failure:
+    `tests.ingestion.test_official_web_regulation_materialization.OfficialWebRegulationMaterializationTest.test_materialization_preserves_regulation_preface_and_drops_inline_link_child_duplicate`
+  - the fix reused pre-body heading classification for
+    `regulation_body_text_for_materialization(...)`, so typed candidate `regulation_lines` can
+    still preserve wrapper heading evidence for quality/audit paths while canonical body and
+    document units no longer retain the wrapper text as answer-bearing content
+- latest related verification evidence:
+  - `uv run --all-packages python -m unittest tests.ingestion.test_official_web_regulation_materialization.OfficialWebRegulationMaterializationTest.test_materialization_preserves_regulation_preface_and_drops_inline_link_child_duplicate -v`
+    passed
+  - `uv run --all-packages python -m unittest tests.ingestion.test_official_web_regulation_quality_audit tests.ingestion.official_web_projection_source_pack_regulation_suite tests.ingestion.test_official_web_regulation_materialization -q`
+    passed (`Ran 24 tests`, `OK`, `skipped=1`)
+- broad markdown verification is currently blocked by an unrelated repo baseline issue:
+  `infra/otel/README.md:27` fails `MD013` under `pnpm docs:lint`
+- the in-scope completion-audit ingestion regressions found during broad verification are now
+  fixed:
+  - short-text merge keeps using typed semantics, but merge-time atomic blocking is now scoped to
+    truly atomic roles such as `procedure_step` / `exclusion_rule` / `exception_rule` /
+    `material_requirement` / `time_constraint`, instead of treating generic
+    `eligibility_condition` clauses as unmergeable
+  - handbook semantic release metadata now preserves explicit `regulation_body` /
+    `scoped_rule_body` roles when no finer shared body-role classification is derivable, so
+    downstream institutional/internal-notice chunk-quality gates can still inspect polluted body
+    `section_path` / HTML leakage correctly
+  - repaired verification evidence:
+    - 6 narrow regression tests: passed
+    - 101 neighboring ingestion tests across merge / handbook / institutional-regulation prep
+      suites: passed
+- remaining broad-verification blockers are now explicitly outside this workstream:
+  - supervisor API bridge wiring failures
+  - authenticated-notice inventory PostgreSQL/env dependency failure
+  - collected-notice queue retryable status expectation drift
+  - official-web university collection lane/config mismatch
+  - decomposition baseline drift
+  - environment layout baseline drift
+  - supervisor mock-runtime smoke drift
 - `student_rules` now has real release-lane serving proof plus explicit closeout audit counts:
   - release id: `r20260507_154528_764347_1005cea7`
   - alias target: `student_rules__r20260507_154528_764347_1005cea7`
@@ -495,14 +565,14 @@ Still open across Phase 4/5:
 
 ## Progress
 
-**Phases Complete:** 4 / 12
+**Phases Complete:** 11 / 12
 **Current Plan:** `ROADMAP.md` plus phase-level `PLAN.md` files.
 
 ## Blockers
 
 No active blocker. The earlier remote Qdrant WAL exhaustion was cleared by repo-governed preview GC
 and both default regulation query-enabled scopes now pass real release/adoption proof. Remaining
-work is Phase 11 legacy quarantine/docs closeout and the still-open structural Phase 2-7 debt.
+work is Phase 11 legacy quarantine/docs closeout and final completion-audit planning-truth sync.
 
 ## Guardrails
 

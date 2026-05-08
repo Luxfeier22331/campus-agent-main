@@ -81,11 +81,22 @@ def regulation_body_text_for_materialization(
     runtime_lines = [line.strip() for line in regulation_lines if line.strip()]
     if not runtime_lines:
         return ""
-    filtered_lines = [
-        line
-        for line in runtime_lines
-        if not _WRAPPER_HEADING_RE.match(line) and _line_key(line) != _line_key(title)
-    ]
+    title_key = _line_key(title)
+    filtered_lines: list[str] = []
+    body_started = False
+    for line in runtime_lines:
+        line_key = _line_key(line)
+        if line_key == title_key:
+            continue
+        if not body_started and _is_pre_body_heading(
+            line,
+            source_title_key=title_key,
+            formal_title_key=title_key,
+        ):
+            continue
+        filtered_lines.append(line)
+        if not body_started:
+            body_started = _is_body_start_line(line)
     return "\n".join(filtered_lines).strip()
 
 
@@ -138,6 +149,7 @@ def _normalize_regulation_lines(
     source_title: str,
     title_info: NormalizedOfficialWebRegulationTitle,
 ) -> tuple[str, ...]:
+    pre_body_headings: list[str] = []
     normalized_lines: list[str] = []
     source_title_key = _line_key(source_title)
     formal_title_key = _line_key(title_info.display_title)
@@ -151,6 +163,7 @@ def _normalize_regulation_lines(
             source_title_key=source_title_key,
             formal_title_key=formal_title_key,
         ):
+            pre_body_headings.append(current)
             continue
         if (
             not normalized_lines
@@ -159,7 +172,10 @@ def _normalize_regulation_lines(
         ):
             continue
         if not body_started and current.startswith(title_info.display_title):
-            if not normalized_lines or normalized_lines[-1] != title_info.display_title:
+            if not normalized_lines:
+                normalized_lines.extend(pre_body_headings)
+                pre_body_headings.clear()
+            if normalized_lines[-1:] != [title_info.display_title]:
                 normalized_lines.append(title_info.display_title)
             remainder = current[len(title_info.display_title) :].strip()
             if remainder:
@@ -168,6 +184,9 @@ def _normalize_regulation_lines(
             continue
         if not body_started:
             body_started = _is_body_start_line(current)
+            if body_started and pre_body_headings:
+                normalized_lines.extend(pre_body_headings)
+                pre_body_headings.clear()
         if normalized_lines or current != title_info.display_title:
             normalized_lines.append(current)
             continue

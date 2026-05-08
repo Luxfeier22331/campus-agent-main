@@ -63,6 +63,7 @@ _SCHEMA_VERSION = "internal_notice_regulation_document_site_dry_run.v1"
 _INSTITUTIONAL_SCOPE = ("regulations", "institutional_rules")
 _SCOPED_RULES_SCOPE = ("regulations", "scoped_rules")
 _TARGET_SCOPES = (_INSTITUTIONAL_SCOPE, _SCOPED_RULES_SCOPE)
+_LOCAL_DOCUMENT_READER_SCOPES = frozenset((*_TARGET_SCOPES, ("curriculum", "curriculum_plan")))
 
 
 class LocalFilesystemObjectStore:
@@ -260,6 +261,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         generated_at=manifest.created_at,
         object_store=object_store,
         records=target_records,
+        allowed_scopes=_LOCAL_DOCUMENT_READER_SCOPES,
     )
     reader_manifest_path = output_dir / "document-reader-manifest.json"
     reader_manifest_path.write_text(

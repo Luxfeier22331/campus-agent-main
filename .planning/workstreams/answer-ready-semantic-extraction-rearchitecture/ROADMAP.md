@@ -16,20 +16,37 @@ updated: 2026-05-08
   fallback budget and concrete release-lane entrypoints.
 - [x] **Phase 1: Contract V3 And Schema Governance** — define `answer_ready_evidence.v3`, required
   fields by evidence role, schema validation and migration rules.
-- [ ] **Phase 2: Taxonomy And Registry Normalization** — move subject/category/procedure semantics
-  into reusable registries and controlled vocabularies.
-- [ ] **Phase 3: Clause Parent-Child Unit Model** — implement stable clause, parent article,
-  condition group and answer-ready unit identity.
-- [ ] **Phase 4: Typed Semantic Extraction Pipeline** — refactor ingestion extraction to produce v3
-  metadata from structured units, taxonomy and registries.
-- [ ] **Phase 5: Answer-Ready Quality Gates** — upgrade chunk/release gates to static metadata
-  correctness admission and keep query-conditioned contradiction checks in retrieval/component eval.
-- [ ] **Phase 6: Retrieval Consumption And Fallback Removal** — make retrieval ranking, selection and
+- [x] **Phase 2: Taxonomy And Registry Normalization** — move subject/category/procedure semantics
+  into reusable registries and controlled vocabularies. Completion-audit evidence is now recorded
+  in `phases/phase-02-taxonomy-and-registry-normalization/SUMMARY.md`; workstream closeout still
+  remains under Phase 11.
+- [x] **Phase 3: Clause Parent-Child Unit Model** — implement stable clause, parent article,
+  condition group and answer-ready unit identity. Completion-audit evidence is now recorded in
+  `phases/phase-03-clause-parent-child-unit-model/SUMMARY.md`; workstream closeout still remains
+  under Phase 11.
+- [x] **Phase 4: Typed Semantic Extraction Pipeline** — refactor ingestion extraction to produce v3
+  metadata from structured units, taxonomy and registries. Completion-audit evidence is now
+  recorded in `phases/phase-04-typed-semantic-extraction-pipeline/SUMMARY.md`; remaining
+  workstream closeout is tracked in the gap ledger and Phase 11.
+- [x] **Phase 5: Answer-Ready Quality Gates** — upgrade chunk/release gates to static metadata
+  correctness admission and keep query-conditioned contradiction checks in retrieval/component
+  eval. Completion-audit evidence is now recorded in
+  `phases/phase-05-answer-ready-quality-gates/SUMMARY.md`; workstream closeout still remains under
+  Phase 11.
+- [x] **Phase 6: Retrieval Consumption And Fallback Removal** — make retrieval ranking, selection and
   replan consume typed v3 metadata, with fallback budget zero for target releases.
-- [ ] **Phase 7: Typed Answer Grounding Integration** — align typed answer drafts and claim grounding
-  with the v3 evidence contract.
-- [ ] **Phase 8: Component Eval And Stage Attribution** — add eval diagnostics that localize failures
+  Completion-audit evidence is now recorded in
+  `phases/phase-06-retrieval-consumption-and-fallback-removal/SUMMARY.md`; workstream closeout
+  still remains under Phase 11.
+- [x] **Phase 7: Typed Answer Grounding Integration** — align typed answer drafts and claim grounding
+  with the v3 evidence contract. Completion-audit evidence is now recorded in
+  `phases/phase-07-typed-answer-grounding-integration/SUMMARY.md`; workstream closeout still
+  remains under Phase 11.
+- [x] **Phase 8: Component Eval And Stage Attribution** — add eval diagnostics that localize failures
   to extraction, retrieval, ranking, selection, draft, grounding or release admission.
+  Completion-audit evidence is now recorded in
+  `phases/phase-08-component-eval-and-stage-attribution/SUMMARY.md`; workstream closeout still
+  remains under Phase 11.
 - [x] **Phase 9: Student Rules Rebuild Release Audit** — rebuild `regulations/student_rules` through
   the release lane and prove serving adoption.
 - [x] **Phase 10: Institutional Rules Rebuild Release Audit** — rebuild `regulations/institutional_rules`

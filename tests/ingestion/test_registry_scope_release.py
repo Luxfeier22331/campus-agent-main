@@ -30,6 +30,10 @@ from campus_ingestion_core.regulation_rag_release_admission import (
     write_regulation_rag_release_admission_manifest,
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
+from campus_shared.answer_ready_evidence_contract import (
+    ANSWER_READY_CONDITION_SUBJECT_TAXONOMY_VERSION,
+    ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
+)
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
@@ -285,6 +289,9 @@ class RegistryScopeReleaseTest(unittest.TestCase):
         )
 
         self.assertEqual(audit.status, "failed")
+        self.assertEqual(audit.summary["release_drift_guard_status"], "passed")
+        self.assertEqual(audit.summary["payload_index_audit_status"], "failed")
+        self.assertEqual(audit.summary["required_filter_index_status"], "failed")
         self.assertIn("payload_index_missing:version_id", audit.summary["issues"])
         self.assertIn("payload_index_schema_mismatch:is_current", audit.summary["issues"])
 
@@ -423,6 +430,474 @@ class RegistryScopeReleaseTest(unittest.TestCase):
         self.assertEqual(audit.summary["fallback_primary_signal_count"], 1)
         self.assertEqual(audit.summary["semantic_oracle_pass_count"], 3)
         self.assertEqual(audit.summary["semantic_oracle_fail_count"], 1)
+        self.assertEqual(audit.summary["semantic_oracle_result_count"], 4)
+
+    def test_post_publish_audit_reports_sampled_payload_contract_versions(self) -> None:
+        class _FakeRemoteQdrant:
+            def get_aliases(self):
+                return SimpleNamespace(
+                    aliases=[
+                        SimpleNamespace(
+                            alias_name="student_rules",
+                            collection_name="student_rules__r20260501",
+                        )
+                    ]
+                )
+
+            def collection_exists(self, _collection_name: str) -> bool:
+                return True
+
+            def get_collection(self, collection_name: str):
+                return SimpleNamespace(
+                    points_count=2,
+                    payload_schema={
+                        "document_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "notice_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_notice_ids": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_document_ids": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "revision_track": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "version_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "corpus": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "collection": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "target_surface": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_course_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_course_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_program_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "visibility_scope": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "entitlement_groups": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "visibility_level": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "policy_projection_version": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "status": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_channel": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "is_current": qdrant_models.PayloadSchemaType.BOOL,
+                    },
+                )
+
+            def scroll(self, **_kwargs):
+                return [
+                    SimpleNamespace(
+                        payload={
+                            "index_release_id": "r20260501",
+                            "index_release_manifest_key": "manifest.json",
+                            "index_release_alias": "student_rules",
+                            "index_physical_collection_name": "student_rules__r20260501",
+                            "answer_role": "eligibility_condition",
+                            "evidence_contract_version": ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
+                            "parent_unit_id": "handbook:national-scholarship:article-9",
+                            "condition_subject": "rank_threshold",
+                            "condition_group_id": (
+                                "handbook:national-scholarship:article-9:rank_threshold"
+                            ),
+                            "condition_subject_taxonomy_version": (
+                                ANSWER_READY_CONDITION_SUBJECT_TAXONOMY_VERSION
+                            ),
+                            "condition_subject_provenance": "metadata:condition_subject",
+                            "condition_polarity": "positive",
+                        }
+                    ),
+                    SimpleNamespace(
+                        payload={
+                            "index_release_id": "r20260501",
+                            "index_release_manifest_key": "manifest.json",
+                            "index_release_alias": "student_rules",
+                            "index_physical_collection_name": "student_rules__r20260501",
+                            "title": "plain-supporting-row",
+                        }
+                    ),
+                ], None
+
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", "manifest.json"): b"{}",
+                ("campus-rag-derived", "validation.json"): b"{}",
+                ("campus-rag-derived", "quality.json"): b"{}",
+            }
+        )
+        manifest = IndexReleaseManifest(
+            release_id="r20260501",
+            corpus="regulations",
+            collection="student_rules",
+            serving_alias="student_rules",
+            physical_collection_name="student_rules__r20260501",
+            previous_physical_collection_name=None,
+            cleaning_policy_version="cleaning-v1",
+            chunk_policy_version="chunk-v1",
+            embedding_model="mock-embedding",
+            indexed_at="2026-05-01T00:00:00+00:00",
+            published_at="2026-05-01T00:01:00+00:00",
+            document_count=2,
+            point_count=2,
+            document_version_ids_hash="hash",
+            document_units_keys_hash="hash",
+            validation_status="passed",
+            validation_summary_object_key="validation.json",
+            quality_gate_summary_object_key="quality.json",
+        )
+
+        audit = audit_published_scope_release(
+            qdrant_client=_FakeRemoteQdrant(),
+            object_store=object_store,
+            bucket="campus-rag-derived",
+            manifest=manifest,
+            manifest_object_key="manifest.json",
+            expected_release_metadata={
+                "index_release_id": "r20260501",
+                "index_release_manifest_key": "manifest.json",
+                "index_release_alias": "student_rules",
+                "index_physical_collection_name": "student_rules__r20260501",
+            },
+        )
+
+        self.assertEqual(
+            audit.summary["sampled_payload_contract_versions"],
+            (
+                ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
+                "<missing>",
+            ),
+        )
+        self.assertEqual(audit.summary["release_drift_guard_status"], "passed")
+
+    def test_post_publish_audit_reports_explicit_top_level_status_fields(self) -> None:
+        class _FakeRemoteQdrant:
+            def get_aliases(self):
+                return SimpleNamespace(
+                    aliases=[
+                        SimpleNamespace(
+                            alias_name="student_rules",
+                            collection_name="student_rules__r20260501",
+                        )
+                    ]
+                )
+
+            def collection_exists(self, _collection_name: str) -> bool:
+                return True
+
+            def get_collection(self, collection_name: str):
+                return SimpleNamespace(
+                    points_count=1,
+                    payload_schema={
+                        "document_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "notice_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_notice_ids": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_document_ids": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "revision_track": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "version_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "corpus": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "collection": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "target_surface": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_course_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_course_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_program_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "visibility_scope": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "entitlement_groups": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "visibility_level": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "policy_projection_version": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "status": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_channel": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "is_current": qdrant_models.PayloadSchemaType.BOOL,
+                    },
+                )
+
+            def scroll(self, **_kwargs):
+                return [
+                    SimpleNamespace(
+                        payload={
+                            "index_release_id": "r20260501",
+                            "index_release_manifest_key": "manifest.json",
+                            "index_release_alias": "student_rules",
+                            "index_physical_collection_name": "student_rules__r20260501",
+                        }
+                    )
+                ], None
+
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", "manifest.json"): b"{}",
+                ("campus-rag-derived", "validation.json"): b"{}",
+                ("campus-rag-derived", "quality.json"): b"{}",
+            }
+        )
+        manifest = IndexReleaseManifest(
+            release_id="r20260501",
+            corpus="regulations",
+            collection="student_rules",
+            serving_alias="student_rules",
+            physical_collection_name="student_rules__r20260501",
+            previous_physical_collection_name=None,
+            cleaning_policy_version="cleaning-v1",
+            chunk_policy_version="chunk-v1",
+            embedding_model="mock-embedding",
+            indexed_at="2026-05-01T00:00:00+00:00",
+            published_at="2026-05-01T00:01:00+00:00",
+            document_count=1,
+            point_count=1,
+            document_version_ids_hash="hash",
+            document_units_keys_hash="hash",
+            validation_status="passed",
+            validation_summary_object_key="validation.json",
+            quality_gate_summary_object_key="quality.json",
+        )
+
+        audit = audit_published_scope_release(
+            qdrant_client=_FakeRemoteQdrant(),
+            object_store=object_store,
+            bucket="campus-rag-derived",
+            manifest=manifest,
+            manifest_object_key="manifest.json",
+            expected_release_metadata={
+                "index_release_id": "r20260501",
+                "index_release_manifest_key": "manifest.json",
+                "index_release_alias": "student_rules",
+                "index_physical_collection_name": "student_rules__r20260501",
+            },
+        )
+
+        self.assertEqual(audit.status, "passed")
+        self.assertEqual(audit.summary["release_drift_guard_status"], "passed")
+        self.assertEqual(audit.summary["payload_index_audit_status"], "passed")
+        self.assertEqual(audit.summary["required_filter_index_status"], "passed")
+
+    def test_post_publish_audit_fails_when_sampled_payload_keeps_target_v3_fallback_provenance(
+        self,
+    ) -> None:
+        class _FakeRemoteQdrant:
+            def get_aliases(self):
+                return SimpleNamespace(
+                    aliases=[
+                        SimpleNamespace(
+                            alias_name="student_rules",
+                            collection_name="student_rules__r20260501",
+                        )
+                    ]
+                )
+
+            def collection_exists(self, _collection_name: str) -> bool:
+                return True
+
+            def get_collection(self, collection_name: str):
+                return SimpleNamespace(
+                    points_count=1,
+                    payload_schema={
+                        "document_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "notice_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_notice_ids": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_document_ids": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "revision_track": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "version_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "corpus": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "collection": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "target_surface": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_course_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_course_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_program_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "visibility_scope": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "entitlement_groups": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "visibility_level": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "policy_projection_version": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "status": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_channel": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "is_current": qdrant_models.PayloadSchemaType.BOOL,
+                    },
+                )
+
+            def scroll(self, **_kwargs):
+                return [
+                    SimpleNamespace(
+                        payload={
+                            "index_release_id": "r20260501",
+                            "index_release_manifest_key": "manifest.json",
+                            "index_release_alias": "student_rules",
+                            "index_physical_collection_name": "student_rules__r20260501",
+                            "answer_role": "eligibility_condition",
+                            "evidence_contract_version": ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
+                            "parent_unit_id": "handbook:national-scholarship:article-9",
+                            "condition_subject": "rank_threshold",
+                            "condition_group_id": (
+                                "handbook:national-scholarship:article-9:rank_threshold"
+                            ),
+                            "condition_subject_taxonomy_version": (
+                                ANSWER_READY_CONDITION_SUBJECT_TAXONOMY_VERSION
+                            ),
+                            "condition_subject_provenance": "fallback:condition_subject",
+                            "condition_polarity": "positive",
+                        }
+                    )
+                ], None
+
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", "manifest.json"): b"{}",
+                ("campus-rag-derived", "validation.json"): b"{}",
+                ("campus-rag-derived", "quality.json"): b"{}",
+            }
+        )
+        manifest = IndexReleaseManifest(
+            release_id="r20260501",
+            corpus="regulations",
+            collection="student_rules",
+            serving_alias="student_rules",
+            physical_collection_name="student_rules__r20260501",
+            previous_physical_collection_name=None,
+            cleaning_policy_version="cleaning-v1",
+            chunk_policy_version="chunk-v1",
+            embedding_model="mock-embedding",
+            indexed_at="2026-05-01T00:00:00+00:00",
+            published_at="2026-05-01T00:01:00+00:00",
+            document_count=1,
+            point_count=1,
+            document_version_ids_hash="hash",
+            document_units_keys_hash="hash",
+            validation_status="passed",
+            validation_summary_object_key="validation.json",
+            quality_gate_summary_object_key="quality.json",
+        )
+
+        audit = audit_published_scope_release(
+            qdrant_client=_FakeRemoteQdrant(),
+            object_store=object_store,
+            bucket="campus-rag-derived",
+            manifest=manifest,
+            manifest_object_key="manifest.json",
+            expected_release_metadata={
+                "index_release_id": "r20260501",
+                "index_release_manifest_key": "manifest.json",
+                "index_release_alias": "student_rules",
+                "index_physical_collection_name": "student_rules__r20260501",
+            },
+        )
+
+        self.assertEqual(audit.status, "failed")
+        self.assertIn(
+            (
+                "sample_1_answer_ready_fallback_provenance:"
+                "condition_subject_provenance=fallback:condition_subject"
+            ),
+            audit.summary["issues"],
+        )
+
+    def test_post_publish_audit_fails_when_sampled_payload_keeps_target_v3_fallback_procedure_provenance(
+        self,
+    ) -> None:
+        class _FakeRemoteQdrant:
+            def get_aliases(self):
+                return SimpleNamespace(
+                    aliases=[
+                        SimpleNamespace(
+                            alias_name="student_rules",
+                            collection_name="student_rules__r20260501",
+                        )
+                    ]
+                )
+
+            def collection_exists(self, _collection_name: str) -> bool:
+                return True
+
+            def get_collection(self, collection_name: str):
+                return SimpleNamespace(
+                    points_count=1,
+                    payload_schema={
+                        "document_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "notice_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_notice_ids": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_document_ids": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "revision_track": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "version_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "corpus": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "collection": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "target_surface": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_course_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_course_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_program_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "visibility_scope": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "entitlement_groups": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "visibility_level": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "policy_projection_version": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "status": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_channel": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "is_current": qdrant_models.PayloadSchemaType.BOOL,
+                    },
+                )
+
+            def scroll(self, **_kwargs):
+                return [
+                    SimpleNamespace(
+                        payload={
+                            "index_release_id": "r20260501",
+                            "index_release_manifest_key": "manifest.json",
+                            "index_release_alias": "student_rules",
+                            "index_physical_collection_name": "student_rules__r20260501",
+                            "answer_role": "procedure_step",
+                            "evidence_contract_version": ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
+                            "parent_unit_id": "handbook:student-card:article-5",
+                            "condition_subject": "application_procedure",
+                            "condition_group_id": (
+                                "handbook:student-card:article-5:application_procedure"
+                            ),
+                            "condition_group_subject": "application_procedure",
+                            "condition_subject_taxonomy_version": (
+                                ANSWER_READY_CONDITION_SUBJECT_TAXONOMY_VERSION
+                            ),
+                            "condition_subject_provenance": "answer_role:procedure_step",
+                            "condition_polarity": "positive",
+                            "procedure_step_index": 1,
+                            "procedure_actor": "student",
+                            "procedure_action": "submit_application",
+                            "procedure_action_taxonomy_version": "procedure_action.v1",
+                            "procedure_action_provenance": "fallback:procedure_action",
+                        }
+                    )
+                ], None
+
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", "manifest.json"): b"{}",
+                ("campus-rag-derived", "validation.json"): b"{}",
+                ("campus-rag-derived", "quality.json"): b"{}",
+            }
+        )
+        manifest = IndexReleaseManifest(
+            release_id="r20260501",
+            corpus="regulations",
+            collection="student_rules",
+            serving_alias="student_rules",
+            physical_collection_name="student_rules__r20260501",
+            previous_physical_collection_name=None,
+            cleaning_policy_version="cleaning-v1",
+            chunk_policy_version="chunk-v1",
+            embedding_model="mock-embedding",
+            indexed_at="2026-05-01T00:00:00+00:00",
+            published_at="2026-05-01T00:01:00+00:00",
+            document_count=1,
+            point_count=1,
+            document_version_ids_hash="hash",
+            document_units_keys_hash="hash",
+            validation_status="passed",
+            validation_summary_object_key="validation.json",
+            quality_gate_summary_object_key="quality.json",
+        )
+
+        audit = audit_published_scope_release(
+            qdrant_client=_FakeRemoteQdrant(),
+            object_store=object_store,
+            bucket="campus-rag-derived",
+            manifest=manifest,
+            manifest_object_key="manifest.json",
+            expected_release_metadata={
+                "index_release_id": "r20260501",
+                "index_release_manifest_key": "manifest.json",
+                "index_release_alias": "student_rules",
+                "index_physical_collection_name": "student_rules__r20260501",
+            },
+        )
+
+        self.assertEqual(audit.status, "failed")
+        self.assertIn(
+            (
+                "sample_1_answer_ready_fallback_provenance:"
+                "procedure_action_provenance=fallback:procedure_action"
+            ),
+            audit.summary["issues"],
+        )
 
     def test_publish_scope_release_writes_prepublish_manifest_before_alias(self) -> None:
         events: list[tuple[str, str | None]] = []

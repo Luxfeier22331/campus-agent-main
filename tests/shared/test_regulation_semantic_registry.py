@@ -504,6 +504,46 @@ class RegulationSemanticRegistryTest(unittest.TestCase):
         self.assertEqual(canonical_regulation_procedure_action(assignment.value), "appeal")
         self.assertEqual(assignment.provenance, "keyword:申诉听证")
 
+    def test_shared_answer_role_resolution_does_not_treat_quota_clause_in_procedure_section_as_step(
+        self,
+    ) -> None:
+        assignment = resolve_regulation_answer_role(
+            text="第九条 评选名额。全校每次评选优秀导师10名左右，评选优秀导师团队5支左右。",
+            prefix_text="评选名额与评选程序",
+        )
+
+        self.assertNotEqual(assignment.value, "procedure_step")
+
+    def test_shared_answer_role_resolution_does_not_treat_result_usage_clause_as_step(self) -> None:
+        assignment = resolve_regulation_answer_role(
+            text=(
+                "第十三条 各级党组织考核为“好”的，作为申报上级党组织评优评先活动的依据；"
+                "考核为“较好”以上的，方可参评校内评优评先。"
+            ),
+            prefix_text="考核程序",
+        )
+
+        self.assertNotEqual(assignment.value, "procedure_step")
+
+    def test_shared_answer_role_resolution_does_not_treat_prohibition_clause_as_step(self) -> None:
+        assignment = resolve_regulation_answer_role(
+            text="（七）发放任何形式的个人补助；",
+            prefix_text="经费使用程序",
+        )
+
+        self.assertEqual(assignment.value, "exclusion_rule")
+
+    def test_shared_answer_role_resolution_does_not_treat_planning_prose_as_intro(self) -> None:
+        assignment = resolve_regulation_answer_role(
+            text=(
+                "积极推进学校治理体系和治理能力现代化，完善内部治理结构，"
+                "不断提升办学质量和服务水平。"
+            ),
+            prefix_text="中央民族大学事业发展“十三五”规划",
+        )
+
+        self.assertEqual(assignment.value, "supporting_detail")
+
     def test_shared_procedure_actor_resolution_prefers_explicit_metadata_alias(self) -> None:
         assignment = resolve_regulation_procedure_actor(
             text="申请人提交材料。",
@@ -847,6 +887,34 @@ class RegulationSemanticRegistryTest(unittest.TestCase):
         self.assertEqual(material.provenance, "matched_material_intro_marker")
         self.assertEqual(deadline.value, "eligibility_intro")
         self.assertEqual(deadline.provenance, "matched_time_intro_marker")
+
+    def test_shared_answer_role_resolution_prefers_condition_group_intro_over_apply_keyword(self) -> None:
+        assignment = resolve_regulation_answer_role(
+            text="具有下列条件之一者，可申报六级职员岗位："
+        )
+
+        self.assertEqual(assignment.value, "eligibility_intro")
+        self.assertEqual(assignment.provenance, "matched_condition_group_intro")
+
+    def test_shared_answer_role_resolution_prefers_exclusion_group_intro_over_process_keyword(
+        self,
+    ) -> None:
+        assignment = resolve_regulation_answer_role(
+            text="研究生有下列情形之一者，应当办理休学手续："
+        )
+
+        self.assertEqual(assignment.value, "eligibility_intro")
+        self.assertEqual(assignment.provenance, "matched_exclusion_group_intro")
+
+    def test_shared_answer_role_resolution_rejects_review_failure_clause_as_procedure_step(
+        self,
+    ) -> None:
+        assignment = resolve_regulation_answer_role(
+            text="(三)休学、保留学籍期满,逾期二周末提出复学申请或者二次休学后的复学申请经审查不合格的;"
+        )
+
+        self.assertEqual(assignment.value, "exclusion_rule")
+        self.assertEqual(assignment.provenance, "matched_exclusion_marker")
 
 
 if __name__ == "__main__":

@@ -705,6 +705,296 @@ class InstitutionalRegulationSemanticRegressionsTest(unittest.TestCase):
         self.assertEqual(metadata["answer_role"], "procedure_step")
         self.assertEqual(metadata["condition_subject"], "application_procedure")
 
+    def test_procedure_titled_section_quota_clause_does_not_become_procedure_step(self) -> None:
+        record = _institutional_registry_record("institutional-procedure-quota-clause-test")
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="regulation_body",
+                    root_unit_id="institutional-procedure-quota-clause-test:unit-0009",
+                    clean_text="第九条 评选名额。全校每次评选优秀导师10名左右，评选优秀导师团队5支左右。",
+                    anchor={
+                        "section_path": ["第三章 评选名额与评选程序"],
+                        "article_label": "第九条",
+                    },
+                    metadata={
+                        "title": "中央民族大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
+                        "content_role": "regulation_body",
+                        "promotion_class": "formal_regulation",
+                    },
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        metadata = chunks[0].metadata
+        self.assertNotEqual(metadata["answer_role"], "procedure_step")
+        self.assertNotEqual(metadata.get("procedure_action"), "procedure_step")
+        self.assertNotEqual(metadata.get("procedure_actor"), "responsible_party")
+
+    def test_procedure_titled_section_result_usage_clause_does_not_become_procedure_step(
+        self,
+    ) -> None:
+        record = _institutional_registry_record("institutional-procedure-result-usage-test")
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="regulation_body",
+                    root_unit_id="institutional-procedure-result-usage-test:unit-0013",
+                    clean_text=(
+                        "第十三条 各级党组织考核为“好”的，作为申报上级党组织评优评先活动的依据；"
+                        "考核为“较好”以上的，方可参评校内评优评先。"
+                    ),
+                    anchor={
+                        "section_path": ["第四章 考核程序"],
+                        "article_label": "第十三条",
+                    },
+                    metadata={
+                        "title": "中央民族大学基层党组织考核办法（试行）",
+                        "content_role": "regulation_body",
+                        "promotion_class": "formal_regulation",
+                    },
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        metadata = chunks[0].metadata
+        self.assertNotEqual(metadata["answer_role"], "procedure_step")
+        self.assertNotEqual(metadata.get("procedure_action"), "procedure_step")
+        self.assertNotEqual(metadata.get("procedure_actor"), "responsible_party")
+
+    def test_procedure_titled_section_prohibition_clause_does_not_become_procedure_step(
+        self,
+    ) -> None:
+        record = _institutional_registry_record("institutional-procedure-prohibition-clause-test")
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="regulation_body",
+                    root_unit_id="institutional-procedure-prohibition-clause-test:unit-0007",
+                    clean_text="（七）发放任何形式的个人补助；",
+                    anchor={
+                        "section_path": ["第二章 经费审批程序"],
+                        "provision_label": "（七）",
+                    },
+                    metadata={
+                        "title": "中央民族大学专项经费管理办法",
+                        "content_role": "regulation_body",
+                        "promotion_class": "formal_regulation",
+                    },
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        metadata = chunks[0].metadata
+        self.assertEqual(metadata["answer_role"], "exclusion_rule")
+        self.assertIsNone(metadata.get("procedure_action"))
+        self.assertIsNone(metadata.get("procedure_actor"))
+
+    def test_official_web_planning_prose_does_not_emit_intro_contract(self) -> None:
+        record = _institutional_registry_record("official_web_regulation:12ce0e9b47598c5d")
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="regulation_body",
+                    root_unit_id="official_web_regulation:12ce0e9b47598c5d:unit-0001",
+                    clean_text=(
+                        "积极推进学校治理体系和治理能力现代化，完善内部治理结构，"
+                        "不断提升办学质量和服务水平。"
+                    ),
+                    anchor={
+                        "section_path": ["中央民族大学事业发展“十三五”规划"],
+                    },
+                    metadata={
+                        "title": "中央民族大学事业发展“十三五”规划",
+                        "content_role": "regulation_body",
+                        "promotion_class": "formal_regulation",
+                        "source_channel": "official_web",
+                    },
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        metadata = chunks[0].metadata
+        self.assertEqual(metadata["answer_role"], "supporting_detail")
+        self.assertIsNone(metadata.get("intro_scope"))
+        self.assertIsNone(metadata.get("intro_target_roles"))
+
+    def test_formal_regulation_reviewer_recusal_intro_does_not_become_procedure_step(self) -> None:
+        record = _institutional_registry_record("institutional-recusal-intro-test")
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="regulation_body",
+                    root_unit_id="institutional-recusal-intro-test:unit-0022",
+                    clean_text="第二十二条 调解委员会成员有下列情形之一者，当事人有权以书面形式申请要求其回避：",
+                    anchor={
+                        "section_path": ["第四章 调解程序"],
+                        "article_label": "第二十二条",
+                    },
+                    metadata={
+                        "title": "中央民族大学校内纠纷调解办法",
+                        "content_role": "regulation_body",
+                        "promotion_class": "formal_regulation",
+                    },
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        metadata = chunks[0].metadata
+        self.assertEqual(metadata["answer_role"], "eligibility_intro")
+        self.assertIsNone(metadata.get("procedure_actor"))
+        self.assertIsNone(metadata.get("procedure_action"))
+
+    def test_official_web_eligibility_intro_does_not_emit_generic_procedure_step_fallback(
+        self,
+    ) -> None:
+        record = _institutional_registry_record("official_web_regulation:de10f64c02d1be9b")
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="regulation_body",
+                    root_unit_id="official_web_regulation:de10f64c02d1be9b:unit-0130",
+                    clean_text="\n".join(
+                        [
+                            "具有下列条件之一者，可申报六级职员岗位：",
+                            "1．处级副职。",
+                            "2．科级正职12年及以上。",
+                            "3. 科级正职6年及以上，且具有高级专业技术职务。",
+                        ]
+                    ),
+                    anchor={
+                        "section_path": ["（三）六级职员岗位"],
+                    },
+                    metadata={
+                        "title": "中央民族大学岗位设置与聘用管理暂行办法",
+                        "content_role": "regulation_body",
+                        "promotion_class": "formal_regulation",
+                        "source_channel": "official_web",
+                    },
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+
+        self.assertGreaterEqual(len(chunks), 4)
+        metadata = chunks[0].metadata
+        self.assertEqual(metadata["display_text"], "具有下列条件之一者，可申报六级职员岗位：")
+        self.assertEqual(metadata["answer_role"], "eligibility_intro")
+        self.assertEqual(metadata.get("condition_subject"), "generic_condition")
+        self.assertEqual(metadata.get("intro_target_roles"), ("eligibility_condition",))
+        self.assertEqual(metadata.get("intro_scope"), "eligibility_group")
+        self.assertIsNone(metadata.get("procedure_actor"))
+        self.assertIsNone(metadata.get("procedure_action"))
+
+    def test_institutional_break_study_intro_keeps_non_procedure_intro_shape(self) -> None:
+        record = _institutional_registry_record(
+            "institutional_regulation:muc:中央民族大学研究生学籍管理办法:d11f18c41059"
+        )
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="regulation_body",
+                    root_unit_id=(
+                        "institutional_regulation:muc:中央民族大学研究生学籍管理办法:d11f18c41059:unit-0063"
+                    ),
+                    clean_text="研究生有下列情形之一者，应当办理休学手续：",
+                    anchor={
+                        "section_path": ["第五章 休学与复学"],
+                        "article_label": "第二十三条",
+                    },
+                    metadata={
+                        "title": "中央民族大学研究生学籍管理办法",
+                        "content_role": "regulation_body",
+                        "promotion_class": "formal_regulation",
+                    },
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        metadata = chunks[0].metadata
+        self.assertEqual(metadata["answer_role"], "eligibility_intro")
+        self.assertEqual(metadata.get("condition_subject"), "generic_restriction")
+        self.assertEqual(metadata.get("condition_group_subject"), "generic_restriction")
+        self.assertEqual(metadata.get("intro_scope"), "eligibility_group")
+        self.assertEqual(metadata.get("intro_target_roles"), ("exclusion_rule",))
+        self.assertIsNone(metadata.get("procedure_actor"))
+        self.assertIsNone(metadata.get("procedure_action"))
+
 
 if __name__ == "__main__":
     unittest.main()

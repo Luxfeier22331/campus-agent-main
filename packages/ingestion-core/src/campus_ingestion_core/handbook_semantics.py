@@ -35,6 +35,7 @@ _DATE_EFFECTIVE_RE = re.compile(
 _NESTED_NUMBERED_LINE_RE = re.compile(
     r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])"
 )
+_EXPLICIT_REGULATION_BODY_CONTENT_ROLES = frozenset({"regulation_body", "scoped_rule_body"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -166,7 +167,7 @@ def _resolve_content_role(
     text: str,
 ) -> str:
     explicit_role = _text(metadata.get("content_role"))
-    if explicit_role and explicit_role != "regulation_body":
+    if explicit_role and explicit_role not in _EXPLICIT_REGULATION_BODY_CONTENT_ROLES:
         return explicit_role
     if content_kind == "navigation":
         return "navigation"
@@ -185,6 +186,8 @@ def _resolve_content_role(
     )
     if shared_body_role:
         return shared_body_role
+    if explicit_role in _EXPLICIT_REGULATION_BODY_CONTENT_ROLES:
+        return explicit_role
     return ""
 
 

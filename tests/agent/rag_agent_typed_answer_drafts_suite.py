@@ -66,6 +66,40 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
         self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")
         self.assertIn("以当年通知/学院细则为准", draft.answer_text)
 
+    def test_category_discovery_policy_list_can_be_completed_from_registry_backed_member_document(
+        self,
+    ) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+            title="中央民族大学本科学生国家奖学金评审办法",
+            snippet="国家奖学金用于奖励特别优秀的全日制本科学生。",
+            score=0.83,
+            chunk_id_suffix="national-overview-registry-fallback",
+            content_role="definition",
+            is_answer_bearing=True,
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="本科生有哪些奖学金能申请？",
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            ),
+            answer_shape=AnswerShape.CATEGORY_DISCOVERY_LIST,
+            category_id="scholarship",
+            category_display_name="奖学金",
+            audience="本科生",
+        )
+
+        self.assertEqual(draft.typed_draft.kind, "policy_list")
+        self.assertEqual(len(draft.typed_draft.items), 1)
+        self.assertEqual(draft.typed_draft.items[0].category_id, "scholarship")
+        self.assertEqual(draft.typed_draft.items[0].audience, "本科生")
+        self.assertIn(source.doc_id, draft.typed_draft.items[0].member_document_ids)
+        self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")
+        self.assertIn("《中央民族大学本科学生国家奖学金评审办法》", draft.answer_text)
+
     def test_procedure_answer_has_validated_procedure_steps_draft(self) -> None:
         source = _make_handbook_source(
             doc_id="handbook:demerit-relief",

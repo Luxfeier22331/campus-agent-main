@@ -508,6 +508,8 @@ def validate_answer_ready_evidence_metadata(
     procedure_action = _text(metadata.get("procedure_action"))
     if procedure_action and procedure_action not in ANSWER_READY_PROCEDURE_ACTIONS:
         issues.append("answer_ready_procedure_action_unknown")
+    if answer_role == "procedure_step" and procedure_action == "procedure_step":
+        issues.append("answer_ready_procedure_action_generic_fallback")
     if (
         procedure_action
         and answer_role
@@ -527,6 +529,8 @@ def validate_answer_ready_evidence_metadata(
     procedure_actor = _text(metadata.get("procedure_actor"))
     if procedure_actor and procedure_actor not in ANSWER_READY_PROCEDURE_ACTORS:
         issues.append("answer_ready_procedure_actor_unknown")
+    if answer_role == "procedure_step" and procedure_actor == "responsible_party":
+        issues.append("answer_ready_procedure_actor_generic_fallback")
     if (
         procedure_actor
         and answer_role

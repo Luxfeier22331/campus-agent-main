@@ -3,14 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts import EvidenceBundle, EvidenceSource
-from campus_retrieval_core.evidence_ranking import select_supporting_evidence_sources
 from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
+from campus_retrieval_core.evidence_ranking import select_supporting_evidence_sources
 
 from .agent_answer_shape import AnswerShape, answer_shape_support_budget, infer_answer_shape
 from .agent_answering import _compose_direct_answer, _render_supporting_contexts
 from .agent_selection_query import _query_mode
 from .agent_selection_rows import _select_answer_support_rows
 from .typed_answer_drafts import (
+    CategoryDiscoveryDraftContext,
     TypedAnswerDraft,
     build_typed_answer_draft,
     validate_typed_answer_draft,
@@ -46,6 +47,7 @@ class RagAgent:
         evidence: EvidenceBundle,
         *,
         answer_shape: AnswerShape | None = None,
+        category_id: str = "",
         category_display_name: str = "",
         audience: str = "",
     ) -> AnswerDraft:
@@ -103,6 +105,16 @@ class RagAgent:
         typed_draft = build_typed_answer_draft(
             answer_shape=answer_shape,
             selected_rows=selected_rows,
+            category_discovery_context=(
+                CategoryDiscoveryDraftContext(
+                    collection=evidence.collection,
+                    category_id=category_id,
+                    category_display_name=resolved_category_display_name,
+                    audience=resolved_audience,
+                )
+                if answer_shape == AnswerShape.CATEGORY_DISCOVERY_LIST
+                else None
+            ),
         )
         validation = validate_typed_answer_draft(typed_draft)
         if validation.verdict != "valid":

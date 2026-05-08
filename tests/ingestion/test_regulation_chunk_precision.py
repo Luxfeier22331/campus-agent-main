@@ -26,7 +26,10 @@ class RegulationChunkPrecisionTest(unittest.TestCase):
         )
 
         body_chunks = [
-            chunk for chunk in chunks if chunk.metadata.get("content_role") == "scoped_rule_body"
+            chunk
+            for chunk in chunks
+            if chunk.metadata.get("answer_role") == "eligibility_condition"
+            and chunk.metadata.get("content_role") == "eligibility"
         ]
 
         self.assertGreaterEqual(len(body_chunks), 2)

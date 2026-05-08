@@ -31,14 +31,21 @@ from campus_ingestion_core.process_shared import (
 from campus_ingestion_core.regulation_answer_roles import (
     decide_answer_role as _decide_answer_role,
 )
-from campus_ingestion_core.regulation_answer_roles import (
-    is_answer_role_atomic,
-)
 
 _NESTED_NUMBERED_LINE_RE = re.compile(
     r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])"
 )
 _SHORT_TEXTUAL_MERGE_UNIT_TYPES = frozenset((*TEXTUAL_UNIT_TYPES, "institutional_regulation_block"))
+_SHORT_TEXTUAL_MERGE_ATOMIC_ANSWER_ROLES = frozenset(
+    {
+        "example_evidence",
+        "exception_rule",
+        "exclusion_rule",
+        "procedure_step",
+        "material_requirement",
+        "time_constraint",
+    }
+)
 
 
 def decide_answer_role(*, text: str, prefix_text: str = "", role_hint: str | None = None):
@@ -223,7 +230,9 @@ def answer_ready_atomic_roles_conflict(
 ) -> bool:
     current_role = candidate_answer_role(current)
     incoming_role = candidate_answer_role(incoming)
-    return is_answer_role_atomic(current_role) or is_answer_role_atomic(incoming_role)
+    return is_short_textual_merge_atomic_answer_role(
+        current_role
+    ) or is_short_textual_merge_atomic_answer_role(incoming_role)
 
 
 def candidate_answer_role(candidate: _ChunkCandidate) -> str:
@@ -242,13 +251,7 @@ def candidate_answer_role(candidate: _ChunkCandidate) -> str:
             polarity=str(candidate.metadata.get("polarity") or "").strip(),
         )
         inferred_role = infer_answer_role_from_handbook_semantics(inferred_semantics)
-        if inferred_role in {
-            "procedure_step",
-            "time_constraint",
-            "material_requirement",
-            "definition",
-            "table_fact",
-        }:
+        if inferred_role:
             return inferred_role
     parsed_role = str(
         decide_answer_role(
@@ -259,9 +262,13 @@ def candidate_answer_role(candidate: _ChunkCandidate) -> str:
         ).get("answer_role")
         or ""
     ).strip()
-    if is_answer_role_atomic(parsed_role):
+    if is_short_textual_merge_atomic_answer_role(parsed_role):
         return parsed_role
     return ""
+
+
+def is_short_textual_merge_atomic_answer_role(answer_role: str) -> bool:
+    return answer_role in _SHORT_TEXTUAL_MERGE_ATOMIC_ANSWER_ROLES
 
 
 def _candidate_has_semantic_contract(candidate: _ChunkCandidate) -> bool:

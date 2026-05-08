@@ -8,10 +8,16 @@ from datetime import UTC, datetime
 from typing import Protocol
 
 from campus_retrieval_core.settings import RetrievalSettings
+from campus_shared.answer_ready_evidence_contract import (
+    ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
+)
 from qdrant_client import QdrantClient
 
-from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
+from campus_ingestion_core.answer_ready_contract_quality import (
+    evaluate_answer_ready_contract_metadata,
+)
 from campus_ingestion_core.component_eval_release import derive_component_eval_release_status
+from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
 from campus_ingestion_core.embed import (
     EmbeddingSettings,
     build_embedding_model,
@@ -102,6 +108,11 @@ from campus_ingestion_core.regulation_rag_release_admission import (
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.sparse import SparseEmbeddingSettings, build_sparse_embedding_model
+
+_ANSWER_READY_PUBLISHED_FALLBACK_PROVENANCE_FIELDS = (
+    "condition_subject_provenance",
+    "procedure_action_provenance",
+)
 
 
 class RegistryScopeObjectStore(Protocol):
@@ -788,12 +799,15 @@ def audit_published_scope_release(
     fallback_primary_signal_count = 0
     semantic_oracle_pass_count = 0
     semantic_oracle_fail_count = 0
+    payload_index_audit_status = "failed"
+    required_filter_index_status = "failed"
     alias_target = resolve_alias_target(
         qdrant_client=qdrant_client,
         alias_name=manifest.serving_alias,
     )
+    release_drift_guard_issues: list[str] = []
     if alias_target != manifest.physical_collection_name:
-        issues.append(
+        release_drift_guard_issues.append(
             f"alias_target_mismatch:{alias_target or '<none>'}!={manifest.physical_collection_name}"
         )
     if not qdrant_client.collection_exists(manifest.physical_collection_name):
@@ -817,6 +831,8 @@ def audit_published_scope_release(
             f"payload_index_schema_mismatch:{field_name}"
             for field_name in payload_index_audit.mismatched_indexes
         )
+        payload_index_audit_status = str(payload_index_audit.status or "failed")
+        required_filter_index_status = str(payload_index_audit.status or "failed")
         if points_count == 0:
             issues.append("empty_physical_collection")
         payloads = _sample_release_payloads(
@@ -830,12 +846,19 @@ def audit_published_scope_release(
         payload_index_audit_summary = {"status": "not_applicable", "reason": "missing_collection"}
     else:
         payload_index_audit_summary = payload_index_audit.summary
-    issues.extend(
+    release_drift_guard_issues.extend(
         _release_payload_mismatch_issues(
             payloads=payloads,
             expected_release_metadata=expected_release_metadata,
         )
     )
+    issues.extend(release_drift_guard_issues)
+    published_answer_ready_payload_issues = _published_answer_ready_payload_issues(
+        corpus=manifest.corpus,
+        collection=manifest.collection,
+        payloads=payloads,
+    )
+    issues.extend(published_answer_ready_payload_issues)
     object_keys = [
         manifest_object_key,
         manifest.validation_summary_object_key,
@@ -868,6 +891,23 @@ def audit_published_scope_release(
             fallback_primary_signal_count = component_eval_status.fallback_budget_regression_count
             semantic_oracle_pass_count = component_eval_status.passed_case_count
             semantic_oracle_fail_count = component_eval_status.failed_case_count
+    release_drift_guard_status = "passed" if not release_drift_guard_issues else "failed"
+    if payload_index_audit_status == "passed":
+        payload_index_audit_issues = [
+            issue
+            for issue in issues
+            if issue
+            and (
+                issue in {
+                    "missing_physical_collection",
+                    "empty_physical_collection",
+                    "missing_sampled_point_payload",
+                }
+                or issue.startswith(("payload_index_", "sample_"))
+            )
+        ]
+        if payload_index_audit_issues:
+            payload_index_audit_status = "failed"
     status = "passed" if not issues else "failed"
     return ReleasePostPublishAuditResult(
         status=status,
@@ -877,15 +917,78 @@ def audit_published_scope_release(
             "serving_alias": manifest.serving_alias,
             "alias_target": alias_target,
             "physical_collection_name": manifest.physical_collection_name,
+            "release_drift_guard_status": release_drift_guard_status,
+            "payload_index_audit_status": payload_index_audit_status,
+            "required_filter_index_status": required_filter_index_status,
             "points_count": points_count,
             "sampled_payload_count": len(payloads),
+            "sampled_payload_contract_versions": tuple(
+                _sampled_payload_contract_version(payload) for payload in payloads
+            ),
             "fallback_primary_signal_count": fallback_primary_signal_count,
             "semantic_oracle_pass_count": semantic_oracle_pass_count,
             "semantic_oracle_fail_count": semantic_oracle_fail_count,
+            "semantic_oracle_result_count": (
+                semantic_oracle_pass_count + semantic_oracle_fail_count
+            ),
             "payload_index_audit": payload_index_audit_summary,
             "issues": tuple(issues),
         },
     )
+
+
+def _published_answer_ready_payload_issues(
+    *,
+    corpus: str,
+    collection: str,
+    payloads: Sequence[Mapping[str, object]],
+) -> tuple[str, ...]:
+    issues: list[str] = []
+    for index, payload in enumerate(payloads, start=1):
+        metadata = dict(payload)
+        if not _is_target_answer_ready_payload(metadata):
+            continue
+        validation = evaluate_answer_ready_contract_metadata(
+            corpus=corpus,
+            collection=collection,
+            metadata=metadata,
+        )
+        issues.extend(
+            f"sample_{index}_answer_ready_contract:{issue}" for issue in validation.issues
+        )
+        issues.extend(
+            _published_answer_ready_fallback_provenance_issues(
+                sample_index=index,
+                metadata=metadata,
+            )
+        )
+    return tuple(issues)
+
+
+def _is_target_answer_ready_payload(metadata: Mapping[str, object]) -> bool:
+    contract_version = str(metadata.get("evidence_contract_version") or "").strip()
+    answer_role = str(metadata.get("answer_role") or "").strip()
+    return bool(contract_version == ANSWER_READY_EVIDENCE_CONTRACT_VERSION and answer_role)
+
+
+def _published_answer_ready_fallback_provenance_issues(
+    *,
+    sample_index: int,
+    metadata: Mapping[str, object],
+) -> tuple[str, ...]:
+    issues: list[str] = []
+    for field_name in _ANSWER_READY_PUBLISHED_FALLBACK_PROVENANCE_FIELDS:
+        value = str(metadata.get(field_name) or "").strip()
+        if value.startswith("fallback:"):
+            issues.append(
+                f"sample_{sample_index}_answer_ready_fallback_provenance:{field_name}={value}"
+            )
+    return tuple(issues)
+
+
+def _sampled_payload_contract_version(payload: Mapping[str, object]) -> str:
+    version = str(payload.get("evidence_contract_version") or "").strip()
+    return version or "<missing>"
 
 
 __all__ = ["RegistryScopeReleaseReport", "publish_scope_release", "release_registry_scope"]

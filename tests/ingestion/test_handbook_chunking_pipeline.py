@@ -1682,6 +1682,84 @@ class HandbookChunkingPipelineTest(unittest.TestCase):
             "passed",
         )
 
+    def test_student_rules_review_failure_clause_does_not_degrade_to_generic_procedure_fallback(
+        self,
+    ) -> None:
+        record = _registry_record_for_document(
+            "handbook:69eef0f78d250946924e6a02187fafdb88852c23"
+        )
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="policy_page",
+                    root_unit_id="article-0023",
+                    clean_text=(
+                        "第二十三条\n"
+                        "(三)休学、保留学籍期满,逾期二周末提出复学申请或者二次休学后的复学申请经审查不合格的;"
+                    ),
+                    metadata={
+                        "title": "中央民族大学学生管理规定",
+                    },
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+
+        self.assertEqual(len(chunks), 2)
+        metadata = chunks[1].metadata
+        self.assertEqual(metadata["display_text"], "(三)休学、保留学籍期满,逾期二周末提出复学申请或者二次休学后的复学申请经审查不合格的;")
+        self.assertEqual(metadata["answer_role"], "exclusion_rule")
+        self.assertIsNone(metadata.get("procedure_actor"))
+        self.assertIsNone(metadata.get("procedure_action"))
+
+    def test_student_rules_hearing_notice_modes_are_not_typed_as_generic_procedure_fallback(
+        self,
+    ) -> None:
+        record = _registry_record_for_document(
+            "handbook:1b7c532ecdbc8afe1820d2c55dfba911d891e37a"
+        )
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="policy_page",
+                    root_unit_id="article-0014",
+                    clean_text=(
+                        "第十四条 告知方式包括口头告知和书面告知两种。"
+                        "第十五条 书面告知可根据不同情况分别采取直接送达、留置送达、邮寄送达、公告送达四种方式。"
+                        "公告送达的公告期为10天。"
+                    ),
+                    metadata={
+                        "title": "中央民族大学学生听证实施办法",
+                    },
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        metadata = chunks[0].metadata
+        self.assertNotEqual(metadata["answer_role"], "procedure_step")
+        self.assertNotEqual(metadata.get("procedure_actor"), "responsible_party")
+        self.assertNotEqual(metadata.get("procedure_action"), "procedure_step")
+
     def test_category_overview_registry_version_issue_is_release_gate_contract_issue(
         self,
     ) -> None:
@@ -1817,15 +1895,18 @@ class HandbookChunkingPipelineTest(unittest.TestCase):
         self.assertEqual(len(chunks), 1)
         metadata = chunks[0].metadata
         self.assertEqual(metadata["answer_role"], "eligibility_intro")
-        self.assertEqual(metadata["answer_ready_contract_validation_status"], "failed")
+        self.assertEqual(metadata["answer_ready_contract_validation_status"], "passed")
         self.assertEqual(
             metadata["answer_ready_contract_validation_severity"],
             "release_blocking",
         )
-        self.assertIn(
-            "answer_ready_intro_target_roles_missing",
-            metadata["answer_ready_contract_validation_issues"],
+        self.assertEqual(metadata["intro_target_roles"], ("eligibility_condition",))
+        self.assertEqual(metadata["intro_scope"], "eligibility_group")
+        self.assertEqual(
+            metadata["introduced_condition_group_id"],
+            "article-contract-validation-failure:generic_condition",
         )
+        self.assertEqual(metadata["answer_ready_contract_validation_issues"], ())
 
     def test_policy_page_procedure_substep_with_application_form_stays_procedure_step(self) -> None:
         record = _registry_record_for_document("handbook:test-overseas-study-procedure-step")
@@ -2013,7 +2094,25 @@ class HandbookChunkingPipelineTest(unittest.TestCase):
         self.assertEqual(metadata["content_role"], "procedure")
         self.assertEqual(metadata["semantic_role"], "procedure_step")
         self.assertEqual(metadata["claim_type"], "procedure")
-        self.assertEqual(metadata["role_confidence"], "high")
+
+    def test_release_semantics_preserves_explicit_regulation_body_without_finer_body_role(
+        self,
+    ) -> None:
+        metadata = build_collection_semantic_metadata(
+            record=_institutional_registry_record("official-web-regulation-body-fallback"),
+            unit_type="institutional_regulation_block",
+            anchor={
+                "section_path": ["第一章 总则"],
+                "article_label": "第一条",
+            },
+            metadata={
+                "title": "中央民族大学关于学生使用人工智能的指导意见",
+                "content_role": "regulation_body",
+            },
+            text="为规范学生使用人工智能，制定本指导意见。",
+        )
+
+        self.assertEqual(metadata["content_role"], "regulation_body")
 
     def test_student_rules_single_enumerated_procedure_step_keeps_procedure_role(self) -> None:
         record = _registry_record_for_document("handbook:test-single-enumerated-procedure")

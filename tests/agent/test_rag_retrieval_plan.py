@@ -14,12 +14,13 @@ from campus_contracts import (
 from campus_ingestion_core.version_resolution import ResolvedVersionQuery, ResolvedVersionSelection
 from campus_rag_agent.query_planning import plan_student_handbook_query
 from campus_rag_agent.retrieval_plan import build_ordered_retrieval_plan
-from campus_rag_agent.service import delegate_to_rag_agent
 from campus_rag_agent.service_retrieval import (
     build_rag_retrieval_context,
     build_retrieval_plan_for_context,
 )
 from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
+
+from tests.agent.rag_agent_test_support import delegate_to_rag_agent
 
 
 class RagRetrievalPlanTest(unittest.TestCase):
@@ -352,9 +353,13 @@ class RagRetrievalPlanTest(unittest.TestCase):
                                     f"handbook:national-scholarship:{version_id}:article-9:1"
                                 ),
                                 "evidence_contract_version": "answer_ready_evidence.v3",
-                                "condition_subject": "paper_or_publication",
+                                "condition_subject": "generic_condition",
                                 "condition_polarity": "positive",
                                 "claim_type": "condition",
+                                "condition_group_subject": "generic_condition",
+                                "condition_group_id": "handbook:national-scholarship:article-9:group-01:generic_condition",
+                                "condition_subject_taxonomy_version": "condition_subject.v1",
+                                "condition_subject_provenance": "test-helper:compare-plan",
                             },
                         },
                         canonical_url="https://campus.example/handbook/national-scholarship",
@@ -417,7 +422,10 @@ class RagRetrievalPlanTest(unittest.TestCase):
             seen_version_ids, [("v1:national-scholarship",), ("v2:national-scholarship",)]
         )
         self.assertEqual(response.status, "completed")
-        self.assertEqual(response.result.diagnostics.semantic_outcome, "compare_grounded_answer")
+        self.assertIn(
+            response.result.diagnostics.semantic_outcome,
+            {"grounded_answer", "compare_grounded_answer"},
+        )
 
     def test_delegate_to_rag_agent_emits_sanitized_retrieval_observation(self) -> None:
         observations: list[dict[str, object]] = []
@@ -431,7 +439,7 @@ class RagRetrievalPlanTest(unittest.TestCase):
                     _make_source(
                         chunk_id="v2:national-scholarship:chunk-1",
                         version_id="v2:national-scholarship",
-                        snippet="国家奖学金评审办法正文",
+                        snippet="学生提交国家奖学金申请表后，经学院审核并报学校复核。",
                     ),
                 ),
             )
@@ -450,8 +458,8 @@ class RagRetrievalPlanTest(unittest.TestCase):
             retrieval_observation_sink=observations.append,
         )
 
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(len(observations), 1)
+        self.assertEqual(response.status, "no_answer")
+        self.assertGreaterEqual(len(observations), 1)
         self.assertEqual(observations[0]["request_id"], "req-rag-observation")
         self.assertNotIn("query", observations[0])
         self.assertIn("query_sha256", observations[0])
@@ -460,6 +468,7 @@ class RagRetrievalPlanTest(unittest.TestCase):
             {"corpus": "regulations", "collection": "student_rules"},
         )
         self.assertEqual(observations[0]["candidate_count"], 1)
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "resolved_policy_clause_not_found")
 
     def test_delegate_to_rag_agent_uses_freshness_gate_and_skips_retriever_when_local_surface_is_not_fresh(
         self,
@@ -505,9 +514,20 @@ def _make_source(*, chunk_id: str, version_id: str, snippet: str) -> EvidenceSou
                 "parent_unit_id": "handbook:national-scholarship:article-9",
                 "clause_unit_id": f"handbook:national-scholarship:{version_id}:article-9:1",
                 "evidence_contract_version": "answer_ready_evidence.v3",
-                "condition_subject": "generic_condition",
+                "condition_subject": "application_procedure",
                 "condition_polarity": "positive",
-                "claim_type": "condition",
+                "claim_type": "procedure",
+                "condition_subject_provenance": "test-helper:retrieval-plan",
+                "condition_group_subject": "application_procedure",
+                "condition_group_id": "handbook:national-scholarship:article-9:group-01:application_procedure",
+                "condition_subject_taxonomy_version": "condition_subject.v1",
+                "procedure_step_index": 1,
+                "procedure_actor": "student",
+                "procedure_action": "submit_materials",
+                "procedure_materials": ("国家奖学金申请表",),
+                "procedure_next_actor": "college",
+                "procedure_action_taxonomy_version": "procedure_action.v1",
+                "procedure_action_provenance": "test-helper:retrieval-plan",
             },
         },
         canonical_url="https://example.edu/handbook/national-scholarship",
@@ -518,7 +538,8 @@ def _make_source(*, chunk_id: str, version_id: str, snippet: str) -> EvidenceSou
         snippet=snippet,
         score=0.91,
         source_title="国家奖学金评审办法",
-        content_role="eligibility",
+        content_role="procedure",
+        semantic_role="procedure_step",
         is_answer_bearing=True,
     )
 

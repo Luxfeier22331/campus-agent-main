@@ -15,6 +15,7 @@ from tests.agent.rag_agent_test_support import (
     EvidenceBundle,
     KnowledgeScope,
     RagRequestPayload,
+    _make_current_v3_category_overview_source,
     _make_handbook_source,
     delegate_to_rag_agent,
     unittest,
@@ -362,7 +363,7 @@ class RagAgentHandbookCategoryDiscoveryTest(unittest.TestCase):
         )
         self.assertEqual(
             tuple(source.content_role for source in result.supporting_evidence.sources),
-            ("definition", "definition"),
+            ("policy_list", "policy_list"),
         )
 
     def test_category_discovery_prefers_overview_source_over_exclusion_clause(self) -> None:
@@ -565,14 +566,12 @@ class RagAgentHandbookCategoryDiscoveryTest(unittest.TestCase):
             corpus="regulations",
             collection="student_rules",
             sources=(
-                _make_handbook_source(
-                    doc_id="handbook:student-status",
-                    title="中央民族大学本科学生学籍管理规定",
-                    snippet="学籍管理规定用于说明本科学生注册、休学、复学等事项。",
+                _make_current_v3_category_overview_source(
+                    doc_id="handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
+                    title="中央民族大学学生证、校徽校训管理办法",
+                    snippet="学生证、注册与相关学籍事项适用于本科学生的在校身份管理。",
                     score=0.91,
                     chunk_id_suffix="status-overview",
-                    content_role="definition",
-                    is_answer_bearing=True,
                 ),
             ),
         )
@@ -610,14 +609,12 @@ def _category_overview_source(
     score: float,
     suffix: str = "overview",
 ):
-    return _make_handbook_source(
+    return _make_current_v3_category_overview_source(
         doc_id=document_id,
         title=_SCHOLARSHIP_TITLES[document_id],
         snippet=_SCHOLARSHIP_OVERVIEWS[document_id],
         score=score,
         chunk_id_suffix=suffix,
-        content_role="definition",
-        is_answer_bearing=True,
     )
 
 

@@ -21,13 +21,13 @@ typed answer grounding、组件级 eval，以及 `student_rules` / `institutiona
 
 - status: `active`
 - current phase: `Phase 11 - Legacy Quarantine Docs Closeout`
-- active implementation: Phase 1 contract/schema governance and Phase 10 institutional rebuild
-  release audit are complete and verified; Phase 9 student rebuild release audit is now also
-  complete; Phases 2-8 are partially landed; Phase 11 legacy quarantine closeout remains open
+- active implementation: Phase 1 contract/schema governance plus Phase 9/10 release audits are
+  complete and verified; Phases 2-8 now all have explicit completion-audit evidence recorded
+  through phase summaries and targeted verification; Phase 11 legacy quarantine closeout remains
+  open
 - current slice: keep the admitted/component-eval-backed `student_rules` and `institutional_rules`
   aliases on current release truth, keep target-v3 retrieval on explicit `target_v3_only`
-  fail-closed semantics, and finish old-index quarantine / release-proof documentation
-  closeout
+  fail-closed semantics, and finish old-index quarantine / planning-truth closeout
 - owner boundary: `packages/shared` + `packages/ingestion-core` + `packages/retrieval-core` +
   `packages/rag-agent` + `packages/evals` + regulation RAG release lane
 - serving boundary: only current query-enabled regulation-family surfaces are mandatory:
@@ -41,12 +41,9 @@ fully debt-free target state.
 
 Remaining structural debt:
 
-- some fields still have heuristic extraction lineage
-- condition grouping is not yet a first-class canonical unit
-- typed eligibility intro exists only as answer-role behavior, not as a grouping contract
-- procedure step extraction still mixes action semantics with text cues
-- category overview is proven mainly by scholarship-style registry paths
-- quality gates still emphasize defect detection more than semantic correctness admission
+- some shared semantic resolvers still retain centralized compatibility-oriented fallback branches,
+  but target v3 serving and release admission now fail closed before generic retrieval fallback or
+  generic placeholder procedure actor/action values can pass as target truth
 - retrieval fallback exists for old-index compatibility and must be quarantined away from target v3
   completion
 - component eval is now fixture-backed, stage-aware, can derive observations from real runtime
@@ -55,6 +52,8 @@ Remaining structural debt:
   evidence; denominator expansion now also covers the frozen ambiguous scholarship clarification
   case, regulation-family unsupported/no-hit rows, and an explicit regulation-family `table_fact`
   row for scholarship amount/quota lookup
+- the remaining open work is no longer “do Phase 2-8 coverage exist”; it is Phase 11 closeout of
+  planning truth, legacy quarantine wording and completion-audit alignment
 
 ## Native Planning Truth
 

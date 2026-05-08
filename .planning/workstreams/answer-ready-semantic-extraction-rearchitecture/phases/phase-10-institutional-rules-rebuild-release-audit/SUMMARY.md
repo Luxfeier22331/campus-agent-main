@@ -56,6 +56,10 @@ readiness probe.
   - alias target is the latest physical collection
   - release metadata guard passes
   - readiness status is `ready`
+- Formal re-audit now closes the same closeout-only proof gap that Phase 9 required:
+  - `fallback_primary_signal_count=0`
+  - `semantic_oracle_pass_count=5`
+  - `semantic_oracle_fail_count=0`
 - The release lane remained fail-closed during execution:
   - stale prep fingerprints were rejected until fresh prep was regenerated
   - remote Qdrant WAL exhaustion blocked publish until repo-governed preview GC reclaimed space
@@ -71,6 +75,8 @@ readiness probe.
   - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_registry_scope_release_report_v7.json`
 - runtime probe:
   - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_runtime_probe_v2.json`
+- re-audit report:
+  - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_re_audit_report_v1.json`
 - release/admission manifest field audit:
   - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_release_manifest_field_audit_v1.json`
 - component eval summary used by admission/release:
@@ -115,6 +121,13 @@ uv run --all-packages python -m campus_ingestion_worker.probe_regulation_rag_rel
 
 Result: `alias_target=institutional_rules__r20260507_183741_842762_06e3f390`,
 `release_metadata_guard_status=passed`, `readiness_status=ready`.
+
+```bash
+uv run --all-packages python -m campus_ingestion_worker.re_audit_regulation_rag_release --corpus regulations --collection institutional_rules --release-id r20260507_183741_842762_06e3f390 > .planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_re_audit_report_v1.json
+```
+
+Result: `post_publish_audit_status=passed`, `fallback_primary_signal_count=0`,
+`semantic_oracle_pass_count=5`, `semantic_oracle_fail_count=0`.
 
 ```bash
 uv run --all-packages python -m campus_ingestion_worker.audit_regulation_rag_release_manifests --corpus regulations --collection institutional_rules --release-id r20260507_183741_842762_06e3f390 --output-path .planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_release_manifest_field_audit_v1.json

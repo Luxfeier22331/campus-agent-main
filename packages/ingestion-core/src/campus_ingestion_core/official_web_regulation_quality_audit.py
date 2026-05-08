@@ -97,6 +97,26 @@ class _InMemoryObjectStore:
         del content_type
         self._objects[(bucket, key)] = data
 
+    def delete_prefix(
+        self,
+        *,
+        bucket: str,
+        prefix: str,
+        exclude_keys: tuple[str, ...] = (),
+        include_path_segment_suffix: str | None = None,
+    ) -> None:
+        excluded = set(exclude_keys)
+        for object_key in tuple(self._objects):
+            object_bucket, key = object_key
+            if object_bucket != bucket or not key.startswith(prefix) or key in excluded:
+                continue
+            if include_path_segment_suffix is not None and (
+                f"--{include_path_segment_suffix}" not in key
+                and not key.endswith(include_path_segment_suffix)
+            ):
+                continue
+            del self._objects[object_key]
+
 
 def audit_official_web_regulation_batch_quality(
     *,

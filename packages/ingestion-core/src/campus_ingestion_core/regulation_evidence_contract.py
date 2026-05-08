@@ -31,24 +31,34 @@ def build_answer_ready_contract_metadata(
     answer_role = _text(metadata.get("answer_role"))
     if not answer_role:
         return {}
+    normalized_metadata = dict(metadata)
+    if answer_role == "eligibility_intro":
+        inferred_intro_target_roles = infer_intro_target_roles(text=text, metadata=normalized_metadata)
+        if inferred_intro_target_roles and not _text_tuple(normalized_metadata.get("intro_target_roles")):
+            normalized_metadata["intro_target_roles"] = inferred_intro_target_roles
+        normalized_metadata["is_answer_bearing"] = False
     contract: dict[str, object] = {
         "evidence_contract_version": ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
-        "parent_unit_id": _text(metadata.get("parent_unit_id")) or root_unit_id,
+        "parent_unit_id": _text(normalized_metadata.get("parent_unit_id")) or root_unit_id,
     }
-    clause_unit_id = infer_clause_unit_id(text=text, metadata=metadata, root_unit_id=root_unit_id)
+    clause_unit_id = infer_clause_unit_id(
+        text=text,
+        metadata=normalized_metadata,
+        root_unit_id=root_unit_id,
+    )
     if clause_unit_id:
         contract["clause_unit_id"] = clause_unit_id
     condition_subject_assignment = resolve_regulation_condition_subject(
         text=text,
         answer_role=answer_role,
-        explicit_condition_subject=_text(metadata.get("condition_subject")),
-        condition_group_subject=_text(metadata.get("condition_group_subject")),
-        introduced_condition_subject=_text(metadata.get("introduced_condition_subject")),
-        intro_target_roles=_text_tuple(metadata.get("intro_target_roles")),
-        table_fact_type=_text(metadata.get("table_fact_type")),
-        action_type=_text(metadata.get("action_type")),
-        section_path=_section_path(metadata),
-        document_title=_text(metadata.get("title")),
+        explicit_condition_subject=_text(normalized_metadata.get("condition_subject")),
+        condition_group_subject=_text(normalized_metadata.get("condition_group_subject")),
+        introduced_condition_subject=_text(normalized_metadata.get("introduced_condition_subject")),
+        intro_target_roles=_text_tuple(normalized_metadata.get("intro_target_roles")),
+        table_fact_type=_text(normalized_metadata.get("table_fact_type")),
+        action_type=_text(normalized_metadata.get("action_type")),
+        section_path=_section_path(normalized_metadata),
+        document_title=_text(normalized_metadata.get("title")),
     )
     if condition_subject_assignment.value:
         contract["condition_subject"] = condition_subject_assignment.value
@@ -62,33 +72,34 @@ def build_answer_ready_contract_metadata(
     if condition_subject:
         condition_group_subject = infer_condition_group_subject(
             text=text,
-            metadata={**metadata, **contract},
+            metadata={**normalized_metadata, **contract},
         )
         if condition_group_subject:
             contract["condition_group_subject"] = condition_group_subject
         if answer_role == "eligibility_intro":
-            condition_group_id = _text(metadata.get("introduced_condition_group_id"))
+            condition_group_id = _text(normalized_metadata.get("introduced_condition_group_id"))
         else:
             condition_group_id = ""
         if not condition_group_id:
             condition_group_id = infer_condition_group_id(
                 text=text,
-                metadata={**metadata, **contract},
+                metadata={**normalized_metadata, **contract},
                 root_unit_id=root_unit_id,
             )
         if condition_group_id:
             contract["condition_group_id"] = condition_group_id
-    condition_polarity = infer_condition_polarity(metadata=metadata)
+    condition_polarity = infer_condition_polarity(metadata=normalized_metadata)
     if condition_polarity:
         contract["condition_polarity"] = condition_polarity
     if answer_role == "eligibility_intro":
         contract.update(
             build_eligibility_intro_metadata(
                 text=text,
-                metadata={**metadata, **contract},
+                metadata={**normalized_metadata, **contract},
                 root_unit_id=root_unit_id,
             )
         )
+        contract["is_answer_bearing"] = False
     return contract
 
 
@@ -290,9 +301,13 @@ def build_eligibility_intro_metadata(
     metadata: dict[str, object],
     root_unit_id: str,
 ) -> dict[str, object]:
-    intro_scope = _text(metadata.get("intro_scope")) or infer_intro_scope(
+    target_roles = _text_tuple(metadata.get("intro_target_roles")) or infer_intro_target_roles(
         text=text,
         metadata=metadata,
+    )
+    intro_scope = _text(metadata.get("intro_scope")) or infer_intro_scope(
+        text=text,
+        metadata={**metadata, "intro_target_roles": target_roles},
     )
     introduced_condition_group_id = _text(metadata.get("introduced_condition_group_id"))
     if not introduced_condition_group_id:
@@ -300,12 +315,17 @@ def build_eligibility_intro_metadata(
             parent_unit_id=_text(metadata.get("parent_unit_id")) or root_unit_id,
             group_subject=_text(metadata.get("introduced_condition_subject")),
         ).value
-    target_roles = _text_tuple(metadata.get("intro_target_roles"))
+    if not introduced_condition_group_id:
+        introduced_condition_group_id = build_regulation_condition_group_id(
+            parent_unit_id=_text(metadata.get("parent_unit_id")) or root_unit_id,
+            group_subject=_text(metadata.get("condition_subject")),
+        ).value
     result: dict[str, object] = {}
     if intro_scope:
         result["intro_scope"] = intro_scope
     if introduced_condition_group_id:
         result["introduced_condition_group_id"] = introduced_condition_group_id
+        result["condition_group_id"] = introduced_condition_group_id
     if target_roles:
         result["intro_target_roles"] = target_roles
     return result
@@ -392,6 +412,34 @@ def infer_intro_scope(*, text: str, metadata: dict[str, object]) -> str:
         intro_target_roles=_text_tuple(metadata.get("intro_target_roles")),
         explicit_intro_scope=_text(metadata.get("intro_scope")),
     ).value
+
+
+def infer_intro_target_roles(*, text: str, metadata: dict[str, object]) -> tuple[str, ...]:
+    explicit = _text_tuple(metadata.get("intro_target_roles"))
+    if explicit:
+        return explicit
+    condition_subject = _text(metadata.get("condition_subject"))
+    condition_group_subject = _text(metadata.get("condition_group_subject"))
+    compact = _compact(text)
+    if condition_subject == "generic_restriction" or condition_group_subject == "generic_restriction":
+        return ("exclusion_rule",)
+    if condition_subject == "application_procedure" or condition_group_subject == "application_procedure":
+        return ("procedure_step",)
+    if "有下列情形之一" in compact or "有以下情形之一" in compact:
+        return ("exclusion_rule",)
+    if any(
+        marker in compact
+        for marker in (
+            "符合下列条件之一",
+            "符合以下条件之一",
+            "具备下列条件之一",
+            "具备以下条件之一",
+            "具有下列条件之一",
+            "具有以下条件之一",
+        )
+    ):
+        return ("eligibility_condition",)
+    return ()
 
 
 def _section_path_text(metadata: dict[str, object]) -> str:
