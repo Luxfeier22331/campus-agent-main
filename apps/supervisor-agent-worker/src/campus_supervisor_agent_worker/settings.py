@@ -100,6 +100,15 @@ class ApiSettings:
     retrieval_observation_jsonl_path: str = ""
     retrieval_runtime_event_jsonl_path: str = ""
     retrieval_observation_include_query_text: bool = False
+    otel_enabled: bool = False
+    otel_service_name: str = "campus-supervisor-agent-worker"
+    otel_allowed_attributes_version: str = "supervisor-agent-worker-otel-attrs-v1"
+    otel_export_timeout_seconds: float = 1.0
+    otel_export_interval_seconds: float = 5.0
+    otel_exporter_otlp_headers: str = ""
+    otel_exporter_otlp_traces_endpoint: str = ""
+    otel_exporter_otlp_metrics_endpoint: str = ""
+    otel_exporter_otlp_logs_endpoint: str = ""
     cancel_flag_ttl_seconds: float = 900.0
 
     def __post_init__(self) -> None:
@@ -149,6 +158,11 @@ class ApiSettings:
         _require_positive_float(
             "structured_query_timeout_seconds",
             self.structured_query_timeout_seconds,
+        )
+        _require_positive_float("otel_export_timeout_seconds", self.otel_export_timeout_seconds)
+        _require_positive_float(
+            "otel_export_interval_seconds",
+            self.otel_export_interval_seconds,
         )
         _require_positive_float("cancel_flag_ttl_seconds", self.cancel_flag_ttl_seconds)
 
@@ -254,6 +268,44 @@ class ApiSettings:
                 "SUPERVISOR_RETRIEVAL_OBSERVATION_INCLUDE_QUERY_TEXT",
                 default=False,
             ),
+            otel_enabled=_read_bool(
+                "SUPERVISOR_AGENT_WORKER_OTEL_ENABLED",
+                default=False,
+            ),
+            otel_service_name=os.getenv(
+                "SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME",
+                "campus-supervisor-agent-worker",
+            ).strip()
+            or "campus-supervisor-agent-worker",
+            otel_allowed_attributes_version=os.getenv(
+                "SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION",
+                "supervisor-agent-worker-otel-attrs-v1",
+            ).strip()
+            or "supervisor-agent-worker-otel-attrs-v1",
+            otel_export_timeout_seconds=_read_positive_float(
+                "SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_TIMEOUT_SECONDS",
+                default=1.0,
+            ),
+            otel_export_interval_seconds=_read_positive_float(
+                "SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_INTERVAL_SECONDS",
+                default=5.0,
+            ),
+            otel_exporter_otlp_headers=os.getenv(
+                "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_HEADERS",
+                "",
+            ).strip(),
+            otel_exporter_otlp_traces_endpoint=os.getenv(
+                "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+                "",
+            ).strip(),
+            otel_exporter_otlp_metrics_endpoint=os.getenv(
+                "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+                "",
+            ).strip(),
+            otel_exporter_otlp_logs_endpoint=os.getenv(
+                "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+                "",
+            ).strip(),
             cancel_flag_ttl_seconds=_read_positive_float(
                 "SUPERVISOR_AGENT_WORKER_CANCEL_FLAG_TTL_SECONDS",
                 default=900.0,

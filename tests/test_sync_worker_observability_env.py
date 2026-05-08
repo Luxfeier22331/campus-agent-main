@@ -33,7 +33,7 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "SENTRY_DSN=https://shared.example",
-                        "AXIOM_ENDPOINT=https://api.axiom.co",
+                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
                         "AXIOM_DATASET=campus-agent-runtime-dev",
                         "AXIOM_TOKEN=axiom-token",
                     ]
@@ -57,7 +57,7 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                         "APP_API_NAME=campus-agent-app-api",
                         "SENTRY_DSN=",
                         "SENTRY_ENVIRONMENT=development",
-                        "AXIOM_ENDPOINT=https://api.axiom.co",
+                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
                         "AXIOM_DATASET=campus_agent_runtime",
                         "AXIOM_TOKEN=",
                     ]
@@ -106,7 +106,7 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                 (app_api_dir / ".dev.vars").read_text(encoding="utf-8"),
             )
             app_api_vars = (app_api_dir / ".dev.vars").read_text(encoding="utf-8")
-            self.assertIn("AXIOM_ENDPOINT=https://api.axiom.co\n", app_api_vars)
+            self.assertIn("AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co\n", app_api_vars)
             self.assertIn("AXIOM_DATASET=campus-agent-runtime-dev\n", app_api_vars)
             self.assertIn("AXIOM_TOKEN=axiom-token\n", app_api_vars)
             self.assertIn(

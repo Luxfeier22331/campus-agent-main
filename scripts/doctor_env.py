@@ -593,6 +593,36 @@ def _collect_surface_conditions(
         ),
     }
 
+    axiom_collector_endpoint = env.get("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", "").strip()
+    axiom_endpoint = env.get("AXIOM_ENDPOINT", "").strip()
+    axiom_collector_endpoint_ready = (
+        not axiom_collector_endpoint
+        or axiom_collector_endpoint.startswith("http://")
+        or axiom_collector_endpoint.startswith("https://")
+    ) and "/" not in axiom_collector_endpoint.removeprefix("https://").removeprefix("http://")
+    axiom_collector_endpoint_matches_worker = (
+        not axiom_collector_endpoint
+        or not axiom_endpoint
+        or axiom_collector_endpoint.rstrip("/") == axiom_endpoint.rstrip("/")
+    )
+    conditions["otel_axiom_collector_endpoint_contract"] = {
+        "required": bool(axiom_collector_endpoint),
+        "ready": axiom_collector_endpoint_ready and axiom_collector_endpoint_matches_worker,
+        "error": (
+            "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT must be a base domain like "
+            "https://us-east-1.aws.edge.axiom.co; do not include /v1/traces, /v1/logs, or /v1/metrics"
+            if axiom_collector_endpoint and not axiom_collector_endpoint_ready
+            else (
+                "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT must match AXIOM_ENDPOINT so Worker and "
+                "Collector export to the same Axiom edge deployment"
+                if axiom_collector_endpoint
+                and axiom_endpoint
+                and not axiom_collector_endpoint_matches_worker
+                else None
+            )
+        ),
+    }
+
     return conditions
 
 

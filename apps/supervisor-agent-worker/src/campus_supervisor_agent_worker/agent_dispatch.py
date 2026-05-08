@@ -69,8 +69,9 @@ class AgentDispatcher:
     tool_registry: ToolSpecRegistry | None = None
 
     def dispatch(self, request: AgentRequest) -> AgentResponse:
-        _validate_agent_spec_admission(request, self._agent_registry())
-        _validate_tool_admission(request, self._tool_registry())
+        tool_registry = self._tool_registry()
+        _validate_agent_spec_admission(request, self._agent_registry(), tool_registry)
+        _validate_tool_admission(request, tool_registry)
         delegate = self.agent_delegates.get(request.target)
         if delegate is None:
             raise MissingAgentDelegateError(f"missing delegate for agent target: {request.target}")
@@ -94,45 +95,22 @@ class AgentDispatcher:
         return default_agent_spec_registry()
 
 
-_PAYLOAD_KIND_BY_CLASS_NAME = {
-    "RagRequestPayload": "rag_request",
-    "PlaceLookupPayload": "place_lookup",
-    "AcademicCalendarLookupPayload": "academic_calendar_lookup",
-    "ServiceGuideLookupPayload": "service_guide_lookup",
-    "ServiceStatusLookupPayload": "service_status_lookup",
-    "TransportScheduleLookupPayload": "transport_schedule_lookup",
-    "ContactDirectoryLookupPayload": "contact_directory_lookup",
-    "CampusNoticeDiscoverPayload": "campus_notice_discover",
-    "CampusNoticeGetPayload": "campus_notice_get",
-    "CampusNoticeChangeSetLookupPayload": "campus_notice_change_set_lookup",
-}
-
-
-def _validate_agent_spec_admission(request: AgentRequest, registry: AgentSpecRegistry) -> None:
-    agent = registry.agent_by_id(request.target)
+def _validate_agent_spec_admission(
+    request: AgentRequest,
+    agent_registry: AgentSpecRegistry,
+    tool_registry: ToolSpecRegistry,
+) -> None:
+    agent = agent_registry.agent_by_id(request.target)
     if agent is None:
         raise AgentSpecAdmissionError(f"unknown AgentSpec target: {request.target}")
     if not agent.active or agent.opening_gate != "open":
         raise AgentSpecAdmissionError(
             f"AgentSpec target is not open for dispatch: {request.target}"
         )
-    payload_kind = _payload_kind_for_request(request)
-    if payload_kind not in agent.payload_kinds:
-        raise AgentSpecAdmissionError(
-            "AgentRequest payload kind is outside AgentSpec boundary "
-            f"for target={request.target}: got {payload_kind!r}, "
-            f"want one of {agent.payload_kinds!r}"
-        )
-
-
-def _payload_kind_for_request(request: AgentRequest) -> str:
-    payload_kind = _PAYLOAD_KIND_BY_CLASS_NAME.get(request.payload.__class__.__name__)
-    if payload_kind:
-        return payload_kind
-    raise AgentSpecAdmissionError(
-        "AgentRequest payload class is outside AgentSpec boundary: "
-        f"{request.payload.__class__.__name__}"
-    )
+    try:
+        tool_registry.payload_kind_for_request(request.target, request.payload)
+    except ToolSpecRegistryError as exc:
+        raise AgentSpecAdmissionError(str(exc)) from exc
 
 
 def _validate_tool_admission(request: AgentRequest, registry: ToolSpecRegistry) -> None:

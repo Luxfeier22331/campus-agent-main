@@ -21,6 +21,21 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
 
         self.assertEqual(caught.exception.reason, "runtime_posture_not_admitted")
 
+    def test_rejects_internal_function_posture_even_when_agent_internal(self) -> None:
+        with self.assertRaisesRegex(
+            AgentsSdkToolBridgeError,
+            "runtime_posture_not_admitted",
+        ) as caught:
+            build_agents_sdk_tool_descriptors(
+                ("campus_notice_get",),
+                registry=_sdk_candidate_tool_registry(
+                    "campus_notice_get",
+                    runtime_posture="internal_function",
+                ),
+            )
+
+        self.assertEqual(caught.exception.reason, "runtime_posture_not_admitted")
+
     def test_rejects_empty_allowed_tools(self) -> None:
         with self.assertRaisesRegex(AgentsSdkToolBridgeError, "allowed_tools_missing") as caught:
             build_agents_sdk_tool_descriptors(())

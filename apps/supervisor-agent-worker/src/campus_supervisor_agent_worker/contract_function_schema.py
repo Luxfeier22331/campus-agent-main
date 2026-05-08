@@ -18,10 +18,10 @@ class ContractFunctionSchemaError(ValueError):
     pass
 
 
-def provider_parameters_schema_for_type(payload_type: type[object]) -> dict[str, Any]:
+def function_parameters_schema_for_type(payload_type: type[object]) -> dict[str, Any]:
     if not isinstance(payload_type, type) or not is_dataclass(payload_type):
         raise ContractFunctionSchemaError(
-            f"provider function payload must be a dataclass type, got {payload_type!r}"
+            f"function payload must be a dataclass type, got {payload_type!r}"
         )
     return _object_schema_for_dataclass(payload_type)
 
@@ -229,5 +229,5 @@ def _nullable_schema(schema: dict[str, Any]) -> dict[str, Any]:
 
 __all__ = [
     "ContractFunctionSchemaError",
-    "provider_parameters_schema_for_type",
+    "function_parameters_schema_for_type",
 ]

@@ -4,15 +4,15 @@ import json
 import unittest
 from pathlib import Path
 
-from campus_supervisor_agent_worker.tool_function_schema import (
+from campus_supervisor_agent_worker.provider_function_schema import (
     generate_provider_function_schemas,
     provider_function_schema_for_tool,
 )
 from campus_supervisor_agent_worker.tool_spec_registry import load_tool_spec_registry
 
 
-class ToolFunctionSchemaTest(unittest.TestCase):
-    def test_generates_strict_provider_function_schemas_for_structured_tools(self) -> None:
+class ProviderFunctionSchemaTest(unittest.TestCase):
+    def test_generates_strict_tool_function_schemas_for_structured_tools(self) -> None:
         schemas = generate_provider_function_schemas()
 
         self.assertEqual(
@@ -35,7 +35,7 @@ class ToolFunctionSchemaTest(unittest.TestCase):
             self.assertEqual(schema["parameters"]["additionalProperties"], False)
             _assert_strict_object(schema["parameters"])
 
-    def test_agent_internal_tools_do_not_get_provider_function_schemas(self) -> None:
+    def test_agent_internal_tools_do_not_get_tool_function_schemas(self) -> None:
         schemas = generate_provider_function_schemas()
 
         self.assertNotIn("retrieval.query", {schema["name"] for schema in schemas})
@@ -65,7 +65,7 @@ class ToolFunctionSchemaTest(unittest.TestCase):
         self.assertEqual(academic_calendar["query_kind"]["type"], "string")
         self.assertNotIn(None, academic_calendar["query_kind"]["enum"])
 
-    def test_notice_body_get_is_not_a_provider_function_schema(self) -> None:
+    def test_notice_body_get_is_not_a_tool_function_schema(self) -> None:
         schemas = {schema["name"]: schema for schema in generate_provider_function_schemas()}
 
         self.assertNotIn("campus_notice_get", schemas)
@@ -73,7 +73,7 @@ class ToolFunctionSchemaTest(unittest.TestCase):
     def test_all_available_function_schema_tools_generate_from_payload_schema_refs(self) -> None:
         registry = load_tool_spec_registry()
 
-        for tool in (*registry.provider_function_tools(), *registry.sdk_internal_function_tools()):
+        for tool in (*registry.callable_schema_tools(), *registry.provider_callable_internal_functions()):
             with self.subTest(tool=tool.name):
                 schema = provider_function_schema_for_tool(tool)
                 self.assertEqual(schema["name"], tool.name)
@@ -82,18 +82,18 @@ class ToolFunctionSchemaTest(unittest.TestCase):
     def test_no_payload_kind_switch_table_remains(self) -> None:
         source = Path(
             "apps/supervisor-agent-worker/src/"
-            "campus_supervisor_agent_worker/tool_function_schema.py"
+            "campus_supervisor_agent_worker/provider_function_schema.py"
         ).read_text(encoding="utf-8")
 
         self.assertNotIn("_parameters_for_payload_kind", source)
 
     def test_provider_function_schema_snapshot_is_stable(self) -> None:
-        snapshot_path = Path("packages/evals/fixtures/provider_function_tools.v1.json")
+        snapshot_path = Path("packages/evals/fixtures/tool_function_schemas.v1.json")
         expected = json.loads(snapshot_path.read_text(encoding="utf-8"))
 
         self.assertEqual(
             {
-                "schema_version": "provider-function-tools-v1",
+                "schema_version": "tool-function-schemas-v1",
                 "tools": generate_provider_function_schemas(),
             },
             expected,

@@ -6,6 +6,36 @@ from collections.abc import Callable, Mapping
 from pathlib import Path
 from threading import Lock
 
+try:
+    from opentelemetry import metrics
+    from opentelemetry._logs import set_logger_provider
+    from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+    from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
+    from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+    from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+    from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+    from opentelemetry.sdk.metrics import MeterProvider
+    from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+    from opentelemetry.sdk.resources import Resource
+    from opentelemetry.sdk.trace import TracerProvider
+    from opentelemetry.sdk.trace.export import BatchSpanProcessor
+    OTEL_AVAILABLE = True
+except Exception:  # pragma: no cover - dependency absence is handled at runtime
+    metrics = None
+    set_logger_provider = None
+    OTLPLogExporter = None
+    OTLPMetricExporter = None
+    OTLPSpanExporter = None
+    LoggerProvider = None
+    LoggingHandler = None
+    BatchLogRecordProcessor = None
+    MeterProvider = None
+    PeriodicExportingMetricReader = None
+    Resource = None
+    TracerProvider = None
+    BatchSpanProcessor = None
+    OTEL_AVAILABLE = False
+
 _LOGGER = logging.getLogger(__name__)
 
 RetrievalObservationSink = Callable[[dict[str, object]], None]
@@ -108,6 +138,121 @@ def build_runtime_event_jsonl_emitter(path: str | Path) -> RuntimeEventEmitter:
     return emit_event
 
 
+def build_runtime_event_emitter_status(
+    *,
+    otel_enabled: bool,
+    traces_endpoint: str,
+    metrics_endpoint: str,
+    logs_endpoint: str,
+) -> dict[str, object]:
+    return {
+        "enabled": otel_enabled,
+        "configured": bool(traces_endpoint or metrics_endpoint or logs_endpoint),
+        "transport": "otlp_http" if otel_enabled else "jsonl",
+        "traces_configured": bool(traces_endpoint),
+        "metrics_configured": bool(metrics_endpoint),
+        "logs_configured": bool(logs_endpoint),
+    }
+
+
+def build_runtime_event_otlp_emitter(
+    *,
+    enabled: bool,
+    service_name: str,
+    allowed_attributes_version: str,
+    traces_endpoint: str,
+    metrics_endpoint: str,
+    logs_endpoint: str,
+    export_timeout_seconds: float,
+    export_interval_seconds: float,
+    headers: str,
+) -> RuntimeEventEmitter:
+    if not enabled:
+        raise ValueError("OTLP runtime event emitter requires enabled=true")
+    if not traces_endpoint.strip():
+        raise ValueError("OTLP runtime event emitter requires a traces endpoint")
+    if not OTEL_AVAILABLE:
+        raise ValueError("OpenTelemetry Python dependencies are not installed")
+
+    header_map = _parse_otlp_headers(headers)
+    resource = Resource.create(
+        {
+            "service.name": service_name,
+            "service.namespace": "campus-agent",
+            "telemetry.allowed_attributes_version": allowed_attributes_version,
+        }
+    )
+    tracer_provider = TracerProvider(resource=resource)
+    tracer_provider.add_span_processor(
+        BatchSpanProcessor(
+            OTLPSpanExporter(
+                endpoint=traces_endpoint,
+                headers=header_map,
+                timeout=export_timeout_seconds,
+            )
+        )
+    )
+    tracer = tracer_provider.get_tracer("campus-supervisor-agent-worker")
+
+    meter = None
+    counter = None
+    if metrics_endpoint.strip():
+        meter_provider = MeterProvider(
+            metric_readers=[
+                PeriodicExportingMetricReader(
+                    OTLPMetricExporter(
+                        endpoint=metrics_endpoint,
+                        headers=header_map,
+                        timeout=export_timeout_seconds,
+                    ),
+                    export_interval_millis=int(export_interval_seconds * 1000),
+                    export_timeout_millis=int(export_timeout_seconds * 1000),
+                )
+            ],
+            resource=resource,
+        )
+        metrics.set_meter_provider(meter_provider)
+        meter = meter_provider.get_meter("campus-supervisor-agent-worker")
+        counter = meter.create_counter("campus.supervisor_agent_worker.runtime_events")
+
+    otel_logger = None
+    if logs_endpoint.strip():
+        logger_provider = LoggerProvider(resource=resource)
+        logger_provider.add_log_record_processor(
+            BatchLogRecordProcessor(
+                OTLPLogExporter(
+                    endpoint=logs_endpoint,
+                    headers=header_map,
+                    timeout=export_timeout_seconds,
+                )
+            )
+        )
+        set_logger_provider(logger_provider)
+        otel_logger = logging.getLogger(
+            "campus_supervisor_agent_worker.runtime_event_otlp"
+        )
+        if not any(isinstance(handler, LoggingHandler) for handler in otel_logger.handlers):
+            otel_logger.addHandler(LoggingHandler(level=logging.INFO, logger_provider=logger_provider))
+        otel_logger.setLevel(logging.INFO)
+        otel_logger.propagate = False
+
+    def emit_event(event_name: str, attributes: dict[str, object]) -> None:
+        sanitized_attributes = dict(attributes)
+        sanitized_attributes["event_name"] = event_name
+        if counter is not None:
+            counter.add(1, sanitized_attributes)
+        with tracer.start_as_current_span(f"supervisor_agent_worker.{event_name}") as span:
+            for key, value in sanitized_attributes.items():
+                span.set_attribute(key, value)
+        if otel_logger is not None:
+            otel_logger.info(
+                "runtime_event",
+                extra={"event_name": event_name, "attributes": sanitized_attributes},
+            )
+
+    return emit_event
+
+
 def compose_retrieval_observation_sinks(
     *sinks: RetrievalObservationSink | None,
 ) -> RetrievalObservationSink | None:
@@ -162,3 +307,14 @@ def _as_int(value: object) -> int:
         except ValueError:
             return 0
     return 0
+
+
+def _parse_otlp_headers(value: str) -> dict[str, str]:
+    headers: dict[str, str] = {}
+    for part in value.split(","):
+        key, _, raw_value = part.partition("=")
+        key = key.strip()
+        raw_value = raw_value.strip()
+        if key and raw_value:
+            headers[key] = raw_value
+    return headers

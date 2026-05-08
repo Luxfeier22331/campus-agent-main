@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 from campus_rag_agent.rag_sdk_models import (
     RagSdkEvidenceAnchor,
@@ -16,8 +17,6 @@ from campus_rag_agent.rag_sdk_output import (
 )
 from campus_rag_agent.rag_sdk_tools import (
     RagSdkToolError,
-    reject_model_supplied_scope_or_selector,
-    resolve_admitted_query_slot_id,
 )
 from campus_rag_agent.rag_sdk_trace import build_rag_sdk_trace_projection
 from campus_shared import PromptRuntimeProviderConfig
@@ -31,6 +30,12 @@ from campus_supervisor_agent_worker.openai_agents_runtime import (
     OpenAIAgentsRuntimeError,
     OpenAIAgentsToolInvocation,
 )
+from campus_supervisor_agent_worker.tool_execution import (
+    ToolExecutionContext,
+    ToolExecutionSession,
+    build_default_tool_execution_session,
+)
+from campus_supervisor_agent_worker.tool_spec_registry import default_tool_spec_registry
 
 _RAG_SDK_INSTRUCTIONS = """
 You are a bounded campus RAG synthesis loop.
@@ -110,6 +115,7 @@ class OpenAIRagAgentsSdkRunner:
         model_name: str,
         instructions: str = _RAG_SDK_INSTRUCTIONS,
         max_turns: int = 3,
+        tool_execution_session: ToolExecutionSession | None = None,
     ) -> None:
         self._instructions = instructions.strip() or _RAG_SDK_INSTRUCTIONS
         self._runtime = OpenAIAgentsNativeRuntime(
@@ -117,6 +123,7 @@ class OpenAIRagAgentsSdkRunner:
             model_name=model_name,
             max_turns=max_turns,
         )
+        self._tool_execution_session = tool_execution_session or _build_rag_tool_execution_session()
 
     def __call__(self, request: RagSdkRunRequest) -> RagSdkRunResult:
         result = self._runtime.run(
@@ -126,7 +133,7 @@ class OpenAIRagAgentsSdkRunner:
             context=request,
             tool_descriptors=build_agents_sdk_tool_descriptors(("retrieve_evidence",)),
             output_type=_RagSdkStructuredOutput,
-            execute_tool=lambda invocation: _execute_retrieve_evidence_tool(
+            execute_tool=lambda invocation: self._execute_retrieve_evidence_tool(
                 invocation,
                 request=request,
             ),
@@ -149,7 +156,7 @@ class OpenAIRagAgentsSdkRunner:
         async def invoke_tool(context: object, raw_arguments: str) -> str:
             arguments = _parse_tool_arguments(raw_arguments)
             try:
-                result = _execute_retrieve_evidence_tool(
+                result = self._execute_retrieve_evidence_tool(
                     OpenAIAgentsToolInvocation(
                         name=descriptor.name,
                         arguments=arguments,
@@ -170,6 +177,45 @@ class OpenAIRagAgentsSdkRunner:
             timeout_seconds=None,
             timeout_behavior="raise_exception",
         )
+
+    def _execute_retrieve_evidence_tool(
+        self,
+        invocation: OpenAIAgentsToolInvocation,
+        *,
+        request: RagSdkRunRequest,
+    ) -> dict[str, object]:
+        try:
+            result = self._tool_execution_session.execute_sdk_tool(
+                invocation,
+                context=ToolExecutionContext(rag_sdk_request=request),
+            )
+        except RagSdkToolError as exc:
+            raise OpenAIAgentsRuntimeError(exc.failure_class, exc.failure_class) from exc
+        except Exception as exc:
+            if isinstance(exc, OpenAIAgentsRuntimeError):
+                raise
+            message = str(exc)
+            failure_class = message.split(":", 1)[0] if ":" in message else "sdk_tool_failed"
+            raise OpenAIAgentsRuntimeError(failure_class, message) from exc
+        if not isinstance(result, dict):
+            raise OpenAIAgentsRuntimeError(
+                "sdk_tool_failed",
+                "retrieve_evidence must return a bounded mapping result",
+            )
+        return result
+
+
+def _build_rag_tool_execution_session() -> ToolExecutionSession:
+    registry = default_tool_spec_registry()
+    rag_only_registry = replace(
+        registry,
+        tools=tuple(tool for tool in registry.tools if tool.name == "retrieve_evidence"),
+    )
+    return build_default_tool_execution_session(
+        campus_services_query_service=None,
+        notice_query_service=None,
+        tool_registry=rag_only_registry,
+    )
 
 
 def _coerce_structured_output(value: object) -> RagSdkAnswerOutput:
@@ -243,41 +289,6 @@ def _anchor(value: _RagSdkStructuredAnchor) -> RagSdkEvidenceAnchor:
         title=value.title,
         url=value.url,
     )
-
-
-def _execute_retrieve_evidence_tool(
-    invocation: OpenAIAgentsToolInvocation,
-    *,
-    request: RagSdkRunRequest,
-) -> dict[str, object]:
-    arguments = invocation.arguments
-    try:
-        reject_model_supplied_scope_or_selector(arguments)
-        query_slot_id = resolve_admitted_query_slot_id(
-            arguments.get("query_slot_id"),
-            admitted_query_slot_ids=request.query_intent.admitted_query_slot_ids,
-        )
-    except RagSdkToolError as exc:
-        raise OpenAIAgentsRuntimeError(exc.failure_class, exc.failure_class) from exc
-    return {
-        "status": "completed",
-        "query_slot_id": query_slot_id,
-        "retrieval_intent": str(arguments.get("retrieval_intent") or "").strip(),
-        "corpus": request.evidence.corpus,
-        "collection": request.evidence.collection,
-        "source_count": len(request.evidence.anchors),
-        "anchors": [
-            {
-                "source_id": anchor.source_id,
-                "chunk_id": anchor.chunk_id,
-                "excerpt": anchor.excerpt,
-                "span_ref": anchor.span_ref,
-                "title": anchor.title,
-                "url": anchor.url,
-            }
-            for anchor in request.evidence.anchors
-        ],
-    }
 
 
 __all__ = ["OpenAIRagAgentsSdkRunner"]

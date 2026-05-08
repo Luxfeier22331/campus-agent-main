@@ -39,6 +39,35 @@ class SupervisorApiStagingPreflightTest(unittest.TestCase):
         ):
             self.assertIn(image, script)
 
+    def test_staging_scripts_load_collector_env_and_capture_collector_logs(self) -> None:
+        common_script = (ROOT / "infra/local/staging/supervisor-api-staging-common.sh").read_text(
+            encoding="utf-8"
+        )
+        start_script = (ROOT / "infra/local/staging/start-supervisor-api-staging.sh").read_text(
+            encoding="utf-8"
+        )
+        status_script = (ROOT / "infra/local/staging/status-supervisor-api-staging.sh").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("supervisor_api_staging_otel_collector_log_file", common_script)
+        self.assertIn('"OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT"', common_script)
+        self.assertIn('"OTEL_COLLECTOR_SENTRY_AUTH_VALUE"', common_script)
+        self.assertIn('"OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT"', common_script)
+        self.assertIn('"OTEL_COLLECTOR_AXIOM_AUTH_HEADER"', common_script)
+        self.assertIn('"OTEL_COLLECTOR_AXIOM_EVENTS_DATASET"', common_script)
+        self.assertIn('"OTEL_COLLECTOR_AXIOM_METRICS_DATASET"', common_script)
+        self.assertIn('"SUPERVISOR_API_OTEL_ENABLED"', common_script)
+        self.assertIn('"SUPERVISOR_AGENT_WORKER_OTEL_ENABLED"', common_script)
+        self.assertIn("supervisor_api_staging_validate_axiom_collector_endpoint", common_script)
+        self.assertIn("must be the Axiom OTLP base domain", common_script)
+        self.assertIn("must match AXIOM_ENDPOINT", common_script)
+        self.assertIn("otel-collector log contains permanent exporter failures", status_script)
+        self.assertIn("logs --no-color otel-collector", common_script)
+        self.assertIn('echo "  ${supervisor_api_staging_otel_collector_log_file}"', start_script)
+        self.assertIn('echo "  ${supervisor_api_staging_otel_collector_log_file}"', status_script)
+        self.assertIn('[[ "${services}" == *"otel-collector"* ]]', common_script)
+
 
 if __name__ == "__main__":
     unittest.main()

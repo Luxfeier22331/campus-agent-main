@@ -7,7 +7,7 @@ from pathlib import Path
 
 class SdkOnlyDomainAgentRegistryTruthTest(unittest.TestCase):
     def test_agent_spec_uses_worker_dispatch_truth_without_direct_delegate_fields(self) -> None:
-        payload = json.loads(Path("configs/runtime/agents.v1.json").read_text(encoding="utf-8"))
+        payload = json.loads(Path("configs/runtime/agents.v2.json").read_text(encoding="utf-8"))
         agents = {agent["id"]: agent for agent in payload["agents"]}
 
         campus_services = agents["campus-services-agent"]

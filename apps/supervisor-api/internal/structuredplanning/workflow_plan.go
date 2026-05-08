@@ -336,6 +336,7 @@ func (p SemanticRetryPolicy) Map() map[string]any {
 func ValidateWorkflowPlanWithAgentSpec(
 	plan *WorkflowPlan,
 	registry runtimepolicy.AgentSpecRegistry,
+	toolRegistry runtimepolicy.ToolSpecRegistry,
 ) error {
 	if plan == nil {
 		return nil
@@ -351,7 +352,7 @@ func ValidateWorkflowPlanWithAgentSpec(
 		if !agent.Active || agent.OpeningGate != "open" {
 			return fmt.Errorf("workflow plan step[%d] AgentSpec target is not open: %s", index, step.Target)
 		}
-		if !containsString(agent.PayloadKinds, step.PayloadKind) {
+		if !toolRegistry.PayloadKindBelongsToTarget(step.Target, step.PayloadKind) {
 			return fmt.Errorf(
 				"workflow plan step[%d] payload_kind %q is outside AgentSpec for target %s",
 				index,

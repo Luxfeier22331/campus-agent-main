@@ -62,9 +62,9 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 	if !noticeGet.Active ||
 		noticeGet.Surface != "agent_internal" ||
 		noticeGet.FunctionSchema.Available ||
-		noticeGet.RuntimePosture != "closed" {
+		noticeGet.RuntimePosture != "internal_function" {
 		t.Fatalf(
-			"campus_notice_get active/surface/function/runtime posture = %v/%q/%#v/%q, want active agent_internal unavailable closed",
+			"campus_notice_get active/surface/function/runtime posture = %v/%q/%#v/%q, want active agent_internal unavailable internal_function",
 			noticeGet.Active,
 			noticeGet.Surface,
 			noticeGet.FunctionSchema,
@@ -167,7 +167,7 @@ func TestToolSpecRegistryValidationRejectsDuplicateTools(t *testing.T) {
 	path := writeToolRegistryFixture(
 		t,
 		`{
-		  "schema_version": "tool-spec-registry-v1",
+		  "schema_version": "tool-spec-registry-v2",
 		  "registry_version": "test",
 		  "tools": [
 		    {
@@ -181,7 +181,9 @@ func TestToolSpecRegistryValidationRejectsDuplicateTools(t *testing.T) {
 		      "surface": "structured_handoff",
 		      "read_only": true,
 		      "active": true,
-		      "provider_schema": {"enabled": true, "strict": true}
+		      "function_schema": {"available": true, "strict": true},
+		      "runtime_posture": "sdk_adapter_admitted",
+		      "description": "Lookup current or temporally qualified campus service status."
 		    },
 		    {
 		      "name": "service_status_lookup",
@@ -194,7 +196,9 @@ func TestToolSpecRegistryValidationRejectsDuplicateTools(t *testing.T) {
 		      "surface": "structured_handoff",
 		      "read_only": true,
 		      "active": true,
-		      "provider_schema": {"enabled": true, "strict": true}
+		      "function_schema": {"available": true, "strict": true},
+		      "runtime_posture": "sdk_adapter_admitted",
+		      "description": "Lookup current or temporally qualified campus service status."
 		    }
 		  ]
 		}`,
@@ -213,7 +217,7 @@ func TestToolSpecRegistryValidationRejectsUnsupportedOwnerAndMutableTools(t *tes
 		{
 			name: "unsupported owner",
 			body: `{
-			  "schema_version": "tool-spec-registry-v1",
+			  "schema_version": "tool-spec-registry-v2",
 			  "registry_version": "test",
 			  "tools": [{
 			    "name": "bad_tool",
@@ -226,14 +230,16 @@ func TestToolSpecRegistryValidationRejectsUnsupportedOwnerAndMutableTools(t *tes
 			    "surface": "structured_handoff",
 			    "read_only": true,
 			    "active": true,
-			    "provider_schema": {"enabled": false, "strict": true}
+			    "function_schema": {"available": false, "strict": true},
+			    "runtime_posture": "typed_handoff_only",
+			    "description": "bad tool"
 			  }]
 			}`,
 		},
 		{
 			name: "mutable active tool",
 			body: `{
-			  "schema_version": "tool-spec-registry-v1",
+			  "schema_version": "tool-spec-registry-v2",
 			  "registry_version": "test",
 			  "tools": [{
 			    "name": "bad_tool",
@@ -246,7 +252,9 @@ func TestToolSpecRegistryValidationRejectsUnsupportedOwnerAndMutableTools(t *tes
 			    "surface": "structured_handoff",
 			    "read_only": false,
 			    "active": true,
-			    "provider_schema": {"enabled": false, "strict": true}
+			    "function_schema": {"available": false, "strict": true},
+			    "runtime_posture": "typed_handoff_only",
+			    "description": "bad tool"
 			  }]
 			}`,
 		},
@@ -265,7 +273,7 @@ func TestToolSpecRegistryValidationRequiresStructuredHandoffPayloadMatch(t *test
 	path := writeToolRegistryFixture(
 		t,
 		`{
-		  "schema_version": "tool-spec-registry-v1",
+		  "schema_version": "tool-spec-registry-v2",
 		  "registry_version": "test",
 		  "tools": [{
 		    "name": "service_status_lookup",
@@ -278,7 +286,9 @@ func TestToolSpecRegistryValidationRequiresStructuredHandoffPayloadMatch(t *test
 		    "surface": "structured_handoff",
 		    "read_only": true,
 		    "active": true,
-		    "provider_schema": {"enabled": true, "strict": true}
+		    "function_schema": {"available": true, "strict": true},
+		    "runtime_posture": "sdk_adapter_admitted",
+		    "description": "Lookup current or temporally qualified campus service status."
 		  }]
 		}`,
 	)
@@ -290,7 +300,7 @@ func TestToolSpecRegistryValidationRequiresStructuredHandoffPayloadMatch(t *test
 
 func writeToolRegistryFixture(t *testing.T, body string) string {
 	t.Helper()
-	path := filepath.Join(t.TempDir(), "tools.v1.json")
+	path := filepath.Join(t.TempDir(), "tools.v2.json")
 	if err := os.WriteFile(path, []byte(body), 0o600); err != nil {
 		t.Fatalf("write fixture: %v", err)
 	}

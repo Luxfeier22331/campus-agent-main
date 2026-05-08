@@ -108,8 +108,8 @@ Observability data policy:
 - `AXIOM_ENDPOINT` should normally be the base domain of the org edge deployment
   shown in Axiom `Settings -> General -> Edge deployment`, for example
   `<https://us-east-1.aws.edge.axiom.co`>
-- `app-api` uses the edge ingest route for `*.edge.axiom.co` endpoints and the
-  dataset ingest route for the shared `<https://api.axiom.co`> domain
+- `app-api` should use the edge ingest route from the selected edge deployment
+  domain; keep Worker-local and Collector-based exports on the same edge domain
 - `AXIOM_DATASET` is environment-scoped for the current rollout, for example
   `campus-agent-runtime-dev` or `campus-agent-runtime-staging`
 - when `AXIOM_ENDPOINT` points at an edge deployment domain, `AXIOM_TOKEN` must

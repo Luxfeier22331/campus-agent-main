@@ -17,15 +17,16 @@ from campus_supervisor_agent_worker.tool_spec_registry import load_tool_spec_reg
 class AgentSpecRegistryTest(unittest.TestCase):
     def test_loads_default_registry_for_current_agent_inventory(self) -> None:
         registry = load_agent_spec_registry()
+        tool_registry = load_tool_spec_registry()
 
-        self.assertEqual(registry.schema_version, "agent-spec-registry-v1")
+        self.assertEqual(registry.schema_version, "agent-spec-registry-v2")
         self.assertEqual(registry.known_agent_ids(), ALLOWED_AGENT_TARGETS)
         self.assertEqual(
             registry.active_agent_ids(),
             ("rag-agent", "campus-services-agent", "notice-agent"),
         )
         self.assertEqual(
-            registry.payload_kinds_for_agent("campus-services-agent"),
+            tool_registry.payload_kinds_for_target("campus-services-agent"),
             (
                 "service_status_lookup",
                 "service_guide_lookup",
@@ -48,9 +49,16 @@ class AgentSpecRegistryTest(unittest.TestCase):
             notice_agent.allowed_structured_handoff_tools,
             ("campus_notice_discover", "campus_notice_change_set_lookup"),
         )
-        self.assertIn("campus_notice_get", notice_agent.payload_kinds)
         self.assertEqual(
-            set(tool_registry.structured_tool_names_for_target("notice-agent")),
+            tool_registry.payload_kinds_for_target("notice-agent"),
+            (
+                "campus_notice_change_set_lookup",
+                "campus_notice_discover",
+                "campus_notice_get",
+            ),
+        )
+        self.assertEqual(
+            set(tool_registry.agent_facing_tool_names_for_target("notice-agent")),
             set(notice_agent.allowed_structured_handoff_tools),
         )
 
@@ -68,7 +76,7 @@ class AgentSpecRegistryTest(unittest.TestCase):
     def test_rejects_duplicate_agent_ids(self) -> None:
         path = _agent_registry_fixture(
             {
-                "schema_version": "agent-spec-registry-v1",
+                "schema_version": "agent-spec-registry-v2",
                 "registry_version": "test",
                 "agents": [
                     _agent("rag-agent", capability="knowledge", active=True, opening_gate="open"),
@@ -85,7 +93,7 @@ class AgentSpecRegistryTest(unittest.TestCase):
     def test_rejects_unknown_agent_id(self) -> None:
         path = _agent_registry_fixture(
             {
-                "schema_version": "agent-spec-registry-v1",
+                "schema_version": "agent-spec-registry-v2",
                 "registry_version": "test",
                 "agents": [
                     {
@@ -104,7 +112,7 @@ class AgentSpecRegistryTest(unittest.TestCase):
     def test_rejects_closed_agent_marked_active(self) -> None:
         path = _agent_registry_fixture(
             {
-                "schema_version": "agent-spec-registry-v1",
+                "schema_version": "agent-spec-registry-v2",
                 "registry_version": "test",
                 "agents": [
                     _agent(
@@ -123,14 +131,13 @@ class AgentSpecRegistryTest(unittest.TestCase):
     def test_rejects_notice_get_as_structured_handoff_tool(self) -> None:
         path = _agent_registry_fixture(
             {
-                "schema_version": "agent-spec-registry-v1",
+                "schema_version": "agent-spec-registry-v2",
                 "registry_version": "test",
                 "agents": [
                     {
                         **_agent(
                             "notice-agent", capability="notice", active=True, opening_gate="open"
                         ),
-                        "payload_kinds": ["campus_notice_discover", "campus_notice_get"],
                         "allowed_structured_handoff_tools": [
                             "campus_notice_discover",
                             "campus_notice_get",
@@ -154,25 +161,16 @@ def _agent(
     defaults = {
         "rag-agent": {
             "owner_package": "packages/rag-agent",
-            "payload_kinds": ["rag_request"],
             "allowed_structured_handoff_tools": [],
             "context_projection_kinds": ["evidence_bundle"],
         },
         "navigation-agent": {
             "owner_package": "packages/navigation-agent",
-            "payload_kinds": ["place_lookup"],
             "allowed_structured_handoff_tools": [],
             "context_projection_kinds": ["place_context"],
         },
         "campus-services-agent": {
             "owner_package": "packages/campus-services-agent",
-            "payload_kinds": [
-                "service_status_lookup",
-                "service_guide_lookup",
-                "transport_schedule_lookup",
-                "contact_directory_lookup",
-                "academic_calendar_lookup",
-            ],
             "allowed_structured_handoff_tools": [
                 "service_status_lookup",
                 "service_guide_lookup",
@@ -188,11 +186,6 @@ def _agent(
         },
         "notice-agent": {
             "owner_package": "packages/notice-agent",
-            "payload_kinds": [
-                "campus_notice_discover",
-                "campus_notice_get",
-                "campus_notice_change_set_lookup",
-            ],
             "allowed_structured_handoff_tools": [
                 "campus_notice_discover",
                 "campus_notice_change_set_lookup",
@@ -208,7 +201,6 @@ def _agent(
         "runtime_adapter": "worker_dispatch",
         "active": active,
         "opening_gate": opening_gate,
-        "payload_kinds": base["payload_kinds"],
         "allowed_structured_handoff_tools": base["allowed_structured_handoff_tools"],
         "context_projection_kinds": base["context_projection_kinds"],
         "description": "fixture",
@@ -217,7 +209,7 @@ def _agent(
 
 def _agent_registry_fixture(payload: dict[str, object]) -> Path:
     temp_dir = Path(tempfile.mkdtemp(prefix="agent-spec-registry-"))
-    path = temp_dir / "agents.v1.json"
+    path = temp_dir / "agents.v2.json"
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
 
@@ -226,6 +218,7 @@ def _fake_settings():
     class _Settings:
         retrieval_observation_jsonl_path = ""
         retrieval_runtime_event_jsonl_path = ""
+        otel_enabled = False
         retrieval_observation_include_query_text = False
         internal_query_base_url = ""
         internal_query_shared_secret = ""

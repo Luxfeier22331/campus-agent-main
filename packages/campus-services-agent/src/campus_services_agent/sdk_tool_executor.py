@@ -126,7 +126,31 @@ def _normalize_dataclass_arguments(payload_class: type[object], arguments: dict[
         nested_type = _dataclass_type_for_annotation(annotation)
         if nested_type is None:
             continue
-        normalized[field_name] = nested_type(**value)
+        normalized[field_name] = nested_type(**_normalize_nested_dataclass_arguments(nested_type, value))
+    return normalized
+
+
+def _normalize_nested_dataclass_arguments(
+    payload_class: type[object],
+    arguments: dict[str, object],
+) -> dict[str, object]:
+    normalized = dict(arguments)
+    resolved_types = get_type_hints(payload_class, include_extras=True)
+    for field_name, annotation in resolved_types.items():
+        value = normalized.get(field_name)
+        if value is None:
+            default_value = _nested_dataclass_default_value(payload_class, field_name)
+            if default_value is not _MISSING:
+                normalized[field_name] = default_value
+            continue
+        if not isinstance(value, dict):
+            continue
+        nested_type = _dataclass_type_for_annotation(annotation)
+        if nested_type is None:
+            continue
+        normalized[field_name] = nested_type(
+            **_normalize_nested_dataclass_arguments(nested_type, value)
+        )
     return normalized
 
 
@@ -147,6 +171,27 @@ def _dataclass_type_for_annotation(annotation: object) -> type[object] | None:
         if isinstance(candidate, type):
             return candidate
     return None
+
+
+def _nested_dataclass_default_value(payload_class: type[object], field_name: str) -> object:
+    from dataclasses import MISSING, fields
+
+    for field in fields(payload_class):
+        if field.name != field_name:
+            continue
+        if field.default is not MISSING:
+            return field.default
+        if field.default_factory is not MISSING:  # type: ignore[truthy-function]
+            return field.default_factory()
+        return _MISSING
+    return _MISSING
+
+
+class _MissingType:
+    pass
+
+
+_MISSING = _MissingType()
 
 
 def _bounded_sdk_tool_result(

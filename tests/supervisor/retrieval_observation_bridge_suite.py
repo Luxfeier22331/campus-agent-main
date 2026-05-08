@@ -16,7 +16,9 @@ from campus_contracts import (
 from campus_supervisor_agent_worker.agent_delegates import _build_agent_delegates
 from campus_supervisor_agent_worker.retrieval_observation_bridge import (
     build_retrieval_runtime_event_sink,
+    build_runtime_event_emitter_status,
     build_runtime_event_jsonl_emitter,
+    build_runtime_event_otlp_emitter,
     compose_retrieval_observation_sinks,
     sanitize_retrieval_observation,
 )
@@ -159,6 +161,35 @@ class RetrievalObservationBridgeTest(unittest.TestCase):
                 }
             ],
         )
+
+    def test_runtime_event_emitter_status_reports_otlp_configuration(self) -> None:
+        status = build_runtime_event_emitter_status(
+            otel_enabled=True,
+            traces_endpoint="http://otel-collector:4318/v1/traces",
+            metrics_endpoint="http://otel-collector:4318/v1/metrics",
+            logs_endpoint="http://otel-collector:4318/v1/logs",
+        )
+
+        self.assertTrue(status["enabled"])
+        self.assertTrue(status["configured"])
+        self.assertEqual(status["transport"], "otlp_http")
+        self.assertTrue(status["traces_configured"])
+        self.assertTrue(status["metrics_configured"])
+        self.assertTrue(status["logs_configured"])
+
+    def test_runtime_event_otlp_emitter_requires_endpoint_when_enabled(self) -> None:
+        with self.assertRaisesRegex(ValueError, "traces endpoint"):
+            build_runtime_event_otlp_emitter(
+                enabled=True,
+                service_name="campus-supervisor-agent-worker",
+                allowed_attributes_version="attrs-v1",
+                traces_endpoint="",
+                metrics_endpoint="",
+                logs_endpoint="",
+                export_timeout_seconds=1.0,
+                export_interval_seconds=5.0,
+                headers="",
+            )
 
     def test_composed_observation_sink_runs_all_sinks_and_keeps_failures_warning_only(self) -> None:
         seen: list[dict[str, object]] = []

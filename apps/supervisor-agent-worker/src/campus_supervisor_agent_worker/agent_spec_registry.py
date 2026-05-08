@@ -8,8 +8,8 @@ from pathlib import Path
 
 from campus_contracts import ALLOWED_AGENT_TARGETS, ALLOWED_REQUESTED_CAPABILITIES
 
-AGENT_SPEC_SCHEMA_VERSION = "agent-spec-registry-v1"
-DEFAULT_AGENT_SPEC_PATH = Path("configs/runtime/agents.v1.json")
+AGENT_SPEC_SCHEMA_VERSION = "agent-spec-registry-v2"
+DEFAULT_AGENT_SPEC_PATH = Path("configs/runtime/agents.v2.json")
 
 
 class AgentSpecRegistryError(ValueError):
@@ -24,7 +24,6 @@ class AgentSpec:
     runtime_adapter: str
     active: bool
     opening_gate: str
-    payload_kinds: tuple[str, ...]
     allowed_structured_handoff_tools: tuple[str, ...]
     context_projection_kinds: tuple[str, ...]
     description: str
@@ -47,13 +46,6 @@ class AgentSpecRegistry:
 
     def active_agent_ids(self) -> tuple[str, ...]:
         return tuple(agent.agent_id for agent in self.agents if agent.active)
-
-    def payload_kinds_for_agent(self, agent_id: str) -> tuple[str, ...]:
-        agent = self.agent_by_id(agent_id)
-        if agent is None:
-            raise AgentSpecRegistryError(f"unknown AgentSpec id: {agent_id}")
-        return agent.payload_kinds
-
 
 def load_agent_spec_registry(path: str | Path | None = None) -> AgentSpecRegistry:
     registry_path = _resolve_agent_spec_path(path)
@@ -90,7 +82,6 @@ def _parse_agent(value: object) -> AgentSpec:
         runtime_adapter=_required_string(item.get("runtime_adapter"), "runtime_adapter"),
         active=bool(item.get("active")),
         opening_gate=_required_string(item.get("opening_gate"), "opening_gate"),
-        payload_kinds=_required_string_tuple(item.get("payload_kinds"), "payload_kinds"),
         allowed_structured_handoff_tools=_string_tuple(
             item.get("allowed_structured_handoff_tools"),
             "allowed_structured_handoff_tools",
@@ -129,8 +120,6 @@ def _validate_agents(agents: tuple[AgentSpec, ...]) -> None:
             raise AgentSpecRegistryError(
                 f"{agent.agent_id} opening_gate is unsupported: {agent.opening_gate}"
             )
-        if not agent.payload_kinds:
-            raise AgentSpecRegistryError(f"{agent.agent_id} payload_kinds must not be empty")
         if agent.agent_id == "rag-agent" and agent.allowed_structured_handoff_tools:
             raise AgentSpecRegistryError("rag-agent must not expose structured handoff tools")
         if agent.agent_id == "notice-agent" and "campus_notice_get" in agent.allowed_structured_handoff_tools:
@@ -158,7 +147,7 @@ def _repo_root() -> Path:
     for parent in current.parents:
         if (parent / DEFAULT_AGENT_SPEC_PATH).exists():
             return parent
-    raise AgentSpecRegistryError("repo root with configs/runtime/agents.v1.json was not found")
+    raise AgentSpecRegistryError("repo root with configs/runtime/agents.v2.json was not found")
 
 
 def _load_json(path: Path) -> dict[str, object]:
@@ -183,15 +172,6 @@ def _required_string(value: object, field_name: str) -> str:
     if not isinstance(value, str) or not value.strip():
         raise AgentSpecRegistryError(f"{field_name} must be a non-empty string")
     return value.strip()
-
-
-def _required_string_tuple(value: object, field_name: str) -> tuple[str, ...]:
-    if not isinstance(value, list) or not value:
-        raise AgentSpecRegistryError(f"{field_name} must be a non-empty list")
-    result: list[str] = []
-    for item in value:
-        result.append(_required_string(item, field_name))
-    return tuple(result)
 
 
 def _string_tuple(value: object, field_name: str) -> tuple[str, ...]:

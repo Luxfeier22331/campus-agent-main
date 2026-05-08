@@ -47,10 +47,18 @@ class SdkOnlyDomainAgentGuardsTest(unittest.TestCase):
                         )
 
     def test_agent_spec_registry_keeps_worker_dispatch_truth(self) -> None:
-        source = (REPO_ROOT / "configs/runtime/agents.v1.json").read_text(encoding="utf-8")
+        source = (REPO_ROOT / "configs/runtime/agents.v2.json").read_text(encoding="utf-8")
         self.assertNotIn('"delegate_module"', source)
         self.assertNotIn('"delegate_symbol"', source)
         self.assertIn('"runtime_adapter": "worker_dispatch"', source)
+
+    def test_production_code_does_not_reintroduce_legacy_rag_internal_tool_bridge(self) -> None:
+        path = (
+            REPO_ROOT
+            / "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/"
+            "rag_sdk_internal_tool_bridge.py"
+        )
+        self.assertFalse(path.exists(), f"legacy SDK bridge still exists: {path}")
 
 
 if __name__ == "__main__":

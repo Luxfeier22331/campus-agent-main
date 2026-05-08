@@ -86,6 +86,7 @@ if (( strict_mode == 0 )); then
 
   echo
   echo "logs:"
+  echo "  ${supervisor_api_staging_otel_collector_log_file}"
   echo "  ${supervisor_api_staging_supervisor_api_log_file}"
   echo "  ${supervisor_api_staging_supervisor_agent_worker_log_file}"
   echo "  ${supervisor_api_staging_cloudflared_log_file}"
@@ -156,6 +157,10 @@ if [[ -n "${supervisor_api_staging_app_api_readyz_url}" ]]; then
   if [[ "${app_api_readyz_payload}" != *'"supervisorApi":"ready"'* ]]; then
     failures+=("app-api readyz payload is not supervisorApi=ready")
   fi
+fi
+
+if supervisor_api_staging_collector_logs_have_export_errors; then
+  failures+=("otel-collector log contains permanent exporter failures")
 fi
 
 if (( ${#failures[@]} > 0 )); then

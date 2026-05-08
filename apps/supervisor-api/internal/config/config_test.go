@@ -240,6 +240,9 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS", "authorization=Bearer test")
 	t.Setenv("SUPERVISOR_API_OTEL_SERVICE_NAME", "custom-supervisor-api")
 	t.Setenv("SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS", "750")
+	t.Setenv("SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS", "15000")
+	t.Setenv("SUPERVISOR_API_OTEL_METRICS_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://collector:4318/v1/metrics")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED", "true")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_URL", "http://app-api:27031/api/internal/execution/audit-events")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", "audit-secret")
@@ -293,6 +296,9 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.OTelHeaders != "authorization=Bearer test" ||
 		cfg.OTelServiceName != "custom-supervisor-api" ||
 		cfg.OTelExportTimeoutMS != 750 ||
+		cfg.OTelExportIntervalMS != 15000 ||
+		!cfg.OTelMetricsEnabled ||
+		cfg.OTelMetricsEndpoint != "http://collector:4318/v1/metrics" ||
 		!cfg.ExecutionAuditEnabled ||
 		cfg.ExecutionAuditURL != "http://app-api:27031/api/internal/execution/audit-events" ||
 		cfg.ExecutionAuditSharedSecret != "audit-secret" ||
@@ -450,5 +456,13 @@ func TestLoadFromEnvRejectsInvalidLaneAndOTelSettings(t *testing.T) {
 	_, err = LoadFromEnv()
 	if err == nil {
 		t.Fatal("expected invalid otel sample ratio to fail")
+	}
+
+	t.Setenv("SUPERVISOR_API_OTEL_SAMPLE_RATIO", "")
+	t.Setenv("SUPERVISOR_API_OTEL_METRICS_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS", "0")
+	_, err = LoadFromEnv()
+	if err == nil {
+		t.Fatal("expected invalid otel export interval to fail")
 	}
 }

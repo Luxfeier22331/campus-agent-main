@@ -10,7 +10,7 @@ from campus_supervisor_agent_worker.agents_sdk_tool_bridge import (
 from campus_supervisor_agent_worker.tool_spec_registry import default_tool_spec_registry
 
 
-class RagSdkInternalToolBridgeTest(unittest.TestCase):
+class AgentsSdkInternalToolSuite(unittest.TestCase):
     def test_builds_retrieve_evidence_descriptor_from_tool_spec(self) -> None:
         descriptor = build_agents_sdk_tool_descriptors(("retrieve_evidence",))[0]
 

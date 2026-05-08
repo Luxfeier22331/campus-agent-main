@@ -128,6 +128,7 @@ func runtimeDecisions(
 		if err := structuredplanning.ValidateWorkflowPlanWithAgentSpec(
 			plan,
 			mustDefaultAgentSpecRegistry(),
+			mustDefaultToolSpecRegistry(),
 		); err != nil {
 			summary.PlanningOutcome = "invalid_plan"
 			summary.WorkflowMode = WorkflowMode(plan.WorkflowMode)

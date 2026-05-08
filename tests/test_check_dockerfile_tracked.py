@@ -129,10 +129,10 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
         self.assertTrue(
             {
                 "!configs/runtime/",
-                "!configs/runtime/agents.v1.json",
+                "!configs/runtime/agents.v2.json",
                 "!configs/runtime/intent-policy.v1.json",
                 "!configs/runtime/query-serving-scopes.v1.json",
-                "!configs/runtime/tools.v1.json",
+                "!configs/runtime/tools.v2.json",
                 "!tests/fixtures/service_guide_vpn_grouped_procedure_result.json",
             }.issubset(patterns)
         )

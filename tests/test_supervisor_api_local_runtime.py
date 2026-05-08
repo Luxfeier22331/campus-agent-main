@@ -51,11 +51,11 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             dockerfile,
         )
         self.assertIn(
-            "COPY configs/runtime/agents.v1.json /src/configs/runtime/agents.v1.json",
+            "COPY configs/runtime/agents.v2.json /src/configs/runtime/agents.v2.json",
             dockerfile,
         )
         self.assertIn(
-            "COPY configs/runtime/tools.v1.json /src/configs/runtime/tools.v1.json",
+            "COPY configs/runtime/tools.v2.json /src/configs/runtime/tools.v2.json",
             dockerfile,
         )
         self.assertIn(
@@ -63,7 +63,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             dockerfile,
         )
         self.assertIn(
-            "COPY configs/runtime/agents.v1.json /etc/campus-agent/agents.v1.json",
+            "COPY configs/runtime/agents.v2.json /etc/campus-agent/agents.v2.json",
             dockerfile,
         )
         self.assertIn(
@@ -76,7 +76,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             dockerfile,
         )
         self.assertIn(
-            "SUPERVISOR_API_AGENT_SPEC_PATH=/etc/campus-agent/agents.v1.json",
+            "SUPERVISOR_API_AGENT_SPEC_PATH=/etc/campus-agent/agents.v2.json",
             dockerfile,
         )
 
@@ -94,6 +94,22 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn('"SUPERVISOR_API_DOCKER_GOPROXY"', script)
         self.assertIn('"SUPERVISOR_API_DOCKER_GOSUMDB"', script)
         self.assertNotIn("GOSUMDB=off", script)
+
+    def test_local_runtime_compose_includes_otel_collector_service_and_runtime_wiring(self) -> None:
+        compose_path = ROOT / "infra/local/docker-compose.supervisor-runtime.yml"
+        compose = compose_path.read_text(encoding="utf-8")
+
+        self.assertIn("otel-collector:", compose)
+        self.assertIn("otel/opentelemetry-collector-contrib", compose)
+        self.assertIn("collector-staging-template.yaml", compose)
+        self.assertIn("OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT", compose)
+        self.assertIn("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", compose)
+        self.assertIn("OTEL_COLLECTOR_AXIOM_EVENTS_DATASET", compose)
+        self.assertIn("OTEL_COLLECTOR_AXIOM_METRICS_DATASET", compose)
+        self.assertIn("SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces", compose)
+        self.assertIn("SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces", compose)
+        self.assertIn("SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics", compose)
+        self.assertIn("SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs", compose)
 
     def test_local_runtime_wires_structured_query_from_go_api_to_core_worker(self) -> None:
         compose_path = ROOT / "infra/local/docker-compose.supervisor-runtime.yml"

@@ -8,7 +8,7 @@ TOOL_FAMILY_DENOMINATOR_PATH = (
     Path(__file__).resolve().parents[2] / "fixtures" / "tool_family_denominators.v1.json"
 )
 TOOL_SPEC_REGISTRY_PATH = (
-    Path(__file__).resolve().parents[4] / "configs" / "runtime" / "tools.v1.json"
+    Path(__file__).resolve().parents[4] / "configs" / "runtime" / "tools.v2.json"
 )
 
 
@@ -79,8 +79,8 @@ def load_tool_family_denominator(path: str | Path | None = None) -> ToolFamilyDe
 
 def tool_spec_tool_names(path: str | Path | None = None) -> tuple[str, ...]:
     payload = _load_json(Path(path) if path is not None else TOOL_SPEC_REGISTRY_PATH)
-    if payload.get("schema_version") != "tool-spec-registry-v1":
-        raise ValueError("tool spec schema_version must be tool-spec-registry-v1")
+    if payload.get("schema_version") != "tool-spec-registry-v2":
+        raise ValueError("tool spec schema_version must be tool-spec-registry-v2")
     raw_tools = payload.get("tools")
     if not isinstance(raw_tools, list) or not raw_tools:
         raise ValueError("tool spec tools must be a non-empty list")
@@ -96,8 +96,8 @@ def tool_spec_tool_names(path: str | Path | None = None) -> tuple[str, ...]:
 
 def tool_spec_sdk_internal_function_names(path: str | Path | None = None) -> tuple[str, ...]:
     payload = _load_json(Path(path) if path is not None else TOOL_SPEC_REGISTRY_PATH)
-    if payload.get("schema_version") != "tool-spec-registry-v1":
-        raise ValueError("tool spec schema_version must be tool-spec-registry-v1")
+    if payload.get("schema_version") != "tool-spec-registry-v2":
+        raise ValueError("tool spec schema_version must be tool-spec-registry-v2")
     raw_tools = payload.get("tools")
     if not isinstance(raw_tools, list) or not raw_tools:
         raise ValueError("tool spec tools must be a non-empty list")

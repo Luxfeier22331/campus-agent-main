@@ -213,7 +213,7 @@ Docker-side Go runtime control plane 长期负责：
   intent policy artifact；artifact 固定 policy / classifier / intent schema /
   case-set version、reason code registry 与 signal group taxonomy，避免 runtime
   源码内匿名 signal list 成为第二套 classifier truth
-- Go runtime policy 当前从 `configs/runtime/tools.v1.json` 加载 repo-owned ToolSpec
+- Go runtime policy 当前从 `configs/runtime/tools.v2.json` 加载 repo-owned ToolSpec
   registry，并由它派生 structured handoff `allowed_tools`；`retrieval.query`
   只作为 `rag-agent` 内部 retrieval step 进入 eval / observability denominator，
   不作为 Go preplanned structured handoff tool 暴露
@@ -586,7 +586,7 @@ thin adapter -> internal query service -> sanitized AgentResponse -> Go finaliza
   - 拥有 tool selection、argument precision、no-tool correctness、fail-close
     correctness、tool result usage 与 hallucinated tool prevention 的 denominator
 
-当前 `ToolSpec` registry 位于 `configs/runtime/tools.v1.json`，是 repo-owned callable
+当前 `ToolSpec` registry 位于 `configs/runtime/tools.v2.json`，是 repo-owned callable
 truth 的 canonical artifact，而不是 scattered runtime 常量。`surface` 决定它是
 agent-facing `structured_handoff`，还是只能在 agent 内部使用的
 `agent_internal` function。`function_schema` 表示该 callable 是否可以生成 strict

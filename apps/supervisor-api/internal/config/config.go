@@ -38,9 +38,12 @@ type Config struct {
 	LaneBudgets                       map[string]LaneBudget
 	OTelEnabled                       bool
 	OTelEndpoint                      string
+	OTelMetricsEnabled                bool
+	OTelMetricsEndpoint               string
 	OTelHeaders                       string
 	OTelServiceName                   string
 	OTelExportTimeoutMS               int
+	OTelExportIntervalMS              int
 	OTelSampleRatio                   float64
 	OTelAllowedAttributesVersion      string
 	ExecutionAuditEnabled             bool
@@ -112,9 +115,11 @@ type envValues struct {
 	MetricsBearerToken                string  `env:"SUPERVISOR_API_METRICS_BEARER_TOKEN"`
 	IntentPolicyPath                  string  `env:"SUPERVISOR_API_INTENT_POLICY_PATH"`
 	OTelEndpoint                      string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT"`
+	OTelMetricsEndpoint               string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"`
 	OTelHeaders                       string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS"`
 	OTelServiceName                   string  `env:"SUPERVISOR_API_OTEL_SERVICE_NAME" envDefault:"campus-supervisor-api"`
 	OTelExportTimeoutMS               int     `env:"SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS" envDefault:"1000"`
+	OTelExportIntervalMS              int     `env:"SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS" envDefault:"15000"`
 	OTelSampleRatio                   float64 `env:"SUPERVISOR_API_OTEL_SAMPLE_RATIO" envDefault:"1.0"`
 	OTelAllowedAttributesVersion      string  `env:"SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION" envDefault:"supervisor-api-otel-attrs-v1"`
 	ExecutionAuditURL                 string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_URL"`
@@ -148,6 +153,10 @@ func LoadFromEnv() (Config, error) {
 		return Config{}, err
 	}
 	otelEnabled, err := readBoolStrict("SUPERVISOR_API_OTEL_ENABLED", false)
+	if err != nil {
+		return Config{}, err
+	}
+	otelMetricsEnabled, err := readBoolStrict("SUPERVISOR_API_OTEL_METRICS_ENABLED", false)
 	if err != nil {
 		return Config{}, err
 	}
@@ -211,9 +220,12 @@ func LoadFromEnv() (Config, error) {
 		LaneBudgets:                       laneBudgets,
 		OTelEnabled:                       otelEnabled,
 		OTelEndpoint:                      strings.TrimSpace(values.OTelEndpoint),
+		OTelMetricsEnabled:                otelMetricsEnabled,
+		OTelMetricsEndpoint:               strings.TrimSpace(values.OTelMetricsEndpoint),
 		OTelHeaders:                       strings.TrimSpace(values.OTelHeaders),
 		OTelServiceName:                   defaultString(strings.TrimSpace(values.OTelServiceName), "campus-supervisor-api"),
 		OTelExportTimeoutMS:               values.OTelExportTimeoutMS,
+		OTelExportIntervalMS:              values.OTelExportIntervalMS,
 		OTelSampleRatio:                   values.OTelSampleRatio,
 		OTelAllowedAttributesVersion:      defaultString(strings.TrimSpace(values.OTelAllowedAttributesVersion), "supervisor-api-otel-attrs-v1"),
 		ExecutionAuditEnabled:             executionAuditEnabled,
@@ -279,6 +291,7 @@ func validateEnvValues(values envValues) error {
 		{"SUPERVISOR_API_BRIDGE_RETRY_BASE_MS", values.BridgeRetryBaseMS},
 		{"SUPERVISOR_API_SHUTDOWN_GRACE_MS", values.ShutdownGraceMS},
 		{"SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS", values.OTelExportTimeoutMS},
+		{"SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS", values.OTelExportIntervalMS},
 		{"SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", values.ExecutionAuditTimeoutMS},
 		{"SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY", values.ExecutionAuditQueueCapacity},
 		{"SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE", values.ExecutionAuditBatchSize},

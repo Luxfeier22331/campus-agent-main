@@ -1285,15 +1285,18 @@ func TestValidateWorkflowPlanWithAgentSpecRejectsInactiveAgent(t *testing.T) {
 				RuntimeAdapter:                "worker_dispatch",
 				Active:                        false,
 				OpeningGate:                   "closed",
-				PayloadKinds:                  []string{"place_lookup"},
 				AllowedStructuredHandoffTools: []string{},
 				ContextProjectionKinds:        []string{"place_context"},
 				Description:                   "fixture",
 			},
 		},
 	}
+	toolRegistry, err := runtimepolicy.LoadToolSpecRegistry("")
+	if err != nil {
+		t.Fatalf("load tool spec: %v", err)
+	}
 
-	err := ValidateWorkflowPlanWithAgentSpec(plan, registry)
+	err = ValidateWorkflowPlanWithAgentSpec(plan, registry, toolRegistry)
 
 	if err == nil {
 		t.Fatal("expected inactive agent plan validation to fail")
@@ -1310,8 +1313,12 @@ func TestValidateWorkflowPlanWithAgentSpecRejectsPayloadKindOutsideAgentSpec(t *
 	if err != nil {
 		t.Fatalf("load agent spec: %v", err)
 	}
+	toolRegistry, err := runtimepolicy.LoadToolSpecRegistry("")
+	if err != nil {
+		t.Fatalf("load tool spec: %v", err)
+	}
 
-	err = ValidateWorkflowPlanWithAgentSpec(plan, registry)
+	err = ValidateWorkflowPlanWithAgentSpec(plan, registry, toolRegistry)
 
 	if err == nil {
 		t.Fatal("expected payload kind outside AgentSpec to fail")

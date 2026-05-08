@@ -4,7 +4,7 @@ from copy import deepcopy
 from dataclasses import dataclass
 from typing import Any
 
-from campus_supervisor_agent_worker.tool_function_schema import (
+from campus_supervisor_agent_worker.provider_function_schema import (
     provider_function_schema_for_tool,
 )
 from campus_supervisor_agent_worker.tool_spec_registry import (
@@ -19,13 +19,6 @@ AGENTS_SDK_TOOL_RESULT_PROJECTION = "repo_bounded"
 AGENTS_SDK_TOOL_FAIL_CLOSE_REASON = "sdk_tool_not_admitted"
 DEFAULT_AGENTS_SDK_TOOL_TIMEOUT_SECONDS = 1.0
 DEFAULT_AGENTS_SDK_TOOL_MAX_RESULT_BYTES = 8192
-PROVIDER_RUNTIME_POSTURES = frozenset(
-    {
-        "provider_argument_completion_pilot",
-        "provider_loop_pilot",
-        "provider_loop_open",
-    }
-)
 SDK_ADAPTER_RUNTIME_POSTURES = frozenset(
     {
         "sdk_adapter_admitted",

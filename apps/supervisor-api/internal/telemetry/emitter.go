@@ -12,8 +12,11 @@ import (
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
+	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/sdk/resource"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -44,13 +47,15 @@ type Event struct {
 }
 
 type Status struct {
-	Enabled            bool   `json:"enabled"`
-	ExporterConfigured bool   `json:"exporter_configured"`
-	ExportedCount      uint64 `json:"exported_count"`
-	DroppedCount       uint64 `json:"dropped_count"`
-	FailedCount        uint64 `json:"failed_count"`
-	LastError          string `json:"last_error"`
-	SampleRatio        string `json:"sample_ratio"`
+	Enabled                  bool   `json:"enabled"`
+	ExporterConfigured       bool   `json:"exporter_configured"`
+	MetricsEnabled           bool   `json:"metrics_enabled"`
+	MetricsExporterConfigured bool  `json:"metrics_exporter_configured"`
+	ExportedCount            uint64 `json:"exported_count"`
+	DroppedCount             uint64 `json:"dropped_count"`
+	FailedCount              uint64 `json:"failed_count"`
+	LastError                string `json:"last_error"`
+	SampleRatio              string `json:"sample_ratio"`
 }
 
 type Emitter struct {
@@ -58,6 +63,8 @@ type Emitter struct {
 
 	enabled            bool
 	exporterConfigured bool
+	metricsEnabled     bool
+	metricsConfigured  bool
 	exportedCount      uint64
 	droppedCount       uint64
 	failedCount        uint64
@@ -67,6 +74,11 @@ type Emitter struct {
 
 	tracerProvider *sdktrace.TracerProvider
 	tracer         trace.Tracer
+	meterProvider  *sdkmetric.MeterProvider
+	meter          metric.Meter
+	requestCounter metric.Int64Counter
+	errorCounter   metric.Int64Counter
+	bridgeDuration metric.Float64Histogram
 	logger         *slog.Logger
 }
 
@@ -74,6 +86,7 @@ func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Em
 	otel.SetTextMapPropagator(runtimeTextMapPropagator)
 	emitter := &Emitter{
 		enabled:        cfg.OTelEnabled,
+		metricsEnabled: cfg.OTelMetricsEnabled,
 		logger:         logger,
 		sampleRatio:    cfg.OTelSampleRatio,
 		allowedVersion: strings.TrimSpace(cfg.OTelAllowedAttributesVersion),
@@ -122,6 +135,46 @@ func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Em
 	emitter.tracer = provider.Tracer("campus-supervisor-api")
 	emitter.exporterConfigured = true
 	otel.SetTracerProvider(provider)
+
+	if emitter.metricsEnabled {
+		metricsEndpoint := strings.TrimSpace(cfg.OTelMetricsEndpoint)
+		if metricsEndpoint == "" {
+			emitter.setLastError("OTel metrics endpoint is required when SUPERVISOR_API_OTEL_METRICS_ENABLED=true.")
+			return emitter
+		}
+		metricOptions := []otlpmetrichttp.Option{
+			otlpmetrichttp.WithEndpointURL(metricsEndpoint),
+			otlpmetrichttp.WithTimeout(timeout),
+		}
+		if headers := parseHeaders(cfg.OTelHeaders); len(headers) > 0 {
+			metricOptions = append(metricOptions, otlpmetrichttp.WithHeaders(headers))
+		}
+		metricExporter, metricErr := otlpmetrichttp.New(exporterCtx, metricOptions...)
+		if metricErr != nil {
+			emitter.setLastError(metricErr.Error())
+			return emitter
+		}
+		exportInterval := time.Duration(cfg.OTelExportIntervalMS) * time.Millisecond
+		if exportInterval <= 0 {
+			exportInterval = 15 * time.Second
+		}
+		reader := sdkmetric.NewPeriodicReader(
+			metricExporter,
+			sdkmetric.WithInterval(exportInterval),
+			sdkmetric.WithTimeout(timeout),
+		)
+		meterProvider := sdkmetric.NewMeterProvider(
+			sdkmetric.WithReader(reader),
+			sdkmetric.WithResource(resource.NewSchemaless(
+				attribute.String("service.name", defaultString(cfg.OTelServiceName, "campus-supervisor-api")),
+			)),
+		)
+		emitter.meterProvider = meterProvider
+		emitter.meter = meterProvider.Meter("campus-supervisor-api")
+		emitter.metricsConfigured = true
+		otel.SetMeterProvider(meterProvider)
+		emitter.configureMetrics()
+	}
 	return emitter
 }
 
@@ -172,6 +225,7 @@ func (e *Emitter) Emit(ctx context.Context, event Event) {
 		trace.WithAttributes(attributes...),
 	)
 	span.End()
+	e.recordMetric(event)
 	e.recordExport()
 }
 
@@ -183,21 +237,32 @@ func (e *Emitter) Status() Status {
 	defer e.mu.Unlock()
 
 	return Status{
-		Enabled:            e.enabled,
-		ExporterConfigured: e.exporterConfigured,
-		ExportedCount:      e.exportedCount,
-		DroppedCount:       e.droppedCount,
-		FailedCount:        e.failedCount,
-		LastError:          statusSafeLastError(e.lastError, "telemetry exporter error"),
-		SampleRatio:        formatSampleRatio(e.sampleRatio),
+		Enabled:                   e.enabled,
+		ExporterConfigured:        e.exporterConfigured,
+		MetricsEnabled:            e.metricsEnabled,
+		MetricsExporterConfigured: e.metricsConfigured,
+		ExportedCount:             e.exportedCount,
+		DroppedCount:              e.droppedCount,
+		FailedCount:               e.failedCount,
+		LastError:                 statusSafeLastError(e.lastError, "telemetry exporter error"),
+		SampleRatio:               formatSampleRatio(e.sampleRatio),
 	}
 }
 
 func (e *Emitter) Shutdown(ctx context.Context) error {
-	if e == nil || e.tracerProvider == nil {
+	if e == nil {
 		return nil
 	}
-	return e.tracerProvider.Shutdown(ctx)
+	var firstErr error
+	if e.tracerProvider != nil {
+		firstErr = e.tracerProvider.Shutdown(ctx)
+	}
+	if e.meterProvider != nil {
+		if err := e.meterProvider.Shutdown(ctx); err != nil && firstErr == nil {
+			firstErr = err
+		}
+	}
+	return firstErr
 }
 
 func (e *Emitter) recordDrop() {
@@ -210,6 +275,50 @@ func (e *Emitter) recordExport() {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 	e.exportedCount++
+}
+
+func (e *Emitter) configureMetrics() {
+	if e == nil || e.meter == nil {
+		return
+	}
+	requestCounter, err := e.meter.Int64Counter("campus.supervisor_api.runtime_requests")
+	if err == nil {
+		e.requestCounter = requestCounter
+	}
+	errorCounter, err := e.meter.Int64Counter("campus.supervisor_api.runtime_errors")
+	if err == nil {
+		e.errorCounter = errorCounter
+	}
+	bridgeDuration, err := e.meter.Float64Histogram("campus.supervisor_api.bridge_duration_ms")
+	if err == nil {
+		e.bridgeDuration = bridgeDuration
+	}
+}
+
+func (e *Emitter) recordMetric(event Event) {
+	if e == nil || e.meter == nil {
+		return
+	}
+	attrs := []attribute.KeyValue{
+		attribute.String("event_name", normalizeEventName(event.Name)),
+		attribute.String("lane", defaultString(event.Lane, "unknown")),
+		attribute.String("requested_capability", defaultString(event.RequestedCapability, "unknown")),
+		attribute.String("outcome", defaultString(event.Outcome, "unknown")),
+		attribute.String("failure_code", defaultString(event.FailureCode, "none")),
+	}
+	if e.requestCounter != nil {
+		e.requestCounter.Add(context.Background(), 1, metric.WithAttributes(attrs...))
+	}
+	if e.errorCounter != nil && strings.TrimSpace(event.FailureCode) != "" {
+		e.errorCounter.Add(context.Background(), 1, metric.WithAttributes(attrs...))
+	}
+	if e.bridgeDuration != nil && event.BridgeDuration > 0 {
+		e.bridgeDuration.Record(
+			context.Background(),
+			float64(event.BridgeDuration)/float64(time.Millisecond),
+			metric.WithAttributes(attrs...),
+		)
+	}
 }
 
 func (e *Emitter) recordFailure(value string) {

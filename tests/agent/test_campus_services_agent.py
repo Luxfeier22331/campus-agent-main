@@ -151,6 +151,63 @@ class CampusServicesAgentTest(unittest.TestCase):
                 query_service=FakeCampusServicesQueryService(),
             )
 
+    def test_transport_schedule_payload_normalizes_null_nested_fields(self) -> None:
+        query_service = FakeCampusServicesQueryService()
+        request = AgentRequest(
+            target="campus-services-agent",
+            user_goal="校车最早几点发车",
+            payload=TransportScheduleLookupPayload(
+                query_text="校车最早几点发车",
+                intent="first_departure",
+            ),
+            allowed_tools=("transport_schedule_lookup",),
+            actor=ActorContext(user_id="student-001"),
+            context=ContextProjection(
+                actor=ActorContext(user_id="student-001"),
+                authorization=AuthorizationProjection(principal_id="principal-001"),
+            ),
+        )
+
+        bounded = execute_campus_services_sdk_tool(
+            OpenAIAgentsToolInvocation(
+                name="transport_schedule_lookup",
+                arguments={
+                    "query_text": "校车最早几点发车",
+                    "intent": "first_departure",
+                    "route_selector": {
+                        "route_id": None,
+                        "service_family": None,
+                        "route_variant_query": None,
+                        "origin_campus": None,
+                        "destination_campus": None,
+                        "origin_stop_query": None,
+                        "destination_stop_query": None,
+                    },
+                    "snapshot_query": {
+                        "mode": None,
+                        "as_of": None,
+                        "year_hint": None,
+                    },
+                    "service_time_query": {
+                        "date_mode": None,
+                        "service_date": None,
+                        "daypart": None,
+                        "departure_not_before": None,
+                        "departure_not_after": None,
+                    },
+                    "result_limit": None,
+                },
+                call_id="call-transport-0001",
+            ),
+            agent_request=request,
+            query_service=query_service,
+        )
+
+        self.assertEqual(bounded["status"], "completed")
+        self.assertEqual(bounded["outcome"], "resolved_current")
+        self.assertEqual(query_service.last_transport_schedule_query.payload.query_text, "校车最早几点发车")
+        self.assertEqual(query_service.last_transport_schedule_query.payload.intent, "first_departure")
+
     def test_service_guide_payload_routes_through_internal_query_service(self) -> None:
         query_service = FakeCampusServicesQueryService()
         request = AgentRequest(

@@ -2,7 +2,7 @@ import { spawn } from "node:child_process";
 import process from "node:process";
 
 const localRealProviderTimeoutMs =
-	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_TIMEOUT_MS?.trim() || "60000";
+	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_TIMEOUT_MS?.trim() || "180000";
 const localRealProviderSupervisorTimeoutMs =
 	process.env.CHAT_E2E_LOCAL_REAL_PROVIDER_SUPERVISOR_TIMEOUT_MS?.trim() ||
 	localRealProviderTimeoutMs;

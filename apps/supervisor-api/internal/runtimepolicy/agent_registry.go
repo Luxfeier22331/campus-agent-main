@@ -10,8 +10,8 @@ import (
 )
 
 const (
-	AgentSpecSchemaVersion = "agent-spec-registry-v1"
-	defaultAgentSpecPath   = "configs/runtime/agents.v1.json"
+	AgentSpecSchemaVersion = "agent-spec-registry-v2"
+	defaultAgentSpecPath   = "configs/runtime/agents.v2.json"
 )
 
 var (
@@ -27,7 +27,6 @@ type AgentSpec struct {
 	RuntimeAdapter               string   `json:"runtime_adapter"`
 	Active                       bool     `json:"active"`
 	OpeningGate                  string   `json:"opening_gate"`
-	PayloadKinds                 []string `json:"payload_kinds"`
 	AllowedStructuredHandoffTools []string `json:"allowed_structured_handoff_tools"`
 	ContextProjectionKinds       []string `json:"context_projection_kinds"`
 	Description                  string   `json:"description"`
@@ -121,9 +120,6 @@ func (a AgentSpec) Validate() error {
 	}
 	if a.OpeningGate == "closed" && a.Active {
 		return fmt.Errorf("%s closed opening_gate cannot be active", a.ID)
-	}
-	if len(a.PayloadKinds) == 0 {
-		return fmt.Errorf("%s payload_kinds must not be empty", a.ID)
 	}
 	if a.ID == "rag-agent" && len(a.AllowedStructuredHandoffTools) > 0 {
 		return fmt.Errorf("rag-agent must not expose structured handoff tools")

@@ -59,6 +59,8 @@ type LifecycleSnapshot struct {
 type TelemetrySnapshot struct {
 	Enabled            bool
 	ExporterConfigured bool
+	MetricsEnabled     bool
+	MetricsConfigured  bool
 	ExportedCount      uint64
 	DroppedCount       uint64
 	FailedCount        uint64

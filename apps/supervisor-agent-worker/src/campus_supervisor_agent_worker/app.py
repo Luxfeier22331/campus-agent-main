@@ -16,6 +16,9 @@ from campus_supervisor_agent_worker.agents_sdk_runtime_policy import (
 from campus_supervisor_agent_worker.api import build_bridge_routes
 from campus_supervisor_agent_worker.cancel_flags import CancelFlagStore
 from campus_supervisor_agent_worker.http_types import HttpResponse, HttpRoute
+from campus_supervisor_agent_worker.retrieval_observation_bridge import (
+    build_runtime_event_emitter_status,
+)
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 
@@ -54,7 +57,16 @@ class SupervisorAgentWorkerApp:
                 settings=self.settings,
                 prompt_runtime_admitted=self.runtime.prompt_runtime.admitted,
             ),
-            "worker_runtime": {"role": "semantic_worker", "cancel_flag_store": "available"},
+            "worker_runtime": {
+                "role": "semantic_worker",
+                "cancel_flag_store": "available",
+                "runtime_event_emitter": build_runtime_event_emitter_status(
+                    otel_enabled=self.settings.otel_enabled,
+                    traces_endpoint=self.settings.otel_exporter_otlp_traces_endpoint,
+                    metrics_endpoint=self.settings.otel_exporter_otlp_metrics_endpoint,
+                    logs_endpoint=self.settings.otel_exporter_otlp_logs_endpoint,
+                ),
+            },
         }
 
     def close(self) -> None:
@@ -101,7 +113,16 @@ def _create_runtime_app(
                 settings=runtime_settings,
                 prompt_runtime_admitted=prompt_runtime.admitted,
             ),
-            "worker_runtime": {"role": "semantic_worker", "cancel_flag_store": "available"},
+            "worker_runtime": {
+                "role": "semantic_worker",
+                "cancel_flag_store": "available",
+                "runtime_event_emitter": build_runtime_event_emitter_status(
+                    otel_enabled=runtime_settings.otel_enabled,
+                    traces_endpoint=runtime_settings.otel_exporter_otlp_traces_endpoint,
+                    metrics_endpoint=runtime_settings.otel_exporter_otlp_metrics_endpoint,
+                    logs_endpoint=runtime_settings.otel_exporter_otlp_logs_endpoint,
+                ),
+            },
         },
         cancel_flags=cancel_flags,
     )

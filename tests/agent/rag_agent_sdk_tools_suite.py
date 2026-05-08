@@ -3,31 +3,24 @@ from __future__ import annotations
 import unittest
 
 from campus_contracts import AgentRequest, EvidenceBundle, KnowledgeScope, RagRequestPayload
-from campus_rag_agent.rag_sdk_tools import (
-    RagSdkToolError,
-    RagSdkToolExecutionContext,
-    execute_retrieve_evidence_tool,
+from campus_rag_agent.rag_sdk_models import (
+    RagQueryIntent,
+    RagSdkEvidenceProjection,
+    RagSdkRunRequest,
+    RagTaskKind,
 )
+from campus_rag_agent.rag_sdk_tools import RagSdkToolError, execute_retrieve_evidence_tool
 from campus_rag_agent.service_planner_stage import execute_rag_planner_stage
-from campus_retrieval_core import RetrievalPlan, RetrievalScope, RetrievalSelector
 
 from tests.agent.rag_agent_test_support import _make_handbook_source
 
 
 class RagAgentSdkToolsTest(unittest.TestCase):
     def test_retrieve_evidence_tool_returns_bounded_projection_from_admitted_plan(self) -> None:
-        request = _request("公费医疗报销需要什么材料")
-        plan = _plan(request)
-        evidence = _evidence()
-        context = RagSdkToolExecutionContext(
-            request=request,
-            retrieval_plan=plan,
-            evidence=evidence,
-            admitted_query_slot_ids=("indexed-lookup",),
-        )
+        request = _sdk_request("公费医疗报销需要什么材料")
 
         result = execute_retrieve_evidence_tool(
-            context,
+            request,
             {"query_slot_id": "indexed-lookup", "retrieval_intent": "requirement"},
         )
 
@@ -40,17 +33,10 @@ class RagAgentSdkToolsTest(unittest.TestCase):
     def test_retrieve_evidence_tool_defaults_single_admitted_slot_when_model_omits_slot(
         self,
     ) -> None:
-        request = _request("中央民族大学本科学生国家奖学金评审办法")
-        plan = _plan(request)
-        context = RagSdkToolExecutionContext(
-            request=request,
-            retrieval_plan=plan,
-            evidence=_evidence(),
-            admitted_query_slot_ids=("indexed-lookup",),
-        )
+        request = _sdk_request("中央民族大学本科学生国家奖学金评审办法")
 
         result = execute_retrieve_evidence_tool(
-            context,
+            request,
             {"retrieval_intent": "specific_policy_lookup"},
         )
 
@@ -60,17 +46,10 @@ class RagAgentSdkToolsTest(unittest.TestCase):
     def test_retrieve_evidence_tool_coerces_invalid_single_admitted_slot_to_only_slot(
         self,
     ) -> None:
-        request = _request("中央民族大学本科学生国家奖学金评审办法")
-        plan = _plan(request)
-        context = RagSdkToolExecutionContext(
-            request=request,
-            retrieval_plan=plan,
-            evidence=_evidence(),
-            admitted_query_slot_ids=("indexed-lookup",),
-        )
+        request = _sdk_request("中央民族大学本科学生国家奖学金评审办法")
 
         result = execute_retrieve_evidence_tool(
-            context,
+            request,
             {
                 "query_slot_id": "specific_policy_lookup",
                 "retrieval_intent": "specific_policy_lookup",
@@ -83,46 +62,37 @@ class RagAgentSdkToolsTest(unittest.TestCase):
     def test_retrieve_evidence_tool_rejects_missing_slot_when_multiple_slots_are_admitted(
         self,
     ) -> None:
-        context = RagSdkToolExecutionContext(
-            request=_request("比较当前办法和历史办法"),
-            retrieval_plan=_multi_slot_plan(_request("比较当前办法和历史办法")),
-            evidence=_evidence(),
+        request = _sdk_request(
+            "比较当前办法和历史办法",
             admitted_query_slot_ids=("compare-current-lookup", "compare-other-lookup"),
         )
 
         with self.assertRaisesRegex(RagSdkToolError, "rag_sdk_query_slot_not_admitted"):
             execute_retrieve_evidence_tool(
-                context,
+                request,
                 {"retrieval_intent": "specific_policy_lookup"},
             )
 
     def test_retrieve_evidence_tool_rejects_unadmitted_query_slot_when_multiple_slots_exist(
         self,
     ) -> None:
-        context = RagSdkToolExecutionContext(
-            request=_request("比较当前办法和历史办法"),
-            retrieval_plan=_multi_slot_plan(_request("比较当前办法和历史办法")),
-            evidence=_evidence(),
+        request = _sdk_request(
+            "比较当前办法和历史办法",
             admitted_query_slot_ids=("compare-current-lookup", "compare-other-lookup"),
         )
 
         with self.assertRaisesRegex(RagSdkToolError, "rag_sdk_query_slot_not_admitted"):
             execute_retrieve_evidence_tool(
-                context,
+                request,
                 {"query_slot_id": "new-expanded-query", "retrieval_intent": "requirement"},
             )
 
     def test_retrieve_evidence_tool_rejects_model_supplied_scope_or_selector(self) -> None:
-        context = RagSdkToolExecutionContext(
-            request=_request("公费医疗报销需要什么材料"),
-            retrieval_plan=_plan(_request("公费医疗报销需要什么材料")),
-            evidence=_evidence(),
-            admitted_query_slot_ids=("indexed-lookup",),
-        )
+        request = _sdk_request("公费医疗报销需要什么材料")
 
         with self.assertRaisesRegex(RagSdkToolError, "rag_sdk_scope_widening_rejected"):
             execute_retrieve_evidence_tool(
-                context,
+                request,
                 {
                     "query_slot_id": "indexed-lookup",
                     "retrieval_intent": "requirement",
@@ -133,35 +103,15 @@ class RagAgentSdkToolsTest(unittest.TestCase):
             )
 
     def test_retrieve_evidence_tool_rejects_selector_drift_against_plan(self) -> None:
-        plan = _plan(_request("公费医疗报销需要什么材料"))
-        widened = RetrievalPlan(
-            plan_id=plan.plan_id,
-            query_mode=plan.query_mode,
-            admitted_scopes=plan.admitted_scopes,
-            budget=plan.budget,
-            source_trust_policy=plan.source_trust_policy,
-            steps=(
-                *plan.steps,
-                plan.steps[0].__class__(
-                    step_id="expanded",
-                    step_type="indexed_lookup",
-                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
-                    query_text="扩大查询",
-                    selector=RetrievalSelector(target_document_ids=("handbook:other",)),
-                    budget=plan.steps[0].budget,
-                ),
-            ),
-        )
-        context = RagSdkToolExecutionContext(
-            request=_request("公费医疗报销需要什么材料"),
-            retrieval_plan=widened,
-            evidence=_evidence(),
+        request = _sdk_request(
+            "公费医疗报销需要什么材料",
             admitted_query_slot_ids=("expanded",),
+            selector_blocked_query_slot_ids=("expanded",),
         )
 
         with self.assertRaisesRegex(RagSdkToolError, "rag_sdk_selector_not_admitted"):
             execute_retrieve_evidence_tool(
-                context,
+                request,
                 {"query_slot_id": "expanded", "retrieval_intent": "requirement"},
             )
 
@@ -191,35 +141,6 @@ def _plan(request: AgentRequest):
     return result.retrieval_plan
 
 
-def _multi_slot_plan(request: AgentRequest) -> RetrievalPlan:
-    plan = _plan(request)
-    return RetrievalPlan(
-        plan_id=plan.plan_id,
-        query_mode=plan.query_mode,
-        admitted_scopes=plan.admitted_scopes,
-        budget=plan.budget,
-        source_trust_policy=plan.source_trust_policy,
-        steps=(
-            plan.steps[0].__class__(
-                step_id="compare-current-lookup",
-                step_type=plan.steps[0].step_type,
-                scope=plan.steps[0].scope,
-                query_text=plan.steps[0].query_text,
-                selector=plan.steps[0].selector,
-                budget=plan.steps[0].budget,
-            ),
-            plan.steps[0].__class__(
-                step_id="compare-other-lookup",
-                step_type=plan.steps[0].step_type,
-                scope=plan.steps[0].scope,
-                query_text=plan.steps[0].query_text,
-                selector=plan.steps[0].selector,
-                budget=plan.steps[0].budget,
-            ),
-        ),
-    )
-
-
 def _evidence() -> EvidenceBundle:
     return EvidenceBundle(
         query_text="公费医疗报销需要什么材料",
@@ -236,6 +157,25 @@ def _evidence() -> EvidenceBundle:
                 is_answer_bearing=True,
             ),
         ),
+    )
+
+
+def _sdk_request(
+    user_goal: str,
+    *,
+    admitted_query_slot_ids: tuple[str, ...] = ("indexed-lookup",),
+    selector_blocked_query_slot_ids: tuple[str, ...] = (),
+) -> RagSdkRunRequest:
+    return RagSdkRunRequest(
+        user_goal=user_goal,
+        query_intent=RagQueryIntent(
+            task_kind=RagTaskKind.FACT_LOOKUP,
+            normalized_query=user_goal,
+            admitted_query_slot_ids=admitted_query_slot_ids,
+        ),
+        evidence=RagSdkEvidenceProjection.from_evidence_bundle(_evidence()),
+        request_id="req-rag-sdk-tools-suite",
+        selector_blocked_query_slot_ids=selector_blocked_query_slot_ids,
     )
 
 

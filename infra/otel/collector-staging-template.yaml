@@ -60,15 +60,18 @@ processors:
         action: delete
   filter/drop_marked:
     error_mode: ignore
-    trace_conditions:
-      - span.attributes["telemetry.drop"] == true
-      - span.attributes["telemetry.drop"] == "true"
-    metric_conditions:
-      - datapoint.attributes["telemetry.drop"] == true
-      - datapoint.attributes["telemetry.drop"] == "true"
-    log_conditions:
-      - log.attributes["telemetry.drop"] == true
-      - log.attributes["telemetry.drop"] == "true"
+    traces:
+      span:
+        - 'attributes["telemetry.drop"] == true'
+        - 'attributes["telemetry.drop"] == "true"'
+    metrics:
+      datapoint:
+        - 'attributes["telemetry.drop"] == true'
+        - 'attributes["telemetry.drop"] == "true"'
+    logs:
+      log_record:
+        - 'attributes["telemetry.drop"] == true'
+        - 'attributes["telemetry.drop"] == "true"'
   probabilistic_sampler/traces:
     hash_seed: 20260501
     sampling_percentage: ${env:OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE}

@@ -47,6 +47,8 @@ func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Reque
 		Telemetry: observability.TelemetrySnapshot{
 			Enabled:            telemetryStatus.Enabled,
 			ExporterConfigured: telemetryStatus.ExporterConfigured,
+			MetricsEnabled:     telemetryStatus.MetricsEnabled,
+			MetricsConfigured:  telemetryStatus.MetricsExporterConfigured,
 			ExportedCount:      telemetryStatus.ExportedCount,
 			DroppedCount:       telemetryStatus.DroppedCount,
 			FailedCount:        telemetryStatus.FailedCount,

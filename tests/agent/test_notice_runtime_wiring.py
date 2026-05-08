@@ -4,12 +4,21 @@ import unittest
 
 from campus_contracts import AgentRequest, CampusNoticeDiscoverPayload
 from campus_notice_agent.notice_get_runtime import run_notice_get_internal_request
-from campus_supervisor_agent_worker.agent_delegates import _notice_missing_query_service_delegate
+from campus_supervisor_agent_worker.agent_delegates import _build_agent_delegates
+from campus_supervisor_agent_worker.settings import ApiSettings
 
 
 class NoticeRuntimeWiringTest(unittest.TestCase):
-    def test_delegate_requires_explicit_query_service_after_go_runtime_migration(self) -> None:
-        response = _notice_missing_query_service_delegate(
+    def test_notice_delegate_fails_closed_without_internal_query_service(self) -> None:
+        delegates = _build_agent_delegates(
+            settings=ApiSettings(agents_sdk_runtime_enabled=True),
+            rag_prompt_executor=None,
+            campus_services_query_service=None,
+            notice_query_service=None,
+            openai_agents_runtime=None,
+            rag_openai_runtime=None,
+        )
+        response = delegates["notice-agent"](
             AgentRequest(
                 target="notice-agent",
                 user_goal="找采购通知",

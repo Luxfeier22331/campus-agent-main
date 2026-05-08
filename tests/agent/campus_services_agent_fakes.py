@@ -1,8 +1,8 @@
 from __future__ import annotations
 
 from campus_contracts import (
-    AcademicCalendarRelatedContext,
     AcademicCalendarLookupResult,
+    AcademicCalendarRelatedContext,
     ContactDirectoryContactPoint,
     ContactDirectoryContactRef,
     ContactDirectoryLookupResult,

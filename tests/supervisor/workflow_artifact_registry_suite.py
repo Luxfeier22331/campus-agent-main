@@ -7,7 +7,7 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
 ARTIFACT_REGISTRY_PATH = ROOT / "configs/runtime/workflow-artifacts.v1.json"
-AGENT_SPEC_PATH = ROOT / "configs/runtime/agents.v1.json"
+AGENT_SPEC_PATH = ROOT / "configs/runtime/agents.v2.json"
 GO_EXECUTION_PROJECTION_PATH = (
     ROOT / "apps/supervisor-api/internal/execution/step_output_projection.go"
 )

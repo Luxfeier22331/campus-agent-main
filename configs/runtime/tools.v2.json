@@ -1,5 +1,5 @@
 {
-	"schema_version": "tool-spec-registry-v1",
+	"schema_version": "tool-spec-registry-v2",
 	"registry_version": "2026-05-01",
 	"tools": [
 		{
@@ -143,8 +143,8 @@
 				"available": false,
 				"strict": false
 			},
-			"runtime_posture": "closed",
-			"description": "Closed legacy notice get; selected notice resolution is an internal query function."
+			"runtime_posture": "internal_function",
+			"description": "Internal selected notice resolution function; not exposed as a model-facing tool."
 		},
 		{
 			"name": "retrieval.query",

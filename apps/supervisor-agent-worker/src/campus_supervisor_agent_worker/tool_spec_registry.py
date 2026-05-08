@@ -10,8 +10,8 @@ from typing import Any
 
 from campus_contracts import AgentRequest
 
-TOOL_SPEC_SCHEMA_VERSION = "tool-spec-registry-v1"
-DEFAULT_TOOL_SPEC_PATH = Path("configs/runtime/tools.v1.json")
+TOOL_SPEC_SCHEMA_VERSION = "tool-spec-registry-v2"
+DEFAULT_TOOL_SPEC_PATH = Path("configs/runtime/tools.v2.json")
 
 
 class ToolSpecRegistryError(ValueError):
@@ -53,17 +53,17 @@ class ToolSpecRegistry:
                 return tool
         return None
 
-    def structured_handoff_tools(self) -> tuple[ToolSpec, ...]:
+    def agent_facing_tools(self) -> tuple[ToolSpec, ...]:
         return tuple(
             tool for tool in self.tools if tool.active and tool.surface == "structured_handoff"
         )
 
-    def structured_tool_names_for_target(self, target: str) -> tuple[str, ...]:
+    def agent_facing_tool_names_for_target(self, target: str) -> tuple[str, ...]:
         return tuple(
-            tool.name for tool in self.structured_handoff_tools() if tool.owner_agent == target
+            tool.name for tool in self.agent_facing_tools() if tool.owner_agent == target
         )
 
-    def provider_function_tools(self) -> tuple[ToolSpec, ...]:
+    def callable_schema_tools(self) -> tuple[ToolSpec, ...]:
         return tuple(
             tool
             for tool in self.tools
@@ -78,7 +78,7 @@ class ToolSpecRegistry:
             )
         )
 
-    def sdk_internal_function_tools(self) -> tuple[ToolSpec, ...]:
+    def provider_callable_internal_functions(self) -> tuple[ToolSpec, ...]:
         return tuple(
             tool
             for tool in self.tools
@@ -88,11 +88,58 @@ class ToolSpecRegistry:
             and tool.function_schema.available
         )
 
+    def internal_functions(self) -> tuple[ToolSpec, ...]:
+        return tuple(
+            tool
+            for tool in self.tools
+            if tool.active
+            and tool.surface == "agent_internal"
+            and tool.runtime_posture == "internal_function"
+            and not tool.function_schema.available
+        )
+
     def payload_class_for_tool(self, name: str) -> type[object]:
         tool = self.tool_by_name(name)
         if tool is None:
             raise ToolSpecRegistryError(f"unknown ToolSpec tool: {name}")
         return _resolve_class(tool.payload_schema_ref)
+
+    def payload_kinds_for_target(self, target: str) -> tuple[str, ...]:
+        seen: set[str] = set()
+        result: list[str] = []
+        for tool in self.tools:
+            if tool.owner_agent != target:
+                continue
+            if tool.payload_kind in seen:
+                continue
+            seen.add(tool.payload_kind)
+            result.append(tool.payload_kind)
+        return tuple(result)
+
+    def payload_kind_belongs_to_target(self, target: str, payload_kind: str) -> bool:
+        return payload_kind in self.payload_kinds_for_target(target)
+
+    def payload_kind_for_request(self, target: str, payload: object) -> str:
+        matching_inactive: list[str] = []
+        for tool in self.tools:
+            if tool.owner_agent != target:
+                continue
+            payload_class = _resolve_class(tool.payload_schema_ref)
+            if not isinstance(payload, payload_class):
+                continue
+            if not tool.active:
+                matching_inactive.append(tool.payload_kind)
+                continue
+            return tool.payload_kind
+        if matching_inactive:
+            raise ToolSpecRegistryError(
+                "ToolSpec payload kind is inactive for target="
+                f"{target} payload={payload.__class__.__name__}: {matching_inactive}"
+            )
+        raise ToolSpecRegistryError(
+            "AgentRequest target/payload pair is outside the ToolSpec boundary: "
+            f"target={target} payload={payload.__class__.__name__}"
+        )
 
     def expected_allowed_tools_for_request(self, request: AgentRequest) -> tuple[str, ...]:
         return self.expected_allowed_tools_for_payload(request.target, request.payload)
@@ -122,7 +169,6 @@ class ToolSpecRegistry:
             f"target={target} payload={payload.__class__.__name__}"
         )
 
-
 def load_tool_spec_registry(path: str | Path | None = None) -> ToolSpecRegistry:
     registry_path = _resolve_tool_spec_path(path)
     raw = _load_json(registry_path)
@@ -151,10 +197,7 @@ def default_tool_spec_registry() -> ToolSpecRegistry:
 
 def _parse_tool(value: object) -> ToolSpec:
     item = _mapping(value, "tool")
-    function_schema = _mapping(
-        item.get("function_schema") or item.get("provider_schema"),
-        "function_schema",
-    )
+    function_schema = _mapping(item.get("function_schema"), "function_schema")
     return ToolSpec(
         name=_required_string(item.get("name"), "name"),
         owner_agent=_required_string(item.get("owner_agent"), "owner_agent"),
@@ -203,12 +246,10 @@ def _validate_tools(tools: tuple[ToolSpec, ...]) -> None:
         if tool.runtime_posture not in {
             "closed",
             "typed_handoff_only",
-            "provider_argument_completion_pilot",
-            "provider_loop_pilot",
-            "provider_loop_open",
             "sdk_adapter_candidate",
             "sdk_adapter_admitted",
             "sdk_internal_admitted",
+            "internal_function",
         }:
             raise ToolSpecRegistryError(
                 f"{tool.name} runtime_posture is unsupported: {tool.runtime_posture}"
@@ -217,8 +258,16 @@ def _validate_tools(tools: tuple[ToolSpec, ...]) -> None:
             raise ToolSpecRegistryError(
                 f"{tool.name} sdk_internal_admitted posture requires agent_internal surface"
             )
+        if tool.runtime_posture == "internal_function" and tool.surface != "agent_internal":
+            raise ToolSpecRegistryError(
+                f"{tool.name} internal_function posture requires agent_internal surface"
+            )
+        if tool.runtime_posture == "internal_function" and tool.function_schema.available:
+            raise ToolSpecRegistryError(
+                f"{tool.name} internal_function posture must not expose function_schema"
+            )
         if (
-            tool.runtime_posture.startswith(("provider_", "sdk_"))
+            tool.runtime_posture.startswith("sdk_")
             and not tool.function_schema.available
         ):
             raise ToolSpecRegistryError(
@@ -253,7 +302,7 @@ def _repo_root() -> Path:
     for parent in current.parents:
         if (parent / DEFAULT_TOOL_SPEC_PATH).exists():
             return parent
-    raise ToolSpecRegistryError("repo root with configs/runtime/tools.v1.json was not found")
+    raise ToolSpecRegistryError("repo root with configs/runtime/tools.v2.json was not found")
 
 
 def _load_json(path: Path) -> dict[str, object]:

@@ -256,3 +256,22 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		t.Fatalf("exported count = %d, want 1", status.ExportedCount)
 	}
 }
+
+func TestEmitterEnabledWithMetricsRequiresMetricsEndpoint(t *testing.T) {
+	emitter := NewEmitter(context.Background(), config.Config{
+		OTelEnabled:        true,
+		OTelEndpoint:       "http://collector:4318/v1/traces",
+		OTelMetricsEnabled: true,
+	}, nil)
+
+	status := emitter.Status()
+	if !status.Enabled {
+		t.Fatal("enabled = false, want true")
+	}
+	if status.MetricsExporterConfigured {
+		t.Fatal("metrics exporter configured = true, want false")
+	}
+	if status.LastError == "" {
+		t.Fatal("last error should be populated")
+	}
+}

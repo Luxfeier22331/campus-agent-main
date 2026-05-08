@@ -263,7 +263,7 @@ class AgentDispatchTest(unittest.TestCase):
 
         dispatcher.agent_delegates["campus-services-agent"] = fake_delegate
 
-        with self.assertRaisesRegex(ToolAdmissionError, "ToolSpec"):
+        with self.assertRaisesRegex(AgentSpecAdmissionError, "inactive"):
             dispatcher.dispatch(request)
 
         self.assertFalse(delegate_called)
@@ -318,7 +318,7 @@ class AgentDispatchTest(unittest.TestCase):
             ),
         }
 
-        for tool in registry.structured_handoff_tools():
+        for tool in registry.agent_facing_tools():
             self.assertIn(tool.name, cases)
             target, payload = cases[tool.name]
             with self.subTest(tool=tool.name):
@@ -348,7 +348,7 @@ class AgentDispatchTest(unittest.TestCase):
             registry.expected_allowed_tools_for_request(_knowledge_agent_request()),
             (),
         )
-        self.assertEqual(registry.structured_tool_names_for_target("rag-agent"), ())
+        self.assertEqual(registry.agent_facing_tool_names_for_target("rag-agent"), ())
 
     def test_dispatcher_uses_injected_agent_delegate_map(self) -> None:
         delegates = {"rag-agent": lambda _request: _make_rag_completed_response()}
@@ -364,7 +364,7 @@ class AgentDispatchTest(unittest.TestCase):
 
 
 def _tool_spec_fixture_with_inactive_tool(tool_name: str, fixture_dir: Path) -> Path:
-    source_path = Path("configs/runtime/tools.v1.json")
+    source_path = Path("configs/runtime/tools.v2.json")
     payload = json.loads(source_path.read_text(encoding="utf-8"))
     for tool in payload["tools"]:
         if tool["name"] == tool_name:
@@ -372,7 +372,7 @@ def _tool_spec_fixture_with_inactive_tool(tool_name: str, fixture_dir: Path) -> 
             break
     else:  # pragma: no cover - fixture regression guard
         raise AssertionError(f"missing tool fixture: {tool_name}")
-    path = fixture_dir / "tools.v1.json"
+    path = fixture_dir / "tools.v2.json"
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return path
 

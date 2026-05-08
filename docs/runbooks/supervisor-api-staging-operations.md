@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-24
-updated: 2026-05-01
+updated: 2026-05-08
 ---
 # Supervisor API Staging Operations
 
@@ -10,8 +10,8 @@ updated: 2026-05-01
 
 这份 runbook 只回答当前 canonical staging execution upstream 的长期运维真相：
 
-- 当前 repo-owned staging execution runtime 是 `supervisor-api + supervisor-agent-worker`
-  双容器
+- 当前 repo-owned staging execution runtime 是 `otel-collector + supervisor-api + supervisor-agent-worker`
+  三容器
 - `exec-staging.ayafeed.com` 继续通过 named tunnel 指回这台主机上的本地
   `supervisor-api` runtime
 
@@ -26,6 +26,10 @@ updated: 2026-05-01
   service
 - 当前 repo-owned staging execution runtime：
   - `infra/local/docker-compose.supervisor-runtime.yml`
+  - `otel-collector`
+    - repo-owned runtime telemetry fan-out
+    - local OTLP ingress `4317/4318`
+    - health check `13133`
   - `supervisor-api`
     - `trusted-worker`
     - `127.0.0.1:27010`
@@ -93,7 +97,8 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 
 `--check` 通过标准：
 
-- `supervisor-api` 与 `supervisor-agent-worker` 都在当前 compose project 中运行
+- `otel-collector`、`supervisor-api` 与
+  `supervisor-agent-worker` 都在当前 compose project 中运行
 - 如果配置了 public execution origin，则 `cloudflared` 进程存在
 - 本地 `<http://127.0.0.1:27010/healthz`> 返回 `200`
 - 本地 `<http://127.0.0.1:27010/readyz`> 返回 `200`
@@ -115,9 +120,12 @@ infra/local/staging/status-supervisor-api-staging.sh --check
 - 默认 lane budget 为 `rag=6/12/3000ms`、`navigation=2/4/1500ms`、
   `campus_services=2/4/1500ms`、`notice=2/4/1500ms`、`default=1/2/1500ms`；
   三元组含义为 `max_concurrent / queue_capacity / queue_timeout`
-- `SUPERVISOR_API_OTEL_ENABLED=false` 是本地 staging 默认；开启后必须同时配置
-  `SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT`，否则 `/readyz` 会标记
-  `telemetry_runtime.exporter_configured=false`
+- staging 默认启用 `SUPERVISOR_API_OTEL_ENABLED=true`、
+  `SUPERVISOR_API_OTEL_METRICS_ENABLED=true` 与
+  `SUPERVISOR_AGENT_WORKER_OTEL_ENABLED=true`
+- `supervisor-api` traces / metrics 都应发往本地 `otel-collector`
+- `supervisor-agent-worker` runtime events 可以同时保留 JSONL debug sink，并直接发往
+  本地 `otel-collector` 的 OTLP HTTP traces / metrics / logs endpoints
 - OTel attribute allowlist、forbidden fields 与 sink ownership 以
   `docs/reference/runtime-otel-telemetry-taxonomy.md` 为准；staging 不应把 raw prompt、
   raw query、raw answer、token、cookie、auth material 或正文片段发往 Sentry/Axiom
@@ -190,6 +198,7 @@ until infra/local/staging/status-supervisor-api-staging.sh --check; do \
 
 日志目录：
 
+- `.tmp/supervisor-api-staging/logs/otel-collector.log`
 - `.tmp/supervisor-api-staging/logs/supervisor-api.log`
 - `.tmp/supervisor-api-staging/logs/supervisor-agent-worker.log`
 - `.tmp/supervisor-api-staging/logs/cloudflared.log`

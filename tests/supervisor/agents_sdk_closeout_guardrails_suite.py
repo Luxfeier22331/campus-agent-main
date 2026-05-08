@@ -25,7 +25,11 @@ class AgentsSdkCloseoutGuardrailsTest(unittest.TestCase):
         self.assertNotIn(
             'settings.agents_sdk_runtime_allowed_tools == ("campus_notice_get",)', delegates_source
         )
-        self.assertIn('tool.runtime_posture == "sdk_adapter_admitted"', delegates_source)
+        self.assertIn("ToolExecutionSession", delegates_source)
+        self.assertIn("build_default_tool_execution_session", delegates_source)
+        self.assertNotIn("execute_notice_sdk_tool(", delegates_source)
+        self.assertNotIn("execute_campus_services_sdk_tool(", delegates_source)
+        self.assertNotIn("run_notice_get_internal_request(", delegates_source)
         self.assertNotIn("agents_sdk_runtime_allowed_targets", settings_source)
         self.assertNotIn("agents_sdk_runtime_allowed_tools", settings_source)
         self.assertNotIn("SUPERVISOR_AGENTS_SDK_" + "ALLOWED_TARGETS", settings_source)
@@ -33,6 +37,20 @@ class AgentsSdkCloseoutGuardrailsTest(unittest.TestCase):
         self.assertNotIn("agents_sdk_runtime_allowed_targets", delegates_source)
         self.assertNotIn("agents_sdk_runtime_allowed_tools", delegates_source)
         self.assertIn("sdk_tool_missing", policy_source)
+
+    def test_domain_agent_execution_is_owned_by_admitted_executor_module(self) -> None:
+        delegates_source = (SDK_SOURCE_DIR / "agent_delegates.py").read_text(encoding="utf-8")
+        executor_source = (SDK_SOURCE_DIR / "admitted_agent_execution.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("AdmittedAgentExecutor", delegates_source)
+        self.assertNotIn("def _execute_domain_agent_request", delegates_source)
+        self.assertNotIn("def _is_sdk_admitted_structured_request", delegates_source)
+        self.assertNotIn("def _is_internal_function_request", delegates_source)
+        self.assertNotIn("build_agents_sdk_tool_descriptors(", delegates_source)
+        self.assertIn("def execute(", executor_source)
+        self.assertIn("single_tool_structured_handoff", executor_source)
 
     def test_sdk_source_does_not_admit_hosted_or_stateful_tool_surfaces(self) -> None:
         forbidden_patterns = {

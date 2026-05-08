@@ -218,11 +218,10 @@ repo-owned internal query service -> sanitized result projection`
 - Go `apps/supervisor-api` 拥有 tool admission、opening gate、capability / lane /
   scope / version guard、`allowed_tools` planning、workflow policy 与 fail-close
   terminal semantics
-- domain-agent 可以在自己的能力边界内使用 provider-native function calling 或
-  agent framework tool loop，但只能消费 Go handoff 中允许的 tool 子集
-- provider function calling 默认用于 domain-agent 内部的 bounded tool loop 或
-  agents-as-tools style specialist call；它不是顶层 routing engine，也不拥有跨 family
-  permission expansion
+- domain-agent 可以在自己的能力边界内使用 provider/SDK mediated tool loop，但只能消费 Go
+  handoff 中允许的 tool 子集
+- provider/SDK tool loop 只作为 domain-agent 内部的 bounded execution substrate；它不是
+  顶层 routing engine，也不拥有跨 family permission expansion
 - provider-native function calling 是 implementation substrate，不是 repo-level
   orchestration owner；它不能自行扩大工具全集、source surface、authz scope 或
   capability family
@@ -242,6 +241,10 @@ tool 与 deterministic query function 的边界必须保持清晰：
 - deterministic query function 应表达内部读模型函数，例如按 notice id 取 source card、
   按 selected notice ref 取 bounded context、读取附件 refs 或读取 OCR owner text。
 - query function 不应因为实现上有 JSON schema 就自动进入 ToolSpec 顶层 tool surface。
+- SDK internal function 是 deterministic query function 的受控子类：可以由
+  `ToolSpec` 注册 strict function schema，但必须标为 `agent_internal`，并通过
+  `runtime_posture` 显式 admission；例如 RAG SDK 的 `retrieve_evidence` 只读取
+  admitted query slot 与 bounded evidence anchors，不进入 Go `allowed_tools`。
 - notice family 默认只暴露 `campus_notice_discover` 这类 card discovery tool；
   selected notice card/context resolution 应优先作为 notice-agent 或 Go internal query
   service 的 deterministic function。若未来确需 agent-facing resolve tool，也必须只返回
@@ -256,7 +259,7 @@ tool 与 deterministic query function 的边界必须保持清晰：
   context filter、opening gate、timeout/budget、trace projection 与 eval denominator
 - `ToolSpec` 定义 agent 内部可调用的 read-only capability 或受控 function surface
 - Go `WorkflowPlan` 只能选择已注册且 gate-ready 的 agents / tools
-- Python worker delegate map 与 provider-native function schema 必须从这些 repo-owned
+- Python worker delegate map 与 provider/SDK function schema 必须从这些 repo-owned
   artifacts 派生或被 drift test 校验
 - 新增 agent、打开 explicit handoff、打开 parallel fanout 或新增 state-changing tool，都必须先
   补 contract、eval denominator 与 trace projection，不得只靠 prompt 约束

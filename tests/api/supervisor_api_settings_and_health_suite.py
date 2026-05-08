@@ -60,9 +60,14 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertFalse(ready.json_body["prompt_http_pool"]["healthy"])
         self.assertNotIn("audit_runtime", ready.json_body)
         self.assertNotIn("execution_cancel_runtime", ready.json_body)
+        self.assertEqual(ready.json_body["worker_runtime"]["role"], "semantic_worker")
         self.assertEqual(
-            ready.json_body["worker_runtime"],
-            {"role": "semantic_worker", "cancel_flag_store": "available"},
+            ready.json_body["worker_runtime"]["cancel_flag_store"],
+            "available",
+        )
+        self.assertEqual(
+            ready.json_body["worker_runtime"]["runtime_event_emitter"]["transport"],
+            "jsonl",
         )
         app.close()
 
@@ -238,6 +243,44 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "/tmp/retrieval-observations.jsonl",
         )
         self.assertTrue(settings.retrieval_observation_include_query_text)
+
+    def test_api_settings_from_env_reads_worker_otel_settings(self) -> None:
+        env = {
+            "SUPERVISOR_AGENT_WORKER_OTEL_ENABLED": "true",
+            "SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME": "campus-supervisor-agent-worker",
+            "SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION": "supervisor-agent-worker-otel-attrs-v1",
+            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_TIMEOUT_SECONDS": "1.5",
+            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_INTERVAL_SECONDS": "5",
+            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_HEADERS": "authorization=Bearer worker",
+            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT": "http://otel-collector:4318/v1/traces",
+            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT": "http://otel-collector:4318/v1/metrics",
+            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT": "http://otel-collector:4318/v1/logs",
+        }
+
+        with patch.dict(os.environ, env, clear=True):
+            settings = ApiSettings.from_env()
+
+        self.assertTrue(settings.otel_enabled)
+        self.assertEqual(settings.otel_service_name, "campus-supervisor-agent-worker")
+        self.assertEqual(
+            settings.otel_allowed_attributes_version,
+            "supervisor-agent-worker-otel-attrs-v1",
+        )
+        self.assertEqual(settings.otel_export_timeout_seconds, 1.5)
+        self.assertEqual(settings.otel_export_interval_seconds, 5.0)
+        self.assertEqual(settings.otel_exporter_otlp_headers, "authorization=Bearer worker")
+        self.assertEqual(
+            settings.otel_exporter_otlp_traces_endpoint,
+            "http://otel-collector:4318/v1/traces",
+        )
+        self.assertEqual(
+            settings.otel_exporter_otlp_metrics_endpoint,
+            "http://otel-collector:4318/v1/metrics",
+        )
+        self.assertEqual(
+            settings.otel_exporter_otlp_logs_endpoint,
+            "http://otel-collector:4318/v1/logs",
+        )
 
     def test_rag_delegate_wires_jsonl_retrieval_observation_sink_when_configured(self) -> None:
         with TemporaryDirectory() as temp_dir:

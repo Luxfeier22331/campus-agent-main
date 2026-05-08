@@ -64,8 +64,9 @@ Expected local evidence:
 - emitted records do not include raw prompt, raw query, raw answer, chunk body, canonical body,
   OCR raw text, authorization, cookie, JWT, database URL or provider secret fields
 
-Phase 2/3 worker JSONL sinks remain local debug handoff surfaces until a JSONL-to-OTLP adapter is
-explicitly added. They are not a replacement for the Collector fan-out path.
+Worker JSONL sinks remain available as local debug handoff surfaces. Staging runtime now also
+supports worker-local OTLP export directly to the repo-owned Collector; JSONL is no longer the only
+bridge runtime telemetry path.
 
 ## Staging Env
 
@@ -82,7 +83,7 @@ OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE=100
 OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE=100
 OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT=<secret-managed endpoint>
 OTEL_COLLECTOR_SENTRY_AUTH_VALUE=<secret-managed x-sentry-auth value>
-OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=<secret-managed endpoint>
+OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co
 OTEL_COLLECTOR_AXIOM_AUTH_HEADER=<secret-managed header>
 OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=<secret-managed dataset>
 OTEL_COLLECTOR_AXIOM_METRICS_DATASET=<secret-managed metrics dataset>
@@ -182,7 +183,13 @@ If the Collector receives telemetry but no sink records appear:
 3. Check sampling percentages.
 4. Confirm Sentry and Axiom endpoint/header values were injected by the runtime secret manager.
    Sentry uses `x-sentry-auth`, not `Authorization`.
-5. Confirm Axiom traces/logs use `x-axiom-dataset` and metrics use
+5. Confirm `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` is the Axiom edge deployment base domain only,
+   for example `https://us-east-1.aws.edge.axiom.co`. Do not append `/v1/traces`, `/v1/logs`,
+   or `/v1/metrics` in the Collector exporter config because `otlphttp` appends the signal path
+   automatically.
+6. Confirm `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` matches `AXIOM_ENDPOINT`, so Worker-local and
+   Collector-based exports land in the same Axiom edge deployment.
+7. Confirm Axiom traces/logs use `x-axiom-dataset` and metrics use
    `x-axiom-metrics-dataset`.
 
 Exporter failure must not break product request paths. It should appear as telemetry degraded

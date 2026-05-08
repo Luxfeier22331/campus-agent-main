@@ -8,7 +8,7 @@ from typing import Literal
 from campus_contracts.schema_metadata import schema_metadata
 from campus_supervisor_agent_worker.contract_function_schema import (
     ContractFunctionSchemaError,
-    provider_parameters_schema_for_type,
+    function_parameters_schema_for_type,
 )
 
 
@@ -52,7 +52,7 @@ class _UnsupportedPayload:
 
 class ContractFunctionSchemaTest(unittest.TestCase):
     def test_generates_strict_schema_from_dataclass_contract(self) -> None:
-        schema = provider_parameters_schema_for_type(_LocalPayload)
+        schema = function_parameters_schema_for_type(_LocalPayload)
 
         self.assertEqual(schema["type"], "object")
         self.assertEqual(schema["additionalProperties"], False)
@@ -75,7 +75,7 @@ class ContractFunctionSchemaTest(unittest.TestCase):
         )
 
     def test_optional_and_nested_fields_are_nullable_strict_objects(self) -> None:
-        schema = provider_parameters_schema_for_type(_LocalPayload)
+        schema = function_parameters_schema_for_type(_LocalPayload)
 
         nested = schema["properties"]["nested"]
         self.assertEqual(nested["type"], ["object", "null"])
@@ -88,13 +88,13 @@ class ContractFunctionSchemaTest(unittest.TestCase):
         self.assertEqual(labels["items"]["type"], "string")
 
     def test_excluded_fields_do_not_appear_in_generated_schema(self) -> None:
-        schema = provider_parameters_schema_for_type(_LocalPayload)
+        schema = function_parameters_schema_for_type(_LocalPayload)
 
         self.assertNotIn("hidden", schema["properties"])
 
     def test_unsupported_contract_types_fail_closed(self) -> None:
         with self.assertRaisesRegex(ContractFunctionSchemaError, "unsupported annotation"):
-            provider_parameters_schema_for_type(_UnsupportedPayload)
+            function_parameters_schema_for_type(_UnsupportedPayload)
 
 
 if __name__ == "__main__":

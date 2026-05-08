@@ -164,6 +164,10 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertFalse(status["conditions"]["structured_runtime_contract"]["required"])
             self.assertTrue(status["conditions"]["notice_runtime_contract"]["ready"])
             self.assertFalse(status["conditions"]["notice_runtime_contract"]["required"])
+            self.assertTrue(status["conditions"]["otel_axiom_collector_endpoint_contract"]["ready"])
+            self.assertFalse(
+                status["conditions"]["otel_axiom_collector_endpoint_contract"]["required"]
+            )
 
     def test_collect_env_doctor_status_supervisor_api_requires_bridge_contract(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -287,6 +291,69 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(condition["required"])
             self.assertFalse(condition["ready"])
             self.assertIn("OBJECT_STORE_ENDPOINT", condition["error"])
+
+    def test_collect_env_doctor_status_supervisor_api_rejects_axiom_collector_signal_path(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "LLM_API_KEY=shared-llm-secret",
+                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
+                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co/v1/traces",
+                    ]
+                )
+                + "\n",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root,
+                    surface="supervisor-api",
+                )
+
+            self.assertFalse(status["overall_ready"])
+            condition = status["conditions"]["otel_axiom_collector_endpoint_contract"]
+            self.assertTrue(condition["required"])
+            self.assertFalse(condition["ready"])
+            self.assertIn("https://us-east-1.aws.edge.axiom.co", condition["error"])
+
+    def test_collect_env_doctor_status_supervisor_api_rejects_axiom_collector_endpoint_drift(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "LLM_API_KEY=shared-llm-secret",
+                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
+                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
+                        "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://api.axiom.co",
+                    ]
+                )
+                + "\n",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root,
+                    surface="supervisor-api",
+                )
+
+            self.assertFalse(status["overall_ready"])
+            condition = status["conditions"]["otel_axiom_collector_endpoint_contract"]
+            self.assertTrue(condition["required"])
+            self.assertFalse(condition["ready"])
+            self.assertIn("must match AXIOM_ENDPOINT", condition["error"])
 
     def test_collect_env_doctor_status_reports_query_surface_with_app_local_files(self) -> None:
         with TemporaryDirectory() as temp_dir:

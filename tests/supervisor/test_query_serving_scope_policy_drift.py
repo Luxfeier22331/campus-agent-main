@@ -22,7 +22,7 @@ class QueryServingScopePolicyDriftTest(unittest.TestCase):
 
     def test_active_structured_tools_match_structured_query_runtime_profiles(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
-        tool_spec_path = repo_root / "configs/runtime/tools.v1.json"
+        tool_spec_path = repo_root / "configs/runtime/tools.v2.json"
         tool_spec = json.loads(tool_spec_path.read_text(encoding="utf-8"))
         active_structured_tools = {
             tool["name"]
@@ -38,7 +38,11 @@ class QueryServingScopePolicyDriftTest(unittest.TestCase):
             if profile.get("structured_query_enabled") is True:
                 profile_tools.update(profile.get("structured_query_tools") or [])
 
-        self.assertEqual(active_structured_tools - {"campus_notice_discover"}, profile_tools)
+        self.assertEqual(
+            active_structured_tools
+            - {"campus_notice_discover", "campus_notice_change_set_lookup"},
+            profile_tools,
+        )
 
     def test_regulation_serving_admission_profiles_are_explicit(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]

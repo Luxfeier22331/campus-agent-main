@@ -305,6 +305,20 @@ func (m *Metrics) Prometheus(admissionSnapshots ...AdmissionSnapshot) []byte {
 	} else {
 		builder.WriteString("campus_supervisor_api_telemetry_exporter_configured 0\n")
 	}
+	builder.WriteString("# HELP campus_supervisor_api_telemetry_metrics_enabled Whether OTel metrics export is enabled.\n")
+	builder.WriteString("# TYPE campus_supervisor_api_telemetry_metrics_enabled gauge\n")
+	if snapshot.Telemetry.MetricsEnabled {
+		builder.WriteString("campus_supervisor_api_telemetry_metrics_enabled 1\n")
+	} else {
+		builder.WriteString("campus_supervisor_api_telemetry_metrics_enabled 0\n")
+	}
+	builder.WriteString("# HELP campus_supervisor_api_telemetry_metrics_exporter_configured Whether OTel metrics exporter is configured.\n")
+	builder.WriteString("# TYPE campus_supervisor_api_telemetry_metrics_exporter_configured gauge\n")
+	if snapshot.Telemetry.MetricsConfigured {
+		builder.WriteString("campus_supervisor_api_telemetry_metrics_exporter_configured 1\n")
+	} else {
+		builder.WriteString("campus_supervisor_api_telemetry_metrics_exporter_configured 0\n")
+	}
 	builder.WriteString("# HELP campus_supervisor_api_execution_audit_emitted_total Total execution audit events accepted by supervisor-api emitter.\n")
 	builder.WriteString("# TYPE campus_supervisor_api_execution_audit_emitted_total counter\n")
 	fmt.Fprintf(&builder, "campus_supervisor_api_execution_audit_emitted_total %d\n", snapshot.ExecutionAudit.EmittedCount)

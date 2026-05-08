@@ -10,6 +10,7 @@ supervisor_api_staging_cloudflared_pid_file="${supervisor_api_staging_runtime_di
 supervisor_api_staging_cloudflared_log_file="${supervisor_api_staging_log_dir}/cloudflared.log"
 supervisor_api_staging_supervisor_api_log_file="${supervisor_api_staging_log_dir}/supervisor-api.log"
 supervisor_api_staging_supervisor_agent_worker_log_file="${supervisor_api_staging_log_dir}/supervisor-agent-worker.log"
+supervisor_api_staging_otel_collector_log_file="${supervisor_api_staging_log_dir}/otel-collector.log"
 
 supervisor_api_staging_host="${SUPERVISOR_API_STAGING_HOST:-127.0.0.1}"
 supervisor_api_staging_port="${SUPERVISOR_API_STAGING_PORT:-27010}"
@@ -48,6 +49,7 @@ supervisor_api_staging_runtime_globals_declared() {
     "${supervisor_api_staging_cloudflared_log_file}" \
     "${supervisor_api_staging_supervisor_api_log_file}" \
     "${supervisor_api_staging_supervisor_agent_worker_log_file}" \
+    "${supervisor_api_staging_otel_collector_log_file}" \
     "${supervisor_api_staging_host}" \
     "${supervisor_api_staging_port}" \
     "${supervisor_api_staging_compose_file}" \
@@ -152,6 +154,32 @@ const keys = [
   "SUPERVISOR_API_REQUEST_TIMEOUT_MS",
   "SUPERVISOR_API_SHUTDOWN_GRACE_MS",
   "SUPERVISOR_API_METRICS_BEARER_TOKEN",
+  "SUPERVISOR_API_OTEL_ENABLED",
+  "SUPERVISOR_API_OTEL_METRICS_ENABLED",
+  "SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS",
+  "SUPERVISOR_API_OTEL_SERVICE_NAME",
+  "SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS",
+  "SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS",
+  "SUPERVISOR_AGENT_WORKER_OTEL_ENABLED",
+  "SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME",
+  "SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION",
+  "SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_TIMEOUT_SECONDS",
+  "SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_INTERVAL_SECONDS",
+  "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_HEADERS",
+  "OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT",
+  "OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT",
+  "OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT",
+  "OTEL_COLLECTOR_MEMORY_LIMIT_MIB",
+  "OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB",
+  "OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE",
+  "OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE",
+  "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
+  "OTEL_COLLECTOR_SENTRY_AUTH_VALUE",
+  "AXIOM_ENDPOINT",
+  "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
+  "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
+  "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
+  "OTEL_COLLECTOR_AXIOM_METRICS_DATASET",
   "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED",
   "SUPERVISOR_API_EXECUTION_AUDIT_URL",
   "SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET",
@@ -261,6 +289,23 @@ NODE
   fi
   export SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS="${SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS:-500}"
   export SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY="${SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY:-128}"
+  export SUPERVISOR_API_OTEL_ENABLED="${SUPERVISOR_API_OTEL_ENABLED:-true}"
+  export SUPERVISOR_API_OTEL_METRICS_ENABLED="${SUPERVISOR_API_OTEL_METRICS_ENABLED:-true}"
+  export SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS="${SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS:-1000}"
+  export SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS="${SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS:-15000}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_ENABLED="${SUPERVISOR_AGENT_WORKER_OTEL_ENABLED:-true}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME="${SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME:-campus-supervisor-agent-worker}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION="${SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION:-supervisor-agent-worker-otel-attrs-v1}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_TIMEOUT_SECONDS="${SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_TIMEOUT_SECONDS:-1}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_INTERVAL_SECONDS="${SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_INTERVAL_SECONDS:-5}"
+  export DEPLOYMENT_ENVIRONMENT="${DEPLOYMENT_ENVIRONMENT:-staging}"
+  export OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT="${OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT:-0.0.0.0:4317}"
+  export OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT="${OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT:-0.0.0.0:4318}"
+  export OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT="${OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT:-0.0.0.0:13133}"
+  export OTEL_COLLECTOR_MEMORY_LIMIT_MIB="${OTEL_COLLECTOR_MEMORY_LIMIT_MIB:-512}"
+  export OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB="${OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB:-128}"
+  export OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE="${OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE:-100}"
+  export OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE="${OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE:-100}"
 }
 
 supervisor_api_staging_read_pid() {
@@ -381,6 +426,7 @@ supervisor_api_staging_rotate_logs_if_needed() {
   supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_cloudflared_log_file}"
   supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_supervisor_api_log_file}"
   supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_supervisor_agent_worker_log_file}"
+  supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_otel_collector_log_file}"
 }
 
 supervisor_api_staging_kill_managed_process() {
@@ -428,8 +474,19 @@ supervisor_api_staging_compose() {
 }
 
 supervisor_api_staging_capture_compose_logs() {
+  supervisor_api_staging_compose logs --no-color otel-collector >"${supervisor_api_staging_otel_collector_log_file}" 2>&1 || true
   supervisor_api_staging_compose logs --no-color supervisor-api >"${supervisor_api_staging_supervisor_api_log_file}" 2>&1 || true
   supervisor_api_staging_compose logs --no-color supervisor-agent-worker >"${supervisor_api_staging_supervisor_agent_worker_log_file}" 2>&1 || true
+}
+
+supervisor_api_staging_collector_logs_have_export_errors() {
+  local log_file="${supervisor_api_staging_otel_collector_log_file}"
+
+  if [[ ! -f "${log_file}" ]]; then
+    return 1
+  fi
+
+  grep -Eq 'Exporting failed\. Dropping data\.|not retryable error:|Permanent error:' "${log_file}"
 }
 
 supervisor_api_staging_compose_running_services() {
@@ -439,7 +496,7 @@ supervisor_api_staging_compose_running_services() {
 supervisor_api_staging_compose_project_running() {
   local services
   services="$(supervisor_api_staging_compose_running_services 2>/dev/null || true)"
-  [[ "${services}" == *"supervisor-api"* ]] && [[ "${services}" == *"supervisor-agent-worker"* ]]
+  [[ "${services}" == *"otel-collector"* ]] && [[ "${services}" == *"supervisor-api"* ]] && [[ "${services}" == *"supervisor-agent-worker"* ]]
 }
 
 supervisor_api_staging_require_runtime_env() {
@@ -455,6 +512,40 @@ supervisor_api_staging_require_runtime_env() {
 
   if [[ ! -f "${supervisor_api_staging_cloudflared_config_file}" ]]; then
     echo "Missing ${supervisor_api_staging_cloudflared_config_file}. Create the named tunnel config first." >&2
+    return 1
+  fi
+
+  supervisor_api_staging_validate_axiom_collector_endpoint
+}
+
+supervisor_api_staging_validate_axiom_collector_endpoint() {
+  local endpoint="${OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT:-}"
+  local source_endpoint="${AXIOM_ENDPOINT:-}"
+  local normalized_endpoint="${endpoint%/}"
+  local normalized_source_endpoint="${source_endpoint%/}"
+
+  if [[ -z "${endpoint}" ]]; then
+    return 0
+  fi
+
+  if [[ ! "${endpoint}" =~ ^https?://[^/]+/?$ ]]; then
+    cat >&2 <<EOF
+OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT must be the Axiom OTLP base domain, for example
+https://us-east-1.aws.edge.axiom.co
+Do not include signal paths like /v1/traces or /v1/metrics here because the Collector
+otlphttp exporter appends those paths automatically.
+Current value: ${endpoint}
+EOF
+    return 1
+  fi
+
+  if [[ -n "${source_endpoint}" && "${normalized_endpoint}" != "${normalized_source_endpoint}" ]]; then
+    cat >&2 <<EOF
+OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT must match AXIOM_ENDPOINT so Worker and Collector
+export to the same Axiom edge deployment.
+AXIOM_ENDPOINT=${source_endpoint}
+OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=${endpoint}
+EOF
     return 1
   fi
 }

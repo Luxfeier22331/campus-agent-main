@@ -9,8 +9,8 @@ import (
 )
 
 const (
-	ToolSpecSchemaVersion = "tool-spec-registry-v1"
-	defaultToolSpecPath   = "configs/runtime/tools.v1.json"
+	ToolSpecSchemaVersion = "tool-spec-registry-v2"
+	defaultToolSpecPath   = "configs/runtime/tools.v2.json"
 )
 
 var supportedToolOwnerCapabilities = map[string]string{
@@ -31,14 +31,12 @@ var supportedToolSurfaces = map[string]struct{}{
 }
 
 var supportedRuntimePostures = map[string]struct{}{
-	"closed":                             {},
-	"typed_handoff_only":                 {},
-	"provider_argument_completion_pilot": {},
-	"provider_loop_pilot":                {},
-	"provider_loop_open":                 {},
-	"sdk_adapter_candidate":              {},
-	"sdk_adapter_admitted":               {},
-	"sdk_internal_admitted":              {},
+	"closed":                {},
+	"typed_handoff_only":    {},
+	"sdk_adapter_candidate": {},
+	"sdk_adapter_admitted":  {},
+	"sdk_internal_admitted": {},
+	"internal_function":     {},
 }
 
 type ToolFunctionSchemaSpec struct {
@@ -46,26 +44,20 @@ type ToolFunctionSchemaSpec struct {
 	Strict    bool `json:"strict"`
 }
 
-type legacyToolProviderSchemaSpec struct {
-	Enabled bool `json:"enabled"`
-	Strict  bool `json:"strict"`
-}
-
 type ToolSpec struct {
-	Name             string                       `json:"name"`
-	OwnerAgent       string                       `json:"owner_agent"`
-	Capability       string                       `json:"capability"`
-	PayloadKind      string                       `json:"payload_kind"`
-	PayloadSchemaRef string                       `json:"payload_schema_ref"`
-	ResultSchemaRef  string                       `json:"result_schema_ref"`
-	Backend          string                       `json:"backend"`
-	Surface          string                       `json:"surface"`
-	ReadOnly         bool                         `json:"read_only"`
-	Active           bool                         `json:"active"`
-	FunctionSchema   ToolFunctionSchemaSpec       `json:"function_schema"`
-	ProviderSchema   legacyToolProviderSchemaSpec `json:"provider_schema"`
-	RuntimePosture   string                       `json:"runtime_posture"`
-	Description      string                       `json:"description"`
+	Name             string                 `json:"name"`
+	OwnerAgent       string                 `json:"owner_agent"`
+	Capability       string                 `json:"capability"`
+	PayloadKind      string                 `json:"payload_kind"`
+	PayloadSchemaRef string                 `json:"payload_schema_ref"`
+	ResultSchemaRef  string                 `json:"result_schema_ref"`
+	Backend          string                 `json:"backend"`
+	Surface          string                 `json:"surface"`
+	ReadOnly         bool                   `json:"read_only"`
+	Active           bool                   `json:"active"`
+	FunctionSchema   ToolFunctionSchemaSpec `json:"function_schema"`
+	RuntimePosture   string                 `json:"runtime_posture"`
+	Description      string                 `json:"description"`
 }
 
 type ToolSpecRegistry struct {
@@ -176,7 +168,13 @@ func (t ToolSpec) Validate() error {
 	if runtimePosture == "sdk_internal_admitted" && t.Surface != "agent_internal" {
 		return fmt.Errorf("%s sdk_internal_admitted posture requires agent_internal surface", t.Name)
 	}
-	if (strings.HasPrefix(runtimePosture, "provider_") || strings.HasPrefix(runtimePosture, "sdk_")) && !functionSchema.Available {
+	if runtimePosture == "internal_function" && t.Surface != "agent_internal" {
+		return fmt.Errorf("%s internal_function posture requires agent_internal surface", t.Name)
+	}
+	if runtimePosture == "internal_function" && functionSchema.Available {
+		return fmt.Errorf("%s internal_function posture must not expose function_schema", t.Name)
+	}
+	if strings.HasPrefix(runtimePosture, "sdk_") && !functionSchema.Available {
 		return fmt.Errorf("%s runtime posture requires function_schema.available", t.Name)
 	}
 	return nil
@@ -204,6 +202,31 @@ func (r ToolSpecRegistry) AllowedToolsForPayloadKind(target string, payloadKind 
 	return nil
 }
 
+func (r ToolSpecRegistry) PayloadKindsForTarget(target string) []string {
+	seen := map[string]struct{}{}
+	result := make([]string, 0)
+	for _, tool := range r.Tools {
+		if tool.OwnerAgent != target {
+			continue
+		}
+		if _, ok := seen[tool.PayloadKind]; ok {
+			continue
+		}
+		seen[tool.PayloadKind] = struct{}{}
+		result = append(result, tool.PayloadKind)
+	}
+	return result
+}
+
+func (r ToolSpecRegistry) PayloadKindBelongsToTarget(target string, payloadKind string) bool {
+	for _, candidate := range r.PayloadKindsForTarget(target) {
+		if candidate == payloadKind {
+			return true
+		}
+	}
+	return false
+}
+
 func (r ToolSpecRegistry) ToolByName(name string) (ToolSpec, bool) {
 	for _, tool := range r.Tools {
 		if tool.Name == name {
@@ -215,16 +238,6 @@ func (r ToolSpecRegistry) ToolByName(name string) (ToolSpec, bool) {
 	return ToolSpec{}, false
 }
 
-func (t ToolSpec) effectiveFunctionSchema() ToolFunctionSchemaSpec {
-	if t.FunctionSchema.Available || t.FunctionSchema.Strict {
-		return t.FunctionSchema
-	}
-	return ToolFunctionSchemaSpec{
-		Available: t.ProviderSchema.Enabled,
-		Strict:    t.ProviderSchema.Strict,
-	}
-}
-
 func (t ToolSpec) effectiveRuntimePosture() string {
 	posture := strings.TrimSpace(t.RuntimePosture)
 	if posture != "" {
@@ -234,6 +247,13 @@ func (t ToolSpec) effectiveRuntimePosture() string {
 		return "closed"
 	}
 	return "typed_handoff_only"
+}
+
+func (t ToolSpec) effectiveFunctionSchema() ToolFunctionSchemaSpec {
+	return ToolFunctionSchemaSpec{
+		Available: t.FunctionSchema.Available,
+		Strict:    t.FunctionSchema.Strict,
+	}
 }
 
 func resolveToolSpecPath(registryPath string) string {

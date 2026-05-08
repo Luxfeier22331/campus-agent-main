@@ -188,40 +188,34 @@ def parse_transport_route_selector(raw_selector: object) -> TransportRouteSelect
         ),
     )
     return TransportRouteSelector(
-        route_id=parse_optional_string(
-            selector.get("route_id"), field_name="route_selector.route_id"
-        )
-        or "",
-        service_family=parse_optional_string(
+        route_id=_normalize_optional_string_field(
+            selector.get("route_id"),
+            field_name="route_selector.route_id",
+        ),
+        service_family=_normalize_optional_string_field(
             selector.get("service_family"),
             field_name="route_selector.service_family",
-        )
-        or "",
-        route_variant_query=parse_optional_string(
+        ),
+        route_variant_query=_normalize_optional_string_field(
             selector.get("route_variant_query"),
             field_name="route_selector.route_variant_query",
-        )
-        or "",
-        origin_campus=parse_optional_string(
+        ),
+        origin_campus=_normalize_optional_string_field(
             selector.get("origin_campus"),
             field_name="route_selector.origin_campus",
-        )
-        or "",
-        destination_campus=parse_optional_string(
+        ),
+        destination_campus=_normalize_optional_string_field(
             selector.get("destination_campus"),
             field_name="route_selector.destination_campus",
-        )
-        or "",
-        origin_stop_query=parse_optional_string(
+        ),
+        origin_stop_query=_normalize_optional_string_field(
             selector.get("origin_stop_query"),
             field_name="route_selector.origin_stop_query",
-        )
-        or "",
-        destination_stop_query=parse_optional_string(
+        ),
+        destination_stop_query=_normalize_optional_string_field(
             selector.get("destination_stop_query"),
             field_name="route_selector.destination_stop_query",
-        )
-        or "",
+        ),
     )
 
 
@@ -241,28 +235,28 @@ def parse_transport_service_time_query(raw_query: object) -> TransportServiceTim
         ),
     )
     return TransportServiceTimeQuery(
-        date_mode=parse_optional_string(
+        date_mode=_normalize_optional_string_field(
             query.get("date_mode"),
             field_name="service_time_query.date_mode",
-        )
-        or "today",
-        service_date=parse_optional_string(
+            default="today",
+        ),
+        service_date=_normalize_optional_string_field(
             query.get("service_date"),
             field_name="service_time_query.service_date",
-        )
-        or "",
-        daypart=parse_optional_string(query.get("daypart"), field_name="service_time_query.daypart")
-        or "all_day",
-        departure_not_before=parse_optional_string(
+        ),
+        daypart=_normalize_optional_string_field(
+            query.get("daypart"),
+            field_name="service_time_query.daypart",
+            default="all_day",
+        ),
+        departure_not_before=_normalize_optional_string_field(
             query.get("departure_not_before"),
             field_name="service_time_query.departure_not_before",
-        )
-        or "",
-        departure_not_after=parse_optional_string(
+        ),
+        departure_not_after=_normalize_optional_string_field(
             query.get("departure_not_after"),
             field_name="service_time_query.departure_not_after",
-        )
-        or "",
+        ),
     )
 
 
@@ -346,15 +340,32 @@ def parse_temporal_query(raw_query: object) -> TemporalQuery:
         supported_fields=("mode", "as_of", "year_hint"),
     )
     return TemporalQuery(
-        mode=parse_optional_string(query.get("mode"), field_name="temporal_query.mode")
-        or "current",
-        as_of=parse_optional_string(query.get("as_of"), field_name="temporal_query.as_of") or "",
-        year_hint=parse_optional_string(
+        mode=_normalize_optional_string_field(
+            query.get("mode"),
+            field_name="temporal_query.mode",
+            default="current",
+        ),
+        as_of=_normalize_optional_string_field(
+            query.get("as_of"),
+            field_name="temporal_query.as_of",
+        ),
+        year_hint=_normalize_optional_string_field(
             query.get("year_hint"),
             field_name="temporal_query.year_hint",
-        )
-        or "",
+        ),
     )
+
+
+def _normalize_optional_string_field(
+    raw_value: object,
+    *,
+    field_name: str,
+    default: str = "",
+) -> str:
+    normalized = parse_optional_string(raw_value, field_name=field_name)
+    if normalized is None:
+        return default
+    return normalized
 
 
 def _assert_supported_fields(
