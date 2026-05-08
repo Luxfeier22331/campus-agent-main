@@ -25,12 +25,32 @@ func TestLoadToolSpecRegistryLoadsDefaultStructuredTools(t *testing.T) {
 	if got := registry.AllowedToolsForTarget("campus-services-agent"); !sameStrings(got, want) {
 		t.Fatalf("campus services tools = %#v, want %#v", got, want)
 	}
-	wantNotice := []string{"campus_notice_discover"}
+	wantNotice := []string{
+		"campus_notice_change_set_lookup",
+		"campus_notice_discover",
+	}
 	if got := registry.AllowedToolsForTarget("notice-agent"); !sameStrings(got, wantNotice) {
 		t.Fatalf("notice tools = %#v, want %#v", got, wantNotice)
 	}
 	if got := registry.AllowedToolsForTarget("rag-agent"); len(got) != 0 {
 		t.Fatalf("rag-agent structured tools = %#v, want none", got)
+	}
+	retrieveEvidence, ok := registry.ToolByName("retrieve_evidence")
+	if !ok {
+		t.Fatal("retrieve_evidence missing from ToolSpec")
+	}
+	if !retrieveEvidence.Active ||
+		retrieveEvidence.Surface != "agent_internal" ||
+		!retrieveEvidence.FunctionSchema.Available ||
+		!retrieveEvidence.FunctionSchema.Strict ||
+		retrieveEvidence.RuntimePosture != "sdk_internal_admitted" {
+		t.Fatalf(
+			"retrieve_evidence active/surface/function/runtime posture = %v/%q/%#v/%q, want active agent_internal strict sdk_internal_admitted",
+			retrieveEvidence.Active,
+			retrieveEvidence.Surface,
+			retrieveEvidence.FunctionSchema,
+			retrieveEvidence.RuntimePosture,
+		)
 	}
 	if got := registry.AllowedToolsForTarget("calendar-agent"); len(got) != 0 {
 		t.Fatalf("calendar-agent tools = %#v, want none", got)

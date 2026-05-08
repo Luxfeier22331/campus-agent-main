@@ -37,6 +37,8 @@ from campus_contracts.models_shared import (
 from campus_contracts.models_tools import (
     AcademicCalendarLookupPayload,
     AcademicCalendarLookupResult,
+    CampusNoticeChangeSetLookupPayload,
+    CampusNoticeChangeSetLookupResult,
     CampusNoticeDiscoverPayload,
     CampusNoticeDiscoverResult,
     CampusNoticeGetPayload,
@@ -173,6 +175,8 @@ class WorkflowTraceSummary:
     selected_target: str = ""
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
     context_projections: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    answer_artifact_projection_ids: tuple[str, ...] = field(default_factory=tuple)
+    answer_artifact_kinds: tuple[str, ...] = field(default_factory=tuple)
     tool_argument_summary: dict[str, Any] = field(default_factory=dict)
     trace_steps: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     tool_call_summaries: tuple[dict[str, Any], ...] = field(default_factory=tuple)
@@ -196,6 +200,13 @@ class WorkflowTraceSummary:
             ("policy_artifact_versions", self.policy_artifact_versions),
         ):
             _reject_raw_workflow_trace_keys(payload, field_name)
+        for field_name, values in (
+            ("answer_artifact_projection_ids", self.answer_artifact_projection_ids),
+            ("answer_artifact_kinds", self.answer_artifact_kinds),
+        ):
+            for index, value in enumerate(values):
+                if not str(value or "").strip():
+                    raise ValueError(f"{field_name}[{index}] must be a non-empty string")
 
 
 @dataclass(frozen=True, slots=True)
@@ -207,6 +218,7 @@ class WorkflowAgentContext:
     agent_id: str = ""
     target: str = ""
     required_projection_kind: str = ""
+    expected_output_artifacts: tuple[str, ...] = field(default_factory=tuple)
     projection_refs: tuple[dict[str, Any], ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
@@ -234,6 +246,21 @@ class WorkflowAgentContext:
             for item in self.projection_refs
         ):
             raise ValueError("workflow_context required projection is missing")
+        normalized_expected_output_artifacts: list[str] = []
+        for index, artifact_kind in enumerate(self.expected_output_artifacts):
+            normalized = str(artifact_kind or "").strip()
+            if not normalized:
+                raise ValueError(
+                    "workflow_context.expected_output_artifacts"
+                    f"[{index}] must be a non-empty string"
+                )
+            normalized_expected_output_artifacts.append(normalized)
+        if tuple(normalized_expected_output_artifacts) != self.expected_output_artifacts:
+            object.__setattr__(
+                self,
+                "expected_output_artifacts",
+                tuple(normalized_expected_output_artifacts),
+            )
         _reject_raw_workflow_trace_keys(self.projection_refs, "workflow_context.projection_refs")
         _validate_workflow_projection_refs(self.projection_refs)
 
@@ -360,6 +387,7 @@ class AgentRequest:
         | ServiceStatusLookupPayload
         | TransportScheduleLookupPayload
         | ContactDirectoryLookupPayload
+        | CampusNoticeChangeSetLookupPayload
         | CampusNoticeDiscoverPayload
         | CampusNoticeGetPayload
     )
@@ -401,6 +429,7 @@ class AgentResponse:
         | ServiceStatusLookupResult
         | TransportScheduleLookupResult
         | ContactDirectoryLookupResult
+        | CampusNoticeChangeSetLookupResult
         | CampusNoticeDiscoverResult
         | CampusNoticeGetResult
         | None
@@ -432,6 +461,7 @@ class SupervisorResponse:
         | ServiceStatusLookupResult
         | TransportScheduleLookupResult
         | ContactDirectoryLookupResult
+        | CampusNoticeChangeSetLookupResult
         | CampusNoticeDiscoverResult
         | CampusNoticeGetResult
         | None

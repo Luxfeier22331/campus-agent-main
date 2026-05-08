@@ -100,6 +100,7 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
                 notice_id="notice:muc-spring-break-2026",
                 source_family="official_web_public_notice",
                 title="2026年春假安排通知",
+                target_surface="regulations/student_rules",
             ),
             turn_count=2,
         )
@@ -108,6 +109,10 @@ class ContractModelsServicesAndNoticeSuite(unittest.TestCase):
         self.assertEqual(
             asdict(summary)["selected_notice_ref"]["notice_id"],
             "notice:muc-spring-break-2026",
+        )
+        self.assertEqual(
+            asdict(summary)["selected_notice_ref"]["target_surface"],
+            "regulations/student_rules",
         )
 
     def test_agent_request_serializes_forward_agent_allowed_tools(self) -> None:

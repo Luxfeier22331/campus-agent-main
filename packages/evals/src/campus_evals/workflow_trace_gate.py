@@ -25,6 +25,7 @@ class WorkflowTraceExpectation:
     selected_target: str
     workflow_mode: str = ""
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
+    expected_answer_artifact_kinds: tuple[str, ...] = field(default_factory=tuple)
     handoff: dict[str, object] = field(default_factory=dict)
     handoff_chain: tuple[dict[str, object], ...] = field(default_factory=tuple)
     tool_argument_summary: dict[str, object] = field(default_factory=dict)
@@ -254,6 +255,9 @@ def _workflow_trace_case(payload: object) -> WorkflowTraceCase:
             workflow_mode=str(expectation.get("workflow_mode") or ""),
             selected_target=str(expectation.get("selected_target") or ""),
             selected_tools=tuple(str(tool) for tool in expectation.get("selected_tools") or ()),
+            expected_answer_artifact_kinds=tuple(
+                str(kind) for kind in expectation.get("expected_answer_artifact_kinds") or ()
+            ),
             handoff=dict(expectation.get("handoff") or {}),
             handoff_chain=tuple(dict(item) for item in expectation.get("handoff_chain") or ()),
             tool_argument_summary=dict(expectation.get("tool_argument_summary") or {}),
@@ -300,6 +304,16 @@ def _workflow_trace_summary_from_payload(payload: object) -> WorkflowTraceSummar
     handoff_chain = _list_value(record, "handoff_chain", "handoffChain")
     context_projections = _list_value(record, "context_projections", "contextProjections")
     agent_invocations = _list_value(record, "agent_invocations", "agentInvocations")
+    answer_artifact_projection_ids = _list_value(
+        record,
+        "answer_artifact_projection_ids",
+        "answerArtifactProjectionIds",
+    )
+    answer_artifact_kinds = _list_value(
+        record,
+        "answer_artifact_kinds",
+        "answerArtifactKinds",
+    )
     return WorkflowTraceSummary(
         routing_frame=_dict_value(record, "routing_frame", "routingFrame"),
         context_resolution=_dict_value(record, "context_resolution", "contextResolution"),
@@ -317,6 +331,12 @@ def _workflow_trace_summary_from_payload(payload: object) -> WorkflowTraceSummar
         selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),
         context_projections=tuple(
             dict(item) for item in context_projections if isinstance(item, dict)
+        ),
+        answer_artifact_projection_ids=tuple(
+            str(item) for item in answer_artifact_projection_ids if str(item).strip()
+        ),
+        answer_artifact_kinds=tuple(
+            str(item) for item in answer_artifact_kinds if str(item).strip()
         ),
         tool_argument_summary=_dict_value(
             record,
@@ -558,7 +578,16 @@ def _trace_projection_completeness(
         )
         if observed_kinds != expectation.expected_context_projection_kinds:
             missing.append("context_projections.expected_kinds")
+    if summary.workflow_mode == "multi_step":
+        if not summary.answer_artifact_projection_ids:
+            missing.append("answer_artifact_projection_ids")
+        if not summary.answer_artifact_kinds:
+            missing.append("answer_artifact_kinds")
+    if expectation is not None and expectation.expected_answer_artifact_kinds:
+        if summary.answer_artifact_kinds != expectation.expected_answer_artifact_kinds:
+            missing.append("answer_artifact_kinds.expected")
     missing.extend(_context_projection_summary_gaps(summary))
+    missing.extend(_answer_artifact_usage_gaps(summary))
     if summary.workflow_mode in {"single_handoff", "multi_step"} and not summary.agent_invocations:
         missing.append("agent_invocations")
     elif summary.workflow_mode in {"single_handoff", "multi_step"}:
@@ -597,6 +626,32 @@ def _context_projection_summary_gaps(summary: WorkflowTraceSummary) -> list[str]
             if not projection.get(key):
                 gaps.append("context_projections.summary_fields")
                 return gaps
+    return gaps
+
+
+def _answer_artifact_usage_gaps(summary: WorkflowTraceSummary) -> list[str]:
+    if not summary.answer_artifact_projection_ids and not summary.answer_artifact_kinds:
+        return []
+    if len(summary.answer_artifact_projection_ids) != len(summary.answer_artifact_kinds):
+        return ["answer_artifact_usage.length_mismatch"]
+    projection_by_id = {
+        str(item.get("projection_id") or "").strip(): str(item.get("projection_kind") or "").strip()
+        for item in summary.context_projections
+        if str(item.get("projection_id") or "").strip()
+    }
+    gaps: list[str] = []
+    for projection_id, projection_kind in zip(
+        summary.answer_artifact_projection_ids,
+        summary.answer_artifact_kinds,
+        strict=False,
+    ):
+        observed_kind = projection_by_id.get(projection_id)
+        if not observed_kind:
+            gaps.append("answer_artifact_usage.unknown_projection")
+            break
+        if observed_kind != projection_kind:
+            gaps.append("answer_artifact_usage.kind_mismatch")
+            break
     return gaps
 
 

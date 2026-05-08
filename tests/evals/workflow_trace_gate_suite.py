@@ -49,6 +49,17 @@ def _trace_summary(**overrides):
         ),
         "selected_target": "campus-services-agent",
         "selected_tools": ("transport_schedule_lookup",),
+        "answer_artifact_projection_ids": ("proj-answer-001",),
+        "answer_artifact_kinds": ("schedule_baseline",),
+        "context_projections": (
+            {
+                "projection_id": "proj-answer-001",
+                "source_step_id": "handoff:campus-services-agent:transport_schedule_lookup",
+                "projection_kind": "schedule_baseline",
+                "content_hash": "sha256:answer-projection",
+                "safety": {"max_chars": 1600, "fields_present": ["summary"]},
+            },
+        ),
         "tool_argument_summary": {
             "service_key": "transport_commute",
             "campus": "fengtai",
@@ -112,6 +123,7 @@ def _workflow_case(**expectation_overrides) -> WorkflowTraceCase:
         "workflow_mode": "direct_runtime",
         "selected_target": "campus-services-agent",
         "selected_tools": ("transport_schedule_lookup",),
+        "expected_answer_artifact_kinds": ("schedule_baseline",),
         "handoff": {"target": "campus-services-agent"},
         "handoff_chain": (),
         "tool_argument_summary": {
@@ -169,11 +181,12 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
                 "workflow-service-guide-sdk",
                 "workflow-contact-directory-sdk",
                 "workflow-transport-schedule-sdk",
+                "workflow-transport-notice-override-multistep",
                 "workflow-notice-discover-sdk",
                 "workflow-academic-calendar-sdk",
                 "workflow-knowledge-delegate",
                 "workflow-notice-knowledge-followthrough-multistep",
-                "workflow-transport-notice-knowledge-pilot-multistep",
+                "workflow-selected-notice-knowledge-followthrough-ineligible",
                 "workflow-curriculum-delegate",
                 "workflow-ambiguous-follow-up-clarification",
                 "workflow-product-scope-fail-close",
@@ -275,7 +288,20 @@ class WorkflowTraceGateFixtureTest(unittest.TestCase):
 
         self.assertFalse(results.trace_projection_completeness.passed)
         self.assertIn(
-            "context_projections.multi_step", results.trace_projection_completeness.reason
+            "agent_invocations", results.trace_projection_completeness.reason
+        )
+
+    def test_trace_projection_requires_answer_artifact_usage_summary(self) -> None:
+        summary = _trace_summary(
+            answer_artifact_projection_ids=(),
+            answer_artifact_kinds=(),
+        )
+
+        results = evaluate_workflow_trace_case(_workflow_case(), summary)
+
+        self.assertFalse(results.trace_projection_completeness.passed)
+        self.assertIn(
+            "answer_artifact_kinds.expected", results.trace_projection_completeness.reason
         )
 
     def test_delegate_trace_projection_requires_agent_invocations(self) -> None:
@@ -938,6 +964,53 @@ class WorkflowTraceGateEvaluatorTest(unittest.TestCase):
         self.assertEqual(
             summaries["workflow-transport-schedule-sdk"].selected_tools,
             ("transport_schedule_lookup",),
+        )
+
+    def test_transport_notice_override_fixture_declares_notice_change_set_answer_artifacts(
+        self,
+    ) -> None:
+        case_set = load_workflow_trace_cases()
+        case = next(
+            item
+            for item in case_set.cases
+            if item.case_id == "workflow-transport-notice-override-multistep"
+        )
+
+        self.assertEqual(case.expectation.direct_vs_delegate_branch, "multi_step")
+        self.assertEqual(case.expectation.workflow_mode, "multi_step")
+        self.assertEqual(case.expectation.selected_target, "rag-agent")
+        self.assertEqual(
+            case.expectation.selected_tools,
+            (
+                "transport_schedule_lookup",
+                "campus_notice_change_set_lookup",
+                "retrieval.query",
+            ),
+        )
+        self.assertEqual(
+            case.expectation.expected_tool_order,
+            (
+                "transport_schedule_lookup",
+                "campus_notice_change_set_lookup",
+                "retrieval.query",
+            ),
+        )
+        self.assertEqual(
+            case.expectation.expected_context_projection_kinds,
+            (
+                "schedule_baseline",
+                "notice_change_set",
+                "evidence_bundle",
+                "grounding_verdict",
+            ),
+        )
+        self.assertEqual(
+            case.expectation.expected_answer_artifact_kinds,
+            (
+                "schedule_baseline",
+                "notice_change_set",
+                "evidence_bundle",
+            ),
         )
 
     def test_fails_trace_projection_completeness_when_steps_lack_timeline_fields(

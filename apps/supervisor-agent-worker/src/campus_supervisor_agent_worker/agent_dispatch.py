@@ -104,6 +104,7 @@ _PAYLOAD_KIND_BY_CLASS_NAME = {
     "ContactDirectoryLookupPayload": "contact_directory_lookup",
     "CampusNoticeDiscoverPayload": "campus_notice_discover",
     "CampusNoticeGetPayload": "campus_notice_get",
+    "CampusNoticeChangeSetLookupPayload": "campus_notice_change_set_lookup",
 }
 
 

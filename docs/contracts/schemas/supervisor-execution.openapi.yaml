@@ -8,7 +8,7 @@ x-campus-contract:
   response_contract: agent_response
   runtime_decisions_schema_version: supervisor-runtime-decisions-v1
   runtime_decision_summary_schema_version: runtime-decision-summary-v1
-  workflow_trace_summary_version: workflow-trace-summary-v3
+  workflow_trace_summary_version: workflow-trace-summary-v4
   versioning_policy:
     bridge_version: incompatible bridge envelope changes must bump bridge_version
     response_contract: AgentResponse wire contract changes must bump response_contract
@@ -98,6 +98,7 @@ components:
       type: string
       enum:
         - notice_context
+        - notice_change_set
         - schedule_baseline
         - service_guide_facts
         - place_context
@@ -191,6 +192,7 @@ components:
         - workflow_run_ref
         - step_id
         - agent_id
+        - expected_output_artifacts
         - projection_refs
       properties:
         schema_version:
@@ -207,6 +209,10 @@ components:
           $ref: "#/components/schemas/AgentTarget"
         required_projection_kind:
           $ref: "#/components/schemas/StepOutputProjectionKind"
+        expected_output_artifacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepOutputProjectionKind"
         projection_refs:
           type: array
           items:
@@ -626,6 +632,8 @@ components:
         - selected_target
         - selected_tools
         - context_projections
+        - answer_artifact_projection_ids
+        - answer_artifact_kinds
         - tool_argument_summary
         - guardrail_outcomes
         - fail_close_reason
@@ -665,6 +673,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WorkflowContextProjection"
+        answer_artifact_projection_ids:
+          type: array
+          items:
+            type: string
+        answer_artifact_kinds:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepOutputProjectionKind"
         tool_argument_summary:
           $ref: "#/components/schemas/SafeObject"
         trace_steps:

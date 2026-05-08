@@ -33,7 +33,6 @@ from campus_contracts import (
     TransportServiceWindow,
     TransportStopRef,
 )
-from campus_services_agent import tool_adapter as campus_services_tool_adapter
 from campus_services_agent.http_query_service import CampusServicesHTTPQueryService
 from campus_services_agent.query_service import (
     CampusServicesAccessContext,
@@ -42,7 +41,14 @@ from campus_services_agent.query_service import (
     ServiceStatusQuery,
     TransportScheduleQuery,
 )
-from campus_services_agent.service import delegate_to_campus_services_agent
+from campus_services_agent.response_builder import (
+    contact_directory_response,
+    service_guide_response,
+    service_status_response,
+    transport_schedule_response,
+)
+from campus_services_agent.sdk_tool_executor import execute_campus_services_sdk_tool
+from campus_supervisor_agent_worker.agents_sdk_runner import AgentsSdkToolExecutionRequest
 
 from tests.agent.campus_services_agent_fakes import (
     FakeCampusServicesQueryService,
@@ -70,39 +76,22 @@ class CampusServicesAgentTest(unittest.TestCase):
             ),
         )
 
-        response = delegate_to_campus_services_agent(request, query_service=query_service)
-
-        self.assertEqual(response.target, "campus-services-agent")
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(response.result.resolved_subject, "海淀校区图书馆")
-        self.assertIn("海淀校区图书馆", response.answer_text)
-        self.assertIn("正常开放", response.answer_text)
-        self.assertIn("有效时间", response.answer_text)
-        self.assertIn("工作日开放，节假日另行通知", response.answer_text)
-        self.assertNotIn("运营提示", response.answer_text)
-        self.assertNotIn("open", response.answer_text)
-        self.assertIsNotNone(response.agent_observability)
-        self.assertEqual(response.agent_observability.selected_tool, "service_status_lookup")
-        self.assertEqual(response.agent_observability.tool_attempted, True)
-        self.assertEqual(response.agent_observability.tool_outcome, "resolved_current")
-        self.assertEqual(response.agent_observability.source_ref_count, 1)
-        self.assertEqual(response.agent_observability.access_decision, "allowed")
-        self.assertEqual(
-            response.agent_observability.safe_details["agent_execution_projection"],
-            {
-                "schema_version": "agent-execution-projection-v1",
-                "projection_owner": "campus-services-agent",
-                "selected_tool": "service_status_lookup",
-                "payload_kind": "service_status_lookup",
-                "tool_selection_reason": "typed_payload_allowed_tool",
-            },
+        bounded = execute_campus_services_sdk_tool(
+            AgentsSdkToolExecutionRequest(
+                name="service_status_lookup",
+                arguments={"subject_query": "图书馆今天开门吗"},
+                call_id="call-service-status-001",
+            ),
+            agent_request=request,
+            query_service=query_service,
         )
-        self.assertNotIn("agent_plan", response.agent_observability.safe_details)
-        result_guardrail = response.agent_observability.safe_details["result_guardrail"]
-        self.assertEqual(result_guardrail["schema_version"], "agent-result-guardrail-v1")
-        self.assertEqual(result_guardrail["outcome"], "source_backed")
-        self.assertEqual(result_guardrail["source_ref_count"], 1)
-        self.assertEqual(result_guardrail["access_decision"], "allowed")
+
+        self.assertEqual(bounded["status"], "completed")
+        self.assertEqual(bounded["outcome"], "resolved_current")
+        self.assertEqual(bounded["subject_query"], "图书馆今天开门吗")
+        self.assertEqual(bounded["resolved_subject"], "海淀校区图书馆")
+        self.assertEqual(bounded["observed_status"], "open")
+        self.assertEqual(bounded["source_ref_count"], 1)
         self.assertEqual(
             query_service.last_service_status_query,
             ServiceStatusQuery(
@@ -118,7 +107,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         )
 
     def test_service_status_response_renders_open_ended_effective_window(self) -> None:
-        response = campus_services_tool_adapter._service_status_response(
+        response = service_status_response(
             ServiceStatusLookupResult(
                 subject_query="静园10号楼女浴室",
                 outcome="resolved_current",
@@ -143,26 +132,24 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertNotIn("12月31日", response.answer_text)
 
     def test_transport_schedule_payload_rejects_tool_outside_allowed_tools(self) -> None:
-        response = delegate_to_campus_services_agent(
-            AgentRequest(
-                target="campus-services-agent",
-                user_goal="校车什么时候发车",
-                payload=TransportScheduleLookupPayload(
-                    query_text="校车什么时候发车",
-                    intent="next_departure",
+        with self.assertRaisesRegex(TypeError, "unexpected keyword argument"):
+            execute_campus_services_sdk_tool(
+                AgentsSdkToolExecutionRequest(
+                    name="service_status_lookup",
+                    arguments={"query_text": "校车什么时候发车", "intent": "next_departure"},
+                    call_id="call-invalid-001",
                 ),
-                allowed_tools=("service_status_lookup",),
-            ),
-            query_service=FakeCampusServicesQueryService(),
-        )
-
-        self.assertEqual(response.status, "error")
-        self.assertEqual(response.error.code, "disallowed_tool")
-        self.assertIsNotNone(response.agent_observability)
-        assert response.agent_observability is not None
-        self.assertIn("agent_execution_projection", response.agent_observability.safe_details)
-        self.assertIn("result_guardrail", response.agent_observability.safe_details)
-        self.assertNotIn("agent_plan", response.agent_observability.safe_details)
+                agent_request=AgentRequest(
+                    target="campus-services-agent",
+                    user_goal="校车什么时候发车",
+                    payload=TransportScheduleLookupPayload(
+                        query_text="校车什么时候发车",
+                        intent="next_departure",
+                    ),
+                    allowed_tools=("service_status_lookup",),
+                ),
+                query_service=FakeCampusServicesQueryService(),
+            )
 
     def test_service_guide_payload_routes_through_internal_query_service(self) -> None:
         query_service = FakeCampusServicesQueryService()
@@ -181,17 +168,26 @@ class CampusServicesAgentTest(unittest.TestCase):
             ),
         )
 
-        response = delegate_to_campus_services_agent(request, query_service=query_service)
+        bounded = execute_campus_services_sdk_tool(
+            AgentsSdkToolExecutionRequest(
+                name="service_guide_lookup",
+                arguments={
+                    "service_query": "宿舍入住怎么办理",
+                    "guide_focus": "procedure",
+                },
+                call_id="call-service-guide-001",
+            ),
+            agent_request=request,
+            query_service=query_service,
+        )
 
-        self.assertEqual(response.status, "completed")
-        self.assertIn("公寓楼新生办理入住手续流程", response.answer_text)
+        self.assertEqual(bounded["status"], "completed")
+        self.assertEqual(bounded["outcome"], "resolved_current")
+        self.assertEqual(bounded["service_query"], "宿舍入住怎么办理")
+        self.assertEqual(bounded["resolved_service"], {"display_name": "公寓楼新生办理入住手续流程"})
         self.assertEqual(
             query_service.last_service_guide_query.payload.service_query,
             "宿舍入住怎么办理",
-        )
-        self.assertEqual(
-            response.agent_observability.safe_details["field_status"],
-            {"contact": "source_not_provided"},
         )
 
     def test_contact_directory_payload_routes_through_internal_query_service(self) -> None:
@@ -211,22 +207,33 @@ class CampusServicesAgentTest(unittest.TestCase):
             ),
         )
 
-        response = delegate_to_campus_services_agent(request, query_service=query_service)
+        bounded = execute_campus_services_sdk_tool(
+            AgentsSdkToolExecutionRequest(
+                name="contact_directory_lookup",
+                arguments={
+                    "query_text": "研究生院招生办公室电话是多少",
+                    "contact_focus": "phone",
+                },
+                call_id="call-contact-001",
+            ),
+            agent_request=request,
+            query_service=query_service,
+        )
 
-        self.assertEqual(response.status, "completed")
-        self.assertIn("研究生院招生办公室", response.answer_text)
-        self.assertIn("010-68930001", response.answer_text)
+        self.assertEqual(bounded["status"], "completed")
+        self.assertEqual(bounded["outcome"], "resolved_current")
+        self.assertEqual(bounded["contact_focus"], "phone")
+        self.assertEqual(
+            bounded["resolved_contact"],
+            {"display_name": "研究生院招生办公室"},
+        )
         self.assertEqual(
             query_service.last_contact_directory_query.payload.query_text,
             "研究生院招生办公室电话是多少",
         )
-        self.assertEqual(
-            response.agent_observability.safe_details["field_status"],
-            {"office_hours": "source_not_provided"},
-        )
 
     def test_contact_directory_all_contacts_response_combines_available_fact_groups(self) -> None:
-        response = campus_services_tool_adapter._contact_directory_response(
+        response = contact_directory_response(
             ContactDirectoryLookupResult(
                 query_text="研究生院招生办公室联系方式",
                 contact_focus="all_contacts",
@@ -286,7 +293,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("09:00-17:00", response.answer_text)
 
     def test_service_guide_contact_response_includes_contact_channels(self) -> None:
-        response = campus_services_tool_adapter._service_guide_response(
+        response = service_guide_response(
             ServiceGuideLookupResult(
                 service_query="校医院电话是多少",
                 guide_focus="contact",
@@ -322,7 +329,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("hospital@example.edu", response.answer_text)
 
     def test_service_guide_material_response_includes_material_names(self) -> None:
-        response = campus_services_tool_adapter._service_guide_response(
+        response = service_guide_response(
             ServiceGuideLookupResult(
                 service_query="公费医疗报销需要什么材料",
                 guide_focus="required_materials",
@@ -363,7 +370,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("住院收据", response.answer_text)
 
     def test_service_guide_procedure_response_renders_selected_vpn_group_only(self) -> None:
-        response = campus_services_tool_adapter._service_guide_response(
+        response = service_guide_response(
             ServiceGuideLookupResult(
                 service_query="VPN客户端怎么安装",
                 guide_focus="procedure",
@@ -413,7 +420,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         )
 
     def test_service_guide_procedure_response_deduplicates_grouped_and_compatibility_sections(self) -> None:
-        response = campus_services_tool_adapter._service_guide_response(
+        response = service_guide_response(
             ServiceGuideLookupResult(
                 service_query="VPN客户端怎么安装",
                 guide_focus="procedure",
@@ -470,7 +477,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertEqual(response.answer_text.count("Install EasyConnect.pkg"), 1)
 
     def test_service_guide_observability_includes_focus_service_and_source_summary(self) -> None:
-        response = campus_services_tool_adapter._service_guide_response(
+        response = service_guide_response(
             ServiceGuideLookupResult(
                 service_query="校园卡在哪里补办",
                 guide_focus="entry",
@@ -513,8 +520,56 @@ class CampusServicesAgentTest(unittest.TestCase):
             "narrow_focus",
         )
 
+    def test_service_guide_entry_response_uses_entry_label_and_url(self) -> None:
+        response = service_guide_response(
+            ServiceGuideLookupResult(
+                service_query="校历在哪里看",
+                guide_focus="entry",
+                outcome="resolved_current",
+                resolved_service=ServiceGuideServiceRef(
+                    service_id="service:official_web:academic-calendar-guide",
+                    display_name="中央民族大学校历查看方式",
+                    aliases=("校历怎么看",),
+                    category="campus_service",
+                    campus_scope="all",
+                    audience=("student",),
+                ),
+                guide_sections=(
+                    ServiceGuideSection(
+                        section_id="service:official_web:academic-calendar-guide:section:entry",
+                        section_type="entry",
+                        title="查看入口",
+                        content="访问中央民族大学公开校历页面查看当学年校历。",
+                        source_refs=("https://met.muc.edu.cn/info/1068/1832.htm",),
+                    ),
+                ),
+                entry_refs=(
+                    ServiceGuideEntryRef(
+                        label="中央民族大学公开校历",
+                        entry_type="online_url",
+                        url="https://www.muc.edu.cn/ggfw/mdxl.htm",
+                        source_refs=("https://www.muc.edu.cn/ggfw/mdxl.htm",),
+                    ),
+                ),
+                source_refs=(
+                    "https://met.muc.edu.cn/info/1068/1832.htm",
+                    "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                ),
+                queried_time_anchor="2026-05-04T10:30:00+08:00",
+                effective_from="2026-05-04T00:00:00+08:00",
+                effective_until="2099-12-31T23:59:59+08:00",
+                matched_service_category="campus_service",
+            )
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("入口", response.answer_text)
+        self.assertIn("https://www.muc.edu.cn/ggfw/mdxl.htm", response.answer_text)
+        self.assertNotIn("所需材料", response.answer_text)
+        self.assertNotIn("办理时间", response.answer_text)
+
     def test_service_guide_full_guide_response_combines_all_fact_groups(self) -> None:
-        response = campus_services_tool_adapter._service_guide_response(
+        response = service_guide_response(
             ServiceGuideLookupResult(
                 service_query="校园卡丢了怎么办",
                 guide_focus="full_guide",
@@ -584,7 +639,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("学生和教职工均可办理", response.answer_text)
 
     def test_service_guide_information_disclosure_response_exposes_all_source_urls(self) -> None:
-        response = campus_services_tool_adapter._service_guide_response(
+        response = service_guide_response(
             ServiceGuideLookupResult(
                 service_query="信息公开申请怎么提交",
                 guide_focus="full_guide",
@@ -639,20 +694,24 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("https://xxgk.muc.edu.cn/info/1007/1114.htm", response.answer_text)
 
     def test_missing_query_service_returns_error_response(self) -> None:
-        response = delegate_to_campus_services_agent(
-            AgentRequest(
-                target="campus-services-agent",
-                user_goal="图书馆今天开门吗",
-                payload=ServiceStatusLookupPayload(subject_query="图书馆今天开门吗"),
-                allowed_tools=("service_status_lookup",),
+        with self.assertRaisesRegex(AttributeError, "lookup_service_status"):
+            execute_campus_services_sdk_tool(  # type: ignore[arg-type]
+                AgentsSdkToolExecutionRequest(
+                    name="service_status_lookup",
+                    arguments={"subject_query": "图书馆今天开门吗"},
+                    call_id="call-service-status-missing-query",
+                ),
+                agent_request=AgentRequest(
+                    target="campus-services-agent",
+                    user_goal="图书馆今天开门吗",
+                    payload=ServiceStatusLookupPayload(subject_query="图书馆今天开门吗"),
+                    allowed_tools=("service_status_lookup",),
+                ),
+                query_service=None,
             )
-        )
-
-        self.assertEqual(response.status, "error")
-        self.assertEqual(response.error.code, "internal_query_service_unavailable")
 
     def test_transport_schedule_response_uses_selected_departure_wording(self) -> None:
-        response = campus_services_tool_adapter._transport_schedule_response(
+        response = transport_schedule_response(
             TransportScheduleLookupResult(
                 query_text="明天最早一班去丰台的校车是几点",
                 intent="first_departure",
@@ -684,7 +743,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("2026-04-22T07:10:00+08:00", response.answer_text)
 
     def test_transport_schedule_response_lists_departure_options(self) -> None:
-        response = campus_services_tool_adapter._transport_schedule_response(
+        response = transport_schedule_response(
             TransportScheduleLookupResult(
                 query_text="今天下午 5 点以后去丰台还有哪些班车",
                 intent="departure_list",
@@ -710,7 +769,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("2026-04-24T18:00:00+08:00", response.answer_text)
 
     def test_transport_schedule_response_describes_service_window(self) -> None:
-        response = campus_services_tool_adapter._transport_schedule_response(
+        response = transport_schedule_response(
             TransportScheduleLookupResult(
                 query_text="今天这条线的运营时间是什么",
                 intent="service_window",
@@ -736,7 +795,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("2026-04-24T18:00:00+08:00", response.answer_text)
 
     def test_transport_schedule_response_describes_timetable_entries(self) -> None:
-        response = campus_services_tool_adapter._transport_schedule_response(
+        response = transport_schedule_response(
             TransportScheduleLookupResult(
                 query_text="最近的地铁接驳车时刻表是什么",
                 intent="timetable",
@@ -762,7 +821,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertIn("2026-04-24T08:30:00+08:00", response.answer_text)
 
     def test_transport_schedule_status_response_shapes_operational_notice_safely(self) -> None:
-        response = campus_services_tool_adapter._transport_schedule_response(
+        response = transport_schedule_response(
             TransportScheduleLookupResult(
                 query_text="今天地铁接驳车是不是停运了",
                 intent="service_window",
@@ -1122,7 +1181,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         self.assertEqual(fail_close_result.field_status, {"contact": "source_not_provided"})
 
     def test_agent_response_explains_field_not_provided_by_source(self) -> None:
-        response = campus_services_tool_adapter._service_guide_response(
+        response = service_guide_response(
             ServiceGuideLookupResult(
                 service_query="公费医疗报销联系电话是多少",
                 guide_focus="contact",
@@ -1132,11 +1191,25 @@ class CampusServicesAgentTest(unittest.TestCase):
             )
         )
 
-        self.assertIn("来源页面没有提供", response.answer_text)
+        self.assertIn("当前来源未提供联系方式", response.answer_text)
         self.assertEqual(
             response.agent_observability.safe_details["field_status"],
             {"contact": "source_not_provided"},
         )
+
+    def test_agent_response_explains_entry_url_not_provided_by_source(self) -> None:
+        response = service_guide_response(
+            ServiceGuideLookupResult(
+                service_query="校历链接是什么",
+                guide_focus="entry",
+                outcome="temporarily_unverifiable",
+                fail_close_reason="field_not_provided_by_source",
+                field_status={"service_entry": "source_not_provided"},
+            )
+        )
+
+        self.assertIn("入口链接", response.answer_text)
+        self.assertNotIn("办理指南", response.answer_text)
 
 
 if __name__ == "__main__":

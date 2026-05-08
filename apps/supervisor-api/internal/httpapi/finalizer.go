@@ -9,6 +9,12 @@ import (
 )
 
 var errInvalidAgentResponse = errors.New("invalid agent response")
+var answerEligibleProjectionKinds = map[execution.ProjectionKind]struct{}{
+	execution.ProjectionKindNoticeContext:    {},
+	execution.ProjectionKindNoticeChangeSet:  {},
+	execution.ProjectionKindScheduleBaseline: {},
+	execution.ProjectionKindEvidenceBundle:   {},
+}
 
 type supervisorFinalizerContext struct {
 	SelectedTool       string
@@ -280,6 +286,8 @@ func buildWorkflowTraceSummaryWire(
 		SelectedTarget:         &selectedTarget,
 		SelectedTools:          selectedTools,
 		ContextProjections:     workflowContextProjectionWire(run.ContextProjections),
+		AnswerArtifactProjectionIDs: workflowAnswerArtifactProjectionIDs(run.ContextProjections),
+		AnswerArtifactKinds:         workflowAnswerArtifactKinds(run.ContextProjections),
 		ToolArgumentSummary:    toolArgumentSummary,
 		TraceSteps:             run.StepMaps(),
 		ToolCallSummaries: workflowToolCallSummaries(
@@ -320,6 +328,8 @@ func workflowTraceSummaryWireMap(wire contractsv1.WorkflowTraceSummaryWire) map[
 		"selected_target":           selectedTarget,
 		"selected_tools":            wire.SelectedTools,
 		"context_projections":       workflowContextProjectionWireMaps(wire.ContextProjections),
+		"answer_artifact_projection_ids": append([]string{}, wire.AnswerArtifactProjectionIDs...),
+		"answer_artifact_kinds":          stepOutputProjectionKindsToStrings(wire.AnswerArtifactKinds),
 		"tool_argument_summary":     wire.ToolArgumentSummary,
 		"trace_steps":               wire.TraceSteps,
 		"tool_call_summaries":       wire.ToolCallSummaries,
@@ -328,6 +338,45 @@ func workflowTraceSummaryWireMap(wire contractsv1.WorkflowTraceSummaryWire) map[
 		"runtime_versions":          wire.RuntimeVersions,
 		"policy_artifact_versions":  wire.PolicyArtifactVersions,
 	}
+}
+
+func workflowAnswerArtifactProjectionIDs(
+	projections []execution.StepOutputProjection,
+) []string {
+	items := make([]string, 0, len(projections))
+	for _, projection := range projections {
+		if _, ok := answerEligibleProjectionKinds[projection.ProjectionKind]; !ok {
+			continue
+		}
+		if projection.ProjectionID == "" {
+			continue
+		}
+		items = append(items, projection.ProjectionID)
+	}
+	return items
+}
+
+func workflowAnswerArtifactKinds(
+	projections []execution.StepOutputProjection,
+) []contractsv1.StepOutputProjectionKind {
+	items := make([]contractsv1.StepOutputProjectionKind, 0, len(projections))
+	for _, projection := range projections {
+		if _, ok := answerEligibleProjectionKinds[projection.ProjectionKind]; !ok {
+			continue
+		}
+		items = append(items, contractsv1.StepOutputProjectionKind(projection.ProjectionKind))
+	}
+	return items
+}
+
+func stepOutputProjectionKindsToStrings(
+	kinds []contractsv1.StepOutputProjectionKind,
+) []string {
+	items := make([]string, 0, len(kinds))
+	for _, kind := range kinds {
+		items = append(items, string(kind))
+	}
+	return items
 }
 
 func workflowContextProjectionWire(

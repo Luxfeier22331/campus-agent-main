@@ -37,13 +37,29 @@ _NOTICE_DISCOVER_PROFILE = AgentsSdkInstructionProfile(
     surface_execution_mode="sdk_mediated_answer_shaping",
 )
 
+_NOTICE_CHANGE_SET_PROFILE = AgentsSdkInstructionProfile(
+    profile_id="notice_change_set_transport_override",
+    instructions=(
+        "You are the notice-agent transport override runtime. "
+        "Use only the supplied repo-owned notice change-set tool. "
+        "Answer strictly from the returned bounded notice change set. "
+        "State only the current effective transport change facts and source-backed notice references. "
+        "Do not invent schedule baselines, route changes, stop changes, or notice text."
+    ),
+    result_usage_mode="notice_change_set_fact",
+    surface_execution_mode="sdk_mediated_answer_shaping",
+)
+
 _SERVICE_GUIDE_PROFILE = AgentsSdkInstructionProfile(
     profile_id="service_guide_source_backed_guidance",
     instructions=(
         "You are the campus-services-agent service guide runtime. "
         "Use only the supplied repo-owned service guide tool. "
         "Answer as a source-backed service guide from the tool result only. "
-        "Do not invent phone numbers, office hours, materials, locations, or procedures."
+        "Use entry_refs.url as the user-facing entry when present, and treat source_refs as provenance only. "
+        "Keep the answer focused on the requested guide_focus instead of dumping every fact group. "
+        "If the requested field is missing, state that the current source does not provide that field. "
+        "Do not invent phone numbers, office hours, materials, locations, procedures, or entry URLs."
     ),
     result_usage_mode="source_backed_guidance",
     surface_execution_mode="sdk_mediated_answer_shaping",
@@ -105,6 +121,8 @@ _CALENDAR_PROFILE = AgentsSdkInstructionProfile(
 
 
 def instruction_profile_for_request(request: AgentRequest) -> AgentsSdkInstructionProfile:
+    if request.target == "notice-agent" and "campus_notice_change_set_lookup" in request.allowed_tools:
+        return _NOTICE_CHANGE_SET_PROFILE
     if request.target == "notice-agent" and "campus_notice_discover" in request.allowed_tools:
         return _NOTICE_DISCOVER_PROFILE
     if request.target == "campus-services-agent":

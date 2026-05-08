@@ -10,7 +10,7 @@ BRIDGE_VERSION = "supervisor_bridge_v6"
 RESPONSE_CONTRACT = "agent_response"
 RUNTIME_DECISIONS_SCHEMA_VERSION = "supervisor-runtime-decisions-v1"
 RUNTIME_DECISION_SUMMARY_SCHEMA_VERSION = "runtime-decision-summary-v1"
-WORKFLOW_TRACE_SUMMARY_VERSION = "workflow-trace-summary-v3"
+WORKFLOW_TRACE_SUMMARY_VERSION = "workflow-trace-summary-v4"
 
 AgentTarget = Literal[
     "rag-agent",
@@ -54,6 +54,7 @@ WorkflowMode = Literal[
 ]
 StepOutputProjectionKind = Literal[
     "notice_context",
+    "notice_change_set",
     "schedule_baseline",
     "service_guide_facts",
     "place_context",
@@ -134,8 +135,12 @@ class WorkflowAgentContextWire(BaseModel):
 
     schema_version: Literal["workflow-agent-context-v1"]
     visibility: Literal["agent_private"]
+    workflow_run_ref: str
+    step_id: str
+    agent_id: AgentTarget
     target: AgentTarget | str = ""
     required_projection_kind: StepOutputProjectionKind | str = ""
+    expected_output_artifacts: list[StepOutputProjectionKind]
     projection_refs: list[WorkflowContextProjectionWire]
 
 
@@ -248,6 +253,8 @@ class WorkflowTraceSummaryWire(BaseModel):
     selected_target: str | None
     selected_tools: list[str]
     context_projections: list[WorkflowContextProjectionWire]
+    answer_artifact_projection_ids: list[str]
+    answer_artifact_kinds: list[StepOutputProjectionKind]
     tool_argument_summary: dict[str, Any]
     guardrail_outcomes: dict[str, Any]
     fail_close_reason: str

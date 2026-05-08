@@ -85,12 +85,43 @@ func runtimeDecisions(
 				CompareToVersionID: versionQuery.CompareToVersionID,
 			},
 			SelectedNoticeRef: structuredplanning.SelectedNoticeRef{
-				NoticeID:     context.SelectedNoticeRef.NoticeID,
-				SourceFamily: context.SelectedNoticeRef.SourceFamily,
-				Title:        context.SelectedNoticeRef.Title,
+				NoticeID:      context.SelectedNoticeRef.NoticeID,
+				SourceFamily:  context.SelectedNoticeRef.SourceFamily,
+				Title:         context.SelectedNoticeRef.Title,
+				TargetSurface: context.SelectedNoticeRef.TargetSurface,
 			},
 			MultiStepWorkflowEnabled: multiStepWorkflowEnabled,
 		}, intentPolicy)
+	}
+	if plan != nil && plan.CapabilityPlan() != nil {
+		resolvedPlan, err := structuredplanning.ResolveCapabilityPlan(
+			*plan.CapabilityPlan(),
+			mustDefaultAgentSpecRegistry(),
+			mustDefaultToolSpecRegistry(),
+			mustDefaultWorkflowArtifactRegistry(),
+		)
+		if err != nil {
+			summary.PlanningOutcome = "invalid_plan"
+			summary.WorkflowMode = WorkflowMode(plan.WorkflowMode)
+			summary.WorkflowPlanID = plan.PlanID
+			summary.FailCloseReason = "capability_plan_resolution_failed"
+			decisions["workflow_plan"] = plan.Map()
+			decisions["runtime_decision_summary"] = summary.Map()
+			decisions["terminal_envelope"] = map[string]any{
+				"selected_target":    nil,
+				"status":             "no_answer",
+				"answer_text":        "该请求无法进入当前已开放的校园助理执行链路。",
+				"follow_up_question": "",
+				"confidence":         "low",
+				"observability": map[string]any{
+					"fail_closed":       true,
+					"fail_close_reason": "capability_plan_resolution_failed",
+					"policy_reason":     err.Error(),
+				},
+			}
+			return decisions, summary, nil, decisions["terminal_envelope"].(map[string]any)
+		}
+		plan = resolvedPlan
 	}
 	handoff := plan.SelectedHandoff()
 	if policyDecision.RoutingFrame.SuggestedNextAction == "delegate" && handoff != nil {
@@ -132,6 +163,7 @@ func runtimeDecisions(
 			Payload:                handoff.Payload,
 			AllowedTools:           append([]string{}, handoff.AllowedTools...),
 			RequiredProjectionKind: firstRequiredProjectionForHandoff(plan, handoff),
+			ExpectedArtifacts:      plan.ExpectedArtifactsForStep("handoff:" + handoff.Target + ":" + handoff.PayloadKind),
 		}
 		decisions["handoff"] = map[string]any{
 			"planning_outcome": "preplanned",
@@ -185,6 +217,7 @@ func runtimeHandoffsFromPlan(plan *structuredplanning.WorkflowPlan) []RuntimeHan
 			Payload:                cloneAnyMap(handoff.Payload),
 			AllowedTools:           append([]string{}, handoff.AllowedTools...),
 			RequiredProjectionKind: requiredProjectionByStepID[stepID],
+			ExpectedArtifacts:      plan.ExpectedArtifactsForStep(stepID),
 		})
 	}
 	return result
@@ -215,6 +248,31 @@ func mustDefaultAgentSpecRegistry() runtimepolicy.AgentSpecRegistry {
 		SchemaVersion:   runtimepolicy.AgentSpecSchemaVersion,
 		RegistryVersion: "unavailable",
 		Agents:          []runtimepolicy.AgentSpec{},
+	}
+}
+
+func mustDefaultToolSpecRegistry() runtimepolicy.ToolSpecRegistry {
+	registry, ok := runtimepolicy.DefaultToolSpecRegistry()
+	if ok {
+		return registry
+	}
+	return runtimepolicy.ToolSpecRegistry{
+		SchemaVersion:   runtimepolicy.ToolSpecSchemaVersion,
+		RegistryVersion: "unavailable",
+		Tools:           []runtimepolicy.ToolSpec{},
+	}
+}
+
+func mustDefaultWorkflowArtifactRegistry() runtimepolicy.WorkflowArtifactRegistry {
+	registry, err := runtimepolicy.LoadWorkflowArtifactRegistry("")
+	if err == nil {
+		return registry
+	}
+	return runtimepolicy.WorkflowArtifactRegistry{
+		SchemaVersion:   runtimepolicy.WorkflowArtifactRegistrySchemaVersion,
+		RegistryVersion: "unavailable",
+		Artifacts:       []runtimepolicy.WorkflowArtifact{},
+		Bindings:        []runtimepolicy.WorkflowCapabilityBinding{},
 	}
 }
 
@@ -413,9 +471,10 @@ func runtimeSessionSlots(slots []sessionSlot) []runtimepolicy.SessionSlot {
 
 func runtimeSelectedNoticeRef(ref selectedNoticeRef) runtimepolicy.SelectedNoticeRef {
 	return runtimepolicy.SelectedNoticeRef{
-		NoticeID:     ref.NoticeID,
-		SourceFamily: ref.SourceFamily,
-		Title:        ref.Title,
+		NoticeID:      ref.NoticeID,
+		SourceFamily:  ref.SourceFamily,
+		Title:         ref.Title,
+		TargetSurface: ref.TargetSurface,
 	}
 }
 

@@ -17,6 +17,7 @@ class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
                 step_id="handoff:rag-agent:rag_request",
                 agent_id="rag-agent",
                 required_projection_kind="notice_context",
+                expected_output_artifacts=("evidence_bundle", "grounding_verdict"),
                 projection_refs=(_valid_projection_ref(),),
             ),
         )
@@ -26,6 +27,10 @@ class ContractModelsWorkflowProjectionRefsSuite(unittest.TestCase):
         self.assertEqual(
             payload["workflow_context"]["projection_refs"][0]["projection_id"],
             "projection:notice_context:test",
+        )
+        self.assertEqual(
+            payload["workflow_context"]["expected_output_artifacts"],
+            ("evidence_bundle", "grounding_verdict"),
         )
         self.assertNotIn("payload", payload["workflow_context"]["projection_refs"][0])
 

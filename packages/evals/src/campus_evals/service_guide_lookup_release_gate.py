@@ -15,14 +15,14 @@ from campus_ingestion_core.service_guide_projection import (
 from campus_evals.intent_models import IntentCase, IntentEvalReport
 from campus_evals.intent_runner import report_to_dict, run_intent_cases
 from campus_evals.intent_scenarios import intent_release_gate_cases
-from campus_evals.official_web_selected_write_tool_readiness_audit import (
-    audit_selected_write_preview_report,
-)
 from campus_evals.official_web_selected_write_preview_runtime_verifier import (
     BUNDLE_SCOPE_FULL_IMPACT,
     BUNDLE_SCOPE_TASK_SCOPE,
     OfficialWebSelectedWritePreviewRuntimeVerificationReport,
     run_selected_write_preview_runtime_verification,
+)
+from campus_evals.official_web_selected_write_tool_readiness_audit import (
+    audit_selected_write_preview_report,
 )
 from campus_evals.service_guide_projection_eval import (
     evaluate_service_guide_projection_bundle,
@@ -62,10 +62,40 @@ APP_API_SERVICE_GUIDE_TEST_COMMAND = (
     "run",
     "-c",
     "vitest.node.config.mts",
-    "test/chat-command.service.core.structured.test.ts",
+    "test/chat-command.service.test.ts",
     "-t",
     "renders campus-services answers from structured tool facts and safe source categories",
 )
+SERVICE_GUIDE_MATRIX_COVERAGE: dict[str, object] = {
+    "total_cases": 33,
+    "positive_service_guide_cases": 20,
+    "boundary_cases": 7,
+    "fail_close_cases": 6,
+    "focus_counts": {
+        "contact": 3,
+        "eligibility": 2,
+        "entry": 5,
+        "full_guide": 1,
+        "office_hours": 2,
+        "procedure": 4,
+        "required_materials": 3,
+    },
+}
+SERVICE_GUIDE_PUBLIC_CHAT_SUBSET_COVERAGE: dict[str, object] = {
+    "case_ids": [
+        "public-entry-campus-card-loss-guide",
+        "public-entry-academic-calendar-guide-entry",
+        "public-entry-public-medical-materials",
+        "public-entry-vpn-login-entry",
+    ],
+    "matrix_case_ids": [
+        "sg-procedure-campus-card-loss",
+        "sg-entry-calendar-url",
+        "sg-materials-medical-reimbursement",
+        "sg-entry-vpn-login",
+    ],
+    "coverage_class": "representative_public_chat_subset",
+}
 
 
 @dataclass(frozen=True, slots=True)
@@ -438,6 +468,16 @@ def _report_payload(report: ServiceGuideLookupReleaseGateReport) -> dict[str, ob
             "passed_checks": len(report.checks) - failed,
             "failed_checks": failed,
         },
+        "coverage": {
+            "coverage_sources": {
+                "deterministic_matrix": "QUESTION-MATRIX.md",
+                "representative_public_chat_subset": (
+                    "packages/evals/fixtures/public_chat_entry_cases.v1.json"
+                ),
+            },
+            "matrix": SERVICE_GUIDE_MATRIX_COVERAGE,
+            "public_chat_subset": SERVICE_GUIDE_PUBLIC_CHAT_SUBSET_COVERAGE,
+        },
         "checks": checks,
     }
 
@@ -511,6 +551,8 @@ __all__ = [
     "APP_API_SERVICE_GUIDE_TEST_COMMAND",
     "CAMPUS_SERVICES_AGENT_TEST_COMMAND",
     "DEFAULT_REPORT_NAME",
+    "SERVICE_GUIDE_MATRIX_COVERAGE",
+    "SERVICE_GUIDE_PUBLIC_CHAT_SUBSET_COVERAGE",
     "SUPERVISOR_GO_SERVICE_GUIDE_TEST_COMMAND",
     "CommandResult",
     "ReleaseGateCheck",

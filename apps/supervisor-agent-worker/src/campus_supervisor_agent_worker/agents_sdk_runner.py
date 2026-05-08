@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from collections.abc import Callable, Mapping
-from dataclasses import dataclass, field
 import hashlib
 import json
+from collections.abc import Callable, Mapping
+from dataclasses import dataclass, field
 from typing import Any
 
 from campus_contracts import (
@@ -111,7 +111,7 @@ class _ValidatedToolArguments:
 def run_agents_sdk_runner_shell(
     request: AgentRequest,
     *,
-    runner: AgentsSdkRunner,
+    runner: AgentsSdkRunner | None,
     enabled: bool,
     tool_registry: ToolSpecRegistry | None = None,
     execute_tool: AgentsSdkToolExecutor | None = None,
@@ -126,6 +126,15 @@ def run_agents_sdk_runner_shell(
             latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
         )
     registry = tool_registry or default_tool_spec_registry()
+    if runner is None:
+        return _runtime_error_response(
+            request,
+            "runtime_unavailable",
+            "Agents SDK runner is unavailable for an SDK-admitted structured tool",
+            bridge_reason="runner_unavailable",
+            latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
+            runtime_posture=_runtime_posture_for_request(request, registry),
+        )
     execution_recorder: _ToolExecutionRecorder | None = None
     tool_descriptors: tuple[AgentsSdkToolDescriptor, ...] = ()
     instruction_profile = instruction_profile_for_request(request)
@@ -288,7 +297,21 @@ def _response_from_runner_result(
             "payload_kind": descriptor.payload_kind,
             "tool_result": tool_execution_records[-1].result_projection,
         }
+        if descriptor.payload_kind == "transport_schedule_lookup":
+            _promote_transport_schedule_fields(
+                response_result,
+                tool_execution_records[-1].result_projection,
+            )
+        if descriptor.payload_kind == "campus_notice_change_set_lookup":
+            _promote_notice_change_set_fields(
+                response_result,
+                tool_execution_records[-1].result_projection,
+            )
     output_projection_ref = _workflow_output_projection_ref(request, tool_execution_records)
+    _validate_expected_output_artifacts(
+        request.workflow_context,
+        output_projection_ref,
+    )
     trace_projection = build_agents_sdk_trace_projection(
         target=request.target,
         selected_tool=tool_call.name,
@@ -340,6 +363,59 @@ def _response_from_runner_result(
             },
         ),
     )
+
+
+def _promote_transport_schedule_fields(
+    response_result: dict[str, object],
+    tool_result: Mapping[str, object],
+) -> None:
+    for key in (
+        "outcome",
+        "query_text",
+        "intent",
+        "resolved_route",
+        "service_status",
+        "queried_time_anchor",
+        "requested_service_date",
+        "selected_departure",
+        "departure_options",
+        "service_window",
+        "timetable_entries",
+        "schedule_snapshot",
+        "service_date",
+        "source_refs",
+        "source_ref_count",
+        "related_notice_refs",
+        "operational_notice",
+        "operational_notices",
+        "change_notice",
+    ):
+        value = tool_result.get(key)
+        if value is not None:
+            response_result[key] = value
+
+
+def _promote_notice_change_set_fields(
+    response_result: dict[str, object],
+    tool_result: Mapping[str, object],
+) -> None:
+    for key in (
+        "outcome",
+        "query_text",
+        "change_set",
+        "change_set_id",
+        "target_family",
+        "change_kind",
+        "answer_eligible",
+        "admission_state",
+        "fact_count",
+        "change_texts",
+        "source_refs",
+        "source_ref_count",
+    ):
+        value = tool_result.get(key)
+        if value is not None:
+            response_result[key] = value
 
 
 class _ToolExecutionRecorder:
@@ -790,12 +866,31 @@ def _workflow_output_projection_ref(
     if not records:
         return None
     latest = records[-1].result_projection
-    projection = _projection_for_tool_result(
+    return _projection_for_tool_result(
         request.workflow_context.step_id,
         request.allowed_tools[0] if request.allowed_tools else "",
         latest,
     )
-    return projection
+
+
+def _validate_expected_output_artifacts(
+    workflow_context,
+    output_projection_ref: dict[str, object] | None,
+) -> None:
+    expected_artifacts = tuple(workflow_context.expected_output_artifacts)
+    if not expected_artifacts:
+        return
+    produced_kind = ""
+    if isinstance(output_projection_ref, Mapping):
+        produced_kind = str(output_projection_ref.get("projection_kind") or "").strip()
+    missing = [
+        artifact_kind for artifact_kind in expected_artifacts if artifact_kind != produced_kind
+    ]
+    if missing:
+        raise AgentsSdkRunnerError(
+            "sdk_artifact_incomplete",
+            "Agents SDK runner did not produce required output artifacts: " + ", ".join(missing),
+        )
 
 
 def _projection_for_tool_result(
@@ -825,6 +920,53 @@ def _projection_for_tool_result(
             if normalized_refs:
                 payload["source_refs"] = normalized_refs
         return _safe_projection_ref(source_step_id, "schedule_baseline", payload)
+    if tool_name == "campus_notice_change_set_lookup":
+        change_set = tool_result.get("change_set")
+        if not isinstance(change_set, Mapping):
+            return None
+        payload: dict[str, object] = {
+            "change_set_id": str(change_set.get("change_set_id") or "").strip(),
+            "target_family": str(change_set.get("target_family") or "").strip(),
+            "change_kind": str(change_set.get("change_kind") or "").strip(),
+            "service_date": "",
+            "summary": "",
+        }
+        query_scope = change_set.get("query_scope")
+        if isinstance(query_scope, Mapping):
+            payload["service_date"] = str(query_scope.get("service_date") or "").strip()
+            route_labels = [
+                str(item).strip()
+                for item in query_scope.get("route_labels", [])
+                if str(item).strip()
+            ]
+            if route_labels:
+                payload["route_labels"] = route_labels
+        facts = change_set.get("facts")
+        if isinstance(facts, list):
+            fact_summaries = []
+            for item in facts:
+                if not isinstance(item, Mapping):
+                    continue
+                summary = str(item.get("change_text") or "").strip()
+                if summary:
+                    fact_summaries.append(summary)
+            if fact_summaries:
+                payload["fact_summaries"] = fact_summaries
+                payload["summary"] = "；".join(fact_summaries)[:1600]
+        source_refs = change_set.get("source_refs")
+        if isinstance(source_refs, list):
+            normalized_refs = []
+            for item in source_refs:
+                if not isinstance(item, Mapping):
+                    continue
+                source_url = str(item.get("source_url") or "").strip()
+                if source_url:
+                    normalized_refs.append(source_url)
+            if normalized_refs:
+                payload["source_refs"] = normalized_refs
+        if not any(_has_projection_value(value) for value in payload.values()):
+            return None
+        return _safe_projection_ref(source_step_id, "notice_change_set", payload)
     if tool_name == "campus_notice_discover":
         return None
     return None

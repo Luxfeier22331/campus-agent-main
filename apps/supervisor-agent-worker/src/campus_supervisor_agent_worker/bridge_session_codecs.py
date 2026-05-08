@@ -68,6 +68,11 @@ def parse_selected_notice_ref(raw_ref: object) -> SelectedNoticeRef | None:
             field_name="context.session.selected_notice_ref.title",
         )
         or "",
+        target_surface=parse_optional_string(
+            ref.get("target_surface"),
+            field_name="context.session.selected_notice_ref.target_surface",
+        )
+        or "",
     )
 
 

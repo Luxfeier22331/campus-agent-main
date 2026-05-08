@@ -93,6 +93,24 @@
 			"description": "Lookup governed academic calendar facts such as teaching week, holiday and makeup-class arrangement."
 		},
 		{
+			"name": "campus_notice_change_set_lookup",
+			"owner_agent": "notice-agent",
+			"capability": "notice",
+			"payload_kind": "campus_notice_change_set_lookup",
+			"payload_schema_ref": "campus_contracts.models_tools.CampusNoticeChangeSetLookupPayload",
+			"result_schema_ref": "campus_contracts.models_tools.CampusNoticeChangeSetLookupResult",
+			"backend": "internal_structured_query_service",
+			"surface": "structured_handoff",
+			"read_only": true,
+			"active": true,
+			"function_schema": {
+				"available": true,
+				"strict": true
+			},
+			"runtime_posture": "sdk_adapter_admitted",
+			"description": "Lookup admitted transport notice change-set overrides from bounded notice/runtime truth."
+		},
+		{
 			"name": "campus_notice_discover",
 			"owner_agent": "notice-agent",
 			"capability": "notice",
@@ -145,6 +163,24 @@
 			},
 			"runtime_posture": "closed",
 			"description": "Internal retrieval step used by rag-agent; not exposed as a Go preplanned structured handoff tool."
+		},
+		{
+			"name": "retrieve_evidence",
+			"owner_agent": "rag-agent",
+			"capability": "knowledge",
+			"payload_kind": "rag_sdk_evidence_projection",
+			"payload_schema_ref": "campus_rag_agent.rag_sdk_models.RagSdkRetrieveEvidenceArguments",
+			"result_schema_ref": "campus_rag_agent.rag_sdk_models.RagSdkEvidenceProjection",
+			"backend": "retrieval_core",
+			"surface": "agent_internal",
+			"read_only": true,
+			"active": true,
+			"function_schema": {
+				"available": true,
+				"strict": true
+			},
+			"runtime_posture": "sdk_internal_admitted",
+			"description": "Return bounded evidence anchors for an admitted deterministic RAG query slot."
 		}
 	]
 }

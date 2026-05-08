@@ -212,7 +212,9 @@ func isAcademicCalendarGuideQuery(normalizedGoal string) bool {
 		strings.Contains(normalizedGoal, "在哪看") ||
 		strings.Contains(normalizedGoal, "在哪儿看") ||
 		strings.Contains(normalizedGoal, "怎么查") ||
-		strings.Contains(normalizedGoal, "如何查")
+		strings.Contains(normalizedGoal, "如何查") ||
+		strings.Contains(normalizedGoal, "网址") ||
+		strings.Contains(normalizedGoal, "链接")
 }
 
 func matchStructuredContactDirectoryCandidate(

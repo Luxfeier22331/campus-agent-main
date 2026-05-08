@@ -106,6 +106,8 @@ func serviceGuideQueryVariants(query string) []string {
 		"在哪里",
 		"在哪儿",
 		"哪里",
+		"链接是什么",
+		"链接",
 		"网址是什么",
 		"地址是什么",
 		"申请表在哪里下载",

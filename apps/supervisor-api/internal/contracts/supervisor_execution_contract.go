@@ -14,7 +14,7 @@ const (
 	ResponseContract                    = "agent_response"
 	RuntimeDecisionsSchemaVersion       = "supervisor-runtime-decisions-v1"
 	RuntimeDecisionSummarySchemaVersion = "runtime-decision-summary-v1"
-	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v3"
+	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v4"
 )
 
 type AgentTarget string
@@ -77,6 +77,7 @@ type StepOutputProjectionKind string
 
 const (
 	StepOutputProjectionKindNoticeContext     StepOutputProjectionKind = "notice_context"
+	StepOutputProjectionKindNoticeChangeSet   StepOutputProjectionKind = "notice_change_set"
 	StepOutputProjectionKindScheduleBaseline  StepOutputProjectionKind = "schedule_baseline"
 	StepOutputProjectionKindServiceGuideFacts StepOutputProjectionKind = "service_guide_facts"
 	StepOutputProjectionKindPlaceContext      StepOutputProjectionKind = "place_context"
@@ -140,11 +141,15 @@ type WorkflowContextProjectionWire struct {
 }
 
 type WorkflowAgentContextWire struct {
-	SchemaVersion          string                          `json:"schema_version"`
-	Visibility             string                          `json:"visibility"`
-	Target                 AgentTarget                     `json:"target,omitempty"`
-	RequiredProjectionKind StepOutputProjectionKind        `json:"required_projection_kind,omitempty"`
-	ProjectionRefs         []WorkflowContextProjectionWire `json:"projection_refs"`
+	SchemaVersion           string                          `json:"schema_version"`
+	Visibility              string                          `json:"visibility"`
+	WorkflowRunRef          string                          `json:"workflow_run_ref"`
+	StepID                  string                          `json:"step_id"`
+	AgentID                 AgentTarget                     `json:"agent_id"`
+	Target                  AgentTarget                     `json:"target,omitempty"`
+	RequiredProjectionKind  StepOutputProjectionKind        `json:"required_projection_kind,omitempty"`
+	ExpectedOutputArtifacts []StepOutputProjectionKind      `json:"expected_output_artifacts"`
+	ProjectionRefs          []WorkflowContextProjectionWire `json:"projection_refs"`
 }
 
 type WorkflowPlanWire struct {
@@ -220,24 +225,26 @@ type AgentRequestWire struct {
 }
 
 type WorkflowTraceSummaryWire struct {
-	RoutingFrame           map[string]any                  `json:"routing_frame"`
-	ContextResolution      map[string]any                  `json:"context_resolution"`
-	PlanningOutcome        string                          `json:"planning_outcome"`
-	DirectVsDelegateBranch string                          `json:"direct_vs_delegate_branch"`
-	WorkflowMode           WorkflowMode                    `json:"workflow_mode"`
-	Handoff                map[string]any                  `json:"handoff"`
-	HandoffChain           []map[string]any                `json:"handoff_chain"`
-	AgentInvocations       []AgentInvocationWire           `json:"agent_invocations"`
-	SelectedTarget         *string                         `json:"selected_target"`
-	SelectedTools          []string                        `json:"selected_tools"`
-	ContextProjections     []WorkflowContextProjectionWire `json:"context_projections"`
-	ToolArgumentSummary    map[string]any                  `json:"tool_argument_summary"`
-	TraceSteps             []map[string]any                `json:"trace_steps,omitempty"`
-	ToolCallSummaries      []map[string]any                `json:"tool_call_summaries,omitempty"`
-	GuardrailOutcomes      map[string]any                  `json:"guardrail_outcomes"`
-	FailCloseReason        string                          `json:"fail_close_reason"`
-	RuntimeVersions        map[string]any                  `json:"runtime_versions"`
-	PolicyArtifactVersions map[string]any                  `json:"policy_artifact_versions"`
+	RoutingFrame                map[string]any                  `json:"routing_frame"`
+	ContextResolution           map[string]any                  `json:"context_resolution"`
+	PlanningOutcome             string                          `json:"planning_outcome"`
+	DirectVsDelegateBranch      string                          `json:"direct_vs_delegate_branch"`
+	WorkflowMode                WorkflowMode                    `json:"workflow_mode"`
+	Handoff                     map[string]any                  `json:"handoff"`
+	HandoffChain                []map[string]any                `json:"handoff_chain"`
+	AgentInvocations            []AgentInvocationWire           `json:"agent_invocations"`
+	SelectedTarget              *string                         `json:"selected_target"`
+	SelectedTools               []string                        `json:"selected_tools"`
+	ContextProjections          []WorkflowContextProjectionWire `json:"context_projections"`
+	AnswerArtifactProjectionIDs []string                        `json:"answer_artifact_projection_ids"`
+	AnswerArtifactKinds         []StepOutputProjectionKind      `json:"answer_artifact_kinds"`
+	ToolArgumentSummary         map[string]any                  `json:"tool_argument_summary"`
+	TraceSteps                  []map[string]any                `json:"trace_steps,omitempty"`
+	ToolCallSummaries           []map[string]any                `json:"tool_call_summaries,omitempty"`
+	GuardrailOutcomes           map[string]any                  `json:"guardrail_outcomes"`
+	FailCloseReason             string                          `json:"fail_close_reason"`
+	RuntimeVersions             map[string]any                  `json:"runtime_versions"`
+	PolicyArtifactVersions      map[string]any                  `json:"policy_artifact_versions"`
 }
 
 type SupervisorResponseWire struct {

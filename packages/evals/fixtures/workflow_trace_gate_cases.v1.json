@@ -276,6 +276,117 @@
 			}
 		},
 		{
+			"case_id": "workflow-transport-notice-override-multistep",
+			"family": "workflow_trace",
+			"description": "transport baseline plus admitted notice change-set multi-step override workflow",
+			"expectation": {
+				"direct_vs_delegate_branch": "multi_step",
+				"workflow_mode": "multi_step",
+				"selected_target": "rag-agent",
+				"selected_tools": [
+					"transport_schedule_lookup",
+					"campus_notice_change_set_lookup",
+					"retrieval.query"
+				],
+				"expected_answer_artifact_kinds": [
+					"schedule_baseline",
+					"notice_change_set",
+					"evidence_bundle"
+				],
+				"handoff": {
+					"target": "campus-services-agent",
+					"payload_kind": "transport_schedule_lookup"
+				},
+				"handoff_chain": [
+					{
+						"target": "campus-services-agent",
+						"payload_kind": "transport_schedule_lookup",
+						"selected_tool": "transport_schedule_lookup"
+					},
+					{
+						"target": "notice-agent",
+						"payload_kind": "campus_notice_change_set_lookup",
+						"selected_tool": "campus_notice_change_set_lookup"
+					},
+					{
+						"target": "rag-agent",
+						"payload_kind": "rag_request",
+						"selected_tool": "retrieval.query"
+					}
+				],
+				"tool_argument_summary": {
+					"payload_kind": "campus_notice_change_set_lookup",
+					"selected_tool": "retrieval.query",
+					"service_date": "2026-05-07",
+					"route_labels": ["丰台到海淀通勤车"]
+				},
+				"tool_call_summaries": [
+					{
+						"result_projection": "bounded_summary",
+						"raw_result_included": false,
+						"tool_name": "transport_schedule_lookup",
+						"result_status": "completed",
+						"business_outcome": "resolved_current",
+						"argument_summary": {
+							"payload_kind": "transport_schedule_lookup",
+							"selected_tool": "transport_schedule_lookup",
+							"snapshot_query_mode": "current"
+						},
+						"source_ids": ["smoke:transport-schedule"]
+					},
+					{
+						"result_projection": "bounded_summary",
+						"raw_result_included": false,
+						"tool_name": "campus_notice_change_set_lookup",
+						"result_status": "completed",
+						"business_outcome": "resolved_current",
+						"argument_summary": {
+							"payload_kind": "campus_notice_change_set_lookup",
+							"selected_tool": "campus_notice_change_set_lookup",
+							"service_date": "2026-05-07",
+							"route_labels": ["丰台到海淀通勤车"]
+						},
+						"source_ids": ["notice:353903"]
+					},
+					{
+						"result_projection": "bounded_summary",
+						"raw_result_included": false,
+						"tool_name": "retrieval.query",
+						"result_status": "completed",
+						"business_outcome": "resolved_current",
+						"argument_summary": {
+							"payload_kind": "campus_notice_change_set_lookup",
+							"selected_tool": "retrieval.query",
+							"service_date": "2026-05-07",
+							"route_labels": ["丰台到海淀通勤车"]
+						},
+						"source_ids": ["notice:353903", "transport_schedule:commute"]
+					}
+				],
+				"expected_tool_order": [
+					"transport_schedule_lookup",
+					"campus_notice_change_set_lookup",
+					"retrieval.query"
+				],
+				"expected_tool_result_statuses": {
+					"transport_schedule_lookup": "completed",
+					"campus_notice_change_set_lookup": "completed",
+					"retrieval.query": "completed"
+				},
+				"expected_context_projection_kinds": [
+					"schedule_baseline",
+					"notice_change_set",
+					"evidence_bundle",
+					"grounding_verdict"
+				],
+				"expected_source_ids": ["smoke:transport-schedule", "notice:353903"],
+				"guardrail_outcomes": {
+					"scope_gate": "in_scope"
+				},
+				"fail_close_expected": false
+			}
+		},
+		{
 			"case_id": "workflow-knowledge-delegate",
 			"family": "workflow_trace",
 			"description": "student rules knowledge family delegate branch",
@@ -370,76 +481,28 @@
 			}
 		},
 		{
-			"case_id": "workflow-transport-notice-knowledge-pilot-multistep",
+			"case_id": "workflow-selected-notice-knowledge-followthrough-ineligible",
 			"family": "workflow_trace",
-			"description": "transport schedule baseline and selected notice context are projected before rag grounding",
+			"description": "selected notice with ineligible target surface is fail-closed before knowledge grounding",
 			"expectation": {
-				"direct_vs_delegate_branch": "multi_step",
-				"workflow_mode": "multi_step",
-				"selected_target": "rag-agent",
-				"selected_tools": ["transport_schedule_lookup", "retrieval.query"],
-				"handoff": {
-					"target": "campus-services-agent",
-					"payload_kind": "transport_schedule_lookup"
-				},
-				"handoff_chain": [
-					{
-						"target": "campus-services-agent",
-						"payload_kind": "transport_schedule_lookup",
-						"selected_tool": "transport_schedule_lookup"
-					},
-					{
-						"target": "notice-agent",
-						"payload_kind": "campus_notice_get"
-					},
-					{
-						"target": "rag-agent",
-						"payload_kind": "rag_request",
-						"selected_tool": "retrieval.query"
-					}
-				],
-					"tool_argument_summary": {
-						"payload_kind": "transport_schedule_lookup",
-						"selected_tool": "retrieval.query",
-						"intent": "next_departure"
-					},
-					"expected_context_projection_kinds": ["schedule_baseline", "notice_context", "evidence_bundle", "grounding_verdict"],
-					"tool_call_summaries": [
-						{
-							"tool_name": "transport_schedule_lookup",
-							"result_status": "completed",
-							"business_outcome": "resolved_current",
-							"argument_summary": {
-								"payload_kind": "transport_schedule_lookup",
-								"selected_tool": "transport_schedule_lookup",
-								"intent": "next_departure"
-							},
-							"source_ids": ["notice:muc_internal_portal:355122"]
-						},
-						{
-							"tool_name": "retrieval.query",
-							"result_status": "needs_clarification",
-							"business_outcome": "needs_clarification",
-							"argument_summary": {
-								"payload_kind": "rag_request",
-								"selected_tool": "retrieval.query",
-								"collection": "student_rules",
-								"corpus": "regulations"
-							},
-							"source_ids": ["student-rules:traffic-order-001"]
-						}
-					],
-					"expected_tool_order": ["transport_schedule_lookup", "retrieval.query"],
-					"expected_tool_result_statuses": {
-						"transport_schedule_lookup": "completed",
-						"retrieval.query": "needs_clarification"
-					},
+				"direct_vs_delegate_branch": "fail_close",
+				"workflow_mode": "terminal",
+				"selected_target": "none",
+				"selected_tools": [],
+				"handoff": null,
+				"handoff_chain": [],
+				"tool_argument_summary": {},
+				"expected_context_projection_kinds": [],
+				"tool_call_summaries": [],
+				"expected_tool_order": [],
+				"expected_tool_result_statuses": {},
 				"guardrail_outcomes": {
-					"context_preflight": "not_follow_up",
-					"policy_gate": "delegate",
+					"context_preflight": "resolved",
+					"policy_gate": "out_of_scope",
 					"scope_gate": "in_scope"
 				},
-				"fail_close_expected": false
+				"fail_close_reason": "selected_notice_target_surface_ineligible_for_knowledge_followthrough",
+				"fail_close_expected": true
 			}
 		},
 		{

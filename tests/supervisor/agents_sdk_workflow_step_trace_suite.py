@@ -136,10 +136,14 @@ class AgentsSdkWorkflowStepTraceSuite(unittest.TestCase):
         assert response.agent_observability is not None
         trace = response.agent_observability.safe_details["agents_sdk_trace_projection"]
         self.assertEqual(trace["workflow_run_ref"], "workflow:req-sdk-transport")
-        self.assertEqual(trace["step_id"], "handoff:campus-services-agent:transport_schedule_lookup")
+        self.assertEqual(
+            trace["step_id"], "handoff:campus-services-agent:transport_schedule_lookup"
+        )
         output_projection = trace["output_projection_ref"]
         self.assertEqual(output_projection["projection_kind"], "schedule_baseline")
-        self.assertTrue(output_projection["projection_id"].startswith("projection:schedule_baseline:"))
+        self.assertTrue(
+            output_projection["projection_id"].startswith("projection:schedule_baseline:")
+        )
         self.assertTrue(output_projection["content_hash"].startswith("sha256:"))
 
 

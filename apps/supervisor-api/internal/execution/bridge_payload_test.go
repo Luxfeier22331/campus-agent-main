@@ -77,6 +77,7 @@ func TestBridgePayloadForHandoffProjectsWorkflowContextWithoutRawContextLeak(t *
 			PayloadKind:            "rag_request",
 			AllowedTools:           []string{"retrieval.query"},
 			RequiredProjectionKind: string(ProjectionKindNoticeContext),
+			ExpectedArtifacts:      []string{"evidence_bundle", "grounding_verdict"},
 		},
 		projection,
 	)
@@ -153,6 +154,7 @@ func TestBridgePayloadForHandoffIncludesWorkflowStepExecutionMetadata(t *testing
 			PayloadKind:            "rag_request",
 			AllowedTools:           []string{"retrieval.query"},
 			RequiredProjectionKind: string(ProjectionKindNoticeContext),
+			ExpectedArtifacts:      []string{"evidence_bundle", "grounding_verdict"},
 		},
 		projection,
 	)
@@ -183,6 +185,16 @@ func TestBridgePayloadForHandoffIncludesWorkflowStepExecutionMetadata(t *testing
 	}
 	if workflowContext["agent_id"] != "rag-agent" {
 		t.Fatalf("workflow_context.agent_id = %#v, want rag-agent", workflowContext["agent_id"])
+	}
+	expectedArtifacts, ok := workflowContext["expected_output_artifacts"].([]any)
+	if !ok ||
+		len(expectedArtifacts) != 2 ||
+		expectedArtifacts[0] != "evidence_bundle" ||
+		expectedArtifacts[1] != "grounding_verdict" {
+		t.Fatalf(
+			"workflow_context.expected_output_artifacts = %#v, want evidence_bundle + grounding_verdict",
+			workflowContext["expected_output_artifacts"],
+		)
 	}
 }
 

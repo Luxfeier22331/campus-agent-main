@@ -25,6 +25,10 @@ from campus_rag_agent.rag_sdk_trace import build_rag_sdk_trace_projection
 from campus_shared import PromptRuntimeProviderConfig
 from pydantic import BaseModel, ConfigDict, Field
 
+from campus_supervisor_agent_worker.rag_sdk_internal_tool_bridge import (
+    build_rag_sdk_internal_tool_descriptor,
+)
+
 _RAG_SDK_INSTRUCTIONS = """
 You are a bounded campus RAG synthesis loop.
 Use the retrieve_evidence function tool before producing a final answer.
@@ -153,6 +157,8 @@ class OpenAIRagAgentsSdkRunner:
         )
 
     def build_retrieve_evidence_tool(self, request: RagSdkRunRequest) -> FunctionTool:
+        descriptor = build_rag_sdk_internal_tool_descriptor("retrieve_evidence")
+
         async def invoke_tool(_context: object, raw_arguments: str) -> str:
             arguments = _parse_tool_arguments(raw_arguments)
             try:
@@ -188,27 +194,11 @@ class OpenAIRagAgentsSdkRunner:
             )
 
         return FunctionTool(
-            name="retrieve_evidence",
-            description=(
-                "Return bounded evidence anchors for an admitted deterministic RAG query slot."
-            ),
-            params_json_schema={
-                "type": "object",
-                "additionalProperties": False,
-                "properties": {
-                    "query_slot_id": {
-                        "type": "string",
-                        "description": "One of the admitted deterministic query slot ids.",
-                    },
-                    "retrieval_intent": {
-                        "type": "string",
-                        "description": "Short semantic label for the requested evidence.",
-                    },
-                },
-                "required": ["query_slot_id", "retrieval_intent"],
-            },
+            name=descriptor.name,
+            description=descriptor.description,
+            params_json_schema=descriptor.parameters,
             on_invoke_tool=invoke_tool,
-            strict_json_schema=True,
+            strict_json_schema=descriptor.strict,
             timeout_behavior="raise_exception",
         )
 

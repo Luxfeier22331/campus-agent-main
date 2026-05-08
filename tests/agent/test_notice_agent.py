@@ -7,6 +7,8 @@ from campus_contracts import (
     AgentRequest,
     AuthorizationProjection,
     AuthorizedRetrievalFilter,
+    CampusNoticeChangeSetLookupPayload,
+    CampusNoticeChangeSetLookupResult,
     CampusNoticeDiscoverPayload,
     CampusNoticeDiscoverResult,
     CampusNoticeGetPayload,
@@ -17,17 +19,21 @@ from campus_contracts import (
     TemporalQuery,
 )
 from campus_notice_agent.http_query_service import NoticeHTTPQueryService
+from campus_notice_agent.notice_get_runtime import run_notice_get_internal_request
 from campus_notice_agent.query_service import (
     NoticeAccessContext,
+    NoticeChangeSetLookupQuery,
     NoticeDiscoverQuery,
     NoticeGetQuery,
 )
-from campus_notice_agent.service import delegate_to_notice_agent
+from campus_notice_agent.sdk_tool_executor import execute_notice_sdk_tool
+from campus_supervisor_agent_worker.agents_sdk_runner import AgentsSdkToolExecutionRequest
 
 
 class _FakeNoticeQueryService:
     def __init__(self) -> None:
         self.last_discover_query: NoticeDiscoverQuery | None = None
+        self.last_change_set_query: NoticeChangeSetLookupQuery | None = None
         self.last_get_query: NoticeGetQuery | None = None
 
     def discover_notice(self, query: NoticeDiscoverQuery) -> CampusNoticeDiscoverResult:
@@ -61,6 +67,69 @@ class _FakeNoticeQueryService:
             body_excerpt="春假时间为 5 月 1 日至 5 月 5 日。",
             bounded_summary="春假安排已发布，请以官方原文为准。",
             published_at="2026-04-20T09:00:00+08:00",
+        )
+
+    def lookup_notice_change_set(
+        self,
+        query: NoticeChangeSetLookupQuery,
+    ) -> CampusNoticeChangeSetLookupResult:
+        from campus_contracts import (
+            NoticeChangeSet,
+            NoticeChangeSetEffectiveWindow,
+            NoticeChangeSetFact,
+            NoticeChangeSetQueryScope,
+            NoticeChangeSetSafetySummary,
+            NoticeChangeSetSourceRef,
+        )
+
+        self.last_change_set_query = query
+        return CampusNoticeChangeSetLookupResult(
+            query_text=query.payload.query_text,
+            outcome="resolved_current",
+            change_set=NoticeChangeSet(
+                change_set_id="notice-change-set:353903:2026-05-07",
+                target_family="transport_schedule",
+                query_scope=NoticeChangeSetQueryScope(
+                    route_labels=("丰台到海淀通勤车",),
+                    service_date="2026-05-07",
+                ),
+                effective_window=NoticeChangeSetEffectiveWindow(
+                    starts_at="2026-05-07T00:00:00+08:00",
+                    timezone="Asia/Shanghai",
+                    current_at_query_time=True,
+                ),
+                change_kind="stop_or_boarding_point_change",
+                answer_eligible=True,
+                admission_state="answer_eligible",
+                content_hash="sha256:test",
+                facts=(
+                    NoticeChangeSetFact(
+                        fact_id="fact:353903",
+                        fact_kind="stop_changed",
+                        change_text="丰台校区乘车点调整至南门外停车区。",
+                        source_notice_id="353903",
+                        source_ref_id="notice-ref:353903",
+                    ),
+                ),
+                source_refs=(
+                    NoticeChangeSetSourceRef(
+                        source_ref_id="notice-ref:353903",
+                        notice_id="353903",
+                        title="关于通勤班车丰台校区乘车点调整的通知",
+                        source_url="https://portal.example.edu/notices/353903",
+                        published_at="2026-05-07T08:00:00+08:00",
+                    ),
+                ),
+                safety_summary=NoticeChangeSetSafetySummary(
+                    payload_key_names=(
+                        "schema_version",
+                        "query_scope",
+                        "effective_window",
+                        "facts",
+                        "source_refs",
+                    )
+                ),
+            ),
         )
 
 
@@ -98,44 +167,41 @@ class NoticeAgentTest(unittest.TestCase):
             ),
         )
 
-        response = delegate_to_notice_agent(request, query_service=query_service)
+        bounded = execute_notice_sdk_tool(
+            AgentsSdkToolExecutionRequest(
+                name="campus_notice_discover",
+                arguments={
+                    "query_text": "春假通知",
+                    "temporal_query": {
+                        "mode": "current_year",
+                        "as_of": "",
+                        "year_hint": "2026",
+                    },
+                },
+                call_id="call-notice-discover-001",
+            ),
+            agent_request=request,
+            query_service=query_service,
+        )
 
-        self.assertEqual(response.target, "notice-agent")
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(response.result.notice_cards[0].notice_id, "notice:2026-spring-holiday")
-        self.assertIn("2026 年春假安排通知", response.answer_text)
-        self.assertIsNotNone(response.agent_observability)
-        self.assertEqual(response.agent_observability.selected_tool, "campus_notice_discover")
-        self.assertEqual(response.agent_observability.tool_attempted, True)
-        self.assertEqual(response.agent_observability.tool_outcome, "resolved_current")
-        self.assertEqual(response.agent_observability.source_ref_count, 1)
-        self.assertEqual(response.agent_observability.access_decision, "allowed")
+        self.assertEqual(bounded["status"], "completed")
+        self.assertEqual(bounded["outcome"], "resolved_current")
+        self.assertEqual(bounded["notice_card_count"], 1)
         self.assertEqual(
-            response.agent_observability.safe_details["agent_execution_projection"],
-            {
-                "schema_version": "agent-execution-projection-v1",
-                "projection_owner": "notice-agent",
-                "selected_tool": "campus_notice_discover",
-                "payload_kind": "campus_notice_discover",
-                "tool_selection_reason": "typed_payload_allowed_tool",
-            },
+            bounded["titles"],
+            ["2026 年春假安排通知"],
         )
-        self.assertNotIn("agent_plan", response.agent_observability.safe_details)
-        self.assertEqual(
-            response.agent_observability.safe_details["result_guardrail"],
-            {
-                "schema_version": "agent-result-guardrail-v1",
-                "outcome": "source_backed",
-                "source_ref_count": 1,
-                "access_decision": "allowed",
-            },
-        )
+        self.assertEqual(bounded["source_ref_count"], 1)
         self.assertEqual(
             query_service.last_discover_query,
             NoticeDiscoverQuery(
                 payload=CampusNoticeDiscoverPayload(
                     query_text="春假通知",
-                    temporal_query=TemporalQuery(mode="current_year", year_hint="2026"),
+                    temporal_query=TemporalQuery(
+                        mode="current_year",
+                        as_of="",
+                        year_hint="2026",
+                    ),
                 ),
                 access_context=NoticeAccessContext(
                     actor=ActorContext(user_id="student-001"),
@@ -148,7 +214,7 @@ class NoticeAgentTest(unittest.TestCase):
         )
 
     def test_notice_get_payload_rejects_tool_outside_allowed_tools(self) -> None:
-        response = delegate_to_notice_agent(
+        response = run_notice_get_internal_request(
             AgentRequest(
                 target="notice-agent",
                 user_goal="读取这条通知",
@@ -163,11 +229,136 @@ class NoticeAgentTest(unittest.TestCase):
 
         self.assertEqual(response.status, "error")
         self.assertEqual(response.error.code, "disallowed_tool")
-        self.assertIsNotNone(response.agent_observability)
-        assert response.agent_observability is not None
-        self.assertIn("agent_execution_projection", response.agent_observability.safe_details)
-        self.assertIn("result_guardrail", response.agent_observability.safe_details)
-        self.assertNotIn("agent_plan", response.agent_observability.safe_details)
+
+    def test_http_query_service_decodes_notice_change_set_result(self) -> None:
+        transport = _RecordingNoticeHTTPTransport(
+            {
+                "query_text": "今天丰台到海淀通勤车乘车点有没有调整",
+                "outcome": "resolved_current",
+                "change_set": {
+                    "schema_version": "notice-change-set-v1",
+                    "change_set_id": "notice-change-set:353903:2026-05-07",
+                    "target_family": "transport_schedule",
+                    "query_scope": {
+                        "service_kind": "transport_schedule",
+                        "route_labels": ["丰台到海淀通勤车"],
+                        "service_date": "2026-05-07",
+                    },
+                    "effective_window": {
+                        "starts_at": "2026-05-07T00:00:00+08:00",
+                        "timezone": "Asia/Shanghai",
+                        "current_at_query_time": True,
+                    },
+                    "change_kind": "stop_or_boarding_point_change",
+                    "answer_eligible": True,
+                    "admission_state": "answer_eligible",
+                    "content_hash": "sha256:test",
+                    "facts": [
+                        {
+                            "fact_id": "fact:353903",
+                            "fact_kind": "stop_changed",
+                            "change_text": "丰台校区乘车点调整至南门外停车区。",
+                            "source_notice_id": "353903",
+                            "source_ref_id": "notice-ref:353903",
+                            "confidence": "deterministic",
+                        }
+                    ],
+                    "source_refs": [
+                        {
+                            "source_ref_id": "notice-ref:353903",
+                            "notice_id": "353903",
+                            "title": "关于通勤班车丰台校区乘车点调整的通知",
+                            "source_url": "https://portal.example.edu/notices/353903",
+                            "published_at": "2026-05-07T08:00:00+08:00",
+                        }
+                    ],
+                    "conflicts": [],
+                    "safety_summary": {
+                        "raw_payload_absent": True,
+                        "payload_key_names": [
+                            "schema_version",
+                            "query_scope",
+                            "effective_window",
+                            "facts",
+                            "source_refs",
+                        ],
+                        "redacted": False,
+                        "notes": ["bounded_transport_notice_override"],
+                    },
+                },
+            }
+        )
+        query_service = NoticeHTTPQueryService(
+            base_url="http://supervisor-api.internal",
+            shared_secret="query-secret",
+            timeout_seconds=0.75,
+            transport=transport,
+        )
+
+        result = query_service.lookup_notice_change_set(
+            NoticeChangeSetLookupQuery(
+                payload=CampusNoticeChangeSetLookupPayload(
+                    query_text="今天丰台到海淀通勤车乘车点有没有调整",
+                    route_labels=("丰台到海淀通勤车",),
+                    service_date="2026-05-07",
+                ),
+                access_context=_restricted_access_context(),
+            )
+        )
+
+        self.assertEqual(result.outcome, "resolved_current")
+        self.assertIsNotNone(result.change_set)
+        assert result.change_set is not None
+        self.assertEqual(result.change_set.change_kind, "stop_or_boarding_point_change")
+
+    def test_notice_change_set_tool_returns_nested_projection_contract(self) -> None:
+        query_service = _FakeNoticeQueryService()
+        request = AgentRequest(
+            target="notice-agent",
+            user_goal="2026-05-07 今天丰台到海淀通勤车乘车点有没有调整",
+            payload=CampusNoticeChangeSetLookupPayload(
+                query_text="2026-05-07 今天丰台到海淀通勤车乘车点有没有调整",
+                route_labels=("丰台到海淀通勤车",),
+                service_date="2026-05-07",
+                query_time_anchor="today",
+            ),
+            allowed_tools=("campus_notice_change_set_lookup",),
+            actor=ActorContext(user_id="student-001"),
+            context=ContextProjection(
+                actor=ActorContext(user_id="student-001"),
+                authorization=AuthorizationProjection(
+                    principal_id="principal-001",
+                    entitlement_groups=("students",),
+                ),
+            ),
+        )
+
+        bounded = execute_notice_sdk_tool(
+            AgentsSdkToolExecutionRequest(
+                name="campus_notice_change_set_lookup",
+                arguments={
+                    "query_text": "2026-05-07 今天丰台到海淀通勤车乘车点有没有调整",
+                    "route_labels": ["丰台到海淀通勤车"],
+                    "service_date": "2026-05-07",
+                    "query_time_anchor": "today",
+                },
+                call_id="call-notice-change-set-001",
+            ),
+            agent_request=request,
+            query_service=query_service,
+        )
+
+        self.assertEqual(bounded["status"], "completed")
+        self.assertEqual(bounded["outcome"], "resolved_current")
+        change_set = bounded["change_set"]
+        self.assertIsInstance(change_set, dict)
+        assert isinstance(change_set, dict)
+        self.assertEqual(change_set["change_set_id"], "notice-change-set:353903:2026-05-07")
+        self.assertEqual(change_set["change_kind"], "stop_or_boarding_point_change")
+        self.assertEqual(
+            change_set["facts"][0]["change_text"],
+            "丰台校区乘车点调整至南门外停车区。",
+        )
 
     def test_http_query_service_posts_discover_payload_and_authorization_projection(self) -> None:
         transport = _RecordingNoticeHTTPTransport(
@@ -325,7 +516,7 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertEqual(result.normalized_body, "")
 
     def test_notice_get_internal_result_returns_source_url_answer_without_body(self) -> None:
-        response = delegate_to_notice_agent(
+        response = run_notice_get_internal_request(
             AgentRequest(
                 target="notice-agent",
                 user_goal="读取这条公众号通知",
@@ -352,7 +543,7 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertNotIn("春假时间为 5 月 1 日至 5 月 5 日", response.answer_text)
 
     def test_notice_get_internal_result_never_emits_normalized_body(self) -> None:
-        response = delegate_to_notice_agent(
+        response = run_notice_get_internal_request(
             AgentRequest(
                 target="notice-agent",
                 user_goal="读取这条通知",

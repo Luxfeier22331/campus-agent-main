@@ -24,7 +24,8 @@ DEFAULT_GOVERNED_WORKFLOW_PROCESS_SMOKE_PROFILES = (
     "terminal_fail_close",
     "rag_delegate",
     "multi_step_notice_knowledge_followthrough",
-    "multi_step_transport_notice_knowledge_pilot",
+    "transport_notice_override_multistep",
+    "selected_notice_knowledge_followthrough_ineligible",
 )
 DEFAULT_SINGLE_SURFACE_SDK_PROCESS_SMOKE_PROFILES = (
     "transport_schedule_sdk_opened",
@@ -46,8 +47,11 @@ PROFILE_WORKFLOW_TRACE_CASE_IDS = {
     "multi_step_notice_knowledge_followthrough": (
         "workflow-notice-knowledge-followthrough-multistep"
     ),
-    "multi_step_transport_notice_knowledge_pilot": (
-        "workflow-transport-notice-knowledge-pilot-multistep"
+    "transport_notice_override_multistep": (
+        "workflow-transport-notice-override-multistep"
+    ),
+    "selected_notice_knowledge_followthrough_ineligible": (
+        "workflow-selected-notice-knowledge-followthrough-ineligible"
     ),
     "transport_schedule_sdk_opened": "workflow-transport-schedule-sdk",
     "transport_schedule_sdk_opened_stream": "workflow-transport-schedule-sdk",

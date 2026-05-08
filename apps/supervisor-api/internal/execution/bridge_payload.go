@@ -25,6 +25,7 @@ func BridgePayloadForHandoff(
 		handoff,
 		firstScheduleProjection(projections),
 		firstNoticeProjection(projections),
+		firstNoticeChangeSetProjection(projections),
 	)
 	requestID, _ := payload["request_id"].(string)
 	workflowContext, err := workflowContextForHandoff(handoff, requestID, projections)
@@ -93,6 +94,7 @@ func workflowContextForHandoff(
 		"agent_id":                 handoff.Target,
 		"target":                   handoff.Target,
 		"required_projection_kind": requiredProjectionKind,
+		"expected_output_artifacts": append([]string{}, handoff.ExpectedArtifacts...),
 		"projection_refs":          projectionRefs,
 	}, nil
 }
@@ -113,7 +115,8 @@ func projectionAllowedForHandoff(handoff RuntimeHandoff, projection StepOutputPr
 	requiredProjectionKind := strings.TrimSpace(handoff.RequiredProjectionKind)
 	if handoff.Target == "rag-agent" {
 		return projection.ProjectionKind == ProjectionKindScheduleBaseline ||
-			projection.ProjectionKind == ProjectionKindNoticeContext
+			projection.ProjectionKind == ProjectionKindNoticeContext ||
+			projection.ProjectionKind == ProjectionKindNoticeChangeSet
 	}
 	if requiredProjectionKind != "" {
 		return string(projection.ProjectionKind) == requiredProjectionKind
@@ -145,11 +148,17 @@ func firstScheduleProjection(projections []StepOutputProjection) StepOutputProje
 	return projection
 }
 
+func firstNoticeChangeSetProjection(projections []StepOutputProjection) StepOutputProjection {
+	projection, _ := FirstProjectionOfKind(projections, ProjectionKindNoticeChangeSet)
+	return projection
+}
+
 func bridgeUserGoalForHandoff(
 	rawUserGoal any,
 	handoff RuntimeHandoff,
 	scheduleProjection StepOutputProjection,
 	noticeProjection StepOutputProjection,
+	changeSetProjection StepOutputProjection,
 ) string {
 	userGoal, _ := rawUserGoal.(string)
 	if handoff.Target != "rag-agent" {
@@ -177,6 +186,12 @@ func bridgeUserGoalForHandoff(
 			parts = append(parts, "原文链接："+sourceURL)
 		}
 	}
+	if changeSetProjection.hasNoticeChangeSet() {
+		parts = append(parts, "", "已读取的通知变更集：")
+		if summary := changeSetProjection.NoticeChangeSetSummary(); summary != "" {
+			parts = append(parts, "摘要："+summary)
+		}
+	}
 	return strings.Join(parts, "\n")
 }
 
@@ -190,6 +205,11 @@ func (projection StepOutputProjection) hasNoticeContext() bool {
 func (projection StepOutputProjection) hasScheduleBaseline() bool {
 	return projection.ProjectionKind == ProjectionKindScheduleBaseline &&
 		(projection.ScheduleRouteDisplayName() != "" || projection.ScheduleSummary() != "")
+}
+
+func (projection StepOutputProjection) hasNoticeChangeSet() bool {
+	return projection.ProjectionKind == ProjectionKindNoticeChangeSet &&
+		projection.NoticeChangeSetSummary() != ""
 }
 
 func selectedToolForRuntimeHandoff(handoff RuntimeHandoff) string {

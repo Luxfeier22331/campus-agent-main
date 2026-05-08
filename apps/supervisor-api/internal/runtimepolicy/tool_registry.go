@@ -38,6 +38,7 @@ var supportedRuntimePostures = map[string]struct{}{
 	"provider_loop_open":                 {},
 	"sdk_adapter_candidate":              {},
 	"sdk_adapter_admitted":               {},
+	"sdk_internal_admitted":              {},
 }
 
 type ToolFunctionSchemaSpec struct {
@@ -160,13 +161,20 @@ func (t ToolSpec) Validate() error {
 		if !functionSchema.Strict {
 			return fmt.Errorf("%s function_schema.strict must be true when available", t.Name)
 		}
-		if t.Surface != "structured_handoff" {
-			return fmt.Errorf("%s function_schema can only be available for structured_handoff", t.Name)
+		if t.Surface != "structured_handoff" &&
+			!(t.Surface == "agent_internal" && t.RuntimePosture == "sdk_internal_admitted") {
+			return fmt.Errorf(
+				"%s function_schema can only be available for structured_handoff or sdk_internal_admitted agent_internal tools",
+				t.Name,
+			)
 		}
 	}
 	runtimePosture := t.effectiveRuntimePosture()
 	if _, ok := supportedRuntimePostures[runtimePosture]; !ok {
 		return fmt.Errorf("%s runtime_posture is unsupported: %s", t.Name, runtimePosture)
+	}
+	if runtimePosture == "sdk_internal_admitted" && t.Surface != "agent_internal" {
+		return fmt.Errorf("%s sdk_internal_admitted posture requires agent_internal surface", t.Name)
 	}
 	if (strings.HasPrefix(runtimePosture, "provider_") || strings.HasPrefix(runtimePosture, "sdk_")) && !functionSchema.Available {
 		return fmt.Errorf("%s runtime posture requires function_schema.available", t.Name)

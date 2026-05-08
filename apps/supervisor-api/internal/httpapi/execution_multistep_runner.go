@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"strings"
 	"time"
@@ -63,6 +64,16 @@ func (s *Server) runMultiStepBridgeExecution(
 	}
 
 	runID := "workflow:" + executionRequest.RequestID
+	var workflowRun execution.WorkflowRun
+	completeWorkflowRun := func(state execution.WorkflowState) {
+		if s.workflowRuns == nil {
+			return
+		}
+		updated, completeErr := s.workflowRuns.Complete(requestCtx, runID, state)
+		if completeErr == nil {
+			workflowRun = updated
+		}
+	}
 	createdRun, err := s.workflowRuns.Create(requestCtx, execution.WorkflowRun{
 		RunID:     runID,
 		RequestID: executionRequest.RequestID,
@@ -82,7 +93,7 @@ func (s *Server) runMultiStepBridgeExecution(
 			Outcome:    "supervisor_multistep_workflow_unavailable",
 		})
 	}
-	workflowRun := createdRun
+	workflowRun = createdRun
 
 	s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 		Name:                string(mode) + ".accepted",
@@ -187,6 +198,7 @@ func (s *Server) runMultiStepBridgeExecution(
 		}
 		if handoff.RequiredProjectionKind != "" &&
 			!workflowHasRequiredProjection(workflowContextProjections, handoff.RequiredProjectionKind) {
+			completeWorkflowRun(execution.WorkflowStateFailed)
 			return terminalResult(executionTerminal{
 				State:      lifecycle.StateFailed,
 				Code:       "supervisor_multistep_projection_unavailable",
@@ -202,6 +214,7 @@ func (s *Server) runMultiStepBridgeExecution(
 			workflowContextProjections...,
 		)
 		if err != nil {
+			completeWorkflowRun(execution.WorkflowStateFailed)
 			return terminalResult(executionTerminal{
 				State:      lifecycle.StateFailed,
 				Code:       "supervisor_multistep_invalid_plan",
@@ -246,6 +259,7 @@ func (s *Server) runMultiStepBridgeExecution(
 				s.bridgeBreaker.RecordFailure()
 				s.metrics.RecordBridgeFailure(failureKind)
 			}
+			completeWorkflowRun(workflowRunStateForLifecycleState(state))
 			return terminalResult(executionTerminal{
 				State:       state,
 				Code:        code,
@@ -260,11 +274,63 @@ func (s *Server) runMultiStepBridgeExecution(
 		bridgeBody, _ := decodeJSONObject(bridgeResponse.Body)
 		bridgeResult, _ := bridgeBody["result"].(map[string]any)
 		bridgeAgentObservability, _ := bridgeBody["agent_observability"].(map[string]any)
-		for _, projection := range workflowProjectionsFromBridgeResponse(
+		stepID := "handoff:" + handoff.Target + ":" + handoff.PayloadKind
+		stepProjections := workflowProjectionsFromBridgeResponse(
 			handoff,
-			"handoff:"+handoff.Target+":"+handoff.PayloadKind,
+			stepID,
 			bridgeResponse,
-		) {
+		)
+		if resultStatus == "error" {
+			workflowRun, _ = s.workflowRuns.AppendStep(requestCtx, runID, execution.WorkflowStep{
+				StepID:          stepID,
+				SpanKind:        "handoff",
+				ParentStepID:    workflowRunParentStepID(index, executionRequest.PlannedHandoffs),
+				Target:          handoff.Target,
+				ToolName:        selectedTool,
+				Outcome:         resultStatus,
+				ResultStatus:    resultStatus,
+				RetryCount:      bridgeRunState.RetryCount,
+				FailCloseReason: workflowFailCloseReason(bridgeResult, bridgeAgentObservability),
+			})
+			workflowRun, _ = s.workflowRuns.Complete(
+				requestCtx,
+				runID,
+				workflowStateForStatus(resultStatus),
+			)
+			finalBridgeResponse = bridgeResponse
+			return executionRunResult{
+				BridgeResponse: finalBridgeResponse,
+				BridgeDuration: totalBridgeDuration,
+				BridgeRunState: totalRunState,
+				QueueWait:      queueWaitDuration,
+				RequestContext: requestCtx,
+				WorkflowRun:    &workflowRun,
+				complete:       complete,
+			}
+		}
+		if artifactErr := validateWorkflowStepArtifacts(handoff, stepProjections); artifactErr != nil {
+			workflowRun, _ = s.workflowRuns.AppendStep(requestCtx, runID, execution.WorkflowStep{
+				StepID:          stepID,
+				SpanKind:        "handoff",
+				ParentStepID:    workflowRunParentStepID(index, executionRequest.PlannedHandoffs),
+				Target:          handoff.Target,
+				ToolName:        selectedTool,
+				Outcome:         "failed",
+				ResultStatus:    resultStatus,
+				RetryCount:      bridgeRunState.RetryCount,
+				FailCloseReason: "artifact_incomplete",
+			})
+			completeWorkflowRun(execution.WorkflowStateFailed)
+			return terminalResult(executionTerminal{
+				State:      lifecycle.StateFailed,
+				Code:       "supervisor_multistep_artifact_incomplete",
+				Message:    artifactErr.Error(),
+				StatusCode: http.StatusBadGateway,
+				Retryable:  false,
+				Outcome:    "supervisor_multistep_artifact_incomplete",
+			})
+		}
+		for _, projection := range stepProjections {
 			workflowContextProjections = append(workflowContextProjections, projection)
 			workflowRun, appendErr = s.workflowRuns.AppendStepOutputProjection(
 				requestCtx,
@@ -272,6 +338,7 @@ func (s *Server) runMultiStepBridgeExecution(
 				projection,
 			)
 			if appendErr != nil {
+				completeWorkflowRun(execution.WorkflowStateFailed)
 				return terminalResult(executionTerminal{
 					State:      lifecycle.StateFailed,
 					Code:       "supervisor_multistep_workflow_unavailable",
@@ -284,9 +351,8 @@ func (s *Server) runMultiStepBridgeExecution(
 		}
 		stepProjectionIDs := workflowProjectionIDsForSourceStep(
 			workflowContextProjections,
-			"handoff:"+handoff.Target+":"+handoff.PayloadKind,
+			stepID,
 		)
-		stepID := "handoff:" + handoff.Target + ":" + handoff.PayloadKind
 		workflowRun, _ = s.workflowRuns.AppendStep(requestCtx, runID, execution.WorkflowStep{
 			StepID:       stepID,
 			SpanKind:     "handoff",
@@ -318,16 +384,16 @@ func (s *Server) runMultiStepBridgeExecution(
 			toolArgumentSummary["payload_kind"] = handoff.PayloadKind
 			toolArgumentSummary["selected_tool"] = selectedTool
 			toolSummary := execution.ToolCallSummary{
-				ToolCallID:                 runID + ":" + stepID,
-				WorkflowRunRef:             runID,
-				StepID:                     stepID,
-				LifecycleState:             workflowToolLifecycleState(resultStatus),
-				ResultProjection:           "bounded_summary",
-				RawResultIncluded:          false,
-				ToolName:                   selectedTool,
-				Target:                     handoff.Target,
-				ResultStatus:               resultStatus,
-				ArgumentSummary:            safeWorkflowMap(toolArgumentSummary),
+				ToolCallID:        runID + ":" + stepID,
+				WorkflowRunRef:    runID,
+				StepID:            stepID,
+				LifecycleState:    workflowToolLifecycleState(resultStatus),
+				ResultProjection:  "bounded_summary",
+				RawResultIncluded: false,
+				ToolName:          selectedTool,
+				Target:            handoff.Target,
+				ResultStatus:      resultStatus,
+				ArgumentSummary:   safeWorkflowMap(toolArgumentSummary),
 				SourceIDs: workflowSummarySourceIDs(
 					bridgeResult,
 					bridgeAgentObservability,
@@ -388,6 +454,48 @@ func (s *Server) runMultiStepBridgeExecution(
 		RequestContext: requestCtx,
 		WorkflowRun:    &workflowRun,
 		complete:       complete,
+	}
+}
+
+func validateWorkflowStepArtifacts(
+	handoff execution.RuntimeHandoff,
+	projections []execution.StepOutputProjection,
+) error {
+	if len(handoff.ExpectedArtifacts) == 0 {
+		return nil
+	}
+	produced := make(map[string]struct{}, len(projections))
+	for _, projection := range projections {
+		if projection.SourceStepID == "" || projection.ProjectionKind == "" {
+			continue
+		}
+		produced[string(projection.ProjectionKind)] = struct{}{}
+	}
+	missing := make([]string, 0, len(handoff.ExpectedArtifacts))
+	for _, artifactKind := range handoff.ExpectedArtifacts {
+		if _, ok := produced[artifactKind]; ok {
+			continue
+		}
+		missing = append(missing, artifactKind)
+	}
+	if len(missing) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"supervisor multi-step step %q did not produce required artifacts: %s",
+		"handoff:"+handoff.Target+":"+handoff.PayloadKind,
+		strings.Join(missing, ", "),
+	)
+}
+
+func workflowRunStateForLifecycleState(state lifecycle.State) execution.WorkflowState {
+	switch state {
+	case lifecycle.StateCanceled, lifecycle.StateClientCanceled:
+		return execution.WorkflowStateCanceled
+	case lifecycle.StateTimedOut:
+		return execution.WorkflowStateTimedOut
+	default:
+		return execution.WorkflowStateFailed
 	}
 }
 
@@ -536,7 +644,7 @@ func workflowProjectionsFromBridgeResponse(
 			workflowNestedString(result, "resolved_route", "route_id"),
 			workflowNestedString(result, "resolved_route", "display_name"),
 			workflowNestedString(result, "resolved_route", "service_family"),
-			firstWorkflowString(body, "answer_text"),
+			workflowTransportScheduleSummary(result),
 			workflowSourceIDs(result),
 		)
 		if !ok {
@@ -552,6 +660,24 @@ func workflowProjectionsFromBridgeResponse(
 			firstWorkflowString(result, "title"),
 			firstWorkflowString(result, "body_excerpt", "bounded_summary"),
 			firstWorkflowString(result, "source_url", "canonical_url"),
+		)
+		if !ok {
+			return nil
+		}
+		return []execution.StepOutputProjection{projection}
+	case handoff.Target == "notice-agent" && handoff.PayloadKind == "campus_notice_change_set_lookup":
+		if status != "completed" {
+			return nil
+		}
+		projection, ok := execution.NewNoticeChangeSetProjection(
+			sourceStepID,
+			workflowNestedString(result, "change_set", "change_set_id"),
+			workflowNestedString(result, "change_set", "target_family"),
+			workflowNestedString(result, "change_set", "change_kind"),
+			workflowDoubleNestedString(result, "change_set", "query_scope", "service_date"),
+			workflowNestedStringSlice(result, "change_set", "query_scope", "route_labels"),
+			workflowNoticeChangeFactSummaries(result),
+			workflowNoticeChangeSourceRefs(result),
 		)
 		if !ok {
 			return nil
@@ -620,12 +746,59 @@ func firstWorkflowString(record map[string]any, keys ...string) string {
 	return ""
 }
 
+func workflowTransportScheduleSummary(result map[string]any) string {
+	parts := make([]string, 0, 6)
+	if routeName := workflowNestedString(result, "resolved_route", "display_name"); routeName != "" {
+		parts = append(parts, "线路 "+routeName)
+	}
+	if serviceStatus := firstWorkflowString(result, "service_status"); serviceStatus != "" {
+		parts = append(parts, "运行状态 "+serviceStatus)
+	}
+	if serviceDate := firstWorkflowString(result, "requested_service_date", "service_date"); serviceDate != "" {
+		parts = append(parts, "服务日期 "+serviceDate)
+	}
+	if departureAt := workflowNestedString(result, "selected_departure", "departure_at"); departureAt != "" {
+		parts = append(parts, "选中班次 "+departureAt)
+	}
+	if firstDeparture := workflowNestedString(result, "service_window", "first_departure_at"); firstDeparture != "" {
+		parts = append(parts, "首班 "+firstDeparture)
+	}
+	if lastDeparture := workflowNestedString(result, "service_window", "last_departure_at"); lastDeparture != "" {
+		parts = append(parts, "末班 "+lastDeparture)
+	}
+	if snapshotID := workflowNestedString(result, "schedule_snapshot", "snapshot_id"); snapshotID != "" {
+		parts = append(parts, "快照 "+snapshotID)
+	}
+	if len(parts) == 0 {
+		return firstWorkflowString(result, "query_text")
+	}
+	return strings.Join(parts, "；")
+}
+
 func workflowNestedString(record map[string]any, parentKey string, childKey string) string {
 	parent, _ := record[parentKey].(map[string]any)
 	if parent == nil {
 		return ""
 	}
 	value, _ := parent[childKey].(string)
+	return value
+}
+
+func workflowDoubleNestedString(
+	record map[string]any,
+	parentKey string,
+	nestedKey string,
+	childKey string,
+) string {
+	parent, _ := record[parentKey].(map[string]any)
+	if parent == nil {
+		return ""
+	}
+	nested, _ := parent[nestedKey].(map[string]any)
+	if nested == nil {
+		return ""
+	}
+	value, _ := nested[childKey].(string)
 	return value
 }
 
@@ -639,6 +812,9 @@ func workflowHasRequiredProjection(
 		return ok
 	case string(execution.ProjectionKindNoticeContext):
 		_, ok := execution.FirstProjectionOfKind(projections, execution.ProjectionKindNoticeContext)
+		return ok
+	case string(execution.ProjectionKindNoticeChangeSet):
+		_, ok := execution.FirstProjectionOfKind(projections, execution.ProjectionKindNoticeChangeSet)
 		return ok
 	default:
 		return false
@@ -675,10 +851,74 @@ func executionProjectionAllowedForHandoff(
 	requiredProjectionKind := handoff.RequiredProjectionKind
 	if handoff.Target == "rag-agent" {
 		return projection.ProjectionKind == execution.ProjectionKindScheduleBaseline ||
-			projection.ProjectionKind == execution.ProjectionKindNoticeContext
+			projection.ProjectionKind == execution.ProjectionKindNoticeContext ||
+			projection.ProjectionKind == execution.ProjectionKindNoticeChangeSet
 	}
 	if requiredProjectionKind == "" {
 		return false
 	}
 	return string(projection.ProjectionKind) == requiredProjectionKind
+}
+
+func workflowNestedStringSlice(
+	record map[string]any,
+	parentKey string,
+	nestedKey string,
+	childKey string,
+) []string {
+	parent, _ := record[parentKey].(map[string]any)
+	if parent == nil {
+		return nil
+	}
+	nested, _ := parent[nestedKey].(map[string]any)
+	if nested == nil {
+		return nil
+	}
+	raw, _ := nested[childKey].([]any)
+	result := make([]string, 0, len(raw))
+	for _, item := range raw {
+		if value, ok := item.(string); ok && strings.TrimSpace(value) != "" {
+			result = append(result, strings.TrimSpace(value))
+		}
+	}
+	return result
+}
+
+func workflowNoticeChangeFactSummaries(result map[string]any) []string {
+	changeSet, _ := result["change_set"].(map[string]any)
+	if changeSet == nil {
+		return nil
+	}
+	rawFacts, _ := changeSet["facts"].([]any)
+	summaries := make([]string, 0, len(rawFacts))
+	for _, rawFact := range rawFacts {
+		fact, _ := rawFact.(map[string]any)
+		if fact == nil {
+			continue
+		}
+		text := firstWorkflowString(fact, "change_text")
+		if text != "" {
+			summaries = append(summaries, text)
+		}
+	}
+	return summaries
+}
+
+func workflowNoticeChangeSourceRefs(result map[string]any) []string {
+	changeSet, _ := result["change_set"].(map[string]any)
+	if changeSet == nil {
+		return nil
+	}
+	rawRefs, _ := changeSet["source_refs"].([]any)
+	refs := make([]string, 0, len(rawRefs))
+	for _, rawRef := range rawRefs {
+		ref, _ := rawRef.(map[string]any)
+		if ref == nil {
+			continue
+		}
+		if sourceURL := firstWorkflowString(ref, "source_url"); sourceURL != "" {
+			refs = append(refs, sourceURL)
+		}
+	}
+	return refs
 }

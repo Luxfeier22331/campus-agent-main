@@ -197,8 +197,12 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "export interface WorkflowAgentContextWire {\n"
         '\tschema_version: "workflow-agent-context-v1";\n'
         '\tvisibility: "agent_private";\n'
+        "\tworkflow_run_ref: string;\n"
+        "\tstep_id: string;\n"
+        "\tagent_id: AgentTarget;\n"
         "\ttarget?: AgentTarget;\n"
         "\trequired_projection_kind?: StepOutputProjectionKind;\n"
+        "\texpected_output_artifacts: StepOutputProjectionKind[];\n"
         "\tprojection_refs: WorkflowContextProjectionWire[];\n"
         "}\n\n"
         "export interface WorkflowPlanWire {\n"
@@ -291,6 +295,8 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tselected_target: AgentTarget | string | null;\n"
         "\tselected_tools: string[];\n"
         "\tcontext_projections: WorkflowContextProjectionWire[];\n"
+        "\tanswer_artifact_projection_ids: string[];\n"
+        "\tanswer_artifact_kinds: StepOutputProjectionKind[];\n"
         "\ttool_argument_summary: SafeRecord;\n"
         "\ttrace_steps?: SafeRecord[];\n"
         "\ttool_call_summaries?: SafeRecord[];\n"
@@ -407,8 +413,12 @@ type WorkflowContextProjectionWire struct {
 type WorkflowAgentContextWire struct {
 \tSchemaVersion string `json:"schema_version"`
 \tVisibility string `json:"visibility"`
+\tWorkflowRunRef string `json:"workflow_run_ref"`
+\tStepID string `json:"step_id"`
+\tAgentID AgentTarget `json:"agent_id"`
 \tTarget AgentTarget `json:"target,omitempty"`
 \tRequiredProjectionKind StepOutputProjectionKind `json:"required_projection_kind,omitempty"`
+\tExpectedOutputArtifacts []StepOutputProjectionKind `json:"expected_output_artifacts"`
 \tProjectionRefs []WorkflowContextProjectionWire `json:"projection_refs"`
 }
 
@@ -496,6 +506,8 @@ type WorkflowTraceSummaryWire struct {
 \tSelectedTarget *string `json:"selected_target"`
 \tSelectedTools []string `json:"selected_tools"`
 \tContextProjections []WorkflowContextProjectionWire `json:"context_projections"`
+\tAnswerArtifactProjectionIDs []string `json:"answer_artifact_projection_ids"`
+\tAnswerArtifactKinds []StepOutputProjectionKind `json:"answer_artifact_kinds"`
 \tToolArgumentSummary map[string]any `json:"tool_argument_summary"`
 \tTraceSteps []map[string]any `json:"trace_steps,omitempty"`
 \tToolCallSummaries []map[string]any `json:"tool_call_summaries,omitempty"`
@@ -606,8 +618,12 @@ def _generate_py(contract: dict[str, Any]) -> str:
         '    model_config = ConfigDict(extra="forbid")\n\n'
         '    schema_version: Literal["workflow-agent-context-v1"]\n'
         '    visibility: Literal["agent_private"]\n'
+        "    workflow_run_ref: str\n"
+        "    step_id: str\n"
+        "    agent_id: AgentTarget\n"
         '    target: AgentTarget | str = ""\n'
         '    required_projection_kind: StepOutputProjectionKind | str = ""\n'
+        "    expected_output_artifacts: list[StepOutputProjectionKind]\n"
         "    projection_refs: list[WorkflowContextProjectionWire]\n\n\n"
         "class WorkflowPlanWire(BaseModel):\n"
         '    model_config = ConfigDict(extra="forbid")\n\n'
@@ -699,6 +715,8 @@ def _generate_py(contract: dict[str, Any]) -> str:
         "    selected_target: str | None\n"
         "    selected_tools: list[str]\n"
         "    context_projections: list[WorkflowContextProjectionWire]\n"
+        "    answer_artifact_projection_ids: list[str]\n"
+        "    answer_artifact_kinds: list[StepOutputProjectionKind]\n"
         "    tool_argument_summary: dict[str, Any]\n"
         "    guardrail_outcomes: dict[str, Any]\n"
         "    fail_close_reason: str\n"

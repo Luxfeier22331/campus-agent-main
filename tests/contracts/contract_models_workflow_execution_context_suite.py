@@ -11,6 +11,16 @@ class ContractModelsWorkflowExecutionContextSuite(unittest.TestCase):
                 projection_refs=(_valid_projection_ref(),),
             )
 
+    def test_workflow_agent_context_requires_non_empty_expected_output_artifacts(self) -> None:
+        with self.assertRaisesRegex(ValueError, "expected_output_artifacts"):
+            WorkflowAgentContext(
+                target="rag-agent",
+                workflow_run_ref="workflow:req-001",
+                step_id="handoff:rag-agent:rag_request",
+                agent_id="rag-agent",
+                expected_output_artifacts=("",),
+            )
+
     def test_workflow_agent_context_serializes_step_execution_metadata(self) -> None:
         context = WorkflowAgentContext(
             target="rag-agent",
@@ -18,6 +28,7 @@ class ContractModelsWorkflowExecutionContextSuite(unittest.TestCase):
             step_id="handoff:rag-agent:rag_request",
             agent_id="rag-agent",
             required_projection_kind="notice_context",
+            expected_output_artifacts=("evidence_bundle", "grounding_verdict"),
             projection_refs=(_valid_projection_ref(),),
         )
 
@@ -26,6 +37,10 @@ class ContractModelsWorkflowExecutionContextSuite(unittest.TestCase):
         self.assertEqual(payload["workflow_run_ref"], "workflow:req-001")
         self.assertEqual(payload["step_id"], "handoff:rag-agent:rag_request")
         self.assertEqual(payload["agent_id"], "rag-agent")
+        self.assertEqual(
+            payload["expected_output_artifacts"],
+            ("evidence_bundle", "grounding_verdict"),
+        )
 
 
 def _valid_projection_ref() -> dict[str, object]:

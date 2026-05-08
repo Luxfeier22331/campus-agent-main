@@ -8,7 +8,7 @@ from campus_services_agent.query_service import (
     ServiceStatusQuery,
     TransportScheduleQuery,
 )
-from campus_services_agent.service import delegate_to_campus_services_agent
+from campus_services_agent.sdk_tool_executor import execute_campus_services_sdk_tool
 
 __all__ = [
     "AcademicCalendarQuery",
@@ -19,5 +19,5 @@ __all__ = [
     "ServiceGuideQuery",
     "ServiceStatusQuery",
     "TransportScheduleQuery",
-    "delegate_to_campus_services_agent",
+    "execute_campus_services_sdk_tool",
 ]

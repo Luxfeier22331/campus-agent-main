@@ -21,8 +21,13 @@ func TestLoadAgentSpecRegistryLoadsCurrentInventory(t *testing.T) {
 	if !ok {
 		t.Fatal("notice-agent missing from AgentSpec")
 	}
-	if len(notice.AllowedStructuredHandoffTools) != 1 || notice.AllowedStructuredHandoffTools[0] != "campus_notice_discover" {
-		t.Fatalf("notice structured tools = %#v, want campus_notice_discover only", notice.AllowedStructuredHandoffTools)
+	if len(notice.AllowedStructuredHandoffTools) != 2 ||
+		notice.AllowedStructuredHandoffTools[0] != "campus_notice_discover" ||
+		notice.AllowedStructuredHandoffTools[1] != "campus_notice_change_set_lookup" {
+		t.Fatalf(
+			"notice structured tools = %#v, want campus_notice_discover and campus_notice_change_set_lookup",
+			notice.AllowedStructuredHandoffTools,
+		)
 	}
 	campusServices, ok := registry.AgentByID("campus-services-agent")
 	if !ok {

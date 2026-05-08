@@ -167,6 +167,29 @@ class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
         self.assertNotIn("raw_prompt", seen_output)
         self.assertNotIn("retrieval_plan", seen_output)
 
+    def test_retrieve_evidence_tool_schema_is_registry_backed(self) -> None:
+        runner = OpenAIRagAgentsSdkRunner(
+            provider_config=PromptRuntimeProviderConfig(
+                provider="openai",
+                transport="responses",
+                api_key="test-key",
+                base_url="https://api.openai.com/v1",
+            ),
+            model_name="gpt-5.4-mini",
+        )
+
+        tool = runner.build_retrieve_evidence_tool(_run_request())
+
+        self.assertEqual(tool.name, "retrieve_evidence")
+        self.assertIn("bounded evidence anchors", tool.description)
+        self.assertEqual(tool.params_json_schema["type"], "object")
+        self.assertEqual(tool.params_json_schema["additionalProperties"], False)
+        self.assertEqual(
+            set(tool.params_json_schema["properties"]),
+            {"query_slot_id", "retrieval_intent"},
+        )
+        self.assertTrue(tool.strict_json_schema)
+
     def test_tool_defaults_single_admitted_query_slot_when_model_omits_slot(self) -> None:
         runner = OpenAIRagAgentsSdkRunner(
             provider_config=PromptRuntimeProviderConfig(

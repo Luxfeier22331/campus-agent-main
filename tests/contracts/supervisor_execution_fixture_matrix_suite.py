@@ -44,6 +44,7 @@ class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
             "agent_id": "rag-agent",
             "target": "rag-agent",
             "required_projection_kind": "notice_context",
+            "expected_output_artifacts": ["evidence_bundle", "grounding_verdict"],
             "projection_refs": [
                 {
                     "projection_id": "projection:notice_context:test",
@@ -69,6 +70,10 @@ class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
         self.assertEqual(
             envelope.agent_request.workflow_context.agent_id,
             "rag-agent",
+        )
+        self.assertEqual(
+            envelope.agent_request.workflow_context.expected_output_artifacts,
+            ("evidence_bundle", "grounding_verdict"),
         )
         self.assertEqual(
             envelope.agent_request.workflow_context.projection_refs[0]["projection_id"],

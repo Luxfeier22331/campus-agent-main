@@ -3,16 +3,21 @@ package structuredquery
 import "context"
 
 type fakeNoticeReadModelStore struct {
-	searchRows           []noticeReadModelRecord
-	getRow               *noticeReadModelRecord
-	searchCount          int
-	getCount             int
-	searchQueryText      string
-	searchMaxResults     int
-	searchTargetSurfaces []string
-	searchAuthorization  noticeReadModelAuthorizationFilter
-	getTargetSurfaces    []string
-	getAuthorization     noticeReadModelAuthorizationFilter
+	searchRows             []noticeReadModelRecord
+	idRows                 []noticeReadModelRecord
+	getRow                 *noticeReadModelRecord
+	searchCount            int
+	idLookupCount          int
+	getCount               int
+	searchQueryText        string
+	searchMaxResults       int
+	searchTargetSurfaces   []string
+	searchAuthorization    noticeReadModelAuthorizationFilter
+	idLookupNoticeIDs      []string
+	idLookupTargetSurfaces []string
+	idLookupAuthorization  noticeReadModelAuthorizationFilter
+	getTargetSurfaces      []string
+	getAuthorization       noticeReadModelAuthorizationFilter
 }
 
 func (s *fakeNoticeReadModelStore) SearchNotices(
@@ -24,6 +29,20 @@ func (s *fakeNoticeReadModelStore) SearchNotices(
 	s.searchTargetSurfaces = append([]string(nil), criteria.TargetSurfaces...)
 	s.searchMaxResults = criteria.MaxResults
 	s.searchAuthorization = criteria.Authorization
+	return append([]noticeReadModelRecord(nil), s.searchRows...), nil
+}
+
+func (s *fakeNoticeReadModelStore) GetNoticesByIDs(
+	ctx context.Context,
+	criteria noticeIDsCriteria,
+) ([]noticeReadModelRecord, error) {
+	s.idLookupCount++
+	s.idLookupNoticeIDs = append([]string(nil), criteria.NoticeIDs...)
+	s.idLookupTargetSurfaces = append([]string(nil), criteria.TargetSurfaces...)
+	s.idLookupAuthorization = criteria.Authorization
+	if s.idRows != nil {
+		return append([]noticeReadModelRecord(nil), s.idRows...), nil
+	}
 	return append([]noticeReadModelRecord(nil), s.searchRows...), nil
 }
 

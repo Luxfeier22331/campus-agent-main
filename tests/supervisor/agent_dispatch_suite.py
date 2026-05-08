@@ -10,6 +10,7 @@ from campus_contracts import (
     ActorContext,
     AgentRequest,
     AgentResponse,
+    CampusNoticeChangeSetLookupPayload,
     CampusNoticeDiscoverPayload,
     CampusNoticeGetPayload,
     ContactDirectoryLookupPayload,
@@ -305,6 +306,15 @@ class AgentDispatchTest(unittest.TestCase):
             "campus_notice_get": (
                 "notice-agent",
                 CampusNoticeGetPayload(notice_id="notice:2026-calendar"),
+            ),
+            "campus_notice_change_set_lookup": (
+                "notice-agent",
+                CampusNoticeChangeSetLookupPayload(
+                    query_text="2026-05-07 今天丰台到海淀通勤车乘车点有没有调整",
+                    route_labels=("丰台到海淀通勤车",),
+                    service_date="2026-05-07",
+                    query_time_anchor="today",
+                ),
             ),
         }
 

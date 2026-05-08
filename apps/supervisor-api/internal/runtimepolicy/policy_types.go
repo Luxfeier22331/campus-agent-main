@@ -24,9 +24,10 @@ type SessionSlot struct {
 }
 
 type SelectedNoticeRef struct {
-	NoticeID     string
-	SourceFamily string
-	Title        string
+	NoticeID      string
+	SourceFamily  string
+	Title         string
+	TargetSurface string
 }
 
 type ProfileMemoryItem struct {

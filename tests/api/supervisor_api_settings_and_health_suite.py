@@ -18,7 +18,6 @@ from campus_contracts import (
 from campus_notice_agent.query_service import NoticeGetQuery
 from campus_supervisor_agent_worker.agent_delegates import _build_agent_delegates
 from campus_supervisor_agent_worker.app import create_bridge_app
-from campus_supervisor_agent_worker.provider_function_calling import ProviderFunctionToolRequest
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 
@@ -51,19 +50,6 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "api_key_not_configured",
         )
         self.assertIn("prompt_http_pool", ready.json_body)
-        self.assertEqual(
-            ready.json_body["provider_tool_runtime"],
-            {
-                "enabled": False,
-                "admitted": False,
-                "admission_reason": "disabled",
-                "allowed_tools": [],
-                "schema_available": False,
-                "runtime_enabled": False,
-                "runtime_admitted": False,
-                "runtime_posture": "closed",
-            },
-        )
         agents_sdk = ready.json_body["agents_sdk_runtime"]
         self.assertTrue(agents_sdk["enabled"])
         self.assertFalse(agents_sdk["admitted"])
@@ -105,7 +91,6 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(ready.json_body["status"], "ready")
         self.assertTrue(ready.json_body["prompt_runtime"]["admitted"])
         self.assertEqual(ready.json_body["prompt_runtime"]["admission_reason"], "")
-        self.assertEqual(ready.json_body["provider_tool_runtime"]["admission_reason"], "disabled")
         self.assertTrue(ready.json_body["prompt_http_pool"]["healthy"])
         self.assertEqual(ready.json_body["prompt_http_pool"]["max_connections"], 32)
         self.assertNotIn("transport_runtime", ready.json_body)
@@ -131,8 +116,6 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "SUPERVISOR_AGENT_WORKER_THREADS": "7",
             "SUPERVISOR_AGENT_WORKER_REQUEST_BODY_LIMIT_BYTES": "2048",
             "SUPERVISOR_AGENT_WORKER_CANCEL_FLAG_TTL_SECONDS": "123",
-            "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ENABLED": "true",
-            "SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS": "",
             "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "false",
             "SUPERVISOR_AGENTS_SDK_" + "ALLOWED_TARGETS": "stale-target",
             "SUPERVISOR_AGENTS_SDK_" + "ALLOWED_TOOLS": "stale-tool",
@@ -159,8 +142,6 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(settings.bridge_worker_threads, 7)
         self.assertEqual(settings.bridge_request_body_limit_bytes, 2048)
         self.assertEqual(settings.cancel_flag_ttl_seconds, 123)
-        self.assertTrue(settings.provider_tool_runtime_enabled)
-        self.assertEqual(settings.provider_tool_runtime_allowed_tools, ())
         self.assertFalse(settings.agents_sdk_runtime_enabled)
         self.assertFalse(hasattr(settings, "agents_sdk_runtime_allowed_targets"))
         self.assertFalse(hasattr(settings, "agents_sdk_runtime_allowed_tools"))
@@ -226,6 +207,11 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                     "tool": "campus_notice_discover",
                     "tool_runtime_posture": "sdk_adapter_admitted",
                 },
+                {
+                    "target": "notice-agent",
+                    "tool": "campus_notice_change_set_lookup",
+                    "tool_runtime_posture": "sdk_adapter_admitted",
+                },
             ],
         )
         self.assertNotIn("allowed_targets", ready.json_body["agents_sdk_runtime"])
@@ -252,73 +238,6 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             "/tmp/retrieval-observations.jsonl",
         )
         self.assertTrue(settings.retrieval_observation_include_query_text)
-
-    def test_bridge_readyz_reports_provider_tool_runtime_closed_when_enabled(self) -> None:
-        app = create_bridge_app(
-            settings=ApiSettings(
-                bridge_shared_secret="bridge-secret",
-                runtime_provider="openai-responses",
-                supervisor_prompt_model="gpt-supervisor",
-                agent_prompt_model="gpt-agent",
-                prompt_runtime_provider="openai-responses",
-                prompt_runtime_api_key="test-key",
-                prompt_runtime_base_url="https://api.openai.com/v1",
-                internal_query_base_url="https://supervisor-api.internal",
-                internal_query_shared_secret="structured-secret",
-                provider_tool_runtime_enabled=True,
-            )
-        )
-
-        ready = app.handle(
-            "GET",
-            "/internal/bridge/readyz",
-            headers={"x-supervisor-bridge-auth": "bridge-secret"},
-        )
-
-        self.assertEqual(ready.status_code, 503)
-        self.assertEqual(
-            ready.json_body["provider_tool_runtime"],
-            {
-                "enabled": True,
-                "admitted": False,
-                "admission_reason": "runtime_closed",
-                "allowed_tools": [],
-                "schema_available": False,
-                "runtime_enabled": True,
-                "runtime_admitted": False,
-                "runtime_posture": "closed",
-            },
-        )
-        app.close()
-
-    def test_bridge_readyz_degrades_when_provider_tool_runtime_enabled_without_query_service(
-        self,
-    ) -> None:
-        app = create_bridge_app(
-            settings=ApiSettings(
-                bridge_shared_secret="bridge-secret",
-                runtime_provider="openai-responses",
-                supervisor_prompt_model="gpt-supervisor",
-                agent_prompt_model="gpt-agent",
-                prompt_runtime_provider="openai-responses",
-                prompt_runtime_api_key="test-key",
-                prompt_runtime_base_url="https://api.openai.com/v1",
-                provider_tool_runtime_enabled=True,
-            )
-        )
-
-        ready = app.handle(
-            "GET",
-            "/internal/bridge/readyz",
-            headers={"x-supervisor-bridge-auth": "bridge-secret"},
-        )
-
-        self.assertEqual(ready.status_code, 503)
-        self.assertEqual(
-            ready.json_body["provider_tool_runtime"]["admission_reason"],
-            "runtime_closed",
-        )
-        app.close()
 
     def test_rag_delegate_wires_jsonl_retrieval_observation_sink_when_configured(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -375,47 +294,18 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(rows[0]["request_id"], "req-rag-jsonl")
 
-    def test_notice_get_delegate_uses_internal_query_when_provider_runtime_enabled(self) -> None:
-        captured_provider_requests: list[ProviderFunctionToolRequest] = []
+    def test_notice_get_delegate_uses_internal_query_runtime(self) -> None:
         query_service = _FakeNoticeGetQueryService()
-
-        def provider(request: ProviderFunctionToolRequest) -> dict[str, object]:
-            captured_provider_requests.append(request)
-            if len(captured_provider_requests) > 1:
-                return {
-                    "id": "resp-final",
-                    "output": [
-                        {
-                            "type": "message",
-                            "content": [{"type": "output_text", "text": "通知已读取。"}],
-                        }
-                    ],
-                }
-            return {
-                "id": "resp-tool",
-                "output": [
-                    {
-                        "type": "function_call",
-                        "name": "campus_notice_get",
-                        "arguments": json.dumps(
-                            {"notice_id": "notice:provider-selected"},
-                            ensure_ascii=False,
-                        ),
-                        "call_id": "call-provider-selected",
-                    }
-                ],
-            }
 
         delegates = _build_agent_delegates(
             settings=ApiSettings(
-                provider_tool_runtime_enabled=True,
+                agents_sdk_runtime_enabled=True,
                 internal_query_base_url="https://supervisor-api.internal",
                 internal_query_shared_secret="structured-secret",
             ),
             rag_prompt_executor=None,
             campus_services_query_service=None,
             notice_query_service=query_service,
-            provider_tool_provider=provider,
         )
 
         response = delegates["notice-agent"](
@@ -428,7 +318,6 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
-        self.assertEqual(len(captured_provider_requests), 0)
         self.assertIsNotNone(query_service.last_get_query)
         assert query_service.last_get_query is not None
         self.assertEqual(query_service.last_get_query.payload.notice_id, "notice:placeholder")
@@ -472,7 +361,6 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             },
             {"PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS": "0"},
             {"PROMPT_RUNTIME_MAX_OUTPUT_TOKENS": "0"},
-            {"SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS": "campus_notice_discover"},
         )
         for env in invalid_envs:
             with (

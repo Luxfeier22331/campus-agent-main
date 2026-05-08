@@ -81,6 +81,15 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
 
         self.assertEqual(caught.exception.reason, "unsupported_tool_surface")
 
+    def test_rejects_rag_sdk_internal_function_surface(self) -> None:
+        with self.assertRaisesRegex(
+            AgentsSdkToolBridgeError,
+            "unsupported_tool_surface",
+        ) as caught:
+            build_agents_sdk_tool_descriptors(("retrieve_evidence",))
+
+        self.assertEqual(caught.exception.reason, "unsupported_tool_surface")
+
     def test_admits_sdk_adapter_admitted_domain_agent_tools(self) -> None:
         descriptors = build_agents_sdk_tool_descriptors(
             (

@@ -9,6 +9,7 @@ const (
 	ToolContactDirectoryLookup  = "contact_directory_lookup"
 	ToolAcademicCalendarLookup  = "academic_calendar_lookup"
 	ToolCampusNoticeDiscover    = "campus_notice_discover"
+	ToolCampusNoticeChangeSet   = "campus_notice_change_set_lookup"
 	ToolCampusNoticeGet         = "campus_notice_get"
 
 	defaultStructuredRuntimeHealthTimeout = 250 * time.Millisecond

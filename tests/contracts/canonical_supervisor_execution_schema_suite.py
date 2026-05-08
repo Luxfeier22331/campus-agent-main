@@ -64,7 +64,7 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
         )
         self.assertEqual(
             openapi["x-campus-contract"]["workflow_trace_summary_version"],
-            "workflow-trace-summary-v3",
+            "workflow-trace-summary-v4",
         )
 
     def test_workflow_trace_summary_declares_workflow_mode_and_handoff_chain(self) -> None:
@@ -73,6 +73,8 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
         self.assertIn("workflow_mode", schema["required"])
         self.assertIn("handoff_chain", schema["required"])
         self.assertIn("context_projections", schema["required"])
+        self.assertIn("answer_artifact_projection_ids", schema["required"])
+        self.assertIn("answer_artifact_kinds", schema["required"])
         self.assertEqual(
             schema["properties"]["workflow_mode"],
             {"$ref": "#/components/schemas/WorkflowMode"},
@@ -82,6 +84,8 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
             schema["properties"]["context_projections"]["items"],
             {"$ref": "#/components/schemas/WorkflowContextProjection"},
         )
+        self.assertEqual(schema["properties"]["answer_artifact_projection_ids"]["type"], "array")
+        self.assertEqual(schema["properties"]["answer_artifact_kinds"]["type"], "array")
 
     def test_step_output_projection_schema_is_canonical(self) -> None:
         projection = _schema("StepOutputProjection")
@@ -91,6 +95,7 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
             _schema("StepOutputProjectionKind")["enum"],
             [
                 "notice_context",
+                "notice_change_set",
                 "schedule_baseline",
                 "service_guide_facts",
                 "place_context",
@@ -124,6 +129,7 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
         self.assertIn("workflow_run_ref", workflow_context["required"])
         self.assertIn("step_id", workflow_context["required"])
         self.assertIn("agent_id", workflow_context["required"])
+        self.assertIn("expected_output_artifacts", workflow_context["required"])
         self.assertIn("projection_refs", workflow_context["required"])
         self.assertEqual(
             workflow_context["properties"]["workflow_run_ref"],
@@ -136,6 +142,10 @@ class CanonicalSupervisorExecutionSchemaTest(unittest.TestCase):
         self.assertEqual(
             workflow_context["properties"]["agent_id"],
             {"$ref": "#/components/schemas/AgentTarget"},
+        )
+        self.assertEqual(
+            workflow_context["properties"]["expected_output_artifacts"]["items"],
+            {"$ref": "#/components/schemas/StepOutputProjectionKind"},
         )
         self.assertEqual(
             workflow_context["properties"]["projection_refs"]["items"],

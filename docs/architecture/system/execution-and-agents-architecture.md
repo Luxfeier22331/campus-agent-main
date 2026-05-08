@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-01
+updated: 2026-05-07
 ---
 # Execution And Agents Architecture
 
@@ -159,7 +159,11 @@ Docker-side Go runtime control plane 长期负责：
   projection kind 与 target metadata，不携带 raw projection payload。operator / eval 可见的
   `workflow_trace_summary.context_projections` 只暴露 projection id、source step、kind、
   content hash 与 safety summary，不暴露正文 payload。
-  不得把单 handoff trace 包装成 `multi_step`
+  `multi_step` 的 selected-notice admission 现已改为 planner 只输出 internal
+  `CapabilityPlan`，再由 resolver 根据 artifact graph 编译实际 `WorkflowPlan`；planner 不再
+  直接拼 notice -> rag 固定 step list。workflow trace summary 额外记录
+  `answer_artifact_projection_ids` 与 `answer_artifact_kinds`，用于证明最终答复使用了哪些
+  bounded artifact。不得把单 handoff trace 包装成 `multi_step`
 - `runtime_decisions.workflow_plan` 是 Go planner 的 canonical safe projection，当前
   `schema_version=workflow-plan-v1`，用于显式记录 `single_handoff` plan、step kind、
   selected target / payload kind / allowed tools、terminal policy、resume policy 与
@@ -524,6 +528,10 @@ SDK 扩展不是 repo-wide switch。后续新增 surface 按以下顺序 admissi
    denominator，然后由 worker 将 `AgentRequest.allowed_tools` 编译为 SDK function tools。
 1. RAG-internal semantic loop：只能消费 `rag-agent` deterministic planner/retrieval 之后的
    bounded evidence projection；`retrieval.query` 继续保持 agent-internal / closed。
+   RAG SDK loop 如果需要 provider/SDK function surface，只能使用
+   `runtime_posture=sdk_internal_admitted` 的 internal function，例如
+   `retrieve_evidence`，并且该 function 不进入 Go `allowed_tools` 或
+   structured handoff denominator。
 1. Multi-step workflow step internals：等待
    `governed-multi-agent-workflow-runtime` 恢复后，SDK 只能作为每个 admitted step
    内部 runtime，不能生成或改写全局 workflow plan。
@@ -578,11 +586,13 @@ thin adapter -> internal query service -> sanitized AgentResponse -> Go finaliza
   - 拥有 tool selection、argument precision、no-tool correctness、fail-close
     correctness、tool result usage 与 hallucinated tool prevention 的 denominator
 
-当前 `ToolSpec` registry 位于 `configs/runtime/tools.v1.json`，是 tool truth 的
-canonical artifact，而不是 scattered runtime 常量。`function_schema` 只表示某个
-structured handoff tool 可以生成 provider function schema；`runtime_posture` 才表达
-该 tool 是否只走 typed handoff、是否允许 provider argument completion pilot，或是否进入
-provider tool loop pilot / open runtime。schema 可用不等于 runtime 已开放。
+当前 `ToolSpec` registry 位于 `configs/runtime/tools.v1.json`，是 repo-owned callable
+truth 的 canonical artifact，而不是 scattered runtime 常量。`surface` 决定它是
+agent-facing `structured_handoff`，还是只能在 agent 内部使用的
+`agent_internal` function。`function_schema` 表示该 callable 是否可以生成 strict
+provider / SDK function schema；`runtime_posture` 才表达它是 `sdk_adapter_admitted`、
+`sdk_internal_admitted`、`closed` 或其他 repo-owned admission posture。schema 可用不等于
+runtime 已开放，也不等于可以进入 Go `allowed_tools`。
 
 它至少约束：
 
@@ -598,34 +608,32 @@ provider tool loop pilot / open runtime。schema 可用不等于 runtime 已开�
 Provider-native function calling 只能由 ToolSpec 生成的 strict schema 驱动。agent framework
 或 provider SDK 可以承担调用循环、arguments validation ergonomics 与 trace capture，但 trace
 进入 app-api、panel、eval 或 workflow summary 前必须经过 repo-owned bounded projection。
+面向 domain-agent handoff 的 provider/SDK tool bridge 只能接收 `structured_handoff`
+surface；RAG 这类内部 SDK loop 只能接收显式 `sdk_internal_admitted` 的
+`agent_internal` function。
 
 并行 tool / agent fanout 默认由 Go `WorkflowPlan` 显式表达，而不是交给 provider 在单轮
 function calling 中自由并发。provider-native parallel tool call 只有在 ToolSpec、
 runtime_posture、eval denominator 与 result merge policy 都明确允许时才可打开；否则
 domain-agent adapter 应保持 single-call loop 或 serial loop。
 
-当前 Python worker 的 repo-owned provider function-call adapter 只允许从 ToolSpec 中的
-agent-facing `structured_handoff` tool 生成 strict provider schema。内部 deterministic
-query function，例如 selected notice resolve/context，不能因为存在 DTO/schema 就进入 provider
-tool loop。缺失 call、wrong tool、非对象 arguments、final response malformed、schema
-不存在或 query service failure 都必须转成结构化 `AgentResponse` fail-close，而不是穿透为
-bridge 500。该 adapter 不把 raw provider response 写入 `AgentResponse`、workflow trace、
-panel 或 eval canonical surface。
+当前 Python worker 只保留一条 structured domain-agent substrate：ToolSpec 驱动的 Agents
+SDK shell 加 package-owned SDK executor。不存在并行的 repo-owned provider function-call
+loop，也不存在 direct online adapter fallback。内部 deterministic query function，例如
+selected notice resolve/context，不能因为存在 DTO/schema 就进入 structured handoff tool
+loop。缺失 admission、wrong tool、非对象 arguments、schema 不存在、SDK 运行时缺失或 query
+service failure 都必须转成结构化 `AgentResponse` fail-close，而不是穿透为 bridge 500。sanitized
+trace/projection 可以记录 provider correlation，但 raw provider response 不进入
+`AgentResponse`、workflow trace、panel 或 eval canonical surface。
 
-notice-get provider tool runtime 当前最终姿态是 closed：
-
-- `SUPERVISOR_PROVIDER_TOOL_RUNTIME_ALLOWED_TOOLS` 默认空
-- `campus_notice_get` 不再是 provider-loop pilot denominator
-- stale `campus_notice_get` provider config 必须 fail-closed
-- Python `/internal/bridge/readyz` 只能发布 closed/degraded admission summary，不能把
-  notice-get provider loop 描述成 admitted runtime truth
-
-Agents SDK 当前不承载 `campus_notice_get`。SDK runner shell、tool bridge 与 trace
-projection 是 domain-agent adapter substrate；stale `campus_notice_get` request 必须返回
-unsupported/closed。当前已接纳的 SDK adapter tools 是
-`campus_notice_discover`、`service_status_lookup`、`service_guide_lookup`、
-`transport_schedule_lookup`、`contact_directory_lookup` 与
-`academic_calendar_lookup`。其中 `service_status_lookup` 与 `transport_schedule_lookup`
+Agents SDK 当前不承载 `campus_notice_get`。`campus_notice_get` 保持 notice-agent internal
+resolve runtime seam；它不是 structured handoff tool，也不是 provider/SDK function tool。
+当前已接纳的 SDK adapter tools 是
+`campus_notice_discover`、`service_status_lookup`、
+`service_guide_lookup`、`transport_schedule_lookup`、
+`contact_directory_lookup`、`academic_calendar_lookup` 与
+`campus_notice_change_set_lookup`。其中
+`service_status_lookup` 与 `transport_schedule_lookup`
 在公开 answer / stream 入口同样走 `single_handoff` bridge lane；SDK shell 只承接
 agent-side argument completion / tool loop，projection-backed structured query、
 temporal policy、source truth、Go opening gate/admission、ToolSpec gate 与 Go
@@ -640,10 +648,14 @@ notice slice 可运行；长期 latency / cost / error-rate 证据属于 observa
 gate 输入，不能反向作为保留旧 allowlist 技术债的理由。
 
 `rag-agent` 的 Agents SDK 接入是另一条内部 adapter lane，不属于 ToolSpec
-structured handoff。它固定遵循：
+structured handoff。它的内部 function 仍必须由 ToolSpec 注册与校验，但不得进入
+structured handoff allowed-tools。它固定遵循：
 
 - `retrieval.query` 保持 `agent_internal` / `closed`，不开放为 public ToolSpec、
   provider tool 或 Go preplanned structured handoff tool
+- `retrieve_evidence` 是 `agent_internal` / `sdk_internal_admitted` 的 SDK internal
+  function，只返回已 admission 的 bounded evidence anchors；它不是用户意图级 tool，也不是
+  Go preplanned structured handoff tool
 - Go supervisor 仍拥有 admission、capability routing、workflow plan、opening gate 与
   finalization；SDK 只承接 Python `rag-agent` 内部 semantic synthesis loop
 - `packages/rag-agent` 只定义 SDK-neutral `RagSdkRunRequest`、bounded evidence

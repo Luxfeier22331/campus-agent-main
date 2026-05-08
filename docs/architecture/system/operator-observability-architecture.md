@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-01
+updated: 2026-05-07
 ---
 # Operator Observability Architecture
 
@@ -189,6 +189,11 @@ runtime-internal package import 拼装它们。
   `request_id` join `runtime.request_observability_fact`，生成 feedback coverage、
   helpful / unhelpful rate、no-answer unhelpful overlap，以及 `negative_feedback`
   eval candidate intake；它不是 panel-owned truth，也不反向改变 runtime routing
+- admitted `multi_step` 的 workflow trace summary 现已保留 bounded final answer artifact
+  usage 摘要：
+  `answer_artifact_projection_ids` 与 `answer_artifact_kinds` 进入 operator / eval
+  可见的 safe summary seam，用于证明最终答复依赖了哪些 repo-owned projection，而不是暴露
+  raw artifact payload
 
 当前尚未全部落成 merged truth 的，是更完整的 `Safety/Authz`、`Cost`、`Audit` operator
 product surface；这属于 rollout 进度问题，不是 ownership 未定。

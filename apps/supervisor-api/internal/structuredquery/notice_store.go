@@ -115,6 +115,33 @@ func (s *PostgresNoticeReadModelStore) SearchNotices(
 	return s.fetchRecords(ctx, query, params...)
 }
 
+func (s *PostgresNoticeReadModelStore) GetNoticesByIDs(
+	ctx context.Context,
+	criteria noticeIDsCriteria,
+) ([]noticeReadModelRecord, error) {
+	if s == nil || s.pool == nil {
+		return nil, errors.New("notice read model store is not configured")
+	}
+	noticeIDs := normalizeTransportScopeStrings(criteria.NoticeIDs)
+	if len(noticeIDs) == 0 {
+		return nil, nil
+	}
+	params := []any{noticeIDs, criteria.SourceFamilies}
+	filters := []string{"queryable = true", "source_notice_id = any($1)", "source_family = any($2)"}
+	normalizedTargetSurfaces := normalizeNoticeTargetSurfaces(criteria.TargetSurfaces)
+	if len(normalizedTargetSurfaces) > 0 {
+		params = append(params, normalizedTargetSurfaces)
+		filters = append(filters, fmt.Sprintf("target_surface = any($%d)", len(params)))
+	}
+	filters = append(filters, noticeAuthorizationSQLFilter(&params, criteria.Authorization))
+	query := fmt.Sprintf(
+		"select record from %s where %s order by published_at desc nulls last, source_notice_id desc, unit_id asc",
+		s.tableSQL,
+		strings.Join(filters, " and "),
+	)
+	return s.fetchRecords(ctx, query, params...)
+}
+
 func (s *PostgresNoticeReadModelStore) GetNoticeByID(
 	ctx context.Context,
 	criteria noticeGetCriteria,

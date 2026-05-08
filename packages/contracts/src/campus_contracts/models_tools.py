@@ -3,6 +3,12 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts.models_notice import (
+    CampusNoticeChangeSetLookupPayload as CampusNoticeChangeSetLookupPayload,
+)
+from campus_contracts.models_notice import (
+    CampusNoticeChangeSetLookupResult as CampusNoticeChangeSetLookupResult,
+)
+from campus_contracts.models_notice import (
     CampusNoticeDiscoverPayload as CampusNoticeDiscoverPayload,
 )
 from campus_contracts.models_notice import (
@@ -64,20 +70,55 @@ from campus_contracts.models_shared import (
     _validate_transport_service_status_value,
 )
 from campus_contracts.models_temporal import TemporalQuery
+from campus_contracts.schema_metadata import schema_metadata
 
 
 @dataclass(frozen=True, slots=True)
 class AcademicCalendarLookupPayload:
-    query_text: str
-    query_kind: AcademicCalendarQueryKind | str
-    answer_focus: AcademicCalendarAnswerFocus | str = ""
-    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
-    academic_year_label: str = ""
-    date_hint: str = ""
-    event_query: str = ""
-    target_date: str = ""
-    audience: str = ""
-    term_label: str = ""
+    query_text: str = field(
+        metadata=schema_metadata(description="Original academic calendar fact question.")
+    )
+    query_kind: AcademicCalendarQueryKind | str = field(
+        metadata=schema_metadata(description="Deterministic academic calendar fact query kind.")
+    )
+    answer_focus: AcademicCalendarAnswerFocus | str = field(
+        default="",
+        metadata=schema_metadata(
+            description="Optional answer focus for the academic calendar query."
+        ),
+    )
+    temporal_query: TemporalQuery = field(
+        default_factory=TemporalQuery,
+        metadata=schema_metadata(description="Optional temporal query constraint."),
+    )
+    academic_year_label: str = field(
+        default="",
+        metadata=schema_metadata(
+            description="Optional explicit academic year label such as 2026-2027学年."
+        ),
+    )
+    date_hint: str = field(
+        default="",
+        metadata=schema_metadata(
+            description="Optional ISO date to resolve week, holiday, or makeup-class arrangement."
+        ),
+    )
+    event_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Optional named event query such as 春假 or 劳动节."),
+    )
+    target_date: str = field(
+        default="",
+        metadata=schema_metadata(description="Optional ISO date being queried."),
+    )
+    audience: str = field(
+        default="",
+        metadata=schema_metadata(description="Optional audience such as student or faculty."),
+    )
+    term_label: str = field(
+        default="",
+        metadata=schema_metadata(description="Optional term label such as 春季学期."),
+    )
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():
@@ -255,15 +296,42 @@ class PlaceLookupResult:
 
 @dataclass(frozen=True, slots=True)
 class ContactDirectoryEntitySelector:
-    contact_id: str = ""
-    department_query: str = ""
-    office_query: str = ""
-    service_query: str = ""
-    person_query: str = ""
-    role_query: str = ""
-    purpose_query: str = ""
-    contact_group_query: str = ""
-    location_query: str = ""
+    contact_id: str = field(
+        default="",
+        metadata=schema_metadata(description="Known contact id if already resolved."),
+    )
+    department_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Department name fragment."),
+    )
+    office_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Office name fragment."),
+    )
+    service_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Service or task the contact should support."),
+    )
+    person_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Person name fragment."),
+    )
+    role_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Role name fragment."),
+    )
+    purpose_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Reason for contacting."),
+    )
+    contact_group_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Contact group fragment."),
+    )
+    location_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Location fragment."),
+    )
 
     def __post_init__(self) -> None:
         if self.contact_id and not self.contact_id.strip():
@@ -353,13 +421,37 @@ class ContactDirectoryCandidate:
 
 @dataclass(frozen=True, slots=True)
 class ContactDirectoryLookupPayload:
-    query_text: str
-    contact_focus: ContactDirectoryFocus | str
-    entity_selector: ContactDirectoryEntitySelector | None = None
-    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
-    campus_scope: str = ""
-    audience: ServiceGuideAudience | str = "unknown"
-    result_limit: int | None = None
+    query_text: str = field(
+        metadata=schema_metadata(description="Original contact directory question.")
+    )
+    contact_focus: ContactDirectoryFocus | str = field(
+        metadata=schema_metadata(description="Requested contact information focus.")
+    )
+    entity_selector: ContactDirectoryEntitySelector | None = field(
+        default=None,
+        metadata=schema_metadata(
+            description="Optional selector for the contact entity to resolve."
+        ),
+    )
+    temporal_query: TemporalQuery = field(
+        default_factory=TemporalQuery,
+        metadata=schema_metadata(description="Optional temporal query constraint."),
+    )
+    campus_scope: str = field(
+        default="",
+        metadata=schema_metadata(description="Optional campus scope such as haidian or fengtai."),
+    )
+    audience: ServiceGuideAudience | str = field(
+        default="unknown",
+        metadata=schema_metadata(description="Audience for the contact."),
+    )
+    result_limit: int | None = field(
+        default=None,
+        metadata=schema_metadata(
+            description="Optional positive maximum result count.",
+            minimum=1,
+        ),
+    )
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():
@@ -422,9 +514,17 @@ class ContactDirectoryLookupResult:
 
 @dataclass(frozen=True, slots=True)
 class ServiceStatusLookupPayload:
-    subject_query: str
-    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
-    campus_scope: str = ""
+    subject_query: str = field(
+        metadata=schema_metadata(description="Campus service, facility, or operation to check.")
+    )
+    temporal_query: TemporalQuery = field(
+        default_factory=TemporalQuery,
+        metadata=schema_metadata(description="Optional temporal query constraint."),
+    )
+    campus_scope: str = field(
+        default="",
+        metadata=schema_metadata(description="Optional campus scope such as haidian or fengtai."),
+    )
 
     def __post_init__(self) -> None:
         if not self.subject_query.strip():
@@ -619,12 +719,31 @@ class ServiceGuideProcedureGroup:
 
 @dataclass(frozen=True, slots=True)
 class ServiceGuideLookupPayload:
-    service_query: str
-    guide_focus: ServiceGuideFocus | str
-    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
-    campus_scope: str = ""
-    audience: ServiceGuideAudience | str = "unknown"
-    result_limit: int | None = None
+    service_query: str = field(
+        metadata=schema_metadata(description="Campus service or process to explain.")
+    )
+    guide_focus: ServiceGuideFocus | str = field(
+        metadata=schema_metadata(description="Requested service guide section.")
+    )
+    temporal_query: TemporalQuery = field(
+        default_factory=TemporalQuery,
+        metadata=schema_metadata(description="Optional temporal query constraint."),
+    )
+    campus_scope: str = field(
+        default="",
+        metadata=schema_metadata(description="Optional campus scope such as haidian or fengtai."),
+    )
+    audience: ServiceGuideAudience | str = field(
+        default="unknown",
+        metadata=schema_metadata(description="Audience for the guide."),
+    )
+    result_limit: int | None = field(
+        default=None,
+        metadata=schema_metadata(
+            description="Optional positive maximum result count.",
+            minimum=1,
+        ),
+    )
 
     def __post_init__(self) -> None:
         if not self.service_query.strip():
@@ -699,22 +818,60 @@ class TransportStopRef:
 
 @dataclass(frozen=True, slots=True)
 class TransportRouteSelector:
-    route_id: str = ""
-    service_family: str = ""
-    route_variant_query: str = ""
-    origin_campus: str = ""
-    destination_campus: str = ""
-    origin_stop_query: str = ""
-    destination_stop_query: str = ""
+    route_id: str = field(
+        default="",
+        metadata=schema_metadata(description="Known route id if already resolved."),
+    )
+    service_family: str = field(
+        default="",
+        metadata=schema_metadata(
+            description="Service family such as intercampus or metro shuttle."
+        ),
+    )
+    route_variant_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Route variant words from the user query."),
+    )
+    origin_campus: str = field(
+        default="",
+        metadata=schema_metadata(description="Origin campus if stated."),
+    )
+    destination_campus: str = field(
+        default="",
+        metadata=schema_metadata(description="Destination campus if stated."),
+    )
+    origin_stop_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Origin stop if stated."),
+    )
+    destination_stop_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Destination stop if stated."),
+    )
 
 
 @dataclass(frozen=True, slots=True)
 class TransportServiceTimeQuery:
-    date_mode: TransportServiceDateMode | str = "today"
-    service_date: str = ""
-    daypart: TransportDaypart | str = "all_day"
-    departure_not_before: str = ""
-    departure_not_after: str = ""
+    date_mode: TransportServiceDateMode | str = field(
+        default="today",
+        metadata=schema_metadata(description="Service date interpretation."),
+    )
+    service_date: str = field(
+        default="",
+        metadata=schema_metadata(description="ISO date when date_mode is date."),
+    )
+    daypart: TransportDaypart | str = field(
+        default="all_day",
+        metadata=schema_metadata(description="Requested daypart."),
+    )
+    departure_not_before: str = field(
+        default="",
+        metadata=schema_metadata(description="Lower bound departure time in HH:MM if stated."),
+    )
+    departure_not_after: str = field(
+        default="",
+        metadata=schema_metadata(description="Upper bound departure time in HH:MM if stated."),
+    )
 
     def __post_init__(self) -> None:
         _validate_transport_service_date_mode(self.date_mode)
@@ -818,12 +975,31 @@ class TransportOperationalNotice:
 
 @dataclass(frozen=True, slots=True)
 class TransportScheduleLookupPayload:
-    query_text: str
-    intent: TransportScheduleIntent | str
-    route_selector: TransportRouteSelector | None = None
-    snapshot_query: TemporalQuery = field(default_factory=TemporalQuery)
-    service_time_query: TransportServiceTimeQuery | None = None
-    result_limit: int | None = None
+    query_text: str = field(
+        metadata=schema_metadata(description="Original transport schedule question.")
+    )
+    intent: TransportScheduleIntent | str = field(
+        metadata=schema_metadata(description="Transport schedule lookup intent.")
+    )
+    route_selector: TransportRouteSelector | None = field(
+        default=None,
+        metadata=schema_metadata(description="Optional route selection hints."),
+    )
+    snapshot_query: TemporalQuery = field(
+        default_factory=TemporalQuery,
+        metadata=schema_metadata(description="Optional temporal query constraint."),
+    )
+    service_time_query: TransportServiceTimeQuery | None = field(
+        default=None,
+        metadata=schema_metadata(description="Optional service time constraints."),
+    )
+    result_limit: int | None = field(
+        default=None,
+        metadata=schema_metadata(
+            description="Optional positive maximum result count.",
+            minimum=1,
+        ),
+    )
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():

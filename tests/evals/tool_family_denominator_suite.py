@@ -7,6 +7,7 @@ from campus_evals.tool_family_denominator import (
     ToolObservation,
     evaluate_tool_family_denominator,
     load_tool_family_denominator,
+    tool_spec_sdk_internal_function_names,
     tool_spec_tool_names,
 )
 
@@ -24,6 +25,8 @@ class ToolFamilyDenominatorTest(unittest.TestCase):
                 "transport_schedule_lookup",
                 "service_guide_lookup",
                 "contact_directory_lookup",
+                "academic_calendar_lookup",
+                "campus_notice_change_set_lookup",
                 "campus_notice_discover",
                 "campus_notice_get",
                 "retrieval.query",
@@ -44,6 +47,12 @@ class ToolFamilyDenominatorTest(unittest.TestCase):
             tool_spec_tool_names(),
         )
 
+    def test_rag_sdk_internal_functions_are_not_tool_family_denominators(self) -> None:
+        fixture = load_tool_family_denominator()
+
+        self.assertEqual(tool_spec_sdk_internal_function_names(), ("retrieve_evidence",))
+        self.assertNotIn("retrieve_evidence", {tool.tool_name for tool in fixture.tools})
+
     def test_priority_tools_have_cases_for_each_required_split(self) -> None:
         fixture = load_tool_family_denominator()
         required_splits = {"smoke", "release_gate", "regression_locked", "exploratory"}
@@ -52,6 +61,8 @@ class ToolFamilyDenominatorTest(unittest.TestCase):
             "transport_schedule_lookup",
             "service_guide_lookup",
             "contact_directory_lookup",
+            "academic_calendar_lookup",
+            "campus_notice_change_set_lookup",
             "campus_notice_discover",
             "campus_notice_get",
             "retrieval.query",
@@ -82,6 +93,30 @@ class ToolFamilyDenominatorTest(unittest.TestCase):
                     case.expected_result_status,
                     {"source_card", "bounded_summary", "authorization_denied"},
                 )
+
+    def test_notice_change_set_denominator_is_transport_override_only(self) -> None:
+        fixture = load_tool_family_denominator()
+        change_set_cases = [
+            case for case in fixture.cases if case.tool_name == "campus_notice_change_set_lookup"
+        ]
+
+        self.assertEqual(len(change_set_cases), 4)
+        for case in change_set_cases:
+            with self.subTest(case_id=case.case_id):
+                self.assertIn(
+                    case.expected_result_status,
+                    {
+                        "completed",
+                        "not_found",
+                        "clarification_required",
+                        "temporarily_unverifiable",
+                    },
+                )
+                self.assertIn("query_kind", case.expected_arguments)
+                self.assertEqual(case.expected_arguments["query_kind"], "transport_override")
+                if case.expected_result_status == "completed":
+                    self.assertTrue(case.expected_arguments.get("service_date"))
+                    self.assertTrue(case.expected_arguments.get("route_label"))
 
     def test_evaluate_tool_family_denominator_distinguishes_failure_classes(self) -> None:
         fixture = load_tool_family_denominator()

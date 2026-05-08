@@ -171,6 +171,21 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "academic calendar holiday boundary",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "五一放几天",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "academic_calendar_lookup",
+			wantTool:   "academic_calendar_lookup",
+			wantPayload: map[string]any{
+				"query_text":  "五一放几天",
+				"query_kind":  "named_event_range",
+				"event_query": "五一",
+			},
+		},
+		{
 			name: "academic calendar term window",
 			request: Request{
 				EffectiveCapability: "campus_services",
@@ -397,6 +412,20 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "information disclosure required materials",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "信息公开申请要准备什么",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "信息公开申请要准备什么",
+				"guide_focus":   "required_materials",
+			},
+		},
+		{
 			name: "public medical service guide contact",
 			request: Request{
 				EffectiveCapability: "campus_services",
@@ -411,6 +440,20 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "campus card management center phone",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校园卡管理中心电话是多少",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校园卡管理中心电话是多少",
+				"guide_focus":   "contact",
+			},
+		},
+		{
 			name: "campus card lost service guide full guide",
 			request: Request{
 				EffectiveCapability: "campus_services",
@@ -421,7 +464,21 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantTool:   "service_guide_lookup",
 			wantPayload: map[string]any{
 				"service_query": "校园卡丢了怎么办",
-				"guide_focus":   "full_guide",
+				"guide_focus":   "procedure",
+			},
+		},
+		{
+			name: "campus card lost alias remains procedure",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校园卡遗失怎么办",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校园卡遗失怎么办",
+				"guide_focus":   "procedure",
 			},
 		},
 		{
@@ -677,6 +734,62 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "academic calendar guide entry",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校历在哪里看",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校历在哪里看",
+				"guide_focus":   "entry",
+			},
+		},
+		{
+			name: "academic calendar guide entry url short",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校历网址是什么",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校历网址是什么",
+				"guide_focus":   "entry",
+			},
+		},
+		{
+			name: "vpn login entry",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "VPN 去哪里登录",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "VPN 去哪里登录",
+				"guide_focus":   "entry",
+			},
+		},
+		{
+			name: "information disclosure form entry",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "信息公开申请表在哪里下载",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "信息公开申请表在哪里下载",
+				"guide_focus":   "entry",
+			},
+		},
+		{
 			name: "network account guide",
 			request: Request{
 				EffectiveCapability: "campus_services",
@@ -748,6 +861,20 @@ func TestPlanGoldenCases(t *testing.T) {
 		},
 		{
 			name: "information disclosure phone",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "信息公开申请联系电话是多少",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "信息公开申请联系电话是多少",
+				"guide_focus":   "contact",
+			},
+		},
+		{
+			name: "information disclosure department phone uses contact directory",
 			request: Request{
 				EffectiveCapability: "campus_services",
 				UserGoal:            "信息公开联系电话是多少",
@@ -826,6 +953,48 @@ func TestPlanGoldenCases(t *testing.T) {
 			},
 		},
 		{
+			name: "card center office hours colloquial",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "卡务中心几点上班",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "卡务中心几点上班",
+				"guide_focus":   "office_hours",
+			},
+		},
+		{
+			name: "public medical eligibility",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "公费医疗哪些学生能享受",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "公费医疗哪些学生能享受",
+				"guide_focus":   "eligibility",
+			},
+		},
+		{
+			name: "campus card service full guide",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校园卡服务有哪些内容",
+			},
+			wantTarget: "campus-services-agent",
+			wantKind:   "service_guide_lookup",
+			wantTool:   "service_guide_lookup",
+			wantPayload: map[string]any{
+				"service_query": "校园卡服务有哪些内容",
+				"guide_focus":   "full_guide",
+			},
+		},
+		{
 			name: "notice discover",
 			request: Request{
 				EffectiveCapability: "notice",
@@ -835,6 +1004,17 @@ func TestPlanGoldenCases(t *testing.T) {
 			wantKind:    "campus_notice_discover",
 			wantTool:    "campus_notice_discover",
 			wantPayload: map[string]any{"query_text": "找一下2026年春假通知"},
+		},
+		{
+			name: "notice original transport adjustment boundary",
+			request: Request{
+				EffectiveCapability: "notice",
+				UserGoal:            "最近有哪些班车调整通知",
+			},
+			wantTarget:  "notice-agent",
+			wantKind:    "campus_notice_discover",
+			wantTool:    "campus_notice_discover",
+			wantPayload: map[string]any{"query_text": "最近有哪些班车调整通知"},
 		},
 		{
 			name: "notice discover year hint",
@@ -921,6 +1101,10 @@ func TestPlanSkipsTransactionalStructuredRequests(t *testing.T) {
 			EffectiveCapability: "campus_services",
 			UserGoal:            "帮我发邮件给国际合作处",
 		},
+		{
+			EffectiveCapability: "campus_services",
+			UserGoal:            "帮我预约地铁接驳车",
+		},
 	} {
 		plan := PlanWithPolicy(request, policy)
 		if plan != nil {
@@ -983,7 +1167,7 @@ func TestPlanWithPolicyProjectsCanonicalWorkflowPlan(t *testing.T) {
 	}
 }
 
-func TestPlanWithPolicyBuildsMultiStepNoticeKnowledgeFollowthrough(t *testing.T) {
+func TestPlanWithPolicyBuildsCapabilityOnlyNoticeKnowledgeFollowthroughPreplan(t *testing.T) {
 	policy, err := runtimepolicy.LoadIntentPolicy("")
 	if err != nil {
 		t.Fatalf("load intent policy: %v", err)
@@ -999,9 +1183,10 @@ func TestPlanWithPolicyBuildsMultiStepNoticeKnowledgeFollowthrough(t *testing.T)
 			Collection: "student_rules",
 		},
 		SelectedNoticeRef: SelectedNoticeRef{
-			NoticeID:     "notice:smoke:001",
-			SourceFamily: "wechat_public_notice",
-			Title:        "烟雾测试通知",
+			NoticeID:      "notice:smoke:001",
+			SourceFamily:  "wechat_public_notice",
+			Title:         "烟雾测试通知",
+			TargetSurface: "regulations/student_rules",
 		},
 	}, policy)
 
@@ -1011,21 +1196,15 @@ func TestPlanWithPolicyBuildsMultiStepNoticeKnowledgeFollowthrough(t *testing.T)
 	if plan.WorkflowMode != WorkflowModeMultiStep {
 		t.Fatalf("workflow mode = %q, want multi_step", plan.WorkflowMode)
 	}
+	if handoff := plan.SelectedHandoff(); handoff != nil {
+		t.Fatalf("capability preplan must not carry selected handoff: %#v", handoff)
+	}
 	handoffs := plan.Handoffs()
-	if len(handoffs) != 2 {
-		t.Fatalf("handoff count = %d, want 2", len(handoffs))
+	if len(handoffs) != 0 {
+		t.Fatalf("handoff count = %d, want 0 for capability preplan", len(handoffs))
 	}
-	if handoffs[0].Target != "notice-agent" || handoffs[0].PayloadKind != "campus_notice_get" {
-		t.Fatalf("first handoff = %#v, want notice get", handoffs[0])
-	}
-	if len(handoffs[0].AllowedTools) != 0 {
-		t.Fatalf("first handoff allowed tools = %#v, want none for internal notice context", handoffs[0].AllowedTools)
-	}
-	if handoffs[0].Payload["notice_id"] != "notice:smoke:001" {
-		t.Fatalf("first handoff notice_id = %#v", handoffs[0].Payload["notice_id"])
-	}
-	if handoffs[1].Target != "rag-agent" || handoffs[1].PayloadKind != "rag_request" {
-		t.Fatalf("second handoff = %#v, want rag request", handoffs[1])
+	if capabilityPlan := plan.CapabilityPlan(); capabilityPlan == nil {
+		t.Fatal("selected notice followthrough must carry internal capability plan")
 	}
 	if plan.ResumePolicy.ResumeSupported != true {
 		t.Fatal("multi-step plan must declare resume support")
@@ -1038,22 +1217,16 @@ func TestPlanWithPolicyBuildsMultiStepNoticeKnowledgeFollowthrough(t *testing.T)
 		t.Fatalf("projection workflow_mode = %v, want multi_step", projection["workflow_mode"])
 	}
 	steps, ok := projection["steps"].([]map[string]any)
-	if !ok || len(steps) != 2 {
-		t.Fatalf("projection steps = %#v, want two steps", projection["steps"])
+	if !ok || len(steps) != 0 {
+		t.Fatalf("projection steps = %#v, want no baked steps", projection["steps"])
 	}
 	edges, ok := projection["edges"].([]map[string]any)
-	if !ok || len(edges) != 1 || edges[0]["condition"] != "completed" {
-		t.Fatalf("projection edges = %#v, want completed edge", projection["edges"])
-	}
-	if edges[0]["required_projection_kind"] != "notice_context" {
-		t.Fatalf(
-			"projection edge required projection = %#v, want notice_context",
-			edges[0]["required_projection_kind"],
-		)
+	if !ok || len(edges) != 0 {
+		t.Fatalf("projection edges = %#v, want no baked dependency edges", projection["edges"])
 	}
 }
 
-func TestPlanWithPolicyBuildsMultiStepTransportNoticeKnowledgePilot(t *testing.T) {
+func TestPlanWithPolicyBuildsTransportNoticeOverrideCapabilityPreplan(t *testing.T) {
 	policy, err := runtimepolicy.LoadIntentPolicy("")
 	if err != nil {
 		t.Fatalf("load intent policy: %v", err)
@@ -1061,69 +1234,37 @@ func TestPlanWithPolicyBuildsMultiStepTransportNoticeKnowledgePilot(t *testing.T
 
 	plan := PlanWithPolicy(Request{
 		EffectiveCapability:      "campus_services",
-		UserGoal:                 "这条班车通知依据学生手册哪条规定？",
-		HasRequestedScope:        true,
+		UserGoal:                 "今天丰台到海淀通勤车乘车点有没有调整",
 		MultiStepWorkflowEnabled: true,
-		RequestedScope: Scope{
-			Corpus:     "regulations",
-			Collection: "student_rules",
-		},
 		SelectedNoticeRef: SelectedNoticeRef{
-			NoticeID:     "notice:transport:355122",
-			SourceFamily: "internal_notice_restricted",
-			Title:        "关于两校区学生通勤班车增加班次的通知",
+			NoticeID:      "notice:transport:353903",
+			SourceFamily:  "internal_notice_restricted",
+			Title:         "关于通勤班车丰台校区乘车点调整的通知",
+			TargetSurface: "campus_services/service_status_candidate",
 		},
 	}, policy)
 
 	if plan == nil {
-		t.Fatal("expected workflow plan")
+		t.Fatal("expected planner to emit capability preplan")
 	}
 	if plan.WorkflowMode != WorkflowModeMultiStep {
 		t.Fatalf("workflow mode = %q, want multi_step", plan.WorkflowMode)
 	}
-	handoffs := plan.Handoffs()
-	if len(handoffs) != 3 {
-		t.Fatalf("handoff count = %d, want 3", len(handoffs))
+	if handoff := plan.SelectedHandoff(); handoff != nil {
+		t.Fatalf("capability preplan must not bake selected handoff: %#v", handoff)
 	}
-	if handoffs[0].Target != "campus-services-agent" ||
-		handoffs[0].PayloadKind != "transport_schedule_lookup" {
-		t.Fatalf("first handoff = %#v, want transport schedule", handoffs[0])
+	if handoffs := plan.Handoffs(); len(handoffs) != 0 {
+		t.Fatalf("capability preplan handoffs = %#v, want none", handoffs)
 	}
-	if len(handoffs[0].AllowedTools) != 1 || handoffs[0].AllowedTools[0] != "transport_schedule_lookup" {
-		t.Fatalf("first handoff allowed tools = %#v, want transport_schedule_lookup", handoffs[0].AllowedTools)
+	capabilityPlan := plan.CapabilityPlan()
+	if capabilityPlan == nil {
+		t.Fatal("expected internal capability plan")
 	}
-	if handoffs[1].Target != "notice-agent" || handoffs[1].PayloadKind != "campus_notice_get" {
-		t.Fatalf("second handoff = %#v, want notice get", handoffs[1])
-	}
-	if handoffs[1].Payload["notice_id"] != "notice:transport:355122" {
-		t.Fatalf("second handoff notice_id = %#v", handoffs[1].Payload["notice_id"])
-	}
-	if handoffs[2].Target != "rag-agent" || handoffs[2].PayloadKind != "rag_request" {
-		t.Fatalf("third handoff = %#v, want rag request", handoffs[2])
-	}
-	if !plan.ResumePolicy.ResumeSupported {
-		t.Fatal("multi-step pilot plan must declare resume support")
-	}
-	projection := plan.Map()
-	steps, ok := projection["steps"].([]map[string]any)
-	if !ok || len(steps) != 3 {
-		t.Fatalf("projection steps = %#v, want three steps", projection["steps"])
-	}
-	edges, ok := projection["edges"].([]map[string]any)
-	if !ok || len(edges) != 2 {
-		t.Fatalf("projection edges = %#v, want two edges", projection["edges"])
-	}
-	if edges[0]["required_projection_kind"] != "schedule_baseline" {
-		t.Fatalf(
-			"first edge required projection = %#v, want schedule_baseline",
-			edges[0]["required_projection_kind"],
-		)
-	}
-	if edges[1]["required_projection_kind"] != "notice_context" {
-		t.Fatalf(
-			"second edge required projection = %#v, want notice_context",
-			edges[1]["required_projection_kind"],
-		)
+	if !sameCapabilityArtifacts(
+		capabilityPlan.RequiredArtifacts,
+		[]string{"schedule_baseline", "notice_change_set", "evidence_bundle", "grounding_verdict"},
+	) {
+		t.Fatalf("required artifacts = %#v", capabilityPlan.RequiredArtifacts)
 	}
 }
 
@@ -1141,14 +1282,12 @@ func TestValidateWorkflowPlanWithAgentSpecRejectsInactiveAgent(t *testing.T) {
 				ID:                            "navigation-agent",
 				Capability:                    "place_lookup",
 				OwnerPackage:                  "packages/navigation-agent",
-				RuntimeAdapter:                "python_delegate",
+				RuntimeAdapter:                "worker_dispatch",
 				Active:                        false,
 				OpeningGate:                   "closed",
 				PayloadKinds:                  []string{"place_lookup"},
 				AllowedStructuredHandoffTools: []string{},
 				ContextProjectionKinds:        []string{"place_context"},
-				DelegateModule:                "campus_navigation_agent",
-				DelegateSymbol:                "delegate_to_navigation_agent",
 				Description:                   "fixture",
 			},
 		},

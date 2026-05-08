@@ -50,6 +50,9 @@ func resolveContextFollowUp(context Context, normalizedGoal string, policy Inten
 		if context.SelectedNoticeRef.Title != "" {
 			resolvedSlots["notice_title"] = context.SelectedNoticeRef.Title
 		}
+		if context.SelectedNoticeRef.TargetSurface != "" {
+			resolvedSlots["notice_target_surface"] = context.SelectedNoticeRef.TargetSurface
+		}
 		return ContextPreflight{
 			State:         "resolved",
 			ReferenceType: "selected_notice",

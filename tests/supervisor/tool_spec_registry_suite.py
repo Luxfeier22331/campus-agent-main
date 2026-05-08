@@ -7,6 +7,7 @@ from campus_contracts import (
     RagRequestPayload,
     ServiceStatusLookupPayload,
 )
+from campus_rag_agent.rag_sdk_models import RagSdkRetrieveEvidenceArguments
 from campus_supervisor_agent_worker.tool_spec_registry import load_tool_spec_registry
 
 
@@ -38,6 +39,27 @@ class ToolSpecRegistryTest(unittest.TestCase):
         )
         self.assertEqual(registry.structured_tool_names_for_target("rag-agent"), ())
 
+    def test_rag_sdk_retrieve_evidence_is_internal_sdk_function_only(self) -> None:
+        registry = load_tool_spec_registry()
+        retrieve_evidence = registry.tool_by_name("retrieve_evidence")
+
+        self.assertIsNotNone(retrieve_evidence)
+        assert retrieve_evidence is not None
+        self.assertEqual(retrieve_evidence.owner_agent, "rag-agent")
+        self.assertEqual(retrieve_evidence.surface, "agent_internal")
+        self.assertTrue(retrieve_evidence.function_schema.available)
+        self.assertTrue(retrieve_evidence.function_schema.strict)
+        self.assertEqual(retrieve_evidence.runtime_posture, "sdk_internal_admitted")
+        self.assertIs(
+            registry.payload_class_for_tool("retrieve_evidence"),
+            RagSdkRetrieveEvidenceArguments,
+        )
+        self.assertEqual(
+            registry.expected_allowed_tools_for_payload("rag-agent", RagRequestPayload()),
+            (),
+        )
+        self.assertEqual(registry.structured_tool_names_for_target("rag-agent"), ())
+
     def test_notice_get_is_not_agent_facing_provider_tool(self) -> None:
         registry = load_tool_spec_registry()
         notice_get = registry.tool_by_name("campus_notice_get")
@@ -52,7 +74,8 @@ class ToolSpecRegistryTest(unittest.TestCase):
         self.assertFalse(notice_get.function_schema.available)
         self.assertEqual(notice_get.runtime_posture, "closed")
         self.assertEqual(
-            registry.structured_tool_names_for_target("notice-agent"), ("campus_notice_discover",)
+            registry.structured_tool_names_for_target("notice-agent"),
+            ("campus_notice_change_set_lookup", "campus_notice_discover"),
         )
         self.assertTrue(service_status.function_schema.available)
         self.assertEqual(service_status.runtime_posture, "sdk_adapter_admitted")

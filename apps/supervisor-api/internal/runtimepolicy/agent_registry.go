@@ -30,8 +30,6 @@ type AgentSpec struct {
 	PayloadKinds                 []string `json:"payload_kinds"`
 	AllowedStructuredHandoffTools []string `json:"allowed_structured_handoff_tools"`
 	ContextProjectionKinds       []string `json:"context_projection_kinds"`
-	DelegateModule               string   `json:"delegate_module"`
-	DelegateSymbol               string   `json:"delegate_symbol"`
 	Description                  string   `json:"description"`
 }
 
@@ -115,7 +113,7 @@ func (a AgentSpec) Validate() error {
 	if strings.TrimSpace(a.OwnerPackage) == "" {
 		return fmt.Errorf("%s owner_package must not be empty", a.ID)
 	}
-	if a.RuntimeAdapter != "python_delegate" {
+	if a.RuntimeAdapter != "worker_dispatch" {
 		return fmt.Errorf("%s runtime_adapter is unsupported: %s", a.ID, a.RuntimeAdapter)
 	}
 	if a.OpeningGate != "open" && a.OpeningGate != "closed" {

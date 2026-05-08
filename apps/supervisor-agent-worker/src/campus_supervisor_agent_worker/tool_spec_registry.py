@@ -68,6 +68,16 @@ class ToolSpecRegistry:
             tool for tool in self.structured_handoff_tools() if tool.function_schema.available
         )
 
+    def sdk_internal_function_tools(self) -> tuple[ToolSpec, ...]:
+        return tuple(
+            tool
+            for tool in self.tools
+            if tool.active
+            and tool.surface == "agent_internal"
+            and tool.runtime_posture == "sdk_internal_admitted"
+            and tool.function_schema.available
+        )
+
     def payload_class_for_tool(self, name: str) -> type[object]:
         tool = self.tool_by_name(name)
         if tool is None:
@@ -163,9 +173,16 @@ def _validate_tools(tools: tuple[ToolSpec, ...]) -> None:
         seen.add(tool.name)
         _resolve_class(tool.payload_schema_ref)
         _resolve_class(tool.result_schema_ref)
-        if tool.function_schema.available and tool.surface != "structured_handoff":
+        if (
+            tool.function_schema.available
+            and tool.surface != "structured_handoff"
+            and (
+                tool.surface != "agent_internal" or tool.runtime_posture != "sdk_internal_admitted"
+            )
+        ):
             raise ToolSpecRegistryError(
-                f"{tool.name} function_schema can only be available for structured_handoff"
+                f"{tool.name} function_schema can only be available for "
+                "structured_handoff or sdk_internal_admitted agent_internal tools"
             )
         if tool.function_schema.available and not tool.function_schema.strict:
             raise ToolSpecRegistryError(
@@ -181,9 +198,14 @@ def _validate_tools(tools: tuple[ToolSpec, ...]) -> None:
             "provider_loop_open",
             "sdk_adapter_candidate",
             "sdk_adapter_admitted",
+            "sdk_internal_admitted",
         }:
             raise ToolSpecRegistryError(
                 f"{tool.name} runtime_posture is unsupported: {tool.runtime_posture}"
+            )
+        if tool.runtime_posture == "sdk_internal_admitted" and tool.surface != "agent_internal":
+            raise ToolSpecRegistryError(
+                f"{tool.name} sdk_internal_admitted posture requires agent_internal surface"
             )
         if (
             tool.runtime_posture.startswith(("provider_", "sdk_"))

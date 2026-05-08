@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-05-02
+updated: 2026-05-07
 ---
 # 当前架构
 
@@ -190,7 +190,11 @@ document/index release`
   可执行首条真实 `multi_step` path：selected notice context + knowledge follow-through
   触发 notice-agent internal selected notice resolve
   (`payload_kind=campus_notice_get`) -> `rag-agent retrieval.query`，并将 notice
-  step 输出以 bounded internal workflow context projection 传给 RAG step
+  step 输出以 bounded internal workflow context projection 传给 RAG step。该 path 现已
+  改为 planner 输出 internal `CapabilityPlan`，再由 artifact-registry resolver 编译
+  `WorkflowPlan`；planner 不再手写 notice -> rag 固定 step shell。Go finalizer 同时在
+  `workflow_trace_summary` 中记录 `answer_artifact_projection_ids` 与
+  `answer_artifact_kinds`，用于证明最终答复使用了哪些 bounded artifact
 - 拥有 deterministic runtime policy；当前实现位于
   `apps/supervisor-api/internal/runtimepolicy`，负责 product scope gate、
   approval / reject gate、context follow-up preflight、query-enabled scope

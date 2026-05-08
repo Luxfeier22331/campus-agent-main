@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from campus_contracts import (
     AcademicCalendarLookupPayload,
+    CampusNoticeChangeSetLookupPayload,
     CampusNoticeDiscoverPayload,
     CampusNoticeGetPayload,
     ContactDirectoryEntitySelector,
@@ -35,6 +36,7 @@ AgentPayload = (
     | ContactDirectoryLookupPayload
     | AcademicCalendarLookupPayload
     | CampusNoticeDiscoverPayload
+    | CampusNoticeChangeSetLookupPayload
     | CampusNoticeGetPayload
     | RagRequestPayload
 )
@@ -130,6 +132,32 @@ def parse_agent_payload_by_kind(payload_kind: str, payload: dict[str, object]) -
                 field_name="target_surfaces",
             ),
             max_results=parse_optional_int(payload.get("max_results")) or 5,
+        )
+    if payload_kind == "campus_notice_change_set_lookup":
+        return CampusNoticeChangeSetLookupPayload(
+            query_text=require_string(payload.get("query_text"), field_name="query_text"),
+            route_labels=parse_string_tuple(
+                payload.get("route_labels"),
+                field_name="route_labels",
+            ),
+            direction_labels=parse_string_tuple(
+                payload.get("direction_labels"),
+                field_name="direction_labels",
+            ),
+            stop_labels=parse_string_tuple(
+                payload.get("stop_labels"),
+                field_name="stop_labels",
+            ),
+            service_date=parse_optional_string(
+                payload.get("service_date"),
+                field_name="service_date",
+            )
+            or "",
+            query_time_anchor=parse_optional_string(
+                payload.get("query_time_anchor"),
+                field_name="query_time_anchor",
+            )
+            or "",
         )
     if payload_kind == "campus_notice_get":
         return CampusNoticeGetPayload(

@@ -1260,6 +1260,61 @@ func TestLookupServiceGuideResolvesAcademicCalendarProcedure(t *testing.T) {
 	}
 }
 
+func TestLookupServiceGuideResolvesAcademicCalendarEntryURL(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideITAdditionalTargetsProjectionFixture(),
+		"2026-05-04T12:00:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"校历在哪里看",
+		"guide_focus":"entry",
+		"temporal_query":{"mode":"current"},
+		"audience":"unknown"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ResolvedService == nil || result.ResolvedService.ServiceID != "service:official_web:academic-calendar-guide" {
+		t.Fatalf("resolved_service = %#v", result.ResolvedService)
+	}
+	if len(result.EntryRefs) != 1 {
+		t.Fatalf("entry_refs = %#v, want 1", result.EntryRefs)
+	}
+	if result.EntryRefs[0].URL != "https://www.muc.edu.cn/ggfw/mdxl.htm" {
+		t.Fatalf("entry_refs = %#v", result.EntryRefs)
+	}
+}
+
+func TestLookupServiceGuideFailsClosedWhenEntryURLIsRequestedButUnavailable(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideITAdditionalTargetsProjectionFixture(),
+		"2026-05-04T12:00:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"办公电话查询链接是什么",
+		"guide_focus":"entry",
+		"temporal_query":{"mode":"current"},
+		"audience":"unknown"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "field_not_provided_by_source" {
+		t.Fatalf("fail_close_reason = %q, want field_not_provided_by_source", result.FailCloseReason)
+	}
+	if result.FieldStatus["service_entry"] != "source_not_provided" {
+		t.Fatalf("field_status = %#v", result.FieldStatus)
+	}
+}
+
 func TestLookupServiceGuideResolvesNetworkAccountEntry(t *testing.T) {
 	runtime := newRuntimeWithServiceGuideReadModel(
 		t,

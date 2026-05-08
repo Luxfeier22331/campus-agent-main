@@ -32,6 +32,12 @@ from .service_versioning_response import (
     _build_compare_support_incomplete_response,
     _build_version_aware_completed_response,
 )
+from .workflow_projection_grounding import (
+    build_workflow_projection_answer_text,
+    mark_workflow_projection_summaries_as_grounding_evidence,
+    maybe_build_unscoped_workflow_projection_response,
+    maybe_build_workflow_projection_evidence,
+)
 
 Retriever = Callable[..., object]
 RetrievalObservationSink = Callable[[dict[str, object]], None]
@@ -77,6 +83,12 @@ def _build_rag_agent_response(
     pipeline = build_rag_pipeline_context(request, prompt_executor=prompt_executor)
     effective_scope = pipeline.effective_scope
     if effective_scope is None:
+        workflow_projection_response = maybe_build_unscoped_workflow_projection_response(
+            request=request,
+            build_rag_result_payload=_build_rag_result_payload,
+        )
+        if workflow_projection_response is not None:
+            return workflow_projection_response
         return AgentResponse(
             target="rag-agent",
             status="needs_clarification",
@@ -151,6 +163,18 @@ def _build_rag_agent_response(
         return retrieval_stage.response
     evidence = retrieval_stage.evidence
     retrieval_execution_result = retrieval_stage.retrieval_execution_result
+    projection_evidence = maybe_build_workflow_projection_evidence(
+        request=request,
+        scope=effective_scope,
+        existing_evidence=evidence,
+    )
+    if projection_evidence is not None:
+        evidence = projection_evidence
+        retrieval_execution_result = None
+        projection_context_summaries = mark_workflow_projection_summaries_as_grounding_evidence(
+            projection_context_summaries,
+            evidence,
+        )
 
     version_answer_context = retrieval_context.version_answer_context
     outcome_context = build_outcome_context(
@@ -224,6 +248,37 @@ def _build_rag_agent_response(
         )
 
     confidence = evidence_selection_stage.confidence
+    if confidence == "low":
+        if projection_evidence is not None:
+            confidence = "medium"
+        else:
+            return build_low_confidence_no_answer_response(
+                outcome_context,
+                supporting_evidence=supporting_evidence,
+            )
+    if projection_evidence is not None:
+        return AgentResponse(
+            target="rag-agent",
+            status="completed",
+            answer_text=build_workflow_projection_answer_text(projection_evidence),
+            confidence=confidence,
+            result=_build_rag_result_payload(
+                evidence=projection_evidence,
+                retrieved_evidence=evidence,
+                retrieval_execution_result=retrieval_execution_result,
+                resolved_scope=effective_scope,
+                handbook_plan=handbook_plan,
+                curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
+                request_id=request.request_id,
+                allow_session_follow_up=True,
+                semantic_outcome="grounded_workflow_projection",
+                grounding_verdict="grounded",
+                planner_information_needs=planner_information_needs,
+                projection_context_summaries=projection_context_summaries,
+            ),
+        )
     if confidence == "low":
         return build_low_confidence_no_answer_response(
             outcome_context,

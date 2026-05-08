@@ -254,6 +254,8 @@ func (s *Server) ServeHTTP(response http.ResponseWriter, request *http.Request) 
 		s.handleStructuredQuery(writer, request, structuredquery.ToolAcademicCalendarLookup)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/discover":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeDiscover)
+	case request.Method == http.MethodPost && path == "/internal/query/notices/change-set":
+		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeChangeSet)
 	case request.Method == http.MethodPost && path == "/internal/query/notices/get":
 		s.handleStructuredQuery(writer, request, structuredquery.ToolCampusNoticeGet)
 	default:

@@ -84,13 +84,13 @@ func serviceGuideFocusNotProvidedBySource(record serviceGuideRecord, focus strin
 }
 
 func serviceGuideMissingRequestedField(record serviceGuideRecord, request serviceGuideRequest) string {
-	if request.GuideFocus != "contact" && request.GuideFocus != "office_hours" {
-		return ""
-	}
 	for _, fieldName := range serviceGuideRequestedFieldNames(request) {
 		if strings.TrimSpace(record.FieldStatus[fieldName]) == "source_not_provided" {
 			return fieldName
 		}
+	}
+	if request.GuideFocus == "entry" && serviceGuideEntryRequiresURL(request.ServiceQuery) && !serviceGuideHasEntryURL(record) {
+		return "service_entry"
 	}
 	return ""
 }
@@ -118,9 +118,32 @@ func serviceGuideRequestedFieldNames(request serviceGuideRequest) []string {
 			fields = append(fields, "office_hours")
 		}
 		return fields
+	case "entry":
+		if serviceGuideEntryRequiresURL(query) {
+			return []string{"service_entry"}
+		}
+		return nil
 	default:
 		return nil
 	}
+}
+
+func serviceGuideEntryRequiresURL(query string) bool {
+	normalized := normalizeSearchText(query)
+	return strings.Contains(normalized, "链接") ||
+		strings.Contains(normalized, "网址") ||
+		strings.Contains(normalized, "网站") ||
+		strings.Contains(normalized, "url") ||
+		strings.Contains(normalized, "登录")
+}
+
+func serviceGuideHasEntryURL(record serviceGuideRecord) bool {
+	for _, entry := range record.EntryRefs {
+		if strings.TrimSpace(entry.URL) != "" {
+			return true
+		}
+	}
+	return false
 }
 
 func serviceGuideFocusFieldNames(focus string) []string {
@@ -493,13 +516,20 @@ func failClosedServiceGuideForRecord(
 	timeAnchor string,
 	reason string,
 ) Response {
+	fieldStatus := normalizedFieldStatus(record.FieldStatus)
+	if request.GuideFocus == "entry" && serviceGuideEntryRequiresURL(request.ServiceQuery) && !serviceGuideHasEntryURL(record) {
+		if fieldStatus == nil {
+			fieldStatus = map[string]string{}
+		}
+		fieldStatus["service_entry"] = "source_not_provided"
+	}
 	body := serviceGuideResult{
 		ServiceQuery:      request.ServiceQuery,
 		GuideFocus:        request.GuideFocus,
 		Outcome:           "temporarily_unverifiable",
 		QueriedTimeAnchor: timeAnchor,
 		FailCloseReason:   reason,
-		FieldStatus:       normalizedFieldStatus(record.FieldStatus),
+		FieldStatus:       fieldStatus,
 	}
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 }

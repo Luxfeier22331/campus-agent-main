@@ -32,9 +32,10 @@ type VersionQuery struct {
 }
 
 type SelectedNoticeRef struct {
-	NoticeID     string
-	SourceFamily string
-	Title        string
+	NoticeID      string
+	SourceFamily  string
+	Title         string
+	TargetSurface string
 }
 
 type Handoff struct {
@@ -50,6 +51,12 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 		return nil
 	}
 	if request.EffectiveCapability == "campus_services" {
+		if isTransportNoticeOverrideQuestion(normalizedGoal, request, policy) {
+			return MultiStepCapabilityPreplan(
+				"plan:capability_preplan:campus_services:transport_notice_override",
+				transportNoticeOverrideCapabilityPlan(request),
+			)
+		}
 		serviceGuideFocus := classifyServiceGuideFocus(normalizedGoal, policy)
 		if runtimepolicy.IsAcademicCalendarFactQueryForPlanning(normalizedGoal, policy) {
 			return SingleHandoffPlan(Handoff{
@@ -85,34 +92,6 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 			})
 		}
 		if containsAny(normalizedGoal, policy.Signals("structured_transport")) {
-			if isTransportNoticeKnowledgePilot(normalizedGoal, request, policy) {
-				noticePayload := map[string]any{
-					"notice_id": request.SelectedNoticeRef.NoticeID,
-				}
-				if request.SelectedNoticeRef.SourceFamily != "" {
-					noticePayload["source_family"] = request.SelectedNoticeRef.SourceFamily
-				}
-				return MultiStepTransportNoticeKnowledgePilotPlan(
-					Handoff{
-						Target:       "campus-services-agent",
-						PayloadKind:  "transport_schedule_lookup",
-						Payload:      transportSchedulePayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
-						AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "transport_schedule_lookup"),
-					},
-					Handoff{
-						Target:       "notice-agent",
-						PayloadKind:  "campus_notice_get",
-						Payload:      noticePayload,
-						AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("notice-agent", "campus_notice_get"),
-					},
-					Handoff{
-						Target:       "rag-agent",
-						PayloadKind:  "rag_request",
-						Payload:      ragRequestPayload(request),
-						AllowedTools: runtimepolicy.AllowedToolsForTarget("rag-agent"),
-					},
-				)
-			}
 			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
 				PayloadKind:  "transport_schedule_lookup",
@@ -174,25 +153,9 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 	}
 	if request.EffectiveCapability == "knowledge" {
 		if isNoticeKnowledgeFollowthrough(normalizedGoal, request, policy) {
-			noticePayload := map[string]any{
-				"notice_id": request.SelectedNoticeRef.NoticeID,
-			}
-			if request.SelectedNoticeRef.SourceFamily != "" {
-				noticePayload["source_family"] = request.SelectedNoticeRef.SourceFamily
-			}
-			return MultiStepNoticeKnowledgeFollowthroughPlan(
-				Handoff{
-					Target:       "notice-agent",
-					PayloadKind:  "campus_notice_get",
-					Payload:      noticePayload,
-					AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("notice-agent", "campus_notice_get"),
-				},
-				Handoff{
-					Target:       "rag-agent",
-					PayloadKind:  "rag_request",
-					Payload:      ragRequestPayload(request),
-					AllowedTools: runtimepolicy.AllowedToolsForTarget("rag-agent"),
-				},
+			return MultiStepCapabilityPreplan(
+				"plan:capability_preplan:knowledge:selected_notice_followthrough",
+				selectedNoticeKnowledgeFollowthroughCapabilityPlan(request),
 			)
 		}
 		return SingleHandoffPlan(Handoff{
@@ -297,22 +260,18 @@ func isNoticeKnowledgeFollowthrough(
 	return request.MultiStepWorkflowEnabled &&
 		request.HasRequestedScope &&
 		request.SelectedNoticeRef.NoticeID != "" &&
+		isEligibleNoticeKnowledgeFollowthroughTargetSurface(request.SelectedNoticeRef.TargetSurface) &&
 		containsAny(normalizedGoal, policy.Signals("notice_get_reference")) &&
 		containsAny(normalizedGoal, policy.Signals("notice_knowledge_followthrough"))
 }
 
-func isTransportNoticeKnowledgePilot(
-	normalizedGoal string,
-	request Request,
-	policy runtimepolicy.IntentPolicyArtifact,
-) bool {
-	return request.MultiStepWorkflowEnabled &&
-		request.HasRequestedScope &&
-		request.RequestedScope.Corpus == "regulations" &&
-		request.RequestedScope.Collection == "student_rules" &&
-		request.SelectedNoticeRef.NoticeID != "" &&
-		containsAny(normalizedGoal, policy.Signals("structured_transport")) &&
-		containsAny(normalizedGoal, policy.Signals("notice_knowledge_followthrough"))
+func isEligibleNoticeKnowledgeFollowthroughTargetSurface(targetSurface string) bool {
+	switch targetSurface {
+	case "regulations/student_rules", "regulations/institutional_rules", "regulations/scoped_rules":
+		return true
+	default:
+		return false
+	}
 }
 
 func isDelegatedTransactionAction(
@@ -628,9 +587,15 @@ func shouldPreferServiceGuideOverContactDirectory(
 	normalizedGoal string,
 	policy runtimepolicy.IntentPolicyArtifact,
 ) bool {
-	return containsAny(normalizedGoal, policy.Signals("structured_service_guide_subject")) &&
-		containsAny(normalizedGoal, policy.Signals("structured_service_guide_action")) &&
-		containsAny(normalizedGoal, policy.Signals("service_guide_focus_entry"))
+	if !containsAny(normalizedGoal, policy.Signals("structured_service_guide_subject")) ||
+		!containsAny(normalizedGoal, policy.Signals("structured_service_guide_action")) {
+		return false
+	}
+	serviceGuideFocus := classifyServiceGuideFocus(normalizedGoal, policy)
+	if serviceGuideFocus == "entry" {
+		return true
+	}
+	return serviceGuideFocus == "contact" && strings.Contains(normalizedGoal, "申请")
 }
 
 func isTransportBoardingStatusLookup(
@@ -649,6 +614,81 @@ func isTransportServiceGuideLookup(
 		containsAny(normalizedGoal, policy.Signals("structured_transport_service_guide_action"))
 }
 
+func isTransportNoticeOverrideQuestion(
+	normalizedGoal string,
+	request Request,
+	policy runtimepolicy.IntentPolicyArtifact,
+) bool {
+	return request.MultiStepWorkflowEnabled &&
+		request.SelectedNoticeRef.NoticeID != "" &&
+		request.SelectedNoticeRef.TargetSurface == "campus_services/service_status_candidate" &&
+		containsAny(normalizedGoal, policy.Signals("structured_transport")) &&
+		(containsAny(normalizedGoal, []string{"调整", "变更", "临时", "通知"}) ||
+			containsAny(normalizedGoal, policy.Signals("structured_transport_boarding_status")))
+}
+
+func transportRouteLabelsForCapabilityPlan(request Request) []string {
+	title := strings.TrimSpace(request.SelectedNoticeRef.Title)
+	if title == "" {
+		return nil
+	}
+	for _, candidate := range []string{
+		"两校区学生通勤班车",
+		"两校区教师通勤班车",
+		"地铁接驳车",
+		"丰台到海淀通勤车",
+		"海淀到丰台通勤车",
+	} {
+		if strings.Contains(title, candidate) || strings.Contains(request.UserGoal, candidate) {
+			return []string{candidate}
+		}
+	}
+	return nil
+}
+
+func transportDirectionLabelsForCapabilityPlan(request Request) []string {
+	goal := request.UserGoal
+	switch {
+	case strings.Contains(goal, "丰台到海淀"):
+		return []string{"丰台到海淀"}
+	case strings.Contains(goal, "海淀到丰台"):
+		return []string{"海淀到丰台"}
+	default:
+		return nil
+	}
+}
+
+func transportStopLabelsForCapabilityPlan(request Request) []string {
+	labels := []string{}
+	for _, candidate := range []string{"乘车点", "南门", "北门", "东门", "西门"} {
+		if strings.Contains(request.UserGoal, candidate) || strings.Contains(request.SelectedNoticeRef.Title, candidate) {
+			labels = append(labels, candidate)
+		}
+	}
+	if len(labels) == 0 {
+		return nil
+	}
+	return labels
+}
+
+func transportServiceDateForCapabilityPlan(request Request) string {
+	date := isoDatePattern.FindString(request.UserGoal)
+	if date != "" {
+		return date
+	}
+	return ""
+}
+
+func transportQueryTimeAnchorForCapabilityPlan(request Request) string {
+	if strings.Contains(request.UserGoal, "今天") {
+		return "today"
+	}
+	if strings.Contains(request.UserGoal, "明天") {
+		return "tomorrow"
+	}
+	return ""
+}
+
 func classifyServiceGuideFocus(
 	normalizedGoal string,
 	policy runtimepolicy.IntentPolicyArtifact,
@@ -656,14 +696,18 @@ func classifyServiceGuideFocus(
 	if runtimepolicyDirectoryLookupGuideQuery(normalizedGoal) {
 		return "procedure"
 	}
-	if isAcademicCalendarGuideQuery(normalizedGoal) {
-		return "procedure"
+	if isAcademicCalendarEntryQuery(normalizedGoal, policy) ||
+		isLoginEntryQuery(normalizedGoal) {
+		return "entry"
 	}
 	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_required_materials")) {
 		return "required_materials"
 	}
 	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_entry")) {
 		return "entry"
+	}
+	if isAcademicCalendarGuideQuery(normalizedGoal) {
+		return "procedure"
 	}
 	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_office_hours")) {
 		return "office_hours"
@@ -675,13 +719,69 @@ func classifyServiceGuideFocus(
 		strings.Contains(normalizedGoal, "哪些人能办") ||
 		strings.Contains(normalizedGoal, "哪些人可以办") ||
 		strings.Contains(normalizedGoal, "什么人能办") ||
-		strings.Contains(normalizedGoal, "谁可以办") {
+		strings.Contains(normalizedGoal, "谁可以办") ||
+		strings.Contains(normalizedGoal, "哪些学生能享受") ||
+		strings.Contains(normalizedGoal, "能享受") {
 		return "eligibility"
 	}
-	if containsAny(normalizedGoal, policy.Signals("service_guide_focus_full_guide")) {
+	if isStaffCampusCardLossGuideQuery(normalizedGoal) ||
+		isBroadServiceGuideQuery(normalizedGoal) {
 		return "full_guide"
 	}
 	return "procedure"
+}
+
+func isAcademicCalendarEntryQuery(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) bool {
+	if !strings.Contains(normalizedGoal, "校历") {
+		return false
+	}
+	return containsAny(normalizedGoal, policy.Signals("service_guide_focus_entry")) ||
+		strings.Contains(normalizedGoal, "在哪里看") ||
+		strings.Contains(normalizedGoal, "在哪看") ||
+		strings.Contains(normalizedGoal, "在哪儿看") ||
+		strings.Contains(normalizedGoal, "网址") ||
+		strings.Contains(normalizedGoal, "链接")
+}
+
+func isLoginEntryQuery(normalizedGoal string) bool {
+	return strings.Contains(normalizedGoal, "登录") &&
+		(strings.Contains(normalizedGoal, "去哪里") ||
+			strings.Contains(normalizedGoal, "在哪里") ||
+			strings.Contains(normalizedGoal, "在哪") ||
+			strings.Contains(normalizedGoal, "哪儿") ||
+			strings.Contains(normalizedGoal, "入口"))
+}
+
+func isBroadServiceGuideQuery(normalizedGoal string) bool {
+	for _, signal := range []string{
+		"有哪些内容",
+		"有什么内容",
+		"哪些内容",
+		"全部",
+		"完整",
+		"乘车规则",
+		"乘车说明",
+		"规则",
+		"说明",
+	} {
+		if strings.Contains(normalizedGoal, signal) {
+			return true
+		}
+	}
+	return false
+}
+
+func isStaffCampusCardLossGuideQuery(normalizedGoal string) bool {
+	if !(strings.Contains(normalizedGoal, "教职工") || strings.Contains(normalizedGoal, "教工卡")) {
+		return false
+	}
+	return strings.Contains(normalizedGoal, "校园卡") &&
+		(strings.Contains(normalizedGoal, "丢了") ||
+			strings.Contains(normalizedGoal, "遗失") ||
+			strings.Contains(normalizedGoal, "挂失"))
 }
 
 func classifyContactDirectoryFocus(
@@ -739,7 +839,9 @@ func isAcademicCalendarGuideQuery(normalizedGoal string) bool {
 		strings.Contains(normalizedGoal, "在哪看") ||
 		strings.Contains(normalizedGoal, "在哪儿看") ||
 		strings.Contains(normalizedGoal, "怎么查") ||
-		strings.Contains(normalizedGoal, "如何查")
+		strings.Contains(normalizedGoal, "如何查") ||
+		strings.Contains(normalizedGoal, "网址") ||
+		strings.Contains(normalizedGoal, "链接")
 }
 
 func defaultString(value string, fallback string) string {

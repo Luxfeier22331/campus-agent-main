@@ -6,7 +6,9 @@ from pathlib import Path
 
 from campus_supervisor_agent_worker.tool_function_schema import (
     generate_provider_function_schemas,
+    provider_function_schema_for_tool,
 )
+from campus_supervisor_agent_worker.tool_spec_registry import load_tool_spec_registry
 
 
 class ToolFunctionSchemaTest(unittest.TestCase):
@@ -21,6 +23,7 @@ class ToolFunctionSchemaTest(unittest.TestCase):
                 "transport_schedule_lookup",
                 "contact_directory_lookup",
                 "academic_calendar_lookup",
+                "campus_notice_change_set_lookup",
                 "campus_notice_discover",
             ),
         )
@@ -35,6 +38,7 @@ class ToolFunctionSchemaTest(unittest.TestCase):
         schemas = generate_provider_function_schemas()
 
         self.assertNotIn("retrieval.query", {schema["name"] for schema in schemas})
+        self.assertNotIn("retrieve_evidence", {schema["name"] for schema in schemas})
 
     def test_preserves_contract_enums_and_nested_strict_objects(self) -> None:
         schemas = {schema["name"]: schema for schema in generate_provider_function_schemas()}
@@ -54,6 +58,7 @@ class ToolFunctionSchemaTest(unittest.TestCase):
         )
         academic_calendar = schemas["academic_calendar_lookup"]["parameters"]["properties"]
         self.assertIn("query_kind", academic_calendar)
+        self.assertIn("answer_focus", academic_calendar)
         self.assertIn("event_query", academic_calendar)
         self.assertIn("target_date", academic_calendar)
         self.assertEqual(academic_calendar["query_kind"]["type"], "string")
@@ -63,6 +68,23 @@ class ToolFunctionSchemaTest(unittest.TestCase):
         schemas = {schema["name"]: schema for schema in generate_provider_function_schemas()}
 
         self.assertNotIn("campus_notice_get", schemas)
+
+    def test_all_available_function_schema_tools_generate_from_payload_schema_refs(self) -> None:
+        registry = load_tool_spec_registry()
+
+        for tool in (*registry.provider_function_tools(), *registry.sdk_internal_function_tools()):
+            with self.subTest(tool=tool.name):
+                schema = provider_function_schema_for_tool(tool)
+                self.assertEqual(schema["name"], tool.name)
+                self.assertEqual(schema["parameters"]["type"], "object")
+
+    def test_no_payload_kind_switch_table_remains(self) -> None:
+        source = Path(
+            "apps/supervisor-agent-worker/src/"
+            "campus_supervisor_agent_worker/tool_function_schema.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("_parameters_for_payload_kind", source)
 
     def test_provider_function_schema_snapshot_is_stable(self) -> None:
         snapshot_path = Path("packages/evals/fixtures/provider_function_tools.v1.json")

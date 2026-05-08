@@ -7,6 +7,118 @@ import (
 	"testing"
 )
 
+func TestLookupCampusNoticeChangeSetReturnsTransportOperationalOverride(t *testing.T) {
+	store := &fakeNoticeReadModelStore{
+		searchRows: []noticeReadModelRecord{
+			{
+				SourceFamily:            "internal_notice_restricted",
+				SourceNoticeID:          "353903",
+				Title:                   "关于通勤班车丰台校区乘车点调整的通知",
+				VisibilityLevel:         "restricted",
+				EntitlementGroups:       []string{"students"},
+				PolicyProjectionVersion: "phase1-authorization-projection-v1",
+				SourceURL:               "https://portal.example.edu/notices/353903",
+				PublishedAt:             "2026-01-01T08:00:00+08:00",
+				TargetSurface:           "campus_services/service_status_candidate",
+				BodyExcerpt:             "通勤班车丰台校区乘车点调整至南门外停车区。",
+			},
+		},
+	}
+	runtime := NewRuntime(Options{
+		NoticeReadModelStore: store,
+		TransportScheduleReadModelStore: &fakeTransportScheduleReadModelStore{
+			bundle: mustProjectionBundle(t, transportProjectionFixtureWithOperationalNotice()),
+		},
+		TrustedTimeRFC3339: "2026-01-02T09:00:00+08:00",
+	})
+
+	response := runtime.LookupCampusNoticeChangeSet(context.Background(), []byte(`{
+		"payload":{
+			"query_text":"丰台到海淀通勤车今天乘车点有没有变",
+			"route_labels":["丰台到海淀通勤车"],
+			"service_date":"2026-01-02"
+		},
+		"access_context":{
+			"authorization":{
+				"principal_id":"principal-001",
+				"entitlement_groups":["students"],
+				"retrieval_filter":{
+					"entitlement_groups":["students"],
+					"visibility_level":"restricted"
+				}
+			}
+		}
+	}`))
+
+	result, ok := response.Body.(noticeChangeSetLookupResult)
+	if !ok {
+		t.Fatalf("body = %T, want noticeChangeSetLookupResult", response.Body)
+	}
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ChangeSet == nil {
+		t.Fatal("change_set = nil, want bounded change set")
+	}
+	if result.ChangeSet.ChangeKind != "stop_or_boarding_point_change" {
+		t.Fatalf("change_kind = %q", result.ChangeSet.ChangeKind)
+	}
+	if len(result.ChangeSet.Facts) != 1 {
+		t.Fatalf("facts = %#v, want one fact", result.ChangeSet.Facts)
+	}
+	if result.ChangeSet.Facts[0].SourceNoticeID != "353903" {
+		t.Fatalf("source_notice_id = %q", result.ChangeSet.Facts[0].SourceNoticeID)
+	}
+	if result.ChangeSet.SourceRefs[0].SourceURL != "https://portal.example.edu/notices/353903" {
+		t.Fatalf("source_url = %q", result.ChangeSet.SourceRefs[0].SourceURL)
+	}
+	if store.searchCount != 0 {
+		t.Fatalf("searchCount = %d, want no full-text notice search after operational notice IDs resolve", store.searchCount)
+	}
+	if store.idLookupCount != 1 {
+		t.Fatalf("idLookupCount = %d, want one selected notice ID lookup", store.idLookupCount)
+	}
+	if !equalStrings(store.idLookupNoticeIDs, []string{"353903"}) {
+		t.Fatalf("idLookupNoticeIDs = %#v, want 353903", store.idLookupNoticeIDs)
+	}
+}
+
+func TestLookupCampusNoticeChangeSetFailsClosedWhenBaselineMissing(t *testing.T) {
+	runtime := NewRuntime(Options{
+		NoticeReadModelStore: &fakeNoticeReadModelStore{},
+		TransportScheduleReadModelStore: &fakeTransportScheduleReadModelStore{
+			bundle: projectionBundle{},
+		},
+		TrustedTimeRFC3339: "2026-01-02T09:00:00+08:00",
+	})
+
+	response := runtime.LookupCampusNoticeChangeSet(context.Background(), []byte(`{
+		"payload":{
+			"query_text":"今天班车是否有临时通知",
+			"route_labels":["丰台到海淀通勤车"],
+			"service_date":"2026-01-02"
+		},
+		"access_context":{
+			"authorization":{
+				"principal_id":"principal-001",
+				"entitlement_groups":["students"],
+				"retrieval_filter":{
+					"entitlement_groups":["students"],
+					"visibility_level":"restricted"
+				}
+			}
+		}
+	}`))
+
+	result := response.Body.(noticeChangeSetLookupResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "source_truth_unavailable" {
+		t.Fatalf("fail_close_reason = %q, want source_truth_unavailable", result.FailCloseReason)
+	}
+}
+
 func TestLookupCampusNoticeDiscoverReadsRestrictedNoticeReadModel(t *testing.T) {
 	store := &fakeNoticeReadModelStore{
 		searchRows: []noticeReadModelRecord{

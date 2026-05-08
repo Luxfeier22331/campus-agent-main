@@ -6,11 +6,13 @@ from pathlib import Path
 
 from campus_contracts import (
     AgentRequest,
+    CampusNoticeChangeSetLookupPayload,
     CampusNoticeDiscoverPayload,
     ContactDirectoryLookupPayload,
     ServiceGuideLookupPayload,
     ServiceStatusLookupPayload,
     TransportScheduleLookupPayload,
+    WorkflowAgentContext,
 )
 from campus_supervisor_agent_worker.agents_sdk_runner import (
     AgentsSdkRunnerTimeoutError,
@@ -115,6 +117,8 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             "service_guide_source_backed_guidance",
         )
         self.assertIn("service guide", captured_request.instructions)
+        self.assertIn("entry_refs.url", captured_request.instructions)
+        self.assertIn("source_refs as provenance", captured_request.instructions)
         self.assertEqual(captured_request.result_usage_mode, "source_backed_guidance")
         self.assertEqual(
             captured_request.surface_execution_mode,
@@ -275,6 +279,7 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             captured_request.surface_execution_mode,
             "deterministic_lookup_sdk_finalization",
         )
+
     def test_runner_shell_passes_validated_tool_executor_to_runner(self) -> None:
         captured_execution: AgentsSdkToolExecutionRequest | None = None
 
@@ -459,6 +464,126 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
         self.assertIsNotNone(response.agent_observability)
         assert response.agent_observability is not None
         self.assertEqual(response.agent_observability.failure_class, "sdk_tool_not_executed")
+
+    def test_runner_shell_fails_closed_when_expected_output_artifact_is_missing(self) -> None:
+        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+            self.assertIsNotNone(run_request.execute_tool)
+            assert run_request.execute_tool is not None
+            run_request.execute_tool(
+                AgentsSdkToolExecutionRequest(
+                    name="transport_schedule_lookup",
+                    arguments={
+                        "query_text": "今天两校区班车几点发",
+                        "intent": "next_departure",
+                    },
+                    call_id="call-missing-artifact",
+                )
+            )
+            return AgentsSdkRunResult(
+                final_output="已找到通知。",
+                tool_calls=(
+                    AgentsSdkToolCall(
+                        name="transport_schedule_lookup",
+                        arguments={
+                            "query_text": "今天两校区班车几点发",
+                            "intent": "next_departure",
+                        },
+                        call_id="call-missing-artifact",
+                    ),
+                ),
+            )
+
+        response = run_agents_sdk_runner_shell(
+            _transport_request_with_expected_artifacts(("schedule_baseline",)),
+            runner=fake_runner,
+            enabled=True,
+            execute_tool=lambda _execution: {"outcome": "resolved_current", "source_ref_count": 1},
+            require_tool_execution=True,
+            tool_registry=_sdk_test_tool_registry(),
+        )
+
+        self.assertEqual(response.status, "error")
+        self.assertIsNotNone(response.agent_observability)
+        assert response.agent_observability is not None
+        self.assertEqual(response.agent_observability.failure_class, "sdk_artifact_incomplete")
+
+    def test_runner_shell_promotes_transport_tool_result_fields_for_supervisor_contract(
+        self,
+    ) -> None:
+        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+            self.assertIsNotNone(run_request.execute_tool)
+            assert run_request.execute_tool is not None
+            run_request.execute_tool(
+                AgentsSdkToolExecutionRequest(
+                    name="transport_schedule_lookup",
+                    arguments={
+                        "query_text": "今天两校区班车几点发",
+                        "intent": "next_departure",
+                    },
+                    call_id="call-transport-shape",
+                )
+            )
+            return AgentsSdkRunResult(
+                final_output="已找到班车班次。",
+                tool_calls=(
+                    AgentsSdkToolCall(
+                        name="transport_schedule_lookup",
+                        arguments={
+                            "query_text": "今天两校区班车几点发",
+                            "intent": "next_departure",
+                        },
+                        call_id="call-transport-shape",
+                    ),
+                ),
+            )
+
+        tool_result = {
+            "outcome": "resolved_current",
+            "query_text": "今天两校区班车几点发",
+            "service_status": "running",
+            "requested_service_date": "2026-03-18",
+            "queried_time_anchor": "2026-03-18T08:00:00+08:00",
+            "source_ref_count": 1,
+            "source_refs": ["notice:355122"],
+            "related_notice_refs": ["notice:355122"],
+            "resolved_route": {
+                "route_id": "route:intercampus:student",
+                "display_name": "两校区通勤班车",
+                "service_family": "intercampus_commute",
+            },
+            "selected_departure": {
+                "departure_at": "2026-03-18T08:00:00+08:00",
+            },
+        }
+
+        response = run_agents_sdk_runner_shell(
+            _transport_request_with_expected_artifacts(("schedule_baseline",)),
+            runner=fake_runner,
+            enabled=True,
+            execute_tool=lambda _execution: tool_result,
+            require_tool_execution=True,
+            tool_registry=_sdk_test_tool_registry(),
+        )
+
+        self.assertEqual(response.status, "completed")
+        assert isinstance(response.result, dict)
+        self.assertEqual(response.result["payload_kind"], "transport_schedule_lookup")
+        self.assertEqual(response.result["tool_result"], tool_result)
+        self.assertEqual(response.result["resolved_route"], tool_result["resolved_route"])
+        self.assertEqual(
+            response.result["selected_departure"],
+            tool_result["selected_departure"],
+        )
+        self.assertEqual(response.result["query_text"], tool_result["query_text"])
+        self.assertEqual(response.result["service_status"], tool_result["service_status"])
+        self.assertEqual(
+            response.result["requested_service_date"],
+            tool_result["requested_service_date"],
+        )
+        self.assertEqual(
+            response.result["related_notice_refs"],
+            tool_result["related_notice_refs"],
+        )
 
     def test_runner_shell_fails_closed_when_executed_arguments_drift_from_final_tool_call(
         self,
@@ -762,6 +887,140 @@ class AgentsSdkRunnerShellTest(unittest.TestCase):
             with self.subTest(fragment=fragment):
                 self.assertNotIn(fragment, source)
 
+    def test_runner_shell_projects_notice_change_set_expected_artifact(self) -> None:
+        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+            self.assertEqual(
+                run_request.instruction_profile_id,
+                "notice_change_set_transport_override",
+            )
+            assert run_request.execute_tool is not None
+            run_request.execute_tool(
+                AgentsSdkToolExecutionRequest(
+                    name="campus_notice_change_set_lookup",
+                    arguments={
+                        "query_text": "今天丰台到海淀通勤车乘车点有没有调整",
+                        "route_labels": ["丰台到海淀通勤车"],
+                        "service_date": "2026-05-07",
+                    },
+                    call_id="call-change-set-001",
+                )
+            )
+            return AgentsSdkRunResult(
+                final_output="已找到当前有效的班车通知变更。",
+                tool_calls=(
+                    AgentsSdkToolCall(
+                        name="campus_notice_change_set_lookup",
+                        arguments={
+                            "query_text": "今天丰台到海淀通勤车乘车点有没有调整",
+                            "route_labels": ["丰台到海淀通勤车"],
+                            "service_date": "2026-05-07",
+                        },
+                        call_id="call-change-set-001",
+                    ),
+                ),
+                model_response_ref="resp-change-set-001",
+            )
+
+        def execute_tool(_request: AgentsSdkToolExecutionRequest) -> dict[str, object]:
+            return {
+                "query_text": "今天丰台到海淀通勤车乘车点有没有调整",
+                "outcome": "resolved_current",
+                "change_set": {
+                    "schema_version": "notice-change-set-v1",
+                    "change_set_id": "notice-change-set:353903:2026-05-07",
+                    "target_family": "transport_schedule",
+                    "query_scope": {
+                        "service_kind": "transport_schedule",
+                        "route_labels": ["丰台到海淀通勤车"],
+                        "service_date": "2026-05-07",
+                    },
+                    "effective_window": {
+                        "starts_at": "2026-05-07T00:00:00+08:00",
+                        "timezone": "Asia/Shanghai",
+                        "current_at_query_time": True,
+                    },
+                    "change_kind": "stop_or_boarding_point_change",
+                    "answer_eligible": True,
+                    "admission_state": "answer_eligible",
+                    "content_hash": "sha256:test",
+                    "facts": [
+                        {
+                            "fact_id": "fact:353903",
+                            "fact_kind": "stop_changed",
+                            "change_text": "丰台校区乘车点调整至南门外停车区。",
+                            "source_notice_id": "353903",
+                            "source_ref_id": "notice-ref:353903",
+                            "confidence": "deterministic",
+                        }
+                    ],
+                    "source_refs": [
+                        {
+                            "source_ref_id": "notice-ref:353903",
+                            "notice_id": "353903",
+                            "title": "关于通勤班车丰台校区乘车点调整的通知",
+                            "source_url": "https://portal.example.edu/notices/353903",
+                            "published_at": "2026-05-07T08:00:00+08:00",
+                        }
+                    ],
+                    "conflicts": [],
+                    "safety_summary": {
+                        "raw_payload_absent": True,
+                        "payload_key_names": [
+                            "schema_version",
+                            "query_scope",
+                            "effective_window",
+                            "facts",
+                            "source_refs",
+                        ],
+                        "redacted": False,
+                        "notes": ["bounded_transport_notice_override"],
+                    },
+                },
+                "source_ref_count": 1,
+            }
+
+        response = run_agents_sdk_runner_shell(
+            AgentRequest(
+                target="notice-agent",
+                user_goal="今天丰台到海淀通勤车乘车点有没有调整",
+                request_id="req-sdk-change-set-001",
+                payload=CampusNoticeChangeSetLookupPayload(
+                    query_text="今天丰台到海淀通勤车乘车点有没有调整",
+                    route_labels=("丰台到海淀通勤车",),
+                    service_date="2026-05-07",
+                ),
+                allowed_tools=("campus_notice_change_set_lookup",),
+                workflow_context=WorkflowAgentContext(
+                    target="notice-agent",
+                    workflow_run_ref="workflow:req-sdk-change-set-001",
+                    step_id="handoff:notice-agent:campus_notice_change_set_lookup",
+                    agent_id="notice-agent",
+                    expected_output_artifacts=("notice_change_set",),
+                ),
+            ),
+            runner=fake_runner,
+            enabled=True,
+            execute_tool=execute_tool,
+            require_tool_execution=True,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIsNotNone(response.result)
+        assert response.result is not None
+        self.assertIn("change_set", response.result)
+        self.assertEqual(
+            response.result["change_set"]["change_set_id"],
+            "notice-change-set:353903:2026-05-07",
+        )
+        self.assertEqual(
+            response.result["change_set"]["facts"][0]["change_text"],
+            "丰台校区乘车点调整至南门外停车区。",
+        )
+        projection = response.agent_observability.safe_details["agents_sdk_trace_projection"][
+            "output_projection_ref"
+        ]
+        self.assertEqual(projection["projection_kind"], "notice_change_set")
+
 
 def _notice_discover_request() -> AgentRequest:
     return AgentRequest(
@@ -770,6 +1029,47 @@ def _notice_discover_request() -> AgentRequest:
         request_id="req-sdk-001",
         payload=CampusNoticeDiscoverPayload(query_text="春假通知"),
         allowed_tools=("campus_notice_discover",),
+    )
+
+
+def _notice_discover_request_with_expected_artifacts(
+    expected_output_artifacts: tuple[str, ...],
+) -> AgentRequest:
+    return AgentRequest(
+        target="notice-agent",
+        user_goal="找春假通知",
+        request_id="req-sdk-001",
+        payload=CampusNoticeDiscoverPayload(query_text="春假通知"),
+        allowed_tools=("campus_notice_discover",),
+        workflow_context=WorkflowAgentContext(
+            target="notice-agent",
+            workflow_run_ref="workflow:req-sdk-001",
+            step_id="handoff:notice-agent:campus_notice_discover",
+            agent_id="notice-agent",
+            expected_output_artifacts=expected_output_artifacts,
+        ),
+    )
+
+
+def _transport_request_with_expected_artifacts(
+    expected_output_artifacts: tuple[str, ...],
+) -> AgentRequest:
+    return AgentRequest(
+        target="campus-services-agent",
+        user_goal="今天两校区班车几点发",
+        request_id="req-sdk-transport-expected-001",
+        payload=TransportScheduleLookupPayload(
+            query_text="今天两校区班车几点发",
+            intent="next_departure",
+        ),
+        allowed_tools=("transport_schedule_lookup",),
+        workflow_context=WorkflowAgentContext(
+            target="campus-services-agent",
+            workflow_run_ref="workflow:req-sdk-transport-expected-001",
+            step_id="handoff:campus-services-agent:transport_schedule_lookup",
+            agent_id="campus-services-agent",
+            expected_output_artifacts=expected_output_artifacts,
+        ),
     )
 
 
@@ -873,9 +1173,7 @@ def _typed_handoff_only_tool_registry(tool_name: str) -> ToolSpecRegistry:
     return replace(
         registry,
         tools=tuple(
-            replace(tool, runtime_posture="typed_handoff_only")
-            if tool.name == tool_name
-            else tool
+            replace(tool, runtime_posture="typed_handoff_only") if tool.name == tool_name else tool
             for tool in registry.tools
         ),
     )

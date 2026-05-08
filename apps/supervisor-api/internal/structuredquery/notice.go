@@ -2,6 +2,8 @@ package structuredquery
 
 import (
 	"context"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
 	"errors"
 	"strings"
@@ -21,6 +23,10 @@ type NoticeReadModelStore interface {
 	SearchNotices(
 		ctx context.Context,
 		criteria noticeSearchCriteria,
+	) ([]noticeReadModelRecord, error)
+	GetNoticesByIDs(
+		ctx context.Context,
+		criteria noticeIDsCriteria,
 	) ([]noticeReadModelRecord, error)
 	GetNoticeByID(
 		ctx context.Context,
@@ -66,11 +72,27 @@ type noticeGetRequest struct {
 	TargetSurfaces []string `json:"target_surfaces"`
 }
 
+type noticeChangeSetLookupRequest struct {
+	QueryText       string   `json:"query_text"`
+	RouteLabels     []string `json:"route_labels"`
+	DirectionLabels []string `json:"direction_labels"`
+	StopLabels      []string `json:"stop_labels"`
+	ServiceDate     string   `json:"service_date"`
+	QueryTimeAnchor string   `json:"query_time_anchor"`
+}
+
 type noticeSearchCriteria struct {
 	SourceFamilies []string
 	QueryText      string
 	TargetSurfaces []string
 	MaxResults     int
+	Authorization  noticeReadModelAuthorizationFilter
+}
+
+type noticeIDsCriteria struct {
+	NoticeIDs      []string
+	SourceFamilies []string
+	TargetSurfaces []string
 	Authorization  noticeReadModelAuthorizationFilter
 }
 
@@ -157,6 +179,83 @@ type noticeGetResult struct {
 	ProvenanceRefs            []string            `json:"provenance_refs,omitempty"`
 	HistoricalDowngradeReason string              `json:"historical_downgrade_reason,omitempty"`
 	FailCloseReason           string              `json:"fail_close_reason,omitempty"`
+}
+
+type noticeChangeSetQueryScope struct {
+	Campus          string   `json:"campus,omitempty"`
+	ServiceKind     string   `json:"service_kind"`
+	RouteLabels     []string `json:"route_labels,omitempty"`
+	DirectionLabels []string `json:"direction_labels,omitempty"`
+	StopLabels      []string `json:"stop_labels,omitempty"`
+	QueryTimeAnchor string   `json:"query_time_anchor,omitempty"`
+	ServiceDate     string   `json:"service_date,omitempty"`
+}
+
+type noticeChangeSetEffectiveWindow struct {
+	StartsAt           string   `json:"starts_at,omitempty"`
+	EndsAt             string   `json:"ends_at,omitempty"`
+	DateSet            []string `json:"date_set,omitempty"`
+	Timezone           string   `json:"timezone"`
+	CurrentAtQueryTime bool     `json:"current_at_query_time"`
+}
+
+type noticeChangeSetSourceRef struct {
+	SourceRefID string `json:"source_ref_id"`
+	NoticeID    string `json:"notice_id"`
+	Title       string `json:"title"`
+	SourceURL   string `json:"source_url"`
+	PublishedAt string `json:"published_at"`
+	Excerpt     string `json:"excerpt,omitempty"`
+}
+
+type noticeChangeSetFact struct {
+	FactID         string            `json:"fact_id"`
+	FactKind       string            `json:"fact_kind"`
+	ChangeText     string            `json:"change_text"`
+	SourceNoticeID string            `json:"source_notice_id"`
+	SourceRefID    string            `json:"source_ref_id"`
+	RouteLabel     string            `json:"route_label,omitempty"`
+	DirectionLabel string            `json:"direction_label,omitempty"`
+	ServiceWindow  map[string]string `json:"service_window,omitempty"`
+	Confidence     string            `json:"confidence"`
+}
+
+type noticeChangeSetConflict struct {
+	ConflictID   string   `json:"conflict_id"`
+	Reason       string   `json:"reason"`
+	SourceRefIDs []string `json:"source_ref_ids"`
+	Summary      string   `json:"summary,omitempty"`
+}
+
+type noticeChangeSetSafetySummary struct {
+	RawPayloadAbsent bool     `json:"raw_payload_absent"`
+	PayloadKeyNames  []string `json:"payload_key_names,omitempty"`
+	Redacted         bool     `json:"redacted"`
+	Notes            []string `json:"notes,omitempty"`
+}
+
+type noticeChangeSet struct {
+	SchemaVersion   string                         `json:"schema_version"`
+	ChangeSetID     string                         `json:"change_set_id"`
+	TargetFamily    string                         `json:"target_family"`
+	QueryScope      noticeChangeSetQueryScope      `json:"query_scope"`
+	EffectiveWindow noticeChangeSetEffectiveWindow `json:"effective_window"`
+	ChangeKind      string                         `json:"change_kind"`
+	AnswerEligible  bool                           `json:"answer_eligible"`
+	AdmissionState  string                         `json:"admission_state"`
+	ContentHash     string                         `json:"content_hash"`
+	Facts           []noticeChangeSetFact          `json:"facts,omitempty"`
+	SourceRefs      []noticeChangeSetSourceRef     `json:"source_refs,omitempty"`
+	Conflicts       []noticeChangeSetConflict      `json:"conflicts,omitempty"`
+	SafetySummary   noticeChangeSetSafetySummary   `json:"safety_summary"`
+	FailCloseReason []string                       `json:"fail_close_reasons,omitempty"`
+}
+
+type noticeChangeSetLookupResult struct {
+	QueryText       string           `json:"query_text"`
+	Outcome         string           `json:"outcome"`
+	ChangeSet       *noticeChangeSet `json:"change_set,omitempty"`
+	FailCloseReason string           `json:"fail_close_reason,omitempty"`
 }
 
 func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte) Response {
@@ -342,6 +441,89 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 }
 
+func (r *Runtime) LookupCampusNoticeChangeSet(ctx context.Context, rawBody []byte) Response {
+	envelope, err := decodeNoticeEnvelope(rawBody)
+	if err != nil {
+		return invalidRequest("Campus notice change-set request body must be a JSON object.")
+	}
+	var request noticeChangeSetLookupRequest
+	if err := json.Unmarshal(envelope.Payload, &request); err != nil {
+		return invalidRequest("Campus notice change-set payload must be a JSON object.")
+	}
+	request.QueryText = strings.TrimSpace(request.QueryText)
+	request.ServiceDate = strings.TrimSpace(request.ServiceDate)
+	request.QueryTimeAnchor = strings.TrimSpace(request.QueryTimeAnchor)
+	request.RouteLabels = normalizeTransportScopeStrings(request.RouteLabels)
+	request.DirectionLabels = normalizeTransportScopeStrings(request.DirectionLabels)
+	request.StopLabels = normalizeTransportScopeStrings(request.StopLabels)
+	if request.QueryText == "" {
+		return invalidRequest("query_text is required.")
+	}
+	if request.ServiceDate == "" {
+		return Response{
+			StatusCode: 200,
+			Outcome:    "clarification_required",
+			Body: noticeChangeSetLookupResult{
+				QueryText: request.QueryText,
+				Outcome:   "clarification_required",
+			},
+		}
+	}
+	if r.noticeReadModelStore == nil || r.transportScheduleReadModelStore == nil {
+		return failClosedNoticeChangeSet(request.QueryText, "source_truth_unavailable")
+	}
+	authorizationFilter := noticeAuthorizationFilterForAccessContext(envelope.AccessContext)
+	bundle, err := r.loadTransportScheduleBundle(ctx)
+	if err != nil || len(bundle.TransportScheduleSnapshots) == 0 {
+		return failClosedNoticeChangeSet(request.QueryText, "source_truth_unavailable")
+	}
+	for _, route := range bundle.TransportRoutes {
+		if !transportRouteMatchesChangeSetQuery(route, request) {
+			continue
+		}
+		operationalNotices := matchingTransportOperationalNotices(
+			bundle.TransportOperationalNotices,
+			route,
+			request.ServiceDate,
+		)
+		if len(operationalNotices) == 0 {
+			continue
+		}
+		noticeIDs := transportOperationalNoticeIDs(operationalNotices)
+		rows, err := r.noticeReadModelStore.GetNoticesByIDs(
+			ctx,
+			noticeIDsCriteria{
+				NoticeIDs:      noticeIDs,
+				SourceFamilies: []string{internalNoticeRestrictedSourceFamily},
+				TargetSurfaces: []string{"campus_services/service_status_candidate"},
+				Authorization:  authorizationFilter,
+			},
+		)
+		if err != nil || !noticeReadModelRowsAuthorized(rows, authorizationFilter) {
+			return failClosedNoticeChangeSet(request.QueryText, "source_truth_unavailable")
+		}
+		if len(rows) == 0 {
+			return failClosedNoticeChangeSet(request.QueryText, "source_truth_unavailable")
+		}
+		changeSet := buildTransportNoticeChangeSet(
+			request,
+			route,
+			operationalNotices,
+			rows,
+		)
+		return Response{
+			StatusCode: 200,
+			Outcome:    "resolved_current",
+			Body: noticeChangeSetLookupResult{
+				QueryText: request.QueryText,
+				Outcome:   "resolved_current",
+				ChangeSet: &changeSet,
+			},
+		}
+	}
+	return failClosedNoticeChangeSet(request.QueryText, "source_truth_unavailable")
+}
+
 func noticePublicCardDisplayPolicy() noticeDisplayPolicy {
 	return noticeDisplayPolicy{
 		PublicSurface:     "card_only",
@@ -381,6 +563,157 @@ func normalizeNoticeTargetSurfaces(values []string) []string {
 		normalized = append(normalized, item)
 	}
 	return normalized
+}
+
+func normalizeTransportScopeStrings(values []string) []string {
+	normalized := make([]string, 0, len(values))
+	seen := map[string]bool{}
+	for _, value := range values {
+		item := strings.TrimSpace(value)
+		if item == "" || seen[item] {
+			continue
+		}
+		seen[item] = true
+		normalized = append(normalized, item)
+	}
+	return normalized
+}
+
+func transportRouteMatchesChangeSetQuery(
+	route transportRouteRecord,
+	request noticeChangeSetLookupRequest,
+) bool {
+	if len(request.RouteLabels) == 0 {
+		return true
+	}
+	candidates := append([]string{route.DisplayName}, route.Aliases...)
+	for _, label := range request.RouteLabels {
+		for _, candidate := range candidates {
+			if strings.TrimSpace(candidate) == strings.TrimSpace(label) {
+				return true
+			}
+		}
+	}
+	return false
+}
+
+func transportOperationalNoticeIDs(notices []transportOperationalNotice) []string {
+	ids := make([]string, 0, len(notices))
+	for _, notice := range notices {
+		if strings.TrimSpace(notice.NoticeID) != "" {
+			ids = append(ids, strings.TrimSpace(notice.NoticeID))
+		}
+	}
+	return ids
+}
+
+func noticeRowsForIDs(
+	rows []noticeReadModelRecord,
+	noticeIDs []string,
+) []noticeReadModelRecord {
+	selected := make([]noticeReadModelRecord, 0, len(noticeIDs))
+	seen := map[string]bool{}
+	for _, id := range noticeIDs {
+		seen[strings.TrimSpace(id)] = true
+	}
+	for _, row := range rows {
+		if seen[strings.TrimSpace(row.SourceNoticeID)] {
+			selected = append(selected, row)
+		}
+	}
+	return selected
+}
+
+func buildTransportNoticeChangeSet(
+	request noticeChangeSetLookupRequest,
+	route transportRouteRecord,
+	notices []transportOperationalNotice,
+	rows []noticeReadModelRecord,
+) noticeChangeSet {
+	sourceRefs := make([]noticeChangeSetSourceRef, 0, len(rows))
+	facts := make([]noticeChangeSetFact, 0, len(notices))
+	sourceRefIDs := map[string]string{}
+	for _, row := range rows {
+		sourceRefID := "notice-ref:" + strings.TrimSpace(row.SourceNoticeID)
+		sourceRefIDs[strings.TrimSpace(row.SourceNoticeID)] = sourceRefID
+		sourceRefs = append(sourceRefs, noticeChangeSetSourceRef{
+			SourceRefID: sourceRefID,
+			NoticeID:    strings.TrimSpace(row.SourceNoticeID),
+			Title:       strings.TrimSpace(row.Title),
+			SourceURL:   strings.TrimSpace(row.SourceURL),
+			PublishedAt: strings.TrimSpace(row.PublishedAt),
+			Excerpt:     strings.TrimSpace(row.BodyExcerpt),
+		})
+	}
+	changeKind := "temporary_overlay"
+	for index, notice := range notices {
+		factKind := "baseline_delta_summary"
+		switch strings.TrimSpace(notice.NoticeKind) {
+		case "boarding_point_change":
+			factKind = "stop_changed"
+			changeKind = "stop_or_boarding_point_change"
+		case "service_suspension":
+			factKind = "service_suspended"
+			changeKind = "service_suspension"
+		case "service_restoration":
+			factKind = "service_restored"
+			changeKind = "service_restoration"
+		}
+		noticeID := strings.TrimSpace(notice.NoticeID)
+		facts = append(facts, noticeChangeSetFact{
+			FactID:         "fact:" + noticeID + ":" + route.RouteID + ":" + strings.TrimSpace(notice.NoticeKind),
+			FactKind:       factKind,
+			ChangeText:     strings.TrimSpace(notice.OperationalComment),
+			SourceNoticeID: noticeID,
+			SourceRefID:    sourceRefIDs[noticeID],
+			RouteLabel:     strings.TrimSpace(route.DisplayName),
+			ServiceWindow: map[string]string{
+				"effective_from":  strings.TrimSpace(notice.EffectiveFrom),
+				"effective_until": strings.TrimSpace(notice.EffectiveUntil),
+			},
+			Confidence: "deterministic",
+		})
+		_ = index
+	}
+	payload := map[string]any{
+		"query_text":        request.QueryText,
+		"route_label":       route.DisplayName,
+		"service_date":      request.ServiceDate,
+		"source_notice_ids": transportOperationalNoticeIDs(notices),
+		"change_kind":       changeKind,
+	}
+	return noticeChangeSet{
+		SchemaVersion: "notice-change-set-v1",
+		ChangeSetID:   "notice-change-set:" + route.RouteID + ":" + request.ServiceDate,
+		TargetFamily:  "transport_schedule",
+		QueryScope: noticeChangeSetQueryScope{
+			ServiceKind:     "transport_schedule",
+			RouteLabels:     []string{strings.TrimSpace(route.DisplayName)},
+			DirectionLabels: append([]string{}, request.DirectionLabels...),
+			StopLabels:      append([]string{}, request.StopLabels...),
+			QueryTimeAnchor: request.QueryTimeAnchor,
+			ServiceDate:     request.ServiceDate,
+		},
+		EffectiveWindow: noticeChangeSetEffectiveWindow{
+			StartsAt:           strings.TrimSpace(notices[0].EffectiveFrom),
+			EndsAt:             strings.TrimSpace(notices[0].EffectiveUntil),
+			Timezone:           "Asia/Shanghai",
+			CurrentAtQueryTime: true,
+		},
+		ChangeKind:     changeKind,
+		AnswerEligible: true,
+		AdmissionState: "answer_eligible",
+		ContentHash:    noticeChangeSetContentHash(payload),
+		Facts:          facts,
+		SourceRefs:     sourceRefs,
+		Conflicts:      []noticeChangeSetConflict{},
+		SafetySummary: noticeChangeSetSafetySummary{
+			RawPayloadAbsent: true,
+			PayloadKeyNames:  []string{"schema_version", "query_scope", "effective_window", "facts", "source_refs"},
+			Redacted:         false,
+			Notes:            []string{"bounded_transport_notice_override"},
+		},
+	}
 }
 
 func hasInternalNoticeAccess(accessContext noticeAccessContext) bool {
@@ -625,4 +958,22 @@ func failClosedNoticeGet(noticeID string, sourceFamily string, reason string) Re
 		FailCloseReason: reason,
 	}
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+}
+
+func failClosedNoticeChangeSet(queryText string, reason string) Response {
+	body := noticeChangeSetLookupResult{
+		QueryText:       queryText,
+		Outcome:         "temporarily_unverifiable",
+		FailCloseReason: reason,
+	}
+	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+}
+
+func noticeChangeSetContentHash(payload map[string]any) string {
+	raw, err := json.Marshal(payload)
+	if err != nil {
+		raw = []byte("{}")
+	}
+	sum := sha256.Sum256(raw)
+	return "sha256:" + hex.EncodeToString(sum[:])
 }

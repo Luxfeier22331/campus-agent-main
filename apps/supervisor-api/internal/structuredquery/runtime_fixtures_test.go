@@ -1321,7 +1321,7 @@ func serviceGuideITAdditionalTargetsProjectionFixture() string {
 				],
 				"materials":[],
 				"entry_refs":[
-					{"entry_id":"service:official_web:academic-calendar-guide:entry:portal","label":"信息门户校历栏目","entry_type":"instructions_only","url":"","location_ref":"","source_refs":["https://met.muc.edu.cn/info/1068/1832.htm"]}
+					{"entry_id":"service:official_web:academic-calendar-guide:entry:portal","label":"中央民族大学公开校历","entry_type":"online_url","url":"https://www.muc.edu.cn/ggfw/mdxl.htm","location_ref":"","source_refs":["https://www.muc.edu.cn/ggfw/mdxl.htm"]}
 				],
 				"office_hours":[],
 				"contact_refs":[],

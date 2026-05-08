@@ -2,6 +2,7 @@ package httpapi
 
 import (
 	"encoding/json"
+	"fmt"
 	"testing"
 
 	contractsv1 "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/contracts"
@@ -508,7 +509,7 @@ func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testin
 	if !ok || runtimeVersions["supervisor_api_runtime"] != "go-runtime-control-plane-v1" {
 		t.Fatalf("runtime_versions = %#v, want supervisor_api_runtime", traceSummary["runtime_versions"])
 	}
-	if runtimeVersions["workflow_trace_summary"] != "workflow-trace-summary-v3" {
+	if fmt.Sprint(runtimeVersions["workflow_trace_summary"]) != "workflow-trace-summary-v4" {
 		t.Fatalf("runtime_versions = %#v, want workflow trace summary version", runtimeVersions)
 	}
 	policyVersions, ok := traceSummary["policy_artifact_versions"].(map[string]any)

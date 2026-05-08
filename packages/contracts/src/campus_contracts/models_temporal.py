@@ -1,18 +1,28 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from campus_contracts.models_shared import (
     TemporalQueryMode,
     _validate_temporal_query_mode,
 )
+from campus_contracts.schema_metadata import schema_metadata
 
 
 @dataclass(frozen=True, slots=True)
 class TemporalQuery:
-    mode: TemporalQueryMode = "current"
-    as_of: str = ""
-    year_hint: str = ""
+    mode: TemporalQueryMode = field(
+        default="current",
+        metadata=schema_metadata(description="Temporal query mode."),
+    )
+    as_of: str = field(
+        default="",
+        metadata=schema_metadata(description="Required only when mode is as_of."),
+    )
+    year_hint: str = field(
+        default="",
+        metadata=schema_metadata(description="Required only when mode is current_year."),
+    )
 
     def __post_init__(self) -> None:
         _validate_temporal_query_mode(self.mode)

@@ -29,6 +29,7 @@ AgentToolName = Literal[
     "contact_directory_lookup",
     "academic_calendar_lookup",
     "campus_notice_discover",
+    "campus_notice_change_set_lookup",
 ]
 RequestedCapability = Literal[
     "knowledge",
@@ -135,9 +136,17 @@ NoticeSourceFamily = Literal[
 ]
 NoticeTargetSurface = Literal[
     "notice_level_query",
+    "procurement_notice_history",
+    "regulations/*",
+    "regulations/student_rules",
+    "regulations/institutional_rules",
+    "regulations/scoped_rules",
     "campus_services/service_status_candidate",
     "campus_services/special_service_candidate",
     "campus_services/stable_contact_candidate",
+    "publication_surface_candidate",
+    "multimodal_processing_candidate",
+    "unsupported",
 ]
 NoticePublicSurfacePolicy = Literal[
     "card_only",
@@ -211,6 +220,7 @@ ALLOWED_AGENT_TOOL_NAMES = (
     "contact_directory_lookup",
     "academic_calendar_lookup",
     "campus_notice_discover",
+    "campus_notice_change_set_lookup",
 )
 ALLOWED_REQUESTED_CAPABILITIES = (
     "knowledge",
@@ -324,9 +334,17 @@ ALLOWED_NOTICE_SOURCE_FAMILIES = (
 )
 ALLOWED_NOTICE_TARGET_SURFACES = (
     "notice_level_query",
+    "procurement_notice_history",
+    "regulations/*",
+    "regulations/student_rules",
+    "regulations/institutional_rules",
+    "regulations/scoped_rules",
     "campus_services/service_status_candidate",
     "campus_services/special_service_candidate",
     "campus_services/stable_contact_candidate",
+    "publication_surface_candidate",
+    "multimodal_processing_candidate",
+    "unsupported",
 )
 ALLOWED_NOTICE_PUBLIC_SURFACE_POLICIES = (
     "card_only",

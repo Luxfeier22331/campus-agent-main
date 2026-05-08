@@ -6,6 +6,8 @@ from typing import Protocol
 from campus_contracts import (
     ActorContext,
     AuthorizationProjection,
+    CampusNoticeChangeSetLookupPayload,
+    CampusNoticeChangeSetLookupResult,
     CampusNoticeDiscoverPayload,
     CampusNoticeDiscoverResult,
     CampusNoticeGetPayload,
@@ -31,7 +33,18 @@ class NoticeGetQuery:
     access_context: NoticeAccessContext = field(default_factory=NoticeAccessContext)
 
 
+@dataclass(frozen=True, slots=True)
+class NoticeChangeSetLookupQuery:
+    payload: CampusNoticeChangeSetLookupPayload
+    access_context: NoticeAccessContext = field(default_factory=NoticeAccessContext)
+
+
 class NoticeQueryService(Protocol):
     def discover_notice(self, query: NoticeDiscoverQuery) -> CampusNoticeDiscoverResult: ...
 
     def get_notice(self, query: NoticeGetQuery) -> CampusNoticeGetResult: ...
+
+    def lookup_notice_change_set(
+        self,
+        query: NoticeChangeSetLookupQuery,
+    ) -> CampusNoticeChangeSetLookupResult: ...

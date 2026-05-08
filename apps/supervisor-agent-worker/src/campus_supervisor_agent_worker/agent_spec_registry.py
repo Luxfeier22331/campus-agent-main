@@ -27,8 +27,6 @@ class AgentSpec:
     payload_kinds: tuple[str, ...]
     allowed_structured_handoff_tools: tuple[str, ...]
     context_projection_kinds: tuple[str, ...]
-    delegate_module: str
-    delegate_symbol: str
     description: str
 
 
@@ -101,8 +99,6 @@ def _parse_agent(value: object) -> AgentSpec:
             item.get("context_projection_kinds"),
             "context_projection_kinds",
         ),
-        delegate_module=_required_string(item.get("delegate_module"), "delegate_module"),
-        delegate_symbol=_required_string(item.get("delegate_symbol"), "delegate_symbol"),
         description=_required_string(item.get("description"), "description"),
     )
 
@@ -125,7 +121,7 @@ def _validate_agents(agents: tuple[AgentSpec, ...]) -> None:
                 f"duplicate AgentSpec capability assignment: {agent.capability}"
             )
         capability_seen.add(agent.capability)
-        if agent.runtime_adapter != "python_delegate":
+        if agent.runtime_adapter != "worker_dispatch":
             raise AgentSpecRegistryError(
                 f"{agent.agent_id} runtime_adapter is unsupported: {agent.runtime_adapter}"
             )

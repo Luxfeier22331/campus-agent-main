@@ -37,7 +37,9 @@ type WorkflowPlan struct {
 	TerminalPolicy      WorkflowTerminalPolicy
 	ResumePolicy        WorkflowResumePolicy
 	SemanticRetryPolicy SemanticRetryPolicy
+	capabilityPlan      *CapabilityPlan
 	handoffs            []Handoff
+	expectedArtifacts   map[string][]string
 }
 
 type WorkflowPlanStep struct {
@@ -95,96 +97,119 @@ func SingleHandoffPlan(handoff Handoff) *WorkflowPlan {
 			MaxReplans: 0,
 		},
 		handoffs: []Handoff{cloneHandoffValue(handoff)},
+		expectedArtifacts: map[string][]string{
+			step.StepID: expectedArtifactsForHandoff(handoff),
+		},
 	}
 }
 
-func MultiStepNoticeKnowledgeFollowthroughPlan(
-	noticeHandoff Handoff,
-	ragHandoff Handoff,
-) *WorkflowPlan {
-	noticeStep := workflowPlanStepForHandoff(noticeHandoff)
-	ragStep := workflowPlanStepForHandoff(ragHandoff)
+func MultiStepCapabilityPreplan(planID string, capabilityPlan CapabilityPlan) *WorkflowPlan {
 	return &WorkflowPlan{
 		SchemaVersion: WorkflowPlanSchemaVersion,
-		PlanID:        "plan:multi_step:notice-agent:rag-agent:notice_knowledge_followthrough",
+		PlanID:        planID,
 		WorkflowMode:  WorkflowModeMultiStep,
-		AllowedAgents: []string{noticeHandoff.Target, ragHandoff.Target},
-		Steps:         []WorkflowPlanStep{noticeStep, ragStep},
+		AllowedAgents: []string{},
+		Steps:         []WorkflowPlanStep{},
+		Edges:         []WorkflowPlanEdge{},
+		TerminalPolicy: WorkflowTerminalPolicy{
+			FailCloseOnInvalidPlan: true,
+		},
+		ResumePolicy: WorkflowResumePolicy{
+			ResumeSupported: capabilityPlan.Budget.MaxSteps > 1,
+		},
+		SemanticRetryPolicy: SemanticRetryPolicy{
+			MaxReplans: capabilityPlan.Budget.MaxReplans,
+		},
+		capabilityPlan: &capabilityPlan,
+		handoffs:       []Handoff{},
+		expectedArtifacts: map[string][]string{},
+	}
+}
+
+func MultiStepWorkflowPlan(
+	planID string,
+	first Handoff,
+	second Handoff,
+	requiredProjectionKind string,
+	maxReplans int,
+	resumeSupported bool,
+	capabilityPlan CapabilityPlan,
+) *WorkflowPlan {
+	firstStep := workflowPlanStepForHandoff(first)
+	secondStep := workflowPlanStepForHandoff(second)
+	return &WorkflowPlan{
+		SchemaVersion: WorkflowPlanSchemaVersion,
+		PlanID:        planID,
+		WorkflowMode:  WorkflowModeMultiStep,
+		AllowedAgents: []string{first.Target, second.Target},
+		Steps:         []WorkflowPlanStep{firstStep, secondStep},
 		Edges: []WorkflowPlanEdge{
 			{
-				FromStepID:             noticeStep.StepID,
-				ToStepID:               ragStep.StepID,
+				FromStepID:             firstStep.StepID,
+				ToStepID:               secondStep.StepID,
 				Condition:              "completed",
-				RequiredProjectionKind: "notice_context",
+				RequiredProjectionKind: requiredProjectionKind,
 			},
 		},
 		TerminalPolicy: WorkflowTerminalPolicy{
 			FailCloseOnInvalidPlan: true,
 		},
 		ResumePolicy: WorkflowResumePolicy{
-			ResumeSupported: true,
+			ResumeSupported: resumeSupported,
 		},
 		SemanticRetryPolicy: SemanticRetryPolicy{
-			MaxReplans: 1,
+			MaxReplans: maxReplans,
 		},
+		capabilityPlan: &capabilityPlan,
 		handoffs: []Handoff{
-			cloneHandoffValue(noticeHandoff),
-			cloneHandoffValue(ragHandoff),
+			cloneHandoffValue(first),
+			cloneHandoffValue(second),
+		},
+		expectedArtifacts: map[string][]string{
+			firstStep.StepID:  expectedArtifactsForHandoff(first),
+			secondStep.StepID: expectedArtifactsForHandoff(second),
 		},
 	}
 }
 
-func MultiStepTransportNoticeKnowledgePilotPlan(
-	transportHandoff Handoff,
-	noticeHandoff Handoff,
-	ragHandoff Handoff,
+func MultiStepWorkflowPlanFromHandoffs(
+	planID string,
+	handoffs []Handoff,
+	edges []WorkflowPlanEdge,
+	maxReplans int,
+	resumeSupported bool,
+	capabilityPlan CapabilityPlan,
 ) *WorkflowPlan {
-	transportStep := workflowPlanStepForHandoff(transportHandoff)
-	noticeStep := workflowPlanStepForHandoff(noticeHandoff)
-	ragStep := workflowPlanStepForHandoff(ragHandoff)
+	steps := make([]WorkflowPlanStep, 0, len(handoffs))
+	allowedAgents := make([]string, 0, len(handoffs))
+	expectedArtifacts := map[string][]string{}
+	clonedHandoffs := make([]Handoff, 0, len(handoffs))
+	for _, handoff := range handoffs {
+		step := workflowPlanStepForHandoff(handoff)
+		steps = append(steps, step)
+		allowedAgents = append(allowedAgents, handoff.Target)
+		expectedArtifacts[step.StepID] = expectedArtifactsForHandoff(handoff)
+		clonedHandoffs = append(clonedHandoffs, cloneHandoffValue(handoff))
+	}
 	return &WorkflowPlan{
 		SchemaVersion: WorkflowPlanSchemaVersion,
-		PlanID: "plan:multi_step:campus-services-agent:notice-agent:rag-agent:" +
-			"transport_notice_knowledge_pilot",
-		WorkflowMode: WorkflowModeMultiStep,
-		AllowedAgents: []string{
-			transportHandoff.Target,
-			noticeHandoff.Target,
-			ragHandoff.Target,
-		},
-		Steps: []WorkflowPlanStep{
-			transportStep,
-			noticeStep,
-			ragStep,
-		},
-		Edges: []WorkflowPlanEdge{
-			{
-				FromStepID:             transportStep.StepID,
-				ToStepID:               noticeStep.StepID,
-				Condition:              "completed",
-				RequiredProjectionKind: "schedule_baseline",
-			},
-			{
-				FromStepID:             noticeStep.StepID,
-				ToStepID:               ragStep.StepID,
-				Condition:              "completed",
-				RequiredProjectionKind: "notice_context",
-			},
-		},
+		PlanID:        planID,
+		WorkflowMode:  WorkflowModeMultiStep,
+		AllowedAgents: allowedAgents,
+		Steps:         steps,
+		Edges:         edges,
 		TerminalPolicy: WorkflowTerminalPolicy{
 			FailCloseOnInvalidPlan: true,
 		},
 		ResumePolicy: WorkflowResumePolicy{
-			ResumeSupported: true,
+			ResumeSupported: resumeSupported,
 		},
 		SemanticRetryPolicy: SemanticRetryPolicy{
-			MaxReplans: 1,
+			MaxReplans: maxReplans,
 		},
-		handoffs: []Handoff{
-			cloneHandoffValue(transportHandoff),
-			cloneHandoffValue(noticeHandoff),
-			cloneHandoffValue(ragHandoff),
-		},
+		capabilityPlan:    &capabilityPlan,
+		handoffs:          clonedHandoffs,
+		expectedArtifacts: expectedArtifacts,
 	}
 }
 
@@ -215,6 +240,25 @@ func (p *WorkflowPlan) Handoffs() []Handoff {
 		handoffs = append(handoffs, cloneHandoffValue(handoff))
 	}
 	return handoffs
+}
+
+func (p *WorkflowPlan) CapabilityPlan() *CapabilityPlan {
+	if p == nil || p.capabilityPlan == nil {
+		return nil
+	}
+	copyValue := cloneCapabilityPlanValue(*p.capabilityPlan)
+	return &copyValue
+}
+
+func (p *WorkflowPlan) ExpectedArtifactsForStep(stepID string) []string {
+	if p == nil || len(p.expectedArtifacts) == 0 {
+		return nil
+	}
+	expected := p.expectedArtifacts[stepID]
+	if len(expected) == 0 {
+		return nil
+	}
+	return append([]string{}, expected...)
 }
 
 func (p *WorkflowPlan) Map() map[string]any {
@@ -345,6 +389,21 @@ func containsString(values []string, expected string) bool {
 	return false
 }
 
+func expectedArtifactsForHandoff(handoff Handoff) []string {
+	switch {
+	case handoff.Target == "notice-agent" && handoff.PayloadKind == "campus_notice_get":
+		return []string{"notice_context"}
+	case handoff.Target == "notice-agent" && handoff.PayloadKind == "campus_notice_change_set_lookup":
+		return []string{"notice_change_set"}
+	case handoff.Target == "campus-services-agent" && handoff.PayloadKind == "transport_schedule_lookup":
+		return []string{"schedule_baseline"}
+	case handoff.Target == "rag-agent" && handoff.PayloadKind == "rag_request":
+		return []string{"evidence_bundle", "grounding_verdict"}
+	default:
+		return nil
+	}
+}
+
 func selectedToolForHandoff(handoff Handoff) string {
 	if len(handoff.AllowedTools) == 1 {
 		return handoff.AllowedTools[0]
@@ -353,6 +412,36 @@ func selectedToolForHandoff(handoff Handoff) string {
 		return "retrieval.query"
 	}
 	return ""
+}
+
+func cloneCapabilityPlanValue(source CapabilityPlan) CapabilityPlan {
+	copyValue := source
+	copyValue.RequiredArtifacts = append([]string{}, source.RequiredArtifacts...)
+	copyValue.OptionalArtifacts = append([]string{}, source.OptionalArtifacts...)
+	copyValue.GroundingPolicy.RequiredArtifacts = append(
+		[]string{},
+		source.GroundingPolicy.RequiredArtifacts...,
+	)
+	if source.Constraints.RequestedScope != nil {
+		scope := *source.Constraints.RequestedScope
+		copyValue.Constraints.RequestedScope = &scope
+	}
+	if source.Constraints.SelectedNotice != nil {
+		selectedNotice := *source.Constraints.SelectedNotice
+		selectedNotice.AllowedTargetSurfaces = append(
+			[]string{},
+			source.Constraints.SelectedNotice.AllowedTargetSurfaces...,
+		)
+		copyValue.Constraints.SelectedNotice = &selectedNotice
+	}
+	if source.Constraints.TransportQuery != nil {
+		transportQuery := *source.Constraints.TransportQuery
+		transportQuery.RouteLabels = append([]string{}, source.Constraints.TransportQuery.RouteLabels...)
+		transportQuery.DirectionLabels = append([]string{}, source.Constraints.TransportQuery.DirectionLabels...)
+		transportQuery.StopLabels = append([]string{}, source.Constraints.TransportQuery.StopLabels...)
+		copyValue.Constraints.TransportQuery = &transportQuery
+	}
+	return copyValue
 }
 
 func cloneHandoff(handoff Handoff) *Handoff {

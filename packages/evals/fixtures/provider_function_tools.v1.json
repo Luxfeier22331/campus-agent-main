@@ -26,6 +26,7 @@
                   "string",
                   "null"
                 ],
+                "description": "Temporal query mode.",
                 "enum": [
                   "current",
                   "latest",
@@ -33,8 +34,7 @@
                   "as_of",
                   "current_year",
                   null
-                ],
-                "description": "Temporal query mode."
+                ]
               },
               "as_of": {
                 "type": [
@@ -55,7 +55,8 @@
               "mode",
               "as_of",
               "year_hint"
-            ]
+            ],
+            "description": "Optional temporal query constraint."
           },
           "campus_scope": {
             "type": [
@@ -87,6 +88,7 @@
           },
           "guide_focus": {
             "type": "string",
+            "description": "Requested service guide section.",
             "enum": [
               "overview",
               "procedure",
@@ -96,8 +98,7 @@
               "contact",
               "eligibility",
               "full_guide"
-            ],
-            "description": "Requested service guide section."
+            ]
           },
           "temporal_query": {
             "type": [
@@ -111,6 +112,7 @@
                   "string",
                   "null"
                 ],
+                "description": "Temporal query mode.",
                 "enum": [
                   "current",
                   "latest",
@@ -118,8 +120,7 @@
                   "as_of",
                   "current_year",
                   null
-                ],
-                "description": "Temporal query mode."
+                ]
               },
               "as_of": {
                 "type": [
@@ -140,7 +141,8 @@
               "mode",
               "as_of",
               "year_hint"
-            ]
+            ],
+            "description": "Optional temporal query constraint."
           },
           "campus_scope": {
             "type": [
@@ -154,14 +156,14 @@
               "string",
               "null"
             ],
+            "description": "Audience for the guide.",
             "enum": [
               "student",
               "faculty",
               "visitor",
               "unknown",
               null
-            ],
-            "description": "Audience for the guide."
+            ]
           },
           "result_limit": {
             "type": [
@@ -197,6 +199,7 @@
           },
           "intent": {
             "type": "string",
+            "description": "Transport schedule lookup intent.",
             "enum": [
               "next_departure",
               "first_departure",
@@ -205,8 +208,7 @@
               "service_window",
               "timetable",
               "schedule_snapshot_metadata"
-            ],
-            "description": "Transport schedule lookup intent."
+            ]
           },
           "route_selector": {
             "type": [
@@ -273,7 +275,8 @@
               "destination_campus",
               "origin_stop_query",
               "destination_stop_query"
-            ]
+            ],
+            "description": "Optional route selection hints."
           },
           "snapshot_query": {
             "type": [
@@ -287,6 +290,7 @@
                   "string",
                   "null"
                 ],
+                "description": "Temporal query mode.",
                 "enum": [
                   "current",
                   "latest",
@@ -294,8 +298,7 @@
                   "as_of",
                   "current_year",
                   null
-                ],
-                "description": "Temporal query mode."
+                ]
               },
               "as_of": {
                 "type": [
@@ -316,7 +319,8 @@
               "mode",
               "as_of",
               "year_hint"
-            ]
+            ],
+            "description": "Optional temporal query constraint."
           },
           "service_time_query": {
             "type": [
@@ -330,13 +334,13 @@
                   "string",
                   "null"
                 ],
+                "description": "Service date interpretation.",
                 "enum": [
                   "today",
                   "tomorrow",
                   "date",
                   null
-                ],
-                "description": "Service date interpretation."
+                ]
               },
               "service_date": {
                 "type": [
@@ -350,14 +354,14 @@
                   "string",
                   "null"
                 ],
+                "description": "Requested daypart.",
                 "enum": [
                   "morning",
                   "afternoon",
                   "evening",
                   "all_day",
                   null
-                ],
-                "description": "Requested daypart."
+                ]
               },
               "departure_not_before": {
                 "type": [
@@ -380,7 +384,8 @@
               "daypart",
               "departure_not_before",
               "departure_not_after"
-            ]
+            ],
+            "description": "Optional service time constraints."
           },
           "result_limit": {
             "type": [
@@ -416,6 +421,7 @@
           },
           "contact_focus": {
             "type": "string",
+            "description": "Requested contact information focus.",
             "enum": [
               "phone",
               "email",
@@ -423,8 +429,7 @@
               "office_hours",
               "contact_person",
               "all_contacts"
-            ],
-            "description": "Requested contact information focus."
+            ]
           },
           "entity_selector": {
             "type": [
@@ -507,7 +512,8 @@
               "purpose_query",
               "contact_group_query",
               "location_query"
-            ]
+            ],
+            "description": "Optional selector for the contact entity to resolve."
           },
           "temporal_query": {
             "type": [
@@ -521,6 +527,7 @@
                   "string",
                   "null"
                 ],
+                "description": "Temporal query mode.",
                 "enum": [
                   "current",
                   "latest",
@@ -528,8 +535,7 @@
                   "as_of",
                   "current_year",
                   null
-                ],
-                "description": "Temporal query mode."
+                ]
               },
               "as_of": {
                 "type": [
@@ -550,7 +556,8 @@
               "mode",
               "as_of",
               "year_hint"
-            ]
+            ],
+            "description": "Optional temporal query constraint."
           },
           "campus_scope": {
             "type": [
@@ -564,14 +571,14 @@
               "string",
               "null"
             ],
+            "description": "Audience for the contact.",
             "enum": [
               "student",
               "faculty",
               "visitor",
               "unknown",
               null
-            ],
-            "description": "Audience for the contact."
+            ]
           },
           "result_limit": {
             "type": [
@@ -606,6 +613,34 @@
             "type": "string",
             "description": "Original academic calendar fact question."
           },
+          "query_kind": {
+            "type": "string",
+            "description": "Deterministic academic calendar fact query kind.",
+            "enum": [
+              "date_week",
+              "named_event_range",
+              "day_status",
+              "class_day_pattern",
+              "term_window"
+            ]
+          },
+          "answer_focus": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional answer focus for the academic calendar query.",
+            "enum": [
+              "teaching_week",
+              "holiday_duration",
+              "campus_break_window",
+              "course_adjustment",
+              "day_status",
+              "term_window",
+              "official_notice_reference",
+              null
+            ]
+          },
           "temporal_query": {
             "type": [
               "object",
@@ -618,6 +653,7 @@
                   "string",
                   "null"
                 ],
+                "description": "Temporal query mode.",
                 "enum": [
                   "current",
                   "latest",
@@ -625,8 +661,7 @@
                   "as_of",
                   "current_year",
                   null
-                ],
-                "description": "Temporal query mode."
+                ]
               },
               "as_of": {
                 "type": [
@@ -647,7 +682,8 @@
               "mode",
               "as_of",
               "year_hint"
-            ]
+            ],
+            "description": "Optional temporal query constraint."
           },
           "academic_year_label": {
             "type": [
@@ -662,17 +698,6 @@
               "null"
             ],
             "description": "Optional ISO date to resolve week, holiday, or makeup-class arrangement."
-          },
-          "query_kind": {
-            "type": "string",
-            "enum": [
-              "date_week",
-              "named_event_range",
-              "day_status",
-              "class_day_pattern",
-              "term_window"
-            ],
-            "description": "Deterministic academic calendar fact query kind."
           },
           "event_query": {
             "type": [
@@ -705,14 +730,86 @@
         },
         "required": [
           "query_text",
+          "query_kind",
+          "answer_focus",
           "temporal_query",
           "academic_year_label",
           "date_hint",
-          "query_kind",
           "event_query",
           "target_date",
           "audience",
           "term_label"
+        ]
+      }
+    },
+    {
+      "type": "function",
+      "name": "campus_notice_change_set_lookup",
+      "description": "Lookup admitted transport notice change-set overrides from bounded notice/runtime truth.",
+      "strict": true,
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "query_text": {
+            "type": "string",
+            "description": "Original transport notice override question."
+          },
+          "route_labels": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "description": "Optional admitted route labels.",
+            "items": {
+              "type": "string",
+              "description": "Optional admitted route labels."
+            }
+          },
+          "direction_labels": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "description": "Optional admitted direction labels.",
+            "items": {
+              "type": "string",
+              "description": "Optional admitted direction labels."
+            }
+          },
+          "stop_labels": {
+            "type": [
+              "array",
+              "null"
+            ],
+            "description": "Optional admitted stop labels.",
+            "items": {
+              "type": "string",
+              "description": "Optional admitted stop labels."
+            }
+          },
+          "service_date": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional ISO local service date."
+          },
+          "query_time_anchor": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "Optional RFC3339 query time anchor."
+          }
+        },
+        "required": [
+          "query_text",
+          "route_labels",
+          "direction_labels",
+          "stop_labels",
+          "service_date",
+          "query_time_anchor"
         ]
       }
     },
@@ -741,6 +838,7 @@
                   "string",
                   "null"
                 ],
+                "description": "Temporal query mode.",
                 "enum": [
                   "current",
                   "latest",
@@ -748,8 +846,7 @@
                   "as_of",
                   "current_year",
                   null
-                ],
-                "description": "Temporal query mode."
+                ]
               },
               "as_of": {
                 "type": [
@@ -770,40 +867,49 @@
               "mode",
               "as_of",
               "year_hint"
-            ]
+            ],
+            "description": "Optional temporal constraint for notice discovery."
           },
           "source_families": {
             "type": [
               "array",
               "null"
             ],
+            "description": "Allowed notice source families.",
             "items": {
               "type": "string",
+              "description": "Allowed notice source families.",
               "enum": [
                 "official_web_public_notice",
                 "internal_notice_restricted",
                 "wechat_public_notice"
-              ],
-              "description": "Allowed notice source families."
-            },
-            "description": "Allowed notice source families."
+              ]
+            }
           },
           "target_surfaces": {
             "type": [
               "array",
               "null"
             ],
+            "description": "Allowed notice target surfaces.",
             "items": {
               "type": "string",
+              "description": "Allowed notice target surfaces.",
               "enum": [
                 "notice_level_query",
+                "procurement_notice_history",
+                "regulations/*",
+                "regulations/student_rules",
+                "regulations/institutional_rules",
+                "regulations/scoped_rules",
                 "campus_services/service_status_candidate",
                 "campus_services/special_service_candidate",
-                "campus_services/stable_contact_candidate"
-              ],
-              "description": "Allowed notice target surfaces."
-            },
-            "description": "Allowed notice target surfaces."
+                "campus_services/stable_contact_candidate",
+                "publication_surface_candidate",
+                "multimodal_processing_candidate",
+                "unsupported"
+              ]
+            }
           },
           "max_results": {
             "type": [

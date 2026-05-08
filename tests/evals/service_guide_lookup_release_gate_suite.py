@@ -6,13 +6,13 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from campus_evals.intent_models import IntentEvalReport
+from campus_evals.official_web_selected_write_preview_runtime_verifier import (
+    OfficialWebSelectedWritePreviewRuntimeVerificationReport,
+)
 from campus_evals.service_guide_lookup_release_gate import (
     CommandResult,
     run_service_guide_lookup_release_gate,
     service_guide_lookup_intent_gate_cases,
-)
-from campus_evals.official_web_selected_write_preview_runtime_verifier import (
-    OfficialWebSelectedWritePreviewRuntimeVerificationReport,
 )
 
 
@@ -111,11 +111,88 @@ class ServiceGuideLookupReleaseGateTest(unittest.TestCase):
                 "run",
                 "-c",
                 "vitest.node.config.mts",
-                "test/chat-command.service.core.structured.test.ts",
+                "test/chat-command.service.test.ts",
                 "-t",
                 "renders campus-services answers from structured tool facts and safe source categories",
             ),
             commands,
+        )
+
+    def test_release_gate_artifact_reports_question_matrix_coverage(self) -> None:
+        def fake_command_runner(
+            command: tuple[str, ...],
+            *,
+            cwd: Path | None = None,
+        ) -> CommandResult:
+            return CommandResult(returncode=0, stdout="ok", stderr="")
+
+        def fake_intent_runner(_cases) -> IntentEvalReport:
+            return IntentEvalReport(
+                total=2,
+                passed=2,
+                failed=0,
+                overall_exact_match_rate=1.0,
+                critical_total=2,
+                critical_passed=2,
+                critical_gate_pass_rate=1.0,
+                confusion={},
+                results=(),
+            )
+
+        with TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / "gate"
+            run_service_guide_lookup_release_gate(
+                output_dir=output_dir,
+                command_runner=fake_command_runner,
+                intent_runner=fake_intent_runner,
+            )
+            artifact = json.loads(
+                (output_dir / "service-guide-lookup-release-gate.json").read_text(encoding="utf-8")
+            )
+
+        coverage = artifact["coverage"]
+        self.assertEqual(
+            coverage["coverage_sources"],
+            {
+                "deterministic_matrix": "QUESTION-MATRIX.md",
+                "representative_public_chat_subset": (
+                    "packages/evals/fixtures/public_chat_entry_cases.v1.json"
+                ),
+            },
+        )
+        self.assertEqual(coverage["matrix"]["total_cases"], 33)
+        self.assertEqual(coverage["matrix"]["positive_service_guide_cases"], 20)
+        self.assertEqual(coverage["matrix"]["boundary_cases"], 7)
+        self.assertEqual(coverage["matrix"]["fail_close_cases"], 6)
+        self.assertEqual(
+            coverage["matrix"]["focus_counts"],
+            {
+                "contact": 3,
+                "eligibility": 2,
+                "entry": 5,
+                "full_guide": 1,
+                "office_hours": 2,
+                "procedure": 4,
+                "required_materials": 3,
+            },
+        )
+        self.assertEqual(
+            coverage["public_chat_subset"]["case_ids"],
+            [
+                "public-entry-campus-card-loss-guide",
+                "public-entry-academic-calendar-guide-entry",
+                "public-entry-public-medical-materials",
+                "public-entry-vpn-login-entry",
+            ],
+        )
+        self.assertEqual(
+            coverage["public_chat_subset"]["matrix_case_ids"],
+            [
+                "sg-procedure-campus-card-loss",
+                "sg-entry-calendar-url",
+                "sg-materials-medical-reimbursement",
+                "sg-entry-vpn-login",
+            ],
         )
 
     def test_release_gate_can_include_selected_write_runtime_smoke(self) -> None:

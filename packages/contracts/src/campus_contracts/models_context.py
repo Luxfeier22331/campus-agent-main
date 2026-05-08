@@ -14,7 +14,9 @@ from campus_contracts.models_shared import (
     MemorySourceType,
     MemoryVisibility,
     NoticeSourceFamily,
+    NoticeTargetSurface,
     _validate_notice_source_family,
+    _validate_notice_target_surface,
 )
 
 
@@ -79,12 +81,15 @@ class SelectedNoticeRef:
     notice_id: str
     source_family: NoticeSourceFamily | str = ""
     title: str = ""
+    target_surface: NoticeTargetSurface | str = ""
 
     def __post_init__(self) -> None:
         if not self.notice_id.strip():
             raise ValueError("notice_id must not be empty")
         if self.source_family:
             _validate_notice_source_family(self.source_family)
+        if self.target_surface:
+            _validate_notice_target_surface(self.target_surface)
 
 
 @dataclass(frozen=True, slots=True)

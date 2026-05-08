@@ -46,12 +46,12 @@ class AgentSpecRegistryTest(unittest.TestCase):
         assert notice_agent is not None
         self.assertEqual(
             notice_agent.allowed_structured_handoff_tools,
-            ("campus_notice_discover",),
+            ("campus_notice_discover", "campus_notice_change_set_lookup"),
         )
         self.assertIn("campus_notice_get", notice_agent.payload_kinds)
         self.assertEqual(
-            tool_registry.structured_tool_names_for_target("notice-agent"),
-            notice_agent.allowed_structured_handoff_tools,
+            set(tool_registry.structured_tool_names_for_target("notice-agent")),
+            set(notice_agent.allowed_structured_handoff_tools),
         )
 
     def test_delegate_map_matches_agent_spec_registry(self) -> None:
@@ -157,16 +157,12 @@ def _agent(
             "payload_kinds": ["rag_request"],
             "allowed_structured_handoff_tools": [],
             "context_projection_kinds": ["evidence_bundle"],
-            "delegate_module": "campus_rag_agent.service",
-            "delegate_symbol": "delegate_to_rag_agent",
         },
         "navigation-agent": {
             "owner_package": "packages/navigation-agent",
             "payload_kinds": ["place_lookup"],
             "allowed_structured_handoff_tools": [],
             "context_projection_kinds": ["place_context"],
-            "delegate_module": "campus_navigation_agent",
-            "delegate_symbol": "delegate_to_navigation_agent",
         },
         "campus-services-agent": {
             "owner_package": "packages/campus-services-agent",
@@ -189,16 +185,19 @@ def _agent(
                 "schedule_baseline",
                 "calendar_fact",
             ],
-            "delegate_module": "campus_services_agent",
-            "delegate_symbol": "delegate_to_campus_services_agent",
         },
         "notice-agent": {
             "owner_package": "packages/notice-agent",
-            "payload_kinds": ["campus_notice_discover", "campus_notice_get"],
-            "allowed_structured_handoff_tools": ["campus_notice_discover"],
-            "context_projection_kinds": ["notice_context"],
-            "delegate_module": "campus_notice_agent",
-            "delegate_symbol": "delegate_to_notice_agent",
+            "payload_kinds": [
+                "campus_notice_discover",
+                "campus_notice_get",
+                "campus_notice_change_set_lookup",
+            ],
+            "allowed_structured_handoff_tools": [
+                "campus_notice_discover",
+                "campus_notice_change_set_lookup",
+            ],
+            "context_projection_kinds": ["notice_context", "notice_change_set"],
         },
     }
     base = defaults.get(agent_id, defaults["rag-agent"])
@@ -206,14 +205,12 @@ def _agent(
         "id": agent_id,
         "capability": capability,
         "owner_package": base["owner_package"],
-        "runtime_adapter": "python_delegate",
+        "runtime_adapter": "worker_dispatch",
         "active": active,
         "opening_gate": opening_gate,
         "payload_kinds": base["payload_kinds"],
         "allowed_structured_handoff_tools": base["allowed_structured_handoff_tools"],
         "context_projection_kinds": base["context_projection_kinds"],
-        "delegate_module": base["delegate_module"],
-        "delegate_symbol": base["delegate_symbol"],
         "description": "fixture",
     }
 
@@ -233,8 +230,6 @@ def _fake_settings():
         internal_query_base_url = ""
         internal_query_shared_secret = ""
         structured_query_timeout_seconds = 5.0
-        provider_tool_runtime_enabled = False
-        provider_tool_runtime_allowed_tools = ()
         prompt_runtime_provider = ""
         runtime_provider = ""
         prompt_runtime_api_key = ""

@@ -23,6 +23,16 @@
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
 		},
 		{
+			"tool_name": "academic_calendar_lookup",
+			"capability_family": "campus-services-agent",
+			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
+		},
+		{
+			"tool_name": "campus_notice_change_set_lookup",
+			"capability_family": "notice-agent",
+			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
+		},
+		{
 			"tool_name": "campus_notice_discover",
 			"capability_family": "notice-agent",
 			"denominator_splits": ["smoke", "release_gate", "regression_locked", "exploratory"]
@@ -189,6 +199,90 @@
 			"expected_result_status": "argument_ambiguity",
 			"expected_arguments": {
 				"unit_query": "办公室"
+			}
+		},
+		{
+			"case_id": "tool-academic-calendar-smoke-current-week",
+			"tool_name": "academic_calendar_lookup",
+			"split": "smoke",
+			"expected_result_status": "completed",
+			"expected_arguments": {
+				"query_kind": "date_week",
+				"academic_year_label": "current"
+			}
+		},
+		{
+			"case_id": "tool-academic-calendar-release-holiday",
+			"tool_name": "academic_calendar_lookup",
+			"split": "release_gate",
+			"expected_result_status": "completed",
+			"expected_arguments": {
+				"query_kind": "named_event_range",
+				"event_query": "劳动节"
+			}
+		},
+		{
+			"case_id": "tool-academic-calendar-regression-not-found",
+			"tool_name": "academic_calendar_lookup",
+			"split": "regression_locked",
+			"expected_result_status": "not_found",
+			"expected_arguments": {
+				"query_kind": "named_event_range",
+				"event_query": "不存在的假期"
+			}
+		},
+		{
+			"case_id": "tool-academic-calendar-exploratory-ambiguous-year",
+			"tool_name": "academic_calendar_lookup",
+			"split": "exploratory",
+			"expected_result_status": "argument_ambiguity",
+			"expected_arguments": {
+				"query_kind": "term_window",
+				"academic_year_label": "ambiguous"
+			}
+		},
+		{
+			"case_id": "tool-notice-change-set-smoke-current-override",
+			"tool_name": "campus_notice_change_set_lookup",
+			"split": "smoke",
+			"expected_result_status": "completed",
+			"expected_arguments": {
+				"query_kind": "transport_override",
+				"route_label": "丰台到海淀通勤车",
+				"service_date": "2026-05-07"
+			}
+		},
+		{
+			"case_id": "tool-notice-change-set-release-current-override",
+			"tool_name": "campus_notice_change_set_lookup",
+			"split": "release_gate",
+			"expected_result_status": "completed",
+			"expected_arguments": {
+				"query_kind": "transport_override",
+				"route_label": "丰台到海淀通勤车",
+				"service_date": "2026-05-07"
+			}
+		},
+		{
+			"case_id": "tool-notice-change-set-regression-no-current-override",
+			"tool_name": "campus_notice_change_set_lookup",
+			"split": "regression_locked",
+			"expected_result_status": "not_found",
+			"expected_arguments": {
+				"query_kind": "transport_override",
+				"route_label": "不存在的班车线路",
+				"service_date": "2026-05-07"
+			}
+		},
+		{
+			"case_id": "tool-notice-change-set-exploratory-service-date-required",
+			"tool_name": "campus_notice_change_set_lookup",
+			"split": "exploratory",
+			"expected_result_status": "clarification_required",
+			"expected_arguments": {
+				"query_kind": "transport_override",
+				"route_label": "丰台到海淀通勤车",
+				"service_date": ""
 			}
 		},
 		{

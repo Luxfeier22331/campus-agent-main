@@ -157,6 +157,9 @@ func (r selectedNoticeRef) toMap() map[string]any {
 	if r.Title != "" {
 		result["title"] = r.Title
 	}
+	if r.TargetSurface != "" {
+		result["target_surface"] = r.TargetSurface
+	}
 	return result
 }
 
