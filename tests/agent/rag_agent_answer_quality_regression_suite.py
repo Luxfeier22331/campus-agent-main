@@ -1,10 +1,12 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 
 from campus_contracts import EvidenceBundle
 from campus_rag_agent import RagAgent
 from campus_rag_agent.agent_answer_shape import AnswerShape
+from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 
 from tests.agent.rag_agent_test_support import (
     _make_curriculum_plan_source,
@@ -12,6 +14,15 @@ from tests.agent.rag_agent_test_support import (
     _make_program_semester_source,
     _select_answer_support_rows,
 )
+
+
+def _answer_ready_anchor(**metadata: object) -> dict[str, object]:
+    payload = {
+        "evidence_contract_version": "answer_ready_evidence.v3",
+        "parent_unit_id": "handbook:unit:article-1",
+        **metadata,
+    }
+    return {INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: payload}
 
 
 class RagAgentAnswerQualityRegressionTest(unittest.TestCase):
@@ -45,6 +56,231 @@ class RagAgentAnswerQualityRegressionTest(unittest.TestCase):
 
         self.assertIn("根据校级制度相关规定", draft.answer_text)
         self.assertNotIn("学生手册", draft.answer_text)
+
+    def test_institutional_category_discovery_prefers_category_overview_listing(self) -> None:
+        category_source = replace(
+            _make_policy_source(
+                doc_id="official_web_regulation:0a420e3fe367027c",
+                title="校园服务制度目录",
+                snippet=(
+                    "当前已收录依据中，校园成员校园服务制度相关制度包括：《中央民族大学信息公开实施细则》、"
+                    "《中央民族大学信息门户运行管理办法（试行）》、"
+                    "《校园一卡通管理规定》。"
+                ),
+                score=0.88,
+                chunk="public-service-category-overview",
+                collection="institutional_rules",
+            ),
+            content_role="policy_list",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="category_overview",
+                semantic_role="category_overview",
+                claim_type="policy_list",
+                condition_subject="audience_scope",
+                condition_polarity="neutral",
+                category_id="public_service",
+                category_audience="校园成员",
+                audience="校园成员",
+                category_member_document_ids=(
+                    "official_web_regulation:0a420e3fe367027c",
+                    "official_web_regulation:7c62688242b9f47b",
+                    "official_web_regulation:e350a6f1f7c0fdb2",
+                ),
+                member_policy_document_ids=(
+                    "official_web_regulation:0a420e3fe367027c",
+                    "official_web_regulation:7c62688242b9f47b",
+                    "official_web_regulation:e350a6f1f7c0fdb2",
+                ),
+                category_member_titles=(
+                    "中央民族大学信息公开实施细则",
+                    "中央民族大学信息门户运行管理办法（试行）",
+                    "校园一卡通管理规定",
+                ),
+                member_policy_titles=(
+                    "中央民族大学信息公开实施细则",
+                    "中央民族大学信息门户运行管理办法（试行）",
+                    "校园一卡通管理规定",
+                ),
+            ),
+        )
+        procedure_source = replace(
+            _make_policy_source(
+                doc_id="official_web_regulation:7c62688242b9f47b",
+                title="中央民族大学信息门户运行管理办法（试行）",
+                snippet="信息门户事项按申请、审核、公示程序办理。",
+                score=0.94,
+                chunk="portal-procedure",
+                collection="institutional_rules",
+            ),
+            content_role="procedure",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="procedure_step",
+                semantic_role="procedure_step",
+                claim_type="procedure",
+                condition_subject="application_procedure",
+                condition_polarity="positive",
+                category_id="public_service",
+            ),
+        )
+        evidence = EvidenceBundle(
+            query_text="学校层面的学生管理制度有哪些",
+            corpus="regulations",
+            collection="institutional_rules",
+            sources=(procedure_source, category_source),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("当前已收录依据中", draft.answer_text)
+        self.assertIn("信息公开实施细则", draft.answer_text)
+        self.assertIn("信息门户运行管理办法", draft.answer_text)
+        self.assertNotIn("按申请、审核、公示程序办理", draft.answer_text)
+
+    def test_category_discovery_infers_heading_from_typed_category_overview_evidence(self) -> None:
+        category_source = replace(
+            _make_policy_source(
+                doc_id="handbook:national-scholarship",
+                title="中央民族大学本科学生国家奖学金评审办法",
+                snippet="国家奖学金用于奖励特别优秀的全日制本科学生。",
+                score=0.91,
+                chunk="national-scholarship-overview",
+                collection="student_rules",
+            ),
+            content_role="policy_list",
+            semantic_role="category_overview",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="category_overview",
+                semantic_role="category_overview",
+                claim_type="policy_list",
+                condition_subject="audience_scope",
+                condition_polarity="positive",
+                category_id="scholarship",
+                category_display_name="奖学金",
+                category_audience="本科生",
+                audience="本科生",
+                category_member_document_ids=("handbook:national-scholarship",),
+                member_policy_document_ids=("handbook:national-scholarship",),
+                category_member_titles=("中央民族大学本科学生国家奖学金评审办法",),
+                member_policy_titles=("中央民族大学本科学生国家奖学金评审办法",),
+            ),
+        )
+        evidence = EvidenceBundle(
+            query_text="本科生有哪些奖学金能申请？",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(category_source,),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("当前已收录依据中，本科生奖学金相关制度包括：", draft.answer_text)
+        self.assertNotIn("相关相关制度包括", draft.answer_text)
+
+    def test_institutional_deadline_query_prefers_time_constraint_clause(self) -> None:
+        deadline_source = replace(
+            _make_policy_source(
+                doc_id="official-web-regulation-appeal-deadline-test",
+                title="中央民族大学学生申诉处理办法",
+                snippet="学生应当在收到处理决定后5个工作日内提出申诉。",
+                score=0.88,
+                chunk="appeal-deadline",
+                collection="institutional_rules",
+            ),
+            content_role="deadline",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="time_constraint",
+                semantic_role="time_constraint",
+                claim_type="time_constraint",
+                condition_subject="deadline",
+                condition_polarity="positive",
+            ),
+        )
+        generic_source = replace(
+            _make_policy_source(
+                doc_id="official-web-regulation-appeal-deadline-test",
+                title="中央民族大学学生申诉处理办法",
+                snippet="申诉应当符合规定条件，并按程序办理。",
+                score=0.94,
+                chunk="appeal-generic-condition",
+                collection="institutional_rules",
+            ),
+            content_role="requirement",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="eligibility_condition",
+                semantic_role="eligibility_condition",
+                claim_type="condition",
+                condition_subject="generic_condition",
+                condition_polarity="positive",
+            ),
+        )
+        evidence = EvidenceBundle(
+            query_text="申诉有时间限制吗",
+            corpus="regulations",
+            collection="institutional_rules",
+            sources=(generic_source, deadline_source),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("5个工作日内", draft.answer_text)
+        self.assertNotIn("符合规定条件", draft.answer_text)
+
+    def test_institutional_material_query_prefers_material_requirement_clause(self) -> None:
+        material_source = replace(
+            _make_policy_source(
+                doc_id="official-web-regulation-appeal-material-test",
+                title="中央民族大学学生申诉处理办法",
+                snippet="申诉申请应当提交书面申请、相关证明材料。",
+                score=0.89,
+                chunk="appeal-materials",
+                collection="institutional_rules",
+            ),
+            content_role="requirement",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="material_requirement",
+                semantic_role="material_requirement",
+                claim_type="material_requirement",
+                condition_subject="material_requirement",
+                condition_polarity="positive",
+            ),
+        )
+        procedure_source = replace(
+            _make_policy_source(
+                doc_id="official-web-regulation-appeal-material-test",
+                title="中央民族大学学生申诉处理办法",
+                snippet="校级复核按提交申请、审核、答复程序办理。",
+                score=0.94,
+                chunk="appeal-procedure",
+                collection="institutional_rules",
+            ),
+            content_role="procedure",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="procedure_step",
+                semantic_role="procedure_step",
+                claim_type="procedure",
+                condition_subject="application_procedure",
+                condition_polarity="positive",
+            ),
+        )
+        evidence = EvidenceBundle(
+            query_text="申请复核要交什么材料",
+            corpus="regulations",
+            collection="institutional_rules",
+            sources=(procedure_source, material_source),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("书面申请", draft.answer_text)
+        self.assertIn("证明材料", draft.answer_text)
+        self.assertNotIn("审核、答复程序", draft.answer_text)
 
     def test_condition_overview_keeps_distinct_policy_docs_in_support(self) -> None:
         evidence = EvidenceBundle(
@@ -148,7 +384,9 @@ class RagAgentAnswerQualityRegressionTest(unittest.TestCase):
         self.assertIn("第一作者", draft.answer_text)
         self.assertIn("第一、二作者", draft.answer_text)
 
-    def test_judgment_query_prefers_rank_exception_clause_over_unrelated_subconditions(self) -> None:
+    def test_judgment_query_prefers_rank_exception_clause_over_unrelated_subconditions(
+        self,
+    ) -> None:
         title = "中央民族大学本科学生国家奖学金评审办法"
         evidence = EvidenceBundle(
             query_text="成绩没前十还能评国奖吗？",
@@ -470,6 +708,108 @@ class RagAgentAnswerQualityRegressionTest(unittest.TestCase):
 
         self.assertEqual(draft.answer_text, "")
         self.assertEqual(draft.supporting_sources, ())
+
+    def test_student_rules_table_fact_lookup_uses_scholarship_amount_row(self) -> None:
+        title = "中央民族大学本科学生专业奖学金评定办法"
+        table_source = replace(
+            _make_policy_source(
+                doc_id="handbook:professional-scholarship",
+                title=title,
+                snippet=(
+                    "专业奖学金等级和金额\n"
+                    "奖学金等级 | 奖励金额 | 名额\n"
+                    "一等奖 | 3000元 | 10人\n"
+                    "二等奖 | 1500元 | 20人"
+                ),
+                score=0.94,
+                chunk="professional-scholarship-amount-table",
+            ),
+            content_kind="table_unit",
+            content_role="table_fact",
+            structural_path=(title, "专业奖学金等级和金额"),
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="table_fact",
+                semantic_role="table_fact",
+                claim_type="amount_or_quota",
+                table_fact_type="amount_or_quota",
+                condition_subject="amount_or_quota",
+                condition_polarity="positive",
+            ),
+        )
+        evidence = EvidenceBundle(
+            query_text="专业奖学金一等奖金额是多少？",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                table_source,
+                _make_policy_source(
+                    doc_id="handbook:professional-scholarship",
+                    title=title,
+                    snippet="专业奖学金用于奖励学习刻苦、成绩优良、表现突出的本科学生。",
+                    score=0.91,
+                    chunk="professional-scholarship-overview",
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("一等奖", draft.answer_text)
+        self.assertIn("3000元", draft.answer_text)
+        self.assertEqual(draft.supporting_sources[0].chunk_id, table_source.chunk_id)
+        self.assertEqual(draft.typed_draft.kind, "condition_table")
+
+    def test_student_rules_table_fact_lookup_uses_quota_row(self) -> None:
+        title = "中央民族大学本科学生专业奖学金评定办法"
+        table_source = replace(
+            _make_policy_source(
+                doc_id="handbook:professional-scholarship",
+                title=title,
+                snippet=(
+                    "专业奖学金等级和金额\n"
+                    "奖学金等级 | 奖励金额 | 名额\n"
+                    "一等奖 | 3000元 | 10人\n"
+                    "二等奖 | 1500元 | 20人"
+                ),
+                score=0.94,
+                chunk="professional-scholarship-quota-table",
+            ),
+            content_kind="table_unit",
+            content_role="table_fact",
+            structural_path=(title, "专业奖学金等级和金额"),
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="table_fact",
+                semantic_role="table_fact",
+                claim_type="amount_or_quota",
+                table_fact_type="amount_or_quota",
+                condition_subject="amount_or_quota",
+                condition_polarity="positive",
+            ),
+        )
+        evidence = EvidenceBundle(
+            query_text="专业奖学金一等奖名额有多少？",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                table_source,
+                _make_policy_source(
+                    doc_id="handbook:professional-scholarship",
+                    title=title,
+                    snippet="专业奖学金用于奖励学习刻苦、成绩优良、表现突出的本科学生。",
+                    score=0.91,
+                    chunk="professional-scholarship-overview-2",
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("一等奖", draft.answer_text)
+        self.assertIn("10人", draft.answer_text)
+        self.assertEqual(draft.supporting_sources[0].chunk_id, table_source.chunk_id)
+        self.assertEqual(draft.typed_draft.kind, "condition_table")
 
     def test_curriculum_fact_lookup_prefers_short_fact_chunk_over_credit_table(
         self,

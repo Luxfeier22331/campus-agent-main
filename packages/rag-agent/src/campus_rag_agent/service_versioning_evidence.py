@@ -192,11 +192,25 @@ def _best_category_source(sources: tuple[EvidenceSource, ...] | list[EvidenceSou
 
 def _category_source_sort_key(source: EvidenceSource) -> tuple[int, int, int, float]:
     return (
+        _category_source_answer_role_priority(source),
         _category_source_role_priority(source),
         _category_source_text_priority(source),
         1 if source.is_answer_bearing else 0,
         source.score,
     )
+
+
+def _category_source_answer_role_priority(source: EvidenceSource) -> int:
+    answer_role = str(source.anchor.get("answer_role") or source.semantic_role or "").strip()
+    if answer_role == "category_overview":
+        return 4
+    if answer_role == "eligibility_intro":
+        return 2
+    if answer_role in {"eligibility_condition", "example_evidence", "exception_rule"}:
+        return 1
+    if answer_role in {"procedure_step", "exclusion_rule"}:
+        return 0
+    return 1
 
 
 def _category_source_role_priority(source: EvidenceSource) -> int:

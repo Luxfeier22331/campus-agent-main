@@ -19,6 +19,7 @@ from campus_rag_agent.service_retrieval import (
     build_rag_retrieval_context,
     build_retrieval_plan_for_context,
 )
+from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 
 
 class RagRetrievalPlanTest(unittest.TestCase):
@@ -79,14 +80,20 @@ class RagRetrievalPlanTest(unittest.TestCase):
         self.assertEqual(len(plan.steps), 2)
         self.assertEqual(plan.steps[0].step_id, "policy-broad-lookup")
         self.assertEqual(plan.steps[0].step_type, "indexed_lookup")
-        self.assertEqual(plan.steps[0].selector.target_document_ids, handbook_plan.target_document_ids)
+        self.assertEqual(
+            plan.steps[0].selector.target_document_ids, handbook_plan.target_document_ids
+        )
         self.assertEqual(plan.steps[1].step_id, "policy-focused-lookup")
         self.assertEqual(plan.steps[1].step_type, "indexed_lookup")
-        self.assertEqual(plan.steps[1].selector.target_document_ids, handbook_plan.target_document_ids)
+        self.assertEqual(
+            plan.steps[1].selector.target_document_ids, handbook_plan.target_document_ids
+        )
         self.assertEqual(plan.steps[1].selector.focus_detail_labels, ("第九条",))
         self.assertEqual(plan.steps[1].selector.focus_article_nos, ("9",))
         self.assertEqual(plan.steps[1].selector.focus_terms, ("论文", "著作"))
         self.assertEqual(plan.steps[1].depends_on_step_ids, ("policy-broad-lookup",))
+        self.assertEqual(plan.budget.max_replans, 1)
+        self.assertEqual(plan.budget.max_steps, 3)
         self.assertIn("第九条", plan.steps[1].query_text)
         self.assertIn("论文", plan.steps[1].query_text)
         self.assertIn("著作", plan.steps[1].query_text)
@@ -335,7 +342,21 @@ class RagRetrievalPlanTest(unittest.TestCase):
                         revision_track="source-faithful",
                         version_id=version_id,
                         chunk_id=f"handbook:national-scholarship:source-faithful:{version_id}:chunk-1",
-                        anchor={"page_start": 1, "page_end": 1},
+                        anchor={
+                            "page_start": 1,
+                            "page_end": 1,
+                            INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                                "answer_role": "example_evidence",
+                                "parent_unit_id": "handbook:national-scholarship:article-9",
+                                "clause_unit_id": (
+                                    f"handbook:national-scholarship:{version_id}:article-9:1"
+                                ),
+                                "evidence_contract_version": "answer_ready_evidence.v3",
+                                "condition_subject": "paper_or_publication",
+                                "condition_polarity": "positive",
+                                "claim_type": "condition",
+                            },
+                        },
                         canonical_url="https://campus.example/handbook/national-scholarship",
                         latest_url="https://campus.example/handbook/national-scholarship",
                         source_channel="pdf_ocr",
@@ -476,7 +497,19 @@ def _make_source(*, chunk_id: str, version_id: str, snippet: str) -> EvidenceSou
         revision_track="source-faithful",
         version_id=version_id,
         chunk_id=chunk_id,
-        anchor={"page_start": 1, "page_end": 1},
+        anchor={
+            "page_start": 1,
+            "page_end": 1,
+            INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                "answer_role": "eligibility_condition",
+                "parent_unit_id": "handbook:national-scholarship:article-9",
+                "clause_unit_id": f"handbook:national-scholarship:{version_id}:article-9:1",
+                "evidence_contract_version": "answer_ready_evidence.v3",
+                "condition_subject": "generic_condition",
+                "condition_polarity": "positive",
+                "claim_type": "condition",
+            },
+        },
         canonical_url="https://example.edu/handbook/national-scholarship",
         latest_url="https://example.edu/handbook/national-scholarship/latest",
         source_channel="pdf_ocr",
@@ -485,6 +518,8 @@ def _make_source(*, chunk_id: str, version_id: str, snippet: str) -> EvidenceSou
         snippet=snippet,
         score=0.91,
         source_title="国家奖学金评审办法",
+        content_role="eligibility",
+        is_answer_bearing=True,
     )
 
 

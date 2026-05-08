@@ -4,6 +4,9 @@ from dataclasses import dataclass, field
 
 from campus_contracts import ClaimSupport, EvidenceSource
 from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
+from campus_shared.answer_ready_evidence_contract import (
+    ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
+)
 
 from campus_rag_agent.agent_answer_shape import AnswerShape
 
@@ -15,6 +18,7 @@ class TypedDraftSupport:
     excerpt: str
     source_title: str = ""
     source_trust_tier: str = ""
+    evidence_contract_version: str = ""
 
     @property
     def has_support(self) -> bool:
@@ -24,6 +28,9 @@ class TypedDraftSupport:
 @dataclass(frozen=True, slots=True)
 class PolicyListDraftItem(TypedDraftSupport):
     text: str = ""
+    category_id: str = ""
+    audience: str = ""
+    member_document_ids: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)
@@ -31,6 +38,7 @@ class ProcedureStepDraftItem(TypedDraftSupport):
     step_index: int | None = None
     actor: str = ""
     action: str = ""
+    condition_subject: str = ""
     materials: tuple[str, ...] = field(default_factory=tuple)
     next_actor: str = ""
 
@@ -47,6 +55,7 @@ class ConditionTableDraftRow(TypedDraftSupport):
     condition_subject: str = ""
     polarity: str = ""
     condition_text: str = ""
+    answer_role: str = ""
 
 
 @dataclass(frozen=True, slots=True)
@@ -76,11 +85,9 @@ def build_typed_answer_draft(
         return TypedAnswerDraft(
             kind="policy_list",
             items=tuple(
-                PolicyListDraftItem(
-                    **_support_kwargs(source, statements),
-                    text=_policy_item_text(source, statements),
-                )
+                _build_policy_list_item(source, statements)
                 for source, statements in selected_rows
+                if _is_policy_list_source(source)
             ),
         )
     if answer_shape == AnswerShape.JUDGMENT_CLAUSE:
@@ -91,7 +98,9 @@ def build_typed_answer_draft(
     if answer_shape == AnswerShape.CONDITION_OVERVIEW:
         return TypedAnswerDraft(
             kind="condition_table",
-            rows=tuple(_build_condition_row(source, statements) for source, statements in selected_rows),
+            rows=tuple(
+                _build_condition_row(source, statements) for source, statements in selected_rows
+            ),
         )
     if any(_source_answer_role(source) == "procedure_step" for source, _ in selected_rows):
         return TypedAnswerDraft(
@@ -105,7 +114,9 @@ def build_typed_answer_draft(
     if selected_rows:
         return TypedAnswerDraft(
             kind="condition_table",
-            rows=tuple(_build_condition_row(source, statements) for source, statements in selected_rows),
+            rows=tuple(
+                _build_condition_row(source, statements) for source, statements in selected_rows
+            ),
         )
     return TypedAnswerDraft(kind="unsupported", unsupported_reason="no_supporting_evidence")
 
@@ -116,19 +127,51 @@ def validate_typed_answer_draft(
     if draft.kind == "policy_list":
         if not draft.items or any(not item.has_support or not item.text for item in draft.items):
             return _invalid("policy_list_item_support_missing")
+        if any(
+            _is_v3_contract_item(item)
+            and (not item.category_id or not item.audience or not item.member_document_ids)
+            for item in draft.items
+        ):
+            return _invalid("policy_list_contract_missing")
         return _valid(_claim_supports("policy_list_item", draft.items))
     if draft.kind == "procedure_steps":
         if not draft.steps or any(not step.has_support for step in draft.steps):
             return _invalid("procedure_step_support_missing")
+        if any(
+            _is_v3_contract_item(step)
+            and (
+                step.step_index is None
+                or not step.actor
+                or not step.action
+                or not step.condition_subject
+            )
+            for step in draft.steps
+        ):
+            return _invalid("procedure_step_contract_missing")
         return _valid(_claim_supports("procedure_step", draft.steps))
     if draft.kind == "eligibility_judgment":
         if draft.judgment is None or not draft.judgment.has_support:
             return _invalid("judgment_support_missing")
+        if _is_v3_contract_item(draft.judgment) and (
+            not draft.judgment.condition_subject or not draft.judgment.polarity
+        ):
+            return _invalid("eligibility_judgment_contract_missing")
         return _valid(_claim_supports("eligibility_judgment", (draft.judgment,)))
     if draft.kind == "condition_table":
         if not draft.rows or any(not row.has_support for row in draft.rows):
             return _invalid("condition_row_support_missing")
-        return _valid(_claim_supports("condition_row", draft.rows))
+        if any(
+            _is_v3_contract_item(row)
+            and (
+                not row.condition_subject
+                or not row.polarity
+                or not row.condition_text
+                or not row.answer_role
+            )
+            for row in draft.rows
+        ):
+            return _invalid("condition_row_contract_missing")
+        return _valid(_condition_row_claim_supports(draft.rows))
     if draft.kind == "unsupported":
         if not draft.unsupported_reason:
             return _invalid("unsupported_reason_missing")
@@ -138,6 +181,20 @@ def validate_typed_answer_draft(
             return _invalid("clarification_question_missing")
         return _valid(())
     return _invalid("unsupported_draft_kind")
+
+
+def _build_policy_list_item(
+    source: EvidenceSource,
+    statements: tuple[str, ...],
+) -> PolicyListDraftItem:
+    attributes = evidence_attributes_for_source(source)
+    return PolicyListDraftItem(
+        **_support_kwargs(source, statements),
+        text=_policy_item_text(source, statements),
+        category_id=attributes.category_id,
+        audience=attributes.category_audience,
+        member_document_ids=attributes.category_member_document_ids,
+    )
 
 
 def _build_procedure_step(
@@ -150,6 +207,7 @@ def _build_procedure_step(
         step_index=attributes.procedure.step_index,
         actor=attributes.procedure.actor,
         action=attributes.procedure.action,
+        condition_subject=attributes.condition_subject,
         materials=attributes.procedure.materials,
         next_actor=attributes.procedure.next_actor,
     )
@@ -180,6 +238,7 @@ def _build_condition_row(
         condition_subject=attributes.condition_subject,
         polarity=attributes.condition_polarity or attributes.polarity,
         condition_text=_first_statement(source, statements),
+        answer_role=attributes.answer_role,
     )
 
 
@@ -187,12 +246,14 @@ def _support_kwargs(
     source: EvidenceSource,
     statements: tuple[str, ...],
 ) -> dict[str, str]:
+    attributes = evidence_attributes_for_source(source)
     return {
         "source_id": source.doc_id,
         "chunk_id": source.chunk_id,
         "excerpt": _first_statement(source, statements),
         "source_title": source.source_title,
         "source_trust_tier": str(source.source_trust_tier or ""),
+        "evidence_contract_version": attributes.evidence_contract_version,
     }
 
 
@@ -214,6 +275,15 @@ def _source_answer_role(source: EvidenceSource) -> str:
     return evidence_attributes_for_source(source).answer_role
 
 
+def _is_policy_list_source(source: EvidenceSource) -> bool:
+    attributes = evidence_attributes_for_source(source)
+    return attributes.answer_role == "category_overview" or source.content_role == "policy_list"
+
+
+def _is_v3_contract_item(item: TypedDraftSupport) -> bool:
+    return item.evidence_contract_version == ANSWER_READY_EVIDENCE_CONTRACT_VERSION
+
+
 def _claim_supports(
     claim_type: str,
     supports: tuple[TypedDraftSupport, ...],
@@ -229,6 +299,28 @@ def _claim_supports(
         )
         for support in supports
     )
+
+
+def _condition_row_claim_supports(
+    rows: tuple[ConditionTableDraftRow, ...],
+) -> tuple[ClaimSupport, ...]:
+    return tuple(
+        ClaimSupport(
+            claim_type=_condition_row_claim_type(row),
+            claim_text=row.excerpt,
+            supported=row.has_support,
+            support_source_doc_id=row.source_id,
+            support_snippet=row.excerpt,
+            support_source_trust_tier=row.source_trust_tier,
+        )
+        for row in rows
+    )
+
+
+def _condition_row_claim_type(row: ConditionTableDraftRow) -> str:
+    if row.answer_role in {"table_fact", "time_constraint", "material_requirement"}:
+        return row.answer_role
+    return "condition_row"
 
 
 def _valid(claim_supports: tuple[ClaimSupport, ...]) -> TypedAnswerDraftValidationResult:

@@ -14,11 +14,11 @@ ANSWER_READY_CONTRACT_FAILURE_CLASS = "chunk_contract_missing"
 
 @dataclass(frozen=True, slots=True)
 class AnswerReadyContractQualityResult:
+    contract_version: str
     issues: tuple[str, ...]
-
-    @property
-    def status(self) -> str:
-        return "passed" if not self.issues else "failed"
+    required_fields: tuple[str, ...]
+    severity: str
+    status: str
 
 
 def evaluate_answer_ready_contract_metadata(
@@ -34,7 +34,13 @@ def evaluate_answer_ready_contract_metadata(
         metadata=metadata,
         anchor=anchor,
     )
-    return AnswerReadyContractQualityResult(issues=_quality_issues(validation.issues))
+    return AnswerReadyContractQualityResult(
+        contract_version=validation.contract_version,
+        issues=_quality_issues(validation.issues),
+        required_fields=validation.required_fields,
+        severity=validation.severity,
+        status=validation.status,
+    )
 
 
 def is_answer_ready_contract_issue(issue: str) -> bool:

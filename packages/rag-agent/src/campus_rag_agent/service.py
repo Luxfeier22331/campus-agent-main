@@ -13,6 +13,7 @@ from campus_contracts import (
 from campus_rag_agent.prompt_execution import RagPromptExecutor
 from campus_rag_agent.rag_sdk_output import validate_rag_sdk_answer_output
 from campus_rag_agent.rag_sdk_trace import reject_unsafe_rag_sdk_projection
+from campus_rag_agent.retrieval_adequacy import sufficient_retrieval_adequacy
 
 from .rag_sdk_models import (
     RagQueryIntent,
@@ -102,6 +103,7 @@ def _build_required_rag_sdk_response(
         ),
         evidence=RagSdkEvidenceProjection.from_evidence_bundle(supporting_evidence),
         request_id=request.request_id,
+        selector_blocked_query_slot_ids=_selector_blocked_query_slot_ids(retrieval_plan),
     )
     try:
         result = runner(request_projection)
@@ -194,6 +196,7 @@ def _build_required_rag_sdk_response(
             request_id=request.request_id,
             allow_session_follow_up=True,
             semantic_outcome=result.output.semantic_outcome or "grounded_answer",
+            retrieval_adequacy=sufficient_retrieval_adequacy(),
             claim_supports=validation.claim_supports,
             grounding_verdict="grounded",
             prompt_runtime_state="rag_sdk_completed",
@@ -245,6 +248,7 @@ def _rag_sdk_fail_closed_response(
             request_id=request.request_id,
             no_answer_reason=no_answer_reason,
             semantic_outcome="unsupported_by_evidence",
+            retrieval_adequacy=sufficient_retrieval_adequacy(),
             claim_supports=claim_supports,
             unsupported_fields=unsupported_fields,
             grounding_verdict="unsupported",
@@ -272,6 +276,24 @@ def _build_query_intent(*, user_goal: str, retrieval_plan, intent_frame) -> RagQ
         normalized_query=normalized_goal,
         admitted_query_slot_ids=tuple(step.step_id for step in retrieval_plan.steps),
     )
+
+
+def _selector_blocked_query_slot_ids(retrieval_plan) -> tuple[str, ...]:
+    blocked: list[str] = []
+    for step in retrieval_plan.steps:
+        selector = step.selector
+        if not selector.target_document_ids:
+            continue
+        if step.step_id in {
+            "indexed-lookup",
+            "entity-resolution",
+            "historical-version-lookup",
+            "compare-current-lookup",
+            "compare-other-lookup",
+        }:
+            continue
+        blocked.append(step.step_id)
+    return tuple(blocked)
 
 
 def _safe_rag_sdk_runtime_detail(result: RagSdkRunResult) -> str:

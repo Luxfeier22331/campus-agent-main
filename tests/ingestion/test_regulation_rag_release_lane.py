@@ -495,6 +495,12 @@ class RegulationRagReleaseLaneTest(unittest.TestCase):
             release_registry_scope=release,
             acceptance_case_path="/tmp/regulation-qrels.jsonl",
             release_admission_manifest_key="regulations/operations/release-admission.json",
+            component_eval_summary={
+                "schema_version": 1,
+                "case_family": "answer_ready_component_eval.v1",
+                "summary": {"overall_passed": True, "failed": 0},
+                "results": [],
+            },
             publish_alias=True,
         )
 
@@ -518,6 +524,10 @@ class RegulationRagReleaseLaneTest(unittest.TestCase):
         self.assertEqual(
             calls[1][1]["release_admission_manifest_key"],
             "regulations/operations/release-admission.json",
+        )
+        self.assertEqual(
+            calls[1][1]["component_eval_summary"]["summary"]["overall_passed"],
+            True,
         )
         self.assertTrue(calls[1][1]["publish_alias"])
 
@@ -558,6 +568,45 @@ class RegulationRagReleaseLaneTest(unittest.TestCase):
         self.assertEqual(candidate.ragServingStatus, "not_serving")
         self.assertEqual(candidate.ragVerificationStatus, "not_applicable")
         self.assertIn("release admission manifest", candidate.message or "")
+
+    def test_query_enabled_regulation_candidate_blocks_without_component_eval_summary(self) -> None:
+        store = InMemoryRegulationRagReleaseCandidateStore()
+        enqueue_regulation_rag_release_candidates_for_records(
+            store=store,
+            records=(self._record(collection="institutional_rules"),),
+            runtime_profile=self._profile(
+                collection="institutional_rules",
+                query_enabled_by_default=True,
+            ),
+            now=self._now(),
+        )
+
+        executor = build_registry_scope_rag_release_executor(
+            prepare_registry_scope_chunks=lambda **_kwargs: self.fail(
+                "component eval summary must be checked before chunk preparation"
+            ),
+            release_registry_scope=lambda **_kwargs: self.fail(
+                "component eval summary must be checked before release execution"
+            ),
+            release_admission_manifest_key="regulations/operations/release-admission.json",
+            publish_alias=True,
+        )
+        report = process_pending_regulation_rag_release_candidates(
+            store=store,
+            release_executor=executor,
+            now=self._now(),
+        )
+
+        candidate = store.list_candidates()[0]
+        self.assertEqual(report.processed_count, 1)
+        self.assertEqual(report.admission_blocked_count, 1)
+        self.assertEqual(report.status_counts, {"release_admission_blocked": 1})
+        self.assertEqual(candidate.status, "release_admission_blocked")
+        self.assertEqual(candidate.ragPreparationStatus, "blocked")
+        self.assertEqual(candidate.ragIndexStatus, "not_applicable")
+        self.assertEqual(candidate.ragServingStatus, "not_serving")
+        self.assertEqual(candidate.ragVerificationStatus, "not_applicable")
+        self.assertIn("component eval summary", candidate.message or "")
 
     def test_safe_run_without_publish_alias_completes_indexed_without_serving(self) -> None:
         store = InMemoryRegulationRagReleaseCandidateStore()

@@ -44,6 +44,10 @@ _REQUIRED_RERANKER_RELEASE_METADATA_FIELDS = (
     "reranker_profile_version",
     "reranker_adoption_evidence_id",
 )
+_REQUIRED_REGULATION_TARGET_RELEASE_METADATA_FIELDS = (
+    "release_admission_status",
+    "component_eval_status",
+)
 
 
 def validate_alias_release_metadata(
@@ -290,6 +294,13 @@ def _validate_payload(
         "qrels_coverage_status": "passed",
         "release_metadata_consistency_status": "passed",
     }
+    if _requires_regulation_target_release_proof(profile):
+        expected.update(
+            {
+                "release_admission_status": "passed",
+                "component_eval_status": "passed",
+            }
+        )
     if profile.reranker_enabled_by_default:
         expected.update(
             {
@@ -312,9 +323,20 @@ def _requires_release_metadata(profile: CollectionRuntimeProfile) -> bool:
 
 
 def _required_release_metadata_fields(profile: CollectionRuntimeProfile) -> tuple[str, ...]:
+    fields = _REQUIRED_RELEASE_METADATA_FIELDS
+    if _requires_regulation_target_release_proof(profile):
+        fields = fields + _REQUIRED_REGULATION_TARGET_RELEASE_METADATA_FIELDS
     if profile.reranker_enabled_by_default:
-        return _REQUIRED_RELEASE_METADATA_FIELDS + _REQUIRED_RERANKER_RELEASE_METADATA_FIELDS
-    return _REQUIRED_RELEASE_METADATA_FIELDS
+        fields = fields + _REQUIRED_RERANKER_RELEASE_METADATA_FIELDS
+    return fields
+
+
+def _requires_regulation_target_release_proof(profile: CollectionRuntimeProfile) -> bool:
+    return bool(
+        profile.corpus == "regulations"
+        and profile.collection in {"student_rules", "institutional_rules"}
+        and _requires_release_metadata(profile)
+    )
 
 
 def _uses_non_release_managed_test_backend(

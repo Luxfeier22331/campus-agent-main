@@ -300,6 +300,9 @@ from campus_ingestion_core.regulation_rag_release_admission import (
     validate_regulation_rag_release_admission_manifest_shape,
     write_regulation_rag_release_admission_manifest,
 )
+from campus_ingestion_core.regulation_rag_release_manifest_audit import (
+    audit_regulation_rag_release_manifests,
+)
 from campus_ingestion_core.regulation_rag_release_lane import (
     InMemoryRegulationRagReleaseCandidateStore,
     PostgresRegulationRagReleaseCandidateStore,
@@ -532,6 +535,7 @@ __all__ = [
     "build_regulation_rag_release_admission_manifest",
     "build_regulation_rag_release_candidate_store_from_env",
     "build_regulation_rag_runtime_profile_identity",
+    "audit_regulation_rag_release_manifests",
     "build_release_metadata_payload",
     "build_source_ocr_artifact_key",
     "build_source_provider_artifact_key",

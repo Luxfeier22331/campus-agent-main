@@ -7,6 +7,7 @@ import unittest
 from unittest.mock import patch
 
 from campus_ingestion_core.qdrant_backup import (
+    CollectionGcDeleteReport,
     CollectionGcEligibilityReport,
     SnapshotBackupManifest,
     SnapshotRestoreReport,
@@ -15,6 +16,7 @@ from campus_ingestion_core.qdrant_backup import (
 backup_create_worker = importlib.import_module("campus_ingestion_worker.qdrant_backup_create")
 backup_restore_worker = importlib.import_module("campus_ingestion_worker.qdrant_backup_restore")
 gc_check_worker = importlib.import_module("campus_ingestion_worker.qdrant_gc_check")
+gc_delete_worker = importlib.import_module("campus_ingestion_worker.qdrant_gc_delete")
 
 
 class QdrantBackupWorkerCliTest(unittest.TestCase):
@@ -140,6 +142,53 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
         self.assertEqual(request.release_id, "r20260328_095627")
         payload = json.loads(stdout.getvalue())
         self.assertFalse(payload["eligible"])
+
+    def test_gc_delete_main_builds_typed_request_from_cli_args(self) -> None:
+        with (
+            patch("campus_ingestion_worker.qdrant_gc_delete.load_worker_env"),
+            patch(
+                "campus_ingestion_worker.qdrant_gc_delete.delete_gc_eligible_collection"
+            ) as gc_delete,
+            patch("sys.stdout", new_callable=io.StringIO) as stdout,
+        ):
+            gc_delete.return_value = CollectionGcDeleteReport(
+                eligible=True,
+                deleted=True,
+                corpus="regulations",
+                collection="student_rules",
+                release_id="r20260328_095627",
+                physical_collection_name="student_rules__r20260328_095627",
+                role="archive_candidate",
+                blockers=(),
+                backup_manifest_object_key=(
+                    "regulations/backups/student_rules/r20260328_095627/"
+                    "b20260401T010203Z/backup-manifest.json"
+                ),
+                delete_report_object_key=(
+                    "regulations/backups/student_rules/r20260328_095627/"
+                    "b20260401T010203Z/gc-delete-report.json"
+                ),
+                deleted_at="2026-04-01T03:04:05+00:00",
+                operator="tester",
+            )
+            gc_delete_worker.main(
+                [
+                    "--corpus",
+                    "regulations",
+                    "--collection",
+                    "student_rules",
+                    "--release-id",
+                    "r20260328_095627",
+                    "--operator",
+                    "tester",
+                ]
+            )
+
+        request = gc_delete.call_args.kwargs["request"]
+        self.assertEqual(request.release_id, "r20260328_095627")
+        self.assertEqual(request.operator, "tester")
+        payload = json.loads(stdout.getvalue())
+        self.assertTrue(payload["deleted"])
 
 
 if __name__ == "__main__":

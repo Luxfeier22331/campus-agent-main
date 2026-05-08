@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-05-07
-updated: 2026-05-07
+updated: 2026-05-08
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -20,12 +20,14 @@ typed answer grounding、组件级 eval，以及 `student_rules` / `institutiona
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 2 - Taxonomy And Registry Normalization`
-- active implementation: Phase 1 contract/schema governance is complete and verified; Phase 2 is
-  the current build slice
-- current slice: normalize `condition_subject`, `procedure_action` and `category_id` into shared
-  taxonomy/registry records with admission/version governance, and remove private per-module
-  canonical-value drift
+- current phase: `Phase 11 - Legacy Quarantine Docs Closeout`
+- active implementation: Phase 1 contract/schema governance and Phase 10 institutional rebuild
+  release audit are complete and verified; Phase 9 student rebuild release audit is now also
+  complete; Phases 2-8 are partially landed; Phase 11 legacy quarantine closeout remains open
+- current slice: keep the admitted/component-eval-backed `student_rules` and `institutional_rules`
+  aliases on current release truth, keep target-v3 retrieval on explicit `target_v3_only`
+  fail-closed semantics, and finish old-index quarantine / release-proof documentation
+  closeout
 - owner boundary: `packages/shared` + `packages/ingestion-core` + `packages/retrieval-core` +
   `packages/rag-agent` + `packages/evals` + regulation RAG release lane
 - serving boundary: only current query-enabled regulation-family surfaces are mandatory:
@@ -45,9 +47,14 @@ Remaining structural debt:
 - procedure step extraction still mixes action semantics with text cues
 - category overview is proven mainly by scholarship-style registry paths
 - quality gates still emphasize defect detection more than semantic correctness admission
-- rebuilt serving truth for both default regulation surfaces is not yet proven by release manifests
 - retrieval fallback exists for old-index compatibility and must be quarantined away from target v3
   completion
+- component eval is now fixture-backed, stage-aware, can derive observations from real runtime
+  responses plus retrieval fallback signals, and its deterministic JSON summary can now be attached
+  to regulation release manifests, release reports, Qdrant release metadata and release-admission
+  evidence; denominator expansion now also covers the frozen ambiguous scholarship clarification
+  case, regulation-family unsupported/no-hit rows, and an explicit regulation-family `table_fact`
+  row for scholarship amount/quota lookup
 
 ## Native Planning Truth
 
@@ -73,6 +80,9 @@ This workstream starts from that result but uses stricter completion rules:
 - `student_rules` and `institutional_rules` must both produce release-lane evidence
 - runtime text-cue fallback is forbidden for target rebuilt v3 serving chunks
 - compatibility support is allowed only inside a named legacy old-index lane
+- target regulation query-serving retrieval now distinguishes explicit compatibility posture:
+  `target_v3_only` fails closed on legacy primary fallback, while
+  `legacy_old_index_compatibility` is compatibility-only and excluded from completion
 - no new public ToolSpec, supervisor routing or product surface is opened
 
 ## Boundary Notes

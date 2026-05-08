@@ -74,6 +74,7 @@ campus-ingestion-admit-regulation-rag-release = "campus_ingestion_worker.admit_r
 campus-ingestion-enqueue-regulation-rag-release-candidates = "campus_ingestion_worker.enqueue_regulation_rag_release_candidates:main"
 campus-ingestion-process-regulation-rag-release-candidates = "campus_ingestion_worker.process_regulation_rag_release_candidates:main"
 campus-ingestion-probe-regulation-rag-release-runtime = "campus_ingestion_worker.probe_regulation_rag_release_runtime:main"
+campus-ingestion-re-audit-regulation-rag-release = "campus_ingestion_worker.re_audit_regulation_rag_release:main"
 campus-ingestion-repair-rag-release-metadata = "campus_ingestion_worker.repair_rag_release_metadata:main"
 campus-ingestion-generate-regulation-rag-release-selected-replay = "campus_ingestion_worker.generate_regulation_rag_release_selected_replay:main"
 campus-ingestion-backfill-collected-notice-regulation-canonical = "campus_ingestion_worker.backfill_collected_notice_regulation_canonical:main"

@@ -5,8 +5,10 @@ import unittest
 from campus_contracts import EvidenceSource
 from campus_retrieval_core.backend_qdrant_evidence import build_evidence_sources
 from campus_retrieval_core.evidence_attributes import (
+    INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY,
     build_internal_evidence_attribute_payload,
     evidence_attributes_for_source,
+    evidence_fallback_diagnostics_for_source,
 )
 from qdrant_client.http import models as qdrant_models
 
@@ -56,6 +58,7 @@ class EvidenceAttributesTest(unittest.TestCase):
         payload = build_internal_evidence_attribute_payload(
             {
                 "answer_role": "eligibility_intro",
+                "condition_group_subject": "rank_threshold",
                 "parent_unit_id": "article-1",
                 "clause_unit_id": "article-1:2",
                 "evidence_contract_version": "answer_ready_evidence.v3",
@@ -68,6 +71,7 @@ class EvidenceAttributesTest(unittest.TestCase):
         )
 
         self.assertEqual(payload["intro_scope"], "eligibility_group")
+        self.assertEqual(payload["condition_group_subject"], "rank_threshold")
         self.assertEqual(payload["clause_unit_id"], "article-1:2")
         self.assertEqual(payload["introduced_condition_group_id"], "article-1:rank_threshold")
         self.assertEqual(payload["intro_target_roles"], ["eligibility_condition"])
@@ -125,6 +129,7 @@ class EvidenceAttributesTest(unittest.TestCase):
                         "is_answer_bearing": True,
                         "answer_role": "procedure_step",
                         "condition_subject": "discipline_relief_condition",
+                        "condition_group_subject": "application_procedure",
                         "condition_group_id": "handbook:demerit-relief:article-3:application_procedure",
                         "parent_unit_id": "handbook:demerit-relief:article-3",
                         "clause_unit_id": "handbook:demerit-relief:article-3:1",
@@ -152,6 +157,7 @@ class EvidenceAttributesTest(unittest.TestCase):
 
         self.assertEqual(attributes.answer_role, "procedure_step")
         self.assertEqual(attributes.condition_subject, "discipline_relief_condition")
+        self.assertEqual(attributes.condition_group_subject, "application_procedure")
         self.assertEqual(
             attributes.condition_group_id,
             "handbook:demerit-relief:article-3:application_procedure",
@@ -165,6 +171,50 @@ class EvidenceAttributesTest(unittest.TestCase):
         self.assertEqual(attributes.procedure.materials, ("解除处分申请表",))
         self.assertEqual(attributes.procedure.next_actor, "college")
         self.assertEqual(attributes.missing_contract_fields, ())
+
+    def test_evidence_attributes_recover_condition_group_subject_from_group_id(self) -> None:
+        source = _make_source(
+            anchor={
+                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                    "answer_role": "procedure_step",
+                    "condition_subject": "application_procedure",
+                    "condition_group_id": "handbook:student-card:article-3:application_procedure",
+                    "parent_unit_id": "handbook:student-card:article-3",
+                    "evidence_contract_version": "answer_ready_evidence.v3",
+                    "procedure_step_index": 1,
+                    "procedure_actor": "student",
+                    "procedure_action": "submit_materials",
+                    "procedure_action_taxonomy_version": "procedure_action.v1",
+                    "procedure_action_provenance": "keyword:提交+材料",
+                }
+            }
+        )
+
+        attributes = evidence_attributes_for_source(source)
+
+        self.assertEqual(attributes.condition_group_subject, "application_procedure")
+
+    def test_fallback_diagnostics_flag_incomplete_v3_procedure_contract(self) -> None:
+        source = _make_source(
+            anchor={
+                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                    "answer_role": "procedure_step",
+                    "condition_subject": "application_procedure",
+                    "condition_group_id": "handbook:student-card:article-3:application_procedure",
+                    "parent_unit_id": "handbook:student-card:article-3",
+                    "evidence_contract_version": "answer_ready_evidence.v3",
+                }
+            }
+        )
+
+        diagnostics = evidence_fallback_diagnostics_for_source(source)
+
+        self.assertTrue(diagnostics.fallback_used)
+        self.assertEqual(diagnostics.fallback_reason, "missing_contract")
+        self.assertIn("condition_polarity", diagnostics.missing_contract_fields)
+        self.assertIn("procedure_step_index", diagnostics.missing_contract_fields)
+        self.assertIn("procedure_actor", diagnostics.missing_contract_fields)
+        self.assertIn("procedure_action", diagnostics.missing_contract_fields)
 
 
 if __name__ == "__main__":

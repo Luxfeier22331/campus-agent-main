@@ -35,6 +35,8 @@ def _build_no_answer_response(
             if _is_official_web_freshness_fail_close(evidence):
                 return "当前本地官网页面链路还不支持回答今天/最新/最近这类时效敏感问题，请改问明确的页面标题、机构名称或文章主题。"
             return "当前未检索到足够依据支持回答这个官网页面问题，请确认问题是否落在当前已导入的官网页面范围内，或补充更明确的页面标题、机构名称或文章主题。"
+    if evidence.corpus == "regulations" and evidence.collection == "institutional_rules":
+        return "当前未检索到足够依据支持回答这个校级制度问题，请确认它是否属于当前已开放的校级制度范围，或补充更具体的制度名称。"
     if resolved_policy_title:
         return (
             f"在《{resolved_policy_title}》中，当前未检索到足够依据支持回答这个问题；"

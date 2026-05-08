@@ -1,7 +1,12 @@
 from __future__ import annotations
 
 from campus_contracts import EvidenceSource
+from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 from campus_retrieval_core.evidence_ranking import query_targets_source_title
+from campus_retrieval_core.evidence_semantics import (
+    infer_query_condition_subject,
+    semantic_alignment_score,
+)
 
 from .agent_answer_shape import AnswerShape
 from .agent_curriculum_terms import (
@@ -65,6 +70,12 @@ def _select_answer_support_rows(
                 reverse=True,
             )
         )
+    )
+    ranked_sources = _filter_sources_for_query_subject_alignment(
+        query_text=query_text,
+        sources=ranked_sources,
+        mode=mode,
+        answer_shape=shape,
     )
     if shape == AnswerShape.TITLE_LOOKUP and not course_list_query and not curriculum_lookup_query:
         ranked_sources = _filter_title_lookup_sources_for_answer_bearing_overview(ranked_sources)
@@ -161,20 +172,27 @@ def _is_table_like_answer_source(source: EvidenceSource) -> bool:
 
 def _answer_source_sort_key(
     query_text: str, source: EvidenceSource, *, mode: str
-) -> tuple[int, int, int, int]:
+) -> tuple[int, int, int, int, int, int, int]:
     scored = _score_source_statements(query_text, source, mode=mode)
     if not scored:
-        return (0, 0, 0, 0, 0, 0)
+        return (0, 0, 0, 0, 0, 0, 0)
     best_score = scored[0][0]
     total_score = sum(score for score, _ in scored[:3])
     return (
         _query_anchor_match_score(query_text, source),
+        _regulation_semantic_answer_sort_score(query_text=query_text, source=source),
         _query_critical_source_match_score(query_text, source),
         best_score,
         total_score,
         len(scored),
         1 if source.is_answer_bearing else 0,
     )
+
+
+def _regulation_semantic_answer_sort_score(*, query_text: str, source: EvidenceSource) -> int:
+    if source.collection not in {"student_rules", "institutional_rules"}:
+        return 0
+    return semantic_alignment_score(query_text=query_text, source=source)
 
 
 def _filter_statements_for_query_critical_terms(
@@ -293,6 +311,33 @@ def _filter_category_discovery_statements(statements: tuple[str, ...]) -> tuple[
             continue
         filtered.append(statement)
     return tuple(filtered)
+
+
+def _filter_sources_for_query_subject_alignment(
+    *,
+    query_text: str,
+    sources: tuple[EvidenceSource, ...],
+    mode: str,
+    answer_shape: AnswerShape,
+) -> tuple[EvidenceSource, ...]:
+    if not sources or answer_shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
+        return sources
+    query_subject = infer_query_condition_subject(query_text)
+    if mode == "time":
+        aligned = tuple(
+            source
+            for source in sources
+            if evidence_attributes_for_source(source).condition_subject == "deadline"
+        )
+        return aligned or sources
+    if mode == "generic" and query_subject == "material_requirement":
+        aligned = tuple(
+            source
+            for source in sources
+            if evidence_attributes_for_source(source).condition_subject == "material_requirement"
+        )
+        return aligned or sources
+    return sources
 
 
 def _trim_judgment_statement_for_query(*, query_text: str, statement: str) -> str:

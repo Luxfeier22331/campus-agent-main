@@ -9,6 +9,8 @@ from campus_retrieval_core import (
     RetrievalStepBudget,
     RetrievalStepResult,
 )
+from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
+from campus_retrieval_core.evidence_semantics import infer_evidence_query_intent
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,6 +71,8 @@ def build_semantic_replan_decision(
         query_text=_focused_replan_query(
             query_text=triggering_step.query_text,
             need_ids=follow_up_need_ids,
+            trigger_reason=trigger_reason,
+            references=last_result.references,
         ),
         need_ids=follow_up_need_ids,
         depends_on_step_ids=(triggering_step.step_id,),
@@ -100,11 +104,8 @@ def build_semantic_replan_decision(
 
 
 def _trigger_reason(last_result: RetrievalStepResult) -> str:
-    if (
-        last_result.activity is not None
-        and last_result.activity.failure_kind == "polarity_conflict"
-    ):
-        return "polarity_conflict"
+    if last_result.activity is not None and last_result.activity.failure_kind:
+        return str(last_result.activity.failure_kind)
     return "empty_supporting_evidence"
 
 
@@ -125,7 +126,23 @@ def _focused_replan_need_ids(need_ids: tuple[str, ...]) -> tuple[str, ...]:
     return need_ids
 
 
-def _focused_replan_query(*, query_text: str, need_ids: tuple[str, ...]) -> str:
+def _focused_replan_query(
+    *,
+    query_text: str,
+    need_ids: tuple[str, ...],
+    trigger_reason: str,
+    references,
+) -> str:
+    if trigger_reason == "group_support_missing":
+        return _group_support_missing_replan_query(
+            query_text=query_text,
+            references=references,
+        )
+    if trigger_reason == "condition_group_answer_role_mismatch":
+        return _condition_subject_replan_query(
+            query_text=query_text,
+            references=references,
+        )
     if any(need_id.endswith(":procedure") for need_id in need_ids):
         if _is_lift_discipline_procedure_query(query_text):
             return "解除处分 申请 条件 程序 办理步骤"
@@ -143,6 +160,53 @@ def _focused_replan_query(*, query_text: str, need_ids: tuple[str, ...]) -> str:
         topic = _query_topic_before_first_need_marker(query_text)
         return f"{topic} 依据 条款 规定".strip()
     return query_text
+
+
+def _group_support_missing_replan_query(*, query_text: str, references) -> str:
+    topic = _query_topic_before_first_need_marker(query_text)
+    subject = _replan_condition_subject(query_text=query_text, references=references)
+    subject_terms = _condition_subject_replan_terms(subject)
+    if subject_terms:
+        return f"{topic} {' '.join(subject_terms)} 条款 规定".strip()
+    return f"{topic} 条件 例外 条款 规定".strip()
+
+
+def _condition_subject_replan_query(*, query_text: str, references) -> str:
+    topic = _query_topic_before_first_need_marker(query_text)
+    subject = _replan_condition_subject(query_text=query_text, references=references)
+    subject_terms = _condition_subject_replan_terms(subject)
+    if subject_terms:
+        return f"{topic} {' '.join(subject_terms)} 条件 要求".strip()
+    return f"{topic} 条件 要求".strip()
+
+
+def _replan_condition_subject(*, query_text: str, references) -> str:
+    intent = infer_evidence_query_intent(query_text)
+    if intent.condition_subject:
+        return intent.condition_subject
+    for source in references:
+        attributes = evidence_attributes_for_source(source)
+        if attributes.condition_group_subject:
+            return attributes.condition_group_subject
+        if attributes.condition_subject:
+            return attributes.condition_subject
+    return ""
+
+
+def _condition_subject_replan_terms(condition_subject: str) -> tuple[str, ...]:
+    return _CONDITION_SUBJECT_REPLAN_TERMS.get(condition_subject.strip(), ())
+
+
+_CONDITION_SUBJECT_REPLAN_TERMS: dict[str, tuple[str, ...]] = {
+    "rank_threshold": ("排名", "前10", "前30", "例外"),
+    "paper_or_publication": ("论文", "著作", "发表"),
+    "amount_or_quota": ("金额", "名额", "比例", "额度"),
+    "material_requirement": ("材料", "证明", "提交"),
+    "deadline": ("时间", "截止", "期限"),
+    "discipline_relief_condition": ("解除处分", "条件", "考察期"),
+    "discipline_relief_exclusion": ("解除处分", "不予", "情形"),
+    "student_card_or_identity_credential": ("学生证", "挂失", "补办"),
+}
 
 
 def _query_topic_before_first_need_marker(query_text: str) -> str:

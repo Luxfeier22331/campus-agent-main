@@ -2,7 +2,7 @@
 doc_type: roadmap
 status: active
 created: 2026-05-07
-updated: 2026-05-07
+updated: 2026-05-08
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -30,12 +30,13 @@ updated: 2026-05-07
   with the v3 evidence contract.
 - [ ] **Phase 8: Component Eval And Stage Attribution** — add eval diagnostics that localize failures
   to extraction, retrieval, ranking, selection, draft, grounding or release admission.
-- [ ] **Phase 9: Student Rules Rebuild Release Audit** — rebuild `regulations/student_rules` through
+- [x] **Phase 9: Student Rules Rebuild Release Audit** — rebuild `regulations/student_rules` through
   the release lane and prove serving adoption.
-- [ ] **Phase 10: Institutional Rules Rebuild Release Audit** — rebuild `regulations/institutional_rules`
+- [x] **Phase 10: Institutional Rules Rebuild Release Audit** — rebuild `regulations/institutional_rules`
   through the release lane and prove serving adoption.
-- [ ] **Phase 11: Legacy Quarantine Docs Closeout** — isolate old-index compatibility, remove target
-  fallbacks, update docs and close the debt ledger.
+- [ ] **Phase 11: Legacy Quarantine Docs Closeout** — isolate old-index compatibility, keep target
+  regulation retrieval on explicit `target_v3_only` fail-close semantics, update docs and close the
+  debt ledger.
 
 ## Execution Rules
 

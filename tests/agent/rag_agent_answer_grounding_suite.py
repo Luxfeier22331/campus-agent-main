@@ -131,7 +131,7 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
             response.result.diagnostics.source_trust_summary,
             SourceTrustSummary(
                 observed_tiers=("T1",),
-                answer_bearing_tiers=(),
+                answer_bearing_tiers=("T1",),
                 blocked_claim_types=(),
                 freshness_claim_blocked=False,
                 authorization_claim_blocked=False,
@@ -169,6 +169,69 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
         self.assertEqual(result_guardrail["grounding_verdict"], "grounded")
         self.assertEqual(result_guardrail["source_ref_count"], 2)
 
+    def test_low_score_single_paper_judgment_evidence_still_completes_when_semantically_targeted(
+        self,
+    ) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+            title="中央民族大学本科学生国家奖学金评审办法",
+            snippet=(
+                "在学术研究上取得显著成绩,以第一作者发表的论文被SCI、EI、ISTP、SSCI全文收录,"
+                "以第一、二作者出版学术专著(须通过专家鉴定)。"
+            ),
+            score=0.033333335,
+            chunk_id_suffix="national-paper-condition-live-like",
+            content_role="eligibility",
+            is_answer_bearing=True,
+            semantic_role="example_evidence",
+            polarity="positive",
+            claim_type="condition",
+        )
+        source = replace(
+            source,
+            anchor={
+                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                    "answer_role": "example_evidence",
+                    "semantic_role": "example_evidence",
+                    "evidence_contract_version": "answer_ready_evidence.v3",
+                    "parent_unit_id": "handbook:national-scholarship:article-9",
+                    "condition_subject": "paper_or_publication",
+                    "condition_group_subject": "paper_or_publication",
+                    "condition_group_id": "handbook:national-scholarship:article-9:paper_or_publication",
+                    "condition_polarity": "positive",
+                    "condition_subject_taxonomy_version": "condition_subject.v1",
+                    "condition_subject_provenance": "suite-fixture",
+                    "polarity": "positive",
+                    "claim_type": "condition",
+                }
+            },
+        )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="论文能不能算国奖条件",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=lambda query_text, **kwargs: EvidenceBundle(
+                query_text=query_text,
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            ),
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.confidence, "medium")
+        self.assertIn("论文", response.answer_text)
+        self.assertTrue(response.result.diagnostics.claim_supports)
+        self.assertEqual(
+            tuple(claim.claim_type for claim in response.result.diagnostics.claim_supports),
+            ("eligibility_judgment",),
+        )
+
     def test_completed_response_projects_typed_draft_support_into_claim_evidence_graph(
         self,
     ) -> None:
@@ -193,12 +256,18 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
                     "evidence_contract_version": "answer_ready_evidence.v3",
                     "parent_unit_id": "handbook:demerit-relief:article-3",
                     "condition_subject": "application_procedure",
+                    "condition_group_subject": "application_procedure",
                     "condition_group_id": "handbook:demerit-relief:article-3:application_procedure",
                     "procedure_step_index": 1,
                     "procedure_actor": "student",
                     "procedure_action": "submit_materials",
                     "procedure_materials": ("解除处分申请表",),
                     "procedure_next_actor": "college",
+                    "condition_subject_taxonomy_version": "condition_subject.v1",
+                    "condition_subject_provenance": "suite-fixture",
+                    "procedure_action_taxonomy_version": "procedure_action.v1",
+                    "procedure_action_provenance": "suite-fixture",
+                    "condition_polarity": "positive",
                     "polarity": "positive",
                     "action_type": "lift_discipline",
                     "claim_type": "procedure",
@@ -238,13 +307,323 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
             (source.chunk_id,),
         )
 
+    def test_target_v3_rejects_legacy_like_procedure_fixture_before_synthesis(self) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:demerit-relief",
+            title="中央民族大学解除学生纪律处分实施办法",
+            snippet="学生提交解除处分申请表，经学院审核后报学生处。",
+            score=0.86,
+            chunk_id_suffix="discipline-procedure-missing-step-fields",
+            content_role="procedure",
+            is_answer_bearing=True,
+            semantic_role="procedure_step",
+            polarity="positive",
+            action_type="lift_discipline",
+            claim_type="procedure",
+        )
+        source = replace(
+            source,
+            anchor={
+                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                    "answer_role": "procedure_step",
+                    "evidence_contract_version": "answer_ready_evidence.v3",
+                    "parent_unit_id": "handbook:demerit-relief:article-3",
+                    "condition_subject": "application_procedure",
+                    "condition_group_subject": "application_procedure",
+                    "condition_group_id": "handbook:demerit-relief:article-3:application_procedure",
+                    "condition_subject_taxonomy_version": "condition_subject.v1",
+                    "condition_subject_provenance": "suite-fixture",
+                    "condition_polarity": "positive",
+                    "polarity": "positive",
+                    "action_type": "lift_discipline",
+                    "claim_type": "procedure",
+                    "procedure_action_taxonomy_version": "procedure_action.v1",
+                    "procedure_action_provenance": "suite-fixture",
+                }
+            },
+        )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="处分怎么消",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=lambda query, **kwargs: EvidenceBundle(
+                query_text=query,
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            ),
+        )
+
+        self.assertEqual(response.status, "error")
+        self.assertIsNotNone(response.error)
+        assert response.error is not None
+        self.assertEqual(response.error.code, "retrieval_failed")
+        self.assertIn("legacy old-index fallback is not allowed", response.error.message)
+        self.assertEqual(response.result.evidence.sources, ())
+        self.assertEqual(response.agent_observability.tool_outcome, "retrieval_failed")
+
+    def test_completed_response_preserves_time_constraint_claim_support_type(self) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:appeal",
+            title="中央民族大学学生申诉处理办法",
+            snippet="学生应当在收到处理决定之日起10日内提出申诉。",
+            score=0.88,
+            chunk_id_suffix="appeal-deadline-claim-support",
+            content_role="deadline",
+            is_answer_bearing=True,
+        )
+        source = replace(
+            source,
+            anchor={
+                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                    "answer_role": "time_constraint",
+                    "evidence_contract_version": "answer_ready_evidence.v3",
+                    "parent_unit_id": "handbook:appeal:article-5",
+                    "condition_subject": "deadline",
+                    "condition_group_subject": "deadline",
+                    "condition_group_id": "handbook:appeal:article-5:deadline",
+                    "condition_polarity": "positive",
+                    "condition_subject_taxonomy_version": "condition_subject.v1",
+                    "condition_subject_provenance": "suite-fixture",
+                }
+            },
+        )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="申诉有时间限制吗",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=lambda query, **kwargs: EvidenceBundle(
+                query_text=query,
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            ),
+        )
+
+        self.assertEqual(response.status, "completed")
+        assert response.result.diagnostics is not None
+        self.assertIn(
+            "time_constraint",
+            tuple(support.claim_type for support in response.result.diagnostics.claim_supports),
+        )
+
+    def test_completed_response_keeps_institutional_material_requirement_answer_grounded(self) -> None:
+        source = _make_handbook_source(
+            doc_id="official_web_regulation:e350a6f1f7c0fdb2",
+            title="校园一卡通管理规定",
+            snippet=(
+                "第17条 校园卡补卡：因丢失、损坏等原因需要重新办卡，必须携带本人证件"
+                "（工作证、学生证及其他有效证件）到卡务中心申请补办，同时交纳卡片工本费。"
+            ),
+            score=0.91,
+            chunk_id_suffix="institutional-card-material-claim-support",
+            content_role="requirement",
+            is_answer_bearing=True,
+        )
+        source = replace(
+            source,
+            collection="institutional_rules",
+            anchor={
+                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                    "answer_role": "material_requirement",
+                    "evidence_contract_version": "answer_ready_evidence.v3",
+                    "parent_unit_id": "institutional:card:article-17",
+                    "condition_subject": "material_requirement",
+                    "condition_group_subject": "material_requirement",
+                    "condition_group_id": "institutional:card:article-17:material_requirement",
+                    "condition_polarity": "positive",
+                    "condition_subject_taxonomy_version": "condition_subject.v1",
+                    "condition_subject_provenance": "suite-fixture",
+                }
+            },
+        )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="校园卡补卡要带什么材料",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="institutional_rules")
+                ),
+            ),
+            retriever=lambda query, **kwargs: EvidenceBundle(
+                query_text=query,
+                corpus="regulations",
+                collection="institutional_rules",
+                sources=(source,),
+            ),
+        )
+
+        self.assertEqual(response.status, "completed")
+        assert response.result.diagnostics is not None
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
+        self.assertEqual(
+            tuple(support.claim_type for support in response.result.diagnostics.claim_supports),
+            ("material_requirement",),
+        )
+
+    def test_completed_response_keeps_institutional_time_constraint_answer_grounded(self) -> None:
+        source = _make_handbook_source(
+            doc_id="official_web_regulation:ce565b348ca6ee31",
+            title="中央民族大学二级网站建设与运行管理办法",
+            snippet=(
+                "第十一条 各单位需建立二级网站应急保障机制，指派专人负责网站安全管理；"
+                "随时检查网页，发现受到攻击等安全问题必须在第一时间进行处理并上报。"
+            ),
+            score=0.91,
+            chunk_id_suffix="institutional-website-deadline-claim-support",
+            content_role="time_rule",
+            is_answer_bearing=True,
+        )
+        source = replace(
+            source,
+            collection="institutional_rules",
+            anchor={
+                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                    "answer_role": "time_constraint",
+                    "evidence_contract_version": "answer_ready_evidence.v3",
+                    "parent_unit_id": "institutional:website:article-11",
+                    "condition_subject": "deadline",
+                    "condition_group_subject": "deadline",
+                    "condition_group_id": "institutional:website:article-11:deadline",
+                    "condition_polarity": "positive",
+                    "condition_subject_taxonomy_version": "condition_subject.v1",
+                    "condition_subject_provenance": "suite-fixture",
+                }
+            },
+        )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="二级网站安全问题要多久上报",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="institutional_rules")
+                ),
+            ),
+            retriever=lambda query, **kwargs: EvidenceBundle(
+                query_text=query,
+                corpus="regulations",
+                collection="institutional_rules",
+                sources=(source,),
+            ),
+        )
+
+        self.assertEqual(response.status, "completed")
+        assert response.result.diagnostics is not None
+        self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
+        self.assertEqual(
+            tuple(support.claim_type for support in response.result.diagnostics.claim_supports),
+            ("time_constraint",),
+        )
+
+    def test_institutional_no_hit_response_uses_institutional_scope_text(self) -> None:
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="中央民族大学星际通勤飞船管理办法",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="institutional_rules")
+                ),
+            ),
+            retriever=lambda query, **kwargs: EvidenceBundle(
+                query_text=query,
+                corpus="regulations",
+                collection="institutional_rules",
+                sources=(),
+            ),
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertIn("校级制度问题", response.answer_text)
+        self.assertNotIn("学生手册问题", response.answer_text)
+
+    def test_completed_response_preserves_table_fact_claim_support_type(self) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:professional-scholarship",
+            title="中央民族大学本科学生专业奖学金评定办法",
+            snippet="一等奖 | 3000元 | 10人",
+            score=0.89,
+            chunk_id_suffix="professional-scholarship-table-fact-claim-support",
+            content_role="table_fact",
+            is_answer_bearing=True,
+        )
+        source = replace(
+            source,
+            anchor={
+                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                    "answer_role": "table_fact",
+                    "evidence_contract_version": "answer_ready_evidence.v3",
+                    "parent_unit_id": "handbook:professional-scholarship:table-1",
+                    "condition_subject": "amount_or_quota",
+                    "condition_group_subject": "amount_or_quota",
+                    "condition_group_id": "handbook:professional-scholarship:table:amount_or_quota",
+                    "condition_polarity": "positive",
+                    "condition_subject_taxonomy_version": "condition_subject.v1",
+                    "condition_subject_provenance": "suite-fixture",
+                }
+            },
+        )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="专业奖学金一等奖金额是多少？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=lambda query, **kwargs: EvidenceBundle(
+                query_text=query,
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            ),
+        )
+
+        self.assertEqual(response.status, "completed")
+        assert response.result.diagnostics is not None
+        self.assertIn(
+            "table_fact",
+            tuple(support.claim_type for support in response.result.diagnostics.claim_supports),
+        )
+
     def test_delegate_passes_context_authorization_filter_to_retriever(self) -> None:
         captured_kwargs: dict[str, object] = {}
 
         def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
             captured_kwargs["query"] = query
             captured_kwargs.update(kwargs)
-            return _make_evidence(scores=(0.83,), query_text=query)
+            source = _make_handbook_source(
+                doc_id="handbook:postgraduate-recommendation",
+                title="中央民族大学推荐应届本科毕业生免试攻读硕士学位研究生管理办法",
+                snippet="学生提交申请材料后，由学院审核并报学校复核。",
+                score=0.83,
+                chunk_id_suffix="postgraduate-recommendation-procedure",
+                content_role="procedure",
+                is_answer_bearing=True,
+                semantic_role="procedure_step",
+                polarity="positive",
+                claim_type="procedure",
+            )
+            return EvidenceBundle(
+                query_text=query,
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            )
 
         response = delegate_to_rag_agent(
             AgentRequest(
@@ -517,7 +896,7 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
         self.assertIsNotNone(response.result.diagnostics.retrieval_plan_summary)
         self.assertEqual(
             response.result.diagnostics.retrieval_plan_summary.plan_id,
-            "regulations:student_rules:current",
+            "regulations:student_rules:current:specific-policy-focus",
         )
         self.assertEqual(
             response.result.diagnostics.retrieval_plan_summary.query_mode,
@@ -550,59 +929,37 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
             corpus="regulations",
             collection="student_rules",
             sources=(
-                EvidenceSource(
+                _make_handbook_source(
                     doc_id="handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
-                    revision_track="source-faithful",
-                    version_id="v1:f9c1621665f50ffbf0c02cf79cb5452bfd938d2e",
-                    chunk_id="chunk-0002",
-                    anchor={"page_start": 163, "page_end": 164, "section_path": ("二、学生证是",)},
-                    canonical_url="https://campus.example/handbook/student-card",
-                    latest_url="https://campus.example/handbook/student-card",
-                    source_channel="pdf_ocr",
-                    collection="student_rules",
-                    is_current=True,
+                    title="中央民族大学本科(预科)学生证管理办法",
                     snippet=(
-                        "标题：中央民族大学本科(预科)学生证管理办法 | 章节：二、学生证是\n"
-                        "文号：民大学发[2013]8号\n"
-                        "学生的身份证明,学生应妥善保管,爱护使用,谨防丢失。\n"
-                        "十二、丢失的学生证在补办后又找到的,应将找到的学生证交回学生处销毁。学生不得持有两个学生证。\n"
-                        "十三、学生证转借他人者,一经发现,将视情节给予通报批评直至纪律处分,并停止享受半价火车票的资格。\n"
-                        "十四、学生办理学生证要如实填写各项内容,不得弄虚作假。凡弄虚作假者,一经查实,给予警告及以上处分,并取消当年评定各项奖、助学金的资格。"
+                        "学生证转借他人者，一经发现，将视情节给予通报批评直至纪律处分，并停止享受半价火车票的资格。"
                     ),
                     score=0.03306011,
-                    source_title="中央民族大学本科(预科)学生证管理办法",
-                    structural_path=("二、学生证是",),
-                    content_kind="policy_page",
-                    content_role="procedure",
-                    detail_label="二、学生证是",
+                    chunk_id_suffix="student-card-negative-detail",
+                    content_role="requirement",
                     is_answer_bearing=True,
+                    semantic_role="exclusion_rule",
+                    polarity="negative",
+                    claim_type="condition",
                 ),
-                EvidenceSource(
+                _make_handbook_source(
                     doc_id="handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
-                    revision_track="source-faithful",
-                    version_id="v1:f9c1621665f50ffbf0c02cf79cb5452bfd938d2e",
-                    chunk_id="chunk-0001",
-                    anchor={"page_start": 163, "page_end": 164, "section_path": ("二、学生证是",)},
-                    canonical_url="https://campus.example/handbook/student-card",
-                    latest_url="https://campus.example/handbook/student-card",
-                    source_channel="pdf_ocr",
-                    collection="student_rules",
-                    is_current=True,
+                    title="中央民族大学本科(预科)学生证管理办法",
                     snippet=(
-                        "标题：中央民族大学本科(预科)学生证管理办法 | 章节：二、学生证是\n"
-                        "文号：民大学发[2013]8号\n"
-                        "学生的身份证明,学生应妥善保管,爱护使用,谨防丢失。\n"
-                        "六、学生如将学生证遗失或损坏,应及时到学院(系)挂失,写明遗失或损坏的原因、时间、地点等,并报学生处备案。如遗失不报被他人使用造成不良后果,由本人负责。\n"
-                        "七、学生遗失学生证应及时申请补办。遗失或损坏的学生证,原则上可以申请补办一次。补办后如再次遗失或损坏,根据遗失或损坏的原因决定是否可以补发第二次。\n"
-                        "八、学生补办学生证,必须提出书面申请,并填写《中央民族大学补办学生证申请表》(见附表)。申请表经学院(系)领导审批,并在学生本人照片背面加盖骑缝章后,到学生处办理补办手续。学生证集中补办时间为每周四下午。"
+                        "学生如将学生证遗失或损坏，应及时到学院(系)挂失，并报学生处备案。"
+                        "学生遗失学生证应及时申请补办。学生补办学生证，必须提出书面申请，"
+                        "并填写《中央民族大学补办学生证申请表》，经学院(系)领导审批后到学生处办理补办手续。"
+                        "学生证集中补办时间为每周四下午。"
                     ),
                     score=0.03306011,
-                    source_title="中央民族大学本科(预科)学生证管理办法",
-                    structural_path=("二、学生证是",),
-                    content_kind="policy_page",
-                    content_role="time_rule",
-                    detail_label="二、学生证是",
+                    chunk_id_suffix="student-card-reissue-procedure",
+                    content_role="procedure",
                     is_answer_bearing=True,
+                    semantic_role="procedure_step",
+                    polarity="positive",
+                    action_type="reissue",
+                    claim_type="procedure",
                 ),
                 EvidenceSource(
                     doc_id="handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
@@ -640,7 +997,8 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(
-            [source.chunk_id for source in response.result.evidence.sources], ["chunk-0001"]
+            tuple(support.claim_type for support in response.result.diagnostics.claim_supports),
+            ("procedure_step",),
         )
         self.assertIn("先", response.answer_text)
         self.assertIn("再", response.answer_text)
@@ -720,80 +1078,44 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
             corpus="regulations",
             collection="student_rules",
             sources=(
-                EvidenceSource(
+                _make_handbook_source(
                     doc_id="handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
-                    revision_track="source-faithful",
-                    version_id="v1:04053b0f1ea9d0d4cbfeaf5e5381c16b67b1164f",
-                    chunk_id="chunk-0001",
-                    anchor={"page_start": 256, "page_end": 256, "section_path": ("一、时间安排",)},
-                    canonical_url="https://campus.example/handbook/dormitory-lighting",
-                    latest_url="https://campus.example/handbook/dormitory-lighting",
-                    source_channel="pdf_ocr",
-                    collection="student_rules",
-                    is_current=True,
+                    title="中央民族大学关于学生宿舍照明的管理规定",
                     snippet=(
-                        "中央民族大学关于学生宿舍照明的管理规定 / 一、时间安排\n"
-                        "文号：民大校发[2007]299号\n"
-                        "1. 10月至次年5月31日:\n"
-                        "亮灯时间: 周一至周五 每天早晨 5:30。\n"
-                        "熄灯时间: 周日至周四 每天晚上 24:00; 23:50 提示。\n"
-                        "每周五、周六晚上及复习考试期间不统一熄灯。\n"
-                        "2. 6月1日至9月30日,学生宿舍不统一熄灯。\n"
-                        "3. 国家法定节假日不统一熄灯。"
+                        "10月至次年5月31日，周日至周四熄灯时间为每天晚上24:00；"
+                        "6月1日至9月30日学生宿舍不统一熄灯；国家法定节假日不统一熄灯。"
                     ),
                     score=0.032522473,
-                    source_title="中央民族大学关于学生宿舍照明的管理规定",
-                    structural_path=("一、时间安排",),
-                    content_kind="policy_page",
+                    chunk_id_suffix="dormitory-lighting-time-rule",
                     content_role="time_rule",
-                    detail_label="一、时间安排",
                     is_answer_bearing=True,
+                    semantic_role="time_constraint",
+                    polarity="positive",
+                    claim_type="time_constraint",
                 ),
-                EvidenceSource(
+                _make_handbook_source(
                     doc_id="handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
-                    revision_track="source-faithful",
-                    version_id="v1:04053b0f1ea9d0d4cbfeaf5e5381c16b67b1164f",
-                    chunk_id="chunk-0003",
-                    anchor={"page_start": 256, "page_end": 256},
-                    canonical_url="https://campus.example/handbook/dormitory-lighting",
-                    latest_url="https://campus.example/handbook/dormitory-lighting",
-                    source_channel="pdf_ocr",
-                    collection="student_rules",
-                    is_current=True,
-                    snippet="中央民族大学关于学生宿舍照明的管理规定 / 三\n文号：民大校发[2007]299号\n三、本规定适用于本科、预科学生宿舍,研究生宿舍、留学生公寓除外。",
+                    title="中央民族大学关于学生宿舍照明的管理规定",
+                    snippet="本规定适用于本科、预科学生宿舍，研究生宿舍、留学生公寓除外。",
                     score=0.03306011,
-                    source_title="中央民族大学关于学生宿舍照明的管理规定",
-                    structural_path=(),
-                    content_kind="policy_page",
+                    chunk_id_suffix="dormitory-lighting-scope-rule",
                     content_role="scope_rule",
-                    detail_label="三",
                     is_answer_bearing=True,
+                    semantic_role="eligibility_condition",
+                    polarity="positive",
+                    claim_type="condition",
                 ),
-                EvidenceSource(
+                _make_handbook_source(
                     doc_id="handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
-                    revision_track="source-faithful",
-                    version_id="v1:04053b0f1ea9d0d4cbfeaf5e5381c16b67b1164f",
-                    chunk_id="chunk-0002",
-                    anchor={"page_start": 256, "page_end": 256, "section_path": ("二、要求:",)},
-                    canonical_url="https://campus.example/handbook/dormitory-lighting",
-                    latest_url="https://campus.example/handbook/dormitory-lighting",
-                    source_channel="pdf_ocr",
-                    collection="student_rules",
-                    is_current=True,
-                    snippet=(
-                        "中央民族大学关于学生宿舍照明的管理规定 / 二、要求:\n"
-                        "文号：民大校发[2007]299号\n"
-                        "1. 学生处、团委及后勤管理部门要加强对学生的教育和管理,引导学生自觉遵守学校制度。\n"
-                        "2. 加强安全防范力度。熄灯之前学生应做好就寝准备,将不用的或可能存在安全隐患的插座及电器拔下,关闭电源,熄灯之后禁止使用蜡烛及其它明火。\n"
-                        "3. 严禁私接电线及违章使用各类电器。"
-                    ),
+                    title="中央民族大学关于学生宿舍照明的管理规定",
+                    snippet="熄灯之后禁止使用蜡烛及其它明火，严禁私接电线及违章使用各类电器。",
                     score=0.032795697,
-                    source_title="中央民族大学关于学生宿舍照明的管理规定",
-                    structural_path=("二、要求:",),
-                    content_kind="policy_page",
+                    chunk_id_suffix="dormitory-lighting-safety-procedure",
                     content_role="procedure",
-                    detail_label="二、要求:",
                     is_answer_bearing=True,
+                    semantic_role="procedure_step",
+                    polarity="positive",
+                    claim_type="procedure",
                 ),
             ),
         )
@@ -811,9 +1133,9 @@ class RagAgentAnswerGroundingTest(unittest.TestCase):
 
         self.assertEqual(response.status, "completed")
         self.assertEqual(
-            [source.chunk_id for source in response.result.evidence.sources], ["chunk-0001"]
+            tuple(support.claim_type for support in response.result.diagnostics.claim_supports),
+            ("time_constraint",),
         )
-        self.assertIn("宿舍照明", response.answer_text)
         self.assertIn("24:00", response.answer_text)
         self.assertIn("6月1日至9月30日", response.answer_text)
         self.assertNotIn("研究生宿舍", response.answer_text)

@@ -56,7 +56,15 @@ _POSITIVE_SOURCE_ROLES = frozenset(
 )
 _PROCEDURE_SOURCE_ROLES = frozenset({"procedure_step"})
 _CONDITION_SOURCE_ROLES = frozenset(
-    {"eligibility_condition", "example_evidence", "exception_rule", "table_fact", "condition"}
+    {
+        "eligibility_condition",
+        "example",
+        "example_evidence",
+        "exception",
+        "exception_rule",
+        "table_fact",
+        "condition",
+    }
 )
 _CATEGORY_SOURCE_ROLES = frozenset({"category_overview", "policy_list"})
 _LIFT_DISCIPLINE_QUERY_CUES = (
@@ -86,6 +94,9 @@ _RANK_THRESHOLD_QUERY_CUES = (
 )
 _PAPER_PUBLICATION_QUERY_CUES = ("论文", "发表", "著作", "出版", "专著")
 _SCHOLARSHIP_CATEGORY_QUERY_CUES = ("奖学金", "资助", "奖励")
+_AMOUNT_OR_QUOTA_QUERY_CUES = ("金额", "名额", "比例", "额度", "多少", "几人", "几名", "多少钱")
+_DEADLINE_QUERY_CUES = ("时间限制", "期限", "截止", "几天内", "多久内", "工作日内", "时间要求")
+_MATERIAL_QUERY_CUES = ("什么材料", "哪些材料", "提交材料", "证明材料", "书面申请", "要交什么")
 
 
 @dataclass(frozen=True, slots=True)
@@ -115,15 +126,19 @@ def semantic_alignment_score(*, query_text: str, source: EvidenceSource) -> int:
     source_action_type = attributes.action_type or source.action_type
     source_claim_type = attributes.claim_type or source.claim_type
     source_condition_subject = canonical_regulation_condition_subject(attributes.condition_subject)
+    source_group_subject = canonical_regulation_condition_subject(
+        attributes.condition_group_subject
+    )
     source_category_id = attributes.category_id
     if intent.action_type and source_action_type == intent.action_type:
         score += 8
     if intent.condition_subject:
-        if source_condition_subject == canonical_regulation_condition_subject(
-            intent.condition_subject
-        ):
+        normalized_intent_subject = canonical_regulation_condition_subject(intent.condition_subject)
+        if source_condition_subject == normalized_intent_subject:
             score += 34
-        elif source_condition_subject:
+        elif source_group_subject == normalized_intent_subject:
+            score += 22
+        elif source_condition_subject or source_group_subject:
             score -= 10
     if intent.category_id:
         if source_category_id == intent.category_id:
@@ -172,6 +187,23 @@ def semantic_alignment_score(*, query_text: str, source: EvidenceSource) -> int:
             score += 16
         if intent.answer_role == "condition" and source_answer_role in _CONDITION_SOURCE_ROLES:
             score += 18
+        if intent.condition_subject == "rank_threshold":
+            if source_answer_role in {"exception", "exception_rule"}:
+                score += 24
+            if _source_mentions_rank_exception_window(source):
+                score += 22
+            elif _source_mentions_top_ten_requirement(source):
+                score += 4
+            if (
+                source_group_subject == "rank_threshold"
+                and source_answer_role == "example_evidence"
+            ):
+                score += 12
+        if intent.condition_subject == "paper_or_publication":
+            if source_answer_role in {"example", "example_evidence"}:
+                score += 18
+            if _source_mentions_paper_or_publication(source):
+                score += 20
     elif source_has_negative_polarity(source):
         score -= 4
     return score
@@ -196,6 +228,14 @@ def infer_evidence_query_intent(query_text: str) -> EvidenceQueryIntent:
         return EvidenceQueryIntent(
             polarity="neutral",
             answer_role="policy_list",
+            action_type=action_type,
+            condition_subject=condition_subject,
+            category_id=category_id,
+        )
+    if condition_subject in {"material_requirement", "deadline", "amount_or_quota"}:
+        return EvidenceQueryIntent(
+            polarity="positive",
+            answer_role="condition",
             action_type=action_type,
             condition_subject=condition_subject,
             category_id=category_id,
@@ -280,6 +320,12 @@ def infer_query_condition_subject(query_text: str) -> str:
         cue in normalized for cue in _PROCEDURE_QUERY_CUES
     ):
         return "application_procedure"
+    if any(cue in normalized for cue in _MATERIAL_QUERY_CUES):
+        return "material_requirement"
+    if any(cue in normalized for cue in _DEADLINE_QUERY_CUES):
+        return "deadline"
+    if any(cue in normalized for cue in _AMOUNT_OR_QUOTA_QUERY_CUES):
+        return "amount_or_quota"
     if any(cue in normalized for cue in _RANK_THRESHOLD_QUERY_CUES):
         return "rank_threshold"
     if any(cue in normalized for cue in _PAPER_PUBLICATION_QUERY_CUES):
@@ -314,6 +360,35 @@ def _contains_negative_source_cue(value: str) -> bool:
     normalized = _normalize_query(value)
     return any(
         cue in normalized for cue in ("不予", "不能", "不得", "严禁", "禁止", "取消", "不予受理")
+    )
+
+
+def _source_mentions_rank_exception_window(source: EvidenceSource) -> bool:
+    normalized = _normalize_query(_source_semantic_text(source))
+    return ("超出前10" in normalized or "超出前十" in normalized) and (
+        "前30" in normalized or "前三十" in normalized
+    )
+
+
+def _source_mentions_top_ten_requirement(source: EvidenceSource) -> bool:
+    normalized = _normalize_query(_source_semantic_text(source))
+    return "前10" in normalized or "前十" in normalized
+
+
+def _source_mentions_paper_or_publication(source: EvidenceSource) -> bool:
+    normalized = _normalize_query(_source_semantic_text(source))
+    return any(cue in normalized for cue in _PAPER_PUBLICATION_QUERY_CUES)
+
+
+def _source_semantic_text(source: EvidenceSource) -> str:
+    return " ".join(
+        fragment
+        for fragment in (
+            source.source_title,
+            source.detail_label,
+            source.snippet,
+        )
+        if fragment
     )
 
 

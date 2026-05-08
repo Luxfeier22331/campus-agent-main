@@ -10,6 +10,7 @@ from campus_evals.retrieval_chunk_quality import (
     retrieval_chunk_quality_report_to_dict,
 )
 from campus_evals.retrieval_chunk_quality_cli import main as chunk_quality_main
+from campus_shared.regulation_semantic_registry import load_regulation_discovery_config
 
 from tests.evals.retrieval_benchmark_test_support import unittest
 
@@ -215,7 +216,9 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "condition_subject": "application_procedure",
                         "condition_subject_taxonomy_version": "condition_subject.v1",
                         "condition_subject_provenance": "metadata:condition_subject",
+                        "condition_group_subject": "application_procedure",
                         "condition_group_id": "article-procedure:application_procedure",
+                        "condition_polarity": "positive",
                         "procedure_step_index": 1,
                         "procedure_actor": "student",
                         "procedure_action": "submit_materials",
@@ -402,6 +405,7 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "condition_subject_taxonomy_version": "condition_subject.v1",
                         "condition_subject_provenance": "metadata:condition_subject",
                         "condition_group_id": "article-responsibility:audience_scope",
+                        "condition_polarity": "positive",
                     },
                 }
             ],
@@ -462,6 +466,7 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "condition_subject_taxonomy_version": "condition_subject.v1",
                         "condition_subject_provenance": "metadata:condition_subject",
                         "condition_group_id": "article-deadline:deadline",
+                        "condition_polarity": "negative",
                     },
                 },
             ],
@@ -509,6 +514,7 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "condition_group_id": (
                             "article-submission-requirement:material_requirement"
                         ),
+                        "condition_polarity": "positive",
                     },
                 }
             ],
@@ -558,6 +564,7 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "condition_group_id": (
                             "article-negative-procedure-exception:discipline_relief_exclusion"
                         ),
+                        "condition_polarity": "negative",
                     },
                 }
             ],
@@ -753,8 +760,54 @@ class RetrievalChunkQualityTest(unittest.TestCase):
         )
 
     def test_chunk_quality_audit_report_includes_answer_ready_distribution(self) -> None:
+        discovery = load_regulation_discovery_config("student_rules")
+        category = next(
+            item for item in discovery.categories if item.category_id == "scholarship"
+        )
+        category_titles = [
+            discovery.policy_titles_by_document_id[document_id]
+            for document_id in category.member_policy_document_ids
+        ]
+        category_display_text = (
+            f"当前已收录依据中，{category.audience}{category.display_name}相关制度包括："
+            f"{'、'.join(f'《{title}》' for title in category_titles)}。"
+        )
         report = build_chunk_quality_audit_report(
             chunks=[
+                {
+                    "document_id": category.overview_document_id,
+                    "version_id": "v1",
+                    "chunk_id": "chunk-overview",
+                    "chunk_order": 1,
+                    "corpus": "regulations",
+                    "collection": "student_rules",
+                    "text": category_display_text,
+                    "source_uri": "s3://derived/doc",
+                    "metadata": {
+                        "unit_type": "category_overview",
+                        "root_unit_id": f"category:{category.category_id}",
+                        "display_text": category_display_text,
+                        "chunk_policy_version": "student_rules_semantic_v3",
+                        "evidence_contract_version": "answer_ready_evidence.v3",
+                        "parent_unit_id": f"category:{category.category_id}",
+                        "answer_role": "category_overview",
+                        "content_role": "policy_list",
+                        "claim_type": "category_overview",
+                        "role_confidence": "high",
+                        "is_answer_bearing": True,
+                        "condition_subject": "audience_scope",
+                        "condition_subject_taxonomy_version": "condition_subject.v1",
+                        "condition_subject_provenance": "category_registry:audience_scope",
+                        "condition_group_subject": "audience_scope",
+                        "condition_group_id": f"category:{category.category_id}:audience_scope",
+                        "condition_polarity": "neutral",
+                        "category_id": category.category_id,
+                        "category_registry_version": "policy_category_registry.v1",
+                        "audience": category.audience,
+                        "member_policy_document_ids": list(category.member_policy_document_ids),
+                        "member_policy_titles": category_titles,
+                    },
+                },
                 {
                     "document_id": "doc:scholarship",
                     "version_id": "v1",
@@ -774,12 +827,13 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "answer_role": "eligibility_condition",
                         "content_role": "eligibility",
                         "claim_type": "condition",
-                        "role_confidence": "high",
-                        "is_answer_bearing": True,
                         "condition_subject": "generic_condition",
                         "condition_subject_taxonomy_version": "condition_subject.v1",
                         "condition_subject_provenance": "metadata:condition_subject",
                         "condition_group_id": "article-condition:generic_condition",
+                        "condition_polarity": "positive",
+                        "role_confidence": "high",
+                        "is_answer_bearing": True,
                     },
                 },
                 {
@@ -806,6 +860,8 @@ class RetrievalChunkQualityTest(unittest.TestCase):
                         "condition_subject_taxonomy_version": "condition_subject.v1",
                         "condition_subject_provenance": "metadata:condition_subject",
                         "table_fact_type": "amount_or_quota",
+                        "condition_group_id": "table-scholarship:amount_or_quota",
+                        "condition_polarity": "positive",
                         "role_confidence": "high",
                         "is_answer_bearing": True,
                         "table_headers": ["奖学金等级", "奖励金额", "名额"],
@@ -816,11 +872,13 @@ class RetrievalChunkQualityTest(unittest.TestCase):
         )
 
         self.assertEqual(report.status, "passed")
+        self.assertEqual(report.counts_by_answer_role["category_overview"], 1)
         self.assertEqual(report.counts_by_answer_role["eligibility_condition"], 1)
         self.assertEqual(report.counts_by_answer_role["table_fact"], 1)
+        self.assertEqual(report.counts_by_content_role["policy_list"], 1)
         self.assertEqual(report.counts_by_content_role["table_fact"], 1)
         self.assertEqual(report.counts_by_claim_type["amount_or_quota"], 1)
-        self.assertEqual(report.answer_ready_chunk_count, 2)
+        self.assertEqual(report.answer_ready_chunk_count, 3)
         self.assertEqual(report.low_confidence_role_count, 0)
         self.assertEqual(report.table_answer_ready_count, 1)
 

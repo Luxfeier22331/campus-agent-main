@@ -86,6 +86,10 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "campus_ingestion_worker.audit_official_web_projection_chunking",
         "audit_official_web_projection_chunking",
     ),
+    "audit_regulation_rag_release_manifests_main": (
+        "campus_ingestion_worker.audit_regulation_rag_release_manifests",
+        "main",
+    ),
     "audit_official_web_projection_chunking_main": (
         "campus_ingestion_worker.audit_official_web_projection_chunking",
         "main",

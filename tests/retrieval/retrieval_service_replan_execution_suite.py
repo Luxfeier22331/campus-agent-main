@@ -16,6 +16,7 @@ from campus_retrieval_core.models import (
     RetrievalRequest,
     RetrievalScope,
     RetrievalSelector,
+    RetrievalSourceTrustPolicy,
     RetrievalStep,
     RetrievalStepBudget,
 )
@@ -473,6 +474,262 @@ class RetrievalServiceReplanExecutionTest(unittest.TestCase):
             ("discipline-positive-procedure",),
         )
 
+    def test_execute_retrieval_plan_marks_group_support_missing_for_rank_query_with_only_example_child(
+        self,
+    ) -> None:
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(
+                    _make_source(
+                        chunk_id="national-scholarship-rank-group-example",
+                        doc_id="handbook:national-scholarship",
+                        source_title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="且在学术研究上取得显著成绩。",
+                        score=0.91,
+                        content_role="eligibility",
+                        is_answer_bearing=True,
+                        semantic_role="example_evidence",
+                        polarity="positive",
+                        claim_type="condition",
+                        anchor={
+                            "_retrieval_evidence_attributes": {
+                                "answer_role": "example_evidence",
+                                "condition_subject": "paper_or_publication",
+                                "condition_group_subject": "rank_threshold",
+                                "condition_group_id": (
+                                    "handbook:national-scholarship:article-9:"
+                                    "group-01:rank_threshold"
+                                ),
+                                "parent_unit_id": "handbook:national-scholarship:article-9",
+                                "evidence_contract_version": "answer_ready_evidence.v3",
+                                "polarity": "positive",
+                                "claim_type": "condition",
+                            },
+                            "page_start": 1,
+                            "page_end": 1,
+                        },
+                    ),
+                ),
+            )
+
+        plan = RetrievalPlan(
+            plan_id="regulations:student_rules:group-support-missing",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            budget=RetrievalPlanBudget(max_steps=2, max_replans=1),
+            steps=(
+                RetrievalStep(
+                    step_id="indexed-lookup",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text="成绩没前十还能评国奖吗",
+                    need_ids=("need:1:requirement",),
+                    selector=RetrievalSelector(
+                        target_document_ids=("handbook:national-scholarship",)
+                    ),
+                    budget=RetrievalStepBudget(top_k=2),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(
+            plan,
+            retrieve_step=fake_retrieve_step,
+            replan_callback=lambda _plan, _results, last_result: (
+                (
+                    RetrievalStep(
+                        step_id="indexed-lookup-semantic-replan",
+                        step_type="indexed_lookup",
+                        scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                        query_text="国家奖学金 排名 条件 例外 条款 规定",
+                        need_ids=("need:1:requirement",),
+                        depends_on_step_ids=(last_result.step_id,),
+                        selector=RetrievalSelector(
+                            target_document_ids=("handbook:national-scholarship",)
+                        ),
+                        budget=RetrievalStepBudget(top_k=2),
+                    ),
+                )
+                if last_result.status == "empty"
+                else ()
+            ),
+        )
+
+        self.assertEqual(result.replan_count, 1)
+        self.assertEqual(result.step_results[0].status, "empty")
+        self.assertEqual(result.step_results[0].activity.failure_kind, "group_support_missing")
+        self.assertEqual(
+            result.step_results[0].references[0].chunk_id,
+            "national-scholarship-rank-group-example",
+        )
+
+    def test_execute_retrieval_plan_accepts_subject_expected_example_evidence_for_paper_query(
+        self,
+    ) -> None:
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(
+                    _make_source(
+                        chunk_id="national-scholarship-paper-example",
+                        doc_id="handbook:national-scholarship",
+                        source_title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet=(
+                            "在学术研究上取得显著成绩，以第一作者发表的论文被SCI、EI、ISTP、"
+                            "SSCI全文收录，以第一、二作者出版学术专著。"
+                        ),
+                        score=0.91,
+                        content_role="eligibility",
+                        is_answer_bearing=True,
+                        semantic_role="example_evidence",
+                        polarity="positive",
+                        claim_type="condition",
+                        anchor={
+                            "_retrieval_evidence_attributes": {
+                                "answer_role": "example_evidence",
+                                "condition_subject": "paper_or_publication",
+                                "condition_group_subject": "paper_or_publication",
+                                "condition_group_id": (
+                                    "handbook:national-scholarship:article-9:"
+                                    "group-01:paper_or_publication"
+                                ),
+                                "parent_unit_id": "handbook:national-scholarship:article-9",
+                                "evidence_contract_version": "answer_ready_evidence.v3",
+                                "polarity": "positive",
+                                "condition_polarity": "positive",
+                                "claim_type": "condition",
+                            },
+                            "page_start": 1,
+                            "page_end": 1,
+                        },
+                    ),
+                ),
+            )
+
+        plan = RetrievalPlan(
+            plan_id="regulations:student_rules:paper-example-supported",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            budget=RetrievalPlanBudget(max_steps=1, max_replans=0),
+            steps=(
+                RetrievalStep(
+                    step_id="indexed-lookup",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text="论文能不能算国奖条件",
+                    need_ids=("need:1:requirement",),
+                    selector=RetrievalSelector(
+                        target_document_ids=("handbook:national-scholarship",)
+                    ),
+                    budget=RetrievalStepBudget(top_k=2),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(plan, retrieve_step=fake_retrieve_step)
+
+        self.assertEqual(result.step_results[0].status, "succeeded")
+        self.assertEqual(
+            tuple(source.chunk_id for source in result.merged_evidence.sources),
+            ("national-scholarship-paper-example",),
+        )
+
+    def test_execute_retrieval_plan_marks_procedure_group_mismatch_when_only_condition_child_returned(
+        self,
+    ) -> None:
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(
+                    _make_source(
+                        chunk_id="student-card-material-condition",
+                        doc_id="handbook:student-card",
+                        source_title="中央民族大学学生证管理办法",
+                        snippet="补办学生证应提交书面申请和身份证明。",
+                        score=0.92,
+                        content_role="requirement",
+                        is_answer_bearing=True,
+                        semantic_role="material_requirement",
+                        polarity="positive",
+                        claim_type="condition",
+                        anchor={
+                            "_retrieval_evidence_attributes": {
+                                "answer_role": "material_requirement",
+                                "condition_subject": "material_requirement",
+                                "condition_group_subject": "student_card_or_identity_credential",
+                                "condition_group_id": (
+                                    "handbook:student-card:article-6:"
+                                    "group-01:student_card_or_identity_credential"
+                                ),
+                                "parent_unit_id": "handbook:student-card:article-6",
+                                "evidence_contract_version": "answer_ready_evidence.v3",
+                                "polarity": "positive",
+                                "claim_type": "condition",
+                            },
+                            "page_start": 1,
+                            "page_end": 1,
+                        },
+                    ),
+                ),
+            )
+
+        plan = RetrievalPlan(
+            plan_id="regulations:student_rules:procedure-group-mismatch",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            budget=RetrievalPlanBudget(max_steps=2, max_replans=1),
+            steps=(
+                RetrievalStep(
+                    step_id="indexed-lookup",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text="学生证丢了怎么办？",
+                    need_ids=("need:1:procedure",),
+                    selector=RetrievalSelector(target_document_ids=("handbook:student-card",)),
+                    budget=RetrievalStepBudget(top_k=2),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(
+            plan,
+            retrieve_step=fake_retrieve_step,
+            replan_callback=lambda _plan, _results, last_result: (
+                (
+                    RetrievalStep(
+                        step_id="indexed-lookup-semantic-replan",
+                        step_type="indexed_lookup",
+                        scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                        query_text="学生证 挂失 补办 办理步骤",
+                        need_ids=("need:1:procedure",),
+                        depends_on_step_ids=(last_result.step_id,),
+                        selector=RetrievalSelector(target_document_ids=("handbook:student-card",)),
+                        budget=RetrievalStepBudget(top_k=2),
+                    ),
+                )
+                if last_result.status == "empty"
+                else ()
+            ),
+        )
+
+        self.assertEqual(result.replan_count, 1)
+        self.assertEqual(result.step_results[0].status, "empty")
+        self.assertEqual(
+            result.step_results[0].activity.failure_kind,
+            "procedure_group_answer_role_mismatch",
+        )
+        self.assertEqual(
+            result.step_results[0].references[0].chunk_id,
+            "student-card-material-condition",
+        )
+
     def test_execute_retrieval_plan_emits_sanitized_monitoring_observation_without_raw_query(
         self,
     ) -> None:
@@ -561,6 +818,10 @@ class RetrievalServiceReplanExecutionTest(unittest.TestCase):
             plan_id="regulations:student_rules:legacy-contract-diagnostics",
             query_mode="current",
             admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            source_trust_policy=RetrievalSourceTrustPolicy(
+                minimum_tier="T1",
+                legacy_fallback_mode="legacy_old_index_compatibility",
+            ),
             steps=(
                 RetrievalStep(
                     step_id="primary",
@@ -607,6 +868,103 @@ class RetrievalServiceReplanExecutionTest(unittest.TestCase):
         self.assertIn("answer_role", observations[0]["missing_contract_fields"])
         self.assertEqual(observations[0]["source_index_contract_version"], "")
         self.assertEqual(observations[0]["fallback_primary_signal"], "public_semantic")
+
+    def test_execute_retrieval_plan_fails_closed_when_target_regulation_path_hits_legacy_fallback(
+        self,
+    ) -> None:
+        observations: list[dict[str, object]] = []
+        plan = RetrievalPlan(
+            plan_id="regulations:student_rules:target-v3-legacy-fallback-blocked",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            source_trust_policy=RetrievalSourceTrustPolicy(
+                minimum_tier="T1",
+                legacy_fallback_mode="target_v3_only",
+            ),
+            steps=(
+                RetrievalStep(
+                    step_id="primary",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text="处分怎么消",
+                    budget=RetrievalStepBudget(top_k=3),
+                ),
+            ),
+        )
+
+        with self.assertRaisesRegex(RetrievalBackendError, "legacy old-index fallback"):
+            execute_retrieval_plan(
+                plan,
+                retrieve_step=lambda request: EvidenceBundle(
+                    query_text=request.query_text,
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    sources=(
+                        _make_source(
+                            chunk_id="legacy-discipline-procedure",
+                            snippet="学生受处分满考察期后，可以申请解除纪律处分。",
+                            content_role="procedure",
+                            is_answer_bearing=True,
+                            semantic_role="procedure_step",
+                            polarity="positive",
+                            action_type="lift_discipline",
+                            claim_type="procedure",
+                        ),
+                    ),
+                ),
+                observation_sink=observations.append,
+                observation_request_id="req-target-v3-legacy-fallback-blocked",
+            )
+
+        self.assertEqual(len(observations), 1)
+        self.assertEqual(observations[0]["terminal_state"], "failed_closed")
+        self.assertEqual(observations[0]["failure_kind"], "release_metadata_drift")
+
+    def test_execute_retrieval_plan_allows_legacy_fallback_for_explicit_compatibility_mode(
+        self,
+    ) -> None:
+        plan = RetrievalPlan(
+            plan_id="regulations:student_rules:legacy-old-index-compatibility",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            source_trust_policy=RetrievalSourceTrustPolicy(
+                minimum_tier="T1",
+                legacy_fallback_mode="legacy_old_index_compatibility",
+            ),
+            steps=(
+                RetrievalStep(
+                    step_id="primary",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text="处分怎么消",
+                    budget=RetrievalStepBudget(top_k=3),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(
+            plan,
+            retrieve_step=lambda request: EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(
+                    _make_source(
+                        chunk_id="legacy-discipline-procedure",
+                        snippet="学生受处分满考察期后，可以申请解除纪律处分。",
+                        content_role="procedure",
+                        is_answer_bearing=True,
+                        semantic_role="procedure_step",
+                        polarity="positive",
+                        action_type="lift_discipline",
+                        claim_type="procedure",
+                    ),
+                ),
+            ),
+        )
+
+        self.assertEqual(result.step_results[0].status, "succeeded")
+        self.assertTrue(result.step_results[0].activity.fallback_used)
 
     def test_jsonl_observation_sink_appends_one_json_object_per_line(self) -> None:
         with TemporaryDirectory() as temp_dir:

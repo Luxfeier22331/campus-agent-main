@@ -24,6 +24,9 @@ from campus_retrieval_core.backend_qdrant_official_web_policy import (
     _normalize_low_signal_query,
     _official_web_source_chunk_ordinal,
 )
+from campus_retrieval_core.backend_qdrant_no_hit_policy import (
+    _is_formal_institutional_rule_title_query,
+)
 from campus_retrieval_core.backend_qdrant_query import (
     _build_document_support_query_text,
     _build_rrf_query,
@@ -304,6 +307,13 @@ def _supplement_target_document_scroll_fallback(
 ) -> tuple[EvidenceSource, ...]:
     if deadline.is_expired():
         return tuple(sources)
+    if (
+        not sources
+        and request.corpus == "regulations"
+        and request.collection == "institutional_rules"
+        and _is_formal_institutional_rule_title_query(request.query_text)
+    ):
+        return ()
     if not request.target_document_ids:
         return tuple(sources)
     if _has_grounding_source(sources):

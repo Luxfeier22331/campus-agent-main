@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 
 from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 
@@ -266,6 +267,75 @@ def build_document_rows(
                     )
                 )
     return rows
+
+
+def build_preface_policy_rows(
+    *,
+    doc_id: str,
+    version_id: str,
+    source_pdf: str,
+    source_url: str,
+    entitlement_groups: tuple[str, ...],
+    title: str,
+    policy_doc_no: str | None,
+    preface_text: str | None,
+    page_start: int,
+    page_end: int,
+) -> list[dict[str, object]]:
+    if not preface_text:
+        return []
+    segments = _split_preface_numbered_policy_rows(preface_text)
+    if not segments:
+        return []
+    rows: list[dict[str, object]] = []
+    for index, segment in enumerate(segments, start=1):
+        root_unit_id = f"policy-page-preface-{index:04d}"
+        rows.append(
+            build_structured_unit_row(
+                doc_id=doc_id,
+                version_id=version_id,
+                chunk_id=root_unit_id,
+                root_unit_id=root_unit_id,
+                unit_type="policy_page",
+                clean_text=segment,
+                source_pdf=source_pdf,
+                source_url=source_url,
+                entitlement_groups=entitlement_groups,
+                anchor={
+                    "page_start": page_start,
+                    "page_end": page_end,
+                    "section_path": [],
+                },
+                metadata=build_unit_metadata(
+                    title=title,
+                    policy_doc_no=policy_doc_no,
+                    preface_text=None,
+                ),
+            )
+        )
+    return rows
+
+
+def _split_preface_numbered_policy_rows(preface_text: str) -> tuple[str, ...]:
+    lines = [line.strip() for line in preface_text.splitlines() if line.strip()]
+    if len(lines) < 2:
+        return ()
+    numbered_lines = lines[1:]
+    if not numbered_lines:
+        return ()
+    if not all(_looks_like_top_level_numbered_clause(line) for line in numbered_lines):
+        return ()
+    return tuple(numbered_lines)
+
+
+def _looks_like_top_level_numbered_clause(text: str) -> bool:
+    normalized = normalize_readable_text(text)
+    if not normalized:
+        return False
+    return bool(
+        re.match(r"^[一二三四五六七八九十百千万〇零两]+、", normalized)
+        and normalized.endswith(("。", "；"))
+    )
 
 
 def build_structured_unit_row(

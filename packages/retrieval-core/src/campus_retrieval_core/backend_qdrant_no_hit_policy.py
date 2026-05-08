@@ -201,6 +201,20 @@ _INSTITUTIONAL_RULE_WEAK_TITLE_TOKENS = _WEAK_CJK_QUERY_TOKENS | frozenset(
         "问题",
     }
 )
+_FORMAL_INSTITUTIONAL_RULE_TITLE_SUFFIXES = (
+    "管理办法",
+    "管理规定",
+    "实施办法",
+    "实施细则",
+    "工作办法",
+    "工作细则",
+    "议事规则",
+    "章程",
+    "规定",
+    "办法",
+    "细则",
+    "规则",
+)
 
 
 def _apply_no_hit_policy(
@@ -216,6 +230,12 @@ def _apply_no_hit_policy(
     if _is_institutional_rules_profile(
         profile
     ) and _is_excluded_institutional_rule_scope_decision_query(query_text):
+        return ()
+    if _is_institutional_rules_profile(
+        profile
+    ) and _is_formal_institutional_rule_title_query(query_text):
+        if _has_institutional_rule_title_support(query_text=query_text, sources=sources):
+            return sources
         return ()
     top_source = sources[0]
     if top_source.score >= profile.no_hit_min_top_score:
@@ -283,6 +303,17 @@ def _is_student_rules_profile(profile: CollectionRuntimeProfile) -> bool:
 def _is_institutional_rule_title_intent_query(query_text: str) -> bool:
     normalized_query = normalize_text(query_text)
     return any(cue in normalized_query for cue in _INSTITUTIONAL_RULE_TITLE_INTENT_CUES)
+
+
+def _is_formal_institutional_rule_title_query(query_text: str) -> bool:
+    normalized_query = normalize_text(query_text)
+    if not normalized_query:
+        return False
+    if "《" in query_text and "》" in query_text:
+        return True
+    if "中央民族大学" not in normalized_query:
+        return False
+    return any(suffix in normalized_query for suffix in _FORMAL_INSTITUTIONAL_RULE_TITLE_SUFFIXES)
 
 
 def _is_student_rule_title_intent_query(query_text: str) -> bool:

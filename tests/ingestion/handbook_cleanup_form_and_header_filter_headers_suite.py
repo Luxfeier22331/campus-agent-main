@@ -263,6 +263,58 @@ class HandbookCleanupFormHeaderRemovalTest(HandbookCleanupFormAndHeaderFilterBas
         self.assertEqual(terminal_unit["anchor"]["provision_label"], "十八")
         self.assertEqual(terminal_unit["anchor"]["section_path"], [])
 
+    def test_cleanup_materializes_student_card_multiline_numbered_body_as_query_serving_units(
+        self,
+    ) -> None:
+        result = cleanup_handbook_document(
+            structured_rows=[
+                _source_row(
+                    163,
+                    "heading",
+                    "中央民族大学本科(预科)学生证管理办法",
+                    block_role="title",
+                    title_candidate_score=1.0,
+                ),
+                _source_row(
+                    163,
+                    "paragraph",
+                    "为了加强我校学生的学生证管理,规范学生证办理使用工作程序,根据国家关于高等学校学生证管理的有关要求,结合学校实际,制定本办法。",
+                ),
+                _source_row(
+                    163,
+                    "list_item",
+                    "\n".join(
+                        (
+                            "六、学生如将学生证遗失或损坏,应及时到学院(系)挂失,写明遗失或损坏的原因、时间、地点等,并报学生处备案。如遗失不报被他人使用造成不良后果,由本人负责。",
+                            "七、学生遗失学生证应及时申请补办。遗失或损坏的学生证,原则上可以申请补办一次。补办后如再次遗失或损坏,根据遗失或损坏的原因决定是否可以补发第二次。",
+                            "八、学生补办学生证,必须提出书面申请,并填写《中央民族大学补办学生证申请表》(见附表)。申请表经学院(系)领导审批,并在学生本人照片背面加盖骑缝章后,到学生处办理补办手续。学生证集中补办时间为每周四下午。",
+                        )
+                    ),
+                ),
+                _source_row(
+                    164,
+                    "paragraph",
+                    "十八、本办法由学生处负责解释。",
+                ),
+            ],
+            manifest_document=_manifest_document(
+                163,
+                164,
+                title="中央民族大学本科(预科)学生证管理办法",
+                handbook_section="中央民族大学学生日常管理规定",
+            ),
+            source_doc="学生手册_2018.pdf",
+        )
+
+        body_units = [row for row in result.document_units if row["unit_type"] == "policy_page"]
+        self.assertGreaterEqual(len(body_units), 1)
+        self.assertTrue(
+            any("学生遗失学生证应及时申请补办" in row["clean_text"] for row in body_units)
+        )
+        self.assertTrue(
+            any("填写《中央民族大学补办学生证申请表》" in row["clean_text"] for row in body_units)
+        )
+
     def test_cleanup_keeps_known_punctuationless_final_numbered_clause_headings(self) -> None:
         cases = (
             (

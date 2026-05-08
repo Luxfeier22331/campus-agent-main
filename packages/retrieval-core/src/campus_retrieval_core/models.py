@@ -14,6 +14,7 @@ from campus_contracts import (
 )
 from campus_ingestion_core.scope_catalog import assert_known_scope
 
+RetrievalLegacyFallbackMode = Literal["target_v3_only", "legacy_old_index_compatibility"]
 RetrievalQueryMode = Literal[
     "current", "historical", "as_of", "compare", "freshness_sensitive", "live_assisted"
 ]
@@ -45,6 +46,9 @@ RetrievalFailureKind = Literal[
     "unsupported_step_type",
     "missing_dependency",
     "polarity_conflict",
+    "group_support_missing",
+    "procedure_group_answer_role_mismatch",
+    "condition_group_answer_role_mismatch",
     "release_metadata_drift",
     "reranker_degraded",
 ]
@@ -85,8 +89,15 @@ ALLOWED_RETRIEVAL_FAILURE_KINDS = (
     "unsupported_step_type",
     "missing_dependency",
     "polarity_conflict",
+    "group_support_missing",
+    "procedure_group_answer_role_mismatch",
+    "condition_group_answer_role_mismatch",
     "release_metadata_drift",
     "reranker_degraded",
+)
+ALLOWED_RETRIEVAL_LEGACY_FALLBACK_MODES = (
+    "target_v3_only",
+    "legacy_old_index_compatibility",
 )
 
 
@@ -103,6 +114,7 @@ class RetrievalScope:
 class RetrievalSourceTrustPolicy:
     minimum_tier: SourceTrustTier | str = "T1"
     allow_live_source_lookup: bool = False
+    legacy_fallback_mode: RetrievalLegacyFallbackMode | str = "legacy_old_index_compatibility"
 
     def __post_init__(self) -> None:
         normalized_minimum_tier = (
@@ -112,6 +124,17 @@ class RetrievalSourceTrustPolicy:
             raise ValueError(f"unsupported source trust tier: {self.minimum_tier}")
         if normalized_minimum_tier != self.minimum_tier:
             object.__setattr__(self, "minimum_tier", normalized_minimum_tier)
+        normalized_legacy_fallback_mode = self.legacy_fallback_mode.strip()
+        if normalized_legacy_fallback_mode not in ALLOWED_RETRIEVAL_LEGACY_FALLBACK_MODES:
+            raise ValueError(
+                f"unsupported retrieval legacy fallback mode: {self.legacy_fallback_mode}"
+            )
+        if normalized_legacy_fallback_mode != self.legacy_fallback_mode:
+            object.__setattr__(
+                self,
+                "legacy_fallback_mode",
+                normalized_legacy_fallback_mode,
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -441,9 +464,7 @@ class RetrievalRequest:
         if normalized_focus_clause_nos != self.focus_clause_nos:
             object.__setattr__(self, "focus_clause_nos", normalized_focus_clause_nos)
         normalized_focus_terms = tuple(
-            value.strip()
-            for value in self.focus_terms
-            if isinstance(value, str) and value.strip()
+            value.strip() for value in self.focus_terms if isinstance(value, str) and value.strip()
         )
         if normalized_focus_terms != self.focus_terms:
             object.__setattr__(self, "focus_terms", normalized_focus_terms)

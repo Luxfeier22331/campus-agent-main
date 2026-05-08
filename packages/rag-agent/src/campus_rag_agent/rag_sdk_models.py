@@ -87,6 +87,7 @@ class RagSdkRunRequest:
     query_intent: RagQueryIntent
     evidence: RagSdkEvidenceProjection
     request_id: str = ""
+    selector_blocked_query_slot_ids: tuple[str, ...] = field(default_factory=tuple)
 
 
 @dataclass(frozen=True, slots=True)

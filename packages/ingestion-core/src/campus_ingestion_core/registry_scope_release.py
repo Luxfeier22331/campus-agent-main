@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
@@ -10,6 +11,7 @@ from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load_runtime_profile
+from campus_ingestion_core.component_eval_release import derive_component_eval_release_status
 from campus_ingestion_core.embed import (
     EmbeddingSettings,
     build_embedding_model,
@@ -54,10 +56,6 @@ from campus_ingestion_core.registry_scope_common import (
     record_label,
     select_releasable_registry_records,
 )
-from campus_ingestion_core.regulation_rag_release_admission import (
-    assert_regulation_rag_release_admission_allows_release,
-    require_regulation_rag_release_admission_key,
-)
 from campus_ingestion_core.registry_scope_release_support import (
     build_fallback_retrieval_settings as _build_fallback_retrieval_settings,
 )
@@ -97,6 +95,11 @@ from campus_ingestion_core.registry_scope_release_support import (
 from campus_ingestion_core.registry_scope_release_support import (
     validate_chunk_embedding_runtime_identity as _validate_chunk_embedding_runtime_identity,
 )
+from campus_ingestion_core.regulation_rag_release_admission import (
+    assert_regulation_rag_release_admission_allows_release,
+    require_component_eval_summary_for_target_release,
+    require_regulation_rag_release_admission_key,
+)
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.sparse import SparseEmbeddingSettings, build_sparse_embedding_model
 
@@ -131,8 +134,13 @@ class RegistryScopeReleaseReport:
     published_at: str | None
     retrieval_acceptance_status: str
     retrieval_acceptance_summary_object_key: str | None
+    component_eval_status: str = ""
+    component_eval_summary_object_key: str | None = None
     post_publish_audit_status: str = ""
     post_publish_audit_summary_object_key: str | None = None
+    fallback_primary_signal_count: int = 0
+    semantic_oracle_pass_count: int = 0
+    semantic_oracle_fail_count: int = 0
     embedding_cache_hit_count: int = 0
     embedding_cache_miss_count: int = 0
     embedding_provider_call_count: int = 0
@@ -159,6 +167,7 @@ def release_registry_scope(
     preparation_run_id: str | None = None,
     acceptance_case_path: str | None = None,
     release_admission_manifest_key: str | None = None,
+    component_eval_summary: dict[str, object] | None = None,
     qrels_coverage_issues: Sequence[str] | None = None,
     official_web_min_release_documents: int | None = None,
 ) -> RegistryScopeReleaseReport:
@@ -186,6 +195,14 @@ def release_registry_scope(
         publish_alias=publish_alias,
         explicit_key=release_admission_manifest_key,
         env=source,
+    )
+    require_component_eval_summary_for_target_release(
+        corpus=corpus,
+        collection=collection,
+        runtime_profile=runtime_profile,
+        publish_alias=publish_alias,
+        component_eval_summary=component_eval_summary,
+        context_label="release publish",
     )
     if reset_index:
         reset_index_binding(
@@ -278,6 +295,7 @@ def release_registry_scope(
         publish_alias=publish_alias,
         upsert_batch_size=_read_qdrant_upsert_batch_size(source),
         acceptance_case_path=acceptance_case_path,
+        component_eval_summary=component_eval_summary,
         qrels_coverage_issues=qrels_coverage_issues,
         official_web_min_release_documents=official_web_min_release_documents,
         retrieval_settings=(
@@ -310,6 +328,7 @@ def publish_scope_release(
     embedding_dimensions: int | None = None,
     document_units_sha256_by_key: dict[str, str] | None = None,
     acceptance_case_path: str | None = None,
+    component_eval_summary: dict[str, object] | None = None,
     qrels_coverage_issues: Sequence[str] | None = None,
     official_web_min_release_documents: int | None = None,
     retrieval_settings: RetrievalSettings | None = None,
@@ -391,6 +410,8 @@ def publish_scope_release(
         release_metadata_consistency_status=quality_gate.release_metadata_consistency_status,
         release_admission_manifest_key=release_admission_manifest_key,
         release_admission_status=release_admission_status,
+        component_eval_status="",
+        component_eval_summary_object_key=None,
     )
     if (
         publish_alias
@@ -403,10 +424,9 @@ def publish_scope_release(
             manifest=prepublish_manifest,
             validation_summary=validation.summary,
             quality_gate_summary=quality_gate.summary,
+            component_eval_summary=component_eval_summary,
         )
-        answer_ready_status = str(
-            quality_gate.summary.get("answer_ready_contract_status") or ""
-        )
+        answer_ready_status = str(quality_gate.summary.get("answer_ready_contract_status") or "")
         answer_ready_suffix = (
             f" answer_ready_contract_status={answer_ready_status}"
             if answer_ready_status and answer_ready_status != "passed"
@@ -459,6 +479,7 @@ def publish_scope_release(
             manifest=prepublish_manifest,
             validation_summary=validation.summary,
             quality_gate_summary=quality_gate.summary,
+            component_eval_summary=component_eval_summary,
         )
         if qdrant_client.collection_exists(physical_collection_name):
             qdrant_client.delete_collection(collection_name=physical_collection_name)
@@ -474,7 +495,10 @@ def publish_scope_release(
             validation_summary=validation.summary,
             quality_gate_summary=quality_gate.summary,
         )
-        return _build_release_report(artifacts, embedding_cache_stats=embedding_cache_stats)
+        return _build_release_report(
+            artifacts,
+            embedding_cache_stats=embedding_cache_stats,
+        )
 
     acceptance_result = None
     if _requires_release_retrieval_acceptance(runtime_profile):
@@ -532,6 +556,7 @@ def publish_scope_release(
             validation_summary=validation.summary,
             retrieval_acceptance_summary=acceptance_result.summary,
             quality_gate_summary=quality_gate.summary,
+            component_eval_summary=component_eval_summary,
         )
         if acceptance_result.status != "passed":
             if qdrant_client.collection_exists(physical_collection_name):
@@ -588,6 +613,8 @@ def publish_scope_release(
         release_metadata_consistency_status=prepublish_manifest.release_metadata_consistency_status,
         release_admission_manifest_key=release_admission_manifest_key,
         release_admission_status=release_admission_status,
+        component_eval_status=prepublish_manifest.component_eval_status,
+        component_eval_summary_object_key=prepublish_manifest.component_eval_summary_object_key,
     )
     alias_published = False
     try:
@@ -606,6 +633,7 @@ def publish_scope_release(
                 acceptance_result.summary if acceptance_result is not None else None
             ),
             quality_gate_summary=quality_gate.summary,
+            component_eval_summary=component_eval_summary,
         )
         audit = audit_published_scope_release(
             qdrant_client=qdrant_client,
@@ -627,6 +655,7 @@ def publish_scope_release(
                 acceptance_result.summary if acceptance_result is not None else None
             ),
             quality_gate_summary=quality_gate.summary,
+            component_eval_summary=component_eval_summary,
             post_publish_audit_summary=audit.summary,
         )
         if audit.status == "failed":
@@ -636,6 +665,7 @@ def publish_scope_release(
         return _build_release_report(
             audited_artifacts,
             embedding_cache_stats=embedding_cache_stats,
+            post_publish_audit_summary=audit.summary,
         )
     except Exception:
         if alias_published and previous_physical_collection_name is not None:
@@ -658,9 +688,11 @@ def _build_release_report(
     artifacts,
     *,
     embedding_cache_stats: EmbeddingCacheStats | None = None,
+    post_publish_audit_summary: Mapping[str, object] | None = None,
 ) -> RegistryScopeReleaseReport:
     manifest = artifacts.manifest
     cache_stats = embedding_cache_stats or EmbeddingCacheStats()
+    post_publish_summary = dict(post_publish_audit_summary or {})
     return RegistryScopeReleaseReport(
         corpus=manifest.corpus,
         collection=manifest.collection,
@@ -677,8 +709,15 @@ def _build_release_report(
         published_at=manifest.published_at,
         retrieval_acceptance_status=manifest.retrieval_acceptance_status,
         retrieval_acceptance_summary_object_key=manifest.retrieval_acceptance_summary_object_key,
+        component_eval_status=manifest.component_eval_status,
+        component_eval_summary_object_key=manifest.component_eval_summary_object_key,
         post_publish_audit_status=manifest.post_publish_audit_status,
         post_publish_audit_summary_object_key=manifest.post_publish_audit_summary_object_key,
+        fallback_primary_signal_count=int(
+            post_publish_summary.get("fallback_primary_signal_count") or 0
+        ),
+        semantic_oracle_pass_count=int(post_publish_summary.get("semantic_oracle_pass_count") or 0),
+        semantic_oracle_fail_count=int(post_publish_summary.get("semantic_oracle_fail_count") or 0),
         embedding_cache_hit_count=cache_stats.hit_count,
         embedding_cache_miss_count=cache_stats.miss_count,
         embedding_provider_call_count=cache_stats.provider_call_count,
@@ -746,6 +785,9 @@ def audit_published_scope_release(
             },
         )
     issues: list[str] = []
+    fallback_primary_signal_count = 0
+    semantic_oracle_pass_count = 0
+    semantic_oracle_fail_count = 0
     alias_target = resolve_alias_target(
         qdrant_client=qdrant_client,
         alias_name=manifest.serving_alias,
@@ -801,6 +843,8 @@ def audit_published_scope_release(
     ]
     if manifest.retrieval_acceptance_status:
         object_keys.append(manifest.retrieval_acceptance_summary_object_key)
+    if manifest.component_eval_summary_object_key:
+        object_keys.append(manifest.component_eval_summary_object_key)
     for object_key in object_keys:
         if not object_key:
             issues.append("missing_release_artifact_key")
@@ -809,6 +853,21 @@ def audit_published_scope_release(
             object_store.get_bytes(bucket=bucket, key=str(object_key))
         except Exception:
             issues.append(f"missing_release_artifact:{object_key}")
+    if manifest.component_eval_summary_object_key:
+        try:
+            component_eval_summary = json.loads(
+                object_store.get_bytes(
+                    bucket=bucket,
+                    key=str(manifest.component_eval_summary_object_key),
+                ).decode("utf-8")
+            )
+        except Exception:
+            component_eval_summary = None
+        if isinstance(component_eval_summary, Mapping):
+            component_eval_status = derive_component_eval_release_status(component_eval_summary)
+            fallback_primary_signal_count = component_eval_status.fallback_budget_regression_count
+            semantic_oracle_pass_count = component_eval_status.passed_case_count
+            semantic_oracle_fail_count = component_eval_status.failed_case_count
     status = "passed" if not issues else "failed"
     return ReleasePostPublishAuditResult(
         status=status,
@@ -820,6 +879,9 @@ def audit_published_scope_release(
             "physical_collection_name": manifest.physical_collection_name,
             "points_count": points_count,
             "sampled_payload_count": len(payloads),
+            "fallback_primary_signal_count": fallback_primary_signal_count,
+            "semantic_oracle_pass_count": semantic_oracle_pass_count,
+            "semantic_oracle_fail_count": semantic_oracle_fail_count,
             "payload_index_audit": payload_index_audit_summary,
             "issues": tuple(issues),
         },

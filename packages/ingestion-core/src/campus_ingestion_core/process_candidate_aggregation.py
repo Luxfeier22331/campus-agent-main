@@ -12,6 +12,7 @@ from campus_ingestion_core.process_shared import (
 )
 from campus_ingestion_core.regulation_answer_roles import (
     build_answer_role_metadata,
+    build_table_answer_role_metadata,
     decide_answer_role,
 )
 
@@ -88,8 +89,49 @@ def build_handbook_answer_role_release_metadata(
             "role_reason": _shared_text(role_metadata.get("role_reason"))
             or "derived_from_handbook_semantics:procedure",
         }
+    if semantics.content_role == "table_fact":
+        role_metadata = build_table_answer_role_metadata(text=text, metadata=metadata)
+        return {
+            **role_metadata,
+            "role_reason": _shared_text(role_metadata.get("role_reason"))
+            or "derived_from_handbook_semantics:table_fact",
+        }
     if not semantics.is_answer_bearing:
-        return {}
+        return {
+            "answer_role": "supporting_detail",
+            "role_confidence": "low",
+            "role_reason": "not_answer_bearing_from_handbook_semantics",
+        }
+    role = infer_answer_role_from_handbook_semantics(semantics)
+    if role == "procedure_step":
+        return {
+            "answer_role": role,
+            "role_confidence": "medium",
+            "role_reason": (
+                "derived_from_handbook_semantics:"
+                f"{semantics.content_role or semantics.semantic_role or semantics.claim_type}"
+            ),
+        }
+    if role in {"time_constraint", "material_requirement"} and _semantics_fast_path_is_leaf_clause(
+        text
+    ):
+        return {
+            "answer_role": role,
+            "role_confidence": "medium",
+            "role_reason": (
+                "derived_from_handbook_semantics:"
+                f"{semantics.content_role or semantics.semantic_role or semantics.claim_type}"
+            ),
+        }
+    if role in {"definition", "table_fact"}:
+        return {
+            "answer_role": role,
+            "role_confidence": "medium",
+            "role_reason": (
+                "derived_from_handbook_semantics:"
+                f"{semantics.content_role or semantics.semantic_role or semantics.claim_type}"
+            ),
+        }
     parser_decision = decide_answer_role(text=text)
     parser_answer_role = _shared_text(parser_decision.get("answer_role"))
     if _should_prefer_parser_answer_role(
@@ -101,16 +143,6 @@ def build_handbook_answer_role_release_metadata(
             "role_confidence": _shared_text(parser_decision.get("role_confidence")) or "high",
             "role_reason": _shared_text(parser_decision.get("role_reason"))
             or "derived_from_answer_role_parser",
-        }
-    role = _answer_role_from_handbook_semantics(semantics)
-    if role:
-        return {
-            "answer_role": role,
-            "role_confidence": "medium",
-            "role_reason": (
-                "derived_from_handbook_semantics:"
-                f"{semantics.content_role or semantics.semantic_role or semantics.claim_type}"
-            ),
         }
     role_metadata = build_answer_role_metadata(text=text)
     answer_role = _shared_text(role_metadata.get("answer_role"))
@@ -128,7 +160,7 @@ def build_handbook_answer_role_release_metadata(
     }
 
 
-def _answer_role_from_handbook_semantics(semantics) -> str:
+def infer_answer_role_from_handbook_semantics(semantics) -> str:
     if semantics.content_role == "procedure" or semantics.semantic_role == "procedure_step":
         return "procedure_step"
     if semantics.semantic_role == "exception":
@@ -144,6 +176,8 @@ def _answer_role_from_handbook_semantics(semantics) -> str:
         "timeline_or_deadline",
     }:
         return "time_constraint"
+    if semantics.content_role == "requirement" and semantics.claim_type == "material_requirement":
+        return "material_requirement"
     if semantics.content_role == "definition" or semantics.semantic_role == "definition":
         return "definition"
     if semantics.content_role in {"eligibility", "requirement"} or semantics.semantic_role in {
@@ -167,6 +201,11 @@ def _should_prefer_parser_answer_role(*, semantics, parser_answer_role: str) -> 
     return semantics.content_role in {"deadline", "time_rule", "eligibility", "requirement"} or (
         semantics.semantic_role in {"condition", "intro", "example", "time_constraint"}
     )
+
+
+def _semantics_fast_path_is_leaf_clause(text: str) -> bool:
+    non_empty_lines = [line.strip() for line in text.splitlines() if line.strip()]
+    return len(non_empty_lines) <= 1
 
 
 def header_ratio(chunk_assembly) -> float:
@@ -487,6 +526,7 @@ __all__ = [
     "collect_member_labels",
     "common_section_path_tuple",
     "header_ratio",
+    "infer_answer_role_from_handbook_semantics",
     "institutional_regulation_candidate_is_heading_only",
     "normalize_anchor_label",
     "normalize_section_path",

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
+from types import SimpleNamespace
 
 from campus_ingestion_core.chunking import (
     TEXTUAL_UNIT_TYPES,
@@ -16,6 +17,7 @@ from campus_ingestion_core.process_candidate_aggregation import (
     build_aggregated_metadata,
     build_institutional_regulation_aggregated_anchor,
     header_ratio,
+    infer_answer_role_from_handbook_semantics,
     normalize_anchor_label,
     normalize_section_path,
     short_textual_group_is_satisfied,
@@ -26,12 +28,21 @@ from campus_ingestion_core.process_shared import (
     _SHORT_TEXTUAL_MAX_MEMBER_COUNT,
     _ChunkCandidate,
 )
-from campus_ingestion_core.regulation_answer_roles import decide_answer_role, is_answer_role_atomic
+from campus_ingestion_core.regulation_answer_roles import (
+    decide_answer_role as _decide_answer_role,
+)
+from campus_ingestion_core.regulation_answer_roles import (
+    is_answer_role_atomic,
+)
 
 _NESTED_NUMBERED_LINE_RE = re.compile(
     r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])"
 )
 _SHORT_TEXTUAL_MERGE_UNIT_TYPES = frozenset((*TEXTUAL_UNIT_TYPES, "institutional_regulation_block"))
+
+
+def decide_answer_role(*, text: str, prefix_text: str = "", role_hint: str | None = None):
+    return _decide_answer_role(text=text, prefix_text=prefix_text, role_hint=role_hint)
 
 
 def merge_adjacent_short_textual_candidates(
@@ -223,7 +234,41 @@ def candidate_answer_role(candidate: _ChunkCandidate) -> str:
         role = str(value or "").strip()
         if role:
             return role
-    return str(decide_answer_role(text=candidate.piece.text).get("answer_role") or "").strip()
+    if _candidate_has_semantic_contract(candidate):
+        inferred_semantics = SimpleNamespace(
+            content_role=str(candidate.metadata.get("content_role") or "").strip(),
+            semantic_role=str(candidate.metadata.get("semantic_role") or "").strip(),
+            claim_type=str(candidate.metadata.get("claim_type") or "").strip(),
+            polarity=str(candidate.metadata.get("polarity") or "").strip(),
+        )
+        inferred_role = infer_answer_role_from_handbook_semantics(inferred_semantics)
+        if inferred_role in {
+            "procedure_step",
+            "time_constraint",
+            "material_requirement",
+            "definition",
+            "table_fact",
+        }:
+            return inferred_role
+    parsed_role = str(
+        decide_answer_role(
+            text=candidate.piece.text,
+            prefix_text=" ".join(
+                part for part in normalize_section_path(candidate.anchor) if part
+            ),
+        ).get("answer_role")
+        or ""
+    ).strip()
+    if is_answer_role_atomic(parsed_role):
+        return parsed_role
+    return ""
+
+
+def _candidate_has_semantic_contract(candidate: _ChunkCandidate) -> bool:
+    return any(
+        str(candidate.metadata.get(field_name) or "").strip()
+        for field_name in ("content_role", "semantic_role", "claim_type")
+    )
 
 
 def policy_page_label_shape_conflicts(

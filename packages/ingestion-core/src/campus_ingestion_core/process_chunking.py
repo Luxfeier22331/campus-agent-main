@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from llama_index.core.base.embeddings.base import BaseEmbedding
 
+from campus_ingestion_core.answer_ready_contract_quality import (
+    evaluate_answer_ready_contract_metadata,
+)
 from campus_ingestion_core.chunking import (
     TABLE_UNIT_TYPES,
     ChunkProfile,
@@ -240,6 +243,21 @@ def build_indexable_chunks_from_jsonl(
                 root_unit_id=candidate.piece.root_unit_id,
             )
         )
+        contract_quality = evaluate_answer_ready_contract_metadata(
+            corpus=record.corpus,
+            collection=record.collection,
+            metadata=metadata,
+            anchor=candidate.anchor,
+        )
+        metadata.update(
+            {
+                "answer_ready_contract_validation_status": contract_quality.status,
+                "answer_ready_contract_validation_severity": contract_quality.severity,
+                "answer_ready_contract_validation_version": contract_quality.contract_version,
+                "answer_ready_contract_validation_issues": contract_quality.issues,
+                "answer_ready_contract_required_fields": contract_quality.required_fields,
+            }
+        )
         chunks.append(
             IndexableChunk(
                 document_id=record.document_id,
@@ -380,6 +398,11 @@ def build_anchor_release_metadata(anchor: dict[str, object]) -> dict[str, object
         value = anchor.get(field_name)
         if isinstance(value, str) and value.strip():
             release_metadata[field_name] = value.strip()
+    section_path = anchor.get("section_path")
+    if isinstance(section_path, list | tuple):
+        normalized_section_path = [str(item).strip() for item in section_path if str(item).strip()]
+        if normalized_section_path:
+            release_metadata["section_path"] = normalized_section_path
     return release_metadata
 
 

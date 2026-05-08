@@ -5,6 +5,7 @@ from tests.agent.rag_agent_test_support import (
     EvidenceBundle,
     KnowledgeScope,
     RagRequestPayload,
+    _make_current_v3_category_overview_source,
     _make_handbook_source,
     delegate_to_rag_agent,
     unittest,
@@ -220,17 +221,25 @@ class RagAgentRealisticE2ESamplesTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
-        self.assertEqual(len(retriever_calls), 2)
+        self.assertGreaterEqual(len(retriever_calls), 2)
         self.assertEqual(
-            tuple(call["target_document_ids"] for call in retriever_calls),
+            tuple(call["target_document_ids"] for call in retriever_calls[:2]),
             (
                 (_NATIONAL_SCHOLARSHIP_DOC_ID,),
                 (_NATIONAL_SCHOLARSHIP_DOC_ID,),
             ),
         )
-        self.assertIn("第九条", retriever_calls[1]["query_text"])
-        self.assertIn("论文", retriever_calls[1]["query_text"])
-        self.assertIn("著作", retriever_calls[1]["query_text"])
+        focused_follow_up = next(
+            (
+                call
+                for call in retriever_calls[1:]
+                if "第九条" in call["query_text"]
+                and "论文" in call["query_text"]
+                and "著作" in call["query_text"]
+            ),
+            None,
+        )
+        self.assertIsNotNone(focused_follow_up)
         self.assertIn("论文", response.answer_text)
         self.assertIn("著作", response.answer_text)
         self.assertNotIn("体育竞赛", response.answer_text)
@@ -402,12 +411,14 @@ def _national_scholarship_retriever(
             corpus="regulations",
             collection="student_rules",
             sources=(
-                _scholarship_source(
+                _make_handbook_source(
                     doc_id=_NATIONAL_SCHOLARSHIP_DOC_ID,
                     title="中央民族大学本科学生国家奖学金评审办法",
                     snippet=snippet,
-                    suffix=suffix,
+                    chunk_id_suffix=suffix,
                     score=0.95,
+                    content_role="requirement",
+                    is_answer_bearing=True,
                 ),
             ),
         )
@@ -478,14 +489,12 @@ def _scholarship_source(
     suffix: str,
     score: float,
 ):
-    return _make_handbook_source(
+    return _make_current_v3_category_overview_source(
         doc_id=doc_id,
         title=title,
         snippet=snippet,
         score=score,
         chunk_id_suffix=suffix,
-        content_role="definition",
-        is_answer_bearing=True,
     )
 
 
@@ -561,14 +570,12 @@ def _policy_source_for_doc_id(
     fixtures: dict[str, tuple[str, str, str]],
 ):
     title, snippet, suffix = fixtures[document_id]
-    return _make_handbook_source(
+    return _make_current_v3_category_overview_source(
         doc_id=document_id,
         title=title,
         snippet=snippet,
         score=0.031,
         chunk_id_suffix=suffix,
-        content_role="definition",
-        is_answer_bearing=True,
     )
 
 

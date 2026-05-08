@@ -13,6 +13,7 @@ from campus_ingestion_core.handbook_cleanup_projection_render import (
     build_canonical_body,
     build_canonical_markdown,
     build_document_rows,
+    build_preface_policy_rows,
     serialize_handbook_document_units,
 )
 from campus_ingestion_core.handbook_cleanup_projection_selection import (
@@ -81,6 +82,27 @@ def cleanup_handbook_document(
         policy_doc_no=policy_doc_no,
         preface_text=preface_text,
     )
+    preface_policy_rows = build_preface_policy_rows(
+        doc_id=doc_id,
+        version_id=version_id,
+        source_pdf=source_doc,
+        source_url=manifest_document.source_uri,
+        entitlement_groups=manifest_document.resolved_entitlement_groups(),
+        title=title,
+        policy_doc_no=policy_doc_no,
+        preface_text=preface_text,
+        page_start=manifest_document.page_start,
+        page_end=manifest_document.page_end,
+    )
+    existing_texts = {str(row.get("clean_text") or "").strip() for row in document_rows}
+    document_rows = [
+        *tuple(
+            row
+            for row in preface_policy_rows
+            if str(row.get("clean_text") or "").strip() not in existing_texts
+        ),
+        *document_rows,
+    ]
     return HandbookCleanupResult(
         title=title,
         doc_id=doc_id,

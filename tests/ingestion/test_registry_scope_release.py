@@ -288,6 +288,142 @@ class RegistryScopeReleaseTest(unittest.TestCase):
         self.assertIn("payload_index_missing:version_id", audit.summary["issues"])
         self.assertIn("payload_index_schema_mismatch:is_current", audit.summary["issues"])
 
+    def test_post_publish_audit_includes_component_eval_closeout_counts(self) -> None:
+        class _FakeRemoteQdrant:
+            def get_aliases(self):
+                return SimpleNamespace(
+                    aliases=[
+                        SimpleNamespace(
+                            alias_name="student_rules",
+                            collection_name="student_rules__r20260501",
+                        )
+                    ]
+                )
+
+            def collection_exists(self, _collection_name: str) -> bool:
+                return True
+
+            def get_collection(self, collection_name: str):
+                return SimpleNamespace(
+                    points_count=1,
+                    payload_schema={
+                        "document_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "notice_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_notice_ids": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_document_ids": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "revision_track": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "version_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "corpus": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "collection": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "target_surface": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_course_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_course_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "canonical_program_family_id": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "visibility_scope": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "entitlement_groups": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "visibility_level": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "policy_projection_version": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "status": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "source_channel": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "is_current": qdrant_models.PayloadSchemaType.BOOL,
+                    },
+                )
+
+            def scroll(self, **_kwargs):
+                return [
+                    SimpleNamespace(
+                        payload={
+                            "index_release_id": "r20260501",
+                            "index_release_manifest_key": "manifest.json",
+                            "index_release_alias": "student_rules",
+                            "index_physical_collection_name": "student_rules__r20260501",
+                        }
+                    )
+                ], None
+
+        component_eval_summary = {
+            "schema_version": 1,
+            "case_family": "answer_ready_component_eval.v1",
+            "summary": {
+                "total": 4,
+                "passed": 3,
+                "failed": 1,
+                "overall_passed": False,
+                "primary_failure_stage_counts": {"fallback_budget_regression": 1},
+                "secondary_failure_stage_counts": {},
+                "scope_failure_counts": {"student_rules": 1},
+                "gate_failure_counts": {"query_conditioned": 1},
+            },
+            "results": [
+                {
+                    "case_id": "case-1",
+                    "collection": "student_rules",
+                    "passed": False,
+                    "primary_failure_class": "fallback_budget_regression",
+                    "secondary_failure_class": "",
+                    "failure_classes": ["fallback_budget_regression"],
+                    "failure_gate_classifications": ["query_conditioned"],
+                    "mismatches": {
+                        "fallback_primary_signals": "('text_cue',) contains legacy fallback"
+                    },
+                }
+            ],
+        }
+        object_store = _FakeObjectStore(
+            objects={
+                ("campus-rag-derived", "manifest.json"): b"{}",
+                ("campus-rag-derived", "validation.json"): b"{}",
+                ("campus-rag-derived", "quality.json"): b"{}",
+                (
+                    "campus-rag-derived",
+                    "component-eval-summary.json",
+                ): (json.dumps(component_eval_summary, ensure_ascii=False) + "\n").encode("utf-8"),
+                ("campus-rag-derived", "retrieval.json"): b"{}",
+            }
+        )
+        manifest = IndexReleaseManifest(
+            release_id="r20260501",
+            corpus="regulations",
+            collection="student_rules",
+            serving_alias="student_rules",
+            physical_collection_name="student_rules__r20260501",
+            previous_physical_collection_name=None,
+            cleaning_policy_version="cleaning-v1",
+            chunk_policy_version="chunk-v1",
+            embedding_model="mock-embedding",
+            indexed_at="2026-05-01T00:00:00+00:00",
+            published_at="2026-05-01T00:01:00+00:00",
+            document_count=1,
+            point_count=1,
+            document_version_ids_hash="hash",
+            document_units_keys_hash="hash",
+            validation_status="passed",
+            validation_summary_object_key="validation.json",
+            quality_gate_summary_object_key="quality.json",
+            retrieval_acceptance_status="passed",
+            retrieval_acceptance_summary_object_key="retrieval.json",
+            component_eval_status="failed",
+            component_eval_summary_object_key="component-eval-summary.json",
+        )
+
+        audit = audit_published_scope_release(
+            qdrant_client=_FakeRemoteQdrant(),
+            object_store=object_store,
+            bucket="campus-rag-derived",
+            manifest=manifest,
+            manifest_object_key="manifest.json",
+            expected_release_metadata={
+                "index_release_id": "r20260501",
+                "index_release_manifest_key": "manifest.json",
+                "index_release_alias": "student_rules",
+                "index_physical_collection_name": "student_rules__r20260501",
+            },
+        )
+
+        self.assertEqual(audit.summary["fallback_primary_signal_count"], 1)
+        self.assertEqual(audit.summary["semantic_oracle_pass_count"], 3)
+        self.assertEqual(audit.summary["semantic_oracle_fail_count"], 1)
+
     def test_publish_scope_release_writes_prepublish_manifest_before_alias(self) -> None:
         events: list[tuple[str, str | None]] = []
         object_store = _OrderedObjectStore(events=events)
@@ -442,6 +578,54 @@ class RegistryScopeReleaseTest(unittest.TestCase):
                 publish_alias=True,
             )
 
+    def test_release_registry_scope_requires_component_eval_summary_for_query_enabled_regulation_publish(
+        self,
+    ) -> None:
+        record = _make_regulation_record()
+        registry = InMemoryDocumentRegistry((record,))
+        env = {
+            "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+            "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+            "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+            "EMBEDDING_PROVIDER": "mock",
+            "EMBEDDING_MODEL": "mock-embedding-8d",
+            "SPARSE_PROVIDER": "mock",
+        }
+        object_store = _FakeObjectStore()
+
+        with (
+            patch(
+                "campus_ingestion_core.registry_scope_release.require_verified_chunk_preparation"
+            ) as require_preparation,
+            patch(
+                "campus_ingestion_core.registry_scope_release.assert_regulation_rag_release_admission_allows_release"
+            ) as assert_admission,
+            patch(
+                "campus_ingestion_core.registry_scope_release.build_indexable_chunks_from_record"
+            ) as build_chunks,
+            self.assertRaisesRegex(
+                ValueError,
+                "component eval summary is required before query-enabled regulation release publish",
+            ),
+        ):
+            require_preparation.return_value = object()
+            assert_admission.return_value = SimpleNamespace(admission_status="passed")
+            build_chunks.side_effect = lambda **_kwargs: self.fail(
+                "component eval summary must be checked before chunk building"
+            )
+            release_registry_scope(
+                corpus="regulations",
+                collection="institutional_rules",
+                preparation_run_id="prep-001",
+                release_admission_manifest_key="admission.json",
+                env=env,
+                registry=registry,
+                object_store=object_store,
+                qdrant_client=QdrantClient(location=":memory:"),
+                publish_alias=True,
+            )
+
     def test_release_registry_scope_allows_query_enabled_regulation_with_matching_admission(
         self,
     ) -> None:
@@ -510,11 +694,12 @@ class RegistryScopeReleaseTest(unittest.TestCase):
             runtime_profile=load_runtime_profile("regulations", "institutional_rules"),
             preparation_manifest=SimpleNamespace(
                 documents=[
-                    SimpleNamespace(**document)
-                    for document in preparation_manifest["documents"]
+                    SimpleNamespace(**document) for document in preparation_manifest["documents"]
                 ]
             ),
             admitted_at="2026-05-02T10:00:00+00:00",
+            semantic_oracle_status="passed",
+            fallback_budget_status="passed",
         )
         admission_key = write_regulation_rag_release_admission_manifest(
             writer=object_store,
@@ -575,6 +760,17 @@ class RegistryScopeReleaseTest(unittest.TestCase):
                 qdrant_client=QdrantClient(location=":memory:"),
                 publish_alias=True,
                 acceptance_case_path=str(qrels_path),
+                component_eval_summary={
+                    "schema_version": 1,
+                    "case_family": "answer_ready_component_eval.v1",
+                    "summary": {
+                        "overall_passed": True,
+                        "failed": 0,
+                        "primary_failure_stage_counts": {},
+                        "secondary_failure_stage_counts": {},
+                    },
+                    "results": [],
+                },
                 qrels_coverage_issues=(),
             )
 

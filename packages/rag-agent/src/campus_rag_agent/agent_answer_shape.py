@@ -31,6 +31,7 @@ _CONDITION_QUERY_HINTS = (
     "requirement",
 )
 _OVERVIEW_HINTS = ("什么条件", "哪些条件", "有什么要求", "哪些要求", "需要满足")
+_CATEGORY_DISCOVERY_HINTS = ("有哪些", "都有什么", "有什么", "哪些")
 _DETAIL_CLAUSE_HINTS = ("怎么要求", "如何要求", "怎么规定", "如何规定")
 _JUDGMENT_CLAUSE_HINTS = (
     "能不能",
@@ -58,6 +59,11 @@ def infer_answer_shape(*, evidence: EvidenceBundle) -> AnswerShape:
         return AnswerShape.FACT_LOOKUP
     if any(hint in normalized_query for hint in _FACT_QUERY_HINTS):
         return AnswerShape.FACT_LOOKUP
+    if _is_regulation_category_discovery_query(
+        normalized_query=normalized_query,
+        evidence=evidence,
+    ):
+        return AnswerShape.CATEGORY_DISCOVERY_LIST
     if _is_judgment_clause_query(normalized_query):
         return AnswerShape.JUDGMENT_CLAUSE
     if _is_detail_clause_query(normalized_query) and any(
@@ -72,6 +78,29 @@ def infer_answer_shape(*, evidence: EvidenceBundle) -> AnswerShape:
     ):
         return AnswerShape.CONDITION_OVERVIEW
     return AnswerShape.GENERAL_SUMMARY
+
+
+def _is_regulation_category_discovery_query(
+    *,
+    normalized_query: str,
+    evidence: EvidenceBundle,
+) -> bool:
+    if evidence.corpus != "regulations":
+        return False
+    if evidence.collection not in {"student_rules", "institutional_rules"}:
+        return False
+    if not any(hint in normalized_query for hint in _CATEGORY_DISCOVERY_HINTS):
+        return False
+    return any(
+        source.content_role == "policy_list"
+        or source.semantic_role == "category_overview"
+        or source.is_answer_bearing
+        and (
+            "当前已收录依据中" in _normalize_snippet(source.snippet)
+            or "相关制度包括" in _normalize_snippet(source.snippet)
+        )
+        for source in evidence.sources
+    )
 
 
 def _is_detail_clause_query(normalized_query: str) -> bool:

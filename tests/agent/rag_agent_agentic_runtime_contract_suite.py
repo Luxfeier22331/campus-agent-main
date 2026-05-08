@@ -11,6 +11,12 @@ from campus_contracts import (
 )
 from campus_rag_agent.agent_answer_shape import AnswerShape, infer_answer_shape
 from campus_rag_agent.confidence import derive_confidence
+from campus_rag_agent.rag_sdk_models import RagSdkEvidenceAnchor, RagSdkRunRequest, RagSdkRunResult
+from campus_rag_agent.rag_sdk_output import (
+    RagSdkAnswerOutput,
+    RagSdkClaim,
+    RagSdkClaimSupport,
+)
 from campus_rag_agent.runtime_stages import (
     RAG_AGENT_RUNTIME_STAGES,
     resolve_stage_contract,
@@ -89,6 +95,33 @@ class RagAgentAgenticRuntimeContractTest(unittest.TestCase):
             "weak_supporting_evidence",
         )
 
+    def test_discovery_query_shape_uses_category_discovery_list_for_regulation_family(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="学校层面的学生管理制度有哪些",
+            corpus="regulations",
+            collection="institutional_rules",
+            sources=(
+                _make_handbook_source(
+                    doc_id="official_web_regulation:0a420e3fe367027c",
+                    title="校园服务制度目录",
+                    snippet=(
+                        "当前已收录依据中，校园成员校园服务制度相关制度包括："
+                        "《中央民族大学信息公开实施细则》、"
+                        "《中央民族大学信息门户运行管理办法（试行）》。"
+                    ),
+                    score=0.91,
+                    chunk_id_suffix="institutional-category-overview",
+                    content_role="policy_list",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            infer_answer_shape(evidence=evidence),
+            AnswerShape.CATEGORY_DISCOVERY_LIST,
+        )
+
     def test_completed_answer_preserves_retrieval_step_provenance_on_supporting_evidence(
         self,
     ) -> None:
@@ -127,6 +160,7 @@ class RagAgentAgenticRuntimeContractTest(unittest.TestCase):
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
+            rag_sdk_runner=_grounded_runner_for_evidence(evidence),
         )
 
         self.assertEqual(response.status, "completed")
@@ -365,3 +399,35 @@ class RagAgentAgenticRuntimeContractTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _grounded_runner_for_evidence(evidence: EvidenceBundle):
+    primary_source = evidence.sources[0]
+
+    def runner(_request: RagSdkRunRequest) -> RagSdkRunResult:
+        anchor = RagSdkEvidenceAnchor(
+            source_id=primary_source.doc_id,
+            chunk_id=primary_source.chunk_id,
+            excerpt=primary_source.snippet,
+            span_ref="chunk-0001:0-24",
+        )
+        return RagSdkRunResult(
+            output=RagSdkAnswerOutput(
+                answer_text=primary_source.snippet,
+                answer_kind="short_answer",
+                semantic_outcome="grounded_answer",
+                confidence="medium",
+                cited_source_ids=(primary_source.doc_id,),
+                claims=(
+                    RagSdkClaim(
+                        claim_id="claim-1",
+                        text=primary_source.snippet,
+                    ),
+                ),
+                claim_supports=(RagSdkClaimSupport(claim_id="claim-1", anchors=(anchor,)),),
+                evidence_anchors=(anchor,),
+            ),
+            trace_projection={"schema_version": "rag-sdk-trace-projection-v1"},
+        )
+
+    return runner

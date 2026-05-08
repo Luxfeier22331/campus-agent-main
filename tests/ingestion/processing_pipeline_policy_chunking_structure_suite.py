@@ -428,7 +428,7 @@ class ProcessingPipelinePolicyChunkingStructureTest(unittest.TestCase):
             if chunk.metadata.get("aggregation_mode") == "adjacent_short_textual_units"
             and "五、本规定自2009年3月17日起实施。" in chunk.metadata["display_text"]
         ]
-        self.assertEqual(len(procedure_chunks), 2)
+        self.assertEqual(len(procedure_chunks), 4)
         self.assertEqual(len(exclusion_chunks), 1)
         self.assertEqual(len(closing_chunks), 1)
         self.assertFalse(

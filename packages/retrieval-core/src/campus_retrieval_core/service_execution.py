@@ -1,12 +1,20 @@
 from __future__ import annotations
 
 from campus_contracts import EvidenceBundle, EvidenceSource
+from campus_shared.regulation_semantic_registry import (
+    REGULATION_CONDITION_SUBJECT_DEFINITIONS,
+)
 
 from campus_retrieval_core.evidence_attributes import (
+    EvidenceAttributes,
     EvidenceFallbackDiagnostics,
+    evidence_attributes_for_source,
     evidence_fallback_diagnostics_for_source,
 )
-from campus_retrieval_core.evidence_semantics import source_conflicts_with_query_polarity
+from campus_retrieval_core.evidence_semantics import (
+    infer_evidence_query_intent,
+    source_conflicts_with_query_polarity,
+)
 from campus_retrieval_core.models import (
     RetrievalPlan,
     RetrievalSelector,
@@ -211,6 +219,13 @@ def _select_grounding_sources(
                 source=source,
             )
         )
+        semantic_failure_kind = _semantic_grounding_failure_kind(
+            query_text=query_text,
+            sources=sources,
+            grounding=positive_grounding,
+        )
+        if semantic_failure_kind:
+            return (), semantic_failure_kind
         if query_has_focus_constraints(query_text):
             focus_grounding = tuple(
                 source
@@ -218,7 +233,21 @@ def _select_grounding_sources(
                 if source_covers_query_focus(query_text=query_text, source=source)
             )
             if focus_grounding:
+                semantic_failure_kind = _semantic_grounding_failure_kind(
+                    query_text=query_text,
+                    sources=sources,
+                    grounding=focus_grounding,
+                )
+                if semantic_failure_kind:
+                    return (), semantic_failure_kind
                 return focus_grounding, ""
+            semantic_failure_kind = _semantic_grounding_failure_kind(
+                query_text=query_text,
+                sources=sources,
+                grounding=positive_grounding,
+            )
+            if semantic_failure_kind:
+                return (), semantic_failure_kind
             return (), "focus_mismatch"
         return positive_grounding, ""
     if all(_is_negative_grounding_source(source) for source in sources):
@@ -233,6 +262,138 @@ def _select_grounding_sources(
             return focus_grounding, ""
         return (), "focus_mismatch"
     return sources, ""
+
+
+def _semantic_grounding_failure_kind(
+    *,
+    query_text: str,
+    sources: tuple[EvidenceSource, ...],
+    grounding: tuple[EvidenceSource, ...],
+) -> str:
+    if not grounding:
+        if not sources:
+            return ""
+        intent = infer_evidence_query_intent(query_text)
+        if (
+            intent.answer_role == "condition"
+            and intent.condition_subject
+            and _has_group_subject_only_match(
+                sources=sources,
+                condition_subject=intent.condition_subject,
+            )
+        ):
+            return "group_support_missing"
+        if intent.answer_role == "procedure" and _has_same_group_but_wrong_answer_role(
+            sources=sources,
+            expected_roles={"procedure_step"},
+        ):
+            return "procedure_group_answer_role_mismatch"
+        if intent.answer_role == "condition" and _has_same_group_but_wrong_answer_role(
+            sources=sources,
+            expected_roles=_expected_condition_answer_roles(intent.condition_subject),
+        ):
+            return "condition_group_answer_role_mismatch"
+        return ""
+
+    intent = infer_evidence_query_intent(query_text)
+    if (
+        intent.answer_role == "condition"
+        and intent.condition_subject
+        and _grounding_is_group_example_only(
+            grounding=grounding,
+            condition_subject=intent.condition_subject,
+        )
+    ):
+        return "group_support_missing"
+    if intent.answer_role == "procedure" and _grounding_lacks_expected_answer_role(
+        grounding=grounding,
+        expected_roles={"procedure_step"},
+    ):
+        return "procedure_group_answer_role_mismatch"
+    if intent.answer_role == "condition" and _grounding_lacks_expected_answer_role(
+        grounding=grounding,
+        expected_roles=_expected_condition_answer_roles(intent.condition_subject),
+    ):
+        return "condition_group_answer_role_mismatch"
+    return ""
+
+
+def _expected_condition_answer_roles(condition_subject: str) -> set[str]:
+    normalized = condition_subject.strip()
+    if not normalized:
+        return {"eligibility_condition", "exception_rule", "exclusion_rule"}
+    definition = REGULATION_CONDITION_SUBJECT_DEFINITIONS.get(normalized)
+    if definition is None:
+        return {"eligibility_condition", "exception_rule", "exclusion_rule"}
+    return set(definition.expected_answer_roles)
+
+
+def _has_group_subject_only_match(
+    *,
+    sources: tuple[EvidenceSource, ...],
+    condition_subject: str,
+) -> bool:
+    return any(
+        _normalized_condition_group_subject(attributes) == condition_subject
+        and _normalized_condition_subject(attributes) != condition_subject
+        for attributes in _attributes_for_sources(sources)
+    )
+
+
+def _grounding_is_group_example_only(
+    *,
+    grounding: tuple[EvidenceSource, ...],
+    condition_subject: str,
+) -> bool:
+    attributes = _attributes_for_sources(grounding)
+    if not attributes:
+        return False
+    return all(
+        _normalized_condition_group_subject(item) == condition_subject
+        and _normalized_condition_subject(item) != condition_subject
+        and item.answer_role == "example_evidence"
+        for item in attributes
+    )
+
+
+def _has_same_group_but_wrong_answer_role(
+    *,
+    sources: tuple[EvidenceSource, ...],
+    expected_roles: set[str],
+) -> bool:
+    attributes = _attributes_for_sources(sources)
+    if not attributes:
+        return False
+    return any(item.condition_group_id for item in attributes) and all(
+        item.answer_role not in expected_roles for item in attributes
+    )
+
+
+def _grounding_lacks_expected_answer_role(
+    *,
+    grounding: tuple[EvidenceSource, ...],
+    expected_roles: set[str],
+) -> bool:
+    attributes = _attributes_for_sources(grounding)
+    if not attributes:
+        return False
+    return any(item.condition_group_id for item in attributes) and all(
+        item.answer_role not in expected_roles for item in attributes
+    )
+
+
+def _attributes_for_sources(
+    sources: tuple[EvidenceSource, ...],
+) -> tuple[EvidenceAttributes, ...]:
+    return tuple(evidence_attributes_for_source(source) for source in sources)
+
+
+def _normalized_condition_subject(attributes: EvidenceAttributes) -> str:
+    return attributes.condition_subject.strip()
+
+
+def _normalized_condition_group_subject(attributes: EvidenceAttributes) -> str:
+    return attributes.condition_group_subject.strip()
 
 
 def _merge_fallback_diagnostics(
@@ -281,6 +442,9 @@ def _merge_fallback_diagnostics(
 
 
 def _is_positive_grounding_source(source: EvidenceSource) -> bool:
+    attributes = evidence_attributes_for_source(source)
+    if attributes.answer_role in {"eligibility_intro", "definition", "supporting_detail"}:
+        return False
     return source.is_answer_bearing or source.content_role in _POSITIVE_GROUNDING_CONTENT_ROLES
 
 

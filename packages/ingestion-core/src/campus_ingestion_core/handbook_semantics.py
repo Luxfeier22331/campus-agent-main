@@ -4,12 +4,14 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from campus_shared.regulation_semantic_registry import resolve_regulation_action_type
+
 from campus_ingestion_core.regulation_semantics import (
     infer_negative_semantic_role,
+    infer_regulation_body_content_role,
     load_default_regulation_semantics_registry,
     looks_like_condition_claim_text,
-    looks_like_deadline_constraint_text,
-    looks_like_requirement_text,
+    normalize_regulation_semantic_text,
 )
 
 _APPENDIX_PREFIXES = ("附件", "附表", "附录")
@@ -27,16 +29,9 @@ _FORM_FIELD_KEYWORDS = (
     "认定结果",
 )
 _FORM_CHECKBOX_MARKERS = ("☐", "□", "■", "✓", "√")
-_ELIGIBILITY_KEYWORDS = ("申请条件", "资格条件", "资格", "条件", "对象")
-_SCOPE_RULE_RE = re.compile(
-    r"^(?:本(?:办法|规定|细则|制度|通知|规则)|该(?:办法|规定|细则|制度|通知|规则)).{0,24}(?:适用于|适用范围)"
-)
-_DEFINITION_RE = re.compile(r"^(?:本(?:办法|规定|细则|制度|通知|规则)所称|本条所称)")
 _DATE_EFFECTIVE_RE = re.compile(
     r"^(?:本(?:办法|规定|细则|制度|通知|规则)|该(?:办法|规定|细则|制度|通知|规则)).{0,24}自\d{4}年\d{1,2}月\d{1,2}日起(?:开始)?(?:实施|施行|执行)"
 )
-_CLOCK_TIME_RE = re.compile(r"\d{1,2}[:：]\d{2}")
-_DATE_TIME_RE = re.compile(r"\d{4}年\d{1,2}月\d{1,2}日")
 _NESTED_NUMBERED_LINE_RE = re.compile(
     r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])"
 )
@@ -101,6 +96,7 @@ def derive_handbook_semantic_metadata(
         content_role=content_role,
         semantic_role=semantic_role,
         polarity=polarity,
+        anchor=resolved_anchor,
         metadata=resolved_metadata,
         text=text,
     )
@@ -147,6 +143,8 @@ def _resolve_content_kind(
         return explicit_kind
     if _looks_like_form(metadata=metadata, text=text, detail_label=detail_label):
         return "form"
+    if _looks_like_structural_heading(anchor=anchor, text=text):
+        return "navigation"
     if _looks_like_navigation(
         anchor=anchor, metadata=metadata, text=text, detail_label=detail_label
     ):
@@ -168,7 +166,7 @@ def _resolve_content_role(
     text: str,
 ) -> str:
     explicit_role = _text(metadata.get("content_role"))
-    if explicit_role:
+    if explicit_role and explicit_role != "regulation_body":
         return explicit_role
     if content_kind == "navigation":
         return "navigation"
@@ -176,22 +174,17 @@ def _resolve_content_role(
         return "appendix"
     if content_kind == "table_unit":
         return "table_fact"
+    if _is_amount_or_quota_fact(text):
+        return "table_fact"
     if _is_closing_provision(detail_label=detail_label, anchor=anchor, text=text):
         return "closing_provision"
-    if _is_scope_rule(text):
-        return "scope_rule"
-    if _is_deadline_rule(detail_label=detail_label, anchor=anchor, text=text):
-        return "deadline"
-    if _is_time_rule(detail_label=detail_label, anchor=anchor, text=text):
-        return "time_rule"
-    if _is_eligibility_rule(detail_label=detail_label, anchor=anchor, text=text):
-        return "eligibility"
-    if _is_definition_rule(detail_label=detail_label, text=text):
-        return "definition"
-    if _is_procedure_rule(detail_label=detail_label, anchor=anchor, text=text):
-        return "procedure"
-    if _is_requirement_rule(text):
-        return "requirement"
+    shared_body_role = infer_regulation_body_content_role(
+        detail_label=detail_label,
+        section_leaf=_section_leaf(anchor),
+        text=text,
+    )
+    if shared_body_role:
+        return shared_body_role
     return ""
 
 
@@ -258,7 +251,7 @@ def _resolve_polarity(
     explicit_polarity = _text(metadata.get("polarity"))
     if explicit_polarity:
         return explicit_polarity
-    normalized = _normalize_text(text)
+    normalized = normalize_regulation_semantic_text(text)
     if semantic_role in {"exception", "prohibition", "exclusion"}:
         return "negative"
     if any(keyword in normalized for keyword in registry.negative_polarity_keywords):
@@ -274,16 +267,13 @@ def _resolve_action_type(
     metadata: Mapping[str, object],
     text: str,
 ) -> str:
-    registry = load_default_regulation_semantics_registry()
-    explicit_action_type = _text(metadata.get("action_type"))
-    if explicit_action_type:
-        return explicit_action_type
-    normalized = _semantic_search_space(detail_label="", anchor=anchor, text=text)
-    if any(keyword in normalized for keyword in registry.lift_discipline_keywords):
-        return "lift_discipline"
-    if any(keyword in normalized for keyword in registry.reissue_keywords):
-        return "reissue"
-    return ""
+    assignment = resolve_regulation_action_type(
+        text=text,
+        section_path=_section_path(anchor),
+        document_title=_text(metadata.get("title")),
+        explicit_action_type=_text(metadata.get("action_type")),
+    )
+    return assignment.value
 
 
 def _resolve_claim_type(
@@ -291,9 +281,11 @@ def _resolve_claim_type(
     content_role: str,
     semantic_role: str,
     polarity: str,
+    anchor: Mapping[str, object],
     metadata: Mapping[str, object],
     text: str,
 ) -> str:
+    registry = load_default_regulation_semantics_registry()
     explicit_claim_type = _text(metadata.get("claim_type"))
     if explicit_claim_type:
         return explicit_claim_type
@@ -301,16 +293,36 @@ def _resolve_claim_type(
         return "cannot_do"
     if content_role == "procedure" or semantic_role == "procedure_step":
         return "procedure"
-    if content_role in {"eligibility", "requirement"} or semantic_role == "condition":
+    if content_role == "requirement":
+        normalized = _semantic_search_space(detail_label="", anchor=anchor, text=text)
+        if any(keyword in normalized for keyword in registry.material_markers):
+            return "material_requirement"
+        return "condition"
+    if content_role == "eligibility" or semantic_role == "condition":
         return "condition"
     if content_role in {"deadline", "time_rule"}:
         return "time_constraint"
     if content_role == "definition":
         return "definition"
-    normalized = _normalize_text(text)
+    if content_role == "table_fact":
+        if _is_amount_or_quota_fact(text):
+            return "amount_or_quota"
+        return "table_fact"
+    normalized = normalize_regulation_semantic_text(text)
     if looks_like_condition_claim_text(normalized):
         return "condition"
     return ""
+
+
+def _is_amount_or_quota_fact(text: str) -> bool:
+    normalized = normalize_regulation_semantic_text(text)
+    if not normalized:
+        return False
+    return (
+        "标准" in normalized
+        and "元" in normalized
+        and any(keyword in normalized for keyword in ("金额", "奖金", "奖励", "名额", "比例"))
+    )
 
 
 def _resolve_audience_scope(
@@ -413,70 +425,6 @@ def _is_closing_provision(*, detail_label: str, anchor: Mapping[str, object], te
     return all(_is_terminal_provision_line(line) for line in lines)
 
 
-def _is_scope_rule(text: str) -> bool:
-    normalized = _normalize_text(text)
-    if not normalized:
-        return False
-    return bool(_SCOPE_RULE_RE.match(normalized) or normalized.startswith("适用于"))
-
-
-def _is_time_rule(*, detail_label: str, anchor: Mapping[str, object], text: str) -> bool:
-    registry = load_default_regulation_semantics_registry()
-    scope = " ".join(
-        part for part in (detail_label, _section_leaf(anchor), _normalize_text(text)) if part
-    )
-    if any(keyword in scope for keyword in registry.time_rule_keywords):
-        return True
-    if _CLOCK_TIME_RE.search(text):
-        return True
-    return bool(_DATE_TIME_RE.search(text) and "实施" not in text and "施行" not in text)
-
-
-def _is_deadline_rule(*, detail_label: str, anchor: Mapping[str, object], text: str) -> bool:
-    registry = load_default_regulation_semantics_registry()
-    scope = " ".join(
-        part for part in (detail_label, _section_leaf(anchor), _normalize_text(text)) if part
-    )
-    if any(keyword in scope for keyword in registry.deadline_keywords):
-        return True
-    normalized = _normalize_text(text)
-    return looks_like_deadline_constraint_text(normalized)
-
-
-def _is_eligibility_rule(*, detail_label: str, anchor: Mapping[str, object], text: str) -> bool:
-    scope = " ".join(part for part in (detail_label, _section_leaf(anchor)) if part)
-    if any(keyword in scope for keyword in _ELIGIBILITY_KEYWORDS):
-        return True
-    normalized = _normalize_text(text)
-    return normalized.startswith(("凡符合", "符合"))
-
-
-def _is_definition_rule(*, detail_label: str, text: str) -> bool:
-    if any(token in detail_label for token in ("释义", "定义")):
-        return True
-    return bool(_DEFINITION_RE.match(_normalize_text(text)))
-
-
-def _is_procedure_rule(*, detail_label: str, anchor: Mapping[str, object], text: str) -> bool:
-    registry = load_default_regulation_semantics_registry()
-    scope = " ".join(part for part in (detail_label, _section_leaf(anchor)) if part)
-    if any(keyword in scope for keyword in registry.procedure_keywords):
-        return True
-    lines = _meaningful_lines(text)
-    if sum(1 for line in lines if _NESTED_NUMBERED_LINE_RE.match(line)) >= 2:
-        return True
-    normalized = _normalize_text(text)
-    procedure_hits = sum(1 for keyword in registry.procedure_keywords if keyword in normalized)
-    return procedure_hits >= 2
-
-
-def _is_requirement_rule(text: str) -> bool:
-    normalized = _normalize_text(text)
-    if not normalized:
-        return False
-    return looks_like_requirement_text(normalized)
-
-
 def _looks_like_appendix(
     *,
     anchor: Mapping[str, object],
@@ -532,6 +480,19 @@ def _looks_like_navigation(
     return False
 
 
+def _looks_like_structural_heading(*, anchor: Mapping[str, object], text: str) -> bool:
+    lines = _meaningful_lines(text)
+    if len(lines) != 1:
+        return False
+    section_leaf = _normalize_text(_section_leaf(anchor))
+    if not section_leaf:
+        return False
+    normalized_text = _normalize_text(lines[0])
+    if not normalized_text:
+        return False
+    return normalized_text == section_leaf
+
+
 def _is_terminal_provision_line(line: str) -> bool:
     registry = load_default_regulation_semantics_registry()
     normalized = _strip_leading_label(_normalize_text(line))
@@ -551,6 +512,13 @@ def _section_leaf(anchor: Mapping[str, object]) -> str:
         if value:
             return value
     return ""
+
+
+def _section_path(anchor: Mapping[str, object]) -> tuple[str, ...]:
+    section_path = anchor.get("section_path")
+    if not isinstance(section_path, Sequence) or isinstance(section_path, (str, bytes)):
+        return ()
+    return tuple(_text(item) for item in section_path if _text(item))
 
 
 def _meaningful_lines(text: str) -> tuple[str, ...]:

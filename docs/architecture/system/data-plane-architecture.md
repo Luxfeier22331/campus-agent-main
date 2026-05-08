@@ -241,6 +241,10 @@ retrieval acceptance -> serving alias publish`
   `held_search_only`
 - serving alias publish 必须在 deterministic retrieval acceptance 后执行；acceptance
   失败只能留下 failed candidate / repair backlog，不能切换 current pointer
+- 对 regulation-family query-enabled target alias，release proof只说明“发布产物满足 target
+  lane 约束”；runtime 仍必须继续阻止 legacy old-index primary fallback 进入 target serving path。
+  old-index compatibility 若仍需保留，只能作为单独命名的 compatibility lane 存在，不得与 target
+  alias 混用 completion truth
 
 这条 lane 的目标是让“文档站已发布”和“RAG 已可检索”保持可观测分离。
 

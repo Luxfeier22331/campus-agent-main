@@ -5,8 +5,13 @@ import json
 import time
 from collections.abc import Sequence
 from dataclasses import asdict
+from pathlib import Path
 
 from campus_ingestion_core import release_registry_scope
+from campus_ingestion_core.corpus_profiles import load_runtime_profile
+from campus_ingestion_core.regulation_rag_release_admission import (
+    require_component_eval_summary_for_target_release,
+)
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.ingestion_run_telemetry import (
@@ -25,6 +30,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--preparation-run-id")
     parser.add_argument("--acceptance-case-path")
     parser.add_argument("--release-admission-manifest-key")
+    parser.add_argument("--component-eval-summary-path")
     parser.add_argument("--reset-index", action="store_true")
     publish_group = parser.add_mutually_exclusive_group()
     publish_group.add_argument("--publish-alias", dest="publish_alias", action="store_true")
@@ -56,12 +62,22 @@ def main(argv: Sequence[str] | None = None) -> None:
         emit_event=emit_event,
     )
     try:
+        component_eval_summary = _load_optional_json_object(args.component_eval_summary_path)
+        require_component_eval_summary_for_target_release(
+            corpus=args.corpus,
+            collection=args.collection,
+            runtime_profile=load_runtime_profile(args.corpus, args.collection),
+            publish_alias=args.publish_alias,
+            component_eval_summary=component_eval_summary,
+            context_label="release",
+        )
         report = release_registry_scope(
             corpus=args.corpus,
             collection=args.collection,
             preparation_run_id=args.preparation_run_id,
             acceptance_case_path=args.acceptance_case_path,
             release_admission_manifest_key=args.release_admission_manifest_key,
+            component_eval_summary=component_eval_summary,
             reset_index=args.reset_index,
             publish_alias=args.publish_alias,
         )
@@ -123,6 +139,16 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 
 __all__ = ["build_parser", "main", "release_registry_scope"]
+
+
+def _load_optional_json_object(path: str | None) -> dict[str, object] | None:
+    candidate = (path or "").strip()
+    if not candidate:
+        return None
+    payload = json.loads(Path(candidate).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("component eval summary payload must be a JSON object")
+    return payload
 
 
 if __name__ == "__main__":

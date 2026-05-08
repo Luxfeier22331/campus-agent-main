@@ -6,7 +6,10 @@ from campus_contracts import EvidenceSource
 from campus_shared.answer_ready_evidence_contract import (
     ANSWER_READY_BASE_REQUIRED_FIELDS,
     ANSWER_READY_INTERNAL_ATTRIBUTE_FIELDS,
+    ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS,
+    answer_ready_contract_rules_for_scope,
 )
+from campus_shared.regulation_semantic_registry import condition_group_subject_from_group_id
 
 INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY = "_retrieval_evidence_attributes"
 
@@ -24,6 +27,7 @@ class ProcedureAttributes:
 class EvidenceAttributes:
     answer_role: str = ""
     condition_subject: str = ""
+    condition_group_subject: str = ""
     parent_unit_id: str = ""
     clause_unit_id: str = ""
     evidence_contract_version: str = ""
@@ -36,6 +40,7 @@ class EvidenceAttributes:
     clause_no: str = ""
     section_kind: str = ""
     category_id: str = ""
+    category_display_name: str = ""
     category_audience: str = ""
     category_member_document_ids: tuple[str, ...] = field(default_factory=tuple)
     category_member_titles: tuple[str, ...] = field(default_factory=tuple)
@@ -63,6 +68,7 @@ def evidence_attributes_for_source(source: EvidenceSource) -> EvidenceAttributes
         _optional_text(raw.get("answer_role")) or source.semantic_role or source.content_role
     )
     condition_subject = _optional_text(raw.get("condition_subject")) or ""
+    condition_group_subject = _optional_text(raw.get("condition_group_subject")) or ""
     parent_unit_id = (
         _optional_text(raw.get("parent_unit_id"))
         or source.source_unit_key
@@ -79,6 +85,9 @@ def evidence_attributes_for_source(source: EvidenceSource) -> EvidenceAttributes
     article_no = _optional_text(raw.get("article_no")) or source.article_no
     clause_no = _optional_text(raw.get("clause_no")) or source.clause_no
     section_kind = _optional_text(raw.get("section_kind")) or source.section_kind
+    condition_group_id = _optional_text(raw.get("condition_group_id")) or ""
+    if not condition_group_subject:
+        condition_group_subject = condition_group_subject_from_group_id(condition_group_id)
     condition_polarity = _optional_text(raw.get("condition_polarity")) or polarity
     procedure = ProcedureAttributes(
         step_index=_optional_int(raw.get("procedure_step_index")),
@@ -95,6 +104,7 @@ def evidence_attributes_for_source(source: EvidenceSource) -> EvidenceAttributes
     return EvidenceAttributes(
         answer_role=answer_role,
         condition_subject=condition_subject,
+        condition_group_subject=condition_group_subject,
         parent_unit_id=parent_unit_id,
         clause_unit_id=clause_unit_id,
         evidence_contract_version=evidence_contract_version,
@@ -107,6 +117,7 @@ def evidence_attributes_for_source(source: EvidenceSource) -> EvidenceAttributes
         clause_no=clause_no,
         section_kind=section_kind,
         category_id=_optional_text(raw.get("category_id")) or "",
+        category_display_name=_optional_text(raw.get("category_display_name")) or "",
         category_audience=(
             _optional_text(raw.get("category_audience"))
             or _optional_text(raw.get("audience"))
@@ -122,7 +133,7 @@ def evidence_attributes_for_source(source: EvidenceSource) -> EvidenceAttributes
             if "category_member_titles" in raw
             else raw.get("member_policy_titles")
         ),
-        condition_group_id=_optional_text(raw.get("condition_group_id")) or "",
+        condition_group_id=condition_group_id,
         condition_polarity=condition_polarity,
         intro_scope=_optional_text(raw.get("intro_scope")) or "",
         introduced_condition_group_id=(
@@ -137,7 +148,7 @@ def evidence_attributes_for_source(source: EvidenceSource) -> EvidenceAttributes
 def evidence_fallback_diagnostics_for_source(source: EvidenceSource) -> EvidenceFallbackDiagnostics:
     raw = _coerce_dict(source.anchor.get(INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY))
     source_index_contract_version = _optional_text(raw.get("evidence_contract_version")) or ""
-    missing = _raw_missing_contract_fields(raw)
+    missing = _raw_missing_contract_fields(raw, collection=source.collection)
     if not missing:
         return EvidenceFallbackDiagnostics(
             source_index_contract_version=source_index_contract_version,
@@ -159,21 +170,53 @@ def build_internal_evidence_attribute_payload(metadata: dict[str, object]) -> di
     return payload
 
 
-def _raw_missing_contract_fields(raw: dict[str, object]) -> tuple[str, ...]:
+def _raw_missing_contract_fields(raw: dict[str, object], *, collection: str) -> tuple[str, ...]:
     missing: list[str] = []
     for field_name in ANSWER_READY_BASE_REQUIRED_FIELDS:
         if not _optional_text(raw.get(field_name)):
             missing.append(field_name)
-    return tuple(missing)
+    answer_role = _optional_text(raw.get("answer_role")) or ""
+    if not answer_role:
+        return tuple(missing)
+    rules = answer_ready_contract_rules_for_scope(
+        corpus="regulations",
+        collection=collection,
+    )
+    for field_name in rules.required_fields_for_role(answer_role=answer_role):
+        if field_name in ANSWER_READY_BASE_REQUIRED_FIELDS:
+            continue
+        if not _has_contract_field_value(raw, field_name):
+            missing.append(field_name)
+    if rules.requires_condition_group_id(metadata=raw) and not _has_contract_field_value(
+        raw, "condition_group_id"
+    ):
+        missing.append("condition_group_id")
+    if rules.requires_condition_group_subject(metadata=raw) and not _has_contract_field_value(
+        raw, "condition_group_subject"
+    ):
+        missing.append("condition_group_subject")
+    return tuple(dict.fromkeys(missing))
 
 
 def _fallback_primary_signal(source: EvidenceSource) -> str:
     if source.semantic_role or source.polarity or source.action_type or source.claim_type:
-        return "public_semantic"
+        return next(
+            signal
+            for signal in ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS
+            if signal == "public_semantic"
+        )
     if source.content_role or source.content_kind:
-        return "public_content_role"
+        return next(
+            signal
+            for signal in ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS
+            if signal == "public_content_role"
+        )
     if source.snippet:
-        return "text_cue"
+        return next(
+            signal
+            for signal in ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS
+            if signal == "text_cue"
+        )
     return "none"
 
 
@@ -193,6 +236,44 @@ def _missing_contract_fields(
         if not values[field_name]:
             missing.append(field_name)
     return tuple(missing)
+
+
+def _has_contract_field_value(raw: dict[str, object], field_name: str) -> bool:
+    if field_name == "condition_group_subject":
+        explicit = _optional_text(raw.get("condition_group_subject"))
+        if explicit:
+            return True
+        group_id = _optional_text(raw.get("condition_group_id")) or ""
+        return bool(condition_group_subject_from_group_id(group_id))
+    if field_name == "member_policy_document_ids":
+        return _coerce_text_tuple(raw.get("member_policy_document_ids")) or _coerce_text_tuple(
+            raw.get("category_member_document_ids")
+        )
+    if field_name == "member_policy_titles":
+        return _coerce_text_tuple(raw.get("member_policy_titles")) or _coerce_text_tuple(
+            raw.get("category_member_titles")
+        )
+    if field_name == "audience":
+        return (
+            _optional_text(raw.get("audience")) or _optional_text(raw.get("category_audience"))
+        ) is not None
+    if field_name == "parent_unit_id":
+        return _optional_text(raw.get("parent_unit_id")) is not None
+    if field_name == "intro_target_roles":
+        return bool(_coerce_text_tuple(raw.get("intro_target_roles")))
+    return _has_value(raw.get(field_name))
+
+
+def _has_value(value: object) -> bool:
+    if value is None:
+        return False
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list | tuple | set):
+        return any(_has_value(item) for item in value)
+    if isinstance(value, dict):
+        return bool(value)
+    return True
 
 
 def _coerce_dict(value: object) -> dict[str, object]:

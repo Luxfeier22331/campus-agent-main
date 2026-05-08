@@ -125,6 +125,7 @@ def execute_retrieval_plan(
             try:
                 result = execute_index_backed_step(
                     step,
+                    plan=plan,
                     authorized_filter=authorized_filter,
                     personalization_hint=personalization_hint,
                     request_executor=request_executor,

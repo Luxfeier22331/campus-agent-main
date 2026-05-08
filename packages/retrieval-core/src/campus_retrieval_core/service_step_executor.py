@@ -5,7 +5,10 @@ from dataclasses import replace
 from datetime import UTC, datetime
 
 from campus_contracts import EvidenceBundle
+from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 
+from campus_retrieval_core.backend_qdrant_errors import RetrievalBackendError
+from campus_retrieval_core.evidence_attributes import evidence_fallback_diagnostics_for_source
 from campus_retrieval_core.models import RetrievalPlan, RetrievalRequest, RetrievalStep
 from campus_retrieval_core.service_execution import (
     build_blocked_step_result,
@@ -19,6 +22,7 @@ def classify_retrieval_exception_failure_kind(exc: Exception) -> str:
     message = str(exc).lower()
     if (
         "release metadata" in message
+        or "legacy old-index fallback" in message
         or "profile_identity_hash" in message
         or "quality_gate_status" in message
         or "chunk_quality_status" in message
@@ -37,6 +41,7 @@ def execute_index_backed_step(
     rerank_step,
     load_runtime_profile_fn,
     logger,
+    plan: RetrievalPlan | None = None,
 ):
     validation_error = validate_index_backed_step(step)
     if validation_error is not None:
@@ -86,6 +91,13 @@ def execute_index_backed_step(
             load_runtime_profile_fn=load_runtime_profile_fn,
             logger=logger,
         )
+    runtime_profile = load_runtime_profile_fn(step.scope.corpus, step.scope.collection)
+    _fail_closed_on_disallowed_legacy_fallback(
+        plan=plan,
+        step=step,
+        runtime_profile=runtime_profile,
+        evidence=evidence,
+    )
     latency_ms = max(0, round((time.perf_counter() - started_at) * 1000))
     return build_succeeded_step_result(
         step,
@@ -105,6 +117,51 @@ def validate_index_backed_step(step: RetrievalStep) -> str | None:
         if step.selector.target_version_ids[0] == step.selector.target_version_ids[1]:
             return "compare_pair_lookup requires distinct target_version_ids"
     return None
+
+
+def _fail_closed_on_disallowed_legacy_fallback(
+    *,
+    plan: RetrievalPlan | None,
+    step: RetrievalStep,
+    runtime_profile: CollectionRuntimeProfile,
+    evidence: EvidenceBundle,
+) -> None:
+    if not _requires_target_v3_legacy_fallback_quarantine(
+        plan=plan,
+        step=step,
+        runtime_profile=runtime_profile,
+    ):
+        return
+    for source in evidence.sources:
+        if not source.is_answer_bearing:
+            continue
+        diagnostics = evidence_fallback_diagnostics_for_source(source)
+        if not diagnostics.fallback_used:
+            continue
+        raise RetrievalBackendError(
+            "legacy old-index fallback is not allowed for target v3 query-serving "
+            f"{step.scope.corpus}/{step.scope.collection}: "
+            f"{diagnostics.fallback_primary_signal or 'unknown'}"
+        )
+
+
+def _requires_target_v3_legacy_fallback_quarantine(
+    *,
+    plan: RetrievalPlan | None,
+    step: RetrievalStep,
+    runtime_profile: CollectionRuntimeProfile,
+) -> bool:
+    if runtime_profile.corpus != "regulations":
+        return False
+    if runtime_profile.collection not in {"student_rules", "institutional_rules"}:
+        return False
+    if runtime_profile.serving_stage != "query_serving":
+        return False
+    if not runtime_profile.query_enabled_by_default:
+        return False
+    if plan is None:
+        return True
+    return plan.source_trust_policy.legacy_fallback_mode != "legacy_old_index_compatibility"
 
 
 def build_compare_pair_requests(

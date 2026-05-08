@@ -47,7 +47,7 @@ def postprocess_student_rules_chunk_candidates(
         chunk_candidates=chunk_candidates,
         chunk_profile=runtime_profile,
     )
-    overviews = build_student_rules_category_overview_candidates(
+    overviews = build_regulation_category_overview_candidates(
         record=record,
         chunk_candidates=candidates,
         chunk_profile=runtime_profile,
@@ -57,7 +57,7 @@ def postprocess_student_rules_chunk_candidates(
     return (*overviews, *candidates)
 
 
-def build_student_rules_category_overview_candidates(
+def build_regulation_category_overview_candidates(
     *,
     record: DocumentRegistryRecord,
     chunk_candidates: tuple[_ChunkCandidate, ...],
@@ -71,12 +71,25 @@ def build_student_rules_category_overview_candidates(
     if not overviews:
         return ()
     return tuple(
-        _build_student_rules_category_overview_candidate_from_metadata(
+        _build_regulation_category_overview_candidate_from_metadata(
             record=record,
             chunk_profile=chunk_profile,
             overview=overview,
         )
         for overview in overviews
+    )
+
+
+def build_student_rules_category_overview_candidates(
+    *,
+    record: DocumentRegistryRecord,
+    chunk_candidates: tuple[_ChunkCandidate, ...],
+    chunk_profile: ChunkProfile,
+) -> tuple[_ChunkCandidate, ...]:
+    return build_regulation_category_overview_candidates(
+        record=record,
+        chunk_candidates=chunk_candidates,
+        chunk_profile=chunk_profile,
     )
 
 
@@ -86,7 +99,7 @@ def build_student_rules_category_overview_candidate(
     chunk_candidates: tuple[_ChunkCandidate, ...],
     chunk_profile: ChunkProfile,
 ) -> _ChunkCandidate | None:
-    overviews = build_student_rules_category_overview_candidates(
+    overviews = build_regulation_category_overview_candidates(
         record=record,
         chunk_candidates=chunk_candidates,
         chunk_profile=chunk_profile,
@@ -94,7 +107,7 @@ def build_student_rules_category_overview_candidate(
     return overviews[0] if overviews else None
 
 
-def _build_student_rules_category_overview_candidate_from_metadata(
+def _build_regulation_category_overview_candidate_from_metadata(
     *,
     record: DocumentRegistryRecord,
     chunk_profile: ChunkProfile,
@@ -246,10 +259,18 @@ def postprocess_institutional_regulation_chunk_candidates(
     if not chunk_candidates:
         return ()
     if not use_collection_unit_profiles:
-        return merge_adjacent_short_textual_candidates(
+        candidates = merge_adjacent_short_textual_candidates(
             chunk_candidates=chunk_candidates,
             chunk_profile=runtime_profile,
         )
+        overviews = build_regulation_category_overview_candidates(
+            record=record,
+            chunk_candidates=candidates,
+            chunk_profile=runtime_profile,
+        )
+        if not overviews:
+            return candidates
+        return (*overviews, *candidates)
     merged: list[_ChunkCandidate] = []
     current_lane: str | None = None
     current_group: list[_ChunkCandidate] = []
@@ -285,7 +306,15 @@ def postprocess_institutional_regulation_chunk_candidates(
                 ),
             )
         )
-    return tuple(merged)
+    candidates = tuple(merged)
+    overviews = build_regulation_category_overview_candidates(
+        record=record,
+        chunk_candidates=candidates,
+        chunk_profile=runtime_profile,
+    )
+    if not overviews:
+        return candidates
+    return (*overviews, *candidates)
 
 
 def postprocess_scoped_rule_chunk_candidates(
@@ -339,6 +368,7 @@ def postprocess_scoped_rule_chunk_candidates(
 
 
 __all__ = [
+    "build_regulation_category_overview_candidates",
     "build_student_rules_category_overview_candidate",
     "build_student_rules_category_overview_candidates",
     "postprocess_curriculum_chunk_candidates",

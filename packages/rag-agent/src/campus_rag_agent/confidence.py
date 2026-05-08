@@ -6,6 +6,7 @@ from campus_retrieval_core.evidence_ranking import (
     query_targets_source_title,
     select_supporting_evidence_sources,
 )
+from campus_retrieval_core.evidence_semantics import semantic_alignment_score
 
 from .agent_shared import _normalize_snippet
 
@@ -119,6 +120,11 @@ def derive_confidence(evidence: EvidenceBundle, *, handbook_plan=None) -> str:
     if named_doc_id is not None and primary_doc_positive_support_count >= 1:
         return "medium"
     if primary_doc_positive_support_count >= 1 and primary_doc_chunk_count >= 2:
+        return "medium"
+    if _is_semantically_targeted_single_regulation_hit(
+        evidence=evidence,
+        supporting_sources=supporting_sources,
+    ):
         return "medium"
     if (
         evidence.collection in _CURATED_FACT_COLLECTIONS
@@ -237,3 +243,26 @@ def _has_curriculum_plan_textual_answer_support(
     if not query_targets_source_title(query_text=query_text, source=source):
         return False
     return any(hint in normalized_snippet for hint in _CURRICULUM_PLAN_BODY_HINTS)
+
+
+def _is_semantically_targeted_single_regulation_hit(
+    *,
+    evidence: EvidenceBundle,
+    supporting_sources: tuple[EvidenceSource, ...],
+) -> bool:
+    if evidence.corpus != "regulations":
+        return False
+    if evidence.collection not in {"student_rules", "institutional_rules"}:
+        return False
+    if len(supporting_sources) != 1:
+        return False
+    lead_source = supporting_sources[0]
+    if not lead_source.is_answer_bearing:
+        return False
+    return (
+        semantic_alignment_score(
+            query_text=evidence.query_text,
+            source=lead_source,
+        )
+        >= 40
+    )

@@ -11,6 +11,7 @@ from typing import Protocol
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
 
+from campus_ingestion_core.component_eval_release import derive_component_eval_release_status
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 from campus_ingestion_core.curriculum_chunk_units import (
     _leading_curriculum_heading_lines,
@@ -64,6 +65,10 @@ class IndexReleaseWriter(Protocol):
         data: bytes,
         content_type: str,
     ) -> None: ...
+
+
+class IndexReleaseReader(Protocol):
+    def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -132,6 +137,8 @@ class IndexReleaseManifest:
     release_metadata_consistency_status: str = ""
     release_admission_manifest_key: str | None = None
     release_admission_status: str = ""
+    component_eval_status: str = ""
+    component_eval_summary_object_key: str | None = None
     post_publish_audit_status: str = ""
     post_publish_audit_summary_object_key: str | None = None
 
@@ -146,6 +153,135 @@ class IndexReleaseArtifacts:
 def default_release_id(*, now: datetime | None = None) -> str:
     runtime_now = now or datetime.now(UTC)
     return f"{runtime_now.strftime('r%Y%m%d_%H%M%S_%f')}_{uuid.uuid4().hex[:8]}"
+
+
+def load_index_release_manifest(
+    *,
+    reader: IndexReleaseReader,
+    bucket: str,
+    corpus: str,
+    collection: str,
+    release_id: str,
+) -> IndexReleaseManifest:
+    payload = json.loads(
+        reader.get_bytes(
+            bucket=bucket,
+            key=build_index_release_artifact_key(
+                corpus=corpus,
+                collection=collection,
+                release_id=release_id,
+                filename="index-release.json",
+            ),
+        ).decode("utf-8")
+    )
+    return IndexReleaseManifest(
+        release_id=str(payload["release_id"]),
+        corpus=str(payload["corpus"]),
+        collection=str(payload["collection"]),
+        serving_alias=str(payload["serving_alias"]),
+        physical_collection_name=str(payload["physical_collection_name"]),
+        previous_physical_collection_name=(
+            None
+            if payload.get("previous_physical_collection_name") is None
+            else str(payload["previous_physical_collection_name"])
+        ),
+        cleaning_policy_version=str(payload["cleaning_policy_version"]),
+        chunk_policy_version=str(payload["chunk_policy_version"]),
+        embedding_model=str(payload["embedding_model"]),
+        indexed_at=str(payload["indexed_at"]),
+        published_at=None if payload.get("published_at") is None else str(payload["published_at"]),
+        document_count=int(payload["document_count"]),
+        point_count=int(payload["point_count"]),
+        document_version_ids_hash=str(payload["document_version_ids_hash"]),
+        document_units_keys_hash=str(payload["document_units_keys_hash"]),
+        validation_status=str(payload["validation_status"]),
+        validation_summary_object_key=(
+            None
+            if payload.get("validation_summary_object_key") is None
+            else str(payload["validation_summary_object_key"])
+        ),
+        documents=tuple(
+            IndexReleaseDocumentRef(
+                document_id=str(item["document_id"]),
+                revision_track=str(item["revision_track"]),
+                version_id=str(item["version_id"]),
+                document_units_object_key=(
+                    None
+                    if item.get("document_units_object_key") is None
+                    else str(item["document_units_object_key"])
+                ),
+                document_units_sha256=(
+                    None
+                    if item.get("document_units_sha256") is None
+                    else str(item["document_units_sha256"])
+                ),
+            )
+            for item in payload.get("documents") or ()
+        ),
+        embedding_provider=str(payload.get("embedding_provider") or ""),
+        embedding_dimensions=(
+            None
+            if payload.get("embedding_dimensions") is None
+            else int(payload["embedding_dimensions"])
+        ),
+        document_units_content_hash=str(payload.get("document_units_content_hash") or ""),
+        chunk_fingerprint_hash=str(payload.get("chunk_fingerprint_hash") or ""),
+        retrieval_acceptance_status=str(payload.get("retrieval_acceptance_status") or ""),
+        retrieval_acceptance_summary_object_key=(
+            None
+            if payload.get("retrieval_acceptance_summary_object_key") is None
+            else str(payload["retrieval_acceptance_summary_object_key"])
+        ),
+        sparse_provider=str(payload.get("sparse_provider") or ""),
+        sparse_model=str(payload.get("sparse_model") or ""),
+        sparse_tokenizer=str(payload.get("sparse_tokenizer") or ""),
+        sparse_language=str(payload.get("sparse_language") or ""),
+        dense_vector_name=str(payload.get("dense_vector_name") or ""),
+        sparse_vector_name=str(payload.get("sparse_vector_name") or ""),
+        dense_prefetch_limit=int(payload.get("dense_prefetch_limit") or 0),
+        sparse_prefetch_limit=int(payload.get("sparse_prefetch_limit") or 0),
+        rrf_k=int(payload.get("rrf_k") or 0),
+        rrf_dense_weight=float(payload.get("rrf_dense_weight") or 0.0),
+        rrf_sparse_weight=float(payload.get("rrf_sparse_weight") or 0.0),
+        reranker_enabled_by_default=bool(payload.get("reranker_enabled_by_default")),
+        reranker_top_n=(
+            None if payload.get("reranker_top_n") is None else int(payload["reranker_top_n"])
+        ),
+        reranker_profile_version=str(payload.get("reranker_profile_version") or ""),
+        reranker_adoption_evidence_id=str(payload.get("reranker_adoption_evidence_id") or ""),
+        embedding_query_instruction_hash=str(payload.get("embedding_query_instruction_hash") or ""),
+        hybrid_query_profile_hash=str(payload.get("hybrid_query_profile_hash") or ""),
+        profile_identity_hash=str(payload.get("profile_identity_hash") or ""),
+        quality_gate_status=str(payload.get("quality_gate_status") or ""),
+        quality_gate_summary_object_key=(
+            None
+            if payload.get("quality_gate_summary_object_key") is None
+            else str(payload["quality_gate_summary_object_key"])
+        ),
+        chunk_quality_status=str(payload.get("chunk_quality_status") or ""),
+        qrels_coverage_status=str(payload.get("qrels_coverage_status") or "not_applicable"),
+        release_metadata_consistency_status=str(
+            payload.get("release_metadata_consistency_status") or ""
+        ),
+        release_admission_manifest_key=(
+            None
+            if payload.get("release_admission_manifest_key") is None
+            else str(payload["release_admission_manifest_key"])
+        ),
+        release_admission_status=str(payload.get("release_admission_status") or ""),
+        component_eval_status=str(payload.get("component_eval_status") or ""),
+        component_eval_summary_object_key=(
+            None
+            if payload.get("component_eval_summary_object_key") is None
+            else str(payload["component_eval_summary_object_key"])
+        ),
+        post_publish_audit_status=str(payload.get("post_publish_audit_status") or ""),
+        post_publish_audit_summary_object_key=(
+            None
+            if payload.get("post_publish_audit_summary_object_key") is None
+            else str(payload["post_publish_audit_summary_object_key"])
+        ),
+    )
 
 
 def resolve_alias_target(
@@ -273,6 +409,8 @@ def build_index_release_manifest(
     release_metadata_consistency_status: str = "",
     release_admission_manifest_key: str | None = None,
     release_admission_status: str = "",
+    component_eval_status: str = "",
+    component_eval_summary_object_key: str | None = None,
 ) -> IndexReleaseManifest:
     if not chunks:
         raise ValueError("chunks must not be empty")
@@ -395,6 +533,8 @@ def build_index_release_manifest(
         release_metadata_consistency_status=release_metadata_consistency_status,
         release_admission_manifest_key=release_admission_manifest_key,
         release_admission_status=release_admission_status,
+        component_eval_status=component_eval_status,
+        component_eval_summary_object_key=component_eval_summary_object_key,
     )
 
 
@@ -406,6 +546,7 @@ def write_index_release_artifacts(
     validation_summary: dict[str, object] | None,
     retrieval_acceptance_summary: dict[str, object] | None = None,
     quality_gate_summary: dict[str, object] | None = None,
+    component_eval_summary: dict[str, object] | None = None,
     post_publish_audit_summary: dict[str, object] | None = None,
 ) -> IndexReleaseArtifacts:
     validation_summary_object_key: str | None = None
@@ -456,6 +597,22 @@ def write_index_release_artifacts(
             ),
             content_type="application/json",
         )
+    component_eval_summary_object_key: str | None = None
+    if component_eval_summary is not None:
+        component_eval_summary_object_key = build_index_release_artifact_key(
+            corpus=manifest.corpus,
+            collection=manifest.collection,
+            release_id=manifest.release_id,
+            filename="component-eval-summary.json",
+        )
+        writer.put_bytes(
+            bucket=bucket,
+            key=component_eval_summary_object_key,
+            data=(json.dumps(component_eval_summary, ensure_ascii=False, indent=2) + "\n").encode(
+                "utf-8"
+            ),
+            content_type="application/json",
+        )
     post_publish_audit_summary_object_key: str | None = None
     if post_publish_audit_summary is not None:
         post_publish_audit_summary_object_key = build_index_release_artifact_key(
@@ -478,13 +635,25 @@ def write_index_release_artifacts(
         or retrieval_acceptance_summary_object_key
         != manifest.retrieval_acceptance_summary_object_key
         or quality_gate_summary_object_key != manifest.quality_gate_summary_object_key
+        or component_eval_summary_object_key != manifest.component_eval_summary_object_key
         or post_publish_audit_summary_object_key != manifest.post_publish_audit_summary_object_key
     ):
+        component_eval_status = (
+            derive_component_eval_release_status(component_eval_summary)
+            if component_eval_summary is not None
+            else None
+        )
         runtime_manifest = replace(
             manifest,
             validation_summary_object_key=validation_summary_object_key,
             retrieval_acceptance_summary_object_key=retrieval_acceptance_summary_object_key,
             quality_gate_summary_object_key=quality_gate_summary_object_key,
+            component_eval_summary_object_key=component_eval_summary_object_key,
+            component_eval_status=(
+                component_eval_status.component_eval_status
+                if component_eval_status is not None
+                else manifest.component_eval_status
+            ),
             post_publish_audit_summary_object_key=post_publish_audit_summary_object_key,
             post_publish_audit_status=(
                 str(post_publish_audit_summary.get("status") or "")
@@ -558,6 +727,8 @@ def build_release_metadata_payload(
         "release_metadata_consistency_status": manifest.release_metadata_consistency_status,
         "release_admission_manifest_key": manifest.release_admission_manifest_key,
         "release_admission_status": manifest.release_admission_status,
+        "component_eval_status": manifest.component_eval_status,
+        "component_eval_summary_object_key": manifest.component_eval_summary_object_key,
     }
 
 

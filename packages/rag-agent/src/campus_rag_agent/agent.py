@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_retrieval_core.evidence_ranking import select_supporting_evidence_sources
+from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 
 from .agent_answer_shape import AnswerShape, answer_shape_support_budget, infer_answer_shape
 from .agent_answering import _compose_direct_answer, _render_supporting_contexts
@@ -60,6 +61,18 @@ class RagAgent:
             )
 
         answer_shape = answer_shape or infer_answer_shape(evidence=evidence)
+        resolved_category_display_name = category_display_name
+        resolved_audience = audience
+        if answer_shape == AnswerShape.CATEGORY_DISCOVERY_LIST and (
+            not resolved_category_display_name or not resolved_audience
+        ):
+            inferred_category_display_name, inferred_audience = _infer_category_context(
+                evidence.sources
+            )
+            if not resolved_category_display_name:
+                resolved_category_display_name = inferred_category_display_name
+            if not resolved_audience:
+                resolved_audience = inferred_audience
         support_budget = answer_shape_support_budget(answer_shape, self.max_answer_sources)
         if support_budget > self.max_answer_sources:
             candidate_sources = _select_doc_diverse_answer_sources(
@@ -84,8 +97,8 @@ class RagAgent:
             evidence=evidence,
             selected_rows=selected_rows,
             answer_shape=answer_shape,
-            category_display_name=category_display_name,
-            audience=audience,
+            category_display_name=resolved_category_display_name,
+            audience=resolved_audience,
         )
         typed_draft = build_typed_answer_draft(
             answer_shape=answer_shape,
@@ -93,10 +106,6 @@ class RagAgent:
         )
         validation = validate_typed_answer_draft(typed_draft)
         if validation.verdict != "valid":
-            typed_draft = TypedAnswerDraft(
-                kind="unsupported",
-                unsupported_reason=validation.failure_reason,
-            )
             answer_text = ""
         return AnswerDraft(
             answer_text=answer_text,
@@ -107,6 +116,18 @@ class RagAgent:
 
     def compose_answer(self, evidence: EvidenceBundle) -> str:
         return self.build_answer(evidence).answer_text
+
+
+def _infer_category_context(sources: tuple[EvidenceSource, ...]) -> tuple[str, str]:
+    for source in sources:
+        attributes = evidence_attributes_for_source(source)
+        if attributes.answer_role != "category_overview":
+            continue
+        category_display_name = attributes.category_display_name.strip()
+        audience = attributes.category_audience.strip()
+        if category_display_name or audience:
+            return category_display_name, audience
+    return "", ""
 
 
 def _select_doc_diverse_answer_sources(

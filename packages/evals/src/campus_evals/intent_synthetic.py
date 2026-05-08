@@ -338,6 +338,7 @@ def _selected_notice_ref_from_payload(value: object) -> SelectedNoticeRef | None
         notice_id=_required_string(item.get("notice_id"), "session.selected_notice_ref.notice_id"),
         source_family=_optional_string(item.get("source_family")),
         title=_optional_string(item.get("title")),
+        target_surface=_optional_string(item.get("target_surface")),
     )
 
 

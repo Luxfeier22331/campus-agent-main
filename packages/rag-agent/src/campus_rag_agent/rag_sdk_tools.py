@@ -1,12 +1,8 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import Any
 
-from campus_contracts import AgentRequest, EvidenceBundle
-from campus_retrieval_core import RetrievalPlan, RetrievalStep
-
-from campus_rag_agent.rag_sdk_models import RagSdkEvidenceProjection
+from campus_rag_agent.rag_sdk_models import RagSdkRunRequest
 
 
 class RagSdkToolError(ValueError):
@@ -16,38 +12,27 @@ class RagSdkToolError(ValueError):
         self.message = message
 
 
-@dataclass(frozen=True, slots=True)
-class RagSdkToolExecutionContext:
-    request: AgentRequest
-    retrieval_plan: RetrievalPlan
-    evidence: EvidenceBundle
-    admitted_query_slot_ids: tuple[str, ...]
-
-
 def execute_retrieve_evidence_tool(
-    context: RagSdkToolExecutionContext,
+    request: RagSdkRunRequest,
     arguments: dict[str, Any],
 ) -> dict[str, object]:
     reject_model_supplied_scope_or_selector(arguments)
     query_slot_id = resolve_admitted_query_slot_id(
         arguments.get("query_slot_id"),
-        admitted_query_slot_ids=context.admitted_query_slot_ids,
+        admitted_query_slot_ids=request.query_intent.admitted_query_slot_ids,
     )
-    step = _step_by_id(context.retrieval_plan, query_slot_id)
-    if step is None:
+    if query_slot_id in request.selector_blocked_query_slot_ids:
         raise RagSdkToolError(
-            "rag_sdk_query_slot_not_admitted",
-            "RAG SDK retrieval tool query slot is not present in the retrieval plan",
+            "rag_sdk_selector_not_admitted",
+            "RAG SDK selected query slot contains selector state not admitted for model choice",
         )
-    _validate_step_selector_is_bounded(step)
-    projection = RagSdkEvidenceProjection.from_evidence_bundle(context.evidence)
     return {
         "status": "completed",
         "query_slot_id": query_slot_id,
         "retrieval_intent": str(arguments.get("retrieval_intent") or "").strip(),
-        "corpus": projection.corpus,
-        "collection": projection.collection,
-        "source_count": len(projection.anchors),
+        "corpus": request.evidence.corpus,
+        "collection": request.evidence.collection,
+        "source_count": len(request.evidence.anchors),
         "anchors": [
             {
                 "source_id": anchor.source_id,
@@ -57,7 +42,7 @@ def execute_retrieve_evidence_tool(
                 "title": anchor.title,
                 "url": anchor.url,
             }
-            for anchor in projection.anchors
+            for anchor in request.evidence.anchors
         ],
     }
 
@@ -96,33 +81,8 @@ def resolve_admitted_query_slot_id(
             "RAG SDK retrieval tool may only select admitted query slots",
         )
     return query_slot_id
-
-
-def _step_by_id(plan: RetrievalPlan, step_id: str) -> RetrievalStep | None:
-    for step in plan.steps:
-        if step.step_id == step_id:
-            return step
-    return None
-
-
-def _validate_step_selector_is_bounded(step: RetrievalStep) -> None:
-    selector = step.selector
-    if selector.target_document_ids and step.step_id not in {
-        "indexed-lookup",
-        "entity-resolution",
-        "historical-version-lookup",
-        "compare-current-lookup",
-        "compare-other-lookup",
-    }:
-        raise RagSdkToolError(
-            "rag_sdk_selector_not_admitted",
-            "RAG SDK selected query slot contains selector state not admitted for model choice",
-        )
-
-
 __all__ = [
     "RagSdkToolError",
-    "RagSdkToolExecutionContext",
     "execute_retrieve_evidence_tool",
     "reject_model_supplied_scope_or_selector",
     "resolve_admitted_query_slot_id",

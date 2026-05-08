@@ -15,6 +15,9 @@ from campus_retrieval_core.evidence_ranking import (
     prioritize_evidence_sources,
     select_supporting_evidence_sources,
 )
+from campus_shared.answer_ready_evidence_contract import (
+    ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS,
+)
 from campus_shared.regulation_semantic_registry import canonical_regulation_condition_subject
 from qdrant_client.http import models as qdrant_models
 
@@ -81,7 +84,10 @@ def audit_answer_ready_closeout(
                 condition_subject_counts.get(canonical_subject, 0) + 1
             )
         fallback = evidence_fallback_diagnostics_for_source(source)
-        if fallback.fallback_used and fallback.fallback_primary_signal == "text_cue":
+        if (
+            fallback.fallback_used
+            and fallback.fallback_primary_signal in ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS
+        ):
             primary_text_cue_fallback_count += 1
 
     case_results = tuple(_audit_case(case=case, sources=sources) for case in cases)

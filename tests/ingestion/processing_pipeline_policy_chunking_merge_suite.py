@@ -1,11 +1,76 @@
 from __future__ import annotations
 
 import unittest
+from types import SimpleNamespace
+from unittest.mock import patch
+
+from campus_ingestion_core.chunking import SemanticChunkPiece
+from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedding_model
+from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
+from campus_ingestion_core.process_candidate_aggregation import (
+    build_handbook_answer_role_release_metadata,
+)
+from campus_ingestion_core.process_candidate_merging_short_textual import candidate_answer_role
+from campus_ingestion_core.process_shared import _ChunkCandidate
 
 from .processing_pipeline_test_support import *
 
 
 class ProcessingPipelinePolicyChunkingMergeTest(unittest.TestCase):
+    def test_release_metadata_uses_existing_semantics_without_bare_role_parser(self) -> None:
+        semantics = SimpleNamespace(
+            content_role="deadline",
+            semantic_role="time_constraint",
+            claim_type="time_constraint",
+            polarity="positive",
+            is_answer_bearing=True,
+        )
+
+        with patch(
+            "campus_ingestion_core.process_candidate_aggregation.decide_answer_role",
+            side_effect=AssertionError("bare role parser should not run"),
+        ):
+            metadata = build_handbook_answer_role_release_metadata(
+                semantics=semantics,
+                metadata={},
+                text="5个工作日内。",
+            )
+
+        self.assertEqual(metadata["answer_role"], "time_constraint")
+        self.assertEqual(metadata["role_confidence"], "medium")
+        self.assertIn("derived_from_handbook_semantics", metadata["role_reason"])
+
+    def test_short_textual_merge_role_fallback_prefers_existing_semantic_metadata(self) -> None:
+        candidate = _ChunkCandidate(
+            unit_type="article_body",
+            root_unit_id="article-deadline",
+            source_chunk_id=None,
+            visibility_level="public",
+            anchor={},
+            metadata={
+                "content_role": "deadline",
+                "semantic_role": "time_constraint",
+                "claim_type": "time_constraint",
+                "polarity": "positive",
+                "is_answer_bearing": True,
+            },
+            piece=SemanticChunkPiece(
+                unit_type="article_body",
+                root_unit_id="article-deadline",
+                text="5个工作日内。",
+            ),
+            chunk_assembly=SimpleNamespace(),
+            members=(),
+        )
+
+        with patch(
+            "campus_ingestion_core.process_candidate_merging_short_textual.decide_answer_role",
+            side_effect=AssertionError("bare role parser should not run"),
+        ):
+            role = candidate_answer_role(candidate)
+
+        self.assertEqual(role, "time_constraint")
+
     def test_build_indexable_chunks_from_jsonl_rewrites_parent_table_html_to_placeholder(
         self,
     ) -> None:
@@ -87,6 +152,59 @@ class ProcessingPipelinePolicyChunkingMergeTest(unittest.TestCase):
         )
         self.assertTrue(all(chunk.metadata["unit_type"] == "article_body" for chunk in chunks))
         self.assertTrue(all(chunk.metadata["root_unit_id"] == "article-001" for chunk in chunks))
+
+    def test_final_chunk_metadata_does_not_leak_condition_group_bridge_keys(self) -> None:
+        record = _make_registry_record()
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    _structured_unit_row(
+                        doc_id=record.document_id,
+                        version_id=record.version_id,
+                        chunk_id="group-key-001",
+                        unit_type="article_body",
+                        root_unit_id="article-piece-group-id",
+                        clean_text="申请材料如下:\n1. 书面申请。\n2. 相关证明材料。",
+                        anchor={
+                            "section_path": ["第三章 申诉材料"],
+                            "article_label": "第三条",
+                            "page_start": 1,
+                            "page_end": 1,
+                        },
+                        metadata={
+                            "title": "中央民族大学学生申诉处理办法",
+                            "content_role": "regulation_body",
+                        },
+                    ),
+                    ensure_ascii=False,
+                )
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+        )
+
+        self.assertEqual(len(chunks), 3)
+        intro_chunk = next(
+            chunk for chunk in chunks if chunk.metadata["display_text"] == "申请材料如下:"
+        )
+        material_chunks = [
+            chunk
+            for chunk in chunks
+            if chunk.metadata["display_text"] in {"1. 书面申请。", "2. 相关证明材料。"}
+        ]
+        self.assertEqual(
+            intro_chunk.metadata["introduced_condition_group_id"],
+            "article-piece-group-id:material_requirement",
+        )
+        self.assertNotIn("introduced_condition_group_key", intro_chunk.metadata)
+        self.assertTrue(
+            all("condition_group_key" not in chunk.metadata for chunk in material_chunks),
+        )
 
     def test_build_indexable_chunks_merges_adjacent_short_textual_units_before_embedding(
         self,

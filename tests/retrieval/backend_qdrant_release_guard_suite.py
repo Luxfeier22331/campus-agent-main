@@ -302,6 +302,46 @@ class BackendQdrantReleaseGuardTest(unittest.TestCase):
 
         self.assertEqual(qdrant_client.query_calls, 0)
 
+    def test_release_guard_requires_release_admission_status_for_regulation_target_alias(
+        self,
+    ) -> None:
+        profile = _make_runtime_profile(corpus="regulations", collection="student_rules")
+        payload = _release_payload(profile=profile, settings=_settings())
+        del payload["release_admission_status"]
+        qdrant_client = _ReleaseGuardQdrantClient(payload)
+        backend = _backend(qdrant_client=qdrant_client)
+
+        with (
+            patch(
+                "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+                return_value=profile,
+            ),
+            self.assertRaisesRegex(RetrievalBackendError, "release_admission_status"),
+        ):
+            backend.retrieve(_request())
+
+        self.assertEqual(qdrant_client.query_calls, 0)
+
+    def test_release_guard_requires_component_eval_status_for_regulation_target_alias(
+        self,
+    ) -> None:
+        profile = _make_runtime_profile(corpus="regulations", collection="student_rules")
+        payload = _release_payload(profile=profile, settings=_settings())
+        del payload["component_eval_status"]
+        qdrant_client = _ReleaseGuardQdrantClient(payload)
+        backend = _backend(qdrant_client=qdrant_client)
+
+        with (
+            patch(
+                "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+                return_value=profile,
+            ),
+            self.assertRaisesRegex(RetrievalBackendError, "component_eval_status"),
+        ):
+            backend.retrieve(_request())
+
+        self.assertEqual(qdrant_client.query_calls, 0)
+
     def test_release_guard_skips_non_release_managed_in_memory_test_backend(self) -> None:
         profile = _make_runtime_profile()
         qdrant_client = Mock()
@@ -385,6 +425,8 @@ def _release_payload(*, profile, settings: RetrievalSettings) -> dict[str, objec
         "chunk_quality_status": "passed",
         "qrels_coverage_status": "passed",
         "release_metadata_consistency_status": "passed",
+        "release_admission_status": "passed",
+        "component_eval_status": "passed",
     }
 
 

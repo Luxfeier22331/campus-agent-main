@@ -599,6 +599,7 @@ def intent_context_follow_up_cases() -> tuple[IntentCase, ...]:
                         notice_id="notice:2026-spring-break",
                         source_family="internal_notice_restricted",
                         title="2026年春假安排通知",
+                        target_surface="regulations/student_rules",
                     )
                 )
             ),

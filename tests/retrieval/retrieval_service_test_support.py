@@ -23,13 +23,14 @@ def _make_source(
     polarity: str = "",
     action_type: str = "",
     claim_type: str = "",
+    anchor: dict[str, object] | None = None,
 ) -> EvidenceSource:
     return EvidenceSource(
         doc_id=doc_id,
         revision_track="source-faithful",
         version_id=version_id,
         chunk_id=chunk_id,
-        anchor={"page_start": 1, "page_end": 1},
+        anchor=anchor or {"page_start": 1, "page_end": 1},
         canonical_url=canonical_url,
         latest_url=latest_url,
         source_channel=source_channel,

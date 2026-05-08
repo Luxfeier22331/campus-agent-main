@@ -27,6 +27,7 @@ from campus_retrieval_core import (
     RetrievalStepBudget,
     RetrievalStepResult,
 )
+from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 
 from tests.agent.rag_agent_test_support import _make_handbook_source
 
@@ -459,11 +460,204 @@ class RagAgentAgenticDepthRuntimeTest(unittest.TestCase):
         )
 
         self.assertEqual(len(replanned_steps), 1)
-        self.assertEqual(replanned_steps[0].selector.target_document_ids, ("handbook:national-scholarship",))
+        self.assertEqual(
+            replanned_steps[0].selector.target_document_ids, ("handbook:national-scholarship",)
+        )
         self.assertEqual(replanned_steps[0].selector.focus_detail_labels, ("第九条",))
         self.assertEqual(replanned_steps[0].selector.focus_article_nos, ("9",))
         self.assertEqual(replanned_steps[0].selector.focus_terms, ("论文", "著作"))
         self.assertIn("第九条", replanned_steps[0].query_text)
+
+    def test_semantic_replan_rewrites_rank_query_when_group_support_is_missing(self) -> None:
+        replanned_steps = build_semantic_replan_steps(
+            _single_step_plan(
+                query_text="成绩没前十还能评国奖吗",
+                need_ids=("need:1:requirement",),
+                selector=RetrievalSelector(
+                    target_document_ids=("handbook:national-scholarship",),
+                ),
+            ),
+            (
+                RetrievalStepResult(
+                    step_id="indexed-lookup",
+                    status="empty",
+                    references=(
+                        _make_handbook_source(
+                            doc_id="handbook:national-scholarship",
+                            title="中央民族大学本科学生国家奖学金评审办法",
+                            snippet="且在学术研究上取得显著成绩。",
+                            score=0.91,
+                            chunk_id_suffix="national-scholarship-rank-group-example",
+                            content_role="eligibility",
+                            is_answer_bearing=True,
+                            semantic_role="example_evidence",
+                            polarity="positive",
+                            claim_type="condition",
+                            anchor={
+                                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                                    "answer_role": "example_evidence",
+                                    "condition_subject": "paper_or_publication",
+                                    "condition_group_subject": "rank_threshold",
+                                    "condition_group_id": (
+                                        "handbook:national-scholarship:article-9:"
+                                        "group-01:rank_threshold"
+                                    ),
+                                    "parent_unit_id": "handbook:national-scholarship:article-9",
+                                    "evidence_contract_version": "answer_ready_evidence.v3",
+                                    "polarity": "positive",
+                                    "claim_type": "condition",
+                                },
+                                "page_start": 1,
+                                "page_end": 1,
+                            },
+                        ),
+                    ),
+                    activity=RetrievalStepActivity(
+                        step_id="indexed-lookup",
+                        step_type="indexed_lookup",
+                        corpus="regulations",
+                        collection="student_rules",
+                        status="empty",
+                        query_text="成绩没前十还能评国奖吗",
+                        need_ids=("need:1:requirement",),
+                        top_k=2,
+                        candidate_count=1,
+                        reference_count=1,
+                        failure_kind="group_support_missing",
+                    ),
+                ),
+            ),
+            RetrievalStepResult(
+                step_id="indexed-lookup",
+                status="empty",
+                activity=RetrievalStepActivity(
+                    step_id="indexed-lookup",
+                    step_type="indexed_lookup",
+                    corpus="regulations",
+                    collection="student_rules",
+                    status="empty",
+                    query_text="成绩没前十还能评国奖吗",
+                    need_ids=("need:1:requirement",),
+                    top_k=2,
+                    candidate_count=1,
+                    reference_count=1,
+                    failure_kind="group_support_missing",
+                ),
+            ),
+        )
+
+        self.assertEqual(len(replanned_steps), 1)
+        self.assertIn("排名", replanned_steps[0].query_text)
+        self.assertIn("例外", replanned_steps[0].query_text)
+        self.assertIn("条款", replanned_steps[0].query_text)
+
+    def test_delegate_to_rag_agent_replans_rank_query_when_only_group_example_is_returned(
+        self,
+    ) -> None:
+        calls: list[str] = []
+
+        def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
+            calls.append(query)
+            if len(calls) == 1:
+                return EvidenceBundle(
+                    query_text=query,
+                    corpus=str(kwargs["corpus"]),
+                    collection=str(kwargs["collection"]),
+                    sources=(
+                        _make_handbook_source(
+                            doc_id="handbook:national-scholarship",
+                            title="中央民族大学本科学生国家奖学金评审办法",
+                            snippet="且在学术研究上取得显著成绩。",
+                            score=0.91,
+                            chunk_id_suffix="national-scholarship-rank-group-example",
+                            content_role="eligibility",
+                            is_answer_bearing=True,
+                            semantic_role="example_evidence",
+                            polarity="positive",
+                            claim_type="condition",
+                            anchor={
+                                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                                    "answer_role": "example_evidence",
+                                    "condition_subject": "paper_or_publication",
+                                    "condition_group_subject": "rank_threshold",
+                                    "condition_group_id": (
+                                        "handbook:national-scholarship:article-9:"
+                                        "group-01:rank_threshold"
+                                    ),
+                                    "parent_unit_id": "handbook:national-scholarship:article-9",
+                                    "evidence_contract_version": "answer_ready_evidence.v3",
+                                    "polarity": "positive",
+                                    "claim_type": "condition",
+                                },
+                                "page_start": 1,
+                                "page_end": 1,
+                            },
+                        ),
+                    ),
+                )
+            return EvidenceBundle(
+                query_text=query,
+                corpus=str(kwargs["corpus"]),
+                collection=str(kwargs["collection"]),
+                sources=(
+                    _make_handbook_source(
+                        doc_id="handbook:national-scholarship",
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet=(
+                            "学习成绩排名或综合测评排名超出前10%,但均位于前30%,"
+                            "且单科成绩不低于80分。"
+                        ),
+                        score=0.79,
+                        chunk_id_suffix="national-scholarship-rank-exception",
+                        content_role="eligibility",
+                        is_answer_bearing=True,
+                        semantic_role="exception_rule",
+                        polarity="positive",
+                        claim_type="condition",
+                        anchor={
+                            INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                                "answer_role": "exception_rule",
+                                "condition_subject": "rank_threshold",
+                                "condition_group_subject": "rank_threshold",
+                                "condition_group_id": (
+                                    "handbook:national-scholarship:article-9:"
+                                    "group-01:rank_threshold"
+                                ),
+                                "parent_unit_id": "handbook:national-scholarship:article-9",
+                                "evidence_contract_version": "answer_ready_evidence.v3",
+                                "polarity": "positive",
+                                "claim_type": "condition",
+                            },
+                            "page_start": 1,
+                            "page_end": 1,
+                        },
+                    ),
+                ),
+            )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="成绩没前十还能评国奖吗",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=fake_retriever,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("成绩没前十还能评国奖吗", calls[0])
+        self.assertEqual(len(calls), 3)
+        self.assertIn("前10", calls[1])
+        self.assertIn("前30", calls[1])
+        self.assertIn("前10", calls[2])
+        self.assertIn("前30", calls[2])
+        self.assertEqual(response.result.diagnostics.retrieval_plan_summary.replan_count, 1)
+        self.assertEqual(
+            response.result.diagnostics.replan_decision_summary.trigger_reason,
+            "group_support_missing",
+        )
 
     def test_deterministic_answer_fails_closed_when_material_claim_lacks_support(self) -> None:
         evidence = EvidenceBundle(

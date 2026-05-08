@@ -103,6 +103,8 @@ _POLICY_ACTION_REWRITE_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
     ),
 )
 _FOCUSED_QUERY_CONTEXT_TERMS = ("条件", "要求", "资格", "程序", "流程", "材料", "申请")
+_PROCEDURE_FOCUS_TERMS = ("流程", "步骤")
+_REISSUE_PROCEDURE_QUERY_CUES = ("补办", "补发", "挂失", "遗失", "丢失", "丢了", "补卡", "补证")
 
 
 def plan_student_handbook_query(query_text: str) -> HandbookQueryPlan:
@@ -343,11 +345,19 @@ def _build_focused_query(
     policy_object: HandbookPolicyObject,
     focus_hints,
 ) -> str:
-    if focus_hints.focus_mode == "none":
-        return rewritten_query_text
     focused_parts = [policy_object.title]
     focused_parts.extend(focus_hints.detail_labels)
     focused_parts.extend(focus_hints.focus_terms)
+    compact_query = _compact_text(normalized_query)
+    if _has_any_compact_cue(compact_query, _REISSUE_PROCEDURE_QUERY_CUES):
+        for term in ("挂失", "补办"):
+            if term not in focused_parts:
+                focused_parts.append(term)
+        for term in _PROCEDURE_FOCUS_TERMS:
+            if term not in focused_parts:
+                focused_parts.append(term)
+    elif focus_hints.focus_mode == "none":
+        return rewritten_query_text
     focused_parts.extend(
         term
         for term in _FOCUSED_QUERY_CONTEXT_TERMS

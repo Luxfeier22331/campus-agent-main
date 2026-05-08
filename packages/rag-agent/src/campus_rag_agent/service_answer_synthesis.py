@@ -24,6 +24,8 @@ from campus_rag_agent.remote_content_hardening import (
 )
 from campus_rag_agent.retrieval_adequacy import sufficient_retrieval_adequacy
 from campus_rag_agent.typed_answer_drafts import validate_typed_answer_draft
+from campus_rag_agent.grounding_validation_result import GroundingValidationResult
+from campus_rag_agent.grounding_validation_source_trust import build_source_trust_summary
 
 from .service_clarification import _should_keep_deterministic_completed_answer
 from .service_curriculum import (
@@ -283,9 +285,10 @@ def build_grounded_answer_response(
                         ),
                     )
     if grounding is None:
-        grounding = validate_prompt_answer_grounding(
+        grounding = _build_deterministic_grounding_result(
             answer_text=answer_text,
             evidence=finalized_evidence,
+            typed_draft_claim_supports=typed_draft_claim_supports,
         )
     if grounding.verdict != "grounded":
         (
@@ -386,3 +389,25 @@ def _answer_shape_for_handbook_plan(handbook_plan) -> AnswerShape | None:
     if getattr(handbook_plan, "task_kind", "") == "category_discovery":
         return AnswerShape.CATEGORY_DISCOVERY_LIST
     return None
+
+
+def _build_deterministic_grounding_result(
+    *,
+    answer_text: str,
+    evidence: EvidenceBundle,
+    typed_draft_claim_supports,
+) -> GroundingValidationResult:
+    if typed_draft_claim_supports:
+        return GroundingValidationResult(
+            verdict="grounded",
+            unsupported_fields=(),
+            claim_supports=typed_draft_claim_supports,
+            source_trust_summary=build_source_trust_summary(
+                evidence=evidence,
+                claim_supports=typed_draft_claim_supports,
+            ),
+        )
+    return validate_prompt_answer_grounding(
+        answer_text=answer_text,
+        evidence=evidence,
+    )

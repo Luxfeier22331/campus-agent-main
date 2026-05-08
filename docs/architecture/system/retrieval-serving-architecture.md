@@ -264,6 +264,14 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - indexed lookup backend fail-closed exception 必须在重新抛出前写入 sanitized failed
   observation；release metadata drift 必须保留可分类的 failure kind，供 monitoring backlog
   归入 release repair 而不是普通 no-hit
+- 对 query-enabled regulation target alias，retrieval runtime 还必须显式区分两条内部路径：
+  - `target_v3_only`：默认 target serving 路径；如果命中的 source
+    仍需 `text_cue` / `public_semantic` / `public_content_role`
+    这类 legacy primary fallback 才能分类，runtime 必须 fail closed，
+    不得继续当作成功 grounding
+  - `legacy_old_index_compatibility`：仅供 old-index compatibility/历史诊断/受控测试使用；
+    可以继续返回 fallback diagnostics，但这些结果不得计入 target release completion、
+    component-eval target pass 或 serving adoption truth
 - production observation 集成边界固定在 runtime adapter，不进入 `packages/retrieval-core`：
   retrieval-core 只暴露 `RetrievalObservationSink` /
   `build_retrieval_observation_event_sink()` 这种注入 seam；`supervisor-agent-worker`

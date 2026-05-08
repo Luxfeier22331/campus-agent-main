@@ -18,11 +18,13 @@ from qdrant_client.http.models import SnapshotPriority
 from campus_ingestion_core.index_release import (
     IndexReleaseDocumentRef,
     IndexReleaseManifest,
+    load_index_release_manifest,
     resolve_alias_target,
 )
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.object_store import (
     build_index_release_artifact_key,
+    build_operations_artifact_key,
     build_qdrant_backup_artifact_key,
 )
 from campus_ingestion_core.qdrant_backup_io import (
@@ -115,6 +117,32 @@ class CollectionGcEligibilityReport:
     backup_manifest_object_key: str | None
 
 
+@dataclass(frozen=True, slots=True)
+class CollectionGcDeleteRequest:
+    corpus: str
+    collection: str
+    release_id: str
+    operator: str = "unknown"
+    protected_physical_collection_names: tuple[str, ...] = ()
+    manual_blockers: tuple[str, ...] = ()
+
+
+@dataclass(frozen=True, slots=True)
+class CollectionGcDeleteReport:
+    eligible: bool
+    deleted: bool
+    corpus: str
+    collection: str
+    release_id: str
+    physical_collection_name: str
+    role: str
+    blockers: tuple[str, ...]
+    backup_manifest_object_key: str | None
+    delete_report_object_key: str | None
+    deleted_at: str | None
+    operator: str
+
+
 class BackupObjectStore(Protocol):
     def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
 
@@ -157,6 +185,8 @@ class SnapshotQdrantAdmin(Protocol):
     def get_collection_points_count(self, collection_name: str) -> int | None: ...
 
     def get_release_payload(self, collection_name: str) -> dict[str, object]: ...
+
+    def delete_collection(self, collection_name: str) -> None: ...
 
 
 class QdrantSnapshotAdmin:
@@ -269,6 +299,9 @@ class QdrantSnapshotAdmin:
             "index_release_manifest_key": payload.get("index_release_manifest_key"),
             "index_release_alias": payload.get("index_release_alias"),
         }
+
+    def delete_collection(self, collection_name: str) -> None:
+        self._client.delete_collection(collection_name=collection_name)
 
 
 def default_backup_id(*, now: datetime | None = None) -> str:
@@ -507,32 +540,37 @@ def check_snapshot_gc_eligibility(
     elif target_manifest.physical_collection_name in request.protected_physical_collection_names:
         role = "migration_baseline"
         blockers.append("migration_baseline_protected")
-    if target_manifest.validation_summary_object_key is None or not _object_exists(
-        object_store=runtime_object_store,
-        bucket=bucket_derived,
-        key=target_manifest.validation_summary_object_key,
-    ):
-        blockers.append("missing_validation_summary")
+    elif target_manifest.published_at is None:
+        role = "preview_candidate"
     if target_manifest.physical_collection_name not in runtime_qdrant_admin.list_collections():
         blockers.append("missing_live_collection")
-    backup_manifest, backup_manifest_key = _find_backup_manifest_for_release(
-        object_store=runtime_object_store,
-        bucket=bucket_derived,
-        corpus=request.corpus,
-        collection=request.collection,
-        release_id=request.release_id,
-        physical_collection_name=target_manifest.physical_collection_name,
-    )
-    if backup_manifest is None:
-        blockers.append("missing_snapshot_backup")
-    elif not _object_exists(
-        object_store=runtime_object_store,
-        bucket=bucket_derived,
-        key=backup_manifest.snapshot_object_key,
-    ):
-        blockers.append("missing_snapshot_object")
+    backup_manifest = None
+    backup_manifest_key = None
+    if role != "preview_candidate":
+        if target_manifest.validation_summary_object_key is None or not _object_exists(
+            object_store=runtime_object_store,
+            bucket=bucket_derived,
+            key=target_manifest.validation_summary_object_key,
+        ):
+            blockers.append("missing_validation_summary")
+        backup_manifest, backup_manifest_key = _find_backup_manifest_for_release(
+            object_store=runtime_object_store,
+            bucket=bucket_derived,
+            corpus=request.corpus,
+            collection=request.collection,
+            release_id=request.release_id,
+            physical_collection_name=target_manifest.physical_collection_name,
+        )
+        if backup_manifest is None:
+            blockers.append("missing_snapshot_backup")
+        elif not _object_exists(
+            object_store=runtime_object_store,
+            bucket=bucket_derived,
+            key=backup_manifest.snapshot_object_key,
+        ):
+            blockers.append("missing_snapshot_object")
     blockers.extend(request.manual_blockers)
-    eligible = role == "archive_candidate" and not blockers
+    eligible = role in {"archive_candidate", "preview_candidate"} and not blockers
     return CollectionGcEligibilityReport(
         eligible=eligible,
         corpus=request.corpus,
@@ -543,6 +581,76 @@ def check_snapshot_gc_eligibility(
         blockers=tuple(blockers),
         backup_manifest_object_key=backup_manifest_key,
     )
+
+
+def delete_gc_eligible_collection(
+    *,
+    request: CollectionGcDeleteRequest,
+    env: dict[str, str] | None = None,
+    object_store: BackupObjectStore | None = None,
+    qdrant_admin: SnapshotQdrantAdmin | None = None,
+) -> CollectionGcDeleteReport:
+    source = dict(env if env is not None else os.environ)
+    bucket_derived = resolve_object_store_bucket_names(source)[1]
+    runtime_object_store = object_store or S3ObjectStoreAdmin(ObjectStoreSettings.from_env(source))
+    runtime_qdrant_admin = qdrant_admin or QdrantSnapshotAdmin(RetrievalSettings.from_env(source))
+    eligibility = check_snapshot_gc_eligibility(
+        request=CollectionGcCheckRequest(
+            corpus=request.corpus,
+            collection=request.collection,
+            release_id=request.release_id,
+            protected_physical_collection_names=request.protected_physical_collection_names,
+            manual_blockers=request.manual_blockers,
+        ),
+        env=source,
+        object_store=runtime_object_store,
+        qdrant_admin=runtime_qdrant_admin,
+    )
+    if not eligibility.eligible:
+        return CollectionGcDeleteReport(
+            eligible=False,
+            deleted=False,
+            corpus=eligibility.corpus,
+            collection=eligibility.collection,
+            release_id=eligibility.release_id,
+            physical_collection_name=eligibility.physical_collection_name,
+            role=eligibility.role,
+            blockers=eligibility.blockers,
+            backup_manifest_object_key=eligibility.backup_manifest_object_key,
+            delete_report_object_key=None,
+            deleted_at=None,
+            operator=request.operator,
+        )
+
+    runtime_qdrant_admin.delete_collection(eligibility.physical_collection_name)
+    deleted_at = _utc_now_iso()
+    delete_report_key = _build_gc_delete_report_key(
+        backup_manifest_object_key=eligibility.backup_manifest_object_key,
+        corpus=request.corpus,
+        collection=request.collection,
+        release_id=request.release_id,
+    )
+    report = CollectionGcDeleteReport(
+        eligible=True,
+        deleted=True,
+        corpus=eligibility.corpus,
+        collection=eligibility.collection,
+        release_id=eligibility.release_id,
+        physical_collection_name=eligibility.physical_collection_name,
+        role=eligibility.role,
+        blockers=eligibility.blockers,
+        backup_manifest_object_key=eligibility.backup_manifest_object_key,
+        delete_report_object_key=delete_report_key,
+        deleted_at=deleted_at,
+        operator=request.operator,
+    )
+    _write_json_object(
+        object_store=runtime_object_store,
+        bucket=bucket_derived,
+        key=delete_report_key,
+        payload=asdict(report),
+    )
+    return report
 
 
 def _build_release_manifest_key(*, corpus: str, collection: str, release_id: str) -> str:
@@ -562,105 +670,12 @@ def _load_index_release_manifest(
     collection: str,
     release_id: str,
 ) -> IndexReleaseManifest:
-    payload = json.loads(
-        object_store.get_bytes(
-            bucket=bucket,
-            key=_build_release_manifest_key(
-                corpus=corpus,
-                collection=collection,
-                release_id=release_id,
-            ),
-        ).decode("utf-8")
-    )
-    return IndexReleaseManifest(
-        release_id=str(payload["release_id"]),
-        corpus=str(payload["corpus"]),
-        collection=str(payload["collection"]),
-        serving_alias=str(payload["serving_alias"]),
-        physical_collection_name=str(payload["physical_collection_name"]),
-        previous_physical_collection_name=(
-            None
-            if payload.get("previous_physical_collection_name") is None
-            else str(payload["previous_physical_collection_name"])
-        ),
-        cleaning_policy_version=str(payload["cleaning_policy_version"]),
-        chunk_policy_version=str(payload["chunk_policy_version"]),
-        embedding_model=str(payload["embedding_model"]),
-        indexed_at=str(payload["indexed_at"]),
-        published_at=None if payload.get("published_at") is None else str(payload["published_at"]),
-        document_count=int(payload["document_count"]),
-        point_count=int(payload["point_count"]),
-        document_version_ids_hash=str(payload["document_version_ids_hash"]),
-        document_units_keys_hash=str(payload["document_units_keys_hash"]),
-        validation_status=str(payload["validation_status"]),
-        validation_summary_object_key=(
-            None
-            if payload.get("validation_summary_object_key") is None
-            else str(payload["validation_summary_object_key"])
-        ),
-        documents=tuple(
-            IndexReleaseDocumentRef(
-                document_id=str(item["document_id"]),
-                revision_track=str(item["revision_track"]),
-                version_id=str(item["version_id"]),
-                document_units_object_key=(
-                    None
-                    if item.get("document_units_object_key") is None
-                    else str(item["document_units_object_key"])
-                ),
-                document_units_sha256=(
-                    None
-                    if item.get("document_units_sha256") is None
-                    else str(item["document_units_sha256"])
-                ),
-            )
-            for item in payload.get("documents") or ()
-        ),
-        embedding_provider=str(payload.get("embedding_provider") or ""),
-        embedding_dimensions=(
-            None
-            if payload.get("embedding_dimensions") is None
-            else int(payload["embedding_dimensions"])
-        ),
-        document_units_content_hash=str(payload.get("document_units_content_hash") or ""),
-        chunk_fingerprint_hash=str(payload.get("chunk_fingerprint_hash") or ""),
-        retrieval_acceptance_status=str(payload.get("retrieval_acceptance_status") or ""),
-        retrieval_acceptance_summary_object_key=(
-            None
-            if payload.get("retrieval_acceptance_summary_object_key") is None
-            else str(payload["retrieval_acceptance_summary_object_key"])
-        ),
-        sparse_provider=str(payload.get("sparse_provider") or ""),
-        sparse_model=str(payload.get("sparse_model") or ""),
-        sparse_tokenizer=str(payload.get("sparse_tokenizer") or ""),
-        sparse_language=str(payload.get("sparse_language") or ""),
-        dense_vector_name=str(payload.get("dense_vector_name") or ""),
-        sparse_vector_name=str(payload.get("sparse_vector_name") or ""),
-        dense_prefetch_limit=int(payload.get("dense_prefetch_limit") or 0),
-        sparse_prefetch_limit=int(payload.get("sparse_prefetch_limit") or 0),
-        rrf_k=int(payload.get("rrf_k") or 0),
-        rrf_dense_weight=float(payload.get("rrf_dense_weight") or 0.0),
-        rrf_sparse_weight=float(payload.get("rrf_sparse_weight") or 0.0),
-        embedding_query_instruction_hash=str(payload.get("embedding_query_instruction_hash") or ""),
-        hybrid_query_profile_hash=str(payload.get("hybrid_query_profile_hash") or ""),
-        profile_identity_hash=str(payload.get("profile_identity_hash") or ""),
-        quality_gate_status=str(payload.get("quality_gate_status") or ""),
-        quality_gate_summary_object_key=(
-            None
-            if payload.get("quality_gate_summary_object_key") is None
-            else str(payload["quality_gate_summary_object_key"])
-        ),
-        chunk_quality_status=str(payload.get("chunk_quality_status") or ""),
-        qrels_coverage_status=str(payload.get("qrels_coverage_status") or "not_applicable"),
-        release_metadata_consistency_status=str(
-            payload.get("release_metadata_consistency_status") or ""
-        ),
-        post_publish_audit_status=str(payload.get("post_publish_audit_status") or ""),
-        post_publish_audit_summary_object_key=(
-            None
-            if payload.get("post_publish_audit_summary_object_key") is None
-            else str(payload["post_publish_audit_summary_object_key"])
-        ),
+    return load_index_release_manifest(
+        reader=object_store,
+        bucket=bucket,
+        corpus=corpus,
+        collection=collection,
+        release_id=release_id,
     )
 
 
@@ -763,6 +778,24 @@ def _find_backup_manifest_for_release(
     return None, None
 
 
+def _build_gc_delete_report_key(
+    *,
+    backup_manifest_object_key: str | None,
+    corpus: str,
+    collection: str,
+    release_id: str,
+) -> str:
+    if backup_manifest_object_key:
+        return backup_manifest_object_key.rsplit("/", 1)[0] + "/gc-delete-report.json"
+    return build_operations_artifact_key(
+        corpus=corpus,
+        operation="qdrant_gc_delete",
+        run_id=release_id,
+        filename="gc-delete-report.json",
+        segments=(collection,),
+    )
+
+
 def _remap_alias_bindings(
     *,
     alias_bindings: dict[str, str],
@@ -777,3 +810,21 @@ def _remap_alias_bindings(
             else collection_name
         )
     return remapped
+
+
+__all__ = [
+    "CollectionGcCheckRequest",
+    "CollectionGcDeleteReport",
+    "CollectionGcDeleteRequest",
+    "CollectionGcEligibilityReport",
+    "QdrantSnapshotAdmin",
+    "SnapshotBackupManifest",
+    "SnapshotBackupRequest",
+    "SnapshotRestoreReport",
+    "SnapshotRestoreRequest",
+    "check_snapshot_gc_eligibility",
+    "create_snapshot_backup",
+    "default_backup_id",
+    "delete_gc_eligible_collection",
+    "restore_snapshot_backup",
+]

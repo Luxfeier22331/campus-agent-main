@@ -19,6 +19,7 @@ _PROCEDURE_QUERY_HINTS = (
     "replace",
 )
 _NON_PROCEDURE_REQUIREMENT_QUERY_HINTS = ("怎么要求", "如何要求", "怎么规定", "如何规定")
+_MATERIAL_QUERY_HINTS = ("什么材料", "哪些材料", "提交材料", "证明材料", "书面申请", "要交什么")
 _TIME_QUERY_HINTS = (
     "时间",
     "几点",
@@ -59,6 +60,8 @@ def _query_mode(query_text: str) -> str:
         return "curriculum_lookup"
     if any(hint in normalized for hint in _NON_PROCEDURE_REQUIREMENT_QUERY_HINTS):
         return "generic"
+    if any(hint in normalized for hint in _MATERIAL_QUERY_HINTS):
+        return "generic"
     if any(hint in normalized for hint in _PROCEDURE_QUERY_HINTS):
         return "procedure"
     if any(hint in normalized for hint in _TIME_QUERY_HINTS):
@@ -89,6 +92,7 @@ __all__ = [
     "_ASCII_TOKEN_RE",
     "_CJK_SEGMENT_RE",
     "_LOW_SIGNAL_QUERY_TOKENS",
+    "_MATERIAL_QUERY_HINTS",
     "_NON_PROCEDURE_REQUIREMENT_QUERY_HINTS",
     "_PROCEDURE_QUERY_HINTS",
     "_TIME_QUERY_HINTS",

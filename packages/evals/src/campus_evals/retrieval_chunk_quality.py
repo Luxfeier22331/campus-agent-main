@@ -383,6 +383,12 @@ def _procedure_step_role_mismatch(*, metadata: Mapping[str, Any], text: str) -> 
     content_role = str(metadata.get("content_role") or "").strip()
     if answer_role == "procedure_step" or content_role == "procedure":
         return False
+    if answer_role == "eligibility_intro":
+        intro_target_roles = metadata.get("intro_target_roles")
+        if isinstance(intro_target_roles, list | tuple) and "procedure_step" in {
+            str(item or "").strip() for item in intro_target_roles
+        }:
+            return False
     if answer_role in {"exclusion_rule", "exception_rule"}:
         return False
     if str(metadata.get("claim_type") or "").strip() == "cannot_do":

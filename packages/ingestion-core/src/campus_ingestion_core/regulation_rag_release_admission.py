@@ -7,10 +7,11 @@ from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 from typing import Protocol
 
+from campus_shared.answer_ready_evidence_contract import ANSWER_READY_EVIDENCE_CONTRACT_VERSION
+
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.object_store import build_operations_artifact_key
-from campus_shared.answer_ready_evidence_contract import ANSWER_READY_EVIDENCE_CONTRACT_VERSION
 
 REGULATION_RAG_RELEASE_ADMISSION_SCHEMA_VERSION = "regulation_rag_release_admission.v1"
 REGULATION_RAG_RELEASE_ADMISSION_POLICY_VERSION = "regulation_rag_release_admission_policy.v2"
@@ -315,6 +316,15 @@ def validate_regulation_rag_release_admission_for_release(
     preparation_manifest: object,
 ) -> tuple[str, ...]:
     issues = list(_manifest_shape_issues(manifest))
+    if _requires_target_component_eval_proof(
+        corpus=corpus,
+        collection=collection,
+        runtime_profile=runtime_profile,
+    ):
+        if manifest.semantic_oracle_status != "passed":
+            issues.append(f"semantic_oracle_status_not_passed:{manifest.semantic_oracle_status}")
+        if manifest.fallback_budget_status != "passed":
+            issues.append(f"fallback_budget_status_not_passed:{manifest.fallback_budget_status}")
     expected_runtime_profile_identity = build_regulation_rag_runtime_profile_identity(
         runtime_profile
     )
@@ -419,6 +429,44 @@ def _manifest_shape_issues(
             if getattr(document, field_name) != "passed":
                 issues.append(f"document_{field_name}_not_passed:{'|'.join(key)}")
     return tuple(issues)
+
+
+def require_component_eval_summary_for_target_release(
+    *,
+    corpus: str,
+    collection: str,
+    runtime_profile: CollectionRuntimeProfile,
+    publish_alias: bool,
+    component_eval_summary: Mapping[str, object] | None,
+    context_label: str,
+) -> None:
+    if not (
+        publish_alias
+        and _requires_target_component_eval_proof(
+            corpus=corpus,
+            collection=collection,
+            runtime_profile=runtime_profile,
+        )
+    ):
+        return
+    if component_eval_summary is None:
+        raise ValueError(
+            f"component eval summary is required before query-enabled regulation {context_label}"
+        )
+
+
+def _requires_target_component_eval_proof(
+    *,
+    corpus: str,
+    collection: str,
+    runtime_profile: CollectionRuntimeProfile,
+) -> bool:
+    return bool(
+        corpus == "regulations"
+        and collection in {"student_rules", "institutional_rules"}
+        and runtime_profile.serving_stage == "query_serving"
+        and runtime_profile.query_enabled_by_default
+    )
 
 
 def _expected_document_refs(
@@ -545,6 +593,7 @@ __all__ = [
     "build_regulation_rag_runtime_profile_identity",
     "load_regulation_rag_release_admission_manifest",
     "regulation_rag_release_admission_required",
+    "require_component_eval_summary_for_target_release",
     "require_regulation_rag_release_admission_key",
     "resolve_regulation_rag_release_admission_manifest_key",
     "validate_regulation_rag_release_admission_for_release",

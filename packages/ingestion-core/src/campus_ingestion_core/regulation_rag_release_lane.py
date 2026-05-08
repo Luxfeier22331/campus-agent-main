@@ -28,6 +28,7 @@ from campus_ingestion_core.registry import (
 from campus_ingestion_core.regulation_rag_release_admission import (
     RegulationRagReleaseAdmissionError,
     build_regulation_rag_runtime_profile_identity,
+    require_component_eval_summary_for_target_release,
     require_regulation_rag_release_admission_key,
 )
 
@@ -41,9 +42,7 @@ DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY = (
 DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_TABLE = (
     "ingestion_projection.regulation_rag_release_candidate"
 )
-REGULATION_RAG_RELEASE_ELIGIBLE_COLLECTIONS = frozenset(
-    {"institutional_rules", "student_rules"}
-)
+REGULATION_RAG_RELEASE_ELIGIBLE_COLLECTIONS = frozenset({"institutional_rules", "student_rules"})
 
 RagReleaseCandidateStatus = Literal[
     "pending",
@@ -512,6 +511,7 @@ def build_registry_scope_rag_release_executor(
     release_registry_scope: Callable[..., object] | None = None,
     acceptance_case_path: str | None = None,
     release_admission_manifest_key: str | None = None,
+    component_eval_summary: Mapping[str, object] | None = None,
     env: Mapping[str, str] | None = None,
     publish_alias: bool = True,
     reset_index: bool = False,
@@ -532,15 +532,31 @@ def build_registry_scope_rag_release_executor(
 
     def execute(candidate: RagReleaseCandidate) -> RagReleaseExecutionResult:
         try:
+            runtime_profile = load_runtime_profile(candidate.corpus, candidate.collection)
             resolved_admission_manifest_key = require_regulation_rag_release_admission_key(
                 corpus=candidate.corpus,
                 collection=candidate.collection,
-                runtime_profile=load_runtime_profile(candidate.corpus, candidate.collection),
+                runtime_profile=runtime_profile,
                 publish_alias=publish_alias,
                 explicit_key=release_admission_manifest_key,
                 env=source,
             )
+            require_component_eval_summary_for_target_release(
+                corpus=candidate.corpus,
+                collection=candidate.collection,
+                runtime_profile=runtime_profile,
+                publish_alias=publish_alias,
+                component_eval_summary=component_eval_summary,
+                context_label="release publish",
+            )
         except RegulationRagReleaseAdmissionError as exc:
+            return RagReleaseExecutionResult(
+                status="release_admission_blocked",
+                verification_status="failed",
+                message=str(exc),
+                publish_alias=publish_alias,
+            )
+        except ValueError as exc:
             return RagReleaseExecutionResult(
                 status="release_admission_blocked",
                 verification_status="failed",
@@ -559,6 +575,9 @@ def build_registry_scope_rag_release_executor(
             preparation_run_id=candidate.candidate_id,
             acceptance_case_path=acceptance_case_path,
             release_admission_manifest_key=resolved_admission_manifest_key,
+            component_eval_summary=(
+                dict(component_eval_summary) if component_eval_summary is not None else None
+            ),
             reset_index=reset_index,
             publish_alias=publish_alias,
         )
@@ -686,8 +705,8 @@ def _candidate_with_release_result(
             result.publish_alias
             and _candidate_requires_release_admission(preparing)
             and (
-            result.release_admission_status != "passed"
-            or not (result.release_admission_manifest_key or "").strip()
+                result.release_admission_status != "passed"
+                or not (result.release_admission_manifest_key or "").strip()
             )
         ):
             return _with_status(

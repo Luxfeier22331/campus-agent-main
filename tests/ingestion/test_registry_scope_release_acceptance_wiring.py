@@ -203,6 +203,90 @@ class RegistryScopeReleaseAcceptanceWiringTest(unittest.TestCase):
         self.assertEqual(payload["quality_gate_status"], "passed")
         self.assertIsInstance(payload["quality_gate_summary_object_key"], str)
 
+    def test_publish_scope_release_attaches_component_eval_summary_to_manifest_report_and_payload(
+        self,
+    ) -> None:
+        record = _make_record()
+        object_store = _FakeObjectStore()
+        qdrant_client = QdrantClient(location=":memory:")
+        component_eval_summary = {
+            "schema_version": 1,
+            "case_family": "answer_ready_component_eval.v1",
+            "summary": {
+                "total": 4,
+                "passed": 4,
+                "failed": 0,
+                "overall_passed": True,
+                "primary_failure_stage_counts": {},
+                "secondary_failure_stage_counts": {},
+                "scope_failure_counts": {},
+                "gate_failure_counts": {},
+            },
+            "results": [],
+        }
+
+        report = publish_scope_release(
+            corpus="regulations",
+            collection="student_rules",
+            records=(record,),
+            chunks=(_make_chunk(record=record),),
+            object_store=object_store,
+            qdrant_client=qdrant_client,
+            object_store_settings=_object_store_settings(),
+            runtime_profile=load_runtime_profile("regulations", "student_rules"),
+            sparse_embedding_model=build_mock_sparse_embedding_model(),
+            publish_alias=True,
+            upsert_batch_size=128,
+            qrels_coverage_issues=(),
+            acceptance_case_path=str(
+                _write_cases(
+                    {
+                        "cases": [
+                            {
+                                "case_id": "expected-hit",
+                                "corpus": "regulations",
+                                "collection": "student_rules",
+                                "query": "学生手册",
+                                "expected_document_ids": [record.document_id],
+                            }
+                        ]
+                    }
+                )
+            ),
+            retrieval_settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                embedding_provider="mock",
+                embedding_model="mock-embedding-8d",
+                embedding_dimensions=3,
+                sparse_provider="mock",
+            ),
+            component_eval_summary=component_eval_summary,
+        )
+
+        points, _ = qdrant_client.scroll(
+            collection_name=report.physical_collection_name,
+            limit=1,
+            with_payload=True,
+            with_vectors=False,
+        )
+        payload = points[0].payload or {}
+
+        self.assertEqual(report.component_eval_status, "passed")
+        self.assertIsInstance(report.component_eval_summary_object_key, str)
+        self.assertTrue(
+            str(report.component_eval_summary_object_key).endswith("component-eval-summary.json")
+        )
+        self.assertEqual(payload["component_eval_status"], "passed")
+        self.assertEqual(
+            payload["component_eval_summary_object_key"],
+            report.component_eval_summary_object_key,
+        )
+        component_eval_upload = _first_uploaded_json(
+            object_store,
+            filename="component-eval-summary.json",
+        )
+        self.assertEqual(component_eval_upload["summary"]["overall_passed"], True)
+
     def test_publish_scope_release_rolls_back_alias_when_post_publish_audit_fails(
         self,
     ) -> None:
@@ -706,6 +790,8 @@ class RegistryScopeReleaseAcceptanceWiringTest(unittest.TestCase):
                 "condition_subject_taxonomy_version": "condition_subject.v1",
                 "condition_subject_provenance": "metadata:condition_subject",
                 "table_fact_type": "amount_or_quota",
+                "condition_group_id": "student_rules:handbook:root-segmented:amount_or_quota",
+                "condition_polarity": "positive",
                 "role_confidence": "high",
                 "is_answer_bearing": True,
             },
@@ -731,6 +817,8 @@ class RegistryScopeReleaseAcceptanceWiringTest(unittest.TestCase):
                 "condition_subject_taxonomy_version": "condition_subject.v1",
                 "condition_subject_provenance": "metadata:condition_subject",
                 "table_fact_type": "amount_or_quota",
+                "condition_group_id": "student_rules:handbook:root-segmented:amount_or_quota",
+                "condition_polarity": "positive",
                 "role_confidence": "high",
                 "is_answer_bearing": True,
             },

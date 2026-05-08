@@ -140,6 +140,21 @@ class RagAgentHandbookCategoryDiscoveryTest(unittest.TestCase):
         self.assertIn("前10", plan.focused_query_text)
         self.assertIn("前30", plan.focused_query_text)
 
+    def test_specific_policy_lookup_adds_reissue_procedure_focus_terms_for_student_card_loss_query(
+        self,
+    ) -> None:
+        plan = plan_student_handbook_query("学生证丢了怎么补")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.task_kind, "specific_policy_lookup")
+        self.assertEqual(
+            plan.target_document_ids,
+            ("handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",),
+        )
+        self.assertIn("挂失", plan.focused_query_text)
+        self.assertIn("补办", plan.focused_query_text)
+        self.assertIn("流程", plan.focused_query_text)
+
     def test_exact_policy_title_prevents_short_title_variant_conflict(self) -> None:
         expected_doc_by_query = {
             "普通高等学校学生管理规定": "handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
@@ -385,6 +400,42 @@ class RagAgentHandbookCategoryDiscoveryTest(unittest.TestCase):
 
         self.assertIn("国家奖学金用于奖励", draft.answer_text)
         self.assertNotIn("不得同时获得", draft.answer_text)
+
+    def test_category_discovery_evidence_selection_prefers_category_overview_even_when_eligibility_scores_higher(
+        self,
+    ) -> None:
+        plan = plan_student_handbook_query("本科生有哪些奖学金能申请？")
+        overview = _category_overview_source(
+            document_id=_SCHOLARSHIP_DOC_IDS[0],
+            score=0.031,
+            suffix="national-overview-priority",
+        )
+        higher_scored_eligibility = _make_handbook_source(
+            doc_id=_SCHOLARSHIP_DOC_IDS[0],
+            title="中央民族大学本科学生国家奖学金评审办法",
+            snippet="所评学年同时申请国家励志奖学金或“宝钢”教育奖学金的。",
+            score=0.98,
+            chunk_id_suffix="national-eligibility-higher-score",
+            content_role="eligibility",
+            is_answer_bearing=True,
+        )
+
+        result = execute_rag_evidence_selection_stage(
+            retrieved_evidence=EvidenceBundle(
+                query_text="本科生有哪些奖学金能申请？",
+                corpus="regulations",
+                collection="student_rules",
+                sources=(higher_scored_eligibility, overview),
+            ),
+            version_answer_context=_VersionAnswerContext(mode="current"),
+            handbook_plan=plan,
+        )
+
+        self.assertEqual(len(result.supporting_evidence.sources), 1)
+        self.assertEqual(
+            result.supporting_evidence.sources[0].chunk_id,
+            overview.chunk_id,
+        )
 
     def test_category_discovery_list_does_not_use_metadata_or_narrow_ratio_as_description(
         self,

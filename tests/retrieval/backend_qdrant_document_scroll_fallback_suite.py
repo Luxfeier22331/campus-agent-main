@@ -12,6 +12,60 @@ from tests.retrieval.backend_qdrant_test_support import (
 
 
 class BackendQdrantDocumentScrollFallbackTest(unittest.TestCase):
+    def test_backend_does_not_scroll_target_document_after_no_hit_fail_closed(self) -> None:
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = True
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(
+            aliases=[]
+        )
+        qdrant_client.query_points.return_value = qdrant_models.QueryResponse(
+            points=[
+                qdrant_models.ScoredPoint(
+                    id="point-campus-network-title",
+                    version=0,
+                    score=1.0,
+                    payload={
+                        "document_id": "official_web_regulation:b23aa5f14642eb92",
+                        "revision_track": "current-effective",
+                        "version_id": "owregver:network",
+                        "chunk_id": "official_web_regulation:b23aa5f14642eb92:chunk-0001",
+                        "corpus": "regulations",
+                        "collection": "institutional_rules",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/institutional/network",
+                        "canonical_url": "https://campus.example/institutional/network",
+                        "latest_url": "https://campus.example/institutional/network",
+                        "source_channel": "official_web",
+                        "is_current": True,
+                        "title": "中央民族大学校园网接入管理办法",
+                        "unit_type": "regulation_title",
+                        "content_role": "regulation_title",
+                        "is_answer_bearing": False,
+                        "anchor": {"section_path": ["中央民族大学校园网接入管理办法"]},
+                        "display_text": "中央民族大学校园网接入管理办法",
+                    },
+                ),
+            ]
+        )
+        backend = _backend(qdrant_client=qdrant_client)
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="中央民族大学星际通勤飞船管理办法",
+                corpus="regulations",
+                collection="institutional_rules",
+                target_document_ids=(
+                    "official_web_regulation:b23aa5f14642eb92",
+                    "official_web_regulation:5defea25436a134e",
+                ),
+                top_k=3,
+            )
+        )
+
+        self.assertEqual(result.sources, ())
+        qdrant_client.scroll.assert_not_called()
+
     def test_backend_scrolls_target_document_when_hybrid_lookup_returns_no_sources(
         self,
     ) -> None:

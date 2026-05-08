@@ -264,7 +264,7 @@ retrieval/rerank/answer synthesis 直接使用的 answer-ready evidence。该 ev
 
 这些 answer-ready chunks 必须同时携带 retrieval-facing evidence contract metadata：
 
-- `evidence_contract_version=answer_ready_evidence.v2`
+- `evidence_contract_version=answer_ready_evidence.v3`
 - `parent_unit_id`
 - `condition_subject`，用于排名阈值、论文/发表、材料、截止时间、受众范围、处分解除限制等判断证据
 - `condition_polarity`
@@ -272,6 +272,13 @@ retrieval/rerank/answer synthesis 直接使用的 answer-ready evidence。该 ev
   `procedure_materials` / `procedure_next_actor`
 - `category_id`、`category_audience`、`category_member_document_ids`、
   `category_member_titles`
+
+当前 query-serving handbook target path 还必须满足 legacy quarantine 约束：
+
+- rebuilt `student_rules` target alias 只能消费 `answer_ready_evidence.v3` 主路径证据
+- 如果某个命中 chunk 仍需 `text_cue`、`public_semantic` 或 `public_content_role`
+  这类 legacy primary fallback 才能分类，它只能留在显式 `legacy_old_index_compatibility`
+  诊断/历史路径中，不能进入 target serving pass
 
 语义切分不变量：
 
@@ -395,7 +402,7 @@ handbook validation 的职责是卡住“仍然明显错误的 chunking 结果�
 - `header_dominant_chunk_count == 0`
 - `policy_list` / `category_overview` chunk 必须带 `answer_role=category_overview`
 - query-serving regulation-family answer-ready chunks 必须通过
-  `answer_ready_evidence.v2` contract quality gate；缺 `answer_role`、
+  `answer_ready_evidence.v3` contract quality gate；缺 `answer_role`、
   `parent_unit_id`、`condition_subject`、typed procedure fields 或 category member
   metadata 时 fail closed
 - `eligibility` / `exception_rule` chunk 不得同时包含“具体表现如下”等示例列表标记和多个

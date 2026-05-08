@@ -188,7 +188,9 @@ def build_rag_retrieval_context(
         retrieval_top_k = _HANDBOOK_CATEGORY_DISCOVERY_TOP_K
     elif handbook_plan is not None and handbook_plan.status == "resolved":
         retrieval_goal = handbook_plan.rewritten_query_text
-        focused_retrieval_goal = handbook_plan.focused_query_text or handbook_plan.rewritten_query_text
+        focused_retrieval_goal = (
+            handbook_plan.focused_query_text or handbook_plan.rewritten_query_text
+        )
         target_document_ids = handbook_plan.target_document_ids
         focus_detail_labels = handbook_plan.focus_detail_labels
         focus_article_nos = handbook_plan.focus_article_nos
@@ -275,7 +277,8 @@ def build_retrieval_plan_for_context(
         and effective_scope.collection == "student_rules"
         and retrieval_context.target_document_ids
         and retrieval_context.version_answer_context.mode == "current"
-        and retrieval_context.focused_retrieval_goal.strip() != retrieval_context.retrieval_goal.strip()
+        and retrieval_context.focused_retrieval_goal.strip()
+        != retrieval_context.retrieval_goal.strip()
     ):
         return _build_specific_policy_focused_retrieval_plan(
             broad_query_text=retrieval_context.retrieval_goal,
@@ -289,7 +292,8 @@ def build_retrieval_plan_for_context(
             focus_clause_nos=retrieval_context.focus_clause_nos,
             focus_terms=retrieval_context.focus_terms,
             top_k=retrieval_context.retrieval_top_k or runtime_profile.retrieval_top_k,
-            focused_top_k=retrieval_context.focused_retrieval_top_k or runtime_profile.retrieval_top_k,
+            focused_top_k=retrieval_context.focused_retrieval_top_k
+            or runtime_profile.retrieval_top_k,
             need_ids=tuple(need.need_id for need in information_needs),
             version_query=request.payload.version_query,
             allow_live_source_lookup=runtime_profile.live_search_fallback_allowed,
@@ -299,7 +303,8 @@ def build_retrieval_plan_for_context(
         and effective_scope.collection == "student_rules"
         and retrieval_context.target_document_ids
         and retrieval_context.version_answer_context.mode in {"historical", "as_of", "compare"}
-        and retrieval_context.focused_retrieval_goal.strip() != retrieval_context.retrieval_goal.strip()
+        and retrieval_context.focused_retrieval_goal.strip()
+        != retrieval_context.retrieval_goal.strip()
     ):
         return build_ordered_retrieval_plan(
             query_text=retrieval_context.focused_retrieval_goal,
@@ -401,6 +406,7 @@ def _build_category_discovery_retrieval_plan(
                 query_mode=query_mode,
             ),
             allow_live_source_lookup=allow_live_source_lookup,
+            legacy_fallback_mode="target_v3_only",
         ),
         budget=RetrievalPlanBudget(
             max_steps=len(steps),
@@ -478,10 +484,11 @@ def _build_specific_policy_focused_retrieval_plan(
                 query_mode=query_mode,
             ),
             allow_live_source_lookup=allow_live_source_lookup,
+            legacy_fallback_mode="target_v3_only",
         ),
         budget=RetrievalPlanBudget(
-            max_steps=len(steps),
-            max_replans=0,
+            max_steps=len(steps) + 1,
+            max_replans=1,
             max_live_lookups=0,
         ),
         steps=steps,

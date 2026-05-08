@@ -4,11 +4,13 @@ import argparse
 import json
 from collections.abc import Sequence
 from dataclasses import asdict
+from pathlib import Path
 
 from campus_ingestion_core import (
     ObjectStoreSettings,
     build_document_registry_from_env,
 )
+from campus_ingestion_core.component_eval_release import derive_component_eval_release_status
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
 from campus_ingestion_core.registry_scope_chunk_preparation import (
@@ -17,6 +19,7 @@ from campus_ingestion_core.registry_scope_chunk_preparation import (
 from campus_ingestion_core.registry_scope_release import select_releasable_registry_records
 from campus_ingestion_core.regulation_rag_release_admission import (
     build_regulation_rag_release_admission_manifest,
+    require_component_eval_summary_for_target_release,
     write_regulation_rag_release_admission_manifest,
 )
 
@@ -32,6 +35,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--preparation-run-id", required=True)
     parser.add_argument("--admission-run-id", required=True)
     parser.add_argument("--admitted-at")
+    parser.add_argument("--component-eval-summary-path")
     parser.add_argument("--note", action="append", default=[])
     return parser
 
@@ -48,7 +52,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         runtime_profile=runtime_profile,
     )
     if not records:
-        raise ValueError(f"no releasable registry records found for {args.corpus}/{args.collection}")
+        raise ValueError(
+            f"no releasable registry records found for {args.corpus}/{args.collection}"
+        )
     preparation_manifest = load_chunk_preparation_manifest(
         reader=object_store,
         bucket=settings.bucket_derived,
@@ -56,6 +62,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         collection=args.collection,
         preparation_run_id=args.preparation_run_id,
     )
+    component_eval_summary = _load_optional_json_object(args.component_eval_summary_path)
+    require_component_eval_summary_for_target_release(
+        corpus=args.corpus,
+        collection=args.collection,
+        runtime_profile=runtime_profile,
+        publish_alias=True,
+        component_eval_summary=component_eval_summary,
+        context_label="release admission",
+    )
+    component_eval_status = derive_component_eval_release_status(component_eval_summary)
     admission_manifest = build_regulation_rag_release_admission_manifest(
         admission_run_id=args.admission_run_id,
         corpus=args.corpus,
@@ -64,6 +80,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         runtime_profile=runtime_profile,
         preparation_manifest=preparation_manifest,
         admitted_at=args.admitted_at,
+        semantic_oracle_status=component_eval_status.semantic_oracle_status,
+        fallback_budget_status=component_eval_status.fallback_budget_status,
         notes=tuple(args.note or ()),
     )
     admission_manifest_object_key = write_regulation_rag_release_admission_manifest(
@@ -87,6 +105,16 @@ def main(argv: Sequence[str] | None = None) -> None:
 
 
 __all__ = ["build_parser", "main"]
+
+
+def _load_optional_json_object(path: str | None) -> dict[str, object] | None:
+    candidate = (path or "").strip()
+    if not candidate:
+        return None
+    payload = json.loads(Path(candidate).read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise ValueError("component eval summary payload must be a JSON object")
+    return payload
 
 
 if __name__ == "__main__":
