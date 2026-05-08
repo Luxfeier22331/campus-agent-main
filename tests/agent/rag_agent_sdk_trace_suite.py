@@ -11,7 +11,6 @@ from campus_rag_agent.rag_sdk_trace import (
 class RagAgentSdkTraceTest(unittest.TestCase):
     def test_trace_projection_contains_only_sanitized_fields(self) -> None:
         projection = build_rag_sdk_trace_projection(
-            rollout_mode="candidate",
             runtime="openai_agents_sdk",
             tool_names=("retrieve_evidence",),
             model_response_ref="resp_123",

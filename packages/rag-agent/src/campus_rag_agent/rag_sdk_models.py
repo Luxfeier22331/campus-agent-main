@@ -4,6 +4,7 @@ from dataclasses import dataclass, field
 from enum import StrEnum
 
 from campus_contracts import EvidenceBundle
+from campus_contracts.schema_metadata import schema_metadata
 
 
 class RagTaskKind(StrEnum):
@@ -13,14 +14,6 @@ class RagTaskKind(StrEnum):
     FACT_LOOKUP = "fact_lookup"
     COMPARISON = "comparison"
     UNSUPPORTED_SCOPE = "unsupported_scope"
-
-
-class RagSdkRolloutMode(StrEnum):
-    CLOSED = "closed"
-    CANDIDATE = "candidate"
-    SHADOW = "shadow"
-    DEFAULT_ON = "default_on"
-    FALLBACK_ONLY = "fallback_only"
 
 
 @dataclass(frozen=True, slots=True)
@@ -91,10 +84,24 @@ class RagSdkEvidenceProjection:
 @dataclass(frozen=True, slots=True)
 class RagSdkRunRequest:
     user_goal: str
-    rollout_mode: RagSdkRolloutMode
     query_intent: RagQueryIntent
     evidence: RagSdkEvidenceProjection
     request_id: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class RagSdkRetrieveEvidenceArguments:
+    query_slot_id: str = field(
+        default="",
+        metadata=schema_metadata(description="One of the admitted deterministic query slot ids."),
+    )
+    retrieval_intent: str = field(
+        default="",
+        metadata=schema_metadata(
+            description="Short semantic label for the requested evidence.",
+            semantic_required=True,
+        ),
+    )
 
 
 @dataclass(frozen=True, slots=True)
@@ -119,7 +126,7 @@ __all__ = [
     "RagQueryIntent",
     "RagSdkEvidenceAnchor",
     "RagSdkEvidenceProjection",
-    "RagSdkRolloutMode",
+    "RagSdkRetrieveEvidenceArguments",
     "RagSdkRunRequest",
     "RagSdkRunResult",
     "RagTaskKind",

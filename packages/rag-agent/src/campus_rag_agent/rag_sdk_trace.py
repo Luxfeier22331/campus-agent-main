@@ -24,7 +24,6 @@ _UNSAFE_VALUE_TOKENS = (
 
 def build_rag_sdk_trace_projection(
     *,
-    rollout_mode: str,
     runtime: str,
     tool_names: Sequence[str],
     model_response_ref: str = "",
@@ -33,7 +32,6 @@ def build_rag_sdk_trace_projection(
 ) -> dict[str, object]:
     projection: dict[str, object] = {
         "schema_version": RAG_SDK_TRACE_PROJECTION_SCHEMA_VERSION,
-        "rollout_mode": rollout_mode,
         "runtime": runtime,
         "tool_names": sorted(str(name) for name in tool_names if str(name).strip()),
         "model_response_ref": model_response_ref,

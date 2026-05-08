@@ -15,7 +15,7 @@ from tests.agent.rag_agent_test_support import _make_handbook_source
 
 
 class RagAgentSdkServiceTest(unittest.TestCase):
-    def test_candidate_sdk_runner_can_answer_after_deterministic_retrieval(self) -> None:
+    def test_sdk_runner_answers_after_deterministic_retrieval(self) -> None:
         captured: RagSdkRunRequest | None = None
         evidence = _evidence()
         source = evidence.sources[0]
@@ -52,19 +52,17 @@ class RagAgentSdkServiceTest(unittest.TestCase):
             _request(),
             retriever=lambda *args, **kwargs: evidence,
             rag_sdk_runner=runner,
-            rag_sdk_rollout_mode="candidate",
         )
 
         self.assertEqual(response.status, "completed")
         self.assertIn("门诊收费票据", response.answer_text)
         self.assertIsNotNone(captured)
         assert captured is not None
-        self.assertEqual(captured.rollout_mode, "candidate")
         self.assertEqual(captured.evidence.anchors[0].source_id, source.doc_id)
         self.assertEqual(response.result.diagnostics.prompt_runtime_state, "rag_sdk_completed")
         self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
 
-    def test_default_on_sdk_runner_returns_sdk_answer_with_sanitized_trace_projection(self) -> None:
+    def test_sdk_runner_returns_answer_with_sanitized_trace_projection(self) -> None:
         captured: RagSdkRunRequest | None = None
         evidence = _evidence()
         source = evidence.sources[0]
@@ -96,7 +94,6 @@ class RagAgentSdkServiceTest(unittest.TestCase):
                 ),
                 trace_projection={
                     "schema_version": "rag-sdk-trace-projection-v1",
-                    "rollout_mode": "default_on",
                     "runtime": "openai_agents_sdk",
                     "tool_names": ["retrieve_evidence"],
                     "latency_ms": 12,
@@ -107,18 +104,14 @@ class RagAgentSdkServiceTest(unittest.TestCase):
             _request(),
             retriever=lambda *args, **kwargs: evidence,
             rag_sdk_runner=runner,
-            rag_sdk_rollout_mode="default_on",
         )
 
         self.assertEqual(response.status, "completed")
         self.assertIsNotNone(captured)
-        assert captured is not None
-        self.assertEqual(captured.rollout_mode, "default_on")
         self.assertIsNotNone(response.agent_observability)
         assert response.agent_observability is not None
         trace_projection = response.agent_observability.safe_details["rag_sdk_trace_projection"]
         self.assertEqual(trace_projection["schema_version"], "rag-sdk-trace-projection-v1")
-        self.assertEqual(trace_projection["rollout_mode"], "default_on")
         self.assertNotIn("raw_prompt", str(response.agent_observability.safe_details))
 
     def test_sdk_guardrail_failure_fails_closed_without_legacy_blend(self) -> None:
@@ -142,7 +135,6 @@ class RagAgentSdkServiceTest(unittest.TestCase):
             _request(),
             retriever=lambda *args, **kwargs: evidence,
             rag_sdk_runner=runner,
-            rag_sdk_rollout_mode="candidate",
         )
 
         self.assertEqual(response.status, "no_answer")
@@ -191,30 +183,29 @@ class RagAgentSdkServiceTest(unittest.TestCase):
             _request(),
             retriever=lambda *args, **kwargs: evidence,
             rag_sdk_runner=runner,
-            rag_sdk_rollout_mode="candidate",
         )
 
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.result.diagnostics.no_answer_reason, "rag_sdk_runtime_failed")
 
-    def test_closed_mode_uses_existing_deterministic_path(self) -> None:
+    def test_missing_sdk_runner_fails_closed_for_query_enabled_rag_answer(self) -> None:
         runner_called = False
 
         def runner(_request: RagSdkRunRequest) -> RagSdkRunResult:
             nonlocal runner_called
             runner_called = True
-            raise AssertionError("closed mode must not call SDK runner")
+            raise AssertionError("missing runner path must not call SDK runner")
 
         response = delegate_to_rag_agent(
             _request(),
             retriever=lambda *args, **kwargs: _evidence(),
-            rag_sdk_runner=runner,
-            rag_sdk_rollout_mode="closed",
+            rag_sdk_runner=None,
         )
 
         self.assertFalse(runner_called)
-        self.assertEqual(response.status, "completed")
-        self.assertNotEqual(response.result.diagnostics.prompt_runtime_state, "rag_sdk_completed")
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "rag_sdk_runtime_unavailable")
+        self.assertEqual(response.result.diagnostics.prompt_runtime_state, "rag_sdk_runtime_unavailable")
 
 
 def _request() -> AgentRequest:
