@@ -6,6 +6,7 @@ from collections.abc import Sequence
 from datetime import datetime
 from zoneinfo import ZoneInfo
 
+from campus_ingestion_core.postgres_runtime import close_persistent_postgres_pools
 from campus_ingestion_core.structured_projection_postgres import (
     build_structured_projection_publisher_from_env,
     projection_artifact_checksum,
@@ -20,66 +21,76 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--release-id")
     parser.add_argument("--generated-at")
+    parser.add_argument(
+        "--collection",
+        action="append",
+        choices=tuple(_smoke_collection_bundles()),
+        help="Only publish the selected structured projection collection. Repeatable.",
+    )
     return parser
 
 
 def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    publisher = build_structured_projection_publisher_from_env()
+    selected_collections = tuple(args.collection) if args.collection else tuple(
+        _smoke_collection_bundles()
+    )
+    publisher = build_structured_projection_publisher_from_env(
+        bootstrap_collections=selected_collections,
+    )
     if publisher is None:
         raise ValueError("CAMPUS_SHARED_POSTGRES_URL is required")
     generated_at = args.generated_at or datetime.now(ZoneInfo("Asia/Shanghai")).isoformat()
     release_id_prefix = args.release_id or _default_release_id(generated_at)
     reports = {}
-    for collection, bundle in (
-        ("service_status", _smoke_service_status_bundle()),
-        ("transport_schedule", _smoke_transport_schedule_bundle()),
-        ("service_guide", _smoke_service_guide_bundle()),
-        ("contact_directory", _smoke_contact_directory_bundle()),
-        ("academic_calendar", _smoke_academic_calendar_bundle()),
-    ):
-        corpus = "calendar" if collection == "academic_calendar" else "campus_services"
-        release_id = f"{release_id_prefix}-{collection.replace('_', '-')}"
-        report = publisher.publish_release(
-            corpus=corpus,
-            collection=collection,
-            release_id=release_id,
-            generated_at=generated_at,
-            schema_version=str(bundle["schema_version"]),
-            artifact_object_key=(
-                f"campus_services/releases/{collection}/"
-                f"{release_id}/structured-projection-smoke.json"
-            ),
-            artifact_checksum=projection_artifact_checksum(bundle),
-            bundle=bundle,
-            validation_status="smoke_valid",
-        )
-        current_release_id = publisher.get_current_release(
-            corpus=corpus,
-            collection=collection,
-        )
-        if current_release_id != release_id:
-            raise RuntimeError(
-                f"{collection} structured projection smoke current release = "
-                f"{current_release_id}, want {release_id}"
+    try:
+        for collection in selected_collections:
+            bundle = _smoke_collection_bundles()[collection]
+            corpus = "calendar" if collection == "academic_calendar" else "campus_services"
+            release_id = f"{release_id_prefix}-{collection.replace('_', '-')}"
+            report = publisher.publish_release(
+                corpus=corpus,
+                collection=collection,
+                release_id=release_id,
+                generated_at=generated_at,
+                schema_version=str(bundle["schema_version"]),
+                artifact_object_key=(
+                    f"campus_services/releases/{collection}/"
+                    f"{release_id}/structured-projection-smoke.json"
+                ),
+                artifact_checksum=projection_artifact_checksum(bundle),
+                bundle=bundle,
+                validation_status="smoke_valid",
             )
-        reports[collection] = {
-            "release_id": report.release_id,
-            "counts": report.counts,
-        }
-    print(
-        json.dumps(
-            {
-                "status": "ok",
-                "corpus": "campus_services",
-                "releases": reports,
-            },
-            ensure_ascii=False,
-            indent=2,
-            sort_keys=True,
+            current_release_id = publisher.get_current_release(
+                corpus=corpus,
+                collection=collection,
+            )
+            if current_release_id != release_id:
+                raise RuntimeError(
+                    f"{collection} structured projection smoke current release = "
+                    f"{current_release_id}, want {release_id}"
+                )
+            reports[collection] = {
+                "release_id": report.release_id,
+                "counts": report.counts,
+            }
+        print(
+            json.dumps(
+                {
+                    "status": "ok",
+                    "corpus": "campus_services",
+                    "collections": list(selected_collections),
+                    "releases": reports,
+                },
+                ensure_ascii=False,
+                indent=2,
+                sort_keys=True,
+            )
         )
-    )
+    finally:
+        close_persistent_postgres_pools()
 
 
 def _default_release_id(generated_at: str) -> str:
@@ -91,6 +102,16 @@ def _default_release_id(generated_at: str) -> str:
         .replace("T", "T")
     )
     return f"service-status-smoke-{compact}"
+
+
+def _smoke_collection_bundles() -> dict[str, dict[str, object]]:
+    return {
+        "service_status": _smoke_service_status_bundle(),
+        "transport_schedule": _smoke_transport_schedule_bundle(),
+        "service_guide": _smoke_service_guide_bundle(),
+        "contact_directory": _smoke_contact_directory_bundle(),
+        "academic_calendar": _smoke_academic_calendar_bundle(),
+    }
 
 
 def _smoke_service_status_bundle() -> dict[str, object]:
@@ -127,6 +148,7 @@ def _smoke_transport_schedule_bundle() -> dict[str, object]:
                 "effective_from": "2026-04-21T00:00:00+08:00",
                 "source_ref": "smoke:transport-schedule",
                 "is_current": True,
+                "schedule_scope": "baseline_revision",
             }
         ],
         "transport_routes": [
@@ -142,6 +164,19 @@ def _smoke_transport_schedule_bundle() -> dict[str, object]:
                     {"stop_id": "stop:fengtai-main-gate", "display_name": "丰台南门"},
                 ],
             }
+            ,
+            {
+                "route_id": "route:fengtai-to-haidian",
+                "display_name": "丰台到海淀通勤车",
+                "service_family": "intercampus_commute",
+                "aliases": ["回海淀", "海淀线"],
+                "origin_campus": "fengtai",
+                "destination_campus": "haidian",
+                "stops": [
+                    {"stop_id": "stop:fengtai-main-gate", "display_name": "丰台南门"},
+                    {"stop_id": "stop:haidian-east-gate", "display_name": "海淀东门"},
+                ],
+            }
         ],
         "scheduled_departures": [
             {
@@ -153,9 +188,30 @@ def _smoke_transport_schedule_bundle() -> dict[str, object]:
                 "origin_stop_id": "stop:haidian-east-gate",
                 "destination_stop_id": "stop:fengtai-main-gate",
                 "related_notice_refs": ["smoke:transport-schedule"],
+            },
+            {
+                "snapshot_id": "snapshot:bus:smoke-2026-04-20",
+                "route_id": "route:fengtai-to-haidian",
+                "service_dates": ["2026-05-07"],
+                "departure_time": "07:30",
+                "arrival_time": "08:30",
+                "origin_stop_id": "stop:fengtai-main-gate",
+                "destination_stop_id": "stop:haidian-east-gate",
+                "related_notice_refs": ["smoke:transport-schedule"],
             }
         ],
         "transport_service_exceptions": [],
+        "transport_operational_notices": [
+            {
+                "notice_id": "353903",
+                "source_ref": "notice:353903",
+                "notice_kind": "boarding_point_change",
+                "route_ids": ["route:fengtai-to-haidian"],
+                "effective_from": "2026-05-07T00:00:00+08:00",
+                "effective_until": "",
+                "operational_comment": "丰台校区乘车点调整至南门外停车区",
+            }
+        ],
     }
 
 

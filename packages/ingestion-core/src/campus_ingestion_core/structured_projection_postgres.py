@@ -242,11 +242,13 @@ class PostgresStructuredProjectionPublisher:
         database_url: str,
         *,
         schema: str = DEFAULT_INGESTION_PROJECTION_SCHEMA,
+        bootstrap_collections: Sequence[str] | None = None,
     ) -> None:
         self.database_url = normalize_postgres_connection_url(database_url)
         if not self.database_url:
             raise ValueError("structured projection database url is required")
         self.schema = _normalize_identifier(schema or DEFAULT_INGESTION_PROJECTION_SCHEMA, "schema")
+        self.bootstrap_collections = _normalize_bootstrap_collections(bootstrap_collections)
         self._ensure_schema()
 
     def publish_release(
@@ -419,25 +421,8 @@ class PostgresStructuredProjectionPublisher:
             with _postgres_connection(self.database_url) as conn, conn.cursor() as runtime_cursor:
                 self._ensure_schema(runtime_cursor)
             return
-        for table_name in (
-            "structured_projection_releases",
-            "structured_projection_current",
-            "transport_routes",
-            "transport_schedule_snapshots",
-            "transport_scheduled_departures",
-            "transport_service_exceptions",
-            "transport_operational_notices",
-            "transport_rejected_sources",
-            "transport_release_notices",
-            "service_status_read_model",
-            "service_guide_read_model",
-            "service_guide_conflicts",
-            "service_guide_manual_review_sources",
-            "contact_directory_read_model",
-            "contact_directory_conflicts",
-            "contact_directory_manual_review_sources",
-            "academic_calendar_read_model",
-        ):
+        bootstrap_collections = getattr(self, "bootstrap_collections", None)
+        for table_name in _bootstrap_table_names(bootstrap_collections):
             _ensure_table_schema(cursor, table_name=f"{self.schema}.{table_name}")
         cursor.execute(
             f"""
@@ -467,7 +452,7 @@ class PostgresStructuredProjectionPublisher:
             )
             """
         )
-        for table_name in _read_model_table_names():
+        for table_name in _bootstrap_read_model_table_names(bootstrap_collections):
             self._ensure_read_model_table(cursor, table_name)
 
     def _table_sql(self, table_name: str) -> str:
@@ -604,6 +589,8 @@ class PostgresStructuredProjectionPublisher:
 
 def build_structured_projection_publisher_from_env(
     env: Mapping[str, str] | None = None,
+    *,
+    bootstrap_collections: Sequence[str] | None = None,
 ) -> PostgresStructuredProjectionPublisher | None:
     source = dict(env if env is not None else os.environ)
     database_url = (source.get(DEFAULT_STRUCTURED_PROJECTION_DATABASE_ENV_KEY) or "").strip()
@@ -612,6 +599,7 @@ def build_structured_projection_publisher_from_env(
     return PostgresStructuredProjectionPublisher(
         database_url,
         schema=DEFAULT_INGESTION_PROJECTION_SCHEMA,
+        bootstrap_collections=bootstrap_collections,
     )
 
 
@@ -996,6 +984,52 @@ def _source_notice_ids(bundle: Mapping[str, Any]) -> list[str]:
 
 def _read_model_table_names() -> tuple[str, ...]:
     return tuple(_TYPED_TABLE_COLUMNS)
+
+
+def _normalize_bootstrap_collections(
+    collections: Sequence[str] | None,
+) -> tuple[str, ...] | None:
+    if collections is None:
+        return None
+    normalized = []
+    seen: set[str] = set()
+    for collection in collections:
+        value = _required_text(collection, "bootstrap_collection")
+        _collection_table_names(value)
+        if value in seen:
+            continue
+        seen.add(value)
+        normalized.append(value)
+    return tuple(normalized)
+
+
+def _bootstrap_table_names(collections: Sequence[str] | None) -> tuple[str, ...]:
+    base = ("structured_projection_releases", "structured_projection_current")
+    if collections is None:
+        return base + _read_model_table_names()
+    table_names: list[str] = list(base)
+    seen = set(table_names)
+    for collection in collections:
+        for table_name in _collection_table_names(collection):
+            if table_name in seen:
+                continue
+            seen.add(table_name)
+            table_names.append(table_name)
+    return tuple(table_names)
+
+
+def _bootstrap_read_model_table_names(collections: Sequence[str] | None) -> tuple[str, ...]:
+    if collections is None:
+        return _read_model_table_names()
+    table_names: list[str] = []
+    seen: set[str] = set()
+    for collection in collections:
+        for table_name in _collection_table_names(collection):
+            if table_name in seen:
+                continue
+            seen.add(table_name)
+            table_names.append(table_name)
+    return tuple(table_names)
 
 
 def _typed_columns(table_name: str) -> tuple[_TypedColumn, ...]:

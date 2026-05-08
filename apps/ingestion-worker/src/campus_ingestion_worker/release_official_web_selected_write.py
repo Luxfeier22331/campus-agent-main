@@ -21,9 +21,11 @@ from campus_ingestion_core.academic_calendar_projection import (
     ACADEMIC_CALENDAR_CORPUS,
     ACADEMIC_CALENDAR_PROJECTION_FILENAME,
     ACADEMIC_CALENDAR_PROJECTION_SCHEMA_VERSION,
-    OFFICIAL_WEB_CURATED_ACADEMIC_CALENDAR_SOURCE_FAMILY,
     assert_academic_calendar_projection_release_ready,
     write_academic_calendar_projection_release,
+)
+from campus_ingestion_core.academic_calendar_source_artifacts import (
+    OFFICIAL_WEB_CURATED_ACADEMIC_CALENDAR_SOURCE_FAMILY,
 )
 from campus_ingestion_core.contact_directory_projection import (
     CONTACT_DIRECTORY_COLLECTION,

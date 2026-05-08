@@ -2066,6 +2066,91 @@ class ReleaseOfficialWebSelectedWriteTest(unittest.TestCase):
             self.assertEqual(record["entry_refs"][0]["entry_type"], "online_url")
             self.assertEqual(record["entry_refs"][0]["url"], "https://rz.muc.edu.cn")
 
+    def test_preview_selected_write_service_guide_keeps_academic_calendar_public_entry_url(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            task = {
+                **_selected_write_task(selected_write_target="campus_services/service_guide"),
+                "inventoryId": "muc-it-academic-calendar-guide",
+                "jobId": "owtarget_academic_calendar",
+                "inputRef": {
+                    **dict(
+                        _selected_write_task(selected_write_target="campus_services/service_guide")[
+                            "inputRef"
+                        ]
+                    ),
+                    "sourceUrls": ["https://www.muc.edu.cn/ggfw/mdxl.htm"],
+                    "targetLabel": "中央民族大学校历查看方式",
+                },
+            }
+            object_store = _FakeObjectStore(
+                {
+                    (
+                        "campus-rag-source",
+                        "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json",
+                    ): json.dumps(
+                        {"pages": [], "runId": "owrun_contact", "siteId": "muc_public"}
+                    ).encode("utf-8")
+                }
+            )
+
+            def fake_replay(**_: object) -> dict[str, object]:
+                return {
+                    "consumer_candidate_pages": [
+                        {
+                            "consumer_family": "service_guide_candidate",
+                            "materialization_policy": "candidate_only",
+                            "normalized_canonical_url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                            "quality_gate": {"decision": "pass"},
+                            "raw_asset_id": "owasset_calendar",
+                            "raw_version_id": "owver_calendar",
+                            "selected_write_target": "campus_services/service_guide",
+                            "target_job_id": "owtarget_academic_calendar",
+                            "typed_candidate": {
+                                "contacts": {
+                                    "emails": [],
+                                    "locations": [],
+                                    "office_hours": [],
+                                    "phones": [],
+                                },
+                                "entry_points": ["https://www.muc.edu.cn/ggfw/mdxl.htm"],
+                                "field_source_urls": {
+                                    "entry_points": ["https://www.muc.edu.cn/ggfw/mdxl.htm"],
+                                    "process_steps": ["https://met.muc.edu.cn/info/1068/1832.htm"],
+                                },
+                                "materials": [],
+                                "process_steps": ["访问公开校历页面查看当学年校历。"],
+                                "responsible_office": [],
+                                "service_name": "中央民族大学校历查看方式",
+                                "source_title": "中央民族大学校历查看方式",
+                                "source_url": "https://met.muc.edu.cn/info/1068/1832.htm",
+                            },
+                            "typed_candidate_schema_version": "official_web_service_guide_candidate.v1",
+                        }
+                    ]
+                }
+
+            with (
+                patch(
+                    "campus_ingestion_worker.release_official_web_selected_write.materialize_replay_input"
+                ),
+                patch(
+                    "campus_ingestion_worker.release_official_web_selected_write.replay_official_web_source_truth_local",
+                    side_effect=fake_replay,
+                ),
+            ):
+                result = preview_official_web_selected_write(
+                    release_task=task,
+                    object_store=object_store,
+                    work_dir=root / "selected-write-preview",
+                )
+
+            record = result.bundle["service_guide_records"][0]
+            self.assertEqual(record["entry_refs"][0]["url"], "https://www.muc.edu.cn/ggfw/mdxl.htm")
+            self.assertEqual(record["entry_refs"][0]["source_refs"], ["https://www.muc.edu.cn/ggfw/mdxl.htm"])
+
     def test_preview_selected_write_service_guide_publishes_grouped_vpn_procedures(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

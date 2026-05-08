@@ -835,6 +835,37 @@ class StructuredProjectionPostgresPublisherTest(unittest.TestCase):
         self.assertEqual(publisher.database_url, "postgres://shared.example/db")
         self.assertEqual(publisher.schema, "ingestion_projection")
 
+    def test_publisher_env_accepts_collection_bootstrap_scope(self) -> None:
+        with patch.object(PostgresStructuredProjectionPublisher, "_ensure_schema"):
+            publisher = build_structured_projection_publisher_from_env(
+                {
+                    "CAMPUS_SHARED_POSTGRES_URL": "postgres://shared.example/db",
+                },
+                bootstrap_collections=("transport_schedule",),
+            )
+
+        if publisher is None:
+            self.fail("publisher should be built from CAMPUS_SHARED_POSTGRES_URL")
+        self.assertEqual(publisher.bootstrap_collections, ("transport_schedule",))
+
+    def test_ensure_schema_limits_bootstrap_to_requested_collection(self) -> None:
+        publisher = object.__new__(PostgresStructuredProjectionPublisher)
+        publisher.database_url = "postgresql://projection.example/db"
+        publisher.schema = "ingestion_projection"
+        publisher.bootstrap_collections = ("transport_schedule",)
+        cursor = _RecordingCursor()
+
+        publisher._ensure_schema(cursor)
+
+        executed_sql = "\n".join(query for query, _params in cursor.execute_calls)
+        self.assertIn("transport_schedule_snapshots", executed_sql)
+        self.assertIn("transport_routes", executed_sql)
+        self.assertIn("transport_scheduled_departures", executed_sql)
+        self.assertNotIn("service_status_read_model", executed_sql)
+        self.assertNotIn("service_guide_read_model", executed_sql)
+        self.assertNotIn("contact_directory_read_model", executed_sql)
+        self.assertNotIn("academic_calendar_read_model", executed_sql)
+
 
 class _FakeCursorContextManager:
     def __init__(self, cursor: object) -> None:
