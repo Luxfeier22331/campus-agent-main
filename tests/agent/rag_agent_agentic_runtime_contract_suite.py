@@ -21,7 +21,6 @@ from campus_rag_agent.runtime_stages import (
     RAG_AGENT_RUNTIME_STAGES,
     resolve_stage_contract,
 )
-from campus_rag_agent.service import delegate_to_rag_agent
 from campus_rag_agent.service_evidence_stage import execute_rag_evidence_selection_stage
 from campus_rag_agent.service_planner_stage import execute_rag_planner_stage
 from campus_rag_agent.service_versioning_context import _VersionAnswerContext
@@ -38,7 +37,7 @@ from campus_retrieval_core import (
     RetrievalStepResult,
 )
 
-from tests.agent.rag_agent_test_support import _make_handbook_source
+from tests.agent.rag_agent_test_support import _make_handbook_source, delegate_to_rag_agent
 
 
 class RagAgentAgenticRuntimeContractTest(unittest.TestCase):

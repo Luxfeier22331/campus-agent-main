@@ -12,7 +12,6 @@ from campus_contracts import (
 )
 from campus_rag_agent.query_planning import plan_curriculum_course_query
 from campus_rag_agent.semantic_replan import build_semantic_replan_steps
-from campus_rag_agent.service import delegate_to_rag_agent
 from campus_rag_agent.service_diagnostics_payload import _build_rag_result_diagnostics
 from campus_rag_agent.service_planner_stage import execute_rag_planner_stage
 from campus_retrieval_core import (
@@ -29,7 +28,7 @@ from campus_retrieval_core import (
 )
 from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 
-from tests.agent.rag_agent_test_support import _make_handbook_source
+from tests.agent.rag_agent_test_support import _make_handbook_source, delegate_to_rag_agent
 
 
 class RagAgentAgenticDepthRuntimeTest(unittest.TestCase):
@@ -686,7 +685,7 @@ class RagAgentAgenticDepthRuntimeTest(unittest.TestCase):
                     supporting_sources=evidence.sources,
                 )
 
-        with patch("campus_rag_agent.service_answer_synthesis.RagAgent", UnsupportedClaimAgent):
+        with patch("tests.agent.rag_agent_test_support.RagAgent", UnsupportedClaimAgent):
             response = delegate_to_rag_agent(
                 AgentRequest(
                     target="rag-agent",

@@ -3,6 +3,8 @@ from __future__ import annotations
 import httpx
 from campus_navigation_agent import delegate_to_navigation_agent
 from campus_notice_agent import NoticeHTTPQueryService
+from campus_rag_agent.rag_sdk_output import RagSdkAnswerOutput
+from campus_rag_agent.rag_sdk_trace import build_rag_sdk_trace_projection
 from campus_rag_agent.service import delegate_to_rag_agent
 from campus_retrieval_core import build_jsonl_retrieval_observation_sink
 from campus_services_agent import (
@@ -126,6 +128,7 @@ def _build_agent_delegates(
         retrieval_runtime_event_sink,
         retrieval_runtime_otlp_sink,
     )
+    effective_rag_runtime = rag_openai_runtime or _build_unavailable_rag_sdk_runner()
     agent_delegates: dict[str, AgentDelegate] = {
         "rag-agent": lambda agent_request: delegate_to_rag_agent(
             agent_request,
@@ -134,7 +137,7 @@ def _build_agent_delegates(
             include_retrieval_observation_query_text=(
                 settings.retrieval_observation_include_query_text
             ),
-            rag_sdk_runner=rag_openai_runtime,
+            rag_sdk_runner=effective_rag_runtime,
         ),
         "navigation-agent": delegate_to_navigation_agent,
         "campus-services-agent": admitted_agent_executor.execute,
@@ -220,11 +223,11 @@ def _build_rag_openai_runtime(
     tool_execution_session: ToolExecutionSession | None = None,
 ):
     if not settings.agents_sdk_runtime_enabled:
-        return None
+        return _build_unavailable_rag_sdk_runner(detail="agents_sdk_runtime_disabled")
     provider = settings.prompt_runtime_provider or settings.runtime_provider
     model_name = _resolve_rag_agents_sdk_model_name(settings)
     if not provider or not settings.prompt_runtime_api_key or not model_name:
-        return None
+        return _build_unavailable_rag_sdk_runner()
     try:
         provider_config = PromptRuntimeProviderConfig(
             provider=provider,
@@ -244,7 +247,7 @@ def _build_rag_openai_runtime(
             ),
         )
     except ValueError:
-        return None
+        return _build_unavailable_rag_sdk_runner(detail="invalid_prompt_runtime_provider_config")
     return OpenAIRagAgentsSdkRunner(
         provider_config=provider_config,
         model_name=model_name,
@@ -254,3 +257,27 @@ def _build_rag_openai_runtime(
 
 def _resolve_rag_agents_sdk_model_name(settings: ApiSettings) -> str:
     return (settings.agent_prompt_model or settings.prompt_runtime_model).strip()
+
+
+def _build_unavailable_rag_sdk_runner(*, detail: str = "RAG SDK runner is unavailable"):
+    from campus_rag_agent.rag_sdk_models import RagSdkRunResult
+
+    def runner(_request):
+        return RagSdkRunResult(
+            output=RagSdkAnswerOutput(
+                answer_text="",
+                answer_kind="unsupported",
+                semantic_outcome="unsupported_by_evidence",
+                confidence="low",
+                unsupported_reason="rag_sdk_runtime_unavailable",
+            ),
+            trace_projection=build_rag_sdk_trace_projection(
+                runtime="openai_agents_sdk",
+                tool_names=(),
+                failure_class="rag_sdk_runtime_unavailable",
+            ),
+            failure_class="rag_sdk_runtime_unavailable",
+            failure_detail=detail,
+        )
+
+    return runner

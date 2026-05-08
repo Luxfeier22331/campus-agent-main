@@ -188,24 +188,12 @@ class RagAgentSdkServiceTest(unittest.TestCase):
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.result.diagnostics.no_answer_reason, "rag_sdk_runtime_failed")
 
-    def test_missing_sdk_runner_fails_closed_for_query_enabled_rag_answer(self) -> None:
-        runner_called = False
-
-        def runner(_request: RagSdkRunRequest) -> RagSdkRunResult:
-            nonlocal runner_called
-            runner_called = True
-            raise AssertionError("missing runner path must not call SDK runner")
-
-        response = delegate_to_rag_agent(
-            _request(),
-            retriever=lambda *args, **kwargs: _evidence(),
-            rag_sdk_runner=None,
-        )
-
-        self.assertFalse(runner_called)
-        self.assertEqual(response.status, "no_answer")
-        self.assertEqual(response.result.diagnostics.no_answer_reason, "rag_sdk_runtime_unavailable")
-        self.assertEqual(response.result.diagnostics.prompt_runtime_state, "rag_sdk_runtime_unavailable")
+    def test_direct_service_requires_explicit_sdk_runner(self) -> None:
+        with self.assertRaises(TypeError):
+            delegate_to_rag_agent(
+                _request(),
+                retriever=lambda *args, **kwargs: _evidence(),
+            )
 
 
 def _request() -> AgentRequest:

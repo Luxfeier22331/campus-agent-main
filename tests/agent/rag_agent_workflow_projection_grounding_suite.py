@@ -9,7 +9,8 @@ from campus_contracts import (
     RagRequestPayload,
     WorkflowAgentContext,
 )
-from campus_rag_agent.service import delegate_to_rag_agent
+
+from tests.agent.rag_agent_test_support import delegate_to_rag_agent
 
 
 class RagAgentWorkflowProjectionGroundingTest(unittest.TestCase):

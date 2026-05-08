@@ -60,6 +60,16 @@ class RagOutcomeContext:
     projection_context_summaries: tuple[RagProjectionContextSummary, ...] = ()
 
 
+def build_missing_scope_clarification_response() -> AgentResponse:
+    return AgentResponse(
+        target="rag-agent",
+        status="needs_clarification",
+        confidence="low",
+        answer_text="请先说明你想查询的校内知识范围或资料集合。",
+        follow_up_question="请先说明你想查询的校内知识范围或资料集合。",
+    )
+
+
 def build_restricted_access_denied_response(context: RagOutcomeContext) -> AgentResponse:
     empty_evidence = _build_empty_evidence(context.resolved_scope, context.user_goal)
     return AgentResponse(

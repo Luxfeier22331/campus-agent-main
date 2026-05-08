@@ -15,6 +15,12 @@ from campus_rag_agent.rag_sdk_models import (
 )
 from campus_rag_agent.rag_sdk_output import RagSdkAnswerOutput
 from campus_shared import PromptRuntimeProviderConfig
+from campus_supervisor_agent_worker.agents_sdk_function_tools import (
+    build_agents_sdk_function_tool,
+)
+from campus_supervisor_agent_worker.agents_sdk_tool_bridge import (
+    build_agents_sdk_tool_descriptors,
+)
 from campus_supervisor_agent_worker.rag_agents_sdk_openai_runner import (
     OpenAIRagAgentsSdkRunner,
 )
@@ -31,7 +37,6 @@ class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
 
         for fragment in (
             "OpenAIAgentsNativeRuntime",
-            "FunctionTool",
             "output_type=",
             "self._runtime.run(",
             'build_agents_sdk_tool_descriptors(("retrieve_evidence",))',
@@ -163,7 +168,7 @@ class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
             model_name="gpt-5.4-mini",
         )
         request = _run_request()
-        tool = runner.build_retrieve_evidence_tool(request)
+        tool = _retrieve_evidence_tool(runner, request)
         seen_output = None
 
         async def invoke():
@@ -192,7 +197,7 @@ class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
             model_name="gpt-5.4-mini",
         )
 
-        tool = runner.build_retrieve_evidence_tool(_run_request())
+        tool = _retrieve_evidence_tool(runner, _run_request())
 
         self.assertEqual(tool.name, "retrieve_evidence")
         self.assertIn("bounded evidence anchors", tool.description)
@@ -215,7 +220,7 @@ class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
             model_name="gpt-5.4-mini",
         )
         request = _run_request()
-        tool = runner.build_retrieve_evidence_tool(request)
+        tool = _retrieve_evidence_tool(runner, request)
 
         async def invoke():
             return await tool.on_invoke_tool(
@@ -241,7 +246,7 @@ class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
             model_name="gpt-5.4-mini",
         )
         request = _run_request()
-        tool = runner.build_retrieve_evidence_tool(request)
+        tool = _retrieve_evidence_tool(runner, request)
 
         async def invoke():
             return await tool.on_invoke_tool(
@@ -274,7 +279,7 @@ class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
                 admitted_query_slot_ids=("compare-current-lookup", "compare-other-lookup"),
             ),
         )
-        tool = runner.build_retrieve_evidence_tool(request)
+        tool = _retrieve_evidence_tool(runner, request)
 
         async def invoke():
             return await tool.on_invoke_tool(
@@ -292,6 +297,20 @@ class _FakeRuntimeResult:
     def __init__(self, *, final_output: object, model_response_ref: str) -> None:
         self.final_output = final_output
         self.model_response_ref = model_response_ref
+
+
+def _retrieve_evidence_tool(
+    runner: OpenAIRagAgentsSdkRunner,
+    request: RagSdkRunRequest,
+):
+    descriptor = build_agents_sdk_tool_descriptors(("retrieve_evidence",))[0]
+    return build_agents_sdk_function_tool(
+        descriptor,
+        execute_tool=lambda invocation: runner._execute_retrieve_evidence_tool(
+            invocation,
+            request=request,
+        ),
+    )
 
 
 def _run_request() -> RagSdkRunRequest:

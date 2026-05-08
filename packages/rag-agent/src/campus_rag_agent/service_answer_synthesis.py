@@ -1,413 +1,315 @@
 from __future__ import annotations
 
-from campus_contracts import (
-    AgentRequest,
-    AgentResponse,
-    EvidenceBundle,
-    KnowledgeScope,
-    RagPlannerInformationNeed,
-    RagProjectionContextSummary,
-)
-from campus_retrieval_core import RetrievalExecutionResult
-from campus_shared import PromptRuntimeValidationError, classify_prompt_runtime_failure
+from collections.abc import Callable
 
-from campus_rag_agent.agent import RagAgent
-from campus_rag_agent.agent_answer_shape import AnswerShape
+from campus_contracts import AgentObservability, AgentRequest, AgentResponse, KnowledgeScope
+
 from campus_rag_agent.grounding_validation import validate_prompt_answer_grounding
-from campus_rag_agent.intent import RagIntentFrame
-from campus_rag_agent.prompt_execution import RagPromptExecutor
-from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
-from campus_rag_agent.remote_content_hardening import (
-    apply_remote_content_suspicion_labels,
-    build_remote_content_suspicion_summary,
-    should_block_remote_content_generation,
-)
+from campus_rag_agent.rag_sdk_output import validate_rag_sdk_answer_output
+from campus_rag_agent.rag_sdk_trace import reject_unsafe_rag_sdk_projection
 from campus_rag_agent.retrieval_adequacy import sufficient_retrieval_adequacy
-from campus_rag_agent.typed_answer_drafts import validate_typed_answer_draft
-from campus_rag_agent.grounding_validation_result import GroundingValidationResult
-from campus_rag_agent.grounding_validation_source_trust import build_source_trust_summary
 
-from .service_clarification import _should_keep_deterministic_completed_answer
-from .service_curriculum import (
-    _build_curriculum_course_answer,
-    _build_curriculum_program_family_answer,
+from .rag_sdk_models import (
+    RagQueryIntent,
+    RagSdkEvidenceProjection,
+    RagSdkRunRequest,
+    RagSdkRunResult,
+    RagTaskKind,
 )
 from .service_diagnostics_payload import _build_rag_result_payload
-from .service_prompt_runtime import (
-    _compose_no_answer_response,
-    _with_prompt_trace,
-)
 from .service_response_text import _build_no_answer_response, _resolved_policy_title
 
+RagSdkRunner = Callable[[RagSdkRunRequest], RagSdkRunResult]
+_RAG_SDK_RUNNER_NOT_PROVIDED = object()
 
-def build_grounded_answer_response(
+
+def build_required_rag_sdk_response(
     *,
     request: AgentRequest,
     resolved_scope: KnowledgeScope,
     user_goal: str,
-    evidence: EvidenceBundle,
-    supporting_evidence: EvidenceBundle,
-    retrieval_execution_result: RetrievalExecutionResult | None,
+    supporting_evidence,
+    retrieved_evidence,
+    retrieval_plan,
+    retrieval_execution_result,
     handbook_plan,
     curriculum_plan,
     curriculum_course_plan,
     curriculum_program_family_plan,
     confidence: str,
-    prompt_executor: RagPromptExecutor | None,
-    intent_frame: RagIntentFrame,
-    planner_information_needs: tuple[RagPlannerInformationNeed, ...] = (),
-    projection_context_summaries: tuple[RagProjectionContextSummary, ...] = (),
+    intent_frame,
+    runner: RagSdkRunner | None | object,
+    planner_information_needs=(),
+    projection_context_summaries=(),
 ) -> AgentResponse:
-    should_use_prompt_answer = False
-    prompt_trace = None
-    prompt_runtime_state = ""
-    prompt_runtime_detail = ""
-    remote_content_suspicion_summary = None
-    grounding = None
-    typed_draft_claim_supports = ()
-    if curriculum_program_family_plan is not None:
-        answer_text = _build_curriculum_program_family_answer(
-            evidence=supporting_evidence,
-            plan=curriculum_program_family_plan,
+    if runner is _RAG_SDK_RUNNER_NOT_PROVIDED or runner is None:
+        raise TypeError(
+            "delegate_to_rag_agent requires an explicit rag_sdk_runner for query-enabled RAG synthesis"
         )
-        finalized_evidence = supporting_evidence
-    elif curriculum_course_plan is not None:
-        answer_text = _build_curriculum_course_answer(
-            evidence=supporting_evidence,
-            plan=curriculum_course_plan,
-        )
-        finalized_evidence = supporting_evidence
-    else:
-        agent = RagAgent()
-        answer_shape = _answer_shape_for_handbook_plan(handbook_plan)
-        if answer_shape is None:
-            answer_draft = agent.build_answer(supporting_evidence)
-        else:
-            answer_draft = agent.build_answer(
-                supporting_evidence,
-                answer_shape=answer_shape,
-                category_display_name=getattr(handbook_plan, "category_display_name", ""),
-                audience=getattr(handbook_plan, "audience", ""),
-            )
-        finalized_evidence = EvidenceBundle(
-            query_text=supporting_evidence.query_text,
-            corpus=supporting_evidence.corpus,
-            collection=supporting_evidence.collection,
-            sources=answer_draft.supporting_sources,
-        )
-        apply_remote_content_suspicion_labels(finalized_evidence)
-        remote_content_generation_blocked = should_block_remote_content_generation(
-            finalized_evidence
-        )
-        remote_content_suspicion_summary = build_remote_content_suspicion_summary(
-            finalized_evidence,
-            generation_blocked=remote_content_generation_blocked,
-        )
-        if remote_content_generation_blocked:
-            (
-                blocked_answer_text,
-                blocked_prompt_trace,
-                blocked_prompt_runtime_state,
-                blocked_prompt_runtime_detail,
-            ) = _compose_no_answer_response(
-                request=request,
-                resolved_scope=resolved_scope,
-                evidence=finalized_evidence,
-                no_answer_reason="remote_content_suspicion_blocked",
-                fallback_answer=_build_no_answer_response(
-                    finalized_evidence,
-                    resolved_policy_title=_resolved_policy_title(handbook_plan),
-                ),
-                prompt_executor=prompt_executor,
-                intent_frame=intent_frame,
-            )
-            return AgentResponse(
-                target="rag-agent",
-                status="no_answer",
-                answer_text=blocked_answer_text,
-                confidence="low",
-                result=_with_prompt_trace(
-                    _build_rag_result_payload(
-                        evidence=finalized_evidence,
-                        retrieved_evidence=evidence,
-                        retrieval_execution_result=retrieval_execution_result,
-                        resolved_scope=resolved_scope,
-                        handbook_plan=handbook_plan,
-                        curriculum_plan=curriculum_plan,
-                        curriculum_course_plan=curriculum_course_plan,
-                        curriculum_program_family_plan=curriculum_program_family_plan,
-                        request_id=request.request_id,
-                        no_answer_reason="remote_content_suspicion_blocked",
-                        semantic_outcome="unsupported_by_evidence",
-                        retrieval_adequacy=sufficient_retrieval_adequacy(),
-                        remote_content_suspicion_summary=remote_content_suspicion_summary,
-                        prompt_runtime_state=blocked_prompt_runtime_state,
-                        prompt_runtime_detail=blocked_prompt_runtime_detail,
-                        planner_information_needs=planner_information_needs,
-                        projection_context_summaries=projection_context_summaries,
-                    ),
-                    blocked_prompt_trace,
-                ),
-            )
-        answer_text = answer_draft.answer_text
-        typed_draft_validation = validate_typed_answer_draft(answer_draft.typed_draft)
-        if typed_draft_validation.verdict == "valid":
-            typed_draft_claim_supports = typed_draft_validation.claim_supports
-        else:
-            (
-                invalid_draft_answer_text,
-                invalid_draft_prompt_trace,
-                invalid_draft_prompt_runtime_state,
-                invalid_draft_prompt_runtime_detail,
-            ) = _compose_no_answer_response(
-                request=request,
-                resolved_scope=resolved_scope,
-                evidence=finalized_evidence,
-                no_answer_reason="typed_answer_draft_invalid",
-                fallback_answer=_build_no_answer_response(
-                    finalized_evidence,
-                    resolved_policy_title=_resolved_policy_title(handbook_plan),
-                ),
-                prompt_executor=prompt_executor,
-                intent_frame=intent_frame,
-            )
-            return AgentResponse(
-                target="rag-agent",
-                status="no_answer",
-                answer_text=invalid_draft_answer_text,
-                confidence="low",
-                result=_with_prompt_trace(
-                    _build_rag_result_payload(
-                        evidence=finalized_evidence,
-                        retrieved_evidence=evidence,
-                        retrieval_execution_result=retrieval_execution_result,
-                        resolved_scope=resolved_scope,
-                        handbook_plan=handbook_plan,
-                        curriculum_plan=curriculum_plan,
-                        curriculum_course_plan=curriculum_course_plan,
-                        curriculum_program_family_plan=curriculum_program_family_plan,
-                        request_id=request.request_id,
-                        no_answer_reason="typed_answer_draft_invalid",
-                        semantic_outcome="unsupported_by_evidence",
-                        retrieval_adequacy=sufficient_retrieval_adequacy(),
-                        unsupported_fields=(typed_draft_validation.failure_reason,),
-                        grounding_verdict="unsupported",
-                        grounding_downgraded=True,
-                        remote_content_suspicion_summary=remote_content_suspicion_summary,
-                        prompt_runtime_state=invalid_draft_prompt_runtime_state,
-                        prompt_runtime_detail=invalid_draft_prompt_runtime_detail,
-                        planner_information_needs=planner_information_needs,
-                        projection_context_summaries=projection_context_summaries,
-                    ),
-                    invalid_draft_prompt_trace,
-                ),
-            )
-        should_attempt_prompt_answer = (
-            prompt_executor is not None
-            and not _should_keep_deterministic_completed_answer(
-                resolved_scope=resolved_scope,
-                intent_frame=intent_frame,
-                user_goal=user_goal,
-                evidence=finalized_evidence,
-            )
-        )
-        if should_attempt_prompt_answer:
-            try:
-                execution = prompt_executor.compose_answer(
-                    build_rag_answer_prompt_packet(
-                        request,
-                        resolved_scope=resolved_scope,
-                        evidence=finalized_evidence,
-                        intent_frame=intent_frame,
-                    )
-                )
-            except PromptRuntimeValidationError as exc:
-                prompt_runtime_state, prompt_runtime_detail = classify_prompt_runtime_failure(exc)
-                execution = None
-            if execution is not None:
-                should_use_prompt_answer = True
-                answer_text = execution.output.answer_text
-                prompt_trace = execution.prompt_trace
-                grounding = validate_prompt_answer_grounding(
-                    answer_text=answer_text,
-                    evidence=finalized_evidence,
-                    provider_grounding_supports=execution.provider_grounding_supports,
-                )
-                if grounding.verdict != "grounded":
-                    (
-                        downgraded_answer_text,
-                        downgraded_prompt_trace,
-                        downgraded_prompt_runtime_state,
-                        downgraded_prompt_runtime_detail,
-                    ) = _compose_no_answer_response(
-                        request=request,
-                        resolved_scope=resolved_scope,
-                        evidence=finalized_evidence,
-                        no_answer_reason="insufficient_grounding",
-                        fallback_answer=_build_no_answer_response(
-                            finalized_evidence,
-                            resolved_policy_title=_resolved_policy_title(handbook_plan),
-                        ),
-                        prompt_executor=prompt_executor,
-                        intent_frame=intent_frame,
-                    )
-                    return AgentResponse(
-                        target="rag-agent",
-                        status="no_answer",
-                        answer_text=downgraded_answer_text,
-                        confidence="low",
-                        result=_with_prompt_trace(
-                            _build_rag_result_payload(
-                                evidence=finalized_evidence,
-                                retrieved_evidence=evidence,
-                                retrieval_execution_result=retrieval_execution_result,
-                                resolved_scope=resolved_scope,
-                                handbook_plan=handbook_plan,
-                                curriculum_plan=curriculum_plan,
-                                curriculum_course_plan=curriculum_course_plan,
-                                curriculum_program_family_plan=curriculum_program_family_plan,
-                                request_id=request.request_id,
-                                no_answer_reason="insufficient_grounding",
-                                semantic_outcome="unsupported_by_evidence",
-                                retrieval_adequacy=sufficient_retrieval_adequacy(),
-                                claim_supports=grounding.claim_supports,
-                                unsupported_fields=grounding.unsupported_fields,
-                                grounding_verdict=grounding.verdict,
-                                grounding_downgraded=True,
-                                remote_content_suspicion_summary=remote_content_suspicion_summary,
-                                source_trust_summary=grounding.source_trust_summary,
-                                prompt_runtime_state=downgraded_prompt_runtime_state,
-                                prompt_runtime_detail=downgraded_prompt_runtime_detail,
-                                planner_information_needs=planner_information_needs,
-                                projection_context_summaries=projection_context_summaries,
-                            ),
-                            downgraded_prompt_trace,
-                        ),
-                    )
-    if grounding is None:
-        grounding = _build_deterministic_grounding_result(
-            answer_text=answer_text,
-            evidence=finalized_evidence,
-            typed_draft_claim_supports=typed_draft_claim_supports,
-        )
-    if grounding.verdict != "grounded":
-        (
-            downgraded_answer_text,
-            downgraded_prompt_trace,
-            downgraded_prompt_runtime_state,
-            downgraded_prompt_runtime_detail,
-        ) = _compose_no_answer_response(
+    request_projection = RagSdkRunRequest(
+        user_goal=user_goal,
+        query_intent=build_rag_query_intent(
+            user_goal=user_goal,
+            retrieval_plan=retrieval_plan,
+            intent_frame=intent_frame,
+        ),
+        evidence=RagSdkEvidenceProjection.from_evidence_bundle(supporting_evidence),
+        request_id=request.request_id,
+        selector_blocked_query_slot_ids=selector_blocked_query_slot_ids(retrieval_plan),
+    )
+    try:
+        result = runner(request_projection)
+    except TimeoutError as exc:
+        return _rag_sdk_fail_closed_response(
             request=request,
             resolved_scope=resolved_scope,
-            evidence=finalized_evidence,
+            evidence=supporting_evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            no_answer_reason="rag_sdk_timeout",
+            detail=str(exc) or "RAG SDK runner timed out",
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
+        )
+    except Exception as exc:
+        return _rag_sdk_fail_closed_response(
+            request=request,
+            resolved_scope=resolved_scope,
+            evidence=supporting_evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            no_answer_reason="rag_sdk_runtime_failed",
+            detail=str(exc) or "RAG SDK runner failed",
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
+        )
+    if result.failure_class.strip():
+        return _rag_sdk_fail_closed_response(
+            request=request,
+            resolved_scope=resolved_scope,
+            evidence=supporting_evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            no_answer_reason=result.failure_class.strip(),
+            detail=result.failure_detail.strip() or result.failure_class.strip(),
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
+        )
+    validation = validate_rag_sdk_answer_output(
+        result.output,
+        evidence=RagSdkEvidenceProjection.from_evidence_bundle(supporting_evidence),
+    )
+    if not validation.accepted:
+        return _rag_sdk_fail_closed_response(
+            request=request,
+            resolved_scope=resolved_scope,
+            evidence=supporting_evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            no_answer_reason="rag_sdk_guardrail_failed",
+            detail=validation.failure_reason,
+            claim_supports=validation.claim_supports,
+            unsupported_fields=(validation.failure_reason,),
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
+        )
+    grounding = validate_prompt_answer_grounding(
+        answer_text=result.output.answer_text,
+        evidence=supporting_evidence,
+    )
+    if grounding.verdict != "grounded":
+        return _rag_sdk_fail_closed_response(
+            request=request,
+            resolved_scope=resolved_scope,
+            evidence=supporting_evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
             no_answer_reason="insufficient_grounding",
-            fallback_answer=_build_no_answer_response(
-                finalized_evidence,
-                resolved_policy_title=_resolved_policy_title(handbook_plan),
-            ),
-            prompt_executor=prompt_executor,
-            intent_frame=intent_frame,
+            detail="rag_sdk_answer_text_unsupported",
+            claim_supports=grounding.claim_supports,
+            unsupported_fields=grounding.unsupported_fields,
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
         )
-        return AgentResponse(
-            target="rag-agent",
-            status="no_answer",
-            answer_text=downgraded_answer_text,
-            confidence="low",
-            result=_with_prompt_trace(
-                _build_rag_result_payload(
-                    evidence=finalized_evidence,
-                    retrieved_evidence=evidence,
-                    retrieval_execution_result=retrieval_execution_result,
-                    resolved_scope=resolved_scope,
-                    handbook_plan=handbook_plan,
-                    curriculum_plan=curriculum_plan,
-                    curriculum_course_plan=curriculum_course_plan,
-                    curriculum_program_family_plan=curriculum_program_family_plan,
-                    request_id=request.request_id,
-                    no_answer_reason="insufficient_grounding",
-                    semantic_outcome="unsupported_by_evidence",
-                    retrieval_adequacy=sufficient_retrieval_adequacy(),
-                    claim_supports=grounding.claim_supports,
-                    unsupported_fields=grounding.unsupported_fields,
-                    grounding_verdict=grounding.verdict,
-                    grounding_downgraded=True,
-                    remote_content_suspicion_summary=remote_content_suspicion_summary,
-                    source_trust_summary=grounding.source_trust_summary,
-                    prompt_runtime_state=downgraded_prompt_runtime_state,
-                    prompt_runtime_detail=downgraded_prompt_runtime_detail,
-                    planner_information_needs=planner_information_needs,
-                    projection_context_summaries=projection_context_summaries,
-                ),
-                downgraded_prompt_trace,
-            ),
+    try:
+        safe_trace_details = safe_rag_sdk_trace_details(result)
+    except ValueError:
+        return _rag_sdk_fail_closed_response(
+            request=request,
+            resolved_scope=resolved_scope,
+            evidence=supporting_evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            no_answer_reason="rag_sdk_runtime_failed",
+            detail="rag_sdk_trace_projection_unsafe",
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
         )
-
     return AgentResponse(
         target="rag-agent",
         status="completed",
-        answer_text=answer_text,
-        confidence=confidence,
-        result=_with_prompt_trace(
-            _build_rag_result_payload(
-                evidence=finalized_evidence,
-                retrieved_evidence=evidence,
-                retrieval_execution_result=retrieval_execution_result,
-                resolved_scope=resolved_scope,
-                handbook_plan=handbook_plan,
-                curriculum_plan=curriculum_plan,
-                curriculum_course_plan=curriculum_course_plan,
-                curriculum_program_family_plan=curriculum_program_family_plan,
-                request_id=request.request_id,
-                allow_session_follow_up=True,
-                semantic_outcome="grounded_answer",
-                retrieval_adequacy=sufficient_retrieval_adequacy(),
-                claim_supports=(
-                    grounding.claim_supports
-                    if should_use_prompt_answer
-                    else typed_draft_claim_supports or grounding.claim_supports
-                ),
-                grounding_verdict="grounded",
-                remote_content_suspicion_summary=remote_content_suspicion_summary,
-                source_trust_summary=grounding.source_trust_summary,
-                prompt_runtime_state=prompt_runtime_state,
-                prompt_runtime_detail=prompt_runtime_detail,
-                planner_information_needs=planner_information_needs,
-                projection_context_summaries=projection_context_summaries,
-            ),
-            (
-                prompt_trace
-                if should_use_prompt_answer
-                and curriculum_program_family_plan is None
-                and curriculum_course_plan is None
-                else None
-            ),
+        answer_text=result.output.answer_text,
+        confidence=result.output.confidence or confidence,
+        result=_build_rag_result_payload(
+            evidence=supporting_evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            resolved_scope=resolved_scope,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            request_id=request.request_id,
+            allow_session_follow_up=True,
+            semantic_outcome=result.output.semantic_outcome or "grounded_answer",
+            retrieval_adequacy=sufficient_retrieval_adequacy(),
+            claim_supports=grounding.claim_supports or validation.claim_supports,
+            grounding_verdict="grounded",
+            prompt_runtime_state="rag_sdk_completed",
+            prompt_runtime_detail=safe_rag_sdk_runtime_detail(result),
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
+        ),
+        agent_observability=AgentObservability(
+            safe_details=safe_trace_details,
         ),
     )
 
 
-def _answer_shape_for_handbook_plan(handbook_plan) -> AnswerShape | None:
-    if getattr(handbook_plan, "task_kind", "") == "category_discovery":
-        return AnswerShape.CATEGORY_DISCOVERY_LIST
-    return None
-
-
-def _build_deterministic_grounding_result(
-    *,
-    answer_text: str,
-    evidence: EvidenceBundle,
-    typed_draft_claim_supports,
-) -> GroundingValidationResult:
-    if typed_draft_claim_supports:
-        return GroundingValidationResult(
-            verdict="grounded",
-            unsupported_fields=(),
-            claim_supports=typed_draft_claim_supports,
-            source_trust_summary=build_source_trust_summary(
-                evidence=evidence,
-                claim_supports=typed_draft_claim_supports,
-            ),
-        )
-    return validate_prompt_answer_grounding(
-        answer_text=answer_text,
-        evidence=evidence,
+def build_rag_query_intent(*, user_goal: str, retrieval_plan, intent_frame) -> RagQueryIntent:
+    _ = intent_frame
+    normalized_goal = user_goal.strip()
+    task_kind = RagTaskKind.FACT_LOOKUP
+    if "哪些" in normalized_goal or "有哪些" in normalized_goal:
+        task_kind = RagTaskKind.CATEGORY_DISCOVERY
+    elif "怎么" in normalized_goal or "怎么办" in normalized_goal:
+        task_kind = RagTaskKind.AMBIGUOUS_PROCEDURE
+    elif "比较" in normalized_goal or "区别" in normalized_goal:
+        task_kind = RagTaskKind.COMPARISON
+    return RagQueryIntent(
+        task_kind=task_kind,
+        normalized_query=normalized_goal,
+        admitted_query_slot_ids=tuple(step.step_id for step in retrieval_plan.steps),
     )
+
+
+def selector_blocked_query_slot_ids(retrieval_plan) -> tuple[str, ...]:
+    blocked: list[str] = []
+    for step in retrieval_plan.steps:
+        selector = step.selector
+        if not selector.target_document_ids:
+            continue
+        if step.step_id in {
+            "indexed-lookup",
+            "entity-resolution",
+            "historical-version-lookup",
+            "compare-current-lookup",
+            "compare-other-lookup",
+        }:
+            continue
+        blocked.append(step.step_id)
+    return tuple(blocked)
+
+
+def safe_rag_sdk_runtime_detail(result: RagSdkRunResult) -> str:
+    if result.failure_class:
+        return result.failure_class
+    if isinstance(result.trace_projection, dict):
+        schema = str(result.trace_projection.get("schema_version") or "").strip()
+        if schema:
+            return schema
+    return ""
+
+
+def safe_rag_sdk_trace_details(result: RagSdkRunResult) -> dict[str, object]:
+    projection = result.trace_projection
+    if not isinstance(projection, dict):
+        return {}
+    reject_unsafe_rag_sdk_projection(projection)
+    return {"rag_sdk_trace_projection": dict(projection)}
+
+
+def _rag_sdk_fail_closed_response(
+    *,
+    request: AgentRequest,
+    resolved_scope: KnowledgeScope,
+    evidence,
+    retrieved_evidence,
+    retrieval_execution_result,
+    handbook_plan,
+    curriculum_plan,
+    curriculum_course_plan,
+    curriculum_program_family_plan,
+    no_answer_reason: str,
+    detail: str,
+    claim_supports=(),
+    unsupported_fields=(),
+    planner_information_needs=(),
+    projection_context_summaries=(),
+) -> AgentResponse:
+    return AgentResponse(
+        target="rag-agent",
+        status="no_answer",
+        answer_text=_build_no_answer_response(
+            evidence,
+            resolved_policy_title=_resolved_policy_title(handbook_plan),
+        ),
+        confidence="low",
+        result=_build_rag_result_payload(
+            evidence=evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            resolved_scope=resolved_scope,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            request_id=request.request_id,
+            no_answer_reason=no_answer_reason,
+            semantic_outcome="unsupported_by_evidence",
+            retrieval_adequacy=sufficient_retrieval_adequacy(),
+            claim_supports=claim_supports,
+            unsupported_fields=unsupported_fields,
+            grounding_verdict="unsupported",
+            grounding_downgraded=True,
+            prompt_runtime_state=no_answer_reason,
+            prompt_runtime_detail=detail,
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
+        ),
+    )
+
+
+__all__ = [
+    "_RAG_SDK_RUNNER_NOT_PROVIDED",
+    "RagSdkRunner",
+    "build_rag_query_intent",
+    "build_required_rag_sdk_response",
+    "safe_rag_sdk_runtime_detail",
+    "safe_rag_sdk_trace_details",
+    "selector_blocked_query_slot_ids",
+]

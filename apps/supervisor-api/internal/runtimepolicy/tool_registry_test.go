@@ -298,6 +298,35 @@ func TestToolSpecRegistryValidationRequiresStructuredHandoffPayloadMatch(t *test
 	}
 }
 
+func TestToolSpecRegistryValidationRejectsLegacySdkAdapterCandidatePosture(t *testing.T) {
+	path := writeToolRegistryFixture(
+		t,
+		`{
+		  "schema_version": "tool-spec-registry-v2",
+		  "registry_version": "test",
+		  "tools": [{
+		    "name": "service_status_lookup",
+		    "owner_agent": "campus-services-agent",
+		    "capability": "campus_services",
+		    "payload_kind": "service_status_lookup",
+		    "payload_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupPayload",
+		    "result_schema_ref": "campus_contracts.models_tools.ServiceStatusLookupResult",
+		    "backend": "internal_structured_query_service",
+		    "surface": "structured_handoff",
+		    "read_only": true,
+		    "active": true,
+		    "function_schema": {"available": true, "strict": true},
+		    "runtime_posture": "sdk_adapter_candidate",
+		    "description": "Lookup current or temporally qualified campus service status."
+		  }]
+		}`,
+	)
+
+	if _, err := LoadToolSpecRegistry(path); err == nil {
+		t.Fatal("LoadToolSpecRegistry accepted legacy sdk_adapter_candidate runtime posture")
+	}
+}
+
 func writeToolRegistryFixture(t *testing.T, body string) string {
 	t.Helper()
 	path := filepath.Join(t.TempDir(), "tools.v2.json")

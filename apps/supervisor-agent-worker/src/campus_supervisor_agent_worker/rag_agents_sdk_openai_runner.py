@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 from dataclasses import replace
 
 from campus_rag_agent.rag_sdk_models import (
@@ -148,36 +147,6 @@ class OpenAIRagAgentsSdkRunner:
             ),
         )
 
-    def build_retrieve_evidence_tool(self, request: RagSdkRunRequest):
-        from agents import FunctionTool
-
-        descriptor = build_agents_sdk_tool_descriptors(("retrieve_evidence",))[0]
-
-        async def invoke_tool(context: object, raw_arguments: str) -> str:
-            arguments = _parse_tool_arguments(raw_arguments)
-            try:
-                result = self._execute_retrieve_evidence_tool(
-                    OpenAIAgentsToolInvocation(
-                        name=descriptor.name,
-                        arguments=arguments,
-                        call_id=str(getattr(context, "tool_call_id", "") or ""),
-                    ),
-                    request=request,
-                )
-            except OpenAIAgentsRuntimeError as exc:
-                raise ValueError(exc.failure_class) from exc
-            return json.dumps(result, ensure_ascii=False, sort_keys=True)
-
-        return FunctionTool(
-            name=descriptor.name,
-            description=descriptor.description,
-            params_json_schema=descriptor.parameters,
-            on_invoke_tool=invoke_tool,
-            strict_json_schema=descriptor.function_schema_strict,
-            timeout_seconds=None,
-            timeout_behavior="raise_exception",
-        )
-
     def _execute_retrieve_evidence_tool(
         self,
         invocation: OpenAIAgentsToolInvocation,
@@ -268,18 +237,6 @@ def _coerce_structured_output(value: object) -> RagSdkAnswerOutput:
         needs_clarification=output.needs_clarification,
         follow_up_question=output.follow_up_question,
     )
-
-
-def _parse_tool_arguments(raw_arguments: str) -> dict[str, object]:
-    try:
-        parsed = json.loads(raw_arguments or "{}")
-    except json.JSONDecodeError as exc:
-        raise ValueError("rag_sdk_bad_arguments") from exc
-    if not isinstance(parsed, dict):
-        raise ValueError("rag_sdk_bad_arguments")
-    return dict(parsed)
-
-
 def _anchor(value: _RagSdkStructuredAnchor) -> RagSdkEvidenceAnchor:
     return RagSdkEvidenceAnchor(
         source_id=value.source_id,

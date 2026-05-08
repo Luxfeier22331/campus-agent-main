@@ -70,6 +70,46 @@ def maybe_build_unscoped_workflow_projection_response(
     )
 
 
+def build_workflow_projection_completed_response(
+    *,
+    request: AgentRequest,
+    projection_evidence: EvidenceBundle,
+    retrieved_evidence: EvidenceBundle,
+    retrieval_execution_result,
+    resolved_scope: KnowledgeScope,
+    handbook_plan,
+    curriculum_plan,
+    curriculum_course_plan,
+    curriculum_program_family_plan,
+    confidence: str,
+    build_rag_result_payload,
+    planner_information_needs=(),
+    projection_context_summaries=(),
+) -> AgentResponse:
+    return AgentResponse(
+        target="rag-agent",
+        status="completed",
+        answer_text=build_workflow_projection_answer_text(projection_evidence),
+        confidence=confidence,
+        result=build_rag_result_payload(
+            evidence=projection_evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            resolved_scope=resolved_scope,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            request_id=request.request_id,
+            allow_session_follow_up=True,
+            semantic_outcome="grounded_workflow_projection",
+            grounding_verdict="grounded",
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
+        ),
+    )
+
+
 def maybe_build_workflow_projection_evidence(
     *,
     request: AgentRequest,

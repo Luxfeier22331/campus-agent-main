@@ -6,6 +6,7 @@ from pathlib import Path
 
 REPO_ROOT = Path(".")
 SDK_SOURCE_DIR = REPO_ROOT / "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker"
+RAG_AGENT_SOURCE_DIR = REPO_ROOT / "packages/rag-agent/src/campus_rag_agent"
 WORKSTREAM_DIR = REPO_ROOT / ".planning/workstreams/agents-sdk-domain-agent-adapter-pilot"
 
 
@@ -50,7 +51,30 @@ class AgentsSdkCloseoutGuardrailsTest(unittest.TestCase):
         self.assertNotIn("def _is_internal_function_request", delegates_source)
         self.assertNotIn("build_agents_sdk_tool_descriptors(", delegates_source)
         self.assertIn("def execute(", executor_source)
-        self.assertIn("single_tool_structured_handoff", executor_source)
+        self.assertIn("sdk_agent_execution", executor_source)
+        self.assertNotIn("single_tool_structured_handoff", executor_source)
+
+    def test_rag_sdk_hardcut_keeps_explicit_runner_and_no_nullable_worker_runtime(self) -> None:
+        delegates_source = (SDK_SOURCE_DIR / "agent_delegates.py").read_text(encoding="utf-8")
+        rag_service_source = (RAG_AGENT_SOURCE_DIR / "service.py").read_text(encoding="utf-8")
+        rag_synthesis_source = (RAG_AGENT_SOURCE_DIR / "service_answer_synthesis.py").read_text(
+            encoding="utf-8"
+        )
+
+        self.assertIn("_build_unavailable_rag_sdk_runner", delegates_source)
+        self.assertNotIn("return None", delegates_source.split("def _build_rag_openai_runtime", 1)[1])
+        self.assertIn("_RAG_SDK_RUNNER_NOT_PROVIDED", rag_service_source)
+        self.assertIn("requires an explicit rag_sdk_runner", rag_synthesis_source)
+        self.assertNotIn("rag_sdk_runner: RagSdkRunner | None = None", rag_service_source)
+
+    def test_realistic_chain_eval_uses_explicit_inprocess_rag_delegate(self) -> None:
+        eval_source = (
+            REPO_ROOT / "packages/evals/src/campus_evals/rag_realistic_chain_validation.py"
+        ).read_text(encoding="utf-8")
+
+        self.assertIn("_delegate_to_rag_agent_for_realistic_eval", eval_source)
+        self.assertIn("rag_sdk_runner=_realistic_eval_sdk_runner", eval_source)
+        self.assertNotIn("from campus_rag_agent import delegate_to_rag_agent", eval_source)
 
     def test_sdk_source_does_not_admit_hosted_or_stateful_tool_surfaces(self) -> None:
         forbidden_patterns = {

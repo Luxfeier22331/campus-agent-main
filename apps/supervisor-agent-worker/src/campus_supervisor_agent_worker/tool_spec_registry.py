@@ -47,6 +47,18 @@ class ToolSpecRegistry:
     registry_version: str
     tools: tuple[ToolSpec, ...]
 
+    def validate(self) -> None:
+        if self.schema_version != TOOL_SPEC_SCHEMA_VERSION:
+            raise ToolSpecRegistryError(
+                "tool spec schema_version must be "
+                f"{TOOL_SPEC_SCHEMA_VERSION}, got {self.schema_version!r}"
+            )
+        if not self.registry_version.strip():
+            raise ToolSpecRegistryError("tool spec registry_version must be a non-empty string")
+        if not self.tools:
+            raise ToolSpecRegistryError("tool spec tools must be a non-empty list")
+        _validate_tools(self.tools)
+
     def tool_by_name(self, name: str) -> ToolSpec | None:
         for tool in self.tools:
             if tool.name == name:
@@ -172,22 +184,21 @@ class ToolSpecRegistry:
 def load_tool_spec_registry(path: str | Path | None = None) -> ToolSpecRegistry:
     registry_path = _resolve_tool_spec_path(path)
     raw = _load_json(registry_path)
-    if raw.get("schema_version") != TOOL_SPEC_SCHEMA_VERSION:
-        raise ToolSpecRegistryError(
-            "tool spec schema_version must be "
-            f"{TOOL_SPEC_SCHEMA_VERSION}, got {raw.get('schema_version')!r}"
-        )
-    registry_version = _required_string(raw.get("registry_version"), "registry_version")
     raw_tools = raw.get("tools")
-    if not isinstance(raw_tools, list) or not raw_tools:
-        raise ToolSpecRegistryError("tool spec tools must be a non-empty list")
-    tools = tuple(_parse_tool(item) for item in raw_tools)
-    _validate_tools(tools)
-    return ToolSpecRegistry(
+    tools = tuple(_parse_tool(item) for item in raw_tools or [])
+    registry = ToolSpecRegistry(
         schema_version=TOOL_SPEC_SCHEMA_VERSION,
-        registry_version=registry_version,
+        registry_version=_required_string(raw.get("registry_version"), "registry_version"),
         tools=tools,
     )
+    if raw.get("schema_version") != TOOL_SPEC_SCHEMA_VERSION:
+        registry = ToolSpecRegistry(
+            schema_version=str(raw.get("schema_version") or ""),
+            registry_version=registry.registry_version,
+            tools=registry.tools,
+        )
+    registry.validate()
+    return registry
 
 
 @lru_cache(maxsize=1)
@@ -246,7 +257,6 @@ def _validate_tools(tools: tuple[ToolSpec, ...]) -> None:
         if tool.runtime_posture not in {
             "closed",
             "typed_handoff_only",
-            "sdk_adapter_candidate",
             "sdk_adapter_admitted",
             "sdk_internal_admitted",
             "internal_function",

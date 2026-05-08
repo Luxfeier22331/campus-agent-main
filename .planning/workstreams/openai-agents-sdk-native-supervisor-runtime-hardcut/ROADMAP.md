@@ -15,17 +15,17 @@ updated: 2026-05-08
   current debt inventory and hard-cut acceptance gates.
 - [x] **Phase 2: Native SDK Runtime Factory** — introduce one worker-owned SDK runtime factory
   that directly uses official `Agent` / `Runner`.
-- [ ] **Phase 3: ToolSpec To FunctionTool Compiler** — make ToolSpec the single source for all SDK
+- [x] **Phase 3: ToolSpec To FunctionTool Compiler** — make ToolSpec the single source for all SDK
   function tools, including structured handoff tools and RAG internal tools.
-- [ ] **Phase 4: Structured Domain-Agent Native Runtime** — migrate campus-services / notice /
+- [x] **Phase 4: Structured Domain-Agent Native Runtime** — migrate campus-services / notice /
   navigation structured execution to native SDK runtime and delete custom runner shell usage.
-- [ ] **Phase 5: RAG Agent Native Runtime Hardcut** — make query-enabled RAG answer synthesis
+- [x] **Phase 5: RAG Agent Native Runtime Hardcut** — make query-enabled RAG answer synthesis
   SDK-native and remove rollout/fallback modes.
 - [ ] **Phase 6: WorkflowPlan SDK Compiler** — compile admitted Go `WorkflowPlan` shapes into
   SDK-native single-agent, agents-as-tools or handoff execution.
 - [ ] **Phase 7: Observability, Guardrails And Readiness** — unify sanitized SDK trace, guardrail
   projection and fail-close readiness.
-- [ ] **Phase 8: Residual Deletion And Drift Guards** — delete self-built runtime residue and add
+- [ ] **Phase 8: Residual Deletion And Drift Guards** — delete remaining self-built runtime residue and add
   deterministic anti-regression guards.
 - [ ] **Phase 9: Eval And Product-Path Acceptance** — verify public-chat / supervisor / eval
   behavior against SDK-native runtime only.

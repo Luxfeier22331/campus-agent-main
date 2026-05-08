@@ -12,7 +12,6 @@ from campus_contracts import (
     RagRequestPayload,
     RagResultPayload,
 )
-from campus_rag_agent import delegate_to_rag_agent
 from campus_retrieval_core import retrieve_sources
 
 from campus_evals.app_api_chat_runtime import AppApiEvalClient, AppApiEvalClientSettings
@@ -29,6 +28,7 @@ from campus_evals.live_benchmark import (
     build_default_output_dir as build_shared_default_output_dir,
 )
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace
+from campus_evals.rag_inprocess_delegate import delegate_to_rag_agent_inprocess
 from campus_evals.scenarios import handbook_release_gate_cases
 
 RUN_PREFIX = "student-handbook-formal-benchmark"
@@ -67,7 +67,7 @@ def build_handbook_live_executor(
 def build_inprocess_handbook_live_executor(
     *,
     retriever: Retriever = retrieve_sources,
-    delegate: Delegate = delegate_to_rag_agent,
+    delegate: Delegate = delegate_to_rag_agent_inprocess,
 ) -> Callable[[GoldenCase], ExecutionResult]:
     def _execute(case: GoldenCase) -> ExecutionResult:
         retrieved_evidence: EvidenceBundle | None = None

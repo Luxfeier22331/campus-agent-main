@@ -42,7 +42,8 @@ from campus_supervisor_agent_worker.tool_spec_registry import (
 @dataclass(frozen=True, slots=True)
 class AdmittedAgentExecutionPlan:
     mode: str
-    tool: ToolSpec | None = None
+    runtime_posture: str = ""
+    internal_function_tool: ToolSpec | None = None
     failure_class: str = ""
     message: str = ""
 
@@ -63,7 +64,7 @@ class AdmittedAgentExecutor:
 
     def execute(self, agent_request: AgentRequest) -> AgentResponse:
         plan = self.plan(agent_request)
-        if plan.mode == "single_tool_structured_handoff":
+        if plan.mode == "sdk_agent_execution":
             return self._run_structured_native_runtime(agent_request, plan=plan)
         if plan.mode == "internal_function":
             return self._run_internal_function(agent_request, plan=plan)
@@ -72,7 +73,7 @@ class AdmittedAgentExecutor:
             plan.failure_class or "request_not_admitted",
             plan.message or "domain-agent request is outside the Go-admitted execution boundary",
             bridge_reason=plan.failure_class or "request_not_admitted",
-            runtime_posture=plan.tool.runtime_posture if plan.tool is not None else "",
+            runtime_posture=plan.runtime_posture,
         )
 
     def plan(self, agent_request: AgentRequest) -> AdmittedAgentExecutionPlan:
@@ -99,18 +100,27 @@ class AdmittedAgentExecutor:
                 ),
             )
 
-        if len(expected_tools) == 1:
+        if expected_tools:
             tool = self._tool_registry.tool_by_name(expected_tools[0])
             if (
                 tool is not None
                 and tool.active
                 and tool.surface == "structured_handoff"
                 and tool.owner_agent == agent_request.target
-                and tool.runtime_posture == "sdk_adapter_admitted"
+                and all(
+                    admitted_tool is not None
+                    and admitted_tool.active
+                    and admitted_tool.surface == "structured_handoff"
+                    and admitted_tool.owner_agent == agent_request.target
+                    and admitted_tool.runtime_posture == "sdk_adapter_admitted"
+                    for admitted_tool in (
+                        self._tool_registry.tool_by_name(tool_name) for tool_name in expected_tools
+                    )
+                )
             ):
                 return AdmittedAgentExecutionPlan(
-                    mode="single_tool_structured_handoff",
-                    tool=tool,
+                    mode="sdk_agent_execution",
+                    runtime_posture=tool.runtime_posture,
                 )
 
         if not expected_tools:
@@ -121,7 +131,11 @@ class AdmittedAgentExecutor:
                 and tool.surface == "agent_internal"
                 and tool.runtime_posture == "internal_function"
             ):
-                return AdmittedAgentExecutionPlan(mode="internal_function", tool=tool)
+                return AdmittedAgentExecutionPlan(
+                    mode="internal_function",
+                    runtime_posture=tool.runtime_posture,
+                    internal_function_tool=tool,
+                )
 
         return AdmittedAgentExecutionPlan(
             mode="not_admitted",
@@ -158,7 +172,6 @@ class AdmittedAgentExecutor:
                 agent_request.allowed_tools,
                 registry=self._tool_registry,
             )
-            descriptor = descriptors[0]
             profile = instruction_profile_for_request(agent_request)
 
             def execute_and_record(invocation: OpenAIAgentsToolInvocation):
@@ -181,13 +194,13 @@ class AdmittedAgentExecutor:
             result = self._runtime.run_agent(
                 agent_request=agent_request,
                 instruction_profile=profile,
-                tool_descriptors=(descriptor,),
+                tool_descriptors=descriptors,
                 execute_tool=execute_and_record,
             )
             return response_from_native_runtime_result(
                 agent_request,
                 result,
-                descriptor=descriptor,
+                descriptors=descriptors,
                 tool_execution_records=tuple(tool_execution_records),
                 require_tool_execution=True,
                 latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
@@ -241,7 +254,7 @@ class AdmittedAgentExecutor:
         *,
         plan: AdmittedAgentExecutionPlan,
     ) -> AgentResponse:
-        if plan.tool is None:
+        if plan.internal_function_tool is None:
             return runtime_error_response(
                 agent_request,
                 "request_not_admitted",
@@ -250,7 +263,7 @@ class AdmittedAgentExecutor:
             )
         try:
             return self._tool_execution_session.execute_internal_function(
-                plan.tool.name,
+                plan.internal_function_tool.name,
                 context=ToolExecutionContext(agent_request=agent_request),
             )
         except Exception as exc:
@@ -268,9 +281,9 @@ class AdmittedAgentExecutor:
         *,
         plan: AdmittedAgentExecutionPlan | None = None,
     ) -> str:
-        if plan is not None and plan.tool is not None:
-            return plan.tool.runtime_posture
-        if len(agent_request.allowed_tools) == 1:
+        if plan is not None and plan.runtime_posture:
+            return plan.runtime_posture
+        if agent_request.allowed_tools:
             tool = self._tool_registry.tool_by_name(agent_request.allowed_tools[0])
             return tool.runtime_posture if tool is not None else ""
         try:

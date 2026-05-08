@@ -15,18 +15,20 @@ updated: 2026-05-08
 **Status:** active
 **Current Phase:** Phase 8 - Residual Deletion And Drift Guards
 **Last Activity:** 2026-05-08
-**Last Activity Description:** Completed Phase 1 planning artifacts, Phase 2 native SDK runtime
-factory foundation, and post-implementation review fixes.
+**Last Activity Description:** Completed the current hardcut slice: unified SDK FunctionTool
+factory, removed legacy `sdk_adapter_candidate` posture, hard-cut RAG production service to require
+an explicit SDK runner, and replaced nullable worker injection with a concrete fail-closed runtime.
 
 ## Current Slice
 
-Phase 1 and Phase 2 are complete. Native runtime and RAG wrapper hardcut are in place.
+Phase 1 and Phase 2 are complete. The current implementation slice also landed the production RAG
+hardcut seam and residual cleanup around nullable runner injection.
 
 Immediate next implementation slice:
 
-- finish residual deletion and drift guards;
+- finish remaining residual deletion and drift guards;
 - keep observability naming aligned with native runtime truth;
-- preserve focused verification for native runtime / RAG wrapper / smoke paths.
+- broaden focused verification from worker/RAG seam to eval and product-path acceptance.
 
 ## Baseline Facts
 
@@ -41,8 +43,11 @@ Immediate next implementation slice:
   owner.
 - Official OpenAI Agents SDK supports agents, tools, handoffs and tracing; this workstream uses those
   primitives as Python runtime substrate only.
-- Phase 2 added `OpenAIAgentsNativeRuntime` as the production factory foundation, but existing call
-  sites still use the old custom runner shell until Phase 4 / Phase 8.
+- Structured SDK call sites now use the production native runtime foundation and unified
+  FunctionTool compiler.
+- Query-enabled RAG synthesis now requires an explicit SDK runner at the production service
+  boundary; test/eval helper wrappers own their own explicit in-process runner injection and no
+  longer rely on a nullable production seam.
 
 ## Blockers
 
@@ -101,8 +106,23 @@ Observed result on 2026-05-08:
 - markdown lint: `Summary: 0 error(s)`
 - diff whitespace check: exit 0
 
+Current hardcut slice verification:
+
+```bash
+uv run --all-packages python -m unittest tests.agent.rag_agent_sdk_service_suite tests.supervisor.rag_agents_sdk_delegate_suite tests.agent.rag_agent_agentic_runtime_contract_suite tests.agent.rag_agent_agentic_depth_runtime_suite tests.agent.rag_agent_workflow_projection_grounding_suite tests.agent.test_rag_retrieval_plan -q
+uv run --all-packages python -m unittest tests.supervisor.tool_spec_registry_suite tests.supervisor.agents_sdk_tool_bridge_suite -q
+cd apps/supervisor-api && go test ./internal/runtimepolicy -run 'TestToolSpecRegistryValidationRejectsLegacySdkAdapterCandidatePosture|TestLoadToolSpecRegistryLoadsDefaultStructuredTools'
+```
+
+Observed result on 2026-05-08:
+
+- focused worker/RAG suite: `Ran 52 tests in 0.111s` / `OK`
+- tool registry/bridge suite: `Ran 18 tests ... OK`
+- Go runtimepolicy tests: `ok`
+
 ## Session Continuity
 
-**Stopped At:** Native runtime hardcut completed; residual deletion and docs closeout next
+**Stopped At:** explicit RAG runner hardcut and registry posture cleanup completed; residual
+deletion, wider eval acceptance and docs closeout next
 **Resume File:** `README.md`, `REQUIREMENTS.md`, `ROADMAP.md`, `STATE.md`,
 `CURRENT-DEBT-INVENTORY.md`, `SDK-PRIMITIVE-MAPPING.md`

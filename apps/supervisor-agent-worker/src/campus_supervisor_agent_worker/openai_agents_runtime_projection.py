@@ -44,7 +44,7 @@ def response_from_native_runtime_result(
     request: AgentRequest,
     result: OpenAIAgentsRunResult,
     *,
-    descriptor,
+    descriptors,
     tool_execution_records: tuple[OpenAIAgentsToolExecutionRecord, ...] = (),
     require_tool_execution: bool = False,
     latency_ms: int = 0,
@@ -52,8 +52,14 @@ def response_from_native_runtime_result(
     result_usage_mode: str = "",
     surface_execution_mode: str = "",
 ) -> AgentResponse:
+    descriptor_by_name = {descriptor.name: descriptor for descriptor in descriptors}
     tool_call = _single_tool_call(result.tool_calls)
-    _validate_tool_call_matches_descriptor(tool_call, descriptor.name)
+    descriptor = descriptor_by_name.get(tool_call.name)
+    if descriptor is None:
+        raise OpenAIAgentsRuntimeProjectionError(
+            "sdk_wrong_tool",
+            f"OpenAI Agents native runtime called disallowed tool: {tool_call.name}",
+        )
     validated_arguments = _validate_tool_arguments(tool_call.arguments, descriptor.parameters)
     if require_tool_execution and not tool_execution_records:
         raise OpenAIAgentsRuntimeProjectionError(
@@ -86,7 +92,11 @@ def response_from_native_runtime_result(
             _promote_transport_schedule_fields(response_result, latest)
         if descriptor.payload_kind == "campus_notice_change_set_lookup":
             _promote_notice_change_set_fields(response_result, latest)
-    output_projection_ref = _workflow_output_projection_ref(request, tool_execution_records)
+    output_projection_ref = _workflow_output_projection_ref(
+        request,
+        tool_name=tool_call.name,
+        records=tool_execution_records,
+    )
     _validate_expected_output_artifacts(request.workflow_context, output_projection_ref)
     trace_projection = build_agents_sdk_trace_projection(
         target=request.target,
@@ -250,16 +260,6 @@ def _single_tool_call(tool_calls: tuple[OpenAIAgentsToolCall, ...]) -> OpenAIAge
             "OpenAI Agents native runtime tool call name is required",
         )
     return tool_call
-
-
-def _validate_tool_call_matches_descriptor(tool_call: OpenAIAgentsToolCall, tool_name: str) -> None:
-    if tool_call.name != tool_name:
-        raise OpenAIAgentsRuntimeProjectionError(
-            "sdk_wrong_tool",
-            f"OpenAI Agents native runtime called disallowed tool: {tool_call.name}",
-        )
-
-
 def _validate_tool_arguments(
     arguments: dict[str, object],
     parameters: dict[str, Any],
@@ -490,12 +490,13 @@ def _promote_notice_change_set_fields(
 
 def _workflow_output_projection_ref(
     request: AgentRequest,
+    *,
+    tool_name: str,
     records: tuple[OpenAIAgentsToolExecutionRecord, ...],
 ) -> dict[str, object] | None:
     if not records:
         return None
     latest = records[-1].result_projection
-    tool_name = request.allowed_tools[0] if request.allowed_tools else ""
     return _projection_for_tool_result(request.workflow_context.step_id, tool_name, latest)
 
 

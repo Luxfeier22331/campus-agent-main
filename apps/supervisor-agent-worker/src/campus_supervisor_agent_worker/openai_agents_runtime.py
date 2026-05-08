@@ -1,12 +1,14 @@
 from __future__ import annotations
 
-import json
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field
 
 from campus_contracts import AgentRequest
 from campus_shared import PromptRuntimeProviderConfig
 
+from campus_supervisor_agent_worker.agents_sdk_function_tools import (
+    build_agents_sdk_function_tool,
+)
 from campus_supervisor_agent_worker.agents_sdk_instruction_profiles import (
     AgentsSdkInstructionProfile,
 )
@@ -106,10 +108,10 @@ class OpenAIAgentsNativeRuntime:
 
         recorded_tool_calls: list[OpenAIAgentsToolCall] = []
         tools = tuple(
-            self._function_tool(
+            build_agents_sdk_function_tool(
                 descriptor,
                 execute_tool=execute_tool,
-                recorded_tool_calls=recorded_tool_calls,
+                record_tool_call=recorded_tool_calls.append,
             )
             for descriptor in tool_descriptors
         )
@@ -166,78 +168,6 @@ class OpenAIAgentsNativeRuntime:
             max_turns=max_turns,
             run_config=run_config,
         )
-
-    def _function_tool(
-        self,
-        descriptor: AgentsSdkToolDescriptor,
-        *,
-        execute_tool: OpenAIAgentsToolExecutor | None,
-        recorded_tool_calls: list[OpenAIAgentsToolCall],
-    ):
-        from agents import FunctionTool
-
-        async def invoke_tool(context: object, raw_arguments: str) -> str:
-            arguments = _parse_tool_arguments(raw_arguments)
-            call_id = str(getattr(context, "tool_call_id", "") or "")
-            recorded_tool_calls.append(
-                OpenAIAgentsToolCall(
-                    name=descriptor.name,
-                    arguments=arguments,
-                    call_id=call_id,
-                )
-            )
-            if execute_tool is None:
-                raise OpenAIAgentsRuntimeError(
-                    "sdk_tool_not_executed",
-                    "OpenAI Agents native runtime requires a repo-owned tool executor",
-                )
-            result = execute_tool(
-                OpenAIAgentsToolInvocation(
-                    name=descriptor.name,
-                    arguments=arguments,
-                    call_id=call_id,
-                )
-            )
-            return _tool_output_string(result)
-
-        return FunctionTool(
-            name=descriptor.name,
-            description=descriptor.description,
-            params_json_schema=descriptor.parameters,
-            on_invoke_tool=invoke_tool,
-            strict_json_schema=descriptor.function_schema_strict,
-            timeout_seconds=_tool_timeout_seconds(descriptor.runtime_policy),
-            timeout_behavior="raise_exception",
-        )
-
-
-def _parse_tool_arguments(raw_arguments: str) -> dict[str, object]:
-    try:
-        parsed = json.loads(raw_arguments or "{}")
-    except json.JSONDecodeError as exc:
-        raise OpenAIAgentsRuntimeError(
-            "sdk_bad_arguments",
-            "OpenAI Agents tool arguments must be valid JSON",
-        ) from exc
-    if not isinstance(parsed, dict):
-        raise OpenAIAgentsRuntimeError(
-            "sdk_bad_arguments",
-            "OpenAI Agents tool arguments must be a JSON object",
-        )
-    return dict(parsed)
-
-
-def _tool_output_string(value: Mapping[str, object] | str) -> str:
-    if isinstance(value, str):
-        return value
-    return json.dumps(dict(value), ensure_ascii=False, sort_keys=True)
-
-
-def _tool_timeout_seconds(runtime_policy: Mapping[str, object]) -> float | None:
-    value = runtime_policy.get("timeout_seconds")
-    if isinstance(value, int | float) and value > 0:
-        return float(value)
-    return None
 
 
 def _coerce_result_tool_calls(result: object) -> tuple[OpenAIAgentsToolCall, ...]:

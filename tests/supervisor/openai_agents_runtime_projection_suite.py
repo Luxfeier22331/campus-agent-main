@@ -26,7 +26,7 @@ from campus_supervisor_agent_worker.openai_agents_runtime_projection import (
 class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
     def test_success_projection_returns_completed_response(self) -> None:
         request = _request()
-        descriptor = build_agents_sdk_tool_descriptors(request.allowed_tools)[0]
+        descriptors = build_agents_sdk_tool_descriptors(request.allowed_tools)
         response = response_from_native_runtime_result(
             request,
             OpenAIAgentsRunResult(
@@ -40,7 +40,7 @@ class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
                 ),
                 model_response_ref="resp-native-001",
             ),
-            descriptor=descriptor,
+            descriptors=descriptors,
             tool_execution_records=(
                 OpenAIAgentsToolExecutionRecord(
                     name="campus_notice_discover",
@@ -96,7 +96,7 @@ class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
 
     def test_projection_rejects_multiple_tool_calls(self) -> None:
         request = _request()
-        descriptor = build_agents_sdk_tool_descriptors(request.allowed_tools)[0]
+        descriptors = build_agents_sdk_tool_descriptors(request.allowed_tools)
 
         with self.assertRaisesRegex(
             OpenAIAgentsRuntimeProjectionError,
@@ -119,8 +119,78 @@ class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
                         ),
                     ),
                 ),
-                descriptor=descriptor,
+                descriptors=descriptors,
             )
+
+    def test_projection_uses_executed_tool_name_for_output_projection(self) -> None:
+        from campus_contracts import TransportScheduleLookupPayload
+
+        request = AgentRequest(
+            target="campus-services-agent",
+            user_goal="校车什么时候发车",
+            request_id="req-native-projection-transport-001",
+            payload=TransportScheduleLookupPayload(
+                query_text="校车什么时候发车",
+                intent="next_departure",
+            ),
+            allowed_tools=("service_status_lookup", "transport_schedule_lookup"),
+            workflow_context=WorkflowAgentContext(
+                target="campus-services-agent",
+                workflow_run_ref="workflow:req-native-projection-transport-001",
+                step_id="handoff:campus-services-agent:transport_schedule_lookup",
+                agent_id="campus-services-agent",
+                expected_output_artifacts=("schedule_baseline",),
+            ),
+        )
+        descriptors = build_agents_sdk_tool_descriptors(request.allowed_tools)
+
+        response = response_from_native_runtime_result(
+            request,
+            OpenAIAgentsRunResult(
+                final_output="已找到班车信息。",
+                tool_calls=(
+                    OpenAIAgentsToolCall(
+                        name="transport_schedule_lookup",
+                        arguments={
+                            "query_text": "校车什么时候发车",
+                            "intent": "next_departure",
+                        },
+                        call_id="call-transport-001",
+                    ),
+                ),
+                model_response_ref="resp-transport-001",
+            ),
+            descriptors=descriptors,
+            tool_execution_records=(
+                OpenAIAgentsToolExecutionRecord(
+                    name="transport_schedule_lookup",
+                    call_id="call-transport-001",
+                    arguments={
+                        "query_text": "校车什么时候发车",
+                        "intent": "next_departure",
+                    },
+                    argument_keys=("intent", "query_text"),
+                    result_projection={
+                        "status": "completed",
+                        "outcome": "resolved_current",
+                        "query_text": "校车什么时候发车",
+                        "resolved_route": {
+                            "route_id": "haidian-fengtai",
+                            "display_name": "海淀-丰台",
+                            "service_family": "shuttle_bus",
+                        },
+                        "source_ref_count": 1,
+                    },
+                ),
+            ),
+            require_tool_execution=True,
+        )
+
+        assert response.agent_observability is not None
+        output_projection_ref = response.agent_observability.safe_details[
+            "agents_sdk_trace_projection"
+        ]["output_projection_ref"]
+        self.assertEqual(output_projection_ref["projection_kind"], "schedule_baseline")
 
     def test_bounded_projection_strips_raw_provider_fragments(self) -> None:
         projection = bounded_tool_result_projection(

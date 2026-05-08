@@ -33,7 +33,6 @@ var supportedToolSurfaces = map[string]struct{}{
 var supportedRuntimePostures = map[string]struct{}{
 	"closed":                {},
 	"typed_handoff_only":    {},
-	"sdk_adapter_candidate": {},
 	"sdk_adapter_admitted":  {},
 	"sdk_internal_admitted": {},
 	"internal_function":     {},

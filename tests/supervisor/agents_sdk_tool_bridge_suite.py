@@ -8,7 +8,10 @@ from campus_supervisor_agent_worker.agents_sdk_tool_bridge import (
     AgentsSdkToolBridgeError,
     build_agents_sdk_tool_descriptors,
 )
-from campus_supervisor_agent_worker.tool_spec_registry import default_tool_spec_registry
+from campus_supervisor_agent_worker.tool_spec_registry import (
+    ToolSpecRegistryError,
+    default_tool_spec_registry,
+)
 
 
 class AgentsSdkToolBridgeTest(unittest.TestCase):
@@ -130,20 +133,12 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
             self.assertTrue(descriptor.read_only)
             self.assertTrue(descriptor.function_schema_strict)
 
-    def test_rejects_legacy_sdk_adapter_candidate_before_admitted_posture(self) -> None:
-        with self.assertRaisesRegex(
-            AgentsSdkToolBridgeError,
-            "runtime_posture_not_admitted",
-        ) as caught:
-            build_agents_sdk_tool_descriptors(
-                ("campus_notice_discover",),
-                registry=_sdk_candidate_tool_registry(
-                    "campus_notice_discover",
-                    runtime_posture="sdk_adapter_candidate",
-                ),
-            )
-
-        self.assertEqual(caught.exception.reason, "runtime_posture_not_admitted")
+    def test_rejects_legacy_sdk_adapter_candidate_as_invalid_registry_posture(self) -> None:
+        with self.assertRaisesRegex(ToolSpecRegistryError, "runtime_posture is unsupported"):
+            _sdk_candidate_tool_registry(
+                "campus_notice_discover",
+                runtime_posture="sdk_adapter_candidate",
+            ).validate()
 
     def test_bridge_module_does_not_import_or_execute_sdk_runtime(self) -> None:
         source = Path(

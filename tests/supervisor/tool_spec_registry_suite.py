@@ -8,7 +8,10 @@ from campus_contracts import (
     ServiceStatusLookupPayload,
 )
 from campus_rag_agent.rag_sdk_models import RagSdkRetrieveEvidenceArguments
-from campus_supervisor_agent_worker.tool_spec_registry import load_tool_spec_registry
+from campus_supervisor_agent_worker.tool_spec_registry import (
+    ToolSpecRegistryError,
+    load_tool_spec_registry,
+)
 
 
 class ToolSpecRegistryTest(unittest.TestCase):
@@ -133,6 +136,20 @@ class ToolSpecRegistryTest(unittest.TestCase):
             campus_service_tools["academic_calendar_lookup"].runtime_posture,
             "sdk_adapter_admitted",
         )
+
+    def test_registry_rejects_legacy_sdk_adapter_candidate_runtime_posture(self) -> None:
+        from dataclasses import replace
+
+        registry = load_tool_spec_registry()
+        mutated_tools = tuple(
+            replace(tool, runtime_posture="sdk_adapter_candidate")
+            if tool.name == "campus_notice_discover"
+            else tool
+            for tool in registry.tools
+        )
+
+        with self.assertRaisesRegex(ToolSpecRegistryError, "runtime_posture is unsupported"):
+            replace(registry, tools=mutated_tools).validate()
 
 
 if __name__ == "__main__":
