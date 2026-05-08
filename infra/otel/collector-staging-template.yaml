@@ -83,7 +83,9 @@ exporters:
   otlphttp/sentry:
     endpoint: "${env:OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT}"
     headers:
-      authorization: "${env:OTEL_COLLECTOR_SENTRY_AUTH_HEADER}"
+      x-sentry-auth: "${env:OTEL_COLLECTOR_SENTRY_AUTH_VALUE}"
+    compression: gzip
+    encoding: proto
     sending_queue:
       enabled: true
       num_consumers: 2

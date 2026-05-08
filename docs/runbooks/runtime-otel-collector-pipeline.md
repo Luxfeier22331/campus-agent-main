@@ -81,12 +81,17 @@ OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB=128
 OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE=100
 OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE=100
 OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT=<secret-managed endpoint>
-OTEL_COLLECTOR_SENTRY_AUTH_HEADER=<secret-managed header>
+OTEL_COLLECTOR_SENTRY_AUTH_VALUE=<secret-managed x-sentry-auth value>
 OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=<secret-managed endpoint>
 OTEL_COLLECTOR_AXIOM_AUTH_HEADER=<secret-managed header>
 OTEL_COLLECTOR_AXIOM_EVENTS_DATASET=<secret-managed dataset>
 OTEL_COLLECTOR_AXIOM_METRICS_DATASET=<secret-managed metrics dataset>
 ```
+
+For Sentry, use the combined OTLP endpoint from **Client Keys (DSN) > OpenTelemetry
+(OTLP)** and configure `OTEL_COLLECTOR_SENTRY_AUTH_VALUE` as
+`sentry sentry_key=<public key>`. The Collector template sends this value using the
+official `x-sentry-auth` header.
 
 Keep `collector.env.example` blank. Real values belong in the deployment secret manager or local
 ignored environment file.
@@ -176,6 +181,7 @@ If the Collector receives telemetry but no sink records appear:
 2. Check `telemetry.drop=true`; the filter processor intentionally drops those records.
 3. Check sampling percentages.
 4. Confirm Sentry and Axiom endpoint/header values were injected by the runtime secret manager.
+   Sentry uses `x-sentry-auth`, not `Authorization`.
 5. Confirm Axiom traces/logs use `x-axiom-dataset` and metrics use
    `x-axiom-metrics-dataset`.
 

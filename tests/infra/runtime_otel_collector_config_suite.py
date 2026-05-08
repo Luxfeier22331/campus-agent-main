@@ -123,7 +123,7 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
 
         for name in (
             "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
-            "OTEL_COLLECTOR_SENTRY_AUTH_HEADER",
+            "OTEL_COLLECTOR_SENTRY_AUTH_VALUE",
             "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
             "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
             "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
@@ -165,10 +165,21 @@ class RuntimeOtelCollectorConfigTest(unittest.TestCase):
             rendered,
         )
         self.assertEqual(secretish_literals, [])
-        self.assertIn("${env:OTEL_COLLECTOR_SENTRY_AUTH_HEADER}", rendered)
+        self.assertIn("${env:OTEL_COLLECTOR_SENTRY_AUTH_VALUE}", rendered)
         self.assertIn("${env:OTEL_COLLECTOR_AXIOM_AUTH_HEADER}", rendered)
         self.assertIn("${env:OTEL_COLLECTOR_AXIOM_EVENTS_DATASET}", rendered)
         self.assertIn("${env:OTEL_COLLECTOR_AXIOM_METRICS_DATASET}", rendered)
+
+    def test_sentry_exporter_uses_official_otlp_auth_header(self) -> None:
+        config = _load_yaml(STAGING_CONFIG)
+        sentry_exporter = config["exporters"]["otlphttp/sentry"]
+
+        self.assertEqual(
+            sentry_exporter["headers"],
+            {"x-sentry-auth": "${env:OTEL_COLLECTOR_SENTRY_AUTH_VALUE}"},
+        )
+        self.assertEqual(sentry_exporter["compression"], "gzip")
+        self.assertEqual(sentry_exporter["encoding"], "proto")
 
 
 def _load_yaml(path: Path) -> dict[str, object]:
