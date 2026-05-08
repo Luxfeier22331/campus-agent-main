@@ -574,6 +574,11 @@ REGULATION_PROCEDURE_ACTION_RULES: tuple[RegulationSemanticKeywordRule, ...] = (
         provenance="keyword:公示",
     ),
     RegulationSemanticKeywordRule(
+        value="process",
+        markers=("发放", "拨付"),
+        provenance="keyword:发放拨付",
+    ),
+    RegulationSemanticKeywordRule(
         value="apply",
         markers=("申请",),
         provenance="keyword:申请",
@@ -604,6 +609,47 @@ REGULATION_PROCEDURE_PROCESS_CONTEXT_MARKERS: tuple[str, ...] = (
     "协调",
     "答复",
     "办理",
+)
+
+REGULATION_NON_PROCEDURE_RESULT_USAGE_MARKERS: tuple[str, ...] = (
+    "作为",
+    "方可参评",
+    "依据",
+)
+
+REGULATION_NON_PROCEDURE_QUOTA_MARKERS: tuple[str, ...] = (
+    "名额",
+    "金额",
+    "额度",
+    "比例",
+    "人数",
+    "支左右",
+)
+
+REGULATION_PROCEDURE_STEP_REQUIRED_ACTION_MARKERS: tuple[str, ...] = (
+    "提交",
+    "申请",
+    "提出申请",
+    "报送",
+    "备案",
+    "审核",
+    "审批",
+    "审查",
+    "审定",
+    "核准",
+    "签署意见",
+    "受理",
+    "办理",
+    "协调",
+    "答复",
+    "公示",
+    "挂失",
+    "补办",
+    "补发",
+    "申诉",
+    "听证",
+    "发放",
+    "拨付",
 )
 
 REGULATION_CONDITION_SUBJECT_KEYWORD_RULES: tuple[RegulationSemanticKeywordRule, ...] = (
@@ -1091,6 +1137,8 @@ def resolve_regulation_procedure_actor(
         return RegulationSemanticAssignment(value="", provenance="")
 
     compact = _compact(text)
+    if "学生信息" in compact and "学生本人" not in compact:
+        compact = compact.replace("学生信息", "")
     if any(marker in compact for marker in ("核准后接入校园网", "接入校园网", "审定密级")):
         return RegulationSemanticAssignment(
             value="office",
@@ -1105,11 +1153,6 @@ def resolve_regulation_procedure_actor(
     actor_assignment = _resolve_keyword_rule(compact, REGULATION_PROCEDURE_ACTOR_RULES)
     if actor_assignment.value:
         return actor_assignment
-    if compact:
-        return RegulationSemanticAssignment(
-            value="responsible_party",
-            provenance="fallback:responsible_party",
-        )
     return RegulationSemanticAssignment(value="", provenance="")
 
 
@@ -1642,9 +1685,7 @@ def resolve_regulation_procedure_action(
     action_assignment = _resolve_keyword_rule(compact, REGULATION_PROCEDURE_ACTION_RULES)
     if action_assignment.value:
         return action_assignment
-    return RegulationSemanticAssignment(
-        value="procedure_step", provenance="resolved:procedure_step"
-    )
+    return RegulationSemanticAssignment(value="", provenance="")
 
 
 def resolve_regulation_procedure_materials(text: str) -> tuple[str, ...]:
@@ -1932,6 +1973,13 @@ def resolve_regulation_answer_role(
             value="eligibility_intro",
             provenance="matched_exclusion_group_intro",
         )
+    if any(marker in text_only for marker in ("有权", "回避")) and any(
+        marker in text_only for marker in ("情形之一", "下列情形")
+    ):
+        return RegulationSemanticAssignment(
+            value="eligibility_intro",
+            provenance="matched_exclusion_group_intro",
+        )
     if _is_procedure_step_answer_role(text=text_only, context=context):
         return RegulationSemanticAssignment(
             value="procedure_step",
@@ -2150,7 +2198,28 @@ def _is_procedure_step_answer_role(*, text: str, context: str) -> bool:
         return False
     if any(marker in text for marker in ("不合格", "未通过", "不予", "不得", "不能", "取消资格")):
         return False
-    if any(marker in text for marker in ("申报", "报送", "复评", "复审", "拨付", "发放", "公示")):
+    if any(marker in text for marker in REGULATION_NON_PROCEDURE_QUOTA_MARKERS) and not any(
+        marker in text for marker in REGULATION_PROCEDURE_STEP_REQUIRED_ACTION_MARKERS
+    ):
+        return False
+    if any(marker in text for marker in REGULATION_NON_PROCEDURE_RESULT_USAGE_MARKERS) and not any(
+        marker in text for marker in REGULATION_PROCEDURE_STEP_REQUIRED_ACTION_MARKERS
+    ):
+        return False
+    if "发放" in text and not any(
+        marker in text
+        for marker in (
+            "予以发放",
+            "统一发放",
+            "按时发放",
+            "负责发放",
+            "审核后发放",
+            "审批后发放",
+            "公示后发放",
+        )
+    ):
+        return False
+    if any(marker in text for marker in ("申报", "报送", "复评", "复审", "公示")):
         return True
     if _starts_procedure_list(text) or _starts_procedure_list(context):
         return True
@@ -2165,8 +2234,10 @@ def _is_procedure_step_answer_role(*, text: str, context: str) -> bool:
         "reissue",
     }:
         return True
+    if action_assignment.value == "apply":
+        return True
     return any(marker in context for marker in ("程序", "流程", "手续", "步骤", "办理")) and any(
-        marker in text for marker in ("提交", "申请")
+        marker in text for marker in ("提交", "申请", "审核", "审批", "受理", "公示", "申诉")
     )
 
 

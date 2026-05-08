@@ -43,6 +43,23 @@ class ProcessingPipelinePolicyChunkingMergeTest(unittest.TestCase):
         self.assertEqual(metadata["role_confidence"], "medium")
         self.assertIn("derived_from_handbook_semantics", metadata["role_reason"])
 
+    def test_release_metadata_does_not_promote_procedure_content_without_step_evidence(self) -> None:
+        semantics = SimpleNamespace(
+            content_role="procedure",
+            semantic_role="procedure_step",
+            claim_type="procedure",
+            polarity="positive",
+            is_answer_bearing=True,
+        )
+
+        metadata = build_handbook_answer_role_release_metadata(
+            semantics=semantics,
+            metadata={},
+            text="第九条 评选名额。全校每次评选优秀导师10名左右，评选优秀导师团队5支左右。",
+        )
+
+        self.assertNotEqual(metadata["answer_role"], "procedure_step")
+
     def test_short_textual_merge_role_fallback_prefers_existing_semantic_metadata(self) -> None:
         candidate = _ChunkCandidate(
             unit_type="article_body",

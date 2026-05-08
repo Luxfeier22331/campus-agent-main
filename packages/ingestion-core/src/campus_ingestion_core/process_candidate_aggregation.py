@@ -15,6 +15,7 @@ from campus_ingestion_core.regulation_answer_roles import (
     build_table_answer_role_metadata,
     decide_answer_role,
 )
+from campus_shared.regulation_semantic_registry import resolve_regulation_answer_role
 
 
 def build_collection_semantic_metadata(
@@ -82,13 +83,24 @@ def build_handbook_answer_role_release_metadata(
             or "explicit_answer_role_metadata",
         }
     if semantics.content_role == "procedure" or semantics.semantic_role == "procedure_step":
-        role_metadata = build_answer_role_metadata(text=text, role_hint="procedure_step")
-        return {
-            "answer_role": "procedure_step",
-            "role_confidence": _shared_text(role_metadata.get("role_confidence")) or "high",
-            "role_reason": _shared_text(role_metadata.get("role_reason"))
-            or "derived_from_handbook_semantics:procedure",
-        }
+        role_metadata = build_answer_role_metadata(
+            text=text,
+            prefix_text=_release_role_prefix_text(metadata),
+        )
+        if _shared_text(role_metadata.get("answer_role")) == "procedure_step":
+            return {
+                "answer_role": "procedure_step",
+                "role_confidence": _shared_text(role_metadata.get("role_confidence")) or "high",
+                "role_reason": _shared_text(role_metadata.get("role_reason"))
+                or "derived_from_handbook_semantics:procedure",
+            }
+        if _shared_text(role_metadata.get("answer_role")) in {
+            "exclusion_rule",
+            "exception_rule",
+            "eligibility_intro",
+            "eligibility_condition",
+        }:
+            return role_metadata
     if semantics.content_role == "table_fact":
         role_metadata = build_table_answer_role_metadata(text=text, metadata=metadata)
         return {
@@ -132,7 +144,7 @@ def build_handbook_answer_role_release_metadata(
                 f"{semantics.content_role or semantics.semantic_role or semantics.claim_type}"
             ),
         }
-    parser_decision = decide_answer_role(text=text)
+    parser_decision = decide_answer_role(text=text, prefix_text=_release_role_prefix_text(metadata))
     parser_answer_role = _shared_text(parser_decision.get("answer_role"))
     if _should_prefer_parser_answer_role(
         semantics=semantics,
@@ -161,8 +173,6 @@ def build_handbook_answer_role_release_metadata(
 
 
 def infer_answer_role_from_handbook_semantics(semantics) -> str:
-    if semantics.content_role == "procedure" or semantics.semantic_role == "procedure_step":
-        return "procedure_step"
     if semantics.semantic_role == "exception":
         return "exception_rule"
     if (
@@ -206,6 +216,14 @@ def _should_prefer_parser_answer_role(*, semantics, parser_answer_role: str) -> 
 def _semantics_fast_path_is_leaf_clause(text: str) -> bool:
     non_empty_lines = [line.strip() for line in text.splitlines() if line.strip()]
     return len(non_empty_lines) <= 1
+
+
+def _release_role_prefix_text(metadata: dict[str, object]) -> str:
+    section_path = metadata.get("section_path")
+    if isinstance(section_path, Sequence) and not isinstance(section_path, (str, bytes)):
+        values = [str(item).strip() for item in section_path if str(item).strip()]
+        return " ".join(values)
+    return ""
 
 
 def header_ratio(chunk_assembly) -> float:

@@ -23,6 +23,20 @@ _NESTED_NUMBERED_LINE_RE = re.compile(
     r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])"
 )
 _ELIGIBILITY_KEYWORDS = ("申请条件", "资格条件", "资格", "条件", "对象")
+_PROCEDURE_SCOPE_NON_STEP_MARKERS = (
+    "名额",
+    "金额",
+    "额度",
+    "比例",
+    "人数",
+    "左右",
+    "作为",
+    "依据",
+    "方可",
+    "情形之一者",
+    "有权",
+    "回避",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -373,6 +387,23 @@ def _is_procedure_rule_scope(
     text: str,
     registry: RegulationSemanticsRegistry,
 ) -> bool:
+    if any(marker in compact_text for marker in _PROCEDURE_SCOPE_NON_STEP_MARKERS) and not any(
+        keyword in compact_text
+        for keyword in (
+            *registry.procedure_action_markers,
+            *registry.procedure_contextual_action_markers,
+            "填写",
+            "签字",
+            "盖章",
+            "报至",
+            "复评",
+            "复审",
+            "评选",
+            "发放",
+            "拨付",
+        )
+    ):
+        return False
     strong_heading_markers = tuple(
         keyword for keyword in registry.procedure_keywords if keyword not in {"申请", "提交"}
     )

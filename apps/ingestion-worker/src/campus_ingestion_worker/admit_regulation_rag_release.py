@@ -19,7 +19,9 @@ from campus_ingestion_core.registry_scope_chunk_preparation import (
 from campus_ingestion_core.registry_scope_release import select_releasable_registry_records
 from campus_ingestion_core.regulation_rag_release_admission import (
     build_regulation_rag_release_admission_manifest,
+    evaluate_prepared_regulation_rag_release_chunk_quality,
     require_component_eval_summary_for_target_release,
+    require_release_chunk_quality_summary_for_target_release,
     write_regulation_rag_release_admission_manifest,
 )
 
@@ -71,6 +73,23 @@ def main(argv: Sequence[str] | None = None) -> None:
         component_eval_summary=component_eval_summary,
         context_label="release admission",
     )
+    require_release_chunk_quality_summary_for_target_release(
+        corpus=args.corpus,
+        collection=args.collection,
+        runtime_profile=runtime_profile,
+        publish_alias=True,
+        preparation_manifest=preparation_manifest,
+        context_label="release admission",
+    )
+    chunk_quality_gate = evaluate_prepared_regulation_rag_release_chunk_quality(
+        reader=object_store,
+        bucket=settings.bucket_derived,
+        corpus=args.corpus,
+        collection=args.collection,
+        records=records,
+        runtime_profile=runtime_profile,
+        preparation_manifest=preparation_manifest,
+    )
     component_eval_status = derive_component_eval_release_status(component_eval_summary)
     admission_manifest = build_regulation_rag_release_admission_manifest(
         admission_run_id=args.admission_run_id,
@@ -80,6 +99,16 @@ def main(argv: Sequence[str] | None = None) -> None:
         runtime_profile=runtime_profile,
         preparation_manifest=preparation_manifest,
         admitted_at=args.admitted_at,
+        chunk_quality_status=chunk_quality_gate.chunk_quality_status,
+        answer_ready_contract_status=str(
+            chunk_quality_gate.summary.get("answer_ready_contract_status") or "failed"
+        ),
+        answer_ready_required_field_failures=tuple(
+            chunk_quality_gate.summary.get("answer_ready_required_field_failures") or ()
+        ),
+        answer_ready_semantic_failures=tuple(
+            chunk_quality_gate.summary.get("answer_ready_semantic_failures") or ()
+        ),
         semantic_oracle_status=component_eval_status.semantic_oracle_status,
         fallback_budget_status=component_eval_status.fallback_budget_status,
         notes=tuple(args.note or ()),

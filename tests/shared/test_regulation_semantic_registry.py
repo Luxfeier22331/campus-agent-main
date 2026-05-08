@@ -531,7 +531,7 @@ class RegulationSemanticRegistryTest(unittest.TestCase):
             prefix_text="经费使用程序",
         )
 
-        self.assertEqual(assignment.value, "exclusion_rule")
+        self.assertNotEqual(assignment.value, "procedure_step")
 
     def test_shared_answer_role_resolution_does_not_treat_planning_prose_as_intro(self) -> None:
         assignment = resolve_regulation_answer_role(

@@ -27,6 +27,17 @@ class _FakeSettings:
     bucket_derived: str = "campus-rag-derived"
 
 
+def _fake_passed_chunk_quality_gate():
+    return SimpleNamespace(
+        chunk_quality_status="passed",
+        summary={
+            "answer_ready_contract_status": "passed",
+            "answer_ready_required_field_failures": (),
+            "answer_ready_semantic_failures": (),
+        },
+    )
+
+
 class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
     def test_main_requires_component_eval_summary_for_query_enabled_regulation_scope(self) -> None:
         worker = importlib.import_module(_MODULE_NAME)
@@ -41,6 +52,9 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
             patch(f"{_MODULE_NAME}.select_releasable_registry_records") as select_records,
             patch(f"{_MODULE_NAME}.load_chunk_preparation_manifest") as load_preparation,
             patch(
+                f"{_MODULE_NAME}.evaluate_prepared_regulation_rag_release_chunk_quality"
+            ) as evaluate_chunk_quality,
+            patch(
                 f"{_MODULE_NAME}.build_regulation_rag_release_admission_manifest"
             ) as build_manifest,
             patch(
@@ -53,6 +67,7 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
             load_profile.return_value = load_runtime_profile("regulations", "student_rules")
             select_records.return_value = (record,)
             load_preparation.return_value = object()
+            evaluate_chunk_quality.return_value = _fake_passed_chunk_quality_gate()
 
             with self.assertRaisesRegex(
                 ValueError,
@@ -138,6 +153,9 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
             patch(f"{_MODULE_NAME}.select_releasable_registry_records") as select_records,
             patch(f"{_MODULE_NAME}.load_chunk_preparation_manifest") as load_preparation,
             patch(
+                f"{_MODULE_NAME}.evaluate_prepared_regulation_rag_release_chunk_quality"
+            ) as evaluate_chunk_quality,
+            patch(
                 f"{_MODULE_NAME}.build_regulation_rag_release_admission_manifest"
             ) as build_manifest,
             patch(
@@ -147,7 +165,14 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
         ):
             registry = SimpleNamespace(list_by_scope=lambda _corpus, _collection: (record,))
             runtime_profile = load_runtime_profile("regulations", "institutional_rules")
-            preparation_manifest = object()
+            preparation_manifest = SimpleNamespace(
+                validation_status="passed",
+                validation_summary_object_key=(
+                    "regulations/operations/registry-scope-chunk-preparation/"
+                    "phase09-institutional-release/institutional_rules/validation-summary.json"
+                ),
+                documents=(),
+            )
             object_store = object()
             from_env.return_value = _FakeSettings()
             object_store_admin.return_value = object_store
@@ -155,6 +180,7 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
             load_profile.return_value = runtime_profile
             select_records.return_value = (record,)
             load_preparation.return_value = preparation_manifest
+            evaluate_chunk_quality.return_value = _fake_passed_chunk_quality_gate()
             build_manifest.return_value = admission_manifest
             write_manifest.return_value = (
                 "regulations/operations/regulation-rag-release-admission/"
@@ -221,6 +247,10 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
             runtime_profile=runtime_profile,
             preparation_manifest=preparation_manifest,
             admitted_at="2026-05-03T00:00:00+00:00",
+            chunk_quality_status="passed",
+            answer_ready_contract_status="passed",
+            answer_ready_required_field_failures=(),
+            answer_ready_semantic_failures=(),
             semantic_oracle_status="passed",
             fallback_budget_status="passed",
             notes=("chunk quality accepted before release",),
@@ -288,6 +318,9 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
                 patch(f"{_MODULE_NAME}.select_releasable_registry_records") as select_records,
                 patch(f"{_MODULE_NAME}.load_chunk_preparation_manifest") as load_preparation,
                 patch(
+                    f"{_MODULE_NAME}.evaluate_prepared_regulation_rag_release_chunk_quality"
+                ) as evaluate_chunk_quality,
+                patch(
                     f"{_MODULE_NAME}.build_regulation_rag_release_admission_manifest"
                 ) as build_manifest,
                 patch(
@@ -297,7 +330,14 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
             ):
                 registry = SimpleNamespace(list_by_scope=lambda _corpus, _collection: (record,))
                 runtime_profile = load_runtime_profile("regulations", "student_rules")
-                preparation_manifest = object()
+                preparation_manifest = SimpleNamespace(
+                    validation_status="passed",
+                    validation_summary_object_key=(
+                        "regulations/operations/registry-scope-chunk-preparation/"
+                        "phase09-student-release/student_rules/validation-summary.json"
+                    ),
+                    documents=(),
+                )
                 object_store = object()
                 from_env.return_value = _FakeSettings()
                 object_store_admin.return_value = object_store
@@ -305,6 +345,7 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
                 load_profile.return_value = runtime_profile
                 select_records.return_value = (record,)
                 load_preparation.return_value = preparation_manifest
+                evaluate_chunk_quality.return_value = _fake_passed_chunk_quality_gate()
                 build_manifest.return_value = admission_manifest
                 write_manifest.return_value = (
                     "regulations/operations/regulation-rag-release-admission/"
@@ -329,6 +370,88 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["admission_manifest"]["semantic_oracle_status"], "passed")
         self.assertEqual(payload["admission_manifest"]["fallback_budget_status"], "passed")
+
+    def test_main_blocks_when_release_chunk_quality_gate_fails_for_query_enabled_regulation_scope(
+        self,
+    ) -> None:
+        worker = importlib.import_module(_MODULE_NAME)
+        record = _make_record()
+
+        with TemporaryDirectory() as temp_dir:
+            summary_path = Path(temp_dir) / "component-eval-summary.json"
+            summary_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "case_family": "answer_ready_component_eval.v1",
+                        "summary": {
+                            "overall_passed": True,
+                            "failed": 0,
+                            "primary_failure_stage_counts": {},
+                            "secondary_failure_stage_counts": {},
+                        },
+                        "results": [],
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with (
+                patch(f"{_MODULE_NAME}.load_worker_env"),
+                patch(f"{_MODULE_NAME}.ObjectStoreSettings.from_env") as from_env,
+                patch(f"{_MODULE_NAME}.S3ObjectStoreAdmin") as object_store_admin,
+                patch(f"{_MODULE_NAME}.build_document_registry_from_env") as build_registry,
+                patch(f"{_MODULE_NAME}.load_runtime_profile") as load_profile,
+                patch(f"{_MODULE_NAME}.select_releasable_registry_records") as select_records,
+                patch(f"{_MODULE_NAME}.load_chunk_preparation_manifest") as load_preparation,
+                patch(
+                    f"{_MODULE_NAME}.evaluate_prepared_regulation_rag_release_chunk_quality"
+                ) as evaluate_chunk_quality,
+                patch(
+                    f"{_MODULE_NAME}.build_regulation_rag_release_admission_manifest"
+                ) as build_manifest,
+                patch(
+                    f"{_MODULE_NAME}.write_regulation_rag_release_admission_manifest"
+                ) as write_manifest,
+            ):
+                from_env.return_value = _FakeSettings()
+                object_store_admin.return_value = object()
+                build_registry.return_value = SimpleNamespace(list_by_scope=lambda _c, _k: (record,))
+                load_profile.return_value = load_runtime_profile("regulations", "student_rules")
+                select_records.return_value = (record,)
+                load_preparation.return_value = SimpleNamespace(
+                    validation_status="passed",
+                    validation_summary_object_key=(
+                        "regulations/operations/registry-scope-chunk-preparation/"
+                        "phase09-student-release/student_rules/validation-summary.json"
+                    ),
+                    documents=(),
+                )
+                evaluate_chunk_quality.side_effect = ValueError(
+                    "release quality gate failed for regulations/student_rules"
+                )
+
+                with self.assertRaisesRegex(
+                    ValueError,
+                    "release quality gate failed for regulations/student_rules",
+                ):
+                    worker.main(
+                        [
+                            "--collection",
+                            "student_rules",
+                            "--preparation-run-id",
+                            "phase09-student-release",
+                            "--admission-run-id",
+                            "phase09-student-release",
+                            "--component-eval-summary-path",
+                            str(summary_path),
+                        ]
+                    )
+
+        build_manifest.assert_not_called()
+        write_manifest.assert_not_called()
 
 
 if __name__ == "__main__":

@@ -10,8 +10,19 @@ from typing import Protocol
 from campus_shared.answer_ready_evidence_contract import ANSWER_READY_EVIDENCE_CONTRACT_VERSION
 
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
+from campus_ingestion_core.index_release_acceptance import (
+    ReleaseQualityGateResult,
+    evaluate_release_chunk_quality,
+)
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.object_store import build_operations_artifact_key
+from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
+from campus_ingestion_core.registry_scope_chunk_preparation import (
+    verify_prepared_chunks_match_manifest,
+)
+from campus_ingestion_core.registry_scope_release_support import (
+    resolve_release_chunk_quality_budget,
+)
 
 REGULATION_RAG_RELEASE_ADMISSION_SCHEMA_VERSION = "regulation_rag_release_admission.v1"
 REGULATION_RAG_RELEASE_ADMISSION_POLICY_VERSION = "regulation_rag_release_admission_policy.v2"
@@ -176,6 +187,7 @@ def build_regulation_rag_release_admission_manifest(
     runtime_profile: CollectionRuntimeProfile,
     preparation_manifest: object,
     admitted_at: str | None = None,
+    chunk_quality_status: str = "passed",
     answer_ready_contract_status: str = "passed",
     answer_ready_contract_version: str = ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
     answer_ready_required_field_failures: Sequence[str] = (),
@@ -202,6 +214,7 @@ def build_regulation_rag_release_admission_manifest(
         runtime_profile_identity=build_regulation_rag_runtime_profile_identity(runtime_profile),
         document_count=len(documents),
         documents=documents,
+        chunk_quality_status=chunk_quality_status,
         answer_ready_contract_version=answer_ready_contract_version,
         answer_ready_contract_status=answer_ready_contract_status,
         answer_ready_required_field_failures=tuple(
@@ -213,6 +226,45 @@ def build_regulation_rag_release_admission_manifest(
         semantic_oracle_status=semantic_oracle_status,
         fallback_budget_status=fallback_budget_status,
         notes=tuple(str(item) for item in notes if str(item).strip()),
+    )
+
+
+def evaluate_prepared_regulation_rag_release_chunk_quality(
+    *,
+    reader: RegulationRagReleaseAdmissionObjectStore,
+    bucket: str,
+    corpus: str,
+    collection: str,
+    records: Sequence[DocumentRegistryRecord],
+    runtime_profile: CollectionRuntimeProfile,
+    preparation_manifest: object,
+) -> ReleaseQualityGateResult:
+    chunk_budget = resolve_release_chunk_quality_budget(
+        corpus=corpus,
+        collection=collection,
+        runtime_profile=runtime_profile,
+    )
+    chunks = []
+    for record in records:
+        object_key = str(record.document_units_object_key or "").strip()
+        if not object_key:
+            raise ValueError(
+                f"document_units_object_key is required for release admission quality: {record.document_id}"
+            )
+        document_units_bytes = reader.get_bytes(bucket=bucket, key=object_key)
+        chunks.extend(
+            build_indexable_chunks_from_jsonl(
+                record=record,
+                structured_jsonl_bytes=document_units_bytes,
+            )
+        )
+    verify_prepared_chunks_match_manifest(manifest=preparation_manifest, chunks=tuple(chunks))
+    return evaluate_release_chunk_quality(
+        chunks=tuple(chunks),
+        max_token_count=chunk_budget.max_token_count,
+        max_token_count_source=chunk_budget.source,
+        max_token_count_by_unit_type=chunk_budget.max_token_count_by_unit_type,
+        qrels_coverage_required=False,
     )
 
 
@@ -455,6 +507,35 @@ def require_component_eval_summary_for_target_release(
         )
 
 
+def require_release_chunk_quality_summary_for_target_release(
+    *,
+    corpus: str,
+    collection: str,
+    runtime_profile: CollectionRuntimeProfile,
+    publish_alias: bool,
+    preparation_manifest: object,
+    context_label: str,
+) -> None:
+    if not (
+        publish_alias
+        and _requires_target_component_eval_proof(
+            corpus=corpus,
+            collection=collection,
+            runtime_profile=runtime_profile,
+        )
+    ):
+        return
+    validation_summary_object_key = str(
+        getattr(preparation_manifest, "validation_summary_object_key", "") or ""
+    ).strip()
+    validation_status = str(getattr(preparation_manifest, "validation_status", "") or "").strip()
+    if not validation_summary_object_key or validation_status != "passed":
+        raise ValueError(
+            "release chunk quality summary is required before "
+            f"query-enabled regulation {context_label}"
+        )
+
+
 def _requires_target_component_eval_proof(
     *,
     corpus: str,
@@ -591,9 +672,11 @@ __all__ = [
     "build_regulation_rag_release_admission_artifact_key",
     "build_regulation_rag_release_admission_manifest",
     "build_regulation_rag_runtime_profile_identity",
+    "evaluate_prepared_regulation_rag_release_chunk_quality",
     "load_regulation_rag_release_admission_manifest",
     "regulation_rag_release_admission_required",
     "require_component_eval_summary_for_target_release",
+    "require_release_chunk_quality_summary_for_target_release",
     "require_regulation_rag_release_admission_key",
     "resolve_regulation_rag_release_admission_manifest_key",
     "validate_regulation_rag_release_admission_for_release",
