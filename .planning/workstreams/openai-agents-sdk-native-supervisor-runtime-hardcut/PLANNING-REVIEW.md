@@ -54,6 +54,18 @@ Low severity: STATE did not record verification evidence after the first plannin
 
 Fix: STATE now records markdownlint and diff whitespace verification commands and observed results.
 
+Medium severity: Phase 2 native runtime exposed `runner_captures`, a test-only capture field, on the
+production runtime instance.
+
+Fix: test capture now lives in the test closure only. `OpenAIAgentsNativeRuntime` no longer exposes
+test helper state or inspects runner-specific test attributes.
+
+Medium severity: Phase 2 native runtime only returned locally recorded tool invocations. If a runner
+returns explicit SDK-style tool call metadata, the factory dropped it.
+
+Fix: `OpenAIAgentsNativeRuntime` now preserves explicit runner `tool_calls` when present and falls
+back to local function invocation records only when the runner result does not expose tool calls.
+
 ## Official SDK Alignment Notes
 
 Official docs establish the primitives this plan relies on:

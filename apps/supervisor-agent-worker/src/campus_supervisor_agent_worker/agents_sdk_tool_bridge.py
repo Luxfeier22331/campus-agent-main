@@ -29,6 +29,7 @@ PROVIDER_RUNTIME_POSTURES = frozenset(
 SDK_ADAPTER_RUNTIME_POSTURES = frozenset(
     {
         "sdk_adapter_admitted",
+        "sdk_internal_admitted",
     }
 )
 
@@ -89,10 +90,17 @@ def build_agents_sdk_tool_descriptors(
 def _validate_tool_admitted_for_sdk_bridge(tool: ToolSpec) -> None:
     if not tool.active:
         raise _bridge_error("tool_inactive", f"ToolSpec tool is inactive: {tool.name}")
-    if tool.surface != "structured_handoff":
+    if tool.surface not in {"structured_handoff", "agent_internal"}:
         raise _bridge_error(
             "unsupported_tool_surface",
-            f"SDK tool bridge only accepts structured_handoff tools: {tool.name}",
+            "SDK tool bridge only accepts structured_handoff or sdk_internal_admitted "
+            f"agent_internal tools: {tool.name}",
+        )
+    if tool.surface == "agent_internal" and tool.runtime_posture != "sdk_internal_admitted":
+        raise _bridge_error(
+            "runtime_posture_not_admitted",
+            "SDK tool bridge requires sdk_internal_admitted runtime posture for "
+            f"agent_internal tool {tool.name}: {tool.runtime_posture}",
         )
     if not tool.read_only:
         raise _bridge_error(

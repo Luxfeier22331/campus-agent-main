@@ -15,8 +15,8 @@ updated: 2026-05-08
 **Status:** active
 **Current Phase:** Phase 3 - ToolSpec To FunctionTool Compiler
 **Last Activity:** 2026-05-08
-**Last Activity Description:** Completed Phase 1 planning artifacts and Phase 2 native SDK runtime
-factory foundation.
+**Last Activity Description:** Completed Phase 1 planning artifacts, Phase 2 native SDK runtime
+factory foundation, and post-implementation review fixes.
 
 ## Current Slice
 
@@ -72,6 +72,34 @@ Observed result on 2026-05-08:
 
 - initial RED: `ModuleNotFoundError: No module named 'campus_supervisor_agent_worker.openai_agents_runtime'`
 - GREEN after implementation: `Ran 4 tests in 0.621s` / `OK`
+
+Post-implementation review verification:
+
+```bash
+uv run --all-packages python -m unittest tests.supervisor.openai_agents_runtime_suite -q
+```
+
+Observed result on 2026-05-08:
+
+- RED for leaked production test state: `runner_captures` existed on runtime instance
+- RED for dropped explicit runner tool calls: `len(result.tool_calls) == 0`
+- GREEN after fixes: `Ran 6 tests in 0.612s` / `OK`
+
+Focused review lint:
+
+```bash
+uv run --all-packages ruff check apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/openai_agents_runtime.py tests/supervisor/openai_agents_runtime_suite.py tests/supervisor/test_openai_agents_runtime.py
+uv run --all-packages ruff format apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/openai_agents_runtime.py tests/supervisor/openai_agents_runtime_suite.py tests/supervisor/test_openai_agents_runtime.py --check
+pnpm exec markdownlint-cli2 '.planning/workstreams/openai-agents-sdk-native-supervisor-runtime-hardcut/**/*.md' .planning/WORKSTREAMS.md
+git diff --check -- .planning/WORKSTREAMS.md .planning/workstreams/openai-agents-sdk-native-supervisor-runtime-hardcut apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/openai_agents_runtime.py tests/supervisor/openai_agents_runtime_suite.py tests/supervisor/test_openai_agents_runtime.py
+```
+
+Observed result on 2026-05-08:
+
+- ruff check: `All checks passed!`
+- ruff format check: `3 files already formatted`
+- markdown lint: `Summary: 0 error(s)`
+- diff whitespace check: exit 0
 
 ## Session Continuity
 

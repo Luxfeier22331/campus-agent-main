@@ -123,7 +123,7 @@ class OpenAIAgentsNativeRuntime:
         )
         return OpenAIAgentsRunResult(
             final_output=getattr(result, "final_output", ""),
-            tool_calls=tuple(recorded_tool_calls),
+            tool_calls=_coerce_result_tool_calls(result) or tuple(recorded_tool_calls),
             model_response_ref=str(getattr(result, "last_response_id", "") or ""),
         )
 
@@ -138,14 +138,13 @@ class OpenAIAgentsNativeRuntime:
         run_config,
     ) -> object:
         runner = self._runner or runner_cls.run_sync
-        result = runner(
+        return runner(
             agent,
             input_text,
             context=context,
             max_turns=max_turns,
             run_config=run_config,
         )
-        return result
 
     def _function_tool(
         self,
@@ -218,6 +217,44 @@ def _tool_timeout_seconds(runtime_policy: Mapping[str, object]) -> float | None:
     if isinstance(value, int | float) and value > 0:
         return float(value)
     return None
+
+
+def _coerce_result_tool_calls(result: object) -> tuple[OpenAIAgentsToolCall, ...]:
+    raw_calls = getattr(result, "tool_calls", ())
+    if raw_calls is None:
+        return ()
+    if not isinstance(raw_calls, tuple | list):
+        return ()
+    calls: list[OpenAIAgentsToolCall] = []
+    for raw_call in raw_calls:
+        call = _coerce_result_tool_call(raw_call)
+        if call is not None:
+            calls.append(call)
+    return tuple(calls)
+
+
+def _coerce_result_tool_call(value: object) -> OpenAIAgentsToolCall | None:
+    if isinstance(value, OpenAIAgentsToolCall):
+        return value
+    if isinstance(value, Mapping):
+        name = str(value.get("name") or "").strip()
+        if not name:
+            return None
+        arguments = value.get("arguments")
+        return OpenAIAgentsToolCall(
+            name=name,
+            arguments=dict(arguments) if isinstance(arguments, Mapping) else {},
+            call_id=str(value.get("call_id") or ""),
+        )
+    name = str(getattr(value, "name", "") or "").strip()
+    if not name:
+        return None
+    arguments = getattr(value, "arguments", {})
+    return OpenAIAgentsToolCall(
+        name=name,
+        arguments=dict(arguments) if isinstance(arguments, Mapping) else {},
+        call_id=str(getattr(value, "call_id", "") or ""),
+    )
 
 
 __all__ = [

@@ -25,6 +25,7 @@ class ToolFunctionSchemaTest(unittest.TestCase):
                 "academic_calendar_lookup",
                 "campus_notice_change_set_lookup",
                 "campus_notice_discover",
+                "retrieve_evidence",
             ),
         )
         for schema in schemas:
@@ -38,7 +39,7 @@ class ToolFunctionSchemaTest(unittest.TestCase):
         schemas = generate_provider_function_schemas()
 
         self.assertNotIn("retrieval.query", {schema["name"] for schema in schemas})
-        self.assertNotIn("retrieve_evidence", {schema["name"] for schema in schemas})
+        self.assertIn("retrieve_evidence", {schema["name"] for schema in schemas})
 
     def test_preserves_contract_enums_and_nested_strict_objects(self) -> None:
         schemas = {schema["name"]: schema for schema in generate_provider_function_schemas()}

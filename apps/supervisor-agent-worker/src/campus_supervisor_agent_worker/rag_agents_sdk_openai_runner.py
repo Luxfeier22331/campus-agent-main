@@ -25,8 +25,8 @@ from campus_rag_agent.rag_sdk_trace import build_rag_sdk_trace_projection
 from campus_shared import PromptRuntimeProviderConfig
 from pydantic import BaseModel, ConfigDict, Field
 
-from campus_supervisor_agent_worker.rag_sdk_internal_tool_bridge import (
-    build_rag_sdk_internal_tool_descriptor,
+from campus_supervisor_agent_worker.agents_sdk_tool_bridge import (
+    build_agents_sdk_tool_descriptors,
 )
 
 _RAG_SDK_INSTRUCTIONS = """
@@ -157,7 +157,7 @@ class OpenAIRagAgentsSdkRunner:
         )
 
     def build_retrieve_evidence_tool(self, request: RagSdkRunRequest) -> FunctionTool:
-        descriptor = build_rag_sdk_internal_tool_descriptor("retrieve_evidence")
+        descriptor = build_agents_sdk_tool_descriptors(("retrieve_evidence",))[0]
 
         async def invoke_tool(_context: object, raw_arguments: str) -> str:
             arguments = _parse_tool_arguments(raw_arguments)
@@ -198,7 +198,8 @@ class OpenAIRagAgentsSdkRunner:
             description=descriptor.description,
             params_json_schema=descriptor.parameters,
             on_invoke_tool=invoke_tool,
-            strict_json_schema=descriptor.strict,
+            strict_json_schema=descriptor.function_schema_strict,
+            timeout_seconds=None,
             timeout_behavior="raise_exception",
         )
 

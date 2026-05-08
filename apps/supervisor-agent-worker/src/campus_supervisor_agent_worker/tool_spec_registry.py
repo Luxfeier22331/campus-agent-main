@@ -65,7 +65,17 @@ class ToolSpecRegistry:
 
     def provider_function_tools(self) -> tuple[ToolSpec, ...]:
         return tuple(
-            tool for tool in self.structured_handoff_tools() if tool.function_schema.available
+            tool
+            for tool in self.tools
+            if tool.active
+            and tool.function_schema.available
+            and (
+                tool.surface == "structured_handoff"
+                or (
+                    tool.surface == "agent_internal"
+                    and tool.runtime_posture == "sdk_internal_admitted"
+                )
+            )
         )
 
     def sdk_internal_function_tools(self) -> tuple[ToolSpec, ...]:

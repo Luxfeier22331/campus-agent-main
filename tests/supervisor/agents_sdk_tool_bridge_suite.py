@@ -15,11 +15,11 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
     def test_rejects_internal_notice_get_tool_surface(self) -> None:
         with self.assertRaisesRegex(
             AgentsSdkToolBridgeError,
-            "unsupported_tool_surface",
+            "runtime_posture_not_admitted",
         ) as caught:
             build_agents_sdk_tool_descriptors(("campus_notice_get",))
 
-        self.assertEqual(caught.exception.reason, "unsupported_tool_surface")
+        self.assertEqual(caught.exception.reason, "runtime_posture_not_admitted")
 
     def test_rejects_empty_allowed_tools(self) -> None:
         with self.assertRaisesRegex(AgentsSdkToolBridgeError, "allowed_tools_missing") as caught:
@@ -75,20 +75,21 @@ class AgentsSdkToolBridgeTest(unittest.TestCase):
     def test_rejects_agent_internal_tool_surface(self) -> None:
         with self.assertRaisesRegex(
             AgentsSdkToolBridgeError,
-            "unsupported_tool_surface",
+            "runtime_posture_not_admitted",
         ) as caught:
             build_agents_sdk_tool_descriptors(("retrieval.query",))
 
-        self.assertEqual(caught.exception.reason, "unsupported_tool_surface")
+        self.assertEqual(caught.exception.reason, "runtime_posture_not_admitted")
 
-    def test_rejects_rag_sdk_internal_function_surface(self) -> None:
-        with self.assertRaisesRegex(
-            AgentsSdkToolBridgeError,
-            "unsupported_tool_surface",
-        ) as caught:
-            build_agents_sdk_tool_descriptors(("retrieve_evidence",))
+    def test_admits_rag_sdk_internal_function_surface(self) -> None:
+        descriptors = build_agents_sdk_tool_descriptors(("retrieve_evidence",))
 
-        self.assertEqual(caught.exception.reason, "unsupported_tool_surface")
+        self.assertEqual(len(descriptors), 1)
+        self.assertEqual(descriptors[0].name, "retrieve_evidence")
+        self.assertEqual(descriptors[0].owner_agent, "rag-agent")
+        self.assertEqual(descriptors[0].runtime_posture, "sdk_internal_admitted")
+        self.assertTrue(descriptors[0].read_only)
+        self.assertTrue(descriptors[0].function_schema_strict)
 
     def test_admits_sdk_adapter_admitted_domain_agent_tools(self) -> None:
         descriptors = build_agents_sdk_tool_descriptors(
