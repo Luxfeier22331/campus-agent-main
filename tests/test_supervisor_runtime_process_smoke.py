@@ -7,6 +7,8 @@ from pathlib import Path
 from unittest.mock import patch
 
 from scripts.supervisor_runtime_process_smoke import (
+    STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+    TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
     build_process_smoke_plan,
     process_spec_to_artifact,
 )
@@ -19,6 +21,7 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             output_dir=Path("/tmp/smoke"),
             api_port=19080,
             worker_port=19081,
+            object_store_port=19082,
         )
 
         commands = {command.label: command for command in plan.processes}
@@ -45,6 +48,168 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         command_words = [word for process in plan.processes for word in process.command]
         self.assertNotIn("docker", command_words)
         self.assertNotIn("wrangler", command_words)
+
+    def test_multi_step_profile_uses_requested_object_store_port(self) -> None:
+        plan = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="transport_notice_override_multistep",
+            api_port=19080,
+            worker_port=19081,
+            object_store_port=19082,
+        )
+
+        process_by_label = {process.label: process for process in plan.processes}
+        self.assertIn("s3-smoke-object-store", process_by_label)
+        self.assertEqual(
+            process_by_label["supervisor-api"].env["OBJECT_STORE_ENDPOINT"],
+            "http://127.0.0.1:19082",
+        )
+        self.assertEqual(
+            process_by_label["s3-smoke-object-store"].command[-1],
+            "19082",
+        )
+
+    def test_transport_override_profile_seeds_only_transport_schedule_collection(self) -> None:
+        import scripts.supervisor_runtime_process_smoke as smoke
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plan = build_process_smoke_plan(
+                repo_root=Path("/repo"),
+                output_dir=Path(tmpdir),
+                profile="transport_notice_override_multistep",
+            )
+            with (
+                patch.object(smoke, "_create_temporary_postgres_database", return_value=lambda: None),
+                patch.object(smoke, "_process_smoke_base_postgres_url", return_value="postgresql://postgres:postgres@127.0.0.1:5432/campus_agent"),
+                patch.object(smoke, "_seed_structured_projection_smoke") as seed_projection,
+                patch.object(smoke, "_seed_notice_read_model_smoke"),
+            ):
+                runtime_preparation = smoke._prepare_process_smoke_runtime(
+                    plan,
+                    timeout_seconds=10,
+                )
+
+        assert runtime_preparation is not None
+        self.assertEqual(
+            runtime_preparation.artifact["seed_artifacts"][0]["collections"],
+            ["transport_schedule"],
+        )
+        self.assertEqual(
+            seed_projection.call_args.kwargs["collections"],
+            ("transport_schedule",),
+        )
+        self.assertEqual(
+            seed_projection.call_args.kwargs["generated_at"],
+            TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
+        )
+        self.assertEqual(
+            runtime_preparation.artifact["seed_artifacts"][0]["trusted_time"],
+            TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
+        )
+
+    def test_transport_override_profile_uses_fixture_aligned_trusted_time(self) -> None:
+        default_plan = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="transport_schedule_sdk_opened",
+        )
+        override_plan = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="transport_notice_override_multistep",
+        )
+        process_by_label = {process.label: process for process in override_plan.processes}
+
+        self.assertEqual(
+            default_plan.processes[1].env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"],
+            STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+        )
+        self.assertEqual(
+            process_by_label["supervisor-api"].env[
+                "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"
+            ],
+            TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
+        )
+        self.assertIn("2026-05-07", override_plan.answer_payload["user_goal"])
+
+    def test_transport_override_profile_accepts_degraded_readyz_for_partial_structured_runtime(self) -> None:
+        plan = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="transport_notice_override_multistep",
+        )
+
+        self.assertEqual(plan.expected_readyz_statuses, (200, 503))
+
+    def test_process_smoke_summary_includes_runtime_preparation_on_prepare_failure(self) -> None:
+        import scripts.supervisor_runtime_process_smoke as smoke
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plan = build_process_smoke_plan(
+                repo_root=Path("/repo"),
+                output_dir=Path(tmpdir),
+                profile="transport_notice_override_multistep",
+            )
+            with patch.object(
+                smoke,
+                "_prepare_process_smoke_runtime",
+                side_effect=RuntimeError("seed command timed out"),
+            ):
+                summary = smoke.run_process_smoke(plan, timeout_seconds=1)
+
+        self.assertFalse(summary["passed"])
+        self.assertEqual(summary["error"], "seed command timed out")
+        self.assertEqual(summary["profile"], "transport_notice_override_multistep")
+        self.assertIn("runtime_preparation", summary)
+
+    def test_process_smoke_records_readyz_body_in_summary(self) -> None:
+        import scripts.supervisor_runtime_process_smoke as smoke
+
+        class FakeProcess:
+            pid = 4321
+
+            def poll(self) -> int:
+                return 0
+
+            def wait(self, timeout: float | None = None) -> int:
+                return 0
+
+        with tempfile.TemporaryDirectory() as tmpdir:
+            plan = build_process_smoke_plan(
+                repo_root=Path("/repo"),
+                output_dir=Path(tmpdir),
+                profile="transport_notice_override_multistep",
+            )
+            with (
+                patch.object(smoke, "_prepare_process_smoke_runtime", return_value=None),
+                patch.object(smoke.subprocess, "Popen", return_value=FakeProcess()),
+                patch.object(smoke, "wait_for_status", side_effect=(200, 200)),
+                patch.object(
+                    smoke,
+                    "wait_for_json_status",
+                    return_value=(503, {"workflow_run_runtime": {"last_error": "init failed"}}),
+                ),
+                patch.object(smoke, "_request_status", return_value=200),
+                patch.object(
+                    smoke,
+                    "post_answer_probe",
+                    return_value=(
+                        503,
+                        {
+                            "error": {
+                                "code": "supervisor_multistep_workflow_unavailable",
+                            }
+                        },
+                    ),
+                ),
+            ):
+                summary = smoke.run_process_smoke(plan, timeout_seconds=1)
+
+        self.assertEqual(
+            summary["probes"]["readyz_body"],
+            {"workflow_run_runtime": {"last_error": "init failed"}},
+        )
 
     def test_process_smoke_artifact_redacts_secret_env_values(self) -> None:
         plan = build_process_smoke_plan(
@@ -227,7 +392,7 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         self.assertFalse(summary["passed"])
         self.assertEqual(summary["probes"]["forbidden_body_tokens"], ("retrieval_failed",))
 
-    def test_transport_notice_multi_step_smoke_fails_when_rag_retrieval_error_is_present(
+    def test_selected_notice_guardrail_smoke_ignores_retrieval_error_token(
         self,
     ) -> None:
         import scripts.supervisor_runtime_process_smoke as smoke
@@ -243,20 +408,11 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
 
         answer_body = {
             "workflow_trace_summary": {
-                "workflow_mode": "multi_step",
-                "context_projections": [
-                    {"projection_kind": "schedule_baseline"},
-                    {"projection_kind": "notice_context"},
-                ],
+                "workflow_mode": "terminal",
             },
-            "selected_target": "rag-agent",
-            "tool": "retrieval.query",
-            "agent_execution_projection": {"selected_tool": "retrieval.query"},
-            "notice_tool": "campus_notice_get",
-            "context": "campus-services-agent 已读取的班车基线，notice-agent 已读取的通知上下文",
-            "error": {
-                "code": "retrieval_failed",
-                "message": "release metadata drift for student_rules/r1",
+            "status": "no_answer",
+            "observability": {
+                "policy_reason": "selected_notice_target_surface_ineligible_for_knowledge_followthrough",
             },
         }
 
@@ -264,7 +420,7 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             plan = build_process_smoke_plan(
                 repo_root=Path("/repo"),
                 output_dir=Path(tmpdir),
-                profile="multi_step_transport_notice_knowledge_pilot",
+                profile="selected_notice_knowledge_followthrough_ineligible",
             )
             with (
                 patch.object(smoke, "_prepare_process_smoke_runtime", return_value=None),
@@ -276,8 +432,8 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             ):
                 summary = smoke.run_process_smoke(plan, timeout_seconds=1)
 
-        self.assertFalse(summary["passed"])
-        self.assertEqual(summary["probes"]["forbidden_body_tokens"], ("retrieval_failed",))
+        self.assertTrue(summary["passed"])
+        self.assertEqual(summary["probes"]["forbidden_body_tokens"], ())
 
     def test_rag_delegate_smoke_fails_when_positive_path_returns_no_answer(self) -> None:
         import scripts.supervisor_runtime_process_smoke as smoke
@@ -426,10 +582,15 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             output_dir=Path("/tmp/smoke"),
             profile="multi_step_notice_knowledge_followthrough",
         )
-        multi_step_transport_notice = build_process_smoke_plan(
+        transport_notice_override = build_process_smoke_plan(
             repo_root=Path("/repo"),
             output_dir=Path("/tmp/smoke"),
-            profile="multi_step_transport_notice_knowledge_pilot",
+            profile="transport_notice_override_multistep",
+        )
+        selected_notice_guardrail = build_process_smoke_plan(
+            repo_root=Path("/repo"),
+            output_dir=Path("/tmp/smoke"),
+            profile="selected_notice_knowledge_followthrough_ineligible",
         )
         transactional = build_process_smoke_plan(
             repo_root=Path("/repo"),
@@ -637,20 +798,62 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
         self.assertIn("campus_notice_get", multi_step_notice.expected_body_tokens)
         self.assertIn("retrieval.query", multi_step_notice.expected_body_tokens)
         self.assertIn("已读取的通知上下文", multi_step_notice.expected_body_tokens)
-        multi_step_transport_processes = {
-            process.label: process for process in multi_step_transport_notice.processes
+        transport_override_processes = {
+            process.label: process for process in transport_notice_override.processes
         }
-        self.assertEqual(multi_step_transport_notice.expected_status, 200)
+        self.assertEqual(transport_notice_override.expected_status, 200)
         self.assertEqual(
-            multi_step_transport_notice.answer_payload["requested_capability"],
+            transport_notice_override.answer_payload["requested_capability"],
             "campus_services",
         )
         self.assertEqual(
-            multi_step_transport_notice.answer_payload["requested_scope"],
+            transport_notice_override.answer_payload["context"]["session"][
+                "selected_notice_ref"
+            ]["notice_id"],
+            "353903",
+        )  # type: ignore[index]
+        self.assertEqual(
+            transport_override_processes["supervisor-api"].env[
+                "SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED"
+            ],
+            "true",
+        )
+        self.assertEqual(
+            transport_override_processes["supervisor-api"].env[
+                "SUPERVISOR_API_OPEN_CAPABILITIES"
+            ],
+            "campus_services",
+        )
+        self.assertEqual(
+            transport_override_processes["supervisor-agent-worker"].env[
+                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
+            ],
+            "http://127.0.0.1:27051",
+        )
+        self.assertIn("s3-smoke-object-store", transport_override_processes)
+        self.assertIn("multi_step", transport_notice_override.expected_body_tokens)
+        self.assertIn(
+            "campus_notice_change_set_lookup",
+            transport_notice_override.expected_body_tokens,
+        )
+        self.assertIn("schedule_baseline", transport_notice_override.expected_body_tokens)
+        self.assertIn("notice_change_set", transport_notice_override.expected_body_tokens)
+        self.assertIn("353903", transport_notice_override.expected_body_tokens)
+        self.assertIn("南门外停车区", transport_notice_override.expected_body_tokens)
+        selected_notice_guardrail_processes = {
+            process.label: process for process in selected_notice_guardrail.processes
+        }
+        self.assertEqual(selected_notice_guardrail.expected_status, 200)
+        self.assertEqual(
+            selected_notice_guardrail.answer_payload["requested_capability"],
+            "campus_services",
+        )
+        self.assertEqual(
+            selected_notice_guardrail.answer_payload["requested_scope"],
             {"corpus": "regulations", "collection": "student_rules"},
         )
         self.assertEqual(
-            multi_step_transport_notice.answer_payload["context"]["authorization"][
+            selected_notice_guardrail.answer_payload["context"]["authorization"][
                 "retrieval_filter"
             ],
             {
@@ -661,40 +864,29 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
             },
         )  # type: ignore[index]
         self.assertEqual(
-            multi_step_transport_notice.answer_payload["context"]["session"][
+            selected_notice_guardrail.answer_payload["context"]["session"][
                 "selected_notice_ref"
             ]["notice_id"],
             "notice:transport:355122",
         )  # type: ignore[index]
         self.assertEqual(
-            multi_step_transport_processes["supervisor-api"].env[
-                "SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED"
-            ],
-            "true",
-        )
-        self.assertEqual(
-            multi_step_transport_processes["supervisor-api"].env[
-                "SUPERVISOR_API_OPEN_CAPABILITIES"
-            ],
+            selected_notice_guardrail_processes["supervisor-api"].env["SUPERVISOR_API_OPEN_CAPABILITIES"],
             "campus_services",
         )
-        self.assertEqual(
-            multi_step_transport_processes["supervisor-agent-worker"].env[
-                "SUPERVISOR_INTERNAL_QUERY_BASE_URL"
-            ],
-            "http://127.0.0.1:27051",
+        self.assertNotIn(
+            "SUPERVISOR_INTERNAL_QUERY_BASE_URL",
+            selected_notice_guardrail_processes["supervisor-agent-worker"].env,
         )
-        self.assertIn("s3-smoke-object-store", multi_step_transport_processes)
-        self.assertIn("schedule_baseline", multi_step_transport_notice.expected_body_tokens)
-        self.assertIn("notice_context", multi_step_transport_notice.expected_body_tokens)
+        self.assertNotIn(
+            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
+            selected_notice_guardrail_processes["supervisor-agent-worker"].env,
+        )
+        self.assertNotIn("s3-smoke-object-store", selected_notice_guardrail_processes)
+        self.assertIn("terminal", selected_notice_guardrail.expected_body_tokens)
         self.assertIn(
-            "transport_schedule_lookup",
-            multi_step_transport_notice.expected_body_tokens,
+            "selected_notice_target_surface_ineligible_for_knowledge_followthrough",
+            selected_notice_guardrail.expected_body_tokens,
         )
-        self.assertIn("campus_notice_get", multi_step_transport_notice.expected_body_tokens)
-        self.assertIn("retrieval.query", multi_step_transport_notice.expected_body_tokens)
-        self.assertIn("已读取的班车基线", multi_step_transport_notice.expected_body_tokens)
-        self.assertIn("已读取的通知上下文", multi_step_transport_notice.expected_body_tokens)
         self.assertEqual(transactional.expected_status, 200)
         self.assertEqual(transactional.answer_payload["requested_capability"], "knowledge")
         self.assertEqual(
@@ -784,7 +976,6 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
 
     def test_notice_open_profile_uses_temporary_notice_read_model_overlay(self) -> None:
         from scripts.supervisor_runtime_process_smoke import (
-            STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
             _postgres_url_with_database,
             _processes_with_env_overlay,
         )
@@ -834,10 +1025,8 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
 
         for profile, database_name in (
             ("multi_step_notice_knowledge_followthrough", "campus_agent_process_smoke_multi_step"),
-            (
-                "multi_step_transport_notice_knowledge_pilot",
-                "campus_agent_process_smoke_multi_step_transport_notice",
-            ),
+            ("transport_notice_override_multistep", "campus_agent_process_smoke_transport_notice_override"),
+            ("selected_notice_knowledge_followthrough_ineligible", "campus_agent_process_smoke_selected_notice_guardrail"),
         ):
             with self.subTest(profile=profile):
                 plan = build_process_smoke_plan(
@@ -875,17 +1064,6 @@ class SupervisorRuntimeProcessSmokeTest(unittest.TestCase):
                     ],
                     f"postgresql://postgres:postgres@127.0.0.1:5432/{database_name}",
                 )
-                if profile == "multi_step_transport_notice_knowledge_pilot":
-                    self.assertEqual(
-                        process_by_label["supervisor-api"].env["CAMPUS_SHARED_POSTGRES_URL"],
-                        f"postgresql://postgres:postgres@127.0.0.1:5432/{database_name}",
-                    )
-                    self.assertEqual(
-                        process_by_label["supervisor-api"].env[
-                            "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"
-                        ],
-                        STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
-                    )
                 self.assertNotIn(
                     "SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL",
                     process_by_label["supervisor-agent-worker"].env,

@@ -22,11 +22,13 @@
 		"selected_target": "none",
 		"selected_tools": [],
 		"context_projections": [],
+		"answer_artifact_projection_ids": [],
+		"answer_artifact_kinds": [],
 		"tool_argument_summary": {},
 		"guardrail_outcomes": {},
 		"fail_close_reason": "supervisor_bridge_unavailable",
 		"runtime_versions": {
-			"workflow_trace_summary": "workflow-trace-summary-v3"
+			"workflow_trace_summary": "workflow-trace-summary-v4"
 		},
 		"policy_artifact_versions": {}
 	},

@@ -48,7 +48,7 @@ from campus_services_agent.response_builder import (
     transport_schedule_response,
 )
 from campus_services_agent.sdk_tool_executor import execute_campus_services_sdk_tool
-from campus_supervisor_agent_worker.agents_sdk_runner import AgentsSdkToolExecutionRequest
+from campus_supervisor_agent_worker.openai_agents_runtime import OpenAIAgentsToolInvocation
 
 from tests.agent.campus_services_agent_fakes import (
     FakeCampusServicesQueryService,
@@ -77,7 +77,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         )
 
         bounded = execute_campus_services_sdk_tool(
-            AgentsSdkToolExecutionRequest(
+            OpenAIAgentsToolInvocation(
                 name="service_status_lookup",
                 arguments={"subject_query": "图书馆今天开门吗"},
                 call_id="call-service-status-001",
@@ -134,7 +134,7 @@ class CampusServicesAgentTest(unittest.TestCase):
     def test_transport_schedule_payload_rejects_tool_outside_allowed_tools(self) -> None:
         with self.assertRaisesRegex(TypeError, "unexpected keyword argument"):
             execute_campus_services_sdk_tool(
-                AgentsSdkToolExecutionRequest(
+                OpenAIAgentsToolInvocation(
                     name="service_status_lookup",
                     arguments={"query_text": "校车什么时候发车", "intent": "next_departure"},
                     call_id="call-invalid-001",
@@ -169,7 +169,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         )
 
         bounded = execute_campus_services_sdk_tool(
-            AgentsSdkToolExecutionRequest(
+            OpenAIAgentsToolInvocation(
                 name="service_guide_lookup",
                 arguments={
                     "service_query": "宿舍入住怎么办理",
@@ -208,7 +208,7 @@ class CampusServicesAgentTest(unittest.TestCase):
         )
 
         bounded = execute_campus_services_sdk_tool(
-            AgentsSdkToolExecutionRequest(
+            OpenAIAgentsToolInvocation(
                 name="contact_directory_lookup",
                 arguments={
                     "query_text": "研究生院招生办公室电话是多少",
@@ -696,7 +696,7 @@ class CampusServicesAgentTest(unittest.TestCase):
     def test_missing_query_service_returns_error_response(self) -> None:
         with self.assertRaisesRegex(AttributeError, "lookup_service_status"):
             execute_campus_services_sdk_tool(  # type: ignore[arg-type]
-                AgentsSdkToolExecutionRequest(
+                OpenAIAgentsToolInvocation(
                     name="service_status_lookup",
                     arguments={"subject_query": "图书馆今天开门吗"},
                     call_id="call-service-status-missing-query",

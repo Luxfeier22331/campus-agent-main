@@ -18,7 +18,10 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 	it("renders service-guide grouped procedure fixture as focused public answer", async () => {
 		const fixture = JSON.parse(
 			readFileSync(
-				resolve(process.cwd(), "../../tests/fixtures/service_guide_vpn_grouped_procedure_result.json"),
+				resolve(
+					process.cwd(),
+					"../../tests/fixtures/service_guide_vpn_grouped_procedure_result.json",
+				),
 				"utf-8",
 			),
 		) as Record<string, unknown>;
@@ -55,7 +58,9 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 		});
 
 		const finalizedWrite = finalWrites[0] as FinalizeRequestWrite;
-		expect(finalizedWrite.assistantMessage.text).toContain("中央民族大学 VPN 使用说明：客户端安装：");
+		expect(finalizedWrite.assistantMessage.text).toContain(
+			"中央民族大学 VPN 使用说明：客户端安装：",
+		);
 		expect(finalizedWrite.assistantMessage.text).toContain("首次使用请根据系统提示下载客户端。");
 		expect(finalizedWrite.assistantMessage.text).toContain(
 			"双击Install EasyConnect.pkg，根据提示完成安装。",
@@ -233,7 +238,7 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 					"raw_table_parser_state=true guide_release=service_guide_release_v3 authenticated_notice:354777",
 				expected: [
 					"地铁接驳车预约：预约入口：通过学校统一预约入口提交地铁接驳车预约。",
-					"可用入口：统一预约入口",
+					"入口：统一预约入口",
 					"来源：校内通知",
 				],
 				expectedTraceRef: "认证通知 #354777",
@@ -272,7 +277,7 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 				expected: [
 					"校园卡挂失与补卡：挂失与补卡流程：先办理挂失，再在自助补卡机补卡。",
 					"所需材料：本人有效证件",
-					"可用入口：学生自助补卡机",
+					"入口：学生自助补卡机",
 					"办理时间：卡务中心 09:00-17:00",
 					"联系方式：海淀校区校园卡管理中心 010-68933381",
 					"适用范围：学生和教职工均可办理。",
@@ -378,9 +383,7 @@ export function registerChatCommandServiceCoreStructuredSuite(): void {
 						resolved_service: {
 							display_name: "中央民族大学 VPN 使用说明",
 						},
-						selected_section_ids: [
-							"service:official_web:vpn:procedure_group:client_install",
-						],
+						selected_section_ids: ["service:official_web:vpn:procedure_group:client_install"],
 						source_refs: ["official_web:muc-it-vpn-service-guide"],
 					},
 				},

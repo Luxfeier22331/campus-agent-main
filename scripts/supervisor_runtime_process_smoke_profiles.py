@@ -297,6 +297,7 @@ def profile_answer_expectation(
                     "notice_id": "notice:smoke:001",
                     "source_family": "wechat_public_notice",
                     "title": "烟雾测试通知",
+                    "target_surface": "regulations/student_rules",
                 },
                 "turn_count": 2,
             },
@@ -331,7 +332,7 @@ def profile_answer_expectation(
             "json",
             (200,),
         )
-    if profile == "multi_step_transport_notice_knowledge_pilot":
+    if profile == "selected_notice_knowledge_followthrough_ineligible":
         notice_context = {
             **context,
             "authorization": {
@@ -347,6 +348,7 @@ def profile_answer_expectation(
                     "notice_id": "notice:transport:355122",
                     "source_family": "internal_notice_restricted",
                     "title": "关于两校区学生通勤班车增加班次的通知",
+                    "target_surface": "campus_services/service_status_candidate",
                 },
                 "turn_count": 2,
             },
@@ -354,7 +356,7 @@ def profile_answer_expectation(
         return (
             {
                 "user_goal": "这条班车通知依据学生手册哪条规定？",
-                "request_id": "process-smoke-multi-step-transport-notice-knowledge",
+                "request_id": "process-smoke-selected-notice-knowledge-ineligible",
                 "requested_capability": "campus_services",
                 "requested_scope": {
                     "corpus": "regulations",
@@ -365,25 +367,60 @@ def profile_answer_expectation(
             200,
             (
                 "workflow_trace_summary",
-                "multi_step",
-                "context_projections",
-                "schedule_baseline",
-                "notice_context",
-                "evidence_bundle",
-                "grounding_verdict",
-                "campus-services-agent",
-                "transport_schedule_lookup",
-                "notice-agent",
-                "campus_notice_get",
-                "rag-agent",
-                "retrieval.query",
-                "agent_execution_projection",
-                "已读取的班车基线",
-                "已读取的通知上下文",
+                "terminal",
+                "no_answer",
+                "selected_notice_target_surface_ineligible_for_knowledge_followthrough",
             ),
             "/api/v1/answer",
             "json",
             (200,),
+        )
+    if profile == "transport_notice_override_multistep":
+        notice_context = {
+            **context,
+            "authorization": {
+                "retrieval_filter": {
+                    "entitlement_groups": ["students"],
+                    "visibility_level": "restricted",
+                    "visibility_scope": "campus",
+                    "policy_projection_version": "phase1-authorization-projection-v1",
+                }
+            },
+            "session": {
+                "selected_notice_ref": {
+                    "notice_id": "353903",
+                    "source_family": "internal_notice_restricted",
+                    "title": "关于通勤班车丰台校区乘车点调整的通知",
+                    "target_surface": "campus_services/service_status_candidate",
+                },
+                "turn_count": 2,
+            },
+        }
+        return (
+            {
+                "user_goal": "2026-05-07 今天丰台到海淀通勤车乘车点有没有调整",
+                "request_id": "process-smoke-transport-notice-override-multistep",
+                "requested_capability": "campus_services",
+                "context": notice_context,
+            },
+            200,
+            (
+                "workflow_trace_summary",
+                "multi_step",
+                "transport_schedule_lookup",
+                "campus_notice_change_set_lookup",
+                "retrieval.query",
+                "schedule_baseline",
+                "notice_change_set",
+                "evidence_bundle",
+                "grounding_verdict",
+                "丰台到海淀通勤车",
+                "353903",
+                "南门外停车区",
+            ),
+            "/api/v1/answer",
+            "json",
+            (200, 503),
         )
     if profile == "transactional_approval_required":
         return (

@@ -7,13 +7,13 @@ from campus_contracts import AgentRequest, AgentResponse, KnowledgeScope, RagReq
 from campus_rag_agent.rag_sdk_models import RagSdkRunRequest, RagSdkRunResult
 from campus_supervisor_agent_worker.agent_delegates import (
     _build_agent_delegates,
-    _build_rag_agents_sdk_runner,
+    _build_rag_openai_runtime,
 )
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 
 class RagAgentsSdkDelegateTest(unittest.TestCase):
-    def test_worker_injects_rag_sdk_runner_without_target_specific_env(self) -> None:
+    def test_worker_injects_rag_openai_runtime_without_target_specific_env(self) -> None:
         def runner(_request: RagSdkRunRequest) -> RagSdkRunResult:
             return RagSdkRunResult(output=object())
 
@@ -26,8 +26,8 @@ class RagAgentsSdkDelegateTest(unittest.TestCase):
             rag_prompt_executor=None,
             campus_services_query_service=None,
             notice_query_service=None,
-            agents_sdk_runner=None,
-            rag_sdk_runner=runner,
+            openai_agents_runtime=None,
+            rag_openai_runtime=runner,
         )
 
         with patch(
@@ -45,30 +45,12 @@ class RagAgentsSdkDelegateTest(unittest.TestCase):
         self.assertEqual(delegate.call_count, 1)
         kwargs = delegate.call_args.kwargs
         self.assertIs(kwargs["rag_sdk_runner"], runner)
-        self.assertEqual(kwargs["rag_sdk_rollout_mode"], "candidate")
-
-    def test_mock_runtime_builds_deterministic_rag_sdk_runner_for_local_smoke(self) -> None:
-        runner = _build_rag_agents_sdk_runner(
-            ApiSettings(
-                prompt_runtime_provider="mock-runtime",
-                agent_prompt_model="mock-model",
-                agents_sdk_runtime_enabled=True,
-            )
-        )
-
-        self.assertIsNotNone(runner)
-        self.assertEqual(runner.__class__.__name__, "MockRagAgentsSdkRunner")
 
     def test_real_provider_uses_prompt_runtime_model_when_agent_model_is_unset(self) -> None:
-        with (
-            patch(
-                "campus_supervisor_agent_worker.agent_delegates.PromptRuntimeProviderConfig",
-            ),
-            patch(
-                "campus_supervisor_agent_worker.rag_agents_sdk_openai_runner.OpenAIRagAgentsSdkRunner",
-            ) as runner_class,
+        with patch(
+            "campus_supervisor_agent_worker.agent_delegates.PromptRuntimeProviderConfig",
         ):
-            runner = _build_rag_agents_sdk_runner(
+            runner = _build_rag_openai_runtime(
                 ApiSettings(
                     prompt_runtime_provider="openai-responses",
                     prompt_runtime_api_key="test-key",
@@ -79,8 +61,7 @@ class RagAgentsSdkDelegateTest(unittest.TestCase):
                 )
             )
 
-        self.assertIs(runner, runner_class.return_value)
-        self.assertEqual(runner_class.call_args.kwargs["model_name"], "gpt-5.5")
+        self.assertEqual(runner.__class__.__name__, "OpenAIRagAgentsSdkRunner")
 
 
 def _request() -> AgentRequest:

@@ -81,6 +81,26 @@ class OpenAIAgentsNativeRuntime:
         tool_descriptors: tuple[AgentsSdkToolDescriptor, ...],
         execute_tool: OpenAIAgentsToolExecutor | None = None,
     ) -> OpenAIAgentsRunResult:
+        return self.run(
+            agent_name=agent_request.target,
+            instructions=instruction_profile.instructions,
+            input_text=agent_request.user_goal,
+            context=agent_request.context,
+            tool_descriptors=tool_descriptors,
+            execute_tool=execute_tool,
+        )
+
+    def run(
+        self,
+        *,
+        agent_name: str,
+        instructions: str,
+        input_text: str,
+        context: object,
+        tool_descriptors: tuple[AgentsSdkToolDescriptor, ...],
+        execute_tool: OpenAIAgentsToolExecutor | None = None,
+        output_type: object | None = None,
+    ) -> OpenAIAgentsRunResult:
         from agents import Agent, ModelSettings, RunConfig, Runner
         from agents.models.openai_provider import OpenAIProvider
 
@@ -94,8 +114,8 @@ class OpenAIAgentsNativeRuntime:
             for descriptor in tool_descriptors
         )
         agent = Agent(
-            name=agent_request.target,
-            instructions=instruction_profile.instructions.strip(),
+            name=agent_name,
+            instructions=instructions.strip(),
             tools=list(tools),
             model=self._model_name,
             model_settings=ModelSettings(
@@ -103,6 +123,7 @@ class OpenAIAgentsNativeRuntime:
                 parallel_tool_calls=False if tools else None,
                 max_tokens=self._provider_config.max_output_tokens,
             ),
+            output_type=output_type,
         )
         run_config = RunConfig(
             model_provider=OpenAIProvider(
@@ -116,8 +137,8 @@ class OpenAIAgentsNativeRuntime:
         result = self._run_sync(
             Runner,
             agent,
-            agent_request.user_goal,
-            context=agent_request.context,
+            input_text,
+            context=context,
             max_turns=self._max_turns,
             run_config=run_config,
         )

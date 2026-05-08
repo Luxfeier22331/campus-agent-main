@@ -150,6 +150,43 @@ class OpenAIAgentsNativeRuntimeTest(unittest.TestCase):
         self.assertEqual(result.tool_calls[0].call_id, "call-explicit-001")
         self.assertEqual(result.tool_calls[0].arguments, {"query_text": "春假通知"})
 
+    def test_runtime_supports_generic_structured_output_runs(self) -> None:
+        captures: list[dict[str, object]] = []
+        runtime = OpenAIAgentsNativeRuntime(
+            provider_config=_provider_config(max_output_tokens=256),
+            model_name="gpt-5.4-mini",
+            runner=_capturing_runner(
+                captures,
+                final_output={"answer_text": "本科生可申请国家奖学金。", "confidence": "medium"},
+                last_response_id="resp-generic-001",
+            ),
+        )
+
+        result = runtime.run(
+            agent_name="rag-agent-internal-sdk-loop",
+            instructions="Use only the supplied retrieve_evidence tool.",
+            input_text="有哪些本科生可以申请的奖学金",
+            context={"request_id": "req-rag-sdk-001"},
+            tool_descriptors=build_agents_sdk_tool_descriptors(("retrieve_evidence",)),
+            output_type=dict,
+            execute_tool=lambda invocation: {
+                "status": "completed",
+                "query_slot_id": invocation.arguments.get("query_slot_id", ""),
+            },
+        )
+
+        captured = captures[-1]
+        agent = captured["agent"]
+        self.assertEqual(agent.name, "rag-agent-internal-sdk-loop")
+        self.assertEqual(agent.model, "gpt-5.4-mini")
+        self.assertIs(agent.output_type, dict)
+        self.assertEqual(captured["input_text"], "有哪些本科生可以申请的奖学金")
+        self.assertEqual(captured["context"], {"request_id": "req-rag-sdk-001"})
+        self.assertEqual(
+            result.final_output, {"answer_text": "本科生可申请国家奖学金。", "confidence": "medium"}
+        )
+        self.assertEqual(result.model_response_ref, "resp-generic-001")
+
     def test_runtime_rejects_missing_model_name(self) -> None:
         with self.assertRaisesRegex(OpenAIAgentsRuntimeError, "model_name is required") as caught:
             OpenAIAgentsNativeRuntime(

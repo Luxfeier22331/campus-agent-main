@@ -88,7 +88,7 @@ class AgentsSdkNoticeDiscoverE2ESmokeTest(unittest.TestCase):
                 "tool_outcome": "sdk_completed",
                 "source_ref_count": 1,
                 "safe_details": {
-                    "agents_sdk_runner_projection": {
+                    "openai_agents_runtime_projection": {
                         "tool_call_count": 1,
                         "tool_execution_count": 1,
                         "tool_result_projection": {
@@ -120,7 +120,7 @@ class AgentsSdkNoticeDiscoverE2ESmokeTest(unittest.TestCase):
                 "tool_outcome": "sdk_completed",
                 "source_ref_count": 0,
                 "safe_details": {
-                    "agents_sdk_runner_projection": {
+                    "openai_agents_runtime_projection": {
                         "tool_call_count": 1,
                         "tool_execution_count": 0,
                     }
@@ -242,7 +242,7 @@ class AgentsSdkNoticeDiscoverE2ESmokeTest(unittest.TestCase):
                                 "tool_outcome": "sdk_completed",
                                 "source_ref_count": 1,
                                 "safe_details": {
-                                    "agents_sdk_runner_projection": {
+                                    "openai_agents_runtime_projection": {
                                         "tool_call_count": 1,
                                         "tool_execution_count": 1,
                                         "tool_result_projection": {

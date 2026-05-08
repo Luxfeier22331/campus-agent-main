@@ -928,6 +928,33 @@
           "max_results"
         ]
       }
+    },
+    {
+      "type": "function",
+      "name": "retrieve_evidence",
+      "description": "Return bounded evidence anchors for an admitted deterministic RAG query slot.",
+      "strict": true,
+      "parameters": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "query_slot_id": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "description": "One of the admitted deterministic query slot ids."
+          },
+          "retrieval_intent": {
+            "type": "string",
+            "description": "Short semantic label for the requested evidence."
+          }
+        },
+        "required": [
+          "query_slot_id",
+          "retrieval_intent"
+        ]
+      }
     }
   ]
 }

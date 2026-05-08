@@ -22,6 +22,7 @@ from scripts.supervisor_runtime_process_smoke_http import (
 from scripts.supervisor_runtime_process_smoke_profiles import profile_answer_expectation
 
 STRUCTURED_DIRECT_OPENED_TRUSTED_TIME = "2026-04-24T20:30:00+08:00"
+TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME = "2026-05-07T08:00:00+08:00"
 SDK_STRUCTURED_OPENED_PROFILES = {
     "transport_schedule_sdk_opened",
     "transport_schedule_sdk_opened_stream",
@@ -33,7 +34,10 @@ SDK_STRUCTURED_OPENED_PROFILES = {
 }
 MULTI_STEP_WORKFLOW_PROFILES = {
     "multi_step_notice_knowledge_followthrough",
-    "multi_step_transport_notice_knowledge_pilot",
+    "transport_notice_override_multistep",
+}
+SELECTED_NOTICE_GUARDRAIL_PROFILES = {
+    "selected_notice_knowledge_followthrough_ineligible",
 }
 AGENTS_SDK_NOTICE_PROFILES = {
     "agents_sdk_notice_discover_e2e",
@@ -249,16 +253,17 @@ def _profile_api_env(
             "OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
             "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
         }
-        if profile == "multi_step_transport_notice_knowledge_pilot":
-            env.update(
-                {
-                    "SUPERVISOR_API_OPEN_CAPABILITIES": "campus_services",
-                    "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
-                        STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
-                    ),
-                }
+        if profile == "transport_notice_override_multistep":
+            env["SUPERVISOR_API_OPEN_CAPABILITIES"] = "campus_services"
+            env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = (
+                TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME
             )
         return env
+    if profile in SELECTED_NOTICE_GUARDRAIL_PROFILES:
+        return {
+            "SUPERVISOR_API_OPEN_CAPABILITIES": "campus_services",
+            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
+        }
     return {}
 
 
@@ -297,7 +302,7 @@ def _profile_requires_object_store(profile: str) -> bool:
 def _profile_requires_structured_projection(profile: str) -> bool:
     return (
         profile in _campus_services_sdk_profiles()
-        or profile == "multi_step_transport_notice_knowledge_pilot"
+        or profile == "transport_notice_override_multistep"
     )
 
 
@@ -305,6 +310,7 @@ def _profile_requires_notice_read_model(profile: str) -> bool:
     return (
         profile == "notice_discover_sdk_opened"
         or profile in MULTI_STEP_WORKFLOW_PROFILES
+        or profile in SELECTED_NOTICE_GUARDRAIL_PROFILES
         or profile in AGENTS_SDK_NOTICE_PROFILES
     )
 
@@ -351,6 +357,7 @@ def run_process_smoke(
     log_files = []
     process_logs = {}
     runtime_preparation: _RuntimePreparation | None = None
+    runtime_preparation_artifact: dict[str, object] = {}
     startup_timeout = max(
         timeout_seconds,
         startup_timeout_seconds
@@ -361,6 +368,9 @@ def run_process_smoke(
         runtime_preparation = _prepare_process_smoke_runtime(
             plan,
             timeout_seconds=startup_timeout,
+        )
+        runtime_preparation_artifact = (
+            runtime_preparation.artifact if runtime_preparation is not None else {}
         )
         processes = _processes_with_env_overlay(
             plan.processes,
@@ -433,12 +443,13 @@ def run_process_smoke(
             "processes": [process_spec_to_artifact(process) for process in processes],
             "process_logs": process_logs,
             "runtime_preparation": (
-                runtime_preparation.artifact if runtime_preparation is not None else {}
+                runtime_preparation_artifact
             ),
             "probes": {
                 "worker_healthz_status": worker_healthz,
                 "api_healthz_status": api_healthz,
                 "readyz_status": readyz[0],
+                "readyz_body": readyz[1],
                 "expected_readyz_statuses": plan.expected_readyz_statuses,
                 "metrics_status": metrics_status,
                 "answer_status": answer_status,
@@ -453,6 +464,12 @@ def run_process_smoke(
             "answer": answer_body,
         }
     except Exception as exc:
+        process_exit_states = {
+            spec.label: (
+                process.poll() if process.poll() is not None else "running"
+            )
+            for spec, process in zip(plan.processes, started, strict=False)
+        }
         summary = {
             "schema_version": "supervisor_runtime_process_smoke.v1",
             "profile": plan.profile,
@@ -460,6 +477,8 @@ def run_process_smoke(
             "api_base_url": plan.api_base_url,
             "worker_base_url": plan.worker_base_url,
             "process_logs": process_logs,
+            "runtime_preparation": runtime_preparation_artifact,
+            "process_exit_states": process_exit_states,
             "error": str(exc),
         }
     finally:
@@ -516,21 +535,26 @@ def _prepare_process_smoke_runtime(
     artifacts: list[dict[str, object]] = []
     try:
         if _profile_requires_structured_projection(plan.profile):
+            selected_collections = _structured_projection_seed_collections(plan.profile)
+            trusted_time = _profile_trusted_time(plan.profile)
             _seed_structured_projection_smoke(
                 repo_root=plan.repo_root,
                 runtime_database_url=runtime_database_url,
                 log_path=seed_log_path,
                 timeout_seconds=timeout_seconds,
+                collections=selected_collections,
+                generated_at=trusted_time,
             )
             env_overlay["CAMPUS_SHARED_POSTGRES_URL"] = runtime_database_url
             env_overlay["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = (
-                STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
+                trusted_time
             )
             artifacts.append(
                 {
                     "kind": "temporary_postgres_structured_projection",
                     "seed_log_path": str(seed_log_path),
-                    "trusted_time": STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+                    "trusted_time": trusted_time,
+                    "collections": list(selected_collections),
                 }
             )
         if _profile_requires_notice_read_model(plan.profile):
@@ -665,19 +689,24 @@ def _seed_structured_projection_smoke(
     runtime_database_url: str,
     log_path: Path,
     timeout_seconds: float,
+    collections: Sequence[str],
+    generated_at: str,
 ) -> None:
     log_path.parent.mkdir(parents=True, exist_ok=True)
+    command = [
+        sys.executable,
+        "-m",
+        "campus_ingestion_worker.smoke_structured_projection_postgres",
+        "--release-id",
+        "supervisor-runtime-process-smoke",
+        "--generated-at",
+        generated_at,
+    ]
+    for collection in collections:
+        command.extend(("--collection", collection))
     with log_path.open("ab") as log_file:
         subprocess.run(
-            (
-                sys.executable,
-                "-m",
-                "campus_ingestion_worker.smoke_structured_projection_postgres",
-                "--release-id",
-                "supervisor-runtime-process-smoke",
-                "--generated-at",
-                STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
-            ),
+            tuple(command),
             cwd=repo_root,
             env={**os.environ, "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url},
             stdout=log_file,
@@ -685,6 +714,34 @@ def _seed_structured_projection_smoke(
             check=True,
             timeout=max(10.0, timeout_seconds),
         )
+
+
+def _structured_projection_seed_collections(profile: str) -> tuple[str, ...]:
+    if profile == "transport_notice_override_multistep":
+        return ("transport_schedule",)
+    if profile == "transport_schedule_sdk_opened" or profile == "transport_schedule_sdk_opened_stream":
+        return ("transport_schedule",)
+    if profile == "service_status_sdk_opened":
+        return ("service_status",)
+    if profile == "service_guide_sdk_opened":
+        return ("service_guide",)
+    if profile == "contact_directory_sdk_opened":
+        return ("contact_directory",)
+    if profile == "academic_calendar_sdk_opened":
+        return ("academic_calendar",)
+    return (
+        "service_status",
+        "transport_schedule",
+        "service_guide",
+        "contact_directory",
+        "academic_calendar",
+    )
+
+
+def _profile_trusted_time(profile: str) -> str:
+    if profile == "transport_notice_override_multistep":
+        return TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME
+    return STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
 
 
 def _seed_notice_read_model_smoke(
@@ -751,14 +808,48 @@ def _seed_notice_read_model_smoke(
         projection_updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
         updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
     )
-    store.upsert_many((record, restricted_record))
+    transport_override_record = InternalNoticeReadModelEntry(
+        source_family="internal_notice_restricted",
+        source_corpus="campus_notices",
+        source_collection="internal_notice",
+        source_notice_id="353903",
+        unit_id="notice_unit:transport:353903:body",
+        primary_role="notice_window",
+        target_surface="campus_services/service_status_candidate",
+        consumption_status="ready",
+        queryable=True,
+        title="关于通勤班车丰台校区乘车点调整的通知",
+        visibility_level="restricted",
+        entitlement_groups=("students",),
+        policy_projection_version="phase1-authorization-projection-v1",
+        published_at="2026-01-01T08:00:00+08:00",
+        source_url="https://portal.example.edu/notices/353903",
+        canonical_url="https://portal.example.edu/notices/353903",
+        canonical_document_id="doc:transport-notice-353903",
+        canonical_markdown_object_key=(
+            "campus_notices/documents/internal_notice/353903/canonical.md"
+        ),
+        body_excerpt="通勤班车丰台校区乘车点调整至南门外停车区。",
+        search_text="丰台到海淀通勤车 乘车点 调整 丰台校区 南门外停车区 353903",
+        projection_updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+        updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+    )
+    store.upsert_many((record, restricted_record, transport_override_record))
     log_path.write_text(
         json.dumps(
             {
                 "status": "ok",
                 "table": store.table_name,
-                "notice_ids": [record.source_notice_id, restricted_record.source_notice_id],
-                "source_families": [record.source_family, restricted_record.source_family],
+                "notice_ids": [
+                    record.source_notice_id,
+                    restricted_record.source_notice_id,
+                    transport_override_record.source_notice_id,
+                ],
+                "source_families": [
+                    record.source_family,
+                    restricted_record.source_family,
+                    transport_override_record.source_family,
+                ],
             },
             ensure_ascii=False,
             indent=2,
@@ -826,6 +917,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--profile", default="closed_gate")
     parser.add_argument("--api-port", type=int, default=27051)
     parser.add_argument("--worker-port", type=int, default=27052)
+    parser.add_argument("--object-store-port", type=int, default=27061)
     parser.add_argument("--timeout-seconds", type=float, default=45.0)
     parser.add_argument(
         "--startup-timeout-seconds",
@@ -849,6 +941,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         profile=args.profile,
         api_port=args.api_port,
         worker_port=args.worker_port,
+        object_store_port=args.object_store_port,
     )
     summary = run_process_smoke(
         plan,

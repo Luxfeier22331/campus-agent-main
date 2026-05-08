@@ -27,7 +27,7 @@ from campus_notice_agent.query_service import (
     NoticeGetQuery,
 )
 from campus_notice_agent.sdk_tool_executor import execute_notice_sdk_tool
-from campus_supervisor_agent_worker.agents_sdk_runner import AgentsSdkToolExecutionRequest
+from campus_supervisor_agent_worker.openai_agents_runtime import OpenAIAgentsToolInvocation
 
 
 class _FakeNoticeQueryService:
@@ -168,7 +168,7 @@ class NoticeAgentTest(unittest.TestCase):
         )
 
         bounded = execute_notice_sdk_tool(
-            AgentsSdkToolExecutionRequest(
+            OpenAIAgentsToolInvocation(
                 name="campus_notice_discover",
                 arguments={
                     "query_text": "春假通知",
@@ -334,7 +334,7 @@ class NoticeAgentTest(unittest.TestCase):
         )
 
         bounded = execute_notice_sdk_tool(
-            AgentsSdkToolExecutionRequest(
+            OpenAIAgentsToolInvocation(
                 name="campus_notice_change_set_lookup",
                 arguments={
                     "query_text": "2026-05-07 今天丰台到海淀通勤车乘车点有没有调整",

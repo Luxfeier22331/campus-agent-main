@@ -5,7 +5,7 @@ export const SUPERVISOR_EXECUTION_CONTRACT = {
 	responseContract: "agent_response",
 	runtimeDecisionsSchemaVersion: "supervisor-runtime-decisions-v1",
 	runtimeDecisionSummarySchemaVersion: "runtime-decision-summary-v1",
-	workflowTraceSummaryVersion: "workflow-trace-summary-v3",
+	workflowTraceSummaryVersion: "workflow-trace-summary-v4",
 } as const;
 
 export const AGENT_TARGETS = [
@@ -44,6 +44,7 @@ export const WORKFLOW_MODES = [
 ] as const;
 export const STEP_OUTPUT_PROJECTION_KINDS = [
 	"notice_context",
+	"notice_change_set",
 	"schedule_baseline",
 	"service_guide_facts",
 	"place_context",
@@ -120,8 +121,12 @@ export interface WorkflowContextProjectionWire {
 export interface WorkflowAgentContextWire {
 	schema_version: "workflow-agent-context-v1";
 	visibility: "agent_private";
+	workflow_run_ref: string;
+	step_id: string;
+	agent_id: AgentTarget;
 	target?: AgentTarget;
 	required_projection_kind?: StepOutputProjectionKind;
+	expected_output_artifacts: StepOutputProjectionKind[];
 	projection_refs: WorkflowContextProjectionWire[];
 }
 
@@ -221,6 +226,8 @@ export interface SupervisorExecutionWorkflowTraceSummaryWire {
 	selected_target: AgentTarget | string | null;
 	selected_tools: string[];
 	context_projections: WorkflowContextProjectionWire[];
+	answer_artifact_projection_ids: string[];
+	answer_artifact_kinds: StepOutputProjectionKind[];
 	tool_argument_summary: SafeRecord;
 	trace_steps?: SafeRecord[];
 	tool_call_summaries?: SafeRecord[];

@@ -28,9 +28,9 @@ Go supervisor-api
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 3 - ToolSpec To FunctionTool Compiler`
-- current slice: Phase 1 debt inventory / primitive mapping and Phase 2 native SDK runtime factory
-  foundation completed; call-site migration and old runner deletion remain assigned to later phases
+- current phase: `Phase 8 - Residual Deletion And Drift Guards`
+- current slice: native runtime + RAG thin wrapper are in place; old custom runner shell and
+  rollout smoke residue have been deleted; focused verification is green
 - owner boundary: `apps/supervisor-agent-worker` + `packages/rag-agent` +
   domain-agent packages + `packages/contracts` + `configs/runtime/agents.v1.json` +
   `configs/runtime/tools.v1.json` + supervisor / agent / eval tests
@@ -45,8 +45,9 @@ Go supervisor-api
 - Phase 2 completed:
   - `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/openai_agents_runtime.py`
   - `tests/supervisor/openai_agents_runtime_suite.py`
-- Current implementation is a native SDK runtime factory foundation. Existing worker call sites
-  still migrate in Phase 4, and old custom runner protocol deletion remains Phase 8 scope.
+- Current implementation is now the native SDK runtime substrate plus the RAG thin wrapper path.
+  Old production `AgentsSdkRunner` / `AgentsSdkRunRequest` / `AgentsSdkRunResult` shell has been
+  deleted.
 
 ## Why This Workstream Exists
 
@@ -59,8 +60,8 @@ runtime 债务：
 - RAG SDK lane 仍保留 `closed` / `shadow` / `candidate` / `default_on` rollout 语义。
 - `rag-agent` 主答复路径仍以自研 pipeline 为 default，SDK 只是后置 synthesis lane。
 - `single_handoff`、agent-internal tools、RAG internal retrieval tool、multi-step workflow
-  之间还没有统一的 SDK-native execution owner。
-- 当前 SDK 接入是局部能力，不是 Python semantic worker 的唯一 provider-facing runtime。
+- Structured and RAG execution now both use the native runtime substrate; remaining work is
+  residue deletion, drift guards, eval acceptance and docs closeout.
 
 ## Official SDK Basis
 

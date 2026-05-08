@@ -11,19 +11,18 @@ from campus_contracts import (
     AuthorizationProjection,
     ContextProjection,
 )
-from campus_services_agent import tool_adapter as campus_services_tool_adapter
+from campus_services_agent.academic_calendar_adapter import academic_calendar_response
 from campus_services_agent.http_query_service import CampusServicesHTTPQueryService
 from campus_services_agent.query_service import (
     AcademicCalendarQuery,
     CampusServicesAccessContext,
 )
-from campus_services_agent.service import delegate_to_campus_services_agent
+from campus_services_agent.sdk_tool_executor import execute_campus_services_sdk_tool
+from campus_shared import PromptRuntimeProviderConfig
 from campus_supervisor_agent_worker.agent_delegates import _build_agent_delegates
-from campus_supervisor_agent_worker.agents_sdk_runner import (
-    AgentsSdkRunRequest,
-    AgentsSdkRunResult,
-    AgentsSdkToolCall,
-    AgentsSdkToolExecutionRequest,
+from campus_supervisor_agent_worker.openai_agents_runtime import (
+    OpenAIAgentsRunResult,
+    OpenAIAgentsToolCall,
 )
 from campus_supervisor_agent_worker.settings import ApiSettings
 
@@ -51,23 +50,23 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
             ),
         )
 
-        response = delegate_to_campus_services_agent(request, query_service=query_service)
-
-        self.assertEqual(response.target, "campus-services-agent")
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(response.result.week_index, 11)
-        self.assertIn("第11教学周", response.answer_text)
-        self.assertEqual(response.agent_observability.selected_tool, "academic_calendar_lookup")
-        self.assertEqual(
-            response.agent_observability.safe_details["agent_execution_projection"],
-            {
-                "schema_version": "agent-execution-projection-v1",
-                "projection_owner": "campus-services-agent",
-                "selected_tool": "academic_calendar_lookup",
-                "payload_kind": "academic_calendar_lookup",
-                "tool_selection_reason": "typed_payload_allowed_tool",
-            },
+        bounded = execute_campus_services_sdk_tool(
+            _tool_execution(
+                "academic_calendar_lookup",
+                {
+                    "query_text": "今天第几教学周",
+                    "query_kind": "date_week",
+                },
+                "call-calendar-001",
+            ),
+            agent_request=request,
+            query_service=query_service,
         )
+
+        self.assertEqual(bounded["status"], "completed")
+        self.assertEqual(bounded["outcome"], "resolved_current")
+        self.assertEqual(bounded["week_index"], 11)
+        self.assertEqual(bounded["academic_year_label"], "2025-2026学年")
         self.assertEqual(
             query_service.last_academic_calendar_query,
             AcademicCalendarQuery(
@@ -83,7 +82,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
         )
 
     def test_academic_calendar_response_fail_closes_without_source_truth(self) -> None:
-        response = campus_services_tool_adapter._academic_calendar_response(
+        response = academic_calendar_response(
             AcademicCalendarLookupResult(
                 query_text="今天第几教学周",
                 outcome="temporarily_unverifiable",
@@ -187,7 +186,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
                 )
             )
         )
-        response = campus_services_tool_adapter._academic_calendar_response(result)
+        response = academic_calendar_response(result)
 
         self.assertEqual(result.query_kind, "named_event_range")
         self.assertEqual(result.answer_focus, "holiday_duration")
@@ -206,7 +205,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
     def test_academic_calendar_response_describes_spring_break_without_correction_tone(
         self,
     ) -> None:
-        response = campus_services_tool_adapter._academic_calendar_response(
+        response = academic_calendar_response(
             AcademicCalendarLookupResult(
                 query_text="今年春假是什么时候",
                 outcome="resolved_current",
@@ -245,7 +244,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
     def test_academic_calendar_response_connects_labor_day_to_spring_break_conditionally(
         self,
     ) -> None:
-        response = campus_services_tool_adapter._academic_calendar_response(
+        response = academic_calendar_response(
             AcademicCalendarLookupResult(
                 query_text="五一放几天",
                 outcome="resolved_current",
@@ -283,7 +282,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
         self.assertNotIn("大家常说", response.answer_text)
 
     def test_academic_calendar_response_renders_day_status_terse_factually(self) -> None:
-        response = campus_services_tool_adapter._academic_calendar_response(
+        response = academic_calendar_response(
             AcademicCalendarLookupResult(
                 query_text="2026-05-01 上课吗",
                 outcome="resolved_current",
@@ -300,7 +299,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
         self.assertEqual(response.answer_text, "5 月 1 日不上课，属于劳动节假期。")
 
     def test_academic_calendar_response_renders_notice_rest_day_override(self) -> None:
-        response = campus_services_tool_adapter._academic_calendar_response(
+        response = academic_calendar_response(
             AcademicCalendarLookupResult(
                 query_text="2026-05-09 上课吗",
                 outcome="resolved_current",
@@ -316,7 +315,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
         self.assertEqual(response.answer_text, "5 月 9 日不上课，当天按休息日安排。")
 
     def test_academic_calendar_response_renders_course_suspension_day_status(self) -> None:
-        response = campus_services_tool_adapter._academic_calendar_response(
+        response = academic_calendar_response(
             AcademicCalendarLookupResult(
                 query_text="2026-04-28 上课吗",
                 outcome="resolved_current",
@@ -339,31 +338,34 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
         runner_called = False
         query_service = FakeCampusServicesQueryService()
 
-        def fake_runner(run_request: AgentsSdkRunRequest) -> AgentsSdkRunResult:
+        def fake_runner(agent, input_text, *, context, max_turns, run_config):
             nonlocal runner_called
             runner_called = True
-            self.assertEqual(run_request.target, "campus-services-agent")
-            self.assertEqual(run_request.allowed_tools, ("academic_calendar_lookup",))
-            self.assertEqual(
-                run_request.instruction_profile_id,
-                "academic_calendar_fact_lookup",
-            )
-            self.assertEqual(run_request.result_usage_mode, "academic_calendar_fact")
-            assert run_request.execute_tool is not None
-            tool_result = run_request.execute_tool(
-                AgentsSdkToolExecutionRequest(
-                    name="academic_calendar_lookup",
-                    arguments={"query_text": "今天第几教学周", "query_kind": "date_week"},
-                    call_id="call-calendar",
+            _ = input_text, context, max_turns, run_config
+            self.assertEqual(agent.name, "campus-services-agent")
+            self.assertEqual(agent.tools[0].name, "academic_calendar_lookup")
+
+            class ToolContext:
+                tool_call_id = "call-calendar"
+
+            import asyncio
+
+            tool_payload = asyncio.run(
+                agent.tools[0].on_invoke_tool(
+                    ToolContext(),
+                    '{"query_text":"今天第几教学周","query_kind":"date_week"}',
                 )
             )
+            import json
+
+            tool_result = json.loads(tool_payload)
             self.assertEqual(tool_result["outcome"], "resolved_current")
             self.assertEqual(tool_result["week_index"], 11)
             self.assertEqual(tool_result["source_ref_count"], 1)
-            return AgentsSdkRunResult(
+            return OpenAIAgentsRunResult(
                 final_output="今天是第 11 教学周。",
                 tool_calls=(
-                    AgentsSdkToolCall(
+                    OpenAIAgentsToolCall(
                         name="academic_calendar_lookup",
                         arguments={"query_text": "今天第几教学周", "query_kind": "date_week"},
                         call_id="call-calendar",
@@ -377,7 +379,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
             rag_prompt_executor=None,
             campus_services_query_service=query_service,
             notice_query_service=None,
-            agents_sdk_runner=fake_runner,
+            openai_agents_runtime=_native_runtime(fake_runner),
         )
 
         response = delegates["campus-services-agent"](_academic_calendar_request())
@@ -387,8 +389,38 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         assert response.agent_observability is not None
         self.assertEqual(response.agent_observability.selected_tool, "academic_calendar_lookup")
-        projection = response.agent_observability.safe_details["agents_sdk_runner_projection"]
+        projection = response.agent_observability.safe_details[
+            "openai_agents_runtime_projection"
+        ]
         self.assertEqual(projection["instruction_profile_id"], "academic_calendar_fact_lookup")
+
+
+def _native_runtime(runner):
+    return __import__(
+        "campus_supervisor_agent_worker.openai_agents_runtime",
+        fromlist=["OpenAIAgentsNativeRuntime"],
+    ).OpenAIAgentsNativeRuntime(
+        provider_config=PromptRuntimeProviderConfig(
+            provider="openai",
+            transport="responses",
+            api_key="test-key",
+            base_url="https://api.openai.com/v1",
+        ),
+        model_name="gpt-5.4-mini",
+        runner=runner,
+    )
+
+
+def _tool_execution(name: str, arguments: dict[str, object], call_id: str):
+    return type(
+        "_ToolExecution",
+        (),
+        {
+            "name": name,
+            "arguments": arguments,
+            "call_id": call_id,
+        },
+    )()
 
 
 def _academic_calendar_request() -> AgentRequest:

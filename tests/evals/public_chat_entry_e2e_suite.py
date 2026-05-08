@@ -102,6 +102,11 @@ class PublicChatEntryE2ESuite(unittest.TestCase):
         case_set = load_public_chat_entry_cases()
         answer_texts = {
             "public-entry-campus-card-loss-guide": "校园卡遗失后可在自助补卡机补卡，并参考卡务中心地址办理。",
+            "public-entry-academic-calendar-guide-entry": (
+                "校历查看入口：https://www.muc.edu.cn/ggfw/mdxl.htm。"
+            ),
+            "public-entry-public-medical-materials": "公费医疗报销所需材料包括急诊证明、住院收据。",
+            "public-entry-vpn-login-entry": "VPN 登录入口：https://vpn.muc.edu.cn。",
             "public-entry-academic-calendar-date-week": "2026-05-07是第10教学周。",
             "public-entry-academic-calendar-named-event": (
                 "劳动节假期是5 月 1 日到 5 月 5 日，共 5 天；"

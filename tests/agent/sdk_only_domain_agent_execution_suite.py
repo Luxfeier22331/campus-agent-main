@@ -10,7 +10,7 @@ from campus_contracts import (
     ContextProjection,
     ServiceGuideLookupPayload,
 )
-from campus_supervisor_agent_worker.agents_sdk_runner import AgentsSdkToolExecutionRequest
+from campus_supervisor_agent_worker.openai_agents_runtime import OpenAIAgentsToolInvocation
 
 from tests.agent.campus_services_agent_fakes import FakeCampusServicesQueryService
 from tests.agent.test_notice_agent import _FakeNoticeQueryService
@@ -31,7 +31,7 @@ class SdkOnlyDomainAgentExecutionTest(unittest.TestCase):
         )
 
         result = execute_campus_services_sdk_tool(
-            AgentsSdkToolExecutionRequest(
+            OpenAIAgentsToolInvocation(
                 name="service_guide_lookup",
                 arguments={
                     "service_query": "校园卡丢了怎么办",

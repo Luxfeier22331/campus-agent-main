@@ -13,27 +13,27 @@ updated: 2026-05-08
 ## Current Position
 
 **Status:** active
-**Current Phase:** Phase 3 - ToolSpec To FunctionTool Compiler
+**Current Phase:** Phase 8 - Residual Deletion And Drift Guards
 **Last Activity:** 2026-05-08
 **Last Activity Description:** Completed Phase 1 planning artifacts, Phase 2 native SDK runtime
 factory foundation, and post-implementation review fixes.
 
 ## Current Slice
 
-Phase 1 and Phase 2 are complete. Phase 3 is next.
+Phase 1 and Phase 2 are complete. Native runtime and RAG wrapper hardcut are in place.
 
 Immediate next implementation slice:
 
-- consolidate structured and RAG-internal ToolSpec -> SDK `FunctionTool` compilation;
-- keep `structured_handoff` and `agent_internal` policy distinct while sharing compiler machinery;
-- preserve existing schema drift guards.
+- finish residual deletion and drift guards;
+- keep observability naming aligned with native runtime truth;
+- preserve focused verification for native runtime / RAG wrapper / smoke paths.
 
 ## Baseline Facts
 
 - `sdk-only-domain-agent-execution-hardcut` is completed and removed direct structured domain-agent
   adapter fallback for `sdk_adapter_admitted` tools.
-- Current worker still has custom SDK runner shell code and production `AgentsSdkRunner` protocol.
-- Current RAG SDK path still has rollout semantics and non-SDK answer synthesis fallback.
+- Current worker no longer has the production `AgentsSdkRunner` shell.
+- Current RAG SDK path now uses the native runtime wrapper directly.
 - RAG deterministic retrieval planning, retrieval execution and evidence selection are not SDK
   migration targets; SDK hardcut applies to provider-facing answer drafting / synthesis and tool
   loop substrate.
@@ -103,6 +103,6 @@ Observed result on 2026-05-08:
 
 ## Session Continuity
 
-**Stopped At:** Phase 1 and Phase 2 completed; Phase 3 ready
+**Stopped At:** Native runtime hardcut completed; residual deletion and docs closeout next
 **Resume File:** `README.md`, `REQUIREMENTS.md`, `ROADMAP.md`, `STATE.md`,
 `CURRENT-DEBT-INVENTORY.md`, `SDK-PRIMITIVE-MAPPING.md`

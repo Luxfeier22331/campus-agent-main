@@ -58,6 +58,8 @@
 		"selected_target": "rag-agent",
 		"selected_tools": ["retrieval.query"],
 		"context_projections": [],
+		"answer_artifact_projection_ids": [],
+		"answer_artifact_kinds": [],
 		"tool_argument_summary": {
 			"collection": "student_rules"
 		},
@@ -88,7 +90,7 @@
 		},
 		"fail_close_reason": "",
 		"runtime_versions": {
-			"workflow_trace_summary": "workflow-trace-summary-v3"
+			"workflow_trace_summary": "workflow-trace-summary-v4"
 		},
 		"policy_artifact_versions": {
 			"intent_policy": "intent-policy.v1"

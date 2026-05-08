@@ -24,16 +24,36 @@ from campus_supervisor_agent_worker.agent_dispatch import (
     ExecutionCancelledError,
     dispatch_agent_request,
 )
-from campus_supervisor_agent_worker.agents_sdk_runner import (
-    AGENTS_SDK_RUNNER_ERROR_SCHEMA_VERSION,
-    AgentsSdkRunner,
-    run_agents_sdk_runner_shell,
+from campus_supervisor_agent_worker.agents_sdk_instruction_profiles import (
+    instruction_profile_for_request,
+)
+from campus_supervisor_agent_worker.agents_sdk_tool_bridge import (
+    AgentsSdkToolBridgeError,
+    build_agents_sdk_tool_descriptors,
 )
 from campus_supervisor_agent_worker.agents_sdk_trace_projection import (
     build_agents_sdk_trace_projection,
+    elapsed_agents_sdk_latency_ms,
+    start_agents_sdk_trace_timer,
 )
 from campus_supervisor_agent_worker.cancel_flags import CancelFlagStore
+from campus_supervisor_agent_worker.openai_agents_runtime import (
+    OpenAIAgentsNativeRuntime,
+    OpenAIAgentsRuntimeError,
+    OpenAIAgentsToolInvocation,
+)
+from campus_supervisor_agent_worker.openai_agents_runtime_projection import (
+    OPENAI_AGENTS_RUNTIME_ERROR_SCHEMA_VERSION,
+    OpenAIAgentsRuntimeProjectionError,
+    OpenAIAgentsToolExecutionRecord,
+    bounded_tool_result_projection,
+    response_from_native_runtime_result,
+    runtime_error_response,
+)
 from campus_supervisor_agent_worker.prompt_executor import ProviderBackedRagPromptExecutor
+from campus_supervisor_agent_worker.rag_agents_sdk_openai_runner import (
+    OpenAIRagAgentsSdkRunner,
+)
 from campus_supervisor_agent_worker.retrieval_observation_bridge import (
     build_retrieval_runtime_event_sink,
     build_runtime_event_jsonl_emitter,
@@ -60,8 +80,8 @@ def bind_agent_handler(
         rag_prompt_executor=rag_prompt_executor,
         campus_services_query_service=campus_services_query_service,
         notice_query_service=notice_query_service,
-        agents_sdk_runner=_build_agents_sdk_runner(settings),
-        rag_sdk_runner=_build_rag_agents_sdk_runner(settings),
+        openai_agents_runtime=_build_openai_agents_runtime(settings),
+        rag_openai_runtime=_build_rag_openai_runtime(settings),
     )
 
     return lambda request, runtime_agent_request: dispatch_agent_request(
@@ -77,8 +97,8 @@ def _build_agent_delegates(
     rag_prompt_executor: ProviderBackedRagPromptExecutor | None,
     campus_services_query_service: CampusServicesHTTPQueryService | None,
     notice_query_service: NoticeHTTPQueryService | None,
-    agents_sdk_runner: AgentsSdkRunner | None = None,
-    rag_sdk_runner=None,
+    openai_agents_runtime: OpenAIAgentsNativeRuntime | None = None,
+    rag_openai_runtime=None,
 ) -> dict[str, AgentDelegate]:
     retrieval_jsonl_observation_sink = (
         build_jsonl_retrieval_observation_sink(settings.retrieval_observation_jsonl_path)
@@ -104,8 +124,7 @@ def _build_agent_delegates(
             include_retrieval_observation_query_text=(
                 settings.retrieval_observation_include_query_text
             ),
-            rag_sdk_runner=rag_sdk_runner,
-            rag_sdk_rollout_mode=("candidate" if rag_sdk_runner is not None else "closed"),
+            rag_sdk_runner=rag_openai_runtime,
         ),
         "navigation-agent": delegate_to_navigation_agent,
         "campus-services-agent": _sdk_required_missing_query_service_delegate,
@@ -117,7 +136,7 @@ def _build_agent_delegates(
                 agent_request,
                 settings=settings,
                 query_service=campus_services_query_service,
-                agents_sdk_runner=agents_sdk_runner,
+                openai_agents_runtime=openai_agents_runtime,
             )
         )
     if notice_query_service is not None:
@@ -125,7 +144,7 @@ def _build_agent_delegates(
             agent_request,
             settings=settings,
             query_service=notice_query_service,
-            agents_sdk_runner=agents_sdk_runner,
+            openai_agents_runtime=openai_agents_runtime,
         )
     return agent_delegates
 
@@ -135,19 +154,18 @@ def _execute_notice_agent_request(
     *,
     settings: ApiSettings,
     query_service: NoticeHTTPQueryService,
-    agents_sdk_runner: AgentsSdkRunner | None,
+    openai_agents_runtime: OpenAIAgentsNativeRuntime | None,
 ):
     if _is_sdk_admitted_structured_request(agent_request):
-        return run_agents_sdk_runner_shell(
+        return _run_structured_native_runtime(
             agent_request,
-            runner=agents_sdk_runner,
-            enabled=settings.agents_sdk_runtime_enabled,
-            execute_tool=lambda execution: execute_notice_sdk_tool(
-                execution,
+            settings=settings,
+            runtime=openai_agents_runtime,
+            execute_tool=lambda invocation: execute_notice_sdk_tool(
+                invocation,
                 agent_request=agent_request,
                 query_service=query_service,
             ),
-            require_tool_execution=True,
         )
     return run_notice_get_internal_request(
         agent_request,
@@ -160,19 +178,18 @@ def _execute_campus_services_agent_request(
     *,
     settings: ApiSettings,
     query_service: CampusServicesHTTPQueryService,
-    agents_sdk_runner: AgentsSdkRunner | None,
+    openai_agents_runtime: OpenAIAgentsNativeRuntime | None,
 ):
     if _is_sdk_admitted_structured_request(agent_request):
-        return run_agents_sdk_runner_shell(
+        return _run_structured_native_runtime(
             agent_request,
-            runner=agents_sdk_runner,
-            enabled=settings.agents_sdk_runtime_enabled,
-            execute_tool=lambda execution: execute_campus_services_sdk_tool(
-                execution,
+            settings=settings,
+            runtime=openai_agents_runtime,
+            execute_tool=lambda invocation: execute_campus_services_sdk_tool(
+                invocation,
                 agent_request=agent_request,
                 query_service=query_service,
             ),
-            require_tool_execution=True,
         )
     return _agents_sdk_admission_error_response(
         agent_request,
@@ -244,8 +261,8 @@ def _agents_sdk_admission_error_response(
             source_ref_count=0,
             access_decision="not_evaluated",
             safe_details={
-                "agents_sdk_runner_error": {
-                    "schema_version": AGENTS_SDK_RUNNER_ERROR_SCHEMA_VERSION,
+                "openai_agents_runtime_error": {
+                    "schema_version": OPENAI_AGENTS_RUNTIME_ERROR_SCHEMA_VERSION,
                     "failure_class": failure_class,
                     "retryable": False,
                     "bridge_reason": bridge_reason,
@@ -284,6 +301,107 @@ def _runtime_posture_for_request(agent_request: AgentRequest) -> str:
     if tool is None:
         return ""
     return tool.runtime_posture
+
+
+def _run_structured_native_runtime(
+    agent_request: AgentRequest,
+    *,
+    settings: ApiSettings,
+    runtime: OpenAIAgentsNativeRuntime | None,
+    execute_tool,
+) -> AgentResponse:
+    started_ns = start_agents_sdk_trace_timer()
+    tool_execution_records: list[OpenAIAgentsToolExecutionRecord] = []
+    if not settings.agents_sdk_runtime_enabled:
+        return runtime_error_response(
+            agent_request,
+            "runtime_disabled",
+            "OpenAI Agents native runtime is disabled",
+            latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
+        )
+    if runtime is None:
+        return runtime_error_response(
+            agent_request,
+            "runtime_unavailable",
+            "OpenAI Agents native runtime is unavailable for an SDK-admitted structured tool",
+            bridge_reason="runner_unavailable",
+            latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
+            runtime_posture=_runtime_posture_for_request(agent_request),
+        )
+    try:
+        descriptor = build_agents_sdk_tool_descriptors(agent_request.allowed_tools)[0]
+        profile = instruction_profile_for_request(agent_request)
+
+        def execute_and_record(invocation: OpenAIAgentsToolInvocation):
+            raw_result = execute_tool(invocation)
+            bounded_result = bounded_tool_result_projection(raw_result)
+            tool_execution_records.append(
+                OpenAIAgentsToolExecutionRecord(
+                    name=invocation.name,
+                    call_id=invocation.call_id,
+                    arguments=dict(invocation.arguments),
+                    argument_keys=tuple(sorted(invocation.arguments)),
+                    result_projection=bounded_result,
+                )
+            )
+            return raw_result
+
+        result = runtime.run_agent(
+            agent_request=agent_request,
+            instruction_profile=profile,
+            tool_descriptors=(descriptor,),
+            execute_tool=execute_and_record,
+        )
+        return response_from_native_runtime_result(
+            agent_request,
+            result,
+            descriptor=descriptor,
+            tool_execution_records=tuple(tool_execution_records),
+            require_tool_execution=True,
+            latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
+            instruction_profile_id=profile.profile_id,
+            result_usage_mode=profile.result_usage_mode,
+            surface_execution_mode=profile.surface_execution_mode,
+        )
+    except AgentsSdkToolBridgeError as exc:
+        return runtime_error_response(
+            agent_request,
+            "sdk_tool_not_admitted",
+            str(exc),
+            bridge_reason=exc.reason,
+            latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
+            runtime_posture=_runtime_posture_for_request(agent_request),
+        )
+    except (OpenAIAgentsRuntimeError, OpenAIAgentsRuntimeProjectionError) as exc:
+        return runtime_error_response(
+            agent_request,
+            exc.failure_class,
+            exc.message,
+            retryable=exc.retryable,
+            latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
+            runtime_posture=_runtime_posture_for_request(agent_request),
+            tool_execution_count=len(tool_execution_records),
+        )
+    except TimeoutError as exc:
+        return runtime_error_response(
+            agent_request,
+            "sdk_timeout",
+            str(exc) or "OpenAI Agents native runtime timed out",
+            retryable=True,
+            latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
+            runtime_posture=_runtime_posture_for_request(agent_request),
+            tool_execution_count=len(tool_execution_records),
+        )
+    except Exception as exc:
+        return runtime_error_response(
+            agent_request,
+            "sdk_runner_failed",
+            f"OpenAI Agents native runtime failed: {exc}",
+            retryable=True,
+            latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
+            runtime_posture=_runtime_posture_for_request(agent_request),
+            tool_execution_count=len(tool_execution_records),
+        )
 
 
 def _wrap_with_cancel_checks(agent_handler, cancel_flags: CancelFlagStore):
@@ -325,16 +443,10 @@ def _build_notice_query_service(
     )
 
 
-def _build_agents_sdk_runner(settings: ApiSettings) -> AgentsSdkRunner | None:
+def _build_openai_agents_runtime(settings: ApiSettings) -> OpenAIAgentsNativeRuntime | None:
     if not settings.agents_sdk_runtime_enabled:
         return None
     provider = settings.prompt_runtime_provider or settings.runtime_provider
-    if provider == "mock-runtime":
-        if not settings.agent_prompt_model:
-            return None
-        from campus_supervisor_agent_worker.agents_sdk_mock_runner import MockAgentsSdkRunner
-
-        return MockAgentsSdkRunner()
     if not provider or not settings.prompt_runtime_api_key or not settings.agent_prompt_model:
         return None
     try:
@@ -357,29 +469,17 @@ def _build_agents_sdk_runner(settings: ApiSettings) -> AgentsSdkRunner | None:
         )
     except ValueError:
         return None
-    try:
-        from campus_supervisor_agent_worker.agents_sdk_openai_runner import OpenAIAgentsSdkRunner
-    except ImportError:
-        return None
-    return OpenAIAgentsSdkRunner(
+    return OpenAIAgentsNativeRuntime(
         provider_config=provider_config,
         model_name=settings.agent_prompt_model,
     )
 
 
-def _build_rag_agents_sdk_runner(settings: ApiSettings):
+def _build_rag_openai_runtime(settings: ApiSettings):
     if not settings.agents_sdk_runtime_enabled:
         return None
     provider = settings.prompt_runtime_provider or settings.runtime_provider
     model_name = _resolve_rag_agents_sdk_model_name(settings)
-    if provider == "mock-runtime":
-        if not model_name:
-            return None
-        from campus_supervisor_agent_worker.rag_agents_sdk_mock_runner import (
-            MockRagAgentsSdkRunner,
-        )
-
-        return MockRagAgentsSdkRunner()
     if not provider or not settings.prompt_runtime_api_key or not model_name:
         return None
     try:
@@ -401,12 +501,6 @@ def _build_rag_agents_sdk_runner(settings: ApiSettings):
             ),
         )
     except ValueError:
-        return None
-    try:
-        from campus_supervisor_agent_worker.rag_agents_sdk_openai_runner import (
-            OpenAIRagAgentsSdkRunner,
-        )
-    except ImportError:
         return None
     return OpenAIRagAgentsSdkRunner(
         provider_config=provider_config,

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 import json
 
-from agents import Agent, FunctionTool, ModelSettings, RunConfig, Runner
-from agents.models.openai_provider import OpenAIProvider
 from campus_rag_agent.rag_sdk_models import (
     RagSdkEvidenceAnchor,
     RagSdkRunRequest,
@@ -27,6 +25,11 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from campus_supervisor_agent_worker.agents_sdk_tool_bridge import (
     build_agents_sdk_tool_descriptors,
+)
+from campus_supervisor_agent_worker.openai_agents_runtime import (
+    OpenAIAgentsNativeRuntime,
+    OpenAIAgentsRuntimeError,
+    OpenAIAgentsToolInvocation,
 )
 
 _RAG_SDK_INSTRUCTIONS = """
@@ -108,90 +111,55 @@ class OpenAIRagAgentsSdkRunner:
         instructions: str = _RAG_SDK_INSTRUCTIONS,
         max_turns: int = 3,
     ) -> None:
-        self._provider_config = provider_config
-        self._model_name = model_name.strip()
         self._instructions = instructions.strip() or _RAG_SDK_INSTRUCTIONS
-        self._max_turns = max_turns
-        if not self._model_name:
-            raise ValueError("RAG Agents SDK runner model_name is required")
-        if self._max_turns <= 1:
-            raise ValueError("RAG Agents SDK runner max_turns must allow tool use")
+        self._runtime = OpenAIAgentsNativeRuntime(
+            provider_config=provider_config,
+            model_name=model_name,
+            max_turns=max_turns,
+        )
 
     def __call__(self, request: RagSdkRunRequest) -> RagSdkRunResult:
-        agent = Agent(
-            name="rag-agent-internal-sdk-loop",
+        result = self._runtime.run(
+            agent_name="rag-agent-internal-sdk-loop",
             instructions=self._instructions,
-            tools=[self.build_retrieve_evidence_tool(request)],
-            model=self._model_name,
-            model_settings=ModelSettings(
-                tool_choice="required",
-                parallel_tool_calls=False,
-                max_tokens=self._provider_config.max_output_tokens,
-            ),
-            output_type=_RagSdkStructuredOutput,
-        )
-        result = Runner.run_sync(
-            agent,
-            request.user_goal,
+            input_text=request.user_goal,
             context=request,
-            max_turns=self._max_turns,
-            run_config=RunConfig(
-                model_provider=OpenAIProvider(
-                    api_key=self._provider_config.api_key,
-                    base_url=self._provider_config.base_url,
-                    use_responses=True,
-                ),
-                tracing_disabled=True,
-                trace_include_sensitive_data=False,
+            tool_descriptors=build_agents_sdk_tool_descriptors(("retrieve_evidence",)),
+            output_type=_RagSdkStructuredOutput,
+            execute_tool=lambda invocation: _execute_retrieve_evidence_tool(
+                invocation,
+                request=request,
             ),
         )
-        output = _coerce_structured_output(getattr(result, "final_output", None))
+        output = _coerce_structured_output(result.final_output)
         return RagSdkRunResult(
             output=output,
             trace_projection=build_rag_sdk_trace_projection(
-                rollout_mode=request.rollout_mode,
                 runtime="openai_agents_sdk",
                 tool_names=("retrieve_evidence",),
-                model_response_ref=str(getattr(result, "last_response_id", "") or ""),
+                model_response_ref=result.model_response_ref,
             ),
         )
 
-    def build_retrieve_evidence_tool(self, request: RagSdkRunRequest) -> FunctionTool:
+    def build_retrieve_evidence_tool(self, request: RagSdkRunRequest):
+        from agents import FunctionTool
+
         descriptor = build_agents_sdk_tool_descriptors(("retrieve_evidence",))[0]
 
-        async def invoke_tool(_context: object, raw_arguments: str) -> str:
+        async def invoke_tool(context: object, raw_arguments: str) -> str:
             arguments = _parse_tool_arguments(raw_arguments)
             try:
-                reject_model_supplied_scope_or_selector(arguments)
-                query_slot_id = resolve_admitted_query_slot_id(
-                    arguments.get("query_slot_id"),
-                    admitted_query_slot_ids=request.query_intent.admitted_query_slot_ids,
+                result = _execute_retrieve_evidence_tool(
+                    OpenAIAgentsToolInvocation(
+                        name=descriptor.name,
+                        arguments=arguments,
+                        call_id=str(getattr(context, "tool_call_id", "") or ""),
+                    ),
+                    request=request,
                 )
-            except RagSdkToolError as exc:
+            except OpenAIAgentsRuntimeError as exc:
                 raise ValueError(exc.failure_class) from exc
-            return json.dumps(
-                {
-                    "status": "completed",
-                    "query_slot_id": query_slot_id,
-                    "retrieval_intent": str(arguments.get("retrieval_intent") or "").strip(),
-                    "corpus": request.evidence.corpus,
-                    "collection": request.evidence.collection,
-                    "source_count": len(request.evidence.anchors),
-                    "anchors": [
-                        {
-                            "source_id": anchor.source_id,
-                            "chunk_id": anchor.chunk_id,
-                            "excerpt": anchor.excerpt,
-                            "span_ref": anchor.span_ref,
-                            "title": anchor.title,
-                            "url": anchor.url,
-                        }
-                        for anchor in request.evidence.anchors
-                    ],
-                },
-                ensure_ascii=False,
-                sort_keys=True,
-            )
+            return json.dumps(result, ensure_ascii=False, sort_keys=True)
 
         return FunctionTool(
             name=descriptor.name,
@@ -256,6 +224,16 @@ def _coerce_structured_output(value: object) -> RagSdkAnswerOutput:
     )
 
 
+def _parse_tool_arguments(raw_arguments: str) -> dict[str, object]:
+    try:
+        parsed = json.loads(raw_arguments or "{}")
+    except json.JSONDecodeError as exc:
+        raise ValueError("rag_sdk_bad_arguments") from exc
+    if not isinstance(parsed, dict):
+        raise ValueError("rag_sdk_bad_arguments")
+    return dict(parsed)
+
+
 def _anchor(value: _RagSdkStructuredAnchor) -> RagSdkEvidenceAnchor:
     return RagSdkEvidenceAnchor(
         source_id=value.source_id,
@@ -267,14 +245,39 @@ def _anchor(value: _RagSdkStructuredAnchor) -> RagSdkEvidenceAnchor:
     )
 
 
-def _parse_tool_arguments(raw_arguments: str) -> dict[str, object]:
+def _execute_retrieve_evidence_tool(
+    invocation: OpenAIAgentsToolInvocation,
+    *,
+    request: RagSdkRunRequest,
+) -> dict[str, object]:
+    arguments = invocation.arguments
     try:
-        parsed = json.loads(raw_arguments or "{}")
-    except json.JSONDecodeError as exc:
-        raise ValueError("rag_sdk_bad_tool_arguments") from exc
-    if not isinstance(parsed, dict):
-        raise ValueError("rag_sdk_bad_tool_arguments")
-    return dict(parsed)
+        reject_model_supplied_scope_or_selector(arguments)
+        query_slot_id = resolve_admitted_query_slot_id(
+            arguments.get("query_slot_id"),
+            admitted_query_slot_ids=request.query_intent.admitted_query_slot_ids,
+        )
+    except RagSdkToolError as exc:
+        raise OpenAIAgentsRuntimeError(exc.failure_class, exc.failure_class) from exc
+    return {
+        "status": "completed",
+        "query_slot_id": query_slot_id,
+        "retrieval_intent": str(arguments.get("retrieval_intent") or "").strip(),
+        "corpus": request.evidence.corpus,
+        "collection": request.evidence.collection,
+        "source_count": len(request.evidence.anchors),
+        "anchors": [
+            {
+                "source_id": anchor.source_id,
+                "chunk_id": anchor.chunk_id,
+                "excerpt": anchor.excerpt,
+                "span_ref": anchor.span_ref,
+                "title": anchor.title,
+                "url": anchor.url,
+            }
+            for anchor in request.evidence.anchors
+        ],
+    }
 
 
 __all__ = ["OpenAIRagAgentsSdkRunner"]

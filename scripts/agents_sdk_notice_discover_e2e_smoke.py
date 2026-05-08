@@ -397,7 +397,7 @@ def _bridge_response_passed(status_code: int, body: object) -> tuple[bool, dict[
     response = body if isinstance(body, dict) else {}
     observability = _dict(response.get("agent_observability"))
     safe_details = _dict(observability.get("safe_details"))
-    runner_projection = _dict(safe_details.get("agents_sdk_runner_projection"))
+    runner_projection = _dict(safe_details.get("openai_agents_runtime_projection"))
     tool_result = _dict(runner_projection.get("tool_result_projection"))
     answer_text = str(response.get("answer_text") or "")
     titles = _string_list(tool_result.get("titles"))
