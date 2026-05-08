@@ -906,6 +906,11 @@ def _academic_calendar_record_payload(
     return {
         "calendar_record_id": calendar_record_id,
         "record_family": record_family,
+        "source_family": OFFICIAL_WEB_CURATED_ACADEMIC_CALENDAR_SOURCE_FAMILY,
+        "source_precedence": 10,
+        "source_notice_ids": [],
+        "precedence_reason": "",
+        "conflict_refs": [],
         "academic_year_label": academic_year_label,
         "term_label": term_label,
         "start_date": start_date,
