@@ -59,6 +59,12 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/docs/readyz",
+		callerClass: "browser-surface",
+		admission: "docs control-plane readiness probe",
+	},
+	{
+		method: "GET",
 		path: "/api/docs/collections/:corpus/:collection/documents/:documentSlug",
 		callerClass: "browser-surface",
 		admission: "docs surface read admission",

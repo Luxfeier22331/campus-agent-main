@@ -110,8 +110,8 @@ Observability data policy:
   `<https://us-east-1.aws.edge.axiom.co`>
 - `app-api` uses the edge ingest route for `*.edge.axiom.co` endpoints and the
   dataset ingest route for the shared `<https://api.axiom.co`> domain
-- `AXIOM_DATASET` should stay service- and environment-scoped, for example
-  `campus-agent-runtime-dev`
+- `AXIOM_DATASET` is environment-scoped for the current rollout, for example
+  `campus-agent-runtime-dev` or `campus-agent-runtime-staging`
 - when `AXIOM_ENDPOINT` points at an edge deployment domain, `AXIOM_TOKEN` must
   be an Axiom API token rather than a PAT
 - panel trace / issue links are app-owned projections, not route-time sink

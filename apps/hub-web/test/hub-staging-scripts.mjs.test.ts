@@ -25,7 +25,7 @@ function createBuiltConfigFixture(vars: Record<string, string>) {
 	writeFileSync(
 		configPath,
 		JSON.stringify({
-			routes: [{ pattern: "hub-staging.muc.wiki" }],
+			routes: [{ custom_domain: true, pattern: "hub-muc-wiki.ayafeed.com" }],
 			services: [{ binding: "APP_API", service: "app-api-staging" }],
 			vars,
 		}),
@@ -39,7 +39,7 @@ describe("hub staging scripts", () => {
 	it("requires a real hub-scoped Turnstile sitekey for staging config verification", () => {
 		const { tempRoot } = createBuiltConfigFixture({
 			APP_API_BASE_URL: "https://app-api.internal",
-			HUB_WEB_HOSTNAME: "hub-staging.muc.wiki",
+			HUB_WEB_HOSTNAME: "hub-muc-wiki.ayafeed.com",
 			SENTRY_ENVIRONMENT: "staging",
 		});
 		const scriptSource = readFileSync(join(appDir, "scripts", "verify-staging-config.mjs"), "utf8");
@@ -65,7 +65,7 @@ describe("hub staging scripts", () => {
 	it("accepts a built staging config with runtime-only Turnstile variables", () => {
 		const { tempRoot } = createBuiltConfigFixture({
 			APP_API_BASE_URL: "https://app-api.internal",
-			HUB_WEB_HOSTNAME: "hub-staging.muc.wiki",
+			HUB_WEB_HOSTNAME: "hub-muc-wiki.ayafeed.com",
 			SENTRY_ENVIRONMENT: "staging",
 		});
 		const scriptSource = readFileSync(join(appDir, "scripts", "verify-staging-config.mjs"), "utf8");
@@ -86,5 +86,35 @@ describe("hub staging scripts", () => {
 		expect(result.status).toBe(0);
 		expect(result.error).toBeUndefined();
 		expect(result.stderr).toBe("");
+	});
+
+	it("rejects a staging route that is not a custom domain", () => {
+		const { tempRoot } = createBuiltConfigFixture({
+			APP_API_BASE_URL: "https://app-api.internal",
+			HUB_WEB_HOSTNAME: "hub-muc-wiki.ayafeed.com",
+			SENTRY_ENVIRONMENT: "staging",
+		});
+		const configPath = join(tempRoot, "dist", "hub_web", "wrangler.json");
+		const builtConfig = JSON.parse(readFileSync(configPath, "utf8"));
+		builtConfig.routes = [{ pattern: "hub-muc-wiki.ayafeed.com" }];
+		writeFileSync(configPath, JSON.stringify(builtConfig), "utf8");
+		const scriptSource = readFileSync(join(appDir, "scripts", "verify-staging-config.mjs"), "utf8");
+		const scriptPath = join(tempRoot, "scripts", "verify-staging-config.mjs");
+		mkdirSync(join(tempRoot, "scripts"), { recursive: true });
+		writeFileSync(scriptPath, scriptSource, "utf8");
+
+		const result = spawnSync(process.execPath, [scriptPath], {
+			cwd: tempRoot,
+			env: {
+				...process.env,
+				STAGING_HUB_AUTH_TURNSTILE_SITE_KEY: "0x4AAAAAAAstagingWidget",
+			},
+			encoding: "utf8",
+			timeout: VERIFY_STAGING_CONFIG_TIMEOUT_MS,
+		});
+
+		expect(result.status).toBe(1);
+		expect(result.error).toBeUndefined();
+		expect(result.stderr).toContain("custom domain route");
 	});
 });

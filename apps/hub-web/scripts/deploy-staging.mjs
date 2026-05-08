@@ -65,7 +65,7 @@ function resolveTurnstileOption(name, rawValue, validValues, fallback) {
 
 if (!turnstileSiteKey) {
 	fail(
-		"STAGING_HUB_AUTH_TURNSTILE_SITE_KEY is required. Inject the real Turnstile sitekey admitted for hub-staging.muc.wiki before deploying.",
+		"STAGING_HUB_AUTH_TURNSTILE_SITE_KEY is required. Inject the real Turnstile sitekey admitted for hub-muc-wiki.ayafeed.com before deploying.",
 	);
 }
 
@@ -78,8 +78,10 @@ if (turnstileSiteKey === TURNSTILE_TEST_SITE_KEY) {
 run("pnpm", ["build:staging"]);
 run("pnpm", ["deploy:verify-config:staging"]);
 run(
-	"wrangler",
+	"pnpm",
 	[
+		"exec",
+		"wrangler",
 		"deploy",
 		"--config",
 		"dist/hub_web/wrangler.json",

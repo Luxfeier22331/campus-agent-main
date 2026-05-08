@@ -5,9 +5,10 @@ import { captcha } from "better-auth/plugins";
 import { decodeBase64UrlBytes, encodeBase64UrlBytes } from "../../base64url";
 import {
 	type AppApiEnvironment,
+	type AppAuthConfig,
 	type Env,
 	isDeployedEnvironment,
-	readAppApiConfig,
+	readAppAuthConfig,
 	resolveEnvironment,
 } from "../../config";
 import { createRuntimeDatabase, probeBetterAuthDatabase } from "../../db/runtime";
@@ -53,6 +54,7 @@ export interface BetterAuthConfigInput {
 
 export interface CreateAppAuthInput {
 	database?: Awaited<ReturnType<typeof createRuntimeDatabase>>;
+	config?: AppAuthConfig;
 }
 
 export interface EndUserEmailAdmissionPolicy {
@@ -363,7 +365,7 @@ export async function verifyAppPassword(input: {
 }
 
 export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
-	const config = readAppApiConfig(env);
+	const config = input.config ?? readAppAuthConfig(env);
 	const database = input.database ?? (await createRuntimeDatabase(env, { consistency: "fresh" }));
 
 	return betterAuth(
@@ -375,7 +377,7 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
 			authShellOrigin: config.authShellOrigin,
 			betterAuthSecret: config.betterAuthSecret,
 			environment: config.environment,
-			publicChatOrigin: config.publicChatOrigin,
+			publicChatOrigin: config.publicChatOrigin ?? config.authShellOrigin,
 			resendApiKey: config.resendApiKey,
 			endUserEmailAllowlist: config.endUserEmailAllowlist,
 			endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,

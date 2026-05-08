@@ -70,6 +70,7 @@ Staging deployment keeps Turnstile widget values out of tracked `wrangler.toml`.
 Use `STAGING_HUB_AUTH_TURNSTILE_SITE_KEY` plus optional
 `STAGING_HUB_AUTH_TURNSTILE_APPEARANCE` and
 `STAGING_HUB_AUTH_TURNSTILE_EXECUTION` when deploying staging.
+`SENTRY_DSN` stays fail-open for hub staging and is not a deploy hard gate.
 
 Local commands:
 

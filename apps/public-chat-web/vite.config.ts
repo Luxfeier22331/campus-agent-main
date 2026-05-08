@@ -73,6 +73,7 @@ export default defineConfig({
 			process.env.PLAYWRIGHT_TEST_BASE_URL ?? "",
 		),
 	},
+	publicDir: path.resolve(__dirname, "../../configs/branding/web-public"),
 	plugins: [
 		createVendorCompatResolver(),
 		tailwindcss(),

@@ -129,7 +129,7 @@ async function serveReadiness(env: Env): Promise<Response> {
 			error: {
 				code: "dependency_not_ready",
 				details: {
-					appApiRuntime: appApiRuntimeError,
+					docsControlPlane: appApiRuntimeError,
 				},
 				message: "Runtime configuration is incomplete.",
 			},
@@ -141,7 +141,7 @@ async function serveReadiness(env: Env): Promise<Response> {
 		app_api_base_url: env.APP_API_BASE_URL || "",
 		dependencies: {
 			appApiBinding: "configured",
-			appApiRuntime: "ready",
+			docsControlPlane: "ready",
 			assets: "configured",
 		},
 		public_hostname: env.PUBLIC_DOCS_HOSTNAME || "",
@@ -156,22 +156,22 @@ async function probeAppApiRuntime(env: Env): Promise<string | null> {
 
 	try {
 		const response = await env.APP_API.fetch(
-			new Request(new URL("/readyz", env.APP_API_BASE_URL).toString(), {
+			new Request(new URL("/api/docs/readyz", env.APP_API_BASE_URL).toString(), {
 				method: "GET",
 			}),
 		);
 		if (response.status !== 200) {
-			return `app-api readyz returned ${response.status}`;
+			return `docs control-plane readyz returned ${response.status}`;
 		}
 
 		const payload = (await response.json().catch(() => null)) as { status?: unknown } | null;
 		if (payload?.status !== "ready") {
-			return "app-api readyz returned an invalid payload";
+			return "docs control-plane readyz returned an invalid payload";
 		}
 
 		return null;
 	} catch (error) {
-		return error instanceof Error ? error.message : "app-api readyz probe failed";
+		return error instanceof Error ? error.message : "docs control-plane readyz probe failed";
 	}
 }
 

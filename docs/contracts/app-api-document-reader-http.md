@@ -73,6 +73,7 @@ control-plane HTTP contract。
 
 ## Endpoint Summary
 
+- `GET /api/docs/readyz`
 - `GET /api/docs/collections/:corpus/:collection/navigation`
 - `GET /api/docs/collections/:corpus/:collection/search`
 - `GET /api/docs/collections/:corpus/:collection/documents/:documentSlug`
@@ -82,6 +83,32 @@ control-plane HTTP contract。
   /api/docs/collections/:corpus/:collection/documents/:documentSlug/resolve`
 - `GET
   /api/docs/collections/:corpus/:collection/documents/:documentSlug/admission`
+
+## Docs Readiness Contract
+
+### `GET /api/docs/readyz`
+
+返回 document reader control-plane 自身的 readiness，不冒充整个 `app-api` 产品 runtime readiness。
+
+```json
+{
+  "status": "ready",
+  "dependencies": {
+    "auth": "ready",
+    "database": "ready",
+    "docsReadModel": "ready"
+  }
+}
+```
+
+固定规则：
+
+- 该 endpoint 只表达 docs surface 真正依赖的控制面依赖
+- 不把 supervisor execution readiness、chat runtime readiness、operator surface
+  readiness 混入 docs readiness
+- `public-docs /readyz` 应通过 same-site bridge 调用这个 endpoint，而不是调用根 `/readyz`
+- 失败时返回 `503 dependency_not_ready`，message 固定为
+  `Document reader control plane is not ready.`
 
 ## Navigation Contract
 

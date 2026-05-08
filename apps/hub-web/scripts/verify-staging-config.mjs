@@ -82,7 +82,7 @@ expectEqual(
 );
 expectEqual(
 	vars.HUB_WEB_HOSTNAME,
-	"hub-staging.muc.wiki",
+	"hub-muc-wiki.ayafeed.com",
 	"Built staging config must keep HUB_WEB_HOSTNAME fixed.",
 );
 expectEqual(
@@ -111,7 +111,9 @@ expectAbsent(
 	"SENTRY_RELEASE must not remain as a static staging var in built config.",
 );
 
-const hasRoute = routes.some((route) => route?.pattern === "hub-staging.muc.wiki");
+const hasRoute = routes.some(
+	(route) => route?.pattern === "hub-muc-wiki.ayafeed.com" && route?.custom_domain === true,
+);
 if (!hasRoute) {
-	fail("Missing required hub-staging.muc.wiki route in built staging config.");
+	fail("Missing required hub-muc-wiki.ayafeed.com custom domain route in built staging config.");
 }

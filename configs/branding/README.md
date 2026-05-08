@@ -1,0 +1,16 @@
+# Branding Assets
+
+- Canonical web favicon source: `https://muc.wiki/favicon.ico`
+- Fetched on: `2026-05-07`
+- SHA256: `62d512d55f400ba253fc65a461fc3f40f8c68105f3d0c4528331cbbdbefee167`
+
+`configs/branding/web-public/favicon.ico` is the repo-owned canonical copy.
+
+- `public-chat-web`
+- `protected-panel-web`
+- `hub-web`
+
+consume it through a shared Vite `publicDir`.
+
+`public-docs` keeps a synchronized copy at `apps/public-docs/docs/public/favicon.ico`
+because Rspress serves static root assets from that in-tree `docs/public/` directory.

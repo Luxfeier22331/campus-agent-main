@@ -12,6 +12,7 @@ function readOptional(relativePath: string): string {
 }
 
 const wranglerConfig = readOptional("wrangler.toml");
+const wranglerLocalSmokeConfig = readOptional("wrangler.local-smoke.toml");
 const packageManifest = JSON.parse(readOptional("package.json")) as {
 	scripts?: Record<string, string | undefined>;
 };
@@ -45,6 +46,13 @@ describe("public docs worker shell", () => {
 		expect(packageManifest.scripts?.["test:worker"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
+		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("pnpm run build");
+		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("dev-live-smoke.mjs");
+		expect(wranglerLocalSmokeConfig).toContain('name = "public-docs"');
+		expect(wranglerLocalSmokeConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
+		expect(wranglerLocalSmokeConfig).toContain('PUBLIC_DOCS_HOSTNAME = "127.0.0.1:27114"');
+		expect(wranglerLocalSmokeConfig).toContain("[secrets]");
+		expect(wranglerLocalSmokeConfig).toContain("required = []");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
 		expect(packageManifest.scripts?.["deploy:verify-config"]).toContain("verify-worker-config.mjs");
 	});
@@ -86,7 +94,7 @@ describe("public docs worker shell", () => {
 			app_api_base_url: "https://app-api.internal",
 			dependencies: {
 				appApiBinding: "configured",
-				appApiRuntime: "ready",
+				docsControlPlane: "ready",
 				assets: "configured",
 			},
 			public_hostname: "docs.example.com",

@@ -8,6 +8,7 @@ export default defineConfig({
 	root: docsRoot,
 	title: "校园助手公开文档",
 	description: "校园助手公开文档站，集中阅读学生手册、培养方案与公开规章。",
+	icon: "/favicon.ico",
 	logoText: "校园助手",
 	logoHref: "/",
 	lang: "zh",

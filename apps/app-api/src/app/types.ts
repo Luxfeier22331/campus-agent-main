@@ -36,6 +36,7 @@ export interface AppDependencies {
 	chatConversationService?: ChatConversationService;
 	chatCommandService?: ChatCommandService;
 	docsService?: DocsService;
+	docsReadinessProbe?: () => Promise<AppDocsReadinessResult>;
 	getAppAuth?: AppAuthGetter;
 	getPrincipal?: (
 		request: Request,
@@ -61,6 +62,17 @@ export interface AppDependencies {
 	}) => void;
 	telemetry?: AppTelemetry;
 	runtimeReadinessProbe?: () => Promise<AppRuntimeReadinessResult>;
+}
+
+type AppDocsDependencyName = "auth" | "database" | "docsReadModel";
+
+export interface AppDocsReadinessResult {
+	dependencies: {
+		auth: "ready" | "not_ready";
+		database: "ready" | "not_ready";
+		docsReadModel: "ready" | "not_ready";
+	};
+	failed: Partial<Record<AppDocsDependencyName, string>>;
 }
 
 type AppRuntimeDependencyName = "auth" | "database" | "supervisorApi";

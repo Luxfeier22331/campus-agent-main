@@ -4,6 +4,7 @@ import packageManifestRaw from "../package.json?raw";
 import deployStagingSource from "../scripts/deploy-staging.mjs?raw";
 import verifyStagingConfigSource from "../scripts/verify-staging-config.mjs?raw";
 import worker, { type Env } from "../src/index";
+import workerSource from "../src/index.ts?raw";
 import wranglerConfig from "../wrangler.toml?raw";
 
 const packageManifest = JSON.parse(packageManifestRaw) as {
@@ -37,18 +38,35 @@ describe("hub worker boundary", () => {
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
 			"verify-staging-config.mjs",
 		);
-		expect(wranglerConfig).toContain('pattern = "hub-staging.muc.wiki"');
+		expect(packageManifest.scripts?.["build:staging"]).not.toContain("SENTRY_DSN");
+		expect(wranglerConfig).toContain('pattern = "hub-muc-wiki.ayafeed.com"');
+		expect(wranglerConfig).toContain("custom_domain = true");
 		expect(wranglerConfig).toContain('service = "app-api-staging"');
 		expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
-		expect(wranglerConfig).toContain('HUB_WEB_HOSTNAME = "hub-staging.muc.wiki"');
+		expect(wranglerConfig).toContain('HUB_WEB_HOSTNAME = "hub-muc-wiki.ayafeed.com"');
 		expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
+		expect(wranglerConfig).not.toContain('[env.staging.secrets]\nrequired = ["SENTRY_DSN"]');
 		expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
 		expect(deployStagingSource).toContain("STAGING_HUB_AUTH_TURNSTILE_SITE_KEY");
-		expect(deployStagingSource).toContain("hub-staging.muc.wiki");
+		expect(deployStagingSource).toContain("hub-muc-wiki.ayafeed.com");
+		expect(deployStagingSource).toContain('"pnpm"');
+		expect(deployStagingSource).toContain('"exec"');
+		expect(deployStagingSource).toContain('"wrangler"');
 		expect(verifyStagingConfigSource).toContain("STAGING_HUB_AUTH_TURNSTILE_SITE_KEY");
+		expect(verifyStagingConfigSource).toContain("custom_domain === true");
 		expect(packageManifest.scripts?.dev).toContain("--port 27012");
 		expect(stagingPreflightSource).toContain('"apps/hub-web"');
 		expect(stagingPreflightSource).toContain("worker-staging-hub-web");
+	});
+
+	it("keeps Sentry fail-open while scrubbing auth-sensitive hub fields", () => {
+		expect(workerSource).toContain("beforeSend(event)");
+		expect(workerSource).toContain("sendDefaultPii: false");
+		expect(workerSource).toContain('surface: "hub-web"');
+		expect(workerSource).toContain('"authorization"');
+		expect(workerSource).toContain('"cf-access-jwt-assertion"');
+		expect(workerSource).toContain('"cookie"');
+		expect(workerSource).toContain('"x-captcha-response"');
 	});
 
 	it("serves health without requiring app-api", async () => {

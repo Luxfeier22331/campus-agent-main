@@ -1,7 +1,12 @@
 import type { Hono } from "hono";
 
 import type { Env } from "../../config";
-import type { AppDependencies, AppRequestScope, AppRuntimeReadinessResult } from "../types";
+import type {
+	AppDependencies,
+	AppDocsReadinessResult,
+	AppRequestScope,
+	AppRuntimeReadinessResult,
+} from "../types";
 import { registerAuthRoutes } from "./auth";
 import { registerChatRoutes } from "./chat";
 import { registerDocsRoutes } from "./docs";
@@ -22,6 +27,7 @@ export function registerAppRoutes(input: {
 		AppDependencies["officialWebExecutionStatusService"]
 	>;
 	officialWebPlannerService: NonNullable<AppDependencies["officialWebPlannerService"]>;
+	docsReadinessProbe: () => Promise<AppDocsReadinessResult>;
 	runtimeReadinessProbe: () => Promise<AppRuntimeReadinessResult>;
 	scheduleRequestProjectionDrain?: AppDependencies["scheduleRequestProjectionDrain"];
 }) {
@@ -47,6 +53,7 @@ export function registerAppRoutes(input: {
 	registerDocsRoutes({
 		app: input.app,
 		createRequestScope: input.createRequestScope,
+		docsReadinessProbe: input.docsReadinessProbe,
 		env: input.env,
 		getPrincipal: input.getPrincipal,
 	});

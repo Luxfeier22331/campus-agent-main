@@ -12,7 +12,7 @@ function fail(message) {
 
 function parseArgs(argv) {
 	const separatorIndex = argv.indexOf("--");
-	if (separatorIndex <= 0) {
+	if (separatorIndex < 0) {
 		fail(
 			"Usage: node ../../scripts/run-worker-staging-build.mjs <runtime-secret>... -- <command> [args...]",
 		);

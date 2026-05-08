@@ -12,23 +12,24 @@ from scripts.env_sync import (
 
 OBSERVABILITY_TARGETS = {
     "apps/app-api/.dev.vars": {
-        "SENTRY_DSN": "SENTRY_DSN_API",
+        "SENTRY_DSN": "SENTRY_DSN",
         "AXIOM_ENDPOINT": "AXIOM_ENDPOINT",
         "AXIOM_DATASET": "AXIOM_DATASET",
         "AXIOM_TOKEN": "AXIOM_TOKEN",
     },
     "apps/public-chat-web/.dev.vars": {
-        "SENTRY_DSN": "SENTRY_DSN_CHAT",
+        "SENTRY_DSN": "SENTRY_DSN",
     },
     "apps/protected-panel-web/.dev.vars": {
-        "SENTRY_DSN": "SENTRY_DSN_PANEL",
+        "SENTRY_DSN": "SENTRY_DSN",
+    },
+    "apps/hub-web/.dev.vars": {
+        "SENTRY_DSN": "SENTRY_DSN",
     },
 }
 
 REQUIRED_SOURCE_KEYS = (
-    "SENTRY_DSN_API",
-    "SENTRY_DSN_CHAT",
-    "SENTRY_DSN_PANEL",
+    "SENTRY_DSN",
 )
 
 

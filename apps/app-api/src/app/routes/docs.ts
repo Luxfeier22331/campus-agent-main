@@ -1,16 +1,17 @@
 import type { Hono } from "hono";
 
 import type { Env } from "../../config";
-import { AppApiRouteError, jsonResponse } from "../../http";
+import { AppApiRouteError, errorEnvelope, jsonResponse } from "../../http";
 import type { ResolvedAppPrincipal } from "../../modules/auth";
 import type { DocsVersionMode } from "../../modules/docs";
 import { principalResolutionErrorResponse, resolvePrincipalForScope } from "../principal";
 import { parseLimit } from "../request-utils";
-import type { AppRequestScope } from "../types";
+import type { AppDocsReadinessResult, AppRequestScope } from "../types";
 
 export function registerDocsRoutes(input: {
 	app: Hono<{ Bindings: Env }>;
 	createRequestScope: () => AppRequestScope;
+	docsReadinessProbe: () => Promise<AppDocsReadinessResult>;
 	env: Env;
 	getPrincipal: (
 		request: Request,
@@ -18,6 +19,28 @@ export function registerDocsRoutes(input: {
 		authInput: { getAppAuth: AppRequestScope["getAppAuth"] },
 	) => Promise<ResolvedAppPrincipal | null>;
 }) {
+	input.app.get("/api/docs/readyz", async () => {
+		const readiness = await input.docsReadinessProbe();
+		if (Object.keys(readiness.failed).length > 0) {
+			return jsonResponse(
+				errorEnvelope({
+					code: "dependency_not_ready",
+					message: "Document reader control plane is not ready.",
+					retryable: true,
+					details: {
+						failed: readiness.failed,
+					},
+				}),
+				{ status: 503 },
+			);
+		}
+
+		return jsonResponse({
+			status: "ready",
+			dependencies: readiness.dependencies,
+		});
+	});
+
 	input.app.get("/api/docs/collections/:corpus/:collection/navigation", async (c) => {
 		const scope = input.createRequestScope();
 		const resolved = await resolveOptionalPrincipal({

@@ -7,6 +7,7 @@
 ```bash
 pnpm --filter public-docs sync:real-docs
 pnpm --filter public-docs dev
+pnpm --filter public-docs dev:live-smoke
 pnpm --filter public-docs dev:real-docs
 pnpm --filter public-docs build
 pnpm --filter public-docs build:real-docs
@@ -20,6 +21,12 @@ pnpm --filter public-docs build:real-docs
 - `dev:real-docs` / `build:real-docs` 是真实文档预览与验收入口；普通 `dev` / `build`
   只补齐可构建的空 collection scaffold，不隐式访问对象存储，用于文档站壳本身的快速开发与 CI
   构建。
+- `dev:live-smoke` 是本地同站 docs runtime smoke 入口：它以 `public-docs` Worker 作为主 surface，
+  并在同一个 Wrangler dev session 中带起 `apps/app-api` local-smoke Worker，使
+  `/api/docs/*` 的 service binding 命中真实本地 Worker runtime，而不是依赖两个分离会话互相发现。
+  由于它消费的是 Worker `ASSETS` 静态目录，命令会先执行一次 `build`，再启动本地 smoke 拓扑。
+- `public-docs /readyz` 在本地与部署态都只探测 `app-api /api/docs/readyz`，它表达的是
+  document reader control-plane readiness，不等于整个 `app-api` 产品 runtime readiness。
 - 当前 shell 已经提升为正式 `public-docs` app；旧的 Fumadocs 壳已废弃。
 - 当前实现仍处于 document-site workstream 的持续收口阶段，不应把本地同步路径误解为 browser runtime 的长期真相。
 - 长期 reader truth、published reader assets 与 same-site docs control-plane 以

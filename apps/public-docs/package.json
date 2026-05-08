@@ -10,6 +10,7 @@
 		"build:real-docs": "pnpm run sync:real-docs && pnpm run lint:generated && pnpm run build",
 		"build:staging": "CLOUDFLARE_ENV=staging pnpm run build",
 		"dev": "pnpm run ensure:docs-scaffold && rspress dev --host 127.0.0.1 --port 27013",
+		"dev:live-smoke": "pnpm run build && node ./scripts/dev-live-smoke.mjs",
 		"dev:real-docs": "pnpm run sync:real-docs && pnpm run lint:generated && pnpm run dev",
 		"build:published-reader-assets": "pnpm run sync:published-reader-docs && pnpm run lint:generated && pnpm run build && pnpm run sync:published-reader-assets",
 		"check:published-reader-manifest": "node ./scripts/run-with-local-env.mjs pnpm exec tsx scripts/check-published-reader-manifest.ts --dry-run",

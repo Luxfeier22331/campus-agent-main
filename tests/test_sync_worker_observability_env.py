@@ -17,7 +17,7 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
             feature_worktree = root_worktree / ".worktrees" / "protected-panel-web"
             feature_worktree.mkdir(parents=True)
             source_env = root_worktree / ".env"
-            source_env.write_text("SENTRY_DSN_API=https://api.example\n", encoding="utf-8")
+            source_env.write_text("SENTRY_DSN=https://shared.example\n", encoding="utf-8")
 
             resolved = resolve_source_env_path(feature_worktree)
 
@@ -32,9 +32,7 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
             (root_worktree / ".env").write_text(
                 "\n".join(
                     [
-                        "SENTRY_DSN_API=https://api.example",
-                        "SENTRY_DSN_CHAT=https://chat.example",
-                        "SENTRY_DSN_PANEL=https://panel.example",
+                        "SENTRY_DSN=https://shared.example",
                         "AXIOM_ENDPOINT=https://api.axiom.co",
                         "AXIOM_DATASET=campus-agent-runtime-dev",
                         "AXIOM_TOKEN=axiom-token",
@@ -47,9 +45,11 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
             app_api_dir = feature_worktree / "apps" / "app-api"
             public_chat_dir = feature_worktree / "apps" / "public-chat-web"
             protected_panel_dir = feature_worktree / "apps" / "protected-panel-web"
+            hub_web_dir = feature_worktree / "apps" / "hub-web"
             app_api_dir.mkdir(parents=True)
             public_chat_dir.mkdir(parents=True)
             protected_panel_dir.mkdir(parents=True)
+            hub_web_dir.mkdir(parents=True)
 
             (app_api_dir / ".dev.vars.example").write_text(
                 "\n".join(
@@ -87,11 +87,22 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                 + "\n",
                 encoding="utf-8",
             )
+            (hub_web_dir / ".dev.vars.example").write_text(
+                "\n".join(
+                    [
+                        "HUB_WEB_HOSTNAME=hub.muc.wiki",
+                        "SENTRY_DSN=",
+                        "SENTRY_ENVIRONMENT=development",
+                    ]
+                )
+                + "\n",
+                encoding="utf-8",
+            )
 
             sync_worker_observability_env(repo_root=feature_worktree)
 
             self.assertIn(
-                "SENTRY_DSN=https://api.example\n",
+                "SENTRY_DSN=https://shared.example\n",
                 (app_api_dir / ".dev.vars").read_text(encoding="utf-8"),
             )
             app_api_vars = (app_api_dir / ".dev.vars").read_text(encoding="utf-8")
@@ -99,12 +110,16 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
             self.assertIn("AXIOM_DATASET=campus-agent-runtime-dev\n", app_api_vars)
             self.assertIn("AXIOM_TOKEN=axiom-token\n", app_api_vars)
             self.assertIn(
-                "SENTRY_DSN=https://chat.example\n",
+                "SENTRY_DSN=https://shared.example\n",
                 (public_chat_dir / ".dev.vars").read_text(encoding="utf-8"),
             )
             self.assertIn(
-                "SENTRY_DSN=https://panel.example\n",
+                "SENTRY_DSN=https://shared.example\n",
                 (protected_panel_dir / ".dev.vars").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "SENTRY_DSN=https://shared.example\n",
+                (hub_web_dir / ".dev.vars").read_text(encoding="utf-8"),
             )
 
     def test_sync_worker_observability_env_updates_existing_dev_vars_without_clobbering_other_keys(
@@ -116,16 +131,16 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
             app_api_dir = feature_worktree / "apps" / "app-api"
             public_chat_dir = feature_worktree / "apps" / "public-chat-web"
             protected_panel_dir = feature_worktree / "apps" / "protected-panel-web"
+            hub_web_dir = feature_worktree / "apps" / "hub-web"
             app_api_dir.mkdir(parents=True)
             public_chat_dir.mkdir(parents=True)
             protected_panel_dir.mkdir(parents=True)
+            hub_web_dir.mkdir(parents=True)
 
             (root_worktree / ".env").write_text(
                 "\n".join(
                     [
-                        "SENTRY_DSN_API=https://api.new.example",
-                        "SENTRY_DSN_CHAT=https://chat.new.example",
-                        "SENTRY_DSN_PANEL=https://panel.new.example",
+                        "SENTRY_DSN=https://shared.new.example",
                     ]
                 )
                 + "\n",
@@ -151,11 +166,15 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
                 "SENTRY_DSN=https://panel.old.example\nSENTRY_RELEASE=panel@old\n",
                 encoding="utf-8",
             )
+            (hub_web_dir / ".dev.vars").write_text(
+                "SENTRY_DSN=https://hub.old.example\nSENTRY_RELEASE=hub@old\n",
+                encoding="utf-8",
+            )
 
             sync_worker_observability_env(repo_root=feature_worktree)
 
             self.assertIn(
-                "SENTRY_DSN=https://api.new.example\n",
+                "SENTRY_DSN=https://shared.new.example\n",
                 (app_api_dir / ".dev.vars").read_text(encoding="utf-8"),
             )
             self.assertIn(
@@ -169,6 +188,14 @@ class SyncWorkerObservabilityEnvTest(unittest.TestCase):
             self.assertIn(
                 "SENTRY_RELEASE=panel@old\n",
                 (protected_panel_dir / ".dev.vars").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "SENTRY_DSN=https://shared.new.example\n",
+                (hub_web_dir / ".dev.vars").read_text(encoding="utf-8"),
+            )
+            self.assertIn(
+                "SENTRY_RELEASE=hub@old\n",
+                (hub_web_dir / ".dev.vars").read_text(encoding="utf-8"),
             )
 
 

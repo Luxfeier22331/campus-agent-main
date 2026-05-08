@@ -737,14 +737,12 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 root convenience keys：
 
-- `SENTRY_DSN_API`
-- `SENTRY_DSN_CHAT`
-- `SENTRY_DSN_PANEL`
+- `SENTRY_DSN`
 - `SENTRY_API_TOKEN`
 
 获取方式：
 
-1. 在 Sentry 为每个运行面创建独立 project。
+1. 当前仓库默认使用一个共享 Sentry project，例如 `campus-agent-workers`。
 1. 从项目的 **Client Keys (DSN)** 页面复制 DSN。
 1. 如果需要 repo-local API lookup、artifact 查询或 smoke 脚本访问 API，再创建 auth token。
 
@@ -757,7 +755,9 @@ root convenience keys：
 说明：
 
 - `SENTRY_API_TOKEN` 不是 Worker runtime secret，不应同步到 `.dev.vars`
-- 一个前端、一个后端通常应分不同 Sentry project / DSN；Sentry 官方也建议多组件拆 project
+- 默认用 `SENTRY_ENVIRONMENT` 区分 `staging` / `production`
+- 默认用 `surface` tag 区分 `app-api`、`public-chat-web`、`protected-panel-web`、`hub-web`
+- 只有当告警归属、事件噪声、数据策略或 issue regression 已经实质冲突时，才拆分为多个 Sentry project
 
 ## 9. Axiom
 
@@ -793,8 +793,9 @@ root convenience keys：
 说明：
 
 - `AXIOM_ENDPOINT` 应写成类似 `<https://us-east-1.aws.edge.axiom.co`>
-- `AXIOM_DATASET` 应按 service / env 维度命名，不要做 kitchen-sink dataset；这与 Axiom 官方
-  dataset best practice 一致
+- `AXIOM_DATASET` 当前按 environment 命名，例如 `campus-agent-runtime-staging`；
+  service 与 signal 维度通过 `service.name`、`signal_type`、`event_type` 等低基数字段区分
+- 只有事件量、权限、保留期、字段数量或查询污染成为真实问题时，才进一步拆分 dataset
 - 当前 `.dev.vars.example` 已明确要求使用 ingest API token，不要把 PAT 当成长期 ingest token
 
 ## 10. Cloudflare Workers / Wrangler

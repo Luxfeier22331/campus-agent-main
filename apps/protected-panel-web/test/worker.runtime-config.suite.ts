@@ -112,6 +112,9 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
 			"ROUTE:campus-panel-staging.ayafeed.com",
 		);
+		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
+			"verify-worker-deploy-config.mjs",
+		);
 	});
 
 	it("provides an access-compatible local issuer for authenticated live smoke", () => {

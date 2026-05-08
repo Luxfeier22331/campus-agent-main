@@ -114,6 +114,17 @@ function createRuntimeReadinessResult() {
 	};
 }
 
+function createDocsReadinessResult() {
+	return {
+		dependencies: {
+			auth: "ready" as const,
+			database: "ready" as const,
+			docsReadModel: "ready" as const,
+		},
+		failed: {},
+	};
+}
+
 describe("app-api worker foundation", () => {
 	it("declares the staging custom domain, hyperdrive binding, and deploy gate", () => {
 		const stagingVarsBlock = readTomlBlock(
@@ -132,7 +143,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain("[[env.staging.hyperdrive]]");
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
-		expect(stagingVarsBlock).toContain('AUTH_SHELL_ORIGIN = "https://hub-staging.muc.wiki"');
+		expect(stagingVarsBlock).toContain('AUTH_SHELL_ORIGIN = "https://hub-muc-wiki.ayafeed.com"');
 		expect(stagingVarsBlock).toContain(
 			'PUBLIC_CHAT_WEB_ORIGIN = "https://campus-chat-staging.ayafeed.com"',
 		);
@@ -146,7 +157,7 @@ describe("app-api worker foundation", () => {
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
 		expect(stagingVarsBlock).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');
-		expect(stagingVarsBlock).toContain('AXIOM_DATASET = "campus-agent-runtime-dev"');
+		expect(stagingVarsBlock).toContain('AXIOM_DATASET = "campus-agent-runtime-staging"');
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
@@ -190,7 +201,7 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_MANAGEMENT_DATABASE_URL");
-		expect(runWithStagingDbEnvSource).toContain("https://hub-staging.muc.wiki");
+		expect(runWithStagingDbEnvSource).toContain("https://hub-muc-wiki.ayafeed.com");
 		expect(runWithStagingDbEnvSource).toContain("https://campus-chat-staging.ayafeed.com");
 		expect(stagingPreflightSource).toContain("STAGING_SUPERVISOR_API_BASE_URL");
 		expect(stagingPreflightSource).toContain('new URL("/healthz", baseUrl)');
@@ -261,6 +272,7 @@ describe("app-api worker foundation", () => {
 
 	it("serves healthz and readyz from the worker shell", async () => {
 		const runtime = createWorkerRuntime(env, {
+			docsReadinessProbe: vi.fn().mockResolvedValue(createDocsReadinessResult()),
 			runtimeReadinessProbe: vi.fn().mockResolvedValue(createRuntimeReadinessResult()),
 		});
 		const health = await runtime.fetch(
@@ -308,6 +320,41 @@ describe("app-api worker foundation", () => {
 					},
 					blockers: {},
 				},
+			},
+		});
+	});
+
+	it("serves docs control-plane readiness separately from product runtime readiness", async () => {
+		const runtime = createWorkerRuntime(env, {
+			docsReadinessProbe: vi.fn().mockResolvedValue(createDocsReadinessResult()),
+			runtimeReadinessProbe: vi.fn().mockResolvedValue({
+				dependencies: {
+					auth: "ready",
+					authShellOrigin: "configured",
+					database: "ready",
+					officialWebHandoff: "not_configured",
+					operatorBridge: "configured",
+					publicChatCompatibilityOrigin: "configured",
+					supervisorApi: "not_ready",
+				},
+				failed: {
+					supervisorApi: "supervisor /readyz returned 503",
+				},
+			}),
+		});
+
+		const response = await runtime.fetch(
+			new Request("https://app-api.internal/api/docs/readyz"),
+			createExecutionContext(),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			status: "ready",
+			dependencies: {
+				auth: "ready",
+				database: "ready",
+				docsReadModel: "ready",
 			},
 		});
 	});

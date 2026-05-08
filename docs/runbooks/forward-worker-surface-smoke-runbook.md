@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-29
-updated: 2026-04-11
+updated: 2026-05-07
 ---
 # Forward Worker Surface Smoke Runbook
 
@@ -11,6 +11,7 @@ updated: 2026-04-11
 这份 runbook 只记录当前 forward product topology 的最小 smoke 入口：
 
 - `apps/app-api`
+- `apps/public-docs`
 - `apps/public-chat-web`
 - `apps/protected-panel-web`
 
@@ -31,12 +32,12 @@ updated: 2026-04-11
 
 ## 当前 smoke 形态
 
-当前 repo 还没有把 `public-chat-web`、`protected-panel-web` 与 shared `app-api` 收敛成一个统一的
-repo-level `pnpm smoke` 脚本。
+当前 repo 还没有把 `public-docs`、`public-chat-web`、`protected-panel-web` 与 shared
+`app-api` 收敛成一个统一的 repo-level `pnpm smoke` 脚本。
 
-因此，当前 canonical gate 仍然是基于 Worker runtime 的 targeted vitest 用例；但
-`public-chat-web` 的本地 browser/live smoke 入口已经固定为单命令 auxiliary Worker
-拓扑，而不是分开启动两个 `pnpm dev` 会话。
+因此，当前 canonical gate 仍然是基于 Worker runtime 的 targeted vitest 用例；其中
+`public-chat-web` 与 `public-docs` 的本地 browser/live smoke 入口都已经固定为单命令 shared
+Worker 拓扑，而不是分开启动两个 `pnpm dev` 会话。
 
 ## 前置条件
 
@@ -44,7 +45,7 @@ repo-level `pnpm smoke` 脚本。
 - 本地可执行 `pnpm`
 - 运行 Worker 测试时允许本地监听端口
 - 为避免 `wrangler` 写入默认家目录日志，命令使用 repo-local `XDG_CONFIG_HOME=./.wrangler-home`
-- 做 `public-chat-web` local browser smoke 前，如果本地 Postgres 可能落后于
+- 做 `public-docs` 或 `public-chat-web` local browser smoke 前，如果本地 Postgres 可能落后于
   `apps/app-api/db/shared-product-migrations/*`，先执行 `pnpm --dir apps/app-api
   db:bootstrap`
 
@@ -54,6 +55,12 @@ repo-level `pnpm smoke` 脚本。
 
 ```bash
 pnpm --dir apps/app-api test:worker -- --reporter=verbose
+```
+
+再验证 docs surface Worker shell 与 same-site control-plane bridge：
+
+```bash
+pnpm --dir apps/public-docs test:worker -- --reporter=verbose
 ```
 
 再验证 public chat 主链路 smoke：
@@ -122,6 +129,30 @@ pnpm --dir apps/public-chat-web dev:live-smoke
 - `db:reconcile-shared-drift` 不能替代 `db:bootstrap`：前者只覆盖 drizzle shared-db
   adoption truth，不覆盖 `chat.*` 的 shared-product bootstrap migration
 
+## Public Docs Browser Smoke
+
+如果要做 `public-docs` 的本地浏览器冒烟，使用下面这条命令：
+
+```bash
+pnpm --dir apps/public-docs dev:live-smoke
+```
+
+约束：
+
+- 这条命令固定监听 `http://127.0.0.1:27114`
+- 它先执行 `public-docs build`，保证 Worker `ASSETS` 绑定消费的是实际 `doc_build/` 静态目录
+- 它通过单个 Wrangler dev session 同时带起 `apps/public-docs` 与 shared `apps/app-api`
+- `public-docs` 使用 [wrangler.local-smoke.toml](/home/reptilian/code/campus-agent/apps/public-docs/wrangler.local-smoke.toml)
+  注册本地 docs Worker，`app-api` 使用
+  [wrangler.local-smoke.toml](/home/reptilian/code/campus-agent/apps/app-api/wrangler.local-smoke.toml)
+  注册本地 shared Worker
+- `public-docs /readyz` 只探测 `app-api /api/docs/readyz`；它表达的是 document reader
+  control-plane readiness，不等于整个 `app-api` 产品 runtime readiness
+- 不要再把 `pnpm --dir apps/public-docs dev` 和 `pnpm --dir apps/app-api dev`
+  作为 docs browser smoke 的前提；分开会话适合单 app 调试，但不是 canonical docs smoke 拓扑
+- `public-docs` 只代理 same-site `/api/docs/*`；`/api/chat/*`、operator APIs 和其他 app-api
+  surface 不在 docs browser smoke 范围内
+
 ## Public Chat E2E Profiles
 
 public/chat 的 E2E contract 不应由 staging 域名定义。当前 repo-owned 入口是：
@@ -169,16 +200,20 @@ Worker runtime。`staging` profile 会在 readyz 失败时输出结构化 `block
 
 - `app-api` 的 `GET /healthz` 与 `GET /readyz` 正常
 - `app-api` 的 fail-closed readiness 门禁正常工作
+- `app-api` 的 `GET /api/docs/readyz` 只表达 docs surface 依赖的控制面 readiness
+- `public-docs /readyz` 通过 same-site bridge 命中真实 `app-api /api/docs/readyz`
 - `app-api` / `public-chat-web` 的 readiness 会透出
   `preflight.campusServicesProductPath`，用于 campus services product-path
   opening gate 诊断 capability / projection / read-model blocker
+- `public-docs -> app-api` 的 same-site docs control-plane 链路可用
+- `public-docs` 不会退化成 generic `app-api` proxy
 - `public-chat-web -> app-api` 的 same-site chat request 链路可用
 - `public-chat-web -> app-api` 的 Better Auth proxy 仍保留 `Origin` / `Referer`
 - public chat shell 在 `app-api` bridge 缺失时不会对外暴露一个必坏的 SPA
 - `protected-panel-web -> app-api` 的 operator request query 链路可用
 - protected panel 到 `app-api` 的 trusted internal bridge admission 正常
 - protected panel 在 admission 或 trusted bridge 配置缺失时不会对外暴露 shell 或 overview
-- 三个 Worker surface 的动态响应都保持 `Cache-Control: no-store`
+- 四个 Worker surface 的动态响应都保持 `Cache-Control: no-store`
 
 ## 这组 smoke 不证明什么
 
@@ -191,7 +226,9 @@ Worker runtime。`staging` profile 会在 readyz 失败时输出结构化 `block
 
 - 已退役 standalone public chat app 的 live smoke 不再是 forward product topology 的
   canonical smoke 入口
+- `public-docs` 的本地 browser/live smoke 已固定走 `dev:live-smoke` 单命令 shared Worker
+  拓扑
 - `public-chat-web` 的本地 browser/live smoke 已固定走 `dev:live-smoke` 单命令 auxiliary
   Worker 拓扑
 - 如果未来要增加 repo-level 一键 browser/live smoke，应围绕
-  `public-chat-web`、`protected-panel-web` 和 shared `app-api` 继续收敛
+  `public-docs`、`public-chat-web`、`protected-panel-web` 和 shared `app-api` 继续收敛

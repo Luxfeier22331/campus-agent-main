@@ -43,6 +43,11 @@ expectEqual(
 	"Built staging config must keep PUBLIC_CHAT_HOSTNAME fixed.",
 );
 expectEqual(
+	vars.HUB_WEB_BASE_URL,
+	"https://hub-muc-wiki.ayafeed.com",
+	"Built staging config must keep HUB_WEB_BASE_URL fixed.",
+);
+expectEqual(
 	vars.SENTRY_ENVIRONMENT,
 	"staging",
 	"Built staging config must keep SENTRY_ENVIRONMENT fixed.",
@@ -68,7 +73,11 @@ expectAbsent(
 	"SENTRY_RELEASE must not remain as a static staging var in built config.",
 );
 
-const hasRoute = routes.some((route) => route?.pattern === "campus-chat-staging.ayafeed.com");
+const hasRoute = routes.some(
+	(route) => route?.pattern === "campus-chat-staging.ayafeed.com" && route?.custom_domain === true,
+);
 if (!hasRoute) {
-	fail("Missing required campus-chat-staging.ayafeed.com route in built staging config.");
+	fail(
+		"Missing required campus-chat-staging.ayafeed.com custom domain route in built staging config.",
+	);
 }

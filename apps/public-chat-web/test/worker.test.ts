@@ -501,7 +501,7 @@ describe("public chat web worker shell", () => {
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		expect(wranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "campus-chat-staging.ayafeed.com"');
 		expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
-		expect(wranglerConfig).toContain('HUB_WEB_BASE_URL = "https://hub-staging.muc.wiki"');
+		expect(wranglerConfig).toContain('HUB_WEB_BASE_URL = "https://hub-muc-wiki.ayafeed.com"');
 		expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
 		expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(wranglerConfig).not.toContain("SENTRY_RELEASE = ");
@@ -542,6 +542,7 @@ describe("public chat web worker shell", () => {
 		expect(verifyStagingConfigSource).not.toContain("STAGING_AUTH_TURNSTILE_EXECUTION");
 		expect(verifyStagingConfigSource).toContain("https://app-api.internal");
 		expect(verifyStagingConfigSource).not.toContain("https://campus-api-staging.ayafeed.com");
+		expect(verifyStagingConfigSource).toContain("custom_domain === true");
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);

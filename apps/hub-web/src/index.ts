@@ -58,6 +58,17 @@ const AUTH_FORWARDED_HEADERS = [
 	"referer",
 	"x-captcha-response",
 ] as const;
+const SENSITIVE_EVENT_FIELDS = new Set([
+	"authorization",
+	"cf-access-jwt-assertion",
+	"cookie",
+	"email",
+	"ip_address",
+	"turnstile_token",
+	"username",
+	"x-app-internal-auth",
+	"x-captcha-response",
+]);
 
 const HUB_SECURITY_HEADERS = {
 	"content-security-policy":
@@ -156,6 +167,18 @@ const worker = {
 	},
 };
 
+function scrubSensitiveRecord(value: unknown): void {
+	if (!value || typeof value !== "object" || Array.isArray(value)) {
+		return;
+	}
+
+	for (const key of Object.keys(value as Record<string, unknown>)) {
+		if (SENSITIVE_EVENT_FIELDS.has(key.toLowerCase())) {
+			delete (value as Record<string, unknown>)[key];
+		}
+	}
+}
+
 function createSentryOptions(env: Env): CloudflareOptions | undefined {
 	const dsn = env.SENTRY_DSN?.trim();
 	if (!dsn) {
@@ -174,6 +197,18 @@ function createSentryOptions(env: Env): CloudflareOptions | undefined {
 		release: env.SENTRY_RELEASE?.trim() || undefined,
 		sendDefaultPii: false,
 		tracesSampleRate: 1,
+		beforeSend(event) {
+			scrubSensitiveRecord(event.request?.headers);
+			scrubSensitiveRecord(event.request?.data);
+			scrubSensitiveRecord(event.contexts?.trace);
+			scrubSensitiveRecord(event.extra);
+			if (event.user) {
+				delete event.user.email;
+				delete event.user.ip_address;
+				delete event.user.username;
+			}
+			return event;
+		},
 	};
 }
 
