@@ -43,8 +43,8 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 - Provider / system: OpenAI-compatible LLM provider
   作用: supervisor / agent 在线回答，eval 默认 judge/ragas LLM
-  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY` `AGNO_SUPERVISOR_MODEL`
-  `AGNO_SPECIALIST_MODEL`
+  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY` `SUPERVISOR_PROMPT_MODEL`
+  `AGENT_PROMPT_MODEL`
   放置位置: root `.env`
   何时必需: 真实 query path、live eval
   获取方式: 在所选供应商控制台创建项目级 API key；如果直接用 OpenAI，按 Projects / API keys 流程创建
@@ -111,7 +111,7 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   主要 env keys: `FEEDWE_EMAIL` `FEEDWE_PASSWORD` `FEEDWE_BASE_URL`
   `WECHAT_OFFICIAL_ACCOUNT_APP_API_BASE_URL`
   `WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN`
-  放置位置: root `.env` 或 command-scoped env；生产调度使用 deploy-side secret store
+  放置位置: `apps/wechat-official-account-collector/.env` 或 deploy-side secret store
   何时必需: 只有运行 FeedWe capture / provider contract verification 时需要
   获取方式: 从 operator-managed credential store 获取登录邮箱/密码；不得提交到 repo
 
@@ -223,8 +223,8 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 - 一个可达的 `base_url`
 - 一把 API key
 - 至少两个可用模型名：
-  - `AGNO_SUPERVISOR_MODEL`
-  - `AGNO_SPECIALIST_MODEL`
+  - `SUPERVISOR_PROMPT_MODEL`
+  - `AGENT_PROMPT_MODEL`
 
 默认放置位置：
 
@@ -234,8 +234,8 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 - `LLM_BASE_URL`
 - `LLM_API_KEY`
-- `AGNO_SUPERVISOR_MODEL`
-- `AGNO_SPECIALIST_MODEL`
+- `SUPERVISOR_PROMPT_MODEL`
+- `AGENT_PROMPT_MODEL`
 - 可选 eval override：`EVAL_LLM_BASE_URL` `EVAL_LLM_API_KEY` `EVAL_LLM_TRANSPORT`
   `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL`
 
@@ -578,8 +578,7 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 默认放置位置：
 
-- root `.env`
-- command-scoped env
+- `apps/wechat-official-account-collector/.env`
 - production scheduler / deploy-side secret store
 
 相关键：
@@ -945,12 +944,17 @@ root convenience keys：
 - [../../.env.example](../../.env.example)
 - [../../apps/app-api/.env.example](../../apps/app-api/.env.example)
 - [../../apps/app-api/.dev.vars.example](../../apps/app-api/.dev.vars.example)
+- [../../apps/hub-web/.dev.vars.example](../../apps/hub-web/.dev.vars.example)
 - [../../apps/public-chat-web/.dev.vars.example](../../apps/public-chat-web/.dev
   .vars.example)
 - [../../apps/protected-panel-web/.dev.vars.example](../../apps/protected-panel-
   web/.dev.vars.example)
+- [../../apps/authenticated-notice-collector/.env.example](../../apps/authenticat
+  ed-notice-collector/.env.example)
 - [../../apps/official-web-collector/.env.example](../../apps/official-web-colle
   ctor/.env.example)
+- [../../apps/wechat-official-account-collector/.env.example](../../apps/wechat-
+  official-account-collector/.env.example)
 - [../runbooks/provider-secret-governance.md](../runbooks/provider-secret-govern
   ance.md)
 - [../runbooks/local-postgres-dev-recovery-runbook.md](../runbooks/local-postgre

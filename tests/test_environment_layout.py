@@ -9,6 +9,7 @@ ACTIVE_COMMAND_ENV_EXAMPLES = {
     "legacy-office-conversion-service.env.example",
     "official-web-handoff-consumer.env.example",
     "official-web-handoff-receiver.env.example",
+    "official-web-release-task.env.example",
     "process-raw-ingestion-job.env.example",
     "rebuild-local-data.env.example",
     "release-registry-scope.env.example",

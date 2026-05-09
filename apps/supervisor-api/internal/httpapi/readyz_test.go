@@ -39,6 +39,31 @@ func TestReadyzReportsBridgeNotConfigured(t *testing.T) {
 	}
 }
 
+func TestReadyzRequiresWorkerAuthOutsideLocalProfile(t *testing.T) {
+	server := NewServer(config.Config{
+		AppName:              "campus-agent",
+		MaxConcurrentAnswers: 8,
+		RuntimeProfile:       "staging",
+		WorkerSharedSecret:   "worker-secret",
+	}, nil)
+
+	unauthorized := httptest.NewRecorder()
+	server.ServeHTTP(unauthorized, newTestRequest(http.MethodGet, "/readyz", nil))
+	assertError(t, unauthorized, http.StatusUnauthorized, "unauthorized")
+
+	authorized := httptest.NewRecorder()
+	request := newTestRequest(http.MethodGet, "/readyz", nil)
+	request.Header.Set("x-worker-origin-auth", "worker-secret")
+	server.ServeHTTP(authorized, request)
+	if authorized.Code != http.StatusServiceUnavailable {
+		t.Fatalf("authorized readyz status = %d, want 503", authorized.Code)
+	}
+	body := decodeBody(t, authorized)
+	if body["status"] != "degraded" {
+		t.Fatalf("authorized readyz body status = %v, want degraded", body["status"])
+	}
+}
+
 func TestReadyzRedactsBridgeReadinessTransportErrors(t *testing.T) {
 	server := NewServer(config.Config{
 		AppName:                       "campus-agent",

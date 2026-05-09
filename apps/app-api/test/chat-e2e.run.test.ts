@@ -15,7 +15,92 @@ function jsonResult<T>(
 }
 
 describe("chat e2e runner", () => {
-	it("classifies exec readiness failure before minting a smoke session", async () => {
+	it("skips direct supervisor exec readiness for staging unless explicitly requested", async () => {
+		const readyzUrls: string[] = [];
+		const result = await runChatE2e(
+			[
+				"--profile",
+				"staging",
+				"--chat-base-url",
+				"https://chat.example.com",
+				"--app-api-readyz-url",
+				"https://api.example.com/readyz",
+			],
+			{
+				APP_API_STAGING_SMOKE_AUTH_SECRET: "smoke-secret",
+			} as NodeJS.ProcessEnv,
+			{
+				async fetchReadyz(url) {
+					readyzUrls.push(url);
+					return {
+						payload: {
+							ok: true,
+						},
+						status: 200,
+					};
+				},
+				async fetchJsonWithCookie<T>(
+					input: Parameters<NonNullable<ChatE2eDependencies["fetchJsonWithCookie"]>>[0],
+				): Promise<{ payload: T; response: Response }> {
+					if (input.url.endsWith("/api/me")) {
+						return jsonResult({
+							permissions: {
+								chat: true,
+								operator: false,
+							},
+							principal: {
+								email: "help_bot@outlook.com",
+								principalId: "user_staging",
+								type: "user",
+							},
+							session: {
+								expiresAt: "2099-01-01T00:00:00Z",
+								sessionId: "session_staging",
+							},
+						} as T);
+					}
+					if (input.url.endsWith("/api/chat/conversations")) {
+						return jsonResult({
+							conversations:
+								input.method === "POST" ? [] : [{ id: "conversation_staging", title: "Smoke" }],
+						} as T);
+					}
+					return jsonResult(
+						{
+							answer: {
+								conversation: {
+									id: "conversation_staging",
+								},
+								result: {
+									kind: "answer",
+									requestId: "request_staging",
+									traceId: "trace_staging",
+								},
+							},
+						} as T,
+						new Response("{}", {
+							headers: {
+								"x-request-id": "request_staging",
+								"x-trace-id": "trace_staging",
+							},
+						}),
+					);
+				},
+				async mintSmokeSession() {
+					return "session=staging";
+				},
+			},
+		);
+
+		expect(result.passed).toBe(true);
+		expect(result.readyz.exec).toBe(null);
+		expect(readyzUrls).toEqual([
+			"https://api.example.com/readyz",
+			"https://chat.example.com/readyz",
+		]);
+	});
+
+	it("classifies explicit exec readiness failure before minting a smoke session", async () => {
 		let sessionMintCount = 0;
 		const result = await runChatE2e(
 			[

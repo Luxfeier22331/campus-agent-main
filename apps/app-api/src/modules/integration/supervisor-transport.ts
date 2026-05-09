@@ -34,6 +34,7 @@ export async function probeSupervisorApiReady(
 		| "SUPERVISOR_API_ACCESS_CLIENT_ID"
 		| "SUPERVISOR_API_ACCESS_CLIENT_SECRET"
 		| "SUPERVISOR_API_BASE_URL"
+		| "SUPERVISOR_API_SHARED_SECRET"
 		| "SUPERVISOR_API_TIMEOUT_MS"
 	>,
 	input: {
@@ -73,7 +74,7 @@ export async function probeSupervisorApiReady(
 			}, timeoutMs);
 
 			fetchImplementation(`${baseUrl}/readyz`, {
-				headers: createCloudflareAccessServiceTokenHeaders(env),
+				headers: createSupervisorReadinessHeaders(env),
 				method: "GET",
 				signal: controller.signal,
 			})
@@ -322,5 +323,20 @@ function createCloudflareAccessServiceTokenHeaders(
 	return {
 		"CF-Access-Client-Id": clientId,
 		"CF-Access-Client-Secret": clientSecret,
+	};
+}
+
+function createSupervisorReadinessHeaders(
+	env: Pick<
+		Env,
+		| "SUPERVISOR_API_ACCESS_CLIENT_ID"
+		| "SUPERVISOR_API_ACCESS_CLIENT_SECRET"
+		| "SUPERVISOR_API_SHARED_SECRET"
+	>,
+): Record<string, string> {
+	const sharedSecret = env.SUPERVISOR_API_SHARED_SECRET?.trim();
+	return {
+		...(sharedSecret ? { "x-worker-origin-auth": sharedSecret } : {}),
+		...createCloudflareAccessServiceTokenHeaders(env),
 	};
 }

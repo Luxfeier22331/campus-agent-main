@@ -101,9 +101,8 @@ infra/local/staging/status-supervisor-api-staging.sh --check
   `supervisor-agent-worker` 都在当前 compose project 中运行
 - 如果配置了 public execution origin，则 `cloudflared` 进程存在
 - 本地 `<http://127.0.0.1:27010/healthz`> 返回 `200`
-- 本地 `<http://127.0.0.1:27010/readyz`> 返回 `200`
-- 本地 `<http://127.0.0.1:27010/metrics`> 返回 `200`
-- `<https://exec-staging.ayafeed.com/readyz`> 返回 `200`
+- 本地 `<http://127.0.0.1:27010/readyz`> 带 `x-worker-origin-auth` 返回 `200`
+- 本地 `<http://127.0.0.1:27010/metrics`> 带 bearer token 返回 `200`
 - `<https://campus-api-staging.ayafeed.com/readyz`> 返回 `200`
 - `campus-api-staging` 的 `auth`、`database`、`supervisorApi` 都是 `ready`
 
@@ -136,8 +135,14 @@ infra/local/staging/status-supervisor-api-staging.sh --check
   `app-api` 链路，也会把有效的 `sentry-trace` 转成标准 `traceparent`。向
   `supervisor-agent-worker` 只传播 `traceparent`、`baggage`、`x-request-id`
   与 `x-trace-id`
-- 如果设置了 `SUPERVISOR_API_METRICS_BEARER_TOKEN`，`status-supervisor-api-staging.sh`
-  会用该 token 拉取本地 `/metrics`；不应把 raw token 写入日志
+- staging profile 必须设置 `SUPERVISOR_API_METRICS_BEARER_TOKEN`；
+  `status-supervisor-api-staging.sh` 会用该 token 拉取本地 `/metrics`，且不应把
+  raw token 写入日志
+- staging profile 下，supervisor-api full `/readyz` 是内部 runtime probe；
+  local lifecycle script 使用 `API_WORKER_SHARED_SECRET` 对本地 `/readyz` 加
+  `x-worker-origin-auth`。public deploy / smoke closure 不直接要求
+  `exec-staging.ayafeed.com/readyz`，而是通过 `campus-api-staging /readyz`
+  证明 app-api 已用内部 shared secret 完成 supervisor readiness probe
 - `/readyz` 不因瞬时 `active_answers == max_concurrent_answers` 直接 degraded；只有
   admission queue 已不可接收、runtime draining 或 bridge 不健康时才视为 execution
   runtime 不 ready

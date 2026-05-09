@@ -4,6 +4,7 @@ import "testing"
 
 func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "")
+	t.Setenv("SUPERVISOR_API_RUNTIME_PROFILE", "")
 	t.Setenv("API_DEFAULT_ACTOR_ID", "")
 	t.Setenv("API_DEFAULT_ACTOR_ROLES", "")
 	t.Setenv("SUPERVISOR_AGENT_WORKER_BASE_URL", "")
@@ -68,6 +69,9 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	}
 	if cfg.AuthMode != "bearer" {
 		t.Fatalf("auth mode = %q, want bearer", cfg.AuthMode)
+	}
+	if cfg.RuntimeProfile != "local" {
+		t.Fatalf("runtime profile = %q, want local", cfg.RuntimeProfile)
 	}
 	if cfg.DefaultActorID != "" {
 		t.Fatalf("default actor id = %q, want empty", cfg.DefaultActorID)
@@ -186,6 +190,28 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
 		!cfg.PromptStrictStructuredOutputs {
 		t.Fatalf("unexpected prompt config defaults: %#v", cfg)
+	}
+}
+
+func TestFromEnvRejectsNonLocalRuntimeProfileWithoutMetricsToken(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_RUNTIME_PROFILE", "staging")
+	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "")
+
+	if _, err := LoadFromEnv(); err == nil {
+		t.Fatal("expected staging runtime profile without metrics token to fail")
+	}
+}
+
+func TestFromEnvAcceptsStagingRuntimeProfileWithMetricsToken(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_RUNTIME_PROFILE", "staging")
+	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "metrics-token")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+	if cfg.RuntimeProfile != "staging" {
+		t.Fatalf("runtime profile = %q, want staging", cfg.RuntimeProfile)
 	}
 }
 

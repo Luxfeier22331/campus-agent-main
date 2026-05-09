@@ -63,16 +63,11 @@ async function probeSupervisorApiForStagingAppApi() {
 	baseUrl.hash = "";
 
 	const healthUrl = new URL("/healthz", baseUrl);
-	const readyUrl = new URL("/readyz", baseUrl);
 
 	try {
 		await probeUrl({
 			label: `STAGING_SUPERVISOR_API_BASE_URL health probe (${healthUrl.toString()})`,
 			url: healthUrl,
-		});
-		await probeUrl({
-			label: `STAGING_SUPERVISOR_API_BASE_URL readiness probe (${readyUrl.toString()})`,
-			url: readyUrl,
 		});
 	} catch (error) {
 		if (error instanceof Error) {

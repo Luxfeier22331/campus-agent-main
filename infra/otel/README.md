@@ -24,8 +24,9 @@ This directory contains repo-owned OpenTelemetry Collector configuration for the
   `x-axiom-dataset` and metrics through `x-axiom-metrics-dataset`, matching
   Axiom's separate dataset requirement for metrics.
 - `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` must be the base domain, for example
-  `https://us-east-1.aws.edge.axiom.co`. Do not include `/v1/traces`, `/v1/logs`, or
-  `/v1/metrics` because the Collector `otlphttp` exporter appends the signal path.
+  `https://us-east-1.aws.edge.axiom.co`. Do not include `/v1/traces`,
+  `/v1/logs`, or `/v1/metrics` because the Collector `otlphttp` exporter
+  appends the signal path.
 - `OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT` must match `AXIOM_ENDPOINT` so Worker-local
   and Collector-based exports land in the same Axiom edge deployment.
 - Local debug uses only the `debug` exporter and does not require Sentry/Axiom credentials.

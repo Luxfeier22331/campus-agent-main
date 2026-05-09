@@ -30,10 +30,6 @@ supervisor_api_staging_log_rotate_keep_count=5
 supervisor_api_staging_local_healthz_url="http://${supervisor_api_staging_host}:${supervisor_api_staging_port}/healthz"
 supervisor_api_staging_local_readyz_url="http://${supervisor_api_staging_host}:${supervisor_api_staging_port}/readyz"
 supervisor_api_staging_local_metrics_url="http://${supervisor_api_staging_host}:${supervisor_api_staging_port}/metrics"
-supervisor_api_staging_public_readyz_url=""
-if [[ -n "${supervisor_api_staging_public_base_url}" ]]; then
-  supervisor_api_staging_public_readyz_url="${supervisor_api_staging_public_base_url%/}/readyz"
-fi
 supervisor_api_staging_app_api_readyz_url=""
 if [[ -n "${supervisor_api_staging_app_api_base_url}" ]]; then
   supervisor_api_staging_app_api_readyz_url="${supervisor_api_staging_app_api_base_url%/}/readyz"
@@ -67,7 +63,6 @@ supervisor_api_staging_runtime_globals_declared() {
     "${supervisor_api_staging_local_healthz_url}" \
     "${supervisor_api_staging_local_readyz_url}" \
     "${supervisor_api_staging_local_metrics_url}" \
-    "${supervisor_api_staging_public_readyz_url}" \
     "${supervisor_api_staging_app_api_readyz_url}"
 }
 
@@ -149,6 +144,7 @@ const keys = [
   "AUDIT_QUEUE_CAPACITY",
   "APP_API_INTERNAL_SHARED_SECRET",
   "SUPERVISOR_API_MAX_CONCURRENT_ANSWERS",
+  "SUPERVISOR_API_RUNTIME_PROFILE",
   "SUPERVISOR_API_QUEUE_CAPACITY",
   "SUPERVISOR_API_QUEUE_TIMEOUT_MS",
   "SUPERVISOR_API_REQUEST_TIMEOUT_MS",
@@ -367,11 +363,18 @@ supervisor_api_staging_wait_for_http_ok() {
   local url="$1"
   local attempts="${2:-30}"
   local sleep_seconds="${3:-1}"
+  local header_value="${4:-}"
+  local header_kind="${5:-}"
   local attempt
   local status_code
+  local -a curl_args
+
+  curl_args=(-sS -o /dev/null -w "%{http_code}")
+  supervisor_api_staging_append_probe_auth_header curl_args "${header_value}" "${header_kind}"
+  curl_args+=("${url}")
 
   for ((attempt = 1; attempt <= attempts; attempt += 1)); do
-    status_code="$(curl -sS -o /dev/null -w "%{http_code}" "${url}" || true)"
+    status_code="$(curl "${curl_args[@]}" || true)"
     if [[ "${status_code}" == "200" ]]; then
       return 0
     fi
@@ -380,6 +383,32 @@ supervisor_api_staging_wait_for_http_ok() {
 
   echo "Timed out waiting for ${url} to return 200." >&2
   return 1
+}
+
+supervisor_api_staging_append_probe_auth_header() {
+  local -n curl_args_ref="$1"
+  local header_value="${2:-}"
+  local header_kind="${3:-}"
+
+  if [[ -z "${header_value}" ]]; then
+    return 0
+  fi
+
+  case "${header_kind}" in
+    authorization)
+      curl_args_ref+=(-H "authorization: Bearer ${header_value}")
+      ;;
+    x-worker-origin-auth)
+      curl_args_ref+=(-H "x-worker-origin-auth: ${header_value}")
+      ;;
+    "")
+      curl_args_ref+=(-H "authorization: Bearer ${header_value}")
+      ;;
+    *)
+      echo "Unsupported probe auth header kind: ${header_kind}" >&2
+      return 1
+      ;;
+  esac
 }
 
 supervisor_api_staging_rotate_log_file_if_needed() {
@@ -466,6 +495,7 @@ supervisor_api_staging_compose() {
     cd "${supervisor_api_staging_repo_root}" || exit
     COMPOSE_PROJECT_NAME="${supervisor_api_staging_compose_project_name}" \
     SUPERVISOR_API_HOST_PORT="${supervisor_api_staging_port}" \
+    SUPERVISOR_API_RUNTIME_PROFILE=staging \
     API_AUTH_MODE=trusted-worker \
     API_WORKER_SHARED_SECRET="${worker_shared_secret}" \
     SUPERVISOR_AGENT_WORKER_SHARED_SECRET="${bridge_shared_secret}" \
@@ -502,6 +532,11 @@ supervisor_api_staging_compose_project_running() {
 supervisor_api_staging_require_runtime_env() {
   if [[ -z "${SUPERVISOR_API_SHARED_SECRET:-}" ]]; then
     echo "SUPERVISOR_API_SHARED_SECRET is missing. Populate apps/app-api/.dev.vars first." >&2
+    return 1
+  fi
+
+  if [[ -z "${SUPERVISOR_API_METRICS_BEARER_TOKEN:-}" ]]; then
+    echo "SUPERVISOR_API_METRICS_BEARER_TOKEN is required for staging supervisor metrics." >&2
     return 1
   fi
 

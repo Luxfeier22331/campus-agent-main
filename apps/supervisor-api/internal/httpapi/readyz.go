@@ -23,6 +23,11 @@ type promptConfigGate struct {
 }
 
 func (s *Server) handleReadyz(response http.ResponseWriter, request *http.Request) {
+	if !s.readinessAuthorized(request) {
+		setOutcome(response, "unauthorized")
+		writeError(response, http.StatusUnauthorized, "unauthorized", "Invalid readiness auth.", false)
+		return
+	}
 	bridgeConfigured := s.bridge != nil && s.bridge.Configured()
 	bridgeReachable := false
 	bridgeHealthy := false

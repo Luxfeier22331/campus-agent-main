@@ -24,16 +24,15 @@ probe_http_url() {
   local url="$1"
   local body_file="$2"
   local use_noproxy="${3:-0}"
-  local bearer_token="${4:-}"
+  local header_value="${4:-}"
+  local header_kind="${5:-}"
   local -a curl_command
 
   curl_command=(curl -sS -o "${body_file}" -w "%{http_code}")
   if [[ "${use_noproxy}" == "1" ]]; then
     curl_command+=(--noproxy '*')
   fi
-  if [[ -n "${bearer_token}" ]]; then
-    curl_command+=(-H "authorization: Bearer ${bearer_token}")
-  fi
+  supervisor_api_staging_append_probe_auth_header curl_command "${header_value}" "${header_kind}"
   curl_command+=("${url}")
 
   "${curl_command[@]}" || true
@@ -60,23 +59,15 @@ if (( strict_mode == 0 )); then
 
   echo
   echo "local readyz: ${supervisor_api_staging_local_readyz_url}"
-  curl -sS -i "${supervisor_api_staging_local_readyz_url}" || true
+  curl -sS -i \
+    -H "x-worker-origin-auth: ${SUPERVISOR_API_SHARED_SECRET:-supervisor-api-staging-placeholder}" \
+    "${supervisor_api_staging_local_readyz_url}" || true
 
   echo
   echo "local metrics: ${supervisor_api_staging_local_metrics_url}"
-  if [[ -n "${SUPERVISOR_API_METRICS_BEARER_TOKEN:-}" ]]; then
-    curl -sS -i \
-      -H "authorization: Bearer ${SUPERVISOR_API_METRICS_BEARER_TOKEN}" \
-      "${supervisor_api_staging_local_metrics_url}" || true
-  else
-    curl -sS -i "${supervisor_api_staging_local_metrics_url}" || true
-  fi
-
-  if [[ -n "${supervisor_api_staging_public_readyz_url}" ]]; then
-    echo
-    echo "public readyz: ${supervisor_api_staging_public_readyz_url}"
-    curl --noproxy '*' -sS -i "${supervisor_api_staging_public_readyz_url}" || true
-  fi
+  curl -sS -i \
+    -H "authorization: Bearer ${SUPERVISOR_API_METRICS_BEARER_TOKEN:-}" \
+    "${supervisor_api_staging_local_metrics_url}" || true
 
   if [[ -n "${supervisor_api_staging_app_api_readyz_url}" ]]; then
     echo
@@ -96,9 +87,8 @@ fi
 local_healthz_body="$(mktemp)"
 local_readyz_body="$(mktemp)"
 local_metrics_body="$(mktemp)"
-public_readyz_body="$(mktemp)"
 app_api_readyz_body="$(mktemp)"
-trap 'rm -f "${local_healthz_body}" "${local_readyz_body}" "${local_metrics_body}" "${public_readyz_body}" "${app_api_readyz_body}"' EXIT
+trap 'rm -f "${local_healthz_body}" "${local_readyz_body}" "${local_metrics_body}" "${app_api_readyz_body}"' EXIT
 
 failures=()
 
@@ -106,7 +96,7 @@ if ! supervisor_api_staging_compose_project_running; then
   failures+=("supervisor-api compose project is not fully running")
 fi
 
-if [[ -n "${supervisor_api_staging_public_readyz_url}" ]] && ! supervisor_api_staging_pid_is_running "${supervisor_api_staging_cloudflared_pid_file}"; then
+if [[ -n "${supervisor_api_staging_public_base_url}" ]] && ! supervisor_api_staging_pid_is_running "${supervisor_api_staging_cloudflared_pid_file}"; then
   failures+=("cloudflared process is not running")
 fi
 
@@ -115,7 +105,14 @@ if [[ "${local_healthz_status}" != "200" ]]; then
   failures+=("local healthz returned HTTP ${local_healthz_status}")
 fi
 
-local_readyz_status="$(probe_http_url "${supervisor_api_staging_local_readyz_url}" "${local_readyz_body}")"
+local_readyz_status="$(
+  probe_http_url \
+    "${supervisor_api_staging_local_readyz_url}" \
+    "${local_readyz_body}" \
+    0 \
+    "${SUPERVISOR_API_SHARED_SECRET:-supervisor-api-staging-placeholder}" \
+    "x-worker-origin-auth"
+)"
 if [[ "${local_readyz_status}" != "200" ]]; then
   failures+=("local readyz returned HTTP ${local_readyz_status}")
 fi
@@ -125,17 +122,11 @@ local_metrics_status="$(
     "${supervisor_api_staging_local_metrics_url}" \
     "${local_metrics_body}" \
     0 \
-    "${SUPERVISOR_API_METRICS_BEARER_TOKEN:-}"
+    "${SUPERVISOR_API_METRICS_BEARER_TOKEN}" \
+    "authorization"
 )"
 if [[ "${local_metrics_status}" != "200" ]]; then
   failures+=("local metrics returned HTTP ${local_metrics_status}")
-fi
-
-if [[ -n "${supervisor_api_staging_public_readyz_url}" ]]; then
-  public_readyz_status="$(probe_http_url "${supervisor_api_staging_public_readyz_url}" "${public_readyz_body}" 1)"
-  if [[ "${public_readyz_status}" != "200" ]]; then
-    failures+=("public readyz returned HTTP ${public_readyz_status}")
-  fi
 fi
 
 if [[ -n "${supervisor_api_staging_app_api_readyz_url}" ]]; then
@@ -175,9 +166,6 @@ echo "strict check: ok"
 echo "  - local healthz: ${supervisor_api_staging_local_healthz_url}"
 echo "  - local readyz: ${supervisor_api_staging_local_readyz_url}"
 echo "  - local metrics: ${supervisor_api_staging_local_metrics_url}"
-if [[ -n "${supervisor_api_staging_public_readyz_url}" ]]; then
-  echo "  - public readyz: ${supervisor_api_staging_public_readyz_url}"
-fi
 if [[ -n "${supervisor_api_staging_app_api_readyz_url}" ]]; then
   echo "  - app-api readyz: ${supervisor_api_staging_app_api_readyz_url}"
 fi

@@ -11,7 +11,7 @@ export const DEFAULT_CHAT_E2E_PROMPT = "中央民族大学本科学生国家奖�
 export const DEFAULT_STAGING_CHAT_E2E_CHAT_BASE_URL = "https://campus-chat-staging.ayafeed.com";
 export const DEFAULT_STAGING_CHAT_E2E_APP_API_READYZ_URL =
 	"https://campus-api-staging.ayafeed.com/readyz";
-export const DEFAULT_STAGING_CHAT_E2E_EXEC_READYZ_URL = "https://exec-staging.ayafeed.com/readyz";
+export const DEFAULT_STAGING_CHAT_E2E_EXEC_READYZ_URL: string | null = null;
 export const DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL = "http://127.0.0.1:27011";
 export const DEFAULT_LOCAL_CHAT_E2E_APP_API_READYZ_URL = "http://127.0.0.1:27031/readyz";
 export const DEFAULT_LOCAL_CHAT_E2E_EXEC_READYZ_URL = "http://127.0.0.1:27051/readyz";
@@ -26,7 +26,7 @@ export interface ChatE2eArgs {
 	captchaToken: string;
 	chatBaseUrl: string;
 	email: string;
-	execReadyzUrl: string;
+	execReadyzUrl: string | null;
 	expectPromptRuntimeState: string | null;
 	expectResultKind: ChatE2eExpectedResultKind;
 	name: string;
@@ -62,7 +62,7 @@ export function parseChatE2eArgs(
 	let prompt = DEFAULT_CHAT_E2E_PROMPT;
 	let chatBaseUrl = DEFAULT_CHAT_E2E_CHAT_BASE_URL;
 	let appApiReadyzUrl: string | null = DEFAULT_CHAT_E2E_APP_API_READYZ_URL;
-	let execReadyzUrl = DEFAULT_CHAT_E2E_EXEC_READYZ_URL;
+	let execReadyzUrl: string | null = DEFAULT_CHAT_E2E_EXEC_READYZ_URL;
 	let expectPromptRuntimeState: string | null = null;
 	let expectResultKind: ChatE2eExpectedResultKind = "answer";
 	let profile: ChatE2eProfile = "staging";

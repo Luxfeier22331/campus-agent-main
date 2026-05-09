@@ -5,7 +5,6 @@ import { describe, expect, it } from "vitest";
 import {
 	DEFAULT_CHAT_E2E_APP_API_READYZ_URL,
 	DEFAULT_CHAT_E2E_CHAT_BASE_URL,
-	DEFAULT_CHAT_E2E_EXEC_READYZ_URL,
 	DEFAULT_CHAT_E2E_PROMPT,
 	DEFAULT_LOCAL_CHAT_E2E_APP_API_READYZ_URL,
 	DEFAULT_LOCAL_CHAT_E2E_CHAT_BASE_URL,
@@ -24,7 +23,7 @@ describe("chat e2e args", () => {
 			captchaToken: "",
 			chatBaseUrl: DEFAULT_CHAT_E2E_CHAT_BASE_URL,
 			email: "help_bot@outlook.com",
-			execReadyzUrl: DEFAULT_CHAT_E2E_EXEC_READYZ_URL,
+			execReadyzUrl: null,
 			expectPromptRuntimeState: null,
 			expectResultKind: "answer",
 			name: "Campus Agent Smoke",

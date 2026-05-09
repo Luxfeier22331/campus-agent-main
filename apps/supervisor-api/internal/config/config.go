@@ -13,6 +13,7 @@ type Config struct {
 	AppName                           string
 	Host                              string
 	Port                              int
+	RuntimeProfile                    string
 	AuthMode                          string
 	BearerToken                       string
 	WorkerSharedSecret                string
@@ -93,6 +94,7 @@ type envValues struct {
 	AppName                           string  `env:"CAMPUS_AGENT_APP_NAME" envDefault:"campus-agent"`
 	Host                              string  `env:"CAMPUS_AGENT_HTTP_HOST" envDefault:"127.0.0.1"`
 	Port                              int     `env:"CAMPUS_AGENT_HTTP_PORT" envDefault:"8000"`
+	RuntimeProfile                    string  `env:"SUPERVISOR_API_RUNTIME_PROFILE" envDefault:"local"`
 	AuthMode                          string  `env:"API_AUTH_MODE" envDefault:"bearer"`
 	BearerToken                       string  `env:"API_BEARER_TOKEN"`
 	WorkerSharedSecret                string  `env:"API_WORKER_SHARED_SECRET"`
@@ -171,7 +173,11 @@ func LoadFromEnv() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	if err := validateEnvValues(values); err != nil {
+	runtimeProfile, err := normalizeRuntimeProfile(values.RuntimeProfile)
+	if err != nil {
+		return Config{}, err
+	}
+	if err := validateEnvValues(values, runtimeProfile); err != nil {
 		return Config{}, err
 	}
 	laneBudgets, err := readLaneBudgetsStrict(values.MaxConcurrentAnswers, values.QueueCapacity, values.QueueTimeoutMS)
@@ -195,6 +201,7 @@ func LoadFromEnv() (Config, error) {
 		AppName:                           defaultString(strings.TrimSpace(values.AppName), "campus-agent"),
 		Host:                              defaultString(strings.TrimSpace(values.Host), "127.0.0.1"),
 		Port:                              values.Port,
+		RuntimeProfile:                    runtimeProfile,
 		AuthMode:                          defaultString(strings.TrimSpace(values.AuthMode), "bearer"),
 		BearerToken:                       strings.TrimSpace(values.BearerToken),
 		WorkerSharedSecret:                strings.TrimSpace(values.WorkerSharedSecret),
@@ -274,7 +281,7 @@ func parseEnvValues() (envValues, error) {
 	return values, nil
 }
 
-func validateEnvValues(values envValues) error {
+func validateEnvValues(values envValues, runtimeProfile string) error {
 	checks := []struct {
 		name  string
 		value int
@@ -321,7 +328,26 @@ func validateEnvValues(values envValues) error {
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
 		return fmt.Errorf("SUPERVISOR_API_OTEL_SAMPLE_RATIO must be a number between 0 and 1")
 	}
+	if runtimeProfile != "local" && strings.TrimSpace(values.MetricsBearerToken) == "" {
+		return fmt.Errorf(
+			"SUPERVISOR_API_METRICS_BEARER_TOKEN is required when SUPERVISOR_API_RUNTIME_PROFILE=%s",
+			runtimeProfile,
+		)
+	}
 	return nil
+}
+
+func normalizeRuntimeProfile(value string) (string, error) {
+	profile := strings.ToLower(strings.TrimSpace(value))
+	if profile == "" {
+		profile = "local"
+	}
+	switch profile {
+	case "local", "staging", "production":
+		return profile, nil
+	default:
+		return "", fmt.Errorf("SUPERVISOR_API_RUNTIME_PROFILE contains unsupported profile %q", value)
+	}
 }
 
 func promptRuntimeBaseURL(values envValues) string {

@@ -250,17 +250,20 @@ async function runReadyzChecks(
 	args: ChatE2eArgs,
 	deps: Required<Pick<ChatE2eDependencies, "fetchReadyz">>,
 ): Promise<{ blockedBy: ChatE2eBlockedBy | null; readyz: ChatE2eReadyzSummary }> {
-	const exec = await deps.fetchReadyz(args.execReadyzUrl);
-	const execBlock = classifyReadyzBlock("exec", exec);
-	if (execBlock) {
-		return {
-			blockedBy: execBlock,
-			readyz: {
-				appApi: null,
-				chat: null,
-				exec,
-			},
-		};
+	let exec: ReadyzProbe | null = null;
+	if (args.execReadyzUrl) {
+		exec = await deps.fetchReadyz(args.execReadyzUrl);
+		const execBlock = classifyReadyzBlock("exec", exec);
+		if (execBlock) {
+			return {
+				blockedBy: execBlock,
+				readyz: {
+					appApi: null,
+					chat: null,
+					exec,
+				},
+			};
+		}
 	}
 
 	let appApi: ReadyzProbe | null = null;

@@ -74,6 +74,10 @@ Runtime `/readyz` is stricter than liveness:
 - `200 ready` means prompt runtime admitted, prompt HTTP pool configured,
   audit writer healthy, and answer admission not currently saturated
 - `503 degraded` means at least one execution runtime component is not ready
+- outside the `local` runtime profile, supervisor-api full `/readyz` requires
+  internal worker auth and must not be used as an unauthenticated public deploy
+  probe; public staging closure should use `app-api /readyz`, which performs the
+  supervisor readiness probe with the configured shared secret
 - `/readyz` is still not a full deploy closure; deploy readiness also depends
   on config truth, smoke, and evidence artifacts
 

@@ -56,7 +56,8 @@ recovery 模板继续放在 `env/commands/historical/*.env.example`。
 ### Repo root shared env
 
 - [`.env.example`](/home/reptilian/code/campus-agent/.env.example)
-  - shared provider、object store、registry、eval ingress、shared HTTP listen config
+  - shared provider、object store、registry、eval ingress、supervisor local runtime、shared
+    HTTP listen config
 
 ### App-local env
 
@@ -66,15 +67,29 @@ recovery 模板继续放在 `env/commands/historical/*.env.example`。
 - [`apps/app-api/.env.example`](/home/reptilian/code/campus-agent/apps/app-api/.
   env.example)
   - `app-api` Wrangler / Drizzle process env
+- [`apps/hub-web/.dev.vars.example`](/home/reptilian/code/campus-agent/apps/hub
+  -web/.dev.vars.example)
+  - `hub-web` Worker runtime string env
+- [`apps/authenticated-notice-collector/.env.example`](/home/reptilian/code/cam
+  pus-agent/apps/authenticated-notice-collector/.env.example)
+  - `authenticated-notice-collector` portal auth、collector ledger/lease、source-bucket
+    runtime env
 - [`apps/official-web-collector/.env.example`](/home/reptilian/code/campus-agent
   /apps/official-web-collector/.env.example)
-  - `official-web-collector` runtime env
+  - `official-web-collector` control-plane 与 source-bucket runtime env
+- [`apps/wechat-official-account-collector/.env.example`](/home/reptilian/code/c
+  ampus-agent/apps/wechat-official-account-collector/.env.example)
+  - `wechat-official-account-collector` FeedWe credentials、control-plane 与 source-bucket
+    runtime env
 - [`apps/public-chat-web/.dev.vars.example`](/home/reptilian/code/campus-agent/a
   pps/public-chat-web/.dev.vars.example)
   - `public-chat-web` Worker string env
 - [`apps/protected-panel-web/.dev.vars.example`](/home/reptilian/code/campus-age
   nt/apps/protected-panel-web/.dev.vars.example)
   - `protected-panel-web` Worker string env
+- [`infra/otel/collector.env.example`](/home/reptilian/code/campus-agent/infra/
+  otel/collector.env.example)
+  - local/staging OTel collector process env
 
 ### Command-scoped override
 
@@ -88,6 +103,8 @@ recovery 模板继续放在 `env/commands/historical/*.env.example`。
   e/campus-agent/env/commands/official-web-handoff-receiver.env.example)
 - [`env/commands/official-web-handoff-consumer.env.example`](/home/reptilian/cod
   e/campus-agent/env/commands/official-web-handoff-consumer.env.example)
+- [`env/commands/official-web-release-task.env.example`](/home/reptilian/code/ca
+  mpus-agent/env/commands/official-web-release-task.env.example)
 - [`env/commands/release-registry-scope.env.example`](/home/reptilian/code/campu
   s-agent/env/commands/release-registry-scope.env.example)
 - [`env/commands/legacy-office-conversion-service.env.example`](/home/reptilian/

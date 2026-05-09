@@ -65,6 +65,7 @@ export function registerSupervisorAdapterAccessSuite(ctx: SupervisorAdapterSuite
 				SUPERVISOR_API_ACCESS_CLIENT_ID: "access-client-id",
 				SUPERVISOR_API_ACCESS_CLIENT_SECRET: "access-client-secret",
 				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -75,6 +76,7 @@ export function registerSupervisorAdapterAccessSuite(ctx: SupervisorAdapterSuite
 				headers: {
 					"CF-Access-Client-Id": "access-client-id",
 					"CF-Access-Client-Secret": "access-client-secret",
+					"x-worker-origin-auth": "shared-secret",
 				},
 				method: "GET",
 			}),

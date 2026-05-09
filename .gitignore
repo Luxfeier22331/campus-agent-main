@@ -8,6 +8,8 @@ build/
 .env.*
 !.env.example
 !.env.local-minimal.example
+env/commands/*.env
+env/commands/historical/*.env
 .dev.vars
 .dev.vars.*
 !.dev.vars.example

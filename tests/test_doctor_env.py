@@ -367,8 +367,8 @@ class DoctorEnvTest(unittest.TestCase):
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
                         "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://session.example/postgres",
-                        "AGNO_SUPERVISOR_MODEL=gpt-5.4",
-                        "AGNO_SPECIALIST_MODEL=gpt-5.4-mini",
+                        "SUPERVISOR_PROMPT_MODEL=gpt-5.4",
+                        "AGENT_PROMPT_MODEL=gpt-5.4-mini",
                     ]
                 )
                 + "\n",
@@ -443,8 +443,8 @@ class DoctorEnvTest(unittest.TestCase):
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
                         "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:repo-secret@repo.example/postgres",
-                        "AGNO_SUPERVISOR_MODEL=gpt-5.4",
-                        "AGNO_SPECIALIST_MODEL=gpt-5.4-mini",
+                        "SUPERVISOR_PROMPT_MODEL=gpt-5.4",
+                        "AGENT_PROMPT_MODEL=gpt-5.4-mini",
                     ]
                 )
                 + "\n",
@@ -459,8 +459,8 @@ class DoctorEnvTest(unittest.TestCase):
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     "QDRANT_URL": "https://qdrant.example.com",
                     "CAMPUS_SHARED_POSTGRES_URL": shell_url,
-                    "AGNO_SUPERVISOR_MODEL": "gpt-5.4",
-                    "AGNO_SPECIALIST_MODEL": "gpt-5.4-mini",
+                    "SUPERVISOR_PROMPT_MODEL": "gpt-5.4",
+                    "AGENT_PROMPT_MODEL": "gpt-5.4-mini",
                 },
                 clear=True,
             ):
@@ -487,8 +487,8 @@ class DoctorEnvTest(unittest.TestCase):
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
                         "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:pg-secret@127.0.0.1:5432/campus_agent",
-                        "AGNO_SUPERVISOR_MODEL=gpt-5.4",
-                        "AGNO_SPECIALIST_MODEL=gpt-5.4-mini",
+                        "SUPERVISOR_PROMPT_MODEL=gpt-5.4",
+                        "AGENT_PROMPT_MODEL=gpt-5.4-mini",
                     ]
                 )
                 + "\n",
@@ -550,10 +550,10 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(status["providers"]["embedding"]["present"])
             self.assertTrue(status["settings"]["required"]["registry_database_url"]["present"])
             self.assertTrue(
-                status["settings"]["required"]["legacy_office_conversion_base_url"]["present"]
+                status["settings"]["optional"]["legacy_office_conversion_base_url"]["present"]
             )
             self.assertTrue(
-                status["settings"]["required"]["legacy_office_conversion_internal_shared_secret"][
+                status["settings"]["optional"]["legacy_office_conversion_internal_shared_secret"][
                     "present"
                 ]
             )
@@ -594,7 +594,7 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(status["settings"]["required"]["admission_database_url"]["present"])
             self.assertTrue(status["settings"]["required"]["attempt_database_url"]["present"])
 
-    def test_collect_env_doctor_status_reports_ingestion_surface_missing_legacy_office_service_contract(
+    def test_collect_env_doctor_status_reports_ingestion_surface_without_legacy_office_service_contract(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -621,12 +621,12 @@ class DoctorEnvTest(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(repo_root=repo_root, surface="ingestion")
 
-            self.assertFalse(status["overall_ready"])
+            self.assertTrue(status["overall_ready"])
             self.assertFalse(
-                status["settings"]["required"]["legacy_office_conversion_base_url"]["present"]
+                status["settings"]["optional"]["legacy_office_conversion_base_url"]["present"]
             )
             self.assertFalse(
-                status["settings"]["required"]["legacy_office_conversion_internal_shared_secret"][
+                status["settings"]["optional"]["legacy_office_conversion_internal_shared_secret"][
                     "present"
                 ]
             )

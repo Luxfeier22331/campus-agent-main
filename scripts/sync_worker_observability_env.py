@@ -28,9 +28,7 @@ OBSERVABILITY_TARGETS = {
     },
 }
 
-REQUIRED_SOURCE_KEYS = (
-    "SENTRY_DSN",
-)
+REQUIRED_SOURCE_KEYS = ("SENTRY_DSN",)
 
 
 def sync_worker_observability_env(

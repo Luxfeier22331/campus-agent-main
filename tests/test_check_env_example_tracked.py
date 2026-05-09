@@ -8,6 +8,7 @@ from pathlib import Path
 from scripts.check_env_example_tracked import (
     tracked_env_example_files,
     validate_env_example_file,
+    validate_env_example_ownership,
 )
 
 
@@ -103,3 +104,10 @@ class CheckEnvExampleTrackedTest(unittest.TestCase):
 
         self.assertEqual(len(failures), 1)
         self.assertIn("trailing whitespace is not allowed", failures[0])
+
+    def test_root_env_example_does_not_own_app_or_command_scoped_keys(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+
+        failures = validate_env_example_ownership(repo_root / ".env.example")
+
+        self.assertEqual(failures, ())

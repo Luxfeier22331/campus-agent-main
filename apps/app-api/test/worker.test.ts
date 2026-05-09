@@ -205,7 +205,7 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingDbEnvSource).toContain("https://campus-chat-staging.ayafeed.com");
 		expect(stagingPreflightSource).toContain("STAGING_SUPERVISOR_API_BASE_URL");
 		expect(stagingPreflightSource).toContain('new URL("/healthz", baseUrl)');
-		expect(stagingPreflightSource).toContain('new URL("/readyz", baseUrl)');
+		expect(stagingPreflightSource).not.toContain('new URL("/readyz", baseUrl)');
 		expect(stagingPreflightSource).toContain("db:bootstrap:staging");
 	});
 
