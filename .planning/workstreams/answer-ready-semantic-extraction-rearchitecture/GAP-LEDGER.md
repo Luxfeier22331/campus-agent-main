@@ -1,18 +1,17 @@
 ---
 doc_type: gap_ledger
-status: active
+status: completed
 created: 2026-05-07
-updated: 2026-05-09
+updated: 2026-05-10
 ---
 
 <!-- markdownlint-disable MD013 -->
 
 # Gap Ledger: Answer-Ready Semantic Extraction Rearchitecture
 
-This ledger tracks planned and closed debt for the active workstream. All known workstream-owned
-debt is now evidenced as closed, but the workstream intentionally remains open until it is
-explicitly marked complete. Each phase update records the evidence links, status and command
-outputs that support the eventual closeout claim.
+This ledger tracks planned and closed debt for the completed workstream. All known
+workstream-owned debt is now evidenced as closed. Each phase update records the evidence links,
+status and command outputs that support the closeout claim.
 
 ## Debt Ledger
 

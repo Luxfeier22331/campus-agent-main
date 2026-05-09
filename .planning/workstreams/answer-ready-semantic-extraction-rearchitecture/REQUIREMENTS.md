@@ -1,8 +1,8 @@
 ---
 doc_type: requirements
-status: active
+status: completed
 created: 2026-05-07
-updated: 2026-05-07
+updated: 2026-05-10
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -16,16 +16,17 @@ ingestion 到 release、retrieval、answer draft、grounding、eval 形成无 fa
 
 ## Problem Statement
 
-当前 v2 closeout 已经补齐了关键字段和若干 gate，但长期目标仍未完全达到：
+当前 v2 closeout 曾经补齐了关键字段和若干 gate，但长期目标仍未完全达到，因此本
+workstream 已收口以下结构债：
 
-- `condition_subject` 仍有启发式来源，需要 registry / taxonomy / structured unit 驱动
-- `condition_group_id` 在检索侧可读取，但生产链路没有稳定语义分组来源
-- `eligibility_intro` 仍主要是 answer-role 行为，不是 typed grouping contract
-- procedure step 的 actor / action / materials 抽取仍不够 taxonomy-driven
-- category overview 主要证明了 scholarship path，还未覆盖制度类通用 registry categories
-- chunk quality gate 仍偏缺陷检查，缺少 semantic correctness admission
-- retrieval fallback 仍存在，必须从目标 v3 rebuilt serving path 清零
-- `institutional_rules` 还没有和 `student_rules` 同等的 rebuilt release / serving adoption 证据
+- `condition_subject` 从 registry / taxonomy / structured unit 输入驱动，并携带 provenance
+- `condition_group_id` 成为生产链路稳定语义分组来源
+- `eligibility_intro` 成为 typed grouping contract，而不是只靠 answer-role 行为
+- procedure step 的 actor / action / materials 抽取由 shared taxonomy/registry owner 承担
+- category overview 覆盖制度类通用 registry categories
+- chunk quality gate 增加 semantic correctness admission
+- retrieval fallback 从目标 v3 rebuilt serving path 清零
+- `institutional_rules` 具备和 `student_rules` 同等的 rebuilt release / serving adoption 证据
 
 ## In Scope
 
@@ -117,7 +118,7 @@ ingestion 到 release、retrieval、answer draft、grounding、eval 形成无 fa
 
 ## Negative Completion Criteria
 
-The workstream is not complete if any of these are true:
+The workstream would need to be reopened if any of these become true again:
 
 - tests only prove field presence, not semantic correctness
 - `student_rules` passes but `institutional_rules` remains only compatibility-tested
@@ -126,7 +127,7 @@ The workstream is not complete if any of these are true:
 - a compatibility shim is introduced without an old-index-only quarantine and removal rule
 - component eval cannot say whether failure came from extraction, retrieval, ranking, selection,
   draft, grounding or release admission
-- Phase 9/10 still use placeholder release commands or unspecified artifact names
+- Phase 9/10 release commands regress to placeholder commands or unspecified artifact names
 - taxonomy/category/action values can be added without admission rules, alias review and release
   invalidation policy
 

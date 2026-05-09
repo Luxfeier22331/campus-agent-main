@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-19
-updated: 2026-05-09
+updated: 2026-05-10
 ---
 
 <!-- markdownlint-disable MD013 MD060 -->
@@ -55,6 +55,7 @@ updated: 2026-05-09
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
 | `academic calendar source truth reconciliation` | `academic-calendar-source-truth-reconciliation` | `yes` | `.planning/workstreams/academic-calendar-source-truth-reconciliation/README.md` | 只有在 `calendar/academic_calendar` current projection 再次只读单一 curated calendar、notice-derived calendar arrangement 无法通过 source-truth manifest admission、`2026-05-09` 回退成 `执行周一课表`、`春假` 被写成官方事件名或不再能以 colloquial alias 映射到官方组合安排，或 runtime 重新扫描 raw notice/RAG/OCR 资产时恢复 |
+| `answer-ready semantic extraction rearchitecture` | `answer-ready-semantic-extraction-rearchitecture` | `yes` | `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/README.md` | 只有在 `answer_ready_evidence.v3` schema / taxonomy governance / parent-child unit chain 漂移、`student_rules` 或 `institutional_rules` target release proof 失效、target regulation serving 重新允许 primary text-cue 或 old-index fallback、typed answer grounding 不再 fail-close，或 component eval / post-publish audit 不能拒绝 target-v3 fallback provenance 时恢复 |
 | `answer-ready evidence contract closeout` | `answer-ready-evidence-contract-closeout` | `yes` | `.planning/workstreams/answer-ready-evidence-contract-closeout/README.md` | 只有在 query-serving regulation-family answer-ready chunks 再次缺少 `answer_role` / `condition_subject` / `parent_unit_id` / `evidence_contract_version`、procedure typed fields、category overview member metadata，ranking/selection 回退到 text-cue primary path，release admission 不再 fail closed，或 component eval 无法归因 intent/retrieval/ranking/selection/draft/grounding/chunk-contract failure 时恢复 |
 | `SDK-only domain-agent execution hardcut` | `sdk-only-domain-agent-execution-hardcut` | `yes` | `.planning/workstreams/sdk-only-domain-agent-execution-hardcut/README.md` | 只有在 `sdk_adapter_admitted` structured tool 重新获得 direct adapter fallback、repo-owned provider-loop/pilot substrate 回流到 worker/package/test/eval、package-owned SDK executors 不再是唯一生产 structured runtime owner，或 ToolSpec/provider function schema drift guard 失效时恢复 |
 | `academic calendar lookup capability closeout` | `academic-calendar-lookup-capability-closeout` | `yes` | `.planning/workstreams/academic-calendar-lookup-capability-closeout/README.md` | 只有在 `academic_calendar_lookup` 停止返回 source-backed calendar facts、`春假` 不再只作为 source-backed colloquial alias 映射到官方组合安排、`2026-05-09` notice-derived `normal_rest_day` 回退、runtime 重新查询 raw official-web/RAG/image assets，或 planner routing 再次混淆 calendar fact / notice original / service-guide entry questions 时恢复 |

@@ -2,7 +2,7 @@
 doc_type: index
 status: completed
 created: 2026-05-07
-updated: 2026-05-09
+updated: 2026-05-10
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -37,13 +37,13 @@ The completed `answer-ready-evidence-contract-closeout` proved that typed answer
 flow through ingestion, retrieval, ranking, answer drafting and release gates. It did not prove a
 fully debt-free target state.
 
-Remaining structural debt:
+Closed structural debt:
 
-- some shared semantic resolvers still retain centralized compatibility-oriented fallback branches,
-  but target v3 serving and release admission now fail closed before generic retrieval fallback or
-  generic placeholder procedure actor/action values can pass as target truth
-- retrieval fallback exists for old-index compatibility and must be quarantined away from target v3
-  completion
+- shared semantic resolvers that provide deterministic target-v3 assignments no longer label those
+  assignments as `fallback:*`; remaining compatibility-oriented behavior is either explicit
+  old-index compatibility or non-target source-processing behavior
+- target regulation query-serving defaults to `target_v3_only`; legacy old-index compatibility
+  requires the explicit `legacy_old_index_compatibility` policy and is excluded from completion
 - component eval is now fixture-backed, stage-aware, can derive observations from real runtime
   responses plus retrieval fallback signals, and its deterministic JSON summary can now be attached
   to regulation release manifests, release reports, Qdrant release metadata and release-admission
@@ -117,5 +117,6 @@ This workstream can close only when:
 - Phase 0 semantic oracle and release-lane entrypoints are complete enough that later phases cannot
   reinterpret "semantic correctness" or "serving adoption" after the fact
 
-The workstream-owned semantic, release and audit evidence now satisfies these gates, but the
-explicit repo-owned `Verification Baseline` in `REQUIREMENTS.md` has been cleared. Planning truth therefore moves to `completed`.
+The workstream-owned semantic, release and audit evidence now satisfies these gates, and the
+explicit repo-owned `Verification Baseline` in `REQUIREMENTS.md` has been cleared. Planning truth
+therefore moves to `completed`.

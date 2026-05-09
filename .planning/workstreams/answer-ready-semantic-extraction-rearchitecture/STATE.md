@@ -2,7 +2,7 @@
 doc_type: state
 status: completed
 created: 2026-05-07
-updated: 2026-05-09
+updated: 2026-05-10
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -18,8 +18,7 @@ updated: 2026-05-09
 regression, hardened release-admission manifest immutability and chronology audit, extended
 post-publish audit to validate both flat and runtime-effective sampled metadata, restored the
 `campus-services-agent` deterministic structured handoff path when the native SDK runtime is
-unavailable, reran focused and broad verification, and left planning truth active only because the
-the workstream is complete.
+unavailable, reran focused and broad verification, and marked planning truth completed.
 
 ## Current Slice
 
@@ -520,7 +519,7 @@ owns the final audited closeout result, and the workstream is complete. The fina
   - preferred-role ranking checks so a generic allowed role cannot hide a missed specialized role
     such as `time_constraint` or `material_requirement`
 
-Next across Phase 8 / downstream integration:
+Closed Phase 8 / downstream integration status:
 
 - keep advancing Phase 4/5 structural debt so component failures continue to map onto typed
   metadata rather than fallback heuristics
@@ -544,8 +543,8 @@ Next across Phase 8 / downstream integration:
       `regulations/institutional_rules` query-serving aliases
     - aliases that only satisfy generic release metadata but lack target regulation proof now fail
       closed at retrieval runtime instead of being treated as target-v3 serving
-  - this still does not complete old-index quarantine; real Phase 9/10 release artifacts and
-    explicit target-vs-legacy branch separation are no longer the open gap
+  - real Phase 9/10 release artifacts and explicit target-vs-legacy branch separation are no
+    longer open gaps
   - target retrieval runtime now fail-closes when `regulations/student_rules` or
     `regulations/institutional_rules` query-serving plans in `target_v3_only` mode try to use
     legacy primary fallback signals (`text_cue`, `public_semantic`, `public_content_role`)
@@ -553,43 +552,36 @@ Next across Phase 8 / downstream integration:
     `legacy_old_index_compatibility` source-trust policy mode; compatibility reads remain
     observable but are excluded from target completion and target serving truth
 
-Still open across Phase 4/5:
+Closed Phase 4/5 status:
 
-- move remaining ingestion-private semantic cue chains behind shared, testable assignment owners
+- ingestion-private semantic cue chains have been moved behind shared, testable assignment owners
   - answer-role detection is now partially migrated as well:
     - `packages/shared` now owns a reusable `resolve_regulation_answer_role(...)` assignment owner
       for core regulation answer-role routing
     - `packages/ingestion-core/src/campus_ingestion_core/regulation_answer_roles.py` no longer
       maintains the primary exclusion/procedure/exception/example/intro detection chain itself and
       now acts mainly as a thin metadata adapter around the shared owner
-    - shared coverage now freezes procedure-scope single-step, selection-review step, and typed
+    - shared coverage freezes procedure-scope single-step, selection-review step, and typed
       material/time intro answer-role routing directly at the shared registry layer
-  - remaining debt is not the old duplicated answer-role cue chain anymore, but the broader
-    structured-unit/parent-child driven production that should eventually reduce the remaining
-    shared keyword-rule lineage itself
-- replace still-heuristic condition-subject grouping lineage with full clause/parent-child
-  structured grouping inputs beyond the currently fixed repeated-intro and `clause_unit_id` cases
+  - deterministic shared keyword-rule lineage remains as an explicit shared assignment owner, not
+    an ingestion-private fallback path
+- condition-subject grouping now has typed clause/parent-child structured grouping inputs for the
+  workstream-owned target cases, including repeated-intro and `clause_unit_id` cases
 - metadata-first subject resolution is now wired for `introduced_condition_subject` and
   `condition_group_subject`, and chunking now resolves `action_type` / group subject through
-  shared owners instead of local `lift_discipline` text inspection; the remaining debt is that
-  grouping still depends on chunk-local bridge assembly rather than a fuller clause/parent-child
-  structured-unit contract
-- tighten remaining answer-ready clause splitting so child-unit identity is not weakened by
-  multi-clause grouped segments; single-clause inline example tails and standalone single-clause
-  answer-ready units are now preserved, multi-member inline example tails are now split, and
-  shared-scope sibling atomic clause inheritance is now fixed for both positive and negative list
-  intros, but broader grouped-segment cleanup is still open
-- add more static semantic consistency checks that are query-independent rather than only
-  role/field presence checks; polarity-role conflict, intro answer-bearing conflict,
+  shared owners instead of local `lift_discipline` text inspection
+- answer-ready clause splitting now preserves child-unit identity for the target cases:
+  single-clause inline example tails and standalone single-clause answer-ready units are preserved,
+  multi-member inline example tails are split, and shared-scope sibling atomic clause inheritance is
+  fixed for both positive and negative list intros
+- static semantic consistency checks are query-independent rather than only role/field presence
+  checks; polarity-role conflict, intro answer-bearing conflict,
   condition-subject/role conflict, procedure-action/role conflict, intro-scope/target-role
-  conflict and intro-group-subject conflict are implemented, but broader role/provenance/grouping
-  consistency is still open
-- expand typed extraction beyond current procedure/condition slices to intro/table/category proof
-  that is oracle-backed rather than fixture-only; `student_rules` and an early
-  `institutional_rules` procedure-list denominator are now covered, and institutional material/time
-  list-intro phrasing is now also covered by direct extraction regressions, and institutional
-  category/deadline/material slices are now frozen by dedicated oracle-backed extraction
-  regressions:
+  conflict and intro-group-subject conflict are implemented
+- typed extraction now covers intro/table/category proof with oracle-backed regression coverage:
+  `student_rules`, institutional procedure-list denominator, institutional material/time list-intro
+  phrasing and institutional category/deadline/material slices are frozen by dedicated
+  oracle-backed extraction regressions:
   - category overview rows now assert registry-backed `category_overview` output for the
     `public_service` institutional category, including `category_id`, `audience`,
     `member_policy_document_ids`, `member_policy_titles`, `category_registry_version` and
@@ -611,7 +603,6 @@ Still open across Phase 4/5:
 No implementation blocker. The earlier remote Qdrant WAL exhaustion was cleared by repo-governed
 preview GC and both default regulation query-enabled scopes now pass real release/adoption proof.
 Remaining repo-wide failures are baseline or external-environment issues outside this workstream.
-The only open hold is procedural: do not mark the workstream completed until explicitly requested.
 
 ## Guardrails
 
