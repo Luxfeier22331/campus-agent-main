@@ -403,6 +403,7 @@ def validate_answer_ready_evidence_metadata(
         condition_subject
         and answer_role
         and condition_subject in REGULATION_CONDITION_SUBJECT_DEFINITIONS
+        and answer_role != "eligibility_intro"
         and answer_role
         not in REGULATION_CONDITION_SUBJECT_DEFINITIONS[condition_subject].expected_answer_roles
     ):

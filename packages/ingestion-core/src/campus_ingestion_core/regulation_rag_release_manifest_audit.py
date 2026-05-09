@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Mapping, Sequence
+from datetime import datetime
 from typing import Protocol
 
 from campus_shared.answer_ready_evidence_contract import ANSWER_READY_EVIDENCE_CONTRACT_VERSION
@@ -129,10 +130,16 @@ def audit_regulation_rag_release_manifests(
             release_collection=release_manifest.collection,
             release_document_ids=[document.document_id for document in release_manifest.documents],
             release_version_ids=[document.version_id for document in release_manifest.documents],
+            published_at=release_manifest.published_at,
             admission_corpus=admission_manifest.corpus,
             admission_collection=admission_manifest.collection,
-            admission_document_ids=[document.document_id for document in admission_manifest.documents],
-            admission_version_ids=[document.version_id for document in admission_manifest.documents],
+            admission_document_ids=[
+                document.document_id for document in admission_manifest.documents
+            ],
+            admission_version_ids=[
+                document.version_id for document in admission_manifest.documents
+            ],
+            admitted_at=admission_manifest.admitted_at,
             answer_ready_contract_version=admission_manifest.answer_ready_contract_version,
         )
     release_status = "passed" if not release_missing_fields else "failed"
@@ -198,10 +205,12 @@ def _cross_check_issues(
     release_collection: str,
     release_document_ids: Sequence[str],
     release_version_ids: Sequence[str],
+    published_at: str,
     admission_corpus: str,
     admission_collection: str,
     admission_document_ids: Sequence[str],
     admission_version_ids: Sequence[str],
+    admitted_at: str,
     answer_ready_contract_version: str,
 ) -> list[str]:
     issues: list[str] = []
@@ -215,7 +224,32 @@ def _cross_check_issues(
         issues.append("version_ids_mismatch")
     if answer_ready_contract_version != ANSWER_READY_EVIDENCE_CONTRACT_VERSION:
         issues.append("answer_ready_contract_version_mismatch")
+    published_at_value = _parse_iso8601_datetime(published_at)
+    admitted_at_value = _parse_iso8601_datetime(admitted_at)
+    if published_at_value is None:
+        issues.append("published_at_invalid")
+    if admitted_at_value is None:
+        issues.append("admitted_at_invalid")
+    if (
+        published_at_value is not None
+        and admitted_at_value is not None
+        and admitted_at_value > published_at_value
+    ):
+        issues.append("admission_after_publish")
     return issues
+
+
+def _parse_iso8601_datetime(value: str) -> datetime | None:
+    normalized = str(value or "").strip()
+    if not normalized:
+        return None
+    try:
+        parsed = datetime.fromisoformat(normalized.replace("Z", "+00:00"))
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return None
+    return parsed
 
 
 __all__ = [

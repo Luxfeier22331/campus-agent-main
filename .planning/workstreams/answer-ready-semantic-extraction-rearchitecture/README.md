@@ -1,8 +1,8 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-05-07
-updated: 2026-05-08
+updated: 2026-05-09
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -19,15 +19,13 @@ typed answer grounding、组件级 eval，以及 `student_rules` / `institutiona
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 11 - Legacy Quarantine Docs Closeout`
-- active implementation: Phase 1 contract/schema governance plus Phase 9/10 release audits are
-  complete and verified; Phases 2-8 now all have explicit completion-audit evidence recorded
-  through phase summaries and targeted verification; Phase 11 legacy quarantine closeout remains
-  open
-- current slice: keep the admitted/component-eval-backed `student_rules` and `institutional_rules`
-  aliases on current release truth, keep target-v3 retrieval on explicit `target_v3_only`
-  fail-closed semantics, and finish old-index quarantine / planning-truth closeout
+- status: `completed`
+- current phase: `completed`
+- active implementation: none
+- current slice: final closeout review repaired the last workstream-owned gaps in
+  `regulation_chunking`, release-admission manifest immutability, and post-publish release
+  auditing; regulation-family release/adoption evidence has been re-verified, and the workstream
+  is now complete
 - owner boundary: `packages/shared` + `packages/ingestion-core` + `packages/retrieval-core` +
   `packages/rag-agent` + `packages/evals` + regulation RAG release lane
 - serving boundary: only current query-enabled regulation-family surfaces are mandatory:
@@ -52,8 +50,12 @@ Remaining structural debt:
   evidence; denominator expansion now also covers the frozen ambiguous scholarship clarification
   case, regulation-family unsupported/no-hit rows, and an explicit regulation-family `table_fact`
   row for scholarship amount/quota lookup
-- the remaining open work is no longer “do Phase 2-8 coverage exist”; it is Phase 11 closeout of
-  planning truth, legacy quarantine wording and completion-audit alignment
+- final closeout review also resolved the last Phase 11 blind spots:
+  - sampled published payload audit now revalidates both flat payload metadata and runtime-effective
+    `_node_content` metadata
+  - flat/runtime target-v3 projection drift on `answer_role` and
+    `evidence_contract_version` now fails closeout audit
+  - no remaining workstream-owned closeout gap is open
 
 ## Native Planning Truth
 
@@ -114,3 +116,6 @@ This workstream can close only when:
 - legacy compatibility is quarantined and documented as old-index-only, not target behavior
 - Phase 0 semantic oracle and release-lane entrypoints are complete enough that later phases cannot
   reinterpret "semantic correctness" or "serving adoption" after the fact
+
+The workstream-owned semantic, release and audit evidence now satisfies these gates, but the
+explicit repo-owned `Verification Baseline` in `REQUIREMENTS.md` has been cleared. Planning truth therefore moves to `completed`.

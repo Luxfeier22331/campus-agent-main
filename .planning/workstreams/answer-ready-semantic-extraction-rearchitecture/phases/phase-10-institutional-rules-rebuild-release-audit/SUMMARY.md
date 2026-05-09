@@ -2,7 +2,7 @@
 doc_type: phase_summary
 status: completed
 created: 2026-05-08
-updated: 2026-05-08
+updated: 2026-05-09
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -36,16 +36,16 @@ readiness probe.
     clauses as `procedure_step` instead of fabricating `eligibility_condition` heads
 - Fresh institutional prep/admission succeeded on the real `institutional_rules_semantic_v1`
   profile:
-  - `prep-20260508-022800`
-  - `admit-20260508-institutional-rules-v7`
+  - `prep-20260509-institutional-rules-rebuild-v6`
+  - `admit-20260509-institutional-rules-rebuild-v6-final`
   - `answer_ready_contract_version=answer_ready_evidence.v3`
   - `answer_ready_contract_status=passed`
   - `semantic_oracle_status=passed`
   - `fallback_budget_status=passed`
 - Real registry-scope release succeeded and published serving alias:
-  - `release_id=r20260507_183741_842762_06e3f390`
-  - `physical_collection_name=institutional_rules__r20260507_183741_842762_06e3f390`
-  - `previous_physical_collection_name=institutional_rules__r20260507_032508_168288_34ba55ee`
+  - `release_id=r20260509_071445_145990_6a88f8b8`
+  - `physical_collection_name=institutional_rules__r20260509_071445_145990_6a88f8b8`
+  - `previous_physical_collection_name=institutional_rules__r20260509_065755_507024_e62d2e0e`
   - `retrieval_acceptance_status=passed`
   - `component_eval_status=passed`
   - `post_publish_audit_status=passed`
@@ -70,15 +70,15 @@ readiness probe.
 - prep report:
   - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_prepare_registry_scope_chunks_report_v3.json`
 - admission report:
-  - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_release_admission_report_v7.json`
+  - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_release_admission_report_v9.json`
 - release report:
-  - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_registry_scope_release_report_v7.json`
+  - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_registry_scope_release_report_v9.json`
 - runtime probe:
-  - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_runtime_probe_v2.json`
+  - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_runtime_probe_v4.json`
 - re-audit report:
-  - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_re_audit_report_v1.json`
+  - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_re_audit_report_v3.json`
 - release/admission manifest field audit:
-  - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_release_manifest_field_audit_v1.json`
+  - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_release_manifest_field_audit_v3.json`
 - component eval summary used by admission/release:
   - `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_preview_component_eval_summary.json`
 - Qdrant preview GC evidence:
@@ -95,23 +95,23 @@ uv run --all-packages python -m unittest tests.ingestion.test_handbook_chunking_
 Result: `Ran 125 tests in 0.081s` and `OK`.
 
 ```bash
-uv run --all-packages python -m campus_ingestion_worker.prepare_registry_scope_chunks --corpus regulations --collection institutional_rules --preparation-run-id prep-20260508-022800
+uv run --all-packages python -m campus_ingestion_worker.prepare_registry_scope_chunks --corpus regulations --collection institutional_rules --preparation-run-id prep-20260509-institutional-rules-rebuild-v6
 ```
 
-Result: `validation_status=passed`, `document_count=59`, `chunk_count=2594`.
+Result: `validation_status=passed`, `document_count=59`, `chunk_count=2601`.
 
 ```bash
-uv run --all-packages python -m campus_ingestion_worker.admit_regulation_rag_release --corpus regulations --collection institutional_rules --preparation-run-id prep-20260508-022800 --admission-run-id admit-20260508-institutional-rules-v7 --component-eval-summary-path .planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_preview_component_eval_summary.json
+uv run --all-packages python -m campus_ingestion_worker.admit_regulation_rag_release --corpus regulations --collection institutional_rules --preparation-run-id prep-20260509-institutional-rules-rebuild-v6 --admission-run-id admit-20260509-institutional-rules-rebuild-v6-final --component-eval-summary-path .planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_component_eval_summary_20260509.json
 ```
 
 Result: `answer_ready_contract_status=passed`, `semantic_oracle_status=passed`,
 `fallback_budget_status=passed`.
 
 ```bash
-uv run --all-packages python -m campus_ingestion_worker.release_registry_scope --corpus regulations --collection institutional_rules --preparation-run-id prep-20260508-022800 --release-admission-manifest-key regulations/operations/regulation-rag-release-admission/admit-20260508-institutional-rules-v7/institutional_rules/release-admission.json --acceptance-case-path packages/evals/fixtures/institutional_rules_release_acceptance.v1.json --component-eval-summary-path .planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_preview_component_eval_summary.json --publish-alias
+uv run --all-packages python -m campus_ingestion_worker.release_registry_scope --corpus regulations --collection institutional_rules --preparation-run-id prep-20260509-institutional-rules-rebuild-v6 --release-admission-manifest-key regulations/operations/regulation-rag-release-admission/admit-20260509-institutional-rules-rebuild-v6-final/institutional_rules/release-admission.json --acceptance-case-path packages/evals/fixtures/institutional_rules_release_acceptance.v1.json --component-eval-summary-path .planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_component_eval_summary_20260509.json --publish-alias
 ```
 
-Result: `release_id=r20260507_183741_842762_06e3f390`, `retrieval_acceptance_status=passed`,
+Result: `release_id=r20260509_071445_145990_6a88f8b8`, `retrieval_acceptance_status=passed`,
 `component_eval_status=passed`, `post_publish_audit_status=passed`,
 `release_admission_status=passed`.
 
@@ -119,18 +119,18 @@ Result: `release_id=r20260507_183741_842762_06e3f390`, `retrieval_acceptance_sta
 uv run --all-packages python -m campus_ingestion_worker.probe_regulation_rag_release_runtime --scope regulations/institutional_rules
 ```
 
-Result: `alias_target=institutional_rules__r20260507_183741_842762_06e3f390`,
+Result: `alias_target=institutional_rules__r20260509_071445_145990_6a88f8b8`,
 `release_metadata_guard_status=passed`, `readiness_status=ready`.
 
 ```bash
-uv run --all-packages python -m campus_ingestion_worker.re_audit_regulation_rag_release --corpus regulations --collection institutional_rules --release-id r20260507_183741_842762_06e3f390 > .planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_re_audit_report_v1.json
+uv run --all-packages python -m campus_ingestion_worker.re_audit_regulation_rag_release --corpus regulations --collection institutional_rules --release-id r20260509_071445_145990_6a88f8b8 > .planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_re_audit_report_v3.json
 ```
 
 Result: `post_publish_audit_status=passed`, `fallback_primary_signal_count=0`,
 `semantic_oracle_pass_count=5`, `semantic_oracle_fail_count=0`.
 
 ```bash
-uv run --all-packages python -m campus_ingestion_worker.audit_regulation_rag_release_manifests --corpus regulations --collection institutional_rules --release-id r20260507_183741_842762_06e3f390 --output-path .planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_release_manifest_field_audit_v1.json
+uv run --all-packages python -m campus_ingestion_worker.audit_regulation_rag_release_manifests --corpus regulations --collection institutional_rules --release-id r20260509_071445_145990_6a88f8b8 --output-path .planning/workstreams/answer-ready-semantic-extraction-rearchitecture/phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_release_manifest_field_audit_v3.json
 ```
 
 Result: `overall_status=passed`, `answer_ready_contract_version=answer_ready_evidence.v3`,

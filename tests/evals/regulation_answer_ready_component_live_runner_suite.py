@@ -5,7 +5,7 @@ import unittest
 from dataclasses import replace
 from pathlib import Path
 from tempfile import TemporaryDirectory
-from unittest.mock import Mock
+from unittest.mock import Mock, patch
 
 from campus_contracts import (
     AgentResponse,
@@ -21,6 +21,18 @@ from campus_evals.answer_ready_component_eval import (
 )
 from campus_evals.answer_ready_component_runtime import (
     AnswerReadyComponentRuntimeArtifact,
+)
+from campus_rag_agent.rag_sdk_models import (
+    RagQueryIntent,
+    RagSdkEvidenceProjection,
+    RagSdkRunRequest,
+    RagTaskKind,
+)
+from campus_rag_agent.typed_answer_drafts import (
+    ConditionTableDraftRow,
+    EligibilityJudgmentDraft,
+    PolicyListDraftItem,
+    TypedAnswerDraft,
 )
 from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 
@@ -41,6 +53,53 @@ def _answer_ready_anchor(**metadata: object) -> dict[str, object]:
 
 
 class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
+    def test_inprocess_delegate_uses_default_retriever_when_not_provided(self) -> None:
+        from campus_evals.rag_inprocess_delegate import delegate_to_rag_agent_inprocess
+
+        request = AgentRequest(
+            target="rag-agent",
+            user_goal="处分怎么消",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+            ),
+            request_id="student_discipline_relief_procedure",
+        )
+        evidence = EvidenceBundle(
+            corpus="regulations",
+            collection="student_rules",
+            query_text="处分怎么消",
+            sources=(),
+        )
+        response = AgentResponse(
+            target="rag-agent",
+            status="completed",
+            answer_text="按规定办理。",
+            confidence="low",
+        )
+
+        with (
+            patch(
+                "campus_evals.rag_inprocess_delegate._service_delegate_to_rag_agent"
+            ) as service_delegate,
+            patch(
+                "campus_evals.rag_inprocess_delegate._default_retriever",
+                return_value=evidence,
+                create=True,
+            ) as default_retriever,
+        ):
+
+            def _delegate_side_effect(request_arg: AgentRequest, *, retriever, **kwargs: object):
+                self.assertEqual(request_arg, request)
+                self.assertIs(retriever("处分怎么消"), evidence)
+                default_retriever.assert_called_once_with("处分怎么消")
+                return response
+
+            service_delegate.side_effect = _delegate_side_effect
+
+            actual = delegate_to_rag_agent_inprocess(request)
+
+        self.assertIs(actual, response)
+
     def test_preview_collection_override_bypasses_full_release_metadata_validation_only_for_physical_collection(
         self,
     ) -> None:
@@ -370,6 +429,204 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
                 if line.strip()
             ]
             self.assertGreaterEqual(len(lines), 1)
+
+    def test_inprocess_default_grounded_runner_preserves_policy_list_typed_answer_claims(
+        self,
+    ) -> None:
+        from campus_evals.rag_inprocess_delegate import _test_support_grounded_runner_for_evidence
+
+        source = replace(
+            _make_handbook_source(
+                doc_id="handbook:scholarship-overview",
+                title="本科生奖学金目录",
+                snippet="当前已收录依据中，本科生奖学金相关制度包括国家奖学金、国家励志奖学金。",
+                score=0.91,
+                chunk_id_suffix="policy-list-overview",
+                content_role="policy_list",
+                is_answer_bearing=True,
+                semantic_role="category_overview",
+                polarity="neutral",
+                claim_type="policy_list",
+            ),
+            anchor=_answer_ready_anchor(
+                answer_role="category_overview",
+                condition_subject="audience_scope",
+                condition_group_id="handbook:scholarship-overview:article-1:audience_scope",
+                condition_polarity="neutral",
+                category_id="scholarship",
+                category_audience="本科生",
+                category_member_document_ids=(
+                    "handbook:national-scholarship",
+                    "handbook:national-encouragement",
+                ),
+            ),
+        )
+        evidence = EvidenceBundle(
+            corpus="regulations",
+            collection="student_rules",
+            query_text="本科生有哪些奖学金能申请",
+            sources=(source,),
+        )
+        runner = _test_support_grounded_runner_for_evidence(evidence)
+        request = RagSdkRunRequest(
+            user_goal="本科生有哪些奖学金能申请",
+            query_intent=RagQueryIntent(
+                task_kind=RagTaskKind.CATEGORY_DISCOVERY,
+                normalized_query="本科生有哪些奖学金能申请",
+            ),
+            evidence=RagSdkEvidenceProjection.from_evidence_bundle(evidence),
+            typed_answer=TypedAnswerDraft(
+                kind="policy_list",
+                items=(
+                    PolicyListDraftItem(
+                        source_id=source.doc_id,
+                        chunk_id=source.chunk_id,
+                        excerpt=source.snippet,
+                        text="《本科生奖学金目录》：国家奖学金、国家励志奖学金",
+                        category_id="scholarship",
+                        audience="本科生",
+                        member_document_ids=(
+                            "handbook:national-scholarship",
+                            "handbook:national-encouragement",
+                        ),
+                        evidence_contract_version="answer_ready_evidence.v3",
+                    ),
+                ),
+            ),
+        )
+
+        result = runner(request)
+
+        self.assertEqual(
+            tuple(claim.claim_type for claim in result.output.claims), ("policy_list_item",)
+        )
+        self.assertEqual(
+            tuple(support.claim_id for support in result.output.claim_supports), ("claim-1",)
+        )
+
+    def test_inprocess_default_grounded_runner_preserves_judgment_typed_answer_claims(
+        self,
+    ) -> None:
+        from campus_evals.rag_inprocess_delegate import _test_support_grounded_runner_for_evidence
+
+        source = replace(
+            _make_handbook_source(
+                doc_id="handbook:national-scholarship",
+                title="国家奖学金评审办法",
+                snippet="在道德风尚、学术研究、学科竞赛等某一方面表现特别优秀的学生，可适当放宽成绩排名要求。",
+                score=0.93,
+                chunk_id_suffix="rank-exception",
+                content_role="eligibility",
+                is_answer_bearing=True,
+                semantic_role="exception_rule",
+                polarity="positive",
+                claim_type="condition",
+            ),
+            anchor=_answer_ready_anchor(
+                answer_role="exception_rule",
+                condition_subject="rank_threshold",
+                condition_group_id="handbook:national-scholarship:article-9:rank_threshold",
+                condition_polarity="positive",
+            ),
+        )
+        evidence = EvidenceBundle(
+            corpus="regulations",
+            collection="student_rules",
+            query_text="成绩没前十还能评国奖吗",
+            sources=(source,),
+        )
+        runner = _test_support_grounded_runner_for_evidence(evidence)
+        request = RagSdkRunRequest(
+            user_goal="成绩没前十还能评国奖吗",
+            query_intent=RagQueryIntent(
+                task_kind=RagTaskKind.SPECIFIC_POLICY_LOOKUP,
+                normalized_query="成绩没前十还能评国奖吗",
+            ),
+            evidence=RagSdkEvidenceProjection.from_evidence_bundle(evidence),
+            typed_answer=TypedAnswerDraft(
+                kind="eligibility_judgment",
+                judgment=EligibilityJudgmentDraft(
+                    source_id=source.doc_id,
+                    chunk_id=source.chunk_id,
+                    excerpt=source.snippet,
+                    condition_subject="rank_threshold",
+                    polarity="positive",
+                    conclusion="可在特别优秀情形下适当放宽排名要求。",
+                    evidence_contract_version="answer_ready_evidence.v3",
+                ),
+            ),
+        )
+
+        result = runner(request)
+
+        self.assertEqual(
+            tuple(claim.claim_type for claim in result.output.claims),
+            ("eligibility_judgment",),
+        )
+
+    def test_inprocess_default_grounded_runner_preserves_condition_table_typed_answer_claims(
+        self,
+    ) -> None:
+        from campus_evals.rag_inprocess_delegate import _test_support_grounded_runner_for_evidence
+
+        source = replace(
+            _make_official_web_source(
+                doc_id="official_web_regulation:ce565b348ca6ee31",
+                title="中央民族大学二级网站建设与运行管理办法",
+                snippet="发现受到攻击等安全问题必须在第一时间进行处理并上报。",
+                score=0.94,
+                chunk_id_suffix="website-deadline-row",
+                content_role="deadline",
+                is_answer_bearing=True,
+                semantic_role="time_constraint",
+                polarity="positive",
+                claim_type="time_constraint",
+                collection="institutional_rules",
+            ),
+            anchor=_answer_ready_anchor(
+                answer_role="time_constraint",
+                condition_subject="deadline",
+                condition_group_id="institutional:website:article-11:deadline",
+                condition_polarity="positive",
+            ),
+        )
+        evidence = EvidenceBundle(
+            corpus="regulations",
+            collection="institutional_rules",
+            query_text="二级网站安全问题要多久上报",
+            sources=(source,),
+        )
+        runner = _test_support_grounded_runner_for_evidence(evidence)
+        request = RagSdkRunRequest(
+            user_goal="二级网站安全问题要多久上报",
+            query_intent=RagQueryIntent(
+                task_kind=RagTaskKind.SPECIFIC_POLICY_LOOKUP,
+                normalized_query="二级网站安全问题要多久上报",
+            ),
+            evidence=RagSdkEvidenceProjection.from_evidence_bundle(evidence),
+            typed_answer=TypedAnswerDraft(
+                kind="condition_table",
+                rows=(
+                    ConditionTableDraftRow(
+                        source_id=source.doc_id,
+                        chunk_id=source.chunk_id,
+                        excerpt=source.snippet,
+                        condition_subject="deadline",
+                        polarity="positive",
+                        condition_text="必须在第一时间进行处理并上报。",
+                        answer_role="time_constraint",
+                        evidence_contract_version="answer_ready_evidence.v3",
+                    ),
+                ),
+            ),
+        )
+
+        result = runner(request)
+
+        self.assertEqual(
+            tuple(claim.claim_type for claim in result.output.claims),
+            ("time_constraint",),
+        )
 
 
 if __name__ == "__main__":

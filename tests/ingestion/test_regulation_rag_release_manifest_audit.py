@@ -222,6 +222,209 @@ class RegulationRagReleaseManifestAuditTest(unittest.TestCase):
         self.assertIn("release_admission_manifest_key", report["release_manifest_missing_fields"])
         self.assertIn("release_admission_manifest_key_missing", report["cross_check_issues"])
 
+    def test_audit_flags_release_published_before_admission_manifest_timestamp(self) -> None:
+        object_store = _FakeObjectStore()
+        bucket = "campus-rag-derived"
+        release_id = "r20260509_071445_145990_6a88f8b8"
+        release_key = f"regulations/releases/institutional_rules/{release_id}/index-release.json"
+        admission_key = (
+            "regulations/operations/regulation-rag-release-admission/"
+            "admit-20260509-institutional-rules-rebuild-v6-final/"
+            "institutional_rules/release-admission.json"
+        )
+        object_store.put_json(
+            bucket=bucket,
+            key=release_key,
+            payload={
+                "release_id": release_id,
+                "corpus": "regulations",
+                "collection": "institutional_rules",
+                "serving_alias": "institutional_rules",
+                "physical_collection_name": f"institutional_rules__{release_id}",
+                "cleaning_policy_version": "institutional_rules_cleaning_v1",
+                "chunk_policy_version": "institutional_rules_semantic_v1",
+                "embedding_model": "Qwen3-Embedding-4B",
+                "indexed_at": "2026-05-09T07:14:45+00:00",
+                "published_at": "2026-05-09T07:17:08.736382+00:00",
+                "document_count": 1,
+                "point_count": 1,
+                "document_version_ids_hash": "sha256:versions",
+                "document_units_keys_hash": "sha256:document-units",
+                "documents": [
+                    {
+                        "document_id": "institutional_regulation:doc-a",
+                        "revision_track": "current-effective",
+                        "version_id": "v1:doc-a",
+                        "document_units_object_key": "regulations/doc-a/document-units.jsonl",
+                        "document_units_sha256": "sha256-doc-a",
+                    }
+                ],
+                "validation_status": "passed",
+                "retrieval_acceptance_status": "passed",
+                "chunk_quality_status": "passed",
+                "qrels_coverage_status": "passed",
+                "release_admission_manifest_key": admission_key,
+                "release_admission_status": "passed",
+                "component_eval_status": "passed",
+                "post_publish_audit_status": "passed",
+            },
+        )
+        object_store.put_json(
+            bucket=bucket,
+            key=admission_key,
+            payload={
+                "schema_version": "regulation_rag_release_admission.v1",
+                "policy_version": "regulation_rag_release_admission_policy.v2",
+                "admission_run_id": "admit-20260509-institutional-rules-rebuild-v6-final",
+                "corpus": "regulations",
+                "collection": "institutional_rules",
+                "admission_status": "passed",
+                "admitted_at": "2026-05-09T07:18:36.535896+00:00",
+                "cleaning_policy_version": "institutional_rules_cleaning_v1",
+                "chunk_profile_version": "institutional_rules_semantic_v1",
+                "runtime_profile_identity": "sha256:profile",
+                "document_count": 1,
+                "documents": [
+                    {
+                        "document_id": "institutional_regulation:doc-a",
+                        "revision_track": "current-effective",
+                        "version_id": "v1:doc-a",
+                        "content_hash": "hash-a",
+                        "document_units_object_key": "regulations/doc-a/document-units.jsonl",
+                        "document_units_sha256": "sha256-doc-a",
+                        "cleaning_policy_version": "institutional_rules_cleaning_v1",
+                        "chunk_profile_version": "institutional_rules_semantic_v1",
+                        "runtime_profile_identity": "sha256:profile",
+                        "reader_current_version_id": "v1:doc-a",
+                    }
+                ],
+                "chunk_quality_status": "passed",
+                "answer_ready_contract_version": ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
+                "answer_ready_contract_status": "passed",
+                "answer_ready_required_field_failures": [],
+                "answer_ready_semantic_failures": [],
+                "qrels_coverage_status": "passed",
+                "reader_publish_status": "passed",
+                "authz_denial_check_status": "passed",
+                "semantic_oracle_status": "passed",
+                "fallback_budget_status": "passed",
+                "notes": [],
+            },
+        )
+
+        report = audit_regulation_rag_release_manifests(
+            reader=object_store,
+            bucket=bucket,
+            corpus="regulations",
+            collection="institutional_rules",
+            release_id=release_id,
+        )
+
+        self.assertEqual(report["overall_status"], "failed")
+        self.assertEqual(report["cross_check_status"], "failed")
+        self.assertIn("admission_after_publish", report["cross_check_issues"])
+
+    def test_audit_flags_offsetless_timestamps_as_invalid(self) -> None:
+        object_store = _FakeObjectStore()
+        bucket = "campus-rag-derived"
+        release_id = "r-offsetless-time"
+        release_key = f"regulations/releases/institutional_rules/{release_id}/index-release.json"
+        admission_key = (
+            "regulations/operations/regulation-rag-release-admission/"
+            "admit-offsetless-time/institutional_rules/release-admission.json"
+        )
+        object_store.put_json(
+            bucket=bucket,
+            key=release_key,
+            payload={
+                "release_id": release_id,
+                "corpus": "regulations",
+                "collection": "institutional_rules",
+                "serving_alias": "institutional_rules",
+                "physical_collection_name": f"institutional_rules__{release_id}",
+                "cleaning_policy_version": "institutional_rules_cleaning_v1",
+                "chunk_policy_version": "institutional_rules_semantic_v1",
+                "embedding_model": "Qwen3-Embedding-4B",
+                "indexed_at": "2026-05-09T07:14:45+00:00",
+                "published_at": "2026-05-09T07:17:08",
+                "document_count": 1,
+                "point_count": 1,
+                "document_version_ids_hash": "sha256:versions",
+                "document_units_keys_hash": "sha256:document-units",
+                "documents": [
+                    {
+                        "document_id": "institutional_regulation:doc-a",
+                        "revision_track": "current-effective",
+                        "version_id": "v1:doc-a",
+                        "document_units_object_key": "regulations/doc-a/document-units.jsonl",
+                        "document_units_sha256": "sha256-doc-a",
+                    }
+                ],
+                "validation_status": "passed",
+                "retrieval_acceptance_status": "passed",
+                "chunk_quality_status": "passed",
+                "qrels_coverage_status": "passed",
+                "release_admission_manifest_key": admission_key,
+                "release_admission_status": "passed",
+                "component_eval_status": "passed",
+                "post_publish_audit_status": "passed",
+            },
+        )
+        object_store.put_json(
+            bucket=bucket,
+            key=admission_key,
+            payload={
+                "schema_version": "regulation_rag_release_admission.v1",
+                "policy_version": "regulation_rag_release_admission_policy.v2",
+                "admission_run_id": "admit-offsetless-time",
+                "corpus": "regulations",
+                "collection": "institutional_rules",
+                "admission_status": "passed",
+                "admitted_at": "2026-05-09T07:18:36+00:00",
+                "cleaning_policy_version": "institutional_rules_cleaning_v1",
+                "chunk_profile_version": "institutional_rules_semantic_v1",
+                "runtime_profile_identity": "sha256:profile",
+                "document_count": 1,
+                "documents": [
+                    {
+                        "document_id": "institutional_regulation:doc-a",
+                        "revision_track": "current-effective",
+                        "version_id": "v1:doc-a",
+                        "content_hash": "hash-a",
+                        "document_units_object_key": "regulations/doc-a/document-units.jsonl",
+                        "document_units_sha256": "sha256-doc-a",
+                        "cleaning_policy_version": "institutional_rules_cleaning_v1",
+                        "chunk_profile_version": "institutional_rules_semantic_v1",
+                        "runtime_profile_identity": "sha256:profile",
+                        "reader_current_version_id": "v1:doc-a",
+                    }
+                ],
+                "chunk_quality_status": "passed",
+                "answer_ready_contract_version": ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
+                "answer_ready_contract_status": "passed",
+                "answer_ready_required_field_failures": [],
+                "answer_ready_semantic_failures": [],
+                "qrels_coverage_status": "passed",
+                "reader_publish_status": "passed",
+                "authz_denial_check_status": "passed",
+                "semantic_oracle_status": "passed",
+                "fallback_budget_status": "passed",
+                "notes": [],
+            },
+        )
+
+        report = audit_regulation_rag_release_manifests(
+            reader=object_store,
+            bucket=bucket,
+            corpus="regulations",
+            collection="institutional_rules",
+            release_id=release_id,
+        )
+
+        self.assertEqual(report["overall_status"], "failed")
+        self.assertEqual(report["cross_check_status"], "failed")
+        self.assertIn("published_at_invalid", report["cross_check_issues"])
+
 
 if __name__ == "__main__":
     unittest.main()

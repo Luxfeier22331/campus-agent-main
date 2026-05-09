@@ -2,15 +2,17 @@
 doc_type: gap_ledger
 status: active
 created: 2026-05-07
-updated: 2026-05-08
+updated: 2026-05-09
 ---
 
 <!-- markdownlint-disable MD013 -->
 
 # Gap Ledger: Answer-Ready Semantic Extraction Rearchitecture
 
-This ledger tracks planned and closed debt for the active workstream. Each phase must update this
-file with evidence links, status and command output references before the workstream can close.
+This ledger tracks planned and closed debt for the active workstream. All known workstream-owned
+debt is now evidenced as closed, but the workstream intentionally remains open until it is
+explicitly marked complete. Each phase update records the evidence links, status and command
+outputs that support the eventual closeout claim.
 
 ## Debt Ledger
 
@@ -31,7 +33,7 @@ file with evidence links, status and command output references before the workst
 | final E2E hides component failure stage | component eval now has fixture-backed case loading, deterministic primary/secondary stage attribution, gate classification, missing-observation handling, student/institutional denominator coverage, runtime observation harvesting from real `AgentResponse` + retrieval fallback signals, release-lane attachment into release artifacts / Qdrant payload metadata / regulation release-admission evidence, explicit clarification observation semantics for the frozen `student_scholarship_apply_ambiguous` oracle row, explicit regulation-family unsupported/no-hit observation semantics for both mandatory scopes, explicit `typed_answer_draft_invalid` attribution to `draft_contract_mismatch` instead of generic no-hit or derivative grounding failure, semantic task-kind attribution for document-locked student procedure/judgment rows, and additional oracle-backed denominator rows for student rank-threshold judgment, paper/publication judgment, student-card reissue, student exclusion, institutional procedure/category discovery, and regulation-family scholarship `table_fact` amount/quota lookup; Phase 8 audit evidence is now explicitly summarized and linked | Phase 8 | phase8_audit_closed |
 | `student_rules` lacks v3 rebuilt release evidence | rebuild through regulation RAG release lane with acceptance and alias evidence; Phase 9 is now closed with release `r20260507_154528_764347_1005cea7`, serving alias adoption, fresh runtime probe and formal re-audit evidence proving `fallback_primary_signal_count=0`, `semantic_oracle_pass_count=9`, `semantic_oracle_fail_count=0` | Phase 9 | phase9_closed |
 | `institutional_rules` lacks v3 rebuilt release evidence | rebuild through regulation RAG release lane with acceptance and alias evidence; Phase 10 is now closed with fresh prep/admission/release/probe artifacts, published alias adoption, release metadata guard pass and repo-governed preview GC evidence for remote Qdrant WAL recovery | Phase 4, Phase 10 | phase10_closed |
-| legacy compatibility can leak into target completion | legacy old-index lane is isolated, observable and excluded from completion; runtime contract requires explicit compatibility mode for old-index fallback and planning/docs truth now records target regulation serving as `target_v3_only` | Phase 11 | phase11_closeout_audit_aligned |
+| legacy compatibility can leak into target completion | legacy old-index lane is isolated, observable and excluded from completion; runtime contract requires explicit compatibility mode for old-index fallback; post-publish audit now revalidates both flat sampled payload metadata and runtime-effective `_node_content` metadata and fails on target-v3 projection drift, and planning/docs truth now records target regulation serving as `target_v3_only` | Phase 11 | phase11_closed |
 
 ## Completion Audit
 
@@ -401,9 +403,11 @@ Phase 10 evidence:
 
 - `phases/phase-10-institutional-rules-rebuild-release-audit/SUMMARY.md`
 - `phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_prepare_registry_scope_chunks_report_v3.json`
-- `phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_release_admission_report_v7.json`
-- `phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_registry_scope_release_report_v7.json`
-- `phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_runtime_probe_v2.json`
+- `phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_release_admission_report_v9.json`
+- `phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_registry_scope_release_report_v9.json`
+- `phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_runtime_probe_v4.json`
+- `phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_re_audit_report_v3.json`
+- `phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_release_manifest_field_audit_v3.json`
 - `phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_preview_component_eval_summary.json`
 - `phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_qdrant_gc_delete_r20260507_160544_038218_5df5b8b0.json`
 - `phases/phase-10-institutional-rules-rebuild-release-audit/artifacts/institutional_rules_qdrant_gc_delete_r20260507_182003_116643_6af76967.json`

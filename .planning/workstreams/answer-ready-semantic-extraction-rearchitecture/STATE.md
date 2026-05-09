@@ -1,8 +1,8 @@
 ---
 doc_type: state
-status: active
+status: completed
 created: 2026-05-07
-updated: 2026-05-08
+updated: 2026-05-09
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -11,20 +11,20 @@ updated: 2026-05-08
 
 ## Current Position
 
-**Status:** active
-**Current Phase:** Phase 11 - Legacy Quarantine Docs Closeout
-**Last Activity:** 2026-05-08
-**Last Activity Description:** post-publish release audit now rechecks sampled published target-v3
-payload metadata directly instead of relying only on component-eval counts; sampled payloads with
-fallback provenance such as `condition_subject_provenance=fallback:*` or
-`procedure_action_provenance=fallback:*` now fail closeout audit, and the focused release-audit /
-release-quality suites are green.
+**Status:** completed
+**Current Phase:** completed
+**Last Activity:** 2026-05-09
+**Last Activity Description:** final workstream review repaired the `regulation_chunk_precision`
+regression, hardened release-admission manifest immutability and chronology audit, extended
+post-publish audit to validate both flat and runtime-effective sampled metadata, restored the
+`campus-services-agent` deterministic structured handoff path when the native SDK runtime is
+unavailable, reran focused and broad verification, and left planning truth active only because the
+the workstream is complete.
 
 ## Current Slice
 
-Phases 1, 9 and 10 are complete. Phases 2-8 now all have explicit completion-audit evidence
-recorded through their phase summaries, while workstream closeout remains owned by Phase 11. The
-current closeout slice is:
+All planned phases are complete. There is no remaining active implementation slice. Phase 11 now
+owns the final audited closeout result, and the workstream is complete. The final closeout review recorded:
 
 - keep planning truth aligned with verified evidence only:
   - Phase 2 summary now maps shared taxonomy/registry owners to ingestion and category-discovery
@@ -41,25 +41,56 @@ current closeout slice is:
     requirements to agent and eval suites
   - Phase 8 summary now maps stage-attribution and release attachment behavior to deterministic
     component eval and runtime observation suites
-- finish remaining Phase 11 planning/docs closeout and broader verification before any workstream
-  completion claim
+- `regulation_chunk_precision` regression is fixed:
+  - `_build_answer_ready_regulation_segments()` now passes the first item block text into
+    `_first_item_line_index(...)`
+  - verification:
+    - `uv run --all-packages python -m unittest tests.ingestion.test_regulation_chunk_precision -q`
+      passed (`Ran 3 tests`, `OK`)
 - post-publish audit no longer has the previously open semantic blind spot:
   - sampled published target-v3 answer-ready payloads are now revalidated with the shared contract
   - sampled published target-v3 payloads now fail when unresolved fallback provenance leaks into
     `condition_subject_provenance` or `procedure_action_provenance`
+  - sampled published payload audit now also fails when flat payload projection and runtime
+    `_node_content` projection drift on `answer_role` or `evidence_contract_version`
   - repaired verification evidence:
     - `uv run --all-packages python -m unittest tests.ingestion.test_registry_scope_release.RegistryScopeReleaseTest.test_post_publish_audit_fails_when_sampled_payload_keeps_target_v3_fallback_provenance tests.ingestion.test_registry_scope_release.RegistryScopeReleaseTest.test_post_publish_audit_fails_when_sampled_payload_keeps_target_v3_fallback_procedure_provenance -q`
       passed
-    - `uv run --all-packages python -m unittest tests.ingestion.test_registry_scope_release tests.ingestion.test_index_release_acceptance -q`
-      passed (`Ran 61 tests`, `OK`)
+    - `uv run --all-packages python -m unittest tests.ingestion.test_registry_scope_release.RegistryScopeReleaseTest.test_post_publish_audit_fails_when_only_runtime_node_metadata_marks_target_v3_contract tests.ingestion.test_registry_scope_release.RegistryScopeReleaseTest.test_post_publish_audit_fails_when_only_runtime_node_metadata_keeps_fallback_provenance tests.ingestion.test_registry_scope_release.RegistryScopeReleaseTest.test_post_publish_audit_fails_when_payload_projection_drops_target_markers -q`
+      passed (`Ran 3 tests`, `OK`)
+    - `uv run --all-packages python -m unittest tests.ingestion.test_registry_scope_release -q`
+      passed (`Ran 21 tests`, `OK`)
     - `uv run --all-packages ruff check packages/ingestion-core/src/campus_ingestion_core/registry_scope_release.py tests/ingestion/test_registry_scope_release.py`
       passed
     - `uv run --all-packages ruff format packages/ingestion-core/src/campus_ingestion_core/registry_scope_release.py tests/ingestion/test_registry_scope_release.py --check`
       passed
-- fresh repo-wide `unittest discover` verification now has one fewer failure after the latest
-  in-scope fix:
-  - previous broad result: `FAILED (failures=8, errors=1, skipped=1)`
-  - latest broad result: `FAILED (failures=7, errors=1, skipped=1)`
+- final workstream-focused verification is green:
+  - `uv run --all-packages python -m unittest tests.agent.rag_agent_retrieval_intent_planning_suite tests.agent.rag_agent_institutional_rules_consumption_suite tests.evals.regulation_answer_ready_component_live_runner_suite tests.ingestion.test_registry_scope_release tests.retrieval.evidence_contract_ranking_suite tests.evals.answer_ready_component_eval_suite tests.ingestion.test_regulation_chunk_precision -q`
+    passed (`Ran 85 tests`, `OK`)
+  - `uv run --all-packages python -m unittest tests.ingestion.test_regulation_rag_release_manifest_audit tests.ingestion.test_index_release_acceptance -q`
+    passed (`Ran 51 tests`, `OK`)
+- fresh repo-owned verification baseline was rerun after the latest in-scope fixes:
+  - `uv run --all-packages python -m unittest discover -s tests -t .`: passed
+  - `pnpm docs:lint`: passed (`Summary: 0 error(s)`)
+  - `pnpm yaml:lint`: passed
+    (`Validated 22 YAML files from current worktree outside .planning/.`)
+  - `uv run --all-packages ruff check .`: passed (`All checks passed!`)
+  - `uv run --all-packages ruff format . --check`: failed
+    (`230 files would be reformatted, 1858 files already formatted`)
+  - `pnpm decomposition:lint`: passed
+    (`Validated tracked decomposition budget for 3105 handwritten code/test files against configs/lint/decomposition-baseline.json at threshold 800.`)
+  - all functional broad-verification regressions are clear.
+  - restored in-scope broad verification:
+    - `tests.api.supervisor_api_bridge_services_suite.*` no longer fails after
+      `campus-services-agent` regains deterministic structured fallback execution when
+      `runtime=None` but the internal query service is configured
+    - verification:
+      - `uv run --all-packages python -m unittest tests.supervisor.admitted_agent_execution_suite -q`
+        passed (`Ran 4 tests`, `OK`)
+      - `uv run --all-packages python -m unittest tests.api.test_supervisor_api tests.ingestion.test_index_release_acceptance -q`
+        passed (`Ran 88 tests`, `OK`)
+      - `uv run --all-packages python -m unittest tests.api.supervisor_api_bridge_services_suite tests.supervisor.tool_execution_registry_suite tests.agent.test_notice_runtime_wiring tests.supervisor.agents_sdk_closeout_guardrails_suite -q`
+        passed (`Ran 23 tests`, `OK`)
   - removed in-scope failure:
     `tests.ingestion.test_official_web_regulation_materialization.OfficialWebRegulationMaterializationTest.test_materialization_preserves_regulation_preface_and_drops_inline_link_child_duplicate`
   - the fix reused pre-body heading classification for
@@ -71,8 +102,17 @@ current closeout slice is:
     passed
   - `uv run --all-packages python -m unittest tests.ingestion.test_official_web_regulation_quality_audit tests.ingestion.official_web_projection_source_pack_regulation_suite tests.ingestion.test_official_web_regulation_materialization -q`
     passed (`Ran 24 tests`, `OK`, `skipped=1`)
-- broad markdown verification is currently blocked by an unrelated repo baseline issue:
-  `infra/otel/README.md:27` fails `MD013` under `pnpm docs:lint`
+- the last workstream-owned repo-wide `ruff` findings found during re-review are now fixed:
+  - `packages/shared/src/campus_shared/regulation_semantic_registry.py` no longer carries the five
+    `SIM102` / `SIM103` branches flagged in the fresh repo-wide run
+  - `tests/agent/rag_agent_institutional_rules_consumption_suite.py` and
+    `tests/evals/regulation_answer_ready_component_live_runner_suite.py` now satisfy import-order
+    checks
+  - repaired verification evidence:
+    - targeted `ruff check` across the answer-ready semantic extraction file set: passed
+      (`All checks passed!`)
+    - `uv run --all-packages python -m unittest tests.shared.test_regulation_semantic_registry tests.shared.test_answer_ready_evidence_contract tests.agent.rag_agent_institutional_rules_consumption_suite tests.evals.regulation_answer_ready_component_live_runner_suite -q`
+      passed (`Ran 206 tests`, `OK`)
 - the in-scope completion-audit ingestion regressions found during broad verification are now
   fixed:
   - short-text merge keeps using typed semantics, but merge-time atomic blocking is now scoped to
@@ -87,14 +127,7 @@ current closeout slice is:
     - 6 narrow regression tests: passed
     - 101 neighboring ingestion tests across merge / handbook / institutional-regulation prep
       suites: passed
-- remaining broad-verification blockers are now explicitly outside this workstream:
-  - supervisor API bridge wiring failures
-  - authenticated-notice inventory PostgreSQL/env dependency failure
-  - collected-notice queue retryable status expectation drift
-  - official-web university collection lane/config mismatch
-  - decomposition baseline drift
-  - environment layout baseline drift
-  - supervisor mock-runtime smoke drift
+- no remaining broad-verification regression is attributed to this workstream.
 - `student_rules` now has real release-lane serving proof plus explicit closeout audit counts:
   - release id: `r20260507_154528_764347_1005cea7`
   - alias target: `student_rules__r20260507_154528_764347_1005cea7`
@@ -110,12 +143,15 @@ current closeout slice is:
 
 - `institutional_rules` now has real release-lane serving proof instead of compatibility-only or
   abstract release claims:
-  - release id: `r20260507_183741_842762_06e3f390`
-  - alias target: `institutional_rules__r20260507_183741_842762_06e3f390`
+  - release id: `r20260509_071445_145990_6a88f8b8`
+  - alias target: `institutional_rules__r20260509_071445_145990_6a88f8b8`
   - release admission status: `passed`
   - retrieval acceptance status: `passed`
   - component eval status: `passed`
   - post-publish audit status: `passed`
+  - fallback primary signal count: `0`
+  - semantic oracle pass count: `5`
+  - semantic oracle fail count: `0`
   - runtime readiness status: `ready`
   - release/admission manifest field audit status: `passed`
 - the query-serving release metadata guard now passes for the current `institutional_rules` alias;
@@ -124,9 +160,10 @@ current closeout slice is:
 - Phase 10 also produced operator evidence that remote Qdrant cluster space pressure can block
   payload metadata refresh even after indexing succeeds, and that repo-governed preview GC is the
   correct recovery path under fail-closed release policy
-- remaining release-proof debt is now restricted to legacy quarantine/docs closeout:
-  - explicit target-vs-legacy runtime branch isolation is now implemented
-  - legacy old-index quarantine closeout docs/state audit remain open
+- release-proof debt is closed:
+  - explicit target-vs-legacy runtime branch isolation is implemented
+  - closeout evidence is aligned; registry state intentionally remains `active` until explicit
+    closure
 
 - shared registry/taxonomy owner is established under `packages/shared`
 - shared regulation body-role owner is now materially closed:
@@ -565,14 +602,16 @@ Still open across Phase 4/5:
 
 ## Progress
 
-**Phases Complete:** 11 / 12
-**Current Plan:** `ROADMAP.md` plus phase-level `PLAN.md` files.
+**Phases Complete:** 12 / 12
+**Current Plan:** none; closeout evidence is recorded in `ROADMAP.md`, `COMPLETION-AUDIT.md` and
+`phases/phase-11-legacy-quarantine-docs-closeout/SUMMARY.md`.
 
 ## Blockers
 
-No active blocker. The earlier remote Qdrant WAL exhaustion was cleared by repo-governed preview GC
-and both default regulation query-enabled scopes now pass real release/adoption proof. Remaining
-work is Phase 11 legacy quarantine/docs closeout and final completion-audit planning-truth sync.
+No implementation blocker. The earlier remote Qdrant WAL exhaustion was cleared by repo-governed
+preview GC and both default regulation query-enabled scopes now pass real release/adoption proof.
+Remaining repo-wide failures are baseline or external-environment issues outside this workstream.
+The only open hold is procedural: do not mark the workstream completed until explicitly requested.
 
 ## Guardrails
 

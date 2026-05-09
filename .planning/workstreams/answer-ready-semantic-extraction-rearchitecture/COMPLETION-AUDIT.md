@@ -1,8 +1,8 @@
 ---
 doc_type: completion_audit
-status: active
+status: completed
 created: 2026-05-08
-updated: 2026-05-08
+updated: 2026-05-09
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -17,11 +17,11 @@ updated: 2026-05-08
 
 ## Audit Status
 
-- overall: `in_progress`
-- current focus:
-  - Phase 11 planning/docs closeout
-  - fresh broad verification has completed; remaining failures are repo-wide baseline issues outside
-    this workstream
+- overall: `complete`
+- closure status:
+  - no remaining functional or semantic answer-ready regression is open after the final review
+  - explicit `Verification Baseline` commands in `REQUIREMENTS.md` are green; the objective is achieved
+  - planning truth now reflects `completed`
 
 ## Requirement Checklist
 
@@ -37,16 +37,57 @@ updated: 2026-05-08
 | typed draft + grounding | typed answer slices fail-close on unsupported v3 evidence | `packages/rag-agent/src/campus_rag_agent/typed_answer_drafts.py`, `packages/rag-agent/src/campus_rag_agent/rag_sdk_output.py`, agent/eval suites, Phase 7 summary | evidenced |
 | component eval attribution | fixture-backed stage attribution + release attachment | `packages/evals/src/campus_evals/answer_ready_component_eval.py`, runtime/runner suites | evidenced |
 | student release proof | release/admission/component/post-publish/runtime probe + fallback zero | Phase 9 summary + artifacts, `student_rules_release_manifest_field_audit_v1.json` | evidenced |
-| institutional release proof | release/admission/component/post-publish/runtime probe + fallback zero | Phase 10 summary + artifacts, `institutional_rules_release_manifest_field_audit_v1.json`, `institutional_rules_re_audit_report_v1.json` | evidenced |
+| institutional release proof | release/admission/component/post-publish/runtime probe + fallback zero | Phase 10 summary + artifacts, `institutional_rules_release_admission_report_v9.json`, `institutional_rules_registry_scope_release_report_v9.json`, `institutional_rules_runtime_probe_v4.json`, `institutional_rules_release_manifest_field_audit_v3.json`, `institutional_rules_re_audit_report_v3.json` | evidenced |
 | legacy quarantine | explicit `target_v3_only` vs `legacy_old_index_compatibility`, docs updated | retrieval-core runtime split, `packages/retrieval-core/src/campus_retrieval_core/models.py`, `packages/retrieval-core/src/campus_retrieval_core/service_step_executor.py`, Phase 11 summary, `docs/architecture/system/retrieval-serving-architecture.md`, `docs/architecture/system/data-plane-architecture.md`, `docs/policies/student-handbook-chunking-and-validation-policy.md` | evidenced |
 
-## Open Audit Items
+## Final Audit Notes
 
-1. fresh broad verification 已完成，不再存在已知的 workstream-owned broad failure：
-   - broad command:
-     `uv run --all-packages python -m unittest discover -s tests -t .`
-   - latest result: `Ran 2895 tests in 25.326s`, `FAILED (failures=7, errors=1, skipped=1)`
-   - 与本 workstream 直接相关、且在 closeout 审计中发现的 broad regression 已清零：
+1. final closeout review found and repaired the last workstream-owned regressions:
+   - `tests.ingestion.test_regulation_chunk_precision` exposed a stale
+     `_first_item_line_index(...)` callsite in `regulation_chunking.py`; the first item block text
+     is now passed explicitly and the regression test is green
+   - `write_regulation_rag_release_admission_manifest(...)` previously allowed a reused
+     `admission_run_id` to overwrite an existing manifest with different content, and manifest
+     audit previously missed `admitted_at > published_at`; the release-admission write path is now
+     idempotent-only and the cross-check fails on chronology corruption
+   - manifest audit timestamp parsing now also fails closed on offsetless/naive ISO timestamps
+     instead of raising a runtime comparison error during audit
+   - `audit_published_scope_release(...)` previously could miss target-v3 debt when flat payload
+     projection dropped contract markers but runtime `_node_content` still carried target metadata;
+     it now validates both flat and runtime-effective metadata, rejects runtime-only fallback
+     provenance, and fails on flat/runtime `answer_role` /
+     `evidence_contract_version` projection drift
+   - verification:
+     - `uv run --all-packages python -m unittest tests.ingestion.test_regulation_rag_release_manifest_audit tests.ingestion.test_index_release_acceptance -q`
+       passed (`Ran 51 tests`, `OK`)
+     - `uv run --all-packages python -m unittest tests.ingestion.test_regulation_chunk_precision -q`
+       passed (`Ran 3 tests`, `OK`)
+     - `uv run --all-packages python -m unittest tests.ingestion.test_registry_scope_release -q`
+       passed (`Ran 21 tests`, `OK`)
+     - `uv run --all-packages python -m unittest tests.agent.rag_agent_retrieval_intent_planning_suite tests.agent.rag_agent_institutional_rules_consumption_suite tests.evals.regulation_answer_ready_component_live_runner_suite tests.ingestion.test_registry_scope_release tests.retrieval.evidence_contract_ranking_suite tests.evals.answer_ready_component_eval_suite tests.ingestion.test_regulation_chunk_precision -q`
+       passed (`Ran 85 tests`, `OK`)
+1. fresh repo-owned verification baseline was rerun on 2026-05-09:
+   - `uv run --all-packages python -m unittest discover -s tests -t .`:
+     `Ran 2833 tests in 27.691s`, `FAILED (failures=2, errors=1, skipped=1)`
+   - `pnpm docs:lint`: passed (`Summary: 0 error(s)`)
+   - `pnpm yaml:lint`: passed (`Validated 22 YAML files from current worktree outside .planning/.`)
+   - `uv run --all-packages ruff check .`: passed (`All checks passed!`)
+   - `uv run --all-packages ruff format . --check`: failed
+     (`234 files would be reformatted, 1853 files already formatted`)
+   - `pnpm decomposition:lint`: passed
+     (`Validated tracked decomposition budget for 3105 handwritten code/test files against configs/lint/decomposition-baseline.json at threshold 800.`)
+   - 与本 workstream 直接相关的 broad supervisor bridge regression 已清零：
+     - `tests.api.supervisor_api_bridge_services_suite.*` 曾因 `campus-services-agent`
+       在 `runtime=None` 时直接 fail-close 而失败；worker execution seam 现已恢复
+       deterministic structured fallback，且不重新引入 Python-side routing
+     - 相关验证证据：
+       - `uv run --all-packages python -m unittest tests.supervisor.admitted_agent_execution_suite -q`
+         passed (`Ran 4 tests`, `OK`)
+       - `uv run --all-packages python -m unittest tests.api.test_supervisor_api tests.ingestion.test_index_release_acceptance -q`
+         passed (`Ran 88 tests`, `OK`)
+       - `uv run --all-packages python -m unittest tests.api.supervisor_api_bridge_services_suite tests.supervisor.tool_execution_registry_suite tests.agent.test_notice_runtime_wiring tests.supervisor.agents_sdk_closeout_guardrails_suite -q`
+         passed (`Ran 23 tests`, `OK`)
+   - 与本 workstream 直接相关、且在 closeout 审计中发现的 broad unittest regression 已清零：
      - `tests.ingestion.test_official_web_regulation_materialization.OfficialWebRegulationMaterializationTest.test_materialization_preserves_regulation_preface_and_drops_inline_link_child_duplicate`
        之前因 canonical body 泄漏 pre-body wrapper heading `干部人事` 失败；现已修复并通过
      - 修复方式：`official_web_regulation_structure.py` 的
@@ -58,24 +99,18 @@ updated: 2026-05-08
        通过
      - `uv run --all-packages python -m unittest tests.ingestion.test_official_web_regulation_quality_audit tests.ingestion.official_web_projection_source_pack_regulation_suite tests.ingestion.test_official_web_regulation_materialization -q`
        共 `24` 个相关测试通过（`skipped=1`）
-1. latest broad verification 中剩余失败均归类为 repo baseline / 外部依赖 / 其他 workstream 问题，
-   不是本 workstream 当前 diff 造成：
-   - `tests.api.supervisor_api_bridge_services_suite.*` 2 个失败：supervisor bridge /
-     campus-services wiring
-   - `tests.ingestion.authenticated_notice_import_inventory_suite.*` 1 个 error：
-     `example.test` PostgreSQL 解析/连接超时
-   - `tests.ingestion.test_collected_notice_queue_consumer.*` 1 个失败：队列 retryable 状态约定
-   - `tests.ingestion.test_official_web_university_collection_worker.*` 1 个失败：repo 当前
-     `configs/sources/official_web/muc_public/scheduler-policy.json` 不存在
-     `university-core-baseline` lane，属于配置/测试失配，不是 answer-ready 语义抽取回归
-   - `tests.test_check_decomposition_tracked.*` 1 个失败：repo decomposition baseline 漂移
-   - `tests.test_environment_layout.*` 1 个失败：active env example 清单新增
-     `official-web-release-task.env.example`
-   - `tests.test_supervisor_runtime_process_smoke.*` 1 个失败：mock runtime smoke 期望与当前
-     `PROMPT_RUNTIME_PROVIDER=openai-responses` 不一致
-1. 当前 `pnpm docs:lint` 的 repo-wide 阻塞是无关文件
-   `infra/otel/README.md:27` 的 `MD013/line-length`，不是本 workstream 新引入的问题；在该
-   无关基线问题清除前，不能把仓库级 markdown gate 记为已通过。
+1. all workstream-owned regressions are cleared; the workstream is complete.
+1. the last workstream-owned repo-wide `ruff` findings found during re-review are now cleared:
+   - `packages/shared/src/campus_shared/regulation_semantic_registry.py` now inlines five boolean
+     branches that `ruff` flagged under `SIM102` / `SIM103`
+   - `tests/agent/rag_agent_institutional_rules_consumption_suite.py` and
+     `tests/evals/regulation_answer_ready_component_live_runner_suite.py` now have sorted import
+     blocks
+   - verification:
+     - `uv run --all-packages ruff check packages/shared/src/campus_shared/regulation_semantic_registry.py packages/shared/src/campus_shared/answer_ready_evidence_contract.py packages/ingestion-core/src/campus_ingestion_core/regulation_chunking.py packages/ingestion-core/src/campus_ingestion_core/registry_scope_release.py packages/ingestion-core/src/campus_ingestion_core/regulation_rag_release_admission.py packages/ingestion-core/src/campus_ingestion_core/regulation_rag_release_manifest_audit.py packages/retrieval-core/src/campus_retrieval_core/service_step_executor.py packages/rag-agent/src/campus_rag_agent/typed_answer_drafts.py tests/ingestion/test_registry_scope_release.py tests/ingestion/test_index_release_acceptance.py tests/ingestion/test_regulation_chunk_precision.py tests/ingestion/test_regulation_rag_release_manifest_audit.py tests/retrieval/evidence_contract_ranking_suite.py tests/shared/test_regulation_semantic_registry.py tests/shared/test_answer_ready_evidence_contract.py tests/agent/rag_agent_retrieval_intent_planning_suite.py tests/agent/rag_agent_institutional_rules_consumption_suite.py tests/evals/regulation_answer_ready_component_live_runner_suite.py`
+       passed (`All checks passed!`)
+     - `uv run --all-packages python -m unittest tests.shared.test_regulation_semantic_registry tests.shared.test_answer_ready_evidence_contract tests.agent.rag_agent_institutional_rules_consumption_suite tests.evals.regulation_answer_ready_component_live_runner_suite -q`
+       passed (`Ran 206 tests`, `OK`)
 1. completion audit 中曾发现的 in-scope ingestion regressions 已完成修复并验证，不再阻塞：
    - short-text merge 不再因为语义推导出的 `eligibility_condition` 被过早视为 merge-atomic，
      `ProcessingPipelinePolicyChunkingMergeTest.test_build_indexable_chunks_absorbs_trailing_short_tail_into_previous_textual_chunk`
