@@ -1,5 +1,78 @@
 from __future__ import annotations
 
+STRUCTURED_DIRECT_OPENED_TRUSTED_TIME = "2026-04-24T20:30:00+08:00"
+TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME = "2026-05-07T08:00:00+08:00"
+SDK_STRUCTURED_OPENED_PROFILES = {
+    "transport_schedule_sdk_opened",
+    "transport_schedule_sdk_opened_stream",
+    "service_status_sdk_opened",
+    "service_guide_sdk_opened",
+    "contact_directory_sdk_opened",
+    "notice_discover_sdk_opened",
+    "academic_calendar_sdk_opened",
+}
+MULTI_STEP_WORKFLOW_PROFILES = {
+    "multi_step_notice_knowledge_followthrough",
+    "transport_notice_override_multistep",
+}
+SELECTED_NOTICE_GUARDRAIL_PROFILES = {
+    "selected_notice_knowledge_followthrough_ineligible",
+}
+AGENTS_SDK_NOTICE_PROFILES = {
+    "agents_sdk_notice_discover_e2e",
+}
+RAG_RETRIEVAL_PROFILES = {
+    "rag_delegate",
+    "rag_delegate_sdk_candidate",
+    "rag_delegate_institutional_rules",
+    *MULTI_STEP_WORKFLOW_PROFILES,
+}
+RAG_SDK_PROFILES = {
+    "rag_delegate_sdk_candidate",
+}
+
+
+def campus_services_sdk_profiles() -> set[str]:
+    return {
+        "transport_schedule_sdk_opened",
+        "transport_schedule_sdk_opened_stream",
+        "service_status_sdk_opened",
+        "service_guide_sdk_opened",
+        "contact_directory_sdk_opened",
+        "academic_calendar_sdk_opened",
+    }
+
+
+def profile_requires_object_store(profile: str) -> bool:
+    return profile in MULTI_STEP_WORKFLOW_PROFILES
+
+
+def profile_requires_structured_projection(profile: str) -> bool:
+    return profile in campus_services_sdk_profiles() or profile == (
+        "transport_notice_override_multistep"
+    )
+
+
+def profile_requires_notice_read_model(profile: str) -> bool:
+    return (
+        profile == "notice_discover_sdk_opened"
+        or profile in MULTI_STEP_WORKFLOW_PROFILES
+        or profile in SELECTED_NOTICE_GUARDRAIL_PROFILES
+        or profile in AGENTS_SDK_NOTICE_PROFILES
+    )
+
+
+def profile_requires_workflow_run_store(profile: str) -> bool:
+    return profile in MULTI_STEP_WORKFLOW_PROFILES
+
+
+def profile_requires_temporary_postgres(profile: str) -> bool:
+    return (
+        profile_requires_structured_projection(profile)
+        or profile_requires_notice_read_model(profile)
+        or profile_requires_workflow_run_store(profile)
+    )
+
 
 def profile_answer_expectation(
     profile: str,
@@ -439,4 +512,20 @@ def profile_answer_expectation(
     raise ValueError(f"unsupported process smoke profile: {profile}")
 
 
-__all__ = ["profile_answer_expectation"]
+__all__ = [
+    "AGENTS_SDK_NOTICE_PROFILES",
+    "MULTI_STEP_WORKFLOW_PROFILES",
+    "RAG_RETRIEVAL_PROFILES",
+    "RAG_SDK_PROFILES",
+    "SDK_STRUCTURED_OPENED_PROFILES",
+    "SELECTED_NOTICE_GUARDRAIL_PROFILES",
+    "STRUCTURED_DIRECT_OPENED_TRUSTED_TIME",
+    "TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME",
+    "campus_services_sdk_profiles",
+    "profile_answer_expectation",
+    "profile_requires_notice_read_model",
+    "profile_requires_object_store",
+    "profile_requires_structured_projection",
+    "profile_requires_temporary_postgres",
+    "profile_requires_workflow_run_store",
+]

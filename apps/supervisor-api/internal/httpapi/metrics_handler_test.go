@@ -132,6 +132,17 @@ func TestMetricsEndpointRequiresBearerTokenWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestMetricsEndpointRequiresBearerTokenOutsideLocalProfile(t *testing.T) {
+	server := NewServer(config.Config{
+		MaxConcurrentAnswers: 8,
+		RuntimeProfile:       "staging",
+	}, nil)
+
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/metrics", nil))
+	assertError(t, response, http.StatusUnauthorized, "unauthorized")
+}
+
 func TestMetricsUsesStableRouteLabelForUnknownPaths(t *testing.T) {
 	server := NewServer(config.Config{MaxConcurrentAnswers: 8}, nil)
 

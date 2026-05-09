@@ -18,7 +18,9 @@ class SdkOnlyDomainAgentGuardsTest(unittest.TestCase):
         )
         for path in forbidden_paths:
             with self.subTest(path=str(path)):
-                self.assertFalse(path.exists(), f"legacy direct runtime module still exists: {path}")
+                self.assertFalse(
+                    path.exists(), f"legacy direct runtime module still exists: {path}"
+                )
 
     def test_production_code_does_not_import_direct_delegate_symbols(self) -> None:
         checked_paths = (
@@ -54,8 +56,7 @@ class SdkOnlyDomainAgentGuardsTest(unittest.TestCase):
 
     def test_production_code_does_not_reintroduce_legacy_rag_internal_tool_bridge(self) -> None:
         path = (
-            REPO_ROOT
-            / "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/"
+            REPO_ROOT / "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/"
             "rag_sdk_internal_tool_bridge.py"
         )
         self.assertFalse(path.exists(), f"legacy SDK bridge still exists: {path}")

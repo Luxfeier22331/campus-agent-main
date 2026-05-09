@@ -143,9 +143,7 @@ def execute_notice_sdk_tool(
                     "source_ref_count": len(source_refs),
                 }
             )
-            fact_texts = [
-                fact.change_text.strip() for fact in facts if fact.change_text.strip()
-            ]
+            fact_texts = [fact.change_text.strip() for fact in facts if fact.change_text.strip()]
             if fact_texts:
                 projection["change_texts"] = fact_texts[:12]
             if source_refs:
@@ -169,7 +167,9 @@ def _access_context_from_request(agent_request) -> NoticeAccessContext:
     )
 
 
-def _normalize_dataclass_arguments(payload_class: type[object], arguments: dict[str, object]) -> dict[str, object]:
+def _normalize_dataclass_arguments(
+    payload_class: type[object], arguments: dict[str, object]
+) -> dict[str, object]:
     normalized = dict(arguments)
     resolved_types = get_type_hints(payload_class, include_extras=True)
     for field_name, annotation in resolved_types.items():

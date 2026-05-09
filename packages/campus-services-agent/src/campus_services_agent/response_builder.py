@@ -420,7 +420,8 @@ def _service_guide_sections_for_type(
             else section.content
         )
         for section in result.guide_sections
-        if section.content and str(getattr(section, "section_type", "") or "").strip() == section_type
+        if section.content
+        and str(getattr(section, "section_type", "") or "").strip() == section_type
     ]
 
 
@@ -469,7 +470,9 @@ def _service_guide_hours_line(result: ServiceGuideLookupResult) -> str:
 def _service_guide_contacts_line(result: ServiceGuideLookupResult) -> str:
     if not result.contact_refs:
         return ""
-    return "联系方式：" + "、".join(_service_guide_contact_text(contact) for contact in result.contact_refs)
+    return "联系方式：" + "、".join(
+        _service_guide_contact_text(contact) for contact in result.contact_refs
+    )
 
 
 def _display_source_refs(source_refs: tuple[str, ...]) -> tuple[str, ...]:
@@ -591,7 +594,9 @@ def _field_not_provided_text(result, label: str) -> str:
         return "当前来源未提供联系邮箱。"
     if missing_fields == ("location",):
         return "当前来源未提供办理地点。"
-    if any(field in {"required_materials", "service_material", "materials"} for field in missing_fields):
+    if any(
+        field in {"required_materials", "service_material", "materials"} for field in missing_fields
+    ):
         return "当前来源未提供所需材料。"
     if any(field in {"contact", "phone", "email", "location"} for field in missing_fields):
         return "当前来源未提供联系方式。"

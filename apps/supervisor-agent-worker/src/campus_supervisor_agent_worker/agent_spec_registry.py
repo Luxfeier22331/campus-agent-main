@@ -47,6 +47,7 @@ class AgentSpecRegistry:
     def active_agent_ids(self) -> tuple[str, ...]:
         return tuple(agent.agent_id for agent in self.agents if agent.active)
 
+
 def load_agent_spec_registry(path: str | Path | None = None) -> AgentSpecRegistry:
     registry_path = _resolve_agent_spec_path(path)
     raw = _load_json(registry_path)
@@ -122,14 +123,15 @@ def _validate_agents(agents: tuple[AgentSpec, ...]) -> None:
             )
         if agent.agent_id == "rag-agent" and agent.allowed_structured_handoff_tools:
             raise AgentSpecRegistryError("rag-agent must not expose structured handoff tools")
-        if agent.agent_id == "notice-agent" and "campus_notice_get" in agent.allowed_structured_handoff_tools:
+        if (
+            agent.agent_id == "notice-agent"
+            and "campus_notice_get" in agent.allowed_structured_handoff_tools
+        ):
             raise AgentSpecRegistryError(
                 "notice-agent must not expose campus_notice_get as structured handoff tool"
             )
         if agent.opening_gate == "closed" and agent.active:
-            raise AgentSpecRegistryError(
-                f"{agent.agent_id} closed opening_gate cannot be active"
-            )
+            raise AgentSpecRegistryError(f"{agent.agent_id} closed opening_gate cannot be active")
 
 
 def _resolve_agent_spec_path(path: str | Path | None) -> Path:

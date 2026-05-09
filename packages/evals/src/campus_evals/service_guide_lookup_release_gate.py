@@ -533,9 +533,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         source_truth_manifest_path=Path(args.source_truth_manifest),
         include_runtime_smoke=bool(args.include_runtime_smoke),
         selected_write_preview_report_path=(
-            Path(args.selected_write_preview_report)
-            if args.selected_write_preview_report
-            else None
+            Path(args.selected_write_preview_report) if args.selected_write_preview_report else None
         ),
     )
     if args.verbose:

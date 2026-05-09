@@ -344,9 +344,7 @@ def _category_discovery_sdk_result(
     anchor_by_doc: dict[str, RagSdkEvidenceAnchor] = {}
     for anchor in request.evidence.anchors:
         anchor_by_doc.setdefault(anchor.source_id, anchor)
-    ordered_doc_ids = tuple(
-        doc_id for doc_id in SCHOLARSHIP_DOC_IDS if doc_id in anchor_by_doc
-    )
+    ordered_doc_ids = tuple(doc_id for doc_id in SCHOLARSHIP_DOC_IDS if doc_id in anchor_by_doc)
     anchors = tuple(anchor_by_doc[doc_id] for doc_id in ordered_doc_ids)
     answer_items = tuple(
         RagSdkListItem(
@@ -402,12 +400,14 @@ def _default_realistic_eval_sdk_result(
     source_lookup = {(source.doc_id, source.chunk_id): source for source in evidence.sources}
     requested_sources = tuple(
         source_lookup[key]
-        for key in (
-            (anchor.source_id, anchor.chunk_id) for anchor in request.evidence.anchors
-        )
+        for key in ((anchor.source_id, anchor.chunk_id) for anchor in request.evidence.anchors)
         if key in source_lookup
     )
-    selected_source = requested_sources[0] if requested_sources else (evidence.sources[0] if evidence.sources else None)
+    selected_source = (
+        requested_sources[0]
+        if requested_sources
+        else (evidence.sources[0] if evidence.sources else None)
+    )
     if selected_source is None:
         return RagSdkRunResult(
             output=RagSdkAnswerOutput(

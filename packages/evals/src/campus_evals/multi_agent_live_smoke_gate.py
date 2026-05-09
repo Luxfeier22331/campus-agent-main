@@ -47,9 +47,7 @@ PROFILE_WORKFLOW_TRACE_CASE_IDS = {
     "multi_step_notice_knowledge_followthrough": (
         "workflow-notice-knowledge-followthrough-multistep"
     ),
-    "transport_notice_override_multistep": (
-        "workflow-transport-notice-override-multistep"
-    ),
+    "transport_notice_override_multistep": ("workflow-transport-notice-override-multistep"),
     "selected_notice_knowledge_followthrough_ineligible": (
         "workflow-selected-notice-knowledge-followthrough-ineligible"
     ),

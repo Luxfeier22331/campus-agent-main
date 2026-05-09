@@ -447,31 +447,35 @@
 						"selected_tool": "retrieval.query"
 					}
 				],
-					"tool_argument_summary": {
-						"payload_kind": "campus_notice_get",
-						"selected_tool": "retrieval.query",
-						"notice_id": "notice:smoke:001",
-						"source_family": "wechat_public_notice"
-					},
-					"expected_context_projection_kinds": ["notice_context", "evidence_bundle", "grounding_verdict"],
-					"tool_call_summaries": [
-						{
-							"tool_name": "retrieval.query",
-							"result_status": "needs_clarification",
-							"business_outcome": "needs_clarification",
-							"argument_summary": {
-								"payload_kind": "campus_notice_get",
-								"selected_tool": "retrieval.query",
-								"notice_id": "notice:smoke:001",
-								"source_family": "wechat_public_notice"
-							},
-							"source_ids": ["handbook:rule-001"]
-						}
-					],
-					"expected_tool_order": ["retrieval.query"],
-					"expected_tool_result_statuses": {
-						"retrieval.query": "needs_clarification"
-					},
+				"tool_argument_summary": {
+					"payload_kind": "campus_notice_get",
+					"selected_tool": "retrieval.query",
+					"notice_id": "notice:smoke:001",
+					"source_family": "wechat_public_notice"
+				},
+				"expected_context_projection_kinds": [
+					"notice_context",
+					"evidence_bundle",
+					"grounding_verdict"
+				],
+				"tool_call_summaries": [
+					{
+						"tool_name": "retrieval.query",
+						"result_status": "needs_clarification",
+						"business_outcome": "needs_clarification",
+						"argument_summary": {
+							"payload_kind": "campus_notice_get",
+							"selected_tool": "retrieval.query",
+							"notice_id": "notice:smoke:001",
+							"source_family": "wechat_public_notice"
+						},
+						"source_ids": ["handbook:rule-001"]
+					}
+				],
+				"expected_tool_order": ["retrieval.query"],
+				"expected_tool_result_statuses": {
+					"retrieval.query": "needs_clarification"
+				},
 				"guardrail_outcomes": {
 					"context_preflight": "resolved",
 					"policy_gate": "delegate",

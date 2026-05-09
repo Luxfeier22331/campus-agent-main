@@ -159,14 +159,7 @@ class AdmittedAgentExecutor:
                 latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
             )
         if self._runtime is None:
-            return runtime_error_response(
-                agent_request,
-                "runtime_unavailable",
-                "OpenAI Agents native runtime is unavailable for an SDK-admitted structured tool",
-                bridge_reason="runner_unavailable",
-                latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
-                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
-            )
+            return self._run_structured_direct_fallback(agent_request, plan=plan)
         try:
             descriptors = build_agents_sdk_tool_descriptors(
                 agent_request.allowed_tools,
@@ -246,6 +239,35 @@ class AdmittedAgentExecutor:
                 latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
                 runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
                 tool_execution_count=len(tool_execution_records),
+            )
+
+    def _run_structured_direct_fallback(
+        self,
+        agent_request: AgentRequest,
+        *,
+        plan: AdmittedAgentExecutionPlan,
+    ) -> AgentResponse:
+        tool_name = agent_request.allowed_tools[0] if agent_request.allowed_tools else ""
+        if not tool_name:
+            return runtime_error_response(
+                agent_request,
+                "runtime_unavailable",
+                "OpenAI Agents native runtime is unavailable for an SDK-admitted structured tool",
+                bridge_reason="runner_unavailable",
+                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
+            )
+        try:
+            return self._tool_execution_session.execute_structured_direct(
+                tool_name,
+                context=ToolExecutionContext(agent_request=agent_request),
+            )
+        except Exception:
+            return runtime_error_response(
+                agent_request,
+                "runtime_unavailable",
+                "OpenAI Agents native runtime is unavailable for an SDK-admitted structured tool",
+                bridge_reason="runner_unavailable",
+                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
             )
 
     def _run_internal_function(

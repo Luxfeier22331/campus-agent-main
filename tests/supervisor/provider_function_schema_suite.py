@@ -73,7 +73,10 @@ class ProviderFunctionSchemaTest(unittest.TestCase):
     def test_all_available_function_schema_tools_generate_from_payload_schema_refs(self) -> None:
         registry = load_tool_spec_registry()
 
-        for tool in (*registry.callable_schema_tools(), *registry.provider_callable_internal_functions()):
+        for tool in (
+            *registry.callable_schema_tools(),
+            *registry.provider_callable_internal_functions(),
+        ):
             with self.subTest(tool=tool.name):
                 schema = provider_function_schema_for_tool(tool)
                 self.assertEqual(schema["name"], tool.name)

@@ -10,6 +10,8 @@ from campus_contracts import (
     CampusNoticeGetPayload,
     ContextProjection,
     ServiceGuideLookupPayload,
+    TransportScheduleLookupPayload,
+    TransportServiceTimeQuery,
 )
 from campus_supervisor_agent_worker.admitted_agent_execution import (
     AdmittedAgentExecutor,
@@ -87,6 +89,65 @@ class AdmittedAgentExecutionSuite(unittest.TestCase):
         self.assertEqual(plan.mode, "not_admitted")
         self.assertEqual(plan.failure_class, "request_not_admitted")
         self.assertIn("allowed_tools", plan.message)
+
+    def test_execute_uses_deterministic_campus_services_fallback_when_runtime_missing(
+        self,
+    ) -> None:
+        query_service = FakeCampusServicesQueryService()
+        registry = default_tool_spec_registry()
+        executor = AdmittedAgentExecutor(
+            settings=ApiSettings(agents_sdk_runtime_enabled=True),
+            runtime=None,
+            tool_execution_session=build_default_tool_execution_session(
+                campus_services_query_service=query_service,
+                notice_query_service=_FakeNoticeQueryService(),
+                tool_registry=registry,
+            ),
+            tool_registry=registry,
+        )
+
+        response = executor.execute(
+            AgentRequest(
+                target="campus-services-agent",
+                user_goal="明天最早的班车几点",
+                payload=TransportScheduleLookupPayload(
+                    query_text="明天最早的班车几点",
+                    intent="first_departure",
+                    service_time_query=TransportServiceTimeQuery(
+                        date_mode="tomorrow",
+                        daypart="morning",
+                    ),
+                ),
+                allowed_tools=("transport_schedule_lookup",),
+                actor=ActorContext(user_id="student-001"),
+                context=ContextProjection(
+                    actor=ActorContext(user_id="student-001"),
+                    authorization=AuthorizationProjection(
+                        principal_id="principal-001",
+                        entitlement_groups=("students",),
+                    ),
+                ),
+            )
+        )
+
+        self.assertEqual(response.target, "campus-services-agent")
+        self.assertEqual(response.status, "completed")
+        self.assertIsNotNone(response.agent_observability)
+        assert response.agent_observability is not None
+        self.assertEqual(
+            response.agent_observability.selected_tool,
+            "transport_schedule_lookup",
+        )
+        self.assertIsNotNone(query_service.last_transport_schedule_query)
+        assert query_service.last_transport_schedule_query is not None
+        self.assertEqual(
+            query_service.last_transport_schedule_query.payload.intent,
+            "first_departure",
+        )
+        self.assertEqual(
+            query_service.last_transport_schedule_query.access_context.actor.user_id,
+            "student-001",
+        )
 
 
 def _executor() -> AdmittedAgentExecutor:

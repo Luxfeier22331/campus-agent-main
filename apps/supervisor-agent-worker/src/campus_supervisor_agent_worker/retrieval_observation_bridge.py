@@ -19,6 +19,7 @@ try:
     from opentelemetry.sdk.resources import Resource
     from opentelemetry.sdk.trace import TracerProvider
     from opentelemetry.sdk.trace.export import BatchSpanProcessor
+
     OTEL_AVAILABLE = True
 except Exception:  # pragma: no cover - dependency absence is handled at runtime
     metrics = None
@@ -228,11 +229,11 @@ def build_runtime_event_otlp_emitter(
             )
         )
         set_logger_provider(logger_provider)
-        otel_logger = logging.getLogger(
-            "campus_supervisor_agent_worker.runtime_event_otlp"
-        )
+        otel_logger = logging.getLogger("campus_supervisor_agent_worker.runtime_event_otlp")
         if not any(isinstance(handler, LoggingHandler) for handler in otel_logger.handlers):
-            otel_logger.addHandler(LoggingHandler(level=logging.INFO, logger_provider=logger_provider))
+            otel_logger.addHandler(
+                LoggingHandler(level=logging.INFO, logger_provider=logger_provider)
+            )
         otel_logger.setLevel(logging.INFO)
         otel_logger.propagate = False
 

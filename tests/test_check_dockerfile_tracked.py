@@ -133,6 +133,7 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
                 "!configs/runtime/intent-policy.v1.json",
                 "!configs/runtime/query-serving-scopes.v1.json",
                 "!configs/runtime/tools.v2.json",
+                "!configs/runtime/workflow-artifacts.v1.json",
                 "!tests/fixtures/service_guide_vpn_grouped_procedure_result.json",
             }.issubset(patterns)
         )

@@ -106,10 +106,22 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", compose)
         self.assertIn("OTEL_COLLECTOR_AXIOM_EVENTS_DATASET", compose)
         self.assertIn("OTEL_COLLECTOR_AXIOM_METRICS_DATASET", compose)
-        self.assertIn("SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces", compose)
-        self.assertIn("SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces", compose)
-        self.assertIn("SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics", compose)
-        self.assertIn("SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs", compose)
+        self.assertIn(
+            "SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces",
+            compose,
+        )
+        self.assertIn(
+            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces",
+            compose,
+        )
+        self.assertIn(
+            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics",
+            compose,
+        )
+        self.assertIn(
+            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs",
+            compose,
+        )
 
     def test_local_runtime_wires_structured_query_from_go_api_to_core_worker(self) -> None:
         compose_path = ROOT / "infra/local/docker-compose.supervisor-runtime.yml"

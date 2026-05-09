@@ -62,7 +62,9 @@ class AgentsSdkCloseoutGuardrailsTest(unittest.TestCase):
         )
 
         self.assertIn("_build_unavailable_rag_sdk_runner", delegates_source)
-        self.assertNotIn("return None", delegates_source.split("def _build_rag_openai_runtime", 1)[1])
+        self.assertNotIn(
+            "return None", delegates_source.split("def _build_rag_openai_runtime", 1)[1]
+        )
         self.assertIn("_RAG_SDK_RUNNER_NOT_PROVIDED", rag_service_source)
         self.assertIn("requires an explicit rag_sdk_runner", rag_synthesis_source)
         self.assertNotIn("rag_sdk_runner: RagSdkRunner | None = None", rag_service_source)

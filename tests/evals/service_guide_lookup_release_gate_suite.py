@@ -309,7 +309,9 @@ class ServiceGuideLookupReleaseGateTest(unittest.TestCase):
                                 "procedure_groups": [
                                     {
                                         "group_id": "service:official_web:vpn:procedure_group:client_install",
-                                        "source_refs": ["https://met.muc.edu.cn/info/1027/1137.htm"],
+                                        "source_refs": [
+                                            "https://met.muc.edu.cn/info/1027/1137.htm"
+                                        ],
                                         "steps": [
                                             {
                                                 "content": "首次使用请根据系统提示下载客户端。",
@@ -443,7 +445,9 @@ class ServiceGuideLookupReleaseGateTest(unittest.TestCase):
                     "full_record_count": 1,
                     "task_scope_display_names": ["中央民族大学 VPN 使用说明"],
                     "full_impact_display_names": ["中央民族大学 VPN 使用说明"],
-                    "bundle": {"service_guide_records": [{"display_name": "中央民族大学 VPN 使用说明"}]},
+                    "bundle": {
+                        "service_guide_records": [{"display_name": "中央民族大学 VPN 使用说明"}]
+                    },
                     "full_bundle": {
                         "service_guide_records": [{"display_name": "中央民族大学 VPN 使用说明"}]
                     },

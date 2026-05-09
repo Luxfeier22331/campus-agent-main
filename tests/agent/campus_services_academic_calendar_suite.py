@@ -389,9 +389,7 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         assert response.agent_observability is not None
         self.assertEqual(response.agent_observability.selected_tool, "academic_calendar_lookup")
-        projection = response.agent_observability.safe_details[
-            "openai_agents_runtime_projection"
-        ]
+        projection = response.agent_observability.safe_details["openai_agents_runtime_projection"]
         self.assertEqual(projection["instruction_profile_id"], "academic_calendar_fact_lookup")
 
 

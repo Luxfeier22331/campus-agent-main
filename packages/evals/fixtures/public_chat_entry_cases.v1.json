@@ -107,10 +107,7 @@
 				"cards_present": false
 			},
 			"expected_answer_contract": {
-				"must_contain": [
-					"如果你说的“春假”是指这段校内连续不上课时间",
-					"4 月 27 日到 5 月 5 日"
-				],
+				"must_contain": ["如果你说的“春假”是指这段校内连续不上课时间", "4 月 27 日到 5 月 5 日"],
 				"must_not_contain": ["口语说法", "官方表述", "大家常说"]
 			}
 		},

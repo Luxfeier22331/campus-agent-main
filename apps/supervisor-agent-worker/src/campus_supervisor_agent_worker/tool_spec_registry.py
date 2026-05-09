@@ -71,9 +71,7 @@ class ToolSpecRegistry:
         )
 
     def agent_facing_tool_names_for_target(self, target: str) -> tuple[str, ...]:
-        return tuple(
-            tool.name for tool in self.agent_facing_tools() if tool.owner_agent == target
-        )
+        return tuple(tool.name for tool in self.agent_facing_tools() if tool.owner_agent == target)
 
     def callable_schema_tools(self) -> tuple[ToolSpec, ...]:
         return tuple(
@@ -181,6 +179,7 @@ class ToolSpecRegistry:
             f"target={target} payload={payload.__class__.__name__}"
         )
 
+
 def load_tool_spec_registry(path: str | Path | None = None) -> ToolSpecRegistry:
     registry_path = _resolve_tool_spec_path(path)
     raw = _load_json(registry_path)
@@ -276,10 +275,7 @@ def _validate_tools(tools: tuple[ToolSpec, ...]) -> None:
             raise ToolSpecRegistryError(
                 f"{tool.name} internal_function posture must not expose function_schema"
             )
-        if (
-            tool.runtime_posture.startswith("sdk_")
-            and not tool.function_schema.available
-        ):
+        if tool.runtime_posture.startswith("sdk_") and not tool.function_schema.available:
             raise ToolSpecRegistryError(
                 f"{tool.name} runtime posture requires function_schema.available"
             )

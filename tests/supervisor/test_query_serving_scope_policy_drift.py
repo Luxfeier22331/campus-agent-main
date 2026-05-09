@@ -39,8 +39,7 @@ class QueryServingScopePolicyDriftTest(unittest.TestCase):
                 profile_tools.update(profile.get("structured_query_tools") or [])
 
         self.assertEqual(
-            active_structured_tools
-            - {"campus_notice_discover", "campus_notice_change_set_lookup"},
+            active_structured_tools - {"campus_notice_discover", "campus_notice_change_set_lookup"},
             profile_tools,
         )
 

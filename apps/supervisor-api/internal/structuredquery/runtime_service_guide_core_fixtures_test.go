@@ -1,0 +1,278 @@
+package structuredquery
+
+import "strings"
+
+func serviceGuideProjectionFixture() string {
+	return `{
+		"schema_version":"campus_services_service_guide_projection.v1",
+		"generated_at":"2026-04-25T10:00:00+08:00",
+		"source_families":["handbook_service_navigation_projection_v1"],
+		"service_guide_records":[
+			{
+				"service_id":"service:handbook:check-in",
+				"display_name":"公寓楼新生办理入住手续流程",
+				"aliases":["公寓楼新生办理入住手续流程","入住","住宿","宿舍"],
+				"category":"student_housing",
+				"campus_scope":"all",
+				"audience":["student"],
+				"effective_from":"2018-09-01T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["handbook:student_rules:pages:252-255#page=253"],
+				"guide_sections":[
+					{
+						"section_id":"service:handbook:check-in:section:procedure",
+						"section_type":"procedure",
+						"title":"公寓楼新生办理入住手续流程",
+						"content":"1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",
+						"order":1,
+						"source_refs":["handbook:student_rules:pages:252-255#page=253"]
+					}
+				],
+				"materials":[],
+				"entry_refs":[],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":["新生"],
+				"extraction_status":"ready"
+			},
+			{
+				"service_id":"service:handbook:undergrad-check-out",
+				"display_name":"本科生特殊情况申请办理退宿手续",
+				"aliases":["本科生特殊情况申请办理退宿手续","本科生退宿","退宿"],
+				"category":"student_housing",
+				"campus_scope":"all",
+				"audience":["student"],
+				"effective_from":"2018-09-01T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["handbook:student_rules:pages:252-255#page=255"],
+				"guide_sections":[
+					{
+						"section_id":"service:handbook:undergrad-check-out:section:procedure",
+						"section_type":"procedure",
+						"title":"本科生特殊情况申请办理退宿手续",
+						"content":"1. 写好退宿申请。",
+						"order":1,
+						"source_refs":["handbook:student_rules:pages:252-255#page=255"]
+					}
+				],
+				"materials":[],
+				"entry_refs":[],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":["本科生"],
+				"extraction_status":"ready"
+			},
+			{
+				"service_id":"service:handbook:grad-check-out",
+				"display_name":"研究生申请办理退宿手续",
+				"aliases":["研究生申请办理退宿手续","研究生退宿","退宿"],
+				"category":"student_housing",
+				"campus_scope":"all",
+				"audience":["student"],
+				"effective_from":"2018-09-01T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["handbook:student_rules:pages:252-255#page=255"],
+				"guide_sections":[
+					{
+						"section_id":"service:handbook:grad-check-out:section:procedure",
+						"section_type":"procedure",
+						"title":"研究生申请办理退宿手续",
+						"content":"1. 写好退宿申请。",
+						"order":1,
+						"source_refs":["handbook:student_rules:pages:252-255#page=255"]
+					}
+				],
+				"materials":[],
+				"entry_refs":[],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":["研究生"],
+				"extraction_status":"ready"
+			}
+		],
+		"conflict_records":[],
+		"manual_review_sources":[]
+	}`
+}
+
+func serviceGuideManualReviewFixture() string {
+	return strings.Replace(
+		serviceGuideProjectionFixture(),
+		`"extraction_status":"ready"`,
+		`"extraction_status":"needs_manual_review"`,
+		1,
+	)
+}
+
+func serviceGuideManualReviewSourceFixture() string {
+	return strings.Replace(
+		serviceGuideProjectionFixture(),
+		`"manual_review_sources":[]`,
+		`"manual_review_sources":[{"service_id":"service:handbook:check-in","source_ref":"handbook:student_rules:pages:252-255#page=253","reason":"test_manual_review","notes":["人工确认"]}]`,
+		1,
+	)
+}
+
+func serviceGuidePublicMedicalProjectionFixture() string {
+	return `{
+		"schema_version":"campus_services_service_guide_projection.v1",
+		"generated_at":"2026-04-25T10:00:00+08:00",
+		"source_families":["handbook_curated_service_guide_v1"],
+		"service_guide_records":[
+			{
+				"service_id":"service:handbook:student-public-medical-reimbursement",
+				"display_name":"公费医疗报销办理指南",
+				"aliases":["公费医疗报销办理指南","公费医疗报销","医疗报销","医药费报销","假期急病报销","住院报销"],
+				"category":"student_public_medical",
+				"campus_scope":"all",
+				"audience":["student"],
+				"effective_from":"2018-09-01T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["handbook:student_rules:pages:259-260#page=259","handbook:student_rules:pages:259-260#page=260"],
+				"guide_sections":[
+					{
+						"section_id":"service:handbook:student-public-medical-reimbursement:section:required-materials",
+						"section_type":"required_materials",
+						"title":"公费医疗报销材料",
+						"content":"假期急病门诊凭急诊证明、检查报告和处方报销；急病住院凭急诊证明、住院收据、住院费明细单报销；住院者出院结算后二周内持出院手续到校医院报销。",
+						"order":1,
+						"source_refs":["handbook:student_rules:pages:259-260#page=259","handbook:student_rules:pages:259-260#page=260"]
+					}
+				],
+				"materials":[
+					{"material_id":"service:handbook:student-public-medical-reimbursement:material:emergency-certificate","name":"急诊证明","required":true,"note":"假期急病门诊报销和急病住院报销均需提供。","source_refs":["handbook:student_rules:pages:259-260#page=259"]},
+					{"material_id":"service:handbook:student-public-medical-reimbursement:material:hospital-receipt","name":"住院收据","required":true,"note":"急病住院报销需提供。","source_refs":["handbook:student_rules:pages:259-260#page=259"]},
+					{"material_id":"service:handbook:student-public-medical-reimbursement:material:hospital-detail","name":"住院费明细单","required":true,"note":"急病住院报销需提供。","source_refs":["handbook:student_rules:pages:259-260#page=259"]},
+					{"material_id":"service:handbook:student-public-medical-reimbursement:material:discharge-documents","name":"出院手续","required":true,"note":"凡住院者必须在出院结算后二周内持出院手续到校医院报销。","source_refs":["handbook:student_rules:pages:259-260#page=260"]}
+				],
+				"entry_refs":[],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":["国家计划内招生的本科生、硕士生、博士生、预科部学生享受公费医疗。"],
+				"extraction_status":"ready"
+			}
+		],
+		"conflict_records":[],
+		"manual_review_sources":[]
+	}`
+}
+
+func serviceGuideTransportReservationProjectionFixture() string {
+	return `{
+		"schema_version":"campus_services_service_guide_projection.v1",
+		"generated_at":"2026-04-27T09:00:00+08:00",
+		"source_families":["authenticated_notice_service_guide_projection_v1"],
+		"service_guide_records":[
+			{
+				"service_id":"service:transport-reservation:subway-shuttle",
+				"display_name":"地铁接驳车预约说明",
+				"aliases":["地铁接驳车预约说明","地铁接驳车预约","接驳车预约","接驳车预约系统"],
+				"category":"transport_reservation",
+				"campus_scope":"fengtai",
+				"audience":["student","faculty","unknown"],
+				"effective_from":"2026-02-27T10:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["notice:muc_internal_portal:354777"],
+				"guide_sections":[
+					{
+						"section_id":"service:transport-reservation:subway-shuttle:section:procedure",
+						"section_type":"procedure",
+						"title":"地铁接驳车预约流程",
+						"content":"1. 通过服务门户或企业微信进入接驳车预约系统。\n2. 发车前一天9:00开放预约，约满即止。",
+						"order":1,
+						"source_refs":["notice:muc_internal_portal:354777"]
+					},
+					{
+						"section_id":"service:transport-reservation:subway-shuttle:section:entry",
+						"section_type":"entry",
+						"title":"预约入口",
+						"content":"服务门户、企业微信、接驳车预约系统。",
+						"order":2,
+						"source_refs":["notice:muc_internal_portal:354777"]
+					}
+				],
+				"materials":[],
+				"entry_refs":[
+					{"entry_id":"service:transport-reservation:subway-shuttle:entry:service-portal","label":"服务门户","entry_type":"instructions_only","url":"","location_ref":"","source_refs":["notice:muc_internal_portal:354777"]},
+					{"entry_id":"service:transport-reservation:subway-shuttle:entry:enterprise-wechat","label":"企业微信","entry_type":"instructions_only","url":"","location_ref":"","source_refs":["notice:muc_internal_portal:354777"]}
+				],
+				"office_hours":[],
+				"contact_refs":[],
+				"eligibility_notes":[],
+				"extraction_status":"ready"
+			}
+		],
+		"conflict_records":[],
+		"manual_review_sources":[]
+	}`
+}
+
+func serviceGuideCampusCardProjectionFixture() string {
+	return `{
+		"schema_version":"campus_services_service_guide_projection.v1",
+		"generated_at":"2026-04-27T10:00:00+08:00",
+		"source_families":["official_web_curated_service_guide_v1"],
+		"service_guide_records":[
+			{
+				"service_id":"service:campus-card:lost-reissue",
+				"display_name":"校园卡挂失与补卡",
+				"aliases":["校园卡挂失与补卡","校园卡丢了","校园卡遗失","校园卡挂失","校园卡补办","一卡通丢了","一卡通遗失","一卡通挂失","一卡通补卡"],
+				"category":"campus_card",
+				"campus_scope":"all",
+				"audience":["student","faculty"],
+				"effective_from":"2026-04-27T00:00:00+08:00",
+				"effective_until":"2099-12-31T23:59:59+08:00",
+				"source_refs":["https://met.muc.edu.cn/info/1027/1127.htm","https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"],
+				"guide_sections":[
+					{
+						"section_id":"service:campus-card:lost-reissue:section:overview",
+						"section_type":"overview",
+						"title":"丢失后的处理范围",
+						"content":"校园卡丢失后应先办理挂失，再补办新卡；正式卡可挂失，临时卡不挂失。补卡后原余额可在30分钟后通过POS机刷卡领取或圈存机领取到新卡。",
+						"order":1,
+						"source_refs":["https://met.muc.edu.cn/info/1027/1127.htm","https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"]
+					},
+					{
+						"section_id":"service:campus-card:lost-reissue:section:procedure",
+						"section_type":"procedure",
+						"title":"挂失与补卡流程",
+						"content":"1. 通过圈存机、企业微信或民大通APP办理挂失。\n2. 挂失后可在学生自助补卡机补办校园卡。\n3. 补卡后原余额可在30分钟后通过POS机刷卡领取或圈存机领取到新卡。",
+						"order":2,
+						"source_refs":["https://met.muc.edu.cn/info/1027/1127.htm","https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"]
+					},
+					{
+						"section_id":"service:campus-card:lost-reissue:section:entry",
+						"section_type":"entry",
+						"title":"补卡入口与线下地点",
+						"content":"学生自助补卡机可办理补卡；自助补卡机位置包括丰台校区聚雅餐厅、荟贤餐厅、智慧中心校园卡前台，以及海淀校区文化楼西区一层、图书馆一层门厅、理工楼一层、中慧楼二层校园卡管理中心；海淀校区线下地点为中慧楼二层校园卡管理中心，丰台校区线下地点为智慧中心一层大厅卡务中心。",
+						"order":3,
+						"source_refs":["https://met.muc.edu.cn/info/1027/1127.htm","https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"]
+					},
+					{
+						"section_id":"service:campus-card:lost-reissue:section:contact",
+						"section_type":"contact",
+						"title":"咨询电话",
+						"content":"海淀校区校园卡管理中心咨询电话010-68933381；丰台校区卡务中心咨询电话010-83878225。",
+						"order":4,
+						"source_refs":["https://met.muc.edu.cn/info/1027/1127.htm"]
+					}
+				],
+				"materials":[],
+				"entry_refs":[
+					{"entry_id":"service:campus-card:lost-reissue:entry:self-service-machine","label":"学生自助补卡机","entry_type":"instructions_only","url":"","location_ref":"丰台校区聚雅餐厅、荟贤餐厅、智慧中心校园卡前台；海淀校区文化楼西区一层、图书馆一层门厅、理工楼一层、中慧楼二层校园卡管理中心","source_refs":["https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"]},
+					{"entry_id":"service:campus-card:lost-reissue:entry:haidian-card-center","label":"海淀校区校园卡管理中心","entry_type":"offline_location","url":"","location_ref":"中慧楼二层","source_refs":["https://met.muc.edu.cn/info/1027/1127.htm"]},
+					{"entry_id":"service:campus-card:lost-reissue:entry:fengtai-card-center","label":"丰台校区卡务中心","entry_type":"offline_location","url":"","location_ref":"智慧中心一层大厅","source_refs":["https://met.muc.edu.cn/info/1027/1127.htm"]}
+				],
+				"office_hours":[],
+				"contact_refs":[
+					{"contact_id":"service:campus-card:lost-reissue:contact:haidian","label":"海淀校区校园卡管理中心","department":"校园卡管理中心","phone":"010-68933381","email":"","location_ref":"中慧楼二层","source_refs":["https://met.muc.edu.cn/info/1027/1127.htm"]},
+					{"contact_id":"service:campus-card:lost-reissue:contact:fengtai","label":"丰台校区卡务中心","department":"卡务中心","phone":"010-83878225","email":"","location_ref":"智慧中心一层大厅","source_refs":["https://met.muc.edu.cn/info/1027/1127.htm"]}
+				],
+				"eligibility_notes":["正式卡可办理挂失；临时卡不挂失。"],
+				"extraction_status":"ready"
+			}
+		],
+		"conflict_records":[],
+		"manual_review_sources":[]
+	}`
+}

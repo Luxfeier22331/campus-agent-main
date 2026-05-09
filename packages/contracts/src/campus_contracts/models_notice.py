@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from campus_contracts.models_context import SelectedNoticeRef
+from campus_contracts.models_notice_change_set import NoticeChangeSet
 from campus_contracts.models_shared import (
     HistoricalDowngradeReason,
     NoticeBodyAccessPolicy,
@@ -19,7 +20,6 @@ from campus_contracts.models_shared import (
     _validate_tool_business_outcome,
     _validate_tool_fail_close_reason,
 )
-from campus_contracts.models_notice_change_set import NoticeChangeSet
 from campus_contracts.models_temporal import TemporalQuery
 from campus_contracts.schema_metadata import schema_metadata
 

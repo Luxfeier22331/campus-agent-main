@@ -1,59 +1,59 @@
 {
-  "schema_version": "agent-spec-registry-v2",
-  "registry_version": "2026-05-08",
-  "agents": [
-    {
-      "id": "rag-agent",
-      "capability": "knowledge",
-      "owner_package": "packages/rag-agent",
-      "runtime_adapter": "worker_dispatch",
-      "active": true,
-      "opening_gate": "open",
-      "allowed_structured_handoff_tools": [],
-      "context_projection_kinds": ["evidence_bundle"],
-      "description": "Knowledge retrieval and grounded answer specialist."
-    },
-    {
-      "id": "navigation-agent",
-      "capability": "place_lookup",
-      "owner_package": "packages/navigation-agent",
-      "runtime_adapter": "worker_dispatch",
-      "active": false,
-      "opening_gate": "closed",
-      "allowed_structured_handoff_tools": [],
-      "context_projection_kinds": ["place_context"],
-      "description": "Navigation and place lookup specialist; registered before rollout."
-    },
-    {
-      "id": "campus-services-agent",
-      "capability": "campus_services",
-      "owner_package": "packages/campus-services-agent",
-      "runtime_adapter": "worker_dispatch",
-      "active": true,
-      "opening_gate": "open",
-      "allowed_structured_handoff_tools": [
-        "service_status_lookup",
-        "service_guide_lookup",
-        "transport_schedule_lookup",
-        "contact_directory_lookup",
-        "academic_calendar_lookup"
-      ],
-      "context_projection_kinds": ["service_guide_facts", "schedule_baseline", "calendar_fact"],
-      "description": "Campus services specialist for structured service queries."
-    },
-    {
-      "id": "notice-agent",
-      "capability": "notice",
-      "owner_package": "packages/notice-agent",
-      "runtime_adapter": "worker_dispatch",
-      "active": true,
-      "opening_gate": "open",
-      "allowed_structured_handoff_tools": [
-        "campus_notice_discover",
-        "campus_notice_change_set_lookup"
-      ],
-      "context_projection_kinds": ["notice_context", "notice_change_set"],
-      "description": "Notice discovery and internal selected notice resolution specialist."
-    }
-  ]
+	"schema_version": "agent-spec-registry-v2",
+	"registry_version": "2026-05-08",
+	"agents": [
+		{
+			"id": "rag-agent",
+			"capability": "knowledge",
+			"owner_package": "packages/rag-agent",
+			"runtime_adapter": "worker_dispatch",
+			"active": true,
+			"opening_gate": "open",
+			"allowed_structured_handoff_tools": [],
+			"context_projection_kinds": ["evidence_bundle"],
+			"description": "Knowledge retrieval and grounded answer specialist."
+		},
+		{
+			"id": "navigation-agent",
+			"capability": "place_lookup",
+			"owner_package": "packages/navigation-agent",
+			"runtime_adapter": "worker_dispatch",
+			"active": false,
+			"opening_gate": "closed",
+			"allowed_structured_handoff_tools": [],
+			"context_projection_kinds": ["place_context"],
+			"description": "Navigation and place lookup specialist; registered before rollout."
+		},
+		{
+			"id": "campus-services-agent",
+			"capability": "campus_services",
+			"owner_package": "packages/campus-services-agent",
+			"runtime_adapter": "worker_dispatch",
+			"active": true,
+			"opening_gate": "open",
+			"allowed_structured_handoff_tools": [
+				"service_status_lookup",
+				"service_guide_lookup",
+				"transport_schedule_lookup",
+				"contact_directory_lookup",
+				"academic_calendar_lookup"
+			],
+			"context_projection_kinds": ["service_guide_facts", "schedule_baseline", "calendar_fact"],
+			"description": "Campus services specialist for structured service queries."
+		},
+		{
+			"id": "notice-agent",
+			"capability": "notice",
+			"owner_package": "packages/notice-agent",
+			"runtime_adapter": "worker_dispatch",
+			"active": true,
+			"opening_gate": "open",
+			"allowed_structured_handoff_tools": [
+				"campus_notice_discover",
+				"campus_notice_change_set_lookup"
+			],
+			"context_projection_kinds": ["notice_context", "notice_change_set"],
+			"description": "Notice discovery and internal selected notice resolution specialist."
+		}
+	]
 }

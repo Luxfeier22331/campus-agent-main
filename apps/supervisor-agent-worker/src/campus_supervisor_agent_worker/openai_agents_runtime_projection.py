@@ -260,6 +260,8 @@ def _single_tool_call(tool_calls: tuple[OpenAIAgentsToolCall, ...]) -> OpenAIAge
             "OpenAI Agents native runtime tool call name is required",
         )
     return tool_call
+
+
 def _validate_tool_arguments(
     arguments: dict[str, object],
     parameters: dict[str, Any],
@@ -285,7 +287,9 @@ def _normalize_tool_arguments(
     return normalized
 
 
-def _validate_arguments_against_schema(arguments: dict[str, object], parameters: dict[str, Any]) -> None:
+def _validate_arguments_against_schema(
+    arguments: dict[str, object], parameters: dict[str, Any]
+) -> None:
     properties = parameters.get("properties")
     if not isinstance(properties, dict):
         raise OpenAIAgentsRuntimeProjectionError(
@@ -336,7 +340,9 @@ def _validate_argument_value(value: object, schema: dict[str, Any], property_nam
         )
 
 
-def _argument_type_error(property_name: str, expected_type: str) -> OpenAIAgentsRuntimeProjectionError:
+def _argument_type_error(
+    property_name: str, expected_type: str
+) -> OpenAIAgentsRuntimeProjectionError:
     return OpenAIAgentsRuntimeProjectionError(
         "sdk_bad_arguments",
         "OpenAI Agents native runtime tool argument type mismatch for "

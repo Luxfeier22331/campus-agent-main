@@ -20,14 +20,14 @@ from campus_evals.contact_directory_projection_eval import (
 )
 from campus_evals.intent_models import IntentCase, IntentEvalReport
 from campus_evals.intent_runner import report_to_dict, run_intent_cases
-from campus_evals.official_web_selected_write_tool_readiness_audit import (
-    audit_selected_write_preview_report,
-)
 from campus_evals.official_web_selected_write_preview_runtime_verifier import (
     BUNDLE_SCOPE_FULL_IMPACT,
     BUNDLE_SCOPE_TASK_SCOPE,
     OfficialWebSelectedWritePreviewRuntimeVerificationReport,
     run_selected_write_preview_runtime_verification,
+)
+from campus_evals.official_web_selected_write_tool_readiness_audit import (
+    audit_selected_write_preview_report,
 )
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
@@ -517,9 +517,7 @@ def main(argv: Sequence[str] | None = None) -> int:
     report = run_contact_directory_lookup_release_gate(
         output_dir=Path(args.output_dir),
         selected_write_preview_report_path=(
-            Path(args.selected_write_preview_report)
-            if args.selected_write_preview_report
-            else None
+            Path(args.selected_write_preview_report) if args.selected_write_preview_report else None
         ),
     )
     if args.verbose:

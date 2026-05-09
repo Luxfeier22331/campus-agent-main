@@ -362,8 +362,7 @@ def parse_workflow_agent_context(raw_context: object) -> WorkflowAgentContext:
         expected_output_artifacts=parse_string_tuple(
             context.get("expected_output_artifacts"),
             field_name=(
-                "runtime_decisions.handoff.agent_request.workflow_context."
-                "expected_output_artifacts"
+                "runtime_decisions.handoff.agent_request.workflow_context.expected_output_artifacts"
             ),
         ),
         projection_refs=tuple(projection_refs),

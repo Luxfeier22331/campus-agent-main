@@ -121,7 +121,10 @@ _CALENDAR_PROFILE = AgentsSdkInstructionProfile(
 
 
 def instruction_profile_for_request(request: AgentRequest) -> AgentsSdkInstructionProfile:
-    if request.target == "notice-agent" and "campus_notice_change_set_lookup" in request.allowed_tools:
+    if (
+        request.target == "notice-agent"
+        and "campus_notice_change_set_lookup" in request.allowed_tools
+    ):
         return _NOTICE_CHANGE_SET_PROFILE
     if request.target == "notice-agent" and "campus_notice_discover" in request.allowed_tools:
         return _NOTICE_DISCOVER_PROFILE

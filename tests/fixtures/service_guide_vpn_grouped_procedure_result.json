@@ -1,90 +1,65 @@
 {
-  "service_query": "VPN客户端怎么安装",
-  "guide_focus": "procedure",
-  "outcome": "resolved_current",
-  "resolved_service": {
-    "service_id": "service:official_web:vpn",
-    "display_name": "中央民族大学 VPN 使用说明",
-    "aliases": [
-      "VPN",
-      "vpn",
-      "中央民族大学VPN系统使用说明"
-    ],
-    "category": "campus_service",
-    "campus_scope": "all",
-    "audience": [
-      "student",
-      "faculty",
-      "unknown"
-    ]
-  },
-  "guide_sections": [
-    {
-      "section_id": "service:official_web:vpn:procedure_group:client_install",
-      "section_type": "procedure",
-      "title": "客户端安装",
-      "content": "1. 首次使用请根据系统提示下载客户端。\n2. 双击Install EasyConnect.pkg，根据提示完成安装。",
-      "source_refs": [
-        "https://met.muc.edu.cn/info/1046/1674.htm"
-      ]
-    }
-  ],
-  "procedure_groups": [
-    {
-      "group_id": "service:official_web:vpn:procedure_group:client_install",
-      "title": "客户端安装",
-      "focus_tags": [
-        "procedure",
-        "install",
-        "client",
-        "客户端"
-      ],
-      "steps": [
-        {
-          "step_id": "service:official_web:vpn:procedure_group:client_install:step:1",
-          "content": "首次使用请根据系统提示下载客户端。",
-          "source_refs": [
-            "https://met.muc.edu.cn/info/1046/1674.htm"
-          ]
-        },
-        {
-          "step_id": "service:official_web:vpn:procedure_group:client_install:step:2",
-          "content": "双击Install EasyConnect.pkg，根据提示完成安装。",
-          "source_refs": [
-            "https://met.muc.edu.cn/info/1046/1674.htm"
-          ]
-        }
-      ],
-      "source_refs": [
-        "https://met.muc.edu.cn/info/1046/1674.htm"
-      ]
-    }
-  ],
-  "required_materials": [],
-  "entry_refs": [],
-  "office_hours": [],
-  "contact_refs": [],
-  "eligibility_notes": [],
-  "source_refs": [
-    "https://met.muc.edu.cn/info/1046/1674.htm"
-  ],
-  "queried_time_anchor": "2026-05-04T10:30:00+08:00",
-  "effective_from": "2026-05-01T00:00:00+08:00",
-  "effective_until": "2099-12-31T23:59:59+08:00",
-  "matched_service_category": "campus_service",
-  "selected_section_ids": [
-    "service:official_web:vpn:procedure_group:client_install"
-  ],
-  "omitted_section_ids": [
-    "service:official_web:vpn:procedure_group:direct_login",
-    "service:official_web:vpn:procedure_group:mobile_usage"
-  ],
-  "omitted_section_reasons": {
-    "service:official_web:vpn:procedure_group:direct_login": "focus_mismatch",
-    "service:official_web:vpn:procedure_group:mobile_usage": "focus_mismatch"
-  },
-  "field_status": {
-    "service_process": "present",
-    "service_entry": "present"
-  }
+	"service_query": "VPN客户端怎么安装",
+	"guide_focus": "procedure",
+	"outcome": "resolved_current",
+	"resolved_service": {
+		"service_id": "service:official_web:vpn",
+		"display_name": "中央民族大学 VPN 使用说明",
+		"aliases": ["VPN", "vpn", "中央民族大学VPN系统使用说明"],
+		"category": "campus_service",
+		"campus_scope": "all",
+		"audience": ["student", "faculty", "unknown"]
+	},
+	"guide_sections": [
+		{
+			"section_id": "service:official_web:vpn:procedure_group:client_install",
+			"section_type": "procedure",
+			"title": "客户端安装",
+			"content": "1. 首次使用请根据系统提示下载客户端。\n2. 双击Install EasyConnect.pkg，根据提示完成安装。",
+			"source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"]
+		}
+	],
+	"procedure_groups": [
+		{
+			"group_id": "service:official_web:vpn:procedure_group:client_install",
+			"title": "客户端安装",
+			"focus_tags": ["procedure", "install", "client", "客户端"],
+			"steps": [
+				{
+					"step_id": "service:official_web:vpn:procedure_group:client_install:step:1",
+					"content": "首次使用请根据系统提示下载客户端。",
+					"source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"]
+				},
+				{
+					"step_id": "service:official_web:vpn:procedure_group:client_install:step:2",
+					"content": "双击Install EasyConnect.pkg，根据提示完成安装。",
+					"source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"]
+				}
+			],
+			"source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"]
+		}
+	],
+	"required_materials": [],
+	"entry_refs": [],
+	"office_hours": [],
+	"contact_refs": [],
+	"eligibility_notes": [],
+	"source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
+	"queried_time_anchor": "2026-05-04T10:30:00+08:00",
+	"effective_from": "2026-05-01T00:00:00+08:00",
+	"effective_until": "2099-12-31T23:59:59+08:00",
+	"matched_service_category": "campus_service",
+	"selected_section_ids": ["service:official_web:vpn:procedure_group:client_install"],
+	"omitted_section_ids": [
+		"service:official_web:vpn:procedure_group:direct_login",
+		"service:official_web:vpn:procedure_group:mobile_usage"
+	],
+	"omitted_section_reasons": {
+		"service:official_web:vpn:procedure_group:direct_login": "focus_mismatch",
+		"service:official_web:vpn:procedure_group:mobile_usage": "focus_mismatch"
+	},
+	"field_status": {
+		"service_process": "present",
+		"service_entry": "present"
+	}
 }

@@ -237,6 +237,8 @@ def _coerce_structured_output(value: object) -> RagSdkAnswerOutput:
         needs_clarification=output.needs_clarification,
         follow_up_question=output.follow_up_question,
     )
+
+
 def _anchor(value: _RagSdkStructuredAnchor) -> RagSdkEvidenceAnchor:
     return RagSdkEvidenceAnchor(
         source_id=value.source_id,

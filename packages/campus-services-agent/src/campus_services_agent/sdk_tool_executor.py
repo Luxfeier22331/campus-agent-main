@@ -116,7 +116,9 @@ def execute_campus_services_sdk_tool(
     raise ValueError(f"campus-services-agent cannot execute SDK tool: {execution.name}")
 
 
-def _normalize_dataclass_arguments(payload_class: type[object], arguments: dict[str, object]) -> dict[str, object]:
+def _normalize_dataclass_arguments(
+    payload_class: type[object], arguments: dict[str, object]
+) -> dict[str, object]:
     normalized = dict(arguments)
     resolved_types = get_type_hints(payload_class, include_extras=True)
     for field_name, annotation in resolved_types.items():
@@ -126,7 +128,9 @@ def _normalize_dataclass_arguments(payload_class: type[object], arguments: dict[
         nested_type = _dataclass_type_for_annotation(annotation)
         if nested_type is None:
             continue
-        normalized[field_name] = nested_type(**_normalize_nested_dataclass_arguments(nested_type, value))
+        normalized[field_name] = nested_type(
+            **_normalize_nested_dataclass_arguments(nested_type, value)
+        )
     return normalized
 
 

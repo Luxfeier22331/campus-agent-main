@@ -5,6 +5,7 @@ from collections.abc import Callable
 from campus_contracts import AgentRequest, AgentResponse, EvidenceBundle
 from campus_rag_agent.rag_sdk_models import RagSdkRunRequest, RagSdkRunResult
 from campus_rag_agent.service import delegate_to_rag_agent as _service_delegate_to_rag_agent
+from campus_rag_agent.service_retrieval import retrieve_sources as _default_retriever
 
 Retriever = Callable[..., EvidenceBundle]
 
@@ -12,16 +13,17 @@ Retriever = Callable[..., EvidenceBundle]
 def delegate_to_rag_agent_inprocess(
     request: AgentRequest,
     *,
-    retriever: Retriever,
+    retriever: Retriever | None = None,
     prompt_executor=None,
     retrieval_observation_sink=None,
     include_retrieval_observation_query_text: bool = False,
 ) -> AgentResponse:
+    effective_retriever = retriever or _default_retriever
     captured_bundle: EvidenceBundle | None = None
 
     def wrapped_retriever(*args, **kwargs):
         nonlocal captured_bundle
-        captured_bundle = retriever(*args, **kwargs)
+        captured_bundle = effective_retriever(*args, **kwargs)
         return captured_bundle
 
     return _service_delegate_to_rag_agent(
