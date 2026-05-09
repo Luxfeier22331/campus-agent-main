@@ -65,6 +65,8 @@ tmp-*.webp
 # Local runtime and scratch artifacts
 apps/authenticated-notice-collector/runtime/
 artifacts/
+!apps/public-chat-web/vendor/vercel-ai-chatbot/artifacts/
+!apps/public-chat-web/vendor/vercel-ai-chatbot/artifacts/**
 tmp/
 docs-*.png
 rspress-*.png

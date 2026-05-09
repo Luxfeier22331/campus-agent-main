@@ -14,9 +14,13 @@ import {
 import useSWR, { useSWRConfig } from "swr";
 import { useWindowSize } from "usehooks-ts";
 import { codeArtifact } from "@/artifacts/code/client";
+import { LazyCodeArtifactContent } from "@/artifacts/code/lazy-content";
 import { imageArtifact } from "@/artifacts/image/client";
+import { LazyImageArtifactContent } from "@/artifacts/image/lazy-content";
 import { sheetArtifact } from "@/artifacts/sheet/client";
+import { LazySheetArtifactContent } from "@/artifacts/sheet/lazy-content";
 import { textArtifact } from "@/artifacts/text/client";
+import { LazyTextArtifactContent } from "@/artifacts/text/lazy-content";
 import { useArtifact } from "@/hooks/use-artifact";
 import type { Document } from "@/lib/db/schema";
 import type { Attachment, ChatMessage } from "@/lib/types";
@@ -30,10 +34,10 @@ import { VersionFooter } from "./version-footer";
 import type { VisibilityType } from "./visibility-selector";
 
 export const artifactDefinitions = [
-  textArtifact,
-  codeArtifact,
-  imageArtifact,
-  sheetArtifact,
+  { ...textArtifact, content: LazyTextArtifactContent },
+  { ...codeArtifact, content: LazyCodeArtifactContent },
+  { ...imageArtifact, content: LazyImageArtifactContent },
+  { ...sheetArtifact, content: LazySheetArtifactContent },
 ];
 export type ArtifactKind = (typeof artifactDefinitions)[number]["kind"];
 

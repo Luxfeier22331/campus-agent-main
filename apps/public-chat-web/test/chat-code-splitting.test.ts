@@ -1,8 +1,12 @@
 import { describe, expect, it } from "vitest";
-
+import codeArtifactSource from "../vendor/vercel-ai-chatbot/artifacts/code/client.tsx?raw";
+import imageArtifactSource from "../vendor/vercel-ai-chatbot/artifacts/image/client.tsx?raw";
+import sheetArtifactSource from "../vendor/vercel-ai-chatbot/artifacts/sheet/client.tsx?raw";
+import textArtifactSource from "../vendor/vercel-ai-chatbot/artifacts/text/client.tsx?raw";
 import vendorCodeBlockSource from "../vendor/vercel-ai-chatbot/components/ai-elements/code-block.tsx?raw";
 import vendorMessageSource from "../vendor/vercel-ai-chatbot/components/ai-elements/message.tsx?raw";
 import vendorReasoningSource from "../vendor/vercel-ai-chatbot/components/ai-elements/reasoning.tsx?raw";
+import chatArtifactSource from "../vendor/vercel-ai-chatbot/components/chat/artifact.tsx?raw";
 import vendorTextEditorSource from "../vendor/vercel-ai-chatbot/components/chat/text-editor.tsx?raw";
 
 describe("chat code splitting", () => {
@@ -32,5 +36,19 @@ describe("chat code splitting", () => {
 		expect(vendorTextEditorSource).not.toContain("Promise.all([");
 		expect(vendorTextEditorSource).not.toContain("loadTextEditorRuntime");
 		expect(vendorTextEditorSource).not.toContain("textEditorRuntimePromise");
+	});
+
+	it("keeps artifact registration light and lazy-loads heavy editors", () => {
+		expect(chatArtifactSource).toContain("LazyTextArtifactContent");
+		expect(chatArtifactSource).toContain("LazyCodeArtifactContent");
+		expect(chatArtifactSource).toContain("LazySheetArtifactContent");
+		expect(chatArtifactSource).not.toContain("@/components/chat/text-editor");
+		expect(chatArtifactSource).not.toContain("@/components/chat/code-editor");
+		expect(chatArtifactSource).not.toContain("@/components/chat/sheet-editor");
+
+		expect(textArtifactSource).not.toContain("@/components/chat/text-editor");
+		expect(codeArtifactSource).not.toContain("@/components/chat/code-editor");
+		expect(sheetArtifactSource).not.toContain("@/components/chat/sheet-editor");
+		expect(imageArtifactSource).not.toContain("@/components/chat/image-editor");
 	});
 });

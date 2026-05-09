@@ -1,7 +1,11 @@
 import { toast } from "sonner";
 import { Artifact } from "@/components/chat/create-artifact";
+import type { ArtifactContentProps } from "@/components/chat/create-artifact";
 import { CopyIcon, RedoIcon, UndoIcon } from "@/components/chat/icons";
-import { ImageEditor } from "@/components/chat/image-editor";
+
+type ImageArtifactMetadata = Record<string, never>;
+
+export type ImageArtifactContentProps = ArtifactContentProps<ImageArtifactMetadata>;
 
 export const imageArtifact = new Artifact({
   kind: "image",
@@ -16,7 +20,7 @@ export const imageArtifact = new Artifact({
       }));
     }
   },
-  content: ImageEditor,
+  content: () => null,
   actions: [
     {
       icon: <UndoIcon size={18} />,
