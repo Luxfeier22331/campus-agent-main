@@ -3,6 +3,13 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import Literal
 
+from .retrieval_intent import (
+    RetrievalIntent,
+    retrieval_intent_for_curriculum_course_plan,
+    retrieval_intent_for_curriculum_plan,
+    retrieval_intent_for_curriculum_program_family_plan,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class CurriculumCourseEntity:
@@ -25,6 +32,10 @@ class CurriculumCourseQueryPlan:
     unsupported_fields: tuple[str, ...] = ()
     partial_answer: bool = False
 
+    @property
+    def retrieval_intent(self) -> RetrievalIntent:
+        return retrieval_intent_for_curriculum_course_plan(self)
+
 
 @dataclass(frozen=True, slots=True)
 class CurriculumProgramFamilyQueryPlan:
@@ -34,6 +45,10 @@ class CurriculumProgramFamilyQueryPlan:
     internal_collection: str = "program_family_facts"
     clarification_reason: str = ""
     clarification_candidates: tuple[str, ...] = ()
+
+    @property
+    def retrieval_intent(self) -> RetrievalIntent:
+        return retrieval_intent_for_curriculum_program_family_plan(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -59,6 +74,10 @@ class CurriculumQueryPlan:
     used_verified_identity: bool = False
     used_soft_preference: bool = False
     candidate_title_summary: tuple[str, ...] = ()
+
+    @property
+    def retrieval_intent(self) -> RetrievalIntent:
+        return retrieval_intent_for_curriculum_plan(self)
 
 
 @dataclass(frozen=True, slots=True)

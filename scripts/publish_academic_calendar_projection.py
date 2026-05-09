@@ -18,8 +18,8 @@ from campus_ingestion_core.academic_calendar_projection import (
     build_academic_calendar_projection_bundle_from_source_truth_manifest,
     write_academic_calendar_projection_release_from_source_truth_manifest,
 )
-from campus_ingestion_core.settings import DEFAULT_BUCKET_DERIVED, ObjectStoreSettings
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
+from campus_ingestion_core.settings import DEFAULT_BUCKET_DERIVED, ObjectStoreSettings
 from campus_ingestion_core.structured_projection_postgres import (
     DEFAULT_STRUCTURED_PROJECTION_DATABASE_ENV_KEY,
     PostgresStructuredProjectionPublisher,
@@ -115,9 +115,7 @@ def main(argv: list[str] | None = None) -> int:
         args.database_url or os.getenv(DEFAULT_STRUCTURED_PROJECTION_DATABASE_ENV_KEY, "")
     ).strip()
     structured_publisher = (
-        PostgresStructuredProjectionPublisher(database_url)
-        if database_url
-        else None
+        PostgresStructuredProjectionPublisher(database_url) if database_url else None
     )
     report = publish_academic_calendar_projection_from_manifest(
         source_truth_manifest_path=Path(args.source_truth_manifest),

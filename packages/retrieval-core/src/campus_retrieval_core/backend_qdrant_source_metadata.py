@@ -43,6 +43,13 @@ def _record_to_text_node(point_id: object, payload: dict[str, object]) -> TextNo
     )
 
 
+def effective_payload_metadata(point_id: object, payload: dict[str, object]) -> dict[str, object]:
+    node = _record_to_text_node(point_id, payload)
+    if node is None:
+        return dict(payload)
+    return dict(node.metadata)
+
+
 def _coerce_text_payload(payload: dict[str, object]) -> str:
     for key in ("text", "display_text", "snippet"):
         value = payload.get(key)

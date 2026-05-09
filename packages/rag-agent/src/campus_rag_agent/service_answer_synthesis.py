@@ -142,6 +142,7 @@ def build_required_rag_sdk_response(
     grounding = validate_prompt_answer_grounding(
         answer_text=result.output.answer_text,
         evidence=supporting_evidence,
+        provider_grounding_supports=result.provider_grounding_supports,
     )
     if grounding.verdict != "grounded":
         return _rag_sdk_fail_closed_response(

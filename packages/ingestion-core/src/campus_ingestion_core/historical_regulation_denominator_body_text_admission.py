@@ -32,9 +32,7 @@ HISTORICAL_REGULATION_BODY_TEXT_ADMISSION_SCHEMA_VERSION = (
     "historical_regulation_body_text_admission.v1"
 )
 
-DEFAULT_HISTORICAL_REGULATION_DENOMINATOR_PHASE = (
-    "historical-regulation-denominator-expansion"
-)
+DEFAULT_HISTORICAL_REGULATION_DENOMINATOR_PHASE = "historical-regulation-denominator-expansion"
 DEFAULT_SOURCE_CHANNEL = "authenticated_notice_portal"
 DEFAULT_RUN_ID = "run14-policy-regulation-expanded"
 TARGET_CLASS_BY_COLLECTION = {

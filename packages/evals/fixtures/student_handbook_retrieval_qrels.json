@@ -40,9 +40,7 @@
 			"policy-title-student-aid-management",
 			"policy-title-funded-student-public-service"
 		],
-		"article_number_exact_match": [
-			"article-number-degree-procedure"
-		],
+		"article_number_exact_match": ["article-number-degree-procedure"],
 		"semantic_service_process": [
 			"semantic-student-card-reissue",
 			"semantic-study-abroad-management",
@@ -59,12 +57,8 @@
 			"policy-title-athlete-postgraduate-exemption",
 			"policy-title-muc-student-management"
 		],
-		"no_hit": [
-			"no-hit-impossible-query"
-		],
-		"version_locked": [
-			"policy-title-medical"
-		]
+		"no_hit": ["no-hit-impossible-query"],
+		"version_locked": ["policy-title-medical"]
 	},
 	"cases": [
 		{

@@ -41,6 +41,7 @@ def build_single_step_plan(request: RetrievalRequest) -> RetrievalPlan:
                 step_type="indexed_lookup",
                 scope=RetrievalScope(corpus=request.corpus, collection=request.collection),
                 query_text=request.query_text,
+                semantic_hint=None,
                 selector=RetrievalSelector(
                     target_document_ids=request.target_document_ids,
                     target_version_ids=request.target_version_ids,

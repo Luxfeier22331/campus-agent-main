@@ -473,7 +473,9 @@ class SmokeAuthenticatedNoticeIngestQueueE2EWorkerTest(unittest.TestCase):
                     ]
                 )
 
-            self.assertEqual(consume.call_args.kwargs["run_processing_projection_reporter"], run_reporter)
+            self.assertEqual(
+                consume.call_args.kwargs["run_processing_projection_reporter"], run_reporter
+            )
             payload = json.loads(stdout.getvalue())
             self.assertEqual(payload["verdict"], "passed")
             report = json.loads(

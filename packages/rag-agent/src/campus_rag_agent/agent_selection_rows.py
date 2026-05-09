@@ -30,6 +30,7 @@ from .agent_selection_statements import (
     _score_source_statements,
 )
 from .agent_shared import _lead_source_title, _normalize_snippet
+from .retrieval_intent import RetrievalIntent
 
 
 def _select_answer_support_rows(
@@ -38,6 +39,7 @@ def _select_answer_support_rows(
     sources: tuple[EvidenceSource, ...],
     max_sources: int,
     answer_shape: AnswerShape | None = None,
+    retrieval_intent: RetrievalIntent | None = None,
 ) -> tuple[tuple[EvidenceSource, tuple[str, ...]], ...]:
     if not sources or max_sources <= 0:
         return ()
@@ -66,7 +68,12 @@ def _select_answer_support_rows(
         else tuple(
             sorted(
                 ranked_source_input,
-                key=lambda source: _answer_source_sort_key(query_text, source, mode=mode),
+                key=lambda source: _answer_source_sort_key(
+                    query_text,
+                    source,
+                    mode=mode,
+                    retrieval_intent=retrieval_intent,
+                ),
                 reverse=True,
             )
         )
@@ -76,6 +83,7 @@ def _select_answer_support_rows(
         sources=ranked_sources,
         mode=mode,
         answer_shape=shape,
+        retrieval_intent=retrieval_intent,
     )
     if shape == AnswerShape.TITLE_LOOKUP and not course_list_query and not curriculum_lookup_query:
         ranked_sources = _filter_title_lookup_sources_for_answer_bearing_overview(ranked_sources)
@@ -171,16 +179,25 @@ def _is_table_like_answer_source(source: EvidenceSource) -> bool:
 
 
 def _answer_source_sort_key(
-    query_text: str, source: EvidenceSource, *, mode: str
-) -> tuple[int, int, int, int, int, int, int]:
+    query_text: str,
+    source: EvidenceSource,
+    *,
+    mode: str,
+    retrieval_intent: RetrievalIntent | None = None,
+) -> tuple[int, int, int, int, int, int, int, int]:
     scored = _score_source_statements(query_text, source, mode=mode)
     if not scored:
-        return (0, 0, 0, 0, 0, 0, 0)
+        return (0, 0, 0, 0, 0, 0, 0, 0)
     best_score = scored[0][0]
     total_score = sum(score for score, _ in scored[:3])
     return (
+        _retrieval_intent_alignment_score(retrieval_intent=retrieval_intent, source=source),
         _query_anchor_match_score(query_text, source),
-        _regulation_semantic_answer_sort_score(query_text=query_text, source=source),
+        _regulation_semantic_answer_sort_score(
+            query_text=query_text,
+            source=source,
+            retrieval_intent=retrieval_intent,
+        ),
         _query_critical_source_match_score(query_text, source),
         best_score,
         total_score,
@@ -189,9 +206,16 @@ def _answer_source_sort_key(
     )
 
 
-def _regulation_semantic_answer_sort_score(*, query_text: str, source: EvidenceSource) -> int:
+def _regulation_semantic_answer_sort_score(
+    *,
+    query_text: str,
+    source: EvidenceSource,
+    retrieval_intent: RetrievalIntent | None = None,
+) -> int:
     if source.collection not in {"student_rules", "institutional_rules"}:
         return 0
+    if retrieval_intent is not None:
+        return _retrieval_intent_alignment_score(retrieval_intent=retrieval_intent, source=source)
     return semantic_alignment_score(query_text=query_text, source=source)
 
 
@@ -319,10 +343,25 @@ def _filter_sources_for_query_subject_alignment(
     sources: tuple[EvidenceSource, ...],
     mode: str,
     answer_shape: AnswerShape,
+    retrieval_intent: RetrievalIntent | None = None,
 ) -> tuple[EvidenceSource, ...]:
     if not sources or answer_shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
         return sources
-    query_subject = infer_query_condition_subject(query_text)
+    if answer_shape in {AnswerShape.DETAIL_CLAUSE, AnswerShape.JUDGMENT_CLAUSE}:
+        critical_groups = _query_critical_term_groups(query_text)
+        if critical_groups:
+            aligned = tuple(
+                source
+                for source in sources
+                if _statement_covers_critical_groups(source.snippet, critical_groups)
+            )
+            if aligned:
+                return aligned
+    query_subject = (
+        retrieval_intent.target.condition_subject
+        if retrieval_intent is not None and retrieval_intent.target.condition_subject
+        else infer_query_condition_subject(query_text)
+    )
     if mode == "time":
         aligned = tuple(
             source
@@ -337,7 +376,39 @@ def _filter_sources_for_query_subject_alignment(
             if evidence_attributes_for_source(source).condition_subject == "material_requirement"
         )
         return aligned or sources
+    if mode == "generic" and query_subject:
+        aligned = tuple(
+            source
+            for source in sources
+            if evidence_attributes_for_source(source).condition_subject == query_subject
+            or evidence_attributes_for_source(source).condition_group_subject == query_subject
+        )
+        return aligned or sources
     return sources
+
+
+def _retrieval_intent_alignment_score(
+    *,
+    retrieval_intent: RetrievalIntent | None,
+    source: EvidenceSource,
+) -> int:
+    if retrieval_intent is None:
+        return 0
+    attributes = evidence_attributes_for_source(source)
+    score = 0
+    if retrieval_intent.target.condition_subject:
+        if attributes.condition_subject == retrieval_intent.target.condition_subject:
+            score += 48
+        elif attributes.condition_group_subject == retrieval_intent.target.condition_subject:
+            score += 32
+        elif attributes.condition_subject or attributes.condition_group_subject:
+            score -= 12
+    if retrieval_intent.expected.evidence_roles:
+        if attributes.answer_role in retrieval_intent.expected.evidence_roles:
+            score += 18
+        elif attributes.answer_role:
+            score -= 6
+    return score
 
 
 def _trim_judgment_statement_for_query(*, query_text: str, statement: str) -> str:
@@ -363,6 +434,10 @@ def _trim_judgment_statement_for_query(*, query_text: str, statement: str) -> st
         )
     ):
         for cue in ("必须在道德风尚", "必须在某一方面表现特别优秀", "且可提供相应的证明材料"):
+            if cue in normalized_statement:
+                normalized_statement = normalized_statement.split(cue, 1)[0].rstrip("，,；;。 ")
+                break
+        for cue in ("具体表现如下", "表现如下"):
             if cue in normalized_statement:
                 normalized_statement = normalized_statement.split(cue, 1)[0].rstrip("，,；;。 ")
                 break

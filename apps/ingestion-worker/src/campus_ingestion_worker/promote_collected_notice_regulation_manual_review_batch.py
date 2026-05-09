@@ -292,8 +292,8 @@ def _write_json(path: Path, payload: Mapping[str, Any]) -> None:
 
 __all__ = [
     "DEFAULT_MANUAL_REVIEW_RESOLUTIONS",
-    "ManualReviewRegulationPromotionRequest",
     "PHASE_11_ID",
+    "ManualReviewRegulationPromotionRequest",
     "build_parser",
     "build_runtime_document_registry",
     "build_runtime_object_store",

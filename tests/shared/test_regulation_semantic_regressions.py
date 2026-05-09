@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from campus_ingestion_core.answer_ready_contract_quality import (
     evaluate_answer_ready_contract_metadata,
 )
-from campus_shared.regulation_semantic_registry import resolve_regulation_condition_subject
+from campus_shared.regulation_semantic_patterns import build_category_overview_metadata
+from campus_shared.regulation_semantic_registry import (
+    resolve_regulation_condition_subject,
+)
 
 
 class RegulationSemanticRegressionsTest(unittest.TestCase):
@@ -85,6 +89,36 @@ class RegulationSemanticRegressionsTest(unittest.TestCase):
         )
 
         self.assertEqual(result.status, "passed")
+
+    def test_registry_facade_preserves_student_rules_query_planning_patch_point(self) -> None:
+        payload = {
+            "policy_objects": [
+                {"document_id": "handbook:member-1", "title": "成员制度一"},
+                {"document_id": "handbook:member-2", "title": "成员制度二"},
+            ],
+            "policy_categories": [
+                {
+                    "category_id": "custom-category",
+                    "display_name": "事项",
+                    "aliases": ["事项"],
+                    "audience": "本科生",
+                    "member_policy_document_ids": ["handbook:member-1", "handbook:member-2"],
+                    "overview_document_id": "handbook:member-2",
+                }
+            ],
+        }
+
+        with patch(
+            "campus_shared.regulation_semantic_registry._load_student_rules_query_planning_config",
+            return_value=payload,
+        ):
+            self.assertEqual(
+                build_category_overview_metadata(
+                    collection="student_rules",
+                    document_id="handbook:member-2",
+                )[0]["metadata"]["member_policy_document_ids"],
+                ["handbook:member-1", "handbook:member-2"],
+            )
 
 
 if __name__ == "__main__":

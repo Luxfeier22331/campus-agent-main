@@ -231,9 +231,9 @@ def _apply_no_hit_policy(
         profile
     ) and _is_excluded_institutional_rule_scope_decision_query(query_text):
         return ()
-    if _is_institutional_rules_profile(
-        profile
-    ) and _is_formal_institutional_rule_title_query(query_text):
+    if _is_institutional_rules_profile(profile) and _is_formal_institutional_rule_title_query(
+        query_text
+    ):
         if _has_institutional_rule_title_support(query_text=query_text, sources=sources):
             return sources
         return ()
@@ -367,9 +367,7 @@ def _has_institutional_rule_title_support(
     return False
 
 
-def _has_student_rule_title_support(
-    *, query_text: str, sources: Sequence[EvidenceSource]
-) -> bool:
+def _has_student_rule_title_support(*, query_text: str, sources: Sequence[EvidenceSource]) -> bool:
     normalized_query = normalize_text(query_text)
     query_key = match_key(normalized_query)
     return any(

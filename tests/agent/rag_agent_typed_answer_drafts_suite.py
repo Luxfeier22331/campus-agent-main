@@ -6,6 +6,11 @@ from dataclasses import replace
 from campus_contracts import EvidenceBundle
 from campus_rag_agent.agent import RagAgent
 from campus_rag_agent.agent_answer_shape import AnswerShape
+from campus_rag_agent.retrieval_intent import (
+    RetrievalIntent,
+    RetrievalIntentExpectation,
+    RetrievalIntentTarget,
+)
 from campus_rag_agent.typed_answer_drafts import (
     TypedAnswerDraft,
     validate_typed_answer_draft,
@@ -25,6 +30,149 @@ def _answer_ready_anchor(**metadata: object) -> dict[str, object]:
 
 
 class RagAgentTypedAnswerDraftTest(unittest.TestCase):
+    def test_regulation_answer_shape_projects_from_retrieval_intent(self) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:appeal",
+            title="中央民族大学学生申诉处理办法",
+            snippet="学生应当在收到处理决定之日起10日内提出申诉。",
+            score=0.91,
+            chunk_id_suffix="appeal-deadline-intent-shape",
+            content_role="deadline",
+            is_answer_bearing=True,
+        )
+        source = replace(
+            source,
+            anchor=_answer_ready_anchor(
+                answer_role="time_constraint",
+                condition_subject="deadline",
+                condition_polarity="positive",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="中央民族大学学生申诉处理办法",
+                corpus="regulations",
+                collection="institutional_rules",
+                sources=(source,),
+            ),
+            retrieval_intent=_retrieval_intent(
+                kind="condition_table",
+                answer_kind="condition_table",
+                collection="institutional_rules",
+                document_ids=("handbook:appeal",),
+                condition_subject="deadline",
+            ),
+        )
+
+        self.assertEqual(draft.typed_draft.kind, "condition_table")
+        self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")
+
+    def test_retrieval_intent_drives_regulation_selection_without_query_cues(self) -> None:
+        generic_source = _make_handbook_source(
+            doc_id="handbook:appeal",
+            title="中央民族大学学生申诉处理办法",
+            snippet="学生申诉应当符合规定条件，并按程序办理。",
+            score=0.94,
+            chunk_id_suffix="appeal-generic-condition",
+            content_role="requirement",
+            is_answer_bearing=True,
+        )
+        generic_source = replace(
+            generic_source,
+            anchor=_answer_ready_anchor(
+                answer_role="eligibility_condition",
+                condition_subject="generic_condition",
+                condition_polarity="positive",
+            ),
+        )
+        deadline_source = _make_handbook_source(
+            doc_id="handbook:appeal",
+            title="中央民族大学学生申诉处理办法",
+            snippet="学生应当在收到处理决定之日起10日内提出申诉。",
+            score=0.88,
+            chunk_id_suffix="appeal-deadline-driven-by-intent",
+            content_role="deadline",
+            is_answer_bearing=True,
+        )
+        deadline_source = replace(
+            deadline_source,
+            anchor=_answer_ready_anchor(
+                answer_role="time_constraint",
+                condition_subject="deadline",
+                condition_polarity="positive",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="中央民族大学学生申诉处理办法",
+                corpus="regulations",
+                collection="institutional_rules",
+                sources=(generic_source, deadline_source),
+            ),
+            retrieval_intent=_retrieval_intent(
+                kind="condition_table",
+                answer_kind="condition_table",
+                collection="institutional_rules",
+                document_ids=("handbook:appeal",),
+                condition_subject="deadline",
+            ),
+        )
+
+        self.assertIn("10日内", draft.answer_text)
+        self.assertEqual(draft.typed_draft.kind, "condition_table")
+        self.assertEqual(draft.typed_draft.rows[0].condition_subject, "deadline")
+        self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")
+
+    def test_typed_draft_validation_rejects_answer_kind_mismatch_against_retrieval_intent(
+        self,
+    ) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:demerit-relief",
+            title="中央民族大学解除学生纪律处分实施办法",
+            snippet="学生受处分满考察期后，可以提交解除处分申请表，经学院审核后报学生处。",
+            score=0.82,
+            chunk_id_suffix="discipline-procedure-intent-mismatch",
+            content_role="procedure",
+            is_answer_bearing=True,
+            semantic_role="procedure_step",
+            polarity="positive",
+            action_type="lift_discipline",
+            claim_type="procedure",
+        )
+        source = replace(
+            source,
+            anchor=_answer_ready_anchor(
+                answer_role="procedure_step",
+                condition_subject="application_procedure",
+                procedure_step_index=1,
+                procedure_actor="student",
+                procedure_action="submit_materials",
+                procedure_materials=("解除处分申请表",),
+                procedure_next_actor="college",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="中央民族大学解除学生纪律处分实施办法",
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            ),
+            answer_shape=AnswerShape.DETAIL_CLAUSE,
+        )
+
+        result = validate_typed_answer_draft(
+            draft.typed_draft,
+            expected_answer_kind="condition_table",
+        )
+
+        self.assertEqual(draft.typed_draft.kind, "procedure_steps")
+        self.assertEqual(result.verdict, "invalid")
+        self.assertEqual(result.failure_reason, "typed_answer_kind_mismatch")
+
     def test_category_discovery_answer_has_validated_policy_list_draft(self) -> None:
         source = _make_handbook_source(
             doc_id="handbook:national-scholarship",
@@ -432,3 +580,24 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _retrieval_intent(
+    *,
+    kind: str,
+    answer_kind: str,
+    collection: str = "student_rules",
+    document_ids: tuple[str, ...] = (),
+    condition_subject: str = "",
+) -> RetrievalIntent:
+    return RetrievalIntent(
+        kind=kind,
+        normalized_query="测试 query",
+        expected=RetrievalIntentExpectation(answer_kind=answer_kind),
+        target=RetrievalIntentTarget(
+            corpus="regulations",
+            collection=collection,
+            document_ids=document_ids,
+            condition_subject=condition_subject,
+        ),
+    )

@@ -6,10 +6,16 @@ from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 from campus_retrieval_core.evidence_ranking import select_supporting_evidence_sources
 
-from .agent_answer_shape import AnswerShape, answer_shape_support_budget, infer_answer_shape
+from .agent_answer_shape import (
+    AnswerShape,
+    answer_shape_from_retrieval_intent,
+    answer_shape_support_budget,
+    infer_answer_shape,
+)
 from .agent_answering import _compose_direct_answer, _render_supporting_contexts
 from .agent_selection_query import _query_mode
 from .agent_selection_rows import _select_answer_support_rows
+from .retrieval_intent import RetrievalIntent
 from .typed_answer_drafts import (
     CategoryDiscoveryDraftContext,
     TypedAnswerDraft,
@@ -50,6 +56,7 @@ class RagAgent:
         category_id: str = "",
         category_display_name: str = "",
         audience: str = "",
+        retrieval_intent: RetrievalIntent | None = None,
     ) -> AnswerDraft:
         if not evidence.sources:
             return AnswerDraft(
@@ -62,7 +69,11 @@ class RagAgent:
                 ),
             )
 
-        answer_shape = answer_shape or infer_answer_shape(evidence=evidence)
+        answer_shape = answer_shape or (
+            answer_shape_from_retrieval_intent(retrieval_intent)
+            if retrieval_intent is not None
+            else infer_answer_shape(evidence=evidence)
+        )
         resolved_category_display_name = category_display_name
         resolved_audience = audience
         if answer_shape == AnswerShape.CATEGORY_DISCOVERY_LIST and (
@@ -92,6 +103,7 @@ class RagAgent:
             sources=candidate_sources,
             max_sources=support_budget,
             answer_shape=answer_shape,
+            retrieval_intent=retrieval_intent,
         )
         supporting_sources = tuple(source for source, _ in selected_rows)
         supporting_contexts = _render_supporting_contexts(selected_rows)
@@ -115,8 +127,14 @@ class RagAgent:
                 if answer_shape == AnswerShape.CATEGORY_DISCOVERY_LIST
                 else None
             ),
+            retrieval_intent=retrieval_intent,
         )
-        validation = validate_typed_answer_draft(typed_draft)
+        validation = validate_typed_answer_draft(
+            typed_draft,
+            expected_answer_kind=(
+                retrieval_intent.expected.answer_kind if retrieval_intent is not None else ""
+            ),
+        )
         if validation.verdict != "valid":
             answer_text = ""
         return AnswerDraft(
@@ -126,8 +144,13 @@ class RagAgent:
             typed_draft=typed_draft,
         )
 
-    def compose_answer(self, evidence: EvidenceBundle) -> str:
-        return self.build_answer(evidence).answer_text
+    def compose_answer(
+        self,
+        evidence: EvidenceBundle,
+        *,
+        retrieval_intent: RetrievalIntent | None = None,
+    ) -> str:
+        return self.build_answer(evidence, retrieval_intent=retrieval_intent).answer_text
 
 
 def _infer_category_context(sources: tuple[EvidenceSource, ...]) -> tuple[str, str]:

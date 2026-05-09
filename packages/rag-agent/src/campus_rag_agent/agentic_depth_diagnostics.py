@@ -11,6 +11,8 @@ from campus_contracts import (
 )
 from campus_retrieval_core import RetrievalExecutionResult
 
+from campus_rag_agent.retrieval_intent import RetrievalIntent
+
 _COLLECTION_MINIMUM_SOURCE_TRUST_TIER = {
     "curriculum_plan": "T0",
     "program_semester_facts": "T0",
@@ -28,11 +30,15 @@ def build_planner_information_needs(
     effective_scope: KnowledgeScope,
     retrieval_collection: str,
     query_mode: str,
+    retrieval_intent: RetrievalIntent | None = None,
 ) -> tuple[RagPlannerInformationNeed, ...]:
     goal = user_goal.strip()
     if not goal:
         return ()
-    evidence_kinds = _infer_expected_evidence_kinds(goal)
+    evidence_kinds = _expected_evidence_kinds(
+        goal,
+        retrieval_intent=retrieval_intent,
+    )
     return tuple(
         RagPlannerInformationNeed(
             need_id=f"need:{index}:{kind}",
@@ -160,6 +166,45 @@ def build_claim_evidence_graph(
     )
 
 
+def _expected_evidence_kinds(
+    user_goal: str,
+    *,
+    retrieval_intent: RetrievalIntent | None,
+) -> tuple[str, ...]:
+    if retrieval_intent is not None:
+        return _expected_evidence_kinds_from_retrieval_intent(retrieval_intent)
+    return _infer_expected_evidence_kinds(user_goal)
+
+
+def _expected_evidence_kinds_from_retrieval_intent(
+    retrieval_intent: RetrievalIntent,
+) -> tuple[str, ...]:
+    kind = retrieval_intent.kind
+    if kind == "policy_list":
+        return ("policy_list",)
+    if kind == "policy_object_lookup":
+        return ("policy_object",)
+    if kind == "specific_clause_lookup":
+        return ("specific_clause",)
+    if kind == "eligibility_judgment":
+        return ("eligibility_judgment",)
+    if kind == "procedure_steps":
+        return ("procedure_steps",)
+    if kind == "condition_table":
+        return ("condition_table",)
+    if kind == "version_compare":
+        return ("version_compare",)
+    if kind == "curriculum_fact_lookup":
+        return ("curriculum_fact",)
+    if kind == "official_reference_lookup":
+        return ("official_reference",)
+    if kind == "clarification_required":
+        return ("clarification",)
+    if kind == "unsupported":
+        return ("unsupported",)
+    return ("general_fact",)
+
+
 def _infer_expected_evidence_kinds(user_goal: str) -> tuple[str, ...]:
     kinds: list[str] = []
     if any(token in user_goal for token in ("材料", "需要", "条件", "要求")):
@@ -176,6 +221,24 @@ def _infer_expected_evidence_kinds(user_goal: str) -> tuple[str, ...]:
 
 
 def _question_for_kind(user_goal: str, evidence_kind: str) -> str:
+    if evidence_kind == "policy_list":
+        return f"{user_goal} - identify the admitted policy list members"
+    if evidence_kind == "policy_object":
+        return f"{user_goal} - identify the targeted governing policy object"
+    if evidence_kind == "specific_clause":
+        return f"{user_goal} - identify the targeted governing clause"
+    if evidence_kind == "eligibility_judgment":
+        return f"{user_goal} - identify the admitted eligibility judgment clause"
+    if evidence_kind == "procedure_steps":
+        return f"{user_goal} - identify the admitted procedure steps"
+    if evidence_kind == "condition_table":
+        return f"{user_goal} - identify the admitted condition rows"
+    if evidence_kind == "version_compare":
+        return f"{user_goal} - identify both admitted version sides"
+    if evidence_kind == "curriculum_fact":
+        return f"{user_goal} - identify the admitted curriculum fact"
+    if evidence_kind == "official_reference":
+        return f"{user_goal} - identify the admitted official reference fact"
     if evidence_kind == "requirement":
         return f"{user_goal} - identify required materials, conditions, or obligations"
     if evidence_kind == "procedure":

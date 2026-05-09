@@ -43,7 +43,9 @@ class ProcessingPipelinePolicyChunkingMergeTest(unittest.TestCase):
         self.assertEqual(metadata["role_confidence"], "medium")
         self.assertIn("derived_from_handbook_semantics", metadata["role_reason"])
 
-    def test_release_metadata_does_not_promote_procedure_content_without_step_evidence(self) -> None:
+    def test_release_metadata_does_not_promote_procedure_content_without_step_evidence(
+        self,
+    ) -> None:
         semantics = SimpleNamespace(
             content_role="procedure",
             semantic_role="procedure_step",
@@ -139,9 +141,7 @@ class ProcessingPipelinePolicyChunkingMergeTest(unittest.TestCase):
             "campus_ingestion_core.process_candidate_merging_short_textual.decide_answer_role",
             side_effect=AssertionError("bare role parser should not run"),
         ):
-            self.assertFalse(
-                answer_ready_atomic_roles_conflict(current=current, incoming=incoming)
-            )
+            self.assertFalse(answer_ready_atomic_roles_conflict(current=current, incoming=incoming))
 
     def test_build_indexable_chunks_from_jsonl_rewrites_parent_table_html_to_placeholder(
         self,

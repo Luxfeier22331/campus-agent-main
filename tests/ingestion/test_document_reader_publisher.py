@@ -88,7 +88,7 @@ class DocumentReaderPublisherTest(unittest.TestCase):
         self.assertIn("第一学期开设法理学", search_units[0]["snippet"])
         self.assertNotIn("chunk_id", json.dumps(manifest, ensure_ascii=False))
 
-    def test_publish_document_reader_assets_accepts_missing_canonical_key_when_units_exist(
+    def test_publish_document_reader_assets_fails_fast_on_missing_canonical_key(
         self,
     ) -> None:
         record = _make_record(
@@ -106,16 +106,13 @@ class DocumentReaderPublisherTest(unittest.TestCase):
             }
         )
 
-        report = publish_document_reader_assets(
-            bucket_derived="campus-rag-derived",
-            generated_at="2026-04-27T08:00:00+00:00",
-            object_store=object_store,
-            records=(record,),
-        )
-
-        self.assertEqual(report.document_count, 1)
-        self.assertEqual(report.public_entry_count, 1)
-        self.assertEqual(report.gated_entry_count, 0)
+        with self.assertRaisesRegex(ValueError, "missing canonical reader input"):
+            publish_document_reader_assets(
+                bucket_derived="campus-rag-derived",
+                generated_at="2026-04-27T08:00:00+00:00",
+                object_store=object_store,
+                records=(record,),
+            )
 
     def test_publish_document_reader_assets_fails_fast_on_missing_required_artifacts(self) -> None:
         record = _make_record(

@@ -146,9 +146,7 @@ def _select_source_artifact_path(
         return None
     exact_suffix = Path(document_units_object_key)
     object_store_matches = tuple(
-        path
-        for path in paths
-        if _path_has_object_store_suffix(path=path, suffix=exact_suffix)
+        path for path in paths if _path_has_object_store_suffix(path=path, suffix=exact_suffix)
     )
     if object_store_matches:
         return sorted(object_store_matches, key=lambda item: len(str(item)))[0]

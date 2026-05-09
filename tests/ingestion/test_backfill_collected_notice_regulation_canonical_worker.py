@@ -75,12 +75,14 @@ class BackfillCollectedNoticeRegulationCanonicalWorkerTests(unittest.TestCase):
             self.assertFalse(report["rag_release_opened"])
             self.assertEqual(report["selected_notice_ids"], ["481", "594", "619", "620"])
             self.assertTrue(Path(report["files"]["canonical-backfill-report.json"]).exists())
-            self.assertTrue(Path(report["files"]["first-batch/materialization.execute.json"]).exists())
-            self.assertTrue(Path(report["files"]["manual-review/materialization.execute.json"]).exists())
+            self.assertTrue(
+                Path(report["files"]["first-batch/materialization.execute.json"]).exists()
+            )
+            self.assertTrue(
+                Path(report["files"]["manual-review/materialization.execute.json"]).exists()
+            )
             persisted = json.loads(
-                Path(report["files"]["canonical-backfill-report.json"]).read_text(
-                    encoding="utf-8"
-                )
+                Path(report["files"]["canonical-backfill-report.json"]).read_text(encoding="utf-8")
             )
             self.assertEqual(persisted["normalization_quality"]["verdict"], "passed")
 

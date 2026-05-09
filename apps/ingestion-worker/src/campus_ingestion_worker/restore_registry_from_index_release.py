@@ -5,14 +5,13 @@ import json
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict
 
-from campus_retrieval_core.settings import RetrievalSettings
-
 from campus_ingestion_core import ObjectStoreSettings, build_document_registry_from_env
 from campus_ingestion_core.index_release_registry_restore import (
     restore_registry_scope_from_index_release_payloads,
 )
 from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
 from campus_ingestion_core.registry_scope_release_support import build_qdrant_client
+from campus_retrieval_core.settings import RetrievalSettings
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 

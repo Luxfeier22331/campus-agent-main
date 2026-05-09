@@ -11,6 +11,7 @@ from campus_shared.answer_ready_evidence_contract import (
 from campus_shared.regulation_semantic_registry import (
     REGULATION_GROUPED_ANSWER_ROLES,
     build_regulation_condition_group_id,
+    condition_group_subject_from_group_id,
     resolve_regulation_condition_group_subject,
     resolve_regulation_condition_subject,
     resolve_regulation_expected_polarity,
@@ -33,8 +34,12 @@ def build_answer_ready_contract_metadata(
         return {}
     normalized_metadata = dict(metadata)
     if answer_role == "eligibility_intro":
-        inferred_intro_target_roles = infer_intro_target_roles(text=text, metadata=normalized_metadata)
-        if inferred_intro_target_roles and not _text_tuple(normalized_metadata.get("intro_target_roles")):
+        inferred_intro_target_roles = infer_intro_target_roles(
+            text=text, metadata=normalized_metadata
+        )
+        if inferred_intro_target_roles and not _text_tuple(
+            normalized_metadata.get("intro_target_roles")
+        ):
             normalized_metadata["intro_target_roles"] = inferred_intro_target_roles
         normalized_metadata["is_answer_bearing"] = False
     contract: dict[str, object] = {
@@ -166,9 +171,6 @@ def infer_condition_group_id(
     metadata: dict[str, object],
     root_unit_id: str,
 ) -> str:
-    explicit = _text(metadata.get("condition_group_id"))
-    if explicit:
-        return explicit
     answer_role = _text(metadata.get("answer_role"))
     if answer_role and answer_role not in REGULATION_GROUPED_ANSWER_ROLES | {
         "material_requirement"
@@ -195,6 +197,11 @@ def infer_condition_group_id(
     group_subject = group_subject_assignment.value
     if not group_subject:
         return ""
+    explicit = _text(metadata.get("condition_group_id"))
+    if explicit and explicit.startswith(f"{parent_unit_id}:"):
+        explicit_group_subject = condition_group_subject_from_group_id(explicit)
+        if explicit_group_subject == group_subject:
+            return explicit
     return build_regulation_condition_group_id(
         parent_unit_id=parent_unit_id,
         group_subject=group_subject,
@@ -202,13 +209,10 @@ def infer_condition_group_id(
 
 
 def infer_condition_group_subject(*, text: str, metadata: dict[str, object]) -> str:
-    explicit = _text(metadata.get("condition_group_subject"))
-    if explicit:
-        return explicit
     return resolve_regulation_condition_group_subject(
         text=text,
         answer_role=_text(metadata.get("answer_role")),
-        explicit_condition_group_subject="",
+        explicit_condition_group_subject=_text(metadata.get("condition_group_subject")),
         fallback_condition_subject=(
             _text(metadata.get("introduced_condition_subject"))
             if _text(metadata.get("answer_role")) == "eligibility_intro"
@@ -421,21 +425,49 @@ def infer_intro_target_roles(*, text: str, metadata: dict[str, object]) -> tuple
     condition_subject = _text(metadata.get("condition_subject"))
     condition_group_subject = _text(metadata.get("condition_group_subject"))
     compact = _compact(text)
-    if condition_subject == "generic_restriction" or condition_group_subject == "generic_restriction":
+    if (
+        condition_subject == "generic_restriction"
+        or condition_group_subject == "generic_restriction"
+    ):
         return ("exclusion_rule",)
-    if condition_subject == "application_procedure" or condition_group_subject == "application_procedure":
+    if (
+        condition_subject == "application_procedure"
+        or condition_group_subject == "application_procedure"
+    ):
         return ("procedure_step",)
-    if "有下列情形之一" in compact or "有以下情形之一" in compact:
+    if any(
+        marker in compact
+        for marker in (
+            "有下列情形之一",
+            "有以下情形之一",
+            "有下列情形",
+            "有以下情形",
+            "出现下列情形之一",
+            "出现以下情形之一",
+            "出现下列情形",
+            "出现以下情形",
+        )
+    ):
         return ("exclusion_rule",)
     if any(
         marker in compact
         for marker in (
             "符合下列条件之一",
             "符合以下条件之一",
+            "符合下列条件",
+            "符合以下条件",
             "具备下列条件之一",
             "具备以下条件之一",
+            "具备下列条件",
+            "具备以下条件",
             "具有下列条件之一",
             "具有以下条件之一",
+            "具有下列条件",
+            "具有以下条件",
+            "须具备下列条件",
+            "须具备以下条件",
+            "应具备下列条件",
+            "应具备以下条件",
         )
     ):
         return ("eligibility_condition",)

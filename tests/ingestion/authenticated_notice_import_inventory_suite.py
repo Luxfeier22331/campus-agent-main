@@ -151,10 +151,18 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                 "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL": "postgresql://example.test/management",
             }
 
-            with patch(
-                "campus_ingestion_core.authenticated_notice_import.build_authenticated_notice_source_truth_inventory_store_from_env",
-                return_value=inventory_store,
-            ) as build_inventory_store:
+            with (
+                patch(
+                    "campus_ingestion_core.authenticated_notice_import.build_authenticated_notice_source_truth_inventory_store_from_env",
+                    return_value=inventory_store,
+                ) as build_inventory_store,
+                patch(
+                    "campus_ingestion_core.authenticated_notice_import._build_consumption_projection_store_from_env_if_configured"
+                ) as build_projection_store,
+                patch(
+                    "campus_ingestion_core.authenticated_notice_import._build_read_model_store_from_env_if_configured"
+                ) as build_read_model_store,
+            ):
                 report = import_authenticated_notice_export(
                     request=AuthenticatedNoticeImportRequest(
                         bundle_path=bundle_path,
@@ -173,6 +181,8 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
 
         self.assertEqual(report["errors"], [])
         build_inventory_store.assert_called_once_with(env, prefer_operator=True)
+        build_projection_store.assert_not_called()
+        build_read_model_store.assert_not_called()
         entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0].notice_id, "355119")

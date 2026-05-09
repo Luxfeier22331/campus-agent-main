@@ -19,13 +19,13 @@ from campus_retrieval_core.backend_qdrant_filters import (
     _build_qdrant_filter,
     _build_source_scoped_qdrant_filter,
 )
+from campus_retrieval_core.backend_qdrant_no_hit_policy import (
+    _is_formal_institutional_rule_title_query,
+)
 from campus_retrieval_core.backend_qdrant_official_web_policy import (
     _OFFICIAL_WEB_STABLE_REFERENCE_QUERY_TERMS,
     _normalize_low_signal_query,
     _official_web_source_chunk_ordinal,
-)
-from campus_retrieval_core.backend_qdrant_no_hit_policy import (
-    _is_formal_institutional_rule_title_query,
 )
 from campus_retrieval_core.backend_qdrant_query import (
     _build_document_support_query_text,

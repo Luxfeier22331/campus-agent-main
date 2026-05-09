@@ -215,12 +215,27 @@ def short_textual_candidates_are_compatible(
             return False
     elif not short_textual_section_paths_are_compatible(current=current, incoming=incoming):
         return False
+    if answer_ready_intro_merge_conflict(current=current, incoming=incoming):
+        return False
     if answer_ready_atomic_roles_conflict(current=current, incoming=incoming):
         return False
     for field_name in ("title", "policy_doc_no"):
         if current.metadata.get(field_name) != incoming.metadata.get(field_name):
             return False
     return True
+
+
+def answer_ready_intro_merge_conflict(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+) -> bool:
+    current_role = candidate_answer_role(current)
+    incoming_role = candidate_answer_role(incoming)
+    if "eligibility_intro" not in {current_role, incoming_role}:
+        return False
+    other_role = incoming_role if current_role == "eligibility_intro" else current_role
+    return other_role in {"supporting_detail", "definition", ""}
 
 
 def answer_ready_atomic_roles_conflict(
@@ -256,9 +271,7 @@ def candidate_answer_role(candidate: _ChunkCandidate) -> str:
     parsed_role = str(
         decide_answer_role(
             text=candidate.piece.text,
-            prefix_text=" ".join(
-                part for part in normalize_section_path(candidate.anchor) if part
-            ),
+            prefix_text=" ".join(part for part in normalize_section_path(candidate.anchor) if part),
         ).get("answer_role")
         or ""
     ).strip()

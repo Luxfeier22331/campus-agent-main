@@ -250,7 +250,7 @@ class RegulationSemanticRegistryProcedureCoreSuite:
         )
 
         self.assertEqual(assignment.value, "applicant")
-        self.assertEqual(assignment.provenance, "fallback:imperative_material_step")
+        self.assertEqual(assignment.provenance, "keyword:imperative_material_step")
 
     def test_shared_procedure_actor_resolution_defaults_publish_result_step_to_office(self) -> None:
         assignment = resolve_regulation_procedure_actor(
@@ -258,7 +258,7 @@ class RegulationSemanticRegistryProcedureCoreSuite:
         )
 
         self.assertEqual(assignment.value, "office")
-        self.assertEqual(assignment.provenance, "fallback:publish_notice")
+        self.assertEqual(assignment.provenance, "keyword:publish_notice")
 
     def test_shared_procedure_actor_resolution_ignores_student_object_in_disposition_clause(
         self,

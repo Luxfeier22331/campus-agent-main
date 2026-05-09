@@ -86,8 +86,7 @@ class CollectedNoticeRegulationHistoricalOfflineAdmissionTests(unittest.TestCase
         self.assertTrue(all(entry["target"] == "regulation" for entry in entries))
         self.assertTrue(
             all(
-                "historical_offline_chunk_only_backfill"
-                in entry["reason_codes"]
+                "historical_offline_chunk_only_backfill" in entry["reason_codes"]
                 for entry in entries
             )
         )

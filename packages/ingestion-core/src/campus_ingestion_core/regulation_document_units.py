@@ -73,9 +73,7 @@ _SUBSECTION_HEADING_RE = re.compile(
 )
 _SUBSECTION_LABEL_RE = re.compile(rf"^(?P<label>[（(][{_CHINESE_NUMBER}]+[)）][、.]?)")
 _NUMERIC_ITEM_RE = re.compile(r"^(?P<label>[0-9]+[.、])")
-_POLICY_DOC_NO_RE = re.compile(
-    r"^[\u4e00-\u9fffA-Za-z]{2,20}[〔（(\[]\d{4}[〕）)\]]\d{1,8}号$"
-)
+_POLICY_DOC_NO_RE = re.compile(r"^[\u4e00-\u9fffA-Za-z]{2,20}[〔（(\[]\d{4}[〕）)\]]\d{1,8}号$")
 _EDITION_NOTE_RE = re.compile(r"^[（(][^（）()]{0,12}(?:试行|修订|暂行|草案)[）)]$")
 _IMPRINT_DATE_LINE_RE = re.compile(r"^\d{4}年\d{1,2}月\d{1,2}日(?:印发|发布|公布|施行)?$")
 _SHORT_CONTEXT_HEADING_RE = re.compile(

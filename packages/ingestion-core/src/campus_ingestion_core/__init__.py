@@ -132,7 +132,6 @@ from campus_ingestion_core.index_release import (
     IndexReleaseArtifacts,
     IndexReleaseDocumentRef,
     IndexReleaseManifest,
-    IndexReleaseValidationResult,
     build_index_release_manifest,
     build_release_metadata_payload,
     default_release_id,
@@ -143,6 +142,7 @@ from campus_ingestion_core.index_release import (
     validate_scope_release,
     write_index_release_artifacts,
 )
+from campus_ingestion_core.index_release_models import IndexReleaseValidationResult
 from campus_ingestion_core.internal_notice_chunking_validation import (
     DEFAULT_INTERNAL_NOTICE_SAMPLE_SEED,
     InternalNoticeChunkingScanResult,
@@ -241,7 +241,6 @@ from campus_ingestion_core.process import (
 from campus_ingestion_core.qdrant_backup import (
     CollectionGcCheckRequest,
     CollectionGcEligibilityReport,
-    SnapshotBackupManifest,
     SnapshotBackupRequest,
     SnapshotRestoreReport,
     SnapshotRestoreRequest,
@@ -250,6 +249,7 @@ from campus_ingestion_core.qdrant_backup import (
     default_backup_id,
     restore_snapshot_backup,
 )
+from campus_ingestion_core.qdrant_backup_models import SnapshotBackupManifest
 from campus_ingestion_core.raw_ingestion import (
     OnlineOcrClient,
     OnlineOcrProviderResult,
@@ -300,9 +300,6 @@ from campus_ingestion_core.regulation_rag_release_admission import (
     validate_regulation_rag_release_admission_manifest_shape,
     write_regulation_rag_release_admission_manifest,
 )
-from campus_ingestion_core.regulation_rag_release_manifest_audit import (
-    audit_regulation_rag_release_manifests,
-)
 from campus_ingestion_core.regulation_rag_release_lane import (
     InMemoryRegulationRagReleaseCandidateStore,
     PostgresRegulationRagReleaseCandidateStore,
@@ -315,6 +312,9 @@ from campus_ingestion_core.regulation_rag_release_lane import (
     enqueue_regulation_rag_release_candidates_for_records,
     enqueue_regulation_rag_release_candidates_for_registry_delta,
     process_pending_regulation_rag_release_candidates,
+)
+from campus_ingestion_core.regulation_rag_release_manifest_audit import (
+    audit_regulation_rag_release_manifests,
 )
 from campus_ingestion_core.scope_alias import (
     ScopeAliasReport,
@@ -371,8 +371,13 @@ __all__ = [
     "LAYOUT_ELEMENTS_FILENAME",
     "MANDATORY_PREPARATION_SCOPES",
     "OFFICIAL_WEB_PROJECTION_CHUNKING_AUDIT_SCHEMA_VERSION",
+    "OFFICIAL_WEB_REGULATION_QUALITY_AUDIT_SCHEMA_VERSION",
     "PROVIDER_RESPONSE_FILENAME",
     "REGISTRY_SCOPE_CHUNK_PREPARATION_OPERATION",
+    "REGULATION_RAG_RELEASE_ADMISSION_MANIFEST_ENV_KEY",
+    "REGULATION_RAG_RELEASE_ADMISSION_OPERATION",
+    "REGULATION_RAG_RELEASE_ADMISSION_POLICY_VERSION",
+    "REGULATION_RAG_RELEASE_ADMISSION_SCHEMA_VERSION",
     "AuthenticatedNoticeAttachmentProjection",
     "AuthenticatedNoticeBundleImportResult",
     "AuthenticatedNoticeCloseoutService",
@@ -445,7 +450,6 @@ __all__ = [
     "OfficialWebProjectionDeclarationsConfig",
     "OfficialWebProjectionReplayReport",
     "OfficialWebProjectionValidationReport",
-    "OFFICIAL_WEB_REGULATION_QUALITY_AUDIT_SCHEMA_VERSION",
     "OfficialWebRegulationMaterializationReport",
     "OfficialWebRegulationQualityAuditDocumentReport",
     "OfficialWebRegulationQualityAuditReport",
@@ -456,10 +460,6 @@ __all__ = [
     "PostgresRawAssetRegistry",
     "PostgresRegulationRagReleaseCandidateStore",
     "QdrantIndexBinding",
-    "REGULATION_RAG_RELEASE_ADMISSION_MANIFEST_ENV_KEY",
-    "REGULATION_RAG_RELEASE_ADMISSION_OPERATION",
-    "REGULATION_RAG_RELEASE_ADMISSION_POLICY_VERSION",
-    "REGULATION_RAG_RELEASE_ADMISSION_SCHEMA_VERSION",
     "RagReleaseCandidate",
     "RagReleaseCandidateEnqueueReport",
     "RagReleaseCandidateProcessReport",
@@ -502,6 +502,7 @@ __all__ = [
     "assert_known_scope",
     "audit_official_web_projection_chunking",
     "audit_official_web_regulation_batch_quality",
+    "audit_regulation_rag_release_manifests",
     "build_authenticated_notice_closeout_store_from_env",
     "build_authenticated_notice_source_truth_replay_documents",
     "build_document_artifact_key",
@@ -535,7 +536,6 @@ __all__ = [
     "build_regulation_rag_release_admission_manifest",
     "build_regulation_rag_release_candidate_store_from_env",
     "build_regulation_rag_runtime_profile_identity",
-    "audit_regulation_rag_release_manifests",
     "build_release_metadata_payload",
     "build_source_ocr_artifact_key",
     "build_source_provider_artifact_key",
@@ -573,8 +573,8 @@ __all__ = [
     "load_chunk_profile",
     "load_internal_notice_promotion_routing_config",
     "load_official_web_projection_declarations",
-    "load_runtime_profile",
     "load_regulation_rag_release_admission_manifest",
+    "load_runtime_profile",
     "load_split_manifest",
     "materialize_institutional_regulations_from_internal_notice_scope",
     "materialize_official_web_regulation_candidates",
@@ -583,6 +583,7 @@ __all__ = [
     "normalize_handbook_body_text",
     "normalize_handbook_provider_result",
     "normalize_handbook_title",
+    "official_web_regulation_quality_audit_report_to_dict",
     "parse_source_object_key",
     "prefetch_hf_tokenizer",
     "prepare_registry_scope_chunks",
@@ -597,15 +598,14 @@ __all__ = [
     "release_registry_scope",
     "replay_official_web_source_truth_local",
     "replay_provider_response_rebuild",
-    "require_verified_chunk_preparation",
     "require_regulation_rag_release_admission_key",
+    "require_verified_chunk_preparation",
     "reset_index_binding",
     "resolve_alias_target",
     "resolve_collection_truth_config",
-    "resolve_regulation_rag_release_admission_manifest_key",
-    "official_web_regulation_quality_audit_report_to_dict",
     "resolve_file_release_owner_recovery_readiness",
     "resolve_prefetched_hf_tokenizer_path",
+    "resolve_regulation_rag_release_admission_manifest_key",
     "resolve_version_query",
     "restore_snapshot_backup",
     "rollback_release_alias",

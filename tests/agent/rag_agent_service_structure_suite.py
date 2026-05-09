@@ -32,6 +32,7 @@ RAG_AGENT_ANSWERING_GENERIC = RAG_AGENT_PACKAGE / "agent_answering_generic.py"
 RAG_AGENT_ANSWERING_PROCEDURE = RAG_AGENT_PACKAGE / "agent_answering_procedure.py"
 RAG_AGENT_ANSWERING_SUPPORT = RAG_AGENT_PACKAGE / "agent_answering_support.py"
 RAG_AGENT_CURRICULUM = RAG_AGENT_PACKAGE / "agent_curriculum.py"
+RAG_AGENT_ANSWER_SHAPE = RAG_AGENT_PACKAGE / "agent_answer_shape.py"
 RAG_AGENT_CURRICULUM_ANSWERING = RAG_AGENT_PACKAGE / "agent_curriculum_answering.py"
 RAG_AGENT_CURRICULUM_TABLES = RAG_AGENT_PACKAGE / "agent_curriculum_tables.py"
 RAG_AGENT_CURRICULUM_TERMS = RAG_AGENT_PACKAGE / "agent_curriculum_terms.py"
@@ -97,6 +98,23 @@ class RagAgentServiceStructureTest(unittest.TestCase):
         self.assertNotIn("build_rag_answer_prompt_packet", service_source)
         self.assertNotIn("should_block_remote_content_generation", service_source)
         self.assertLessEqual(len(service_source.splitlines()), 520)
+
+    def test_sdk_synthesis_does_not_import_raw_query_task_classifier(self) -> None:
+        synthesis_source = RAG_SERVICE_SYNTHESIS.read_text(encoding="utf-8")
+
+        self.assertNotIn("infer_evidence_query_intent", synthesis_source)
+        self.assertNotIn("query_requests_negative_polarity", synthesis_source)
+        self.assertNotIn("plan_student_handbook_query", synthesis_source)
+        self.assertIn("_rag_task_kind_from_retrieval_intent", synthesis_source)
+
+    def test_answer_shape_module_does_not_keep_regulation_query_cue_classifier(self) -> None:
+        shape_source = RAG_AGENT_ANSWER_SHAPE.read_text(encoding="utf-8")
+
+        self.assertNotIn("_CONDITION_QUERY_HINTS =", shape_source)
+        self.assertNotIn("_OVERVIEW_HINTS =", shape_source)
+        self.assertNotIn("_CATEGORY_DISCOVERY_HINTS =", shape_source)
+        self.assertNotIn("_DETAIL_CLAUSE_HINTS =", shape_source)
+        self.assertNotIn("_JUDGMENT_CLAUSE_HINTS =", shape_source)
 
     def test_delegate_service_keeps_outcome_branches_in_dedicated_module(self) -> None:
         service_source = RAG_SERVICE.read_text(encoding="utf-8")

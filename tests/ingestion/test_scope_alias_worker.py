@@ -84,9 +84,7 @@ class ScopeAliasWorkerCliTest(unittest.TestCase):
 
         self.assertIsNone(set_scope_release_alias.call_args.kwargs["physical_collection_name"])
         self.assertEqual(
-            set_scope_release_alias.call_args.kwargs[
-                "expected_current_physical_collection_name"
-            ],
+            set_scope_release_alias.call_args.kwargs["expected_current_physical_collection_name"],
             "muc_public_pages__r20260402_152206",
         )
         self.assertEqual(

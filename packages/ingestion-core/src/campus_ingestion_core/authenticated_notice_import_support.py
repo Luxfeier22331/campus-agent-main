@@ -16,9 +16,6 @@ from campus_ingestion_core.authenticated_notice_defaults import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
     DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
 )
-from campus_ingestion_core.authenticated_notice_import_env_presence import (
-    env_has_read_model_config,
-)
 from campus_ingestion_core.authenticated_notice_import_sources import (
     AuthenticatedNoticeImportObjectRefs,
     explicit_authenticated_notice_import_object_refs,
@@ -90,11 +87,8 @@ def load_consumer_admission_manifest_if_needed(
     read_model_store: InternalNoticeReadModelStore | None,
     source: dict[str, str],
 ) -> InternalNoticeConsumerAdmissionManifest | None:
-    downstream_write_requested = (
-        projection_store is not None
-        or read_model_store is not None
-        or env_has_read_model_config(source)
-    )
+    del source
+    downstream_write_requested = projection_store is not None or read_model_store is not None
     if not downstream_write_requested:
         return None
     if request.consumer_admission_manifest_path is None:

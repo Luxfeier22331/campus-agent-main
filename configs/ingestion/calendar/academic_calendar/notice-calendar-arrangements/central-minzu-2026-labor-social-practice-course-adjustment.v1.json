@@ -14,17 +14,13 @@
 				"noticeId": "355589",
 				"title": "关于发布“五一”劳动节假期放假安排的通知",
 				"releaseTime": "2026-04-15 08:50",
-				"sourceRefs": [
-					"https://my.muc.edu.cn/#/print?type=5&notice_id=355589&show_type=1"
-				]
+				"sourceRefs": ["https://my.muc.edu.cn/#/print?type=5&notice_id=355589&show_type=1"]
 			},
 			{
 				"noticeId": "355682",
 				"title": "关于运动会、春季社会实践周、劳动节假期本（预）科、 研究生课程调整的通知",
 				"releaseTime": "2026-04-16 17:27",
-				"sourceRefs": [
-					"https://my.muc.edu.cn/#/print?type=6&notice_id=355682&show_type=1"
-				]
+				"sourceRefs": ["https://my.muc.edu.cn/#/print?type=6&notice_id=355682&show_type=1"]
 			}
 		],
 		"records": [
@@ -86,9 +82,7 @@
 				],
 				"sourceTitle": "关于运动会、春季社会实践周、劳动节假期本（预）科、 研究生课程调整的通知",
 				"sourceUrl": "https://my.muc.edu.cn/#/print?type=6&notice_id=355682&show_type=1",
-				"sourceRefs": [
-					"https://my.muc.edu.cn/#/print?type=6&notice_id=355682&show_type=1"
-				]
+				"sourceRefs": ["https://my.muc.edu.cn/#/print?type=6&notice_id=355682&show_type=1"]
 			},
 			{
 				"academicYearLabel": "2025-2026学年",

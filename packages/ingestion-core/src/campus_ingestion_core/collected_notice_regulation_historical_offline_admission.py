@@ -166,7 +166,9 @@ def _offline_entry(
     if not isinstance(recovery, Mapping) or not isinstance(recovery.get("written_refs"), Mapping):
         raise ValueError(f"notice {source_notice_id} must have owner_text_recovery written_refs")
     source_class = str(entry.get("regulation_admission_class") or "").strip()
-    if source_class not in CONVERTIBLE_CLASSES and str(entry.get("consumption_class") or "") not in {
+    if source_class not in CONVERTIBLE_CLASSES and str(
+        entry.get("consumption_class") or ""
+    ) not in {
         "downstream_admitted",
     }:
         raise ValueError(f"notice {source_notice_id} is not convertible for offline backfill")
@@ -218,11 +220,7 @@ def _offline_entry(
             "preconditions": list(
                 dict.fromkeys(
                     (
-                        *[
-                            str(item)
-                            for item in entry.get("preconditions") or ()
-                            if str(item)
-                        ],
+                        *[str(item) for item in entry.get("preconditions") or () if str(item)],
                         "owner_text_ready",
                         "historical_offline_chunk_only_backfill",
                     )

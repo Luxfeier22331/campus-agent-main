@@ -57,7 +57,9 @@ class CollectedNoticeRegulationCanonicalBackfillTests(unittest.TestCase):
             generated_at="2026-05-02T00:00:00+00:00",
         )
 
-        self.assertEqual(report["schema_version"], "collected_notice_regulation_canonical_backfill.v1")
+        self.assertEqual(
+            report["schema_version"], "collected_notice_regulation_canonical_backfill.v1"
+        )
         self.assertEqual(report["phase"], PHASE_13_ID)
         self.assertEqual(report["mode"], "execute")
         self.assertTrue(report["write_enabled"])
@@ -70,10 +72,9 @@ class CollectedNoticeRegulationCanonicalBackfillTests(unittest.TestCase):
             ["first_batch", "manual_review"],
         )
 
-        records = (
-            registry.list_by_scope("regulations", "institutional_rules")
-            + registry.list_by_scope("regulations", "scoped_rules")
-        )
+        records = registry.list_by_scope(
+            "regulations", "institutional_rules"
+        ) + registry.list_by_scope("regulations", "scoped_rules")
         self.assertEqual(len(records), 4)
         for record in records:
             rows = object_store.get_bytes(

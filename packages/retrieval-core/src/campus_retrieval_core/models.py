@@ -158,7 +158,7 @@ class RetrievalScope:
 class RetrievalSourceTrustPolicy:
     minimum_tier: SourceTrustTier | str = "T1"
     allow_live_source_lookup: bool = False
-    legacy_fallback_mode: RetrievalLegacyFallbackMode | str = "legacy_old_index_compatibility"
+    legacy_fallback_mode: RetrievalLegacyFallbackMode | str = "target_v3_only"
 
     def __post_init__(self) -> None:
         normalized_minimum_tier = (

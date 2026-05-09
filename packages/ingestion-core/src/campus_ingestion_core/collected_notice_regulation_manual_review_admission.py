@@ -21,9 +21,7 @@ from campus_ingestion_core.collected_notice_regulation_admission_support import 
 )
 
 PHASE_11_ID = "phase-11-second-batch-manual-review-admission"
-MANUAL_REVIEW_RESOLUTION_SCHEMA_VERSION = (
-    "collected_notice_regulation_manual_review_resolution.v1"
-)
+MANUAL_REVIEW_RESOLUTION_SCHEMA_VERSION = "collected_notice_regulation_manual_review_resolution.v1"
 TARGET_COLLECTIONS = (INSTITUTIONAL_TARGET_COLLECTION, SCOPED_TARGET_COLLECTION)
 TARGET_CLASS_BY_COLLECTION = {
     INSTITUTIONAL_TARGET_COLLECTION: REGULATION_CLASS_INSTITUTIONAL,
@@ -133,9 +131,7 @@ def build_manual_review_regulation_admission(
         "phase": PHASE_11_ID,
         "target": REGULATION_TARGET,
         "source_scope": {
-            "source_notice_ids": [
-                str(entry["source_notice_id"]) for entry in selected_entries
-            ],
+            "source_notice_ids": [str(entry["source_notice_id"]) for entry in selected_entries],
             "target": REGULATION_TARGET,
             "manual_review_resolved": True,
         },
@@ -211,7 +207,9 @@ def _resolved_admission_entry(
         issuing_org=issuing_org,
         target_collection=target_collection,
     )
-    owner_text_recovery = _owner_text_recovery(candidate=candidate, owner_text_result=owner_text_result)
+    owner_text_recovery = _owner_text_recovery(
+        candidate=candidate, owner_text_result=owner_text_result
+    )
     source_notice_release_time = _resolve_source_notice_release_time(
         candidate=candidate,
         owner_text_result=owner_text_result,
@@ -313,9 +311,7 @@ def _candidate_row_from_entry(entry: Mapping[str, Any]) -> dict[str, Any]:
         "source_notice_release_time": entry.get("source_notice_release_time"),
         "recommended_query_surface": entry.get("recommended_query_surface"),
         "duplicate_primary_source_notice_id": entry.get("duplicate_primary_source_notice_id"),
-        "duplicate_primary_searchable_unit_id": entry.get(
-            "duplicate_primary_searchable_unit_id"
-        ),
+        "duplicate_primary_searchable_unit_id": entry.get("duplicate_primary_searchable_unit_id"),
         "reason_codes": list(entry.get("reason_codes") or ()),
         "owner_text_status": entry.get("owner_text_status"),
         "owner_text_recovery": entry.get("owner_text_recovery") or {},

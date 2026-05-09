@@ -75,6 +75,9 @@ _DEFAULT_REGISTRY = RegulationSemanticsRegistry(
         "按照如下程序",
         "按照以下程序",
         "按照下列程序",
+        "按照下列程序进行",
+        "按照以下程序进行",
+        "按照如下程序进行",
         "程序如下",
         "流程如下",
         "办理程序",
@@ -416,7 +419,9 @@ def _is_procedure_rule_scope(
     strong_hits = sum(1 for keyword in strong_markers if keyword in compact_text)
     if strong_hits >= 2:
         return True
-    if any(keyword in compact_heading_scope for keyword in registry.procedure_context_markers) and any(
+    if any(
+        keyword in compact_heading_scope for keyword in registry.procedure_context_markers
+    ) and any(
         keyword in compact_text
         for keyword in (
             *registry.procedure_action_markers,

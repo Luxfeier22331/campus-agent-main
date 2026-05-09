@@ -78,9 +78,14 @@ class DocumentArtifactRestoreTest(unittest.TestCase):
             )
             prepared_path = root / "prepared-documents" / "doc-a" / "document-units.jsonl"
             prepared_path.parent.mkdir(parents=True)
-            prepared_path.write_text(_document_units_jsonl(record, text="prepared"), encoding="utf-8")
-            mirror_path = root / "object-store" / "campus-rag-derived" / (
-                record.document_units_object_key or ""
+            prepared_path.write_text(
+                _document_units_jsonl(record, text="prepared"), encoding="utf-8"
+            )
+            mirror_path = (
+                root
+                / "object-store"
+                / "campus-rag-derived"
+                / (record.document_units_object_key or "")
             )
             mirror_path.parent.mkdir(parents=True)
             mirror_path.write_text(_document_units_jsonl(record, text="mirror"), encoding="utf-8")
@@ -141,15 +146,17 @@ class DocumentArtifactRestoreTest(unittest.TestCase):
             units_key="regulations/documents/institutional_rules/missing/document-units.jsonl",
         )
 
-        with tempfile.TemporaryDirectory() as tmpdir:
-            with self.assertRaisesRegex(ValueError, "missing local document-units evidence"):
-                restore_document_units_artifacts_from_local_evidence(
-                    bucket="campus-rag-derived",
-                    evidence_roots=(Path(tmpdir),),
-                    object_store=FakeObjectStore(),
-                    records=(record,),
-                    execute=True,
-                )
+        with (
+            tempfile.TemporaryDirectory() as tmpdir,
+            self.assertRaisesRegex(ValueError, "missing local document-units evidence"),
+        ):
+            restore_document_units_artifacts_from_local_evidence(
+                bucket="campus-rag-derived",
+                evidence_roots=(Path(tmpdir),),
+                object_store=FakeObjectStore(),
+                records=(record,),
+                execute=True,
+            )
 
 
 def _record(*, document_id: str, version_id: str, units_key: str) -> DocumentRegistryRecord:

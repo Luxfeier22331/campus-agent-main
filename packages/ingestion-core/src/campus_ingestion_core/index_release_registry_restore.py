@@ -144,14 +144,12 @@ def _record_from_release_payload(
         or datetime.now(UTC).isoformat()
     )
     content_hash = _content_hash_from_ref_or_version(document_ref, version_id)
-    cleaning_policy_version = (
-        _optional_text(payload, "cleaning_policy_version")
-        or _optional_text(release_manifest_payload, "cleaning_policy_version")
+    cleaning_policy_version = _optional_text(payload, "cleaning_policy_version") or _optional_text(
+        release_manifest_payload, "cleaning_policy_version"
     )
     parser_version = _required_text(payload, "parser_version")
-    embedding_model = (
-        _optional_text(payload, "embedding_model")
-        or _optional_text(release_manifest_payload, "embedding_model")
+    embedding_model = _optional_text(payload, "embedding_model") or _optional_text(
+        release_manifest_payload, "embedding_model"
     )
     visibility_level = _optional_text(payload, "visibility_level")
     entitlement_groups = _text_tuple(payload.get("entitlement_groups"))

@@ -216,15 +216,11 @@ def _parse_case(payload: object) -> AnswerQualityCase:
         requires_source_url=bool(payload.get("requires_source_url")),
         requires_source_title=bool(payload.get("requires_source_title")),
         required_source_titles=string_tuple(payload.get("required_source_titles")),
-        required_source_url_fragments=string_tuple(
-            payload.get("required_source_url_fragments")
-        ),
+        required_source_url_fragments=string_tuple(payload.get("required_source_url_fragments")),
         forbidden_source_title_fragments=string_tuple(
             payload.get("forbidden_source_title_fragments")
         ),
-        forbidden_source_url_fragments=string_tuple(
-            payload.get("forbidden_source_url_fragments")
-        ),
+        forbidden_source_url_fragments=string_tuple(payload.get("forbidden_source_url_fragments")),
     )
 
 

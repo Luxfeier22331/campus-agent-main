@@ -190,7 +190,7 @@ def rebuild_wechat_public_notice_projection(
     dry_run: bool = False,
 ) -> WeChatPublicNoticeProjectionBuildReport:
     source = dict(env if env is not None else os.environ)
-    runtime_store = projection_store or _build_projection_store_with_fallback(source)
+    runtime_store = projection_store or _build_projection_store(source, dry_run=dry_run)
     runtime_object_store = object_store or _build_source_object_store(source)
     source_bucket = request.source_bucket.strip()
     if not source_bucket and any(not ref.bucket.strip() for ref in request.artifact_refs):
@@ -1129,13 +1129,12 @@ def _load_reference_projection_entries(
     return tuple(entries)
 
 
-def _build_projection_store_with_fallback(
-    env: Mapping[str, str],
+def _build_projection_store(
+    env: Mapping[str, str], *, dry_run: bool
 ) -> NoticeConsumptionProjectionStore:
-    try:
-        return build_notice_consumption_projection_store_from_env(dict(env))
-    except ValueError:
+    if dry_run:
         return InMemoryNoticeConsumptionProjectionStore()
+    return build_notice_consumption_projection_store_from_env(dict(env))
 
 
 def _build_source_object_store(

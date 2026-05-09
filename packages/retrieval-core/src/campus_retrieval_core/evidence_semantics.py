@@ -95,7 +95,18 @@ _RANK_THRESHOLD_QUERY_CUES = (
 _PAPER_PUBLICATION_QUERY_CUES = ("论文", "发表", "著作", "出版", "专著")
 _SCHOLARSHIP_CATEGORY_QUERY_CUES = ("奖学金", "资助", "奖励")
 _AMOUNT_OR_QUOTA_QUERY_CUES = ("金额", "名额", "比例", "额度", "多少", "几人", "几名", "多少钱")
-_DEADLINE_QUERY_CUES = ("时间限制", "期限", "截止", "几天内", "多久内", "工作日内", "时间要求")
+_DEADLINE_QUERY_CUES = (
+    "时间限制",
+    "期限",
+    "截止",
+    "几天内",
+    "多久内",
+    "多久",
+    "多长时间",
+    "多少天",
+    "工作日内",
+    "时间要求",
+)
 _MATERIAL_QUERY_CUES = ("什么材料", "哪些材料", "提交材料", "证明材料", "书面申请", "要交什么")
 
 

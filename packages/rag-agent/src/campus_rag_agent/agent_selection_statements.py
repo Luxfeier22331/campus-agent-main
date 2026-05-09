@@ -257,7 +257,8 @@ def _score_statement(
         elif _statement_mentions_top_ten_requirement(normalized):
             score += 2
         elif any(
-            cue in normalized for cue in ("体育竞赛", "学术研究", "论文", "专著", "发明专利", "竞赛")
+            cue in normalized
+            for cue in ("体育竞赛", "学术研究", "论文", "专著", "发明专利", "竞赛")
         ):
             score -= 3
     return score
@@ -321,9 +322,8 @@ def _query_asks_rank_exception(query_text: str) -> bool:
 
 
 def _statement_mentions_rank_exception(normalized_statement: str) -> bool:
-    return (
-        ("超出前10" in normalized_statement or "超出前十" in normalized_statement)
-        and ("前30" in normalized_statement or "前三十" in normalized_statement)
+    return ("超出前10" in normalized_statement or "超出前十" in normalized_statement) and (
+        "前30" in normalized_statement or "前三十" in normalized_statement
     )
 
 

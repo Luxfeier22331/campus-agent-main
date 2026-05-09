@@ -46,6 +46,7 @@ from campus_rag_agent.prompt_execution import (
     RagPromptExecutionResult,
     RagPromptExecutor,
 )
+from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
 from campus_rag_agent.prompts.registry import get_rag_prompt_spec
 from campus_rag_agent.query_planning import (
     plan_curriculum_course_query,
@@ -56,6 +57,7 @@ from campus_rag_agent.rag_sdk_models import RagSdkRunRequest, RagSdkRunResult
 from campus_rag_agent.rag_sdk_output import RagSdkAnswerOutput, RagSdkClaim, RagSdkClaimSupport
 from campus_rag_agent.service import delegate_to_rag_agent as _service_delegate_to_rag_agent
 from campus_rag_agent.service_retrieval import retrieve_sources
+from campus_rag_agent.typed_answer_drafts import validate_typed_answer_draft
 from campus_retrieval_core import (
     CorpusQueryDisabledError,
     RestrictedDocumentAccessDeniedError,
@@ -67,6 +69,17 @@ from campus_shared import (
     PromptRuntimeValidationError,
 )
 from campus_shared.regulation_semantic_registry import load_regulation_discovery_config
+
+from tests.agent.rag_agent_test_support_evidence import (
+    _assert_answer_text_hides_internal_locators,
+    _make_curriculum_plan_source,
+    _make_official_web_evidence,
+    _make_official_web_source,
+    _make_program_semester_source,
+    _make_versioned_handbook_evidence,
+    _resolved_curriculum_diagnostics_from_response,
+    _resolved_scope_diagnostics,
+)
 
 _UNSET = object()
 
@@ -326,7 +339,9 @@ def _default_grounded_runner_for_evidence(evidence: EvidenceBundle):
         )
         answer_draft = RagAgent().build_answer(selected_evidence)
         grounded_sources = (
-            answer_draft.supporting_sources if answer_draft.supporting_sources else requested_sources
+            answer_draft.supporting_sources
+            if answer_draft.supporting_sources
+            else requested_sources
         )
         anchors = tuple(
             anchor
@@ -338,24 +353,26 @@ def _default_grounded_runner_for_evidence(evidence: EvidenceBundle):
         answer_text = answer_draft.answer_text or _build_default_rag_sdk_answer_text_from_snippets(
             snippets,
         )
-        claim_supports = tuple(
-            RagSdkClaimSupport(
-                claim_id=f"claim-{index + 1}",
-                anchors=(anchor,),
-            )
-            for index, anchor in enumerate(anchors)
+        claims, claim_supports = _claims_and_supports_from_typed_answer(
+            typed_answer=request.typed_answer or answer_draft.typed_draft,
+            anchors=anchors,
         )
-        claims = tuple(
-            RagSdkClaim(
-                claim_id=f"claim-{index + 1}",
-                text=anchor.excerpt,
-                claim_type=_default_claim_type_for_source(
-                    source_lookup.get((anchor.source_id, anchor.chunk_id)),
-                    anchor.excerpt,
-                ),
+        if not claims:
+            claim_supports = tuple(
+                RagSdkClaimSupport(
+                    claim_id=f"claim-{index + 1}",
+                    anchors=(anchor,),
+                )
+                for index, anchor in enumerate(anchors)
             )
-            for index, anchor in enumerate(anchors)
-        )
+            claims = tuple(
+                RagSdkClaim(
+                    claim_id=f"claim-{index + 1}",
+                    text=anchor.excerpt,
+                    claim_type="fact",
+                )
+                for index, anchor in enumerate(anchors)
+            )
         return RagSdkRunResult(
             output=RagSdkAnswerOutput(
                 answer_text=answer_text,
@@ -468,45 +485,82 @@ def _deferred_default_grounded_runner(bundle_ref):
     return runner
 
 
-def _default_claim_type_for_source(source: EvidenceSource | None, excerpt: str) -> str:
-    if source is not None:
-        raw_attributes = source.anchor.get(INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY)
-        answer_role = ""
-        if isinstance(raw_attributes, dict):
-            answer_role = str(raw_attributes.get("answer_role") or "").strip()
-        if not answer_role:
-            answer_role = _default_answer_role_for_source(
-                content_role=source.content_role,
-                semantic_role=source.semantic_role,
+def _deferred_prompt_grounded_runner(
+    *,
+    bundle_ref,
+    request_ref,
+    prompt_executor: RagPromptExecutor,
+):
+    def runner(request: RagSdkRunRequest) -> RagSdkRunResult:
+        evidence = bundle_ref()
+        if evidence is None:
+            raise RuntimeError("test prompt rag sdk runner called before retrieval evidence")
+        agent_request = request_ref()
+        if agent_request is None:
+            raise RuntimeError("test prompt rag sdk runner called before agent request")
+        execution = prompt_executor.compose_answer(
+            build_rag_answer_prompt_packet(
+                agent_request,
+                resolved_scope=agent_request.payload.scope,
+                evidence=evidence,
             )
-        role_to_claim_type = {
-            "procedure_step": "procedure_step",
-            "time_constraint": "time_constraint",
-            "material_requirement": "material_requirement",
-            "table_fact": "table_fact",
-            "eligibility_condition": "eligibility_judgment",
-            "exception_rule": "eligibility_judgment",
-            "exclusion_rule": "condition_table",
-            "example_evidence": "eligibility_judgment",
-            "category_overview": "policy_list_item",
-        }
-        mapped = role_to_claim_type.get(answer_role)
-        if mapped:
-            return mapped
-    text = excerpt.strip()
-    if not text:
-        return "fact"
-    if any(token in text for token in ("申请", "办理", "审核", "挂失", "补办")):
-        return "procedure_step"
-    if any(token in text for token in ("材料", "票据", "证明", "申请表")):
-        return "material_requirement"
-    if any(token in text for token in ("日内", "时间", "期限", "周四", "第一时间", "24:00")):
-        return "time_constraint"
-    if any(token in text for token in ("金额", "元", "名额", "|")):
-        return "table_fact"
-    if any(token in text for token in ("能不能", "可以", "原则上", "条件", "排名", "论文")):
-        return "eligibility_judgment"
-    return "fact"
+        )
+        default_result = _default_grounded_runner_for_evidence(evidence)(request)
+        return RagSdkRunResult(
+            output=RagSdkAnswerOutput(
+                answer_text=execution.output.answer_text,
+                answer_kind=default_result.output.answer_kind,
+                semantic_outcome=default_result.output.semantic_outcome,
+                confidence=default_result.output.confidence,
+                cited_source_ids=default_result.output.cited_source_ids,
+                claims=default_result.output.claims,
+                claim_supports=default_result.output.claim_supports,
+                evidence_anchors=default_result.output.evidence_anchors,
+            ),
+            trace_projection=default_result.trace_projection,
+        )
+
+    return runner
+
+
+def _claims_and_supports_from_typed_answer(*, typed_answer, anchors):
+    validation = validate_typed_answer_draft(
+        typed_answer,
+        expected_answer_kind=typed_answer.kind,
+    )
+    if validation.verdict != "valid" or not validation.claim_supports:
+        return (), ()
+    claims: list[RagSdkClaim] = []
+    claim_supports: list[RagSdkClaimSupport] = []
+    for index, support in enumerate(validation.claim_supports):
+        claim_id = f"claim-{index + 1}"
+        support_anchor = _anchor_for_claim_support(support, anchors)
+        claims.append(
+            RagSdkClaim(
+                claim_id=claim_id,
+                text=support.claim_text,
+                claim_type=support.claim_type,
+            )
+        )
+        claim_supports.append(
+            RagSdkClaimSupport(
+                claim_id=claim_id,
+                anchors=((support_anchor,) if support_anchor is not None else ()),
+            )
+        )
+    return tuple(claims), tuple(claim_supports)
+
+
+def _anchor_for_claim_support(support, anchors):
+    for anchor in anchors:
+        if anchor.source_id != support.support_source_doc_id:
+            continue
+        if support.support_snippet and support.support_snippet == anchor.excerpt:
+            return anchor
+    for anchor in anchors:
+        if anchor.source_id == support.support_source_doc_id:
+            return anchor
+    return None
 
 
 def _normalize_regulation_evidence_for_current_v3(evidence: EvidenceBundle) -> EvidenceBundle:
@@ -515,7 +569,9 @@ def _normalize_regulation_evidence_for_current_v3(evidence: EvidenceBundle) -> E
         "institutional_rules",
     }:
         return evidence
-    normalized_sources = tuple(_normalize_regulation_source_for_current_v3(source) for source in evidence.sources)
+    normalized_sources = tuple(
+        _normalize_regulation_source_for_current_v3(source) for source in evidence.sources
+    )
     if normalized_sources == evidence.sources:
         return evidence
     return EvidenceBundle(
@@ -611,13 +667,15 @@ def delegate_to_rag_agent(
             include_retrieval_observation_query_text=include_retrieval_observation_query_text,
             rag_sdk_runner=rag_sdk_runner,
         )
-
     captured_bundle: EvidenceBundle | None = None
+    captured_request: AgentRequest | None = request
     captured_sources_by_chunk_id: dict[str, EvidenceSource] = {}
 
     def wrapped_retriever(*args, **kwargs):
         nonlocal captured_bundle
-        normalized_bundle = _normalize_regulation_evidence_for_current_v3(retriever(*args, **kwargs))
+        normalized_bundle = _normalize_regulation_evidence_for_current_v3(
+            retriever(*args, **kwargs)
+        )
         for source in normalized_bundle.sources:
             captured_sources_by_chunk_id[source.chunk_id] = source
         captured_bundle = EvidenceBundle(
@@ -634,7 +692,15 @@ def delegate_to_rag_agent(
         prompt_executor=prompt_executor,
         retrieval_observation_sink=retrieval_observation_sink,
         include_retrieval_observation_query_text=include_retrieval_observation_query_text,
-        rag_sdk_runner=_deferred_default_grounded_runner(lambda: captured_bundle),
+        rag_sdk_runner=(
+            _deferred_prompt_grounded_runner(
+                bundle_ref=lambda: captured_bundle,
+                request_ref=lambda: captured_request,
+                prompt_executor=prompt_executor,
+            )
+            if prompt_executor is not None
+            else _deferred_default_grounded_runner(lambda: captured_bundle)
+        ),
     )
 
 
@@ -674,267 +740,6 @@ def _default_procedure_action_for_source(*, action_type: str) -> str:
     if action_type == "lift_discipline":
         return "apply"
     return "process"
-
-
-def _make_official_web_source(
-    *,
-    doc_id: str,
-    title: str,
-    snippet: str,
-    score: float,
-    chunk_id_suffix: str,
-    content_role: str = "",
-    is_answer_bearing: bool = False,
-    semantic_role: str = "",
-    polarity: str = "",
-    action_type: str = "",
-    claim_type: str = "",
-    anchor: dict[str, object] | None = None,
-    structural_path: tuple[str, ...] | None = None,
-    collection: str = "muc_public_pages",
-) -> EvidenceSource:
-    return EvidenceSource(
-        doc_id=doc_id,
-        revision_track="source-faithful",
-        version_id=f"owdocver:{chunk_id_suffix}",
-        chunk_id=f"{doc_id}:source-faithful:owdocver:{chunk_id_suffix}:chunk-0001",
-        anchor=anchor or {"segment_ord": 1},
-        canonical_url=f"https://www.muc.edu.cn/{chunk_id_suffix}.htm",
-        latest_url=f"https://www.muc.edu.cn/{chunk_id_suffix}.htm",
-        source_channel="official_web",
-        collection=collection,
-        is_current=True,
-        snippet=snippet,
-        score=score,
-        source_title=title,
-        structural_path=structural_path or (title,),
-        content_kind="article_body",
-        content_role=content_role,
-        detail_label=title,
-        is_answer_bearing=is_answer_bearing,
-        semantic_role=semantic_role,
-        polarity=polarity,
-        action_type=action_type,
-        claim_type=claim_type,
-    )
-
-
-def _make_official_web_evidence(
-    *,
-    query_text: str,
-    sources: tuple[EvidenceSource, ...],
-    collection: str = "muc_public_pages",
-) -> EvidenceBundle:
-    return EvidenceBundle(
-        query_text=query_text,
-        corpus="official_web",
-        collection=collection,
-        sources=sources,
-    )
-
-
-def _make_program_semester_source(
-    *,
-    source_document_id: str,
-    semester_label: str,
-    snippet: str,
-    score: float,
-) -> EvidenceSource:
-    source_title = source_document_id.split(":", 1)[-1]
-    fact_document_id = build_curriculum_program_semester_fact_document_id(
-        source_document_id,
-        semester_label,
-    )
-    return EvidenceSource(
-        doc_id=fact_document_id,
-        revision_track="source-faithful",
-        version_id=f"v1:{source_title}:{semester_label}",
-        chunk_id=f"{fact_document_id}:row-0001",
-        anchor={"fact_type": "semester_course_list"},
-        canonical_url=f"https://campus.example/curriculum/{source_title}",
-        latest_url=f"https://campus.example/curriculum/{source_title}",
-        source_channel="pdf_ocr",
-        collection="program_semester_facts",
-        is_current=False,
-        snippet=snippet,
-        score=score,
-        source_title=f"{source_title} {semester_label}课程事实",
-        structural_path=(source_title, semester_label),
-        detail_label=f"{semester_label}课程",
-        content_kind="program_semester_fact",
-        content_role="semester_course_list",
-        is_answer_bearing=True,
-    )
-
-
-def _make_curriculum_plan_source(
-    *,
-    doc_id: str,
-    chunk_id: str,
-    snippet: str,
-    score: float,
-    source_title: str,
-    structural_path: tuple[str, ...] = (),
-    content_kind: str = "",
-    content_role: str = "",
-    detail_label: str = "",
-    is_answer_bearing: bool = False,
-) -> EvidenceSource:
-    return EvidenceSource(
-        doc_id=doc_id,
-        revision_track="source-faithful",
-        version_id=f"v1:{chunk_id.rsplit(':', 1)[-1]}",
-        chunk_id=chunk_id,
-        anchor={"page_start": 1, "page_end": 1},
-        canonical_url=f"https://campus.example/{doc_id.split(':', 1)[-1]}",
-        latest_url=f"https://campus.example/{doc_id.split(':', 1)[-1]}",
-        source_channel="pdf_ocr",
-        collection="curriculum_plan",
-        is_current=False,
-        snippet=snippet,
-        score=score,
-        source_title=source_title,
-        structural_path=structural_path,
-        content_kind=content_kind,
-        content_role=content_role,
-        detail_label=detail_label,
-        is_answer_bearing=is_answer_bearing,
-    )
-
-
-def _make_versioned_handbook_evidence(
-    *,
-    query_text: str,
-    document_id: str,
-    primary_version_id: str,
-    primary_snippet: str,
-    comparison_version_id: str = "",
-    comparison_snippet: str = "",
-) -> EvidenceBundle:
-    sources = [
-        EvidenceSource(
-            doc_id=document_id,
-            revision_track="source-faithful",
-            version_id=primary_version_id,
-            chunk_id=f"{document_id}:source-faithful:{primary_version_id}:chunk-0001",
-            anchor={"page_start": 1, "page_end": 1},
-            canonical_url=f"https://campus.example/handbook/{document_id}",
-            latest_url=f"https://campus.example/handbook/{document_id}",
-            source_channel="pdf_ocr",
-            collection="student_rules",
-            is_current=False,
-            snippet=primary_snippet,
-            score=0.92,
-            source_title="中央民族大学本科学生国家奖学金评审办法",
-            structural_path=("中央民族大学本科学生国家奖学金评审办法",),
-            is_answer_bearing=True,
-        )
-    ]
-    if comparison_version_id:
-        sources.append(
-            EvidenceSource(
-                doc_id=document_id,
-                revision_track="source-faithful",
-                version_id=comparison_version_id,
-                chunk_id=f"{document_id}:source-faithful:{comparison_version_id}:chunk-0001",
-                anchor={"page_start": 2, "page_end": 2},
-                canonical_url=f"https://campus.example/handbook/{document_id}",
-                latest_url=f"https://campus.example/handbook/{document_id}",
-                source_channel="pdf_ocr",
-                collection="student_rules",
-                is_current=True,
-                snippet=comparison_snippet,
-                score=0.9,
-                source_title="中央民族大学本科学生国家奖学金评审办法",
-                structural_path=("中央民族大学本科学生国家奖学金评审办法",),
-                is_answer_bearing=True,
-            )
-        )
-    return EvidenceBundle(
-        query_text=query_text,
-        corpus="regulations",
-        collection="student_rules",
-        sources=tuple(sources),
-    )
-
-
-def _assert_answer_text_hides_internal_locators(
-    test_case: unittest.TestCase,
-    answer_text: str,
-) -> None:
-    test_case.assertNotIn("source-faithful", answer_text)
-    test_case.assertNotIn("program_semester_facts:", answer_text)
-    test_case.assertNotIn("chunk-", answer_text)
-    test_case.assertNotRegex(answer_text, r"\[[^\]]*#[^\]]*\]")
-
-
-def _resolved_scope_diagnostics(
-    *,
-    corpus: str,
-    collection: str,
-    **kwargs: object,
-) -> RagResultDiagnostics:
-    clarification_reason = kwargs.get("clarification_reason", "")
-    no_answer_reason = kwargs.get("no_answer_reason", "")
-    semantic_outcome = kwargs.get("semantic_outcome", "")
-    if "retrieval_adequacy_verdict" not in kwargs:
-        if isinstance(clarification_reason, str) and clarification_reason:
-            kwargs["retrieval_adequacy_verdict"] = "ambiguous"
-            kwargs["retrieval_adequacy_reason"] = clarification_reason
-        elif semantic_outcome == "grounded_answer":
-            kwargs["retrieval_adequacy_verdict"] = "sufficient"
-            kwargs["retrieval_adequacy_reason"] = "sufficient"
-        elif semantic_outcome in {"unsupported_by_evidence", "freshness_fail_close"}:
-            kwargs["retrieval_adequacy_verdict"] = "insufficient"
-            if no_answer_reason == "resolved_policy_clause_not_found":
-                kwargs["retrieval_adequacy_reason"] = "resolved_policy_clause_not_found"
-            elif no_answer_reason == "freshness_fail_close":
-                kwargs["retrieval_adequacy_reason"] = "freshness_fail_close"
-            else:
-                kwargs["retrieval_adequacy_reason"] = "no_supporting_sources"
-    if semantic_outcome == "grounded_answer" and "grounding_verdict" not in kwargs:
-        kwargs["grounding_verdict"] = "grounded"
-    return RagResultDiagnostics(
-        resolved_scope_corpus=corpus,
-        resolved_scope_collection=collection,
-        **kwargs,
-    )
-
-
-def _resolved_curriculum_diagnostics_from_response(
-    response: AgentResponse,
-    **kwargs: object,
-) -> RagResultDiagnostics:
-    result = response.result
-    if not isinstance(result, RagResultPayload):
-        raise AssertionError("expected RagResultPayload for curriculum diagnostics assertion")
-    if result.diagnostics is not None:
-        kwargs.setdefault("retrieval_plan_summary", result.diagnostics.retrieval_plan_summary)
-        kwargs.setdefault("stage_activities", result.diagnostics.stage_activities)
-        kwargs.setdefault("source_trust_summary", result.diagnostics.source_trust_summary)
-        kwargs.setdefault("retrieved_sources", result.diagnostics.retrieved_sources)
-        kwargs.setdefault(
-            "planner_information_needs",
-            result.diagnostics.planner_information_needs,
-        )
-        kwargs.setdefault(
-            "projection_context_summaries",
-            result.diagnostics.projection_context_summaries,
-        )
-        kwargs.setdefault("claim_supports", result.diagnostics.claim_supports)
-        kwargs.setdefault("claim_evidence_graph", result.diagnostics.claim_evidence_graph)
-    if (
-        response.status == "completed"
-        and "semantic_outcome" not in kwargs
-        and not kwargs.get("no_answer_reason")
-        and not kwargs.get("clarification_reason")
-    ):
-        kwargs["semantic_outcome"] = "grounded_answer"
-    return _resolved_scope_diagnostics(
-        corpus="curriculum",
-        collection="curriculum_plan",
-        **kwargs,
-    )
 
 
 __all__ = (

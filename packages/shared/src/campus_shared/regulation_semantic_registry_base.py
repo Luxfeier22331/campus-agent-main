@@ -84,7 +84,7 @@ def resolve_regulation_procedure_actor(
     ):
         return RegulationSemanticAssignment(
             value="office",
-            provenance="fallback:review_office_step",
+            provenance="keyword:review_office_step",
         )
     if any(marker in compact for marker in ("听证结束", "听证会结束")):
         return RegulationSemanticAssignment(
@@ -121,14 +121,14 @@ def resolve_regulation_procedure_actor(
     ):
         return RegulationSemanticAssignment(
             value="office",
-            provenance="fallback:hearing_or_review_office_step",
+            provenance="keyword:hearing_or_review_office_step",
         )
     if "汇报" in compact and any(
         marker in compact for marker in ("工作小组", "筹备工作小组", "委员会", "评议小组")
     ):
         return RegulationSemanticAssignment(
             value="office",
-            provenance="fallback:committee_reporting_step",
+            provenance="keyword:committee_reporting_step",
         )
     if "考试工作人员" in compact:
         return RegulationSemanticAssignment(
@@ -145,14 +145,14 @@ def resolve_regulation_procedure_actor(
     if any(marker in compact for marker in ("出具退学决定书", "公告即视为送达", "送交本人")):
         return RegulationSemanticAssignment(
             value="office",
-            provenance="fallback:dismissal_notice_delivery",
+            provenance="keyword:dismissal_notice_delivery",
         )
     if any(marker in compact for marker in ("公布", "公示", "发布")) and any(
         marker in compact for marker in ("结果", "名单", "结论", "决定")
     ):
         return RegulationSemanticAssignment(
             value="office",
-            provenance="fallback:publish_notice",
+            provenance="keyword:publish_notice",
         )
     actor_assignment = _resolve_procedure_actor_by_action_context(
         compact,
@@ -176,7 +176,7 @@ def resolve_regulation_procedure_actor(
     ):
         return RegulationSemanticAssignment(
             value="applicant",
-            provenance="fallback:imperative_material_step",
+            provenance="keyword:imperative_material_step",
         )
     return RegulationSemanticAssignment(value="", provenance="")
 

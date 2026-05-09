@@ -23,6 +23,20 @@ INSTITUTIONAL_RULES_ANSWER_CASES_PATH = (
     / "fixtures"
     / "institutional_rules_answer_quality_cases.v1.json"
 )
+STUDENT_RULES_ANSWER_CASES_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "evals"
+    / "fixtures"
+    / "student_rules_answer_quality_cases.v1.json"
+)
+CURRICULUM_PLAN_ANSWER_CASES_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "evals"
+    / "fixtures"
+    / "curriculum_plan_answer_quality_cases.v1.json"
+)
 
 SELECTED_RE_ADMITTED_SCHOOL_LEVEL_TITLES = frozenset(
     {
@@ -203,6 +217,27 @@ class AnswerQualityContractSuite(unittest.TestCase):
                 for case in case_set.cases
             )
         )
+
+    def test_current_corpus_answer_quality_cases_cover_student_rules_and_curriculum(self) -> None:
+        student_cases = load_answer_quality_cases(STUDENT_RULES_ANSWER_CASES_PATH)
+        curriculum_cases = load_answer_quality_cases(CURRICULUM_PLAN_ANSWER_CASES_PATH)
+
+        self.assertGreaterEqual(len(student_cases.cases), 5)
+        self.assertGreaterEqual(len(curriculum_cases.cases), 5)
+        self.assertTrue(
+            all(case.surface == "rag_student_rules_answer" for case in student_cases.cases)
+        )
+        self.assertTrue(
+            all(case.surface == "rag_curriculum_plan_answer" for case in curriculum_cases.cases)
+        )
+        student_titles = {
+            title for case in student_cases.cases for title in case.required_source_titles
+        }
+        curriculum_titles = {
+            title for case in curriculum_cases.cases for title in case.required_source_titles
+        }
+        self.assertIn("中央民族大学本科创新教育实施办法", student_titles)
+        self.assertIn("民族学本科人才培养方案", curriculum_titles)
 
 
 if __name__ == "__main__":

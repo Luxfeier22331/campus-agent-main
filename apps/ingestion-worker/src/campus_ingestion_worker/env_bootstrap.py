@@ -5,7 +5,6 @@ from pathlib import Path
 
 from campus_shared.env_bootstrap import load_repo_env
 
-
 DEFAULT_LOCAL_APP_API_BASE_URL = "http://127.0.0.1:27031"
 
 
@@ -24,6 +23,4 @@ def _backfill_local_app_api_callback_env() -> None:
     if not app_api_internal_shared_secret:
         return
     os.environ["INGESTION_WORKER_APP_API_BASE_URL"] = DEFAULT_LOCAL_APP_API_BASE_URL
-    os.environ["INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET"] = (
-        app_api_internal_shared_secret
-    )
+    os.environ["INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET"] = app_api_internal_shared_secret

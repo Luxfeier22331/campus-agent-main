@@ -11,7 +11,9 @@ from tests.retrieval.backend_qdrant_test_support import (
 
 
 class BackendQdrantPolicyFocusRankingTest(unittest.TestCase):
-    def test_prioritize_evidence_sources_prefers_matching_policy_anchor_and_focus_terms(self) -> None:
+    def test_prioritize_evidence_sources_prefers_matching_policy_anchor_and_focus_terms(
+        self,
+    ) -> None:
         ranked = prioritize_evidence_sources(
             query_text="国奖第九条怎么要求论文和著作？",
             sources=(
@@ -40,7 +42,9 @@ class BackendQdrantPolicyFocusRankingTest(unittest.TestCase):
 
         self.assertEqual(ranked[0].chunk_id, "national-scholarship-article-9")
 
-    def test_select_supporting_evidence_sources_fail_closes_when_focus_terms_are_missing(self) -> None:
+    def test_select_supporting_evidence_sources_fail_closes_when_focus_terms_are_missing(
+        self,
+    ) -> None:
         selected = select_supporting_evidence_sources(
             query_text="国奖第九条怎么要求论文和著作？",
             max_sources=2,

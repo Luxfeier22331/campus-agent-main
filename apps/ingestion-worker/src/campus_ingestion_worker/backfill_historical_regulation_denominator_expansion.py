@@ -132,9 +132,7 @@ def backfill_historical_regulation_denominator_expansion_from_paths(
         phase_id=PHASE_ID,
         generated_by="campus_ingestion_worker.backfill_historical_regulation_denominator_expansion",
         evidence_refs={
-            "admission_manifest": str(
-                phase01_files["regulation-consumer-admission-manifest.json"]
-            )
+            "admission_manifest": str(phase01_files["regulation-consumer-admission-manifest.json"])
         },
     )
     selection = build_first_batch_regulation_selection(
@@ -184,9 +182,7 @@ def backfill_historical_regulation_denominator_expansion_from_paths(
             generated_at=generated_at,
             phase_id=PHASE_ID,
         ),
-        "serving-closed-assertion.json": build_serving_closed_assertion(
-            generated_at=generated_at
-        ),
+        "serving-closed-assertion.json": build_serving_closed_assertion(generated_at=generated_at),
     }
     phase02_files = write_mapping_files(output_dir=phase02, payloads=phase02_payloads)
 
@@ -216,16 +212,10 @@ def backfill_historical_regulation_denominator_expansion_from_paths(
     phase03_payloads = {
         "target-inventory.json": chunk_plan["target_inventory"],
         "classification-report.json": chunk_plan["classification_report"],
-        "canonical-provenance-preflight.json": chunk_plan[
-            "canonical_provenance_preflight"
-        ],
-        "chunk-preparation-batch-report.json": chunk_evidence[
-            "chunk_preparation_batch_report"
-        ],
+        "canonical-provenance-preflight.json": chunk_plan["canonical_provenance_preflight"],
+        "chunk-preparation-batch-report.json": chunk_evidence["chunk_preparation_batch_report"],
         "serving-closed-assertion.json": chunk_evidence["serving_closed_assertion"],
-        "candidate-store-noop-assertion.json": chunk_evidence[
-            "candidate_store_noop_assertion"
-        ],
+        "candidate-store-noop-assertion.json": chunk_evidence["candidate_store_noop_assertion"],
     }
     phase03_files = write_mapping_files(output_dir=phase03, payloads=phase03_payloads)
 
@@ -250,9 +240,7 @@ def backfill_historical_regulation_denominator_expansion_from_paths(
         },
     )
     return {
-        "schema_version": (
-            "historical-regulation-denominator-expansion-backfill-worker.v1"
-        ),
+        "schema_version": ("historical-regulation-denominator-expansion-backfill-worker.v1"),
         "phase": PHASE_ID,
         "mode": "execute" if execute else "dry_run",
         "write_enabled": bool(execute),
@@ -261,14 +249,10 @@ def backfill_historical_regulation_denominator_expansion_from_paths(
         "selected_target_document_ids": list(
             materialization_report["selected_target_document_ids"]
         ),
-        "materialized_document_count": int(
-            materialization_report["materialized_document_count"]
-        ),
+        "materialized_document_count": int(materialization_report["materialized_document_count"]),
         "chunk_preparation": chunk_evidence["chunk_preparation_batch_report"],
         "serving_closed": build_serving_closed_assertion(generated_at=generated_at),
-        "candidate_store_noop": build_candidate_store_noop_assertion(
-            generated_at=generated_at
-        ),
+        "candidate_store_noop": build_candidate_store_noop_assertion(generated_at=generated_at),
         "files": {
             **{f"phase-01/{key}": str(value) for key, value in phase01_files.items()},
             **{f"phase-02/{key}": str(value) for key, value in phase02_files.items()},
@@ -320,19 +304,13 @@ def build_final_quality_audit(
         },
         "chunk_preparation": {
             "overall_verdict": chunk_preparation_report.get("overall_verdict"),
-            "prepared_document_count": chunk_preparation_report.get(
-                "prepared_document_count"
-            ),
+            "prepared_document_count": chunk_preparation_report.get("prepared_document_count"),
             "total_chunk_count": chunk_preparation_report.get("total_chunk_count"),
-            "failed_collections": list(
-                chunk_preparation_report.get("failed_collections") or ()
-            ),
+            "failed_collections": list(chunk_preparation_report.get("failed_collections") or ()),
         },
         "object_store_key_audit": key_audit,
         "serving_closed": build_serving_closed_assertion(generated_at=generated_at),
-        "candidate_store_noop": build_candidate_store_noop_assertion(
-            generated_at=generated_at
-        ),
+        "candidate_store_noop": build_candidate_store_noop_assertion(generated_at=generated_at),
         "final_verdict": (
             "passed"
             if not failed_quality
@@ -355,9 +333,7 @@ def write_phase01_evidence_files(
             "regulation-consumer-admission-manifest.json": admission["admission_manifest"],
             "regulation-candidate-audit.json": admission["candidate_audit"],
             "serving-closed-assertion.json": admission["serving_closed_assertion"],
-            "candidate-store-noop-assertion.json": admission[
-                "candidate_store_noop_assertion"
-            ],
+            "candidate-store-noop-assertion.json": admission["candidate_store_noop_assertion"],
         },
     )
 

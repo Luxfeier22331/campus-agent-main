@@ -15,44 +15,32 @@
 		{
 			"document_id": "handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
 			"title": "普通高等学校学生管理规定",
-			"aliases": [
-				"学生管理规定"
-			]
+			"aliases": ["学生管理规定"]
 		},
 		{
 			"document_id": "handbook:1a45ef1bc4be11e74514b0bf6e3365ada8a07bbd",
 			"title": "高等学校学生行为准则",
-			"aliases": [
-				"学生行为准则"
-			]
+			"aliases": ["学生行为准则"]
 		},
 		{
 			"document_id": "handbook:6d77f946c626910853345180b95700217078b1a1",
 			"title": "高等学校校园秩序管理若干规定",
-			"aliases": [
-				"校园秩序管理若干规定"
-			]
+			"aliases": ["校园秩序管理若干规定"]
 		},
 		{
 			"document_id": "handbook:53a0861781aba2462c1db5dba0059babe2341f3b",
 			"title": "普通高等学校学生安全教育及管理暂行规定",
-			"aliases": [
-				"学生安全教育及管理暂行规定"
-			]
+			"aliases": ["学生安全教育及管理暂行规定"]
 		},
 		{
 			"document_id": "handbook:aafad3e5b2a6e60decaf15f8258401e1dcd398d9",
 			"title": "中央民族大学本科学分制实施办法",
-			"aliases": [
-				"本科学分制实施办法"
-			]
+			"aliases": ["本科学分制实施办法"]
 		},
 		{
 			"document_id": "handbook:d5f01ceb2da8c830f904dbc049c8aca41fedf485",
 			"title": "中央民族大学本科学生学籍管理办法",
-			"aliases": [
-				"本科学生学籍管理办法"
-			]
+			"aliases": ["本科学生学籍管理办法"]
 		},
 		{
 			"document_id": "handbook:742d4831bfb443b99323041e263fac2fd9aafcf6",
@@ -74,58 +62,42 @@
 		{
 			"document_id": "handbook:b4ec9c595995411079c1aaf19a5847c522a92433",
 			"title": "中央民族大学全日制本科学生学士学位授予补充规定",
-			"aliases": [
-				"全日制本科学生学士学位授予补充规定"
-			]
+			"aliases": ["全日制本科学生学士学位授予补充规定"]
 		},
 		{
 			"document_id": "handbook:4b943c3cb67ec0e3c578781fb0c62c1763fd73b9",
 			"title": "中央民族大学推荐应届本科毕业生免试攻读硕士学位研究生管理办法",
-			"aliases": [
-				"推荐应届本科毕业生免试攻读硕士学位研究生管理办法"
-			]
+			"aliases": ["推荐应届本科毕业生免试攻读硕士学位研究生管理办法"]
 		},
 		{
 			"document_id": "handbook:ceb42210e2431730ef5b1e376b800250fd9eb1fb",
 			"title": "中央民族大学推荐应届优秀高水平运动员免试攻读硕士学位研究生管理办法",
-			"aliases": [
-				"推荐应届优秀高水平运动员免试攻读硕士学位研究生管理办法"
-			]
+			"aliases": ["推荐应届优秀高水平运动员免试攻读硕士学位研究生管理办法"]
 		},
 		{
 			"document_id": "handbook:4ff7b434006008d28b5ba6e6b5df4482527b9e3d",
 			"title": "中央民族大学本科生专业调整实施办法",
-			"aliases": [
-				"本科生专业调整实施办法"
-			]
+			"aliases": ["本科生专业调整实施办法"]
 		},
 		{
 			"document_id": "handbook:3639f2e52b3a3e4c11aa553e6837486f563137c8",
 			"title": "中央民族大学本科生境外留学管理办法",
-			"aliases": [
-				"本科生境外留学管理办法"
-			]
+			"aliases": ["本科生境外留学管理办法"]
 		},
 		{
 			"document_id": "handbook:02a96d9625b2d15bec9411e8633b6c6533be4b6e",
 			"title": "中央民族大学本科创新教育实施办法",
-			"aliases": [
-				"本科创新教育实施办法"
-			]
+			"aliases": ["本科创新教育实施办法"]
 		},
 		{
 			"document_id": "handbook:4a106f850321154f454ec7c57150ec20775420e2",
 			"title": "中央民族大学学生考试违规认定与处理办法",
-			"aliases": [
-				"学生考试违规认定与处理办法"
-			]
+			"aliases": ["学生考试违规认定与处理办法"]
 		},
 		{
 			"document_id": "handbook:69eef0f78d250946924e6a02187fafdb88852c23",
 			"title": "中央民族大学学生管理规定",
-			"aliases": [
-				"学生管理规定"
-			]
+			"aliases": ["学生管理规定"]
 		},
 		{
 			"document_id": "handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7",
@@ -142,9 +114,7 @@
 		{
 			"document_id": "handbook:9350d885657d7409e524e73666b828b826f07191",
 			"title": "中央民族大学学生违纪处分实施办法",
-			"aliases": [
-				"学生违纪处分实施办法"
-			]
+			"aliases": ["学生违纪处分实施办法"]
 		},
 		{
 			"document_id": "handbook:1e404fb7e280b32c46f09280590255c57e6bd72d",
@@ -165,9 +135,7 @@
 		{
 			"document_id": "handbook:1b7c532ecdbc8afe1820d2c55dfba911d891e37a",
 			"title": "中央民族大学学生听证实施办法",
-			"aliases": [
-				"学生听证实施办法"
-			]
+			"aliases": ["学生听证实施办法"]
 		},
 		{
 			"document_id": "handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8",
@@ -188,30 +156,22 @@
 		{
 			"document_id": "handbook:28cf18e59743f39a4d99ff338a172587cc63b719",
 			"title": "中央民族大学本科预科生管理办法",
-			"aliases": [
-				"本科预科生管理办法"
-			]
+			"aliases": ["本科预科生管理办法"]
 		},
 		{
 			"document_id": "handbook:3c479e28e3a6b022eb7b25b42a70a842d74e8db5",
 			"title": "中央民族大学学生课堂行为规范及课堂秩序管理办法",
-			"aliases": [
-				"学生课堂行为规范及课堂秩序管理办法"
-			]
+			"aliases": ["学生课堂行为规范及课堂秩序管理办法"]
 		},
 		{
 			"document_id": "handbook:e53d05ae90e91f1c45843c50c3a777f774a88afc",
 			"title": "中央民族大学学生考勤管理办法",
-			"aliases": [
-				"学生考勤管理办法"
-			]
+			"aliases": ["学生考勤管理办法"]
 		},
 		{
 			"document_id": "handbook:aac178f947dda7a40382a7404d4173e03a2e8f78",
 			"title": "中央民族大学学院(系)学生基本情况周查月报制度",
-			"aliases": [
-				"学院(系)学生基本情况周查月报制度"
-			]
+			"aliases": ["学院(系)学生基本情况周查月报制度"]
 		},
 		{
 			"document_id": "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
@@ -231,9 +191,7 @@
 		{
 			"document_id": "handbook:14e8bc3a69143b2437f5851d61a5aa4cdbb12f77",
 			"title": "中央民族大学学生志愿服务管理办法",
-			"aliases": [
-				"学生志愿服务管理办法"
-			]
+			"aliases": ["学生志愿服务管理办法"]
 		},
 		{
 			"document_id": "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
@@ -260,146 +218,99 @@
 		{
 			"document_id": "handbook:19834c3c8bad8c34b09ec89ccb5d518c27d08152",
 			"title": "中央民族大学十佳大学生评选办法",
-			"aliases": [
-				"十佳大学生评选办法"
-			]
+			"aliases": ["十佳大学生评选办法"]
 		},
 		{
 			"document_id": "handbook:60c8b33801e2e59e6db2210719592a6252e3516d",
 			"title": "中央民族大学本科学生专业奖学金评定办法",
-			"aliases": [
-				"本科学生专业奖学金评定办法",
-				"专业奖",
-				"专业奖学金",
-				"专业奖学金评定办法"
-			]
+			"aliases": ["本科学生专业奖学金评定办法", "专业奖", "专业奖学金", "专业奖学金评定办法"]
 		},
 		{
 			"document_id": "handbook:a531a3c85de862c737d0576e957bf59598822c54",
 			"title": "中央民族大学本科学生专项奖学金评定办法",
-			"aliases": [
-				"本科学生专项奖学金评定办法",
-				"专项奖",
-				"专项奖学金",
-				"专项奖学金评定办法"
-			]
+			"aliases": ["本科学生专项奖学金评定办法", "专项奖", "专项奖学金", "专项奖学金评定办法"]
 		},
 		{
 			"document_id": "handbook:cdb4a7a2b3018e3fed142256ccea9cfa9376621b",
 			"title": "中央民族大学本科学生先进班集体评选办法",
-			"aliases": [
-				"本科学生先进班集体评选办法"
-			]
+			"aliases": ["本科学生先进班集体评选办法"]
 		},
 		{
 			"document_id": "handbook:0f8b6739e24d38d9d2d274f1566623f019c79747",
 			"title": "中央民族大学优秀本科毕业生评选办法",
-			"aliases": [
-				"优秀本科毕业生评选办法"
-			]
+			"aliases": ["优秀本科毕业生评选办法"]
 		},
 		{
 			"document_id": "handbook:297963ad42b5d998d005deb50ce5f5d3ce92756c",
 			"title": "中央民族大学评选学生民族团结进步先进集体和先进个人实施办法",
-			"aliases": [
-				"评选学生民族团结进步先进集体和先进个人实施办法"
-			]
+			"aliases": ["评选学生民族团结进步先进集体和先进个人实施办法"]
 		},
 		{
 			"document_id": "handbook:585570389475fa202a2f86e96ebb1f962fae55f8",
 			"title": "中央民族大学本科生家庭经济困难学生认定管理办法",
-			"aliases": [
-				"本科生家庭经济困难学生认定管理办法"
-			]
+			"aliases": ["本科生家庭经济困难学生认定管理办法"]
 		},
 		{
 			"document_id": "handbook:8371280fde48b4c568850475814538a6aff13976",
 			"title": "中央民族大学家庭经济困难学生临时困难补助管理办法",
-			"aliases": [
-				"家庭经济困难学生临时困难补助管理办法"
-			]
+			"aliases": ["家庭经济困难学生临时困难补助管理办法"]
 		},
 		{
 			"document_id": "handbook:5585e19eb4afad9af061ef9334ce167aa2e4fe59",
 			"title": "中央民族大学本(预)科学生勤工助学管理办法",
-			"aliases": [
-				"本(预)科学生勤工助学管理办法"
-			]
+			"aliases": ["本(预)科学生勤工助学管理办法"]
 		},
 		{
 			"document_id": "handbook:571a5df6b6bd0fb133b0e7849f577d4a22d7a53e",
 			"title": "中央民族大学本科生国家助学金评审办法",
-			"aliases": [
-				"本科生国家助学金评审办法"
-			]
+			"aliases": ["本科生国家助学金评审办法"]
 		},
 		{
 			"document_id": "handbook:118402352ee67220ade47707c815cdc2ca5df46e",
 			"title": "中央民族大学毕业生学费和国家助学贷款代偿暂行实施办法",
-			"aliases": [
-				"毕业生学费和国家助学贷款代偿暂行实施办法"
-			]
+			"aliases": ["毕业生学费和国家助学贷款代偿暂行实施办法"]
 		},
 		{
 			"document_id": "handbook:21766ac8f07d1488942e544fa55843ebd40d764b",
 			"title": "中央民族大学学生资助管理工作暂行办法",
-			"aliases": [
-				"学生资助管理工作暂行办法"
-			]
+			"aliases": ["学生资助管理工作暂行办法"]
 		},
 		{
 			"document_id": "handbook:ce5617b516e144a9602087cd19c1413c46e9c0ff",
 			"title": "中央民族大学助学贷款管理暂行办法",
-			"aliases": [
-				"助学贷款管理暂行办法"
-			]
+			"aliases": ["助学贷款管理暂行办法"]
 		},
 		{
 			"document_id": "handbook:aa835b8cd4acddb62c7243fed9a9f8c0728e68bc",
 			"title": "中央民族大学社会奖助学金管理办法",
-			"aliases": [
-				"社会奖助学金管理办法",
-				"社会奖学金",
-				"社会奖助学金"
-			]
+			"aliases": ["社会奖助学金管理办法", "社会奖学金", "社会奖助学金"]
 		},
 		{
 			"document_id": "handbook:f6d5ef171b88ec35057fa23f6d05e4e54ecdf811",
 			"title": "中央民族大学本科受资助学生参与公益服务活动实施办法",
-			"aliases": [
-				"本科受资助学生参与公益服务活动实施办法"
-			]
+			"aliases": ["本科受资助学生参与公益服务活动实施办法"]
 		},
 		{
 			"document_id": "handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
 			"title": "中央民族大学关于学生宿舍照明的管理规定",
-			"aliases": [
-				"关于学生宿舍照明的管理规定"
-			]
+			"aliases": ["关于学生宿舍照明的管理规定"]
 		},
 		{
 			"document_id": "handbook:a633b4ce84d8d92e1d98f97c57491ec24e8be834",
 			"title": "中央民族大学关于加强学生宿舍电器使用管理的规定",
-			"aliases": [
-				"关于加强学生宿舍电器使用管理的规定"
-			]
+			"aliases": ["关于加强学生宿舍电器使用管理的规定"]
 		},
 		{
 			"document_id": "handbook:b85de1cb327a26dc63488e247403ae3126d524be",
 			"title": "中央民族大学学生公费医疗管理办法",
-			"aliases": [
-				"学生公费医疗管理办法"
-			]
+			"aliases": ["学生公费医疗管理办法"]
 		}
 	],
 	"policy_categories": [
 		{
 			"category_id": "scholarship",
 			"display_name": "奖学金",
-			"aliases": [
-				"奖学金",
-				"奖励"
-			],
+			"aliases": ["奖学金", "奖励"],
 			"audience": "本科生",
 			"member_policy_document_ids": [
 				"handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
@@ -413,14 +324,7 @@
 		{
 			"category_id": "student_status",
 			"display_name": "学籍",
-			"aliases": [
-				"学籍",
-				"学生身份",
-				"学生证",
-				"学位",
-				"学籍有关",
-				"学籍相关"
-			],
+			"aliases": ["学籍", "学生身份", "学生证", "学位", "学籍有关", "学籍相关"],
 			"audience": "本科生",
 			"member_policy_document_ids": [
 				"handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
@@ -431,13 +335,7 @@
 		{
 			"category_id": "discipline",
 			"display_name": "处分",
-			"aliases": [
-				"处分",
-				"纪律处分",
-				"处分相关",
-				"处分规定",
-				"处分申诉"
-			],
+			"aliases": ["处分", "纪律处分", "处分相关", "处分规定", "处分申诉"],
 			"audience": "学生",
 			"member_policy_document_ids": [
 				"handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8",
@@ -448,12 +346,7 @@
 		{
 			"category_id": "general_student_management",
 			"display_name": "学生管理通用规定",
-			"aliases": [
-				"学生管理",
-				"管理规定",
-				"行为准则",
-				"学生规定"
-			],
+			"aliases": ["学生管理", "管理规定", "行为准则", "学生规定"],
 			"audience": "学生",
 			"member_policy_document_ids": [
 				"handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
@@ -465,12 +358,7 @@
 		{
 			"category_id": "campus_order_safety",
 			"display_name": "校园秩序与安全",
-			"aliases": [
-				"校园秩序",
-				"安全教育",
-				"安全管理",
-				"校园安全"
-			],
+			"aliases": ["校园秩序", "安全教育", "安全管理", "校园安全"],
 			"audience": "学生",
 			"member_policy_document_ids": [
 				"handbook:6d77f946c626910853345180b95700217078b1a1",
@@ -481,12 +369,7 @@
 		{
 			"category_id": "academic_credit_status",
 			"display_name": "学业学分与学籍管理",
-			"aliases": [
-				"学分制",
-				"学籍管理",
-				"预科生管理",
-				"学业管理"
-			],
+			"aliases": ["学分制", "学籍管理", "预科生管理", "学业管理"],
 			"audience": "本科生",
 			"member_policy_document_ids": [
 				"handbook:aafad3e5b2a6e60decaf15f8258401e1dcd398d9",
@@ -498,12 +381,7 @@
 		{
 			"category_id": "degree_graduation",
 			"display_name": "学位与毕业",
-			"aliases": [
-				"学位授予",
-				"毕业",
-				"学士学位",
-				"毕业要求"
-			],
+			"aliases": ["学位授予", "毕业", "学士学位", "毕业要求"],
 			"audience": "本科生",
 			"member_policy_document_ids": [
 				"handbook:742d4831bfb443b99323041e263fac2fd9aafcf6",
@@ -514,12 +392,7 @@
 		{
 			"category_id": "recommendation_postgraduate",
 			"display_name": "推免",
-			"aliases": [
-				"推免",
-				"免试攻读硕士",
-				"保研",
-				"推荐免试"
-			],
+			"aliases": ["推免", "免试攻读硕士", "保研", "推荐免试"],
 			"audience": "本科生",
 			"member_policy_document_ids": [
 				"handbook:4b943c3cb67ec0e3c578781fb0c62c1763fd73b9",
@@ -541,13 +414,7 @@
 		{
 			"category_id": "major_change_exchange_innovation",
 			"display_name": "专业调整交流与创新",
-			"aliases": [
-				"专业调整",
-				"转专业",
-				"境外留学",
-				"创新教育",
-				"创新"
-			],
+			"aliases": ["专业调整", "转专业", "境外留学", "创新教育", "创新"],
 			"audience": "本科生",
 			"member_policy_document_ids": [
 				"handbook:4ff7b434006008d28b5ba6e6b5df4482527b9e3d",
@@ -559,42 +426,23 @@
 		{
 			"category_id": "exam_discipline",
 			"display_name": "考试纪律",
-			"aliases": [
-				"考试违规",
-				"考试纪律",
-				"违规处理",
-				"考试处理"
-			],
+			"aliases": ["考试违规", "考试纪律", "违规处理", "考试处理"],
 			"audience": "学生",
-			"member_policy_document_ids": [
-				"handbook:4a106f850321154f454ec7c57150ec20775420e2"
-			],
+			"member_policy_document_ids": ["handbook:4a106f850321154f454ec7c57150ec20775420e2"],
 			"overview_document_id": "handbook:4a106f850321154f454ec7c57150ec20775420e2"
 		},
 		{
 			"category_id": "conduct_assessment",
 			"display_name": "综合测评",
-			"aliases": [
-				"综测",
-				"综合测评",
-				"素质测评",
-				"测评"
-			],
+			"aliases": ["综测", "综合测评", "素质测评", "测评"],
 			"audience": "本科生",
-			"member_policy_document_ids": [
-				"handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7"
-			],
+			"member_policy_document_ids": ["handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7"],
 			"overview_document_id": "handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7"
 		},
 		{
 			"category_id": "discipline_appeal_hearing",
 			"display_name": "违纪申诉与听证",
-			"aliases": [
-				"违纪",
-				"学生申诉",
-				"听证",
-				"解除纪律处分"
-			],
+			"aliases": ["违纪", "学生申诉", "听证", "解除纪律处分"],
 			"audience": "学生",
 			"member_policy_document_ids": [
 				"handbook:9350d885657d7409e524e73666b828b826f07191",
@@ -607,13 +455,7 @@
 		{
 			"category_id": "attendance_classroom_reporting",
 			"display_name": "考勤课堂与周查月报",
-			"aliases": [
-				"考勤",
-				"课堂秩序",
-				"课堂行为",
-				"周查月报",
-				"基本情况周查月报"
-			],
+			"aliases": ["考勤", "课堂秩序", "课堂行为", "周查月报", "基本情况周查月报"],
 			"audience": "学生",
 			"member_policy_document_ids": [
 				"handbook:3c479e28e3a6b022eb7b25b42a70a842d74e8db5",
@@ -625,42 +467,23 @@
 		{
 			"category_id": "student_card_affairs",
 			"display_name": "学生证事务",
-			"aliases": [
-				"学生证",
-				"学生证补办",
-				"补办学生证"
-			],
+			"aliases": ["学生证", "学生证补办", "补办学生证"],
 			"audience": "本科生",
-			"member_policy_document_ids": [
-				"handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"
-			],
+			"member_policy_document_ids": ["handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"],
 			"overview_document_id": "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389"
 		},
 		{
 			"category_id": "volunteer_service",
 			"display_name": "志愿服务",
-			"aliases": [
-				"志愿服务",
-				"公益服务",
-				"志愿活动"
-			],
+			"aliases": ["志愿服务", "公益服务", "志愿活动"],
 			"audience": "学生",
-			"member_policy_document_ids": [
-				"handbook:14e8bc3a69143b2437f5851d61a5aa4cdbb12f77"
-			],
+			"member_policy_document_ids": ["handbook:14e8bc3a69143b2437f5851d61a5aa4cdbb12f77"],
 			"overview_document_id": "handbook:14e8bc3a69143b2437f5851d61a5aa4cdbb12f77"
 		},
 		{
 			"category_id": "scholarship_honor_awards",
 			"display_name": "荣誉奖励评选",
-			"aliases": [
-				"荣誉",
-				"评优",
-				"先进集体",
-				"优秀毕业生",
-				"民族团结进步",
-				"十佳大学生"
-			],
+			"aliases": ["荣誉", "评优", "先进集体", "优秀毕业生", "民族团结进步", "十佳大学生"],
 			"audience": "本科生",
 			"member_policy_document_ids": [
 				"handbook:19834c3c8bad8c34b09ec89ccb5d518c27d08152",
@@ -673,13 +496,7 @@
 		{
 			"category_id": "financial_aid",
 			"display_name": "资助与助学",
-			"aliases": [
-				"资助",
-				"助学金",
-				"困难认定",
-				"困难补助",
-				"奖助学金"
-			],
+			"aliases": ["资助", "助学金", "困难认定", "困难补助", "奖助学金"],
 			"audience": "学生",
 			"member_policy_document_ids": [
 				"handbook:585570389475fa202a2f86e96ebb1f962fae55f8",
@@ -693,13 +510,7 @@
 		{
 			"category_id": "loan_compensation_work_study",
 			"display_name": "贷款代偿与勤工助学",
-			"aliases": [
-				"助学贷款",
-				"贷款",
-				"代偿",
-				"勤工助学",
-				"公益服务"
-			],
+			"aliases": ["助学贷款", "贷款", "代偿", "勤工助学", "公益服务"],
 			"audience": "学生",
 			"member_policy_document_ids": [
 				"handbook:5585e19eb4afad9af061ef9334ce167aa2e4fe59",
@@ -712,12 +523,7 @@
 		{
 			"category_id": "dormitory_management",
 			"display_name": "宿舍管理",
-			"aliases": [
-				"宿舍",
-				"宿舍照明",
-				"宿舍电器",
-				"电器使用"
-			],
+			"aliases": ["宿舍", "宿舍照明", "宿舍电器", "电器使用"],
 			"audience": "学生",
 			"member_policy_document_ids": [
 				"handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",
@@ -728,16 +534,9 @@
 		{
 			"category_id": "public_medical",
 			"display_name": "公费医疗",
-			"aliases": [
-				"公费医疗",
-				"医疗",
-				"报销",
-				"就医"
-			],
+			"aliases": ["公费医疗", "医疗", "报销", "就医"],
 			"audience": "学生",
-			"member_policy_document_ids": [
-				"handbook:b85de1cb327a26dc63488e247403ae3126d524be"
-			],
+			"member_policy_document_ids": ["handbook:b85de1cb327a26dc63488e247403ae3126d524be"],
 			"overview_document_id": "handbook:b85de1cb327a26dc63488e247403ae3126d524be"
 		}
 	]

@@ -83,11 +83,7 @@ class CollectedNoticeRegulationCanonicalBackfillWorkerRequest:
             "first_batch_notice_ids",
             tuple(
                 sorted(
-                    {
-                        str(item).strip()
-                        for item in self.first_batch_notice_ids
-                        if str(item).strip()
-                    }
+                    {str(item).strip() for item in self.first_batch_notice_ids if str(item).strip()}
                 )
             ),
         )
@@ -116,9 +112,7 @@ def backfill_collected_notice_regulation_canonical_from_paths(
     runtime_raw_asset_registry = raw_asset_registry or build_runtime_raw_asset_registry(source)
     report = backfill_collected_notice_regulation_canonical(
         request=CollectedNoticeRegulationCanonicalBackfillRequest(
-            first_batch_candidate_audit=_load_json_object(
-                request.first_batch_candidate_audit_path
-            ),
+            first_batch_candidate_audit=_load_json_object(request.first_batch_candidate_audit_path),
             first_batch_admission_manifest=_load_json_object(
                 request.first_batch_admission_manifest_path
             ),

@@ -183,9 +183,14 @@ def resolve_regulation_intro_scope(
             value="procedure_list",
             provenance="text:procedure_list",
         )
+    if resolve_regulation_group_intro_kind(text).value == "condition_group_intro":
+        return RegulationSemanticAssignment(
+            value="eligibility_group",
+            provenance="text:condition_group_intro",
+        )
     return RegulationSemanticAssignment(
         value="eligibility_group",
-        provenance="fallback:eligibility_group",
+        provenance="text:eligibility_group_default",
     )
 
 
@@ -203,7 +208,7 @@ def resolve_regulation_intro_subject(
     ):
         return RegulationSemanticAssignment(
             value=fallback,
-            provenance="fallback:condition_subject",
+            provenance="inherited:condition_subject",
         )
     target_subject_assignment = (
         _resolve_intro_target_role_subject(target_role_set)
@@ -215,7 +220,7 @@ def resolve_regulation_intro_subject(
     if fallback:
         return RegulationSemanticAssignment(
             value=fallback,
-            provenance="fallback:condition_subject",
+            provenance="inherited:condition_subject",
         )
     return RegulationSemanticAssignment(value="", provenance="")
 

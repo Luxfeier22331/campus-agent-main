@@ -63,7 +63,7 @@ def _extract_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
 
 
 def _extract_title_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
-    return tuple(
+    claims = tuple(
         ExtractedClaim(
             claim_type="title_or_entity_identity",
             claim_text=match.group(1).strip(),
@@ -72,6 +72,18 @@ def _extract_title_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
         for match in _QUOTED_TITLE_RE.finditer(answer_text)
         if match.group(1).strip()
     )
+    if any(
+        claim.claim_text.endswith("申请表") or claim.claim_text.endswith("报名表")
+        for claim in claims
+    ):
+        return tuple(
+            claim
+            for claim in claims
+            if not (
+                claim.claim_text.endswith("申请表") or claim.claim_text.endswith("报名表")
+            )
+        )
+    return claims
 
 
 def _extract_time_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:

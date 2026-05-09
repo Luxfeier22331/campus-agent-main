@@ -5,6 +5,9 @@ from enum import StrEnum
 
 from campus_contracts import EvidenceBundle
 from campus_contracts.schema_metadata import schema_metadata
+from campus_shared import NormalizedProviderGroundingSupport
+
+from .typed_answer_drafts import TypedAnswerDraft
 
 
 class RagTaskKind(StrEnum):
@@ -86,6 +89,7 @@ class RagSdkRunRequest:
     user_goal: str
     query_intent: RagQueryIntent
     evidence: RagSdkEvidenceProjection
+    typed_answer: TypedAnswerDraft | None = None
     request_id: str = ""
     selector_blocked_query_slot_ids: tuple[str, ...] = field(default_factory=tuple)
 
@@ -112,6 +116,9 @@ class RagSdkRunResult:
     failure_class: str = ""
     failure_detail: str = ""
     latency_ms: int = 0
+    provider_grounding_supports: tuple[NormalizedProviderGroundingSupport, ...] = field(
+        default_factory=tuple
+    )
 
 
 def _span_ref_for_source(source) -> str:

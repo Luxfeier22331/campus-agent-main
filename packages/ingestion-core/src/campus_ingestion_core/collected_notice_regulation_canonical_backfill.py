@@ -126,11 +126,7 @@ def backfill_collected_notice_regulation_canonical(
         batch_reports.append(_batch_summary(batch_id="manual_review", artifacts=manual_review))
 
     selected_notice_ids = sorted(
-        {
-            notice_id
-            for report in batch_reports
-            for notice_id in report["selected_notice_ids"]
-        }
+        {notice_id for report in batch_reports for notice_id in report["selected_notice_ids"]}
     )
     selected_target_document_ids = sorted(
         {
@@ -145,9 +141,7 @@ def backfill_collected_notice_regulation_canonical(
         for row in _mapping_rows(batch["normalization_quality_report"].get("documents"))
     ]
     failed_or_flagged = [
-        row
-        for row in quality_rows
-        if str(row.get("quality_verdict") or "") != "passed"
+        row for row in quality_rows if str(row.get("quality_verdict") or "") != "passed"
     ]
     return {
         "schema_version": CANONICAL_BACKFILL_SCHEMA_VERSION,
@@ -310,9 +304,10 @@ def _enrich_manual_review_candidate_audit(
                 "published_date",
                 "body_excerpt",
             ):
-                if not str(candidate.get(field_name) or "").strip() and str(
-                    admission_entry.get(field_name) or ""
-                ).strip():
+                if (
+                    not str(candidate.get(field_name) or "").strip()
+                    and str(admission_entry.get(field_name) or "").strip()
+                ):
                     candidate[field_name] = admission_entry.get(field_name)
         candidates.append(candidate)
     enriched["candidates"] = candidates
@@ -394,7 +389,9 @@ def _filter_admission_manifest(
             + ", ".join(missing_ids)
         )
     filtered = dict(admission_manifest)
-    filtered["entries"] = sorted(entries, key=lambda entry: str(entry.get("source_notice_id") or ""))
+    filtered["entries"] = sorted(
+        entries, key=lambda entry: str(entry.get("source_notice_id") or "")
+    )
     filtered["source_scope"] = {
         **dict(filtered.get("source_scope") or {}),
         "source_notice_ids": sorted(selected_ids),

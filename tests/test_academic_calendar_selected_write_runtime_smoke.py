@@ -238,7 +238,9 @@ class AcademicCalendarSelectedWriteRuntimeSmokeTest(unittest.TestCase):
                     "run",
                     "--all-packages",
                     "python",
-                    str(repo_root / "scripts" / "academic_calendar_selected_write_runtime_smoke.py"),
+                    str(
+                        repo_root / "scripts" / "academic_calendar_selected_write_runtime_smoke.py"
+                    ),
                     "--help",
                 ],
                 cwd=temp_dir,

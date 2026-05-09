@@ -15,7 +15,6 @@ from campus_ingestion_core.regulation_answer_roles import (
     build_table_answer_role_metadata,
     decide_answer_role,
 )
-from campus_shared.regulation_semantic_registry import resolve_regulation_answer_role
 
 
 def build_collection_semantic_metadata(
@@ -87,14 +86,25 @@ def build_handbook_answer_role_release_metadata(
             text=text,
             prefix_text=_release_role_prefix_text(metadata),
         )
-        if _shared_text(role_metadata.get("answer_role")) == "procedure_step":
+        answer_role = _shared_text(role_metadata.get("answer_role"))
+        if answer_role == "supporting_detail":
+            hinted_role_metadata = build_answer_role_metadata(
+                text=text,
+                prefix_text=_release_role_prefix_text(metadata),
+                role_hint="procedure_step",
+            )
+            hinted_answer_role = _shared_text(hinted_role_metadata.get("answer_role"))
+            if hinted_answer_role == "eligibility_intro":
+                role_metadata = hinted_role_metadata
+                answer_role = hinted_answer_role
+        if answer_role == "procedure_step":
             return {
                 "answer_role": "procedure_step",
                 "role_confidence": _shared_text(role_metadata.get("role_confidence")) or "high",
                 "role_reason": _shared_text(role_metadata.get("role_reason"))
                 or "derived_from_handbook_semantics:procedure",
             }
-        if _shared_text(role_metadata.get("answer_role")) in {
+        if answer_role in {
             "exclusion_rule",
             "exception_rule",
             "eligibility_intro",
@@ -164,6 +174,15 @@ def build_handbook_answer_role_release_metadata(
             "role_confidence": _shared_text(role_metadata.get("role_confidence")) or "medium",
             "role_reason": _shared_text(role_metadata.get("role_reason"))
             or "derived_from_answer_role_parser",
+        }
+    if role:
+        return {
+            "answer_role": role,
+            "role_confidence": "medium",
+            "role_reason": (
+                "derived_from_handbook_semantics:"
+                f"{semantics.content_role or semantics.semantic_role or semantics.claim_type}"
+            ),
         }
     return {
         "answer_role": "supporting_detail",

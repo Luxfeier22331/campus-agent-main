@@ -206,6 +206,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         admission_batch_id=manifest.admission_run_id,
         admission_command="regulation_document_site_dry_run",
         admission_created_at=manifest.created_at,
+        dry_run=True,
     )
     projection_path = output_dir / "notice-consumption-projection.jsonl"
     _write_jsonl(projection_path, (asdict(entry) for entry in projection_entries))

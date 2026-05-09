@@ -4,7 +4,6 @@ import argparse
 import json
 from collections.abc import Sequence
 
-from campus_ingestion_core import load_runtime_profile
 from campus_ingestion_core.index_release import (
     build_release_metadata_payload,
     load_index_release_manifest,

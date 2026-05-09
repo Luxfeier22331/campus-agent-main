@@ -44,6 +44,46 @@ class RagRetrievalPlanTest(unittest.TestCase):
         )
         self.assertEqual(plan.source_trust_policy.minimum_tier, "T1")
 
+    def test_category_discovery_retrieval_plan_uses_intent_derived_need_ids_and_budget(
+        self,
+    ) -> None:
+        request = AgentRequest(
+            target="rag-agent",
+            user_goal="有哪些本科生可以申请的奖学金",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+                version_query=VersionQuery(mode="current"),
+            ),
+        )
+        handbook_plan = plan_student_handbook_query(request.user_goal)
+        retrieval_context = build_rag_retrieval_context(
+            request=request,
+            effective_scope=request.payload.scope,
+            user_goal=request.user_goal,
+            effective_user_goal=request.user_goal,
+            handbook_plan=handbook_plan,
+            curriculum_plan=None,
+            curriculum_course_plan=None,
+            curriculum_program_family_plan=None,
+            build_document_registry_from_env_fn=lambda: object(),
+            resolve_version_query_fn=lambda **_: ResolvedVersionQuery(
+                mode="current",
+                status="resolved",
+            ),
+        )
+
+        assert retrieval_context is not None
+        plan = build_retrieval_plan_for_context(
+            request=request,
+            effective_scope=request.payload.scope,
+            user_goal=request.user_goal,
+            retrieval_context=retrieval_context,
+            retrieval_intent=handbook_plan.retrieval_intent,
+        )
+
+        self.assertEqual(plan.steps[0].need_ids, ("need:1:policy_list",))
+        self.assertEqual(plan.steps[0].budget.top_k, 10)
+
     def test_resolved_policy_clause_query_uses_broad_and_focused_steps(self) -> None:
         request = AgentRequest(
             target="rag-agent",
@@ -76,6 +116,7 @@ class RagRetrievalPlanTest(unittest.TestCase):
             effective_scope=request.payload.scope,
             user_goal=request.user_goal,
             retrieval_context=retrieval_context,
+            retrieval_intent=handbook_plan.retrieval_intent,
         )
 
         self.assertEqual(len(plan.steps), 2)
@@ -98,6 +139,13 @@ class RagRetrievalPlanTest(unittest.TestCase):
         self.assertIn("第九条", plan.steps[1].query_text)
         self.assertIn("论文", plan.steps[1].query_text)
         self.assertIn("著作", plan.steps[1].query_text)
+        self.assertEqual(
+            tuple(step.need_ids for step in plan.steps),
+            (
+                ("need:1:specific_clause",),
+                ("need:1:specific_clause",),
+            ),
+        )
 
     def test_resolved_policy_historical_clause_query_uses_focused_historical_step(self) -> None:
         request = AgentRequest(
@@ -468,7 +516,9 @@ class RagRetrievalPlanTest(unittest.TestCase):
             {"corpus": "regulations", "collection": "student_rules"},
         )
         self.assertEqual(observations[0]["candidate_count"], 1)
-        self.assertEqual(response.result.diagnostics.no_answer_reason, "resolved_policy_clause_not_found")
+        self.assertEqual(
+            response.result.diagnostics.no_answer_reason, "resolved_policy_clause_not_found"
+        )
 
     def test_delegate_to_rag_agent_uses_freshness_gate_and_skips_retriever_when_local_surface_is_not_fresh(
         self,

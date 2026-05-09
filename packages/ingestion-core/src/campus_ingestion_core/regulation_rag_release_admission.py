@@ -280,10 +280,22 @@ def write_regulation_rag_release_admission_manifest(
         collection=manifest.collection,
         admission_run_id=manifest.admission_run_id,
     )
+    payload = (json.dumps(asdict(manifest), ensure_ascii=False, indent=2) + "\n").encode("utf-8")
+    try:
+        existing_payload = writer.get_bytes(bucket=bucket, key=object_key)
+    except Exception as exc:
+        if not _is_missing_object_error(exc):
+            raise
+    else:
+        if existing_payload == payload:
+            return object_key
+        raise RegulationRagReleaseAdmissionError(
+            "admission manifest already exists with different content"
+        )
     writer.put_bytes(
         bucket=bucket,
         key=object_key,
-        data=(json.dumps(asdict(manifest), ensure_ascii=False, indent=2) + "\n").encode("utf-8"),
+        data=payload,
         content_type="application/json",
     )
     return object_key
@@ -604,6 +616,24 @@ def _document_ref_key(
     return (document.document_id, document.revision_track, document.version_id)
 
 
+def _is_missing_object_error(exc: Exception) -> bool:
+    if isinstance(exc, (FileNotFoundError, KeyError)):
+        return True
+    response = getattr(exc, "response", None)
+    if not isinstance(response, dict):
+        return False
+    error = response.get("Error")
+    if isinstance(error, dict) and str(error.get("Code") or "").strip() in {
+        "404",
+        "NoSuchKey",
+        "NoSuchBucket",
+        "NotFound",
+    }:
+        return True
+    metadata = response.get("ResponseMetadata")
+    return isinstance(metadata, dict) and str(metadata.get("HTTPStatusCode") or "").strip() == "404"
+
+
 def _manifest_from_payload(payload: Mapping[str, object]) -> RegulationRagReleaseAdmissionManifest:
     return RegulationRagReleaseAdmissionManifest(
         schema_version=str(payload.get("schema_version") or ""),
@@ -676,8 +706,8 @@ __all__ = [
     "load_regulation_rag_release_admission_manifest",
     "regulation_rag_release_admission_required",
     "require_component_eval_summary_for_target_release",
-    "require_release_chunk_quality_summary_for_target_release",
     "require_regulation_rag_release_admission_key",
+    "require_release_chunk_quality_summary_for_target_release",
     "resolve_regulation_rag_release_admission_manifest_key",
     "validate_regulation_rag_release_admission_for_release",
     "validate_regulation_rag_release_admission_manifest_shape",

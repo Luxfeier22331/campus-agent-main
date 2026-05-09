@@ -45,6 +45,8 @@ from campus_ingestion_core.registry import (
 
 def _build_inventory_store_from_env_if_configured(
     env: dict[str, str],
+    *,
+    builder=build_authenticated_notice_source_truth_inventory_store_from_env,
 ) -> AuthenticatedNoticeSourceTruthInventoryStore | None:
     management_env_keys = (
         DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
@@ -57,7 +59,7 @@ def _build_inventory_store_from_env_if_configured(
         RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY,
     )
     if any(env.get(key) for key in management_env_keys):
-        return build_authenticated_notice_source_truth_inventory_store_from_env(
+        return builder(
             env,
             prefer_operator=True,
         )
@@ -68,7 +70,7 @@ def _build_inventory_store_from_env_if_configured(
         RAW_ASSET_REGISTRY_ENV_KEY,
     )
     if any(env.get(key) for key in runtime_env_keys):
-        return build_authenticated_notice_source_truth_inventory_store_from_env(env)
+        return builder(env)
     return None
 
 

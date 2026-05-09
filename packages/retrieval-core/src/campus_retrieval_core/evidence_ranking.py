@@ -130,7 +130,9 @@ def select_supporting_evidence_sources(
             if source_covers_query_focus(query_text=query_text, source=feature.source)
         )
         if focus_aligned_sources:
-            ranked_features = tuple(feature for feature in ranked_features if feature.source in focus_aligned_sources)
+            ranked_features = tuple(
+                feature for feature in ranked_features if feature.source in focus_aligned_sources
+            )
         else:
             return ()
 

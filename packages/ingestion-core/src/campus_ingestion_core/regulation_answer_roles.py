@@ -17,6 +17,35 @@ from campus_ingestion_core.regulation_semantics import (
     starts_procedure_list as starts_procedure_list_from_registry,
 )
 
+_PROCEDURE_STEP_HINT_OVERRIDE_ROLES = frozenset(
+    {
+        "eligibility_intro",
+        "eligibility_condition",
+        "exception_rule",
+        "exclusion_rule",
+        "material_requirement",
+        "supporting_detail",
+        "time_constraint",
+    }
+)
+_ELIGIBILITY_CONDITION_HINT_OVERRIDE_ROLES = frozenset(
+    {
+        "exception_rule",
+        "exclusion_rule",
+        "example_evidence",
+        "material_requirement",
+        "supporting_detail",
+        "time_constraint",
+    }
+)
+_EXAMPLE_EVIDENCE_HINT_OVERRIDE_ROLES = frozenset(
+    {
+        "exception_rule",
+        "eligibility_condition",
+        "exclusion_rule",
+    }
+)
+
 
 def build_answer_role_metadata(
     *,
@@ -99,7 +128,7 @@ def decide_answer_role(
     prefix_text: str = "",
     role_hint: str | None = None,
 ) -> dict[str, object]:
-    assignment = resolve_regulation_answer_role(
+    assignment = _resolve_answer_role_assignment(
         text=text,
         prefix_text=prefix_text,
         role_hint=role_hint,
@@ -130,6 +159,46 @@ def decide_answer_role(
     else:
         confidence = "medium"
     return _role(assignment.value, confidence, assignment.provenance)
+
+
+def _resolve_answer_role_assignment(
+    *,
+    text: str,
+    prefix_text: str,
+    role_hint: str | None,
+):
+    hinted_assignment = resolve_regulation_answer_role(
+        text=text,
+        prefix_text=prefix_text,
+        role_hint=role_hint,
+    )
+    if role_hint is None:
+        return hinted_assignment
+
+    if not hinted_assignment.provenance.startswith("explicit_role_hint:"):
+        return hinted_assignment
+
+    parsed_assignment = resolve_regulation_answer_role(
+        text=text,
+        prefix_text=prefix_text,
+        role_hint=None,
+    )
+    if (
+        role_hint == "procedure_step"
+        and parsed_assignment.value in _PROCEDURE_STEP_HINT_OVERRIDE_ROLES
+    ):
+        return parsed_assignment
+    if (
+        role_hint == "eligibility_condition"
+        and parsed_assignment.value in _ELIGIBILITY_CONDITION_HINT_OVERRIDE_ROLES
+    ):
+        return parsed_assignment
+    if (
+        role_hint == "example_evidence"
+        and parsed_assignment.value in _EXAMPLE_EVIDENCE_HINT_OVERRIDE_ROLES
+    ):
+        return parsed_assignment
+    return hinted_assignment
 
 
 def build_table_answer_role_metadata(

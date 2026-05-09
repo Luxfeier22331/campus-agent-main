@@ -140,8 +140,9 @@ class CollectedNoticeQueueConsumerTest(unittest.TestCase):
         )
 
         record = fixture.queue_store.get(fixture.job_id)
-        self.assertEqual(record.status, "queued")
+        self.assertEqual(record.status, "failed_retryable")
         self.assertEqual(record.attempt_count, 1)
+        self.assertIsNotNone(record.next_retry_after)
         self.assertEqual(record.last_error_code, "source_object_unavailable")
         self.assertEqual(result.failed_report["failed_items"][0]["failure_class"], "retryable")
 

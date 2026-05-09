@@ -14,6 +14,7 @@ from campus_shared.regulation_semantic_registry import (
 )
 
 from campus_rag_agent.agent_answer_shape import AnswerShape
+from campus_rag_agent.retrieval_intent import RetrievalIntent
 
 
 @dataclass(frozen=True, slots=True)
@@ -94,7 +95,15 @@ def build_typed_answer_draft(
     answer_shape: AnswerShape,
     selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
     category_discovery_context: CategoryDiscoveryDraftContext | None = None,
+    retrieval_intent: RetrievalIntent | None = None,
 ) -> TypedAnswerDraft:
+    expected_answer_kind = retrieval_intent.expected.answer_kind if retrieval_intent else ""
+    if expected_answer_kind == "policy_list":
+        answer_shape = AnswerShape.CATEGORY_DISCOVERY_LIST
+    elif expected_answer_kind == "eligibility_judgment":
+        answer_shape = AnswerShape.JUDGMENT_CLAUSE
+    elif expected_answer_kind == "condition_table":
+        answer_shape = AnswerShape.CONDITION_OVERVIEW
     if answer_shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
         return TypedAnswerDraft(
             kind="policy_list",
@@ -144,7 +153,11 @@ def build_typed_answer_draft(
 
 def validate_typed_answer_draft(
     draft: TypedAnswerDraft,
+    *,
+    expected_answer_kind: str = "",
 ) -> TypedAnswerDraftValidationResult:
+    if expected_answer_kind and draft.kind != expected_answer_kind:
+        return _invalid("typed_answer_kind_mismatch")
     if draft.kind == "policy_list":
         if not draft.items or any(not item.has_support or not item.text for item in draft.items):
             return _invalid("policy_list_item_support_missing")

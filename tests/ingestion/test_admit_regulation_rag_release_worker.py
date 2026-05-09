@@ -418,7 +418,9 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
             ):
                 from_env.return_value = _FakeSettings()
                 object_store_admin.return_value = object()
-                build_registry.return_value = SimpleNamespace(list_by_scope=lambda _c, _k: (record,))
+                build_registry.return_value = SimpleNamespace(
+                    list_by_scope=lambda _c, _k: (record,)
+                )
                 load_profile.return_value = load_runtime_profile("regulations", "student_rules")
                 select_records.return_value = (record,)
                 load_preparation.return_value = SimpleNamespace(

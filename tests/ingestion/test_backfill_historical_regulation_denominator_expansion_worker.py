@@ -70,9 +70,18 @@ class BackfillHistoricalRegulationDenominatorExpansionWorkerTest(unittest.TestCa
                     total_unit_count=3,
                     total_chunk_count=2,
                     passed=True,
-                    manifest_path=str(output_dir / "phase-03-chunk-preparation/scoped_rules/chunk-prep-manifest.json"),
-                    validation_summary_path=str(output_dir / "phase-03-chunk-preparation/scoped_rules/validation-summary.json"),
-                    document_reports_path=str(output_dir / "phase-03-chunk-preparation/scoped_rules/document-reports.jsonl"),
+                    manifest_path=str(
+                        output_dir
+                        / "phase-03-chunk-preparation/scoped_rules/chunk-prep-manifest.json"
+                    ),
+                    validation_summary_path=str(
+                        output_dir
+                        / "phase-03-chunk-preparation/scoped_rules/validation-summary.json"
+                    ),
+                    document_reports_path=str(
+                        output_dir
+                        / "phase-03-chunk-preparation/scoped_rules/document-reports.jsonl"
+                    ),
                 )
                 prepare_institutional.return_value = _PrepReport(
                     prepared_document_count=0,
@@ -101,10 +110,30 @@ class BackfillHistoricalRegulationDenominatorExpansionWorkerTest(unittest.TestCa
             self.assertEqual(report["chunk_preparation"]["overall_verdict"], "passed")
             self.assertFalse(report["serving_closed"]["embedding_opened"])
             self.assertFalse(report["candidate_store_noop"]["candidate_store_mutated"])
-            self.assertTrue((output_dir / "phase-01-body-text-admission" / "regulation-consumer-admission-manifest.json").exists())
-            self.assertTrue((output_dir / "phase-02-canonical-materialization" / "materialization.execute.json").exists())
-            self.assertTrue((output_dir / "phase-03-chunk-preparation" / "chunk-preparation-batch-report.json").exists())
-            self.assertTrue((output_dir / "phase-04-quality-audit" / "final-quality-audit.json").exists())
+            self.assertTrue(
+                (
+                    output_dir
+                    / "phase-01-body-text-admission"
+                    / "regulation-consumer-admission-manifest.json"
+                ).exists()
+            )
+            self.assertTrue(
+                (
+                    output_dir
+                    / "phase-02-canonical-materialization"
+                    / "materialization.execute.json"
+                ).exists()
+            )
+            self.assertTrue(
+                (
+                    output_dir
+                    / "phase-03-chunk-preparation"
+                    / "chunk-preparation-batch-report.json"
+                ).exists()
+            )
+            self.assertTrue(
+                (output_dir / "phase-04-quality-audit" / "final-quality-audit.json").exists()
+            )
             object_keys = json.loads(
                 (output_dir / "phase-04-quality-audit" / "final-quality-audit.json").read_text(
                     encoding="utf-8"

@@ -32,9 +32,11 @@ def execute_rag_planner_stage(
     user_goal: str,
     effective_user_goal: str,
     handbook_plan,
+    institutional_rules_plan,
     curriculum_plan,
     curriculum_course_plan,
     curriculum_program_family_plan,
+    retrieval_intent=None,
 ) -> RagPlannerStageResult:
     retrieval_context = build_rag_retrieval_context(
         request=request,
@@ -42,6 +44,7 @@ def execute_rag_planner_stage(
         user_goal=user_goal,
         effective_user_goal=effective_user_goal,
         handbook_plan=handbook_plan,
+        institutional_rules_plan=institutional_rules_plan,
         curriculum_plan=curriculum_plan,
         curriculum_course_plan=curriculum_course_plan,
         curriculum_program_family_plan=curriculum_program_family_plan,
@@ -69,6 +72,7 @@ def execute_rag_planner_stage(
         effective_scope=effective_scope,
         user_goal=user_goal,
         retrieval_context=retrieval_context,
+        retrieval_intent=retrieval_intent,
     )
     planner_decision = build_rag_planner_decision(
         user_goal=user_goal,
@@ -78,6 +82,7 @@ def execute_rag_planner_stage(
         handbook_plan=handbook_plan,
         curriculum_course_plan=curriculum_course_plan,
         curriculum_program_family_plan=curriculum_program_family_plan,
+        retrieval_intent=retrieval_intent,
     )
     return RagPlannerStageResult(
         response=None,

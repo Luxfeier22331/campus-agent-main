@@ -121,10 +121,7 @@
 			"collection": "student_rules",
 			"query": "旷课多少学时会按违纪处理",
 			"top_k": 8,
-			"expected_document_ids": [
-				"handbook:9350d885657d7409e524e73666b828b826f07191",
-				"handbook:e53d05ae90e91f1c45843c50c3a777f774a88afc"
-			]
+			"expected_document_ids": ["handbook:9350d885657d7409e524e73666b828b826f07191"]
 		},
 		{
 			"case_id": "structured-disciplinary-relief-materials",

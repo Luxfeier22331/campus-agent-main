@@ -98,7 +98,7 @@ class RegulationSemanticRegistryExtendedRoleSuite:
         self.assertEqual(procedure.value, "application_procedure")
         self.assertEqual(procedure.provenance, "intro_target_roles:procedure_step")
         self.assertEqual(generic.value, "rank_threshold")
-        self.assertEqual(generic.provenance, "fallback:condition_subject")
+        self.assertEqual(generic.provenance, "inherited:condition_subject")
 
     def test_shared_intro_subject_resolution_preserves_specialized_fallback_for_single_target_role(
         self,
@@ -109,7 +109,7 @@ class RegulationSemanticRegistryExtendedRoleSuite:
         )
 
         self.assertEqual(assignment.value, "rank_threshold")
-        self.assertEqual(assignment.provenance, "fallback:condition_subject")
+        self.assertEqual(assignment.provenance, "inherited:condition_subject")
 
     def test_shared_condition_subject_resolution_does_not_apply_procedure_section_hint_to_non_procedure_eligibility(
         self,

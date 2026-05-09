@@ -107,7 +107,9 @@ class IngestionWorkerDeploymentPreflightTest(unittest.TestCase):
             check_by_name["official_web_release_task_projection_callback"]["status"], "passed"
         )
 
-    def test_static_preflight_fails_for_official_web_release_tasks_without_callback_env(self) -> None:
+    def test_static_preflight_fails_for_official_web_release_tasks_without_callback_env(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             work_dir = root / "official-web-release-tasks"

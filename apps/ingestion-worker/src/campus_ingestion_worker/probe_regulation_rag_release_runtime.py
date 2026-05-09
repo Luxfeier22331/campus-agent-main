@@ -47,7 +47,9 @@ def main(argv: Sequence[str] | None = None) -> None:
     loaded_env_path = load_worker_env()
     settings = RetrievalSettings.from_env()
     qdrant_client = _build_qdrant_client(settings)
-    object_store_status, object_store_error, object_store, bucket_derived = _build_release_object_store()
+    object_store_status, object_store_error, object_store, bucket_derived = (
+        _build_release_object_store()
+    )
     checks = {
         path: _check_qdrant_endpoint(settings=settings, path=path)
         for path in ("/readyz", "/livez", "/collections")
@@ -181,7 +183,9 @@ def _probe_surface(
         "release_freshness_status": release_freshness_status,
         "release_freshness_reason": release_freshness_reason,
         "points_count": getattr(collection_info, "points_count", None) if collection_info else None,
-        "vectors_count": getattr(collection_info, "vectors_count", None) if collection_info else None,
+        "vectors_count": getattr(collection_info, "vectors_count", None)
+        if collection_info
+        else None,
         "latest_release_points_count": (
             getattr(latest_collection_info, "points_count", None)
             if latest_collection_info
@@ -324,7 +328,7 @@ def _classify_release_freshness(
     return (
         "stale_alias",
         "alias target "
-        f"{alias_target} points to release {str(alias_manifest.get('release_id') or '')}, "
+        f"{alias_target} points to release {alias_manifest.get('release_id') or ''!s}, "
         f"but latest release is {latest_release_id}/{latest_collection_name}",
     )
 

@@ -35,6 +35,10 @@ def _extract_requirement_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
 def _extract_material_requirement_claims(clause: str) -> tuple[ExtractedClaim, ...]:
     if _is_missing_information_clause(clause):
         return ()
+    if any(token in clause for token in ("审核", "审批", "备案", "挂失", "办理")) and not any(
+        token in clause for token in ("材料", "申请表", "书面申请", "证明", "证件", "原件", "复印件")
+    ):
+        return ()
     claims: list[ExtractedClaim] = []
     for match in _MATERIAL_DIRECT_RE.finditer(clause):
         claim_text = _normalize_material_claim(match.group(1))
@@ -105,7 +109,12 @@ def _extract_procedure_step_claims(clause: str) -> tuple[ExtractedClaim, ...]:
                     unsupported_summary_field="requirement_claims",
                 )
             )
-    return tuple(claims)
+    return tuple(
+        claim
+        for claim in claims
+        if claim.claim_text not in {"审批", "审核"}
+        or any(token in clause for token in ("先", "再", "后", "及时", "应", "到"))
+    )
 
 
 def _extract_eligibility_requirement_claims(clause: str) -> tuple[ExtractedClaim, ...]:

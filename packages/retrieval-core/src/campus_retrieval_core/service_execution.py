@@ -18,6 +18,7 @@ from campus_retrieval_core.evidence_semantics import (
 from campus_retrieval_core.models import (
     RetrievalPlan,
     RetrievalSelector,
+    RetrievalSemanticHint,
     RetrievalStep,
     RetrievalStepActivity,
     RetrievalStepBudget,
@@ -154,6 +155,7 @@ def build_succeeded_step_result(
 ) -> RetrievalStepResult:
     grounding, grounding_failure_kind = _select_grounding_sources(
         query_text=step.query_text,
+        semantic_hint=step.semantic_hint,
         sources=evidence.sources,
     )
     status = "succeeded" if grounding else "empty"
@@ -195,6 +197,7 @@ def build_succeeded_step_result(
 def _select_grounding_sources(
     *,
     query_text: str,
+    semantic_hint: RetrievalSemanticHint | None,
     sources: tuple[EvidenceSource, ...],
 ) -> tuple[tuple[EvidenceSource, ...], str]:
     if not sources:
@@ -221,6 +224,7 @@ def _select_grounding_sources(
         )
         semantic_failure_kind = _semantic_grounding_failure_kind(
             query_text=query_text,
+            semantic_hint=semantic_hint,
             sources=sources,
             grounding=positive_grounding,
         )
@@ -235,6 +239,7 @@ def _select_grounding_sources(
             if focus_grounding:
                 semantic_failure_kind = _semantic_grounding_failure_kind(
                     query_text=query_text,
+                    semantic_hint=semantic_hint,
                     sources=sources,
                     grounding=focus_grounding,
                 )
@@ -243,6 +248,7 @@ def _select_grounding_sources(
                 return focus_grounding, ""
             semantic_failure_kind = _semantic_grounding_failure_kind(
                 query_text=query_text,
+                semantic_hint=semantic_hint,
                 sources=sources,
                 grounding=positive_grounding,
             )
@@ -267,13 +273,17 @@ def _select_grounding_sources(
 def _semantic_grounding_failure_kind(
     *,
     query_text: str,
+    semantic_hint: RetrievalSemanticHint | None,
     sources: tuple[EvidenceSource, ...],
     grounding: tuple[EvidenceSource, ...],
 ) -> str:
+    intent = _effective_query_intent(
+        query_text=query_text,
+        semantic_hint=semantic_hint,
+    )
     if not grounding:
         if not sources:
             return ""
-        intent = infer_evidence_query_intent(query_text)
         if (
             intent.answer_role == "condition"
             and intent.condition_subject
@@ -295,7 +305,6 @@ def _semantic_grounding_failure_kind(
             return "condition_group_answer_role_mismatch"
         return ""
 
-    intent = infer_evidence_query_intent(query_text)
     if (
         intent.answer_role == "condition"
         and intent.condition_subject
@@ -316,6 +325,61 @@ def _semantic_grounding_failure_kind(
     ):
         return "condition_group_answer_role_mismatch"
     return ""
+
+
+def _effective_query_intent(
+    *,
+    query_text: str,
+    semantic_hint: RetrievalSemanticHint | None,
+):
+    inferred_intent = infer_evidence_query_intent(query_text)
+    if semantic_hint is None:
+        return inferred_intent
+    answer_role = _answer_role_from_semantic_hint(semantic_hint)
+    if answer_role == "neutral":
+        return inferred_intent
+    semantic_intent = infer_evidence_query_intent_from_semantic_hint(
+        semantic_hint=semantic_hint,
+        answer_role=answer_role,
+    )
+    return type(semantic_intent)(
+        polarity=(
+            semantic_intent.polarity
+            if semantic_intent.polarity != "neutral"
+            else inferred_intent.polarity
+        ),
+        answer_role=semantic_intent.answer_role,
+        action_type=semantic_intent.action_type or inferred_intent.action_type,
+        condition_subject=semantic_intent.condition_subject or inferred_intent.condition_subject,
+        category_id=semantic_intent.category_id or inferred_intent.category_id,
+    )
+
+
+def infer_evidence_query_intent_from_semantic_hint(
+    *,
+    semantic_hint: RetrievalSemanticHint,
+    answer_role: str,
+):
+    polarity = "neutral"
+    if answer_role in {"procedure", "condition"}:
+        polarity = "positive"
+    return type(infer_evidence_query_intent(""))(
+        polarity=polarity,
+        answer_role=answer_role,
+        action_type="",
+        condition_subject=semantic_hint.condition_subject,
+        category_id=semantic_hint.category_id,
+    )
+
+
+def _answer_role_from_semantic_hint(semantic_hint: RetrievalSemanticHint) -> str:
+    if semantic_hint.intent_kind == "policy_list":
+        return "policy_list"
+    if semantic_hint.intent_kind == "procedure_steps":
+        return "procedure"
+    if semantic_hint.intent_kind in {"condition_table", "eligibility_judgment"}:
+        return "condition"
+    return "neutral"
 
 
 def _expected_condition_answer_roles(condition_subject: str) -> set[str]:

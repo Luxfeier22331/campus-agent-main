@@ -62,6 +62,7 @@ def execute_index_backed_step(
         ):
             evidence = request_executor(request)
             evidence, current_reranker_failure_kind = apply_profile_gated_reranker(
+                step=step,
                 request=request,
                 evidence=evidence,
                 rerank_step=rerank_step,
@@ -85,6 +86,7 @@ def execute_index_backed_step(
         )
         evidence = request_executor(request)
         evidence, reranker_failure_kind = apply_profile_gated_reranker(
+            step=step,
             request=request,
             evidence=evidence,
             rerank_step=rerank_step,
@@ -205,6 +207,7 @@ def merge_evidence_chunks(
 
 def apply_profile_gated_reranker(
     *,
+    step: RetrievalStep,
     request: RetrievalRequest,
     evidence: EvidenceBundle,
     rerank_step,
@@ -213,6 +216,11 @@ def apply_profile_gated_reranker(
 ) -> tuple[EvidenceBundle, str]:
     profile = load_runtime_profile_fn(request.corpus, request.collection)
     if not getattr(profile, "reranker_enabled_by_default", False):
+        return evidence, ""
+    if (
+        step.semantic_hint is not None
+        and step.semantic_hint.rerank_policy != "profile_gated_if_eligible"
+    ):
         return evidence, ""
     if rerank_step is None:
         return evidence, "reranker_executor_unavailable"

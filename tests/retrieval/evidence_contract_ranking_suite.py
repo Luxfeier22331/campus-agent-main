@@ -23,6 +23,12 @@ def _answer_ready_anchor(**metadata: object) -> dict[str, object]:
 
 
 class EvidenceContractRankingTest(unittest.TestCase):
+    def test_query_condition_subject_infers_deadline_from_how_long_lookup(self) -> None:
+        self.assertEqual(
+            infer_query_condition_subject("二级网站安全问题要多久上报"),
+            "deadline",
+        )
+
     def test_query_condition_subject_infers_amount_or_quota_from_amount_lookup(self) -> None:
         self.assertEqual(
             infer_query_condition_subject("专业奖学金一等奖金额是多少？"),

@@ -114,11 +114,17 @@ class ProbeRegulationRagReleaseRuntimeWorkerCliTest(unittest.TestCase):
             load_profile.side_effect = lambda corpus, collection: profiles[(corpus, collection)]
             resolve_alias.side_effect = lambda *, qdrant_client, alias_name: f"{alias_name}__r1"
             validate_release.side_effect = [
-                Exception("release metadata drift for student_rules/r1: sample 1: missing release metadata fields: profile_identity_hash, quality_gate_status"),
+                Exception(
+                    "release metadata drift for student_rules/r1: sample 1: missing release metadata fields: profile_identity_hash, quality_gate_status"
+                ),
                 None,
                 None,
-                Exception("release metadata drift for curriculum_plan/r1: sample 1: missing release metadata fields: sparse_provider"),
-                Exception("missing release metadata for query-serving alias official_web_stable_reference"),
+                Exception(
+                    "release metadata drift for curriculum_plan/r1: sample 1: missing release metadata fields: sparse_provider"
+                ),
+                Exception(
+                    "missing release metadata for query-serving alias official_web_stable_reference"
+                ),
             ]
             check_endpoint.side_effect = [
                 {"status": 200, "body_prefix": "all shards are ready"},

@@ -23,6 +23,8 @@ class AnswerShape(StrEnum):
 
 _FACT_QUERY_HINTS = ("学制", "几年", "总学分", "多少", "什么时候", "几点")
 _TITLE_LOOKUP_HINTS = ("想看", "查询", "查看", "培养方案", "规定", "办法")
+_DETAIL_QUERY_HINTS = ("怎么要求", "如何要求", "什么要求", "哪条", "哪一条", "第几条")
+_JUDGMENT_QUERY_HINTS = ("能不能", "是否可以", "可不可以", "还能", "可以吗", "符合吗")
 
 _RETRIEVAL_INTENT_TO_ANSWER_SHAPE = {
     "policy_list": AnswerShape.CATEGORY_DISCOVERY_LIST,
@@ -60,6 +62,14 @@ def infer_answer_shape(*, evidence: EvidenceBundle) -> AnswerShape:
         return AnswerShape.TITLE_LOOKUP
     regulation_shape = _infer_regulation_answer_shape_from_evidence(evidence)
     if regulation_shape is not None:
+        if regulation_shape == AnswerShape.CONDITION_OVERVIEW and any(
+            hint in normalized_query for hint in _DETAIL_QUERY_HINTS
+        ):
+            return AnswerShape.DETAIL_CLAUSE
+        if regulation_shape in {AnswerShape.CONDITION_OVERVIEW, AnswerShape.DETAIL_CLAUSE} and any(
+            hint in normalized_query for hint in _JUDGMENT_QUERY_HINTS
+        ):
+            return AnswerShape.JUDGMENT_CLAUSE
         return regulation_shape
     return AnswerShape.GENERAL_SUMMARY
 

@@ -114,7 +114,7 @@ def resolve_regulation_procedure_action(
     ):
         return RegulationSemanticAssignment(
             value="submit_materials",
-            provenance="fallback:material_list_item",
+            provenance="keyword:material_list_item",
         )
     if _starts_procedure_list(text) and any(
         marker in compact for marker in ("进行", "调解", "办理", "执行")

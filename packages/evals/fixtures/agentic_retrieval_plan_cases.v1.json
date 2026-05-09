@@ -7,11 +7,7 @@
 			"case_id": "agentic-current-policy-freshness-branch",
 			"user_goal": "现在校园卡丢了怎么办",
 			"split": "release_gate",
-			"coverage_dimensions": [
-				"structured_planning",
-				"bounded_handoff",
-				"trace_eval_attribution"
-			],
+			"coverage_dimensions": ["structured_planning", "bounded_handoff", "trace_eval_attribution"],
 			"expected": {
 				"decomposition": ["campus_card", "current_policy"],
 				"step_plan": ["indexed_lookup", "supporting_evidence_selection"],
@@ -29,10 +25,7 @@
 			"case_id": "agentic-historical-version-branch",
 			"user_goal": "2021 年的采购管理办法和现行版本有什么区别",
 			"split": "regression_locked",
-			"coverage_dimensions": [
-				"structured_planning",
-				"trace_eval_attribution"
-			],
+			"coverage_dimensions": ["structured_planning", "trace_eval_attribution"],
 			"expected": {
 				"decomposition": ["procurement_policy", "historical_version", "current_version"],
 				"step_plan": ["compare_pair_lookup", "supporting_evidence_selection"],
@@ -53,10 +46,7 @@
 			"case_id": "agentic-as-of-branch",
 			"user_goal": "2024 年 9 月时学生公寓管理规则是什么",
 			"split": "regression_locked",
-			"coverage_dimensions": [
-				"structured_planning",
-				"trace_eval_attribution"
-			],
+			"coverage_dimensions": ["structured_planning", "trace_eval_attribution"],
 			"expected": {
 				"decomposition": ["student_rules", "as_of:2024-09"],
 				"step_plan": ["historical_version_lookup", "supporting_evidence_selection"],
@@ -74,11 +64,7 @@
 			"case_id": "agentic-live-branch-fail-close",
 			"user_goal": "今天官网最新新闻里有没有临时停运通知",
 			"split": "error_gate",
-			"coverage_dimensions": [
-				"tool_guardrail",
-				"budget_fail_close",
-				"trace_eval_attribution"
-			],
+			"coverage_dimensions": ["tool_guardrail", "budget_fail_close", "trace_eval_attribution"],
 			"expected": {
 				"decomposition": ["official_web", "fresh_news", "temporary_service_status"],
 				"step_plan": ["freshness_gate", "live_source_lookup", "fail_close_on_unavailable"],
@@ -96,10 +82,7 @@
 			"case_id": "agentic-ambiguous-query-clarification",
 			"user_goal": "现在那个通知还能用吗",
 			"split": "exploratory",
-			"coverage_dimensions": [
-				"bounded_handoff",
-				"budget_fail_close"
-			],
+			"coverage_dimensions": ["bounded_handoff", "budget_fail_close"],
 			"expected": {
 				"decomposition": ["ambiguous_notice_reference"],
 				"step_plan": ["detect_ambiguous_reference", "ask_clarifying_question"],

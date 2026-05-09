@@ -20,6 +20,7 @@ from campus_rag_agent.retrieval_adequacy import (
     insufficient_retrieval_adequacy,
     sufficient_retrieval_adequacy,
 )
+from campus_rag_agent.retrieval_intent import RetrievalIntent
 
 from .service_response_text import (
     _build_version_filter_unresolved_answer,
@@ -121,10 +122,12 @@ def _build_version_aware_completed_response(
     request_id: str = "",
     planner_information_needs: tuple[RagPlannerInformationNeed, ...] = (),
     projection_context_summaries: tuple[RagProjectionContextSummary, ...] = (),
+    retrieval_intent: RetrievalIntent | None = None,
 ) -> AgentResponse:
     answer_text = _build_version_aware_answer_text(
         evidence=evidence,
         version_answer_context=version_answer_context,
+        retrieval_intent=retrieval_intent,
     )
     semantic_outcome = _version_answer_semantic_outcome(version_answer_context.mode)
     return AgentResponse(
@@ -155,12 +158,13 @@ def _build_version_aware_answer_text(
     *,
     evidence: EvidenceBundle,
     version_answer_context: _VersionAnswerContext,
+    retrieval_intent: RetrievalIntent | None = None,
 ) -> str:
     if version_answer_context.mode == "historical":
-        base_answer = RagAgent().compose_answer(evidence)
+        base_answer = RagAgent().compose_answer(evidence, retrieval_intent=retrieval_intent)
         return f"以下内容基于该制度的历史版本（非现行版本）：{base_answer}"
     if version_answer_context.mode == "as_of":
-        base_answer = RagAgent().compose_answer(evidence)
+        base_answer = RagAgent().compose_answer(evidence, retrieval_intent=retrieval_intent)
         return (
             f"以下内容基于截至{version_answer_context.as_of}可解析到的版本"
             f"（不代表当前现行规定）：{base_answer}"
@@ -169,8 +173,11 @@ def _build_version_aware_answer_text(
         evidence,
         version_answer_context=version_answer_context,
     )
-    primary_answer = RagAgent().compose_answer(primary_evidence)
-    comparison_answer = RagAgent().compose_answer(comparison_evidence)
+    primary_answer = RagAgent().compose_answer(primary_evidence, retrieval_intent=retrieval_intent)
+    comparison_answer = RagAgent().compose_answer(
+        comparison_evidence,
+        retrieval_intent=retrieval_intent,
+    )
     change_summary = _build_compare_change_summary(
         primary_answer=primary_answer,
         comparison_answer=comparison_answer,

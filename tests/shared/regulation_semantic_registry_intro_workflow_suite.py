@@ -147,7 +147,7 @@ class RegulationSemanticRegistryIntroWorkflowSuite:
         self.assertEqual(procedure.value, "procedure_list")
         self.assertEqual(procedure.provenance, "text:procedure_list")
         self.assertEqual(generic.value, "eligibility_group")
-        self.assertEqual(generic.provenance, "fallback:eligibility_group")
+        self.assertEqual(generic.provenance, "text:condition_group_intro")
 
     def test_shared_intro_scope_resolution_ignores_supporting_detail_pollution(self) -> None:
         procedure = resolve_regulation_intro_scope(

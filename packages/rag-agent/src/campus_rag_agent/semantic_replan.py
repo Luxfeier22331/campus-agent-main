@@ -5,12 +5,12 @@ from dataclasses import dataclass
 from campus_retrieval_core import (
     RetrievalPlan,
     RetrievalSelector,
+    RetrievalSemanticHint,
     RetrievalStep,
     RetrievalStepBudget,
     RetrievalStepResult,
 )
 from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
-from campus_retrieval_core.evidence_semantics import infer_evidence_query_intent
 
 
 @dataclass(frozen=True, slots=True)
@@ -47,6 +47,7 @@ def build_semantic_replan_decision(
         )
     trigger_reason = _trigger_reason(last_result)
     triggering_step = _step_by_id(plan, last_result.step_id)
+    triggering_result = _step_result_by_id(step_results, last_result.step_id) or last_result
     if triggering_step is None:
         return SemanticReplanDecision(
             attempted=True,
@@ -71,10 +72,12 @@ def build_semantic_replan_decision(
         query_text=_focused_replan_query(
             query_text=triggering_step.query_text,
             need_ids=follow_up_need_ids,
+            semantic_hint=triggering_step.semantic_hint,
             trigger_reason=trigger_reason,
-            references=last_result.references,
+            references=triggering_result.references,
         ),
         need_ids=follow_up_need_ids,
+        semantic_hint=triggering_step.semantic_hint,
         depends_on_step_ids=(triggering_step.step_id,),
         selector=RetrievalSelector(
             target_document_ids=triggering_step.selector.target_document_ids,
@@ -116,10 +119,30 @@ def _step_by_id(plan: RetrievalPlan, step_id: str) -> RetrievalStep | None:
     return None
 
 
+def _step_result_by_id(
+    step_results: tuple[RetrievalStepResult, ...],
+    step_id: str,
+) -> RetrievalStepResult | None:
+    for step_result in step_results:
+        if step_result.step_id == step_id:
+            return step_result
+    return None
+
+
 def _focused_replan_need_ids(need_ids: tuple[str, ...]) -> tuple[str, ...]:
     if not need_ids:
         return ()
-    for kind in ("procedure", "requirement", "comparison", "policy_clause"):
+    for kind in (
+        "procedure_steps",
+        "condition_table",
+        "eligibility_judgment",
+        "version_compare",
+        "specific_clause",
+        "procedure",
+        "requirement",
+        "comparison",
+        "policy_clause",
+    ):
         focused = tuple(need_id for need_id in need_ids if need_id.endswith(f":{kind}"))
         if focused:
             return focused
@@ -130,60 +153,89 @@ def _focused_replan_query(
     *,
     query_text: str,
     need_ids: tuple[str, ...],
+    semantic_hint: RetrievalSemanticHint | None,
     trigger_reason: str,
     references,
 ) -> str:
     if trigger_reason == "group_support_missing":
         return _group_support_missing_replan_query(
             query_text=query_text,
+            semantic_hint=semantic_hint,
             references=references,
         )
     if trigger_reason == "condition_group_answer_role_mismatch":
         return _condition_subject_replan_query(
             query_text=query_text,
+            semantic_hint=semantic_hint,
             references=references,
         )
-    if any(need_id.endswith(":procedure") for need_id in need_ids):
+    if _semantic_hint_has_need_kind(semantic_hint, "procedure_steps") or any(
+        need_id.endswith((":procedure_steps", ":procedure")) for need_id in need_ids
+    ):
         if _is_lift_discipline_procedure_query(query_text):
             return "解除处分 申请 条件 程序 办理步骤"
         topic = _query_topic_before_first_need_marker(query_text)
         if _is_loss_or_reissue_procedure_query(query_text):
             return f"{topic} 挂失 补办 办理步骤".strip()
         return f"{topic} 审核流程 办理步骤".strip()
-    if any(need_id.endswith(":requirement") for need_id in need_ids):
+    if (
+        _semantic_hint_has_need_kind(semantic_hint, "condition_table")
+        or _semantic_hint_has_need_kind(semantic_hint, "eligibility_judgment")
+        or any(
+            need_id.endswith((":condition_table", ":eligibility_judgment", ":requirement"))
+            for need_id in need_ids
+        )
+    ):
         topic = _query_topic_before_first_need_marker(query_text)
         return f"{topic} 所需材料 条件 要求".strip()
-    if any(need_id.endswith(":comparison") for need_id in need_ids):
+    if _semantic_hint_has_need_kind(semantic_hint, "version_compare") or any(
+        need_id.endswith((":version_compare", ":comparison")) for need_id in need_ids
+    ):
         topic = _query_topic_before_first_need_marker(query_text)
         return f"{topic} 比较 变化 不同".strip()
-    if any(need_id.endswith(":policy_clause") for need_id in need_ids):
+    if _semantic_hint_has_need_kind(semantic_hint, "specific_clause") or any(
+        need_id.endswith((":specific_clause", ":policy_clause")) for need_id in need_ids
+    ):
         topic = _query_topic_before_first_need_marker(query_text)
         return f"{topic} 依据 条款 规定".strip()
     return query_text
 
 
-def _group_support_missing_replan_query(*, query_text: str, references) -> str:
+def _group_support_missing_replan_query(
+    *,
+    query_text: str,
+    semantic_hint: RetrievalSemanticHint | None,
+    references,
+) -> str:
     topic = _query_topic_before_first_need_marker(query_text)
-    subject = _replan_condition_subject(query_text=query_text, references=references)
+    subject = _replan_condition_subject(semantic_hint=semantic_hint, references=references)
     subject_terms = _condition_subject_replan_terms(subject)
     if subject_terms:
         return f"{topic} {' '.join(subject_terms)} 条款 规定".strip()
     return f"{topic} 条件 例外 条款 规定".strip()
 
 
-def _condition_subject_replan_query(*, query_text: str, references) -> str:
+def _condition_subject_replan_query(
+    *,
+    query_text: str,
+    semantic_hint: RetrievalSemanticHint | None,
+    references,
+) -> str:
     topic = _query_topic_before_first_need_marker(query_text)
-    subject = _replan_condition_subject(query_text=query_text, references=references)
+    subject = _replan_condition_subject(semantic_hint=semantic_hint, references=references)
     subject_terms = _condition_subject_replan_terms(subject)
     if subject_terms:
         return f"{topic} {' '.join(subject_terms)} 条件 要求".strip()
     return f"{topic} 条件 要求".strip()
 
 
-def _replan_condition_subject(*, query_text: str, references) -> str:
-    intent = infer_evidence_query_intent(query_text)
-    if intent.condition_subject:
-        return intent.condition_subject
+def _replan_condition_subject(
+    *,
+    semantic_hint: RetrievalSemanticHint | None,
+    references,
+) -> str:
+    if semantic_hint is not None and semantic_hint.condition_subject:
+        return semantic_hint.condition_subject
     for source in references:
         attributes = evidence_attributes_for_source(source)
         if attributes.condition_group_subject:
@@ -195,6 +247,13 @@ def _replan_condition_subject(*, query_text: str, references) -> str:
 
 def _condition_subject_replan_terms(condition_subject: str) -> tuple[str, ...]:
     return _CONDITION_SUBJECT_REPLAN_TERMS.get(condition_subject.strip(), ())
+
+
+def _semantic_hint_has_need_kind(
+    semantic_hint: RetrievalSemanticHint | None,
+    need_kind: str,
+) -> bool:
+    return semantic_hint is not None and need_kind in semantic_hint.need_kinds
 
 
 _CONDITION_SUBJECT_REPLAN_TERMS: dict[str, tuple[str, ...]] = {

@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 import os
-from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
 
@@ -10,18 +9,6 @@ from campus_contracts import DEFAULT_POLICY_PROJECTION_VERSION
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
     AuthenticatedNoticeAttachmentFetchStatusStore,
     build_attachment_fetch_status_records_from_bundle_records,
-)
-from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
-    DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
-)
-from campus_ingestion_core.authenticated_notice_defaults import (
-    DEFAULT_AUTHENTICATED_NOTICE_COLLECTION,
-    DEFAULT_AUTHENTICATED_NOTICE_CORPUS,
-    DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL,
-    DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS,
-    DEFAULT_AUTHENTICATED_NOTICE_IMPORT_SOURCE,
-    DEFAULT_AUTHENTICATED_NOTICE_PARSER_VERSION,
-    DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE,
 )
 from campus_ingestion_core.authenticated_notice_import_assets import (
     _assert_attachment_blob_root_precondition,
@@ -33,14 +20,19 @@ from campus_ingestion_core.authenticated_notice_import_env import (
     _build_consumption_projection_store_from_env_if_configured,
     _build_read_model_store_from_env_if_configured,
 )
+from campus_ingestion_core.authenticated_notice_import_env import (
+    _build_inventory_store_from_env_if_configured as _build_inventory_store_from_env_if_configured_from_env,
+)
 from campus_ingestion_core.authenticated_notice_import_env_presence import (
     env_has_attachment_fetch_status_config,
     env_has_consumption_projection_config,
     env_has_inventory_store_config,
     env_has_read_model_config,
 )
-from campus_ingestion_core.authenticated_notice_import_support import (
-    assert_authenticated_notice_import_source_shape as _assert_authenticated_notice_import_source_shape,
+from campus_ingestion_core.authenticated_notice_import_models import (
+    AuthenticatedNoticeBundleImportResult,
+    AuthenticatedNoticeImportRequest,
+    AuthenticatedNoticePreparedImport,
 )
 from campus_ingestion_core.authenticated_notice_import_support import (
     assert_consumer_admission_gate_allows_projection as _assert_consumer_admission_gate_allows_projection,
@@ -50,9 +42,6 @@ from campus_ingestion_core.authenticated_notice_import_support import (
 )
 from campus_ingestion_core.authenticated_notice_import_support import (
     build_authenticated_notice_import_admission_report as _build_authenticated_notice_import_admission_report,
-)
-from campus_ingestion_core.authenticated_notice_import_support import (
-    build_inventory_store_from_env_if_configured as _build_inventory_store_from_env_if_configured,
 )
 from campus_ingestion_core.authenticated_notice_import_support import (
     load_authenticated_notice_import_payload as _load_authenticated_notice_import_payload,
@@ -68,9 +57,6 @@ from campus_ingestion_core.authenticated_notice_import_support import (
 )
 from campus_ingestion_core.authenticated_notice_import_support import (
     manifest_declares_full_scope_replace as _manifest_declares_full_scope_replace,
-)
-from campus_ingestion_core.authenticated_notice_import_support import (
-    normalize_import_mode as _normalize_import_mode,
 )
 from campus_ingestion_core.authenticated_notice_import_support import (
     prepared_notice_ids as _prepared_notice_ids,
@@ -107,11 +93,9 @@ from campus_ingestion_core.authenticated_notice_source_truth import (
 )
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryStore,
+    build_authenticated_notice_source_truth_inventory_store_from_env,
     build_authenticated_notice_source_truth_parent_snapshot_from_payloads,
     inventory_entry_from_parent_snapshot,
-)
-from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
-    build_authenticated_notice_source_truth_inventory_store_from_env as build_authenticated_notice_source_truth_inventory_store_from_env,
 )
 from campus_ingestion_core.campusrag_ingestion_support import (
     DocumentImportInput,
@@ -152,7 +136,6 @@ from campus_ingestion_core.registry import (
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
 )
-from campus_ingestion_core.scope_catalog import assert_known_scope
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN = "plan"
@@ -163,91 +146,24 @@ _SUPPORTED_AUTHENTICATED_NOTICE_IMPORT_MODES = {
 }
 
 
-@dataclass(frozen=True, slots=True)
-class AuthenticatedNoticeImportRequest:
-    bundle_path: Path | None = None
-    export_manifest_path: Path | None = None
-    site_id: str = ""
-    source_home_url: str = ""
-    run_id: str | None = None
-    source_bucket: str | None = None
-    bundle_object_key: str | None = None
-    manifest_object_key: str | None = None
-    bundle_content_sha256: str | None = None
-    bundle_byte_size: int | None = None
-    manifest_content_sha256: str | None = None
-    manifest_byte_size: int | None = None
-    allow_local_fixture_import: bool = False
-    collector_run_ledger_table: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE
-    consumer_admission_manifest_path: Path | None = None
-    attachment_blob_root: Path | None = None
-    corpus: str = DEFAULT_AUTHENTICATED_NOTICE_CORPUS
-    collection: str = DEFAULT_AUTHENTICATED_NOTICE_COLLECTION
-    default_entitlement_groups: tuple[str, ...] = DEFAULT_AUTHENTICATED_NOTICE_ENTITLEMENT_GROUPS
-    visibility_scope: str | None = DEFAULT_AUTHENTICATED_NOTICE_VISIBILITY_SCOPE
-    parser_version: str = DEFAULT_AUTHENTICATED_NOTICE_PARSER_VERSION
-    embedding_model: str = DEFAULT_AUTHENTICATED_NOTICE_EMBEDDING_MODEL
-    import_source: str = DEFAULT_AUTHENTICATED_NOTICE_IMPORT_SOURCE
-    mode: str = AUTHENTICATED_NOTICE_IMPORT_MODE_PLAN
-    replace_scope: bool = False
-    source_truth_only: bool = False
-
-    def __post_init__(self) -> None:
-        if self.bundle_path is not None:
-            object.__setattr__(self, "bundle_path", Path(self.bundle_path))
-        if self.export_manifest_path is not None:
-            object.__setattr__(self, "export_manifest_path", Path(self.export_manifest_path))
-        if self.consumer_admission_manifest_path is not None:
-            object.__setattr__(
-                self,
-                "consumer_admission_manifest_path",
-                Path(self.consumer_admission_manifest_path),
-            )
-        if self.attachment_blob_root is not None:
-            object.__setattr__(self, "attachment_blob_root", Path(self.attachment_blob_root))
-        object.__setattr__(
-            self,
-            "default_entitlement_groups",
-            tuple(group.strip() for group in self.default_entitlement_groups if group.strip()),
-        )
-        object.__setattr__(self, "mode", _normalize_import_mode(self.mode))
-        for field_name in (
-            "run_id",
-            "source_bucket",
-            "bundle_object_key",
-            "manifest_object_key",
-            "bundle_content_sha256",
-            "manifest_content_sha256",
-            "collector_run_ledger_table",
-        ):
-            value = getattr(self, field_name)
-            if isinstance(value, str):
-                object.__setattr__(self, field_name, value.strip() or None)
-        assert_known_scope(self.corpus, self.collection)
-        if not self.site_id.strip():
-            raise ValueError("site_id is required")
-        if not self.source_home_url.strip():
-            raise ValueError("source_home_url is required")
-        _assert_authenticated_notice_import_source_shape(self)
+def _build_inventory_store_from_env_if_configured(
+    env: dict[str, str],
+) -> AuthenticatedNoticeSourceTruthInventoryStore | None:
+    # Keep the patch seam local to this module while delegating the env-key policy.
+    return _build_inventory_store_from_env_if_configured_from_env(
+        env,
+        builder=build_authenticated_notice_source_truth_inventory_store_from_env,
+    )
 
 
-@dataclass(frozen=True, slots=True)
-class AuthenticatedNoticePreparedImport:
-    notice_id: str
-    raw_asset_id: str
-    raw_version_id: str
-    raw_record: RawAssetRecord
-    capture_artifacts: dict[str, bytes]
-    provider_artifacts: dict[str, bytes]
-    source_truth_artifacts: dict[str, bytes]
-    source_artifact_keys: dict[str, str]
-    document_import: DocumentImportInput
-
-
-@dataclass(frozen=True, slots=True)
-class AuthenticatedNoticeBundleImportResult:
-    notice_count: int
-    notice_imports: tuple[AuthenticatedNoticePreparedImport, ...]
+def _should_autobuild_internal_notice_downstream(
+    *,
+    request: AuthenticatedNoticeImportRequest,
+) -> bool:
+    return (
+        _should_materialize_internal_notice_consumption(request=request)
+        and request.consumer_admission_manifest_path is not None
+    )
 
 
 def prepare_authenticated_notice_bundle_records(
@@ -354,10 +270,19 @@ def import_authenticated_notice_export(
         )
         and (
             consumption_projection_store is not None
-            or env_has_consumption_projection_config(source)
+            or (
+                _should_autobuild_internal_notice_downstream(request=request)
+                and env_has_consumption_projection_config(source)
+            )
         ),
         read_model_enabled=_should_materialize_internal_notice_consumption(request=request)
-        and (read_model_store is not None or env_has_read_model_config(source)),
+        and (
+            read_model_store is not None
+            or (
+                _should_autobuild_internal_notice_downstream(request=request)
+                and env_has_read_model_config(source)
+            )
+        ),
         consumer_admission_manifest_supplied=(
             request.consumer_admission_manifest_path is not None
             and _should_materialize_internal_notice_consumption(request=request)
@@ -492,7 +417,9 @@ def import_authenticated_notice_export(
     read_model_entries = ()
     if _should_materialize_internal_notice_consumption(request=request):
         projection_store = consumption_projection_store
-        if projection_store is None:
+        if projection_store is None and _should_autobuild_internal_notice_downstream(
+            request=request
+        ):
             projection_store = _build_consumption_projection_store_from_env_if_configured(source)
         consumer_admission_manifest = _load_consumer_admission_manifest_if_needed(
             request=request,
@@ -522,7 +449,11 @@ def import_authenticated_notice_export(
                 projection_store=projection_store,
             )
         runtime_read_model_store = read_model_store
-        if projection_store is not None and runtime_read_model_store is None:
+        if (
+            projection_store is not None
+            and runtime_read_model_store is None
+            and _should_autobuild_internal_notice_downstream(request=request)
+        ):
             runtime_read_model_store = _build_read_model_store_from_env_if_configured(source)
         read_model_admitted_notice_ids = (
             admitted_notice_ids_for_target_surface(

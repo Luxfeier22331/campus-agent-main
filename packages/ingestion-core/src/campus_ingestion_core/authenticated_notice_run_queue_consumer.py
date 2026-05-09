@@ -2,9 +2,8 @@ from __future__ import annotations
 
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass, replace
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Any
 
 from campus_ingestion_core.authenticated_notice_collector_run_ledger import (
     DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE,
@@ -30,7 +29,6 @@ from campus_ingestion_core.authenticated_notice_processing_projection import (
 )
 from campus_ingestion_core.authenticated_notice_processing_projection import (
     AuthenticatedNoticeProcessingProjectionReporter,
-    build_authenticated_notice_processing_snapshots,
 )
 from campus_ingestion_core.authenticated_notice_processor_profiles import (
     get_processor_profile,
@@ -41,7 +39,22 @@ from campus_ingestion_core.authenticated_notice_run_processing_projection import
 )
 from campus_ingestion_core.authenticated_notice_run_processing_projection import (
     AuthenticatedNoticeRunProcessingProjectionReporter,
-    build_authenticated_notice_run_processing_snapshots,
+)
+from campus_ingestion_core.authenticated_notice_run_queue_consumer_models import (
+    AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_SCHEMA_VERSION,
+    AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_TRACE_SCHEMA_VERSION,
+    DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_LIMIT,
+    DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_WORKER_ID,
+    DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_RETRY_AFTER_SECONDS,
+    AuthenticatedNoticeRunQueueConsumeResult,
+    AuthenticatedNoticeRunQueueImportCallable,
+    AuthenticatedNoticeTypedDownstreamMaterializer,
+)
+from campus_ingestion_core.authenticated_notice_run_queue_consumer_projection import (
+    _record_for_run_processing_projection,
+    _report_processing_projection,
+    _report_run_processing_projection,
+    _should_invoke_typed_materializer,
 )
 from campus_ingestion_core.authenticated_notice_run_queue_consumer_support import (
     AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_FAILED_REPORT_SCHEMA_VERSION,
@@ -126,9 +139,6 @@ from campus_ingestion_core.authenticated_notice_run_queue_consumer_support impor
     resolve_and_verify_run_refs as _resolve_and_verify_run_refs,
 )
 from campus_ingestion_core.authenticated_notice_run_queue_consumer_support import (
-    typed_materialization_candidate_count as _typed_materialization_candidate_count,
-)
-from campus_ingestion_core.authenticated_notice_run_queue_consumer_support import (
     validate_required_media_gate as _validate_required_media_gate,
 )
 from campus_ingestion_core.authenticated_notice_run_queue_consumer_support import (
@@ -145,60 +155,6 @@ from campus_ingestion_core.collected_notice_ingest_queue_store import (
     NoticeIngestQueueStore,
 )
 from campus_ingestion_core.source_handoff_store import SourceHandoffStore
-
-AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_SCHEMA_VERSION = "authenticated_notice_run_queue_consume.v1"
-AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_TRACE_SCHEMA_VERSION = (
-    "authenticated_notice_run_queue_consume_trace.v1"
-)
-DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_WORKER_ID = "authenticated-notice-run-queue-consumer"
-DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_CONSUME_LIMIT = 10
-DEFAULT_AUTHENTICATED_NOTICE_RUN_QUEUE_RETRY_AFTER_SECONDS = 300
-
-
-class AuthenticatedNoticeRunQueueImportCallable(Protocol):
-    def __call__(
-        self,
-        *,
-        request: AuthenticatedNoticeImportRequest,
-        env: dict[str, str] | None = None,
-        object_store: object | None = None,
-    ) -> Mapping[str, Any]: ...
-
-
-class AuthenticatedNoticeTypedDownstreamMaterializer(Protocol):
-    def __call__(
-        self,
-        *,
-        import_result: Mapping[str, Any],
-        env: dict[str, str],
-        object_store: object,
-        operations_dir: Path,
-        consumer_admission_manifest_path: Path,
-        source_corpus: str,
-        source_collection: str,
-        run_id: str,
-        job_id: str,
-        generated_at: str,
-    ) -> Mapping[str, Any]: ...
-
-
-@dataclass(frozen=True, slots=True)
-class AuthenticatedNoticeRunQueueConsumeResult:
-    queue_consume: dict[str, Any]
-    trace: dict[str, Any]
-    failed_report: dict[str, Any]
-
-    def to_output_files(self) -> dict[str, dict[str, Any]]:
-        main_filename = (
-            "authenticated-notice-run-queue-consume.execute.json"
-            if self.queue_consume.get("mode") == "execute"
-            else "authenticated-notice-run-queue-consume.dry-run.json"
-        )
-        return {
-            main_filename: self.queue_consume,
-            "authenticated-notice-run-queue-consume.trace.json": self.trace,
-            "authenticated-notice-run-queue-consume-failed-report.json": self.failed_report,
-        }
 
 
 def consume_authenticated_notice_ingest_queue(
@@ -794,120 +750,6 @@ def consume_authenticated_notice_ingest_queue(
             failed_items=tuple(failed_items),
         ),
     )
-
-
-def _should_invoke_typed_materializer(import_result: Mapping[str, Any]) -> bool:
-    if _typed_materialization_candidate_count(import_result) > 0:
-        return True
-    selected_notice_ids = import_result.get("selected_notice_ids")
-    if isinstance(selected_notice_ids, str | bytes) or not isinstance(
-        selected_notice_ids,
-        Sequence,
-    ):
-        return False
-    return any(str(item).strip() for item in selected_notice_ids)
-
-
-def _report_processing_projection(
-    *,
-    reporter: AuthenticatedNoticeProcessingProjectionReporter | None,
-    record,
-    trace_row: Mapping[str, Any],
-    producer_version: str,
-) -> None:
-    if reporter is None:
-        return
-    projected_at = utc_now()
-    snapshots = build_authenticated_notice_processing_snapshots(
-        record=record,
-        trace_row=trace_row,
-        projected_at=projected_at,
-        producer_version=producer_version,
-    )
-    if not snapshots:
-        trace_row["processing_projection_report"] = {
-            "status": "skipped",
-            "reason": "no_selected_notice_ids",
-        }
-        return
-    try:
-        reporter.report(snapshots=snapshots)
-        trace_row["processing_projection_report"] = {
-            "status": "reported",
-            "snapshot_count": len(snapshots),
-            "projected_at": projected_at,
-        }
-    except Exception as exc:
-        trace_row["processing_projection_report"] = {
-            "status": "failed",
-            "snapshot_count": len(snapshots),
-            "error_message": str(exc),
-        }
-
-
-def _report_run_processing_projection(
-    *,
-    reporter: AuthenticatedNoticeRunProcessingProjectionReporter | None,
-    records: Sequence[Any],
-    trace_rows: Sequence[Mapping[str, Any]],
-    producer_version: str,
-    trace_rows_out: Sequence[dict[str, Any]],
-) -> None:
-    if reporter is None or not records:
-        return
-    projected_at = utc_now()
-    snapshots = build_authenticated_notice_run_processing_snapshots(
-        records=records,
-        trace_rows=trace_rows,
-        projected_at=projected_at,
-        producer_version=producer_version,
-    )
-    if not snapshots:
-        for trace_row in trace_rows_out:
-            trace_row["run_processing_projection_report"] = {
-                "status": "skipped",
-                "reason": "no_run_snapshot",
-            }
-        return
-    try:
-        reporter.report(snapshots=snapshots)
-        for trace_row in trace_rows_out:
-            trace_row["run_processing_projection_report"] = {
-                "status": "reported",
-                "snapshot_count": len(snapshots),
-                "projected_at": projected_at,
-            }
-    except Exception as exc:
-        for trace_row in trace_rows_out:
-            trace_row["run_processing_projection_report"] = {
-                "status": "failed",
-                "snapshot_count": len(snapshots),
-                "error_message": str(exc),
-            }
-
-
-def _record_for_run_processing_projection(record, trace_row: Mapping[str, Any]):
-    trace_status = str(trace_row.get("status") or "").strip()
-    status = (
-        "succeeded"
-        if trace_status == "completed"
-        else trace_status
-        if trace_status in {"failed_retryable", "failed_terminal", "manual_review", "dead_letter"}
-        else record.status
-    )
-    return replace(
-        record,
-        status=status,
-        last_error_code=_optional_text(trace_row.get("error_code")) or record.last_error_code,
-        last_error_message=(
-            _optional_text(trace_row.get("error_message")) or record.last_error_message
-        ),
-    )
-
-
-def _optional_text(value: object) -> str | None:
-    text = str(value or "").strip()
-    return text or None
 
 
 __all__ = [

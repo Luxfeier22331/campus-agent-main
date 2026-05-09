@@ -11,8 +11,10 @@ from campus_ingestion_core.index_release import (
     build_index_release_manifest,
     build_release_metadata_payload,
     default_release_id,
+    load_index_release_manifest,
     resolve_alias_target,
     validate_scope_release,
+    write_index_release_artifacts,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
@@ -68,6 +70,111 @@ def _make_chunk(
 
 
 class IndexReleaseValidationTest(unittest.TestCase):
+    def test_write_index_release_artifacts_rewrites_failed_post_publish_audit_status(self) -> None:
+        class _FakeWriter:
+            def __init__(self) -> None:
+                self.objects: dict[tuple[str, str], bytes] = {}
+
+            def put_bytes(
+                self,
+                *,
+                bucket: str,
+                key: str,
+                data: bytes,
+                content_type: str,
+            ) -> None:
+                self.objects[(bucket, key)] = data
+
+            def get_bytes(self, *, bucket: str, key: str) -> bytes:
+                return self.objects[(bucket, key)]
+
+        writer = _FakeWriter()
+        manifest = build_index_release_manifest(
+            release_id="r20260509_000000_reaudit",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            binding=QdrantIndexBinding(
+                alias_name="curriculum_plan",
+                collection_prefix="curriculum_plan",
+            ),
+            physical_collection_name="curriculum_plan__r20260509_000000_reaudit",
+            previous_physical_collection_name=None,
+            records=(
+                DocumentRegistryRecord(
+                    document_id="curriculum:test",
+                    revision_track="source-faithful",
+                    version_id="sha256:test",
+                    source_uri="https://campus.example/curriculum:test",
+                    content_hash="sha256:test",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    status="active",
+                    ingestion_timestamp="2026-05-09T00:00:00+00:00",
+                    parser_version="test_parser_v1",
+                    embedding_model="mock-embedding-8d",
+                    source_channel="pdf_ocr",
+                    is_current=True,
+                    document_units_object_key="curriculum/test/document-units.jsonl",
+                    processed_object_keys=("curriculum/test/document-units.jsonl",),
+                    import_source="test",
+                ),
+            ),
+            chunks=(
+                _make_chunk(
+                    chunk_id="chunk-0001",
+                    text="课程简介正文。",
+                    section_path=["课程简介"],
+                    tokens=32,
+                    document_id="curriculum:test",
+                ),
+            ),
+            validation=validate_scope_release(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                chunks=(
+                    _make_chunk(
+                        chunk_id="chunk-0001",
+                        text="课程简介正文。",
+                        section_path=["课程简介"],
+                        tokens=32,
+                        document_id="curriculum:test",
+                    ),
+                ),
+            ),
+            indexed_at="2026-05-09T00:00:00+00:00",
+            published_at=None,
+            validation_summary_object_key=None,
+            embedding_provider="mock",
+            embedding_dimensions=3,
+            runtime_profile=load_runtime_profile("curriculum", "curriculum_plan"),
+            sparse_settings=SparseEmbeddingSettings(provider="mock"),
+        )
+        manifest = replace(
+            manifest,
+            post_publish_audit_status="passed",
+            post_publish_audit_summary_object_key=(
+                "curriculum/releases/curriculum_plan/r20260509_000000_reaudit/post-publish-audit-summary.json"
+            ),
+        )
+
+        artifacts = write_index_release_artifacts(
+            writer=writer,
+            bucket="campus-rag-derived",
+            manifest=manifest,
+            validation_summary={"status": "passed"},
+            post_publish_audit_summary={"status": "failed", "issues": ["sample_1_bad_contract"]},
+        )
+        loaded = load_index_release_manifest(
+            reader=writer,
+            bucket="campus-rag-derived",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            release_id=artifacts.manifest.release_id,
+        )
+
+        self.assertEqual(artifacts.manifest.post_publish_audit_status, "failed")
+        self.assertEqual(loaded.post_publish_audit_status, "failed")
+
     def test_default_release_id_is_unique_within_same_second(self) -> None:
         now = datetime(2026, 4, 30, 12, 0, 0, tzinfo=UTC)
 

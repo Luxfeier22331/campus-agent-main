@@ -311,9 +311,7 @@ def _check_batch_specific_env(
                     "Official web release task projection callback env is configured.",
                     details={
                         "base_url_env": "INGESTION_WORKER_APP_API_BASE_URL",
-                        "shared_secret_env": (
-                            "INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET"
-                        ),
+                        "shared_secret_env": ("INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET"),
                     },
                 )
             )

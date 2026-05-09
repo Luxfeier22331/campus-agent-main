@@ -17,6 +17,12 @@ from campus_rag_agent.rag_sdk_output import (
     RagSdkListItemSupport,
     validate_rag_sdk_answer_output,
 )
+from campus_rag_agent.retrieval_intent import (
+    RetrievalIntent,
+    RetrievalIntentExpectation,
+    RetrievalIntentTarget,
+)
+from campus_rag_agent.service_answer_synthesis import build_rag_query_intent
 
 from tests.agent.rag_agent_test_support import _make_handbook_source
 
@@ -43,6 +49,64 @@ class RagAgentSdkContractTest(unittest.TestCase):
         self.assertEqual(intent.task_kind, RagTaskKind.CATEGORY_DISCOVERY)
         self.assertEqual(intent.category_id, "scholarship")
         self.assertFalse(intent.needs_clarification)
+
+    def test_sdk_query_intent_projects_from_retrieval_intent_not_raw_query_cues(self) -> None:
+        query_intent = build_rag_query_intent(
+            user_goal="中央民族大学学生申诉处理办法",
+            retrieval_plan=_plan_stub(),
+            intent_frame=None,
+            retrieval_intent=RetrievalIntent(
+                kind="condition_table",
+                normalized_query="中央民族大学学生申诉处理办法",
+                expected=RetrievalIntentExpectation(answer_kind="condition_table"),
+                target=RetrievalIntentTarget(
+                    corpus="regulations",
+                    collection="institutional_rules",
+                    document_ids=("handbook:appeal",),
+                    condition_subject="deadline",
+                ),
+            ),
+        )
+
+        self.assertEqual(query_intent.task_kind, RagTaskKind.SPECIFIC_POLICY_LOOKUP)
+        self.assertEqual(query_intent.normalized_query, "中央民族大学学生申诉处理办法")
+
+    def test_sdk_run_request_carries_typed_answer_projection_for_supported_regulation_path(
+        self,
+    ) -> None:
+        from campus_rag_agent.agent_answer_shape import AnswerShape
+        from campus_rag_agent.rag_sdk_models import RagSdkRunRequest
+        from campus_rag_agent.typed_answer_drafts import build_typed_answer_draft
+
+        source = _evidence().sources[0]
+        draft = build_typed_answer_draft(
+            answer_shape=AnswerShape.CATEGORY_DISCOVERY_LIST,
+            selected_rows=((source, (source.snippet,)),),
+            retrieval_intent=RetrievalIntent(
+                kind="policy_list",
+                normalized_query="有哪些本科生可以申请的奖学金",
+                expected=RetrievalIntentExpectation(answer_kind="policy_list"),
+                target=RetrievalIntentTarget(
+                    corpus="regulations",
+                    collection="student_rules",
+                    category_id="scholarship",
+                    category_member_document_ids=("handbook:scholarship",),
+                ),
+            ),
+        )
+
+        request = RagSdkRunRequest(
+            user_goal="有哪些本科生可以申请的奖学金",
+            query_intent=RagQueryIntent(
+                task_kind=RagTaskKind.CATEGORY_DISCOVERY,
+                normalized_query="有哪些本科生可以申请的奖学金",
+                category_id="scholarship",
+            ),
+            evidence=RagSdkEvidenceProjection.from_evidence_bundle(_evidence()),
+            typed_answer=draft,
+        )
+
+        self.assertEqual(request.typed_answer.kind, "policy_list")
 
     def test_answer_output_accepts_claims_and_list_items_with_span_anchors(self) -> None:
         evidence = _evidence()
@@ -163,3 +227,27 @@ def _evidence() -> EvidenceBundle:
 
 if __name__ == "__main__":
     unittest.main()
+
+
+def _plan_stub():
+    from campus_retrieval_core import (
+        RetrievalPlan,
+        RetrievalPlanBudget,
+        RetrievalScope,
+        RetrievalStep,
+    )
+
+    return RetrievalPlan(
+        plan_id="regulations:student_rules:current:test",
+        query_mode="current",
+        admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+        budget=RetrievalPlanBudget(max_steps=1, max_replans=0),
+        steps=(
+            RetrievalStep(
+                step_id="indexed-lookup",
+                step_type="indexed_lookup",
+                scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                query_text="中央民族大学学生申诉处理办法",
+            ),
+        ),
+    )

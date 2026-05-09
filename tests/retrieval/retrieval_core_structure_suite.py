@@ -17,6 +17,7 @@ QDRANT_OFFICIAL_WEB_POLICY = RETRIEVAL_CORE / "backend_qdrant_official_web_polic
 RETRIEVAL_SERVICE = RETRIEVAL_CORE / "service.py"
 RETRIEVAL_SERVICE_EXECUTION = RETRIEVAL_CORE / "service_execution.py"
 RETRIEVAL_SERVICE_REQUESTS = RETRIEVAL_CORE / "service_requests.py"
+RETRIEVAL_MODELS = RETRIEVAL_CORE / "models.py"
 
 
 class RetrievalCoreStructureTest(unittest.TestCase):
@@ -56,6 +57,12 @@ class RetrievalCoreStructureTest(unittest.TestCase):
         self.assertNotIn("def _build_retrieval_request", service_source)
         self.assertNotIn("def _execute_retrieval_step", service_source)
         self.assertLessEqual(len(service_source.splitlines()), 520)
+
+    def test_retrieval_core_does_not_import_rag_retrieval_intent_owner(self) -> None:
+        for path in RETRIEVAL_CORE.rglob("*.py"):
+            source = path.read_text(encoding="utf-8")
+            self.assertNotIn("campus_rag_agent.retrieval_intent", source)
+            self.assertNotIn("RetrievalIntent", source)
 
 
 if __name__ == "__main__":

@@ -10,6 +10,7 @@ from campus_contracts import (
 from campus_retrieval_core import RetrievalPlan, RetrievalStep
 
 from .agentic_depth_diagnostics import build_planner_information_needs
+from .retrieval_intent import RetrievalIntent
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,12 +47,14 @@ def build_rag_planner_decision(
     handbook_plan=None,
     curriculum_course_plan=None,
     curriculum_program_family_plan=None,
+    retrieval_intent: RetrievalIntent | None = None,
 ) -> RagPlannerDecision:
     information_needs = build_planner_information_needs(
         user_goal=user_goal,
         effective_scope=effective_scope,
         retrieval_collection=retrieval_collection,
         query_mode=retrieval_plan.query_mode,
+        retrieval_intent=retrieval_intent,
     )
     return RagPlannerDecision(
         query_mode=retrieval_plan.query_mode,

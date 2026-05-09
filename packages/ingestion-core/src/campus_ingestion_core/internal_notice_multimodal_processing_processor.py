@@ -240,9 +240,7 @@ def _settings_from_env(env: Mapping[str, str] | None) -> dict[str, object]:
         or ""
     ).strip()
     model = (
-        source.get("INTERNAL_NOTICE_MULTIMODAL_MODEL")
-        or source.get("PROMPT_RUNTIME_MODEL")
-        or ""
+        source.get("INTERNAL_NOTICE_MULTIMODAL_MODEL") or source.get("PROMPT_RUNTIME_MODEL") or ""
     ).strip()
     base_url = (
         source.get("INTERNAL_NOTICE_MULTIMODAL_BASE_URL")

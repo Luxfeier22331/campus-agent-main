@@ -24,8 +24,7 @@ PHASE_EVIDENCE_DIR = WORKSTREAM_ROOT / "evidence/phase-06-canary-cohort-closeout
 DEFAULT_OUTPUT_PATH = PHASE_EVIDENCE_DIR / "selected-replay-dry-run.json"
 CANARY_STATUS_PATH = PHASE_EVIDENCE_DIR / "canary-status-summary.json"
 SCOPED_MATERIALIZED_DOCUMENTS_PATH = (
-    REPO_ROOT
-    / ".planning/quick/260411-w5m-scoped-rules-quality-acceptance/"
+    REPO_ROOT / ".planning/quick/260411-w5m-scoped-rules-quality-acceptance/"
     "scoped-rules-materialized-documents.json"
 )
 INSTITUTIONAL_EVAL_MANIFEST_PATH = (
@@ -55,8 +54,7 @@ def build_selected_replay_dry_run(*, generated_at: str = DEFAULT_GENERATED_AT) -
         generated_at=generated_at,
     )
     scoped_records = {
-        notice_id: _load_scoped_record(notice_id)
-        for notice_id in ("351907", "186977")
+        notice_id: _load_scoped_record(notice_id) for notice_id in ("351907", "186977")
     }
     document_id_to_notice_id = {
         institutional_record.document_id: "355282",
@@ -112,23 +110,17 @@ def build_selected_replay_dry_run(*, generated_at: str = DEFAULT_GENERATED_AT) -
             notice_id="351907",
             canary=canary_by_notice_id["351907"],
             candidate=candidates_by_notice_id.get("351907"),
-            selected_record_source=str(
-                SCOPED_MATERIALIZED_DOCUMENTS_PATH.relative_to(REPO_ROOT)
-            ),
+            selected_record_source=str(SCOPED_MATERIALIZED_DOCUMENTS_PATH.relative_to(REPO_ROOT)),
             registry_delta_behavior="no_candidate_current_version_absent",
-            release_executor_called=scoped_records["351907"].document_id
-            in release_executor_called,
+            release_executor_called=scoped_records["351907"].document_id in release_executor_called,
         ),
         _notice_result(
             notice_id="186977",
             canary=canary_by_notice_id["186977"],
             candidate=candidates_by_notice_id.get("186977"),
-            selected_record_source=str(
-                SCOPED_MATERIALIZED_DOCUMENTS_PATH.relative_to(REPO_ROOT)
-            ),
+            selected_record_source=str(SCOPED_MATERIALIZED_DOCUMENTS_PATH.relative_to(REPO_ROOT)),
             registry_delta_behavior="no_candidate_current_version_absent",
-            release_executor_called=scoped_records["186977"].document_id
-            in release_executor_called,
+            release_executor_called=scoped_records["186977"].document_id in release_executor_called,
         ),
         {
             "source_notice_id": "351699",
@@ -169,7 +161,9 @@ def build_selected_replay_dry_run(*, generated_at: str = DEFAULT_GENERATED_AT) -
             "selected_notice_count": len(SELECTED_NOTICE_IDS),
             "candidate_count": len(store.list_candidates()),
             "serving_published_count": sum(
-                1 for candidate in store.list_candidates() if candidate.status == "serving_published"
+                1
+                for candidate in store.list_candidates()
+                if candidate.status == "serving_published"
             ),
             "held_search_only_count": sum(
                 1 for candidate in store.list_candidates() if candidate.status == "held_search_only"
@@ -187,9 +181,8 @@ def build_selected_replay_dry_run(*, generated_at: str = DEFAULT_GENERATED_AT) -
         },
         "notices": notices,
         "candidates": [
-            _candidate_summary(candidate) for candidate in sorted(
-                store.list_candidates(), key=lambda item: item.document_id
-            )
+            _candidate_summary(candidate)
+            for candidate in sorted(store.list_candidates(), key=lambda item: item.document_id)
         ],
         "production_replay": {
             "attempted": False,
@@ -275,7 +268,9 @@ def _build_current_institutional_record(
 ) -> DocumentRegistryRecord:
     manifest = _read_json(INSTITUTIONAL_EVAL_MANIFEST_PATH)
     document = next(
-        item for item in manifest["documents"] if "effective-undated:revision-2026" in item["version_id"]
+        item
+        for item in manifest["documents"]
+        if "effective-undated:revision-2026" in item["version_id"]
     )
     content_hash = str(document["version_id"]).split(":", maxsplit=2)[1]
     return DocumentRegistryRecord(
@@ -323,7 +318,9 @@ def _load_scoped_record(notice_id: str) -> DocumentRegistryRecord:
         corpus=record_payload["corpus"],
         collection=record_payload["collection"],
         cleaning_policy_version=record_payload["cleaning_policy_version"],
-        entitlement_groups=tuple(str(item) for item in record_payload.get("entitlement_groups") or ()),
+        entitlement_groups=tuple(
+            str(item) for item in record_payload.get("entitlement_groups") or ()
+        ),
         visibility_scope=record_payload.get("visibility_scope"),
         visibility_level=record_payload.get("visibility_level") or "restricted",
         status=record_payload["status"],
@@ -336,7 +333,9 @@ def _load_scoped_record(notice_id: str) -> DocumentRegistryRecord:
         published_date=record_payload.get("published_date"),
         document_units_object_key=record_payload.get("document_units_object_key"),
         canonical_markdown_object_key=record_payload.get("canonical_markdown_object_key"),
-        processed_object_keys=tuple(str(item) for item in record_payload.get("processed_object_keys") or ()),
+        processed_object_keys=tuple(
+            str(item) for item in record_payload.get("processed_object_keys") or ()
+        ),
         import_source=record_payload["import_source"],
     )
 

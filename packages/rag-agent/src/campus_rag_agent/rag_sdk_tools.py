@@ -81,6 +81,8 @@ def resolve_admitted_query_slot_id(
             "RAG SDK retrieval tool may only select admitted query slots",
         )
     return query_slot_id
+
+
 __all__ = [
     "RagSdkToolError",
     "execute_retrieve_evidence_tool",

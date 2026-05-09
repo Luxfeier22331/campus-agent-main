@@ -230,11 +230,7 @@ class BackendQdrantCurriculumRankingBackendSupportTest(unittest.TestCase):
                             "latest_url": "https://campus.example/curriculum/social-practice",
                             "source_channel": "pdf_ocr",
                             "is_current": True,
-                            "anchor": {
-                                "section_path": [
-                                    "中央民族大学大学生社会实践环节实施方案"
-                                ]
-                            },
+                            "anchor": {"section_path": ["中央民族大学大学生社会实践环节实施方案"]},
                             "display_text": "中央民族大学大学生社会实践环节实施方案。",
                         },
                     )
@@ -327,11 +323,7 @@ class BackendQdrantCurriculumRankingBackendSupportTest(unittest.TestCase):
                             "latest_url": "https://campus.example/curriculum/social-practice",
                             "source_channel": "pdf_ocr",
                             "is_current": True,
-                            "anchor": {
-                                "section_path": [
-                                    "中央民族大学大学生社会实践环节实施方案"
-                                ]
-                            },
+                            "anchor": {"section_path": ["中央民族大学大学生社会实践环节实施方案"]},
                             "display_text": "中央民族大学大学生社会实践环节实施方案。",
                         },
                     )
@@ -391,8 +383,7 @@ class BackendQdrantCurriculumRankingBackendSupportTest(unittest.TestCase):
             branch
             for branch in authorization_filter.should
             if any(
-                getattr(item, "key", "") == "visibility_level"
-                and item.match.value == "restricted"
+                getattr(item, "key", "") == "visibility_level" and item.match.value == "restricted"
                 for item in branch.must
             )
         )

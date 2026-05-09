@@ -52,15 +52,9 @@
 			"institutional-title-exact-438bbad6c45e",
 			"institutional-title-exact-8f97b86c0e95"
 		],
-		"effective_date": [
-			"institutional-graduate-employment-reward-effective-scope"
-		],
-		"semantic_institutional_rule": [
-			"institutional-three-assists"
-		],
-		"authz_denied": [
-			"institutional-student-association-management-authz-deny"
-		],
+		"effective_date": ["institutional-graduate-employment-reward-effective-scope"],
+		"semantic_institutional_rule": ["institutional-three-assists"],
+		"authz_denied": ["institutional-student-association-management-authz-deny"],
 		"version_locked": [
 			"institutional-title-exact-ff711d1185f9",
 			"institutional-title-exact-b77c7a48bd4e",
@@ -105,9 +99,7 @@
 			"institutional-title-exact-438bbad6c45e",
 			"institutional-title-exact-8f97b86c0e95"
 		],
-		"no_hit": [
-			"no-hit-impossible-institutional-rule"
-		]
+		"no_hit": ["no-hit-impossible-institutional-rule"]
 	},
 	"cases": [
 		{
@@ -115,9 +107,7 @@
 			"split": "regression_locked",
 			"query": "研究生助教助研助管工作应该依据哪份管理办法？",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -135,9 +125,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学丰台校区就医管理办法（暂行）",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -155,9 +143,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学党建经费管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -175,9 +161,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学全面落实研究生导师立德树人职责实施细则",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -195,9 +179,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学学生公费医疗管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -215,9 +197,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学学生社团管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -235,9 +215,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学学费、住宿费收费管理规定",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -255,9 +233,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学学院党政联席会议议事规则",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -275,9 +251,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学学院党组织会议议事规则",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -295,9 +269,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学强基计划学生本研衔接转段工作办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -315,9 +287,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学往来款项管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -335,9 +305,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学排课管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -355,9 +323,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学教学行为规范",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -375,9 +341,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学教室使用管理规定",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -395,9 +359,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科专业建设管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -415,9 +377,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科在线开放课程教学管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -435,9 +395,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科学生专业奖学金评定办法（修订）",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -455,9 +413,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科学生学籍管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -475,9 +431,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科教学事故认定与处理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -495,9 +449,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科教学督导工作管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -515,9 +467,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科教学质量监控管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -535,9 +485,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科毕业论文（设计）工作管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -555,9 +503,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科生专业调整实施办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -575,9 +521,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科生学业警示管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -595,9 +539,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科生实习管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -615,9 +557,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科生生活物价补贴管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -635,9 +575,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科课程考核管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -655,9 +593,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学校外实践教学基地建设管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -675,9 +611,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学毕业生就业奖励办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -695,9 +629,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学研究生学籍管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -715,9 +647,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学落实习惯过紧日子工作细则",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -735,9 +665,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -755,9 +683,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学党建工作考核办法（试行）",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -775,9 +701,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学双学士学位复合型人才培养项目实施管理暂行办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -795,9 +719,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学学生参加国际外语水平考试暨国际化培养项目奖励暂行办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -815,9 +737,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学招募选拔 “中国青年志愿者扶贫接力计划研究生支教团”成员规定",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -835,9 +755,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -855,9 +773,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学本科课程临时调(停)课管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -875,9 +791,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学研究生“三助”工作管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -895,9 +809,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学研究生学位论文评阅办法（试行）",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -915,9 +827,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学研究生涉密学位论文管理办法（试行）",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -935,9 +845,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学硕博连读研究生招生实施办法（试行）",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -955,9 +863,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},
@@ -975,9 +881,7 @@
 			"split": "release_gate",
 			"query": "中央民族大学毕业生就业奖励办法适用于2019届及以后毕业生吗",
 			"request_overrides": {
-				"entitlement_groups": [
-					"campus_members"
-				],
+				"entitlement_groups": ["campus_members"],
 				"visibility_scope": "campus",
 				"visibility_level": "restricted"
 			},

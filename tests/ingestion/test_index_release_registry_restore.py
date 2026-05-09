@@ -63,8 +63,7 @@ def _release_manifest_payload() -> dict[str, object]:
 def _release_payload() -> dict[str, object]:
     return {
         "document_id": (
-            "institutional_regulation:muc:"
-            "中央民族大学本科教学事故认定与处理办法:9ff43316b979"
+            "institutional_regulation:muc:中央民族大学本科教学事故认定与处理办法:9ff43316b979"
         ),
         "revision_track": "current-effective",
         "version_id": (
@@ -100,7 +99,9 @@ class IndexReleaseRegistryRestoreTest(unittest.TestCase):
         self.assertEqual(record.corpus, "regulations")
         self.assertEqual(record.collection, "institutional_rules")
         self.assertEqual(record.revision_track, "current-effective")
-        self.assertEqual(record.content_hash, "d1c5e76658bdd5ce035190a6be8b61a22a711a6cb945742c7b9f137c279a76de")
+        self.assertEqual(
+            record.content_hash, "d1c5e76658bdd5ce035190a6be8b61a22a711a6cb945742c7b9f137c279a76de"
+        )
         self.assertEqual(record.source_channel, "authenticated_notice_portal")
         self.assertEqual(record.import_source, "index_release_registry_restore")
         self.assertEqual(record.visibility_level, "restricted")
