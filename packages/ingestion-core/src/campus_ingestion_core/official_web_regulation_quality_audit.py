@@ -25,9 +25,7 @@ from campus_ingestion_core.registry_scope_release_support import (
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 
-OFFICIAL_WEB_REGULATION_QUALITY_AUDIT_SCHEMA_VERSION = (
-    "official_web_regulation_quality_audit.v1"
-)
+OFFICIAL_WEB_REGULATION_QUALITY_AUDIT_SCHEMA_VERSION = "official_web_regulation_quality_audit.v1"
 
 
 @dataclass(frozen=True, slots=True)

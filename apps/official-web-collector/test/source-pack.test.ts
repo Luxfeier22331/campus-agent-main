@@ -123,10 +123,7 @@ describe("official-web-collector source-pack seam", () => {
 		});
 		const consumptionManifest = JSON.parse(
 			readFileSync(
-				resolve(
-					REPO_ROOT,
-					"configs/ingestion/regulations/public-regulation-consumption.v1.json",
-				),
+				resolve(REPO_ROOT, "configs/ingestion/regulations/public-regulation-consumption.v1.json"),
 				"utf8",
 			),
 		) as { documents: Array<{ source_url: string; title: string }> };
@@ -150,9 +147,7 @@ describe("official-web-collector source-pack seam", () => {
 		expect(report.valid).toBe(true);
 		expect(report.sourcePackId).toBe("official-web-public-regulation-net-new-student-html.v1");
 		expect(report.entryCount).toBe(2);
-		expect(
-			report.entries.map((entry) => entry.entryId).sort(),
-		).toEqual([
+		expect(report.entries.map((entry) => entry.entryId).sort()).toEqual([
 			"owsp-net-new-adult-bachelor-degree-6631",
 			"owsp-net-new-adult-course-assessment-6641",
 		]);
@@ -164,9 +159,7 @@ describe("official-web-collector source-pack seam", () => {
 		});
 
 		expect(report.valid).toBe(true);
-		expect(report.sourcePackId).toBe(
-			"official-web-public-regulation-net-new-download-followup.v1",
-		);
+		expect(report.sourcePackId).toBe("official-web-public-regulation-net-new-download-followup.v1");
 		expect(report.entryCount).toBe(2);
 		expect(report.entries.map((entry) => entry.entryId).sort()).toEqual([
 			"owsp-net-new-degree-award-rules-download-5381",

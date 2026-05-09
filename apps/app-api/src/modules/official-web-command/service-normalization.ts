@@ -1,7 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
-
-import { OFFICIAL_WEB_RUN_ARTIFACT_TYPE_BY_NAME } from "official-web-core/artifacts";
 import type { OfficialWebPageTargetMatch } from "official-web-core";
+import { OFFICIAL_WEB_RUN_ARTIFACT_TYPE_BY_NAME } from "official-web-core/artifacts";
 
 import { AppApiRouteError } from "../../http";
 import type {
@@ -227,10 +226,7 @@ function normalizeNullableInteger(value: unknown, field: string): number | null 
 	return value;
 }
 
-function normalizeTargetMatches(
-	value: unknown,
-	field: string,
-): OfficialWebPageTargetMatch[] {
+function normalizeTargetMatches(value: unknown, field: string): OfficialWebPageTargetMatch[] {
 	if (value == null) {
 		return [];
 	}

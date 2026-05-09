@@ -131,9 +131,11 @@ describe("official web planner service", () => {
 		);
 
 		expect(selected).toHaveLength(3);
-		expect(
-			selected.map((row) => row.targetCandidateId),
-		).toEqual(["owcand_stable", "owcand_contact", "owcand_service"]);
+		expect(selected.map((row) => row.targetCandidateId)).toEqual([
+			"owcand_stable",
+			"owcand_contact",
+			"owcand_service",
+		]);
 	});
 
 	it("returns target-scoped workset rows and summary", async () => {
@@ -235,10 +237,7 @@ describe("official web planner service", () => {
 			{ dedupeByCanonicalUrl: true },
 		);
 
-		expect(selected.map((row) => row.targetCandidateId)).toEqual([
-			"owcand_deleted",
-			"owcand_live",
-		]);
+		expect(selected.map((row) => row.targetCandidateId)).toEqual(["owcand_deleted", "owcand_live"]);
 	});
 
 	it("bypasses freshness due gating for explicit target candidate worksets", () => {

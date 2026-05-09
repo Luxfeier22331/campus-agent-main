@@ -2,8 +2,8 @@ import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import {
 	buildRegulationConsumptionByDocumentId,
-	resolveRegulationGroupMeta,
 	type RegulationNavGroup,
+	resolveRegulationGroupMeta,
 } from "../regulation-consumption";
 import { normalizeReadableText } from "./readable-text";
 import {
@@ -117,7 +117,9 @@ export async function discoverPublicRegulationDocs(
 	);
 }
 
-function assertPublicRegulationConsumptionCoverage(discoveredDocumentIds: ReadonlySet<string>): void {
+function assertPublicRegulationConsumptionCoverage(
+	discoveredDocumentIds: ReadonlySet<string>,
+): void {
 	const missing = [...buildRegulationConsumptionByDocumentId().values()].filter(
 		(entry) => !discoveredDocumentIds.has(entry.document_id),
 	);
@@ -209,7 +211,10 @@ export async function syncPublicRegulationDocs(input: {
 	writeText(resolve(targetDir, "index.md"), buildPublicRegulationIndex());
 	for (const group of groups) {
 		const groupDir = resolve(targetDir, group.slug);
-		writeText(resolve(groupDir, "_meta.json"), formatJsonContent(group.docs.map((doc) => doc.slug)));
+		writeText(
+			resolve(groupDir, "_meta.json"),
+			formatJsonContent(group.docs.map((doc) => doc.slug)),
+		);
 		writeText(resolve(groupDir, "index.md"), buildRegulationGroupIndex(group));
 		for (const doc of group.docs) {
 			const jsonlText = await input.client.readTextObject({ key: doc.key });
@@ -230,9 +235,7 @@ export async function syncPublicRegulationDocs(input: {
 	return regulationDocs;
 }
 
-function buildGroupedRegulationDocs(
-	regulationDocs: PublicRegulationDoc[],
-): Array<{
+function buildGroupedRegulationDocs(regulationDocs: PublicRegulationDoc[]): Array<{
 	displayName: string;
 	docs: PublicRegulationDoc[];
 	groupId: RegulationNavGroup;
@@ -302,9 +305,11 @@ function buildRegulationGroupIndex(input: {
 	].join("\n");
 }
 
-function resolvePublicRegulationCollectionLabel(doc: Pick<PublicRegulationDoc, "collectionLabel"> & {
-	docsNavGroup?: RegulationNavGroup;
-}): string {
+function resolvePublicRegulationCollectionLabel(
+	doc: Pick<PublicRegulationDoc, "collectionLabel"> & {
+		docsNavGroup?: RegulationNavGroup;
+	},
+): string {
 	if (doc.docsNavGroup) {
 		return resolveRegulationGroupMeta(doc.docsNavGroup).displayName;
 	}

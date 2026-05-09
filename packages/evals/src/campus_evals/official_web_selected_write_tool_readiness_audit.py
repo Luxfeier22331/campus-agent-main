@@ -40,7 +40,9 @@ def audit_selected_write_preview_report(
     )
     failed_count = sum(1 for item in record_results if not item.passed)
     summary = {
-        "service_guide_records": sum(1 for item in record_results if item.collection == "service_guide"),
+        "service_guide_records": sum(
+            1 for item in record_results if item.collection == "service_guide"
+        ),
         "contact_directory_records": sum(
             1 for item in record_results if item.collection == "contact_directory"
         ),
@@ -125,9 +127,8 @@ def _audit_service_guide_bundle(bundle: dict[str, Any]) -> list[str]:
         ):
             if str(field_status.get(required_field) or "").strip() != "present":
                 failures.append(f"service_guide field_status {required_field} must be present")
-        if (
-            str(field_status.get("service_entry") or "").strip() == "present"
-            and not _labels(record.get("entry_refs"))
+        if str(field_status.get("service_entry") or "").strip() == "present" and not _labels(
+            record.get("entry_refs")
         ):
             failures.append("service_entry marked present but entry_refs is empty")
     section_types = set(_section_types(record.get("guide_sections")))

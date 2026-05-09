@@ -133,7 +133,10 @@ class RunOfficialWebReleaseTaskWorkerTest(unittest.TestCase):
                 record_count=1,
                 full_record_count=2,
                 task_scope_display_names=("中央民族大学信息公开依申请公开工作流程",),
-                full_impact_display_names=("学生校园卡服务", "中央民族大学信息公开依申请公开工作流程"),
+                full_impact_display_names=(
+                    "学生校园卡服务",
+                    "中央民族大学信息公开依申请公开工作流程",
+                ),
             )
 
         with TemporaryDirectory() as temp_dir:

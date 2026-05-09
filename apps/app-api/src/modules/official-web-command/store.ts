@@ -537,14 +537,10 @@ export function createPgOfficialWebCommandStore(
 
 					const targetAttempts = input.observations.filter(
 						(observation) =>
-							(
-								(observation.targetMatches?.length ?? 0) > 0 ||
-								(
-									observation.targetJobId &&
-									observation.targetId &&
-									observation.targetDeclarationVersion
-								) != null
-							),
+							(observation.targetMatches?.length ?? 0) > 0 ||
+							(observation.targetJobId &&
+								observation.targetId &&
+								observation.targetDeclarationVersion) != null,
 					);
 					if (targetAttempts.length > 0) {
 						const materializedAttempts = targetAttempts.flatMap((observation) => {
@@ -557,8 +553,7 @@ export function createPgOfficialWebCommandStore(
 										? [
 												{
 													targetCandidateId: observation.targetCandidateId,
-													targetDeclarationVersion:
-														observation.targetDeclarationVersion,
+													targetDeclarationVersion: observation.targetDeclarationVersion,
 													targetId: observation.targetId,
 													targetJobId: observation.targetJobId,
 												},
@@ -581,9 +576,7 @@ export function createPgOfficialWebCommandStore(
 								artifactObjectKey: null,
 							}));
 						});
-						await tx.insert(officialWebTargetPageAttempts).values(
-							materializedAttempts,
-						);
+						await tx.insert(officialWebTargetPageAttempts).values(materializedAttempts);
 
 						const attemptCountsByJob = new Map<string, number>();
 						for (const attempt of materializedAttempts) {

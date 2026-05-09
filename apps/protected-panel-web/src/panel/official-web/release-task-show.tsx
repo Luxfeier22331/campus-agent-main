@@ -32,9 +32,7 @@ function readSummaryList(record: Record<string, unknown>, key: string) {
 	if (!Array.isArray(value)) {
 		return PANEL_COPY.notAvailable;
 	}
-	const items = value
-		.map((item) => String(item ?? "").trim())
-		.filter((item) => item.length > 0);
+	const items = value.map((item) => String(item ?? "").trim()).filter((item) => item.length > 0);
 	return items.length > 0 ? items.join(" / ") : PANEL_COPY.notAvailable;
 }
 

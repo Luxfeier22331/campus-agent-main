@@ -4,8 +4,8 @@ import type { OfficialWebDynamicShellDiscoveryAudit } from "./dynamic-shell-disc
 import type {
 	OfficialWebFailureRecord,
 	OfficialWebHostSummaryRecord,
-	OfficialWebPageTargetMatch,
 	OfficialWebPageObservationRecord,
+	OfficialWebPageTargetMatch,
 	OfficialWebUrlResultRecord,
 } from "./official-web-core.ts";
 import type { CollectedPageArtifact } from "./page-artifacts.ts";

@@ -23,9 +23,7 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
             "service-guide-information-disclosure-phone-fail-close",
             case_ids,
         )
-        phone_cases = [
-            case for case in cases if case.user_goal == "信息公开联系电话是多少"
-        ]
+        phone_cases = [case for case in cases if case.user_goal == "信息公开联系电话是多少"]
         self.assertEqual(len(phone_cases), 1)
         self.assertEqual(phone_cases[0].collection, "contact_directory")
         self.assertEqual(phone_cases[0].expected_payload_kind, "contact_directory_lookup")
@@ -45,7 +43,9 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
                         "学生校园卡服务",
                         "中央民族大学 VPN 使用说明",
                     ],
-                    "bundle": {"service_guide_records": [{"display_name": "中央民族大学 VPN 使用说明"}]},
+                    "bundle": {
+                        "service_guide_records": [{"display_name": "中央民族大学 VPN 使用说明"}]
+                    },
                     "full_bundle": {
                         "service_guide_records": [{"display_name": "中央民族大学 VPN 使用说明"}]
                     },
@@ -109,7 +109,10 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
             bundle_scope: str,
         ) -> dict[str, object]:
             self.assertEqual(report_path.name, "preview-report.json")
-            self.assertEqual({case.case_id for case in selected_cases}, {"service-runtime-1", "contact-runtime-1"})
+            self.assertEqual(
+                {case.case_id for case in selected_cases},
+                {"service-runtime-1", "contact-runtime-1"},
+            )
             self.assertEqual(bundle_scope, BUNDLE_SCOPE_TASK_SCOPE)
             return {
                 "schema_version": "official_web_selected_write_preview_runtime_verification.v1",
@@ -177,7 +180,8 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
 
     def test_default_vpn_cases_define_focus_and_section_thresholds(self) -> None:
         cases = {
-            case.case_id: case for case in default_official_web_selected_write_preview_runtime_cases()
+            case.case_id: case
+            for case in default_official_web_selected_write_preview_runtime_cases()
         }
 
         entry_case = cases["service-guide-vpn-entry"]
@@ -196,7 +200,8 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
 
     def test_default_cases_cover_office_hours_and_eligibility_focuses(self) -> None:
         cases = {
-            case.case_id: case for case in default_official_web_selected_write_preview_runtime_cases()
+            case.case_id: case
+            for case in default_official_web_selected_write_preview_runtime_cases()
         }
 
         office_hours_case = cases["service-guide-campus-card-office-hours"]
@@ -319,24 +324,16 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
                     "inventory_id": "muc-information-disclosure-application-process",
                     "record_count": 1,
                     "full_record_count": 5,
-                    "task_scope_display_names": [
-                        "中央民族大学信息公开依申请公开工作流程"
-                    ],
-                    "full_impact_display_names": [
-                        "中央民族大学信息公开依申请公开工作流程"
-                    ],
+                    "task_scope_display_names": ["中央民族大学信息公开依申请公开工作流程"],
+                    "full_impact_display_names": ["中央民族大学信息公开依申请公开工作流程"],
                     "bundle": {
                         "service_guide_records": [
-                            {
-                                "display_name": "中央民族大学信息公开依申请公开工作流程"
-                            }
+                            {"display_name": "中央民族大学信息公开依申请公开工作流程"}
                         ]
                     },
                     "full_bundle": {
                         "service_guide_records": [
-                            {
-                                "display_name": "中央民族大学信息公开依申请公开工作流程"
-                            }
+                            {"display_name": "中央民族大学信息公开依申请公开工作流程"}
                         ]
                     },
                 },
@@ -412,9 +409,7 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
                     "inventory_id": "muc-information-disclosure-application-process",
                     "record_count": 1,
                     "full_record_count": 3,
-                    "task_scope_display_names": [
-                        "中央民族大学信息公开依申请公开工作流程"
-                    ],
+                    "task_scope_display_names": ["中央民族大学信息公开依申请公开工作流程"],
                     "full_impact_display_names": [
                         "中央民族大学信息公开依申请公开工作流程",
                         "中央民族大学 VPN 使用说明",
@@ -422,30 +417,22 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
                     ],
                     "bundle": {
                         "service_guide_records": [
-                            {
-                                "display_name": "中央民族大学信息公开依申请公开工作流程"
-                            }
+                            {"display_name": "中央民族大学信息公开依申请公开工作流程"}
                         ]
                     },
                     "full_bundle": {
                         "service_guide_records": [
                             {
                                 "display_name": "中央民族大学信息公开依申请公开工作流程",
-                                "source_refs": [
-                                    "https://xxgk.muc.edu.cn/info/1007/1113.htm"
-                                ],
+                                "source_refs": ["https://xxgk.muc.edu.cn/info/1007/1113.htm"],
                             },
                             {
                                 "display_name": "中央民族大学 VPN 使用说明",
-                                "source_refs": [
-                                    "https://met.muc.edu.cn/info/1046/1674.htm"
-                                ],
+                                "source_refs": ["https://met.muc.edu.cn/info/1046/1674.htm"],
                             },
                             {
                                 "display_name": "中央民族大学校园电子邮件服务",
-                                "source_refs": [
-                                    "https://met.muc.edu.cn/info/1024/1090.htm"
-                                ],
+                                "source_refs": ["https://met.muc.edu.cn/info/1024/1090.htm"],
                             },
                         ]
                     },
@@ -531,7 +518,9 @@ class OfficialWebSelectedWritePreviewRuntimeVerifierTest(unittest.TestCase):
                     "full_record_count": 3,
                     "task_scope_display_names": ["中央民族大学 VPN 使用说明"],
                     "full_impact_display_names": ["中央民族大学 VPN 使用说明"],
-                    "bundle": {"service_guide_records": [{"display_name": "中央民族大学 VPN 使用说明"}]},
+                    "bundle": {
+                        "service_guide_records": [{"display_name": "中央民族大学 VPN 使用说明"}]
+                    },
                     "full_bundle": {
                         "service_guide_records": [{"display_name": "中央民族大学 VPN 使用说明"}]
                     },

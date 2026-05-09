@@ -5,7 +5,7 @@ import subprocess
 from collections.abc import Mapping
 from dataclasses import asdict, dataclass
 from pathlib import Path
-from typing import Any, Protocol
+from typing import Protocol
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SUPERVISOR_API_DIR = REPO_ROOT / "apps" / "supervisor-api"
@@ -265,9 +265,7 @@ def run_selected_write_preview_runtime_verification(
         bundle_scope=resolved_bundle_scope,
     )
     selected_cases = (
-        cases
-        if cases is not None
-        else _default_cases_for_supported_targets(supported_targets)
+        cases if cases is not None else _default_cases_for_supported_targets(supported_targets)
     )
     covered_targets = {
         f"{case.collection}:{case.inventory_id}"

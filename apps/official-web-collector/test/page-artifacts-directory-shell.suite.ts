@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-
+import { classifyPageFamily } from "../src/page-artifacts-page-family";
 import {
 	buildContentSiteArtifactsForTest,
 	buildPageArtifactsForTest,
@@ -9,7 +9,6 @@ import {
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	SAMPLE_FEATURE_LIST_PAGE_HTML,
 	SAMPLE_GALLERY_KEYWORD_LISTING_PAGE_HTML,
-	SAMPLE_INFORMATION_DISCLOSURE_REGULATION_PAGE_HTML,
 	SAMPLE_IMAGE_STRUCTURAL_SHELL_PAGE_HTML,
 	SAMPLE_ORGANIZATION_DIRECTORY_PAGE_HTML,
 	SAMPLE_POSITION_CONTENT_PAGE_HTML,
@@ -17,7 +16,6 @@ import {
 	SAMPLE_ROSTER_DIRECTORY_PAGE_HTML,
 	SAMPLE_STRUCTURAL_SHELL_PAGE_HTML,
 } from "./page-artifacts-test-support";
-import { classifyPageFamily } from "../src/page-artifacts-page-family";
 
 export function registerPageArtifactsDirectoryShellSuite() {
 	it("extracts dt-based bulletin listings as main content while demoting top-bar and breadcrumb links", () => {

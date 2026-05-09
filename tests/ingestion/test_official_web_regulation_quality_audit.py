@@ -168,8 +168,7 @@ class OfficialWebRegulationQualityAuditTest(unittest.TestCase):
                                 "provider/cheerio-basic/page-extraction.json"
                             ),
                             "responseHtmlObjectKey": (
-                                "official_web/owasset_card/undated/owver_card/"
-                                "capture/response.html"
+                                "official_web/owasset_card/undated/owver_card/capture/response.html"
                             ),
                             "responseBodyHash": "hash-card",
                             "blockCount": 3,
@@ -295,9 +294,7 @@ class OfficialWebRegulationQualityAuditWorkerCliTest(unittest.TestCase):
             ) as run_audit,
             patch("sys.stdout", new_callable=io.StringIO) as stdout,
         ):
-            run_audit.return_value = {
-                "unexpected": "dict-return-is-wrong-type"
-            }
+            run_audit.return_value = {"unexpected": "dict-return-is-wrong-type"}
             report = OfficialWebRegulationQualityAuditReport(
                 schema_version="official_web_regulation_quality_audit.v1",
                 source_truth_output_dir="/tmp/collector-output",

@@ -434,17 +434,22 @@ function buildTargetLineages(
 	sourcePackLineageOverrides?: Record<string, CollectorSourcePackLineageOverride>,
 ): OfficialWebPageTargetMatch[] | undefined {
 	if (knownPages.length === 0) {
-		return inheritedTargetLineages?.length ? inheritedTargetLineages : undefined;
+		return inheritedTargetLineages != null && inheritedTargetLineages.length > 0
+			? inheritedTargetLineages
+			: undefined;
 	}
 	const derived = knownPages
 		.map((page) => buildTargetLineage(page, sourcePackLineageOverrides))
 		.filter((item): item is OfficialWebPageTargetMatch => item != null);
-	if (!inheritedTargetLineages?.length) {
+	if (inheritedTargetLineages == null || inheritedTargetLineages.length === 0) {
 		return derived.length > 0 ? derived : undefined;
 	}
 	const merged = new Map<string, OfficialWebPageTargetMatch>();
 	for (const lineage of [...derived, ...inheritedTargetLineages]) {
-		merged.set(`${lineage.targetJobId}:${lineage.targetCandidateId ?? ""}:${lineage.targetId}`, lineage);
+		merged.set(
+			`${lineage.targetJobId}:${lineage.targetCandidateId ?? ""}:${lineage.targetId}`,
+			lineage,
+		);
 	}
 	return [...merged.values()];
 }

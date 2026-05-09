@@ -1,9 +1,9 @@
 from __future__ import annotations
 
 import argparse
-from datetime import datetime, timezone
 import json
 import sys
+from datetime import UTC, datetime
 from pathlib import Path
 
 if __package__ in {None, ""}:
@@ -25,7 +25,10 @@ from campus_ingestion_core.official_web_release_task_store import (
     build_official_web_release_task_store_from_env,
 )
 from campus_ingestion_worker.env_bootstrap import load_worker_env
-from campus_ingestion_worker.release_official_web_selected_write import (
+from campus_ingestion_worker.release_official_web_selected_write_common import (
+    _public_source_refs_for_selected_write_task,
+)
+from campus_ingestion_worker.release_official_web_selected_write_service import (
     _service_guide_record_from_candidates,
 )
 
@@ -37,11 +40,7 @@ from scripts.official_web_selected_write_preview import (
 )
 
 DEFAULT_TARGET_INVENTORY_PATH = (
-    Path("configs")
-    / "sources"
-    / "official_web"
-    / "muc_public"
-    / "target-inventory.json"
+    Path("configs") / "sources" / "official_web" / "muc_public" / "target-inventory.json"
 )
 
 
@@ -152,12 +151,6 @@ def build_service_guide_release_tasks_from_execution_report(
     return task_payloads
 
 
-def build_service_guide_task_ids_from_execution_report(
-    execution_report: dict[str, object],
-) -> list[dict[str, object]]:
-    return build_service_guide_release_tasks_from_execution_report(execution_report)
-
-
 def load_execution_report_for_seam_report(
     *,
     seam_report_path: Path,
@@ -166,7 +159,9 @@ def load_execution_report_for_seam_report(
     event_id = str(seam_report.get("event_id") or "").strip()
     if not event_id:
         return None
-    execution_report_path = seam_report_path.parent / "executions" / event_id / "execution-report.json"
+    execution_report_path = (
+        seam_report_path.parent / "executions" / event_id / "execution-report.json"
+    )
     if not execution_report_path.exists():
         return None
     execution_report = json.loads(execution_report_path.read_text(encoding="utf-8"))
@@ -343,7 +338,10 @@ def _replay_service_guide_candidates_by_inventory(
                 != "campus_services/service_guide"
             ):
                 continue
-            if str(_mapping(raw_candidate.get("quality_gate")).get("decision") or "").strip() != "pass":
+            if (
+                str(_mapping(raw_candidate.get("quality_gate")).get("decision") or "").strip()
+                != "pass"
+            ):
                 continue
             if not _mapping(raw_candidate.get("typed_candidate")):
                 continue
@@ -381,7 +379,9 @@ def _inventory_id_for_candidate(
             str(_mapping(candidate.get("typed_candidate")).get("source_url") or "").strip(),
         ]
     )
-    candidate_title = str(_mapping(candidate.get("typed_candidate")).get("service_name") or "").strip()
+    candidate_title = str(
+        _mapping(candidate.get("typed_candidate")).get("service_name") or ""
+    ).strip()
     for inventory_id, entry in inventory_lookup.items():
         source_urls = set(_string_list(entry.get("source_urls")))
         if source_urls & set(candidate_urls):
@@ -399,7 +399,7 @@ def _service_guide_baseline_record_from_candidates(
     existing_record: dict[str, object],
 ) -> dict[str, object]:
     effective_from = str(existing_record.get("effective_from") or "").strip()
-    generated_at = effective_from or datetime.now(timezone.utc).isoformat()
+    generated_at = effective_from or datetime.now(UTC).isoformat()
     task_created_at = _parse_rfc3339_or_now(effective_from)
     synthetic_selected_write_task = {
         "inventoryId": inventory_id,
@@ -417,6 +417,9 @@ def _service_guide_baseline_record_from_candidates(
         selected_write_task=synthetic_selected_write_task,
         task_created_at=task_created_at,
         generated_at=generated_at,
+        public_source_refs=_public_source_refs_for_selected_write_task(
+            synthetic_selected_write_task
+        ),
     )
 
 
@@ -449,10 +452,10 @@ def _parse_rfc3339_or_now(value: str) -> datetime:
     text = str(value or "").strip()
     if text:
         try:
-            return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(timezone.utc)
+            return datetime.fromisoformat(text.replace("Z", "+00:00")).astimezone(UTC)
         except ValueError:
             pass
-    return datetime.now(timezone.utc)
+    return datetime.now(UTC)
 
 
 def build_service_guide_quality_summary(

@@ -39,7 +39,9 @@ class OfficialWebSelectedWriteToolReadinessAuditTest(unittest.TestCase):
                                 "procedure_groups": [
                                     {
                                         "group_id": "service:official_web:campus_card:procedure_group:default",
-                                        "source_refs": ["https://met.muc.edu.cn/info/1027/1127.htm"],
+                                        "source_refs": [
+                                            "https://met.muc.edu.cn/info/1027/1127.htm"
+                                        ],
                                         "steps": [
                                             {
                                                 "content": "先办理挂失，再在自助补卡机补卡。",
@@ -129,9 +131,7 @@ class OfficialWebSelectedWriteToolReadinessAuditTest(unittest.TestCase):
                                 "display_name": "中央民族大学信息公开依申请公开工作流程",
                                 "entry_refs": [],
                                 "guide_sections": [{"section_type": "procedure"}],
-                                "source_refs": [
-                                    "https://xxgk.muc.edu.cn/info/1007/1113.htm"
-                                ],
+                                "source_refs": ["https://xxgk.muc.edu.cn/info/1007/1113.htm"],
                                 "field_status": {
                                     "service_name": "present",
                                     "process_steps": "present",
@@ -184,9 +184,7 @@ class OfficialWebSelectedWriteToolReadinessAuditTest(unittest.TestCase):
                                 "display_name": "中央民族大学 VPN 使用说明",
                                 "entry_refs": [],
                                 "guide_sections": [{"section_type": "procedure"}],
-                                "source_refs": [
-                                    "https://met.muc.edu.cn/info/1027/1137.htm"
-                                ],
+                                "source_refs": ["https://met.muc.edu.cn/info/1027/1137.htm"],
                                 "field_status": {
                                     "service_name": "present",
                                     "process_steps": "present",
@@ -235,9 +233,7 @@ class OfficialWebSelectedWriteToolReadinessAuditTest(unittest.TestCase):
                                 "display_name": "中央民族大学信息公开依申请公开工作流程",
                                 "entry_refs": [],
                                 "guide_sections": [{"section_type": "procedure"}],
-                                "source_refs": [
-                                    "https://xxgk.muc.edu.cn/info/1007/1113.htm"
-                                ],
+                                "source_refs": ["https://xxgk.muc.edu.cn/info/1007/1113.htm"],
                                 "field_status": {
                                     "service_name": "present",
                                     "process_steps": "present",
@@ -290,7 +286,9 @@ class OfficialWebSelectedWriteToolReadinessAuditTest(unittest.TestCase):
                                 "procedure_groups": [
                                     {
                                         "group_id": "service:official_web:vpn:procedure_group:client_install",
-                                        "source_refs": ["https://met.muc.edu.cn/info/1027/1137.htm"],
+                                        "source_refs": [
+                                            "https://met.muc.edu.cn/info/1027/1137.htm"
+                                        ],
                                         "steps": [{"content": "下载客户端。", "source_refs": []}],
                                     }
                                 ],

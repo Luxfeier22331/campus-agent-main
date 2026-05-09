@@ -75,7 +75,9 @@ def run_selected_write_preview(
                 task_id,
                 {**task_payload, "status": "claimed"},
                 str(task_payload.get("taskType") or task_payload.get("task_type") or "").strip(),
-                str(task_payload.get("inventoryId") or task_payload.get("inventory_id") or "").strip(),
+                str(
+                    task_payload.get("inventoryId") or task_payload.get("inventory_id") or ""
+                ).strip(),
             )
         )
     for task_id, release_task_payload, task_type, inventory_id in tasks_to_preview:

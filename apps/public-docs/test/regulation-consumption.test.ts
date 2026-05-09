@@ -98,8 +98,7 @@ describe("public regulation consumption manifest", () => {
 				(entry) =>
 					entry.official_title === "本科生转专业实施细则" &&
 					entry.relation_type === "same_theme_distinct_rule" &&
-					entry.handbook_match_document_id ===
-						"handbook:d5f01ceb2da8c830f904dbc049c8aca41fedf485",
+					entry.handbook_match_document_id === "handbook:d5f01ceb2da8c830f904dbc049c8aca41fedf485",
 			),
 		).toBeDefined();
 	});

@@ -203,9 +203,7 @@ class OfficialWebReleaseTaskAdmissionTest(unittest.TestCase):
                     {
                         "raw_asset_id": "owasset_info_procedure",
                         "raw_version_id": "owver_info_procedure",
-                        "normalized_canonical_url": (
-                            "https://xxgk.muc.edu.cn/info/1007/1113.htm"
-                        ),
+                        "normalized_canonical_url": ("https://xxgk.muc.edu.cn/info/1007/1113.htm"),
                     }
                 ]
             ),
@@ -221,16 +219,12 @@ class OfficialWebReleaseTaskAdmissionTest(unittest.TestCase):
                     {
                         "raw_asset_id": "owasset_info_procedure",
                         "raw_version_id": "owver_info_procedure",
-                        "normalized_canonical_url": (
-                            "https://xxgk.muc.edu.cn/info/1007/1113.htm"
-                        ),
+                        "normalized_canonical_url": ("https://xxgk.muc.edu.cn/info/1007/1113.htm"),
                     },
                     {
                         "raw_asset_id": "owasset_info_material",
                         "raw_version_id": "owver_info_material",
-                        "normalized_canonical_url": (
-                            "https://xxgk.muc.edu.cn/info/1007/1114.htm"
-                        ),
+                        "normalized_canonical_url": ("https://xxgk.muc.edu.cn/info/1007/1114.htm"),
                     },
                 ]
             ),
@@ -497,9 +491,7 @@ def _approved_gate() -> dict[str, object]:
     }
 
 
-def _information_disclosure_candidate(
-    *, source_refs: list[dict[str, object]]
-) -> dict[str, object]:
+def _information_disclosure_candidate(*, source_refs: list[dict[str, object]]) -> dict[str, object]:
     return {
         "candidate_key": "owcand_information_disclosure_composed",
         "field_status": {

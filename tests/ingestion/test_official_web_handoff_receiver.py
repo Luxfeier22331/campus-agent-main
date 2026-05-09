@@ -125,7 +125,9 @@ class OfficialWebHandoffReceiverTest(unittest.TestCase):
             self.assertIsNone(persisted["processedAt"])
             self.assertIsNone(persisted["lastError"])
 
-    def test_handoff_route_accepts_deleted_and_fetch_failed_changes_without_raw_versions(self) -> None:
+    def test_handoff_route_accepts_deleted_and_fetch_failed_changes_without_raw_versions(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             inbox_dir = Path(temp_dir) / "official-web-handoffs"
             app = create_app(

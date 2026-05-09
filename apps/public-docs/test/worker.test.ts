@@ -16,9 +16,25 @@ const wranglerLocalSmokeConfig = readOptional("wrangler.local-smoke.toml");
 const packageManifest = JSON.parse(readOptional("package.json")) as {
 	scripts?: Record<string, string | undefined>;
 };
+const EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS = {
+	contentSecurityPolicy:
+		"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; worker-src 'self' blob:",
+	permissionsPolicy: "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+	referrerPolicy: "strict-origin-when-cross-origin",
+	xContentTypeOptions: "nosniff",
+} as const;
 
 async function importWorker() {
 	return (await import("../src/index")).default;
+}
+
+function getPublicDocsSecurityHeaders(response: Response) {
+	return {
+		contentSecurityPolicy: response.headers.get("content-security-policy"),
+		permissionsPolicy: response.headers.get("permissions-policy"),
+		referrerPolicy: response.headers.get("referrer-policy"),
+		xContentTypeOptions: response.headers.get("x-content-type-options"),
+	};
 }
 
 describe("public docs worker shell", () => {
@@ -80,6 +96,7 @@ describe("public docs worker shell", () => {
 
 		expect(health.status).toBe(200);
 		expect(health.headers.get("cache-control")).toBe("no-store");
+		expect(getPublicDocsSecurityHeaders(health)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
 		await expect(health.json()).resolves.toEqual({
 			status: "ok",
 			app_name: "campus-agent-public-docs",
@@ -89,6 +106,7 @@ describe("public docs worker shell", () => {
 
 		expect(ready.status).toBe(200);
 		expect(ready.headers.get("cache-control")).toBe("no-store");
+		expect(getPublicDocsSecurityHeaders(ready)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
 		await expect(ready.json()).resolves.toEqual({
 			status: "ready",
 			app_api_base_url: "https://app-api.internal",
@@ -207,6 +225,7 @@ describe("public docs worker shell", () => {
 		});
 
 		expect(response.status).toBe(404);
+		expect(getPublicDocsSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
 		expect(appApiCalled).toBe(false);
 		await expect(response.json()).resolves.toEqual({
 			error: {
@@ -239,6 +258,7 @@ describe("public docs worker shell", () => {
 		expect(response.status).toBe(200);
 		expect(response.headers.get("content-type")).toContain("text/html");
 		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(getPublicDocsSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
 		await expect(response.text()).resolves.toContain("docs");
 	});
 
@@ -273,6 +293,7 @@ describe("public docs worker shell", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(getPublicDocsSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
 		await expect(response.text()).resolves.toContain("reader fallback");
 		expect(assetRequests).toEqual([
 			"/docs/curriculum/curriculum_plan/restricted-program",
@@ -314,6 +335,7 @@ describe("public docs worker shell", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(getPublicDocsSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
 		await expect(response.text()).resolves.toContain("reader fallback");
 		expect(assetRequests).toEqual([
 			`/docs/regulations/scoped_rules/${encodedSlug}`,
@@ -361,6 +383,7 @@ describe("public docs worker shell", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(getPublicDocsSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
 		await expect(response.text()).resolves.toContain("collection fallback");
 		expect(assetRequests).toEqual(["/docs/regulations/scoped_rules/", "/collection-fallback.html"]);
 	});
@@ -406,6 +429,7 @@ describe("public docs worker shell", () => {
 
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(getPublicDocsSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
 		expect(response.headers.get("vary")).toContain("Cookie");
 		expect(response.headers.get("vary")).toContain("Authorization");
 		await expect(response.text()).resolves.toBe('{"sections":[]}');
@@ -468,6 +492,7 @@ describe("public docs worker shell", () => {
 
 		expect(authorized.status).toBe(200);
 		expect(authorized.headers.get("cache-control")).toBe("no-store");
+		expect(getPublicDocsSecurityHeaders(authorized)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
 		expect(authorized.headers.get("vary")).toContain("Cookie");
 		expect(authorized.headers.get("vary")).toContain("Authorization");
 		const authorizedPayload = await authorized.text();
@@ -498,6 +523,7 @@ describe("public docs worker shell", () => {
 
 		expect(denied.status).toBe(404);
 		expect(denied.headers.get("cache-control")).toBe("no-store");
+		expect(getPublicDocsSecurityHeaders(denied)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
 		expect(denied.headers.get("vary")).toContain("Cookie");
 		expect(denied.headers.get("vary")).toContain("Authorization");
 		expect(deniedAssetCalled).toBe(false);
@@ -527,6 +553,7 @@ describe("public docs worker shell", () => {
 
 		expect(response.status).toBe(404);
 		expect(response.headers.get("cache-control")).toBe("no-store");
+		expect(getPublicDocsSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
 		expect(response.headers.get("vary")).toContain("Cookie");
 		expect(response.headers.get("vary")).toContain("Authorization");
 		expect(assetsCalled).toBe(false);

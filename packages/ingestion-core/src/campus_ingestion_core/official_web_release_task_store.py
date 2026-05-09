@@ -4,144 +4,40 @@ import os
 from collections.abc import Sequence
 from datetime import datetime
 from threading import RLock
-from typing import Any, Protocol
+from typing import Any
 
 from campus_ingestion_core.official_web_release_task import (
     OfficialWebReleaseTask,
     utc_now,
+)
+from campus_ingestion_core.official_web_release_task_store_models import (
+    DEFAULT_OFFICIAL_WEB_RELEASE_TASK_LEASE_SECONDS,
+    DEFAULT_OFFICIAL_WEB_RELEASE_TASK_TABLE,
+    OFFICIAL_WEB_RELEASE_TASK_DATABASE_ENV_KEY,
+    OFFICIAL_WEB_RELEASE_TASK_MANAGEMENT_DATABASE_ENV_KEY,
+    OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_ENV_KEY,
+    OfficialWebReleaseTaskConflictError,
+    OfficialWebReleaseTaskLeaseError,
+    OfficialWebReleaseTaskNotFoundError,
+    OfficialWebReleaseTaskStore,
+    OfficialWebReleaseTaskStoreError,
+)
+from campus_ingestion_core.official_web_release_task_store_rows import (
+    _insert_params,
+    _json_dump,
+    _positive_int,
+    _task_from_row,
 )
 from campus_ingestion_core.postgres_runtime import build_operator_postgres_connection_url
 from campus_ingestion_core.registry import (
     SHARED_POSTGRES_ENV_KEY,
     SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
-    _coerce_json_payload,
     _ensure_table_schema,
     _postgres_connection,
     _qualified_table_sql,
     _table_index_suffix,
 )
-
-DEFAULT_OFFICIAL_WEB_RELEASE_TASK_LEASE_SECONDS = 300
-DEFAULT_OFFICIAL_WEB_RELEASE_TASK_TABLE = "ingestion_queue.official_web_release_tasks"
-OFFICIAL_WEB_RELEASE_TASK_DATABASE_ENV_KEY = "OFFICIAL_WEB_RELEASE_TASK_DATABASE_URL"
-OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_ENV_KEY = (
-    "OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_URL"
-)
-OFFICIAL_WEB_RELEASE_TASK_MANAGEMENT_DATABASE_ENV_KEY = (
-    "OFFICIAL_WEB_RELEASE_TASK_MANAGEMENT_DATABASE_URL"
-)
-
-
-class OfficialWebReleaseTaskStoreError(RuntimeError):
-    pass
-
-
-class OfficialWebReleaseTaskConflictError(OfficialWebReleaseTaskStoreError):
-    pass
-
-
-class OfficialWebReleaseTaskLeaseError(OfficialWebReleaseTaskStoreError):
-    pass
-
-
-class OfficialWebReleaseTaskNotFoundError(OfficialWebReleaseTaskStoreError):
-    pass
-
-
-class OfficialWebReleaseTaskStore(Protocol):
-    def create_or_get_task(self, task: OfficialWebReleaseTask) -> OfficialWebReleaseTask: ...
-
-    def get_task(self, task_id: str) -> OfficialWebReleaseTask | None: ...
-
-    def claim_task(
-        self,
-        task_id: str,
-        *,
-        worker_id: str,
-        lease_seconds: int = DEFAULT_OFFICIAL_WEB_RELEASE_TASK_LEASE_SECONDS,
-        now: datetime | None = None,
-    ) -> OfficialWebReleaseTask | None: ...
-
-    def claim_next_task(
-        self,
-        *,
-        worker_id: str,
-        lease_seconds: int = DEFAULT_OFFICIAL_WEB_RELEASE_TASK_LEASE_SECONDS,
-        now: datetime | None = None,
-        task_types: Sequence[str] = (),
-    ) -> OfficialWebReleaseTask | None: ...
-
-    def heartbeat_task(
-        self,
-        task_id: str,
-        *,
-        worker_id: str,
-        lease_seconds: int = DEFAULT_OFFICIAL_WEB_RELEASE_TASK_LEASE_SECONDS,
-        now: datetime | None = None,
-    ) -> OfficialWebReleaseTask: ...
-
-    def mark_task_running(
-        self,
-        task_id: str,
-        *,
-        worker_id: str,
-        now: datetime | None = None,
-    ) -> OfficialWebReleaseTask: ...
-
-    def mark_task_materialized(
-        self,
-        task_id: str,
-        *,
-        output_ref: dict[str, Any],
-        worker_id: str,
-        now: datetime | None = None,
-    ) -> OfficialWebReleaseTask: ...
-
-    def mark_task_published(
-        self,
-        task_id: str,
-        *,
-        output_ref: dict[str, Any],
-        worker_id: str,
-        now: datetime | None = None,
-    ) -> OfficialWebReleaseTask: ...
-
-    def mark_task_indexed(
-        self,
-        task_id: str,
-        *,
-        output_ref: dict[str, Any],
-        worker_id: str,
-        now: datetime | None = None,
-    ) -> OfficialWebReleaseTask: ...
-
-    def fail_task_retryable(
-        self,
-        task_id: str,
-        *,
-        error_code: str,
-        error_message: str,
-        worker_id: str,
-        now: datetime | None = None,
-    ) -> OfficialWebReleaseTask: ...
-
-    def fail_task_terminal(
-        self,
-        task_id: str,
-        *,
-        error_code: str,
-        error_message: str,
-        worker_id: str,
-        now: datetime | None = None,
-    ) -> OfficialWebReleaseTask: ...
-
-    def list_tasks(
-        self,
-        *,
-        limit: int = 100,
-        include_terminal: bool = True,
-    ) -> tuple[OfficialWebReleaseTask, ...]: ...
 
 
 class InMemoryOfficialWebReleaseTaskStore:
@@ -852,68 +748,6 @@ def build_official_web_release_task_store_from_env(
     ):
         database_url = build_operator_postgres_connection_url(database_url)
     return PostgresOfficialWebReleaseTaskStore(database_url, table_name=table_name)
-
-
-def _insert_params(task: OfficialWebReleaseTask) -> tuple[object, ...]:
-    return (
-        task.task_id,
-        task.task_type,
-        task.status,
-        task.inventory_id,
-        task.job_id,
-        task.run_id,
-        task.selected_write_target,
-        task.publish_alias,
-        _json_dump(dict(task.input_ref)),
-        _json_dump(dict(task.output_ref or {})),
-        task.attempt_count,
-        task.max_attempts,
-        task.lease_owner or None,
-        task.lease_expires_at,
-        task.last_error_code or None,
-        task.last_error_message or None,
-        task.created_at,
-        task.updated_at,
-    )
-
-
-def _task_from_row(row: Sequence[Any]) -> OfficialWebReleaseTask:
-    return OfficialWebReleaseTask(
-        task_id=str(row[0]),
-        task_type=str(row[1]),
-        status=str(row[2]),
-        inventory_id=str(row[3]),
-        job_id=str(row[4]),
-        run_id=str(row[5]),
-        selected_write_target=str(row[6] or ""),
-        publish_alias=bool(row[7]),
-        input_ref=_coerce_json_payload(row[8]),
-        output_ref=_coerce_json_payload(row[9]) if row[9] is not None else None,
-        attempt_count=int(row[10]),
-        max_attempts=int(row[11]),
-        lease_owner=str(row[12] or ""),
-        lease_expires_at=row[13],
-        last_error_code=str(row[14] or ""),
-        last_error_message=str(row[15] or ""),
-        created_at=row[16],
-        updated_at=row[17],
-    )
-
-
-def _json_dump(value: dict[str, Any]) -> str:
-    import json
-
-    return json.dumps(value, ensure_ascii=False, sort_keys=True, separators=(",", ":"))
-
-
-def _positive_int(value: object, label: str) -> int:
-    try:
-        parsed = int(value)  # type: ignore[arg-type]
-    except (TypeError, ValueError) as exc:
-        raise ValueError(f"{label} must be positive") from exc
-    if parsed <= 0:
-        raise ValueError(f"{label} must be positive")
-    return parsed
 
 
 __all__ = [

@@ -1,5 +1,5 @@
-import type { OfficialWebCollectorPrincipal } from "../auth";
 import type { OfficialWebPageTargetMatch } from "official-web-core";
+import type { OfficialWebCollectorPrincipal } from "../auth";
 import type {
 	OfficialWebArtifactRecord,
 	OfficialWebCommandStore,

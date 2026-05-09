@@ -1,5 +1,6 @@
 import {
 	GetObjectCommand,
+	type GetObjectCommandOutput,
 	ListObjectsV2Command,
 	PutObjectCommand,
 	S3Client,
@@ -89,7 +90,7 @@ class S3ObjectStore implements ObjectStoreClient {
 
 	private async readBytesObject(input: { bucket?: string; key: string }): Promise<Uint8Array> {
 		const bucket = input.bucket ?? DERIVED_BUCKET;
-		let response;
+		let response: GetObjectCommandOutput;
 		try {
 			response = await this.client.send(
 				new GetObjectCommand({
@@ -107,14 +108,9 @@ class S3ObjectStore implements ObjectStoreClient {
 	}
 }
 
-function enrichObjectStoreReadError(
-	error: unknown,
-	input: { bucket: string; key: string },
-): Error {
+function enrichObjectStoreReadError(error: unknown, input: { bucket: string; key: string }): Error {
 	const message = error instanceof Error ? error.message : String(error);
-	const enriched = new Error(
-		`failed to read object ${input.bucket}/${input.key}: ${message}`,
-	);
+	const enriched = new Error(`failed to read object ${input.bucket}/${input.key}: ${message}`);
 	if (error instanceof Error) {
 		enriched.name = error.name;
 		enriched.cause = error;

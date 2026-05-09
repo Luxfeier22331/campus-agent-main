@@ -33,8 +33,8 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    selected_collections = tuple(args.collection) if args.collection else tuple(
-        _smoke_collection_bundles()
+    selected_collections = (
+        tuple(args.collection) if args.collection else tuple(_smoke_collection_bundles())
     )
     publisher = build_structured_projection_publisher_from_env(
         bootstrap_collections=selected_collections,
@@ -163,8 +163,7 @@ def _smoke_transport_schedule_bundle() -> dict[str, object]:
                     {"stop_id": "stop:haidian-east-gate", "display_name": "海淀东门"},
                     {"stop_id": "stop:fengtai-main-gate", "display_name": "丰台南门"},
                 ],
-            }
-            ,
+            },
             {
                 "route_id": "route:fengtai-to-haidian",
                 "display_name": "丰台到海淀通勤车",
@@ -176,7 +175,7 @@ def _smoke_transport_schedule_bundle() -> dict[str, object]:
                     {"stop_id": "stop:fengtai-main-gate", "display_name": "丰台南门"},
                     {"stop_id": "stop:haidian-east-gate", "display_name": "海淀东门"},
                 ],
-            }
+            },
         ],
         "scheduled_departures": [
             {
@@ -198,7 +197,7 @@ def _smoke_transport_schedule_bundle() -> dict[str, object]:
                 "origin_stop_id": "stop:fengtai-main-gate",
                 "destination_stop_id": "stop:haidian-east-gate",
                 "related_notice_refs": ["smoke:transport-schedule"],
-            }
+            },
         ],
         "transport_service_exceptions": [],
         "transport_operational_notices": [

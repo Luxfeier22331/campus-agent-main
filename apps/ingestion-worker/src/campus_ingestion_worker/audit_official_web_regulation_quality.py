@@ -35,9 +35,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         source_truth_output_dir=Path(args.source_truth_output_dir).resolve(),
         projection_output_dir=Path(args.projection_output_dir).resolve(),
         declarations_path=(
-            Path(args.declarations_path).resolve()
-            if args.declarations_path is not None
-            else None
+            Path(args.declarations_path).resolve() if args.declarations_path is not None else None
         ),
     )
     print(

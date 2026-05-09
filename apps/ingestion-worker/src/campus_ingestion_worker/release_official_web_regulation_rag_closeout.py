@@ -4,7 +4,6 @@ import argparse
 import json
 from collections import defaultdict
 from collections.abc import Mapping, Sequence
-from dataclasses import asdict
 from pathlib import Path
 from typing import Any
 
@@ -81,7 +80,9 @@ def main(argv: Sequence[str] | None = None) -> None:
         if document_ids and collection in RAG_RELEASE_ELIGIBLE_COLLECTIONS
     )
     if not target_collections:
-        raise ValueError("no query-enabled official-web regulation targets selected for RAG closeout")
+        raise ValueError(
+            "no query-enabled official-web regulation targets selected for RAG closeout"
+        )
     if len(target_collections) != 1:
         raise ValueError(
             "official-web regulation RAG closeout currently supports exactly one query-enabled "

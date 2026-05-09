@@ -60,10 +60,7 @@ const releaseTaskRecord = {
 		sourceUrls: ["https://www.muc.edu.cn/"],
 	},
 	outputSummary: {
-		fullImpactDisplayNames: [
-			"中央民族大学",
-			"中央民族大学信息公开联系方式",
-		],
+		fullImpactDisplayNames: ["中央民族大学", "中央民族大学信息公开联系方式"],
 		fullRecordCount: 2,
 		recordCount: 1,
 		releaseId: "release_contact",
@@ -107,10 +104,7 @@ const serviceGuideReleaseTaskRecord = {
 		],
 	},
 	outputSummary: {
-		fullImpactDisplayNames: [
-			"学生校园卡服务",
-			"中央民族大学信息公开依申请公开工作流程",
-		],
+		fullImpactDisplayNames: ["学生校园卡服务", "中央民族大学信息公开依申请公开工作流程"],
 		fullRecordCount: 2,
 		recordCount: 1,
 		releaseId: "release_service_guide",

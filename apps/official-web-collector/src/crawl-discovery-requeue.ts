@@ -69,7 +69,11 @@ export function buildListingRequeueRequests(input: {
 		const inheritedTargetLineages = shouldInheritTargetLineagesFromPage(input.page, knownPage)
 			? [...(input.page.pageManifest.targetMatches ?? [])]
 			: undefined;
-		if (input.targetWorksetOnly && !knownPage && !inheritedTargetLineages?.length) {
+		if (
+			input.targetWorksetOnly &&
+			!knownPage &&
+			(inheritedTargetLineages == null || inheritedTargetLineages.length === 0)
+		) {
 			input.hostSummary.admissionRejected += 1;
 			continue;
 		}

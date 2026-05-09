@@ -9,14 +9,14 @@ class OfficialWebTargetDenominatorAlignmentTest(unittest.TestCase):
     def test_consumer_denominator_matches_target_source_map(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         config_root = repo_root / "configs/sources/official_web/muc_public"
-        target_map = json.loads((config_root / "target-source-map.json").read_text(encoding="utf-8"))
+        target_map = json.loads(
+            (config_root / "target-source-map.json").read_text(encoding="utf-8")
+        )
         denominator = json.loads(
             (config_root / "consumer-denominator.json").read_text(encoding="utf-8")
         )
 
-        target_by_family = {
-            target["consumer_family"]: target for target in target_map["targets"]
-        }
+        target_by_family = {target["consumer_family"]: target for target in target_map["targets"]}
         denominator_by_family = {
             family["consumer_family"]: family for family in denominator["consumer_families"]
         }
@@ -55,7 +55,9 @@ class OfficialWebTargetDenominatorAlignmentTest(unittest.TestCase):
     def test_student_rules_target_maps_to_student_rules_surface(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         config_root = repo_root / "configs/sources/official_web/muc_public"
-        target_map = json.loads((config_root / "target-source-map.json").read_text(encoding="utf-8"))
+        target_map = json.loads(
+            (config_root / "target-source-map.json").read_text(encoding="utf-8")
+        )
 
         student_target = next(
             target

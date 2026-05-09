@@ -23,9 +23,18 @@ const FORWARDED_HEADERS = [
 	"x-trace-id",
 ] as const;
 
+const PUBLIC_DOCS_SECURITY_HEADERS = {
+	"content-security-policy":
+		"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; worker-src 'self' blob:",
+	"permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+	"referrer-policy": "strict-origin-when-cross-origin",
+	"x-content-type-options": "nosniff",
+} as const;
+
 const JSON_HEADERS = {
 	"cache-control": "no-store",
 	"content-type": "application/json; charset=utf-8",
+	...PUBLIC_DOCS_SECURITY_HEADERS,
 } as const;
 
 const worker = {
@@ -382,6 +391,7 @@ function isDocsCollectionRoute(pathname: string): boolean {
 function withNoStore(response: Response, options?: { varyAuth?: boolean }): Response {
 	const headers = new Headers(response.headers);
 	headers.set("cache-control", "no-store");
+	applyPublicDocsSecurityHeaders(headers);
 	if (options?.varyAuth) {
 		addVary(headers, "Cookie, Authorization");
 	}
@@ -391,6 +401,13 @@ function withNoStore(response: Response, options?: { varyAuth?: boolean }): Resp
 		status: response.status,
 		statusText: response.statusText,
 	});
+}
+
+function applyPublicDocsSecurityHeaders(headers: Headers): Headers {
+	for (const [headerName, headerValue] of Object.entries(PUBLIC_DOCS_SECURITY_HEADERS)) {
+		headers.set(headerName, headerValue);
+	}
+	return headers;
 }
 
 function addVary(headers: Headers, value: string): void {

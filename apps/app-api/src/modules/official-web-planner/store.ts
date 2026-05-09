@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, isNull, lte, not, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, not, or, type SQL } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { withRuntimeDatabase } from "../../db/runtime";
@@ -154,13 +154,13 @@ function resolveFetchLimit(filters: NormalizedOfficialWebPlannerFilters): number
 	return Math.max(filters.maxTotalPages * 4, filters.maxPagesPerHost * hostCount * 2);
 }
 
-function shouldApplyFreshnessDueFilter(input: {
-	targetCandidateIds: string[];
-}): boolean {
+function shouldApplyFreshnessDueFilter(input: { targetCandidateIds: string[] }): boolean {
 	return input.targetCandidateIds.length === 0;
 }
 
-function selectBudgetedRows<T extends { host: string; normalizedCanonicalUrl: string; targetJobId: string }>(
+function selectBudgetedRows<
+	T extends { host: string; normalizedCanonicalUrl: string; targetJobId: string },
+>(
 	rows: T[],
 	filters: NormalizedOfficialWebPlannerFilters,
 	options: {
@@ -179,13 +179,11 @@ function selectBudgetedRows<T extends { host: string; normalizedCanonicalUrl: st
 		const reuseSelectedCanonicalUrl =
 			options.dedupeByCanonicalUrl === true && selectedCanonicalUrls.has(canonicalUrlKey);
 		const reuseSelectedTargetCanonicalKey =
-			options.dedupeByCanonicalUrl === true &&
-			selectedTargetCanonicalKeys.has(targetCanonicalKey);
+			options.dedupeByCanonicalUrl === true && selectedTargetCanonicalKeys.has(targetCanonicalKey);
 
 		if (
-			(options.dedupeByCanonicalUrl === true
-				? selectedCanonicalUrls.size
-				: selected.length) >= filters.maxTotalPages &&
+			(options.dedupeByCanonicalUrl === true ? selectedCanonicalUrls.size : selected.length) >=
+				filters.maxTotalPages &&
 			!reuseSelectedCanonicalUrl
 		) {
 			break;
@@ -201,8 +199,7 @@ function selectBudgetedRows<T extends { host: string; normalizedCanonicalUrl: st
 		}
 
 		if (!reuseSelectedTargetCanonicalKey) {
-			const targetRemaining =
-				remainingByTarget.get(row.targetJobId) ?? filters.maxPagesPerHost;
+			const targetRemaining = remainingByTarget.get(row.targetJobId) ?? filters.maxPagesPerHost;
 			if (targetRemaining < 1) {
 				if (!reuseSelectedCanonicalUrl) {
 					selectedCanonicalUrls.delete(canonicalUrlKey);
@@ -241,10 +238,7 @@ export function createPgOfficialWebPlannerStore(env: Env): OfficialWebPlannerSto
 					];
 					if (filters.targetCandidateIds.length > 0) {
 						repairConditions.push(
-							inArray(
-								officialWebTargetPageAttempts.candidateId,
-								filters.targetCandidateIds,
-							),
+							inArray(officialWebTargetPageAttempts.candidateId, filters.targetCandidateIds),
 						);
 					}
 
@@ -294,26 +288,28 @@ export function createPgOfficialWebPlannerStore(env: Env): OfficialWebPlannerSto
 					});
 				}
 
-				const conditions = [
+				const conditions: SQL<unknown>[] = [
 					eq(officialWebTargetJobCandidates.siteId, filters.siteId),
 					inArray(officialWebTargetJobs.status, ["declared", "active"]),
 					inArray(officialWebTargetJobCandidates.status, ["eligible", "pending", "queued"]),
 				];
 				if (shouldApplyFreshnessDueFilter(filters)) {
-					conditions.push(
-						or(
-							isNull(pageFreshness.nextEligibleFetchAt),
-							lte(pageFreshness.nextEligibleFetchAt, new Date(filters.now)),
-						),
+					const freshnessDueCondition = or(
+						isNull(pageFreshness.nextEligibleFetchAt),
+						lte(pageFreshness.nextEligibleFetchAt, new Date(filters.now)),
 					);
+					if (freshnessDueCondition) {
+						conditions.push(freshnessDueCondition);
+					}
 				}
 				if (filters.targetCandidateIds.length === 0) {
-					conditions.push(
-						or(
-							isNull(pageFreshness.lastFetchDisposition),
-							not(eq(pageFreshness.lastFetchDisposition, "deleted")),
-						),
+					const notDeletedCondition = or(
+						isNull(pageFreshness.lastFetchDisposition),
+						not(eq(pageFreshness.lastFetchDisposition, "deleted")),
 					);
+					if (notDeletedCondition) {
+						conditions.push(notDeletedCondition);
+					}
 				}
 
 				if (filters.hostFilter.length > 0) {

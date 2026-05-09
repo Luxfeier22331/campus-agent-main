@@ -203,13 +203,21 @@ function coalesceTargetFieldReviews(
 		}
 	}
 	return Array.from(byJobRun.values()).map((group) => {
+		const [firstReview] = group;
+		if (!firstReview) {
+			throw new Error("official web target field review group must not be empty");
+		}
 		if (group.length === 1) {
-			return group[0]!;
+			return firstReview;
 		}
 		const sorted = [...group].sort(
-			(left, right) => rankTargetFieldReviewStatus(right.status) - rankTargetFieldReviewStatus(left.status),
+			(left, right) =>
+				rankTargetFieldReviewStatus(right.status) - rankTargetFieldReviewStatus(left.status),
 		);
-		const primary = sorted[0]!;
+		const [primary] = sorted;
+		if (!primary) {
+			throw new Error("official web target field review sort result must not be empty");
+		}
 		return {
 			...primary,
 			summary: {

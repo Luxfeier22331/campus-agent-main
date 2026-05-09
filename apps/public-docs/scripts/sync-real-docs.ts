@@ -1,6 +1,11 @@
 import { mkdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
 import {
+	buildRegulationConsumptionByDocumentId,
+	type RegulationNavGroup,
+	resolveRegulationGroupMeta,
+} from "./regulation-consumption";
+import {
 	buildCourseMapDocEmbedForRoute,
 	syncCurriculumCourseMapArtifacts,
 } from "./sync-real-docs/course-map";
@@ -29,17 +34,12 @@ import {
 	formatJsonContent,
 	type HandbookDoc,
 	type HandbookFlowGraphDoc,
+	type PublicRegulationDoc,
 	removeLegacySectionDirs,
 	removeStaleGeneratedFiles,
-	type PublicRegulationDoc,
 	writeText,
 } from "./sync-real-docs/shared";
 import { createS3ObjectStore, type ObjectStoreClient } from "./sync-real-docs/storage";
-import {
-	buildRegulationConsumptionByDocumentId,
-	resolveRegulationGroupMeta,
-	type RegulationNavGroup,
-} from "./regulation-consumption";
 
 type SidebarMetaEntry =
 	| string
@@ -49,10 +49,9 @@ type SidebarMetaEntry =
 
 const GROUPED_DOC_ROUTE_DEPTH_FROM_DOCS_ROOT = 3;
 
-export async function syncRealDocs(input: {
-	client?: ObjectStoreClient;
-	docsRoot?: string;
-} = {}): Promise<void> {
+export async function syncRealDocs(
+	input: { client?: ObjectStoreClient; docsRoot?: string } = {},
+): Promise<void> {
 	if (!input.client) {
 		loadPublicDocsEnv();
 	}
@@ -242,7 +241,10 @@ async function syncRegulationsCanonicalDocs(input: {
 		targetDir: institutionalRulesDir,
 	});
 
-	removeStaleGeneratedFiles(regulationsDir, new Set(["_meta.json", "index.md", "student_rules", "institutional_rules"]));
+	removeStaleGeneratedFiles(
+		regulationsDir,
+		new Set(["_meta.json", "index.md", "student_rules", "institutional_rules"]),
+	);
 }
 
 function buildRegulationsCorpusMeta(): SidebarMetaEntry[] {
@@ -294,7 +296,9 @@ async function syncStudentRulesCanonicalDocs(input: {
 	const groups = groupHandbookDocs({ flowGraphDocs, handbookDocs: input.handbookDocs });
 	writeText(
 		resolve(input.targetDir, "_meta.json"),
-		formatJsonContent(buildHandbookMetaEntries({ flowGraphDocs, handbookDocs: input.handbookDocs })),
+		formatJsonContent(
+			buildHandbookMetaEntries({ flowGraphDocs, handbookDocs: input.handbookDocs }),
+		),
 	);
 	writeText(resolve(input.targetDir, "index.md"), buildStudentRulesIndex(groups));
 
@@ -325,7 +329,10 @@ async function syncInstitutionalRulesCanonicalDocs(input: {
 		resolve(input.targetDir, "_meta.json"),
 		formatJsonContent(buildInstitutionalRulesMeta(input.regulationDocs)),
 	);
-	writeText(resolve(input.targetDir, "index.md"), buildInstitutionalRulesIndex(input.regulationDocs));
+	writeText(
+		resolve(input.targetDir, "index.md"),
+		buildInstitutionalRulesIndex(input.regulationDocs),
+	);
 
 	for (const doc of input.regulationDocs) {
 		const jsonlText = await input.client.readTextObject({ key: doc.key });
@@ -337,11 +344,7 @@ async function syncInstitutionalRulesCanonicalDocs(input: {
 
 	removeStaleGeneratedFiles(
 		input.targetDir,
-		new Set([
-			"_meta.json",
-			"index.md",
-			...input.regulationDocs.map((doc) => `${doc.slug}.mdx`),
-		]),
+		new Set(["_meta.json", "index.md", ...input.regulationDocs.map((doc) => `${doc.slug}.mdx`)]),
 	);
 }
 

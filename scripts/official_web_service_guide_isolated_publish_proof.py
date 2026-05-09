@@ -6,7 +6,7 @@ import os
 import re
 import sys
 import uuid
-from datetime import datetime, timedelta, timezone
+from datetime import UTC, datetime, timedelta
 from pathlib import Path
 
 if __package__ in {None, ""}:
@@ -163,9 +163,7 @@ def _trusted_time_from_full_impact_bundle(bundle: dict[str, object]) -> str:
         if not effective_from:
             continue
         trusted_times.append(
-            datetime.fromisoformat(effective_from.replace("Z", "+00:00")).astimezone(
-                timezone.utc
-            )
+            datetime.fromisoformat(effective_from.replace("Z", "+00:00")).astimezone(UTC)
             + timedelta(seconds=1)
         )
     if not trusted_times:

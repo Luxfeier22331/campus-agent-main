@@ -19,7 +19,9 @@ def choose_official_web_contact_display_name(*, source_title: str, target_label:
 
 def should_prefer_target_label_for_service_name(title: str) -> bool:
     normalized = re.sub(r"\s+", "", _normalize_label(title))
-    return bool(re.search(r"(管理办法|使用说明|登录|登陆|说明)$", normalized) or "系统" in normalized)
+    return bool(
+        re.search(r"(管理办法|使用说明|登录|登陆|说明)$", normalized) or "系统" in normalized
+    )
 
 
 def is_generic_contact_title(title: str) -> bool:

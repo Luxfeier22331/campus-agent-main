@@ -2,16 +2,10 @@ import { existsSync, mkdtempSync, readFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-
-import {
-	discoverPublicRegulationDocs,
-} from "../scripts/sync-real-docs/regulations";
-import {
-	buildHandbookDocKey,
-	loadHandbookDocs,
-} from "../scripts/sync-real-docs/handbook";
-import { syncRealDocs } from "../scripts/sync-real-docs";
 import { loadRegulationConsumptionManifest } from "../scripts/regulation-consumption";
+import { syncRealDocs } from "../scripts/sync-real-docs";
+import { buildHandbookDocKey, loadHandbookDocs } from "../scripts/sync-real-docs/handbook";
+import { discoverPublicRegulationDocs } from "../scripts/sync-real-docs/regulations";
 import { FakeObjectStore, temporaryDirectories } from "./sync-real-docs-test-support";
 
 const PUBLIC_SERVICE_DOC_ID = "official_web_regulation:b23aa5f14642eb92";
@@ -27,7 +21,11 @@ function createDocsRoot(): string {
 	return targetRoot;
 }
 
-function buildDocumentUnitsJsonl(input: { docId: string; title: string; sourcePdf: string }): string {
+function buildDocumentUnitsJsonl(input: {
+	docId: string;
+	title: string;
+	sourcePdf: string;
+}): string {
 	return [
 		{
 			clean_text: input.title,

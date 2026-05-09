@@ -469,7 +469,10 @@ def _validate_typed_candidate(
                         }
                     )
                     continue
-                if _optional_text(point.get("label")) is None or _optional_text(point.get("phone")) is None:
+                if (
+                    _optional_text(point.get("label")) is None
+                    or _optional_text(point.get("phone")) is None
+                ):
                     issues.append(
                         {
                             "severity": "error",
@@ -485,8 +488,8 @@ def _validate_typed_candidate(
                         "severity": "error",
                         "code": "consumer_candidate_typed_service_field_invalid",
                         "message": f"service typed candidate field must be an array: {field_name}",
-                }
-            )
+                    }
+                )
         if not isinstance(typed_candidate.get("contacts"), dict):
             issues.append(
                 {
@@ -541,8 +544,7 @@ def _validate_typed_candidate(
                         "severity": "error",
                         "code": "consumer_candidate_typed_regulation_field_invalid",
                         "message": (
-                            "regulation typed candidate must include non-empty field: "
-                            f"{field_name}"
+                            f"regulation typed candidate must include non-empty field: {field_name}"
                         ),
                     }
                 )

@@ -11,13 +11,13 @@ worker = importlib.import_module("campus_ingestion_worker.official_web_universit
 
 
 class OfficialWebUniversityCollectionWorkerTest(unittest.TestCase):
-    def test_preflight_accepts_university_core_baseline_lane(self) -> None:
+    def test_preflight_accepts_consumer_stable_baseline_lane(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
             repo_root = Path(__file__).resolve().parents[2]
 
             report = worker.run_official_web_university_collection_preflight(
-                lane_id="university-core-baseline",
+                lane_id="consumer-stable-baseline",
                 repo_root=repo_root,
                 run_root=root / "runs",
                 report_dir=root / "reports",
@@ -66,6 +66,7 @@ class OfficialWebUniversityCollectionWorkerTest(unittest.TestCase):
 
         self.assertEqual(report["status"], "failed")
         checks = {check["name"]: check for check in report["checks"]}
+        self.assertEqual(checks["lane_is_university_lane"]["status"], "passed")
         self.assertEqual(checks["projection_declarations_complete"]["status"], "failed")
         self.assertIn("data_table_page", checks["projection_declarations_complete"]["message"])
 
@@ -176,7 +177,7 @@ class OfficialWebUniversityCollectionWorkerTest(unittest.TestCase):
                 run_report={
                     "status": "succeeded",
                     "run_id": "run-003",
-                    "lane_id": "university-core-baseline",
+                    "lane_id": "consumer-stable-baseline",
                     "steps": [
                         {"name": "crawl", "status": "succeeded", "output_json": {"status": "ok"}},
                         {
