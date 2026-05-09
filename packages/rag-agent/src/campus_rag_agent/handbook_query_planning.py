@@ -6,9 +6,14 @@ from dataclasses import dataclass
 from functools import lru_cache
 from typing import Literal
 
-from campus_shared.regulation_semantic_registry import load_student_rules_discovery_config
+from campus_shared.regulation_semantic_registry import (
+    load_student_rules_discovery_config,
+    resolve_regulation_action_type,
+    resolve_regulation_condition_subject,
+)
 
 from .policy_query_focus import extract_policy_query_focus
+from .retrieval_intent import RetrievalIntent, retrieval_intent_for_handbook_plan
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _TITLE_PREFIX_PATTERNS = (
@@ -65,7 +70,13 @@ class HandbookQueryPlan:
         "semantic_only",
         "anchor_and_semantic",
     ] = "none"
+    query_condition_subject: str = ""
+    query_action_type: str = ""
     clarification_reason: str = ""
+
+    @property
+    def retrieval_intent(self) -> RetrievalIntent:
+        return retrieval_intent_for_handbook_plan(self)
 
 
 @dataclass(frozen=True, slots=True)
@@ -194,6 +205,12 @@ def plan_student_handbook_query(query_text: str) -> HandbookQueryPlan:
                 category_member_document_ids=matched_category.member_policy_document_ids,
                 clarification_reason="ambiguous_procedure",
             )
+        category_specific_plan = _resolve_category_specific_lookup_plan(
+            matched_category=matched_category,
+            normalized_query=normalized_query,
+        )
+        if category_specific_plan is not None:
+            return category_specific_plan
     if _looks_like_unresolved_policy_object_query(normalized_query):
         return HandbookQueryPlan(
             status="needs_clarification",
@@ -308,6 +325,74 @@ def _resolve_category_procedure_document_id(
     return matched_category.default_procedure_document_id
 
 
+def _resolve_category_specific_lookup_plan(
+    *,
+    matched_category: HandbookPolicyCategory,
+    normalized_query: str,
+) -> HandbookQueryPlan | None:
+    query_condition_subject = _query_condition_subject(
+        normalized_query,
+        category_display_name=matched_category.display_name,
+    )
+    query_action_type = _query_action_type(
+        normalized_query,
+        category_display_name=matched_category.display_name,
+    )
+    if not _is_category_scoped_policy_question(
+        normalized_query,
+        query_condition_subject=query_condition_subject,
+        query_action_type=query_action_type,
+    ):
+        return None
+    if len(matched_category.member_policy_document_ids) != 1:
+        return HandbookQueryPlan(
+            status="needs_clarification",
+            rewritten_query_text=normalized_query,
+            focused_query_text=normalized_query,
+            task_kind="specific_policy_lookup",
+            category_id=matched_category.category_id,
+            category_display_name=matched_category.display_name,
+            audience=matched_category.audience,
+            category_member_document_ids=matched_category.member_policy_document_ids,
+            query_condition_subject=query_condition_subject,
+            query_action_type=query_action_type,
+            clarification_reason="category_policy_ambiguous",
+        )
+    matched_object = _policy_object_by_document_id(matched_category.member_policy_document_ids[0])
+    if matched_object is None:
+        return None
+    rewritten_query_text = _build_rewritten_query(
+        normalized_query=normalized_query,
+        policy_object=matched_object,
+    )
+    focus_hints = extract_policy_query_focus(normalized_query)
+    return HandbookQueryPlan(
+        status="resolved",
+        rewritten_query_text=rewritten_query_text,
+        focused_query_text=_build_focused_query(
+            normalized_query=normalized_query,
+            rewritten_query_text=rewritten_query_text,
+            policy_object=matched_object,
+            focus_hints=focus_hints,
+        ),
+        target_document_ids=(matched_object.document_id,),
+        resolved_policy_document_id=matched_object.document_id,
+        resolved_policy_title=matched_object.title,
+        task_kind="specific_policy_lookup",
+        category_id=matched_category.category_id,
+        category_display_name=matched_category.display_name,
+        audience=matched_category.audience,
+        category_member_document_ids=matched_category.member_policy_document_ids,
+        focus_detail_labels=focus_hints.detail_labels,
+        focus_article_nos=focus_hints.article_nos,
+        focus_clause_nos=focus_hints.clause_nos,
+        focus_terms=focus_hints.focus_terms,
+        focus_mode=focus_hints.focus_mode,
+        query_condition_subject=query_condition_subject,
+        query_action_type=query_action_type,
+    )
+
+
 def _title_variants(title: str) -> tuple[str, ...]:
     variants = [title.strip()]
     for pattern in _TITLE_PREFIX_PATTERNS:
@@ -388,6 +473,70 @@ def _is_category_discovery_query(normalized_query: str) -> bool:
 def _is_ambiguous_category_procedure_query(normalized_query: str) -> bool:
     compact_query = _compact_text(normalized_query)
     return _has_any_compact_cue(compact_query, _PROCEDURE_CUES)
+
+
+def _is_category_scoped_policy_question(
+    normalized_query: str,
+    *,
+    query_condition_subject: str,
+    query_action_type: str,
+) -> bool:
+    if query_condition_subject:
+        return True
+    if query_action_type:
+        return True
+    compact_query = _compact_text(normalized_query)
+    return any(
+        _compact_text(cue) in compact_query
+        for cue in (
+            "条件",
+            "要求",
+            "资格",
+            "能不能",
+            "能否",
+            "是否可以",
+            "可以吗",
+            "截止",
+            "期限",
+            "时间",
+            "多少",
+            "金额",
+            "名额",
+            "比例",
+            "材料",
+            "报销",
+            "办理",
+            "怎么办",
+        )
+    )
+
+
+def _query_condition_subject(
+    normalized_query: str,
+    *,
+    category_display_name: str,
+) -> str:
+    return resolve_regulation_condition_subject(
+        text=normalized_query,
+        context_text=normalized_query,
+        document_title=category_display_name,
+        action_type=_query_action_type(
+            normalized_query,
+            category_display_name=category_display_name,
+        ),
+    ).value
+
+
+def _query_action_type(
+    normalized_query: str,
+    *,
+    category_display_name: str,
+) -> str:
+    return resolve_regulation_action_type(
+        text=normalized_query,
+        context_text=normalized_query,
+        document_title=category_display_name,
+    ).value
 
 
 def _has_any_compact_cue(compact_query: str, cues: tuple[str, ...]) -> bool:

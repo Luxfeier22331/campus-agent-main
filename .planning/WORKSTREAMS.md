@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-19
-updated: 2026-05-08
+updated: 2026-05-09
 ---
 
 <!-- markdownlint-disable MD013 MD060 -->
@@ -47,8 +47,8 @@ updated: 2026-05-08
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
 | `OpenAI Agents SDK native supervisor runtime hardcut` | `openai-agents-sdk-native-supervisor-runtime-hardcut` | `yes` | `.planning/workstreams/openai-agents-sdk-native-supervisor-runtime-hardcut/README.md` | `Phase 3 - ToolSpec To FunctionTool Compiler` | Phase 1 已完成 debt inventory / SDK primitive mapping；Phase 2 已落地 worker-owned `OpenAIAgentsNativeRuntime` factory foundation 与 TDD 覆盖；下一步收敛 structured 与 RAG internal ToolSpec -> SDK `FunctionTool` compiler |
-| `answer-ready semantic extraction rearchitecture` | `answer-ready-semantic-extraction-rearchitecture` | `yes` | `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/README.md` | `Phase 11 - Legacy Quarantine Docs Closeout` | Phase 1、Phase 9 与 Phase 10 已完成；Phase 2-8 均已有 completion-audit 证据，Phase 11 已实现 target regulation retrieval 的显式 `target_v3_only` / `legacy_old_index_compatibility` runtime 分支与 fail-close quarantine，`student_rules` / `institutional_rules` rebuild release/adoption 证据、component-eval-attached admission、post-publish audit、runtime probe 已闭环；当前收口点是 Phase 11 规划真相与 completion-audit 对齐 |
-| `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5B blocked` | `Phase 1-5A`、Phase 6 workflow trace runtime gate、Phase 7 observed regression review workflow 与 Phase 8-13 deterministic eval seams 已完成；RAG-only coverage/audit 已收口为 `student_rules`、`institutional_rules`、`curriculum_plan`、`official_web/stable_reference`，`fresh_news` 不计入当前 RAG eval；RAG minimum gate 与 maturity gate 均通过，`student_rules` 为 45 qrels / 39 unique docs / 25 release acceptance，`curriculum_plan` 为 60 qrels / 49 unique docs / 30 release acceptance；5B repo-wide accepted golden expansion 仍因 domain 数据补全阻塞；当前没有独立编号的 Phase 14，Total Phases=14 来自 Phase 5A/5B 拆分 |
+
+| `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5B partial` | `Phase 1-5A`、Phase 6 workflow trace runtime gate、Phase 7 observed regression review workflow 与 Phase 8-13 deterministic eval seams 已完成；RAG-only coverage/audit 已收口为 `student_rules`、`institutional_rules`、`curriculum_plan`、`official_web/stable_reference`，`fresh_news` 不计入当前 RAG eval；RAG minimum gate 与 maturity gate 均通过，`student_rules` 为 52 qrels / 46 unique docs / 25 release acceptance，并新增 current-corpus answer-quality 与 4 条 known-gap cases；`curriculum_plan` 为 60 qrels / 49 unique docs / 30 release acceptance，并新增 current-corpus answer-quality；5B authenticated-gap expansion 仍因认证态 canonical 数据补全阻塞；当前没有独立编号的 Phase 14，Total Phases=14 来自 Phase 5A/5B 拆分 |
 
 ## Completed
 
@@ -128,6 +128,7 @@ updated: 2026-05-08
 | `supervisor-api server live acceptance` | `supervisor-api-server-live-acceptance` | `yes` | `.planning/workstreams/supervisor-api-server-live-acceptance/README.md` | 只有在新增 server-live smoke profile、runtime contract 变更导致当前 artifact 失效，或需要重新验证 non-WSL host acceptance 时恢复 |
 | `ingestion worker independent deployment hardening` | `ingestion-worker-independent-deployment-hardening` | `yes` | `.planning/workstreams/ingestion-worker-independent-deployment-hardening/README.md` | 只有在部署 substrate / runtime contract 变更导致当前 phase 7 证据失效，或资源画像持续越界需要重开 runtime migration 评估时恢复 |
 | `public chat answer feedback and quality signals` | `public-chat-answer-feedback-quality-signals` | `yes` | `.planning/workstreams/public-chat-answer-feedback-quality-signals/README.md` | 只有在 answer feedback contract、operator quality feedback denominator、negative feedback eval candidate intake、或 public-chat-web feedback rollout / rollback posture 被显式改写时恢复 |
+| `Retrieval Intent Taxonomy Contract Closeout` | `retrieval-intent-taxonomy-contract-closeout` | `yes` | `.planning/workstreams/retrieval-intent-taxonomy-contract-closeout/README.md` | 只有在 covered serving surface 再次出现 `retrieval_intent` 缺口、answer-shape / SDK synthesis 回流成 raw-query 主分类、retrieval-core 恢复第二套 intent truth，或 stage diagnostics 失去阶段归因时恢复 |
 
 ## Deferred
 

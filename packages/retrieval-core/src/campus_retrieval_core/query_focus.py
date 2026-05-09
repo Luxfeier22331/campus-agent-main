@@ -76,9 +76,7 @@ def build_focus_groups(query_text: str) -> tuple[tuple[str, ...], ...]:
     for article_no in focus.article_nos:
         terms = [f"第{article_no}条"]
         terms.extend(
-            detail_label
-            for detail_label in focus.detail_labels
-            if detail_label.endswith("条")
+            detail_label for detail_label in focus.detail_labels if detail_label.endswith("条")
         )
         groups.append(tuple(dict.fromkeys(terms)))
     for clause_no in focus.clause_nos:
@@ -185,9 +183,7 @@ def source_covers_query_focus(*, query_text: str, source: EvidenceSource) -> boo
 
 def query_has_focus_constraints(query_text: str) -> bool:
     focus = extract_query_focus(query_text)
-    return bool(
-        focus.detail_labels or focus.article_nos or focus.clause_nos or focus.focus_terms
-    )
+    return bool(focus.detail_labels or focus.article_nos or focus.clause_nos or focus.focus_terms)
 
 
 def normalize_text(text: str) -> str:
@@ -201,9 +197,7 @@ def _extract_focus_terms(normalized_query: str) -> tuple[str, ...]:
         if any(_compact_text(cue) in compact_query for cue in cues):
             focus_terms.append(canonical_term)
     if any(_compact_text(cue) in compact_query for cue in _RANK_THRESHOLD_EXCEPTION_CUES):
-        focus_terms.extend(
-            term for term in ("前10", "前30") if term not in focus_terms
-        )
+        focus_terms.extend(term for term in ("前10", "前30") if term not in focus_terms)
     return tuple(focus_terms)
 
 

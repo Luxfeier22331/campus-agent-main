@@ -6,6 +6,7 @@ from campus_retrieval_core import (
     RetrievalPlanBudget,
     RetrievalScope,
     RetrievalSelector,
+    RetrievalSemanticHint,
     RetrievalSourceTrustPolicy,
     RetrievalStep,
     RetrievalStepBudget,
@@ -45,6 +46,7 @@ def build_ordered_retrieval_plan(
     primary_version_id: str = "",
     comparison_version_id: str = "",
     need_ids: tuple[str, ...] = (),
+    semantic_hint: RetrievalSemanticHint | None = None,
     max_replans: int = 1,
     allow_live_source_lookup: bool = False,
     indexed_lookup_timeout_ms: int | None = DEFAULT_INDEXED_LOOKUP_TIMEOUT_MS,
@@ -78,6 +80,7 @@ def build_ordered_retrieval_plan(
                 scope=admitted_scope,
                 query_text=query_text,
                 need_ids=need_ids,
+                semantic_hint=semantic_hint,
                 selector=RetrievalSelector(
                     target_document_ids=base_selector.target_document_ids,
                     target_version_ids=(
@@ -106,6 +109,7 @@ def build_ordered_retrieval_plan(
                 scope=admitted_scope,
                 query_text=query_text,
                 need_ids=need_ids,
+                semantic_hint=semantic_hint,
                 selector=RetrievalSelector(
                     target_document_ids=base_selector.target_document_ids,
                     target_version_ids=target_version_ids,
@@ -131,6 +135,7 @@ def build_ordered_retrieval_plan(
                 scope=admitted_scope,
                 query_text=query_text,
                 need_ids=need_ids,
+                semantic_hint=semantic_hint,
                 selector=base_selector,
                 budget=step_budget,
                 expected_output="freshness_decision",
@@ -141,6 +146,7 @@ def build_ordered_retrieval_plan(
                 scope=admitted_scope,
                 query_text=query_text,
                 need_ids=need_ids,
+                semantic_hint=semantic_hint,
                 depends_on_step_ids=("freshness-gate",),
                 selector=RetrievalSelector(
                     target_document_ids=base_selector.target_document_ids,
@@ -163,6 +169,7 @@ def build_ordered_retrieval_plan(
                 scope=admitted_scope,
                 query_text=query_text,
                 need_ids=need_ids,
+                semantic_hint=semantic_hint,
                 selector=base_selector,
                 budget=step_budget,
                 expected_output="freshness_decision",
@@ -173,6 +180,7 @@ def build_ordered_retrieval_plan(
                 scope=admitted_scope,
                 query_text=query_text,
                 need_ids=need_ids,
+                semantic_hint=semantic_hint,
                 depends_on_step_ids=("freshness-gate",),
                 selector=base_selector,
                 budget=step_budget,
@@ -194,6 +202,7 @@ def build_ordered_retrieval_plan(
                     scope=admitted_scope,
                     query_text=query_text,
                     need_ids=need_ids,
+                    semantic_hint=semantic_hint,
                     selector=RetrievalSelector(
                         target_document_ids=base_selector.target_document_ids,
                         target_version_ids=target_version_ids,
@@ -223,6 +232,7 @@ def build_ordered_retrieval_plan(
                 scope=admitted_scope,
                 query_text=query_text,
                 need_ids=need_ids,
+                semantic_hint=semantic_hint,
                 depends_on_step_ids=("entity-resolution",) if needs_entity_resolution else (),
                 selector=RetrievalSelector(
                     target_document_ids=base_selector.target_document_ids,

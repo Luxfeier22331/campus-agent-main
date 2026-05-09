@@ -24,6 +24,7 @@ from campus_retrieval_core import (
     RetrievalPlanBudget,
     RetrievalScope,
     RetrievalSelector,
+    RetrievalSemanticHint,
     RetrievalSourceTrustPolicy,
     RetrievalStep,
     RetrievalStepBudget,
@@ -36,6 +37,7 @@ from campus_retrieval_core.curriculum_query_resolution import interpret_curricul
 
 from campus_rag_agent.agentic_depth_diagnostics import build_planner_information_needs
 from campus_rag_agent.remote_content_hardening import apply_remote_content_suspicion_labels
+from campus_rag_agent.retrieval_intent import RetrievalIntent
 from campus_rag_agent.retrieval_plan import (
     DEFAULT_INDEXED_LOOKUP_TIMEOUT_MS,
     _default_minimum_source_trust_tier,
@@ -43,7 +45,10 @@ from campus_rag_agent.retrieval_plan import (
 )
 from campus_rag_agent.semantic_replan import build_semantic_replan_steps
 
-from .institutional_rules_query_planning import plan_institutional_rules_query
+from .institutional_rules_query_planning import (
+    InstitutionalRulesQueryPlan,
+    plan_institutional_rules_query,
+)
 from .service_common import (
     _execute_retrieval_request_with_callable_retriever,
     _with_query_text,
@@ -103,6 +108,7 @@ def build_rag_retrieval_context(
     user_goal: str,
     effective_user_goal: str,
     handbook_plan,
+    institutional_rules_plan: InstitutionalRulesQueryPlan | None = None,
     curriculum_plan,
     curriculum_course_plan,
     curriculum_program_family_plan,
@@ -201,8 +207,10 @@ def build_rag_retrieval_context(
         effective_scope.corpus == "regulations"
         and effective_scope.collection == "institutional_rules"
     ):
-        institutional_rules_plan = plan_institutional_rules_query(effective_user_goal)
-        target_document_ids = institutional_rules_plan.target_document_ids
+        resolved_institutional_rules_plan = (
+            institutional_rules_plan or plan_institutional_rules_query(effective_user_goal)
+        )
+        target_document_ids = resolved_institutional_rules_plan.target_document_ids
 
     version_answer_context = _resolve_version_answer_context(
         request=request,
@@ -243,6 +251,7 @@ def build_retrieval_plan_for_context(
     effective_scope: KnowledgeScope,
     user_goal: str,
     retrieval_context: RagRetrievalContext,
+    retrieval_intent: RetrievalIntent | None = None,
 ) -> RetrievalPlan:
     runtime_profile = load_runtime_profile(
         effective_scope.corpus, retrieval_context.retrieval_collection
@@ -258,6 +267,7 @@ def build_retrieval_plan_for_context(
         effective_scope=effective_scope,
         retrieval_collection=retrieval_context.retrieval_collection,
         query_mode=retrieval_query_mode,
+        retrieval_intent=retrieval_intent,
     )
     if retrieval_context.category_member_document_ids:
         return _build_category_discovery_retrieval_plan(
@@ -269,6 +279,7 @@ def build_retrieval_plan_for_context(
             preferred_document_ids=retrieval_context.preferred_document_ids,
             top_k=retrieval_context.retrieval_top_k or runtime_profile.retrieval_top_k,
             need_ids=tuple(need.need_id for need in information_needs),
+            semantic_hint=_semantic_hint_from_retrieval_intent(retrieval_intent),
             version_query=request.payload.version_query,
             allow_live_source_lookup=runtime_profile.live_search_fallback_allowed,
         )
@@ -295,6 +306,7 @@ def build_retrieval_plan_for_context(
             focused_top_k=retrieval_context.focused_retrieval_top_k
             or runtime_profile.retrieval_top_k,
             need_ids=tuple(need.need_id for need in information_needs),
+            semantic_hint=_semantic_hint_from_retrieval_intent(retrieval_intent),
             version_query=request.payload.version_query,
             allow_live_source_lookup=runtime_profile.live_search_fallback_allowed,
         )
@@ -327,6 +339,7 @@ def build_retrieval_plan_for_context(
             primary_version_id=retrieval_context.version_answer_context.primary_version_id,
             comparison_version_id=retrieval_context.version_answer_context.comparison_version_id,
             need_ids=tuple(need.need_id for need in information_needs),
+            semantic_hint=_semantic_hint_from_retrieval_intent(retrieval_intent),
             allow_live_source_lookup=runtime_profile.live_search_fallback_allowed,
         )
     return build_ordered_retrieval_plan(
@@ -350,6 +363,7 @@ def build_retrieval_plan_for_context(
         primary_version_id=retrieval_context.version_answer_context.primary_version_id,
         comparison_version_id=retrieval_context.version_answer_context.comparison_version_id,
         need_ids=tuple(need.need_id for need in information_needs),
+        semantic_hint=_semantic_hint_from_retrieval_intent(retrieval_intent),
         allow_live_source_lookup=runtime_profile.live_search_fallback_allowed,
     )
 
@@ -364,6 +378,7 @@ def _build_category_discovery_retrieval_plan(
     preferred_document_ids: tuple[str, ...],
     top_k: int,
     need_ids: tuple[str, ...],
+    semantic_hint: RetrievalSemanticHint | None,
     version_query,
     allow_live_source_lookup: bool,
 ) -> RetrievalPlan:
@@ -374,6 +389,7 @@ def _build_category_discovery_retrieval_plan(
         scope=admitted_scope,
         query_text=query_text,
         need_ids=need_ids,
+        semantic_hint=semantic_hint,
         selector=RetrievalSelector(preferred_document_ids=preferred_document_ids),
         budget=RetrievalStepBudget(top_k=top_k, timeout_ms=DEFAULT_INDEXED_LOOKUP_TIMEOUT_MS),
         expected_output="candidate_set",
@@ -385,6 +401,7 @@ def _build_category_discovery_retrieval_plan(
             scope=admitted_scope,
             query_text=query_text,
             need_ids=need_ids,
+            semantic_hint=semantic_hint,
             selector=RetrievalSelector(target_document_ids=(document_id,)),
             budget=RetrievalStepBudget(
                 top_k=_HANDBOOK_CATEGORY_MEMBER_TOP_K,
@@ -432,6 +449,7 @@ def _build_specific_policy_focused_retrieval_plan(
     top_k: int,
     focused_top_k: int,
     need_ids: tuple[str, ...],
+    semantic_hint: RetrievalSemanticHint | None,
     version_query,
     allow_live_source_lookup: bool,
 ) -> RetrievalPlan:
@@ -442,6 +460,7 @@ def _build_specific_policy_focused_retrieval_plan(
         scope=admitted_scope,
         query_text=broad_query_text,
         need_ids=need_ids,
+        semantic_hint=semantic_hint,
         selector=RetrievalSelector(
             target_document_ids=target_document_ids,
             focus_detail_labels=focus_detail_labels,
@@ -458,6 +477,7 @@ def _build_specific_policy_focused_retrieval_plan(
         scope=admitted_scope,
         query_text=focused_query_text,
         need_ids=need_ids,
+        semantic_hint=semantic_hint,
         depends_on_step_ids=("policy-broad-lookup",),
         selector=RetrievalSelector(
             target_document_ids=target_document_ids,
@@ -516,7 +536,11 @@ def execute_rag_retrieval_context(
             retriever,
             retrieval_request,
         ),
-        replan_callback=build_semantic_replan_steps,
+        replan_callback=lambda plan, results, last_result: build_semantic_replan_steps(
+            plan,
+            results,
+            last_result,
+        ),
         observation_sink=retrieval_observation_sink,
         observation_request_id=request.request_id,
         include_observation_query_text=include_retrieval_observation_query_text,
@@ -531,3 +555,50 @@ def execute_rag_retrieval_context(
     )
     apply_remote_content_suspicion_labels(evidence)
     return RagRetrievalResult(evidence=evidence, execution_result=execution_result)
+
+
+def _semantic_hint_from_retrieval_intent(
+    retrieval_intent: RetrievalIntent | None,
+) -> RetrievalSemanticHint | None:
+    if retrieval_intent is None:
+        return None
+    return RetrievalSemanticHint(
+        intent_kind=retrieval_intent.kind,
+        answer_kind=retrieval_intent.expected.answer_kind,
+        need_kinds=_need_kinds_from_retrieval_intent(retrieval_intent),
+        coverage_policy=retrieval_intent.expected.coverage_policy,
+        selection_policy=retrieval_intent.expected.selection_policy,
+        rerank_policy=retrieval_intent.expected.rerank_policy,
+        replan_policy=retrieval_intent.expected.replan_policy,
+        expected_answer_roles=retrieval_intent.expected.evidence_roles,
+        condition_subject=retrieval_intent.target.condition_subject,
+        category_id=retrieval_intent.target.category_id,
+        critical_terms=retrieval_intent.critical_terms,
+    )
+
+
+def _need_kinds_from_retrieval_intent(retrieval_intent: RetrievalIntent) -> tuple[str, ...]:
+    kind = retrieval_intent.kind
+    if kind == "policy_list":
+        return ("policy_list",)
+    if kind == "policy_object_lookup":
+        return ("policy_object",)
+    if kind == "specific_clause_lookup":
+        return ("specific_clause",)
+    if kind == "eligibility_judgment":
+        return ("eligibility_judgment",)
+    if kind == "procedure_steps":
+        return ("procedure_steps",)
+    if kind == "condition_table":
+        return ("condition_table",)
+    if kind == "version_compare":
+        return ("version_compare",)
+    if kind == "curriculum_fact_lookup":
+        return ("curriculum_fact",)
+    if kind == "official_reference_lookup":
+        return ("official_reference",)
+    if kind == "clarification_required":
+        return ("clarification",)
+    if kind == "unsupported":
+        return ("unsupported",)
+    return ("general_fact",)

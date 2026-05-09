@@ -1,12 +1,13 @@
 from __future__ import annotations
 
-import re
 from enum import StrEnum
 
 from campus_contracts import EvidenceBundle, EvidenceSource
+from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 
 from .agent_curriculum_terms import _is_curriculum_course_list_query, _is_curriculum_lookup_query
 from .agent_shared import _normalize_snippet
+from .retrieval_intent import RetrievalIntent
 
 
 class AnswerShape(StrEnum):
@@ -20,34 +21,30 @@ class AnswerShape(StrEnum):
     GENERAL_SUMMARY = "general_summary"
 
 
-_CONDITION_QUERY_HINTS = (
-    "条件",
-    "要求",
-    "资格",
-    "申请",
-    "参评",
-    "评选",
-    "eligibility",
-    "requirement",
-)
-_OVERVIEW_HINTS = ("什么条件", "哪些条件", "有什么要求", "哪些要求", "需要满足")
-_CATEGORY_DISCOVERY_HINTS = ("有哪些", "都有什么", "有什么", "哪些")
-_DETAIL_CLAUSE_HINTS = ("怎么要求", "如何要求", "怎么规定", "如何规定")
-_JUDGMENT_CLAUSE_HINTS = (
-    "能不能",
-    "能否",
-    "可以吗",
-    "可不可以",
-    "还能",
-    "还可以",
-    "是否可以",
-    "算不算",
-    "算吗",
-    "行不行",
-)
 _FACT_QUERY_HINTS = ("学制", "几年", "总学分", "多少", "什么时候", "几点")
 _TITLE_LOOKUP_HINTS = ("想看", "查询", "查看", "培养方案", "规定", "办法")
-_ARTICLE_CLAUSE_RE = re.compile(r"第\s*(?:\d+|[一二三四五六七八九十百零两]+)\s*[条款项]")
+
+_RETRIEVAL_INTENT_TO_ANSWER_SHAPE = {
+    "policy_list": AnswerShape.CATEGORY_DISCOVERY_LIST,
+    "policy_object": AnswerShape.TITLE_LOOKUP,
+    "specific_clause": AnswerShape.DETAIL_CLAUSE,
+    "eligibility_judgment": AnswerShape.JUDGMENT_CLAUSE,
+    "procedure_steps": AnswerShape.DETAIL_CLAUSE,
+    "condition_table": AnswerShape.CONDITION_OVERVIEW,
+    "version_compare": AnswerShape.GENERAL_SUMMARY,
+    "curriculum_fact": AnswerShape.FACT_LOOKUP,
+    "official_reference": AnswerShape.TITLE_LOOKUP,
+    "general_fact": AnswerShape.FACT_LOOKUP,
+    "clarification": AnswerShape.GENERAL_SUMMARY,
+    "unsupported": AnswerShape.GENERAL_SUMMARY,
+}
+
+
+def answer_shape_from_retrieval_intent(retrieval_intent: RetrievalIntent) -> AnswerShape:
+    return _RETRIEVAL_INTENT_TO_ANSWER_SHAPE.get(
+        retrieval_intent.expected.answer_kind,
+        AnswerShape.GENERAL_SUMMARY,
+    )
 
 
 def infer_answer_shape(*, evidence: EvidenceBundle) -> AnswerShape:
@@ -59,58 +56,87 @@ def infer_answer_shape(*, evidence: EvidenceBundle) -> AnswerShape:
         return AnswerShape.FACT_LOOKUP
     if any(hint in normalized_query for hint in _FACT_QUERY_HINTS):
         return AnswerShape.FACT_LOOKUP
-    if _is_regulation_category_discovery_query(
-        normalized_query=normalized_query,
-        evidence=evidence,
-    ):
-        return AnswerShape.CATEGORY_DISCOVERY_LIST
-    if _is_judgment_clause_query(normalized_query):
-        return AnswerShape.JUDGMENT_CLAUSE
-    if _is_detail_clause_query(normalized_query) and any(
-        hint in normalized_query for hint in _CONDITION_QUERY_HINTS
-    ):
-        return AnswerShape.DETAIL_CLAUSE
     if _query_targets_source_title(query_text=query, sources=evidence.sources):
         return AnswerShape.TITLE_LOOKUP
-    if any(hint in normalized_query for hint in _OVERVIEW_HINTS) or (
-        any(hint in normalized_query for hint in _CONDITION_QUERY_HINTS)
-        and "第" not in normalized_query
-    ):
-        return AnswerShape.CONDITION_OVERVIEW
+    regulation_shape = _infer_regulation_answer_shape_from_evidence(evidence)
+    if regulation_shape is not None:
+        return regulation_shape
     return AnswerShape.GENERAL_SUMMARY
 
 
-def _is_regulation_category_discovery_query(
-    *,
-    normalized_query: str,
+def _infer_regulation_answer_shape_from_evidence(
     evidence: EvidenceBundle,
-) -> bool:
+) -> AnswerShape | None:
     if evidence.corpus != "regulations":
-        return False
+        return None
     if evidence.collection not in {"student_rules", "institutional_rules"}:
-        return False
-    if not any(hint in normalized_query for hint in _CATEGORY_DISCOVERY_HINTS):
-        return False
-    return any(
-        source.content_role == "policy_list"
-        or source.semantic_role == "category_overview"
-        or source.is_answer_bearing
-        and (
-            "当前已收录依据中" in _normalize_snippet(source.snippet)
-            or "相关制度包括" in _normalize_snippet(source.snippet)
-        )
-        for source in evidence.sources
+        return None
+    answer_bearing_sources = tuple(
+        source for source in evidence.sources if source.is_answer_bearing
+    )
+    if not answer_bearing_sources:
+        return None
+    if any(_is_category_overview_source(source) for source in answer_bearing_sources):
+        return AnswerShape.CATEGORY_DISCOVERY_LIST
+    if any(_has_clause_focus(source) for source in answer_bearing_sources):
+        return AnswerShape.DETAIL_CLAUSE
+    if any(_is_procedure_source(source) for source in answer_bearing_sources):
+        return AnswerShape.DETAIL_CLAUSE
+    if any(_is_condition_answer_source(source) for source in answer_bearing_sources):
+        if any(_is_condition_overview_role(source) for source in answer_bearing_sources):
+            return AnswerShape.CONDITION_OVERVIEW
+        subjects = {
+            subject
+            for source in answer_bearing_sources
+            for subject in (
+                evidence_attributes_for_source(source).condition_subject,
+                evidence_attributes_for_source(source).condition_group_subject,
+            )
+            if subject
+        }
+        if len(subjects) > 1 or len(answer_bearing_sources) > 1:
+            return AnswerShape.CONDITION_OVERVIEW
+        return AnswerShape.JUDGMENT_CLAUSE
+    return AnswerShape.GENERAL_SUMMARY
+
+
+def _is_category_overview_source(source: EvidenceSource) -> bool:
+    attributes = evidence_attributes_for_source(source)
+    return (
+        attributes.answer_role == "category_overview"
+        or attributes.semantic_role == "category_overview"
+        or source.content_role == "policy_list"
     )
 
 
-def _is_detail_clause_query(normalized_query: str) -> bool:
-    return bool(_ARTICLE_CLAUSE_RE.search(normalized_query)) or any(
-        hint in normalized_query for hint in _DETAIL_CLAUSE_HINTS
-    )
+def _has_clause_focus(source: EvidenceSource) -> bool:
+    attributes = evidence_attributes_for_source(source)
+    return bool(source.detail_label or attributes.article_no or attributes.clause_no)
 
 
-def _is_judgment_clause_query(normalized_query: str) -> bool:
-    return any(hint in normalized_query for hint in _JUDGMENT_CLAUSE_HINTS)
+def _is_procedure_source(source: EvidenceSource) -> bool:
+    attributes = evidence_attributes_for_source(source)
+    return attributes.answer_role == "procedure_step" or source.content_role == "procedure"
+
+
+def _is_condition_answer_source(source: EvidenceSource) -> bool:
+    return evidence_attributes_for_source(source).answer_role in {
+        "eligibility_condition",
+        "exception_rule",
+        "exclusion_rule",
+        "example_evidence",
+        "material_requirement",
+        "time_constraint",
+        "table_fact",
+    }
+
+
+def _is_condition_overview_role(source: EvidenceSource) -> bool:
+    return evidence_attributes_for_source(source).answer_role in {
+        "material_requirement",
+        "time_constraint",
+        "table_fact",
+    }
 
 
 def answer_shape_support_budget(shape: AnswerShape, default_budget: int) -> int:
@@ -143,6 +169,7 @@ def _query_targets_source_title(
 
 __all__ = [
     "AnswerShape",
+    "answer_shape_from_retrieval_intent",
     "answer_shape_support_budget",
     "infer_answer_shape",
 ]

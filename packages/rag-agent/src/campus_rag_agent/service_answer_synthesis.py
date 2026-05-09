@@ -4,6 +4,7 @@ from collections.abc import Callable
 
 from campus_contracts import AgentObservability, AgentRequest, AgentResponse, KnowledgeScope
 
+from campus_rag_agent.agent import RagAgent
 from campus_rag_agent.grounding_validation import validate_prompt_answer_grounding
 from campus_rag_agent.rag_sdk_output import validate_rag_sdk_answer_output
 from campus_rag_agent.rag_sdk_trace import reject_unsafe_rag_sdk_projection
@@ -16,6 +17,7 @@ from .rag_sdk_models import (
     RagSdkRunResult,
     RagTaskKind,
 )
+from .retrieval_intent import RetrievalIntent
 from .service_diagnostics_payload import _build_rag_result_payload
 from .service_response_text import _build_no_answer_response, _resolved_policy_title
 
@@ -41,6 +43,7 @@ def build_required_rag_sdk_response(
     runner: RagSdkRunner | None | object,
     planner_information_needs=(),
     projection_context_summaries=(),
+    retrieval_intent: RetrievalIntent | None = None,
 ) -> AgentResponse:
     if runner is _RAG_SDK_RUNNER_NOT_PROVIDED or runner is None:
         raise TypeError(
@@ -52,8 +55,15 @@ def build_required_rag_sdk_response(
             user_goal=user_goal,
             retrieval_plan=retrieval_plan,
             intent_frame=intent_frame,
+            retrieval_intent=retrieval_intent,
         ),
         evidence=RagSdkEvidenceProjection.from_evidence_bundle(supporting_evidence),
+        typed_answer=RagAgent()
+        .build_answer(
+            supporting_evidence,
+            retrieval_intent=retrieval_intent,
+        )
+        .typed_draft,
         request_id=request.request_id,
         selector_blocked_query_slot_ids=selector_blocked_query_slot_ids(retrieval_plan),
     )
@@ -200,21 +210,61 @@ def build_required_rag_sdk_response(
     )
 
 
-def build_rag_query_intent(*, user_goal: str, retrieval_plan, intent_frame) -> RagQueryIntent:
+def build_rag_query_intent(
+    *,
+    user_goal: str,
+    retrieval_plan,
+    intent_frame,
+    retrieval_intent: RetrievalIntent | None = None,
+) -> RagQueryIntent:
     _ = intent_frame
     normalized_goal = user_goal.strip()
-    task_kind = RagTaskKind.FACT_LOOKUP
-    if "哪些" in normalized_goal or "有哪些" in normalized_goal:
-        task_kind = RagTaskKind.CATEGORY_DISCOVERY
-    elif "怎么" in normalized_goal or "怎么办" in normalized_goal:
-        task_kind = RagTaskKind.AMBIGUOUS_PROCEDURE
-    elif "比较" in normalized_goal or "区别" in normalized_goal:
-        task_kind = RagTaskKind.COMPARISON
+    task_kind = _rag_task_kind_from_retrieval_intent(retrieval_intent)
     return RagQueryIntent(
         task_kind=task_kind,
         normalized_query=normalized_goal,
+        category_id=(
+            retrieval_intent.target.category_id
+            if retrieval_intent is not None and retrieval_intent.target.category_id
+            else ""
+        ),
         admitted_query_slot_ids=tuple(step.step_id for step in retrieval_plan.steps),
+        needs_clarification=(
+            retrieval_intent.kind == "clarification_required"
+            if retrieval_intent is not None
+            else False
+        ),
+        unsupported_reason=(
+            retrieval_intent.unsupported_reason if retrieval_intent is not None else ""
+        ),
     )
+
+
+def _rag_task_kind_from_retrieval_intent(
+    retrieval_intent: RetrievalIntent | None,
+) -> RagTaskKind:
+    if retrieval_intent is None:
+        return RagTaskKind.FACT_LOOKUP
+    if retrieval_intent.kind == "policy_list":
+        return RagTaskKind.CATEGORY_DISCOVERY
+    if retrieval_intent.kind in {
+        "policy_object_lookup",
+        "specific_clause_lookup",
+        "eligibility_judgment",
+        "procedure_steps",
+        "condition_table",
+        "general_fact_lookup",
+        "official_reference_lookup",
+        "curriculum_fact_lookup",
+    }:
+        return RagTaskKind.SPECIFIC_POLICY_LOOKUP
+    if retrieval_intent.kind == "clarification_required":
+        return RagTaskKind.AMBIGUOUS_PROCEDURE
+    if retrieval_intent.kind == "version_compare":
+        return RagTaskKind.COMPARISON
+    if retrieval_intent.kind == "unsupported":
+        return RagTaskKind.UNSUPPORTED_SCOPE
+    return RagTaskKind.FACT_LOOKUP
 
 
 def selector_blocked_query_slot_ids(retrieval_plan) -> tuple[str, ...]:

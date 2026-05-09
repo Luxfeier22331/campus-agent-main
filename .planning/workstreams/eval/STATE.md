@@ -1,7 +1,7 @@
 ---
 workstream: eval
 created: 2026-04-22
-updated: 2026-05-04
+updated: 2026-05-08
 ---
 
 # Project State
@@ -9,13 +9,13 @@ updated: 2026-05-04
 ## Current Position
 
 **Status:** Active
-**Current Phase:** 5B blocked
+**Current Phase:** 5B partial
 **Current Phase Name:** Golden Dataset Expansion And Domain Case Governance
 **Current Plan:** `phases/phase-5b-golden-dataset-expansion-and-domain-case-governance/PLAN.md`
 **Total Phases:** 14
 **Total Plans in Phase:** 1
 **Progress:** 13/14 phases complete
-**Last Activity:** 2026-05-04
+**Last Activity:** 2026-05-08
 **Last Activity Description:** 重新 review eval workstream 后，将 Phase 5 拆为可立即推进的
 case governance scaffold 与后置 golden dataset expansion；并登记 Phase 6-13 作为后续 eval closure
 queue。随后完成 Phase 5A 的 lifecycle、denominator registry、workflow trace artifact shape 与
@@ -46,6 +46,9 @@ composite gate 已纳入 RAG eval coverage/audit。RAG eval coverage report 已�
 RAGAS diagnostic runner，并以 split-metric 方式完成 9-case 非阻塞诊断：context precision
 稳定满分，context recall 暴露 scholarship 泛问多文档覆盖不足，answer relevancy 暴露若干
 title/query 场景的 answer draft 选段偏离，faithfulness 仅保留 3-case smoke 以控制规模与耗时。
+2026-05-08 将 Phase 5B 拆成 current-corpus 与 authenticated-gap 两层：当前已入库语料可以补
+answer-quality contract 与 known-gap/no-hit contract；认证态缺失 canonical 文档继续作为
+authenticated-gap blocker，不能由相近文档或 notice 引用冒充 accepted truth。
 
 ## Current Slice
 
@@ -65,10 +68,11 @@ title/query 场景的 answer draft 选段偏离，faithfulness 仅保留 3-case 
     - operator quality / feedback candidate intake manifest 已进入 `eval_admission`
     - drift / admission discipline 已由 registry validator 防止 denominator author truth
   - `Phase 5B: Golden Dataset Expansion And Domain Case Governance`
-    - blocked on data/domain readiness
+    - partial: current-corpus eval contract 可推进；authenticated-gap expansion 继续 blocked
     - retrieval qrels shared governance
     - workflow/status accepted case expansion
     - deterministic answer truth expansion
+    - known-gap/no-hit contract for missing canonical source
     - synthetic candidate promotion
 - `Phase 6: Workflow Trace Runtime Gate And Artifact Adoption`
   - completed
@@ -192,14 +196,15 @@ title/query 场景的 answer draft 选段偏离，faithfulness 仅保留 3-case 
       curriculum title/query 的 answer drafting 口径问题。
   - 当前 RAG surface coverage:
     - `regulations/student_rules`: handbook profile，52 条 qrels，46 个 unique expected
-      docs，25 条 release acceptance；minimum gate 通过，maturity status =
+      docs，25 条 release acceptance，新增 current-corpus answer-quality contract 与
+      4 条 innovation-credit known-gap cases；minimum gate 通过，maturity status =
       `baseline_ready`
     - `regulations/institutional_rules`: `institutional-rules-release-baseline`，45 条 release
       qrels，42 个 unique expected docs，89 条 golden qrels，42 条 answer-quality cases，
       45 条 release acceptance；maturity status = `baseline_ready`
     - `curriculum/curriculum_plan`: curriculum profile，60 条 qrels，49 个 unique expected
-      docs，30 条 release acceptance；minimum gate 通过，maturity status =
-      `baseline_ready`
+      docs，30 条 release acceptance，新增 current-corpus answer-quality contract；
+      minimum gate 通过，maturity status = `baseline_ready`
     - `official_web/stable_reference`: official-web stable-reference profile，10 条 qrels，5 条
       release acceptance；maturity status = `baseline_ready`
   - 当前 maturity gaps: none
@@ -213,11 +218,13 @@ title/query 场景的 answer draft 选段偏离，faithfulness 仅保留 3-case 
 - 后续 eval closure queue：
   - 当前没有独立编号的 Phase 14
   - `Total Phases = 14` 来自 Phase 5A/5B 拆分
-  - 剩余未完成项仅为 data-blocked 的 `Phase 5B`
+  - 剩余未完成项为 `Phase 5B authenticated-gap expansion`
 - 当前顺序保持冻结：
   - `Phase 5A` 不等待完整 corpus coverage；它只冻结流程、schema、denominator scaffold 与
     pending-review intake，不 author 大规模 domain truth；该切片已完成。
-  - `Phase 5B` 的正式 accepted case expansion 继续等待采集内容补全。
+  - `Phase 5B current-corpus` 的 accepted eval contract 可以继续推进；缺失 canonical 文档的
+    query 只能进入 known-gap，不得进入 accepted qrels / answer truth。
+  - `Phase 5B authenticated-gap` 的正式 accepted case expansion 继续等待采集内容补全。
   - `Phase 6` 已作为不依赖完整 corpus coverage 的 runtime gate 独立完成。
   - `Phase 7` 已作为不依赖完整 corpus coverage 的 review/admission workflow 独立完成。
   - `Phase 8-13` 已完成 deterministic eval seams，不抢占 `Phase 5B` 的 data-dependent status。
@@ -233,8 +240,10 @@ title/query 场景的 answer draft 选段偏离，faithfulness 仅保留 3-case 
 
 ## Blockers
 
-- 当前 blocker 只作用于 `Phase 5B`：采集内容尚未补全，因此不能正式扩编 repo-wide accepted
-  golden dataset。
+- 当前 blocker 只作用于 `Phase 5B authenticated-gap expansion`：认证态源与部分 canonical
+  文档尚未补全，因此不能把相关 query 正式扩编为 repo-wide accepted golden truth。
+- `Phase 5B current-corpus` 不再被该 blocker 阻塞；它通过 current manifest / release
+  acceptance / answer-quality contract / known-gap contract 表达当前文档库真实能力。
 - 该 blocker 不覆盖 RAG-only minimum coverage/audit；当前四个 RAG 消费面已有可审计 coverage
   report，且 maturity gate 已通过。
 - `Phase 5A`、`Phase 6`、`Phase 7` 与 `Phase 8-13` 已完成；它们不再是后续 eval closure 的 blocker。
@@ -250,7 +259,7 @@ title/query 场景的 answer draft 选段偏离，faithfulness 仅保留 3-case 
   - `uv run --all-packages python -m unittest tests.evals.agentic_retrieval_plan_eval_suite tests.evals.eval_operations_governance_suite tests.evals.case_governance_suite`
   - `uv run --all-packages python -m unittest tests.evals.test_eval_profile_gate tests.evals.test_eval_artifact_redaction`
   - `uv run --all-packages python -m unittest tests.evals.test_workflow_trace_gate tests.evals.test_tool_family_denominator tests.evals.test_public_chat_product_path_eval tests.evals.test_multi_agent_product_path_gate`
-  - `uv run --all-packages python -m unittest tests.evals.rag_eval_coverage_suite tests.evals.case_governance_suite tests.evals.profile_registry_and_audit_suite`
+  - `uv run --all-packages python -m unittest tests.evals.rag_eval_coverage_suite tests.evals.rag_known_gap_suite tests.evals.answer_quality_contract_suite tests.evals.case_governance_suite tests.evals.profile_registry_and_audit_suite`
   - `uv run --all-packages python -m campus_evals.rag_eval_coverage --output .planning/workstreams/eval/evidence/rag-eval-coverage/rag-eval-coverage.json --json`
   - `uv run --all-packages python -m scripts.eval_gate accept --profile multi-agent-runtime-contract --output-dir .tmp/evals/multi-agent-runtime-contract-smoke --json`
   - `uv run --all-packages python -m scripts.eval_gate audit --json`

@@ -9,6 +9,7 @@ from campus_evals.answer_quality_contract import load_answer_quality_cases
 from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
 from campus_evals.case_governance import load_denominator_registry
 from campus_evals.profile_registry import get_profile_definition
+from campus_evals.rag_known_gap import case_count_by_surface, load_rag_known_gap_cases
 from campus_evals.retrieval_qrels_policy import (
     default_query_enabled_retrieval_qrels_paths,
     load_retrieval_qrels_denominator_policy,
@@ -41,11 +42,14 @@ _RELEASE_ACCEPTANCE_FIXTURE_BY_SURFACE = {
     "official_web/stable_reference": "official_web_stable_reference_release_acceptance.v1.json",
 }
 _ANSWER_QUALITY_FIXTURE_BY_SURFACE = {
+    "regulations/student_rules": "student_rules_answer_quality_cases.v1.json",
     "regulations/institutional_rules": "institutional_rules_answer_quality_cases.v1.json",
+    "curriculum/curriculum_plan": "curriculum_plan_answer_quality_cases.v1.json",
 }
 _GOLDEN_QRELS_FIXTURE_BY_SURFACE = {
     "regulations/institutional_rules": "institutional_rules_golden_retrieval_qrels.v1.json",
 }
+_KNOWN_GAP_FIXTURE = "rag_known_gap_cases.v1.json"
 
 
 @dataclass(frozen=True, slots=True)
@@ -63,6 +67,8 @@ class RagEvalSurfaceCoverage:
     answer_quality_case_count: int
     has_golden_qrels: bool
     golden_qrels_case_count: int
+    known_gap_fixture: str
+    known_gap_case_count: int
     minimum_gate_passed: bool
     maturity_status: str
     recommended_target_case_count: int
@@ -96,6 +102,10 @@ def build_rag_eval_coverage_report(
     policy = load_retrieval_qrels_denominator_policy()
     maturity_policy = _load_maturity_policy(root)
     maturity_backlog = _load_maturity_backlog(root)
+    known_gap_case_set = load_rag_known_gap_cases(
+        root / "packages" / "evals" / "fixtures" / _KNOWN_GAP_FIXTURE
+    )
+    known_gap_counts = case_count_by_surface(known_gap_case_set.cases)
     policy_scope_keys = tuple(policy.scopes)
     surfaces: list[RagEvalSurfaceCoverage] = []
     gaps: list[str] = []
@@ -128,6 +138,7 @@ def build_rag_eval_coverage_report(
             qrels_path=qrels_paths.get(surface_key),
             maturity_policy=maturity_policy,
             maturity_backlog=maturity_backlog,
+            known_gap_counts=known_gap_counts,
         )
         surfaces.append(surface)
         gaps.extend(f"{surface.surface_key}:{gap}" for gap in surface.gaps)
@@ -184,6 +195,7 @@ def _build_surface_coverage(
     qrels_path: Path | None,
     maturity_policy: dict[str, dict[str, object]],
     maturity_backlog: dict[str, dict[str, object]],
+    known_gap_counts: dict[str, int],
 ) -> RagEvalSurfaceCoverage:
     fixture_root = root / "packages" / "evals" / "fixtures"
     profile_id = _PROFILE_BY_SURFACE[surface_key]
@@ -225,6 +237,8 @@ def _build_surface_coverage(
         golden_qrels_case_count = len(
             load_retrieval_qrels_dataset(fixture_root / golden_qrels_fixture).cases
         )
+    known_gap_path = fixture_root / _KNOWN_GAP_FIXTURE
+    known_gap_case_count = known_gap_counts.get(surface_key, 0)
 
     has_release_baseline_gate = surface_key == "regulations/institutional_rules"
     minimum_gate_passed = (
@@ -255,6 +269,8 @@ def _build_surface_coverage(
         answer_quality_case_count=answer_quality_case_count,
         has_golden_qrels=golden_qrels_case_count > 0,
         golden_qrels_case_count=golden_qrels_case_count,
+        known_gap_fixture=_repo_relative(known_gap_path, root),
+        known_gap_case_count=known_gap_case_count,
         minimum_gate_passed=minimum_gate_passed,
         maturity_status=maturity_status,
         recommended_target_case_count=int(policy["recommended_target_case_count"]),

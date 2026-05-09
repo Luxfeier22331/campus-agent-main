@@ -1,0 +1,67 @@
+{
+	"schema_version": 1,
+	"case_family": "answer_quality_contract.v1",
+	"cases": [
+		{
+			"case_id": "curriculum-answer-ethnology-plan-title",
+			"split": "release_gate",
+			"surface": "rag_curriculum_plan_answer",
+			"required_facts": ["民族学本科人才培养方案"],
+			"forbidden_claims": ["社会学类本科人才培养方案", "第二学士学位"],
+			"requires_source_url": true,
+			"requires_source_title": true,
+			"required_source_titles": ["民族学本科人才培养方案"],
+			"required_source_url_fragments": ["/docs/curriculum/curriculum_plan/"],
+			"forbidden_source_url_fragments": ["/docs/regulations/"]
+		},
+		{
+			"case_id": "curriculum-answer-ethnology-total-credits",
+			"split": "regression_locked",
+			"surface": "rag_curriculum_plan_answer",
+			"required_facts": ["民族学本科人才培养方案", "总学分"],
+			"forbidden_claims": ["数字经济本科人才培养方案", "课程教学计划"],
+			"requires_source_url": true,
+			"requires_source_title": true,
+			"required_source_titles": ["民族学本科人才培养方案"],
+			"required_source_url_fragments": ["/docs/curriculum/curriculum_plan/"],
+			"forbidden_source_url_fragments": ["/docs/regulations/"]
+		},
+		{
+			"case_id": "curriculum-answer-history-strong-base",
+			"split": "release_gate",
+			"surface": "rag_curriculum_plan_answer",
+			"required_facts": ["历史学（强基计划）本科人才培养方案"],
+			"forbidden_claims": ["历史学本科人才培养方案替代强基计划", "普通历史学方案"],
+			"requires_source_url": true,
+			"requires_source_title": true,
+			"required_source_titles": ["历史学（强基计划）本科人才培养方案"],
+			"required_source_url_fragments": ["/docs/curriculum/curriculum_plan/"],
+			"forbidden_source_title_fragments": ["历史学本科人才培养方案"],
+			"forbidden_source_url_fragments": ["/docs/regulations/"]
+		},
+		{
+			"case_id": "curriculum-answer-digital-economy-plan",
+			"split": "release_gate",
+			"surface": "rag_curriculum_plan_answer",
+			"required_facts": ["数字经济本科人才培养方案"],
+			"forbidden_claims": ["经济学本科人才培养方案替代数字经济", "财政学本科人才培养方案"],
+			"requires_source_url": true,
+			"requires_source_title": true,
+			"required_source_titles": ["数字经济本科人才培养方案"],
+			"required_source_url_fragments": ["/docs/curriculum/curriculum_plan/"],
+			"forbidden_source_url_fragments": ["/docs/regulations/"]
+		},
+		{
+			"case_id": "curriculum-answer-general-education-plan",
+			"split": "release_gate",
+			"surface": "rag_curriculum_plan_answer",
+			"required_facts": ["中央民族大学通识课程教学计划"],
+			"forbidden_claims": ["学生手册", "学籍管理办法"],
+			"requires_source_url": true,
+			"requires_source_title": true,
+			"required_source_titles": ["中央民族大学通识课程教学计划"],
+			"required_source_url_fragments": ["/docs/curriculum/curriculum_plan/"],
+			"forbidden_source_url_fragments": ["/docs/regulations/"]
+		}
+	]
+}

@@ -52,6 +52,28 @@ RetrievalFailureKind = Literal[
     "release_metadata_drift",
     "reranker_degraded",
 ]
+RetrievalCoveragePolicy = Literal[
+    "none",
+    "single_document_focus",
+    "category_member_coverage",
+    "condition_subject_alignment",
+    "procedure_step_completeness",
+    "version_pair_coverage",
+]
+RetrievalSelectionPolicy = Literal[
+    "default",
+    "answer_role_first",
+    "one_answer_ready_source_per_member",
+    "focused_clause_first",
+    "official_reference_first",
+]
+RetrievalRerankPolicy = Literal["profile_gated_if_eligible", "disabled"]
+RetrievalReplanPolicy = Literal[
+    "none",
+    "intent_gap_replan",
+    "coverage_gap_replan",
+    "focus_gap_replan",
+]
 
 ALLOWED_RETRIEVAL_QUERY_MODES = (
     "current",
@@ -94,6 +116,28 @@ ALLOWED_RETRIEVAL_FAILURE_KINDS = (
     "condition_group_answer_role_mismatch",
     "release_metadata_drift",
     "reranker_degraded",
+)
+ALLOWED_RETRIEVAL_COVERAGE_POLICIES = (
+    "none",
+    "single_document_focus",
+    "category_member_coverage",
+    "condition_subject_alignment",
+    "procedure_step_completeness",
+    "version_pair_coverage",
+)
+ALLOWED_RETRIEVAL_SELECTION_POLICIES = (
+    "default",
+    "answer_role_first",
+    "one_answer_ready_source_per_member",
+    "focused_clause_first",
+    "official_reference_first",
+)
+ALLOWED_RETRIEVAL_RERANK_POLICIES = ("profile_gated_if_eligible", "disabled")
+ALLOWED_RETRIEVAL_REPLAN_POLICIES = (
+    "none",
+    "intent_gap_replan",
+    "coverage_gap_replan",
+    "focus_gap_replan",
 )
 ALLOWED_RETRIEVAL_LEGACY_FALLBACK_MODES = (
     "target_v3_only",
@@ -205,6 +249,45 @@ class RetrievalSelector:
 
 
 @dataclass(frozen=True, slots=True)
+class RetrievalSemanticHint:
+    intent_kind: str = ""
+    answer_kind: str = ""
+    need_kinds: tuple[str, ...] = field(default_factory=tuple)
+    coverage_policy: RetrievalCoveragePolicy | str = "none"
+    selection_policy: RetrievalSelectionPolicy | str = "default"
+    rerank_policy: RetrievalRerankPolicy | str = "profile_gated_if_eligible"
+    replan_policy: RetrievalReplanPolicy | str = "none"
+    expected_answer_roles: tuple[str, ...] = field(default_factory=tuple)
+    condition_subject: str = ""
+    category_id: str = ""
+    critical_terms: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "intent_kind",
+            "answer_kind",
+            "condition_subject",
+            "category_id",
+        ):
+            value = getattr(self, field_name)
+            normalized = value.strip()
+            if normalized != value:
+                object.__setattr__(self, field_name, normalized)
+        for field_name in ("need_kinds", "expected_answer_roles", "critical_terms"):
+            normalized = _normalize_non_empty_string_tuple(getattr(self, field_name))
+            if normalized != getattr(self, field_name):
+                object.__setattr__(self, field_name, normalized)
+        if self.coverage_policy not in ALLOWED_RETRIEVAL_COVERAGE_POLICIES:
+            raise ValueError(f"unsupported retrieval coverage policy: {self.coverage_policy}")
+        if self.selection_policy not in ALLOWED_RETRIEVAL_SELECTION_POLICIES:
+            raise ValueError(f"unsupported retrieval selection policy: {self.selection_policy}")
+        if self.rerank_policy not in ALLOWED_RETRIEVAL_RERANK_POLICIES:
+            raise ValueError(f"unsupported retrieval rerank policy: {self.rerank_policy}")
+        if self.replan_policy not in ALLOWED_RETRIEVAL_REPLAN_POLICIES:
+            raise ValueError(f"unsupported retrieval replan policy: {self.replan_policy}")
+
+
+@dataclass(frozen=True, slots=True)
 class RetrievalStepFailure:
     failure_kind: RetrievalFailureKind
     terminal: bool = True
@@ -281,6 +364,7 @@ class RetrievalStep:
     scope: RetrievalScope
     query_text: str
     need_ids: tuple[str, ...] = field(default_factory=tuple)
+    semantic_hint: RetrievalSemanticHint | None = None
     depends_on_step_ids: tuple[str, ...] = field(default_factory=tuple)
     selector: RetrievalSelector = field(default_factory=RetrievalSelector)
     budget: RetrievalStepBudget = field(default_factory=RetrievalStepBudget)

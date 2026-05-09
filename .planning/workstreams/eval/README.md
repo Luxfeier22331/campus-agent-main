@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-22
-updated: 2026-05-04
+updated: 2026-05-08
 ---
 
 # Workstream: Eval
@@ -13,7 +13,7 @@ updated: 2026-05-04
 ## Current Status
 
 - status: `active`
-- current phase: `Phase 5B` blocked
+- current phase: `Phase 5B` partial
 - current focus: `Phase 1-5A` 已完成 shared runtime / artifact / publish / automation 与 case
   governance scaffold 收口；`Phase 6` 已完成 workflow trace runtime gate 与 artifact adoption。
   `Phase 7` 已完成 observed regression review / dedupe / accepted fixture admission workflow。
@@ -38,7 +38,9 @@ updated: 2026-05-04
   split-metric RAGAS diagnostic 作为非阻塞质量诊断，证据位于
   `./evidence/retrieval-quality/ragas-diagnostic/ragas-diagnostic.combined.json`；其范围仅覆盖
   `student_rules`、`institutional_rules` 与 `curriculum_plan`，不纳入 `official_web/fresh_news`。
-  `Phase 5B` 的正式 golden dataset expansion 继续等待 domain 数据补全。
+  `Phase 5B` 现在拆成 current-corpus 与 authenticated-gap 两层：当前已入库语料的
+  answer-quality contract 与 known-gap contract 可继续补齐并进入 audit；认证态缺失 canonical
+  文档仍保持 blocked，不得用相近文档或 notice 引用冒充 accepted truth。
   当前没有独立编号的 Phase 14；`Total Phases = 14` 是因为 Phase 5 被拆为 5A/5B。
 
 ## Native Planning Truth
