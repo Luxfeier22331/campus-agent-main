@@ -1,7 +1,7 @@
 // @vitest-environment node
 
-import { EventEmitter } from "node:events";
 import type { ChildProcess } from "node:child_process";
+import { EventEmitter } from "node:events";
 
 import { describe, expect, it } from "vitest";
 
@@ -21,14 +21,11 @@ describe("chat e2e local dev lifecycle", () => {
 		};
 		process.on("unhandledRejection", onUnhandledRejection);
 		try {
-			await waitForReadyzWhileChildAlive(
-				"http://127.0.0.1:27011/readyz",
-				1000,
-				child,
-				{
-					waitForReadyz: async () => {},
+			await waitForReadyzWhileChildAlive("http://127.0.0.1:27011/readyz", 1000, child, {
+				waitForReadyz: async () => {
+					return;
 				},
-			);
+			});
 
 			child.emit("exit", 0, null);
 			await new Promise((resolve) => setTimeout(resolve, 0));

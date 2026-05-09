@@ -263,7 +263,7 @@ function readRequiredTrimmedValue(value: string | null | undefined, key: string)
 export function readOptionalOrigin(value: string | null | undefined): string | undefined {
 	const normalized = value?.trim();
 	if (!normalized) {
-		return undefined;
+		return;
 	}
 
 	return new URL(normalized).origin;

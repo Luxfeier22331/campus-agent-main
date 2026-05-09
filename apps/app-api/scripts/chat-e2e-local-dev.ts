@@ -202,14 +202,7 @@ function startPublicChatLiveSmoke(): ChildProcess {
 	// pnpm ELIFECYCLE noise after a successful E2E run.
 	return spawn(
 		process.execPath,
-		[
-			publicChatViteBin,
-			"--host",
-			"127.0.0.1",
-			"--port",
-			"27011",
-			"--strictPort",
-		],
+		[publicChatViteBin, "--host", "127.0.0.1", "--port", "27011", "--strictPort"],
 		{
 			cwd: publicChatDir,
 			env: {

@@ -25,11 +25,7 @@ expectContains(
 	'pattern = "campus-api-staging.ayafeed.com"',
 	"Missing staging custom domain route.",
 );
-expectContains(
-	source,
-	"custom_domain = true",
-	"Missing staging custom domain route flag.",
-);
+expectContains(source, "custom_domain = true", "Missing staging custom domain route flag.");
 expectContains(
 	source,
 	'PUBLIC_CHAT_WEB_ORIGIN = "https://campus-chat-staging.ayafeed.com"',
