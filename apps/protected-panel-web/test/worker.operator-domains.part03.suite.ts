@@ -1,12 +1,6 @@
-import { expect, it, vi } from "vitest";
+import { expect, it } from "vitest";
 
-import {
-	createAppApi,
-	createHtmlShellResponse,
-	createOperatorQueryServiceMock,
-	withAccessAssertion,
-	worker,
-} from "./worker.test-support";
+import { withAccessAssertion, worker } from "./worker.test-support";
 
 export function registerWorkerOperatorDomainsSuitePart03() {
 	it("proxies official web target inventory queries to app-api operator projection", async () => {

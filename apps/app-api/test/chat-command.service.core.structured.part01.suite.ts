@@ -11,7 +11,6 @@ import {
 	createPrincipal,
 	expectNoInternalLocators,
 	type FinalizeRequestWrite,
-	type SupervisorExecutionClient,
 } from "./chat-command.service.test-support";
 
 export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
