@@ -14,7 +14,6 @@ from campus_contracts import (
 )
 from campus_ingestion_core.scope_catalog import assert_known_scope
 
-RetrievalLegacyFallbackMode = Literal["target_v3_only", "legacy_old_index_compatibility"]
 RetrievalQueryMode = Literal[
     "current", "historical", "as_of", "compare", "freshness_sensitive", "live_assisted"
 ]
@@ -139,10 +138,6 @@ ALLOWED_RETRIEVAL_REPLAN_POLICIES = (
     "coverage_gap_replan",
     "focus_gap_replan",
 )
-ALLOWED_RETRIEVAL_LEGACY_FALLBACK_MODES = (
-    "target_v3_only",
-    "legacy_old_index_compatibility",
-)
 
 
 @dataclass(frozen=True, slots=True)
@@ -158,7 +153,6 @@ class RetrievalScope:
 class RetrievalSourceTrustPolicy:
     minimum_tier: SourceTrustTier | str = "T1"
     allow_live_source_lookup: bool = False
-    legacy_fallback_mode: RetrievalLegacyFallbackMode | str = "target_v3_only"
 
     def __post_init__(self) -> None:
         normalized_minimum_tier = (
@@ -168,17 +162,6 @@ class RetrievalSourceTrustPolicy:
             raise ValueError(f"unsupported source trust tier: {self.minimum_tier}")
         if normalized_minimum_tier != self.minimum_tier:
             object.__setattr__(self, "minimum_tier", normalized_minimum_tier)
-        normalized_legacy_fallback_mode = self.legacy_fallback_mode.strip()
-        if normalized_legacy_fallback_mode not in ALLOWED_RETRIEVAL_LEGACY_FALLBACK_MODES:
-            raise ValueError(
-                f"unsupported retrieval legacy fallback mode: {self.legacy_fallback_mode}"
-            )
-        if normalized_legacy_fallback_mode != self.legacy_fallback_mode:
-            object.__setattr__(
-                self,
-                "legacy_fallback_mode",
-                normalized_legacy_fallback_mode,
-            )
 
 
 @dataclass(frozen=True, slots=True)

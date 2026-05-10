@@ -60,7 +60,6 @@ class NoticeHTTPQueryService:
         )
         return _discover_result_from_dict(
             body,
-            fallback_query_text=query.payload.query_text,
         )
 
     def lookup_notice_change_set(
@@ -76,7 +75,6 @@ class NoticeHTTPQueryService:
         )
         return _change_set_result_from_dict(
             body,
-            fallback_query_text=query.payload.query_text,
         )
 
     def get_notice(self, query: NoticeGetQuery) -> CampusNoticeGetResult:
@@ -87,11 +85,7 @@ class NoticeHTTPQueryService:
                 access_context=asdict(query.access_context),
             ),
         )
-        return _get_result_from_dict(
-            body,
-            fallback_notice_id=query.payload.notice_id,
-            fallback_source_family=query.payload.source_family,
-        )
+        return _get_result_from_dict(body)
 
     def _post(self, path: str, json_body: dict[str, object]) -> dict[str, object]:
         status_code, body = self._transport(
@@ -155,11 +149,9 @@ def _decode_json_object(raw: bytes) -> dict[str, object]:
 
 def _discover_result_from_dict(
     body: dict[str, object],
-    *,
-    fallback_query_text: str,
 ) -> CampusNoticeDiscoverResult:
     return CampusNoticeDiscoverResult(
-        query_text=_string(body.get("query_text")) or fallback_query_text,
+        query_text=_required_string(body, "query_text"),
         outcome=_string(body.get("outcome")),
         source_families=_string_tuple(body.get("source_families")),
         notice_cards=tuple(
@@ -173,15 +165,12 @@ def _discover_result_from_dict(
 
 def _get_result_from_dict(
     body: dict[str, object],
-    *,
-    fallback_notice_id: str,
-    fallback_source_family: str,
 ) -> CampusNoticeGetResult:
     return CampusNoticeGetResult(
-        notice_id=_string(body.get("notice_id")) or fallback_notice_id,
+        notice_id=_required_string(body, "notice_id"),
         outcome=_string(body.get("outcome")),
         title=_string(body.get("title")),
-        source_family=_string(body.get("source_family")) or fallback_source_family,
+        source_family=_required_string(body, "source_family"),
         source_url=_string(body.get("source_url")),
         canonical_url=_string(body.get("canonical_url")),
         normalized_body=_body_string(body.get("normalized_body")),
@@ -202,8 +191,6 @@ def _get_result_from_dict(
 
 def _change_set_result_from_dict(
     body: dict[str, object],
-    *,
-    fallback_query_text: str,
 ) -> CampusNoticeChangeSetLookupResult:
     from campus_contracts import (
         NoticeChangeSet,
@@ -298,7 +285,7 @@ def _change_set_result_from_dict(
             schema_version=_string(change_set_dict.get("schema_version")),
         )
     return CampusNoticeChangeSetLookupResult(
-        query_text=_string(body.get("query_text")) or fallback_query_text,
+        query_text=_required_string(body, "query_text"),
         outcome=_string(body.get("outcome")),
         change_set=change_set,
         fail_close_reason=_string(body.get("fail_close_reason")),
@@ -349,6 +336,13 @@ def _list(value: object) -> list[object]:
 
 def _string(value: object) -> str:
     return value.strip() if isinstance(value, str) else ""
+
+
+def _required_string(body: dict[str, object], field_name: str) -> str:
+    value = _string(body.get(field_name))
+    if not value:
+        raise RuntimeError(f"query service response missing required field: {field_name}")
+    return value
 
 
 def _body_string(value: object) -> str:

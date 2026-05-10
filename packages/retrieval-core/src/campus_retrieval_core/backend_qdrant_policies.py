@@ -7,6 +7,7 @@ from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 
 from campus_retrieval_core.backend_qdrant_curriculum_policy import (
     apply_curriculum_query_scope_policy,
+    prefer_curriculum_lookup_target_sources,
     prefer_curriculum_title_overview_sources,
 )
 from campus_retrieval_core.backend_qdrant_filters import _apply_preferred_document_bias
@@ -55,6 +56,11 @@ def finalize_retrieval_sources(
         sources=finalized_sources,
     )
     finalized_sources = prefer_curriculum_title_overview_sources(
+        profile=profile,
+        query_text=query_text,
+        sources=finalized_sources,
+    )
+    finalized_sources = prefer_curriculum_lookup_target_sources(
         profile=profile,
         query_text=query_text,
         sources=finalized_sources,

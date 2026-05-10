@@ -422,6 +422,34 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertEqual(result.notice_cards[0].notice_id, "355222")
         self.assertEqual(result.notice_cards[0].target_surface, "notice_level_query")
 
+    def test_http_query_service_rejects_discover_result_without_query_text(self) -> None:
+        query_service = NoticeHTTPQueryService(
+            base_url="http://supervisor-api.internal",
+            shared_secret="query-secret",
+            transport=_RecordingNoticeHTTPTransport(
+                {
+                    "outcome": "resolved_current",
+                    "source_families": ["internal_notice_restricted"],
+                    "notice_cards": [
+                        {
+                            "notice_id": "355222",
+                            "title": "中央民族大学丰台校区家具采购项目比选公告",
+                            "source_family": "internal_notice_restricted",
+                            "source_url": "https://portal.example.edu/notices/355222",
+                        }
+                    ],
+                }
+            ),
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "query_text"):
+            query_service.discover_notice(
+                NoticeDiscoverQuery(
+                    payload=CampusNoticeDiscoverPayload(query_text="家具采购"),
+                    access_context=_restricted_access_context(),
+                )
+            )
+
     def test_http_query_service_posts_get_payload_and_decodes_card_first_result(self) -> None:
         transport = _RecordingNoticeHTTPTransport(
             {
@@ -484,6 +512,30 @@ class NoticeAgentTest(unittest.TestCase):
         self.assertEqual(result.extracted_facts, ("采购项目为丰台校区家具。",))
         self.assertEqual(result.target_surface, "notice_level_query")
         self.assertEqual(result.attachment_refs, ("attachment:355222:1",))
+
+    def test_http_query_service_rejects_get_result_without_identity_fields(self) -> None:
+        query_service = NoticeHTTPQueryService(
+            base_url="http://supervisor-api.internal",
+            shared_secret="query-secret",
+            transport=_RecordingNoticeHTTPTransport(
+                {
+                    "outcome": "resolved_current",
+                    "title": "中央民族大学丰台校区家具采购项目比选公告",
+                    "source_url": "https://portal.example.edu/notices/355222",
+                }
+            ),
+        )
+
+        with self.assertRaisesRegex(RuntimeError, "notice_id"):
+            query_service.get_notice(
+                NoticeGetQuery(
+                    payload=CampusNoticeGetPayload(
+                        notice_id="355222",
+                        source_family="internal_notice_restricted",
+                    ),
+                    access_context=_restricted_access_context(),
+                )
+            )
 
     def test_http_query_service_decodes_reference_only_notice_get_result(self) -> None:
         transport = _RecordingNoticeHTTPTransport(

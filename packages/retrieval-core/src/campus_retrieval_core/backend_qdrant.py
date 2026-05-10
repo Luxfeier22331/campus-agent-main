@@ -28,7 +28,7 @@ from campus_retrieval_core.backend_qdrant_document_support import (
     _expand_named_document_support,
     _resolve_initial_query_limit,
     _should_expand_named_document_support,
-    _supplement_target_document_scroll_fallback,
+    _supplement_target_document_support,
 )
 from campus_retrieval_core.backend_qdrant_embeddings import get_dense_query_embedding
 from campus_retrieval_core.backend_qdrant_errors import (
@@ -227,7 +227,7 @@ class QdrantRetrievalBackend:
             query_text=query_text,
             sources=initial_sources,
         )
-        initial_sources = _supplement_target_document_scroll_fallback(
+        initial_sources = _supplement_target_document_support(
             self,
             request=request,
             profile=profile,

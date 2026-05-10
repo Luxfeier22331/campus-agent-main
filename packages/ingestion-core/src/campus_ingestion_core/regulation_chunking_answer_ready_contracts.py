@@ -82,7 +82,7 @@ def _intro_contract_metadata(
         metadata["intro_target_roles"] = target_roles
         introduced_subject = resolve_regulation_intro_subject(
             intro_target_roles=target_roles,
-            fallback_condition_subject=group_anchor.group_subject
+            inherited_condition_subject=group_anchor.group_subject
             if group_anchor is not None
             else "",
         ).value

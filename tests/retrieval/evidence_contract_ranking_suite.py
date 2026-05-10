@@ -5,7 +5,10 @@ import unittest
 from campus_retrieval_core.evidence_attributes import (
     INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY,
 )
-from campus_retrieval_core.evidence_ranking import prioritize_evidence_sources
+from campus_retrieval_core.evidence_ranking import (
+    prioritize_evidence_sources,
+    select_supporting_evidence_sources,
+)
 from campus_retrieval_core.evidence_ranking_features import build_ranking_features
 from campus_retrieval_core.evidence_ranking_text import match_key, normalize_text
 from campus_retrieval_core.evidence_semantics import infer_query_condition_subject
@@ -23,6 +26,28 @@ def _answer_ready_anchor(**metadata: object) -> dict[str, object]:
 
 
 class EvidenceContractRankingTest(unittest.TestCase):
+    def test_target_regulation_support_selection_returns_empty_without_answer_support(
+        self,
+    ) -> None:
+        selected = select_supporting_evidence_sources(
+            query_text="学生证丢了怎么办",
+            max_sources=2,
+            sources=(
+                _make_source(
+                    doc_id="handbook:student-card",
+                    chunk_id="student-card-closing",
+                    snippet="附则 本办法由学生处负责解释。",
+                    score=0.99,
+                    collection="student_rules",
+                    source_title="中央民族大学学生证管理办法",
+                    content_role="closing_provision",
+                    is_answer_bearing=False,
+                ),
+            ),
+        )
+
+        self.assertEqual(selected, ())
+
     def test_query_condition_subject_infers_deadline_from_how_long_lookup(self) -> None:
         self.assertEqual(
             infer_query_condition_subject("二级网站安全问题要多久上报"),

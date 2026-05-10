@@ -217,7 +217,7 @@ class AnswerReadyEvidenceContractBasicSuite:
         self.assertEqual(
             campus_shared.resolve_regulation_intro_subject(
                 intro_target_roles=("time_constraint",),
-                fallback_condition_subject="generic_condition",
+                inherited_condition_subject="generic_condition",
             ).value,
             "deadline",
         )

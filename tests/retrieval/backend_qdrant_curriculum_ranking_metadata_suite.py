@@ -407,7 +407,7 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
         self.assertEqual(sources[0].article_no, "第十二条")
         self.assertEqual(sources[0].section_kind, "body")
 
-    def test_build_evidence_sources_recovers_legacy_policy_page_body_from_preface_text(
+    def test_build_evidence_sources_does_not_recover_legacy_policy_page_preface_text(
         self,
     ) -> None:
         registry = InMemoryDocumentRegistry()
@@ -457,12 +457,12 @@ class BackendQdrantCurriculumRankingMetadataTest(unittest.TestCase):
         )
 
         self.assertEqual(len(sources), 1)
-        self.assertIn("学生证遗失", sources[0].snippet)
-        self.assertIn("补办手续", sources[0].snippet)
-        self.assertNotIn("本办法由学生处负责解释", sources[0].snippet)
+        self.assertEqual(sources[0].snippet, "十八、本办法由学生处负责解释。")
+        self.assertNotIn("学生证遗失", sources[0].snippet)
+        self.assertNotIn("补办手续", sources[0].snippet)
         self.assertEqual(sources[0].content_kind, "policy_page")
-        self.assertEqual(sources[0].content_role, "procedure")
-        self.assertTrue(sources[0].is_answer_bearing)
+        self.assertEqual(sources[0].content_role, "closing_provision")
+        self.assertFalse(sources[0].is_answer_bearing)
 
     def test_build_evidence_sources_maps_canonical_parent_and_semester_unit_metadata(self) -> None:
         registry = InMemoryDocumentRegistry()

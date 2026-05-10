@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
+
 from tests.retrieval.backend_qdrant_test_support import (
     InMemoryDocumentRegistry,
     Mock,
@@ -9,6 +11,28 @@ from tests.retrieval.backend_qdrant_test_support import (
     qdrant_models,
     unittest,
 )
+
+
+def _answer_ready_anchor(**metadata: object) -> dict[str, object]:
+    return {
+        INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+            "evidence_contract_version": "answer_ready_evidence.v3",
+            "parent_unit_id": "handbook:student-card:article-6",
+            "answer_role": "procedure_step",
+            "condition_group_id": "handbook:student-card:article-6:application_procedure",
+            "condition_group_subject": "application_procedure",
+            "condition_subject_taxonomy_version": "condition_subject.v1",
+            "condition_subject_provenance": "test-fixture:explicit",
+            "procedure_step_index": 1,
+            "procedure_actor": "student",
+            "procedure_action": "apply",
+            "procedure_action_taxonomy_version": "procedure_action.v1",
+            "procedure_action_provenance": "test-fixture:explicit",
+            "condition_polarity": "positive",
+            **metadata,
+        },
+        "section_path": ["中央民族大学本科(预科)学生证管理办法"],
+    }
 
 
 class BackendQdrantDocumentScrollFallbackTest(unittest.TestCase):
@@ -66,7 +90,7 @@ class BackendQdrantDocumentScrollFallbackTest(unittest.TestCase):
         self.assertEqual(result.sources, ())
         qdrant_client.scroll.assert_not_called()
 
-    def test_backend_scrolls_target_document_when_hybrid_lookup_returns_no_sources(
+    def test_backend_does_not_supplement_target_regulation_document_with_incomplete_v3_source(
         self,
     ) -> None:
         qdrant_client = Mock()
@@ -98,6 +122,65 @@ class BackendQdrantDocumentScrollFallbackTest(unittest.TestCase):
                         "content_role": "procedure",
                         "is_answer_bearing": True,
                         "anchor": {"section_path": ["中央民族大学本科(预科)学生证管理办法"]},
+                        "display_text": ("学生证遗失后，应及时挂失，并提交书面申请办理补办手续。"),
+                    },
+                )
+            ],
+            None,
+        )
+        backend = _backend(qdrant_client=qdrant_client)
+
+        result = backend.retrieve(
+            RetrievalRequest(
+                query_text="学生证丢了怎么办？",
+                corpus="regulations",
+                collection="student_rules",
+                target_document_ids=("handbook:student-card",),
+                top_k=3,
+            )
+        )
+
+        self.assertEqual(result.sources, ())
+        qdrant_client.scroll.assert_called_once()
+
+    def test_backend_supplements_target_regulation_document_with_complete_v3_source(
+        self,
+    ) -> None:
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = True
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(
+            aliases=[]
+        )
+        qdrant_client.query_points.return_value = qdrant_models.QueryResponse(points=[])
+        qdrant_client.scroll.return_value = (
+            [
+                qdrant_models.Record(
+                    id="point-student-card-policy-page",
+                    payload={
+                        "document_id": "handbook:student-card",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:student-card",
+                        "chunk_id": "handbook:student-card:chunk-0001",
+                        "corpus": "regulations",
+                        "collection": "student_rules",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/handbook/student-card",
+                        "canonical_url": "https://campus.example/handbook/student-card",
+                        "latest_url": "https://campus.example/handbook/student-card",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "title": "中央民族大学本科(预科)学生证管理办法",
+                        "unit_type": "policy_page",
+                        "content_role": "procedure",
+                        "is_answer_bearing": True,
+                        "anchor": _answer_ready_anchor(
+                            condition_subject="application_procedure",
+                            semantic_role="procedure_step",
+                            polarity="positive",
+                            action_type="student_card_reissue",
+                            claim_type="procedure",
+                        ),
                         "display_text": ("学生证遗失后，应及时挂失，并提交书面申请办理补办手续。"),
                     },
                 )

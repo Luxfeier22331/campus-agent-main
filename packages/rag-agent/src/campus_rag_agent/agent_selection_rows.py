@@ -51,7 +51,9 @@ def _select_answer_support_rows(
     consumable_sources = tuple(
         source for source in sources if not _should_ignore_official_web_source(source)
     )
-    ranked_source_input = consumable_sources or sources
+    if not consumable_sources:
+        return ()
+    ranked_source_input = consumable_sources
     if course_list_query or curriculum_lookup_query:
         max_seen_statements = 6
     elif shape in {AnswerShape.CATEGORY_DISCOVERY_LIST, AnswerShape.CONDITION_OVERVIEW}:
@@ -157,8 +159,7 @@ def _select_answer_support_rows(
     if rows:
         return tuple(rows)
 
-    fallback_source = ranked_sources[0]
-    return ((fallback_source, _rank_source_statements(query_text, fallback_source, mode=mode)),)
+    return ()
 
 
 def _should_ignore_official_web_source(source: EvidenceSource) -> bool:

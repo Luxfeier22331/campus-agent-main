@@ -183,7 +183,7 @@ def infer_condition_group_id(
         text=text,
         answer_role=answer_role,
         explicit_condition_group_subject=_text(metadata.get("condition_group_subject")),
-        fallback_condition_subject=(
+        inherited_condition_subject=(
             _text(metadata.get("introduced_condition_subject"))
             if answer_role == "eligibility_intro"
             else infer_condition_subject(text=text, metadata=metadata)
@@ -213,7 +213,7 @@ def infer_condition_group_subject(*, text: str, metadata: dict[str, object]) -> 
         text=text,
         answer_role=_text(metadata.get("answer_role")),
         explicit_condition_group_subject=_text(metadata.get("condition_group_subject")),
-        fallback_condition_subject=(
+        inherited_condition_subject=(
             _text(metadata.get("introduced_condition_subject"))
             if _text(metadata.get("answer_role")) == "eligibility_intro"
             else infer_condition_subject(text=text, metadata=metadata)

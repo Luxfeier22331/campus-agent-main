@@ -159,11 +159,7 @@ def _requires_target_v3_legacy_fallback_quarantine(
         return False
     if runtime_profile.serving_stage != "query_serving":
         return False
-    if not runtime_profile.query_enabled_by_default:
-        return False
-    if plan is None:
-        return True
-    return plan.source_trust_policy.legacy_fallback_mode != "legacy_old_index_compatibility"
+    return runtime_profile.query_enabled_by_default
 
 
 def build_compare_pair_requests(

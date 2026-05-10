@@ -269,6 +269,26 @@ class RagAgentOfficialWebPeopleAndNewsTest(unittest.TestCase):
         self.assertEqual(rows[0][0].content_role, "reference_fact")
         self.assertNotIn("教务处", " ".join(rows[0][1]))
 
+    def test_select_answer_support_rows_returns_empty_when_only_ignored_sources_remain(
+        self,
+    ) -> None:
+        rows = _select_answer_support_rows(
+            query_text="本科培养",
+            sources=(
+                _make_official_web_source(
+                    doc_id="official_web:muc_public:article_detail:undergraduate",
+                    title="本科培养",
+                    snippet="标题：本科培养 | 章节：人才培养\n本科培养 来源：教务处",
+                    score=0.99,
+                    chunk_id_suffix="undergraduate-source-attribution",
+                    content_role="source_attribution",
+                ),
+            ),
+            max_sources=2,
+        )
+
+        self.assertEqual(rows, ())
+
     def test_official_web_news_answer_avoids_title_restatement_and_prompt_boilerplate(self) -> None:
         evidence = _make_official_web_evidence(
             query_text="民族团结进步促进法 解读",

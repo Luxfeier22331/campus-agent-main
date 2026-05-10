@@ -423,7 +423,6 @@ def _build_category_discovery_retrieval_plan(
                 query_mode=query_mode,
             ),
             allow_live_source_lookup=allow_live_source_lookup,
-            legacy_fallback_mode="target_v3_only",
         ),
         budget=RetrievalPlanBudget(
             max_steps=len(steps),
@@ -504,7 +503,6 @@ def _build_specific_policy_focused_retrieval_plan(
                 query_mode=query_mode,
             ),
             allow_live_source_lookup=allow_live_source_lookup,
-            legacy_fallback_mode="target_v3_only",
         ),
         budget=RetrievalPlanBudget(
             max_steps=len(steps) + 1,

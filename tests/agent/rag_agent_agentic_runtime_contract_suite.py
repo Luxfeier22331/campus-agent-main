@@ -22,7 +22,6 @@ from campus_rag_agent.runtime_stages import (
     resolve_stage_contract,
 )
 from campus_rag_agent.service_evidence_stage import execute_rag_evidence_selection_stage
-from campus_rag_agent.service_planner_stage import execute_rag_planner_stage
 from campus_rag_agent.service_versioning_context import _VersionAnswerContext
 from campus_retrieval_core import (
     RetrievalExecutionResult,
@@ -37,6 +36,7 @@ from campus_retrieval_core import (
     RetrievalStepResult,
 )
 
+from tests.agent.rag_agent_agentic_depth_runtime_suite_support import execute_rag_planner_stage
 from tests.agent.rag_agent_test_support import _make_handbook_source, delegate_to_rag_agent
 
 

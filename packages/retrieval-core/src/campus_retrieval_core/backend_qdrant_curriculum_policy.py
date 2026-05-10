@@ -9,7 +9,10 @@ from campus_retrieval_core.curriculum_query_resolution import (
     filter_curriculum_query_sources,
     interpret_curriculum_query,
 )
-from campus_retrieval_core.evidence_ranking_curriculum import source_chunk_ordinal
+from campus_retrieval_core.evidence_ranking_curriculum import (
+    curriculum_lookup_source_matches_query,
+    source_chunk_ordinal,
+)
 
 
 def apply_curriculum_query_scope_policy(
@@ -51,6 +54,41 @@ def prefer_curriculum_title_overview_sources(
     return (
         *tuple(sorted(overview_sources, key=_curriculum_title_overview_sort_key)),
         *(source for source in sources if source.chunk_id not in overview_chunk_ids),
+    )
+
+
+def prefer_curriculum_lookup_target_sources(
+    *,
+    profile: CollectionRuntimeProfile,
+    query_text: str,
+    sources: Sequence[EvidenceSource],
+) -> tuple[EvidenceSource, ...]:
+    if profile.corpus != "curriculum" or profile.collection != "curriculum_plan":
+        return tuple(sources)
+    interpretation = interpret_curriculum_query(query_text)
+    if (
+        interpretation.intent_kind != "curriculum_lookup"
+        or interpretation.curriculum_lookup_target != "course_map"
+    ):
+        return tuple(sources)
+    target_sources = tuple(
+        source
+        for source in sources
+        if curriculum_lookup_source_matches_query(query_text=query_text, source=source)
+    )
+    if not target_sources:
+        return tuple(sources)
+    target_chunk_ids = {source.chunk_id for source in target_sources}
+    return (
+        *tuple(sorted(target_sources, key=_curriculum_lookup_target_sort_key)),
+        *(source for source in sources if source.chunk_id not in target_chunk_ids),
+    )
+
+
+def _curriculum_lookup_target_sort_key(source: EvidenceSource) -> tuple[int, float]:
+    return (
+        source_chunk_ordinal(source),
+        -source.score,
     )
 
 
@@ -100,5 +138,6 @@ def _is_curriculum_fact_lookup_query(query_text: str) -> bool:
 
 __all__ = [
     "apply_curriculum_query_scope_policy",
+    "prefer_curriculum_lookup_target_sources",
     "prefer_curriculum_title_overview_sources",
 ]

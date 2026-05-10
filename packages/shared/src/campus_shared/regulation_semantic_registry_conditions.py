@@ -247,7 +247,7 @@ def resolve_regulation_group_subject(
         text=text,
         answer_role=answer_role,
         explicit_condition_group_subject="",
-        fallback_condition_subject="",
+        inherited_condition_subject="",
         intro_target_roles=(),
         table_fact_type="",
         action_type=action_type,
@@ -262,7 +262,7 @@ def resolve_regulation_condition_group_subject(
     text: str,
     answer_role: str = "",
     explicit_condition_group_subject: str = "",
-    fallback_condition_subject: str = "",
+    inherited_condition_subject: str = "",
     intro_target_roles: Sequence[str] = (),
     table_fact_type: str = "",
     action_type: str = "",
@@ -287,12 +287,12 @@ def resolve_regulation_condition_group_subject(
     if answer_role == "eligibility_intro":
         return resolve_regulation_intro_subject(
             intro_target_roles=intro_target_roles,
-            fallback_condition_subject=fallback_condition_subject,
+            inherited_condition_subject=inherited_condition_subject,
         )
     return resolve_regulation_condition_subject(
         text=text,
         answer_role=answer_role,
-        explicit_condition_subject=fallback_condition_subject,
+        explicit_condition_subject=inherited_condition_subject,
         condition_group_subject="",
         introduced_condition_subject="",
         intro_target_roles=intro_target_roles,

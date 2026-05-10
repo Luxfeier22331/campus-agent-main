@@ -74,7 +74,9 @@ def curriculum_lookup_section_sort_key(
 
 def curriculum_lookup_source_matches_query(*, query_text: str, source: EvidenceSource) -> bool:
     interpretation = interpret_curriculum_query(query_text)
-    if interpretation.curriculum_lookup_target == "course_settings":
+    if interpretation.curriculum_lookup_target == "course_map":
+        query_terms = (normalize_text("课程地图"), normalize_text("拓扑图"))
+    elif interpretation.curriculum_lookup_target == "course_settings":
         query_terms = (normalize_text("课程设置"),)
     elif interpretation.curriculum_lookup_target == "study_advice":
         query_terms = (normalize_text("修读建议"),)

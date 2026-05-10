@@ -192,16 +192,7 @@ def select_supporting_evidence_sources(
     selected = (*primary, *secondary, *same_doc_secondary)[:max_sources]
     if selected:
         return selected
-
-    fallback_source = next(
-        (
-            feature.source
-            for feature in ranked_features
-            if not locked_doc_id or feature.source.doc_id == locked_doc_id
-        ),
-        ranked_features[0].source,
-    )
-    return (fallback_source,)
+    return ()
 
 
 def query_targets_source_title(*, query_text: str, source: EvidenceSource) -> bool:

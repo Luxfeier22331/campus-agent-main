@@ -264,7 +264,6 @@ def build_ordered_retrieval_plan(
         source_trust_policy=RetrievalSourceTrustPolicy(
             minimum_tier=minimum_source_trust_tier,
             allow_live_source_lookup=allow_live_source_lookup,
-            legacy_fallback_mode="target_v3_only",
         ),
         budget=RetrievalPlanBudget(
             max_steps=len(steps) + max_replans,

@@ -197,17 +197,17 @@ def resolve_regulation_intro_scope(
 def resolve_regulation_intro_subject(
     *,
     intro_target_roles: Sequence[str] = (),
-    fallback_condition_subject: str = "",
+    inherited_condition_subject: str = "",
 ) -> RegulationSemanticAssignment:
     target_role_set = {item.strip() for item in intro_target_roles if item.strip()}
-    fallback = canonical_regulation_condition_subject(fallback_condition_subject.strip())
+    inherited_subject = canonical_regulation_condition_subject(inherited_condition_subject.strip())
     if (
-        fallback
-        and fallback != "generic_condition"
+        inherited_subject
+        and inherited_subject != "generic_condition"
         and target_role_set.issubset({"eligibility_condition", "exception_rule"})
     ):
         return RegulationSemanticAssignment(
-            value=fallback,
+            value=inherited_subject,
             provenance="inherited:condition_subject",
         )
     target_subject_assignment = (
@@ -217,9 +217,9 @@ def resolve_regulation_intro_subject(
     )
     if target_subject_assignment.value:
         return target_subject_assignment
-    if fallback:
+    if inherited_subject:
         return RegulationSemanticAssignment(
-            value=fallback,
+            value=inherited_subject,
             provenance="inherited:condition_subject",
         )
     return RegulationSemanticAssignment(value="", provenance="")

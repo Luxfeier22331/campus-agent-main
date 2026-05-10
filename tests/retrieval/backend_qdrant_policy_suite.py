@@ -144,6 +144,65 @@ class BackendQdrantPolicyTest(unittest.TestCase):
             ),
         )
 
+    def test_finalize_retrieval_sources_prefers_curriculum_course_map_section_before_tables(
+        self,
+    ) -> None:
+        profile = _make_runtime_profile(corpus="curriculum", collection="curriculum_plan")
+        title = "经济学拔尖人才创新班人才培养方案"
+
+        finalized = finalize_retrieval_sources(
+            profile=profile,
+            query_text=f"{title}课程地图怎么安排？",
+            sources=(
+                _make_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0013",
+                    snippet=(
+                        "五、课程设置和修读建议 1. 专业核心课程 课程号 | 课程名称 | 学分 | "
+                        "开设学期 1034040237 | 中级宏观经济学 | 3 | 4"
+                    ),
+                    score=0.6,
+                    source_title=title,
+                    structural_path=(title, "五、课程设置和修读建议", "1. 专业核心课程"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                _make_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0023",
+                    snippet="六、课程地图 经济学拔尖人才创新班本科课程结果拓扑图。",
+                    score=0.63,
+                    source_title=title,
+                    structural_path=(title, "六、课程地图"),
+                    content_kind="section_text",
+                    content_role="lead_overview",
+                    detail_label="六、课程地图",
+                    is_answer_bearing=True,
+                ),
+                _make_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0014",
+                    snippet="五、课程设置和修读建议 2. 专业选修课程至少任选 7 门课程。",
+                    score=0.59,
+                    source_title=title,
+                    structural_path=(title, "五、课程设置和修读建议", "2. 专业选修课程"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            tuple(source.chunk_id for source in finalized),
+            (
+                f"curriculum:{title}:chunk-0023",
+                f"curriculum:{title}:chunk-0013",
+                f"curriculum:{title}:chunk-0014",
+            ),
+        )
+
     def test_finalize_retrieval_sources_locks_curriculum_course_query_to_unique_program_semester(
         self,
     ) -> None:

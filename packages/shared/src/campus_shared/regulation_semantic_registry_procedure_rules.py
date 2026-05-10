@@ -64,11 +64,6 @@ REGULATION_PROCEDURE_ACTION_DEFINITIONS: dict[str, RegulationProcedureActionDefi
         description="受理、办理、协调、处理、答复等泛化办理动作。",
         expected_answer_roles=("procedure_step",),
     ),
-    "procedure_step": RegulationProcedureActionDefinition(
-        action_id="procedure_step",
-        description="暂未细分到更窄动作 taxonomy 的占位程序动作。",
-        expected_answer_roles=("procedure_step",),
-    ),
 }
 
 REGULATION_PROCEDURE_ACTOR_DEFINITIONS: dict[str, RegulationProcedureActorDefinition] = {
@@ -107,11 +102,6 @@ REGULATION_PROCEDURE_ACTOR_DEFINITIONS: dict[str, RegulationProcedureActorDefini
         description="学校或未进一步细分的校级职能部门。",
         expected_answer_roles=("procedure_step",),
     ),
-    "responsible_party": RegulationProcedureActorDefinition(
-        actor_id="responsible_party",
-        description="尚未细分到更窄 taxonomy 的责任主体或承办单位。",
-        expected_answer_roles=("procedure_step",),
-    ),
 }
 
 REGULATION_CONDITION_SUBJECT_ALIASES: dict[str, str] = {
@@ -144,8 +134,8 @@ REGULATION_PROCEDURE_ACTOR_ALIASES: dict[str, str] = {
     "考核机构": "office",
     "校长办公会": "office",
     "专门会议": "office",
-    "责任主体": "responsible_party",
-    "承办单位": "responsible_party",
+    "责任主体": "office",
+    "承办单位": "office",
 }
 
 REGULATION_PROCEDURE_ACTOR_RULES: tuple[RegulationSemanticKeywordRule, ...] = (

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import fields
 
 from tests.retrieval.retrieval_service_replan_execution_suite_support import *
 
@@ -173,7 +174,7 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
 
         self.assertEqual(observations[0]["query"], "校内宇宙签证办理处")
 
-    def test_execute_retrieval_plan_emits_answer_ready_fallback_diagnostics_for_legacy_index(
+    def test_execute_retrieval_plan_fails_closed_for_legacy_index_contract_diagnostics(
         self,
     ) -> None:
         observations: list[dict[str, object]] = []
@@ -181,10 +182,7 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
             plan_id="regulations:student_rules:legacy-contract-diagnostics",
             query_mode="current",
             admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
-            source_trust_policy=RetrievalSourceTrustPolicy(
-                minimum_tier="T1",
-                legacy_fallback_mode="legacy_old_index_compatibility",
-            ),
+            source_trust_policy=RetrievalSourceTrustPolicy(minimum_tier="T1"),
             steps=(
                 RetrievalStep(
                     step_id="primary",
@@ -196,41 +194,33 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
             ),
         )
 
-        result = execute_retrieval_plan(
-            plan,
-            retrieve_step=lambda request: EvidenceBundle(
-                query_text=request.query_text,
-                corpus=request.corpus,
-                collection=request.collection,
-                sources=(
-                    _make_source(
-                        chunk_id="legacy-discipline-procedure",
-                        snippet="学生受处分满考察期后，可以申请解除纪律处分。",
-                        content_role="procedure",
-                        is_answer_bearing=True,
-                        semantic_role="procedure_step",
-                        polarity="positive",
-                        action_type="lift_discipline",
-                        claim_type="procedure",
+        with self.assertRaisesRegex(RetrievalBackendError, "legacy old-index fallback"):
+            execute_retrieval_plan(
+                plan,
+                retrieve_step=lambda request: EvidenceBundle(
+                    query_text=request.query_text,
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    sources=(
+                        _make_source(
+                            chunk_id="legacy-discipline-procedure",
+                            snippet="学生受处分满考察期后，可以申请解除纪律处分。",
+                            content_role="procedure",
+                            is_answer_bearing=True,
+                            semantic_role="procedure_step",
+                            polarity="positive",
+                            action_type="lift_discipline",
+                            claim_type="procedure",
+                        ),
                     ),
                 ),
-            ),
-            observation_sink=observations.append,
-            observation_request_id="req-legacy-contract",
-        )
+                observation_sink=observations.append,
+                observation_request_id="req-legacy-contract",
+            )
 
-        self.assertTrue(result.step_results[0].activity.fallback_used)
-        self.assertEqual(result.step_results[0].activity.fallback_reason, "missing_contract")
-        self.assertIn(
-            "evidence_contract_version",
-            result.step_results[0].activity.missing_contract_fields,
-        )
-        self.assertEqual(result.step_results[0].activity.fallback_primary_signal, "public_semantic")
-        self.assertTrue(observations[0]["fallback_used"])
-        self.assertEqual(observations[0]["fallback_reason"], "missing_contract")
-        self.assertIn("answer_role", observations[0]["missing_contract_fields"])
-        self.assertEqual(observations[0]["source_index_contract_version"], "")
-        self.assertEqual(observations[0]["fallback_primary_signal"], "public_semantic")
+        self.assertEqual(len(observations), 1)
+        self.assertEqual(observations[0]["terminal_state"], "failed_closed")
+        self.assertEqual(observations[0]["failure_kind"], "release_metadata_drift")
 
     def test_execute_retrieval_plan_fails_closed_when_target_regulation_path_hits_legacy_fallback(
         self,
@@ -240,10 +230,7 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
             plan_id="regulations:student_rules:target-v3-legacy-fallback-blocked",
             query_mode="current",
             admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
-            source_trust_policy=RetrievalSourceTrustPolicy(
-                minimum_tier="T1",
-                legacy_fallback_mode="target_v3_only",
-            ),
+            source_trust_policy=RetrievalSourceTrustPolicy(minimum_tier="T1"),
             steps=(
                 RetrievalStep(
                     step_id="primary",
@@ -283,7 +270,7 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
         self.assertEqual(observations[0]["terminal_state"], "failed_closed")
         self.assertEqual(observations[0]["failure_kind"], "release_metadata_drift")
 
-    def test_execute_retrieval_plan_defaults_to_target_v3_only_for_regulation_serving(
+    def test_execute_retrieval_plan_defaults_to_contract_required_for_regulation_serving(
         self,
     ) -> None:
         plan = RetrievalPlan(
@@ -301,7 +288,6 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(plan.source_trust_policy.legacy_fallback_mode, "target_v3_only")
         with self.assertRaisesRegex(RetrievalBackendError, "legacy old-index fallback"):
             execute_retrieval_plan(
                 plan,
@@ -324,51 +310,12 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
                 ),
             )
 
-    def test_execute_retrieval_plan_allows_legacy_fallback_for_explicit_compatibility_mode(
+    def test_source_trust_policy_has_no_legacy_fallback_compatibility_switch(
         self,
     ) -> None:
-        plan = RetrievalPlan(
-            plan_id="regulations:student_rules:legacy-old-index-compatibility",
-            query_mode="current",
-            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
-            source_trust_policy=RetrievalSourceTrustPolicy(
-                minimum_tier="T1",
-                legacy_fallback_mode="legacy_old_index_compatibility",
-            ),
-            steps=(
-                RetrievalStep(
-                    step_id="primary",
-                    step_type="indexed_lookup",
-                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
-                    query_text="处分怎么消",
-                    budget=RetrievalStepBudget(top_k=3),
-                ),
-            ),
-        )
+        policy_field_names = {field.name for field in fields(RetrievalSourceTrustPolicy)}
 
-        result = execute_retrieval_plan(
-            plan,
-            retrieve_step=lambda request: EvidenceBundle(
-                query_text=request.query_text,
-                corpus=request.corpus,
-                collection=request.collection,
-                sources=(
-                    _make_source(
-                        chunk_id="legacy-discipline-procedure",
-                        snippet="学生受处分满考察期后，可以申请解除纪律处分。",
-                        content_role="procedure",
-                        is_answer_bearing=True,
-                        semantic_role="procedure_step",
-                        polarity="positive",
-                        action_type="lift_discipline",
-                        claim_type="procedure",
-                    ),
-                ),
-            ),
-        )
-
-        self.assertEqual(result.step_results[0].status, "succeeded")
-        self.assertTrue(result.step_results[0].activity.fallback_used)
+        self.assertNotIn("legacy_fallback_mode", policy_field_names)
 
     def test_jsonl_observation_sink_appends_one_json_object_per_line(self) -> None:
         with TemporaryDirectory() as temp_dir:

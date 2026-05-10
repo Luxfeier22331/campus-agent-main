@@ -490,7 +490,7 @@ class AnswerReadyEvidenceContractConflictSuite:
         self.assertEqual(result.status, "failed")
         self.assertIn("answer_ready_procedure_next_actor_unknown", result.issues)
 
-    def test_v3_validation_fails_when_procedure_actor_uses_generic_fallback_actor(self) -> None:
+    def test_v3_validation_fails_when_procedure_actor_uses_unknown_generic_actor(self) -> None:
         result = validate_answer_ready_evidence_metadata(
             corpus="regulations",
             collection="student_rules",
@@ -516,9 +516,9 @@ class AnswerReadyEvidenceContractConflictSuite:
         )
 
         self.assertEqual(result.status, "failed")
-        self.assertIn("answer_ready_procedure_actor_generic_fallback", result.issues)
+        self.assertIn("answer_ready_procedure_actor_unknown", result.issues)
 
-    def test_v3_validation_fails_when_procedure_action_uses_generic_fallback_action(self) -> None:
+    def test_v3_validation_fails_when_procedure_action_uses_unknown_generic_action(self) -> None:
         result = validate_answer_ready_evidence_metadata(
             corpus="regulations",
             collection="student_rules",
@@ -544,7 +544,7 @@ class AnswerReadyEvidenceContractConflictSuite:
         )
 
         self.assertEqual(result.status, "failed")
-        self.assertIn("answer_ready_procedure_action_generic_fallback", result.issues)
+        self.assertIn("answer_ready_procedure_action_unknown", result.issues)
 
     def test_v3_validation_classifies_legacy_v2_as_legacy_not_target_pass(self) -> None:
         result = validate_answer_ready_evidence_metadata(

@@ -297,7 +297,7 @@ class RegulationSemanticRegistryFoundationSuite:
         assignment = resolve_regulation_condition_group_subject(
             text="在核心期刊上发表高水平论文。",
             answer_role="example_evidence",
-            fallback_condition_subject="paper_or_publication",
+            inherited_condition_subject="paper_or_publication",
             explicit_condition_group_subject="rank_threshold",
         )
 
@@ -321,7 +321,7 @@ class RegulationSemanticRegistryFoundationSuite:
             text="申诉期限如下:",
             answer_role="eligibility_intro",
             intro_target_roles=("time_constraint",),
-            fallback_condition_subject="generic_condition",
+            inherited_condition_subject="generic_condition",
         )
 
         self.assertEqual(assignment.value, "deadline")

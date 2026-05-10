@@ -187,7 +187,7 @@ class IndexReleaseAcceptanceChunkQualitySemanticsSuite:
             report.summary["answer_ready_semantic_failures"],
         )
 
-    def test_release_chunk_quality_reports_generic_fallback_procedure_actor(self) -> None:
+    def test_release_chunk_quality_reports_unknown_generic_procedure_actor(self) -> None:
         record = _make_record()
         report = evaluate_release_chunk_quality(
             chunks=(
@@ -228,11 +228,11 @@ class IndexReleaseAcceptanceChunkQualitySemanticsSuite:
 
         self.assertEqual(report.status, "failed")
         self.assertIn(
-            "answer_ready_procedure_actor_generic_fallback",
+            "answer_ready_procedure_actor_unknown",
             report.summary["answer_ready_semantic_failures"],
         )
 
-    def test_release_chunk_quality_reports_generic_fallback_procedure_action(self) -> None:
+    def test_release_chunk_quality_reports_unknown_generic_procedure_action(self) -> None:
         record = _make_record()
         report = evaluate_release_chunk_quality(
             chunks=(
@@ -273,7 +273,7 @@ class IndexReleaseAcceptanceChunkQualitySemanticsSuite:
 
         self.assertEqual(report.status, "failed")
         self.assertIn(
-            "answer_ready_procedure_action_generic_fallback",
+            "answer_ready_procedure_action_unknown",
             report.summary["answer_ready_semantic_failures"],
         )
 

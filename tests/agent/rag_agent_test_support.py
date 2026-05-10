@@ -70,6 +70,10 @@ from campus_shared import (
 )
 from campus_shared.regulation_semantic_registry import load_regulation_discovery_config
 
+from tests.agent.rag_agent_test_support_defaults import (
+    default_condition_subject_for_source,
+    default_procedure_action_for_source,
+)
 from tests.agent.rag_agent_test_support_evidence import (
     _assert_answer_text_hides_internal_locators,
     _make_curriculum_plan_source,
@@ -270,7 +274,7 @@ def _default_v3_contract_metadata(
         "time_constraint",
         "table_fact",
     }:
-        subject = _default_condition_subject_for_source(
+        subject = default_condition_subject_for_source(
             content_role=content_role,
             semantic_role=semantic_role,
             answer_role=answer_role,
@@ -284,7 +288,7 @@ def _default_v3_contract_metadata(
             base["condition_subject_provenance"] = "test-helper:default"
 
     if answer_role == "procedure_step":
-        subject = _default_condition_subject_for_source(
+        subject = default_condition_subject_for_source(
             content_role=content_role,
             semantic_role=semantic_role,
             answer_role=answer_role,
@@ -298,7 +302,7 @@ def _default_v3_contract_metadata(
             base["condition_subject_provenance"] = "test-helper:default"
         base["procedure_step_index"] = 1
         base["procedure_actor"] = "student"
-        base["procedure_action"] = _default_procedure_action_for_source(
+        base["procedure_action"] = default_procedure_action_for_source(
             action_type=action_type,
         )
         base["procedure_action_taxonomy_version"] = "procedure_action.v1"
@@ -702,44 +706,6 @@ def delegate_to_rag_agent(
             else _deferred_default_grounded_runner(lambda: captured_bundle)
         ),
     )
-
-
-def _default_condition_subject_for_source(
-    *,
-    content_role: str,
-    semantic_role: str,
-    answer_role: str,
-    action_type: str,
-) -> str:
-    if action_type == "lift_discipline":
-        if answer_role == "exclusion_rule":
-            return "discipline_relief_exclusion"
-        if answer_role == "procedure_step":
-            return "application_procedure"
-        return "discipline_relief_condition"
-    if action_type == "reissue":
-        if answer_role == "procedure_step":
-            return "student_card_or_identity_credential"
-        return "student_card_or_identity_credential"
-    if answer_role == "material_requirement":
-        return "material_requirement"
-    if answer_role == "time_constraint":
-        return "deadline"
-    if answer_role == "table_fact":
-        return "amount_or_quota"
-    if semantic_role == "example_evidence" or answer_role == "example_evidence":
-        return "example_evidence"
-    if content_role == "procedure" or answer_role == "procedure_step":
-        return "application_procedure"
-    return "generic_condition"
-
-
-def _default_procedure_action_for_source(*, action_type: str) -> str:
-    if action_type == "reissue":
-        return "reissue"
-    if action_type == "lift_discipline":
-        return "apply"
-    return "process"
 
 
 __all__ = (

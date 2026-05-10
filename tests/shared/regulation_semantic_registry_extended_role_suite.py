@@ -76,19 +76,19 @@ class RegulationSemanticRegistryExtendedRoleSuite:
     def test_shared_intro_subject_resolution_prefers_target_roles(self) -> None:
         material = resolve_regulation_intro_subject(
             intro_target_roles=("material_requirement",),
-            fallback_condition_subject="generic_condition",
+            inherited_condition_subject="generic_condition",
         )
         time = resolve_regulation_intro_subject(
             intro_target_roles=("time_constraint",),
-            fallback_condition_subject="generic_condition",
+            inherited_condition_subject="generic_condition",
         )
         procedure = resolve_regulation_intro_subject(
             intro_target_roles=("procedure_step",),
-            fallback_condition_subject="generic_condition",
+            inherited_condition_subject="generic_condition",
         )
         generic = resolve_regulation_intro_subject(
             intro_target_roles=("exception_rule", "example_evidence"),
-            fallback_condition_subject="rank_threshold",
+            inherited_condition_subject="rank_threshold",
         )
 
         self.assertEqual(material.value, "material_requirement")
@@ -105,7 +105,7 @@ class RegulationSemanticRegistryExtendedRoleSuite:
     ) -> None:
         assignment = resolve_regulation_intro_subject(
             intro_target_roles=("eligibility_condition",),
-            fallback_condition_subject="rank_threshold",
+            inherited_condition_subject="rank_threshold",
         )
 
         self.assertEqual(assignment.value, "rank_threshold")
