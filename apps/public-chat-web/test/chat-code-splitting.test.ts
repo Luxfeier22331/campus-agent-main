@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import codeArtifactSource from "../vendor/vercel-ai-chatbot/artifacts/code/client.tsx?raw";
 import imageArtifactSource from "../vendor/vercel-ai-chatbot/artifacts/image/client.tsx?raw";
 import sheetArtifactSource from "../vendor/vercel-ai-chatbot/artifacts/sheet/client.tsx?raw";
+import sheetArtifactContentSource from "../vendor/vercel-ai-chatbot/artifacts/sheet/content.tsx?raw";
 import textArtifactSource from "../vendor/vercel-ai-chatbot/artifacts/text/client.tsx?raw";
 import vendorCodeBlockSource from "../vendor/vercel-ai-chatbot/components/ai-elements/code-block.tsx?raw";
 import vendorMessageSource from "../vendor/vercel-ai-chatbot/components/ai-elements/message.tsx?raw";
@@ -50,5 +51,10 @@ describe("chat code splitting", () => {
 		expect(codeArtifactSource).not.toContain("@/components/chat/code-editor");
 		expect(sheetArtifactSource).not.toContain("@/components/chat/sheet-editor");
 		expect(imageArtifactSource).not.toContain("@/components/chat/image-editor");
+	});
+
+	it("keeps the sheet artifact content shell clear of table editor runtime imports", () => {
+		expect(sheetArtifactContentSource).not.toContain("@/components/chat/sheet-editor");
+		expect(sheetArtifactContentSource).not.toContain("react-data-grid");
 	});
 });

@@ -1,7 +1,7 @@
 import { mkdirSync, mkdtempSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 
 import { smokePublishedReaderBuild } from "../scripts/smoke-published-reader-build";
 import { temporaryDirectories } from "./sync-real-docs-test-support";
@@ -84,6 +84,38 @@ describe("published reader build smoke", () => {
 				buildDir,
 				manifestFilePath: manifestPath,
 			}),
-		).toThrow("missing built reader asset");
+		).toThrow(
+			/pnpm --filter public-docs (build:published-reader-assets|sync:published-reader-assets)/,
+		);
+	});
+
+	it("discovers the standard local sync manifest when no manifest is passed", () => {
+		vi.stubEnv("CLOUDFLARE_ENV", "");
+		vi.stubEnv("PUBLIC_DOCS_SYNC_MANIFEST_PATH", "");
+		const directory = createTempDir();
+		const buildDir = resolve(directory, "doc_build");
+		const manifestPath = resolve(directory, "var/public-docs-sync-manifest.json");
+		writeFile(resolve(buildDir, "index.html"), "<!doctype html>");
+		writeFile(
+			resolve(buildDir, "_docs/curriculum/curriculum_plan/law/current/asset-manifest.json"),
+			"{}",
+		);
+		writeFile(resolve(buildDir, "_docs/curriculum/curriculum_plan/law/current/reader.json"), "{}");
+		writeFile(
+			resolve(buildDir, "_gated-docs/regulations/student_rules/secret/current/asset-manifest.json"),
+			"{}",
+		);
+		writeManifest(manifestPath);
+
+		expect(
+			smokePublishedReaderBuild({
+				buildDir,
+				repoRoot: directory,
+			}),
+		).toMatchObject({
+			ok: true,
+			checkedAssetCount: 3,
+			manifestFilePath: manifestPath,
+		});
 	});
 });

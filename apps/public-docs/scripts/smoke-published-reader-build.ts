@@ -1,6 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 import { resolve } from "node:path";
-import { APP_ROOT } from "./sync-real-docs/shared";
+import { APP_ROOT, REPO_ROOT } from "./sync-real-docs/shared";
 
 export interface PublishedReaderBuildSmokeResult {
 	checkedAssetCount: number;
@@ -20,12 +20,17 @@ interface PublishedReaderBuildSmokeManifestEntry {
 export function smokePublishedReaderBuild(input: {
 	buildDir?: string;
 	manifestFilePath?: string;
+	repoRoot?: string;
 }): PublishedReaderBuildSmokeResult {
 	const buildDir = input.buildDir ?? resolve(APP_ROOT, "doc_build");
-	const manifestFilePath =
-		input.manifestFilePath ?? process.env.PUBLIC_DOCS_SYNC_MANIFEST_PATH?.trim();
+	const manifestFilePath = resolveBuildSmokeManifestPath({
+		manifestFilePath: input.manifestFilePath,
+		repoRoot: input.repoRoot,
+	});
 	if (!manifestFilePath) {
-		throw new Error("manifestFilePath or PUBLIC_DOCS_SYNC_MANIFEST_PATH is required");
+		throw new Error(
+			"published reader build smoke manifest is missing; pass --manifest-path, set PUBLIC_DOCS_SYNC_MANIFEST_PATH, or generate var/public-docs-sync-manifest.json with the published reader sync pipeline",
+		);
 	}
 	if (!existsSync(buildDir)) {
 		throw new Error(`public docs build output is missing: ${buildDir}`);
@@ -45,7 +50,12 @@ export function smokePublishedReaderBuild(input: {
 				throw new Error(`unsafe built reader asset target: ${targetObject}`);
 			}
 			if (!existsSync(targetPath)) {
-				throw new Error(`missing built reader asset: ${entryIndex}:${normalizedTarget}`);
+				throw new Error(
+					[
+						`missing built reader asset: ${entryIndex}:${normalizedTarget}`,
+						"the current doc_build does not include published-reader assets; run `pnpm --filter public-docs build:published-reader-assets` for a full published-reader build, or run `pnpm --filter public-docs sync:published-reader-assets` after a plain docs build",
+					].join("; "),
+				);
 			}
 			checkedAssetCount += 1;
 		}
@@ -56,6 +66,39 @@ export function smokePublishedReaderBuild(input: {
 		manifestFilePath,
 		ok: true,
 	};
+}
+
+function resolveBuildSmokeManifestPath(input: {
+	manifestFilePath?: string;
+	repoRoot?: string;
+}): string | undefined {
+	const explicitPath = input.manifestFilePath?.trim();
+	if (explicitPath) {
+		return explicitPath;
+	}
+	const envPath = process.env.PUBLIC_DOCS_SYNC_MANIFEST_PATH?.trim();
+	if (envPath) {
+		return envPath;
+	}
+
+	for (const candidate of resolveDefaultBuildSmokeManifestCandidates(input.repoRoot ?? REPO_ROOT)) {
+		if (existsSync(candidate)) {
+			return candidate;
+		}
+	}
+	return;
+}
+
+function resolveDefaultBuildSmokeManifestCandidates(repoRoot: string): string[] {
+	const manifestName =
+		process.env.CLOUDFLARE_ENV === "staging"
+			? "public-docs-sync-manifest.staging.json"
+			: "public-docs-sync-manifest.json";
+	const fallbackName =
+		manifestName === "public-docs-sync-manifest.json"
+			? "public-docs-sync-manifest.staging.json"
+			: "public-docs-sync-manifest.json";
+	return [resolve(repoRoot, "var", manifestName), resolve(repoRoot, "var", fallbackName)];
 }
 
 function parseBuildSmokeManifest(rawManifest: string): PublishedReaderBuildSmokeManifest {

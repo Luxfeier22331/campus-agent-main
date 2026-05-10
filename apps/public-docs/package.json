@@ -6,6 +6,7 @@
 	"description": "Cloudflare Worker runtime shell for the public documentation surface.",
 	"scripts": {
 		"build": "pnpm run ensure:docs-scaffold && rspress build && pnpm run build:clean-routes",
+		"build:budget": "tsx scripts/search-index-budget.ts",
 		"build:clean-routes": "tsx scripts/create-clean-route-aliases.ts",
 		"build:real-docs": "pnpm run sync:real-docs && pnpm run lint:generated && pnpm run build",
 		"build:staging": "CLOUDFLARE_ENV=staging pnpm run build",
@@ -16,8 +17,8 @@
 		"check:published-reader-manifest": "node ./scripts/run-with-local-env.mjs pnpm exec tsx scripts/check-published-reader-manifest.ts --dry-run",
 		"check:published-reader-scheduled": "node ./scripts/run-with-local-env.mjs pnpm exec tsx scripts/run-published-reader-scheduled-check.ts",
 		"deploy:published-reader-scheduled": "node ./scripts/run-with-local-env.mjs pnpm exec tsx scripts/run-published-reader-deploy-pipeline.ts",
-		"deploy": "pnpm build:published-reader-assets && pnpm deploy:verify-config && node ../../scripts/run-wrangler-command.mjs deploy --config wrangler.toml",
-		"deploy:staging": "CLOUDFLARE_ENV=staging pnpm run build:published-reader-assets && pnpm deploy:verify-config:staging && node ../../scripts/run-wrangler-command.mjs deploy --env staging --config wrangler.toml",
+		"deploy": "pnpm build:published-reader-assets && pnpm build:budget && pnpm deploy:verify-config && node ../../scripts/run-wrangler-command.mjs deploy --config wrangler.toml",
+		"deploy:staging": "CLOUDFLARE_ENV=staging pnpm run build:published-reader-assets && pnpm build:budget && pnpm deploy:verify-config:staging && node ../../scripts/run-wrangler-command.mjs deploy --env staging --config wrangler.toml",
 		"deploy:verify-config": "node ./scripts/verify-worker-config.mjs",
 		"deploy:verify-config:staging": "node ./scripts/verify-worker-config.mjs",
 		"ensure:docs-scaffold": "tsx scripts/ensure-docs-scaffold.ts",

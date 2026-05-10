@@ -39,5 +39,13 @@
 		"skipLibCheck": true,
 		"noEmit": true
 	},
-	"include": ["src/**/*.ts", "src/**/*.tsx", "test/**/*.ts", "vite.config.ts", "vitest.config.mts"]
+	"include": [
+		"config/**/*.ts",
+		"scripts/**/*.ts",
+		"src/**/*.ts",
+		"src/**/*.tsx",
+		"test/**/*.ts",
+		"vite.config.ts",
+		"vitest.config.mts"
+	]
 }

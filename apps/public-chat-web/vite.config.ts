@@ -3,6 +3,7 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
+import { resolvePublicChatManualChunk } from "./config/build-chunks";
 
 const liveSmokeAppApiEnvPath = path.resolve(__dirname, "../app-api/.env");
 const liveSmokeAppApiConfigPath = path.resolve(__dirname, "../app-api/wrangler.local-smoke.toml");
@@ -64,6 +65,13 @@ function createVendorCompatResolver(): Plugin {
 }
 
 export default defineConfig({
+	build: {
+		rollupOptions: {
+			output: {
+				manualChunks: resolvePublicChatManualChunk,
+			},
+		},
+	},
 	define: {
 		"process.env.CI_PLAYWRIGHT": JSON.stringify(process.env.CI_PLAYWRIGHT ?? ""),
 		"process.env.NEXT_PUBLIC_BASE_PATH": JSON.stringify(""),

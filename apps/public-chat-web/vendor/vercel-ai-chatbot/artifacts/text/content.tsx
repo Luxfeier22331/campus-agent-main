@@ -1,7 +1,16 @@
-import { DiffView } from "@/components/chat/diffview";
 import { DocumentSkeleton } from "@/components/chat/document-skeleton";
-import { Editor } from "@/components/chat/text-editor";
+import { lazy, Suspense } from "react";
 import type { TextArtifactContentProps } from "./client";
+
+const TextArtifactEditor = lazy(async () => {
+	const module = await import("./editor-content");
+	return { default: module.TextArtifactEditorContent };
+});
+
+const TextArtifactDiff = lazy(async () => {
+	const module = await import("./diff-content");
+	return { default: module.TextArtifactDiffContent };
+});
 
 export function TextArtifactContent({
 	mode,
@@ -26,15 +35,15 @@ export function TextArtifactContent({
 				: selectedContent;
 
 		return (
-			<div className="flex flex-row px-4 py-8 md:px-16 md:py-12 lg:px-20">
-				<DiffView newContent={selectedContent} oldContent={prevContent} />
-			</div>
+			<Suspense fallback={<DocumentSkeleton artifactKind="text" />}>
+				<TextArtifactDiff newContent={selectedContent} oldContent={prevContent} />
+			</Suspense>
 		);
 	}
 
 	return (
-		<div className="flex flex-row px-4 py-8 md:px-16 md:py-12 lg:px-20">
-			<Editor
+		<Suspense fallback={<DocumentSkeleton artifactKind="text" />}>
+			<TextArtifactEditor
 				content={content}
 				currentVersionIndex={currentVersionIndex}
 				isCurrentVersion={isCurrentVersion}
@@ -42,10 +51,6 @@ export function TextArtifactContent({
 				status={status}
 				suggestions={isCurrentVersion && metadata ? metadata.suggestions : []}
 			/>
-
-			{metadata?.suggestions && metadata.suggestions.length > 0 ? (
-				<div className="h-dvh w-12 shrink-0 md:hidden" />
-			) : null}
-		</div>
+		</Suspense>
 	);
 }

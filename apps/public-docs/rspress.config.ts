@@ -1,6 +1,7 @@
 import * as path from "node:path";
 import { defineConfig } from "@rspress/core";
 import { buildRspressSidebarConfig } from "./scripts/rspress-sidebar";
+import { publicDocsSearchIndexBudgetPlugin } from "./scripts/search-index-budget";
 
 const docsRoot = path.join(__dirname, "docs");
 
@@ -18,6 +19,7 @@ export default defineConfig({
 		path.join(__dirname, "src/components/DocsContentEnhancer.tsx"),
 		path.join(__dirname, "src/components/ReaderStateEnhancer.tsx"),
 	],
+	plugins: [publicDocsSearchIndexBudgetPlugin()],
 	search: {
 		mode: "local",
 		searchHooks: path.join(__dirname, "src/search/local-search-fallback.ts"),
