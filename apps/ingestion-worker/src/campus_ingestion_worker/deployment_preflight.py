@@ -261,24 +261,15 @@ def _check_batch_specific_env(
                 )
             )
     if "wechat-public-notice-multimodal-drain" in batch_kinds:
-        api_key = (
-            _env_text(env, "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY")
-            or _env_text(env, "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY")
-            or _env_text(env, "PROMPT_RUNTIME_API_KEY")
-            or _env_text(env, "LLM_API_KEY")
-        )
-        model = (
-            _env_text(env, "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL")
-            or _env_text(env, "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL")
-            or _env_text(env, "PROMPT_RUNTIME_MODEL")
-        )
+        api_key = _env_text(env, "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY")
+        model = _env_text(env, "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL")
         if not api_key or not model:
             checks.append(
                 _failed(
                     "wechat_public_notice_multimodal_runtime",
                     "Missing WeChat multimodal OCR runtime env: "
-                    "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY/WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL "
-                    "or admitted fallback envs.",
+                    "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY and "
+                    "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL.",
                 )
             )
         else:
@@ -287,8 +278,8 @@ def _check_batch_specific_env(
                     "wechat_public_notice_multimodal_runtime",
                     "WeChat multimodal OCR runtime env is configured.",
                     details={
-                        "api_key_env": "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY or fallback",
-                        "model_env": "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL or fallback",
+                        "api_key_env": "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY",
+                        "model_env": "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL",
                     },
                 )
             )

@@ -293,15 +293,11 @@ Required env:
 - `INGESTION_WORKER_APP_API_BASE_URL`
 - `INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET`
 
-Local dev fallback:
+Local dev:
 
-- when repo root `.env` already defines `APP_API_INTERNAL_SHARED_SECRET` and
-  the worker callback env is still unset, `load_worker_env()` derives
-  `INGESTION_WORKER_APP_API_BASE_URL=http://127.0.0.1:27031` and reuses
-  `APP_API_INTERNAL_SHARED_SECRET`
-- set explicit `INGESTION_WORKER_APP_API_*` values when local `app-api` is not
-  running on the default port or when deployment/runtime config must stay
-  explicit
+- set explicit `INGESTION_WORKER_APP_API_*` values for the local `app-api`
+  callback; `APP_API_INTERNAL_SHARED_SECRET` is not promoted into worker
+  callback env
 
 Optional CLI args:
 

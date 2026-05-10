@@ -92,7 +92,9 @@ print(json.dumps({
 
             self.assertIsNone(loaded)
 
-    def test_load_worker_env_derives_local_app_api_callback_env_for_release_tasks(self) -> None:
+    def test_load_worker_env_does_not_derive_local_app_api_callback_env_for_release_tasks(
+        self,
+    ) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir) / ".worktrees" / "feature-a"
             root.mkdir(parents=True)
@@ -105,14 +107,9 @@ print(json.dumps({
             with patch.dict(os.environ, {}, clear=True):
                 loaded = load_worker_env(repo_root=root)
                 self.assertEqual(loaded, current_env)
-                self.assertEqual(
-                    os.environ["INGESTION_WORKER_APP_API_BASE_URL"],
-                    "http://127.0.0.1:27031",
-                )
-                self.assertEqual(
-                    os.environ["INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET"],
-                    "derived-secret",
-                )
+                self.assertEqual(os.environ["APP_API_INTERNAL_SHARED_SECRET"], "derived-secret")
+                self.assertNotIn("INGESTION_WORKER_APP_API_BASE_URL", os.environ)
+                self.assertNotIn("INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET", os.environ)
 
     def test_load_worker_env_keeps_explicit_release_task_callback_env(self) -> None:
         with TemporaryDirectory() as temp_dir:

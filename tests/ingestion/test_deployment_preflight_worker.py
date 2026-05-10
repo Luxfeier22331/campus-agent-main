@@ -209,6 +209,38 @@ class IngestionWorkerDeploymentPreflightTest(unittest.TestCase):
             check_by_name["wechat_public_notice_multimodal_runtime"]["status"], "failed"
         )
 
+    def test_static_preflight_does_not_accept_prompt_runtime_for_wechat_multimodal_drain(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            report = preflight.run_deployment_preflight(
+                batch_kinds=("wechat-public-notice-multimodal-drain",),
+                env={
+                    "CAMPUS_SHARED_POSTGRES_URL": "postgresql://localhost:5432/campus_dev",
+                    "CAMPUS_SHARED_POSTGRES_OPERATOR_URL": "postgresql://localhost:5432/campus_dev",
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                    "OBJECT_STORE_BUCKET_SOURCE": "campus-rag-source",
+                    "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                    "PROMPT_RUNTIME_API_KEY": "generic-key",
+                    "PROMPT_RUNTIME_MODEL": "generic-model",
+                },
+                live=False,
+                lock_dir=Path(temp_dir) / "locks",
+                report_dir=Path(temp_dir) / "reports",
+            )
+
+        self.assertEqual(report["status"], "failed")
+        check_by_name = {check["name"]: check for check in report["checks"]}
+        self.assertEqual(
+            check_by_name["wechat_public_notice_multimodal_runtime"]["status"], "failed"
+        )
+        self.assertNotIn(
+            "fallback",
+            check_by_name["wechat_public_notice_multimodal_runtime"]["message"],
+        )
+
     def test_cli_prints_json_and_exits_nonzero_on_failed_preflight(self) -> None:
         with (
             patch("campus_ingestion_worker.deployment_preflight.load_worker_env"),
