@@ -33,8 +33,10 @@ updated: 2026-05-10
     owner / files / tests / evidence，避免用 phase summary 或 registry 状态替代验收证据
 - `.planning/seeds/`
   - dormant future follow-up；记录 why / trigger / breadcrumbs，供后续 milestone 或新 workstream 恢复时再拾起
-  - current seeds: `SEED-001` conditional moderation lane, `SEED-002` conditional HITL
-    approval recovery, `SEED-003` source-handoff runtime store adoption
+  - current seeds include `SEED-001` conditional moderation lane, `SEED-002` conditional HITL
+    approval recovery, `SEED-003` source-handoff runtime store adoption, and `SEED-005`
+    authenticated canonical regulation gap collection; `SEED-004` has already surfaced as a
+    completed native workstream
 - `.planning/runtime/`
   - gitignored 的本地 operator 配置、claim lease、claim history 与 session pointer 辅助状态；不承担 tracked planning truth
 - `.planning/legacy-flat/`
@@ -46,14 +48,14 @@ updated: 2026-05-10
 
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
-| `OpenAI Agents SDK native supervisor runtime hardcut` | `openai-agents-sdk-native-supervisor-runtime-hardcut` | `yes` | `.planning/workstreams/openai-agents-sdk-native-supervisor-runtime-hardcut/README.md` | `Phase 3 - ToolSpec To FunctionTool Compiler` | Phase 1 已完成 debt inventory / SDK primitive mapping；Phase 2 已落地 worker-owned `OpenAIAgentsNativeRuntime` factory foundation 与 TDD 覆盖；下一步收敛 structured 与 RAG internal ToolSpec -> SDK `FunctionTool` compiler |
-
-| `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | `Phase 5B partial` | `Phase 1-5A`、Phase 6 workflow trace runtime gate、Phase 7 observed regression review workflow 与 Phase 8-13 deterministic eval seams 已完成；RAG-only coverage/audit 已收口为 `student_rules`、`institutional_rules`、`curriculum_plan`、`official_web/stable_reference`，`fresh_news` 不计入当前 RAG eval；RAG minimum gate 与 maturity gate 均通过，`student_rules` 为 52 qrels / 46 unique docs / 25 release acceptance，并新增 current-corpus answer-quality 与 4 条 known-gap cases；`curriculum_plan` 为 60 qrels / 49 unique docs / 30 release acceptance，并新增 current-corpus answer-quality；5B authenticated-gap expansion 仍因认证态 canonical 数据补全阻塞；当前没有独立编号的 Phase 14，Total Phases=14 来自 Phase 5A/5B 拆分 |
+| _None_ | `n/a` | `n/a` | `n/a` | `n/a` | `eval` completed on 2026-05-10; authenticated canonical regulation collection moved to backlog seed rather than remaining an eval blocker |
 
 ## Completed
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
+| `eval` | `eval` | `yes` | `.planning/workstreams/eval/README.md` | 只有在 shared eval substrate、profile registry、eval release gate、RAG coverage/audit、known-gap/no-hit contract、case governance admission 或 completed workstream 的 GAP-LEDGER evidence 漂移时恢复；认证态 canonical 文档补采属于 backlog `authenticated-canonical-regulation-gap-collection`，不单独重开 eval |
+| `OpenAI Agents SDK native supervisor runtime hardcut` | `openai-agents-sdk-native-supervisor-runtime-hardcut` | `yes` | `.planning/workstreams/openai-agents-sdk-native-supervisor-runtime-hardcut/README.md` | 只有在 Python semantic execution 重新引入 repo-owned provider loop、RAG answer path 恢复 non-SDK fallback / shadow / candidate runtime、structured 或 agent-internal tools 绕过 SDK-native `FunctionTool` admission、Go-owned WorkflowPlan / ToolSpec admission 被 SDK routing 绕过，或 SDK raw trace / native type 泄漏到 contracts/panel/eval/public response 时恢复 |
 | `academic calendar source truth reconciliation` | `academic-calendar-source-truth-reconciliation` | `yes` | `.planning/workstreams/academic-calendar-source-truth-reconciliation/README.md` | 只有在 `calendar/academic_calendar` current projection 再次只读单一 curated calendar、notice-derived calendar arrangement 无法通过 source-truth manifest admission、`2026-05-09` 回退成 `执行周一课表`、`春假` 被写成官方事件名或不再能以 colloquial alias 映射到官方组合安排，或 runtime 重新扫描 raw notice/RAG/OCR 资产时恢复 |
 | `answer-ready semantic extraction rearchitecture` | `answer-ready-semantic-extraction-rearchitecture` | `yes` | `.planning/workstreams/answer-ready-semantic-extraction-rearchitecture/README.md` | 只有在 `answer_ready_evidence.v3` schema / taxonomy governance / parent-child unit chain 漂移、`student_rules` 或 `institutional_rules` target release proof 失效、target regulation serving 重新允许 primary text-cue 或 old-index fallback、typed answer grounding 不再 fail-close，或 component eval / post-publish audit 不能拒绝 target-v3 fallback provenance 时恢复 |
 | `answer-ready evidence contract closeout` | `answer-ready-evidence-contract-closeout` | `yes` | `.planning/workstreams/answer-ready-evidence-contract-closeout/README.md` | 只有在 query-serving regulation-family answer-ready chunks 再次缺少 `answer_role` / `condition_subject` / `parent_unit_id` / `evidence_contract_version`、procedure typed fields、category overview member metadata，ranking/selection 回退到 text-cue primary path，release admission 不再 fail closed，或 component eval 无法归因 intent/retrieval/ranking/selection/draft/grounding/chunk-contract failure 时恢复 |
@@ -142,6 +144,7 @@ updated: 2026-05-10
 
 | Workstream | Slug | Native Dir | Entry | Reopen Rule |
 |------------|------|------------|-------|-------------|
+| `authenticated canonical regulation gap collection` | `authenticated-canonical-regulation-gap-collection` | `no` | `.planning/seeds/SEED-005-authenticated-canonical-regulation-gap-collection.md` | 当认证态 canonical source 可用、需要补采 `中央民族大学本科生创新教育学分认定管理办法` 等缺失制度，或需要把 known-gap RAG cases 晋升为 accepted qrels / answer truth 时恢复 |
 | `official-web source channel / news opening` | `official-web-source-channel-news-opening` | `no` | `docs/plans/archive/historical/official-web-source-channel-news-opening.md` | 只有在产品范围重新提升新闻面 opening 优先级后才恢复 |
 | `campus navigation rollout / place_card / map consumption` | `campus-navigation-rollout-map-consumption` | `no` | `docs/plans/archive/historical/campus-navigation-rollout-map-consumption.md` | 等待校园地图实际上线后再恢复 |
 | `internal-notice procurement publication history` | `internal-notice-procurement-publication-history` | `yes` | `.planning/workstreams/internal-notice-procurement-publication-history/README.md` | 只有在产品范围决定把采购类从 generic notice search/card 提升为 procurement-specific facet/history surface，或发现采购类 title/url card 与通用 notice search contract 漂移时恢复 |

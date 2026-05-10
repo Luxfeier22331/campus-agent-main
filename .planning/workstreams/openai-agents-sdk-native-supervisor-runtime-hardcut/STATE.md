@@ -1,9 +1,9 @@
 ---
 doc_type: state
 workstream: openai-agents-sdk-native-supervisor-runtime-hardcut
-status: active
+status: completed
 created: 2026-05-08
-updated: 2026-05-08
+updated: 2026-05-10
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -12,30 +12,25 @@ updated: 2026-05-08
 
 ## Current Position
 
-**Status:** active
-**Current Phase:** Phase 8 - Residual Deletion And Drift Guards
-**Last Activity:** 2026-05-08
-**Last Activity Description:** Completed the current hardcut slice: unified SDK FunctionTool
-factory, removed legacy `sdk_adapter_candidate` posture, hard-cut RAG production service to require
-an explicit SDK runner, and replaced nullable worker injection with a concrete fail-closed runtime.
+**Status:** completed
+**Current Phase:** Phase 10 completed
+**Last Activity:** 2026-05-10
+**Last Activity Description:** Completed Phase 6-10 hardcut closeout: bridge v6 now requires
+Go-owned `workflow_plan` plus `AgentRequest.workflow_context`, Python validates the admitted
+workflow before SDK/internal-function execution, RAG synthesis uses `OpenAIAgentsRagRuntime`, and
+readiness / guardrails describe a single SDK-native semantic runtime.
 
 ## Current Slice
 
-Phase 1 and Phase 2 are complete. The current implementation slice also landed the production RAG
-hardcut seam and residual cleanup around nullable runner injection.
-
-Immediate next implementation slice:
-
-- finish remaining residual deletion and drift guards;
-- keep observability naming aligned with native runtime truth;
-- broaden focused verification from worker/RAG seam to eval and product-path acceptance.
+All planned phases are closed. There is no active implementation slice in this workstream.
+Completion audit evidence is recorded in `GAP-LEDGER.md`.
 
 ## Baseline Facts
 
 - `sdk-only-domain-agent-execution-hardcut` is completed and removed direct structured domain-agent
   adapter fallback for `sdk_adapter_admitted` tools.
 - Current worker no longer has the production `AgentsSdkRunner` shell.
-- Current RAG SDK path now uses the native runtime wrapper directly.
+- Current RAG SDK path now uses `OpenAIAgentsRagRuntime` directly.
 - RAG deterministic retrieval planning, retrieval execution and evidence selection are not SDK
   migration targets; SDK hardcut applies to provider-facing answer drafting / synthesis and tool
   loop substrate.
@@ -45,9 +40,14 @@ Immediate next implementation slice:
   primitives as Python runtime substrate only.
 - Structured SDK call sites now use the production native runtime foundation and unified
   FunctionTool compiler.
-- Query-enabled RAG synthesis now requires an explicit SDK runner at the production service
-  boundary; test/eval helper wrappers own their own explicit in-process runner injection and no
-  longer rely on a nullable production seam.
+- Query-enabled RAG synthesis now requires an explicit SDK-native runtime at the production service
+  boundary; unavailable provider/model/key/dependency states fail closed rather than enabling
+  non-SDK synthesis.
+- Bridge v6 delegate parsing requires `runtime_decisions.workflow_plan`; the selected
+  `AgentRequest.workflow_context` must match the Go-admitted step, target, payload kind, allowed
+  tools, projection kind and expected artifacts.
+- Worker readiness reports stable SDK-native admission reasons, including
+  `provider_key_missing`, and cannot imply a fallback answer path.
 
 ## Blockers
 
@@ -120,9 +120,28 @@ Observed result on 2026-05-08:
 - tool registry/bridge suite: `Ran 18 tests ... OK`
 - Go runtimepolicy tests: `ok`
 
+Phase 6-8 focused verification:
+
+```bash
+uv run --all-packages python -m unittest tests.supervisor.openai_agents_runtime_suite tests.supervisor.openai_agents_runtime_projection_suite tests.supervisor.openai_agents_workflow_plan_suite tests.supervisor.openai_agents_rag_runtime_suite tests.supervisor.openai_agents_runtime_hardcut_guardrails_suite tests.supervisor.agents_sdk_tool_bridge_suite tests.supervisor.agents_sdk_internal_tool_suite tests.supervisor.agents_sdk_runtime_policy_suite tests.supervisor.admitted_agent_execution_suite tests.supervisor.tool_execution_registry_suite tests.api.supervisor_api_bridge_handoff_suite tests.api.supervisor_api_bridge_go_fixture_suite tests.contracts.supervisor_execution_fixture_matrix_suite -q
+```
+
+Observed result on 2026-05-10:
+
+- focused supervisor / bridge / contract suite: `Ran 81 tests in 0.501s` / `OK`
+
+Phase 9 product-path focused verification:
+
+```bash
+uv run --all-packages python -m unittest tests.agent.rag_agent_sdk_service_suite tests.agent.rag_agent_sdk_tools_suite tests.agent.rag_agent_sdk_trace_suite tests.supervisor.rag_agents_sdk_delegate_suite tests.agent.rag_agent_agentic_runtime_contract_suite tests.agent.rag_agent_agentic_depth_runtime_suite tests.agent.rag_agent_workflow_projection_grounding_suite tests.agent.campus_services_academic_calendar_suite -q
+```
+
+Observed result on 2026-05-10:
+
+- focused RAG / product-path suite: `Ran 59 tests in 0.572s` / `OK`
+
 ## Session Continuity
 
-**Stopped At:** explicit RAG runner hardcut and registry posture cleanup completed; residual
-deletion, wider eval acceptance and docs closeout next
+**Stopped At:** workstream completed; no active phase remains
 **Resume File:** `README.md`, `REQUIREMENTS.md`, `ROADMAP.md`, `STATE.md`,
-`CURRENT-DEBT-INVENTORY.md`, `SDK-PRIMITIVE-MAPPING.md`
+`GAP-LEDGER.md`, `CURRENT-DEBT-INVENTORY.md`, `SDK-PRIMITIVE-MAPPING.md`

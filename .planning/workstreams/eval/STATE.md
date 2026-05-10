@@ -1,21 +1,21 @@
 ---
 workstream: eval
 created: 2026-04-22
-updated: 2026-05-08
+updated: 2026-05-10
 ---
 
 # Project State
 
 ## Current Position
 
-**Status:** Active
-**Current Phase:** 5B partial
-**Current Phase Name:** Golden Dataset Expansion And Domain Case Governance
+**Status:** completed
+**Current Phase:** closed
+**Current Phase Name:** Eval Workstream Closeout
 **Current Plan:** `phases/phase-5b-golden-dataset-expansion-and-domain-case-governance/PLAN.md`
 **Total Phases:** 14
 **Total Plans in Phase:** 1
-**Progress:** 13/14 phases complete
-**Last Activity:** 2026-05-08
+**Progress:** 14/14 phases complete
+**Last Activity:** 2026-05-10
 **Last Activity Description:** 重新 review eval workstream 后，将 Phase 5 拆为可立即推进的
 case governance scaffold 与后置 golden dataset expansion；并登记 Phase 6-13 作为后续 eval closure
 queue。随后完成 Phase 5A 的 lifecycle、denominator registry、workflow trace artifact shape 与
@@ -28,8 +28,9 @@ plan/freshness eval 与 Phase 13 eval operations governance；本轮进一步将
 observation-backed profiles 接入 `scripts.eval_gate`，补齐统一 `eval_profile_gate.v1`
 artifact、artifact-derived operations observation、值级 redaction 与 scaffold denominator
 扩展；随后新增 `multi-agent-product-path` deterministic gate，并把 workflow trace /
-tool-family / public-chat product-path denominator 扩展到当前 multi-agent 产品路径；5B 仍等待
-domain 数据补全。最新补全将 runtime profile collection 收口到统一 `AppApiEvalClient`，
+tool-family / public-chat product-path denominator 扩展到当前 multi-agent 产品路径；Phase 5B
+已按 current-corpus eval contract 收口，认证态 canonical source 补采移交 backlog。最新补全将
+runtime profile collection 收口到统一 `AppApiEvalClient`，
 `profile-report.json` 增加真实 runtime metrics / `metrics_missing` 语义与 safe
 `request_correlation`，新增 `publish-profile` backflow，扩展 workflow trace gate 到 tool
 order / result status / fail-close provenance / evidence source selection，并将
@@ -47,8 +48,12 @@ RAGAS diagnostic runner，并以 split-metric 方式完成 9-case 非阻塞诊�
 稳定满分，context recall 暴露 scholarship 泛问多文档覆盖不足，answer relevancy 暴露若干
 title/query 场景的 answer draft 选段偏离，faithfulness 仅保留 3-case smoke 以控制规模与耗时。
 2026-05-08 将 Phase 5B 拆成 current-corpus 与 authenticated-gap 两层：当前已入库语料可以补
-answer-quality contract 与 known-gap/no-hit contract；认证态缺失 canonical 文档继续作为
-authenticated-gap blocker，不能由相近文档或 notice 引用冒充 accepted truth。
+answer-quality contract 与 known-gap/no-hit contract；认证态缺失 canonical 文档被识别为
+不能由相近文档或 notice 引用冒充 accepted truth 的 source gap。2026-05-10 按当前
+workstream owner 边界完成 closeout：Phase 5B current-corpus 已由 coverage report、
+answer-quality contract 与 known-gap/no-hit contract 收口；认证态 canonical 文档补采不再作为
+eval blocker，而是移交 backlog seed
+`.planning/seeds/SEED-005-authenticated-canonical-regulation-gap-collection.md`。
 
 ## Current Slice
 
@@ -68,12 +73,13 @@ authenticated-gap blocker，不能由相近文档或 notice 引用冒充 accepte
     - operator quality / feedback candidate intake manifest 已进入 `eval_admission`
     - drift / admission discipline 已由 registry validator 防止 denominator author truth
   - `Phase 5B: Golden Dataset Expansion And Domain Case Governance`
-    - partial: current-corpus eval contract 可推进；authenticated-gap expansion 继续 blocked
+    - completed for current-corpus query-enabled surfaces
     - retrieval qrels shared governance
     - workflow/status accepted case expansion
     - deterministic answer truth expansion
     - known-gap/no-hit contract for missing canonical source
     - synthetic candidate promotion
+    - authenticated canonical source collection moved to backlog seed; it is not an eval blocker
 - `Phase 6: Workflow Trace Runtime Gate And Artifact Adoption`
   - completed
   - workflow trace case model / fixture family 已进入 `campus_evals.workflow_trace_gate`
@@ -215,23 +221,24 @@ authenticated-gap blocker，不能由相近文档或 notice 引用冒充 accepte
     qrels `doc_hit_at_1 = 1.0`、`doc_recall_at_5 = 1.0`、`forbidden_hit_rate = 0.0`，
     runtime readiness 均为 `ready`。`official_web/stable_reference` 仍保留在 coverage
     surface，但未纳入本轮 core RAG quality gate 的 refreshed blocking evidence。
-- 后续 eval closure queue：
+- Eval closeout posture:
   - 当前没有独立编号的 Phase 14
   - `Total Phases = 14` 来自 Phase 5A/5B 拆分
-  - 剩余未完成项为 `Phase 5B authenticated-gap expansion`
+  - `Phase 5B current-corpus` 已完成；认证态 canonical 文档缺口已移交 backlog seed
 - 当前顺序保持冻结：
   - `Phase 5A` 不等待完整 corpus coverage；它只冻结流程、schema、denominator scaffold 与
     pending-review intake，不 author 大规模 domain truth；该切片已完成。
-  - `Phase 5B current-corpus` 的 accepted eval contract 可以继续推进；缺失 canonical 文档的
-    query 只能进入 known-gap，不得进入 accepted qrels / answer truth。
-  - `Phase 5B authenticated-gap` 的正式 accepted case expansion 继续等待采集内容补全。
+  - `Phase 5B current-corpus` 的 accepted eval contract 已完成；缺失 canonical 文档的 query
+    只能进入 known-gap，不得进入 accepted qrels / answer truth。
+  - authenticated canonical source 补采、source-truth import 与后续 accepted truth 晋升属于
+    backlog/source-domain workstream，不属于 eval blocker。
   - `Phase 6` 已作为不依赖完整 corpus coverage 的 runtime gate 独立完成。
   - `Phase 7` 已作为不依赖完整 corpus coverage 的 review/admission workflow 独立完成。
   - `Phase 8-13` 已完成 deterministic eval seams，不抢占 `Phase 5B` 的 data-dependent status。
   - 当前没有独立编号的 Phase 14。
   - handbook / curriculum / official-web 现有 admitted eval surface 继续由已冻结的 runtime/artifact/publish/automation 承接
-  - RAG-only coverage/audit 可继续推进；repo-wide accepted golden dataset expansion 仍需按
-    domain 数据 readiness 单独 admission
+  - RAG-only coverage/audit 已完成 current-corpus closeout；新增 query-enabled surface 或新增
+    canonical source 晋升时，按 denominator registry 和 case governance 重新 admission
 - 当前明确排除：
   - domain case authoring 本体
   - retrieval / panel / tool feature 实现
@@ -240,14 +247,14 @@ authenticated-gap blocker，不能由相近文档或 notice 引用冒充 accepte
 
 ## Blockers
 
-- 当前 blocker 只作用于 `Phase 5B authenticated-gap expansion`：认证态源与部分 canonical
-  文档尚未补全，因此不能把相关 query 正式扩编为 repo-wide accepted golden truth。
-- `Phase 5B current-corpus` 不再被该 blocker 阻塞；它通过 current manifest / release
-  acceptance / answer-quality contract / known-gap contract 表达当前文档库真实能力。
-- 该 blocker 不覆盖 RAG-only minimum coverage/audit；当前四个 RAG 消费面已有可审计 coverage
-  report，且 maturity gate 已通过。
-- `Phase 5A`、`Phase 6`、`Phase 7` 与 `Phase 8-13` 已完成；它们不再是后续 eval closure 的 blocker。
-- 这不是 runtime / artifact / publish / automation 的 blocker；对应 phase 已落地完成。
+None.
+
+## Residual Backlog
+
+- 认证态 canonical regulation 补采与后续 accepted truth 晋升已移交
+  `.planning/seeds/SEED-005-authenticated-canonical-regulation-gap-collection.md`。
+- 在 canonical source 补采前，`rag_known_gap_cases.v1.json` 中的 innovation-credit cases
+  继续阻止相近文档、notice 引用或 synthetic answer 被误标为 accepted qrels / answer truth。
 - `docs/plans/archive/superseded/golden-dataset-execution-plan.md` 继续只保留为 supporting reference，不再承载 active progression。
 
 ## Verification
@@ -270,10 +277,9 @@ authenticated-gap blocker，不能由相近文档或 notice 引用冒充 accepte
 
 ## Session Continuity
 
-**Stopped At:** `eval` workstream 的 `Phase 1-4` 已完成并写实到 native phase docs；`Phase 5A`
-case governance scaffold 已完成；`Phase 6` workflow trace runtime gate 已完成；`Phase 7`
-observed regression review workflow 已完成；`Phase 8-13` deterministic eval seams 已完成；当前回到
-`Phase 5B` 数据依赖等待；RAG-only coverage/audit 已在 2026-05-04 收口，且不把
+**Stopped At:** `eval` workstream completed. `Phase 1-4`、`Phase 5A`、`Phase 6`、`Phase 7`、
+`Phase 8-13` 与 `Phase 5B current-corpus` 均已收口；RAG-only coverage/audit 已完成，且不把
 `official_web/fresh_news` 计入当前 RAG eval denominator。当前没有独立编号的 Phase 14；
-`Total Phases = 14` 来自 Phase 5A/5B 拆分。
-**Resume File:** `.planning/workstreams/eval/phases/phase-5b-golden-dataset-expansion-and-domain-case-governance/PLAN.md`
+`Total Phases = 14` 来自 Phase 5A/5B 拆分。后续认证态 canonical source 补采从 backlog seed
+恢复，不作为 eval blocker。
+**Resume File:** `.planning/workstreams/eval/GAP-LEDGER.md`

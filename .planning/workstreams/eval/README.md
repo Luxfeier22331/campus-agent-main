@@ -1,8 +1,8 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-04-22
-updated: 2026-05-08
+updated: 2026-05-10
 ---
 
 # Workstream: Eval
@@ -12,8 +12,8 @@ updated: 2026-05-08
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 5B` partial
+- status: `completed`
+- current phase: `closed`
 - current focus: `Phase 1-5A` 已完成 shared runtime / artifact / publish / automation 与 case
   governance scaffold 收口；`Phase 6` 已完成 workflow trace runtime gate 与 artifact adoption。
   `Phase 7` 已完成 observed regression review / dedupe / accepted fixture admission workflow。
@@ -30,17 +30,19 @@ updated: 2026-05-08
   `official_web/stable_reference`；`official_web/fresh_news` 明确不属于当前 RAG 消费面。
   `institutional_rules` 已以 `institutional-rules-release-baseline` composite gate 接入
   RAG eval coverage，coverage evidence 位于 `./evidence/rag-eval-coverage/rag-eval-coverage.json`。
-  当前 RAG minimum gate 与 maturity gate 均通过；`student_rules` 已达到 45 条 qrels、
-  39 个 unique expected docs、25 条 release acceptance，`curriculum_plan` 已达到
+  当前 RAG minimum gate 与 maturity gate 均通过；`student_rules` 已达到 52 条 qrels、
+  46 个 unique expected docs、25 条 release acceptance，`curriculum_plan` 已达到
   60 条 qrels、49 个 unique expected docs、30 条 release acceptance，四个当前 RAG
   消费面 maturity status 均为 `baseline_ready`。人工扩编 backlog 记录在
   `packages/evals/fixtures/rag_eval_maturity_backlog.v1.json`。当前另有 core RAG
   split-metric RAGAS diagnostic 作为非阻塞质量诊断，证据位于
   `./evidence/retrieval-quality/ragas-diagnostic/ragas-diagnostic.combined.json`；其范围仅覆盖
   `student_rules`、`institutional_rules` 与 `curriculum_plan`，不纳入 `official_web/fresh_news`。
-  `Phase 5B` 现在拆成 current-corpus 与 authenticated-gap 两层：当前已入库语料的
-  answer-quality contract 与 known-gap contract 可继续补齐并进入 audit；认证态缺失 canonical
-  文档仍保持 blocked，不得用相近文档或 notice 引用冒充 accepted truth。
+  `Phase 5B` current-corpus 层已按当前已入库语料完成：RAG coverage minimum gate 与 maturity
+  gate 均通过，known-gap/no-hit contract 明确阻止缺失 canonical 文档被误标为 accepted truth。
+  认证态缺失 canonical 文档已移出 eval blocker，登记为 backlog seed
+  `.planning/seeds/SEED-005-authenticated-canonical-regulation-gap-collection.md`；后续 source
+  补采完成后再由对应 domain/source workstream 晋升 accepted qrels / answer truth。
   当前没有独立编号的 Phase 14；`Total Phases = 14` 是因为 Phase 5 被拆为 5A/5B。
 
 ## Native Planning Truth
@@ -50,6 +52,7 @@ updated: 2026-05-08
 - state: `./STATE.md`
 - current plan: `./phases/phase-5b-golden-dataset-expansion-and-domain-case-governance/PLAN.md`
 - umbrella plan: `./PHASE-5-UMBRELLA.md`
+- completion ledger: `./GAP-LEDGER.md`
 
 ## Archived Snapshot
 

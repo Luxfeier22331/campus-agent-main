@@ -41,11 +41,11 @@ shared eval case governance scaffold 已落地：
 - `uv run --all-packages python -m unittest tests.evals.test_formal_benchmark
   tests.evals.test_live_benchmark`
 
-## Remaining Work
+## Follow-up Status
 
-- `Phase 5B` remains data-dependent and blocked until domain source truth /
-  consumption / read-model / runtime traces are stable enough for accepted case
-  expansion.
-- `Phase 6` can start from the workflow trace artifact scaffold, but it must
-  implement real runtime gate fixtures and verdicts rather than just artifact
-  shape.
+- `Phase 5B` current-corpus closeout completed on 2026-05-10. Authenticated
+  canonical source gaps are tracked as backlog seed
+  `.planning/seeds/SEED-005-authenticated-canonical-regulation-gap-collection.md`,
+  not as eval blockers.
+- `Phase 6` later completed the workflow trace runtime gate with real fixtures
+  and verdicts.

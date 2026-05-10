@@ -1,8 +1,8 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-05-08
-updated: 2026-05-08
+updated: 2026-05-10
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -21,15 +21,15 @@ updated: 2026-05-08
   navigation structured execution to native SDK runtime and delete custom runner shell usage.
 - [x] **Phase 5: RAG Agent Native Runtime Hardcut** — make query-enabled RAG answer synthesis
   SDK-native and remove rollout/fallback modes.
-- [ ] **Phase 6: WorkflowPlan SDK Compiler** — compile admitted Go `WorkflowPlan` shapes into
+- [x] **Phase 6: WorkflowPlan SDK Compiler** — compile admitted Go `WorkflowPlan` shapes into
   SDK-native single-agent, agents-as-tools or handoff execution.
-- [ ] **Phase 7: Observability, Guardrails And Readiness** — unify sanitized SDK trace, guardrail
+- [x] **Phase 7: Observability, Guardrails And Readiness** — unify sanitized SDK trace, guardrail
   projection and fail-close readiness.
-- [ ] **Phase 8: Residual Deletion And Drift Guards** — delete remaining self-built runtime residue and add
+- [x] **Phase 8: Residual Deletion And Drift Guards** — delete remaining self-built runtime residue and add
   deterministic anti-regression guards.
-- [ ] **Phase 9: Eval And Product-Path Acceptance** — verify public-chat / supervisor / eval
+- [x] **Phase 9: Eval And Product-Path Acceptance** — verify public-chat / supervisor / eval
   behavior against SDK-native runtime only.
-- [ ] **Phase 10: Docs And Closeout** — update architecture truth, registry and completion ledger.
+- [x] **Phase 10: Docs And Closeout** — update architecture truth, registry and completion ledger.
 
 ## Phase 1: SDK Primitive Boundary Freeze
 
@@ -105,8 +105,8 @@ updated: 2026-05-08
 - Production code no longer needs a repo-defined `AgentsSdkRunner` protocol to represent SDK.
 - Missing dependency/provider/model/key fails closed through stable readiness reasons.
 
-**Status:** completed on 2026-05-08 for the factory foundation. Call-site migration and deletion of
-the old custom runner protocol remain assigned to Phase 4 / Phase 8.
+**Status:** completed on 2026-05-08 for the factory foundation; downstream call-site migration and
+old custom runner deletion were completed by Phase 4 / Phase 8 on 2026-05-10.
 
 **Evidence:**
 
@@ -144,6 +144,15 @@ the old custom runner protocol remain assigned to Phase 4 / Phase 8.
 - Hand-written provider function schema cannot drift from contract schema metadata.
 - SDK tool executor receives bounded DTOs and returns sanitized result projection only.
 
+**Status:** completed on 2026-05-10.
+
+**Evidence:**
+
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/agents_sdk_tool_bridge.py`
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/agents_sdk_function_tools.py`
+- `tests/supervisor/agents_sdk_tool_bridge_suite.py`
+- `tests/supervisor/agents_sdk_internal_tool_suite.py`
+
 ## Phase 4: Structured Domain-Agent Native Runtime
 
 **Goal:** finish moving structured domain-agent semantic execution to SDK-native runtime.
@@ -163,6 +172,15 @@ the old custom runner protocol remain assigned to Phase 4 / Phase 8.
 - `campus-services-agent` and `notice-agent` use the same SDK runtime factory as future agents.
 - Domain query service errors return SDK-native fail-close projections.
 - No direct structured runtime or custom SDK runner shell remains for these agents.
+
+**Status:** completed on 2026-05-10.
+
+**Evidence:**
+
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/admitted_agent_execution.py`
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/openai_agents_runtime.py`
+- `tests/supervisor/admitted_agent_execution_suite.py`
+- `tests/supervisor/openai_agents_runtime_suite.py`
 
 ## Phase 5: RAG Agent Native Runtime Hardcut
 
@@ -194,6 +212,15 @@ the old custom runner protocol remain assigned to Phase 4 / Phase 8.
 - Retrieval scope/authz/selector cannot be widened by model tool arguments.
 - Deterministic retrieval/evidence stages remain repo-owned and observable.
 
+**Status:** completed on 2026-05-10.
+
+**Evidence:**
+
+- `packages/rag-agent/src/campus_rag_agent/service_answer_synthesis.py`
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/openai_agents_rag_runtime.py`
+- `tests/agent/rag_agent_sdk_service_suite.py`
+- `tests/supervisor/openai_agents_rag_runtime_suite.py`
+
 ## Phase 6: WorkflowPlan SDK Compiler
 
 **Goal:** make admitted multi-agent workflow execution SDK-native while preserving Go ownership.
@@ -216,6 +243,15 @@ the old custom runner protocol remain assigned to Phase 4 / Phase 8.
 - Python does not invent cross-agent route order at query time.
 - SDK realizes only the workflow admitted by Go.
 - Step outputs are bounded `StepOutputProjection` / `AgentResponse` artifacts.
+
+**Status:** completed on 2026-05-10.
+
+**Evidence:**
+
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/openai_agents_workflow_plan.py`
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/bridge_v6_parser.py`
+- `tests/supervisor/openai_agents_workflow_plan_suite.py`
+- `tests/api/supervisor_api_bridge_handoff_suite.py`
 
 ## Phase 7: Observability, Guardrails And Readiness
 
@@ -244,6 +280,14 @@ the old custom runner protocol remain assigned to Phase 4 / Phase 8.
 - Raw SDK trace, raw provider output and raw tool result are never exposed.
 - Runtime readiness cannot imply a fallback path.
 
+**Status:** completed on 2026-05-10.
+
+**Evidence:**
+
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/agents_sdk_runtime_policy.py`
+- `apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/bridge_readiness.py`
+- `tests/supervisor/agents_sdk_runtime_policy_suite.py`
+
 ## Phase 8: Residual Deletion And Drift Guards
 
 **Goal:** delete old runtime nouns and block regression.
@@ -270,6 +314,13 @@ the old custom runner protocol remain assigned to Phase 4 / Phase 8.
 
 - Forbidden old runtime names cannot be reintroduced without failing tests.
 - Repo has no production code path representing SDK as a homegrown loop.
+
+**Status:** completed on 2026-05-10.
+
+**Evidence:**
+
+- `tests/supervisor/openai_agents_runtime_hardcut_guardrails_suite.py`
+- `tests/agent/rag_agent_sdk_rollout_suite.py`
 
 ## Phase 9: Eval And Product-Path Acceptance
 
@@ -301,6 +352,13 @@ the old custom runner protocol remain assigned to Phase 4 / Phase 8.
 - Eval fixtures reflect SDK-native runtime only.
 - No product-path regression is hidden by fallback answer generation.
 
+**Status:** completed on 2026-05-10.
+
+**Evidence:**
+
+- Focused supervisor / bridge / contract suite recorded in `STATE.md`
+- Focused RAG / product-path suite recorded in `STATE.md`
+
 ## Phase 10: Docs And Closeout
 
 **Goal:** align repo truth after hardcut.
@@ -322,3 +380,12 @@ the old custom runner protocol remain assigned to Phase 4 / Phase 8.
 
 - Architecture docs describe SDK-native Python semantic runtime as accepted worktree truth.
 - Workstream can move to completed with a narrow reopen rule.
+
+**Status:** completed on 2026-05-10.
+
+**Evidence:**
+
+- `GAP-LEDGER.md`
+- `.planning/WORKSTREAMS.md`
+- `docs/architecture/current-architecture.md`
+- `docs/architecture/system/execution-and-agents-architecture.md`

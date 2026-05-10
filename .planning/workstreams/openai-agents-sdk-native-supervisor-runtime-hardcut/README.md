@@ -1,8 +1,8 @@
 ---
 doc_type: index
-status: active
+status: completed
 created: 2026-05-08
-updated: 2026-05-08
+updated: 2026-05-10
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -27,10 +27,12 @@ Go supervisor-api
 
 ## Current Status
 
-- status: `active`
-- current phase: `Phase 8 - Residual Deletion And Drift Guards`
-- current slice: native runtime + RAG thin wrapper are in place; old custom runner shell and
-  rollout smoke residue have been deleted; focused verification is green
+- status: `completed`
+- current phase: `Phase 10 completed`
+- active implementation: none
+- current slice: Python semantic worker now uses SDK-native runtime for admitted structured tools
+  and RAG synthesis; bridge v6 requires Go `WorkflowPlan` / `workflow_context`; old custom runner
+  shell and rollout residue have drift guards
 - owner boundary: `apps/supervisor-agent-worker` + `packages/rag-agent` +
   domain-agent packages + `packages/contracts` + `configs/runtime/agents.v1.json` +
   `configs/runtime/tools.v1.json` + supervisor / agent / eval tests
@@ -49,19 +51,30 @@ Go supervisor-api
   Old production `AgentsSdkRunner` / `AgentsSdkRunRequest` / `AgentsSdkRunResult` shell has been
   deleted.
 
+2026-05-10:
+
+- Phase 6-10 completed:
+  - bridge v6 delegate requests now require and validate Go-owned `workflow_plan` plus
+    `AgentRequest.workflow_context`
+  - structured domain-agent execution and RAG synthesis use the SDK-native runtime substrate
+  - `rag_agents_sdk_openai_runner` naming was removed in favor of `OpenAIAgentsRagRuntime`
+  - readiness reports stable SDK fail-close reasons including provider key absence
+  - residual runtime guard tests block old runner, rollout and shell names from returning
+
 ## Why This Workstream Exists
 
 此前已完成的 `sdk-only-domain-agent-execution-hardcut` 解决的是 structured
 domain-agent tool 的 direct adapter / SDK adapter 双轨问题。但当前 repo 仍有更上层的
 runtime 债务：
 
-- worker 内仍有 repo-owned `AgentsSdkRunner` / `AgentsSdkRunRequest` /
+- worker 曾经维护 repo-owned `AgentsSdkRunner` / `AgentsSdkRunRequest` /
   `AgentsSdkRunResult` shell，实际继续模拟 SDK agent loop。
-- RAG SDK lane 仍保留 `closed` / `shadow` / `candidate` / `default_on` rollout 语义。
-- `rag-agent` 主答复路径仍以自研 pipeline 为 default，SDK 只是后置 synthesis lane。
+- RAG SDK lane 曾经保留 `closed` / `shadow` / `candidate` / `default_on` rollout 语义。
+- `rag-agent` 主答复路径曾经以自研 pipeline 为 default，SDK 只是后置 synthesis lane。
 - `single_handoff`、agent-internal tools、RAG internal retrieval tool、multi-step workflow
-- Structured and RAG execution now both use the native runtime substrate; remaining work is
-  residue deletion, drift guards, eval acceptance and docs closeout.
+  曾经缺少统一 SDK-native execution compiler。
+
+这些 runtime 债务已在 Phase 1-10 中收口；本 workstream 当前只保留完成账本与重开规则。
 
 ## Official SDK Basis
 
@@ -126,6 +139,7 @@ runtime 债务：
 - requirements: `./REQUIREMENTS.md`
 - roadmap: `./ROADMAP.md`
 - state: `./STATE.md`
+- completion audit: `./GAP-LEDGER.md`
 - planning review: `./PLANNING-REVIEW.md`
 
 ## Relation To Existing Workstreams
