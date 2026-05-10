@@ -97,7 +97,6 @@ describe("official web target workset executor", () => {
 		const fixture = buildFixture();
 		const requests = await buildInitialRequests({
 			...fixture,
-			executionMode: "target-workset",
 			plannerPages: [buildPlannerPage()],
 		});
 
@@ -122,7 +121,6 @@ describe("official web target workset executor", () => {
 		});
 		const requests = await buildInitialRequests({
 			...fixture,
-			executionMode: "target-workset",
 			plannerPages: [contactPage, servicePage],
 		});
 
@@ -139,7 +137,6 @@ describe("official web target workset executor", () => {
 		const requests = await buildInitialRequests({
 			...fixture,
 			disableConditionalHeaders: true,
-			executionMode: "target-workset",
 			plannerPages: [
 				buildPlannerPage({
 					etag: '"etag-current"',
@@ -505,7 +502,6 @@ describe("official web target workset executor", () => {
 		});
 		const initialRequests = await buildInitialRequests({
 			...fixture,
-			executionMode: "target-workset",
 			plannerPages: [listingSeed, directSeed],
 		});
 		const listingPage = buildCollectedPageArtifacts({

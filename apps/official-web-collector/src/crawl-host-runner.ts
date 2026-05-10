@@ -41,7 +41,6 @@ export interface CrawlHostsWithCrawleeInput {
 	};
 	plan: OfficialWebCrawlPlan;
 	config: Configuration;
-	executionMode: "target-workset" | "legacy-broad-crawl";
 	hostFilter?: string[];
 	maxPagesPerHost: number;
 	maxTotalPages: number;
@@ -58,15 +57,9 @@ export async function crawlHostsWithCrawlee(
 	const worksetHosts = new Set(input.dynamicPlan.duePages.map((page) => page.host.toLowerCase()));
 	const selectedHosts = input.plan.enabledHosts.filter((item) => {
 		const host = item.host.toLowerCase();
-		if (input.executionMode === "target-workset") {
-			return worksetHosts.has(host) && (hostFilter.size === 0 || hostFilter.has(host));
-		}
-		return hostFilter.size === 0 || hostFilter.has(host);
+		return worksetHosts.has(host) && (hostFilter.size === 0 || hostFilter.has(host));
 	});
-	const targetWorksetProgressCounts =
-		input.executionMode === "target-workset"
-			? buildTargetWorksetProgressCounts(input.dynamicPlan.duePages)
-			: {};
+	const targetWorksetProgressCounts = buildTargetWorksetProgressCounts(input.dynamicPlan.duePages);
 
 	const hostSummaries: OfficialWebHostSummaryRecord[] = [];
 	const pageObservations: OfficialWebPageObservationRecord[] = [];
@@ -116,7 +109,6 @@ export async function crawlHostsWithCrawlee(
 			hostPolicy,
 			config: input.config,
 			plannerPages: input.dynamicPlan.duePages.filter((page) => page.host === plannedHost.host),
-			executionMode: input.executionMode,
 			maxPagesForHost: Math.min(
 				input.maxPagesPerHost,
 				plannedHost.maxPagesPerRun,

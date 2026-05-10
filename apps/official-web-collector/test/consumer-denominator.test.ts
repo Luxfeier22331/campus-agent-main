@@ -10,7 +10,7 @@ import { crawlSite } from "../src/crawl";
 import type { CollectedPageArtifact } from "../src/page-artifacts";
 import {
 	createCollectedPageArtifactForTest,
-	LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+	createTargetWorksetControlPlaneForTest,
 	readJsonArtifact,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	writeTestConfigRoot,
@@ -535,13 +535,16 @@ describe("official web consumer denominator", () => {
 			declaredCanonicalUrl: null,
 			responseBody: SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 			fetchedAt: "2026-05-01T10:00:00.000Z",
+			targetLineage: null,
 		});
 
 		const result = await crawlSite("campus_public", {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_consumer_filter",
-			legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+			controlPlaneClient: createTargetWorksetControlPlaneForTest({
+				runId: "owrun_consumer_filter",
+			}),
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{

@@ -39,9 +39,10 @@ updated: 2026-05-01
   app-api drain -> ingestion staging`，不写 current read model 或 retrieval alias。
 - package regression gate 继续覆盖 extractor、QC、source-truth、planner 和
   projection replay 的稳定性。
-- legacy broad crawl 只保留为显式 debug/operator-only 路径，必须带
-  `--legacy-broad-crawl --legacy-broad-crawl-reason <reason>`，且会被
-  `legacy_contract_excluded` 从 handoff、selected-write 与 promotion 排除。
+- collector 不再提供 broad-crawl / debug bypass 入口；没有 app-api target workset
+  admission 时必须 fail closed。
+- `legacy_contract_excluded` 只用于阻断 pre-target-workset 历史 run 的 handoff、
+  selected-write 与 promotion，不是可发起的新采集模式。
 
 必须明确区分：
 

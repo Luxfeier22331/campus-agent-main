@@ -15,12 +15,13 @@ import { crawlSite } from "../src/crawl";
 import { buildCollectedPageArtifacts } from "../src/page-artifacts";
 import { buildCollectorQcReport } from "../src/qc-report";
 import {
-	LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+	buildOfficialWebTargetMatchForTest,
+	createTargetWorksetControlPlaneForTest,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	SAMPLE_NEWS_HOME_PAGE_HTML,
 	SAMPLE_PAGE_HTML,
 	writeTestConfigRoot,
-} from "./test-support";
+} from "./crawl-test-support";
 
 const PACKAGE_ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
 
@@ -274,6 +275,7 @@ async function writeOutputDir(input: {
 		discoveryMethod: "seed",
 		discoveredFromUrl: null,
 		fetchedAt: input.fetchedAt,
+		targetLineage: buildOfficialWebTargetMatchForTest(),
 		html: load(input.responseBody),
 	});
 
@@ -281,7 +283,9 @@ async function writeOutputDir(input: {
 		configRoot,
 		outputDir,
 		crawlRunId: input.crawlRunId,
-		legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+		controlPlaneClient: createTargetWorksetControlPlaneForTest({
+			runId: input.crawlRunId,
+		}),
 		crawlHosts: async () => ({
 			hostSummaries: [
 				{

@@ -13,10 +13,11 @@ import type { OfficialWebControlPlaneClient } from "../src/control-plane";
 import * as collector from "../src/index";
 import * as pageArtifactsModule from "../src/page-artifacts";
 import {
-	LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+	buildOfficialWebTargetMatchForTest,
+	createTargetWorksetControlPlaneForTest,
 	SAMPLE_PAGE_HTML,
 	writeTestConfigRoot,
-} from "./test-support";
+} from "./crawl-test-support";
 
 describe("official-web-collector validate", () => {
 	it("validates a complete local output directory", async () => {
@@ -71,6 +72,7 @@ describe("official-web-collector validate", () => {
 			discoveryMethod: "seed",
 			discoveredFromUrl: null,
 			fetchedAt: "2026-03-29T09:00:00.000Z",
+			targetLineage: buildOfficialWebTargetMatchForTest(),
 			html: load(SAMPLE_PAGE_HTML),
 		});
 
@@ -78,7 +80,9 @@ describe("official-web-collector validate", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_validate_001",
-			legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+			controlPlaneClient: createTargetWorksetControlPlaneForTest({
+				runId: "owrun_validate_001",
+			}),
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{
@@ -173,6 +177,7 @@ describe("official-web-collector validate", () => {
 			discoveryMethod: "seed",
 			discoveredFromUrl: null,
 			fetchedAt: "2026-03-29T09:05:00.000Z",
+			targetLineage: buildOfficialWebTargetMatchForTest(),
 			html: load(SAMPLE_PAGE_HTML),
 		});
 
@@ -180,7 +185,9 @@ describe("official-web-collector validate", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_validate_002",
-			legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+			controlPlaneClient: createTargetWorksetControlPlaneForTest({
+				runId: "owrun_validate_002",
+			}),
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{
@@ -297,6 +304,7 @@ describe("official-web-collector validate", () => {
 			discoveryMethod: "seed",
 			discoveredFromUrl: null,
 			fetchedAt: "2026-03-29T09:10:00.000Z",
+			targetLineage: buildOfficialWebTargetMatchForTest(),
 			html: load(SAMPLE_PAGE_HTML),
 		});
 
@@ -304,7 +312,9 @@ describe("official-web-collector validate", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_validate_003",
-			legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+			controlPlaneClient: createTargetWorksetControlPlaneForTest({
+				runId: "owrun_validate_003",
+			}),
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{

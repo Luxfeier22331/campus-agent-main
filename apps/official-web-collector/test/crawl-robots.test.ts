@@ -2,7 +2,7 @@ import { load } from "cheerio";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST, writeTestConfigRoot } from "./test-support";
+import { createTargetWorksetControlPlaneForTest, writeTestConfigRoot } from "./test-support";
 
 const CRAWL_TEST_TIMEOUT_MS = 30_000;
 
@@ -102,7 +102,9 @@ describe("official-web-collector robots handling", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_robots_retry_success",
-				legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+				controlPlaneClient: createTargetWorksetControlPlaneForTest({
+					runId: "owrun_robots_retry_success",
+				}),
 				maxPagesPerHost: 1,
 				maxTotalPages: 1,
 			});
@@ -133,7 +135,9 @@ describe("official-web-collector robots handling", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_robots_retry_failure",
-				legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+				controlPlaneClient: createTargetWorksetControlPlaneForTest({
+					runId: "owrun_robots_retry_failure",
+				}),
 				maxPagesPerHost: 1,
 				maxTotalPages: 1,
 			});

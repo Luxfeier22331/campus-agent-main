@@ -68,8 +68,6 @@ export function resolveCollectorCrawlMainInput(
 			"output-dir": { type: "string" },
 			"trace-id": { type: "string" },
 			"trigger-type": { type: "string" },
-			"legacy-broad-crawl": { type: "boolean" },
-			"legacy-broad-crawl-reason": { type: "string" },
 			"source-pack-lineage-path": { type: "string" },
 			"disable-conditional-headers": { type: "boolean" },
 			host: { type: "string", multiple: true },
@@ -97,16 +95,9 @@ export function resolveCollectorCrawlMainInput(
 		firstNonEmptyString(values["trigger-type"], env.OFFICIAL_WEB_TRIGGER_TYPE),
 	);
 	const traceId = firstNonEmptyString(values["trace-id"], env.OFFICIAL_WEB_TRACE_ID);
-	const controlPlaneClient =
-		appApiBaseUrl || serviceToken
-			? buildConfiguredControlPlaneClient({
-					appApiBaseUrl,
-					serviceToken,
-				})
-			: undefined;
-	const legacyBroadCrawlAdmission = resolveLegacyBroadCrawlAdmission({
-		enabled: values["legacy-broad-crawl"],
-		reason: values["legacy-broad-crawl-reason"],
+	const controlPlaneClient = buildConfiguredControlPlaneClient({
+		appApiBaseUrl,
+		serviceToken,
 	});
 
 	return {
@@ -125,30 +116,9 @@ export function resolveCollectorCrawlMainInput(
 			maxTotalPages: parseOptionalInt(values["max-total-pages"]),
 			artifactStore: createS3ArtifactStoreFromEnv(env),
 			controlPlaneClient,
-			legacyBroadCrawlAdmission,
 			sourcePackLineagePath: values["source-pack-lineage-path"],
 			disableConditionalHeaders: values["disable-conditional-headers"],
 		},
 		siteId,
-	};
-}
-
-function resolveLegacyBroadCrawlAdmission(input: {
-	enabled?: boolean;
-	reason?: string;
-}): CrawlSiteOptions["legacyBroadCrawlAdmission"] {
-	if (!input.enabled) {
-		if (typeof input.reason === "string" && input.reason.trim().length > 0) {
-			throw new Error("--legacy-broad-crawl is required when --legacy-broad-crawl-reason is set");
-		}
-		return;
-	}
-	if (typeof input.reason !== "string" || input.reason.trim().length === 0) {
-		throw new Error("--legacy-broad-crawl-reason is required when --legacy-broad-crawl is set");
-	}
-
-	return {
-		exclusionDecision: "legacy_contract_excluded",
-		reason: input.reason.trim(),
 	};
 }

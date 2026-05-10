@@ -70,9 +70,9 @@ export interface OfficialWebRunAdmissionCleanupServiceDependencies {
 }
 
 const LEGACY_EXCLUSION_DECISION: OfficialWebRunAdmissionDecisionValue = "legacy_contract_excluded";
-const LEGACY_EXCLUSION_REASON_CODE = "legacy_broad_crawl_contract";
+const LEGACY_EXCLUSION_REASON_CODE = "pre_target_workset_contract";
 const LEGACY_EXCLUSION_REASON =
-	"Run predates the consumer-driven official_web target-source-map and consumer-denominator contract; exclude it from projection handoff and selected-write.";
+	"Run predates the official_web target workset admission contract; exclude it from projection handoff and selected-write.";
 
 function hasConsumerDrivenEvidence(summary: Record<string, unknown> | null): boolean {
 	if (!summary) {

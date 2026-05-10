@@ -165,7 +165,7 @@ def _field_refs(
     return _candidate_field_source_refs(
         field_source_urls=field_source_urls,
         field_name=field_name,
-        fallback_source_ref=source_ref,
+        primary_source_ref=source_ref,
     )
 
 
@@ -240,12 +240,12 @@ def _service_guide_record_payload(
             material_source_refs=material_source_refs,
             entry_source_refs=entry_source_refs,
             office_source_refs=office_source_refs,
-            fallback_source_ref=source_ref,
+            primary_source_ref=source_ref,
         ),
         "procedure_groups": _service_guide_procedure_groups(
             service_id=service_id,
             procedure_groups=procedure_groups,
-            fallback_source_refs=procedure_group_source_refs,
+            primary_source_refs=procedure_group_source_refs,
         ),
         "materials": _material_refs(service_id, materials, material_source_refs),
         "entry_refs": _entry_refs(service_id, entry_points, entry_source_refs),
@@ -425,15 +425,15 @@ def _merged_service_guide_record(
             material_items=material_items,
             entry_items=entry_items,
             office_items=office_items,
-            fallback_source_ref=source_ref,
+            primary_source_ref=source_ref,
         ),
         "procedure_groups": _service_guide_procedure_groups(
             service_id=service_id,
             procedure_groups=_merged_service_guide_procedure_groups(
                 candidates=candidates,
-                fallback_source_ref=source_ref,
+                primary_source_ref=source_ref,
             ),
-            fallback_source_refs=public_source_refs,
+            primary_source_refs=public_source_refs,
         ),
         "materials": _item_materials(service_id, material_items),
         "entry_refs": _item_entries(service_id, entry_items),
@@ -454,12 +454,12 @@ def _merged_service_guide_record(
 def _items(
     candidates: list[dict[str, object]],
     field_name: str,
-    fallback_source_ref: str,
+    primary_source_ref: str,
 ) -> list[dict[str, str]]:
     return _service_guide_items_by_source(
         candidates=candidates,
         field_name=field_name,
-        fallback_source_ref=fallback_source_ref,
+        primary_source_ref=primary_source_ref,
     )
 
 

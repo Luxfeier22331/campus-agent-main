@@ -244,7 +244,7 @@ updated: 2026-05-02
 用途：
 
 - 记录 app-api 对 crawl-run 是否允许继续进入 projection / ingestion / selected-write 的控制面决策
-- 为旧契约 broad crawl cleanup 提供显式 ledger，而不是物理删除 source truth
+- 为 pre-target-workset 历史 run cleanup 提供显式 ledger，而不是物理删除 source truth
 
 最小列：
 
@@ -271,9 +271,8 @@ updated: 2026-05-02
 
 规则：
 
-- `legacy_contract_excluded` 表示该 run 来自 consumer-denominator / target-source-map
-  之前的 broad crawl 契约，只能作为历史 source ledger 保留，不得继续进入 handoff 或
-  selected-write
+- `legacy_contract_excluded` 表示该 run 来自 target workset admission 之前的历史契约，
+  只能作为历史 source ledger 保留，不得继续进入 handoff 或 selected-write
 - 该表不替代 run lifecycle status；不要把 `crawl_runs.status` 或
   `ingestion_dispatch_status` 扩展成 cleanup 语义
 - cleanup CLI 只能写 admission ledger；不删除 `crawl_runs`、`run_artifacts`、对象存储

@@ -1,8 +1,14 @@
 import { readFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
+import type {
+	OfficialWebControlPlaneClient,
+	OfficialWebControlPlanePlanResponse,
+	OfficialWebPlannerPageCandidate,
+} from "../src/control-plane";
+import type { OfficialWebPageTargetMatch } from "../src/official-web-core";
 
-export { LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST, writeTestConfigRoot } from "./test-config-root";
+export { writeTestConfigRoot } from "./test-config-root";
 
 const TEST_DIR = dirname(fileURLToPath(import.meta.url));
 const FIXTURE_DIR = resolve(TEST_DIR, "fixtures", "pages");
@@ -121,6 +127,128 @@ export const SAMPLE_VISIBLE_CONTENT_PANEL_PAGE_HTML = `
   </body>
 </html>
 `.trim();
+
+export function buildOfficialWebPlannerPageForTest(
+	overrides: Partial<OfficialWebPlannerPageCandidate> = {},
+): OfficialWebPlannerPageCandidate {
+	return {
+		cadenceClass: "target_candidate",
+		consumerFamily: "stable_reference_candidate",
+		contentType: "text/html",
+		discoveredFromUrl: null,
+		discoveryMethod: "manual_requeue",
+		etag: null,
+		fetchProfile: "target_candidate_fetch",
+		host: "www.example.edu",
+		hostPolicy: {
+			host: "www.example.edu",
+			sourceHost: "www.example.edu",
+		},
+		inventoryOnly: false,
+		lastChangeReason: "target_candidate_admitted",
+		lastChangedAt: null,
+		lastFetchDisposition: "never_fetched",
+		lastHttpStatus: null,
+		lastModified: null,
+		lastNotModifiedAt: null,
+		lastSeenAt: "2026-05-01T08:00:00.000Z",
+		lastSuccessfulRunId: null,
+		mainContentHash: null,
+		materializationPolicy: "stable_reference_release_gate",
+		nextEligibleFetchAt: "2026-05-01T08:00:00.000Z",
+		normalizedCanonicalUrl: "https://www.example.edu/",
+		pageFamily: "article_detail",
+		pageTitleNormalized: "Example target",
+		priorityScore: 90,
+		responseBodyHash: null,
+		retentionPolicy: "retain_source_truth",
+		reviewPolicy: "official_web_target_release_gate",
+		selectedWriteTarget: "official_web/stable_reference",
+		siteId: "campus_public",
+		targetCandidateId: "owcand_target",
+		targetDeclarationVersion: "campus_public_target_source_map_v2",
+		targetId: "official-web-stable-reference",
+		targetJobId: "owtarget_stable_reference",
+		worksetReason: "target_candidate_due",
+		...overrides,
+	};
+}
+
+export function buildOfficialWebTargetMatchForTest(
+	overrides: Partial<OfficialWebPageTargetMatch> = {},
+): OfficialWebPageTargetMatch {
+	return {
+		consumerFamily: "stable_reference_candidate",
+		materializationPolicy: "release_gate_required",
+		retentionPolicy: "retain_source_truth",
+		reviewPolicy: "official_web_target_release_gate",
+		selectedWriteTarget: "official_web/stable_reference",
+		targetCandidateId: "owcand_target",
+		targetDeclarationVersion: "campus_public_target_source_map_v2",
+		targetId: "official-web-stable-reference",
+		targetJobId: "owtarget_stable_reference",
+		worksetReason: "target_candidate_due",
+		...overrides,
+	};
+}
+
+export function createTargetWorksetControlPlaneForTest(
+	input: { duePages?: OfficialWebPlannerPageCandidate[]; runId?: string } = {},
+): OfficialWebControlPlaneClient {
+	const runId = input.runId ?? "owrun_target_workset_test";
+	const duePages = input.duePages ?? [buildOfficialWebPlannerPageForTest()];
+	const plan: OfficialWebControlPlanePlanResponse["plan"] = {
+		duePages,
+		hostFilter: [...new Set(duePages.map((page) => page.host))],
+		maxPagesPerHost: 10,
+		maxTotalPages: 10,
+		resolvedAt: "2026-05-01T08:00:00.000Z",
+		runIntent: "baseline",
+		siteId: "campus_public",
+		summary: {
+			duePages: duePages.length,
+			listingPages: 0,
+			repairPages: 0,
+			selectedHosts: new Set(duePages.map((page) => page.host)).size,
+			staticPages: duePages.length,
+			targetJobs: duePages.length,
+			worksetRows: duePages.length,
+		},
+	};
+
+	return {
+		async startRun() {
+			return {
+				run: {
+					runId,
+					siteId: "campus_public",
+					status: "accepted",
+					startedAt: "2026-05-01T08:00:00.000Z",
+				},
+			};
+		},
+		async resolvePlan() {
+			return { plan };
+		},
+		async sendHeartbeat() {
+			return {
+				run: {
+					runId,
+					status: "running",
+				},
+			};
+		},
+		async finalizeRun() {
+			return {
+				run: {
+					runId,
+					status: "completed",
+					finishedAt: "2026-05-01T08:05:00.000Z",
+				},
+			};
+		},
+	};
+}
 export const SAMPLE_ONCLICK_NEWS_HOME_PAGE_HTML = `
 <!doctype html>
 <html lang="zh-CN">

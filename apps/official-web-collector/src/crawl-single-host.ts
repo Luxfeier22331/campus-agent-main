@@ -50,7 +50,6 @@ export interface CrawlSingleHostInput {
 	hostPolicy: OfficialWebHostPolicy;
 	config: Configuration;
 	plannerPages: OfficialWebPlannerPageCandidate[];
-	executionMode: "target-workset" | "legacy-broad-crawl";
 	maxPagesForHost: number;
 	dynamicShellDiscoverer?: OfficialWebDynamicShellDiscoverer;
 	disableConditionalHeaders?: boolean;
@@ -100,7 +99,6 @@ export async function crawlSingleHost(
 		plan: input.plan,
 		hostPolicy: input.hostPolicy,
 		plannerPages: input.plannerPages,
-		executionMode: input.executionMode,
 		robotsState,
 		hostSummary,
 		urlResults,
@@ -233,7 +231,7 @@ export async function crawlSingleHost(
 							page: pageArtifact,
 							robotsState,
 							depth: Math.min(userData.depth + 1, input.hostPolicy.maxDepth),
-							targetWorksetOnly: input.executionMode === "target-workset",
+							targetWorksetOnly: true,
 							disableConditionalHeaders: input.disableConditionalHeaders,
 						});
 						const dynamicShellRequests = await buildDynamicShellRequeueRequests({
@@ -246,7 +244,7 @@ export async function crawlSingleHost(
 							page: pageArtifact,
 							robotsState,
 							depth: Math.min(userData.depth + 1, input.hostPolicy.maxDepth),
-							targetWorksetOnly: input.executionMode === "target-workset",
+							targetWorksetOnly: true,
 							disableConditionalHeaders: input.disableConditionalHeaders,
 							dynamicShellDiscoverer:
 								input.dynamicShellDiscoverer ?? discoverDynamicShellPromotedUrls,
@@ -346,7 +344,7 @@ export async function crawlSingleHost(
 					baseUrl: finalUrl,
 					depth: userData.depth + 1,
 					hostSummary,
-					targetWorksetOnly: input.executionMode === "target-workset",
+					targetWorksetOnly: true,
 					disableConditionalHeaders: input.disableConditionalHeaders,
 				});
 				if (nextRequests.length > 0) {

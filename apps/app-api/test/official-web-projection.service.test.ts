@@ -328,13 +328,13 @@ describe("official web projection projector", () => {
 		});
 	});
 
-	it("marks legacy-excluded run events processed without projection or handoff", async () => {
+	it("marks pre-target-workset excluded run events processed without projection or handoff", async () => {
 		const store: OfficialWebProjectionProjectorStore = {
 			getRunAdmissionDecision: vi.fn().mockResolvedValue({
 				decidedAt: "2026-05-01T09:00:00.000Z",
 				decision: "legacy_contract_excluded",
 				decisionId: "owad_legacy_01HQ",
-				reasonCode: "legacy_broad_crawl_contract",
+				reasonCode: "pre_target_workset_contract",
 				runId: "owrun_01HQ",
 				siteId: "www_muc_edu_cn",
 			}),

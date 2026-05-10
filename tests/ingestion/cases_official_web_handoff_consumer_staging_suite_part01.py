@@ -51,7 +51,7 @@ class OfficialWebHandoffConsumerStagingTestPart01(unittest.TestCase):
             },
             run_admission_decision={
                 "decision": "legacy_contract_excluded",
-                "reasonCode": "legacy_broad_crawl_contract",
+                "reasonCode": "pre_target_workset_contract",
                 "runId": "owrun_legacy_excluded",
                 "siteId": "campus_public",
             },

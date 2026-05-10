@@ -107,7 +107,7 @@ def build_selected_write_release_task_from_candidate(
         source_ref.get("raw_version_id") or source_ref.get("rawVersionId"),
         "source_ref.raw_version_id",
     )
-    source_refs = _source_refs(candidate=candidate, fallback_source_ref=source_ref)
+    source_refs = _source_refs(candidate=candidate, primary_source_ref=source_ref)
     source_urls = _source_urls_from_refs(
         source_refs=source_refs,
         fallback_url=_required_text(
@@ -232,7 +232,7 @@ def _release_input_ref(
 def _source_refs(
     *,
     candidate: Mapping[str, Any],
-    fallback_source_ref: Mapping[str, Any],
+    primary_source_ref: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
     raw_refs = candidate.get("source_refs") or candidate.get("sourceRefs")
     refs: list[dict[str, Any]] = []
@@ -266,23 +266,22 @@ def _source_refs(
         refs.append(
             {
                 "source_channel": _optional_text(
-                    fallback_source_ref.get("source_channel")
-                    or fallback_source_ref.get("sourceChannel")
+                    primary_source_ref.get("source_channel")
+                    or primary_source_ref.get("sourceChannel")
                 )
                 or "official_web",
                 "raw_asset_id": _required_text(
-                    fallback_source_ref.get("raw_asset_id")
-                    or fallback_source_ref.get("rawAssetId"),
+                    primary_source_ref.get("raw_asset_id") or primary_source_ref.get("rawAssetId"),
                     "source_ref.raw_asset_id",
                 ),
                 "raw_version_id": _required_text(
-                    fallback_source_ref.get("raw_version_id")
-                    or fallback_source_ref.get("rawVersionId"),
+                    primary_source_ref.get("raw_version_id")
+                    or primary_source_ref.get("rawVersionId"),
                     "source_ref.raw_version_id",
                 ),
                 "normalized_canonical_url": _required_text(
-                    fallback_source_ref.get("normalized_canonical_url")
-                    or fallback_source_ref.get("normalizedCanonicalUrl"),
+                    primary_source_ref.get("normalized_canonical_url")
+                    or primary_source_ref.get("normalizedCanonicalUrl"),
                     "source_ref.normalized_canonical_url",
                 ),
             }

@@ -4,12 +4,7 @@ import { resolve } from "node:path";
 
 import { expect, it } from "vitest";
 
-import {
-	buildOfficialWebCrawlPlan,
-	buildOfficialWebSchedulerPlan,
-	loadOfficialWebConfig,
-	resolveOfficialWebConfigPaths,
-} from "../src/index";
+import { loadOfficialWebConfig } from "../src/index";
 import {
 	writeMinimalConsumerDenominator,
 	writeMinimalSourcePackManifest,

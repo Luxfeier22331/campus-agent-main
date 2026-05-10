@@ -161,9 +161,9 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 
 - collector 默认执行必须 fail closed：没有 `app-api` target workset admission 时，不得从
   `enabled hosts` 或 `hostFilter` 自行推导 collection scope
-- `hostFilter` 只允许缩小已准入 target workset 或显式 legacy/debug run；它不是 target admission
-- 显式 legacy/debug run 必须携带 `legacy_contract_excluded` 语义，并被视为 operator/debug
-  证据路径，不是默认采集路径
+- `hostFilter` 只允许缩小已准入 target workset；它不是 target admission
+- 不再允许显式 legacy/debug collector run；`legacy_contract_excluded` 只用于标记和阻断
+  pre-target-workset 历史 run
 - `apps/app-api` 在 `official_web.run_admission_decisions` 写入 run-level
   admission ledger
 - 当前 legacy cleanup decision 使用 `legacy_contract_excluded`

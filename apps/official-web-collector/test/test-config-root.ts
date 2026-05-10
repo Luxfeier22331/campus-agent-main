@@ -4,11 +4,6 @@ import { resolve } from "node:path";
 
 import { writeTestTargetConfigFiles } from "./test-config-root-targets";
 
-export const LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST = {
-	exclusionDecision: "legacy_contract_excluded",
-	reason: "collector test exercises legacy crawl executor explicitly",
-};
-
 export function writeTestConfigRoot(
 	options: { consumerDenominatorEnforcementMode?: "audit_only" | "retain_matching_only" } = {},
 ): { configRoot: string; outputDir: string } {
@@ -398,4 +393,3 @@ export function writeTestConfigRoot(
 		outputDir: resolve(root, "output"),
 	};
 }
-

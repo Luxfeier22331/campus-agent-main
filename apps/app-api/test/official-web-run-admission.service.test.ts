@@ -8,15 +8,15 @@ import {
 } from "../src/modules/official-web-run-admission";
 
 describe("official web run admission cleanup service", () => {
-	it("classifies legacy broad crawls without existing decisions in dry-run mode", async () => {
+	it("classifies pre-target-workset runs without existing decisions in dry-run mode", async () => {
 		const store: OfficialWebRunAdmissionCleanupStore = {
 			insertLegacyExclusionDecisions: vi.fn(),
 			listCleanupCandidates: vi.fn().mockResolvedValue([
 				{
 					configVersion: "git:legacy",
-					runId: "owrun_legacy_broad",
+					runId: "owrun_pre_target_workset",
 					runIntent: "baseline",
-					schedulerRunKey: "muc_public:legacy-broad:2026-04-27",
+					schedulerRunKey: "muc_public:pre-target-workset:2026-04-27",
 					siteId: "muc_public",
 					startedAt: "2026-04-27T08:00:00.000Z",
 					summary: {
@@ -46,8 +46,8 @@ describe("official web run admission cleanup service", () => {
 			candidates: [
 				expect.objectContaining({
 					decisionId: "owad_legacy_001",
-					reasonCode: "legacy_broad_crawl_contract",
-					runId: "owrun_legacy_broad",
+					reasonCode: "pre_target_workset_contract",
+					runId: "owrun_pre_target_workset",
 					siteId: "muc_public",
 				}),
 			],
@@ -61,9 +61,9 @@ describe("official web run admission cleanup service", () => {
 			listCleanupCandidates: vi.fn().mockResolvedValue([
 				{
 					configVersion: "git:legacy",
-					runId: "owrun_legacy_broad",
+					runId: "owrun_pre_target_workset",
 					runIntent: "baseline",
-					schedulerRunKey: "muc_public:legacy-broad:2026-04-27",
+					schedulerRunKey: "muc_public:pre-target-workset:2026-04-27",
 					siteId: "muc_public",
 					startedAt: "2026-04-27T08:00:00.000Z",
 					summary: {
@@ -89,8 +89,8 @@ describe("official web run admission cleanup service", () => {
 			expect.objectContaining({
 				decision: "legacy_contract_excluded",
 				decisionId: "owad_legacy_001",
-				reasonCode: "legacy_broad_crawl_contract",
-				runId: "owrun_legacy_broad",
+				reasonCode: "pre_target_workset_contract",
+				runId: "owrun_pre_target_workset",
 			}),
 		]);
 	});

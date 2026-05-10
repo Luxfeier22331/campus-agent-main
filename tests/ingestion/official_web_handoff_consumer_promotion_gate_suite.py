@@ -29,6 +29,18 @@ from .official_web_handoff_consumer_test_support import (
 
 
 class OfficialWebHandoffConsumerPromotionGateTest(unittest.TestCase):
+    def test_resolve_persist_object_store_settings_requires_configured_env(self) -> None:
+        with (
+            patch.dict("os.environ", {}, clear=True),
+            self.assertRaises(ValueError) as raised,
+        ):
+            consumer_runtime.resolve_persist_object_store_settings(
+                source_bucket="official-web-source",
+                require_env=False,
+            )
+
+        self.assertIn("OBJECT_STORE_ENDPOINT", str(raised.exception))
+
     def test_persist_projection_output_refreshes_each_promotable_target_scope(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)
@@ -87,7 +99,7 @@ class OfficialWebHandoffConsumerPromotionGateTest(unittest.TestCase):
                 )
 
             with patch(
-                "campus_ingestion_worker.official_web_handoff_consumer_runtime.import_projection_output",
+                "campus_ingestion_worker.official_web_handoff_consumer_persistence.import_projection_output",
                 side_effect=fake_import_projection_output,
             ):
                 report = consumer_runtime.persist_projection_output(

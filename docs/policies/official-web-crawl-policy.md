@@ -67,8 +67,8 @@ admission、robots/sitemap、frontier、重试与节流 policy。
 page 是否值得 retained 为 source-truth candidate。二者不得合并：允许 crawl 不等于允许进入
 downstream candidate。
 
-执行层还必须额外满足 run admission：`host_filter` 只能缩小已准入的 target workset 或显式
-legacy/debug run，不能单独把 host allowlist 提升为 collection target。
+执行层还必须额外满足 run admission：`host_filter` 只能缩小已准入的 target workset，不能
+单独把 host allowlist 提升为 collection target。
 
 ### Site-level policy
 

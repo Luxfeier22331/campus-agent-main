@@ -74,25 +74,11 @@ export interface CrawlSiteOptions {
 	maxTotalPages?: number;
 	artifactStore?: OfficialWebArtifactStore;
 	controlPlaneClient?: OfficialWebControlPlaneClient;
-	legacyBroadCrawlAdmission?: LegacyBroadCrawlAdmissionInput;
 	sourcePackLineagePath?: string;
 	dynamicShellDiscoverer?: OfficialWebDynamicShellDiscoverer;
 	disableConditionalHeaders?: boolean;
 	crawlHosts?: (input: CrawlHostsWithCrawleeInput) => Promise<CollectorAggregatedResults>;
 }
-
-export interface LegacyBroadCrawlAdmission {
-	exclusionDecision: "legacy_contract_excluded";
-	reason: string;
-}
-
-export type LegacyBroadCrawlAdmissionInput =
-	| LegacyBroadCrawlAdmission
-	| {
-			reason: string;
-	  };
-
-type OfficialWebCollectorExecutionMode = "target-workset" | "legacy-broad-crawl";
 
 export interface CrawlSiteResult {
 	outputDir: string;
@@ -107,8 +93,7 @@ export interface CrawlSiteResult {
 	pages: CollectedPageArtifact[];
 	dynamicShellDiscoveryAudits: OfficialWebDynamicShellDiscoveryAudit[];
 	uploadedArtifacts: OfficialWebRunArtifactRef[];
-	legacyBroadCrawlAdmission?: LegacyBroadCrawlAdmission;
-	executionMode: OfficialWebCollectorExecutionMode;
+	executionMode: "target-workset";
 }
 
 export async function crawlSite(
@@ -119,17 +104,15 @@ export async function crawlSite(
 		repoRoot: options.repoRoot,
 		configRoot: options.configRoot,
 	});
-	const legacyBroadCrawlAdmission = normalizeLegacyBroadCrawlAdmission(
-		options.legacyBroadCrawlAdmission,
-	);
-	const executionMode: OfficialWebCollectorExecutionMode = options.controlPlaneClient
-		? "target-workset"
-		: "legacy-broad-crawl";
 	assertCollectorRunAdmission({
 		hasControlPlaneAdmission: options.controlPlaneClient != null,
 		hasHostFilter: (options.hostFilter?.length ?? 0) > 0,
-		legacyBroadCrawlAdmission,
 	});
+	const controlPlaneClient = options.controlPlaneClient;
+	if (!controlPlaneClient) {
+		throw new Error("official-web collector requires app-api target workset admission");
+	}
+	const executionMode = "target-workset" as const;
 	let plan = buildCollectorPlan(siteId, {
 		repoRoot: options.repoRoot,
 		configRoot: options.configRoot,
@@ -145,73 +128,45 @@ export async function crawlSite(
 	const maxTotalPages = options.maxTotalPages ?? plan.runLimits.maxTotalPagesPerRun;
 	const sourcePackLineageOverrides = loadSourcePackLineageOverrides(options.sourcePackLineagePath);
 
-	if (options.controlPlaneClient) {
-		const started = await options.controlPlaneClient.startRun({
-			siteId: plan.siteId,
-			schedulerRunKey: options.schedulerRunKey ?? options.crawlRunId ?? plan.crawlRunId,
-			runIntent: plan.runIntent,
-			triggerType: options.triggerType ?? "manual",
-			collectorVersion,
-			configVersion: bundle.site.configVersion,
-			crawlPolicyVersion: bundle.site.crawlPolicyVersion,
-			hostSet: selectedHosts.map((item) => item.host),
-			seedSet: plan.seeds.map((item) => item.url),
-			startedAt,
-			traceId: options.traceId,
+	const started = await controlPlaneClient.startRun({
+		siteId: plan.siteId,
+		schedulerRunKey: options.schedulerRunKey ?? options.crawlRunId ?? plan.crawlRunId,
+		runIntent: plan.runIntent,
+		triggerType: options.triggerType ?? "manual",
+		collectorVersion,
+		configVersion: bundle.site.configVersion,
+		crawlPolicyVersion: bundle.site.crawlPolicyVersion,
+		hostSet: selectedHosts.map((item) => item.host),
+		seedSet: plan.seeds.map((item) => item.url),
+		startedAt,
+		traceId: options.traceId,
+	});
+	if (started.run.runId !== plan.crawlRunId) {
+		plan = buildCollectorPlan(siteId, {
+			repoRoot: options.repoRoot,
+			configRoot: options.configRoot,
+			crawlRunId: started.run.runId,
+			runIntent: options.runIntent,
 		});
-		if (started.run.runId !== plan.crawlRunId) {
-			plan = buildCollectorPlan(siteId, {
-				repoRoot: options.repoRoot,
-				configRoot: options.configRoot,
-				crawlRunId: started.run.runId,
-				runIntent: options.runIntent,
-			});
-			selectedHosts = buildSelectedHosts(plan, options.hostFilter);
-		}
+		selectedHosts = buildSelectedHosts(plan, options.hostFilter);
 	}
 
-	const dynamicPlan = options.controlPlaneClient
-		? await options.controlPlaneClient.resolvePlan({
-				hostFilter: selectedHosts.map((item) => item.host),
-				maxPagesPerHost,
-				maxTotalPages,
-				now: new Date().toISOString(),
-				runIntent: plan.runIntent,
-				siteId: plan.siteId,
-				targetCandidateIds: options.targetCandidateIds ?? [],
-				traceId: options.traceId,
-			})
-		: {
-				plan: {
-					duePages: [],
-					hostFilter: selectedHosts.map((item) => item.host),
-					maxPagesPerHost,
-					maxTotalPages,
-					resolvedAt: new Date().toISOString(),
-					runIntent: plan.runIntent,
-					siteId: plan.siteId,
-					summary: {
-						duePages: 0,
-						listingPages: 0,
-						repairPages: 0,
-						selectedHosts: 0,
-						staticPages: 0,
-						targetJobs: 0,
-						worksetRows: 0,
-					},
-				},
-			};
+	const dynamicPlan = await controlPlaneClient.resolvePlan({
+		hostFilter: selectedHosts.map((item) => item.host),
+		maxPagesPerHost,
+		maxTotalPages,
+		now: new Date().toISOString(),
+		runIntent: plan.runIntent,
+		siteId: plan.siteId,
+		targetCandidateIds: options.targetCandidateIds ?? [],
+		traceId: options.traceId,
+	});
 
 	const executionHostFilter = resolveExecutionHostFilter({
 		dynamicPlan: dynamicPlan.plan,
-		executionMode,
-		fallbackHosts: selectedHosts.map((item) => item.host),
 	});
 	selectedHosts = buildSelectedHosts(plan, executionHostFilter);
-	const targetWorksetProgressCounts =
-		executionMode === "target-workset"
-			? buildTargetWorksetProgressCounts(dynamicPlan.plan.duePages)
-			: {};
+	const targetWorksetProgressCounts = buildTargetWorksetProgressCounts(dynamicPlan.plan.duePages);
 
 	const outputDir = options.outputDir ?? defaultCollectorOutputDir(plan.siteId, plan.crawlRunId);
 	mkdirSync(outputDir, { recursive: true });
@@ -225,12 +180,9 @@ export async function crawlSite(
 	let latestPages: CollectedPageArtifact[] = [];
 	const reportProgress = async (counts: CollectorProgressCounts): Promise<void> => {
 		latestProgress = counts;
-		if (!options.controlPlaneClient) {
-			return;
-		}
 
 		heartbeatSequence += 1;
-		await options.controlPlaneClient.sendHeartbeat({
+		await controlPlaneClient.sendHeartbeat({
 			runId: plan.crawlRunId,
 			sequence: heartbeatSequence,
 			observedAt: new Date().toISOString(),
@@ -247,7 +199,6 @@ export async function crawlSite(
 						dynamicPlan: dynamicPlan.plan,
 						plan,
 						config,
-						executionMode,
 						hostFilter: executionHostFilter,
 						maxPagesPerHost,
 						maxTotalPages,
@@ -261,7 +212,6 @@ export async function crawlSite(
 						dynamicPlan: dynamicPlan.plan,
 						plan,
 						config,
-						executionMode,
 						hostFilter: executionHostFilter,
 						maxPagesPerHost,
 						maxTotalPages,
@@ -331,7 +281,6 @@ export async function crawlSite(
 			normalizedResults.pages,
 			{
 				collectionMode: executionMode,
-				legacyBroadCrawlAdmission,
 			},
 		);
 		const qualityAudit = buildCollectorQualityAudit({
@@ -371,31 +320,26 @@ export async function crawlSite(
 		};
 		latestProgress = finalProgress;
 
-		if (
-			options.controlPlaneClient &&
-			(heartbeatSequence === 0 || !sameProgressCounts(previousProgress, finalProgress))
-		) {
+		if (heartbeatSequence === 0 || !sameProgressCounts(previousProgress, finalProgress)) {
 			await reportProgress(finalProgress);
 		}
 
-		if (options.controlPlaneClient) {
-			await options.controlPlaneClient.finalizeRun({
-				runId: plan.crawlRunId,
-				terminalStatus: crawlStatus,
-				finishedAt,
-				pageObservations,
-				summary: {
-					urlsDiscovered: normalizedResults.urlResults.length,
-					urlsFetched: normalizedResults.urlResults.filter((item) => item.outcome === "fetched")
-						.length,
-					pagesNormalized: normalizedResults.pages.length,
-					rawAssetsObserved: countUniqueRawAssets(normalizedResults.pages),
-					failureCount: normalizedResults.failures.length,
-				},
-				artifacts: uploadResult.uploadedArtifacts,
-				traceId: options.traceId,
-			});
-		}
+		await controlPlaneClient.finalizeRun({
+			runId: plan.crawlRunId,
+			terminalStatus: crawlStatus,
+			finishedAt,
+			pageObservations,
+			summary: {
+				urlsDiscovered: normalizedResults.urlResults.length,
+				urlsFetched: normalizedResults.urlResults.filter((item) => item.outcome === "fetched")
+					.length,
+				pagesNormalized: normalizedResults.pages.length,
+				rawAssetsObserved: countUniqueRawAssets(normalizedResults.pages),
+				failureCount: normalizedResults.failures.length,
+			},
+			artifacts: uploadResult.uploadedArtifacts,
+			traceId: options.traceId,
+		});
 
 		return {
 			outputDir,
@@ -410,30 +354,27 @@ export async function crawlSite(
 			pages: normalizedResults.pages,
 			dynamicShellDiscoveryAudits: normalizedResults.dynamicShellDiscoveryAudits ?? [],
 			uploadedArtifacts: uploadResult.uploadedArtifacts,
-			legacyBroadCrawlAdmission,
 			executionMode,
 		};
 	} catch (error) {
-		if (options.controlPlaneClient) {
-			try {
-				await options.controlPlaneClient.finalizeRun({
-					runId: plan.crawlRunId,
-					terminalStatus: "failed",
-					finishedAt: new Date().toISOString(),
-					pageObservations: [],
-					summary: {
-						urlsDiscovered: latestProgress.urlsDiscovered,
-						urlsFetched: latestProgress.urlsFetched,
-						pagesNormalized: latestProgress.pagesNormalized,
-						rawAssetsObserved: countUniqueRawAssets(latestPages),
-						failureCount: Math.max(latestProgress.failures, 1),
-					},
-					artifacts: [],
-					traceId: options.traceId,
-				});
-			} catch {
-				// Preserve the original crawl failure and avoid masking it with finalize noise.
-			}
+		try {
+			await controlPlaneClient.finalizeRun({
+				runId: plan.crawlRunId,
+				terminalStatus: "failed",
+				finishedAt: new Date().toISOString(),
+				pageObservations: [],
+				summary: {
+					urlsDiscovered: latestProgress.urlsDiscovered,
+					urlsFetched: latestProgress.urlsFetched,
+					pagesNormalized: latestProgress.pagesNormalized,
+					rawAssetsObserved: countUniqueRawAssets(latestPages),
+					failureCount: Math.max(latestProgress.failures, 1),
+				},
+				artifacts: [],
+				traceId: options.traceId,
+			});
+		} catch {
+			// Preserve the original crawl failure and avoid masking it with finalize noise.
 		}
 		throw error;
 	}
@@ -452,34 +393,11 @@ function loadSourcePackLineageOverrides(
 	return payload as Record<string, CollectorSourcePackLineageOverride>;
 }
 
-function normalizeLegacyBroadCrawlAdmission(
-	admission: CrawlSiteOptions["legacyBroadCrawlAdmission"],
-): LegacyBroadCrawlAdmission | undefined {
-	if (admission == null) {
-		return;
-	}
-	const reason = admission.reason.trim();
-	if (reason.length === 0) {
-		throw new Error("legacy broad crawl admission requires a non-empty reason.");
-	}
-
-	return {
-		exclusionDecision: "legacy_contract_excluded",
-		reason,
-	};
-}
-
 function resolveExecutionHostFilter(input: {
 	dynamicPlan: {
 		duePages: Array<{ host?: string; normalizedCanonicalUrl: string }>;
 	};
-	executionMode: OfficialWebCollectorExecutionMode;
-	fallbackHosts: string[];
 }): string[] {
-	if (input.executionMode !== "target-workset") {
-		return input.fallbackHosts;
-	}
-
 	return [
 		...new Set(
 			input.dynamicPlan.duePages
@@ -495,20 +413,14 @@ function resolveExecutionHostFilter(input: {
 function assertCollectorRunAdmission(input: {
 	hasControlPlaneAdmission: boolean;
 	hasHostFilter: boolean;
-	legacyBroadCrawlAdmission?: LegacyBroadCrawlAdmission;
 }): void {
-	if (input.hasControlPlaneAdmission && input.legacyBroadCrawlAdmission) {
-		throw new Error(
-			"legacy broad crawl admission cannot be combined with app-api target workset admission; record legacy exclusion in app-api instead.",
-		);
-	}
-	if (input.hasControlPlaneAdmission || input.legacyBroadCrawlAdmission) {
+	if (input.hasControlPlaneAdmission) {
 		return;
 	}
 
 	const hostFilterNote = input.hasHostFilter ? " hostFilter cannot create target scope." : "";
 	throw new Error(
-		`official-web collector requires app-api target workset admission or explicit legacy broad crawl admission.${hostFilterNote}`,
+		`official-web collector requires app-api target workset admission.${hostFilterNote}`,
 	);
 }
 

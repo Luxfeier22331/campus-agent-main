@@ -4,7 +4,11 @@ import { load } from "cheerio";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST, writeTestConfigRoot } from "./test-support";
+import {
+	buildOfficialWebPlannerPageForTest,
+	createTargetWorksetControlPlaneForTest,
+	writeTestConfigRoot,
+} from "./test-support";
 
 const CRAWL_TEST_TIMEOUT_MS = 30_000;
 
@@ -220,7 +224,29 @@ describe("official-web-collector multi-host crawl", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_multi_host_queue",
-				legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+				controlPlaneClient: createTargetWorksetControlPlaneForTest({
+					runId: "owrun_multi_host_queue",
+					duePages: [
+						buildOfficialWebPlannerPageForTest({
+							host: "www.example.edu",
+							hostPolicy: {
+								host: "www.example.edu",
+								sourceHost: "www.example.edu",
+							},
+							normalizedCanonicalUrl: "https://www.example.edu/",
+							targetCandidateId: "owcand_www_home",
+						}),
+						buildOfficialWebPlannerPageForTest({
+							host: "news.example.edu",
+							hostPolicy: {
+								host: "news.example.edu",
+								sourceHost: "news.example.edu",
+							},
+							normalizedCanonicalUrl: "https://news.example.edu/",
+							targetCandidateId: "owcand_news_home",
+						}),
+					],
+				}),
 				hostFilter: ["www.example.edu", "news.example.edu"],
 				maxPagesPerHost: 1,
 				maxTotalPages: 2,
@@ -243,7 +269,19 @@ describe("official-web-collector multi-host crawl", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_unknown_host_filter",
-				legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+				controlPlaneClient: createTargetWorksetControlPlaneForTest({
+					runId: "owrun_unknown_host_filter",
+					duePages: [
+						buildOfficialWebPlannerPageForTest({
+							host: "ethnology.example.edu",
+							hostPolicy: {
+								host: "ethnology.example.edu",
+								sourceHost: "ethnology.example.edu",
+							},
+							normalizedCanonicalUrl: "https://ethnology.example.edu/",
+						}),
+					],
+				}),
 				hostFilter: ["ethnology.example.edu"],
 				maxPagesPerHost: 1,
 				maxTotalPages: 1,

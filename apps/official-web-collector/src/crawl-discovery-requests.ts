@@ -1,4 +1,4 @@
-import { type CheerioCrawlingContext, Sitemap } from "crawlee";
+import type { CheerioCrawlingContext } from "crawlee";
 import type { OfficialWebPlannerPageCandidate } from "./control-plane.ts";
 import type { CollectorRequestUserData, CollectorRobotsState } from "./crawl-internal-types.ts";
 import { buildRobotsUserAgent } from "./crawl-support.ts";
@@ -17,7 +17,6 @@ export async function buildInitialRequests(input: {
 	plan: OfficialWebCrawlPlan;
 	hostPolicy: OfficialWebHostPolicy;
 	plannerPages: OfficialWebPlannerPageCandidate[];
-	executionMode?: "target-workset" | "legacy-broad-crawl";
 	robotsState: CollectorRobotsState;
 	hostSummary: OfficialWebHostSummaryRecord;
 	urlResults: OfficialWebUrlResultRecord[];
@@ -31,31 +30,6 @@ export async function buildInitialRequests(input: {
 		knownPages?: OfficialWebPlannerPageCandidate[];
 	}> = [];
 
-	if (input.executionMode !== "target-workset") {
-		candidates.push(
-			...input.hostPolicy.seedUrls.map((url) => ({
-				url,
-				discoveryMethod: "seed" as const,
-			})),
-		);
-
-		const robotsSitemaps = input.robotsState.robots?.getSitemaps() ?? [];
-		if (robotsSitemaps.length > 0) {
-			const discoveredUrls = await loadSitemapUrls(robotsSitemaps);
-			for (const url of discoveredUrls) {
-				candidates.push({ url, discoveryMethod: "robots_sitemap" });
-			}
-		}
-		const configuredOnly = input.hostPolicy.explicitSitemaps.filter(
-			(url) => !robotsSitemaps.includes(url),
-		);
-		if (configuredOnly.length > 0) {
-			const discoveredUrls = await loadSitemapUrls(configuredOnly);
-			for (const url of discoveredUrls) {
-				candidates.push({ url, discoveryMethod: "configured_sitemap" });
-			}
-		}
-	}
 	for (const page of input.plannerPages) {
 		candidates.push({
 			url: page.normalizedCanonicalUrl,
@@ -277,12 +251,4 @@ export function buildConditionalHeaders(
 		headers.ifModifiedSince = page.lastModified;
 	}
 	return headers.ifNoneMatch || headers.ifModifiedSince ? headers : undefined;
-}
-
-async function loadSitemapUrls(urls: string[]): Promise<string[]> {
-	if (urls.length === 0) {
-		return [];
-	}
-	const sitemap = await Sitemap.load(urls);
-	return sitemap.urls;
 }

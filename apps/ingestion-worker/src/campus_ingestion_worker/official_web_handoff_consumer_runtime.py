@@ -4,7 +4,6 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 from campus_ingestion_core import (
-    DEFAULT_BUCKET_DERIVED,
     ObjectStoreSettings,
     audit_official_web_projection_chunking,
     build_document_registry_from_env,
@@ -697,21 +696,9 @@ def resolve_persist_object_store_settings(
     source_bucket: str,
     require_env: bool,
 ) -> ObjectStoreSettings:
-    if require_env:
-        return ObjectStoreSettings.from_env()
+    del require_env
 
-    try:
-        env_settings = ObjectStoreSettings.from_env()
-    except ValueError:
-        return ObjectStoreSettings(
-            endpoint="http://localhost",
-            access_key="official-web-placeholder",
-            secret_key="official-web-placeholder",
-            bucket_source=source_bucket,
-            bucket_derived=DEFAULT_BUCKET_DERIVED,
-            secure=False,
-        )
-
+    env_settings = ObjectStoreSettings.from_env()
     return ObjectStoreSettings(
         endpoint=env_settings.endpoint,
         access_key=env_settings.access_key,

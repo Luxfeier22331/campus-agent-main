@@ -28,7 +28,7 @@ def _with_public_service_guide_source_refs(
                 "source_refs": _public_item_source_refs(
                     item=item,
                     public_source_refs=source_refs,
-                    fallback_source_ref=primary_source_ref,
+                    primary_source_ref=primary_source_ref,
                 ),
             }
             for item in _mapping_list(value)
@@ -43,7 +43,7 @@ def _with_public_service_guide_source_refs(
                     "source_refs": _public_item_source_refs(
                         item=step,
                         public_source_refs=source_refs,
-                        fallback_source_ref=primary_source_ref,
+                        primary_source_ref=primary_source_ref,
                     ),
                 }
                 for step in _mapping_list(group.get("steps"))
@@ -55,7 +55,7 @@ def _with_public_service_guide_source_refs(
                     "source_refs": _public_item_source_refs(
                         item=group,
                         public_source_refs=source_refs,
-                        fallback_source_ref=primary_source_ref,
+                        primary_source_ref=primary_source_ref,
                     ),
                 }
             )
@@ -77,23 +77,23 @@ def _candidate_field_source_refs(
     *,
     field_source_urls: Mapping[str, object],
     field_name: str,
-    fallback_source_ref: str,
+    primary_source_ref: str,
 ) -> list[str]:
-    return _unique_strings(_string_list(field_source_urls.get(field_name)) or [fallback_source_ref])
+    return _unique_strings(_string_list(field_source_urls.get(field_name)) or [primary_source_ref])
 
 
 def _public_item_source_refs(
     *,
     item: Mapping[str, object],
     public_source_refs: Sequence[str],
-    fallback_source_ref: str,
+    primary_source_ref: str,
 ) -> list[str]:
     source_refs = _string_list(item.get("source_refs"))
     if not source_refs:
-        return [fallback_source_ref]
+        return [primary_source_ref]
     public_ref_set = set(public_source_refs)
     public_refs = [source_ref for source_ref in source_refs if source_ref in public_ref_set]
-    return _unique_strings(public_refs or [fallback_source_ref])
+    return _unique_strings(public_refs or [primary_source_ref])
 
 
 def _selected_write_effective_from(
@@ -152,7 +152,7 @@ def _service_guide_sections(
     material_source_refs: list[str],
     entry_source_refs: list[str],
     office_source_refs: list[str],
-    fallback_source_ref: str,
+    primary_source_ref: str,
 ) -> list[dict[str, object]]:
     sections: list[dict[str, object]] = []
     if process_steps:
@@ -201,7 +201,7 @@ def _service_guide_sections(
                 source_refs=office_source_refs,
             )
         )
-    return sections or [_overview_section(service_id, display_name, fallback_source_ref)]
+    return sections or [_overview_section(service_id, display_name, primary_source_ref)]
 
 
 def _service_guide_section(
@@ -231,7 +231,7 @@ def _service_guide_sections_from_items(
     material_items: list[dict[str, str]],
     entry_items: list[dict[str, str]],
     office_items: list[dict[str, str]],
-    fallback_source_ref: str,
+    primary_source_ref: str,
 ) -> list[dict[str, object]]:
     sections: list[dict[str, object]] = []
     for key, title, items, order in (
@@ -252,7 +252,7 @@ def _service_guide_sections_from_items(
                 source_refs=_unique_strings([item["source_ref"] for item in items]),
             )
         )
-    return sections or [_overview_section(service_id, display_name, fallback_source_ref)]
+    return sections or [_overview_section(service_id, display_name, primary_source_ref)]
 
 
 def _section_content(*, key: str, items: list[dict[str, str]]) -> str:
@@ -262,7 +262,7 @@ def _section_content(*, key: str, items: list[dict[str, str]]) -> str:
 
 
 def _overview_section(
-    service_id: str, display_name: str, fallback_source_ref: str
+    service_id: str, display_name: str, primary_source_ref: str
 ) -> dict[str, object]:
     return {
         "section_id": f"{service_id}:section:overview",
@@ -270,7 +270,7 @@ def _overview_section(
         "title": display_name,
         "content": display_name,
         "order": 1,
-        "source_refs": [fallback_source_ref],
+        "source_refs": [primary_source_ref],
     }
 
 
@@ -278,13 +278,13 @@ def _service_guide_items_by_source(
     *,
     candidates: Sequence[Mapping[str, object]],
     field_name: str,
-    fallback_source_ref: str,
+    primary_source_ref: str,
 ) -> list[dict[str, str]]:
     items: list[dict[str, str]] = []
     seen: set[tuple[str, str]] = set()
     for candidate in candidates:
         typed_candidate = _object_mapping(candidate.get("typed_candidate"))
-        source_ref = _candidate_public_source_ref(candidate) or fallback_source_ref
+        source_ref = _candidate_public_source_ref(candidate) or primary_source_ref
         for text in _string_list(typed_candidate.get(field_name)):
             key = (text, source_ref)
             if key in seen:
@@ -297,7 +297,7 @@ def _service_guide_items_by_source(
 def _merged_service_guide_procedure_groups(
     *,
     candidates: Sequence[Mapping[str, object]],
-    fallback_source_ref: str,
+    primary_source_ref: str,
 ) -> list[dict[str, object]]:
     merged: list[dict[str, object]] = []
     seen: set[str] = set()
@@ -313,7 +313,7 @@ def _merged_service_guide_procedure_groups(
                     **group,
                     "source_refs": _unique_strings(
                         _string_list(group.get("source_refs"))
-                        or [_candidate_public_source_ref(candidate) or fallback_source_ref]
+                        or [_candidate_public_source_ref(candidate) or primary_source_ref]
                     ),
                 }
             )
@@ -324,7 +324,7 @@ def _service_guide_procedure_groups(
     *,
     service_id: str,
     procedure_groups: Sequence[Mapping[str, object]],
-    fallback_source_refs: Sequence[str],
+    primary_source_refs: Sequence[str],
 ) -> list[dict[str, object]]:
     groups: list[dict[str, object]] = []
     for order, group in enumerate(procedure_groups, start=1):
@@ -337,7 +337,7 @@ def _service_guide_procedure_groups(
         steps = _service_guide_group_steps(
             group_id=group_id,
             raw_steps=_mapping_list(group.get("steps")),
-            fallback_source_refs=fallback_source_refs,
+            primary_source_refs=primary_source_refs,
         )
         if not steps:
             continue
@@ -349,7 +349,7 @@ def _service_guide_procedure_groups(
                 "order": int(group.get("order") or order),
                 "steps": steps,
                 "source_refs": _unique_strings(
-                    _string_list(group.get("source_refs")) or list(fallback_source_refs)
+                    _string_list(group.get("source_refs")) or list(primary_source_refs)
                 ),
             }
         )
@@ -360,7 +360,7 @@ def _service_guide_group_steps(
     *,
     group_id: str,
     raw_steps: list[dict[str, object]],
-    fallback_source_refs: Sequence[str],
+    primary_source_refs: Sequence[str],
 ) -> list[dict[str, object]]:
     steps: list[dict[str, object]] = []
     for step_order, raw_step in enumerate(raw_steps, start=1):
@@ -374,7 +374,7 @@ def _service_guide_group_steps(
                 "content": content,
                 "order": step_order,
                 "source_refs": _unique_strings(
-                    _string_list(raw_step.get("source_refs")) or list(fallback_source_refs)
+                    _string_list(raw_step.get("source_refs")) or list(primary_source_refs)
                 ),
             }
         )

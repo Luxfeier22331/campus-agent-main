@@ -5,7 +5,8 @@ import { load } from "cheerio";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 import {
-	LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+	buildOfficialWebPlannerPageForTest,
+	createTargetWorksetControlPlaneForTest,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
 	SAMPLE_NEWS_ARTICLE_DETAIL_HTML,
 	writeTestConfigRoot,
@@ -232,7 +233,23 @@ describe("official-web-collector dynamic shell crawl", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_dynamic_shell",
-				legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+				controlPlaneClient: createTargetWorksetControlPlaneForTest({
+					runId: "owrun_dynamic_shell",
+					duePages: [
+						buildOfficialWebPlannerPageForTest({
+							normalizedCanonicalUrl: "https://www.example.edu/",
+							discoveryMethod: "manual_requeue",
+							pageFamily: "dynamic_shell_page",
+							targetCandidateId: "owcand_home",
+						}),
+						buildOfficialWebPlannerPageForTest({
+							normalizedCanonicalUrl: promotedDetailUrl,
+							discoveryMethod: "manual_requeue",
+							pageFamily: "article_detail",
+							targetCandidateId: "owcand_promoted_detail",
+						}),
+					],
+				}),
 				maxPagesPerHost: 5,
 				maxTotalPages: 5,
 				dynamicShellDiscoverer,
@@ -251,7 +268,7 @@ describe("official-web-collector dynamic shell crawl", () => {
 					(item) =>
 						item.normalizedCanonicalUrl === promotedDetailUrl &&
 						item.discoveryMethod === "manual_requeue" &&
-						item.discoveredFromUrl === "https://www.example.edu/",
+						item.discoveredFromUrl === null,
 				),
 			).toBe(true);
 			expect(

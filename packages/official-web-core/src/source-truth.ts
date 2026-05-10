@@ -267,11 +267,7 @@ export interface OfficialWebSourceTruthBundle {
 	siteId: string;
 	crawlRunId: string;
 	generatedAt: string;
-	collectionMode?: "target-workset" | "legacy-broad-crawl";
-	legacyBroadCrawlAdmission?: {
-		exclusionDecision: "legacy_contract_excluded";
-		reason: string;
-	};
+	collectionMode?: "target-workset";
 	targetSummary?: {
 		targetJobs: Record<string, number>;
 		consumerFamilies: Record<string, number>;
@@ -393,7 +389,6 @@ export function buildOfficialWebSourceTruthBundle(
 		siteId: input.siteId,
 		crawlRunId: input.crawlRunId,
 		collectionMode: input.collectionMode,
-		legacyBroadCrawlAdmission: input.legacyBroadCrawlAdmission,
 		targetSummary: input.targetSummary ?? buildSourceTruthTargetSummary(input.pages),
 		pages: input.pages,
 	};

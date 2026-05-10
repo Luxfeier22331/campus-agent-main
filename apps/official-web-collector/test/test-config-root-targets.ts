@@ -411,5 +411,4 @@ export function writeTestTargetConfigFiles(siteRoot: string): void {
 			2,
 		),
 	);
-
 }

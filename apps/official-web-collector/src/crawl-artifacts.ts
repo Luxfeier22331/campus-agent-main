@@ -174,18 +174,13 @@ export function buildRunSourceTruthBundle(
 	crawlRunId: string,
 	pages: CollectedPageArtifact[],
 	options: {
-		collectionMode?: "target-workset" | "legacy-broad-crawl";
-		legacyBroadCrawlAdmission?: {
-			exclusionDecision: "legacy_contract_excluded";
-			reason: string;
-		};
+		collectionMode?: "target-workset";
 	} = {},
 ): OfficialWebSourceTruthBundle {
 	return buildOfficialWebSourceTruthBundle({
 		siteId,
 		crawlRunId,
 		collectionMode: options.collectionMode,
-		legacyBroadCrawlAdmission: options.legacyBroadCrawlAdmission,
 		pages: pages.map((page) => ({
 			rawAssetId: page.rawAssetId,
 			rawVersionId: page.rawVersionId,

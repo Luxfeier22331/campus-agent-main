@@ -2,8 +2,8 @@ import { expect, it } from "vitest";
 
 import {
 	createCollectedPageArtifactForTest,
+	createTargetWorksetControlPlaneForTest,
 	getCrawlSite,
-	LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
 	readJsonArtifact,
 	readJsonlArtifact,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
@@ -11,7 +11,7 @@ import {
 } from "./crawl-test-support";
 
 export function registerCrawlCoreSuite() {
-	it("fails closed when programmatic crawl lacks target workset or explicit legacy admission", async () => {
+	it("fails closed when programmatic crawl lacks target workset admission", async () => {
 		const crawlSite = getCrawlSite();
 		const { configRoot, outputDir } = writeTestConfigRoot();
 		let crawlHostsCalled = false;
@@ -32,7 +32,7 @@ export function registerCrawlCoreSuite() {
 					};
 				},
 			}),
-		).rejects.toThrow(/target workset admission.*legacy broad crawl admission/u);
+		).rejects.toThrow(/requires app-api target workset admission/u);
 		expect(crawlHostsCalled).toBe(false);
 	});
 
@@ -60,7 +60,9 @@ export function registerCrawlCoreSuite() {
 			configRoot,
 			outputDir,
 			crawlRunId: "campus_public-TEST",
-			legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+			controlPlaneClient: createTargetWorksetControlPlaneForTest({
+				runId: "campus_public-TEST",
+			}),
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{
@@ -112,13 +114,11 @@ export function registerCrawlCoreSuite() {
 		})) as {
 			artifactPaths: Record<string, string>;
 			crawlRun: { runIntent: string; status: string };
-			legacyBroadCrawlAdmission?: { exclusionDecision: string };
 			outputDir: string;
 			pageObservations: unknown[];
 		};
 
 		expect(result.outputDir).toBe(outputDir);
-		expect(result.legacyBroadCrawlAdmission?.exclusionDecision).toBe("legacy_contract_excluded");
 		expect(result.crawlRun.status).toBe("completed_with_errors");
 		expect(result.crawlRun.runIntent).toBe("baseline");
 		expect(result.pageObservations).toEqual([]);
@@ -168,7 +168,9 @@ export function registerCrawlCoreSuite() {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_duplicate_fetch",
-			legacyBroadCrawlAdmission: LEGACY_BROAD_CRAWL_ADMISSION_FOR_TEST,
+			controlPlaneClient: createTargetWorksetControlPlaneForTest({
+				runId: "owrun_duplicate_fetch",
+			}),
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{

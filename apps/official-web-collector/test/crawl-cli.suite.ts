@@ -47,50 +47,29 @@ export function registerCrawlCliSuite() {
 		).toThrowError(/OFFICIAL_WEB_APP_API_BASE_URL.*OFFICIAL_WEB_SERVICE_TOKEN/);
 	});
 
-	it("does not turn default CLI input or host filters into legacy broad crawl admission", () => {
-		const resolveCollectorCrawlMainInput = getResolveCollectorCrawlMainInput();
-		const result = resolveCollectorCrawlMainInput(
-			["--site-id", "campus_public", "--host", "www.example.edu"],
-			{},
-		) as {
-			options: {
-				hostFilter?: string[];
-				legacyBroadCrawlAdmission?: unknown;
-			};
-		};
-
-		expect(result.options.hostFilter).toEqual(["www.example.edu"]);
-		expect(result.options.legacyBroadCrawlAdmission).toBeUndefined();
-	});
-
-	it("requires an explicit legacy broad crawl flag and reason for debug/operator runs", () => {
+	it("requires control-plane config before CLI can construct executable crawl input", () => {
 		const resolveCollectorCrawlMainInput = getResolveCollectorCrawlMainInput();
 
 		expect(() =>
-			resolveCollectorCrawlMainInput(["--site-id", "campus_public", "--legacy-broad-crawl"], {}),
-		).toThrowError(/--legacy-broad-crawl-reason is required/u);
+			resolveCollectorCrawlMainInput(
+				["--site-id", "campus_public", "--host", "www.example.edu"],
+				{},
+			),
+		).toThrowError(/OFFICIAL_WEB_APP_API_BASE_URL.*OFFICIAL_WEB_SERVICE_TOKEN/u);
+	});
 
-		const result = resolveCollectorCrawlMainInput(
-			[
-				"--site-id",
-				"campus_public",
-				"--legacy-broad-crawl",
-				"--legacy-broad-crawl-reason",
-				"manual local debug run",
-			],
-			{},
-		) as {
-			options: {
-				legacyBroadCrawlAdmission?: {
-					exclusionDecision?: string;
-					reason?: string;
-				};
-			};
-		};
+	it("rejects removed broad crawl CLI flags", () => {
+		const resolveCollectorCrawlMainInput = getResolveCollectorCrawlMainInput();
+		const removedFlag = `--legacy-${"broad"}-crawl`;
 
-		expect(result.options.legacyBroadCrawlAdmission).toEqual({
-			exclusionDecision: "legacy_contract_excluded",
-			reason: "manual local debug run",
-		});
+		expect(() =>
+			resolveCollectorCrawlMainInput(["--site-id", "campus_public", removedFlag], {}),
+		).toThrowError(/Unknown option/u);
+		expect(() =>
+			resolveCollectorCrawlMainInput(
+				["--site-id", "campus_public", `${removedFlag}-reason`, "debug"],
+				{},
+			),
+		).toThrowError(/Unknown option/u);
 	});
 }

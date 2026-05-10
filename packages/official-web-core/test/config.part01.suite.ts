@@ -1,7 +1,3 @@
-import { cpSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
-import { resolve } from "node:path";
-
 import { expect, it } from "vitest";
 
 import {
@@ -10,12 +6,6 @@ import {
 	loadOfficialWebConfig,
 	resolveOfficialWebConfigPaths,
 } from "../src/index";
-import {
-	writeMinimalConsumerDenominator,
-	writeMinimalSourcePackManifest,
-	writeMinimalTargetInventory,
-	writeMinimalTargetSourceMap,
-} from "./config-fixtures";
 
 export function registerOfficialWebConfigPart01() {
 	it("resolves muc_public repo-tracked config paths", () => {
