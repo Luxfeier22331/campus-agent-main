@@ -163,7 +163,7 @@ class OpenAIAgentsNativeRuntimeTest(unittest.TestCase):
         )
 
         result = runtime.run(
-            agent_name="rag-agent-internal-sdk-loop",
+            agent_name="rag-agent-native-runtime",
             instructions="Use only the supplied retrieve_evidence tool.",
             input_text="有哪些本科生可以申请的奖学金",
             context={"request_id": "req-rag-sdk-001"},
@@ -177,7 +177,7 @@ class OpenAIAgentsNativeRuntimeTest(unittest.TestCase):
 
         captured = captures[-1]
         agent = captured["agent"]
-        self.assertEqual(agent.name, "rag-agent-internal-sdk-loop")
+        self.assertEqual(agent.name, "rag-agent-native-runtime")
         self.assertEqual(agent.model, "gpt-5.4-mini")
         self.assertIs(agent.output_type, dict)
         self.assertEqual(captured["input_text"], "有哪些本科生可以申请的奖学金")

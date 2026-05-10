@@ -10,8 +10,7 @@ from campus_contracts import (
     CampusNoticeGetPayload,
     ContextProjection,
     ServiceGuideLookupPayload,
-    TransportScheduleLookupPayload,
-    TransportServiceTimeQuery,
+    WorkflowAgentContext,
 )
 from campus_supervisor_agent_worker.admitted_agent_execution import (
     AdmittedAgentExecutor,
@@ -90,7 +89,7 @@ class AdmittedAgentExecutionSuite(unittest.TestCase):
         self.assertEqual(plan.failure_class, "request_not_admitted")
         self.assertIn("allowed_tools", plan.message)
 
-    def test_execute_uses_deterministic_campus_services_fallback_when_runtime_missing(
+    def test_execute_fails_closed_when_sdk_runtime_instance_is_missing(
         self,
     ) -> None:
         query_service = FakeCampusServicesQueryService()
@@ -109,16 +108,12 @@ class AdmittedAgentExecutionSuite(unittest.TestCase):
         response = executor.execute(
             AgentRequest(
                 target="campus-services-agent",
-                user_goal="明天最早的班车几点",
-                payload=TransportScheduleLookupPayload(
-                    query_text="明天最早的班车几点",
-                    intent="first_departure",
-                    service_time_query=TransportServiceTimeQuery(
-                        date_mode="tomorrow",
-                        daypart="morning",
-                    ),
+                user_goal="校园卡丢了怎么办",
+                payload=ServiceGuideLookupPayload(
+                    service_query="校园卡丢了怎么办",
+                    guide_focus="full_guide",
                 ),
-                allowed_tools=("transport_schedule_lookup",),
+                allowed_tools=("service_guide_lookup",),
                 actor=ActorContext(user_id="student-001"),
                 context=ContextProjection(
                     actor=ActorContext(user_id="student-001"),
@@ -127,27 +122,29 @@ class AdmittedAgentExecutionSuite(unittest.TestCase):
                         entitlement_groups=("students",),
                     ),
                 ),
+                workflow_context=WorkflowAgentContext(
+                    target="campus-services-agent",
+                    workflow_run_ref="workflow:req-missing-runtime",
+                    step_id="handoff:campus-services-agent:service_guide_lookup",
+                    agent_id="campus-services-agent",
+                ),
             )
         )
 
         self.assertEqual(response.target, "campus-services-agent")
-        self.assertEqual(response.status, "completed")
+        self.assertEqual(response.status, "error")
+        self.assertIsNotNone(response.error)
+        assert response.error is not None
+        self.assertEqual(response.error.code, "agents_sdk_runtime_failed")
         self.assertIsNotNone(response.agent_observability)
         assert response.agent_observability is not None
+        self.assertEqual(response.agent_observability.failure_class, "runtime_unavailable")
+        self.assertEqual(response.agent_observability.fail_close_reason, "runtime_unavailable")
         self.assertEqual(
             response.agent_observability.selected_tool,
-            "transport_schedule_lookup",
+            "service_guide_lookup",
         )
-        self.assertIsNotNone(query_service.last_transport_schedule_query)
-        assert query_service.last_transport_schedule_query is not None
-        self.assertEqual(
-            query_service.last_transport_schedule_query.payload.intent,
-            "first_departure",
-        )
-        self.assertEqual(
-            query_service.last_transport_schedule_query.access_context.actor.user_id,
-            "student-001",
-        )
+        self.assertIsNone(query_service.last_service_guide_query)
 
 
 def _executor() -> AdmittedAgentExecutor:

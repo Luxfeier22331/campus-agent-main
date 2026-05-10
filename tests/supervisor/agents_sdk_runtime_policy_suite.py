@@ -36,6 +36,7 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                 {
                     "sdk_available": False,
                     "prompt_runtime_provider": "openai-responses",
+                    "prompt_runtime_api_key_configured": True,
                     "agent_model": "gpt-agent",
                 },
                 "dependency_missing",
@@ -44,6 +45,7 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                 {
                     "sdk_available": True,
                     "prompt_runtime_provider": "",
+                    "prompt_runtime_api_key_configured": True,
                     "agent_model": "gpt-agent",
                 },
                 "provider_config_missing",
@@ -52,6 +54,16 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                 {
                     "sdk_available": True,
                     "prompt_runtime_provider": "openai-responses",
+                    "prompt_runtime_api_key_configured": False,
+                    "agent_model": "gpt-agent",
+                },
+                "provider_key_missing",
+            ),
+            (
+                {
+                    "sdk_available": True,
+                    "prompt_runtime_provider": "openai-responses",
+                    "prompt_runtime_api_key_configured": True,
                     "agent_model": "",
                 },
                 "model_missing",
@@ -120,6 +132,11 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                     "tool": "campus_notice_discover",
                     "tool_runtime_posture": "sdk_adapter_admitted",
                 },
+                {
+                    "target": "notice-agent",
+                    "tool": "campus_notice_change_set_lookup",
+                    "tool_runtime_posture": "sdk_adapter_admitted",
+                },
             ],
         )
         self.assertEqual(status["blocked_pairs"], [])
@@ -142,6 +159,7 @@ class AgentsSdkRuntimePolicyTest(unittest.TestCase):
                 "contact_directory_lookup",
                 "academic_calendar_lookup",
                 "campus_notice_discover",
+                "campus_notice_change_set_lookup",
             ],
         )
 

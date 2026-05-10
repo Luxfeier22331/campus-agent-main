@@ -225,6 +225,17 @@ document/index release`
 - 只返回 `AgentResponse` 给 Go bridge；不再组装 public `SupervisorResponse`
 - 不再暴露 public `/api/v1/answer`；execution transport、admission、queue、
   metrics 与 published `transport_runtime` 由 `apps/supervisor-api` 拥有
+- 对 delegate request，bridge v6 parser 要求
+  `runtime_decisions.workflow_plan` 与
+  `runtime_decisions.handoff.agent_request.workflow_context` 同时存在，并校验二者的
+  step、target、payload kind、allowed tools、projection kind 与 expected artifacts
+  一致；Python 不再在 query time 发明 cross-agent route order
+- 当前 provider-facing semantic runtime 已收口到 OpenAI Agents SDK native substrate：
+  structured domain-agent execution 通过 ToolSpec 派生的 SDK `FunctionTool`，RAG
+  answer synthesis 通过 `OpenAIAgentsRagRuntime`；SDK 不接管 Go admission、
+  WorkflowPlan、ToolSpec、budget、policy 或 finalization
+- SDK dependency、provider、model 或 API key 缺失时，worker readiness 以稳定原因降级并
+  fail closed；不启用 non-SDK answer fallback
 - 拥有 worker-side retrieval runtime observation bridge，把
   `retrieval.runtime_observation` 投影成 sanitized runtime event sink；不把 raw
   query / snippet / document body 写入 telemetry

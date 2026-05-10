@@ -106,7 +106,7 @@ class _RagSdkStructuredOutput(BaseModel):
     follow_up_question: str = ""
 
 
-class OpenAIRagAgentsSdkRunner:
+class OpenAIAgentsRagRuntime:
     def __init__(
         self,
         *,
@@ -126,7 +126,7 @@ class OpenAIRagAgentsSdkRunner:
 
     def __call__(self, request: RagSdkRunRequest) -> RagSdkRunResult:
         result = self._runtime.run(
-            agent_name="rag-agent-internal-sdk-loop",
+            agent_name="rag-agent-native-runtime",
             instructions=self._instructions,
             input_text=request.user_goal,
             context=request,
@@ -250,4 +250,4 @@ def _anchor(value: _RagSdkStructuredAnchor) -> RagSdkEvidenceAnchor:
     )
 
 
-__all__ = ["OpenAIRagAgentsSdkRunner"]
+__all__ = ["OpenAIAgentsRagRuntime"]

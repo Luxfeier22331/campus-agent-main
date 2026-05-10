@@ -21,18 +21,18 @@ from campus_supervisor_agent_worker.agents_sdk_function_tools import (
 from campus_supervisor_agent_worker.agents_sdk_tool_bridge import (
     build_agents_sdk_tool_descriptors,
 )
-from campus_supervisor_agent_worker.rag_agents_sdk_openai_runner import (
-    OpenAIRagAgentsSdkRunner,
+from campus_supervisor_agent_worker.openai_agents_rag_runtime import (
+    OpenAIAgentsRagRuntime,
 )
 
 from tests.agent.rag_agent_test_support import _make_handbook_source
 
 
-class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
+class OpenAIAgentsRagRuntimeTest(unittest.TestCase):
     def test_source_uses_native_runtime_wrapper_and_no_direct_sdk_loop(self) -> None:
         source = Path(
             "apps/supervisor-agent-worker/src/campus_supervisor_agent_worker/"
-            "rag_agents_sdk_openai_runner.py"
+            "openai_agents_rag_runtime.py"
         ).read_text(encoding="utf-8")
 
         for fragment in (
@@ -57,7 +57,7 @@ class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
                 self.assertNotIn(forbidden, source)
 
     def test_runner_maps_structured_sdk_output_to_rag_sdk_result(self) -> None:
-        runner = OpenAIRagAgentsSdkRunner(
+        runner = OpenAIAgentsRagRuntime(
             provider_config=PromptRuntimeProviderConfig(
                 provider="openai",
                 transport="responses",
@@ -152,13 +152,13 @@ class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
         self.assertEqual(result.trace_projection["model_response_ref"], "resp-rag-sdk-001")
         self.assertIsNotNone(captured_kwargs)
         assert captured_kwargs is not None
-        self.assertEqual(captured_kwargs["agent_name"], "rag-agent-internal-sdk-loop")
+        self.assertEqual(captured_kwargs["agent_name"], "rag-agent-native-runtime")
         self.assertEqual(captured_kwargs["input_text"], "有哪些本科生可以申请的奖学金")
         self.assertEqual(captured_kwargs["tool_descriptors"][0].name, "retrieve_evidence")
         self.assertEqual(captured_kwargs["output_type"].__name__, "_RagSdkStructuredOutput")
 
     def test_tool_output_is_bounded_evidence_projection(self) -> None:
-        runner = OpenAIRagAgentsSdkRunner(
+        runner = OpenAIAgentsRagRuntime(
             provider_config=PromptRuntimeProviderConfig(
                 provider="openai",
                 transport="responses",
@@ -187,7 +187,7 @@ class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
         self.assertNotIn("retrieval_plan", seen_output)
 
     def test_retrieve_evidence_tool_schema_is_registry_backed(self) -> None:
-        runner = OpenAIRagAgentsSdkRunner(
+        runner = OpenAIAgentsRagRuntime(
             provider_config=PromptRuntimeProviderConfig(
                 provider="openai",
                 transport="responses",
@@ -210,7 +210,7 @@ class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
         self.assertTrue(tool.strict_json_schema)
 
     def test_tool_defaults_single_admitted_query_slot_when_model_omits_slot(self) -> None:
-        runner = OpenAIRagAgentsSdkRunner(
+        runner = OpenAIAgentsRagRuntime(
             provider_config=PromptRuntimeProviderConfig(
                 provider="openai",
                 transport="responses",
@@ -236,7 +236,7 @@ class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
         self.assertIn("本科生可申请国家奖学金", seen_output)
 
     def test_tool_coerces_invalid_single_admitted_query_slot_to_only_slot(self) -> None:
-        runner = OpenAIRagAgentsSdkRunner(
+        runner = OpenAIAgentsRagRuntime(
             provider_config=PromptRuntimeProviderConfig(
                 provider="openai",
                 transport="responses",
@@ -262,7 +262,7 @@ class OpenAIRagAgentsSdkRunnerTest(unittest.TestCase):
         self.assertIn("本科生可申请国家奖学金", seen_output)
 
     def test_tool_rejects_unadmitted_slot(self) -> None:
-        runner = OpenAIRagAgentsSdkRunner(
+        runner = OpenAIAgentsRagRuntime(
             provider_config=PromptRuntimeProviderConfig(
                 provider="openai",
                 transport="responses",
@@ -300,7 +300,7 @@ class _FakeRuntimeResult:
 
 
 def _retrieve_evidence_tool(
-    runner: OpenAIRagAgentsSdkRunner,
+    runner: OpenAIAgentsRagRuntime,
     request: RagSdkRunRequest,
 ):
     descriptor = build_agents_sdk_tool_descriptors(("retrieve_evidence",))[0]

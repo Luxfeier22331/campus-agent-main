@@ -464,8 +464,8 @@ hash 与 safety posture，不承担下游 agent prompt context 传递。
 
 agent framework 是 domain-agent 内部实现 substrate，不是 repo-level orchestration owner。
 
-Agents SDK 可以作为后续 Python `apps/supervisor-agent-worker` / domain-agent 的 adapter
-候选，用来补齐：
+当前 accepted worker truth 是：Python `apps/supervisor-agent-worker` 的 provider-facing
+semantic runtime 使用 OpenAI Agents SDK native substrate。它用来承接：
 
 - code-first tool loop 与 handoff object modeling
 - provider-native function calling adapter 与 strict function schema execution
@@ -505,7 +505,7 @@ Agents SDK 可以作为后续 Python `apps/supervisor-agent-worker` / domain-age
   regression lifecycle
 - source-truth / projection-backed structured query service 的 data-plane truth
 
-如果引入 Agents SDK，默认路径是 gated adapter lane：
+当前 Agents SDK 路径固定为 SDK-native worker runtime：
 
 `Go supervisor-api -> AgentRequest -> Python SDK-backed domain agent -> AgentResponse
 -> Go finalization`
@@ -520,9 +520,9 @@ Provider-native function calling 的默认接入点同样只能在 domain-agent 
 provider function schema，并把 tool output 先收敛为 repo-owned typed result，再返回
 `AgentResponse`。
 
-### Agents SDK Expansion Order
+### Agents SDK Admission Order
 
-SDK 扩展不是 repo-wide switch。后续新增 surface 按以下顺序 admission：
+SDK runtime 不是 repo-wide owner。后续新增 surface 按以下顺序 admission：
 
 1. Read-only structured domain-agent tools：必须先有 ToolSpec / Go runtime policy / eval
    denominator，然后由 worker 将 `AgentRequest.allowed_tools` 编译为 SDK function tools。
@@ -532,9 +532,9 @@ SDK 扩展不是 repo-wide switch。后续新增 surface 按以下顺序 admissi
    `runtime_posture=sdk_internal_admitted` 的 internal function，例如
    `retrieve_evidence`，并且该 function 不进入 Go `allowed_tools` 或
    structured handoff denominator。
-1. Multi-step workflow step internals：等待
-   `governed-multi-agent-workflow-runtime` 恢复后，SDK 只能作为每个 admitted step
-   内部 runtime，不能生成或改写全局 workflow plan。
+1. Multi-step workflow step internals：SDK 只能实现 Go `WorkflowPlan` 已 admission 的
+   step。Python bridge 必须校验 `runtime_decisions.workflow_plan` 与
+   `AgentRequest.workflow_context`，不能生成或改写全局 workflow plan。
 1. Offline notice multimodal / media review：只能作为 ingestion-side processing adapter，
    产出 normalized fact/classification projection，不进入 public query-time tool surface。
 
@@ -643,11 +643,11 @@ provider、model、API key 或 SDK dependency 缺失时 readiness 降级并 fail
 repo-owned AgentSpec、ToolSpec 与 Go handoff `AgentRequest.allowed_tools` 派生，不能再通过
 worker env 维护第二套 target/tool allowlist。SDK `FunctionTool` surface 只能由
 repo-owned ToolSpec 派生；SDK run / trace / native state 不得进入
-`packages/contracts`、panel、eval 或 `workflow_trace_summary`。真实 smoke 证明 selected
-notice slice 可运行；长期 latency / cost / error-rate 证据属于 observability 和 release
-gate 输入，不能反向作为保留旧 allowlist 技术债的理由。
+`packages/contracts`、panel、eval 或 `workflow_trace_summary`。缺 provider、model、
+API key 或 SDK dependency 时只能返回稳定 fail-close 结果或 degraded readiness，不得恢复旧
+provider loop 或 non-SDK answer fallback。
 
-`rag-agent` 的 Agents SDK 接入是另一条内部 adapter lane，不属于 ToolSpec
+`rag-agent` 的 Agents SDK 接入是 SDK-native RAG synthesis runtime，不属于 ToolSpec
 structured handoff。它的内部 function 仍必须由 ToolSpec 注册与校验，但不得进入
 structured handoff allowed-tools。它固定遵循：
 
@@ -670,10 +670,9 @@ structured handoff allowed-tools。它固定遵循：
   repo-owned sanitized projection；raw prompt、raw transcript、raw provider response、
   SDK run state 与 raw evidence dump 不得出现在 shared contracts、panel、
   workflow trace 或 eval canonical artifact
-- rollout posture 固定为 `closed`、`candidate`、`shadow`、`default_on`、
-  `fallback_only`；当前实现从 worker 注入时以 `candidate` 进入，不新增 target-specific env
-  allowlist。缺 provider、model、API key 或 SDK dependency 时保持旧 deterministic RAG path，
-  而不是隐藏开启第二套 primary synthesis
+- RAG query-enabled answer path 不再保留 `closed` / `candidate` / `shadow` /
+  `fallback_only` rollout runtime；SDK runtime unavailable 时 fail closed，不回退到旧
+  deterministic answer synthesis
 
 notice-family 的目标态需要把 agent-facing tool 与内部 query function 分开。通知用户面默认
 是 source-link / card-first：`title`、official URL、source family、发布时间、短摘要或

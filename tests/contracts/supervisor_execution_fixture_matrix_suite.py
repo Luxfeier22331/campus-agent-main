@@ -36,6 +36,41 @@ class SupervisorExecutionFixtureMatrixTest(unittest.TestCase):
 
     def test_python_bridge_accepts_agent_workflow_context_projection_refs(self) -> None:
         payload = load_fixture("bridge_v6_delegate.valid.json")
+        payload["runtime_decisions"]["workflow_plan"] = {
+            "schema_version": "workflow-plan-v1",
+            "plan_id": "plan:selected_notice:knowledge_followthrough",
+            "workflow_mode": "multi_step",
+            "allowed_agents": ["notice-agent", "rag-agent"],
+            "steps": [
+                {
+                    "step_id": "handoff:notice-agent:campus_notice_get",
+                    "step_kind": "handoff",
+                    "target": "notice-agent",
+                    "payload_kind": "campus_notice_get",
+                    "allowed_tools": [],
+                    "selected_tool": "",
+                },
+                {
+                    "step_id": "handoff:rag-agent:rag_request",
+                    "step_kind": "handoff",
+                    "target": "rag-agent",
+                    "payload_kind": "rag_request",
+                    "allowed_tools": [],
+                    "selected_tool": "retrieval.query",
+                },
+            ],
+            "edges": [
+                {
+                    "from_step_id": "handoff:notice-agent:campus_notice_get",
+                    "to_step_id": "handoff:rag-agent:rag_request",
+                    "condition": "completed",
+                    "required_projection_kind": "notice_context",
+                }
+            ],
+            "terminal_policy": {"fail_close_on_invalid_plan": True},
+            "resume_policy": {"resume_supported": False},
+            "semantic_retry_policy": {"max_replans": 0},
+        }
         payload["runtime_decisions"]["handoff"]["agent_request"]["workflow_context"] = {
             "schema_version": "workflow-agent-context-v1",
             "visibility": "agent_private",

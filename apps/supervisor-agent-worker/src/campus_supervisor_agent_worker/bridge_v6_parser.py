@@ -35,6 +35,10 @@ from campus_supervisor_agent_worker.generated.supervisor_execution_contract impo
     RUNTIME_DECISIONS_SCHEMA_VERSION,
     BridgeV6RequestWire,
 )
+from campus_supervisor_agent_worker.openai_agents_workflow_plan import (
+    OpenAIAgentsWorkflowPlanError,
+    compile_openai_agents_workflow_plan,
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -175,6 +179,10 @@ def _parse_runtime_decisions(
         expected_target=target,
         expected_allowed_tools=allowed_tools,
     )
+    _validate_workflow_plan(
+        decisions.get("workflow_plan"),
+        agent_request=agent_request,
+    )
     _assert_agent_request_matches_supervisor_request(agent_request, request)
     return agent_request, routing_frame
 
@@ -289,6 +297,17 @@ def _parse_agent_handoff_request(
         payload=parse_agent_payload_by_kind(payload_kind, payload),
         allowed_tools=allowed_tools,  # type: ignore[arg-type]
     )
+
+
+def _validate_workflow_plan(raw_plan: object, *, agent_request: AgentRequest) -> None:
+    if raw_plan is None:
+        raise ValueError("runtime_decisions.workflow_plan must be present for delegate handoff")
+    try:
+        compile_openai_agents_workflow_plan(raw_plan, agent_request=agent_request)
+    except OpenAIAgentsWorkflowPlanError as exc:
+        raise ValueError(
+            f"runtime_decisions.workflow_plan {exc.failure_class}: {exc.message}"
+        ) from exc
 
 
 def parse_workflow_agent_context(raw_context: object) -> WorkflowAgentContext:

@@ -222,8 +222,8 @@ repo-owned internal query service -> sanitized result projection`
   handoff 中允许的 tool 子集
 - provider/SDK tool loop 只作为 domain-agent 内部的 bounded execution substrate；它不是
   顶层 routing engine，也不拥有跨 family permission expansion
-- provider-native function calling 是 implementation substrate，不是 repo-level
-  orchestration owner；它不能自行扩大工具全集、source surface、authz scope 或
+- provider-native function calling / Agents SDK 是 Python semantic runtime substrate，不是
+  repo-level orchestration owner；它不能自行扩大工具全集、source surface、authz scope 或
   capability family
 - tool 必须优先建模为 read-only typed capability；state-changing tool 默认不进入
   campus 主路径，除非另开 approval / HITL / audit / rollback / eval contract

@@ -10,6 +10,7 @@ from campus_contracts import (
     AgentRequest,
     AuthorizationProjection,
     ContextProjection,
+    WorkflowAgentContext,
 )
 from campus_services_agent.academic_calendar_adapter import academic_calendar_response
 from campus_services_agent.http_query_service import CampusServicesHTTPQueryService
@@ -431,6 +432,12 @@ def _academic_calendar_request() -> AgentRequest:
             query_kind="date_week",
         ),
         allowed_tools=("academic_calendar_lookup",),
+        workflow_context=WorkflowAgentContext(
+            target="campus-services-agent",
+            workflow_run_ref="workflow:req-sdk-academic-calendar",
+            step_id="handoff:campus-services-agent:academic_calendar_lookup",
+            agent_id="campus-services-agent",
+        ),
     )
 
 

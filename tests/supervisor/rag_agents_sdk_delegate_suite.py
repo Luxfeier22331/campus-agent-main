@@ -122,7 +122,7 @@ class RagAgentsSdkDelegateTest(unittest.TestCase):
                 )
             )
 
-        self.assertEqual(runner.__class__.__name__, "OpenAIRagAgentsSdkRunner")
+        self.assertEqual(runner.__class__.__name__, "OpenAIAgentsRagRuntime")
 
 
 def _request() -> AgentRequest:

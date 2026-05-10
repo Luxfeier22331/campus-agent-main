@@ -25,6 +25,7 @@ def agents_sdk_runtime_status(
     prompt_runtime_provider: str,
     agent_model: str,
     prompt_runtime_admitted: bool = True,
+    prompt_runtime_api_key_configured: bool = True,
     sdk_available: bool | None = None,
     agent_registry: AgentSpecRegistry | None = None,
     tool_registry: ToolSpecRegistry | None = None,
@@ -43,6 +44,7 @@ def agents_sdk_runtime_status(
         sdk_available=dependency_available,
         prompt_runtime_provider=prompt_runtime_provider,
         prompt_runtime_admitted=prompt_runtime_admitted,
+        prompt_runtime_api_key_configured=prompt_runtime_api_key_configured,
         agent_model=agent_model,
         admitted_pairs=pair_status["admitted_pairs"],
     )
@@ -65,6 +67,7 @@ def _agents_sdk_runtime_admission_reason(
     sdk_available: bool,
     prompt_runtime_provider: str,
     prompt_runtime_admitted: bool,
+    prompt_runtime_api_key_configured: bool,
     agent_model: str,
     admitted_pairs: list[dict[str, object]],
 ) -> str:
@@ -74,6 +77,8 @@ def _agents_sdk_runtime_admission_reason(
         return "dependency_missing"
     if not prompt_runtime_provider.strip() or not prompt_runtime_admitted:
         return "provider_config_missing"
+    if not prompt_runtime_api_key_configured:
+        return "provider_key_missing"
     if not agent_model.strip():
         return "model_missing"
     if not admitted_pairs:

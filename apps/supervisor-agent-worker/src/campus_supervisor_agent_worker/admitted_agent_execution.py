@@ -27,6 +27,10 @@ from campus_supervisor_agent_worker.openai_agents_runtime_projection import (
     response_from_native_runtime_result,
     runtime_error_response,
 )
+from campus_supervisor_agent_worker.openai_agents_workflow_plan import (
+    OpenAIAgentsWorkflowPlanError,
+    validate_agent_request_against_workflow_plan,
+)
 from campus_supervisor_agent_worker.settings import ApiSettings
 from campus_supervisor_agent_worker.tool_execution import (
     ToolExecutionContext,
@@ -158,8 +162,18 @@ class AdmittedAgentExecutor:
                 "OpenAI Agents native runtime is disabled",
                 latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
             )
+        workflow_step = self._validated_workflow_step(agent_request)
+        if isinstance(workflow_step, AgentResponse):
+            return workflow_step
         if self._runtime is None:
-            return self._run_structured_direct_fallback(agent_request, plan=plan)
+            return runtime_error_response(
+                agent_request,
+                "runtime_unavailable",
+                "OpenAI Agents native runtime is unavailable for an SDK-admitted structured tool",
+                bridge_reason="runner_unavailable",
+                latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
+                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
+            )
         try:
             descriptors = build_agents_sdk_tool_descriptors(
                 agent_request.allowed_tools,
@@ -241,41 +255,15 @@ class AdmittedAgentExecutor:
                 tool_execution_count=len(tool_execution_records),
             )
 
-    def _run_structured_direct_fallback(
-        self,
-        agent_request: AgentRequest,
-        *,
-        plan: AdmittedAgentExecutionPlan,
-    ) -> AgentResponse:
-        tool_name = agent_request.allowed_tools[0] if agent_request.allowed_tools else ""
-        if not tool_name:
-            return runtime_error_response(
-                agent_request,
-                "runtime_unavailable",
-                "OpenAI Agents native runtime is unavailable for an SDK-admitted structured tool",
-                bridge_reason="runner_unavailable",
-                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
-            )
-        try:
-            return self._tool_execution_session.execute_structured_direct(
-                tool_name,
-                context=ToolExecutionContext(agent_request=agent_request),
-            )
-        except Exception:
-            return runtime_error_response(
-                agent_request,
-                "runtime_unavailable",
-                "OpenAI Agents native runtime is unavailable for an SDK-admitted structured tool",
-                bridge_reason="runner_unavailable",
-                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
-            )
-
     def _run_internal_function(
         self,
         agent_request: AgentRequest,
         *,
         plan: AdmittedAgentExecutionPlan,
     ) -> AgentResponse:
+        workflow_step = self._validated_workflow_step(agent_request)
+        if isinstance(workflow_step, AgentResponse):
+            return workflow_step
         if plan.internal_function_tool is None:
             return runtime_error_response(
                 agent_request,
@@ -295,6 +283,24 @@ class AdmittedAgentExecutor:
                 str(exc) or "Internal function execution failed",
                 retryable=False,
                 runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
+            )
+
+    def _validated_workflow_step(
+        self,
+        agent_request: AgentRequest,
+    ):
+        try:
+            return validate_agent_request_against_workflow_plan(
+                agent_request,
+                tool_registry=self._tool_registry,
+            )
+        except OpenAIAgentsWorkflowPlanError as exc:
+            return runtime_error_response(
+                agent_request,
+                exc.failure_class,
+                exc.message,
+                bridge_reason=exc.failure_class,
+                runtime_posture=self._runtime_posture_for_request(agent_request),
             )
 
     def _runtime_posture_for_request(

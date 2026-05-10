@@ -331,6 +331,11 @@ dump 或 raw vendor payload 直接暴露给 panel。
   response、完整上游 prompt、raw source HTML、raw OCR dump 或 unrestricted evidence payload
 - repo-owned `workflow_trace_summary` 仍是 canonical projection；OpenAI Agents SDK
   tracing 或其他外部 trace 只能作为 debug / grader input
+- Python worker SDK-native readiness 必须使用稳定 fail-close reasons，例如
+  `dependency_missing`、`provider_config_missing`、`provider_key_missing`、`model_missing`、
+  `sdk_tool_missing`、`tool_not_admitted`、`plan_not_admitted`、`sdk_timeout` 与
+  `sdk_guardrail_failed`；这些 reason 只能表达 degraded/fail-close，不得暗示存在
+  fallback runtime
 - 对 `single_handoff` 不能包装成 `multi_step`；对 direct structured runtime 不能伪造 agent
   collaboration trace
 - 需要区分“multi-agent 规划正确但某个 step 证据不足”和“顶层 routing / workflow plan 错误”

@@ -19,11 +19,11 @@ from campus_supervisor_agent_worker.agent_dispatch import (
     dispatch_agent_request,
 )
 from campus_supervisor_agent_worker.cancel_flags import CancelFlagStore
+from campus_supervisor_agent_worker.openai_agents_rag_runtime import (
+    OpenAIAgentsRagRuntime,
+)
 from campus_supervisor_agent_worker.openai_agents_runtime import OpenAIAgentsNativeRuntime
 from campus_supervisor_agent_worker.prompt_executor import ProviderBackedRagPromptExecutor
-from campus_supervisor_agent_worker.rag_agents_sdk_openai_runner import (
-    OpenAIRagAgentsSdkRunner,
-)
 from campus_supervisor_agent_worker.retrieval_observation_bridge import (
     build_retrieval_runtime_event_sink,
     build_runtime_event_jsonl_emitter,
@@ -248,7 +248,7 @@ def _build_rag_openai_runtime(
         )
     except ValueError:
         return _build_unavailable_rag_sdk_runner(detail="invalid_prompt_runtime_provider_config")
-    return OpenAIRagAgentsSdkRunner(
+    return OpenAIAgentsRagRuntime(
         provider_config=provider_config,
         model_name=model_name,
         tool_execution_session=tool_execution_session,
