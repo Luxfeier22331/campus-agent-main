@@ -62,7 +62,6 @@ from campus_ingestion_core.registry import (
     build_raw_asset_registry_from_env,
 )
 from campus_ingestion_core.regulation_rag_release_lane import (
-    DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_MANAGEMENT_ENV_KEY,
     DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY,
     RagReleaseCandidateEnqueueReport,
     RegulationRagReleaseCandidateStore,
@@ -557,9 +556,7 @@ def _optional_rag_release_candidate_store(
         str(source.get(key) or "").strip()
         for key in (
             DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY,
-            DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_MANAGEMENT_ENV_KEY,
             "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
-            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL",
         )
     ):
         return None

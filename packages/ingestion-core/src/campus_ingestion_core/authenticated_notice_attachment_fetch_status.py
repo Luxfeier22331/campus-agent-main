@@ -10,9 +10,6 @@ from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models i
     DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY as DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY,
 )
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models import (
-    DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY as DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
-)
-from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models import (
     DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY as DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
 )
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models import (
@@ -573,7 +570,6 @@ def _reference_only_explanation_reason(
 
 __all__ = [
     "DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY",
-    "DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY",
     "DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY",
     "DEFAULT_ATTACHMENT_FETCH_STATUS_SCHEMA",
     "DEFAULT_ATTACHMENT_FETCH_STATUS_TABLE",

@@ -28,12 +28,9 @@ function resolveSslConfig(databaseSslMode: string) {
 }
 
 function resolveOperatorConnectionString(env: NodeJS.ProcessEnv): string {
-	const connectionString =
-		env.APP_API_OPERATOR_DATABASE_URL?.trim() || env.APP_API_MANAGEMENT_DATABASE_URL?.trim();
+	const connectionString = env.APP_API_OPERATOR_DATABASE_URL?.trim();
 	if (!connectionString) {
-		throw new Error(
-			"APP_API_OPERATOR_DATABASE_URL is required. Legacy APP_API_MANAGEMENT_DATABASE_URL is accepted as a compatibility alias.",
-		);
+		throw new Error("APP_API_OPERATOR_DATABASE_URL is required.");
 	}
 
 	const nextUrl = new URL(connectionString);

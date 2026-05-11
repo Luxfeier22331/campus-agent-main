@@ -24,6 +24,7 @@ export function registerAppApiAuthConfigSuite() {
 			);
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
+				authShellOrigin: "https://chat.example.com",
 				betterAuthSecret: "prod-secret-prod-secret-prod-secret",
 				environment: "production",
 				publicChatOrigin: "https://chat.example.com",
@@ -71,7 +72,7 @@ export function registerAppApiAuthConfigSuite() {
 			expect(config.emailAndPassword.onPasswordReset).toEqual(expect.any(Function));
 		});
 
-		it("can move the browser auth shell origin to hub while retaining public-chat as a trusted compatibility origin", () => {
+		it("can move the browser auth shell origin to hub while retaining public-chat as an explicit trusted origin", () => {
 			const config = buildBetterAuthConfig({
 				appName: "campus-agent-app-api",
 				authShellOrigin: "https://hub.muc.wiki",

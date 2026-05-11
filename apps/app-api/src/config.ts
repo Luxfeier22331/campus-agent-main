@@ -30,7 +30,6 @@ export interface Env {
 	SUPERVISOR_API_TIMEOUT_MS?: string;
 	SUPERVISOR_API_EVAL_TIMEOUT_MS?: string;
 	APP_API_OPERATOR_DATABASE_URL?: string;
-	APP_API_MANAGEMENT_DATABASE_URL?: string;
 	APP_API_DATABASE_SSLMODE?: DatabaseSslMode;
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?: string;
 	APP_API_END_USER_EMAIL_ALLOWLIST?: string;
@@ -106,7 +105,7 @@ const MISSING_AUTH_CONFIG_KEYS = [
 	"AUTH_TURNSTILE_SECRET_KEY",
 	"RESEND_API_KEY",
 	"AUTH_RESET_EMAIL_FROM",
-	"AUTH_SHELL_ORIGIN|PUBLIC_CHAT_WEB_ORIGIN",
+	"AUTH_SHELL_ORIGIN",
 	"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
 ] as const;
 
@@ -222,7 +221,7 @@ export function getMissingAuthRuntimeConfig(env: Env): string[] {
 	if (!env.AUTH_RESET_EMAIL_FROM?.trim()) {
 		missing.push(MISSING_AUTH_CONFIG_KEYS[3]);
 	}
-	if (!(env.AUTH_SHELL_ORIGIN?.trim() || env.PUBLIC_CHAT_WEB_ORIGIN?.trim())) {
+	if (!env.AUTH_SHELL_ORIGIN?.trim()) {
 		missing.push(MISSING_AUTH_CONFIG_KEYS[4]);
 	}
 	if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
@@ -241,12 +240,10 @@ export function readPublicChatOrigin(env: Pick<Env, "PUBLIC_CHAT_WEB_ORIGIN">): 
 	return new URL(origin).origin;
 }
 
-export function readAuthShellOrigin(
-	env: Pick<Env, "AUTH_SHELL_ORIGIN" | "PUBLIC_CHAT_WEB_ORIGIN">,
-): string {
-	const origin = env.AUTH_SHELL_ORIGIN?.trim() || env.PUBLIC_CHAT_WEB_ORIGIN?.trim();
+export function readAuthShellOrigin(env: Pick<Env, "AUTH_SHELL_ORIGIN">): string {
+	const origin = env.AUTH_SHELL_ORIGIN?.trim();
 	if (!origin) {
-		throw new Error("AUTH_SHELL_ORIGIN or PUBLIC_CHAT_WEB_ORIGIN is required.");
+		throw new Error("AUTH_SHELL_ORIGIN is required.");
 	}
 
 	return new URL(origin).origin;
@@ -329,10 +326,7 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 		databaseConnectionString,
 		databaseSslMode: resolveDatabaseSslMode(env),
 		internalSharedSecret,
-		operatorDatabaseUrl:
-			env.APP_API_OPERATOR_DATABASE_URL?.trim() ||
-			env.APP_API_MANAGEMENT_DATABASE_URL?.trim() ||
-			undefined,
+		operatorDatabaseUrl: env.APP_API_OPERATOR_DATABASE_URL?.trim() || undefined,
 		endUserEmailDomainAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).map(
 			(item) => item.toLowerCase(),
 		),

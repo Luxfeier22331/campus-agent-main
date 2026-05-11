@@ -86,16 +86,14 @@ export function registerAppApiDatabaseConfigSuite() {
 			});
 		});
 
-		it("falls back to the legacy management env key for operator config", () => {
-			const config = buildOperatorDatabaseConfig({
-				APP_API_DATABASE_SSLMODE: "require",
-				APP_API_MANAGEMENT_DATABASE_URL:
-					"postgres://postgres:secret@example.com:5432/campus_agent_admin",
-			});
-
-			expect(config.connectionString).toBe(
-				"postgres://postgres:secret@example.com:5432/campus_agent_admin",
-			);
+		it("rejects the legacy management env key for operator config", () => {
+			expect(() =>
+				buildOperatorDatabaseConfig({
+					APP_API_DATABASE_SSLMODE: "require",
+					APP_API_MANAGEMENT_DATABASE_URL:
+						"postgres://postgres:secret@example.com:5432/campus_agent_admin",
+				} as never),
+			).toThrow("APP_API_OPERATOR_DATABASE_URL is required.");
 		});
 
 		it("reuses one runtime pool for repeated calls under the same env", async () => {
@@ -201,6 +199,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			const env = {
 				APP_API_ENVIRONMENT: "test" as const,
 				BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+				AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 				RESEND_API_KEY: "resend_test_key",
 				AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
@@ -255,6 +254,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			const env = {
 				APP_API_ENVIRONMENT: "test" as const,
 				BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+				AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 				RESEND_API_KEY: "resend_test_key",
 				AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
@@ -266,6 +266,9 @@ export function registerAppApiDatabaseConfigSuite() {
 				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+				},
+				APP_API_DB_FRESH: {
+					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
 				},
 			};
 
@@ -282,6 +285,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			const env = {
 				APP_API_ENVIRONMENT: "development" as const,
 				BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+				AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 				RESEND_API_KEY: "resend_test_key",
 				AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
@@ -293,6 +297,9 @@ export function registerAppApiDatabaseConfigSuite() {
 				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+				},
+				APP_API_DB_FRESH: {
+					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
 				},
 			};
 
@@ -309,6 +316,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			const env = {
 				APP_API_ENVIRONMENT: "staging" as never,
 				BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+				AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 				RESEND_API_KEY: "resend_test_key",
 				AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
@@ -320,6 +328,9 @@ export function registerAppApiDatabaseConfigSuite() {
 				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+				},
+				APP_API_DB_FRESH: {
+					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
 				},
 			};
 
@@ -362,6 +373,7 @@ export function registerAppApiDatabaseConfigSuite() {
 			const env = {
 				APP_API_ENVIRONMENT: "test" as const,
 				BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+				AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 				AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 				RESEND_API_KEY: "resend_test_key",
 				AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
@@ -373,6 +385,9 @@ export function registerAppApiDatabaseConfigSuite() {
 				APP_API_INTERNAL_SHARED_SECRET: "app-api-internal-secret",
 				APP_API_DB: {
 					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+				},
+				APP_API_DB_FRESH: {
+					connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
 				},
 			};
 
@@ -386,7 +401,7 @@ export function registerAppApiDatabaseConfigSuite() {
 				connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
 			});
 			expect(createdPoolOptions[1]).toMatchObject({
-				connectionString: "postgres://postgres:secret@example.com:5432/campus_agent",
+				connectionString: "postgres://postgres:secret@example.com:5432/campus_agent_fresh",
 			});
 		});
 	});

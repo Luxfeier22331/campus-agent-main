@@ -23,7 +23,6 @@ from campus_ingestion_core.postgres_runtime import (
 )
 from campus_ingestion_core.registry import (
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _coerce_json_payload,
     _ensure_table_schema,
@@ -39,7 +38,6 @@ DEFAULT_NOTICE_INGEST_QUEUE_TABLE = (
 )
 DEFAULT_NOTICE_INGEST_QUEUE_ENV_KEY = "NOTICE_INGEST_QUEUE_DATABASE_URL"
 DEFAULT_NOTICE_INGEST_QUEUE_OPERATOR_ENV_KEY = "NOTICE_INGEST_QUEUE_OPERATOR_DATABASE_URL"
-DEFAULT_NOTICE_INGEST_QUEUE_MANAGEMENT_ENV_KEY = "NOTICE_INGEST_QUEUE_MANAGEMENT_DATABASE_URL"
 
 
 class PostgresNoticeIngestQueueStore:
@@ -609,17 +607,13 @@ def build_notice_ingest_queue_store_from_env(
     if prefer_operator:
         database_url = (
             source.get(DEFAULT_NOTICE_INGEST_QUEUE_OPERATOR_ENV_KEY)
-            or source.get(DEFAULT_NOTICE_INGEST_QUEUE_MANAGEMENT_ENV_KEY)
             or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-            or source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
             or ""
         ).strip()
         if not database_url:
             raise ValueError(
                 f"{DEFAULT_NOTICE_INGEST_QUEUE_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_NOTICE_INGEST_QUEUE_MANAGEMENT_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or "
-                f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} is required when prefer_operator=True"
+                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
             )
         return PostgresNoticeIngestQueueStore(build_operator_postgres_connection_url(database_url))
     database_url = (
@@ -683,7 +677,6 @@ def _record_from_row(row: tuple[object, ...]) -> NoticeIngestQueueRecord:
 __all__ = [
     "DEFAULT_NOTICE_INGEST_QUEUE_BASENAME",
     "DEFAULT_NOTICE_INGEST_QUEUE_ENV_KEY",
-    "DEFAULT_NOTICE_INGEST_QUEUE_MANAGEMENT_ENV_KEY",
     "DEFAULT_NOTICE_INGEST_QUEUE_OPERATOR_ENV_KEY",
     "DEFAULT_NOTICE_INGEST_QUEUE_SCHEMA",
     "DEFAULT_NOTICE_INGEST_QUEUE_TABLE",

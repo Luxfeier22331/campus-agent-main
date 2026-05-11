@@ -18,7 +18,9 @@ describe("authenticated-notice artifact store env", () => {
 				OBJECT_STORE_ENDPOINT: "https://s3.cstcloud.cn",
 				OBJECT_STORE_SOURCE_ACCESS_KEY: "source-ak",
 			} as never),
-		).toThrowError(/OBJECT_STORE_ENDPOINT.*credential pair/i);
+		).toThrowError(
+			/OBJECT_STORE_ENDPOINT.*OBJECT_STORE_SOURCE_ACCESS_KEY.*OBJECT_STORE_SOURCE_SECRET_KEY/i,
+		);
 	});
 
 	it("accepts source-bucket scoped credentials when shared credentials are absent", () => {

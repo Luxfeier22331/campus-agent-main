@@ -39,8 +39,6 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("OBJECT_STORE_ENDPOINT", "")
 	t.Setenv("OBJECT_STORE_DERIVED_ACCESS_KEY", "")
 	t.Setenv("OBJECT_STORE_DERIVED_SECRET_KEY", "")
-	t.Setenv("OBJECT_STORE_ACCESS_KEY", "")
-	t.Setenv("OBJECT_STORE_SECRET_KEY", "")
 	t.Setenv("OBJECT_STORE_REGION", "")
 	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "")
 	t.Setenv("SUPERVISOR_NOTICE_BODY_LIMIT_BYTES", "")
@@ -427,7 +425,7 @@ func TestLoadFromEnvAcceptsNoticeReadModelSettings(t *testing.T) {
 	}
 }
 
-func TestLoadFromEnvFallsBackToSharedPostgresAndGenericObjectStoreKeysForNoticeRuntime(t *testing.T) {
+func TestLoadFromEnvFallsBackToSharedPostgresWithoutTreatingGenericObjectStoreKeysAsNoticeRuntimeTruth(t *testing.T) {
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/db")
 	t.Setenv("OBJECT_STORE_ENDPOINT", "http://minio:9000")
 	t.Setenv("OBJECT_STORE_ACCESS_KEY", "generic-access")
@@ -447,11 +445,11 @@ func TestLoadFromEnvFallsBackToSharedPostgresAndGenericObjectStoreKeysForNoticeR
 	if cfg.WorkflowRunDatabaseURL != "postgresql://shared.example/db" {
 		t.Fatalf("workflow run database url = %q", cfg.WorkflowRunDatabaseURL)
 	}
-	if cfg.NoticeObjectStoreAccessKey != "generic-access" {
-		t.Fatalf("notice object store access key = %q", cfg.NoticeObjectStoreAccessKey)
+	if cfg.NoticeObjectStoreAccessKey != "" {
+		t.Fatalf("notice object store access key = %q, want empty without derived credential pair", cfg.NoticeObjectStoreAccessKey)
 	}
-	if cfg.NoticeObjectStoreSecretKey != "generic-secret" {
-		t.Fatalf("notice object store secret key = %q", cfg.NoticeObjectStoreSecretKey)
+	if cfg.NoticeObjectStoreSecretKey != "" {
+		t.Fatalf("notice object store secret key = %q, want empty without derived credential pair", cfg.NoticeObjectStoreSecretKey)
 	}
 }
 

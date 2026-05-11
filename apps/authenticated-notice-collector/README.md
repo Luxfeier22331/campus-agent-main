@@ -28,9 +28,8 @@ Current scope:
 - when `OBJECT_STORE_*` source-bucket credentials are configured, released files
   from `文件发布` are also downloaded and uploaded into source object storage during
   file-release export
-- source-bucket upload now prefers `OBJECT_STORE_SOURCE_ACCESS_KEY` /
-  `OBJECT_STORE_SOURCE_SECRET_KEY`; if absent, it falls back to shared
-  `OBJECT_STORE_ACCESS_KEY` / `OBJECT_STORE_SECRET_KEY`
+- source-bucket upload requires `OBJECT_STORE_SOURCE_ACCESS_KEY` /
+  `OBJECT_STORE_SOURCE_SECRET_KEY`
 
 Out of scope for this slice:
 
@@ -85,8 +84,6 @@ Auth note:
 - the collector seeds those cookies into `runtime/auth/storageState.json`
   before attempting portal bootstrap and preserves them when headless bootstrap
   refresh drops one of the operator-provided cookies
-- `AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER` remains supported as a compatibility
-  input when the operator already has a full `Cookie:` header fragment
 - collector now appends `muc.edu.cn`, `.muc.edu.cn`, `my.muc.edu.cn`,
   `ca.muc.edu.cn` into `NO_PROXY` / `no_proxy` at runtime so the portal path
   bypasses repo-local shell proxies by default

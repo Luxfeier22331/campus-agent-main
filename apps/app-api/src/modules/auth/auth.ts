@@ -38,13 +38,13 @@ function shouldCacheAppAuth(env: Env): boolean {
 
 export interface BetterAuthConfigInput {
 	appName: string;
-	authShellOrigin?: string;
+	authShellOrigin: string;
 	authResetEmailFrom: string;
 	authResetEmailReplyTo?: string;
 	authTurnstileSecretKey: string;
 	betterAuthSecret: string;
 	environment: AppApiEnvironment;
-	publicChatOrigin: string;
+	publicChatOrigin?: string;
 	resendApiKey: string;
 	resendFetch?: typeof fetch;
 	endUserEmailDomainAllowlist: string[];
@@ -176,8 +176,10 @@ export function enforceEndUserEmailAdmission(input: {
 }
 
 export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
-	const appOrigin = new URL(input.authShellOrigin || input.publicChatOrigin).origin;
-	const publicChatOrigin = new URL(input.publicChatOrigin).origin;
+	const appOrigin = new URL(input.authShellOrigin).origin;
+	const publicChatOrigin = input.publicChatOrigin
+		? new URL(input.publicChatOrigin).origin
+		: appOrigin;
 	const trustedOrigins =
 		appOrigin === publicChatOrigin ? [appOrigin] : [appOrigin, publicChatOrigin];
 	const endUserEmailAdmissionPolicy = buildEndUserEmailAdmissionPolicy({
@@ -377,7 +379,7 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
 			authShellOrigin: config.authShellOrigin,
 			betterAuthSecret: config.betterAuthSecret,
 			environment: config.environment,
-			publicChatOrigin: config.publicChatOrigin ?? config.authShellOrigin,
+			publicChatOrigin: config.publicChatOrigin,
 			resendApiKey: config.resendApiKey,
 			endUserEmailAllowlist: config.endUserEmailAllowlist,
 			endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,

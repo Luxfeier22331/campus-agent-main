@@ -10,7 +10,6 @@ from typing import Protocol
 from campus_ingestion_core.authenticated_notice_closeout_models import utc_now
 from campus_ingestion_core.notice_consumption_projection import (
     DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY,
-    DEFAULT_NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_ENV_KEY,
     DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY,
     normalize_notice_ids,
 )
@@ -20,10 +19,8 @@ from campus_ingestion_core.postgres_runtime import (
 )
 from campus_ingestion_core.registry import (
     DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
     DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _coerce_json_payload,
     _ensure_table_schema,
@@ -34,9 +31,6 @@ from campus_ingestion_core.registry import (
 
 DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_ENV_KEY = (
     "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL"
-)
-DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_ENV_KEY = (
-    "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_DATABASE_URL"
 )
 DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_ENV_KEY = (
     "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL"
@@ -526,23 +520,16 @@ def build_internal_notice_consumption_admission_store_from_env(
     if prefer_operator:
         operator_database_url = (
             source.get(DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_ENV_KEY)
-            or source.get(DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_ENV_KEY)
             or source.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY)
-            or source.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_ENV_KEY)
             or source.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY)
-            or source.get(DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY)
             or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-            or source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
             or ""
         ).strip()
         if not operator_database_url:
             raise ValueError(
                 f"{DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_ENV_KEY} or "
                 f"{DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or "
-                f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} is required when prefer_operator=True"
+                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
             )
         return PostgresInternalNoticeConsumptionAdmissionStore(
             database_url=build_operator_postgres_connection_url(operator_database_url)
@@ -704,7 +691,6 @@ def _build_batch_id(
 __all__ = [
     "DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_ENV_KEY",
     "DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_EVENT_TABLE",
-    "DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_ENV_KEY",
     "DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_ENV_KEY",
     "DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_TABLE",
     "InMemoryInternalNoticeConsumptionAdmissionStore",

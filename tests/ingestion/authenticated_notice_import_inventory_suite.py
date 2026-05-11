@@ -148,7 +148,7 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL": "postgresql://example.test/management",
+                "CAMPUS_SHARED_POSTGRES_OPERATOR_URL": "postgresql://example.test/operator",
             }
 
             with (

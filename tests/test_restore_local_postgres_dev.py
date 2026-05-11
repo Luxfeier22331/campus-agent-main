@@ -189,7 +189,7 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
                     [
                         "KEEP_ME=1",
                         "CAMPUS_SHARED_POSTGRES_URL=postgres://remote/runtime",
-                        "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://remote/management",
+                        "CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgres://remote/operator",
                     ]
                 )
                 + "\n"
@@ -199,6 +199,7 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
                     [
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=postgres://remote/runtime",
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=postgres://remote/runtime",
+                        "APP_API_OPERATOR_DATABASE_URL=postgres://remote/operator",
                         "APP_API_MANAGEMENT_DATABASE_URL=postgres://remote/management",
                     ]
                 )
@@ -243,7 +244,7 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
                     [
                         "KEEP_ME=1",
                         "CAMPUS_SHARED_POSTGRES_URL=postgres://remote/runtime",
-                        "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://remote/management",
+                        "CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgres://remote/operator",
                     ]
                 )
                 + "\n",
@@ -254,7 +255,7 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
                     [
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=",
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=",
-                        "APP_API_MANAGEMENT_DATABASE_URL=",
+                        "APP_API_OPERATOR_DATABASE_URL=",
                         "APP_API_OTHER=1",
                     ]
                 )
@@ -277,21 +278,21 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
             root_env = (repo_root / ".env").read_text(encoding="utf-8")
             self.assertIn(f"CAMPUS_SHARED_POSTGRES_URL={LOCAL_POSTGRES_DATABASE_URL}\n", root_env)
             self.assertIn(
-                f"CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL={LOCAL_POSTGRES_DATABASE_URL}\n",
+                f"CAMPUS_SHARED_POSTGRES_OPERATOR_URL={LOCAL_POSTGRES_DATABASE_URL}\n",
                 root_env,
             )
             self.assertIn(
                 f"DOCUMENT_REGISTRY_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n", root_env
             )
             self.assertIn(
-                f"DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n",
+                f"DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n",
                 root_env,
             )
             self.assertIn(
                 f"RAW_ASSET_REGISTRY_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n", root_env
             )
             self.assertIn(
-                f"RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n",
+                f"RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n",
                 root_env,
             )
             self.assertIn("KEEP_ME=1\n", root_env)
@@ -308,9 +309,10 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
                 app_api_env,
             )
             self.assertIn(
-                f"APP_API_MANAGEMENT_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n",
+                f"APP_API_OPERATOR_DATABASE_URL={LOCAL_POSTGRES_DATABASE_URL}\n",
                 app_api_env,
             )
+            self.assertNotIn("APP_API_MANAGEMENT_DATABASE_URL=", app_api_env)
             self.assertIn("APP_API_OTHER=1\n", app_api_env)
 
             dev_vars = (repo_root / "apps" / "app-api" / ".dev.vars").read_text(encoding="utf-8")
@@ -363,7 +365,7 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
                 repo_root / "apps" / "app-api" / ".env.example",
                 "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=\n"
                 "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=\n"
-                "APP_API_MANAGEMENT_DATABASE_URL=\n",
+                "APP_API_OPERATOR_DATABASE_URL=\n",
             )
             _write(
                 repo_root / "apps" / "app-api" / ".dev.vars.example",
@@ -460,7 +462,7 @@ class RestoreLocalPostgresDevTest(unittest.TestCase):
                 repo_root / "apps" / "app-api" / ".env.example",
                 "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=\n"
                 "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=\n"
-                "APP_API_MANAGEMENT_DATABASE_URL=\n",
+                "APP_API_OPERATOR_DATABASE_URL=\n",
             )
             _write(
                 repo_root / "apps" / "app-api" / ".dev.vars.example",

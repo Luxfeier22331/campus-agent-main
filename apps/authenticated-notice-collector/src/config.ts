@@ -17,7 +17,6 @@ export interface CollectorConfig {
 	attachmentFetchStatusDisabled: boolean;
 	defaultInlineVisualCapture: boolean;
 	authStorageStatePath: string;
-	authCookieHeader: string | null;
 	authJsessionId: string | null;
 	authNginxCookie: string | null;
 	authSsoTgcToken: string | null;
@@ -90,7 +89,6 @@ export function resolveCollectorConfig(
 			false,
 		),
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
-		authCookieHeader: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER),
 		authJsessionId: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_JSESSIONID),
 		authNginxCookie: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_NGINX),
 		authSsoTgcToken: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_SSO_TGC),

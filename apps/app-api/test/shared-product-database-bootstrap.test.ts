@@ -17,10 +17,11 @@ describe("app-api shared product database bootstrap", () => {
 		expect(BETTER_AUTH_TABLES).toEqual(["user", "session", "account", "verification"]);
 	});
 
-	it("reads bootstrap env from the app-api management connection only", () => {
+	it("reads bootstrap env from the app-api operator connection only", () => {
 		const env = readSharedProductBootstrapEnv({
 			APP_API_DATABASE_SSLMODE: "require",
-			APP_API_MANAGEMENT_DATABASE_URL: "postgresql://db.example/campus_agent",
+			APP_API_OPERATOR_DATABASE_URL: "postgresql://db.example/campus_agent",
+			AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 			BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
 			PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
 		} as NodeJS.ProcessEnv);

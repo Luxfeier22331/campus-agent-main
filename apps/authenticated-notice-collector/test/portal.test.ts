@@ -429,65 +429,6 @@ describe("authenticated notice collector portal bootstrap", () => {
 		await apiContext.dispose();
 	});
 
-	it("seeds stored auth from a full cookie header before bootstrap fallback", async () => {
-		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-cookie-header-"));
-		tempDirs.push(runtimeDir);
-		const calls: string[] = [];
-
-		const config = {
-			...buildConfig(runtimeDir),
-			authCookieHeader: "JSESSIONID=seeded-session; nginx=seeded-upstream; SSO_TGC=seeded-ticket",
-		};
-		const apiContext = await createApiContextFromStorageState(config, {
-			createRequestContext: async (input) => {
-				const cookiesByName = new Map(
-					input.storageState.cookies.map((cookie) => [cookie.name, cookie]),
-				);
-				calls.push(`request.newContext:${cookiesByName.get("JSESSIONID")?.value ?? "missing"}`);
-				expect(cookiesByName.get("JSESSIONID")).toMatchObject({
-					domain: "portal.example.edu",
-					httpOnly: true,
-					name: "JSESSIONID",
-					path: "/",
-					secure: true,
-					value: "seeded-session",
-				});
-				expect(cookiesByName.get("nginx")).toMatchObject({
-					domain: "portal.example.edu",
-					httpOnly: true,
-					name: "nginx",
-					path: "/",
-					secure: true,
-					value: "seeded-upstream",
-				});
-				expect(cookiesByName.get("SSO_TGC")).toMatchObject({
-					domain: ".muc.edu.cn",
-					httpOnly: true,
-					name: "SSO_TGC",
-					path: "/",
-					secure: true,
-					value: "seeded-ticket",
-				});
-				return {
-					dispose: async () => undefined,
-					get: async () => {
-						throw new Error("unexpected get");
-					},
-					post: async () => {
-						throw new Error("unexpected post");
-					},
-				};
-			},
-			launchBrowser: async () => {
-				throw new Error("browserType.launch: Timeout 180000ms exceeded.");
-			},
-		});
-
-		expect(calls).toEqual(["request.newContext:seeded-session"]);
-
-		await apiContext.dispose();
-	});
-
 	it("preserves explicit operator cookies when bootstrap storage state drops them", async () => {
 		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-cookie-merge-"));
 		tempDirs.push(runtimeDir);
@@ -612,7 +553,6 @@ function buildConfig(runtimeDir: string): CollectorConfig {
 	return {
 		authCheckNoticeType: "5",
 		authCheckPageSize: 3,
-		authCookieHeader: null,
 		authJsessionId: null,
 		authNginxCookie: null,
 		attachmentFetchRequestManifestPath: null,

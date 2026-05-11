@@ -34,7 +34,6 @@ SUPPORTED_BATCH_KINDS = (
 
 SHARED_POSTGRES_KEY = "CAMPUS_SHARED_POSTGRES_URL"
 OPERATOR_POSTGRES_KEY = "CAMPUS_SHARED_POSTGRES_OPERATOR_URL"
-LEGACY_OPERATOR_POSTGRES_KEY = "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL"
 
 
 def run_deployment_preflight(
@@ -156,7 +155,7 @@ def _check_postgres_config(env: Mapping[str, str]) -> dict[str, Any]:
     if not shared_url:
         missing.append(SHARED_POSTGRES_KEY)
     if not operator_url:
-        missing.append(f"{OPERATOR_POSTGRES_KEY} or legacy {LEGACY_OPERATOR_POSTGRES_KEY}")
+        missing.append(OPERATOR_POSTGRES_KEY)
     if missing:
         return _failed("postgres_config", "Missing required Postgres env: " + ", ".join(missing))
 
@@ -170,9 +169,7 @@ def _check_postgres_config(env: Mapping[str, str]) -> dict[str, Any]:
         "Postgres env is syntactically valid for shared runtime and operator access.",
         details={
             "shared_key": SHARED_POSTGRES_KEY,
-            "operator_key": OPERATOR_POSTGRES_KEY
-            if _env_text(env, OPERATOR_POSTGRES_KEY)
-            else LEGACY_OPERATOR_POSTGRES_KEY,
+            "operator_key": OPERATOR_POSTGRES_KEY,
         },
     )
 
@@ -348,7 +345,7 @@ def _check_live_object_store(env: Mapping[str, str]) -> dict[str, Any]:
 
 
 def _operator_postgres_url(env: Mapping[str, str]) -> str:
-    return _env_text(env, OPERATOR_POSTGRES_KEY) or _env_text(env, LEGACY_OPERATOR_POSTGRES_KEY)
+    return _env_text(env, OPERATOR_POSTGRES_KEY)
 
 
 def _env_text(env: Mapping[str, str], key: str) -> str:

@@ -9,7 +9,6 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.postgres_runtime import build_operator_postgres_connection_url
 from campus_ingestion_core.registry import (
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _coerce_json_payload,
 )
@@ -18,7 +17,6 @@ from campus_ingestion_core.regulation_rag_release_admission import (
 )
 from campus_ingestion_core.regulation_rag_release_models import (
     DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_ENV_KEY,
-    DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_MANAGEMENT_ENV_KEY,
     DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY,
     RagReleaseCandidate,
     RagReleaseCandidateStatus,
@@ -173,17 +171,12 @@ def _resolve_candidate_store_database_url(
     if prefer_operator:
         operator_url = (
             (source.get(DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY) or "").strip()
-            or (
-                source.get(DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_MANAGEMENT_ENV_KEY) or ""
-            ).strip()
             or (source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY) or "").strip()
-            or (source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY) or "").strip()
         )
         if not operator_url:
             raise ValueError(
                 f"{DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_MANAGEMENT_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or {SHARED_POSTGRES_MANAGEMENT_ENV_KEY} "
+                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} "
                 "is required for regulation RAG release candidate store"
             )
         return build_operator_postgres_connection_url(operator_url)

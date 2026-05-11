@@ -52,9 +52,8 @@ Collector runtime env for Docker / cron entrypoints:
 - `OFFICIAL_WEB_TRIGGER_TYPE`: optional default trigger (`manual` / `scheduled`
   / `replay`)
 - `OFFICIAL_WEB_TRACE_ID`: optional trace correlation id
-- object-store upload uses `OBJECT_STORE_SOURCE_ACCESS_KEY` /
-  `OBJECT_STORE_SOURCE_SECRET_KEY` when present; otherwise it falls back to
-  shared `OBJECT_STORE_ACCESS_KEY` / `OBJECT_STORE_SECRET_KEY`
+- object-store upload requires `OBJECT_STORE_SOURCE_ACCESS_KEY` /
+  `OBJECT_STORE_SOURCE_SECRET_KEY`
 
 For local live control-plane smoke:
 

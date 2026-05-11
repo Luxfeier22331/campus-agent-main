@@ -148,7 +148,6 @@ Database baseline:
 - runtime now distinguishes `APP_API_DB` for cached/read-mostly access and
   optional `APP_API_DB_FRESH` for auth/fresh read-after-write access
 - migration / schema management uses canonical `APP_API_OPERATOR_DATABASE_URL`
-  with legacy `APP_API_MANAGEMENT_DATABASE_URL` kept as a compatibility alias
 - `apps/app-api` runtime schema code continues to cover `app_auth.*`, `chat.*`,
   `runtime.*`, `operator.*`, `official_web.*`, and `profile.*`
 - `drizzle.app_api_migrations` now owns only `runtime.*`, `operator.*`, and
@@ -204,7 +203,6 @@ Environment:
 - `APP_API_INTERNAL_SHARED_SECRET`
 - `APP_API_STAGING_SMOKE_AUTH_SECRET`
 - `APP_API_OPERATOR_DATABASE_URL`
-- `APP_API_MANAGEMENT_DATABASE_URL` (legacy alias)
 - `APP_API_DATABASE_SSLMODE`
 - `SENTRY_DSN`
 - `SENTRY_ENVIRONMENT`
@@ -222,7 +220,6 @@ Local development:
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=...`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=...`
   - `APP_API_OPERATOR_DATABASE_URL=...`
-  - `APP_API_MANAGEMENT_DATABASE_URL=...` (legacy alias)
 - if the root worktree `.env` already has `CAMPUS_SHARED_POSTGRES_URL`, use `uv
   run --all-packages python -m scripts.sync_app_api_local_db_env --repo-root
   <current-worktree-root>` to generate `apps/app-api/.env`; the sync script will
@@ -243,12 +240,11 @@ Deployment minimum gate:
 - `APP_API_DB_FRESH.connectionString` should resolve from a caching-disabled
   Hyperdrive binding in deployed envs so auth-sensitive read-after-write paths
   stay fresh
-- `AUTH_SHELL_ORIGIN` should point at the deployed `hub-web` account browser
-  shell. If omitted, app-api falls back to `PUBLIC_CHAT_WEB_ORIGIN` for legacy
-  local/dev compatibility.
-- `PUBLIC_CHAT_WEB_ORIGIN` remains the deployed public-chat compatibility origin
-  and trusted Better Auth origin while chat-local auth URLs are kept as bounded
-  redirects/shims.
+- `AUTH_SHELL_ORIGIN` must point at the deployed `hub-web` account browser
+  shell
+- `PUBLIC_CHAT_WEB_ORIGIN` remains the deployed public-chat origin and trusted
+  Better Auth origin while chat-local auth URLs are kept as bounded
+  redirects/shims
 - `AUTH_TURNSTILE_SECRET_KEY` must be present or the captcha-gated sign-in /
   sign-up / request-password-reset surface remains not ready
 - `RESEND_API_KEY` and `AUTH_RESET_EMAIL_FROM` must both be present or password

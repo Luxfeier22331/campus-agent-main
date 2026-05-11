@@ -5,7 +5,6 @@ from pathlib import Path
 
 from scripts.env_sync import (
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     load_target_seed,
     parse_env_file,
@@ -27,15 +26,7 @@ def sync_app_api_local_db_env(
 
     source_values = parse_env_file(source_path)
     runtime_database_url = require_env_value(source_values, SHARED_POSTGRES_ENV_KEY)
-    operator_database_url = (
-        source_values.get(SHARED_POSTGRES_OPERATOR_ENV_KEY, "").strip()
-        or source_values.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY, "").strip()
-        or runtime_database_url
-    )
-    if not operator_database_url:
-        raise ValueError(
-            f"Missing required env value in source env: {SHARED_POSTGRES_OPERATOR_ENV_KEY}"
-        )
+    operator_database_url = require_env_value(source_values, SHARED_POSTGRES_OPERATOR_ENV_KEY)
 
     target_path = repo_root / TARGET_PATH
     target_path.parent.mkdir(parents=True, exist_ok=True)
@@ -43,9 +34,12 @@ def sync_app_api_local_db_env(
         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB": runtime_database_url,
         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH": runtime_database_url,
         "APP_API_OPERATOR_DATABASE_URL": operator_database_url,
-        "APP_API_MANAGEMENT_DATABASE_URL": operator_database_url,
     }
-    content = replace_or_append_env_values(load_target_seed(target_path), assignments)
+    content = replace_or_append_env_values(
+        load_target_seed(target_path),
+        assignments,
+        drop_keys=("APP_API_MANAGEMENT_DATABASE_URL",),
+    )
     target_path.write_text(content, encoding="utf-8")
     return target_path
 
@@ -53,7 +47,7 @@ def sync_app_api_local_db_env(
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=(
-            "Fan out the root-worktree shared Supabase runtime/management Postgres URLs "
+            "Fan out the root-worktree shared Supabase runtime/operator Postgres URLs "
             "into the app-api local process env used by Wrangler Hyperdrive local "
             "development and Drizzle commands."
         )

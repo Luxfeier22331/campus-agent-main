@@ -16,9 +16,6 @@ from campus_ingestion_core.internal_notice_multimodal_processing_attempts import
     DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_ENV_KEY as DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_ENV_KEY,
 )
 from campus_ingestion_core.internal_notice_multimodal_processing_attempts import (
-    DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_MANAGEMENT_ENV_KEY as DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_MANAGEMENT_ENV_KEY,
-)
-from campus_ingestion_core.internal_notice_multimodal_processing_attempts import (
     DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_ENV_KEY as DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_ENV_KEY,
 )
 from campus_ingestion_core.internal_notice_multimodal_processing_attempts import (
@@ -754,7 +751,6 @@ def _processor_model_label(processor: InternalNoticeMultimodalProcessor) -> str:
 
 __all__ = [
     "DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_ENV_KEY",
-    "DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_MANAGEMENT_ENV_KEY",
     "DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_ENV_KEY",
     "DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_TABLE",
     "DEFAULT_INTERNAL_NOTICE_MULTIMODAL_MAX_ATTEMPTS",

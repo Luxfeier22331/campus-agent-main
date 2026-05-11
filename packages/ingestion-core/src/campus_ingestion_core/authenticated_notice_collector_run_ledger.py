@@ -8,7 +8,6 @@ from campus_ingestion_core.postgres_runtime import (
     normalize_postgres_connection_url,
 )
 from campus_ingestion_core.registry import (
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _postgres_connection,
     _qualified_table_sql,
@@ -22,9 +21,6 @@ AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL_ENV_KEY = (
 )
 AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_OPERATOR_DATABASE_URL_ENV_KEY = (
     "AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_OPERATOR_DATABASE_URL"
-)
-AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_MANAGEMENT_DATABASE_URL_ENV_KEY = (
-    "AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_MANAGEMENT_DATABASE_URL"
 )
 
 _COLLECTOR_RUN_REF_COLUMNS = (
@@ -67,8 +63,7 @@ def resolve_authenticated_notice_collector_run_refs(
         raise ValueError(
             f"{AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL_ENV_KEY} or "
             f"{AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_OPERATOR_DATABASE_URL_ENV_KEY} or "
-            f"{AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_MANAGEMENT_DATABASE_URL_ENV_KEY} or "
-            f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or {SHARED_POSTGRES_MANAGEMENT_ENV_KEY} "
+            f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} "
             "is required for authenticated notice run_id import"
         )
     table_sql = _qualified_table_sql(table_name)
@@ -145,9 +140,7 @@ def _collector_run_ledger_database_url(env: dict[str, str]) -> str | None:
         return normalize_postgres_connection_url(direct)
     operator = (
         env.get(AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_OPERATOR_DATABASE_URL_ENV_KEY)
-        or env.get(AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_MANAGEMENT_DATABASE_URL_ENV_KEY)
         or env.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-        or env.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
         or ""
     ).strip()
     if not operator:
@@ -188,7 +181,6 @@ def _required_non_negative_int(value: object, label: str) -> int:
 
 __all__ = [
     "AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL_ENV_KEY",
-    "AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_MANAGEMENT_DATABASE_URL_ENV_KEY",
     "AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_OPERATOR_DATABASE_URL_ENV_KEY",
     "DEFAULT_AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_TABLE",
     "AuthenticatedNoticeCollectorRunObjectRefs",

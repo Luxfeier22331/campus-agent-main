@@ -12,15 +12,11 @@ from campus_ingestion_core.authenticated_notice_attachment_fetch_request_manifes
     build_authenticated_notice_attachment_fetch_request_manifest,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
-    DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
     DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
-from campus_ingestion_core.registry import (
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
-    SHARED_POSTGRES_OPERATOR_ENV_KEY,
-)
+from campus_ingestion_core.registry import SHARED_POSTGRES_OPERATOR_ENV_KEY
 from campus_ingestion_core.settings import DEFAULT_BUCKET_SOURCE, ObjectStoreSettings
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
@@ -168,9 +164,7 @@ def _has_source_truth_operator_database_url(env: dict[str, str]) -> bool:
         env.get(key)
         for key in (
             DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
-            DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
             SHARED_POSTGRES_OPERATOR_ENV_KEY,
-            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
         )
     )
 

@@ -7,7 +7,6 @@ from dataclasses import asdict
 
 from campus_ingestion_core.internal_notice_consumption_admission import (
     DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_ENV_KEY,
-    DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_ENV_KEY,
     DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_ENV_KEY,
 )
 from campus_ingestion_core.internal_notice_multimodal_processing_models import (
@@ -16,7 +15,6 @@ from campus_ingestion_core.internal_notice_multimodal_processing_models import (
 )
 from campus_ingestion_core.notice_consumption_projection import (
     DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY,
-    DEFAULT_NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_ENV_KEY,
     DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY,
 )
 from campus_ingestion_core.postgres_runtime import (
@@ -25,10 +23,8 @@ from campus_ingestion_core.postgres_runtime import (
 )
 from campus_ingestion_core.registry import (
     DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
     DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _coerce_json_payload,
     _ensure_table_schema,
@@ -39,9 +35,6 @@ from campus_ingestion_core.registry import (
 
 DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_ENV_KEY = (
     "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL"
-)
-DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_MANAGEMENT_ENV_KEY = (
-    "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_MANAGEMENT_DATABASE_URL"
 )
 DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_ENV_KEY = (
     "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL"
@@ -196,11 +189,8 @@ def build_internal_notice_multimodal_attempt_store_from_env(
         if not operator_database_url:
             raise ValueError(
                 f"{DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_MANAGEMENT_ENV_KEY} or "
                 f"{DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or "
-                f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} is required when prefer_operator=True"
+                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
             )
         return PostgresInternalNoticeMultimodalAttemptStore(
             database_url=build_operator_postgres_connection_url(operator_database_url)
@@ -219,15 +209,10 @@ def build_internal_notice_multimodal_attempt_store_from_env(
 def _operator_database_url(source: Mapping[str, str]) -> str:
     return (
         source.get(DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_ENV_KEY)
-        or source.get(DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_MANAGEMENT_ENV_KEY)
         or source.get(DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_ENV_KEY)
-        or source.get(DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_ENV_KEY)
         or source.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY)
-        or source.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_ENV_KEY)
         or source.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY)
-        or source.get(DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY)
         or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-        or source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
         or ""
     ).strip()
 
@@ -245,7 +230,6 @@ def _runtime_database_url(source: Mapping[str, str]) -> str:
 
 __all__ = [
     "DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_ENV_KEY",
-    "DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_MANAGEMENT_ENV_KEY",
     "DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_ENV_KEY",
     "DEFAULT_INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_TABLE",
     "InMemoryInternalNoticeMultimodalAttemptStore",

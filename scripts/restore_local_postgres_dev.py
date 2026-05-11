@@ -39,13 +39,10 @@ APP_API_DEV_VARS_PATH = Path("apps/app-api/.dev.vars")
 _ROOT_LOCAL_POSTGRES_ENV_KEYS = (
     "CAMPUS_SHARED_POSTGRES_URL",
     "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
-    "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL",
     "DOCUMENT_REGISTRY_DATABASE_URL",
     "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
-    "DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL",
     "RAW_ASSET_REGISTRY_DATABASE_URL",
     "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
-    "RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL",
 )
 
 
@@ -87,7 +84,11 @@ def prepare_local_postgres_recovery(
         repo_root=resolved_repo_root,
         local_postgres_url=local_postgres_url,
     )
-    app_api_env_path = sync_app_api_local_db_env(repo_root=resolved_repo_root)
+    sync_app_api_local_db_env(repo_root=resolved_repo_root)
+    app_api_env_path = _rewrite_app_api_env_for_local_postgres(
+        repo_root=resolved_repo_root,
+        local_postgres_url=local_postgres_url,
+    )
     app_api_dev_vars_path = _rewrite_app_api_dev_vars_for_local_postgres(
         repo_root=resolved_repo_root
     )
@@ -451,7 +452,28 @@ def _rewrite_root_env_for_local_postgres(
     content = replace_or_append_env_values(
         load_target_seed(target_path),
         dict.fromkeys(_ROOT_LOCAL_POSTGRES_ENV_KEYS, local_postgres_url),
+        drop_keys=(
+            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL",
+            "DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL",
+            "RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL",
+        ),
     )
+    target_path.write_text(content, encoding="utf-8")
+    return target_path
+
+
+def _rewrite_app_api_env_for_local_postgres(*, repo_root: Path, local_postgres_url: str) -> Path:
+    target_path = repo_root / APP_API_ENV_PATH
+    content = replace_or_append_env_values(
+        load_target_seed(target_path),
+        {
+            "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB": local_postgres_url,
+            "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH": local_postgres_url,
+            "APP_API_OPERATOR_DATABASE_URL": local_postgres_url,
+        },
+        drop_keys=("APP_API_MANAGEMENT_DATABASE_URL",),
+    )
+    target_path.parent.mkdir(parents=True, exist_ok=True)
     target_path.write_text(content, encoding="utf-8")
     return target_path
 

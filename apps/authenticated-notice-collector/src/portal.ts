@@ -170,9 +170,6 @@ function seedStoredAuthFromConfig(config: CollectorConfig): void {
 }
 
 function resolveSeedCookies(config: CollectorConfig): PortalStorageState["cookies"][number][] {
-	if (config.authCookieHeader) {
-		return parsePortalCookieHeader(config);
-	}
 	const portalHost = new URL(config.portalBaseUrl).hostname;
 	const seededCookies: PortalStorageState["cookies"][number][] = [];
 	const sessionToken = validateCookieToken(
@@ -191,45 +188,6 @@ function resolveSeedCookies(config: CollectorConfig): PortalStorageState["cookie
 		seededCookies.push(buildPortalCookie(".muc.edu.cn", SSO_TGC_COOKIE_NAME, ssoToken));
 	}
 	return seededCookies;
-}
-
-function parsePortalCookieHeader(config: CollectorConfig): PortalStorageState["cookies"][number][] {
-	const cookieHeader = String(config.authCookieHeader ?? "").trim();
-	if (!cookieHeader) {
-		return [];
-	}
-	const portalHost = new URL(config.portalBaseUrl).hostname;
-	const cookiesByName = new Map<string, PortalStorageState["cookies"][number]>();
-	for (const fragment of cookieHeader.split(";")) {
-		const token = fragment.trim();
-		if (!token) {
-			continue;
-		}
-		const separator = token.indexOf("=");
-		if (separator <= 0) {
-			throw new Error(
-				"invalid AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER: expected a Cookie header fragment",
-			);
-		}
-		const name = token.slice(0, separator).trim();
-		const value = token.slice(separator + 1).trim();
-		if (!(name && value)) {
-			throw new Error(
-				"invalid AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER: expected cookie name=value pairs",
-			);
-		}
-		cookiesByName.set(name, {
-			domain: name === SSO_TGC_COOKIE_NAME ? ".muc.edu.cn" : portalHost,
-			expires: -1,
-			httpOnly: true,
-			name,
-			path: "/",
-			sameSite: "Lax",
-			secure: true,
-			value,
-		});
-	}
-	return [...cookiesByName.values()];
 }
 
 function buildPortalCookie(

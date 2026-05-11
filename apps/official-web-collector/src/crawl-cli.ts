@@ -17,11 +17,11 @@ interface CollectorCliEnvironment {
 	OFFICIAL_WEB_RUN_INTENT?: string;
 	OFFICIAL_WEB_TRACE_ID?: string;
 	OFFICIAL_WEB_TRIGGER_TYPE?: string;
-	OBJECT_STORE_ACCESS_KEY?: string;
 	OBJECT_STORE_BUCKET_SOURCE?: string;
 	OBJECT_STORE_ENDPOINT?: string;
 	OBJECT_STORE_REGION?: string;
-	OBJECT_STORE_SECRET_KEY?: string;
+	OBJECT_STORE_SOURCE_ACCESS_KEY?: string;
+	OBJECT_STORE_SOURCE_SECRET_KEY?: string;
 }
 
 export interface ResolvedCollectorCrawlMainInput {

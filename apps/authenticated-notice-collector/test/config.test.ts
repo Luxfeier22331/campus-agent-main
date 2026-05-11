@@ -44,8 +44,6 @@ describe("authenticated notice collector config", () => {
 
 	it("accepts explicit overrides from env-like input", () => {
 		const config = resolveCollectorConfig({
-			AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER:
-				"JSESSIONID=session-1; nginx=sticky-1; SSO_TGC=sso-token-1",
 			AUTHENTICATED_NOTICE_AUTH_CHECK_NOTICE_TYPE: "6",
 			AUTHENTICATED_NOTICE_BASE_URL: "https://portal.example.edu",
 			AUTHENTICATED_NOTICE_JSESSIONID: "session-2",
@@ -78,9 +76,7 @@ describe("authenticated notice collector config", () => {
 		expect(config.portalBaseUrl).toBe("https://portal.example.edu");
 		expect(config.portalPageUrl).toBe("https://portal.example.edu/page/99#/");
 		expect(config.requestMaxRetries).toBe(5);
-		expect(config.authCookieHeader).toBe(
-			"JSESSIONID=session-1; nginx=sticky-1; SSO_TGC=sso-token-1",
-		);
+		expect("authCookieHeader" in config).toBe(false);
 		expect(config.authJsessionId).toBe("session-2");
 		expect(config.authNginxCookie).toBe("sticky-2");
 		expect(config.authCheckNoticeType).toBe("6");

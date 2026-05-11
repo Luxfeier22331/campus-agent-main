@@ -379,7 +379,6 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=postgresql://app-api-local/postgres",
                         "APP_API_OPERATOR_DATABASE_URL=postgresql://app-api-operator/postgres",
-                        "APP_API_MANAGEMENT_DATABASE_URL=postgresql://app-api-operator/postgres",
                     ]
                 )
                 + "\n",
@@ -389,6 +388,7 @@ class DoctorEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "BETTER_AUTH_SECRET=dev-secret-dev-secret-dev-secret",
+                        "AUTH_SHELL_ORIGIN=https://hub.example.com",
                         "PUBLIC_CHAT_WEB_ORIGIN=https://chat.example.com",
                         "SUPERVISOR_API_BASE_URL=https://supervisor.internal",
                         "SUPERVISOR_API_SHARED_SECRET=shared-secret",
@@ -549,6 +549,10 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(status["overall_ready"])
             self.assertTrue(status["providers"]["embedding"]["present"])
             self.assertTrue(status["settings"]["required"]["registry_database_url"]["present"])
+            self.assertEqual(
+                status["settings"]["required"]["object_store_credentials"]["resolved_key"],
+                "shared:OBJECT_STORE_ACCESS_KEY+OBJECT_STORE_SECRET_KEY",
+            )
             self.assertTrue(
                 status["settings"]["optional"]["legacy_office_conversion_base_url"]["present"]
             )
@@ -661,7 +665,16 @@ class DoctorEnvTest(unittest.TestCase):
                 status = collect_env_doctor_status(repo_root=repo_root, surface="ingestion")
 
             self.assertTrue(status["overall_ready"])
-            self.assertTrue(status["settings"]["required"]["object_store_credentials"]["present"])
+            object_store_credentials = status["settings"]["required"]["object_store_credentials"]
+            self.assertTrue(object_store_credentials["present"])
+            self.assertEqual(
+                object_store_credentials["resolved_key"],
+                (
+                    "bucket_scoped:"
+                    "OBJECT_STORE_SOURCE_ACCESS_KEY+OBJECT_STORE_SOURCE_SECRET_KEY;"
+                    "OBJECT_STORE_DERIVED_ACCESS_KEY+OBJECT_STORE_DERIVED_SECRET_KEY"
+                ),
+            )
 
     def test_collect_env_doctor_status_reports_worker_staging_shell_requirements(self) -> None:
         with TemporaryDirectory() as temp_dir:

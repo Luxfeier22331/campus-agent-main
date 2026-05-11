@@ -7,16 +7,13 @@ from campus_ingestion_core.internal_notice_read_model_postgres import (
 )
 from campus_ingestion_core.internal_notice_read_model_shared import (
     DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,
-    DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY,
     DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY,
 )
 from campus_ingestion_core.postgres_runtime import build_operator_postgres_connection_url
 from campus_ingestion_core.registry import (
     DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
     DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
 )
 
@@ -30,21 +27,15 @@ def build_internal_notice_read_model_store_from_env(
     if prefer_operator:
         operator_database_url = (
             source.get(DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY)
-            or source.get(DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY)
             or source.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY)
-            or source.get(DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY)
             or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-            or source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
             or ""
         ).strip()
         if not operator_database_url:
             raise ValueError(
                 f"{DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_INTERNAL_NOTICE_READ_MODEL_MANAGEMENT_ENV_KEY} or "
                 f"{DOCUMENT_REGISTRY_OPERATOR_ENV_KEY} or "
-                f"{DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or "
-                f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} is required when prefer_operator=True"
+                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
             )
         return PostgresInternalNoticeReadModelStore(
             database_url=build_operator_postgres_connection_url(operator_database_url)

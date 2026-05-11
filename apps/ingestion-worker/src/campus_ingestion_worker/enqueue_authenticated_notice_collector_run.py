@@ -16,14 +16,10 @@ from campus_ingestion_core.authenticated_notice_run_enqueue import (
     execute_authenticated_notice_run_enqueue_plan,
 )
 from campus_ingestion_core.collected_notice_ingest_queue_postgres import (
-    DEFAULT_NOTICE_INGEST_QUEUE_MANAGEMENT_ENV_KEY,
     DEFAULT_NOTICE_INGEST_QUEUE_OPERATOR_ENV_KEY,
     build_notice_ingest_queue_store_from_env,
 )
-from campus_ingestion_core.registry import (
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
-    SHARED_POSTGRES_OPERATOR_ENV_KEY,
-)
+from campus_ingestion_core.registry import SHARED_POSTGRES_OPERATOR_ENV_KEY
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
@@ -126,9 +122,7 @@ def _has_operator_database_url(env: dict[str, str]) -> bool:
         env.get(key)
         for key in (
             DEFAULT_NOTICE_INGEST_QUEUE_OPERATOR_ENV_KEY,
-            DEFAULT_NOTICE_INGEST_QUEUE_MANAGEMENT_ENV_KEY,
             SHARED_POSTGRES_OPERATOR_ENV_KEY,
-            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
         )
     )
 

@@ -8,7 +8,6 @@ from typing import Any
 
 from scripts.env_sync import (
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     load_target_seed,
     parse_env_file,
@@ -186,62 +185,49 @@ def _rewrite_root_env_from_shared_source(
     source_env_path: Path,
 ) -> Path:
     source_values = parse_env_file(source_env_path)
-    shared_operator_url = (
-        source_values.get(SHARED_POSTGRES_OPERATOR_ENV_KEY, "").strip()
-        or source_values.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY, "").strip()
-        or source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip()
-    )
+    shared_runtime_url = source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip()
+    shared_operator_url = source_values.get(SHARED_POSTGRES_OPERATOR_ENV_KEY, "").strip()
     assignments = {
         key: value
         for key, value in (
-            (SHARED_POSTGRES_ENV_KEY, source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip()),
+            (SHARED_POSTGRES_ENV_KEY, shared_runtime_url),
             (
                 SHARED_POSTGRES_OPERATOR_ENV_KEY,
                 shared_operator_url,
             ),
             (
-                SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
-                shared_operator_url,
-            ),
-            (
                 "DOCUMENT_REGISTRY_DATABASE_URL",
                 source_values.get("DOCUMENT_REGISTRY_DATABASE_URL", "").strip()
-                or source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip(),
+                or shared_runtime_url,
             ),
             (
                 "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
                 source_values.get("DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL", "").strip()
-                or source_values.get("DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
-                or shared_operator_url,
-            ),
-            (
-                "DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL",
-                source_values.get("DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL", "").strip()
-                or source_values.get("DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
                 or shared_operator_url,
             ),
             (
                 "RAW_ASSET_REGISTRY_DATABASE_URL",
                 source_values.get("RAW_ASSET_REGISTRY_DATABASE_URL", "").strip()
-                or source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip(),
+                or shared_runtime_url,
             ),
             (
                 "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL",
                 source_values.get("RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL", "").strip()
-                or source_values.get("RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
-                or shared_operator_url,
-            ),
-            (
-                "RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL",
-                source_values.get("RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL", "").strip()
-                or source_values.get("RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL", "").strip()
                 or shared_operator_url,
             ),
         )
         if value
     }
     target_path = repo_root / ".env"
-    content = replace_or_append_env_values(load_target_seed(target_path), assignments)
+    content = replace_or_append_env_values(
+        load_target_seed(target_path),
+        assignments,
+        drop_keys=(
+            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL",
+            "DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL",
+            "RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL",
+        ),
+    )
     target_path.write_text(content, encoding="utf-8")
     return target_path
 
@@ -277,18 +263,16 @@ def _restore_or_sync_app_api_env(
             ),
             (
                 "APP_API_OPERATOR_DATABASE_URL",
-                source_values.get("APP_API_OPERATOR_DATABASE_URL", "").strip()
-                or source_values.get("APP_API_MANAGEMENT_DATABASE_URL", "").strip(),
-            ),
-            (
-                "APP_API_MANAGEMENT_DATABASE_URL",
-                source_values.get("APP_API_OPERATOR_DATABASE_URL", "").strip()
-                or source_values.get("APP_API_MANAGEMENT_DATABASE_URL", "").strip(),
+                source_values.get("APP_API_OPERATOR_DATABASE_URL", "").strip(),
             ),
         )
         if value
     }
-    content = replace_or_append_env_values(load_target_seed(target_path), assignments)
+    content = replace_or_append_env_values(
+        load_target_seed(target_path),
+        assignments,
+        drop_keys=("APP_API_MANAGEMENT_DATABASE_URL",),
+    )
     target_path.parent.mkdir(parents=True, exist_ok=True)
     target_path.write_text(content, encoding="utf-8")
     return target_path
@@ -353,15 +337,13 @@ def _resolve_optional_existing_source(
 def _validate_shared_root_env_source(source_env_path: Path) -> None:
     source_values = parse_env_file(source_env_path)
     runtime_url = source_values.get(SHARED_POSTGRES_ENV_KEY, "").strip()
-    management_url = source_values.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY, "").strip()
-    if not runtime_url or not management_url:
+    operator_url = source_values.get(SHARED_POSTGRES_OPERATOR_ENV_KEY, "").strip()
+    if not runtime_url or not operator_url:
         raise ValueError(
             "shared root env source must define CAMPUS_SHARED_POSTGRES_URL and "
-            "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL"
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL"
         )
-    if is_local_postgres_database_url(runtime_url) or is_local_postgres_database_url(
-        management_url
-    ):
+    if is_local_postgres_database_url(runtime_url) or is_local_postgres_database_url(operator_url):
         raise ValueError("shared root env source still points at the local Postgres DSN")
 
 

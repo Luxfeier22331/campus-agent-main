@@ -119,21 +119,15 @@ _SURFACE_SPECS = {
         "optional_settings": {
             "projection_operator_database_url": (
                 "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
-                "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
                 "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
-                "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL",
             ),
             "admission_operator_database_url": (
                 "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
-                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_DATABASE_URL",
                 "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
-                "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
             ),
             "attempt_operator_database_url": (
                 "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL",
-                "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_MANAGEMENT_DATABASE_URL",
                 "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
-                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_DATABASE_URL",
             ),
             "multimodal_base_url": (
                 "INTERNAL_NOTICE_MULTIMODAL_BASE_URL",
@@ -181,12 +175,12 @@ _SURFACE_SPECS = {
                 ),
                 "optional_keys": (
                     "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH",
-                    "APP_API_MANAGEMENT_DATABASE_URL",
                 ),
             },
             "apps/app-api/.dev.vars": {
                 "required_keys": (
                     "BETTER_AUTH_SECRET",
+                    "AUTH_SHELL_ORIGIN",
                     "PUBLIC_CHAT_WEB_ORIGIN",
                     "SUPERVISOR_API_BASE_URL",
                     "SUPERVISOR_API_SHARED_SECRET",
@@ -271,14 +265,8 @@ _SURFACE_SPECS = {
             "internal_notice_read_model_database_url": ("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",),
             "internal_notice_read_model_table": ("INTERNAL_NOTICE_READ_MODEL_TABLE",),
             "notice_object_store_endpoint": ("OBJECT_STORE_ENDPOINT",),
-            "notice_object_store_access_key": (
-                "OBJECT_STORE_DERIVED_ACCESS_KEY",
-                "OBJECT_STORE_ACCESS_KEY",
-            ),
-            "notice_object_store_secret_key": (
-                "OBJECT_STORE_DERIVED_SECRET_KEY",
-                "OBJECT_STORE_SECRET_KEY",
-            ),
+            "notice_object_store_access_key": ("OBJECT_STORE_DERIVED_ACCESS_KEY",),
+            "notice_object_store_secret_key": ("OBJECT_STORE_DERIVED_SECRET_KEY",),
         },
         "files": {},
     },
@@ -580,9 +568,9 @@ def _collect_surface_conditions(
         if not _setting_present(optional_settings, "notice_object_store_endpoint"):
             notice_missing.append("OBJECT_STORE_ENDPOINT")
         if not _setting_present(optional_settings, "notice_object_store_access_key"):
-            notice_missing.append("OBJECT_STORE_DERIVED_ACCESS_KEY or OBJECT_STORE_ACCESS_KEY")
+            notice_missing.append("OBJECT_STORE_DERIVED_ACCESS_KEY")
         if not _setting_present(optional_settings, "notice_object_store_secret_key"):
-            notice_missing.append("OBJECT_STORE_DERIVED_SECRET_KEY or OBJECT_STORE_SECRET_KEY")
+            notice_missing.append("OBJECT_STORE_DERIVED_SECRET_KEY")
     conditions["notice_runtime_contract"] = {
         "required": notice_capability_open,
         "ready": len(notice_missing) == 0,
@@ -729,13 +717,14 @@ def _collect_object_store_credentials_status(env: dict[str, str]) -> dict[str, o
     shared_keys = ("OBJECT_STORE_ACCESS_KEY", "OBJECT_STORE_SECRET_KEY")
     source_keys = ("OBJECT_STORE_SOURCE_ACCESS_KEY", "OBJECT_STORE_SOURCE_SECRET_KEY")
     derived_keys = ("OBJECT_STORE_DERIVED_ACCESS_KEY", "OBJECT_STORE_DERIVED_SECRET_KEY")
+    checked_keys = [*shared_keys, *source_keys, *derived_keys]
 
     if all(env.get(key, "").strip() for key in shared_keys):
         return {
             "required": True,
             "present": True,
-            "checked_keys": [*shared_keys, *source_keys, *derived_keys],
-            "resolved_key": "OBJECT_STORE_ACCESS_KEY+OBJECT_STORE_SECRET_KEY",
+            "checked_keys": checked_keys,
+            "resolved_key": "shared:OBJECT_STORE_ACCESS_KEY+OBJECT_STORE_SECRET_KEY",
             "error": None,
         }
 
@@ -745,9 +734,9 @@ def _collect_object_store_credentials_status(env: dict[str, str]) -> dict[str, o
         return {
             "required": True,
             "present": True,
-            "checked_keys": [*shared_keys, *source_keys, *derived_keys],
+            "checked_keys": checked_keys,
             "resolved_key": (
-                "OBJECT_STORE_SOURCE_ACCESS_KEY+OBJECT_STORE_SOURCE_SECRET_KEY;"
+                "bucket_scoped:OBJECT_STORE_SOURCE_ACCESS_KEY+OBJECT_STORE_SOURCE_SECRET_KEY;"
                 "OBJECT_STORE_DERIVED_ACCESS_KEY+OBJECT_STORE_DERIVED_SECRET_KEY"
             ),
             "error": None,
@@ -756,11 +745,11 @@ def _collect_object_store_credentials_status(env: dict[str, str]) -> dict[str, o
     return {
         "required": True,
         "present": False,
-        "checked_keys": [*shared_keys, *source_keys, *derived_keys],
+        "checked_keys": checked_keys,
         "resolved_key": None,
         "error": (
-            "missing object-store credentials; configure shared "
-            "OBJECT_STORE_ACCESS_KEY/OBJECT_STORE_SECRET_KEY or both bucket-scoped "
+            "missing object-store credentials; ingestion requires either shared "
+            "OBJECT_STORE_ACCESS_KEY/OBJECT_STORE_SECRET_KEY credentials or both bucket-scoped "
             "OBJECT_STORE_SOURCE_* and OBJECT_STORE_DERIVED_* credential pairs"
         ),
     }

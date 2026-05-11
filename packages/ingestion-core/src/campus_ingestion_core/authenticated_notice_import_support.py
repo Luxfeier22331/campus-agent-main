@@ -24,7 +24,6 @@ from campus_ingestion_core.authenticated_notice_import_sources import (
 from campus_ingestion_core.authenticated_notice_source_projections import _load_jsonl_rows
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY,
-    DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
     DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
     AuthenticatedNoticeSourceTruthInventoryStore,
 )
@@ -54,13 +53,10 @@ from campus_ingestion_core.notice_consumption_projection import (
 )
 from campus_ingestion_core.registry import (
     DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
     DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
     RAW_ASSET_REGISTRY_ENV_KEY,
-    RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY,
     RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
 )
 
@@ -308,17 +304,13 @@ def build_authenticated_notice_import_admission_report(
 def build_inventory_store_from_env_if_configured(
     env: dict[str, str],
 ) -> AuthenticatedNoticeSourceTruthInventoryStore | None:
-    management_env_keys = (
+    operator_env_keys = (
         DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
-        DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
         SHARED_POSTGRES_OPERATOR_ENV_KEY,
-        SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
         DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-        DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
         RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
-        RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY,
     )
-    if any(env.get(key) for key in management_env_keys):
+    if any(env.get(key) for key in operator_env_keys):
         return build_authenticated_notice_source_truth_inventory_store_from_env(
             env,
             prefer_operator=True,

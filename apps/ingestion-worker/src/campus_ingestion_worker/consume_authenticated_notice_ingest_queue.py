@@ -18,14 +18,10 @@ from campus_ingestion_core.authenticated_notice_run_queue_consumer import (
 )
 from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
 from campus_ingestion_core.collected_notice_ingest_queue_postgres import (
-    DEFAULT_NOTICE_INGEST_QUEUE_MANAGEMENT_ENV_KEY,
     DEFAULT_NOTICE_INGEST_QUEUE_OPERATOR_ENV_KEY,
     build_notice_ingest_queue_store_from_env,
 )
-from campus_ingestion_core.registry import (
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
-    SHARED_POSTGRES_OPERATOR_ENV_KEY,
-)
+from campus_ingestion_core.registry import SHARED_POSTGRES_OPERATOR_ENV_KEY
 from campus_ingestion_core.settings import ObjectStoreSettings
 
 from campus_ingestion_worker.authenticated_notice_processing_projection_reporting import (
@@ -191,9 +187,7 @@ def _has_operator_database_url(env: dict[str, str]) -> bool:
         env.get(key)
         for key in (
             DEFAULT_NOTICE_INGEST_QUEUE_OPERATOR_ENV_KEY,
-            DEFAULT_NOTICE_INGEST_QUEUE_MANAGEMENT_ENV_KEY,
             SHARED_POSTGRES_OPERATOR_ENV_KEY,
-            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
         )
     )
 

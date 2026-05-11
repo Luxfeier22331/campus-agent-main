@@ -89,9 +89,11 @@ describe("official-web artifact store", () => {
 		expect(() =>
 			createS3ArtifactStoreFromEnv({
 				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
-				OBJECT_STORE_ACCESS_KEY: "minioadmin",
+				OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
 			}),
-		).toThrowError(/OBJECT_STORE_ENDPOINT.*credential pair/i);
+		).toThrowError(
+			/OBJECT_STORE_ENDPOINT.*OBJECT_STORE_SOURCE_ACCESS_KEY.*OBJECT_STORE_SOURCE_SECRET_KEY/i,
+		);
 	});
 
 	it("accepts source-bucket scoped credentials when shared credentials are absent", () => {

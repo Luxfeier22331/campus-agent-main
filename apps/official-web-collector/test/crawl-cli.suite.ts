@@ -14,8 +14,8 @@ export function registerCrawlCliSuite() {
 				OFFICIAL_WEB_TRACE_ID: "trace_01JQ",
 				OFFICIAL_WEB_TRIGGER_TYPE: "scheduled",
 				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
-				OBJECT_STORE_ACCESS_KEY: "minioadmin",
-				OBJECT_STORE_SECRET_KEY: "minioadmin",
+				OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
+				OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
 				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
 			},
 		) as {

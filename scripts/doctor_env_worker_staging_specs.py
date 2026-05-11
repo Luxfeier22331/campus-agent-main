@@ -10,10 +10,7 @@ WORKER_STAGING_SURFACE_SPECS = {
         },
         "optional_settings": {
             "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),
-            "staging_app_api_operator_database_url": (
-                "STAGING_APP_API_OPERATOR_DATABASE_URL",
-                "STAGING_APP_API_MANAGEMENT_DATABASE_URL",
-            ),
+            "staging_app_api_operator_database_url": ("STAGING_APP_API_OPERATOR_DATABASE_URL",),
             "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
         },
         "files": {},
@@ -25,10 +22,7 @@ WORKER_STAGING_SURFACE_SPECS = {
         },
         "optional_settings": {
             "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),
-            "staging_app_api_operator_database_url": (
-                "STAGING_APP_API_OPERATOR_DATABASE_URL",
-                "STAGING_APP_API_MANAGEMENT_DATABASE_URL",
-            ),
+            "staging_app_api_operator_database_url": ("STAGING_APP_API_OPERATOR_DATABASE_URL",),
             "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
         },
         "files": {},

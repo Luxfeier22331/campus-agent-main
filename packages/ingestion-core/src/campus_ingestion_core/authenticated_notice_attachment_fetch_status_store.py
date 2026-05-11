@@ -8,7 +8,6 @@ from typing import Protocol
 
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models import (
     DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY,
-    DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
     DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
     DEFAULT_ATTACHMENT_FETCH_STATUS_TABLE,
     AuthenticatedNoticeAttachmentFetchStatusRecord,
@@ -19,7 +18,6 @@ from campus_ingestion_core.postgres_runtime import (
 )
 from campus_ingestion_core.registry import (
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _coerce_json_payload,
     _ensure_table_schema,
@@ -294,17 +292,13 @@ def build_authenticated_notice_attachment_fetch_status_store_from_env(
     if prefer_operator:
         database_url = (
             source.get(DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY)
-            or source.get(DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY)
             or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-            or source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
             or ""
         ).strip()
         if not database_url:
             raise ValueError(
                 f"{DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or "
-                f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} is required when prefer_operator=True"
+                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
             )
         return PostgresAuthenticatedNoticeAttachmentFetchStatusStore(
             build_operator_postgres_connection_url(database_url)

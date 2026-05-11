@@ -15,7 +15,7 @@ from campus_ingestion_core.authenticated_notice_import_env_presence import (
 
 class AuthenticatedNoticeImportEnvTest(unittest.TestCase):
     def test_shared_operator_postgres_enables_downstream_materialization_stores(self) -> None:
-        env = {"CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL": "postgresql://example"}
+        env = {"CAMPUS_SHARED_POSTGRES_OPERATOR_URL": "postgresql://example"}
 
         self.assertTrue(env_has_consumption_projection_config(env))
         self.assertTrue(env_has_read_model_config(env))

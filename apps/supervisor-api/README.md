@@ -171,9 +171,8 @@ Current structured query runtime boundary:
   connection; `CAMPUS_SHARED_POSTGRES_URL` is the fallback.
 - `INTERNAL_NOTICE_READ_MODEL_TABLE` defaults to
   `ingestion_projection.internal_notice_read_model`.
-- `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_DERIVED_ACCESS_KEY` /
-  `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_DERIVED_SECRET_KEY` /
-  `OBJECT_STORE_SECRET_KEY`, `OBJECT_STORE_REGION`, and
+- `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_DERIVED_ACCESS_KEY`,
+  `OBJECT_STORE_DERIVED_SECRET_KEY`, `OBJECT_STORE_REGION`, and
   `OBJECT_STORE_BUCKET_DERIVED` configure notice canonical body reads from the
   S3-compatible derived bucket.
 - The runtime is not browser-facing and not an `app-api` product surface. It
