@@ -263,16 +263,12 @@ class RetrievalIntent:
             self.target.document_ids or self.target.document_titles
         ):
             raise ValueError("policy_object_lookup requires document_ids or document_titles")
-        if (
-            self.kind
-            in {
-                "specific_clause_lookup",
-                "eligibility_judgment",
-                "procedure_steps",
-                "condition_table",
-            }
-            and not (self.target.document_ids or self.target.category_member_document_ids)
-        ):
+        if self.kind in {
+            "specific_clause_lookup",
+            "eligibility_judgment",
+            "procedure_steps",
+            "condition_table",
+        } and not (self.target.document_ids or self.target.category_member_document_ids):
             raise ValueError(f"{self.kind} requires document_ids or category_member_document_ids")
         if self.kind == "version_compare" and len(self.target.version_ids) < 2:
             raise ValueError("version_compare requires at least two version_ids")
