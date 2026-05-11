@@ -275,7 +275,7 @@ def build_retrieval_plan_for_context(
         query_mode=retrieval_query_mode,
         retrieval_intent=retrieval_intent,
     )
-    if retrieval_context.category_member_document_ids:
+    if retrieval_context.category_member_document_ids and not retrieval_context.target_document_ids:
         return _build_category_discovery_retrieval_plan(
             query_text=retrieval_context.retrieval_goal,
             scope=effective_scope,

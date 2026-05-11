@@ -339,14 +339,12 @@ def _source_text_covers_focus_group(
         and normalize_text(detail_label) == normalize_text(group[0])
     ):
         return True
-    if (
+    return (
         len(group) == 1
         and group[0].startswith("第")
         and group[0].endswith("款")
         and normalize_text(detail_label) == normalize_text(group[0])
-    ):
-        return True
-    return False
+    )
 
 
 def _compact_text(text: str) -> str:
@@ -370,7 +368,7 @@ __all__ = [
     "normalize_text",
     "query_has_focus_constraints",
     "select_sources_covering_query_focus",
-    "source_covers_query_focus",
     "source_covers_focus_groups",
+    "source_covers_query_focus",
     "source_focus_match_score",
 ]
