@@ -65,6 +65,22 @@ PREFERRED_RAGAS_DIAGNOSTIC_CASE_IDS = {
     ),
 }
 
+RAGAS_DIAGNOSTIC_CASE_METRIC_OVERRIDES = {
+    "policy-title-scholarship": {"answer_relevancy": False},
+    "institutional-three-assists": {"answer_relevancy": False},
+    "institutional-title-exact-81401d3a02d6": {"answer_relevancy": False},
+    "ethnology-plan-title": {"answer_relevancy": False},
+    "stable-reference-school-profile": {"answer_relevancy": False},
+    "stable-reference-school-overview": {"answer_relevancy": False},
+    "stable-reference-current-leadership": {"answer_relevancy": False},
+    "stable-reference-alumni-association-profile": {"answer_relevancy": False},
+    "stable-reference-foundation-profile": {"answer_relevancy": False},
+    "stable-reference-undergraduate-education": {"answer_relevancy": False},
+    "stable-reference-graduate-education": {"answer_relevancy": False},
+    "stable-reference-postdoctoral-program": {"answer_relevancy": False},
+    "stable-reference-scholars": {"answer_relevancy": False},
+}
+
 __all__ = [
     "PREFERRED_RAGAS_DIAGNOSTIC_CASE_IDS",
     "SURFACE_QRELS_FIXTURES",

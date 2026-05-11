@@ -103,7 +103,6 @@ class AnswerReadyComponentRuntimeTestPart01(unittest.TestCase):
         self.assertEqual(observed.condition_subject, "application_procedure")
         self.assertEqual(observed.selected_condition_subjects, ("application_procedure",))
         self.assertEqual(observed.selected_polarities, ("positive",))
-        self.assertEqual(observed.fallback_primary_signals, ())
 
     def test_builds_category_discovery_observation_and_preserves_release_status(self) -> None:
         selected_source = replace(
@@ -248,7 +247,6 @@ class AnswerReadyComponentRuntimeTestPart01(unittest.TestCase):
         self.assertEqual(observed.condition_subject, "amount_or_quota")
         self.assertEqual(observed.selected_condition_subjects, ("amount_or_quota",))
         self.assertEqual(observed.selected_polarities, ("positive",))
-        self.assertEqual(observed.fallback_primary_signals, ())
 
     def test_student_rank_judgment_observation_uses_semantic_task_kind_not_route_lock(
         self,
@@ -497,7 +495,6 @@ class AnswerReadyComponentRuntimeTestPart01(unittest.TestCase):
         self.assertEqual(observed.condition_subject, "application_procedure")
         self.assertEqual(observed.selected_condition_subjects, ())
         self.assertEqual(observed.selected_polarities, ())
-        self.assertEqual(observed.fallback_primary_signals, ())
 
     def test_builds_student_rules_no_hit_observation(self) -> None:
         response = AgentResponse(
@@ -539,7 +536,6 @@ class AnswerReadyComponentRuntimeTestPart01(unittest.TestCase):
         self.assertEqual(observed.condition_subject, "")
         self.assertEqual(observed.selected_condition_subjects, ())
         self.assertEqual(observed.selected_polarities, ())
-        self.assertEqual(observed.fallback_primary_signals, ())
 
     def test_builds_typed_draft_invalid_observation_with_draft_failure_reason(self) -> None:
         selected_source = replace(

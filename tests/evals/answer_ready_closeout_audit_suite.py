@@ -9,7 +9,7 @@ from campus_evals.answer_ready_closeout_audit import (
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl
 
 from tests.ingestion._handbook_chunking_test_support import build_hermetic_handbook_v3_chunk_profile
-from tests.ingestion.test_handbook_chunking_pipeline import (
+from tests.ingestion.handbook_chunking_pipeline_support import (
     _registry_record_for_document,
     _structured_row,
 )
@@ -86,7 +86,6 @@ class AnswerReadyCloseoutAuditTest(unittest.TestCase):
 
         self.assertEqual(report.status, "passed")
         self.assertEqual(report.chunk_quality_status, "passed")
-        self.assertEqual(report.primary_text_cue_fallback_count, 0)
         self.assertEqual(report.failed_case_count, 0)
         self.assertIn("procedure_step", report.answer_role_counts)
         self.assertIn("exclusion_rule", report.answer_role_counts)
@@ -117,7 +116,13 @@ def _student_rules_closeout_structured_jsonl() -> bytes:
             version_id=record.version_id,
             unit_type="article_body",
             root_unit_id="article-discipline-relief-exclusion",
-            clean_text="有下列情形之一的，不予解除处分。",
+            clean_text="\n".join(
+                [
+                    "有下列情形之一的，不予解除处分:",
+                    "（一）考察期未满。",
+                    "（二）仍未完成后续教育。",
+                ]
+            ),
             anchor={
                 "section_path": ["中央民族大学解除学生纪律处分实施办法", "不予解除处分情形"],
                 "article_label": "第六条",

@@ -3,14 +3,17 @@ from __future__ import annotations
 import json
 import unittest
 from contextlib import redirect_stdout
+from dataclasses import replace
 from io import StringIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
-from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle
+from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle, KnowledgeScope
+from campus_evals.benchmark import RetrievalQrelsCase
 from campus_evals.ragas_diagnostic_runner import (
     DEFAULT_RAGAS_DIAGNOSTIC_SAMPLE_LIMIT_PER_SURFACE,
+    _build_projection_with_breakdown,
     build_ragas_diagnostic_sample_manifest,
     combine_ragas_diagnostic_reports,
     main,
@@ -100,6 +103,189 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
             ),
         )
 
+    def test_run_ragas_diagnostic_scores_document_identity_with_deterministic_grounding(
+        self,
+    ) -> None:
+        seen_projections = []
+
+        class FakeBackend:
+            def retrieve(self, request):
+                return EvidenceBundle(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    query_text=request.query_text,
+                    sources=(
+                        _source(
+                            doc_id=(
+                                "institutional_regulation:muc:"
+                                "中央民族大学研究生-三助-工作管理办法:49319e7c44d3"
+                            ),
+                        ),
+                    ),
+                )
+
+        def fake_scorer(projection):
+            seen_projections.append(projection)
+            return {"faithfulness": 0.0}
+
+        report = run_ragas_diagnostic(
+            backend=FakeBackend(),
+            scorer=fake_scorer,
+            sample_limit_per_surface=1,
+            metric_names=("faithfulness", "identity_grounding"),
+        )
+
+        institutional_case = next(
+            case for case in report["cases"] if case["case_id"] == "institutional-three-assists"
+        )
+        self.assertEqual(institutional_case["answer_shape"], "title_lookup")
+        self.assertEqual(institutional_case["presentation_kind"], "document_identity")
+        self.assertNotIn("faithfulness", institutional_case["scores"])
+        self.assertEqual(institutional_case["scores"]["identity_grounding"], 1.0)
+        self.assertEqual(institutional_case["failure_attribution"]["primary_stage"], "passed")
+        self.assertTrue(
+            any(
+                projection.case_id == "institutional-three-assists"
+                and projection.metadata.get("presentation_kind") == "document_identity"
+                for projection in seen_projections
+            )
+        )
+
+    def test_run_ragas_diagnostic_uses_intent_for_unlisted_institutional_title(
+        self,
+    ) -> None:
+        title = "中央民族大学丰台校区就医管理办法（暂行）"
+
+        class FakeBackend:
+            def retrieve(self, request):
+                return EvidenceBundle(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    query_text=request.query_text,
+                    sources=(
+                        replace(
+                            _source(
+                                doc_id=(
+                                    "institutional_regulation:muc:"
+                                    "中央民族大学丰台校区就医管理办法-暂行:ff711d1185f9"
+                                ),
+                                chunk_id="medical-title",
+                            ),
+                            source_title=title,
+                            snippet=f"{title}\n一、就医医院",
+                            is_answer_bearing=True,
+                        ),
+                    ),
+                )
+
+        report = run_ragas_diagnostic(
+            backend=FakeBackend(),
+            scorer=lambda projection: {"context_precision": 1.0},
+            sample_limit_per_surface=2,
+            metric_names=("identity_grounding", "context_precision"),
+        )
+
+        case = next(
+            item
+            for item in report["cases"]
+            if item["case_id"] == "institutional-title-exact-ff711d1185f9"
+        )
+        self.assertEqual(case["answer_shape"], "title_lookup")
+        self.assertEqual(case["presentation_kind"], "document_identity")
+        self.assertEqual(case["retrieval_intent_kind"], "policy_object_lookup")
+        self.assertEqual(case["retrieval_answer_kind"], "policy_object")
+        self.assertEqual(case["scores"]["identity_grounding"], 1.0)
+        self.assertIn(title, case["answer_text"])
+        self.assertNotEqual(case["answer_text"], "")
+
+    def test_run_ragas_diagnostic_uses_intent_for_rewritten_policy_clause_answers(
+        self,
+    ) -> None:
+        seen_projections = []
+        title = "中央民族大学本科学生国家奖学金评审办法"
+
+        class FakeBackend:
+            def retrieve(self, request):
+                source = replace(
+                    _source(
+                        doc_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                        chunk_id="national-paper-book",
+                    ),
+                    source_title=title,
+                    snippet=(
+                        f"{title} / 第三章 评选条件 / 第九条\n"
+                        "2. 在学术研究上取得显著成绩,以第一作者发表论文或以"
+                        "第一、二作者出版学术专著。"
+                    ),
+                    detail_label="第九条",
+                    article_no="第九条",
+                    clause_no="2.",
+                    content_role="eligibility",
+                    is_answer_bearing=True,
+                )
+                return EvidenceBundle(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    query_text=f"{title} {request.query_text}",
+                    sources=(source,),
+                )
+
+        def fake_scorer(projection):
+            seen_projections.append(projection)
+            return {"faithfulness": 1.0, "answer_relevancy": 1.0}
+
+        report = run_ragas_diagnostic(
+            backend=FakeBackend(),
+            scorer=fake_scorer,
+            sample_limit_per_surface=2,
+            metric_names=("faithfulness", "answer_relevancy"),
+        )
+
+        case = next(
+            item
+            for item in report["cases"]
+            if item["case_id"] == "policy-alias-national-scholarship-article-nine"
+        )
+        self.assertEqual(case["answer_shape"], "detail_clause")
+        self.assertIn("论文", case["answer_text"])
+        self.assertIn("第一作者", case["answer_text"])
+        self.assertNotIn("相关依据为", case["answer_text"])
+        self.assertEqual(case["retrieval_intent_kind"], "specific_clause_lookup")
+        self.assertEqual(case["retrieval_answer_kind"], "specific_clause")
+        projection = next(
+            projection
+            for projection in seen_projections
+            if projection.case_id == "policy-alias-national-scholarship-article-nine"
+        )
+        self.assertEqual(projection.metadata["retrieval_intent_kind"], "specific_clause_lookup")
+
+    def test_projection_for_planner_clarification_case_uses_clarification_text(self) -> None:
+        class FakeBackend:
+            def retrieve(self, request):
+                return EvidenceBundle(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    query_text=request.query_text,
+                    sources=(),
+                )
+
+        projection, _ = _build_projection_with_breakdown(
+            case=RetrievalQrelsCase(
+                case_id="ambiguous-scholarship-procedure",
+                split="smoke",
+                query="奖学金怎么申请？",
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+            ),
+            backend=FakeBackend(),
+            top_k=5,
+        )
+
+        self.assertIn("请说明", projection.response)
+        self.assertEqual(projection.metadata["retrieval_intent_kind"], "clarification_required")
+        self.assertEqual(projection.metadata["retrieval_answer_kind"], "clarification")
+        self.assertEqual(projection.metadata["answer_shape"], "general_summary")
+        self.assertEqual(projection.metadata["presentation_kind"], "clarification")
+
     def test_run_ragas_diagnostic_uses_retrieved_evidence_and_fake_scorer(self) -> None:
         seen_bundles: list[EvidenceBundle] = []
 
@@ -116,14 +302,14 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
 
         def fake_scorer(projection):
             return {
-                "faithfulness": 0.91,
+                "context_precision": 0.91,
             }
 
         report = run_ragas_diagnostic(
             backend=FakeBackend(),
             scorer=fake_scorer,
             sample_limit_per_surface=1,
-            metric_names=("faithfulness",),
+            metric_names=("context_precision",),
         )
 
         self.assertTrue(report["passed"])
@@ -131,11 +317,16 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
         self.assertEqual(report["summary"]["failed_cases"], 0)
         self.assertEqual(report["run_config"]["sample_limit_per_surface"], 1)
         self.assertEqual(report["run_config"]["top_k"], 5)
-        self.assertEqual(report["run_config"]["metric_names"], ["faithfulness"])
+        self.assertEqual(report["run_config"]["metric_names"], ["context_precision"])
         self.assertEqual(len(seen_bundles), 4)
         self.assertTrue(report["cases"][0]["answer_text"])
-        self.assertEqual(report["cases"][0]["answer_shape"], "general_summary")
-        self.assertEqual(report["cases"][0]["scores"]["faithfulness"], 0.91)
+        self.assertEqual(report["cases"][0]["answer_shape"], "title_lookup")
+        self.assertEqual(report["cases"][0]["presentation_kind"], "document_identity")
+        self.assertEqual(report["cases"][0]["fallback_path"], "")
+        self.assertEqual(report["cases"][0]["fallback_reason"], "")
+        self.assertEqual(report["cases"][0]["retrieval_intent_kind"], "policy_object_lookup")
+        self.assertEqual(report["cases"][0]["retrieval_answer_kind"], "policy_object")
+        self.assertEqual(report["cases"][0]["scores"]["context_precision"], 0.91)
         self.assertNotIn("answer_relevancy", report["cases"][0]["scores"])
         self.assertEqual(report["cases"][0]["retrieved_context_count"], 1)
         self.assertEqual(report["cases"][0]["raw_retrieved_doc_ids"], ["student_rules:doc"])
@@ -178,10 +369,7 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
         first_case = report["cases"][0]
         self.assertEqual(
             first_case["failure_attribution"]["metric_failures"],
-            {
-                "answer_relevancy": "retrieval",
-                "context_recall": "retrieval",
-            },
+            {"context_recall": "retrieval"},
         )
         self.assertEqual(first_case["failure_attribution"]["primary_stage"], "retrieval")
         self.assertEqual(report["summary"]["failure_attribution"]["retrieval"], 4)
@@ -216,9 +404,35 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
         self.assertEqual(first_case["status"], "completed")
         self.assertEqual(
             first_case["failure_attribution"]["metric_failures"],
-            {"answer_relevancy": "evidence_selection"},
+            {},
         )
-        self.assertEqual(first_case["failure_attribution"]["primary_stage"], "evidence_selection")
+        self.assertEqual(first_case["failure_attribution"]["primary_stage"], "passed")
+
+    def test_run_ragas_diagnostic_marks_requested_null_metric_as_failed(self) -> None:
+        class FakeBackend:
+            def retrieve(self, request):
+                return EvidenceBundle(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    query_text=request.query_text,
+                    sources=(_source(doc_id=f"{request.collection}:doc"),),
+                )
+
+        report = run_ragas_diagnostic(
+            backend=FakeBackend(),
+            scorer=lambda projection: {"answer_relevancy": None},
+            sample_limit_per_surface=1,
+            metric_names=("answer_relevancy",),
+        )
+
+        first_case = report["cases"][0]
+        self.assertTrue(report["passed"])
+        self.assertEqual(report["summary"]["failed_cases"], 0)
+        self.assertEqual(first_case["status"], "completed")
+        self.assertNotIn("error_type", first_case)
+        self.assertEqual(first_case["scores"], {})
+        self.assertNotIn("metric_failures", first_case)
+        self.assertEqual(first_case["failure_attribution"]["primary_stage"], "passed")
 
     def test_run_ragas_diagnostic_respects_case_workers_and_preserves_order(self) -> None:
         class FakeBackend:
@@ -350,6 +564,34 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
             {"answer_relevancy": 0.48, "context_recall": 0.25},
         )
 
+    def test_combine_ragas_diagnostic_reports_marks_null_requested_metric_as_failure(self) -> None:
+        combined = combine_ragas_diagnostic_reports(
+            [
+                _report(
+                    metric_name="answer_relevancy",
+                    cases=[_case("student", "a", "answer_relevancy", None)],
+                )
+            ]
+        )
+
+        self.assertFalse(combined["passed"])
+        self.assertEqual(combined["summary"]["failed_cases"], 1)
+        self.assertEqual(combined["summary"]["metrics"]["answer_relevancy"]["count"], 0)
+        self.assertEqual(combined["cases"][0]["status"], "failed")
+        self.assertEqual(combined["cases"][0]["scores"], {"answer_relevancy": None})
+        self.assertEqual(
+            combined["cases"][0]["metric_failures"],
+            [
+                {
+                    "metric_names": ["answer_relevancy"],
+                    "error_type": "RagasMetricUnavailable",
+                    "error_message": (
+                        "requested RAGAS metric answer_relevancy did not return a numeric score"
+                    ),
+                }
+            ],
+        )
+
     def test_cli_combines_existing_metric_reports_without_running_retrieval(self) -> None:
         with TemporaryDirectory() as temp_dir:
             output_dir = Path(temp_dir)
@@ -399,7 +641,7 @@ def _case(
     surface_key: str,
     case_id: str,
     metric_name: str,
-    score: float,
+    score: object,
 ) -> dict[str, object]:
     return {
         "surface_key": surface_key,

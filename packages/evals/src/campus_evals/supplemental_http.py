@@ -43,7 +43,7 @@ def build_http_ragas_llm(
     *,
     sync_client: httpx.Client | None = None,
     async_client: httpx.AsyncClient | None = None,
-) -> OpenAICompatibleTextResponsesLLM | OpenAICompatibleTextChatCompletionsLLM:
+) -> OpenAICompatibleResponsesLLM | OpenAICompatibleChatCompletionsLLM:
     request_pacer = get_request_pacer(
         base_url=settings.llm_base_url or "https://api.openai.com/v1",
         api_key=settings.llm_api_key,
@@ -68,8 +68,13 @@ def build_http_ragas_llm(
         "async_client": async_client,
     }
     if settings.llm_transport == "chat_completions":
-        return OpenAICompatibleTextChatCompletionsLLM(**llm_kwargs)
-    return OpenAICompatibleTextResponsesLLM(**llm_kwargs)
+        llm = OpenAICompatibleChatCompletionsLLM(**llm_kwargs)
+        text_preflight_llm = OpenAICompatibleTextChatCompletionsLLM(**llm_kwargs)
+    else:
+        llm = OpenAICompatibleResponsesLLM(**llm_kwargs)
+        text_preflight_llm = OpenAICompatibleTextResponsesLLM(**llm_kwargs)
+    llm.preflight_sync = text_preflight_llm.preflight_sync
+    return llm
 
 
 def build_http_ragas_embeddings(

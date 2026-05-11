@@ -126,7 +126,19 @@ def load_retrieval_qrels_dataset(path: str | Path) -> RetrievalQrelsDataset:
         corpus=str(payload["corpus"]),
         collection=str(payload["collection"]),
     )
-    cases = tuple(_load_case(item, default_scope=scope) for item in payload["cases"])
+    coverage_scenarios = payload.get("coverage_scenarios") or {}
+    cases = tuple(
+        _load_case(
+            item,
+            default_scope=scope,
+            supplemental_metric_overrides=_case_metric_overrides(
+                item,
+                default_scope=scope,
+                coverage_scenarios=coverage_scenarios,
+            ),
+        )
+        for item in payload["cases"]
+    )
     return RetrievalQrelsDataset(
         schema_version=int(payload["schema_version"]),
         scope=scope,
@@ -316,7 +328,12 @@ def _load_program_family_aliases() -> tuple[tuple[str, ...], ...]:
     return tuple(aliases)
 
 
-def _load_case(payload: dict[str, object], *, default_scope: KnowledgeScope) -> RetrievalQrelsCase:
+def _load_case(
+    payload: dict[str, object],
+    *,
+    default_scope: KnowledgeScope,
+    supplemental_metric_overrides: dict[str, bool] | None = None,
+) -> RetrievalQrelsCase:
     raw_scope = payload.get("scope")
     if isinstance(raw_scope, dict):
         scope = KnowledgeScope(
@@ -331,6 +348,9 @@ def _load_case(payload: dict[str, object], *, default_scope: KnowledgeScope) -> 
         query=str(payload["query"]),
         scope=scope,
         request_overrides=dict(payload.get("request_overrides") or {}),
+        supplemental_metric_overrides=dict(
+            payload.get("supplemental_metric_overrides") or supplemental_metric_overrides or {}
+        ),
         expected_sources=tuple(
             _load_source_ref(item) for item in payload.get("expected_sources") or ()
         ),
@@ -363,6 +383,75 @@ def _load_hybrid_query_case(payload: dict[str, object]) -> RetrievalHybridQueryC
         forbidden_doc_ids=tuple(str(item) for item in payload.get("forbidden_doc_ids") or ()),
         notes=str(payload.get("notes") or ""),
     )
+
+
+def _case_metric_overrides(
+    payload: dict[str, object],
+    *,
+    default_scope: KnowledgeScope,
+    coverage_scenarios: object,
+) -> dict[str, bool]:
+    if not isinstance(coverage_scenarios, dict):
+        return {}
+    case_id = str(payload.get("case_id") or "").strip()
+    if not case_id:
+        return {}
+    if _case_is_title_lookup(payload, default_scope=default_scope):
+        return _identity_grounding_metric_overrides()
+    if _case_asks_for_governing_document(payload):
+        return _identity_grounding_metric_overrides()
+    for scenario_id, raw_case_ids in coverage_scenarios.items():
+        if not isinstance(raw_case_ids, list | tuple):
+            continue
+        if case_id not in {str(item).strip() for item in raw_case_ids}:
+            continue
+        if scenario_id in {
+            "policy_title_exact_match",
+            "article_number_exact_match",
+            "institutional_policy_title",
+        }:
+            return _identity_grounding_metric_overrides()
+        if scenario_id == "program_title":
+            return {"answer_relevancy": False}
+    return {}
+
+
+def _case_is_title_lookup(payload: dict[str, object], *, default_scope: KnowledgeScope) -> bool:
+    if default_scope.corpus != "regulations":
+        return False
+    if default_scope.collection not in {"student_rules", "institutional_rules"}:
+        return False
+    query = str(payload.get("query") or "").strip()
+    if not query:
+        return False
+    if any(cue in query for cue in ("怎么", "如何", "多少", "几")):
+        return False
+    return query.endswith(("办法", "规定", "方案", "计划", "章程", "条例"))
+
+
+def _case_asks_for_governing_document(payload: dict[str, object]) -> bool:
+    query = str(payload.get("query") or "").strip()
+    if not query:
+        return False
+    return any(
+        cue in query
+        for cue in (
+            "哪份管理办法",
+            "哪份办法",
+            "哪个管理办法",
+            "哪个办法",
+            "依据哪份",
+            "依据哪个",
+        )
+    )
+
+
+def _identity_grounding_metric_overrides() -> dict[str, bool]:
+    return {
+        "answer_relevancy": False,
+        "faithfulness": False,
+        "identity_grounding": True,
+    }
 
 
 def _default_hybrid_expected_status(category: str) -> str:

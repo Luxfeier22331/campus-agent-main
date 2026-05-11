@@ -325,14 +325,14 @@ class MultiAgentProductPathEvalGateProfileTestPart01(unittest.TestCase):
         self.assertTrue(second_payload["passed"])
         self.assertEqual(second_payload["workflow_trace_replay"]["failed_case_ids"], [])
 
-    def test_eval_gate_rejects_publish_dry_run_for_multi_agent_product_path_profile(
+    def test_eval_gate_rejects_removed_multi_agent_product_path_profile(
         self,
     ) -> None:
         with (
             TemporaryDirectory() as temp_dir,
             self.assertRaisesRegex(
                 ValueError,
-                "multi-agent-runtime-contract does not produce live case-results artifacts",
+                "unsupported eval profile",
             ),
         ):
             run_eval_acceptance(

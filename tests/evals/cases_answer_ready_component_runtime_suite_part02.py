@@ -149,8 +149,9 @@ class AnswerReadyComponentRuntimeTestPart02(unittest.TestCase):
             response=response,
             retrieval_runtime_observations=(
                 {
-                    "fallback_used": True,
-                    "fallback_primary_signal": "text_cue",
+                    "contract_missing": True,
+                    "contract_issue_reason": "missing_contract",
+                    "missing_contract_fields": ("evidence_contract_version",),
                 },
             ),
             release_contract_status="missing",
@@ -165,7 +166,6 @@ class AnswerReadyComponentRuntimeTestPart02(unittest.TestCase):
         self.assertEqual(observed.condition_subject, "deadline")
         self.assertEqual(observed.selected_condition_subjects, ("deadline",))
         self.assertEqual(observed.selected_polarities, ("positive",))
-        self.assertEqual(observed.fallback_primary_signals, ("text_cue",))
         self.assertEqual(observed.release_contract_status, "missing")
         self.assertEqual(
             observed.release_contract_failure_classes,

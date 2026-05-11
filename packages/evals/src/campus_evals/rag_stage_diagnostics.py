@@ -129,6 +129,9 @@ def build_rag_stage_diagnostic_case(
             "kind": answer_draft.typed_draft.kind,
             "validation_verdict": draft_validation.verdict,
             "validation_failure_reason": draft_validation.failure_reason,
+            "presentation_kind": answer_draft.presentation_kind,
+            "fallback_path": answer_draft.fallback_path,
+            "fallback_reason": answer_draft.fallback_reason,
             "failure_class": (
                 "typed_answer_invalid" if draft_validation.verdict != "valid" else ""
             ),
@@ -136,6 +139,11 @@ def build_rag_stage_diagnostic_case(
         "synthesis": {
             "semantic_outcome": diagnostics.semantic_outcome,
             "prompt_runtime_state": diagnostics.prompt_runtime_state,
+            "presentation_kind": (
+                diagnostics.answer_presentation_kind or answer_draft.presentation_kind
+            ),
+            "fallback_path": diagnostics.answer_fallback_path or answer_draft.fallback_path,
+            "fallback_reason": diagnostics.answer_fallback_reason or answer_draft.fallback_reason,
             "failure_class": (
                 "synthesis_contract_failed"
                 if diagnostics.prompt_runtime_state

@@ -31,7 +31,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="application_procedure",
             selected_condition_subjects=("application_procedure",),
             selected_polarities=("positive",),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -50,7 +49,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="audience_scope",
             selected_condition_subjects=("audience_scope",),
             selected_polarities=("neutral",),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -66,7 +64,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="amount_or_quota",
             selected_condition_subjects=("amount_or_quota",),
             selected_polarities=("positive",),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -82,7 +79,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="rank_threshold",
             selected_condition_subjects=("rank_threshold",),
             selected_polarities=("positive",),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -98,7 +94,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="paper_or_publication",
             selected_condition_subjects=("paper_or_publication",),
             selected_polarities=("positive",),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -114,7 +109,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="application_procedure",
             selected_condition_subjects=(),
             selected_polarities=(),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -130,7 +124,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="discipline_relief_exclusion",
             selected_condition_subjects=("discipline_relief_exclusion",),
             selected_polarities=("negative",),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -146,7 +139,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="application_procedure",
             selected_condition_subjects=("application_procedure",),
             selected_polarities=("positive",),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -162,7 +154,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="",
             selected_condition_subjects=(),
             selected_polarities=(),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -178,7 +169,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="application_procedure",
             selected_condition_subjects=("application_procedure",),
             selected_polarities=("positive",),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -194,7 +184,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="deadline",
             selected_condition_subjects=("deadline",),
             selected_polarities=("positive",),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -210,7 +199,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="material_requirement",
             selected_condition_subjects=("material_requirement",),
             selected_polarities=("positive",),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -229,7 +217,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="audience_scope",
             selected_condition_subjects=("audience_scope",),
             selected_polarities=("neutral",),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -245,7 +232,6 @@ def _aligned_observations() -> dict[str, ObservedAnswerReadyComponents]:
             condition_subject="",
             selected_condition_subjects=(),
             selected_polarities=(),
-            fallback_primary_signals=(),
             release_contract_status="passed",
             release_contract_failure_classes=(),
         ),
@@ -305,7 +291,6 @@ class AnswerReadyComponentEvalRunnerTest(unittest.TestCase):
                                 "condition_subject": "application_procedure",
                                 "selected_condition_subjects": ["application_procedure"],
                                 "selected_polarities": ["positive"],
-                                "fallback_primary_signals": [],
                                 "release_contract_status": "passed",
                                 "release_contract_failure_classes": [],
                             }
@@ -389,7 +374,6 @@ class AnswerReadyComponentEvalRunnerTest(unittest.TestCase):
             observations["institutional_appeal_deadline"],
             ranked_evidence_roles=("eligibility_condition",),
             selected_evidence_roles=("eligibility_condition",),
-            fallback_primary_signals=("text_cue",),
             release_contract_status="missing",
             release_contract_failure_classes=("chunk_contract_missing",),
         )
@@ -407,7 +391,6 @@ class AnswerReadyComponentEvalRunnerTest(unittest.TestCase):
         self.assertEqual(report.total, len(case_set.cases))
         self.assertEqual(report.failed_count, 1)
         self.assertEqual(report.primary_failure_stage_counts["ranking_mismatch"], 1)
-        self.assertEqual(report.secondary_failure_stage_counts["fallback_budget_regression"], 1)
         self.assertEqual(report.secondary_failure_stage_counts["release_contract_missing"], 1)
         self.assertEqual(report.scope_failure_counts["institutional_rules"], 1)
         self.assertEqual(report.gate_failure_counts["query_conditioned"], 1)
@@ -422,29 +405,30 @@ class AnswerReadyComponentEvalRunnerTest(unittest.TestCase):
         )
         self.assertEqual(deadline_result["primary_failure_class"], "ranking_mismatch")
 
-    def test_evaluate_answer_ready_component_cases_treats_legacy_public_semantic_fallback_as_budget_regression(
+    def test_evaluate_answer_ready_component_cases_uses_release_contract_for_static_gate(
         self,
     ) -> None:
         case_set = load_answer_ready_component_cases()
         observations = _aligned_observations()
         observations["student_discipline_relief_procedure"] = replace(
             observations["student_discipline_relief_procedure"],
-            fallback_primary_signals=("public_semantic",),
+            release_contract_status="missing",
+            release_contract_failure_classes=("chunk_contract_missing",),
         )
 
         report = evaluate_answer_ready_component_cases(case_set.cases, observations)
 
         self.assertFalse(report.passed)
         self.assertEqual(report.failed_count, 1)
-        self.assertEqual(report.primary_failure_stage_counts["fallback_budget_regression"], 1)
+        self.assertEqual(report.primary_failure_stage_counts["release_contract_missing"], 1)
         self.assertEqual(report.scope_failure_counts["student_rules"], 1)
-        self.assertEqual(report.gate_failure_counts["query_conditioned"], 1)
+        self.assertEqual(report.gate_failure_counts["static_gate"], 1)
         failure = next(
             result
             for result in report.results
             if result.case_id == "student_discipline_relief_procedure"
         )
-        self.assertEqual(failure.primary_failure_class, "fallback_budget_regression")
+        self.assertEqual(failure.primary_failure_class, "release_contract_missing")
         self.assertEqual(failure.secondary_failure_class, "")
 
     def test_evaluate_answer_ready_component_cases_attributes_typed_draft_invalid_to_draft_stage(

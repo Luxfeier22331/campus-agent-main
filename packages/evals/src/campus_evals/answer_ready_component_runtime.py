@@ -7,7 +7,6 @@ from campus_contracts import AgentResponse, ClaimSupport, EvidenceSource, RagRes
 from campus_rag_agent.handbook_query_planning import plan_student_handbook_query
 from campus_retrieval_core.evidence_attributes import (
     evidence_attributes_for_source,
-    evidence_fallback_diagnostics_for_source,
 )
 from campus_retrieval_core.evidence_semantics import (
     infer_evidence_query_intent,
@@ -145,10 +144,6 @@ def build_answer_ready_component_observation(
         condition_subject=condition_subject,
         selected_condition_subjects=selected_subjects,
         selected_polarities=selected_polarities,
-        fallback_primary_signals=_fallback_primary_signals(
-            sources=(*retrieved_sources, *selected_sources),
-            retrieval_runtime_observations=retrieval_runtime_observations,
-        ),
         no_answer_reason=_no_answer_reason(response),
         release_contract_status=release_contract_status.strip(),
         release_contract_failure_classes=tuple(
@@ -271,27 +266,6 @@ def _grounding_support_present(
     return grounding_verdict == "grounded"
 
 
-def _fallback_primary_signals(
-    *,
-    sources: Sequence[EvidenceSource],
-    retrieval_runtime_observations: Sequence[Mapping[str, object]],
-) -> tuple[str, ...]:
-    signals = list(
-        _ordered_unique(
-            _fallback_signal_for_source(source)
-            for source in sources
-            if _fallback_signal_for_source(source)
-        )
-    )
-    for observation in retrieval_runtime_observations:
-        signal = str(observation.get("fallback_primary_signal") or "").strip()
-        if not signal:
-            continue
-        if signal not in signals:
-            signals.append(signal)
-    return tuple(signals)
-
-
 def _answer_role_for_source(source: EvidenceSource) -> str:
     attributes = evidence_attributes_for_source(source)
     return (
@@ -310,13 +284,6 @@ def _condition_subject_for_source(source: EvidenceSource) -> str:
 def _polarity_for_source(source: EvidenceSource) -> str:
     attributes = evidence_attributes_for_source(source)
     return (attributes.condition_polarity or attributes.polarity or source.polarity).strip()
-
-
-def _fallback_signal_for_source(source: EvidenceSource) -> str:
-    diagnostics = evidence_fallback_diagnostics_for_source(source)
-    if not diagnostics.fallback_used:
-        return ""
-    return diagnostics.fallback_primary_signal.strip()
 
 
 def _clarification_reason(response: AgentResponse) -> str:

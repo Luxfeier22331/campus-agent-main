@@ -14,14 +14,12 @@ from scripts.eval_gate import audit_eval_gate_configuration
 
 
 class ProfileRegistryAndAuditSuite(unittest.TestCase):
-    def test_registry_resolves_deprecated_alias_to_canonical_runtime_contract(self) -> None:
-        definition = get_profile_definition("multi-agent-product-path")
+    def test_registry_rejects_removed_deprecated_alias(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
+            resolve_profile_id("multi-agent-product-path")
 
+        definition = get_profile_definition("multi-agent-runtime-contract")
         self.assertEqual(definition.profile_id, "multi-agent-runtime-contract")
-        self.assertEqual(
-            resolve_profile_id("multi-agent-product-path"), "multi-agent-runtime-contract"
-        )
-        self.assertIn("multi-agent-product-path", definition.deprecated_aliases)
         self.assertEqual(definition.artifact_kind, "composite_gate")
 
     def test_registry_declares_dispatchable_profiles_without_deprecated_aliases(self) -> None:

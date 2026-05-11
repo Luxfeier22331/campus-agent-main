@@ -5,9 +5,6 @@ from collections.abc import Mapping
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
-from campus_shared.answer_ready_evidence_contract import (
-    ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS,
-)
 from campus_shared.regulation_semantic_registry import canonical_regulation_condition_subject
 
 from campus_evals.profile_report import (
@@ -59,7 +56,6 @@ class ObservedAnswerReadyComponents:
     condition_subject: str = ""
     selected_condition_subjects: tuple[str, ...] = field(default_factory=tuple)
     selected_polarities: tuple[str, ...] = field(default_factory=tuple)
-    fallback_primary_signals: tuple[str, ...] = field(default_factory=tuple)
     no_answer_reason: str = ""
     release_contract_status: str = ""
     release_contract_failure_classes: tuple[str, ...] = field(default_factory=tuple)
@@ -217,7 +213,6 @@ def evaluate_answer_ready_component_case(
         ranking_mismatches = _ranking_mismatches(case, observed)
         selection_mismatches = _selection_role_mismatches(case, observed)
         semantic_mismatches = _selection_semantic_mismatches(case, observed)
-        fallback_mismatches = _fallback_mismatches(observed)
         draft_mismatches = _draft_mismatches(case, observed)
         grounding_mismatches = _grounding_mismatches(case, observed)
 
@@ -237,7 +232,6 @@ def evaluate_answer_ready_component_case(
             ("ranking_mismatch", "query_conditioned", ranking_mismatches),
             ("selection_not_answer_ready", "query_conditioned", selection_mismatches),
             ("semantic_contract_mismatch", "query_conditioned", semantic_mismatches),
-            ("fallback_budget_regression", "query_conditioned", fallback_mismatches),
             ("draft_contract_mismatch", "query_conditioned", draft_mismatches),
             ("grounding_mismatch", "query_conditioned", grounding_mismatches),
         ):
@@ -421,21 +415,6 @@ def _grounding_mismatches(
     return {}
 
 
-def _fallback_mismatches(observed: ObservedAnswerReadyComponents) -> dict[str, str]:
-    legacy_primary_signals = {
-        signal
-        for signal in observed.fallback_primary_signals
-        if signal in ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS
-    }
-    if legacy_primary_signals:
-        return {
-            "fallback_primary_signals": (
-                f"{observed.fallback_primary_signals} contains legacy fallback"
-            )
-        }
-    return {}
-
-
 def _release_contract_mismatches(
     observed: ObservedAnswerReadyComponents,
 ) -> dict[str, str]:
@@ -500,7 +479,6 @@ def _parse_observation(payload: Mapping[str, object]) -> ObservedAnswerReadyComp
         condition_subject=str(payload.get("condition_subject") or "").strip(),
         selected_condition_subjects=string_tuple(payload.get("selected_condition_subjects")),
         selected_polarities=string_tuple(payload.get("selected_polarities")),
-        fallback_primary_signals=string_tuple(payload.get("fallback_primary_signals")),
         no_answer_reason=str(payload.get("no_answer_reason") or "").strip(),
         release_contract_status=str(payload.get("release_contract_status") or "").strip(),
         release_contract_failure_classes=string_tuple(

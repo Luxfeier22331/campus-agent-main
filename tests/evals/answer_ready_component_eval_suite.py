@@ -168,31 +168,19 @@ class AnswerReadyComponentEvalTest(unittest.TestCase):
         self.assertEqual(result.failure_classes, ("grounding_mismatch",))
         self.assertEqual(result.failure_gate_classifications, ("query_conditioned",))
 
-    def test_component_eval_reports_fallback_budget_regression_for_text_cue_signal(self) -> None:
-        result = evaluate_answer_ready_component_case(
-            _case(),
-            _observed(fallback_primary_signals=("text_cue",)),
-        )
-
-        self.assertFalse(result.passed)
-        self.assertEqual(result.primary_failure_class, "fallback_budget_regression")
-        self.assertEqual(result.secondary_failure_class, "")
-        self.assertEqual(result.failure_classes, ("fallback_budget_regression",))
-        self.assertEqual(result.failure_gate_classifications, ("query_conditioned",))
-
-    def test_component_eval_reports_fallback_budget_regression_for_legacy_public_semantic_signal(
+    def test_component_eval_ignores_legacy_fallback_signal_payloads(
         self,
     ) -> None:
         result = evaluate_answer_ready_component_case(
             _case(),
-            _observed(fallback_primary_signals=("public_semantic",)),
+            _observed(),
         )
 
-        self.assertFalse(result.passed)
-        self.assertEqual(result.primary_failure_class, "fallback_budget_regression")
+        self.assertTrue(result.passed)
+        self.assertEqual(result.primary_failure_class, "")
         self.assertEqual(result.secondary_failure_class, "")
-        self.assertEqual(result.failure_classes, ("fallback_budget_regression",))
-        self.assertEqual(result.failure_gate_classifications, ("query_conditioned",))
+        self.assertEqual(result.failure_classes, ())
+        self.assertEqual(result.failure_gate_classifications, ())
 
     def test_component_eval_reports_release_contract_missing_after_query_stages(self) -> None:
         result = evaluate_answer_ready_component_case(
@@ -302,7 +290,6 @@ class AnswerReadyComponentEvalTest(unittest.TestCase):
                 selected_polarities=(),
                 draft_kind="clarification",
                 grounding_support_present=False,
-                fallback_primary_signals=(),
                 release_contract_status="passed",
                 release_contract_failure_classes=(),
             ),
@@ -340,7 +327,6 @@ class AnswerReadyComponentEvalTest(unittest.TestCase):
                 selected_polarities=("positive",),
                 draft_kind="condition_table",
                 grounding_support_present=True,
-                fallback_primary_signals=(),
                 release_contract_status="passed",
                 release_contract_failure_classes=(),
             ),
@@ -375,7 +361,6 @@ class AnswerReadyComponentEvalTest(unittest.TestCase):
                 condition_subject="",
                 selected_condition_subjects=(),
                 selected_polarities=(),
-                fallback_primary_signals=(),
                 release_contract_status="passed",
                 release_contract_failure_classes=(),
             ),
@@ -416,7 +401,6 @@ def _observed(**overrides: object) -> ObservedAnswerReadyComponents:
         "selected_polarities": ("positive",),
         "draft_kind": "procedure_steps",
         "grounding_support_present": True,
-        "fallback_primary_signals": (),
         "no_answer_reason": "",
         "release_contract_status": "passed",
         "release_contract_failure_classes": (),

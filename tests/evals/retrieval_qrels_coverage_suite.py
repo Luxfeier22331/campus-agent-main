@@ -62,6 +62,45 @@ class RetrievalQrelsCoverageTest(unittest.TestCase):
             issues,
         )
 
+    def test_qrels_title_lookup_cases_disable_answer_relevancy_by_default(self) -> None:
+        from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
+
+        dataset = load_retrieval_qrels_dataset(
+            Path("packages/evals/fixtures/student_handbook_retrieval_qrels.json")
+        )
+
+        case = next(case for case in dataset.cases if case.case_id == "policy-title-scholarship")
+
+        self.assertFalse(case.supplemental_metric_overrides.get("answer_relevancy", True))
+        self.assertFalse(case.supplemental_metric_overrides.get("faithfulness", True))
+        self.assertTrue(case.supplemental_metric_overrides.get("identity_grounding", False))
+
+    def test_governing_document_lookup_cases_use_identity_grounding_metric(self) -> None:
+        from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
+
+        dataset = load_retrieval_qrels_dataset(
+            Path("packages/evals/fixtures/institutional_rules_retrieval_qrels.json")
+        )
+
+        case = next(case for case in dataset.cases if case.case_id == "institutional-three-assists")
+
+        self.assertFalse(case.supplemental_metric_overrides.get("answer_relevancy", True))
+        self.assertFalse(case.supplemental_metric_overrides.get("faithfulness", True))
+        self.assertTrue(case.supplemental_metric_overrides.get("identity_grounding", False))
+
+    def test_curriculum_title_cases_do_not_use_document_identity_grounding_metric(self) -> None:
+        from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
+
+        dataset = load_retrieval_qrels_dataset(
+            Path("packages/evals/fixtures/curriculum_plan_retrieval_qrels.json")
+        )
+
+        case = next(case for case in dataset.cases if case.case_id == "ethnology-plan-title")
+
+        self.assertFalse(case.supplemental_metric_overrides.get("answer_relevancy", True))
+        self.assertTrue(case.supplemental_metric_overrides.get("faithfulness", True))
+        self.assertFalse(case.supplemental_metric_overrides.get("identity_grounding", False))
+
 
 if __name__ == "__main__":
     unittest.main()

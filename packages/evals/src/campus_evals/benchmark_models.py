@@ -98,6 +98,7 @@ class RetrievalQrelsCase:
     query: str
     scope: KnowledgeScope
     request_overrides: dict[str, object] = field(default_factory=dict)
+    supplemental_metric_overrides: dict[str, bool] = field(default_factory=dict)
     expected_sources: tuple[RetrievalQrelsSourceRef, ...] = field(default_factory=tuple)
     forbidden_sources: tuple[RetrievalQrelsSourceRef, ...] = field(default_factory=tuple)
     notes: str = ""
@@ -109,6 +110,15 @@ class RetrievalQrelsCase:
             raise ValueError("case_id must not be empty")
         if not self.query.strip():
             raise ValueError("query must not be empty")
+        invalid_metric_keys = [
+            key
+            for key, value in self.supplemental_metric_overrides.items()
+            if not str(key).strip() or not isinstance(value, bool)
+        ]
+        if invalid_metric_keys:
+            raise ValueError(
+                "supplemental_metric_overrides must map non-empty metric names to bool values"
+            )
 
 
 @dataclass(frozen=True, slots=True)

@@ -35,10 +35,12 @@ def _build_supplemental_result(
         return SupplementalResult(
             adapter_id="ragas",
             metric_name=metric_name,
-            verdict="not_applicable",
+            verdict="failed",
             rationale=f"ragas metric {metric_name} did not return a numeric score",
             metadata={
                 "case_id": projection.case_id,
+                "metric_applicable": True,
+                "score_value_type": type(value).__name__,
                 **dict(metadata or {}),
             },
         )

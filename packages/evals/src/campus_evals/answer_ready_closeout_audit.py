@@ -9,14 +9,11 @@ from campus_ingestion_core.process_shared import IndexableChunk
 from campus_retrieval_core.backend_qdrant_evidence import build_evidence_sources
 from campus_retrieval_core.evidence_attributes import (
     evidence_attributes_for_source,
-    evidence_fallback_diagnostics_for_source,
+    evidence_contract_diagnostics_for_source,
 )
 from campus_retrieval_core.evidence_ranking import (
     prioritize_evidence_sources,
     select_supporting_evidence_sources,
-)
-from campus_shared.answer_ready_evidence_contract import (
-    ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS,
 )
 from campus_shared.regulation_semantic_registry import canonical_regulation_condition_subject
 from qdrant_client.http import models as qdrant_models
@@ -40,7 +37,7 @@ class AnswerReadyCloseoutCaseResult:
     top_answer_role: str
     selected_answer_roles: tuple[str, ...]
     selected_condition_subjects: tuple[str, ...]
-    fallback_used: bool
+    contract_missing: bool
     issues: tuple[str, ...] = field(default_factory=tuple)
 
 
@@ -50,7 +47,6 @@ class AnswerReadyCloseoutAuditReport:
     chunk_quality_status: str
     chunk_count: int
     failed_case_count: int
-    primary_text_cue_fallback_count: int
     answer_role_counts: dict[str, int]
     condition_subject_counts: dict[str, int]
     cases: tuple[AnswerReadyCloseoutCaseResult, ...]
@@ -71,7 +67,6 @@ def audit_answer_ready_closeout(
     sources = _evidence_sources_from_chunks(chunk_rows)
     answer_role_counts: dict[str, int] = {}
     condition_subject_counts: dict[str, int] = {}
-    primary_text_cue_fallback_count = 0
     for source in sources:
         attributes = evidence_attributes_for_source(source)
         if attributes.answer_role:
@@ -83,28 +78,15 @@ def audit_answer_ready_closeout(
             condition_subject_counts[canonical_subject] = (
                 condition_subject_counts.get(canonical_subject, 0) + 1
             )
-        fallback = evidence_fallback_diagnostics_for_source(source)
-        if (
-            fallback.fallback_used
-            and fallback.fallback_primary_signal in ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS
-        ):
-            primary_text_cue_fallback_count += 1
 
     case_results = tuple(_audit_case(case=case, sources=sources) for case in cases)
     failed_case_count = sum(1 for result in case_results if result.status != "passed")
-    status = (
-        "passed"
-        if chunk_quality.status == "passed"
-        and failed_case_count == 0
-        and primary_text_cue_fallback_count == 0
-        else "failed"
-    )
+    status = "passed" if chunk_quality.status == "passed" and failed_case_count == 0 else "failed"
     return AnswerReadyCloseoutAuditReport(
         status=status,
         chunk_quality_status=chunk_quality.status,
         chunk_count=chunk_quality.chunk_count,
         failed_case_count=failed_case_count,
-        primary_text_cue_fallback_count=primary_text_cue_fallback_count,
         answer_role_counts=dict(sorted(answer_role_counts.items())),
         condition_subject_counts=dict(sorted(condition_subject_counts.items())),
         cases=case_results,
@@ -148,19 +130,19 @@ def _audit_case(
             "selected_condition_subject:"
             f"{selected_subjects} missing {case.expected_condition_subject}"
         )
-    fallback_used = any(
-        evidence_fallback_diagnostics_for_source(source).fallback_used
+    contract_missing = any(
+        evidence_contract_diagnostics_for_source(source).contract_missing
         for source in (*ranked, *selected)
     )
-    if fallback_used:
-        issues.append("typed_metadata_fallback_used")
+    if contract_missing:
+        issues.append("typed_metadata_contract_missing")
     return AnswerReadyCloseoutCaseResult(
         case_id=case.case_id,
         status="passed" if not issues else "failed",
         top_answer_role=top_answer_role,
         selected_answer_roles=selected_roles,
         selected_condition_subjects=selected_subjects,
-        fallback_used=fallback_used,
+        contract_missing=contract_missing,
         issues=tuple(issues),
     )
 
