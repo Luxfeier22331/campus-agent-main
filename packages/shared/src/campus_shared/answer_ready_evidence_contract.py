@@ -18,10 +18,6 @@ from campus_shared.regulation_semantic_registry import (
 )
 
 ANSWER_READY_EVIDENCE_CONTRACT_VERSION = "answer_ready_evidence.v3"
-ANSWER_READY_LEGACY_EVIDENCE_CONTRACT_VERSION = "answer_ready_evidence.v2"
-ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS = frozenset(
-    {"text_cue", "public_semantic", "public_content_role"}
-)
 ANSWER_READY_SCHEMA_VERSION = "answer_ready_evidence_schema.v3"
 ANSWER_READY_ROLE_MATRIX_VERSION = "answer_ready_role_matrix.v3"
 ANSWER_READY_CONDITION_SUBJECT_TAXONOMY_VERSION = "condition_subject.v1"
@@ -348,14 +344,6 @@ def validate_answer_ready_evidence_metadata(
         )
 
     required_fields = rules.required_fields_for_role(answer_role=answer_role)
-    if contract_version == ANSWER_READY_LEGACY_EVIDENCE_CONTRACT_VERSION:
-        return AnswerReadyEvidenceValidationResult(
-            status="legacy",
-            severity="legacy_old_index",
-            issues=("answer_ready_evidence_contract_version_legacy",),
-            required_fields=required_fields,
-            contract_version=contract_version,
-        )
     if contract_version != ANSWER_READY_EVIDENCE_CONTRACT_VERSION:
         issues.append("answer_ready_evidence_contract_version_missing")
 
@@ -768,8 +756,6 @@ __all__ = [
     "ANSWER_READY_INTRO_TARGET_ROLES",
     "ANSWER_READY_JUDGMENT_ANSWER_ROLES",
     "ANSWER_READY_JUDGMENT_REQUIRED_FIELDS",
-    "ANSWER_READY_LEGACY_EVIDENCE_CONTRACT_VERSION",
-    "ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS",
     "ANSWER_READY_PROCEDURE_ACTIONS",
     "ANSWER_READY_PROCEDURE_ACTION_TAXONOMY_VERSION",
     "ANSWER_READY_PROCEDURE_ACTORS",

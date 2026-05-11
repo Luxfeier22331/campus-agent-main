@@ -133,9 +133,9 @@ def semantic_alignment_score(*, query_text: str, source: EvidenceSource) -> int:
     score = 0
     intent = infer_evidence_query_intent(query_text)
     attributes = evidence_attributes_for_source(source)
-    source_answer_role = attributes.answer_role or source.semantic_role
-    source_action_type = attributes.action_type or source.action_type
-    source_claim_type = attributes.claim_type or source.claim_type
+    source_answer_role = attributes.answer_role
+    source_action_type = attributes.action_type
+    source_claim_type = attributes.claim_type
     source_condition_subject = canonical_regulation_condition_subject(attributes.condition_subject)
     source_group_subject = canonical_regulation_condition_subject(
         attributes.condition_group_subject
@@ -292,8 +292,8 @@ def source_conflicts_with_query_polarity(
     source: EvidenceSource,
 ) -> bool:
     attributes = evidence_attributes_for_source(source)
-    source_answer_role = attributes.answer_role or source.semantic_role
-    source_claim_type = attributes.claim_type or source.claim_type
+    source_answer_role = attributes.answer_role
+    source_claim_type = attributes.claim_type
     return query_requests_positive_procedure(query_text) and (
         source_has_negative_polarity(source)
         or source_answer_role in _NEGATIVE_SOURCE_ROLES
@@ -354,7 +354,7 @@ def infer_query_category_id(query_text: str) -> str:
 def source_has_negative_polarity(source: EvidenceSource) -> bool:
     attributes = evidence_attributes_for_source(source)
     return (
-        (attributes.polarity or source.polarity) == "negative"
+        attributes.polarity == "negative"
         or attributes.answer_role in _NEGATIVE_SOURCE_ROLES
         or _contains_negative_source_cue(source.snippet)
     )
@@ -362,7 +362,7 @@ def source_has_negative_polarity(source: EvidenceSource) -> bool:
 
 def source_has_positive_polarity(source: EvidenceSource) -> bool:
     attributes = evidence_attributes_for_source(source)
-    if (attributes.polarity or source.polarity) == "positive":
+    if attributes.polarity == "positive":
         return True
     return not source_has_negative_polarity(source) and source.is_answer_bearing
 

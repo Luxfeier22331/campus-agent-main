@@ -6,7 +6,7 @@ from campus_contracts import EvidenceSource
 from campus_shared.answer_ready_evidence_contract import (
     ANSWER_READY_BASE_REQUIRED_FIELDS,
     ANSWER_READY_INTERNAL_ATTRIBUTE_FIELDS,
-    ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS,
+    answer_ready_contract_applies,
     answer_ready_contract_rules_for_scope,
 )
 from campus_shared.regulation_semantic_registry import condition_group_subject_from_group_id
@@ -54,37 +54,29 @@ class EvidenceAttributes:
 
 
 @dataclass(frozen=True, slots=True)
-class EvidenceFallbackDiagnostics:
-    fallback_used: bool = False
-    fallback_reason: str = ""
+class EvidenceContractDiagnostics:
+    contract_missing: bool = False
+    contract_issue_reason: str = ""
     missing_contract_fields: tuple[str, ...] = field(default_factory=tuple)
     source_index_contract_version: str = ""
-    fallback_primary_signal: str = ""
 
 
 def evidence_attributes_for_source(source: EvidenceSource) -> EvidenceAttributes:
     raw = _coerce_dict(source.anchor.get(INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY))
-    answer_role = (
-        _optional_text(raw.get("answer_role")) or source.semantic_role or source.content_role
-    )
+    answer_role = _optional_text(raw.get("answer_role")) or ""
     condition_subject = _optional_text(raw.get("condition_subject")) or ""
     condition_group_subject = _optional_text(raw.get("condition_group_subject")) or ""
-    parent_unit_id = (
-        _optional_text(raw.get("parent_unit_id"))
-        or source.source_unit_key
-        or _optional_text(source.anchor.get("root_unit_id"))
-        or ""
-    )
+    parent_unit_id = _optional_text(raw.get("parent_unit_id")) or ""
     clause_unit_id = _optional_text(raw.get("clause_unit_id")) or ""
     evidence_contract_version = _optional_text(raw.get("evidence_contract_version")) or ""
-    semantic_role = _optional_text(raw.get("semantic_role")) or source.semantic_role
-    polarity = _optional_text(raw.get("polarity")) or source.polarity
-    action_type = _optional_text(raw.get("action_type")) or source.action_type
-    claim_type = _optional_text(raw.get("claim_type")) or source.claim_type
-    audience_scope = _optional_text(raw.get("audience_scope")) or source.audience_scope
-    article_no = _optional_text(raw.get("article_no")) or source.article_no
-    clause_no = _optional_text(raw.get("clause_no")) or source.clause_no
-    section_kind = _optional_text(raw.get("section_kind")) or source.section_kind
+    semantic_role = _optional_text(raw.get("semantic_role")) or ""
+    polarity = _optional_text(raw.get("polarity")) or ""
+    action_type = _optional_text(raw.get("action_type")) or ""
+    claim_type = _optional_text(raw.get("claim_type")) or ""
+    audience_scope = _optional_text(raw.get("audience_scope")) or ""
+    article_no = _optional_text(raw.get("article_no")) or ""
+    clause_no = _optional_text(raw.get("clause_no")) or ""
+    section_kind = _optional_text(raw.get("section_kind")) or ""
     condition_group_id = _optional_text(raw.get("condition_group_id")) or ""
     if not condition_group_subject:
         condition_group_subject = condition_group_subject_from_group_id(condition_group_id)
@@ -145,20 +137,21 @@ def evidence_attributes_for_source(source: EvidenceSource) -> EvidenceAttributes
     )
 
 
-def evidence_fallback_diagnostics_for_source(source: EvidenceSource) -> EvidenceFallbackDiagnostics:
+def evidence_contract_diagnostics_for_source(source: EvidenceSource) -> EvidenceContractDiagnostics:
+    if not answer_ready_contract_applies(corpus="regulations", collection=source.collection):
+        return EvidenceContractDiagnostics()
     raw = _coerce_dict(source.anchor.get(INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY))
     source_index_contract_version = _optional_text(raw.get("evidence_contract_version")) or ""
     missing = _raw_missing_contract_fields(raw, collection=source.collection)
     if not missing:
-        return EvidenceFallbackDiagnostics(
+        return EvidenceContractDiagnostics(
             source_index_contract_version=source_index_contract_version,
         )
-    return EvidenceFallbackDiagnostics(
-        fallback_used=True,
-        fallback_reason="missing_contract",
+    return EvidenceContractDiagnostics(
+        contract_missing=True,
+        contract_issue_reason="missing_contract",
         missing_contract_fields=missing,
         source_index_contract_version=source_index_contract_version,
-        fallback_primary_signal=_fallback_primary_signal(source),
     )
 
 
@@ -171,6 +164,8 @@ def build_internal_evidence_attribute_payload(metadata: dict[str, object]) -> di
 
 
 def _raw_missing_contract_fields(raw: dict[str, object], *, collection: str) -> tuple[str, ...]:
+    if not answer_ready_contract_applies(corpus="regulations", collection=collection):
+        return ()
     missing: list[str] = []
     for field_name in ANSWER_READY_BASE_REQUIRED_FIELDS:
         if not _optional_text(raw.get(field_name)):
@@ -196,28 +191,6 @@ def _raw_missing_contract_fields(raw: dict[str, object], *, collection: str) -> 
     ):
         missing.append("condition_group_subject")
     return tuple(dict.fromkeys(missing))
-
-
-def _fallback_primary_signal(source: EvidenceSource) -> str:
-    if source.semantic_role or source.polarity or source.action_type or source.claim_type:
-        return next(
-            signal
-            for signal in ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS
-            if signal == "public_semantic"
-        )
-    if source.content_role or source.content_kind:
-        return next(
-            signal
-            for signal in ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS
-            if signal == "public_content_role"
-        )
-    if source.snippet:
-        return next(
-            signal
-            for signal in ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS
-            if signal == "text_cue"
-        )
-    return "none"
 
 
 def _missing_contract_fields(
@@ -316,9 +289,9 @@ def _coerce_text_tuple(value: object) -> tuple[str, ...]:
 __all__ = [
     "INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY",
     "EvidenceAttributes",
-    "EvidenceFallbackDiagnostics",
+    "EvidenceContractDiagnostics",
     "ProcedureAttributes",
     "build_internal_evidence_attribute_payload",
     "evidence_attributes_for_source",
-    "evidence_fallback_diagnostics_for_source",
+    "evidence_contract_diagnostics_for_source",
 ]

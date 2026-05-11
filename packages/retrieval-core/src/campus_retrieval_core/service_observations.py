@@ -100,7 +100,7 @@ def build_retrieval_observation(
         "need_ids": activity.need_ids,
         "latency_ms": activity.latency_ms,
     }
-    observation["canonical_index_truth"] = observation["retrieval_mode"] != "live_assisted"
+    observation["canonical_index_truth"] = True
     source_timestamps = tuple(
         str(source.anchor.get("source_timestamp") or "")
         for source in result.references
@@ -110,25 +110,16 @@ def build_retrieval_observation(
         observation["source_timestamps"] = source_timestamps
     if execution.plan.version_query is not None and execution.plan.version_query.as_of:
         observation["as_of"] = execution.plan.version_query.as_of
-    elif observation["retrieval_mode"] == "live_assisted":
-        as_of_values = tuple(
-            str(source.anchor.get("as_of") or "")
-            for source in result.references
-            if source.anchor.get("as_of")
-        )
-        if as_of_values:
-            observation["as_of"] = as_of_values[0]
     if include_query_text:
         observation["query"] = activity.query_text
     if activity.reranker_degraded:
         observation["reranker_degraded"] = True
         observation["reranker_failure_kind"] = activity.reranker_failure_kind
-    if activity.fallback_used:
-        observation["fallback_used"] = True
-        observation["fallback_reason"] = activity.fallback_reason
+    if activity.contract_missing:
+        observation["contract_missing"] = True
+        observation["contract_issue_reason"] = activity.contract_issue_reason
         observation["missing_contract_fields"] = activity.missing_contract_fields
         observation["source_index_contract_version"] = activity.source_index_contract_version
-        observation["fallback_primary_signal"] = activity.fallback_primary_signal
     return observation
 
 
@@ -143,8 +134,6 @@ def observation_retrieval_mode(
     query_mode: str,
     step_type: str,
 ) -> str:
-    if step_type == "live_source_lookup":
-        return "live_assisted"
     return query_mode
 
 

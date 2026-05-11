@@ -14,16 +14,13 @@ from campus_contracts import (
 )
 from campus_ingestion_core.scope_catalog import assert_known_scope
 
-RetrievalQueryMode = Literal[
-    "current", "historical", "as_of", "compare", "freshness_sensitive", "live_assisted"
-]
+RetrievalQueryMode = Literal["current", "historical", "as_of", "compare", "freshness_sensitive"]
 RetrievalStepType = Literal[
     "indexed_lookup",
     "entity_resolution",
     "historical_version_lookup",
     "compare_pair_lookup",
     "freshness_gate",
-    "live_source_lookup",
     "scope_follow_up",
 ]
 RetrievalExpectedOutput = Literal[
@@ -31,14 +28,12 @@ RetrievalExpectedOutput = Literal[
     "entity_matches",
     "freshness_decision",
     "compare_inputs",
-    "live_candidates",
 ]
 RetrievalStepStatus = Literal["succeeded", "empty", "blocked", "failed"]
 RetrievalFailureKind = Literal[
     "budget_exhausted",
     "unauthorized_scope",
     "unresolved_freshness",
-    "live_lookup_unavailable",
     "no_grounding",
     "focus_mismatch",
     "executor_error",
@@ -80,7 +75,6 @@ ALLOWED_RETRIEVAL_QUERY_MODES = (
     "as_of",
     "compare",
     "freshness_sensitive",
-    "live_assisted",
 )
 ALLOWED_RETRIEVAL_STEP_TYPES = (
     "indexed_lookup",
@@ -88,7 +82,6 @@ ALLOWED_RETRIEVAL_STEP_TYPES = (
     "historical_version_lookup",
     "compare_pair_lookup",
     "freshness_gate",
-    "live_source_lookup",
     "scope_follow_up",
 )
 ALLOWED_RETRIEVAL_EXPECTED_OUTPUTS = (
@@ -96,14 +89,12 @@ ALLOWED_RETRIEVAL_EXPECTED_OUTPUTS = (
     "entity_matches",
     "freshness_decision",
     "compare_inputs",
-    "live_candidates",
 )
 ALLOWED_RETRIEVAL_STEP_STATUSES = ("succeeded", "empty", "blocked", "failed")
 ALLOWED_RETRIEVAL_FAILURE_KINDS = (
     "budget_exhausted",
     "unauthorized_scope",
     "unresolved_freshness",
-    "live_lookup_unavailable",
     "no_grounding",
     "focus_mismatch",
     "executor_error",
@@ -152,7 +143,6 @@ class RetrievalScope:
 @dataclass(frozen=True, slots=True)
 class RetrievalSourceTrustPolicy:
     minimum_tier: SourceTrustTier | str = "T1"
-    allow_live_source_lookup: bool = False
 
     def __post_init__(self) -> None:
         normalized_minimum_tier = (
@@ -168,15 +158,12 @@ class RetrievalSourceTrustPolicy:
 class RetrievalPlanBudget:
     max_steps: int = 1
     max_replans: int = 0
-    max_live_lookups: int = 0
 
     def __post_init__(self) -> None:
         if self.max_steps <= 0:
             raise ValueError("max_steps must be greater than zero")
         if self.max_replans < 0:
             raise ValueError("max_replans must not be negative")
-        if self.max_live_lookups < 0:
-            raise ValueError("max_live_lookups must not be negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -299,11 +286,10 @@ class RetrievalStepActivity:
     failure_kind: RetrievalFailureKind | str | None = None
     reranker_degraded: bool = False
     reranker_failure_kind: str = ""
-    fallback_used: bool = False
-    fallback_reason: str = ""
+    contract_missing: bool = False
+    contract_issue_reason: str = ""
     missing_contract_fields: tuple[str, ...] = field(default_factory=tuple)
     source_index_contract_version: str = ""
-    fallback_primary_signal: str = ""
 
     def __post_init__(self) -> None:
         if not self.step_id.strip():

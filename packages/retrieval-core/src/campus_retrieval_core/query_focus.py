@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass
 
 from campus_contracts import EvidenceSource
@@ -145,6 +146,14 @@ def source_covers_query_focus(*, query_text: str, source: EvidenceSource) -> boo
     groups = build_focus_groups(query_text)
     if not groups:
         return True
+    return source_covers_focus_groups(source=source, groups=groups)
+
+
+def source_covers_focus_groups(
+    *,
+    source: EvidenceSource,
+    groups: tuple[tuple[str, ...], ...],
+) -> bool:
     normalized_source = normalize_text(
         " ".join(
             fragment
@@ -161,24 +170,33 @@ def source_covers_query_focus(*, query_text: str, source: EvidenceSource) -> boo
     if not normalized_source:
         return False
     for group in groups:
-        if any(normalize_text(term) in normalized_source for term in group):
-            continue
-        if (
-            len(group) == 1
-            and group[0].startswith("第")
-            and group[0].endswith("条")
-            and normalize_text(source.detail_label) == normalize_text(group[0])
-        ):
-            continue
-        if (
-            len(group) == 1
-            and group[0].startswith("第")
-            and group[0].endswith("款")
-            and normalize_text(source.detail_label) == normalize_text(group[0])
+        if _source_text_covers_focus_group(
+            normalized_source=normalized_source,
+            detail_label=source.detail_label,
+            group=group,
         ):
             continue
         return False
     return True
+
+
+def select_sources_covering_query_focus(
+    *,
+    query_text: str,
+    sources: Sequence[EvidenceSource],
+) -> tuple[EvidenceSource, ...]:
+    groups = build_focus_groups(query_text)
+    if not groups:
+        return tuple(sources)
+    individually_aligned = tuple(
+        source for source in sources if source_covers_focus_groups(source=source, groups=groups)
+    )
+    if individually_aligned:
+        return individually_aligned
+    return _select_same_document_sources_covering_focus_groups(
+        sources=sources,
+        groups=groups,
+    )
 
 
 def query_has_focus_constraints(query_text: str) -> bool:
@@ -252,6 +270,85 @@ def _parse_simple_chinese_number(number_text: str) -> int | None:
     return total + current_digit
 
 
+def _select_same_document_sources_covering_focus_groups(
+    *,
+    sources: Sequence[EvidenceSource],
+    groups: tuple[tuple[str, ...], ...],
+) -> tuple[EvidenceSource, ...]:
+    grouped_sources: dict[str, list[EvidenceSource]] = {}
+    for source in sources:
+        if not source.doc_id:
+            continue
+        grouped_sources.setdefault(source.doc_id, []).append(source)
+    for document_sources in grouped_sources.values():
+        if _sources_cover_focus_groups(sources=document_sources, groups=groups):
+            return tuple(document_sources)
+    return ()
+
+
+def _sources_cover_focus_groups(
+    *,
+    sources: Sequence[EvidenceSource],
+    groups: tuple[tuple[str, ...], ...],
+) -> bool:
+    normalized_sources = tuple(
+        (
+            normalize_text(
+                " ".join(
+                    fragment
+                    for fragment in (
+                        source.source_title,
+                        source.detail_label,
+                        f"第{source.article_no}条" if source.article_no else "",
+                        f"第{source.clause_no}款" if source.clause_no else "",
+                        source.snippet,
+                    )
+                    if fragment
+                )
+            ),
+            source.detail_label,
+        )
+        for source in sources
+    )
+    return all(
+        any(
+            _source_text_covers_focus_group(
+                normalized_source=normalized_source,
+                detail_label=detail_label,
+                group=group,
+            )
+            for normalized_source, detail_label in normalized_sources
+            if normalized_source
+        )
+        for group in groups
+    )
+
+
+def _source_text_covers_focus_group(
+    *,
+    normalized_source: str,
+    detail_label: str,
+    group: tuple[str, ...],
+) -> bool:
+    if any(normalize_text(term) in normalized_source for term in group):
+        return True
+    if (
+        len(group) == 1
+        and group[0].startswith("第")
+        and group[0].endswith("条")
+        and normalize_text(detail_label) == normalize_text(group[0])
+    ):
+        return True
+    if (
+        len(group) == 1
+        and group[0].startswith("第")
+        and group[0].endswith("款")
+        and normalize_text(detail_label) == normalize_text(group[0])
+    ):
+        return True
+    return False
+
+
 def _compact_text(text: str) -> str:
     normalized = normalize_text(text)
     return "".join(char for char in normalized if char.isalnum() or _is_cjk_char(char))
@@ -272,6 +369,8 @@ __all__ = [
     "extract_query_focus",
     "normalize_text",
     "query_has_focus_constraints",
+    "select_sources_covering_query_focus",
     "source_covers_query_focus",
+    "source_covers_focus_groups",
     "source_focus_match_score",
 ]

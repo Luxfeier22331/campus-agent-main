@@ -45,7 +45,7 @@ from campus_retrieval_core.curriculum_query_resolution import (
     filter_curriculum_query_sources,
     interpret_curriculum_query,
 )
-from campus_retrieval_core.evidence_attributes import evidence_fallback_diagnostics_for_source
+from campus_retrieval_core.evidence_attributes import evidence_contract_diagnostics_for_source
 from campus_retrieval_core.evidence_ranking import query_targets_source_title
 from campus_retrieval_core.models import RetrievalRequest
 
@@ -360,7 +360,7 @@ def _filter_target_regulation_supplemental_sources(
         source
         for source in sources
         if not source.is_answer_bearing
-        or not evidence_fallback_diagnostics_for_source(source).fallback_used
+        or not evidence_contract_diagnostics_for_source(source).contract_missing
     )
 
 

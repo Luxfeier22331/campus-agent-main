@@ -57,14 +57,6 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "campus_shared.answer_ready_evidence_contract",
         "ANSWER_READY_JUDGMENT_ANSWER_ROLES",
     ),
-    "ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS": (
-        "campus_shared.answer_ready_evidence_contract",
-        "ANSWER_READY_LEGACY_FALLBACK_PRIMARY_SIGNALS",
-    ),
-    "ANSWER_READY_LEGACY_EVIDENCE_CONTRACT_VERSION": (
-        "campus_shared.answer_ready_evidence_contract",
-        "ANSWER_READY_LEGACY_EVIDENCE_CONTRACT_VERSION",
-    ),
     "ANSWER_READY_PROCEDURE_ACTIONS": (
         "campus_shared.answer_ready_evidence_contract",
         "ANSWER_READY_PROCEDURE_ACTIONS",

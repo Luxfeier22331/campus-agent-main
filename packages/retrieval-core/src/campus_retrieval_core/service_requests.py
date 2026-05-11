@@ -33,7 +33,7 @@ def build_single_step_plan(request: RetrievalRequest) -> RetrievalPlan:
         source_trust_policy=RetrievalSourceTrustPolicy(
             minimum_tier=default_minimum_source_trust_tier_for_collection(request.collection),
         ),
-        budget=RetrievalPlanBudget(max_steps=1, max_replans=0, max_live_lookups=0),
+        budget=RetrievalPlanBudget(max_steps=1, max_replans=0),
         steps=(
             RetrievalStep(
                 step_id="indexed-lookup",

@@ -66,7 +66,7 @@ class EvidenceContractRankingTest(unittest.TestCase):
             "amount_or_quota",
         )
 
-    def test_typed_metadata_ranks_positive_procedure_over_negative_exclusion_without_public_semantics(
+    def test_typed_metadata_ranks_positive_procedure_over_negative_exclusion(
         self,
     ) -> None:
         ranked = prioritize_evidence_sources(
@@ -208,8 +208,12 @@ class EvidenceContractRankingTest(unittest.TestCase):
                     source_title="中央民族大学本科学生国家奖学金评审办法",
                     content_role="eligibility",
                     is_answer_bearing=True,
-                    semantic_role="condition",
-                    anchor={},
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="rank_threshold",
+                        polarity="positive",
+                        claim_type="condition",
+                    ),
                 ),
                 _make_source(
                     doc_id="handbook:national-scholarship",
@@ -223,8 +227,13 @@ class EvidenceContractRankingTest(unittest.TestCase):
                     source_title="中央民族大学本科学生国家奖学金评审办法",
                     content_role="eligibility",
                     is_answer_bearing=True,
-                    semantic_role="exception",
-                    anchor={},
+                    anchor=_answer_ready_anchor(
+                        answer_role="exception_rule",
+                        condition_subject="rank_threshold",
+                        condition_group_subject="rank_threshold",
+                        polarity="positive",
+                        claim_type="condition",
+                    ),
                 ),
             ),
         )
@@ -566,7 +575,7 @@ class EvidenceContractRankingTest(unittest.TestCase):
 
         self.assertEqual(ranked[0].chunk_id, "professional-scholarship-amount-table")
 
-    def test_ranking_features_report_fallback_diagnostics_when_contract_metadata_is_absent(
+    def test_ranking_features_report_contract_diagnostics_when_metadata_is_absent(
         self,
     ) -> None:
         query_text = "处分怎么消"
@@ -624,19 +633,19 @@ class EvidenceContractRankingTest(unittest.TestCase):
             ),
         )
 
-        self.assertTrue(legacy_feature.fallback_diagnostics.fallback_used)
-        self.assertEqual(legacy_feature.fallback_diagnostics.fallback_reason, "missing_contract")
-        self.assertIn("answer_role", legacy_feature.fallback_diagnostics.missing_contract_fields)
+        self.assertTrue(legacy_feature.contract_diagnostics.contract_missing)
+        self.assertEqual(
+            legacy_feature.contract_diagnostics.contract_issue_reason, "missing_contract"
+        )
+        self.assertIn("answer_role", legacy_feature.contract_diagnostics.missing_contract_fields)
         self.assertIn(
             "evidence_contract_version",
-            legacy_feature.fallback_diagnostics.missing_contract_fields,
+            legacy_feature.contract_diagnostics.missing_contract_fields,
         )
-        self.assertEqual(legacy_feature.fallback_diagnostics.source_index_contract_version, "")
-        self.assertEqual(
-            legacy_feature.fallback_diagnostics.fallback_primary_signal, "public_semantic"
-        )
-        self.assertFalse(typed_feature.fallback_diagnostics.fallback_used)
-        self.assertEqual(typed_feature.fallback_diagnostics.missing_contract_fields, ())
+        self.assertEqual(legacy_feature.contract_diagnostics.source_index_contract_version, "")
+        self.assertFalse(hasattr(legacy_feature.contract_diagnostics, "fallback_primary_signal"))
+        self.assertFalse(typed_feature.contract_diagnostics.contract_missing)
+        self.assertEqual(typed_feature.contract_diagnostics.missing_contract_fields, ())
 
     def test_incomplete_v3_sidecar_is_still_treated_as_missing_contract(self) -> None:
         query_text = "处分怎么消"
@@ -665,17 +674,17 @@ class EvidenceContractRankingTest(unittest.TestCase):
             ),
         )
 
-        self.assertTrue(incomplete_feature.fallback_diagnostics.fallback_used)
+        self.assertTrue(incomplete_feature.contract_diagnostics.contract_missing)
         self.assertEqual(
-            incomplete_feature.fallback_diagnostics.fallback_reason, "missing_contract"
+            incomplete_feature.contract_diagnostics.contract_issue_reason, "missing_contract"
         )
         self.assertIn(
             "procedure_action",
-            incomplete_feature.fallback_diagnostics.missing_contract_fields,
+            incomplete_feature.contract_diagnostics.missing_contract_fields,
         )
         self.assertIn(
             "procedure_actor",
-            incomplete_feature.fallback_diagnostics.missing_contract_fields,
+            incomplete_feature.contract_diagnostics.missing_contract_fields,
         )
 
 

@@ -8,7 +8,7 @@ from campus_retrieval_core.evidence_attributes import (
     INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY,
     build_internal_evidence_attribute_payload,
     evidence_attributes_for_source,
-    evidence_fallback_diagnostics_for_source,
+    evidence_contract_diagnostics_for_source,
 )
 from qdrant_client.http import models as qdrant_models
 
@@ -78,7 +78,7 @@ class EvidenceAttributesTest(unittest.TestCase):
         self.assertEqual(payload["procedure_action"], "submit_materials")
         self.assertNotIn("unrelated_payload", payload)
 
-    def test_old_public_evidence_source_remains_readable_with_legacy_fallbacks(self) -> None:
+    def test_old_public_evidence_source_fail_closes_without_typed_sidecar(self) -> None:
         source = _make_source(
             semantic_role="procedure_step",
             polarity="positive",
@@ -88,11 +88,19 @@ class EvidenceAttributesTest(unittest.TestCase):
 
         attributes = evidence_attributes_for_source(source)
 
-        self.assertEqual(attributes.answer_role, "procedure_step")
-        self.assertEqual(attributes.polarity, "positive")
-        self.assertEqual(attributes.action_type, "lift_discipline")
-        self.assertEqual(attributes.claim_type, "procedure")
+        self.assertEqual(attributes.answer_role, "")
+        self.assertEqual(attributes.polarity, "")
+        self.assertEqual(attributes.action_type, "")
+        self.assertEqual(attributes.claim_type, "")
+        self.assertIn("answer_role", attributes.missing_contract_fields)
+        self.assertIn("parent_unit_id", attributes.missing_contract_fields)
         self.assertIn("evidence_contract_version", attributes.missing_contract_fields)
+        diagnostics = evidence_contract_diagnostics_for_source(source)
+        self.assertTrue(diagnostics.contract_missing)
+        self.assertEqual(diagnostics.contract_issue_reason, "missing_contract")
+        self.assertIn("answer_role", diagnostics.missing_contract_fields)
+        self.assertIn("evidence_contract_version", diagnostics.missing_contract_fields)
+        self.assertFalse(hasattr(diagnostics, "fallback_primary_signal"))
 
     def test_qdrant_payload_projects_answer_ready_metadata_to_internal_accessor(self) -> None:
         backend = QdrantRetrievalBackend(
@@ -194,7 +202,7 @@ class EvidenceAttributesTest(unittest.TestCase):
 
         self.assertEqual(attributes.condition_group_subject, "application_procedure")
 
-    def test_fallback_diagnostics_flag_incomplete_v3_procedure_contract(self) -> None:
+    def test_contract_diagnostics_flag_incomplete_v3_procedure_contract(self) -> None:
         source = _make_source(
             anchor={
                 INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
@@ -207,10 +215,10 @@ class EvidenceAttributesTest(unittest.TestCase):
             }
         )
 
-        diagnostics = evidence_fallback_diagnostics_for_source(source)
+        diagnostics = evidence_contract_diagnostics_for_source(source)
 
-        self.assertTrue(diagnostics.fallback_used)
-        self.assertEqual(diagnostics.fallback_reason, "missing_contract")
+        self.assertTrue(diagnostics.contract_missing)
+        self.assertEqual(diagnostics.contract_issue_reason, "missing_contract")
         self.assertIn("condition_polarity", diagnostics.missing_contract_fields)
         self.assertIn("procedure_step_index", diagnostics.missing_contract_fields)
         self.assertIn("procedure_actor", diagnostics.missing_contract_fields)

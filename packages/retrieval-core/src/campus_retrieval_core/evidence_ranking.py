@@ -11,7 +11,7 @@ from campus_retrieval_core.curriculum_query_resolution import (
 )
 from campus_retrieval_core.query_focus import (
     query_has_focus_constraints,
-    source_covers_query_focus,
+    select_sources_covering_query_focus,
 )
 
 from .evidence_ranking_curriculum import select_curriculum_lookup_support_sources
@@ -124,10 +124,9 @@ def select_supporting_evidence_sources(
         return ()
 
     if query_has_focus_constraints(query_text):
-        focus_aligned_sources = tuple(
-            feature.source
-            for feature in ranked_features
-            if source_covers_query_focus(query_text=query_text, source=feature.source)
+        focus_aligned_sources = select_sources_covering_query_focus(
+            query_text=query_text,
+            sources=tuple(feature.source for feature in ranked_features),
         )
         if focus_aligned_sources:
             ranked_features = tuple(

@@ -22,11 +22,9 @@ from campus_retrieval_core.service_step_executor import (
     classify_retrieval_exception_failure_kind,
     execute_freshness_gate_step,
     execute_index_backed_step,
-    execute_live_source_lookup_step,
 )
 
 ExecutableRetrievalRequestFn = Callable[[RetrievalRequest], EvidenceBundle]
-ExecutableLiveLookupFn = Callable[[RetrievalStep], EvidenceBundle]
 ExecutableRerankFn = Callable[[RetrievalRequest, EvidenceBundle], EvidenceBundle]
 ReplanStepCallback = Callable[
     [RetrievalPlan, tuple[RetrievalStepResult, ...], RetrievalStepResult], Sequence[RetrievalStep]
@@ -48,7 +46,6 @@ def execute_retrieval_plan(
     personalization_hint: PersonalizationHint | None = None,
     backend=None,
     retrieve_step: ExecutableRetrievalRequestFn | None = None,
-    retrieve_live_step: ExecutableLiveLookupFn | None = None,
     rerank_step: ExecutableRerankFn | None = None,
     replan_callback: ReplanStepCallback | None = None,
     observation_sink=None,
@@ -77,7 +74,6 @@ def execute_retrieval_plan(
     executed_steps: list[RetrievalStep] = []
     step_results: list[RetrievalStepResult] = []
     replan_count = 0
-    live_lookup_count = 0
     step_index = 0
 
     while step_index < len(pending_steps):
@@ -95,14 +91,6 @@ def execute_retrieval_plan(
             result = execute_freshness_gate_step(
                 plan=plan,
                 step=step,
-                load_runtime_profile_fn=load_runtime_profile_fn,
-            )
-        elif step.step_type == "live_source_lookup":
-            result = execute_live_source_lookup_step(
-                plan=plan,
-                step=step,
-                retrieve_live_step=retrieve_live_step,
-                attempted_live_lookup_count=live_lookup_count,
                 load_runtime_profile_fn=load_runtime_profile_fn,
             )
         elif step.step_type not in _INDEX_BACKED_RETRIEVAL_STEP_TYPES:
@@ -160,13 +148,8 @@ def execute_retrieval_plan(
         executed_steps.append(step)
         step_results.append(result)
         completed_step_ids.add(step.step_id)
-        if result.status in {"blocked", "failed"} and step.step_type in {
-            "freshness_gate",
-            "live_source_lookup",
-        }:
+        if result.status in {"blocked", "failed"} and step.step_type == "freshness_gate":
             break
-        if step.step_type == "live_source_lookup" and result.status == "succeeded":
-            live_lookup_count += 1
 
         can_attempt_replan = (
             replan_callback is not None

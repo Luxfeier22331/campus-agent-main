@@ -194,7 +194,9 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
             ),
         )
 
-        with self.assertRaisesRegex(RetrievalBackendError, "legacy old-index fallback"):
+        with self.assertRaisesRegex(
+            RetrievalBackendError, "answer-ready evidence contract missing"
+        ):
             execute_retrieval_plan(
                 plan,
                 retrieve_step=lambda request: EvidenceBundle(
@@ -242,7 +244,9 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
             ),
         )
 
-        with self.assertRaisesRegex(RetrievalBackendError, "legacy old-index fallback"):
+        with self.assertRaisesRegex(
+            RetrievalBackendError, "answer-ready evidence contract missing"
+        ):
             execute_retrieval_plan(
                 plan,
                 retrieve_step=lambda request: EvidenceBundle(
@@ -288,7 +292,9 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
             ),
         )
 
-        with self.assertRaisesRegex(RetrievalBackendError, "legacy old-index fallback"):
+        with self.assertRaisesRegex(
+            RetrievalBackendError, "answer-ready evidence contract missing"
+        ):
             execute_retrieval_plan(
                 plan,
                 retrieve_step=lambda request: EvidenceBundle(
@@ -304,6 +310,51 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
                             semantic_role="procedure_step",
                             polarity="positive",
                             action_type="lift_discipline",
+                            claim_type="procedure",
+                        ),
+                    ),
+                ),
+            )
+
+    def test_execute_retrieval_plan_defaults_to_contract_required_for_institutional_regulation_serving(
+        self,
+    ) -> None:
+        plan = RetrievalPlan(
+            plan_id="regulations:institutional_rules:contract-required",
+            query_mode="current",
+            admitted_scopes=(
+                RetrievalScope(corpus="regulations", collection="institutional_rules"),
+            ),
+            steps=(
+                RetrievalStep(
+                    step_id="primary",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="institutional_rules"),
+                    query_text="教师请假流程是什么",
+                    budget=RetrievalStepBudget(top_k=3),
+                ),
+            ),
+        )
+
+        with self.assertRaisesRegex(
+            RetrievalBackendError, "answer-ready evidence contract missing"
+        ):
+            execute_retrieval_plan(
+                plan,
+                retrieve_step=lambda request: EvidenceBundle(
+                    query_text=request.query_text,
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    sources=(
+                        _make_source(
+                            chunk_id="legacy-institutional-procedure",
+                            doc_id="regulation:faculty-leave",
+                            collection="institutional_rules",
+                            snippet="教师请假应先提交申请，经审批后方可离岗。",
+                            content_role="procedure",
+                            is_answer_bearing=True,
+                            semantic_role="procedure_step",
+                            polarity="positive",
                             claim_type="procedure",
                         ),
                     ),

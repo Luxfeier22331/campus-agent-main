@@ -82,7 +82,12 @@ REGULATION_CONDITION_SUBJECT_DEFINITIONS: dict[str, RegulationConditionSubjectDe
     "discipline_relief_condition": RegulationConditionSubjectDefinition(
         subject_id="discipline_relief_condition",
         description="解除处分的正向资格条件。",
-        expected_answer_roles=("eligibility_condition", "exception_rule", "example_evidence"),
+        expected_answer_roles=(
+            "eligibility_condition",
+            "exception_rule",
+            "example_evidence",
+            "procedure_step",
+        ),
     ),
     "discipline_relief_exclusion": RegulationConditionSubjectDefinition(
         subject_id="discipline_relief_exclusion",

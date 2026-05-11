@@ -2,13 +2,12 @@ from __future__ import annotations
 
 import time
 from dataclasses import replace
-from datetime import UTC, datetime
-
 from campus_contracts import EvidenceBundle
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
+from campus_shared.answer_ready_evidence_contract import answer_ready_contract_applies
 
 from campus_retrieval_core.backend_qdrant_errors import RetrievalBackendError
-from campus_retrieval_core.evidence_attributes import evidence_fallback_diagnostics_for_source
+from campus_retrieval_core.evidence_attributes import evidence_contract_diagnostics_for_source
 from campus_retrieval_core.models import RetrievalPlan, RetrievalRequest, RetrievalStep
 from campus_retrieval_core.service_execution import (
     build_blocked_step_result,
@@ -22,7 +21,7 @@ def classify_retrieval_exception_failure_kind(exc: Exception) -> str:
     message = str(exc).lower()
     if (
         "release metadata" in message
-        or "legacy old-index fallback" in message
+        or "answer-ready evidence contract missing" in message
         or "profile_identity_hash" in message
         or "quality_gate_status" in message
         or "chunk_quality_status" in message
@@ -128,7 +127,7 @@ def _fail_closed_on_disallowed_legacy_fallback(
     runtime_profile: CollectionRuntimeProfile,
     evidence: EvidenceBundle,
 ) -> None:
-    if not _requires_target_v3_legacy_fallback_quarantine(
+    if not _requires_answer_ready_contract_for_query_serving_surface(
         plan=plan,
         step=step,
         runtime_profile=runtime_profile,
@@ -137,25 +136,26 @@ def _fail_closed_on_disallowed_legacy_fallback(
     for source in evidence.sources:
         if not source.is_answer_bearing:
             continue
-        diagnostics = evidence_fallback_diagnostics_for_source(source)
-        if not diagnostics.fallback_used:
+        diagnostics = evidence_contract_diagnostics_for_source(source)
+        if not diagnostics.contract_missing:
             continue
         raise RetrievalBackendError(
-            "legacy old-index fallback is not allowed for target v3 query-serving "
+            "answer-ready evidence contract missing for query-serving regulation surface "
             f"{step.scope.corpus}/{step.scope.collection}: "
-            f"{diagnostics.fallback_primary_signal or 'unknown'}"
+            f"{diagnostics.contract_issue_reason or 'missing_contract'}"
         )
 
 
-def _requires_target_v3_legacy_fallback_quarantine(
+def _requires_answer_ready_contract_for_query_serving_surface(
     *,
     plan: RetrievalPlan | None,
     step: RetrievalStep,
     runtime_profile: CollectionRuntimeProfile,
 ) -> bool:
-    if runtime_profile.corpus != "regulations":
-        return False
-    if runtime_profile.collection not in {"student_rules", "institutional_rules"}:
+    if not answer_ready_contract_applies(
+        corpus=runtime_profile.corpus,
+        collection=runtime_profile.collection,
+    ):
         return False
     if runtime_profile.serving_stage != "query_serving":
         return False
@@ -260,96 +260,24 @@ def execute_freshness_gate_step(
     load_runtime_profile_fn,
 ):
     profile = load_runtime_profile_fn(step.scope.corpus, step.scope.collection)
-    if (
-        plan.query_mode not in {"freshness_sensitive", "live_assisted"}
-        and not profile.requires_freshness_gate
-    ):
+    if plan.query_mode != "freshness_sensitive" and not profile.requires_freshness_gate:
         return build_decision_step_result(step, status="succeeded")
     if profile.supports_freshness_sensitive_queries:
-        return build_decision_step_result(step, status="succeeded")
-    if (
-        plan.query_mode == "live_assisted"
-        and plan.source_trust_policy.allow_live_source_lookup
-        and profile.live_search_fallback_allowed
-    ):
         return build_decision_step_result(step, status="succeeded")
     return build_blocked_step_result(
         step,
         failure_kind="unresolved_freshness",
-        message="freshness gate rejected local retrieval and no admitted live branch is available",
-    )
-
-
-def execute_live_source_lookup_step(
-    *,
-    plan: RetrievalPlan,
-    step: RetrievalStep,
-    retrieve_live_step,
-    attempted_live_lookup_count: int,
-    load_runtime_profile_fn,
-):
-    profile = load_runtime_profile_fn(step.scope.corpus, step.scope.collection)
-    if attempted_live_lookup_count >= plan.budget.max_live_lookups:
-        return build_blocked_step_result(
-            step,
-            failure_kind="budget_exhausted",
-            message="live source lookup budget exhausted",
-        )
-    if not plan.source_trust_policy.allow_live_source_lookup:
-        return build_blocked_step_result(
-            step,
-            failure_kind="live_lookup_unavailable",
-            message="live source lookup is not allowed by the retrieval plan",
-        )
-    if not profile.live_search_fallback_allowed:
-        return build_blocked_step_result(
-            step,
-            failure_kind="live_lookup_unavailable",
-            message="live source lookup is not admitted for this runtime profile",
-        )
-    if retrieve_live_step is None:
-        return build_blocked_step_result(
-            step,
-            failure_kind="live_lookup_unavailable",
-            message="live source lookup is admitted but no live lookup executor is wired for this runtime path",
-        )
-    started_at = time.perf_counter()
-    evidence = annotate_live_evidence(retrieve_live_step(step))
-    latency_ms = max(0, round((time.perf_counter() - started_at) * 1000))
-    return build_succeeded_step_result(step, evidence=evidence, latency_ms=latency_ms)
-
-
-def annotate_live_evidence(evidence: EvidenceBundle) -> EvidenceBundle:
-    as_of = datetime.now(UTC).isoformat()
-    sources = tuple(
-        replace(
-            source,
-            anchor={
-                **source.anchor,
-                "retrieval_mode": "live_assisted",
-                "canonical_index_truth": False,
-                "as_of": source.anchor.get("as_of") or as_of,
-            },
-        )
-        for source in evidence.sources
-    )
-    return EvidenceBundle(
-        query_text=evidence.query_text,
-        corpus=evidence.corpus,
-        collection=evidence.collection,
-        sources=sources,
+        message="freshness gate rejected local retrieval and no admitted freshness-ready branch is available",
     )
 
 
 __all__ = [
-    "annotate_live_evidence",
     "apply_profile_gated_reranker",
     "bounded_rerank_candidate_bundle",
     "build_compare_pair_requests",
     "classify_retrieval_exception_failure_kind",
     "execute_freshness_gate_step",
     "execute_index_backed_step",
-    "execute_live_source_lookup_step",
     "merge_evidence_chunks",
     "validate_index_backed_step",
 ]

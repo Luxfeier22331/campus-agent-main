@@ -6,10 +6,10 @@ from campus_shared.regulation_semantic_registry import (
 )
 
 from campus_retrieval_core.evidence_attributes import (
+    EvidenceContractDiagnostics,
     EvidenceAttributes,
-    EvidenceFallbackDiagnostics,
     evidence_attributes_for_source,
-    evidence_fallback_diagnostics_for_source,
+    evidence_contract_diagnostics_for_source,
 )
 from campus_retrieval_core.evidence_semantics import (
     infer_evidence_query_intent,
@@ -27,7 +27,7 @@ from campus_retrieval_core.models import (
 )
 from campus_retrieval_core.query_focus import (
     query_has_focus_constraints,
-    source_covers_query_focus,
+    select_sources_covering_query_focus,
 )
 
 _NEGATIVE_GROUNDING_CONTENT_ROLES = frozenset(
@@ -162,7 +162,7 @@ def build_succeeded_step_result(
     failure_kind = "reranker_degraded" if reranker_degraded else None
     if status == "empty" and evidence.sources:
         failure_kind = grounding_failure_kind or "no_grounding"
-    fallback_diagnostics = _merge_fallback_diagnostics(evidence.sources)
+    contract_diagnostics = _merge_contract_diagnostics(evidence.sources)
     return RetrievalStepResult(
         step_id=step.step_id,
         status=status,
@@ -185,11 +185,10 @@ def build_succeeded_step_result(
             failure_kind=failure_kind,
             reranker_degraded=reranker_degraded,
             reranker_failure_kind=reranker_failure_kind,
-            fallback_used=fallback_diagnostics.fallback_used,
-            fallback_reason=fallback_diagnostics.fallback_reason,
-            missing_contract_fields=fallback_diagnostics.missing_contract_fields,
-            source_index_contract_version=fallback_diagnostics.source_index_contract_version,
-            fallback_primary_signal=fallback_diagnostics.fallback_primary_signal,
+            contract_missing=contract_diagnostics.contract_missing,
+            contract_issue_reason=contract_diagnostics.contract_issue_reason,
+            missing_contract_fields=contract_diagnostics.missing_contract_fields,
+            source_index_contract_version=contract_diagnostics.source_index_contract_version,
         ),
     )
 
@@ -213,6 +212,7 @@ def _select_grounding_sources(
     ):
         return (), "polarity_conflict"
     if any(_is_positive_grounding_source(source) for source in sources):
+        intent = _effective_query_intent(query_text=query_text, semantic_hint=semantic_hint)
         positive_grounding = tuple(
             source
             for source in sources
@@ -221,6 +221,10 @@ def _select_grounding_sources(
                 query_text=query_text,
                 source=source,
             )
+        )
+        positive_grounding = _prefer_intent_specific_grounding(
+            intent_answer_role=intent.answer_role,
+            grounding=positive_grounding,
         )
         semantic_failure_kind = _semantic_grounding_failure_kind(
             query_text=query_text,
@@ -231,10 +235,9 @@ def _select_grounding_sources(
         if semantic_failure_kind:
             return (), semantic_failure_kind
         if query_has_focus_constraints(query_text):
-            focus_grounding = tuple(
-                source
-                for source in positive_grounding
-                if source_covers_query_focus(query_text=query_text, source=source)
+            focus_grounding = select_sources_covering_query_focus(
+                query_text=query_text,
+                sources=positive_grounding,
             )
             if focus_grounding:
                 semantic_failure_kind = _semantic_grounding_failure_kind(
@@ -259,10 +262,9 @@ def _select_grounding_sources(
     if all(_is_negative_grounding_source(source) for source in sources):
         return (), ""
     if query_has_focus_constraints(query_text):
-        focus_grounding = tuple(
-            source
-            for source in sources
-            if source_covers_query_focus(query_text=query_text, source=source)
+        focus_grounding = select_sources_covering_query_focus(
+            query_text=query_text,
+            sources=sources,
         )
         if focus_grounding:
             return focus_grounding, ""
@@ -460,12 +462,12 @@ def _normalized_condition_group_subject(attributes: EvidenceAttributes) -> str:
     return attributes.condition_group_subject.strip()
 
 
-def _merge_fallback_diagnostics(
+def _merge_contract_diagnostics(
     sources: tuple[EvidenceSource, ...],
-) -> EvidenceFallbackDiagnostics:
-    diagnostics = tuple(evidence_fallback_diagnostics_for_source(source) for source in sources)
-    fallback_diagnostics = tuple(item for item in diagnostics if item.fallback_used)
-    if not fallback_diagnostics:
+) -> EvidenceContractDiagnostics:
+    diagnostics = tuple(evidence_contract_diagnostics_for_source(source) for source in sources)
+    contract_diagnostics = tuple(item for item in diagnostics if item.contract_missing)
+    if not contract_diagnostics:
         source_index_contract_version = next(
             (
                 item.source_index_contract_version
@@ -474,31 +476,23 @@ def _merge_fallback_diagnostics(
             ),
             "",
         )
-        return EvidenceFallbackDiagnostics(
+        return EvidenceContractDiagnostics(
             source_index_contract_version=source_index_contract_version,
         )
     missing_fields: list[str] = []
-    for diagnostic in fallback_diagnostics:
+    for diagnostic in contract_diagnostics:
         for field_name in diagnostic.missing_contract_fields:
             if field_name not in missing_fields:
                 missing_fields.append(field_name)
-    return EvidenceFallbackDiagnostics(
-        fallback_used=True,
-        fallback_reason="missing_contract",
+    return EvidenceContractDiagnostics(
+        contract_missing=True,
+        contract_issue_reason="missing_contract",
         missing_contract_fields=tuple(missing_fields),
         source_index_contract_version=next(
             (
                 diagnostic.source_index_contract_version
-                for diagnostic in fallback_diagnostics
+                for diagnostic in contract_diagnostics
                 if diagnostic.source_index_contract_version
-            ),
-            "",
-        ),
-        fallback_primary_signal=next(
-            (
-                diagnostic.fallback_primary_signal
-                for diagnostic in fallback_diagnostics
-                if diagnostic.fallback_primary_signal
             ),
             "",
         ),
@@ -510,6 +504,34 @@ def _is_positive_grounding_source(source: EvidenceSource) -> bool:
     if attributes.answer_role in {"eligibility_intro", "definition", "supporting_detail"}:
         return False
     return source.is_answer_bearing or source.content_role in _POSITIVE_GROUNDING_CONTENT_ROLES
+
+
+def _prefer_intent_specific_grounding(
+    *,
+    intent_answer_role: str,
+    grounding: tuple[EvidenceSource, ...],
+) -> tuple[EvidenceSource, ...]:
+    if intent_answer_role == "procedure":
+        procedure_grounding = tuple(
+            source
+            for source in grounding
+            if source.is_answer_bearing
+            or source.content_role == "procedure"
+            or evidence_attributes_for_source(source).answer_role == "procedure_step"
+        )
+        return procedure_grounding or grounding
+    if intent_answer_role == "condition":
+        condition_grounding = tuple(
+            source
+            for source in grounding
+            if source.is_answer_bearing
+            or evidence_attributes_for_source(source).answer_role
+            in _expected_condition_answer_roles(
+                evidence_attributes_for_source(source).condition_subject
+            )
+        )
+        return condition_grounding or grounding
+    return grounding
 
 
 def _is_negative_grounding_source(source: EvidenceSource) -> bool:
@@ -604,7 +626,7 @@ def filter_merged_evidence_by_source_trust_policy(
     query_mode: str,
     minimum_tier: str,
 ) -> EvidenceBundle:
-    if query_mode not in {"freshness_sensitive", "live_assisted"}:
+    if query_mode != "freshness_sensitive":
         return evidence
     if not minimum_tier:
         return evidence

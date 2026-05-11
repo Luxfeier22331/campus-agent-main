@@ -546,7 +546,7 @@ class AnswerReadyEvidenceContractConflictSuite:
         self.assertEqual(result.status, "failed")
         self.assertIn("answer_ready_procedure_action_unknown", result.issues)
 
-    def test_v3_validation_classifies_legacy_v2_as_legacy_not_target_pass(self) -> None:
+    def test_v3_validation_rejects_legacy_v2_contract_version(self) -> None:
         result = validate_answer_ready_evidence_metadata(
             corpus="regulations",
             collection="student_rules",
@@ -561,6 +561,6 @@ class AnswerReadyEvidenceContractConflictSuite:
             unit_type="article_body",
         )
 
-        self.assertEqual(result.status, "legacy")
-        self.assertEqual(result.severity, "legacy_old_index")
-        self.assertIn("answer_ready_evidence_contract_version_legacy", result.issues)
+        self.assertEqual(result.status, "failed")
+        self.assertEqual(result.severity, "release_blocking")
+        self.assertIn("answer_ready_evidence_contract_version_missing", result.issues)

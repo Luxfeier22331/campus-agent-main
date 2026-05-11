@@ -74,6 +74,44 @@ class BackendQdrantPolicyFocusRankingTest(unittest.TestCase):
 
         self.assertEqual(selected, ())
 
+    def test_select_supporting_evidence_sources_allows_same_clause_split_focus_coverage(
+        self,
+    ) -> None:
+        selected = select_supporting_evidence_sources(
+            query_text="国奖第九条怎么要求论文和著作？",
+            max_sources=3,
+            sources=(
+                _make_source(
+                    doc_id="handbook:national-scholarship",
+                    chunk_id="national-scholarship-article-9-paper",
+                    snippet="第九条 在学术研究上取得显著成绩，以第一作者发表论文。",
+                    score=0.93,
+                    source_title="国家奖学金评审办法",
+                    detail_label="第九条",
+                    content_role="requirement",
+                    is_answer_bearing=True,
+                ),
+                _make_source(
+                    doc_id="handbook:national-scholarship",
+                    chunk_id="national-scholarship-article-9-book",
+                    snippet="第九条 以第一、二作者出版学术专著，可以优先考虑。",
+                    score=0.91,
+                    source_title="国家奖学金评审办法",
+                    detail_label="第九条",
+                    content_role="requirement",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            tuple(source.chunk_id for source in selected),
+            (
+                "national-scholarship-article-9-paper",
+                "national-scholarship-article-9-book",
+            ),
+        )
+
     def test_rank_threshold_focus_does_not_require_implicit_front_thirty_clause(self) -> None:
         source = _make_source(
             doc_id="handbook:national-scholarship",

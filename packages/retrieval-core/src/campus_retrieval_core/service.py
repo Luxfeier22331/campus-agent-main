@@ -14,7 +14,6 @@ from campus_retrieval_core.service_observations import (
     emit_retrieval_observations,
 )
 from campus_retrieval_core.service_plan_execution import (
-    ExecutableLiveLookupFn,
     ExecutableRerankFn,
     ExecutableRetrievalRequestFn,
     ReplanStepCallback,
@@ -114,7 +113,6 @@ def execute_retrieval_plan(
     personalization_hint: PersonalizationHint | None = None,
     backend: QdrantRetrievalBackend | None = None,
     retrieve_step: ExecutableRetrievalRequestFn | None = None,
-    retrieve_live_step: ExecutableLiveLookupFn | None = None,
     rerank_step: ExecutableRerankFn | None = None,
     replan_callback: ReplanStepCallback | None = None,
     observation_sink=None,
@@ -127,7 +125,6 @@ def execute_retrieval_plan(
         personalization_hint=personalization_hint,
         backend=backend,
         retrieve_step=retrieve_step,
-        retrieve_live_step=retrieve_live_step,
         rerank_step=rerank_step,
         replan_callback=replan_callback,
         observation_sink=observation_sink,
