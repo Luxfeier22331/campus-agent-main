@@ -11,9 +11,9 @@ from campus_ingestion_core.postgres_runtime import (
 )
 from campus_ingestion_core.registry import (
     DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
+    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
     RAW_ASSET_REGISTRY_ENV_KEY,
-    RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY,
+    RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
 )
 
 RESET_SCHEMA_VERSION = "collected_notice_reset_report.v1"
@@ -313,15 +313,15 @@ def choose_service_guide_current_reset_action(
 
 def resolve_collected_notice_reset_database_url(env: Mapping[str, str]) -> str:
     database_url = (
-        env.get(DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY)
-        or env.get(RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY)
+        env.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY)
+        or env.get(RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY)
         or env.get(DOCUMENT_REGISTRY_ENV_KEY)
         or env.get(RAW_ASSET_REGISTRY_ENV_KEY)
         or ""
     ).strip()
     if not database_url:
         raise ValueError(
-            f"{DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY} or {RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY} "
+            f"{DOCUMENT_REGISTRY_OPERATOR_ENV_KEY} or {RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY} "
             f"or {DOCUMENT_REGISTRY_ENV_KEY} or {RAW_ASSET_REGISTRY_ENV_KEY} is required"
         )
     return build_management_postgres_connection_url(database_url)

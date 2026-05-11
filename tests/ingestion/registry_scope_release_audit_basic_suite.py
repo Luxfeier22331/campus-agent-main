@@ -161,7 +161,7 @@ class RegistryScopeReleaseAuditBasicSuite:
                 "passed": 3,
                 "failed": 1,
                 "overall_passed": False,
-                "primary_failure_stage_counts": {"fallback_budget_regression": 1},
+                "primary_failure_stage_counts": {"release_contract_missing": 1},
                 "secondary_failure_stage_counts": {},
                 "scope_failure_counts": {"student_rules": 1},
                 "gate_failure_counts": {"query_conditioned": 1},
@@ -171,12 +171,12 @@ class RegistryScopeReleaseAuditBasicSuite:
                     "case_id": "case-1",
                     "collection": "student_rules",
                     "passed": False,
-                    "primary_failure_class": "fallback_budget_regression",
+                    "primary_failure_class": "release_contract_missing",
                     "secondary_failure_class": "",
-                    "failure_classes": ["fallback_budget_regression"],
-                    "failure_gate_classifications": ["query_conditioned"],
+                    "failure_classes": ["release_contract_missing"],
+                    "failure_gate_classifications": ["static_gate"],
                     "mismatches": {
-                        "fallback_primary_signals": "('text_cue',) contains legacy fallback"
+                        "release_contract_status": "missing; failures=chunk_contract_missing"
                     },
                 }
             ],
@@ -232,7 +232,6 @@ class RegistryScopeReleaseAuditBasicSuite:
             },
         )
 
-        self.assertEqual(audit.summary["fallback_primary_signal_count"], 1)
         self.assertEqual(audit.summary["semantic_oracle_pass_count"], 3)
         self.assertEqual(audit.summary["semantic_oracle_fail_count"], 1)
         self.assertEqual(audit.summary["semantic_oracle_result_count"], 4)

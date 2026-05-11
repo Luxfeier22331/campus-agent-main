@@ -124,7 +124,6 @@ class ReleaseRegistryScopeWorkerCliTest(unittest.TestCase):
             component_eval_summary_object_key=(
                 "regulations/releases/student_rules/r20260507_120000/component-eval-summary.json"
             ),
-            fallback_primary_signal_count=0,
             semantic_oracle_pass_count=9,
             semantic_oracle_fail_count=0,
         )
@@ -173,7 +172,6 @@ class ReleaseRegistryScopeWorkerCliTest(unittest.TestCase):
         )
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["component_eval_status"], "passed")
-        self.assertEqual(payload["fallback_primary_signal_count"], 0)
         self.assertEqual(payload["semantic_oracle_pass_count"], 9)
         self.assertEqual(payload["semantic_oracle_fail_count"], 0)
 

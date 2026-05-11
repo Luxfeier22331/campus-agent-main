@@ -45,7 +45,6 @@ _ADMISSION_REQUIRED_FIELDS: tuple[str, ...] = (
     "answer_ready_contract_version",
     "answer_ready_contract_status",
     "semantic_oracle_status",
-    "fallback_budget_status",
 )
 
 
@@ -112,7 +111,6 @@ def audit_regulation_rag_release_manifests(
                 "answer_ready_contract_version": admission_manifest.answer_ready_contract_version,
                 "answer_ready_contract_status": admission_manifest.answer_ready_contract_status,
                 "semantic_oracle_status": admission_manifest.semantic_oracle_status,
-                "fallback_budget_status": admission_manifest.fallback_budget_status,
             },
             required_fields=_ADMISSION_REQUIRED_FIELDS,
         )
@@ -121,7 +119,6 @@ def audit_regulation_rag_release_manifests(
             "answer_ready_contract_version": admission_manifest.answer_ready_contract_version,
             "answer_ready_contract_status": admission_manifest.answer_ready_contract_status,
             "semantic_oracle_status": admission_manifest.semantic_oracle_status,
-            "fallback_budget_status": admission_manifest.fallback_budget_status,
             "document_ids": [document.document_id for document in admission_manifest.documents],
             "version_ids": [document.version_id for document in admission_manifest.documents],
         }

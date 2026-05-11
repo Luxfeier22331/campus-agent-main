@@ -252,7 +252,6 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
             answer_ready_required_field_failures=(),
             answer_ready_semantic_failures=(),
             semantic_oracle_status="passed",
-            fallback_budget_status="passed",
             notes=("chunk quality accepted before release",),
         )
         write_manifest.assert_called_once_with(
@@ -285,7 +284,6 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
             document_count=1,
             documents=(),
             semantic_oracle_status="passed",
-            fallback_budget_status="passed",
         )
 
         with TemporaryDirectory() as temp_dir:
@@ -366,10 +364,8 @@ class AdmitRegulationRagReleaseWorkerCliTest(unittest.TestCase):
                 )
 
         self.assertEqual(build_manifest.call_args.kwargs["semantic_oracle_status"], "passed")
-        self.assertEqual(build_manifest.call_args.kwargs["fallback_budget_status"], "passed")
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["admission_manifest"]["semantic_oracle_status"], "passed")
-        self.assertEqual(payload["admission_manifest"]["fallback_budget_status"], "passed")
 
     def test_main_blocks_when_release_chunk_quality_gate_fails_for_query_enabled_regulation_scope(
         self,

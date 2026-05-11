@@ -58,9 +58,6 @@ from campus_ingestion_core.registry_scope_release_audit import (
     refresh_release_point_metadata,
 )
 from campus_ingestion_core.registry_scope_release_support import (
-    build_fallback_retrieval_settings as _build_fallback_retrieval_settings,
-)
-from campus_ingestion_core.registry_scope_release_support import (
     build_qdrant_client as _build_qdrant_client,
 )
 from campus_ingestion_core.registry_scope_release_support import (
@@ -127,7 +124,6 @@ class RegistryScopeReleaseReport:
     component_eval_summary_object_key: str | None = None
     post_publish_audit_status: str = ""
     post_publish_audit_summary_object_key: str | None = None
-    fallback_primary_signal_count: int = 0
     semantic_oracle_pass_count: int = 0
     semantic_oracle_fail_count: int = 0
     embedding_cache_hit_count: int = 0
@@ -485,6 +481,10 @@ def publish_scope_release(
 
     acceptance_result = None
     if _requires_release_retrieval_acceptance(runtime_profile):
+        if retrieval_settings is None:
+            raise ValueError(
+                f"retrieval settings are required before release acceptance for {corpus}/{collection}"
+            )
         cases = load_release_retrieval_acceptance_cases(
             str(acceptance_case_path),
             corpus=corpus,
@@ -494,12 +494,7 @@ def publish_scope_release(
             cases=cases,
             executor=build_release_retrieval_acceptance_executor(
                 qdrant_client=qdrant_client,
-                settings=retrieval_settings
-                or _build_fallback_retrieval_settings(
-                    chunks=tuple(chunks),
-                    embedding_provider=embedding_provider,
-                    embedding_dimensions=embedding_dimensions,
-                ),
+                settings=retrieval_settings,
                 runtime_profile=runtime_profile,
                 sparse_embedding_model=sparse_embedding_model,
             ),
@@ -696,9 +691,6 @@ def _build_release_report(
         component_eval_summary_object_key=manifest.component_eval_summary_object_key,
         post_publish_audit_status=manifest.post_publish_audit_status,
         post_publish_audit_summary_object_key=manifest.post_publish_audit_summary_object_key,
-        fallback_primary_signal_count=int(
-            post_publish_summary.get("fallback_primary_signal_count") or 0
-        ),
         semantic_oracle_pass_count=int(post_publish_summary.get("semantic_oracle_pass_count") or 0),
         semantic_oracle_fail_count=int(post_publish_summary.get("semantic_oracle_fail_count") or 0),
         embedding_cache_hit_count=cache_stats.hit_count,

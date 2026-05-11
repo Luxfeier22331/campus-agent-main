@@ -211,7 +211,6 @@ def evaluate_release_chunk_quality(
             "qrels_coverage_status": qrels_coverage_status,
             "qrels_coverage_issues": qrels_issues,
             "qrels_coverage_required": qrels_coverage_required,
-            "fallback_budget_status": "not_applicable",
             "release_metadata_consistency_status": release_metadata_consistency_status,
         },
     )

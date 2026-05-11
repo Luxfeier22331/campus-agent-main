@@ -223,24 +223,6 @@ def embedding_cache_enabled(source: dict[str, str]) -> bool:
     }
 
 
-def build_fallback_retrieval_settings(
-    *,
-    chunks: Sequence[IndexableChunk],
-    embedding_provider: str,
-    embedding_dimensions: int | None,
-) -> RetrievalSettings:
-    embedding_model = next((chunk.embedding_model for chunk in chunks if chunk.embedding_model), "")
-    if not embedding_model:
-        embedding_model = "mock-embedding"
-    return RetrievalSettings(
-        qdrant_url=":memory:",
-        embedding_provider=embedding_provider or "mock",
-        embedding_model=embedding_model,
-        embedding_dimensions=embedding_dimensions,
-        sparse_provider="mock",
-    )
-
-
 def document_units_sha256_by_key(manifest) -> dict[str, str] | None:
     if manifest is None:
         return None
@@ -507,7 +489,6 @@ def _repo_root():
 
 
 __all__ = [
-    "build_fallback_retrieval_settings",
     "build_qdrant_client",
     "document_units_sha256_by_key",
     "embedding_cache_enabled",

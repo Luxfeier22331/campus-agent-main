@@ -110,7 +110,6 @@ def main(argv: Sequence[str] | None = None) -> None:
             chunk_quality_gate.summary.get("answer_ready_semantic_failures") or ()
         ),
         semantic_oracle_status=component_eval_status.semantic_oracle_status,
-        fallback_budget_status=component_eval_status.fallback_budget_status,
         notes=tuple(args.note or ()),
     )
     admission_manifest_object_key = write_regulation_rag_release_admission_manifest(

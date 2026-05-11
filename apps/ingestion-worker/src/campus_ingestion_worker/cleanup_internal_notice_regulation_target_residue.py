@@ -15,6 +15,8 @@ from campus_ingestion_core.internal_notice_regulation_target_residue_cleanup imp
     cleanup_internal_notice_regulation_target_residue,
     regulation_target_residue_payload_matches,
 )
+from campus_ingestion_core.object_store import S3ObjectStoreClientFactory
+from campus_ingestion_core.settings import ObjectStoreSettings
 from psycopg.rows import dict_row
 from qdrant_client import QdrantClient
 from qdrant_client.http import models as qdrant_models
@@ -143,6 +145,8 @@ class PostgresRegulationTargetResidueRegistry:
 class S3RegulationTargetResidueObjectStore:
     def __init__(self, env: dict[str, str]) -> None:
         self.env = env
+        self.settings = ObjectStoreSettings.from_env(env)
+        self.client_factory = S3ObjectStoreClientFactory(self.settings)
 
     def get_bytes(self, *, bucket: str, key: str) -> bytes:
         obj = self._client(bucket).get_object(Bucket=bucket, Key=key)
@@ -179,14 +183,7 @@ class S3RegulationTargetResidueObjectStore:
         return sorted(matches)
 
     def _client(self, bucket: str):
-        access_key, secret_key = _object_store_credentials(self.env, bucket)
-        return boto3.client(
-            "s3",
-            endpoint_url=_required(self.env, "OBJECT_STORE_ENDPOINT"),
-            region_name=(self.env.get("OBJECT_STORE_REGION") or "us-east-1").strip() or "us-east-1",
-            aws_access_key_id=access_key,
-            aws_secret_access_key=secret_key,
-        )
+        return boto3.client("s3", **self.client_factory.client_config(bucket=bucket))
 
 
 class QdrantRegulationTargetResidueVectorIndex:
@@ -308,32 +305,15 @@ class QdrantRegulationTargetResidueVectorIndex:
 
 def _postgres_url(env: dict[str, str]) -> str:
     for key in (
-        "DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL",
+        "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL",
         "DOCUMENT_REGISTRY_DATABASE_URL",
         "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
-        "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL",
         "CAMPUS_SHARED_POSTGRES_URL",
     ):
         value = (env.get(key) or "").strip()
         if value:
             return value
     raise ValueError("missing document registry postgres url")
-
-
-def _object_store_credentials(env: dict[str, str], bucket: str) -> tuple[str, str]:
-    source_bucket = (env.get("OBJECT_STORE_BUCKET_SOURCE") or "campus-rag-source").strip()
-    derived_bucket = (env.get("OBJECT_STORE_BUCKET_DERIVED") or "campus-rag-derived").strip()
-    if bucket == source_bucket and env.get("OBJECT_STORE_SOURCE_ACCESS_KEY"):
-        return _required(env, "OBJECT_STORE_SOURCE_ACCESS_KEY"), _required(
-            env,
-            "OBJECT_STORE_SOURCE_SECRET_KEY",
-        )
-    if bucket == derived_bucket and env.get("OBJECT_STORE_DERIVED_ACCESS_KEY"):
-        return _required(env, "OBJECT_STORE_DERIVED_ACCESS_KEY"), _required(
-            env,
-            "OBJECT_STORE_DERIVED_SECRET_KEY",
-        )
-    return _required(env, "OBJECT_STORE_ACCESS_KEY"), _required(env, "OBJECT_STORE_SECRET_KEY")
 
 
 def _required(env: dict[str, str], key: str) -> str:

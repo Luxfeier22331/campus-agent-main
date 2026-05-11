@@ -312,7 +312,6 @@ class RegistryScopeReleasePublishSuite:
             ),
             admitted_at="2026-05-02T10:00:00+00:00",
             semantic_oracle_status="passed",
-            fallback_budget_status="passed",
         )
         admission_key = write_regulation_rag_release_admission_manifest(
             writer=object_store,

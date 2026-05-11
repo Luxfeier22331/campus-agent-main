@@ -133,7 +133,6 @@ class ReAuditRegulationRagReleaseWorkerCliTest(unittest.TestCase):
                 {
                     "summary": {
                         "status": "passed",
-                        "fallback_primary_signal_count": 0,
                         "semantic_oracle_pass_count": 9,
                         "semantic_oracle_fail_count": 0,
                     }
@@ -153,7 +152,6 @@ class ReAuditRegulationRagReleaseWorkerCliTest(unittest.TestCase):
             )
 
         payload = json.loads(stdout.getvalue())
-        self.assertEqual(payload["audit"]["fallback_primary_signal_count"], 0)
         self.assertEqual(payload["audit"]["semantic_oracle_pass_count"], 9)
         self.assertEqual(payload["audit"]["semantic_oracle_fail_count"], 0)
         self.assertEqual(

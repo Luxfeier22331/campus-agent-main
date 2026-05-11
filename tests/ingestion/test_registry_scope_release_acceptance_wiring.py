@@ -61,6 +61,55 @@ class RegistryScopeReleaseAcceptanceWiringTest(
         index.assert_not_called()
         alias.assert_not_called()
 
+    def test_publish_scope_release_requires_explicit_retrieval_settings_for_acceptance(
+        self,
+    ) -> None:
+        record = _make_record()
+        qdrant_client = Mock()
+        qdrant_client.get_aliases.return_value.aliases = []
+        qdrant_client.collection_exists.return_value = False
+
+        with (
+            patch("campus_ingestion_core.registry_scope_release.index_chunks_to_qdrant") as index,
+            patch(
+                "campus_ingestion_core.registry_scope_release."
+                "build_release_retrieval_acceptance_executor"
+            ) as build_executor,
+            self.assertRaisesRegex(ValueError, "retrieval settings are required"),
+        ):
+            publish_scope_release(
+                corpus="regulations",
+                collection="student_rules",
+                records=(record,),
+                chunks=(_make_chunk(record=record),),
+                object_store=_FakeObjectStore(),
+                qdrant_client=qdrant_client,
+                object_store_settings=_object_store_settings(),
+                runtime_profile=load_runtime_profile("regulations", "student_rules"),
+                sparse_embedding_model=object(),
+                publish_alias=True,
+                upsert_batch_size=128,
+                qrels_coverage_issues=(),
+                acceptance_case_path=str(
+                    _write_cases(
+                        {
+                            "cases": [
+                                {
+                                    "case_id": "expected-hit",
+                                    "corpus": "regulations",
+                                    "collection": "student_rules",
+                                    "query": "学生手册",
+                                    "expected_document_ids": [record.document_id],
+                                }
+                            ]
+                        }
+                    )
+                ),
+            )
+
+        index.assert_called_once()
+        build_executor.assert_not_called()
+
     def test_publish_scope_release_allows_no_alias_preview_without_acceptance_cases(self) -> None:
         record = _make_record()
         qdrant_client = Mock()
@@ -138,6 +187,13 @@ class RegistryScopeReleaseAcceptanceWiringTest(
                 publish_alias=True,
                 upsert_batch_size=128,
                 acceptance_case_path=str(case_path),
+                retrieval_settings=RetrievalSettings(
+                    qdrant_url=":memory:",
+                    embedding_provider="mock",
+                    embedding_model="mock-embedding-8d",
+                    embedding_dimensions=3,
+                    sparse_provider="mock",
+                ),
             )
 
         alias.assert_not_called()
@@ -488,7 +544,6 @@ class RegistryScopeReleaseAcceptanceWiringTest(
             quality_summary["answer_ready_required_field_failures"],
         )
         self.assertEqual(quality_summary["answer_ready_semantic_failures"], [])
-        self.assertEqual(quality_summary["fallback_budget_status"], "not_applicable")
         self.assertIn(
             "answer_ready_condition_subject_missing",
             quality_summary["issues_by_chunk_id"]["student_rules:handbook:chunk-0001"],

@@ -35,7 +35,6 @@ from campus_ingestion_core.regulation_rag_release_candidate_helpers import (
     _with_status,
 )
 from campus_ingestion_core.regulation_rag_release_models import (
-    DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_MANAGEMENT_ENV_KEY,
     DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY,
     DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_TABLE,
     REGULATION_RAG_RELEASE_ELIGIBLE_COLLECTIONS,
@@ -748,7 +747,6 @@ def _terminal_without_release(
 
 
 __all__ = [
-    "DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_MANAGEMENT_ENV_KEY",
     "DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY",
     "REGULATION_RAG_RELEASE_ELIGIBLE_COLLECTIONS",
     "InMemoryRegulationRagReleaseCandidateStore",

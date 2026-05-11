@@ -107,7 +107,6 @@ def audit_published_scope_release(
             },
         )
     issues: list[str] = []
-    fallback_primary_signal_count = 0
     semantic_oracle_pass_count = 0
     semantic_oracle_fail_count = 0
     payload_index_audit_status = "failed"
@@ -199,7 +198,6 @@ def audit_published_scope_release(
             component_eval_summary = None
         if isinstance(component_eval_summary, Mapping):
             component_eval_status = derive_component_eval_release_status(component_eval_summary)
-            fallback_primary_signal_count = component_eval_status.fallback_budget_regression_count
             semantic_oracle_pass_count = component_eval_status.passed_case_count
             semantic_oracle_fail_count = component_eval_status.failed_case_count
     release_drift_guard_status = "passed" if not release_drift_guard_issues else "failed"
@@ -237,7 +235,6 @@ def audit_published_scope_release(
             "sampled_payload_contract_versions": tuple(
                 _sampled_payload_contract_version(payload) for payload in payloads
             ),
-            "fallback_primary_signal_count": fallback_primary_signal_count,
             "semantic_oracle_pass_count": semantic_oracle_pass_count,
             "semantic_oracle_fail_count": semantic_oracle_fail_count,
             "semantic_oracle_result_count": (

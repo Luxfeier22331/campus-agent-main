@@ -14,13 +14,10 @@ from campus_ingestion_core.registry import (
     DEFAULT_DOCUMENT_REGISTRY_TABLE,
     DEFAULT_RAW_ASSET_REGISTRY_TABLE,
     DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
     DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
     RAW_ASSET_REGISTRY_ENV_KEY,
-    RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY,
     RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
 )
 
@@ -124,9 +121,7 @@ def _optional_operator_document_registry_url(source: dict[str, str]) -> str:
     database_url = _read_first_non_empty(
         source,
         DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-        DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
         SHARED_POSTGRES_OPERATOR_ENV_KEY,
-        SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     )
     if not database_url:
         return ""
@@ -137,11 +132,8 @@ def _optional_operator_raw_asset_registry_url(source: dict[str, str]) -> str:
     database_url = _read_first_non_empty(
         source,
         RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
-        RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY,
         DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-        DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
         SHARED_POSTGRES_OPERATOR_ENV_KEY,
-        SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     )
     if not database_url:
         return ""

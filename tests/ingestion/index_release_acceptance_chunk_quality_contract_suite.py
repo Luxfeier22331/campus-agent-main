@@ -44,7 +44,6 @@ class IndexReleaseAcceptanceChunkQualityContractSuite:
             report.summary["answer_ready_contract_version"],
             "answer_ready_evidence.v3",
         )
-        self.assertEqual(report.summary["fallback_budget_status"], "not_applicable")
         self.assertIn("chunk_contract_missing", report.summary["failure_classes"])
         self.assertIn(
             "answer_ready_condition_subject_missing",

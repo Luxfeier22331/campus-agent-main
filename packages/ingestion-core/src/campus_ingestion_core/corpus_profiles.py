@@ -16,7 +16,11 @@ from campus_ingestion_core.scope_catalog import (
     list_collection_scopes,
 )
 
-ALLOWED_SERVING_STAGES = ("query_serving", "offline_preparation")
+ALLOWED_SERVING_STAGES = (
+    "query_serving",
+    "structured_query_serving",
+    "offline_preparation",
+)
 ALLOWED_SERVING_SURFACES = ("mixed", "stable_reference", "fresh_news", "news_archive")
 OFFICIAL_WEB_STABLE_REFERENCE_LIKE_COLLECTIONS = frozenset({"muc_public_pages", "stable_reference"})
 OFFICIAL_WEB_STABLE_REFERENCE_LIKE_SURFACES = frozenset({"mixed", "stable_reference"})
@@ -60,7 +64,6 @@ class CollectionRuntimeProfile:
     serving_surface: str | None = None
     supports_freshness_sensitive_queries: bool = False
     freshness_max_age_hours: int | None = None
-    live_search_fallback_allowed: bool = False
     retrieval_top_k: int = 3
     current_only: bool = False
     serving_revision_tracks: tuple[str, ...] = ()
@@ -97,6 +100,13 @@ class CollectionRuntimeProfile:
             raise ValueError("collection is required")
         if self.serving_stage not in ALLOWED_SERVING_STAGES:
             raise ValueError(f"unsupported serving_stage: {self.serving_stage}")
+        if self.serving_stage == "structured_query_serving":
+            if self.retrieval_enabled:
+                raise ValueError("structured_query_serving requires retrieval_enabled=false")
+            if self.query_enabled_by_default:
+                raise ValueError("structured_query_serving requires query_enabled_by_default=false")
+            if not self.structured_query_enabled:
+                raise ValueError("structured_query_serving requires structured_query_enabled=true")
         if (
             self.serving_surface is not None
             and self.serving_surface not in ALLOWED_SERVING_SURFACES
@@ -271,7 +281,6 @@ def load_runtime_profile(
             payload.get("supports_freshness_sensitive_queries", False)
         ),
         freshness_max_age_hours=_optional_int(payload.get("freshness_max_age_hours")),
-        live_search_fallback_allowed=bool(payload.get("live_search_fallback_allowed", False)),
         retrieval_top_k=int(payload.get("retrieval_top_k") or 3),
         current_only=bool(payload.get("current_only", False)),
         serving_revision_tracks=tuple(

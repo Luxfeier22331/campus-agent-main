@@ -136,7 +136,6 @@ class RegulationRagReleaseManifestAuditTest(unittest.TestCase):
                 "reader_publish_status": "passed",
                 "authz_denial_check_status": "passed",
                 "semantic_oracle_status": "passed",
-                "fallback_budget_status": "passed",
                 "notes": [],
             },
         )
@@ -307,7 +306,6 @@ class RegulationRagReleaseManifestAuditTest(unittest.TestCase):
                 "reader_publish_status": "passed",
                 "authz_denial_check_status": "passed",
                 "semantic_oracle_status": "passed",
-                "fallback_budget_status": "passed",
                 "notes": [],
             },
         )
@@ -408,7 +406,6 @@ class RegulationRagReleaseManifestAuditTest(unittest.TestCase):
                 "reader_publish_status": "passed",
                 "authz_denial_check_status": "passed",
                 "semantic_oracle_status": "passed",
-                "fallback_budget_status": "passed",
                 "notes": [],
             },
         )

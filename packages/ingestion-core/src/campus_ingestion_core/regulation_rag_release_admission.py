@@ -86,8 +86,7 @@ class RegulationRagReleaseAdmissionManifest:
     qrels_coverage_status: str = "passed"
     reader_publish_status: str = "passed"
     authz_denial_check_status: str = "passed"
-    semantic_oracle_status: str = "pending_phase8"
-    fallback_budget_status: str = "not_applicable"
+    semantic_oracle_status: str = "passed"
     notes: tuple[str, ...] = ()
 
 
@@ -192,8 +191,7 @@ def build_regulation_rag_release_admission_manifest(
     answer_ready_contract_version: str = ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
     answer_ready_required_field_failures: Sequence[str] = (),
     answer_ready_semantic_failures: Sequence[str] = (),
-    semantic_oracle_status: str = "pending_phase8",
-    fallback_budget_status: str = "not_applicable",
+    semantic_oracle_status: str = "passed",
     notes: Sequence[str] = (),
 ) -> RegulationRagReleaseAdmissionManifest:
     documents = _expected_document_refs(
@@ -224,7 +222,6 @@ def build_regulation_rag_release_admission_manifest(
             str(item) for item in answer_ready_semantic_failures if str(item).strip()
         ),
         semantic_oracle_status=semantic_oracle_status,
-        fallback_budget_status=fallback_budget_status,
         notes=tuple(str(item) for item in notes if str(item).strip()),
     )
 
@@ -380,15 +377,15 @@ def validate_regulation_rag_release_admission_for_release(
     preparation_manifest: object,
 ) -> tuple[str, ...]:
     issues = list(_manifest_shape_issues(manifest))
-    if _requires_target_component_eval_proof(
-        corpus=corpus,
-        collection=collection,
-        runtime_profile=runtime_profile,
+    if (
+        _requires_target_component_eval_proof(
+            corpus=corpus,
+            collection=collection,
+            runtime_profile=runtime_profile,
+        )
+        and manifest.semantic_oracle_status != "passed"
     ):
-        if manifest.semantic_oracle_status != "passed":
-            issues.append(f"semantic_oracle_status_not_passed:{manifest.semantic_oracle_status}")
-        if manifest.fallback_budget_status != "passed":
-            issues.append(f"fallback_budget_status_not_passed:{manifest.fallback_budget_status}")
+        issues.append(f"semantic_oracle_status_not_passed:{manifest.semantic_oracle_status}")
     expected_runtime_profile_identity = build_regulation_rag_runtime_profile_identity(
         runtime_profile
     )
@@ -442,7 +439,6 @@ def _manifest_shape_issues(
         "reader_publish_status",
         "authz_denial_check_status",
         "semantic_oracle_status",
-        "fallback_budget_status",
     ):
         value = getattr(manifest, field_name)
         if field_name == "answer_ready_contract_version":
@@ -450,11 +446,7 @@ def _manifest_shape_issues(
                 issues.append(f"{field_name}_not_passed:{value}")
             continue
         if field_name == "semantic_oracle_status":
-            if value not in {"passed", "pending_phase8"}:
-                issues.append(f"{field_name}_not_passed:{value}")
-            continue
-        if field_name == "fallback_budget_status":
-            if value not in {"passed", "not_applicable"}:
+            if value != "passed":
                 issues.append(f"{field_name}_not_passed:{value}")
             continue
         if value != "passed":
@@ -665,7 +657,6 @@ def _manifest_from_payload(payload: Mapping[str, object]) -> RegulationRagReleas
         reader_publish_status=str(payload.get("reader_publish_status") or ""),
         authz_denial_check_status=str(payload.get("authz_denial_check_status") or ""),
         semantic_oracle_status=str(payload.get("semantic_oracle_status") or ""),
-        fallback_budget_status=str(payload.get("fallback_budget_status") or ""),
         notes=tuple(str(item) for item in list(payload.get("notes") or [])),
     )
 

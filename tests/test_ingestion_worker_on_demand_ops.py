@@ -176,7 +176,6 @@ class IngestionWorkerOnDemandOpsTest(unittest.TestCase):
         self.assertIn(".tmp/ingestion-reports", runbook)
         self.assertIn("CAMPUS_SHARED_POSTGRES_URL=postgresql://...dev...", runbook)
         self.assertIn("CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgresql://...dev...", runbook)
-        self.assertIn("CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgresql://...dev...", runbook)
         for env_key in INTERNAL_NOTICE_DB_ENV_KEYS:
             self.assertIn(env_key, runbook)
 

@@ -72,6 +72,9 @@ class NoticeRegulationOperationsWorkerCliTest(unittest.TestCase):
                 os.environ,
                 {
                     "DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres",
+                    "OBJECT_STORE_ENDPOINT": "https://s3.example.com",
+                    "OBJECT_STORE_ACCESS_KEY": "shared-ak",
+                    "OBJECT_STORE_SECRET_KEY": "shared-sk",
                     "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
                 },
                 clear=True,
@@ -129,6 +132,9 @@ class NoticeRegulationOperationsWorkerCliTest(unittest.TestCase):
                 os.environ,
                 {
                     "DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres",
+                    "OBJECT_STORE_ENDPOINT": "https://s3.example.com",
+                    "OBJECT_STORE_ACCESS_KEY": "shared-ak",
+                    "OBJECT_STORE_SECRET_KEY": "shared-sk",
                     "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
                 },
                 clear=True,
@@ -157,6 +163,43 @@ class NoticeRegulationOperationsWorkerCliTest(unittest.TestCase):
 
         request = run_cleanup.call_args.kwargs["request"]
         self.assertTrue(request.apply)
+
+    def test_cleanup_object_store_uses_ingestion_core_bucket_credential_resolution(self) -> None:
+        store = cleanup_worker.S3RegulationTargetResidueObjectStore(
+            {
+                "OBJECT_STORE_ENDPOINT": "https://s3.example.com",
+                "OBJECT_STORE_REGION": "auto",
+                "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+                "OBJECT_STORE_DERIVED_ACCESS_KEY": "derived-ak",
+                "OBJECT_STORE_DERIVED_SECRET_KEY": "derived-sk",
+            }
+        )
+
+        with patch.object(cleanup_worker.boto3, "client") as create_client:
+            client = store._client("campus-rag-derived")
+
+        self.assertIs(client, create_client.return_value)
+        create_client.assert_called_once()
+        kwargs = create_client.call_args.kwargs
+        self.assertEqual(kwargs["endpoint_url"], "https://s3.example.com")
+        self.assertEqual(kwargs["region_name"], "auto")
+        self.assertEqual(kwargs["aws_access_key_id"], "derived-ak")
+        self.assertEqual(kwargs["aws_secret_access_key"], "derived-sk")
+
+    def test_cleanup_object_store_reuses_ingestion_core_endpoint_validation(self) -> None:
+        with (
+            patch.object(cleanup_worker.boto3, "client") as create_client,
+            self.assertRaisesRegex(ValueError, "http\\(s\\) URL"),
+        ):
+            cleanup_worker.S3RegulationTargetResidueObjectStore(
+                {
+                    "OBJECT_STORE_ENDPOINT": "/tmp/minio",
+                    "OBJECT_STORE_ACCESS_KEY": "shared-ak",
+                    "OBJECT_STORE_SECRET_KEY": "shared-sk",
+                }
+            )
+
+        create_client.assert_not_called()
 
 
 if __name__ == "__main__":
