@@ -15,6 +15,48 @@ from campus_supervisor_agent_worker.tool_spec_registry import (
 
 
 class ToolSpecRegistryTest(unittest.TestCase):
+    def test_registry_rejects_missing_runtime_posture(self) -> None:
+        import json
+        from pathlib import Path
+        from tempfile import TemporaryDirectory
+
+        registry = load_tool_spec_registry()
+        tool_payload = []
+        for tool in registry.tools:
+            item = {
+                "name": tool.name,
+                "owner_agent": tool.owner_agent,
+                "capability": tool.capability,
+                "surface": tool.surface,
+                "active": tool.active,
+                "payload_kind": tool.payload_kind,
+                "payload_schema_ref": tool.payload_schema_ref,
+                "result_schema_ref": tool.result_schema_ref,
+                "backend": tool.backend,
+                "read_only": tool.read_only,
+                "description": tool.description,
+                "function_schema": {
+                    "available": tool.function_schema.available,
+                    "strict": tool.function_schema.strict,
+                },
+            }
+            if tool.name != "campus_notice_discover":
+                item["runtime_posture"] = tool.runtime_posture
+            tool_payload.append(item)
+
+        payload = {
+            "schema_version": "tools.v2",
+            "tools": tool_payload,
+        }
+
+        with TemporaryDirectory() as tmpdir:
+            path = Path(tmpdir) / "tools.v2.json"
+            path.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(
+                ToolSpecRegistryError, "runtime_posture must be a non-empty string"
+            ):
+                load_tool_spec_registry(path)
+
     def test_resolves_payload_schema_refs_to_contract_classes(self) -> None:
         registry = load_tool_spec_registry()
 

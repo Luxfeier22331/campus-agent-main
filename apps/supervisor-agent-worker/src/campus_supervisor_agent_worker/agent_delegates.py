@@ -3,8 +3,6 @@ from __future__ import annotations
 import httpx
 from campus_navigation_agent import delegate_to_navigation_agent
 from campus_notice_agent import NoticeHTTPQueryService
-from campus_rag_agent.rag_sdk_output import RagSdkAnswerOutput
-from campus_rag_agent.rag_sdk_trace import build_rag_sdk_trace_projection
 from campus_rag_agent.service import delegate_to_rag_agent
 from campus_retrieval_core import build_jsonl_retrieval_observation_sink
 from campus_services_agent import (
@@ -14,6 +12,7 @@ from campus_shared import PromptRuntimeHTTPSettings, PromptRuntimeProviderConfig
 
 from campus_supervisor_agent_worker.admitted_agent_execution import AdmittedAgentExecutor
 from campus_supervisor_agent_worker.agent_dispatch import (
+    AdmissionAwareAgentDelegate,
     AgentDelegate,
     ExecutionCancelledError,
     dispatch_agent_request,
@@ -35,6 +34,31 @@ from campus_supervisor_agent_worker.tool_execution import (
     ToolExecutionSession,
     build_default_tool_execution_session,
 )
+
+
+class AgentRuntimeBuildError(ValueError):
+    pass
+
+
+class QueryServiceRuntimeError(ValueError):
+    pass
+
+
+def _require_structured_query_runtime(
+    settings: ApiSettings,
+    *,
+    runtime_name: str,
+) -> None:
+    if not settings.internal_query_base_url:
+        raise QueryServiceRuntimeError(f"{runtime_name} misconfigured: query_base_url_not_configured")
+    if not settings.internal_query_shared_secret:
+        raise QueryServiceRuntimeError(
+            f"{runtime_name} misconfigured: query_shared_secret_not_configured"
+        )
+
+
+def _runtime_config_error(runtime_name: str, reason: str) -> AgentRuntimeBuildError:
+    return AgentRuntimeBuildError(f"{runtime_name} misconfigured: {reason}")
 
 
 def bind_agent_handler(
@@ -128,8 +152,7 @@ def _build_agent_delegates(
         retrieval_runtime_event_sink,
         retrieval_runtime_otlp_sink,
     )
-    effective_rag_runtime = rag_openai_runtime or _build_unavailable_rag_sdk_runner()
-    agent_delegates: dict[str, AgentDelegate] = {
+    agent_delegates: dict[str, AgentDelegate | AdmissionAwareAgentDelegate] = {
         "rag-agent": lambda agent_request: delegate_to_rag_agent(
             agent_request,
             prompt_executor=rag_prompt_executor,
@@ -137,11 +160,13 @@ def _build_agent_delegates(
             include_retrieval_observation_query_text=(
                 settings.retrieval_observation_include_query_text
             ),
-            rag_sdk_runner=effective_rag_runtime,
+            rag_sdk_runner=rag_openai_runtime,
         ),
         "navigation-agent": delegate_to_navigation_agent,
-        "campus-services-agent": admitted_agent_executor.execute,
-        "notice-agent": admitted_agent_executor.execute,
+        "campus-services-agent": AdmissionAwareAgentDelegate(
+            handler=admitted_agent_executor.execute
+        ),
+        "notice-agent": AdmissionAwareAgentDelegate(handler=admitted_agent_executor.execute),
     }
     return agent_delegates
 
@@ -164,8 +189,7 @@ def _wrap_with_cancel_checks(agent_handler, cancel_flags: CancelFlagStore):
 def _build_campus_services_query_service(
     settings: ApiSettings,
 ) -> CampusServicesHTTPQueryService | None:
-    if not settings.internal_query_base_url or not settings.internal_query_shared_secret:
-        return None
+    _require_structured_query_runtime(settings, runtime_name="campus_services_query_service")
     return CampusServicesHTTPQueryService(
         base_url=settings.internal_query_base_url,
         shared_secret=settings.internal_query_shared_secret,
@@ -176,8 +200,7 @@ def _build_campus_services_query_service(
 def _build_notice_query_service(
     settings: ApiSettings,
 ) -> NoticeHTTPQueryService | None:
-    if not settings.internal_query_base_url or not settings.internal_query_shared_secret:
-        return None
+    _require_structured_query_runtime(settings, runtime_name="notice_query_service")
     return NoticeHTTPQueryService(
         base_url=settings.internal_query_base_url,
         shared_secret=settings.internal_query_shared_secret,
@@ -189,8 +212,12 @@ def _build_openai_agents_runtime(settings: ApiSettings) -> OpenAIAgentsNativeRun
     if not settings.agents_sdk_runtime_enabled:
         return None
     provider = settings.prompt_runtime_provider or settings.runtime_provider
-    if not provider or not settings.prompt_runtime_api_key or not settings.agent_prompt_model:
-        return None
+    if not provider:
+        raise _runtime_config_error("openai_agents_runtime", "provider_not_configured")
+    if not settings.prompt_runtime_api_key:
+        raise _runtime_config_error("openai_agents_runtime", "api_key_not_configured")
+    if not settings.agent_prompt_model:
+        raise _runtime_config_error("openai_agents_runtime", "agent_model_not_configured")
     try:
         provider_config = PromptRuntimeProviderConfig(
             provider=provider,
@@ -209,8 +236,8 @@ def _build_openai_agents_runtime(settings: ApiSettings) -> OpenAIAgentsNativeRun
                 keepalive_expiry_seconds=settings.prompt_runtime_keepalive_expiry_seconds,
             ),
         )
-    except ValueError:
-        return None
+    except ValueError as exc:
+        raise _runtime_config_error("openai_agents_runtime", str(exc)) from exc
     return OpenAIAgentsNativeRuntime(
         provider_config=provider_config,
         model_name=settings.agent_prompt_model,
@@ -223,11 +250,15 @@ def _build_rag_openai_runtime(
     tool_execution_session: ToolExecutionSession | None = None,
 ):
     if not settings.agents_sdk_runtime_enabled:
-        return _build_unavailable_rag_sdk_runner(detail="agents_sdk_runtime_disabled")
+        return None
     provider = settings.prompt_runtime_provider or settings.runtime_provider
     model_name = _resolve_rag_agents_sdk_model_name(settings)
-    if not provider or not settings.prompt_runtime_api_key or not model_name:
-        return _build_unavailable_rag_sdk_runner()
+    if not provider:
+        raise _runtime_config_error("rag_openai_runtime", "provider_not_configured")
+    if not settings.prompt_runtime_api_key:
+        raise _runtime_config_error("rag_openai_runtime", "api_key_not_configured")
+    if not model_name:
+        raise _runtime_config_error("rag_openai_runtime", "model_not_configured")
     try:
         provider_config = PromptRuntimeProviderConfig(
             provider=provider,
@@ -246,8 +277,8 @@ def _build_rag_openai_runtime(
                 keepalive_expiry_seconds=settings.prompt_runtime_keepalive_expiry_seconds,
             ),
         )
-    except ValueError:
-        return _build_unavailable_rag_sdk_runner(detail="invalid_prompt_runtime_provider_config")
+    except ValueError as exc:
+        raise _runtime_config_error("rag_openai_runtime", str(exc)) from exc
     return OpenAIAgentsRagRuntime(
         provider_config=provider_config,
         model_name=model_name,
@@ -257,27 +288,3 @@ def _build_rag_openai_runtime(
 
 def _resolve_rag_agents_sdk_model_name(settings: ApiSettings) -> str:
     return (settings.agent_prompt_model or settings.prompt_runtime_model).strip()
-
-
-def _build_unavailable_rag_sdk_runner(*, detail: str = "RAG SDK runner is unavailable"):
-    from campus_rag_agent.rag_sdk_models import RagSdkRunResult
-
-    def runner(_request):
-        return RagSdkRunResult(
-            output=RagSdkAnswerOutput(
-                answer_text="",
-                answer_kind="unsupported",
-                semantic_outcome="unsupported_by_evidence",
-                confidence="low",
-                unsupported_reason="rag_sdk_runtime_unavailable",
-            ),
-            trace_projection=build_rag_sdk_trace_projection(
-                runtime="openai_agents_sdk",
-                tool_names=(),
-                failure_class="rag_sdk_runtime_unavailable",
-            ),
-            failure_class="rag_sdk_runtime_unavailable",
-            failure_detail=detail,
-        )
-
-    return runner

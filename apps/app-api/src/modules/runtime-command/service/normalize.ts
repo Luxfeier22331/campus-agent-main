@@ -7,13 +7,13 @@ import {
 	type VersionQuery,
 	VersionQueryValidationError,
 } from "../../version-query";
+import { AppApiRouteError } from "../../../http";
 import { resolveRequestedCapabilityForSurface } from "./capability-policy";
 import { createPreAcceptError } from "./errors";
 import { isRecord, normalizeOptionalString } from "./normalize-record-utils";
 import { resultEvidenceSources } from "./normalize-structured-parts";
 import type { ChatCommandPayload, ValidatedChatCommandPayload } from "./types";
 
-export { synthesizeCampusServicesAssistantText } from "./normalize-campus-services-answer";
 export {
 	normalizeCampusServiceTracePart,
 	normalizeChatResponseStructuredParts,
@@ -75,42 +75,38 @@ function collapseAssistantTextWhitespace(text: string): string {
 		.trim();
 }
 
-function fallbackAssistantText(status: SupervisorExecutionResponse["status"]): string {
-	if (status === "needs_clarification") {
-		return "我需要先确认你的具体问题，请再补充一点。";
-	}
-	if (status === "no_answer") {
-		return "当前没有足够依据回答这个问题。";
-	}
-	if (status === "approval_required") {
-		return "该请求需要先经过审批后才能继续。";
-	}
-	if (status === "rejected") {
-		return "该请求未通过当前策略校验。";
-	}
-	if (status === "error") {
-		return "当前请求暂时无法完成，请稍后再试。";
-	}
-	return "我已经找到相关依据，但返回文案格式异常，请换个问法再试一次。";
-}
-
 export function sanitizePublicAssistantText(input: {
 	status: SupervisorExecutionResponse["status"];
 	text: string;
 }): string {
 	const normalized = normalizeString(input.text);
 	if (!normalized) {
-		return fallbackAssistantText(input.status);
+		throw new AppApiRouteError({
+			code: "supervisor_invalid_public_response",
+			message: `Supervisor returned an empty public answer text for status ${input.status}.`,
+			retryable: true,
+			status: 502,
+		});
 	}
 
 	const stripped = collapseAssistantTextWhitespace(
 		normalized.replace(INTERNAL_LOCATOR_BRACKET_PATTERN, "").replace(/\s+\]/g, "]"),
 	);
 	if (!stripped) {
-		return fallbackAssistantText(input.status);
+		throw new AppApiRouteError({
+			code: "supervisor_invalid_public_response",
+			message: "Supervisor public answer text became empty after locator scrubbing.",
+			retryable: true,
+			status: 502,
+		});
 	}
 	if (INTERNAL_LOCATOR_PATTERNS.some((pattern) => pattern.test(stripped))) {
-		return fallbackAssistantText(input.status);
+		throw new AppApiRouteError({
+			code: "supervisor_invalid_public_response",
+			message: "Supervisor public answer text leaked internal locator content.",
+			retryable: true,
+			status: 502,
+		});
 	}
 	return stripped;
 }

@@ -28,6 +28,7 @@ from campus_contracts import (
     VersionQuery,
 )
 from campus_supervisor_agent_worker.agent_dispatch import (
+    AdmissionAwareAgentDelegate,
     AgentDispatcher,
     AgentSpecAdmissionError,
     ExecutionCancelledError,
@@ -237,6 +238,32 @@ class AgentDispatchTest(unittest.TestCase):
 
         self.assertFalse(delegate_called)
 
+    def test_dispatch_agent_request_passes_validated_admission_to_admission_aware_delegate(
+        self,
+    ) -> None:
+        request = AgentRequest(
+            target="notice-agent",
+            user_goal="找校历通知",
+            payload=CampusNoticeDiscoverPayload(query_text="校历通知"),
+            allowed_tools=("campus_notice_discover",),
+        )
+        captured_allowed_tools: list[tuple[str, ...]] = []
+
+        response = dispatch_agent_request(
+            request,
+            agent_delegates={
+                "notice-agent": AdmissionAwareAgentDelegate(
+                    handler=lambda inner_request, admission: (
+                        captured_allowed_tools.append(admission.expected_allowed_tools)
+                        or AgentResponse(target=inner_request.target, status="completed")
+                    )
+                )
+            },
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertEqual(captured_allowed_tools, [("campus_notice_discover",)])
+
     def test_dispatcher_uses_injected_tool_spec_registry_for_admission(self) -> None:
         with tempfile.TemporaryDirectory() as fixture_dir:
             fixture_path = _tool_spec_fixture_with_inactive_tool(
@@ -263,7 +290,7 @@ class AgentDispatchTest(unittest.TestCase):
 
         dispatcher.agent_delegates["campus-services-agent"] = fake_delegate
 
-        with self.assertRaisesRegex(AgentSpecAdmissionError, "inactive"):
+        with self.assertRaisesRegex(ToolAdmissionError, "inactive"):
             dispatcher.dispatch(request)
 
         self.assertFalse(delegate_called)

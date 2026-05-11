@@ -614,8 +614,6 @@ export function buildChatCommandService(
 				const lifecycleEvent = mapSupervisorLifecycleEvent({
 					data: upstreamEvent.data,
 					event: upstreamEvent.event,
-					fallbackRequestId: context.requestId,
-					fallbackTraceId: context.traceId,
 					now,
 				});
 				if (lifecycleEvent) {
@@ -626,8 +624,6 @@ export function buildChatCommandService(
 				const terminal = parseSupervisorTerminalResponse({
 					data: upstreamEvent.data,
 					event: upstreamEvent.event,
-					fallbackRequestId: context.requestId,
-					fallbackTraceId: context.traceId,
 					now,
 				});
 				if (!terminal) {

@@ -122,7 +122,7 @@ class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
                 descriptors=descriptors,
             )
 
-    def test_projection_uses_executed_tool_name_for_output_projection(self) -> None:
+    def test_projection_uses_tool_result_output_projection_ref(self) -> None:
         from campus_contracts import TransportScheduleLookupPayload
 
         request = AgentRequest(
@@ -174,10 +174,19 @@ class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
                         "status": "completed",
                         "outcome": "resolved_current",
                         "query_text": "校车什么时候发车",
-                        "resolved_route": {
-                            "route_id": "haidian-fengtai",
-                            "display_name": "海淀-丰台",
-                            "service_family": "shuttle_bus",
+                        "output_projection_ref": {
+                            "projection_id": "projection:schedule_baseline:tool-owned",
+                            "source_step_id": (
+                                "handoff:campus-services-agent:transport_schedule_lookup"
+                            ),
+                            "projection_kind": "schedule_baseline",
+                            "content_hash": "sha256:tool-owned",
+                            "safety": {
+                                "truncated": False,
+                                "redacted": False,
+                                "max_chars": 1600,
+                                "fields_present": ["route_id"],
+                            },
                         },
                         "source_ref_count": 1,
                     },
@@ -190,7 +199,10 @@ class OpenAIAgentsRuntimeProjectionTest(unittest.TestCase):
         output_projection_ref = response.agent_observability.safe_details[
             "agents_sdk_trace_projection"
         ]["output_projection_ref"]
-        self.assertEqual(output_projection_ref["projection_kind"], "schedule_baseline")
+        self.assertEqual(
+            output_projection_ref["projection_id"],
+            "projection:schedule_baseline:tool-owned",
+        )
 
     def test_bounded_projection_strips_raw_provider_fragments(self) -> None:
         projection = bounded_tool_result_projection(

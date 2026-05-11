@@ -1,7 +1,5 @@
 from __future__ import annotations
 
-import hashlib
-import json
 from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
@@ -94,7 +92,6 @@ def response_from_native_runtime_result(
             _promote_notice_change_set_fields(response_result, latest)
     output_projection_ref = _workflow_output_projection_ref(
         request,
-        tool_name=tool_call.name,
         records=tool_execution_records,
     )
     _validate_expected_output_artifacts(request.workflow_context, output_projection_ref)
@@ -497,13 +494,21 @@ def _promote_notice_change_set_fields(
 def _workflow_output_projection_ref(
     request: AgentRequest,
     *,
-    tool_name: str,
     records: tuple[OpenAIAgentsToolExecutionRecord, ...],
 ) -> dict[str, object] | None:
     if not records:
         return None
     latest = records[-1].result_projection
-    return _projection_for_tool_result(request.workflow_context.step_id, tool_name, latest)
+    raw_projection = latest.get("output_projection_ref")
+    if not isinstance(raw_projection, Mapping):
+        return None
+    source_step_id = str(raw_projection.get("source_step_id") or "").strip()
+    if source_step_id and source_step_id != request.workflow_context.step_id:
+        raise OpenAIAgentsRuntimeProjectionError(
+            "sdk_artifact_incomplete",
+            "tool result output_projection_ref source_step_id must match workflow step",
+        )
+    return dict(raw_projection)
 
 
 def _validate_expected_output_artifacts(
@@ -525,117 +530,6 @@ def _validate_expected_output_artifacts(
             "OpenAI Agents native runtime did not produce required output artifacts: "
             + ", ".join(missing),
         )
-
-
-def _projection_for_tool_result(
-    source_step_id: str,
-    tool_name: str,
-    tool_result: Mapping[str, object],
-) -> dict[str, object] | None:
-    if tool_name == "transport_schedule_lookup":
-        resolved_route = tool_result.get("resolved_route")
-        if not isinstance(resolved_route, Mapping):
-            return None
-        route_id = str(resolved_route.get("route_id") or "").strip()
-        route_display_name = str(resolved_route.get("display_name") or "").strip()
-        service_family = str(resolved_route.get("service_family") or "").strip()
-        summary = str(tool_result.get("query_text") or "").strip()
-        if not (route_id or route_display_name or service_family or summary):
-            return None
-        payload: dict[str, object] = {
-            "route_id": route_id,
-            "route_display_name": route_display_name,
-            "service_family": service_family,
-            "summary": summary,
-        }
-        source_refs = tool_result.get("source_refs")
-        if isinstance(source_refs, list):
-            normalized_refs = [str(item).strip() for item in source_refs if str(item).strip()]
-            if normalized_refs:
-                payload["source_refs"] = normalized_refs
-        return _safe_projection_ref(source_step_id, "schedule_baseline", payload)
-    if tool_name == "campus_notice_change_set_lookup":
-        change_set = tool_result.get("change_set")
-        if not isinstance(change_set, Mapping):
-            return None
-        payload: dict[str, object] = {
-            "change_set_id": str(change_set.get("change_set_id") or "").strip(),
-            "target_family": str(change_set.get("target_family") or "").strip(),
-            "change_kind": str(change_set.get("change_kind") or "").strip(),
-            "service_date": "",
-            "summary": "",
-        }
-        query_scope = change_set.get("query_scope")
-        if isinstance(query_scope, Mapping):
-            payload["service_date"] = str(query_scope.get("service_date") or "").strip()
-            route_labels = [
-                str(item).strip()
-                for item in query_scope.get("route_labels", [])
-                if str(item).strip()
-            ]
-            if route_labels:
-                payload["route_labels"] = route_labels
-        facts = change_set.get("facts")
-        if isinstance(facts, list):
-            fact_summaries = []
-            for item in facts:
-                if not isinstance(item, Mapping):
-                    continue
-                summary = str(item.get("change_text") or "").strip()
-                if summary:
-                    fact_summaries.append(summary)
-            if fact_summaries:
-                payload["fact_summaries"] = fact_summaries
-                payload["summary"] = "；".join(fact_summaries)[:1600]
-        source_refs = change_set.get("source_refs")
-        if isinstance(source_refs, list):
-            normalized_refs = []
-            for item in source_refs:
-                if not isinstance(item, Mapping):
-                    continue
-                source_url = str(item.get("source_url") or "").strip()
-                if source_url:
-                    normalized_refs.append(source_url)
-            if normalized_refs:
-                payload["source_refs"] = normalized_refs
-        if not any(_has_projection_value(value) for value in payload.values()):
-            return None
-        return _safe_projection_ref(source_step_id, "notice_change_set", payload)
-    if tool_name == "campus_notice_discover":
-        return None
-    return None
-
-
-def _safe_projection_ref(
-    source_step_id: str,
-    projection_kind: str,
-    payload: Mapping[str, object],
-) -> dict[str, object]:
-    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode(
-        "utf-8"
-    )
-    digest = hashlib.sha256(encoded).hexdigest()
-    fields_present = sorted(key for key, value in payload.items() if _has_projection_value(value))
-    return {
-        "projection_id": f"projection:{projection_kind}:{digest[:16]}",
-        "source_step_id": source_step_id,
-        "projection_kind": projection_kind,
-        "content_hash": f"sha256:{digest}",
-        "safety": {
-            "truncated": False,
-            "redacted": False,
-            "max_chars": 1600,
-            "fields_present": fields_present,
-        },
-    }
-
-
-def _has_projection_value(value: object) -> bool:
-    if isinstance(value, str):
-        return bool(value.strip())
-    if isinstance(value, list | tuple | dict):
-        return len(value) > 0
-    return value is not None
 
 
 __all__ = [

@@ -3,15 +3,7 @@ from __future__ import annotations
 from collections.abc import Callable, Mapping
 from dataclasses import dataclass
 
-from campus_contracts import (
-    AcademicCalendarLookupPayload,
-    AgentRequest,
-    AgentResponse,
-    ContactDirectoryLookupPayload,
-    ServiceGuideLookupPayload,
-    ServiceStatusLookupPayload,
-    TransportScheduleLookupPayload,
-)
+from campus_contracts import AgentRequest, AgentResponse
 from campus_notice_agent.query_service import NoticeQueryService
 from campus_rag_agent.rag_sdk_models import RagSdkRunRequest
 from campus_rag_agent.rag_sdk_tools import (
@@ -23,6 +15,7 @@ from campus_services_agent.query_service import CampusServicesQueryService
 from campus_supervisor_agent_worker.openai_agents_runtime import OpenAIAgentsToolInvocation
 from campus_supervisor_agent_worker.tool_spec_registry import (
     ToolSpec,
+    ToolSpecAdmission,
     ToolSpecRegistry,
     ToolSpecRegistryError,
     default_tool_spec_registry,
@@ -31,7 +24,6 @@ from campus_supervisor_agent_worker.tool_spec_registry import (
 ToolResult = Mapping[str, object] | AgentResponse | str
 ToolHandler = Callable[[OpenAIAgentsToolInvocation, "ToolExecutionContext"], ToolResult]
 InternalFunctionHandler = Callable[["ToolExecutionContext"], AgentResponse]
-StructuredDirectHandler = Callable[["ToolExecutionContext"], AgentResponse]
 
 
 class ToolExecutionError(ValueError):
@@ -42,6 +34,7 @@ class ToolExecutionError(ValueError):
 class ToolExecutionContext:
     agent_request: AgentRequest | None = None
     rag_sdk_request: RagSdkRunRequest | None = None
+    admission: ToolSpecAdmission | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -49,7 +42,6 @@ class ToolExecutionRegistry:
     tool_registry: ToolSpecRegistry
     sdk_handlers: dict[str, ToolHandler]
     internal_function_handlers: dict[str, InternalFunctionHandler]
-    structured_direct_handlers: dict[str, StructuredDirectHandler]
 
     def execute(
         self,
@@ -83,24 +75,6 @@ class ToolExecutionRegistry:
             )
         return handler(context)
 
-    def execute_structured_direct(
-        self,
-        name: str,
-        *,
-        context: ToolExecutionContext,
-    ) -> AgentResponse:
-        tool = self._required_tool(name)
-        if tool.runtime_posture not in {"sdk_adapter_admitted", "sdk_internal_admitted"}:
-            raise ToolExecutionError(
-                f"tool runtime_posture is not direct-executable: {tool.name} ({tool.runtime_posture})"
-            )
-        handler = self.structured_direct_handlers.get(tool.name)
-        if handler is None:
-            raise ToolExecutionError(
-                f"tool has no registered structured direct handler: {tool.name}"
-            )
-        return handler(context)
-
     def _required_tool(self, name: str) -> ToolSpec:
         tool = self.tool_registry.tool_by_name(name)
         if tool is None:
@@ -119,7 +93,9 @@ class ToolExecutionSession:
         *,
         context: ToolExecutionContext,
     ) -> ToolResult:
-        if context.agent_request is not None:
+        if context.admission is not None:
+            self._validate_context_admits_sdk_tool(invocation.name, context=context)
+        elif context.agent_request is not None:
             self._validate_agent_request_admits_sdk_tool(
                 invocation.name,
                 agent_request=context.agent_request,
@@ -137,7 +113,9 @@ class ToolExecutionSession:
         *,
         context: ToolExecutionContext,
     ) -> AgentResponse:
-        if context.agent_request is not None:
+        if context.admission is not None:
+            self._validate_context_admits_internal_function(name, context=context)
+        elif context.agent_request is not None:
             self._validate_agent_request_admits_internal_function(
                 name,
                 agent_request=context.agent_request,
@@ -149,23 +127,43 @@ class ToolExecutionSession:
             )
         return self.execution_registry.execute_internal_function(name, context=context)
 
-    def execute_structured_direct(
+    def _validate_context_admits_sdk_tool(
         self,
         name: str,
         *,
         context: ToolExecutionContext,
-    ) -> AgentResponse:
-        if context.agent_request is not None:
-            self._validate_agent_request_admits_sdk_tool(
-                name,
-                agent_request=context.agent_request,
-            )
-        tool = self._required_tool(name)
-        if tool.runtime_posture not in {"sdk_adapter_admitted", "sdk_internal_admitted"}:
+    ) -> None:
+        admission = context.admission
+        if admission is None:
+            raise ToolExecutionError("tool admission is required for SDK execution")
+        if admission.expected_allowed_tools != (name,):
+            raise ToolExecutionError(f"tool is not admitted by current execution admission: {name}")
+        if context.agent_request is not None and context.agent_request.allowed_tools != (name,):
             raise ToolExecutionError(
-                f"tool runtime_posture is not direct-executable: {tool.name} ({tool.runtime_posture})"
+                f"agent_request.allowed_tools drifted from current execution admission: {name}"
             )
-        return self.execution_registry.execute_structured_direct(name, context=context)
+
+    def _validate_context_admits_internal_function(
+        self,
+        name: str,
+        *,
+        context: ToolExecutionContext,
+    ) -> None:
+        admission = context.admission
+        if admission is None:
+            raise ToolExecutionError("tool admission is required for internal function execution")
+        if admission.expected_allowed_tools:
+            raise ToolExecutionError(
+                f"internal function request admitted unexpected allowed_tools: {name}"
+            )
+        if admission.tool.name != name:
+            raise ToolExecutionError(
+                f"internal function is not admitted by current execution admission: {name}"
+            )
+        if context.agent_request is not None and context.agent_request.allowed_tools:
+            raise ToolExecutionError(
+                f"agent_request.allowed_tools drifted from internal function admission: {name}"
+            )
 
     def _validate_agent_request_admits_sdk_tool(
         self,
@@ -173,9 +171,20 @@ class ToolExecutionSession:
         *,
         agent_request: AgentRequest,
     ) -> None:
-        if name not in agent_request.allowed_tools:
+        try:
+            expected_allowed_tools = self.tool_registry.expected_allowed_tools_for_request(
+                agent_request
+            )
+        except ToolSpecRegistryError as exc:
+            raise ToolExecutionError(str(exc)) from exc
+        if agent_request.allowed_tools != expected_allowed_tools:
+            raise ToolExecutionError(
+                "agent_request.allowed_tools must match ToolSpec admission for "
+                f"target={agent_request.target} payload={agent_request.payload.__class__.__name__}: "
+                f"got {agent_request.allowed_tools!r}, want {expected_allowed_tools!r}"
+            )
+        if name not in expected_allowed_tools:
             raise ToolExecutionError(f"tool is not admitted by current agent_request: {name}")
-        self._validate_agent_request_allowed_tools(agent_request)
 
     def _validate_agent_request_admits_internal_function(
         self,
@@ -183,25 +192,19 @@ class ToolExecutionSession:
         *,
         agent_request: AgentRequest,
     ) -> None:
-        payload_tool_name = self.tool_registry.payload_kind_for_request(
-            agent_request.target,
-            agent_request.payload,
-        )
-        if payload_tool_name != name:
+        try:
+            admission = self.tool_registry.admission_for_request(agent_request)
+        except ToolSpecRegistryError as exc:
+            raise ToolExecutionError(str(exc)) from exc
+        if admission.tool.name != name:
             raise ToolExecutionError(
                 f"internal function is not admitted by current agent_request: {name}"
             )
-        self._validate_agent_request_allowed_tools(agent_request)
-
-    def _validate_agent_request_allowed_tools(self, agent_request: AgentRequest) -> None:
-        try:
-            expected_tools = self.tool_registry.expected_allowed_tools_for_request(agent_request)
-        except ToolSpecRegistryError as exc:
-            raise ToolExecutionError(str(exc)) from exc
-        if agent_request.allowed_tools != expected_tools:
+        if agent_request.allowed_tools != admission.expected_allowed_tools:
             raise ToolExecutionError(
-                "agent_request.allowed_tools do not match ToolSpec admission: "
-                f"got {agent_request.allowed_tools!r}, want {expected_tools!r}"
+                "agent_request.allowed_tools must match ToolSpec admission for "
+                f"target={agent_request.target} payload={agent_request.payload.__class__.__name__}: "
+                f"got {agent_request.allowed_tools!r}, want {admission.expected_allowed_tools!r}"
             )
 
     def _required_tool(self, name: str) -> ToolSpec:
@@ -238,7 +241,6 @@ def build_default_tool_execution_registry(
     resolved_tool_registry = tool_registry or default_tool_spec_registry()
     sdk_handlers: dict[str, ToolHandler] = {}
     internal_function_handlers: dict[str, InternalFunctionHandler] = {}
-    structured_direct_handlers: dict[str, StructuredDirectHandler] = {}
 
     def _require_agent_request(context: ToolExecutionContext) -> AgentRequest:
         if context.agent_request is None:
@@ -255,22 +257,6 @@ def build_default_tool_execution_registry(
             f"query_service_unavailable: structured tool requires an internal query service: {tool_name}"
         )
 
-    from campus_services_agent.academic_calendar_adapter import academic_calendar_response
-    from campus_services_agent.observability import query_service_failed
-    from campus_services_agent.query_service import (
-        AcademicCalendarQuery,
-        CampusServicesAccessContext,
-        ContactDirectoryQuery,
-        ServiceGuideQuery,
-        ServiceStatusQuery,
-        TransportScheduleQuery,
-    )
-    from campus_services_agent.response_builder import (
-        contact_directory_response,
-        service_guide_response,
-        service_status_response,
-        transport_schedule_response,
-    )
     from campus_services_agent.sdk_tool_executor import execute_campus_services_sdk_tool
 
     for tool_name in (
@@ -291,141 +277,6 @@ def build_default_tool_execution_registry(
                 else _raise_tool_execution_error(_missing_query_service(_tool_name))
             )
         )
-
-    def _require_campus_services_agent_request(context: ToolExecutionContext) -> AgentRequest:
-        request = _require_agent_request(context)
-        if request.target != "campus-services-agent":
-            raise ToolExecutionError(
-                "structured direct campus-services execution requires campus-services-agent"
-            )
-        return request
-
-    def _campus_services_access_context(request: AgentRequest) -> CampusServicesAccessContext:
-        return CampusServicesAccessContext(
-            actor=request.actor,
-            authorization=request.context.authorization,
-        )
-
-    def _structured_direct_service_status(context: ToolExecutionContext) -> AgentResponse:
-        request = _require_campus_services_agent_request(context)
-        payload = request.payload
-        if not isinstance(payload, ServiceStatusLookupPayload):
-            raise ToolExecutionError("service_status_lookup requires ServiceStatusLookupPayload")
-        if campus_services_query_service is None:
-            return query_service_failed(
-                "service_status_lookup",
-                "internal query service is unavailable for service_status_lookup",
-            )
-        try:
-            result = campus_services_query_service.lookup_service_status(
-                ServiceStatusQuery(
-                    payload=payload,
-                    access_context=_campus_services_access_context(request),
-                )
-            )
-        except Exception as exc:
-            return query_service_failed("service_status_lookup", str(exc))
-        return service_status_response(result)
-
-    def _structured_direct_service_guide(context: ToolExecutionContext) -> AgentResponse:
-        request = _require_campus_services_agent_request(context)
-        payload = request.payload
-        if not isinstance(payload, ServiceGuideLookupPayload):
-            raise ToolExecutionError("service_guide_lookup requires ServiceGuideLookupPayload")
-        if campus_services_query_service is None:
-            return query_service_failed(
-                "service_guide_lookup",
-                "internal query service is unavailable for service_guide_lookup",
-            )
-        try:
-            result = campus_services_query_service.lookup_service_guide(
-                ServiceGuideQuery(
-                    payload=payload,
-                    access_context=_campus_services_access_context(request),
-                )
-            )
-        except Exception as exc:
-            return query_service_failed("service_guide_lookup", str(exc))
-        return service_guide_response(result)
-
-    def _structured_direct_transport_schedule(context: ToolExecutionContext) -> AgentResponse:
-        request = _require_campus_services_agent_request(context)
-        payload = request.payload
-        if not isinstance(payload, TransportScheduleLookupPayload):
-            raise ToolExecutionError(
-                "transport_schedule_lookup requires TransportScheduleLookupPayload"
-            )
-        if campus_services_query_service is None:
-            return query_service_failed(
-                "transport_schedule_lookup",
-                "internal query service is unavailable for transport_schedule_lookup",
-            )
-        try:
-            result = campus_services_query_service.lookup_transport_schedule(
-                TransportScheduleQuery(
-                    payload=payload,
-                    access_context=_campus_services_access_context(request),
-                )
-            )
-        except Exception as exc:
-            return query_service_failed("transport_schedule_lookup", str(exc))
-        return transport_schedule_response(result)
-
-    def _structured_direct_contact_directory(context: ToolExecutionContext) -> AgentResponse:
-        request = _require_campus_services_agent_request(context)
-        payload = request.payload
-        if not isinstance(payload, ContactDirectoryLookupPayload):
-            raise ToolExecutionError(
-                "contact_directory_lookup requires ContactDirectoryLookupPayload"
-            )
-        if campus_services_query_service is None:
-            return query_service_failed(
-                "contact_directory_lookup",
-                "internal query service is unavailable for contact_directory_lookup",
-            )
-        try:
-            result = campus_services_query_service.lookup_contact_directory(
-                ContactDirectoryQuery(
-                    payload=payload,
-                    access_context=_campus_services_access_context(request),
-                )
-            )
-        except Exception as exc:
-            return query_service_failed("contact_directory_lookup", str(exc))
-        return contact_directory_response(result)
-
-    def _structured_direct_academic_calendar(context: ToolExecutionContext) -> AgentResponse:
-        request = _require_campus_services_agent_request(context)
-        payload = request.payload
-        if not isinstance(payload, AcademicCalendarLookupPayload):
-            raise ToolExecutionError(
-                "academic_calendar_lookup requires AcademicCalendarLookupPayload"
-            )
-        if campus_services_query_service is None:
-            return query_service_failed(
-                "academic_calendar_lookup",
-                "internal query service is unavailable for academic_calendar_lookup",
-            )
-        try:
-            result = campus_services_query_service.lookup_academic_calendar(
-                AcademicCalendarQuery(
-                    payload=payload,
-                    access_context=_campus_services_access_context(request),
-                )
-            )
-        except Exception as exc:
-            return query_service_failed("academic_calendar_lookup", str(exc))
-        return academic_calendar_response(result)
-
-    structured_direct_handlers.update(
-        {
-            "service_status_lookup": _structured_direct_service_status,
-            "service_guide_lookup": _structured_direct_service_guide,
-            "transport_schedule_lookup": _structured_direct_transport_schedule,
-            "contact_directory_lookup": _structured_direct_contact_directory,
-            "academic_calendar_lookup": _structured_direct_academic_calendar,
-        }
-    )
 
     from campus_notice_agent.notice_get_runtime import run_notice_get_internal_request
     from campus_notice_agent.sdk_tool_executor import execute_notice_sdk_tool
@@ -471,13 +322,11 @@ def build_default_tool_execution_registry(
         resolved_tool_registry,
         sdk_handlers=sdk_handlers,
         internal_function_handlers=internal_function_handlers,
-        structured_direct_handlers=structured_direct_handlers,
     )
     return ToolExecutionRegistry(
         tool_registry=resolved_tool_registry,
         sdk_handlers=sdk_handlers,
         internal_function_handlers=internal_function_handlers,
-        structured_direct_handlers=structured_direct_handlers,
     )
 
 
@@ -490,15 +339,10 @@ def _validate_registry_bindings(
     *,
     sdk_handlers: dict[str, ToolHandler],
     internal_function_handlers: dict[str, InternalFunctionHandler],
-    structured_direct_handlers: dict[str, StructuredDirectHandler],
 ) -> None:
     for tool in tool_registry.tools:
         if tool.runtime_posture == "closed":
-            if (
-                tool.name in sdk_handlers
-                or tool.name in internal_function_handlers
-                or tool.name in structured_direct_handlers
-            ):
+            if tool.name in sdk_handlers or tool.name in internal_function_handlers:
                 raise ToolExecutionError(f"closed tool must not be registered: {tool.name}")
             continue
         if tool.runtime_posture in {"sdk_adapter_admitted", "sdk_internal_admitted"}:
@@ -509,11 +353,7 @@ def _validate_registry_bindings(
             if tool.name not in internal_function_handlers:
                 raise ToolExecutionError(f"internal function is missing handler: {tool.name}")
             continue
-        if (
-            tool.name in sdk_handlers
-            or tool.name in internal_function_handlers
-            or tool.name in structured_direct_handlers
-        ):
+        if tool.name in sdk_handlers or tool.name in internal_function_handlers:
             raise ToolExecutionError(
                 f"non-executable runtime posture must not be registered: {tool.name}"
             )

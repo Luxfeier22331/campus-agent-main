@@ -43,10 +43,16 @@ def readyz(
     agents_sdk_runtime_degraded = bool(agents_sdk_runtime.get("enabled")) and not bool(
         agents_sdk_runtime.get("admitted")
     )
+    worker_runtime = dict(
+        runtime_status.get("worker_runtime")
+        or {"role": "semantic_worker", "cancel_flag_store": "available"}
+    )
+    runtime_assembly = dict(worker_runtime.get("runtime_assembly") or {})
     degraded = (
         not runtime_prompt.admitted
         or not bool(prompt_http_pool.get("healthy", True))
         or agents_sdk_runtime_degraded
+        or not bool(runtime_assembly.get("healthy", True))
     )
     return HttpResponse(
         status_code=503 if degraded else 200,
@@ -68,8 +74,7 @@ def readyz(
             },
             "prompt_http_pool": prompt_http_pool,
             "agents_sdk_runtime": agents_sdk_runtime,
-            "worker_runtime": runtime_status.get("worker_runtime")
-            or {"role": "semantic_worker", "cancel_flag_store": "available"},
+            "worker_runtime": worker_runtime,
         },
     )
 

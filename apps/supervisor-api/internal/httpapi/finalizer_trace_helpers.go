@@ -386,9 +386,6 @@ func workflowSelectedToolsFromRun(run execution.WorkflowRun, fallback string) []
 	seen := map[string]struct{}{}
 	for _, handoff := range run.HandoffChain {
 		tool := handoff.SelectedTool
-		if tool == "" && len(handoff.AllowedTools) == 1 {
-			tool = handoff.AllowedTools[0]
-		}
 		if tool == "" {
 			continue
 		}

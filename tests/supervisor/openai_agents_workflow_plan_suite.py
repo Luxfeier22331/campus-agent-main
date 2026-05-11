@@ -37,6 +37,7 @@ class OpenAIAgentsWorkflowPlanTest(unittest.TestCase):
         self.assertEqual(plan.steps[0].payload_kind, "service_guide_lookup")
         self.assertEqual(plan.steps[0].allowed_tools, ("service_guide_lookup",))
         self.assertEqual(plan.steps[0].expected_output_artifacts, ())
+        self.assertFalse(hasattr(plan, "fail_close_on_invalid_plan"))
 
     def test_compiles_selected_notice_followthrough_without_inventing_route_order(self) -> None:
         plan = compile_openai_agents_workflow_plan(

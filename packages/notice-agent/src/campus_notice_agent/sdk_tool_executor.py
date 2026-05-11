@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import hashlib
+import json
+from collections.abc import Mapping
 from typing import get_args, get_origin, get_type_hints
 
 from campus_contracts import (
@@ -156,6 +159,12 @@ def execute_notice_sdk_tool(
                     }
                     for ref in source_refs[:6]
                 ]
+            _attach_output_projection_ref(
+                projection,
+                agent_request=agent_request,
+                projection_kind="notice_change_set",
+                payload=_notice_change_set_projection_payload(projection),
+            )
         return projection
     raise ValueError(f"notice-agent cannot execute SDK tool: {execution.name}")
 
@@ -165,6 +174,103 @@ def _access_context_from_request(agent_request) -> NoticeAccessContext:
         actor=agent_request.actor,
         authorization=agent_request.context.authorization,
     )
+
+
+def _attach_output_projection_ref(
+    projection: dict[str, object],
+    *,
+    agent_request,
+    projection_kind: str,
+    payload: Mapping[str, object],
+) -> None:
+    if projection_kind not in tuple(agent_request.workflow_context.expected_output_artifacts):
+        return
+    if not any(_has_projection_value(value) for value in payload.values()):
+        return
+    projection["output_projection_ref"] = _safe_projection_ref(
+        agent_request.workflow_context.step_id,
+        projection_kind,
+        payload,
+    )
+
+
+def _notice_change_set_projection_payload(projection: Mapping[str, object]) -> dict[str, object]:
+    change_set = projection.get("change_set")
+    payload: dict[str, object] = {
+        "change_set_id": str(projection.get("change_set_id") or "").strip(),
+        "target_family": str(projection.get("target_family") or "").strip(),
+        "change_kind": str(projection.get("change_kind") or "").strip(),
+        "service_date": "",
+        "summary": "",
+    }
+    if isinstance(change_set, Mapping):
+        query_scope = change_set.get("query_scope")
+        if isinstance(query_scope, Mapping):
+            payload["service_date"] = str(query_scope.get("service_date") or "").strip()
+            route_labels = [
+                str(item).strip()
+                for item in query_scope.get("route_labels", [])
+                if str(item).strip()
+            ]
+            if route_labels:
+                payload["route_labels"] = route_labels
+        facts = change_set.get("facts")
+        if isinstance(facts, list):
+            fact_summaries = []
+            for item in facts:
+                if not isinstance(item, Mapping):
+                    continue
+                summary = str(item.get("change_text") or "").strip()
+                if summary:
+                    fact_summaries.append(summary)
+            if fact_summaries:
+                payload["fact_summaries"] = fact_summaries
+                payload["summary"] = "；".join(fact_summaries)[:1600]
+    source_refs = projection.get("source_refs")
+    if isinstance(source_refs, list):
+        normalized_refs = []
+        for item in source_refs:
+            if not isinstance(item, Mapping):
+                continue
+            source_url = str(item.get("source_url") or "").strip()
+            if source_url:
+                normalized_refs.append(source_url)
+        if normalized_refs:
+            payload["source_refs"] = normalized_refs
+    return payload
+
+
+def _safe_projection_ref(
+    source_step_id: str,
+    projection_kind: str,
+    payload: Mapping[str, object],
+) -> dict[str, object]:
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode(
+        "utf-8"
+    )
+    digest = hashlib.sha256(encoded).hexdigest()
+    return {
+        "projection_id": f"projection:{projection_kind}:{digest[:16]}",
+        "source_step_id": source_step_id,
+        "projection_kind": projection_kind,
+        "content_hash": f"sha256:{digest}",
+        "safety": {
+            "truncated": False,
+            "redacted": False,
+            "max_chars": 1600,
+            "fields_present": sorted(
+                key for key, value in payload.items() if _has_projection_value(value)
+            ),
+        },
+    }
+
+
+def _has_projection_value(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list | tuple | dict):
+        return len(value) > 0
+    return value is not None
 
 
 def _normalize_dataclass_arguments(

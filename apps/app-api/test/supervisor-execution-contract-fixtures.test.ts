@@ -16,10 +16,7 @@ function loadFixture(name: string): Record<string, unknown> {
 describe("supervisor execution canonical response fixtures", () => {
 	it("parses canonical terminal state fixtures", () => {
 		expect(
-			parseSupervisorExecutionResponsePayload(
-				loadFixture("response_completed_delegate.valid.json"),
-				"fallback-trace",
-			),
+			parseSupervisorExecutionResponsePayload(loadFixture("response_completed_delegate.valid.json")),
 		).toMatchObject({
 			selectedTarget: "rag-agent",
 			status: "completed",
@@ -34,7 +31,6 @@ describe("supervisor execution canonical response fixtures", () => {
 		expect(
 			parseSupervisorExecutionResponsePayload(
 				loadFixture("response_cancelled_null_target.valid.json"),
-				"fallback-trace",
 			),
 		).toMatchObject({
 			error: {
@@ -46,10 +42,7 @@ describe("supervisor execution canonical response fixtures", () => {
 			traceId: "trace-contract-cancelled",
 		});
 		expect(
-			parseSupervisorExecutionResponsePayload(
-				loadFixture("response_timeout.valid.json"),
-				"fallback-trace",
-			),
+			parseSupervisorExecutionResponsePayload(loadFixture("response_timeout.valid.json")),
 		).toMatchObject({
 			error: {
 				code: "execution_timeout",
@@ -65,9 +58,9 @@ describe("supervisor execution canonical response fixtures", () => {
 			"response_camel_case.invalid.json",
 			"response_extra_field.invalid.json",
 		]) {
-			expect(() =>
-				parseSupervisorExecutionResponsePayload(loadFixture(fixtureName), "fallback-trace"),
-			).toThrow(/supervisor response contract/i);
+			expect(() => parseSupervisorExecutionResponsePayload(loadFixture(fixtureName))).toThrow(
+				/supervisor response contract/i,
+			);
 		}
 	});
 
@@ -91,7 +84,7 @@ describe("supervisor execution canonical response fixtures", () => {
 			],
 		};
 
-		expect(parseSupervisorExecutionResponsePayload(payload, "fallback-trace")).toMatchObject({
+		expect(parseSupervisorExecutionResponsePayload(payload)).toMatchObject({
 			workflowTraceSummary: {
 				contextProjections: [
 					{

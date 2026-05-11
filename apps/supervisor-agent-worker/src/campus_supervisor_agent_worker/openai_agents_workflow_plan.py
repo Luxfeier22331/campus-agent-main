@@ -16,14 +16,6 @@ from campus_supervisor_agent_worker.tool_spec_registry import (
 
 WORKFLOW_PLAN_ERROR_SCHEMA_VERSION = "openai-agents-workflow-plan-error-v1"
 SUPPORTED_WORKFLOW_MODES = frozenset({"single_handoff", "multi_step"})
-SDK_AGENT_TARGETS = frozenset(
-    {
-        "campus-services-agent",
-        "notice-agent",
-        "rag-agent",
-        "navigation-agent",
-    }
-)
 
 
 class OpenAIAgentsWorkflowPlanError(ValueError):
@@ -53,7 +45,6 @@ class OpenAIAgentsWorkflowExecutionPlan:
     steps: tuple[OpenAIAgentsWorkflowStepPlan, ...]
     resume_supported: bool
     max_replans: int
-    fail_close_on_invalid_plan: bool
 
     @property
     def selected_step(self) -> OpenAIAgentsWorkflowStepPlan:
@@ -76,11 +67,6 @@ def compile_openai_agents_workflow_plan(
         raise _plan_error(
             "plan_not_admitted",
             f"unsupported WorkflowPlan mode for SDK execution: {wire.workflow_mode}",
-        )
-    if not wire.terminal_policy.get("fail_close_on_invalid_plan"):
-        raise _plan_error(
-            "plan_not_admitted",
-            "WorkflowPlan.terminal_policy.fail_close_on_invalid_plan must be true",
         )
     if not wire.steps:
         raise _plan_error("plan_not_admitted", "WorkflowPlan.steps must not be empty")
@@ -106,7 +92,6 @@ def compile_openai_agents_workflow_plan(
         steps=steps,
         resume_supported=bool(wire.resume_policy.get("resume_supported")),
         max_replans=max(0, int(wire.semantic_retry_policy.get("max_replans") or 0)),
-        fail_close_on_invalid_plan=True,
     )
     _validate_agent_request_matches_compiled_plan(agent_request, execution_plan)
     return execution_plan
@@ -188,8 +173,6 @@ def _compile_step(
             "plan_not_admitted",
             f"WorkflowPlan step target is outside allowed_agents: {step.target}",
         )
-    if step.target not in SDK_AGENT_TARGETS:
-        raise _plan_error("plan_not_admitted", f"unknown SDK agent target: {step.target}")
     if not str(step.payload_kind or "").strip():
         raise _plan_error(
             "plan_not_admitted", f"WorkflowPlan step {step.step_id} lacks payload_kind"

@@ -176,7 +176,7 @@ export function createSupervisorExecutionClient(
 			}
 
 			try {
-				return parseSupervisorExecutionResponsePayload(parsed, payload.traceId);
+				return parseSupervisorExecutionResponsePayload(parsed);
 			} catch (error) {
 				throw new SupervisorTransportError({
 					code: "supervisor_invalid_response",

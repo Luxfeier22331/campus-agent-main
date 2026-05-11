@@ -27,10 +27,6 @@ from campus_supervisor_agent_worker.openai_agents_runtime_projection import (
     response_from_native_runtime_result,
     runtime_error_response,
 )
-from campus_supervisor_agent_worker.openai_agents_workflow_plan import (
-    OpenAIAgentsWorkflowPlanError,
-    validate_agent_request_against_workflow_plan,
-)
 from campus_supervisor_agent_worker.settings import ApiSettings
 from campus_supervisor_agent_worker.tool_execution import (
     ToolExecutionContext,
@@ -38,6 +34,7 @@ from campus_supervisor_agent_worker.tool_execution import (
 )
 from campus_supervisor_agent_worker.tool_spec_registry import (
     ToolSpec,
+    ToolSpecAdmission,
     ToolSpecRegistry,
     ToolSpecRegistryError,
 )
@@ -46,6 +43,7 @@ from campus_supervisor_agent_worker.tool_spec_registry import (
 @dataclass(frozen=True, slots=True)
 class AdmittedAgentExecutionPlan:
     mode: str
+    admission: ToolSpecAdmission | None = None
     runtime_posture: str = ""
     internal_function_tool: ToolSpec | None = None
     failure_class: str = ""
@@ -66,8 +64,15 @@ class AdmittedAgentExecutor:
         self._tool_execution_session = tool_execution_session
         self._tool_registry = tool_registry
 
-    def execute(self, agent_request: AgentRequest) -> AgentResponse:
-        plan = self.plan(agent_request)
+    def execute(
+        self,
+        agent_request: AgentRequest,
+        admission: ToolSpecAdmission | None = None,
+    ) -> AgentResponse:
+        plan = self._plan_from_admission(
+            agent_request,
+            admission=admission or self._validated_admission(agent_request),
+        )
         if plan.mode == "sdk_agent_execution":
             return self._run_structured_native_runtime(agent_request, plan=plan)
         if plan.mode == "internal_function":
@@ -82,33 +87,28 @@ class AdmittedAgentExecutor:
 
     def plan(self, agent_request: AgentRequest) -> AdmittedAgentExecutionPlan:
         try:
-            payload_kind = self._tool_registry.payload_kind_for_request(
-                agent_request.target,
-                agent_request.payload,
-            )
-            expected_tools = self._tool_registry.expected_allowed_tools_for_request(agent_request)
+            admission = self._validated_admission(agent_request)
         except ToolSpecRegistryError as exc:
             return AdmittedAgentExecutionPlan(
                 mode="not_admitted",
                 failure_class="request_not_admitted",
                 message=str(exc),
             )
+        return self._plan_from_admission(agent_request, admission=admission)
 
-        if agent_request.allowed_tools != expected_tools:
-            return AdmittedAgentExecutionPlan(
-                mode="not_admitted",
-                failure_class="request_not_admitted",
-                message=(
-                    "AgentRequest.allowed_tools must exactly match ToolSpec admission: "
-                    f"got {agent_request.allowed_tools!r}, want {expected_tools!r}"
-                ),
-            )
+    def _validated_admission(self, agent_request: AgentRequest) -> ToolSpecAdmission:
+        return self._tool_registry.validate_allowed_tools_for_request(agent_request)
 
-        if expected_tools:
-            tool = self._tool_registry.tool_by_name(expected_tools[0])
+    def _plan_from_admission(
+        self,
+        agent_request: AgentRequest,
+        *,
+        admission: ToolSpecAdmission,
+    ) -> AdmittedAgentExecutionPlan:
+        if admission.expected_allowed_tools:
+            tool = admission.tool
             if (
-                tool is not None
-                and tool.active
+                tool.active
                 and tool.surface == "structured_handoff"
                 and tool.owner_agent == agent_request.target
                 and all(
@@ -118,25 +118,27 @@ class AdmittedAgentExecutor:
                     and admitted_tool.owner_agent == agent_request.target
                     and admitted_tool.runtime_posture == "sdk_adapter_admitted"
                     for admitted_tool in (
-                        self._tool_registry.tool_by_name(tool_name) for tool_name in expected_tools
+                        self._tool_registry.tool_by_name(tool_name)
+                        for tool_name in admission.expected_allowed_tools
                     )
                 )
             ):
                 return AdmittedAgentExecutionPlan(
                     mode="sdk_agent_execution",
+                    admission=admission,
                     runtime_posture=tool.runtime_posture,
                 )
 
-        if not expected_tools:
-            tool = self._tool_registry.tool_by_name(payload_kind)
+        if not admission.expected_allowed_tools:
+            tool = admission.tool
             if (
-                tool is not None
-                and tool.active
+                tool.active
                 and tool.surface == "agent_internal"
                 and tool.runtime_posture == "internal_function"
             ):
                 return AdmittedAgentExecutionPlan(
                     mode="internal_function",
+                    admission=admission,
                     runtime_posture=tool.runtime_posture,
                     internal_function_tool=tool,
                 )
@@ -162,9 +164,18 @@ class AdmittedAgentExecutor:
                 "OpenAI Agents native runtime is disabled",
                 latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
             )
-        workflow_step = self._validated_workflow_step(agent_request)
-        if isinstance(workflow_step, AgentResponse):
-            return workflow_step
+        workflow_context_error = self._workflow_context_error_response(agent_request, plan=plan)
+        if workflow_context_error is not None:
+            return workflow_context_error
+        if plan.admission is None:
+            return runtime_error_response(
+                agent_request,
+                "request_not_admitted",
+                "structured runtime execution is missing ToolSpec admission",
+                bridge_reason="request_not_admitted",
+                latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
+                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
+            )
         if self._runtime is None:
             return runtime_error_response(
                 agent_request,
@@ -176,7 +187,7 @@ class AdmittedAgentExecutor:
             )
         try:
             descriptors = build_agents_sdk_tool_descriptors(
-                agent_request.allowed_tools,
+                plan.admission.expected_allowed_tools,
                 registry=self._tool_registry,
             )
             profile = instruction_profile_for_request(agent_request)
@@ -184,7 +195,10 @@ class AdmittedAgentExecutor:
             def execute_and_record(invocation: OpenAIAgentsToolInvocation):
                 raw_result = self._tool_execution_session.execute_sdk_tool(
                     invocation,
-                    context=ToolExecutionContext(agent_request=agent_request),
+                    context=ToolExecutionContext(
+                        agent_request=agent_request,
+                        admission=plan.admission,
+                    ),
                 )
                 bounded_result = bounded_tool_result_projection(raw_result)
                 tool_execution_records.append(
@@ -261,20 +275,24 @@ class AdmittedAgentExecutor:
         *,
         plan: AdmittedAgentExecutionPlan,
     ) -> AgentResponse:
-        workflow_step = self._validated_workflow_step(agent_request)
-        if isinstance(workflow_step, AgentResponse):
-            return workflow_step
-        if plan.internal_function_tool is None:
+        workflow_context_error = self._workflow_context_error_response(agent_request, plan=plan)
+        if workflow_context_error is not None:
+            return workflow_context_error
+        if plan.internal_function_tool is None or plan.admission is None:
             return runtime_error_response(
                 agent_request,
                 "request_not_admitted",
                 "internal function request is missing ToolSpec admission",
                 retryable=False,
+                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
             )
         try:
             return self._tool_execution_session.execute_internal_function(
                 plan.internal_function_tool.name,
-                context=ToolExecutionContext(agent_request=agent_request),
+                context=ToolExecutionContext(
+                    agent_request=agent_request,
+                    admission=plan.admission,
+                ),
             )
         except Exception as exc:
             return runtime_error_response(
@@ -285,23 +303,46 @@ class AdmittedAgentExecutor:
                 runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
             )
 
-    def _validated_workflow_step(
+    def _workflow_context_error_response(
         self,
         agent_request: AgentRequest,
-    ):
-        try:
-            return validate_agent_request_against_workflow_plan(
-                agent_request,
-                tool_registry=self._tool_registry,
-            )
-        except OpenAIAgentsWorkflowPlanError as exc:
+        *,
+        plan: AdmittedAgentExecutionPlan | None = None,
+    ) -> AgentResponse | None:
+        context = agent_request.workflow_context
+        if context.target != agent_request.target:
             return runtime_error_response(
                 agent_request,
-                exc.failure_class,
-                exc.message,
-                bridge_reason=exc.failure_class,
-                runtime_posture=self._runtime_posture_for_request(agent_request),
+                "plan_not_admitted",
+                "AgentRequest.workflow_context.target must match AgentRequest.target",
+                bridge_reason="plan_not_admitted",
+                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
             )
+        if context.agent_id != agent_request.target:
+            return runtime_error_response(
+                agent_request,
+                "plan_not_admitted",
+                "AgentRequest.workflow_context.agent_id must match AgentRequest.target",
+                bridge_reason="plan_not_admitted",
+                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
+            )
+        if not context.step_id.strip():
+            return runtime_error_response(
+                agent_request,
+                "plan_not_admitted",
+                "AgentRequest.workflow_context.step_id is required",
+                bridge_reason="plan_not_admitted",
+                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
+            )
+        if not context.workflow_run_ref.strip():
+            return runtime_error_response(
+                agent_request,
+                "plan_not_admitted",
+                "AgentRequest.workflow_context.workflow_run_ref is required",
+                bridge_reason="plan_not_admitted",
+                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
+            )
+        return None
 
     def _runtime_posture_for_request(
         self,

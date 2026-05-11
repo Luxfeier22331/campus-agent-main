@@ -42,6 +42,13 @@ class ToolSpec:
 
 
 @dataclass(frozen=True, slots=True)
+class ToolSpecAdmission:
+    payload_kind: str
+    expected_allowed_tools: tuple[str, ...]
+    tool: ToolSpec
+
+
+@dataclass(frozen=True, slots=True)
 class ToolSpecRegistry:
     schema_version: str
     registry_version: str
@@ -130,31 +137,28 @@ class ToolSpecRegistry:
         return payload_kind in self.payload_kinds_for_target(target)
 
     def payload_kind_for_request(self, target: str, payload: object) -> str:
-        matching_inactive: list[str] = []
-        for tool in self.tools:
-            if tool.owner_agent != target:
-                continue
-            payload_class = _resolve_class(tool.payload_schema_ref)
-            if not isinstance(payload, payload_class):
-                continue
-            if not tool.active:
-                matching_inactive.append(tool.payload_kind)
-                continue
-            return tool.payload_kind
-        if matching_inactive:
-            raise ToolSpecRegistryError(
-                "ToolSpec payload kind is inactive for target="
-                f"{target} payload={payload.__class__.__name__}: {matching_inactive}"
-            )
-        raise ToolSpecRegistryError(
-            "AgentRequest target/payload pair is outside the ToolSpec boundary: "
-            f"target={target} payload={payload.__class__.__name__}"
-        )
+        return self.admission_for_payload(target, payload).payload_kind
 
     def expected_allowed_tools_for_request(self, request: AgentRequest) -> tuple[str, ...]:
-        return self.expected_allowed_tools_for_payload(request.target, request.payload)
+        return self.admission_for_request(request).expected_allowed_tools
 
     def expected_allowed_tools_for_payload(self, target: str, payload: object) -> tuple[str, ...]:
+        return self.admission_for_payload(target, payload).expected_allowed_tools
+
+    def admission_for_request(self, request: AgentRequest) -> ToolSpecAdmission:
+        return self.admission_for_payload(request.target, request.payload)
+
+    def validate_allowed_tools_for_request(self, request: AgentRequest) -> ToolSpecAdmission:
+        admission = self.admission_for_request(request)
+        if request.allowed_tools != admission.expected_allowed_tools:
+            raise ToolSpecRegistryError(
+                "AgentRequest.allowed_tools must match ToolSpec admission for "
+                f"target={request.target} payload={request.payload.__class__.__name__}: "
+                f"got {request.allowed_tools!r}, want {admission.expected_allowed_tools!r}"
+            )
+        return admission
+
+    def admission_for_payload(self, target: str, payload: object) -> ToolSpecAdmission:
         matching_inactive: list[str] = []
         for tool in self.tools:
             if tool.owner_agent != target:
@@ -166,9 +170,17 @@ class ToolSpecRegistry:
                 matching_inactive.append(tool.name)
                 continue
             if tool.surface == "structured_handoff":
-                return (tool.name,)
+                return ToolSpecAdmission(
+                    payload_kind=tool.payload_kind,
+                    expected_allowed_tools=(tool.name,),
+                    tool=tool,
+                )
             if tool.surface == "agent_internal":
-                return ()
+                return ToolSpecAdmission(
+                    payload_kind=tool.payload_kind,
+                    expected_allowed_tools=(),
+                    tool=tool,
+                )
         if matching_inactive:
             raise ToolSpecRegistryError(
                 "ToolSpec match is inactive for target="
@@ -323,12 +335,7 @@ def _mapping(value: object, field_name: str) -> dict[str, Any]:
 
 
 def _runtime_posture(item: dict[str, Any]) -> str:
-    posture = str(item.get("runtime_posture") or "").strip()
-    if posture:
-        return posture
-    if item.get("surface") == "agent_internal":
-        return "closed"
-    return "typed_handoff_only"
+    return _required_string(item.get("runtime_posture"), "runtime_posture")
 
 
 def _required_string(value: object, field_name: str) -> str:
@@ -341,6 +348,7 @@ def _required_string(value: object, field_name: str) -> str:
 __all__ = [
     "DEFAULT_TOOL_SPEC_PATH",
     "TOOL_SPEC_SCHEMA_VERSION",
+    "ToolSpecAdmission",
     "ToolFunctionSchemaSpec",
     "ToolSpec",
     "ToolSpecRegistry",

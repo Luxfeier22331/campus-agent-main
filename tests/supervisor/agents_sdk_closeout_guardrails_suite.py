@@ -14,9 +14,6 @@ class AgentsSdkCloseoutGuardrailsTest(unittest.TestCase):
     def test_sdk_runtime_defaults_on_with_repo_registry_admission_only(self) -> None:
         settings_source = (SDK_SOURCE_DIR / "settings.py").read_text(encoding="utf-8")
         delegates_source = (SDK_SOURCE_DIR / "agent_delegates.py").read_text(encoding="utf-8")
-        policy_source = (SDK_SOURCE_DIR / "agents_sdk_runtime_policy.py").read_text(
-            encoding="utf-8"
-        )
 
         self.assertRegex(settings_source, r"agents_sdk_runtime_enabled:\s*bool\s*=\s*True")
         self.assertRegex(
@@ -37,7 +34,6 @@ class AgentsSdkCloseoutGuardrailsTest(unittest.TestCase):
         self.assertNotIn("SUPERVISOR_AGENTS_SDK_" + "ALLOWED_TOOLS", settings_source)
         self.assertNotIn("agents_sdk_runtime_allowed_targets", delegates_source)
         self.assertNotIn("agents_sdk_runtime_allowed_tools", delegates_source)
-        self.assertIn("sdk_tool_missing", policy_source)
 
     def test_domain_agent_execution_is_owned_by_admitted_executor_module(self) -> None:
         delegates_source = (SDK_SOURCE_DIR / "agent_delegates.py").read_text(encoding="utf-8")
@@ -61,12 +57,10 @@ class AgentsSdkCloseoutGuardrailsTest(unittest.TestCase):
             encoding="utf-8"
         )
 
-        self.assertIn("_build_unavailable_rag_sdk_runner", delegates_source)
-        self.assertNotIn(
-            "return None", delegates_source.split("def _build_rag_openai_runtime", 1)[1]
-        )
+        self.assertNotIn("_build_unavailable_rag_sdk_runner", delegates_source)
+        self.assertIn("raise _runtime_config_error", delegates_source)
         self.assertIn("_RAG_SDK_RUNNER_NOT_PROVIDED", rag_service_source)
-        self.assertIn("requires an explicit rag_sdk_runner", rag_synthesis_source)
+        self.assertIn("rag_sdk_runtime_unavailable", rag_synthesis_source)
         self.assertNotIn("rag_sdk_runner: RagSdkRunner | None = None", rag_service_source)
 
     def test_realistic_chain_eval_uses_explicit_inprocess_rag_delegate(self) -> None:

@@ -127,7 +127,7 @@ func finalizeAgentBridgeResponse(
 	if err != nil || hasForbiddenWorkflowTraceKey(agentObservability) {
 		return nil, errInvalidAgentResponse
 	}
-	selectedTool := finalizerSelectedTool(target, result, agentObservability, context)
+	selectedTool := finalizerSelectedTool(agentObservability, context)
 	context.SelectedTool = selectedTool
 	response := map[string]any{
 		"selected_target":        target,
@@ -145,19 +145,13 @@ func finalizeAgentBridgeResponse(
 }
 
 func finalizerSelectedTool(
-	target string,
-	result map[string]any,
 	agentObservability map[string]any,
 	context supervisorFinalizerContext,
 ) string {
-	selectedTool := defaultString(
+	return defaultString(
 		stringValue(agentObservability["selected_tool"]),
 		defaultString(context.SelectedTool, context.RuntimeDecisions.SelectedTool),
 	)
-	if selectedTool == "" {
-		selectedTool = inferSelectedTool(target, result)
-	}
-	return selectedTool
 }
 
 func optionalAgentResponseString(agentResponse map[string]any, field string) (string, error) {
@@ -204,13 +198,7 @@ func buildWorkflowTraceSummaryWire(
 	agentObservability map[string]any,
 ) contractsv1.WorkflowTraceSummaryWire {
 	decisions := context.RuntimeDecisions
-	selectedTool := defaultString(
-		stringValue(agentObservability["selected_tool"]),
-		defaultString(context.SelectedTool, decisions.SelectedTool),
-	)
-	if selectedTool == "" {
-		selectedTool = inferSelectedTool(target, result)
-	}
+	selectedTool := finalizerSelectedTool(agentObservability, context)
 	branch := context.Branch
 	if branch == "" {
 		branch = branchFromRuntimeDecision(decisions)

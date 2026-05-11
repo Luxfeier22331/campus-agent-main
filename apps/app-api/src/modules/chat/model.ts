@@ -36,21 +36,6 @@ export interface ChatPlaceCardStructuredPart {
 	placeCard: ChatPlaceCard;
 }
 
-export interface ChatSourceCard {
-	title: string;
-	sectionTitle: string;
-	snippet: string;
-	href: string;
-	collectionLabel: string;
-	versionLabel: string;
-	pageLabel: string;
-}
-
-export interface ChatSourceCardsStructuredPart {
-	type: "source_cards";
-	sourceCards: ChatSourceCard[];
-}
-
 export type ChatSourceTargetKind =
 	| "canonical_reader"
 	| "notice_reader"
@@ -99,7 +84,6 @@ export interface ChatCampusServiceTraceCardsStructuredPart {
 
 export type ChatMessageStructuredPart =
 	| ChatPlaceCardStructuredPart
-	| ChatSourceCardsStructuredPart
 	| ChatSourceItemsStructuredPart
 	| ChatCampusServiceTraceCardsStructuredPart;
 
@@ -277,40 +261,6 @@ function isBrowserSafeDocsHref(value: string): boolean {
 	);
 }
 
-function normalizeSourceCard(value: unknown): ChatSourceCard | null {
-	if (!isRecord(value)) {
-		return null;
-	}
-
-	const title = normalizeOptionalString(value.title);
-	const href = normalizeOptionalString(value.href);
-	const snippet = normalizeOptionalString(value.snippet);
-	if (!(title && href && snippet && isBrowserSafeDocsHref(href))) {
-		return null;
-	}
-
-	return {
-		title,
-		sectionTitle: normalizeOptionalString(value.sectionTitle) ?? "",
-		snippet,
-		href,
-		collectionLabel: normalizeOptionalString(value.collectionLabel) ?? "",
-		versionLabel: normalizeOptionalString(value.versionLabel) ?? "",
-		pageLabel: normalizeOptionalString(value.pageLabel) ?? "",
-	};
-}
-
-function normalizeSourceCards(value: unknown): ChatSourceCard[] {
-	if (!Array.isArray(value)) {
-		return [];
-	}
-
-	return value
-		.map((item) => normalizeSourceCard(item))
-		.filter((item): item is ChatSourceCard => item !== null)
-		.slice(0, 5);
-}
-
 function normalizeSourceKind(value: unknown): ChatSourceKind | null {
 	const normalized = normalizeOptionalString(value);
 	if (
@@ -462,35 +412,6 @@ function normalizeSourceItem(value: unknown): ChatSourceItem | null {
 	};
 }
 
-function legacySourceCardToSourceItem(card: ChatSourceCard): ChatSourceItem {
-	const sourceKind: ChatSourceKind =
-		card.collectionLabel === "培养方案"
-			? "curriculum"
-			: card.collectionLabel === "学生手册"
-				? "regulation"
-				: "document";
-	return {
-		targetKind: "canonical_reader",
-		sourceKind,
-		title: card.title,
-		snippet: card.snippet,
-		primaryAction: {
-			label: "查看文档",
-			href: card.href,
-			external: false,
-			disabledReason: null,
-		},
-		secondaryActions: [],
-		sectionTitle: card.sectionTitle,
-		collectionLabel: card.collectionLabel,
-		publisherLabel: "",
-		publishedAt: "",
-		versionLabel: card.versionLabel,
-		pageLabel: card.pageLabel,
-		trustLabel: "",
-	};
-}
-
 function normalizeSourceItems(value: unknown): ChatSourceItem[] {
 	if (!Array.isArray(value)) {
 		return [];
@@ -573,18 +494,6 @@ function normalizeStructuredPart(value: unknown): ChatMessageStructuredPart | nu
 		return {
 			type: "source_items",
 			sourceItems,
-		};
-	}
-
-	if (value.type === "source_cards") {
-		const sourceCards = normalizeSourceCards(value.sourceCards);
-		if (sourceCards.length === 0) {
-			return null;
-		}
-
-		return {
-			type: "source_items",
-			sourceItems: sourceCards.map(legacySourceCardToSourceItem),
 		};
 	}
 

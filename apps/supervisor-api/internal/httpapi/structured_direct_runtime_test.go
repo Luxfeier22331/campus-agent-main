@@ -76,3 +76,41 @@ func TestDirectStructuredHandoffDecisionAllowsTypedHandoffOnlyTools(t *testing.T
 		t.Fatal("typed_handoff_only tool should direct-execute in Go answer path")
 	}
 }
+
+func TestShapeStructuredSupervisorResponseReturnsExplicitFinalizerFailureEnvelope(t *testing.T) {
+	response := shapeStructuredSupervisorResponse(
+		"campus-services-agent",
+		"service_status_lookup",
+		map[string]any{
+			"outcome": "resolved_current",
+		},
+		"trace-structured-finalizer-failure",
+		supervisorFinalizerContext{
+			Branch: "delegate",
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				SelectedTarget:    "rag-agent",
+				RoutingNextAction: "delegate",
+				PlanningOutcome:   "preplanned",
+			},
+			Handoff: &execution.RuntimeHandoff{
+				Target:       "rag-agent",
+				PayloadKind:  "rag_request",
+				AllowedTools: []string{"retrieval.query"},
+			},
+		},
+	)
+
+	if response["status"] != "error" {
+		t.Fatalf("status = %v, want error", response["status"])
+	}
+	errorBody, ok := response["error"].(map[string]any)
+	if !ok {
+		t.Fatalf("error = %#v, want object", response["error"])
+	}
+	if errorBody["code"] != "structured_finalization_failed" {
+		t.Fatalf("error.code = %v, want structured_finalization_failed", errorBody["code"])
+	}
+	if response["answer_text"] != "结构化查询结果未通过 supervisor finalization。" {
+		t.Fatalf("answer_text = %v, want explicit finalizer failure text", response["answer_text"])
+	}
+}

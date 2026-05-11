@@ -142,19 +142,15 @@ function assertSupervisorExecutionResponseWire(
 function normalizeRecordString(
 	record: Record<string, unknown>,
 	snakeCaseKey: string,
-	camelCaseKey: string,
 ): string | null {
-	return normalizeNullableString(
-		snakeCaseKey in record ? record[snakeCaseKey] : record[camelCaseKey],
-	);
+	return normalizeNullableString(record[snakeCaseKey]);
 }
 
 function recordValue(
 	record: Record<string, unknown>,
 	snakeCaseKey: string,
-	camelCaseKey: string,
 ): unknown {
-	return snakeCaseKey in record ? record[snakeCaseKey] : record[camelCaseKey];
+	return record[snakeCaseKey];
 }
 
 function containsForbiddenWorkflowTraceKey(value: unknown): boolean {
@@ -193,9 +189,8 @@ function normalizeWorkflowRecord(value: unknown): Record<string, unknown> {
 function normalizeStringArrayRecord(
 	record: Record<string, unknown>,
 	snakeCaseKey: string,
-	camelCaseKey: string,
 ): string[] | null {
-	const value = recordValue(record, snakeCaseKey, camelCaseKey);
+	const value = recordValue(record, snakeCaseKey);
 	if (!Array.isArray(value)) {
 		return null;
 	}
@@ -208,9 +203,8 @@ function normalizeStringArrayRecord(
 function normalizeStringRecord(
 	record: Record<string, unknown>,
 	snakeCaseKey: string,
-	camelCaseKey: string,
 ): Record<string, string> | null {
-	const value = getRecord(recordValue(record, snakeCaseKey, camelCaseKey));
+	const value = getRecord(recordValue(record, snakeCaseKey));
 	if (!value) {
 		return null;
 	}
@@ -253,8 +247,7 @@ function parseExecutionObservability(value: unknown): SupervisorExecutionObserva
 
 	const resolvedScopeCollection = normalizeNullableString(record.resolved_scope_collection);
 	const resolvedScopeCorpus = normalizeNullableString(record.resolved_scope_corpus);
-	const rawRetrievedSources =
-		"retrieved_sources" in record ? record.retrieved_sources : record.retrievedSources;
+	const rawRetrievedSources = record.retrieved_sources;
 	const hasRetrievedSourcesTrace = Array.isArray(rawRetrievedSources);
 	const retrievedSources = summarizeObservedSources(rawRetrievedSources);
 	const retrievalAttempted = normalizeNullableBoolean(record.retrieval_attempted);
@@ -273,58 +266,43 @@ function parseExecutionObservability(value: unknown): SupervisorExecutionObserva
 		estimatedCostMicrousd: normalizeNullableNumber(record.estimated_cost_microusd),
 		failClosed: normalizeNullableBoolean(record.fail_closed),
 		inputTokens: normalizeNullableNumber(record.input_tokens),
-		intentAmbiguityReason: normalizeRecordString(
-			record,
-			"intent_ambiguity_reason",
-			"intentAmbiguityReason",
-		),
-		intentAmbiguitySignal: normalizeRecordString(
-			record,
-			"intent_ambiguity_signal",
-			"intentAmbiguitySignal",
-		),
-		intentCapability: normalizeRecordString(record, "intent_capability", "intentCapability"),
-		intentClassifierVersion: normalizeRecordString(
-			record,
-			"intent_classifier_version",
-			"intentClassifierVersion",
-		),
-		intentContextReferenceType: normalizeRecordString(
-			record,
-			"intent_context_reference_type",
-			"intentContextReferenceType",
-		),
-		intentContextResolutionState: normalizeRecordString(
-			record,
-			"intent_context_resolution_state",
-			"intentContextResolutionState",
-		),
-		intentLaunchState: normalizeRecordString(record, "intent_launch_state", "intentLaunchState"),
-		intentMissingSlots: normalizeStringArrayRecord(
-			record,
-			"intent_missing_slots",
-			"intentMissingSlots",
-		),
-		intentNextAction: normalizeRecordString(record, "intent_next_action", "intentNextAction"),
-		intentPolicyReason: normalizeRecordString(record, "intent_policy_reason", "intentPolicyReason"),
-		intentResolvedSlots: normalizeStringRecord(
-			record,
-			"intent_resolved_slots",
-			"intentResolvedSlots",
-		),
-		intentRoutingConfidence: normalizeRecordString(
-			record,
-			"intent_routing_confidence",
-			"intentRoutingConfidence",
-		),
-		intentSchemaVersion: normalizeRecordString(
-			record,
-			"intent_schema_version",
-			"intentSchemaVersion",
-		),
-		intentScopeClass: normalizeRecordString(record, "intent_scope_class", "intentScopeClass"),
-		intentScopeReason: normalizeRecordString(record, "intent_scope_reason", "intentScopeReason"),
-		intentTaskKind: normalizeRecordString(record, "intent_task_kind", "intentTaskKind"),
+			intentAmbiguityReason: normalizeRecordString(
+				record,
+				"intent_ambiguity_reason",
+			),
+			intentAmbiguitySignal: normalizeRecordString(
+				record,
+				"intent_ambiguity_signal",
+			),
+			intentCapability: normalizeRecordString(record, "intent_capability"),
+			intentClassifierVersion: normalizeRecordString(
+				record,
+				"intent_classifier_version",
+			),
+			intentContextReferenceType: normalizeRecordString(
+				record,
+				"intent_context_reference_type",
+			),
+			intentContextResolutionState: normalizeRecordString(
+				record,
+				"intent_context_resolution_state",
+			),
+			intentLaunchState: normalizeRecordString(record, "intent_launch_state"),
+			intentMissingSlots: normalizeStringArrayRecord(record, "intent_missing_slots"),
+			intentNextAction: normalizeRecordString(record, "intent_next_action"),
+			intentPolicyReason: normalizeRecordString(record, "intent_policy_reason"),
+			intentResolvedSlots: normalizeStringRecord(record, "intent_resolved_slots"),
+			intentRoutingConfidence: normalizeRecordString(
+				record,
+				"intent_routing_confidence",
+			),
+			intentSchemaVersion: normalizeRecordString(
+				record,
+				"intent_schema_version",
+			),
+			intentScopeClass: normalizeRecordString(record, "intent_scope_class"),
+			intentScopeReason: normalizeRecordString(record, "intent_scope_reason"),
+			intentTaskKind: normalizeRecordString(record, "intent_task_kind"),
 		modelName: normalizeNullableString(record.model_name),
 		modelProvider: normalizeNullableString(record.model_provider),
 		outputTokens: normalizeNullableNumber(record.output_tokens),
@@ -358,34 +336,34 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 	if (!record || containsForbiddenWorkflowTraceKey(record)) {
 		return null;
 	}
-	const selectedToolsValue = recordValue(record, "selected_tools", "selectedTools");
+	const selectedToolsValue = recordValue(record, "selected_tools");
 	const selectedTools = Array.isArray(selectedToolsValue)
 		? selectedToolsValue.filter(
 				(item): item is string => typeof item === "string" && item.trim().length > 0,
 			)
 		: [];
-	const handoffChainValue = recordValue(record, "handoff_chain", "handoffChain");
+	const handoffChainValue = recordValue(record, "handoff_chain");
 	const handoffChain = Array.isArray(handoffChainValue)
 		? handoffChainValue.flatMap((item) => {
 				const handoff = getRecord(item);
 				return handoff ? [handoff] : [];
 			})
 		: [];
-	const contextProjectionsValue = recordValue(record, "context_projections", "contextProjections");
+	const contextProjectionsValue = recordValue(record, "context_projections");
 	const contextProjections = Array.isArray(contextProjectionsValue)
 		? contextProjectionsValue.flatMap((item) => {
 				const projection = getRecord(item);
 				return projection ? [projection] : [];
 			})
 		: [];
-	const traceStepsValue = recordValue(record, "trace_steps", "traceSteps");
+	const traceStepsValue = recordValue(record, "trace_steps");
 	const traceSteps = Array.isArray(traceStepsValue)
 		? traceStepsValue.flatMap((item) => {
 				const step = getRecord(item);
 				return step ? [step] : [];
 			})
 		: [];
-	const toolCallSummariesValue = recordValue(record, "tool_call_summaries", "toolCallSummaries");
+	const toolCallSummariesValue = recordValue(record, "tool_call_summaries");
 	const toolCallSummaries = Array.isArray(toolCallSummariesValue)
 		? toolCallSummariesValue.flatMap((item) => {
 				const summary = getRecord(item);
@@ -393,38 +371,37 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 			})
 		: [];
 	const parsed: SupervisorExecutionWorkflowTraceSummary = {
-		contextResolution: normalizeWorkflowRecord(
-			recordValue(record, "context_resolution", "contextResolution"),
-		),
-		directVsDelegateBranch: normalizeRecordString(
-			record,
-			"direct_vs_delegate_branch",
-			"directVsDelegateBranch",
-		),
-		failCloseReason: normalizeRecordString(record, "fail_close_reason", "failCloseReason"),
-		guardrailOutcomes: normalizeWorkflowRecord(
-			recordValue(record, "guardrail_outcomes", "guardrailOutcomes"),
-		),
+			contextResolution: normalizeWorkflowRecord(
+				recordValue(record, "context_resolution"),
+			),
+			directVsDelegateBranch: normalizeRecordString(
+				record,
+				"direct_vs_delegate_branch",
+			),
+			failCloseReason: normalizeRecordString(record, "fail_close_reason"),
+			guardrailOutcomes: normalizeWorkflowRecord(
+				recordValue(record, "guardrail_outcomes"),
+			),
 		handoff: normalizeWorkflowRecord(record.handoff),
 		handoffChain,
 		contextProjections,
-		planningOutcome: normalizeRecordString(record, "planning_outcome", "planningOutcome"),
-		policyArtifactVersions: normalizeWorkflowRecord(
-			recordValue(record, "policy_artifact_versions", "policyArtifactVersions"),
-		),
-		routingFrame: normalizeWorkflowRecord(recordValue(record, "routing_frame", "routingFrame")),
-		runtimeVersions: normalizeWorkflowRecord(
-			recordValue(record, "runtime_versions", "runtimeVersions"),
-		),
-		selectedTarget: normalizeRecordString(record, "selected_target", "selectedTarget"),
-		selectedTools,
-		toolArgumentSummary: normalizeWorkflowRecord(
-			recordValue(record, "tool_argument_summary", "toolArgumentSummary"),
-		),
-		traceSteps,
-		toolCallSummaries,
-		workflowMode: normalizeRecordString(record, "workflow_mode", "workflowMode"),
-	};
+			planningOutcome: normalizeRecordString(record, "planning_outcome"),
+			policyArtifactVersions: normalizeWorkflowRecord(
+				recordValue(record, "policy_artifact_versions"),
+			),
+			routingFrame: normalizeWorkflowRecord(recordValue(record, "routing_frame")),
+			runtimeVersions: normalizeWorkflowRecord(
+				recordValue(record, "runtime_versions"),
+			),
+			selectedTarget: normalizeRecordString(record, "selected_target"),
+			selectedTools,
+			toolArgumentSummary: normalizeWorkflowRecord(
+				recordValue(record, "tool_argument_summary"),
+			),
+			traceSteps,
+			toolCallSummaries,
+			workflowMode: normalizeRecordString(record, "workflow_mode"),
+		};
 
 	if (
 		!(parsed.directVsDelegateBranch || parsed.planningOutcome || parsed.selectedTarget) &&
@@ -444,7 +421,6 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 
 export function parseSupervisorExecutionResponsePayload(
 	parsed: (Partial<SupervisorExecutionResponseWire> & Record<string, unknown>) | null | undefined,
-	fallbackTraceId: string,
 ): SupervisorExecutionResponse {
 	assertSupervisorExecutionResponseWire(parsed);
 	const workflowTraceSummary = parseWorkflowTraceSummary(parsed.workflow_trace_summary);
@@ -472,7 +448,7 @@ export function parseSupervisorExecutionResponsePayload(
 		result: parsed.result ?? null,
 		selectedTarget: parsed.selected_target,
 		status: parsed.status,
-		traceId: parsed.trace_id || fallbackTraceId,
+		traceId: parsed.trace_id,
 		...(workflowTraceSummary ? { workflowTraceSummary } : {}),
 	};
 }

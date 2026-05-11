@@ -8,14 +8,19 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from campus_contracts import (
+    ActorContext,
     AgentRequest,
     AgentResponse,
+    AuthorizationProjection,
     CampusNoticeGetPayload,
     CampusNoticeGetResult,
+    ContextProjection,
     KnowledgeScope,
     RagRequestPayload,
+    WorkflowAgentContext,
 )
 from campus_notice_agent.query_service import NoticeGetQuery
+from campus_supervisor_agent_worker.agent_dispatch import dispatch_agent_request
 from campus_supervisor_agent_worker.agent_delegates import _build_agent_delegates
 from campus_supervisor_agent_worker.app import create_bridge_app
 from campus_supervisor_agent_worker.settings import ApiSettings
@@ -55,7 +60,6 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertFalse(agents_sdk["admitted"])
         self.assertEqual(agents_sdk["admission_reason"], "provider_config_missing")
         self.assertEqual(agents_sdk["runtime_posture"], "domain_agent_adapter_admitted")
-        self.assertEqual(agents_sdk["admitted_pairs"], [])
         self.assertNotIn("transport_runtime", ready.json_body)
         self.assertFalse(ready.json_body["prompt_http_pool"]["healthy"])
         self.assertNotIn("audit_runtime", ready.json_body)
@@ -83,6 +87,8 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 prompt_runtime_provider="openai-responses",
                 prompt_runtime_api_key="test-key",
                 prompt_runtime_base_url="https://api.openai.com/v1",
+                internal_query_base_url="https://supervisor-api.internal",
+                internal_query_shared_secret="structured-secret",
             )
         )
 
@@ -152,7 +158,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertFalse(hasattr(settings, "agents_sdk_runtime_allowed_tools"))
         self.assertFalse(hasattr(settings, "transport" + "_max_concurrent_answers"))
 
-    def test_bridge_readyz_admits_agents_sdk_runtime_from_repo_registry_when_enabled(
+    def test_bridge_readyz_requires_structured_query_runtime_for_agents_sdk_admission(
         self,
     ) -> None:
         app = create_bridge_app(
@@ -165,6 +171,8 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                 prompt_runtime_api_key="test-key",
                 prompt_runtime_base_url="https://api.openai.com/v1",
                 agents_sdk_runtime_enabled=True,
+                internal_query_base_url="https://supervisor-api.internal",
+                internal_query_shared_secret="structured-secret",
             )
         )
 
@@ -179,48 +187,40 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             ready.json_body["agents_sdk_runtime"]["admission_reason"],
             "admitted",
         )
-        self.assertEqual(
-            ready.json_body["agents_sdk_runtime"]["admitted_pairs"],
-            [
-                {
-                    "target": "campus-services-agent",
-                    "tool": "service_status_lookup",
-                    "tool_runtime_posture": "sdk_adapter_admitted",
-                },
-                {
-                    "target": "campus-services-agent",
-                    "tool": "service_guide_lookup",
-                    "tool_runtime_posture": "sdk_adapter_admitted",
-                },
-                {
-                    "target": "campus-services-agent",
-                    "tool": "transport_schedule_lookup",
-                    "tool_runtime_posture": "sdk_adapter_admitted",
-                },
-                {
-                    "target": "campus-services-agent",
-                    "tool": "contact_directory_lookup",
-                    "tool_runtime_posture": "sdk_adapter_admitted",
-                },
-                {
-                    "target": "campus-services-agent",
-                    "tool": "academic_calendar_lookup",
-                    "tool_runtime_posture": "sdk_adapter_admitted",
-                },
-                {
-                    "target": "notice-agent",
-                    "tool": "campus_notice_discover",
-                    "tool_runtime_posture": "sdk_adapter_admitted",
-                },
-                {
-                    "target": "notice-agent",
-                    "tool": "campus_notice_change_set_lookup",
-                    "tool_runtime_posture": "sdk_adapter_admitted",
-                },
-            ],
-        )
         self.assertNotIn("allowed_targets", ready.json_body["agents_sdk_runtime"])
         self.assertNotIn("allowed_tools", ready.json_body["agents_sdk_runtime"])
+        runtime_assembly = ready.json_body["worker_runtime"]["runtime_assembly"]
+        self.assertTrue(runtime_assembly["healthy"])
+        app.close()
+
+    def test_bridge_readyz_degrades_when_structured_query_runtime_is_missing(self) -> None:
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+                runtime_provider="openai-responses",
+                supervisor_prompt_model="gpt-supervisor",
+                agent_prompt_model="gpt-agent",
+                prompt_runtime_provider="openai-responses",
+                prompt_runtime_api_key="test-key",
+                prompt_runtime_base_url="https://api.openai.com/v1",
+                agents_sdk_runtime_enabled=True,
+                internal_query_base_url="",
+                internal_query_shared_secret="",
+            )
+        )
+
+        ready = app.handle(
+            "GET",
+            "/internal/bridge/readyz",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+        )
+
+        self.assertEqual(ready.status_code, 503)
+        self.assertEqual(ready.json_body["status"], "degraded")
+        runtime_assembly = ready.json_body["worker_runtime"]["runtime_assembly"]
+        self.assertFalse(runtime_assembly["healthy"])
+        self.assertEqual(runtime_assembly["failure_class"], "QueryServiceRuntimeError")
+        self.assertIn("query_base_url_not_configured", runtime_assembly["failure_detail"])
         app.close()
 
     def test_api_settings_from_env_enables_agents_sdk_runtime_by_default(self) -> None:
@@ -351,13 +351,32 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
             notice_query_service=query_service,
         )
 
-        response = delegates["notice-agent"](
+        response = dispatch_agent_request(
             AgentRequest(
                 target="notice-agent",
                 user_goal="读取这条通知",
                 request_id="req-provider-tool",
-                payload=CampusNoticeGetPayload(notice_id="notice:placeholder"),
-            )
+                payload=CampusNoticeGetPayload(
+                    notice_id="notice:placeholder",
+                    source_family="official_web_public_notice",
+                ),
+                allowed_tools=(),
+                actor=ActorContext(user_id="student-001"),
+                context=ContextProjection(
+                    actor=ActorContext(user_id="student-001"),
+                    authorization=AuthorizationProjection(
+                        principal_id="principal-001",
+                        entitlement_groups=("students",),
+                    ),
+                ),
+                workflow_context=WorkflowAgentContext(
+                    target="notice-agent",
+                    workflow_run_ref="workflow:req-provider-tool",
+                    step_id="handoff:notice-agent:campus_notice_get",
+                    agent_id="notice-agent",
+                ),
+            ),
+            agent_delegates=delegates,
         )
 
         self.assertEqual(response.status, "completed")

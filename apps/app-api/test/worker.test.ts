@@ -29,6 +29,7 @@ function readTomlBlock(source: string, startMarker: string, endMarker: string): 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
@@ -200,7 +201,6 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingDbEnvSource).toContain("loadRepoEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
-		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_MANAGEMENT_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("https://hub-muc-wiki.ayafeed.com");
 		expect(runWithStagingDbEnvSource).toContain("https://campus-chat-staging.ayafeed.com");
 		expect(stagingPreflightSource).toContain("STAGING_SUPERVISOR_API_BASE_URL");

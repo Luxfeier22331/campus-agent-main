@@ -34,7 +34,7 @@ export function registerChatCommandServiceCoreStructuredPart01Suite(): void {
 			supervisor: {
 				execute: vi.fn().mockResolvedValue({
 					answerText:
-						"debug guide_release=service_guide_release_v4 official_web:muc-it-vpn-service-guide",
+						"中央民族大学 VPN 使用说明：客户端安装：首次使用请根据系统提示下载客户端。；双击Install EasyConnect.pkg，根据提示完成安装。来源：学校官网。",
 					error: null,
 					followUpQuestion: "",
 					result: {

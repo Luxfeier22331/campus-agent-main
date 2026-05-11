@@ -4,6 +4,11 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 
 from campus_supervisor_agent_worker.agent_delegates import bind_agent_handler
+from campus_supervisor_agent_worker.agent_delegates import (
+    AgentRuntimeBuildError,
+    QueryServiceRuntimeError,
+)
+from campus_contracts import AgentResponse, ErrorInfo
 from campus_supervisor_agent_worker.agent_dispatch import dispatch_agent_request
 from campus_supervisor_agent_worker.agent_runtime import (
     AgentWorkerRuntime,
@@ -30,6 +35,7 @@ class SupervisorAgentWorkerApp:
     prompt_http_pool: PromptHTTPPoolRuntime
     cancel_flags: CancelFlagStore
     settings: ApiSettings
+    runtime_assembly_status: dict[str, object]
 
     def handle(
         self,
@@ -60,6 +66,7 @@ class SupervisorAgentWorkerApp:
             "worker_runtime": {
                 "role": "semantic_worker",
                 "cancel_flag_store": "available",
+                "runtime_assembly": dict(self.runtime_assembly_status),
                 "runtime_event_emitter": build_runtime_event_emitter_status(
                     otel_enabled=self.settings.otel_enabled,
                     traces_endpoint=self.settings.otel_exporter_otlp_traces_endpoint,
@@ -96,13 +103,45 @@ def _create_runtime_app(
         rag_prompt_executor,
     ) = build_prompt_runtime_assets(runtime_settings)
     cancel_flags = CancelFlagStore()
-    bound_agent_handler = bind_agent_handler(
-        runtime_settings,
-        agent_handler=agent_handler,
-        rag_prompt_executor=rag_prompt_executor,
-        cancel_flags=cancel_flags,
-        prompt_http_client=prompt_http_pool.client,
-    )
+    runtime_assembly_status: dict[str, object] = {
+        "healthy": True,
+        "failure_class": "",
+        "failure_detail": "",
+    }
+    try:
+        bound_agent_handler = bind_agent_handler(
+            runtime_settings,
+            agent_handler=agent_handler,
+            rag_prompt_executor=rag_prompt_executor,
+            cancel_flags=cancel_flags,
+            prompt_http_client=prompt_http_pool.client,
+        )
+    except (AgentRuntimeBuildError, QueryServiceRuntimeError) as exc:
+        failure_class = exc.__class__.__name__
+        failure_detail = str(exc)
+        runtime_assembly_status = {
+            "healthy": False,
+            "failure_class": failure_class,
+            "failure_detail": failure_detail,
+        }
+
+        def _runtime_unavailable_handler(
+            _request,
+            runtime_agent_request,
+            *,
+            _failure_detail: str = failure_detail,
+        ):
+            return AgentResponse(
+                target=runtime_agent_request.target,
+                status="error",
+                confidence="low",
+                error=ErrorInfo(
+                    code="worker_runtime_unavailable",
+                    message=_failure_detail,
+                ),
+            )
+
+        bound_agent_handler = _runtime_unavailable_handler
     routes = build_bridge_routes(
         runtime_settings,
         agent_handler=bound_agent_handler,
@@ -116,6 +155,7 @@ def _create_runtime_app(
             "worker_runtime": {
                 "role": "semantic_worker",
                 "cancel_flag_store": "available",
+                "runtime_assembly": dict(runtime_assembly_status),
                 "runtime_event_emitter": build_runtime_event_emitter_status(
                     otel_enabled=runtime_settings.otel_enabled,
                     traces_endpoint=runtime_settings.otel_exporter_otlp_traces_endpoint,
@@ -138,6 +178,7 @@ def _create_runtime_app(
         prompt_http_pool=prompt_http_pool,
         cancel_flags=cancel_flags,
         settings=runtime_settings,
+        runtime_assembly_status=runtime_assembly_status,
     )
 
 

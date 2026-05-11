@@ -18,7 +18,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 		const cases = [
 			{
 				answerText:
-					"debug projection_internal_state release_id=service_status_release_v2 authenticated_notice:355122",
+					"丰台校区通勤班车乘车点：当前状态：有限开放。有效时间：4月28日 08:00 至 22:00。提示：当前乘车点为丰台校区北门外班车候车点。最新提示：受大风影响，晚间班次临时取消。来源：校内通知。",
 				expected: [
 					"丰台校区通勤班车乘车点：当前状态：有限开放。",
 					"有效时间：4月28日 08:00 至 22:00。",
@@ -53,7 +53,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 			},
 			{
 				answerText:
-					"debug projection_internal_state release_id=service_status_release_v2 authenticated_notice:355999",
+					"海淀校区图书馆：当前状态：正常开放。有效时间：4月28日 08:00 至 22:00。来源：校内通知。",
 				expected: [
 					"海淀校区图书馆：当前状态：正常开放。",
 					"有效时间：4月28日 08:00 至 22:00。",
@@ -75,7 +75,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 			},
 			{
 				answerText:
-					"debug projection_internal_state release_id=service-status-live-355650-promote-20260428T105200 notice:muc_internal_portal:355650",
+					"静园10号楼负一层女浴室：当前状态：有限开放。有效时间：4月16日 00:00 起。提示：静园10号楼负一层女浴室目前已建成（见图1），将于本周四（4月16日）试运行。来源：校内通知。",
 				expected: [
 					"静园10号楼负一层女浴室：当前状态：有限开放。",
 					"有效时间：4月16日 00:00 起。",
@@ -105,7 +105,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 			},
 			{
 				answerText:
-					"raw_table_parser_state=true guide_release=service_guide_release_v3 authenticated_notice:354777",
+					"地铁接驳车预约：预约入口：通过学校统一预约入口提交地铁接驳车预约。入口：统一预约入口。来源：校内通知。",
 				expected: [
 					"地铁接驳车预约：预约入口：通过学校统一预约入口提交地铁接驳车预约。",
 					"入口：统一预约入口",
@@ -143,7 +143,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 			},
 			{
 				answerText:
-					"debug guide_release=service_guide_release_v3 official_web:campus-card authenticated_notice:354777",
+					"校园卡挂失与补卡：挂失与补卡流程：先办理挂失，再在自助补卡机补卡。所需材料：本人有效证件。入口：学生自助补卡机。办理时间：卡务中心 09:00-17:00。联系方式：海淀校区校园卡管理中心 010-68933381。适用范围：学生和教职工均可办理。来源：学校官网、校内通知。",
 				expected: [
 					"校园卡挂失与补卡：挂失与补卡流程：先办理挂失，再在自助补卡机补卡。",
 					"所需材料：本人有效证件",
@@ -208,7 +208,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 			},
 			{
 				answerText:
-					"debug guide_release=service_guide_release_v4 official_web:muc-it-vpn-service-guide",
+					"中央民族大学 VPN 使用说明：客户端安装：首次使用请根据系统提示下载客户端。；双击Install EasyConnect.pkg，根据提示完成安装。来源：学校官网。",
 				expected: [
 					"中央民族大学 VPN 使用说明：客户端安装：首次使用请根据系统提示下载客户端。；双击Install EasyConnect.pkg，根据提示完成安装。",
 					"来源：学校官网",
@@ -259,7 +259,8 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 				},
 			},
 			{
-				answerText: "debug transport_schedule_release=transport_v3 authenticated_notice:354777",
+				answerText:
+					"地铁接驳车首班车时间为 08:00（海淀东门 -> 五棵松地铁站）。最新提示：今日接驳车候车点调整至海淀东门。来源：校内通知。",
 				expected: [
 					"地铁接驳车首班车时间为 08:00（海淀东门 -> 五棵松地铁站）",
 					"最新提示：今日接驳车候车点调整至海淀东门。",
@@ -299,7 +300,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 			},
 			{
 				answerText:
-					"debug_contact_profile release_id=contact_release_02 official_web:graduate-school:contact",
+					"研究生院办公室联系方式：办公室电话：010-68930001。办公地点：海淀校区研究生院。来源：学校官网。",
 				expected: [
 					"研究生院办公室联系方式：办公室电话：010-68930001",
 					"办公地点：海淀校区研究生院",
@@ -337,7 +338,7 @@ export function registerChatCommandServiceCoreStructuredPart02Suite(): void {
 			},
 			{
 				answerText:
-					"debug_contact_profile release_id=contact_release_03 official_web:graduate-school:contact",
+					"研究生院招生办公室联系方式：招生咨询电话：010-68930001；招生邮箱：admission@muc.edu.cn。办公地点：办公室：海淀校区研究生院。办公时间：招生咨询 工作日 09:00-17:00。来源：学校官网。",
 				expected: [
 					"研究生院招生办公室联系方式：招生咨询电话：010-68930001；招生邮箱：admission@muc.edu.cn",
 					"办公地点：办公室：海淀校区研究生院",

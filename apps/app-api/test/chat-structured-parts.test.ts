@@ -232,7 +232,7 @@ describe("chat structured parts", () => {
 		});
 	});
 
-	it("normalizes legacy source cards into typed source items", async () => {
+		it("drops legacy source_cards instead of normalizing them into typed source items", async () => {
 		const conversationLimit = vi.fn().mockResolvedValue([
 			{
 				createdAt: new Date("2026-04-27T09:00:00.000Z"),
@@ -310,23 +310,9 @@ describe("chat structured parts", () => {
 		const store = createPgChatConversationStore({} as never);
 		const conversation = await store.getConversationDetailByOwner("user_01", "conv_legacy");
 
-		expect(conversation?.messages[0]).toMatchObject({
-			structuredParts: [
-				{
-					sourceItems: [
-						{
-							primaryAction: {
-								href: "/docs/regulations/student_rules/student-handbook?hl=rule-001#article-1",
-								label: "查看文档",
-							},
-							targetKind: "canonical_reader",
-							title: "中央民族大学学生管理规定",
-						},
-					],
-					type: "source_items",
-				},
-			],
-		});
+			expect(conversation?.messages[0]).toMatchObject({
+				structuredParts: [],
+			});
 	});
 
 	it("maps persisted campus-service trace cards and drops unsafe trace labels", async () => {

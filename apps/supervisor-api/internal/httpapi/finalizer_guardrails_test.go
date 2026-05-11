@@ -262,6 +262,52 @@ func TestFinalizeAgentBridgeResponseRejectsUnsupportedTarget(t *testing.T) {
 	}
 }
 
+func TestFinalizeAgentBridgeResponseDoesNotInferSelectedToolFromStructuredResult(t *testing.T) {
+	response, err := finalizeAgentBridgeResponse(
+		map[string]any{
+			"target":      "campus-services-agent",
+			"status":      "completed",
+			"answer_text": "当前班车正常运行。",
+			"confidence":  "high",
+			"result": map[string]any{
+				"subject_query": "丰台校区通勤班车在哪里上车",
+				"outcome":       "resolved_current",
+			},
+		},
+		"trace-finalizer-no-infer-selected-tool",
+		supervisorFinalizerContext{
+			Branch: "delegate",
+			RuntimeDecisions: execution.RuntimeDecisionSummary{
+				SelectedTarget:    "campus-services-agent",
+				RoutingNextAction: "delegate",
+				PlanningOutcome:   "preplanned",
+			},
+			Handoff: &execution.RuntimeHandoff{
+				Target:       "campus-services-agent",
+				PayloadKind:  "service_status_lookup",
+				AllowedTools: []string{"service_status_lookup", "service_guide_lookup"},
+			},
+		},
+	)
+	if err != nil {
+		t.Fatalf("finalize returned error: %v", err)
+	}
+
+	observability := response["observability"].(map[string]any)
+	if observability["selected_tool"] != "" {
+		t.Fatalf("observability selected_tool = %v, want empty", observability["selected_tool"])
+	}
+
+	traceSummary := response["workflow_trace_summary"].(map[string]any)
+	selectedTools, ok := traceSummary["selected_tools"].([]string)
+	if !ok {
+		t.Fatalf("selected_tools = %#v, want string array", traceSummary["selected_tools"])
+	}
+	if len(selectedTools) != 0 {
+		t.Fatalf("selected_tools = %#v, want none", selectedTools)
+	}
+}
+
 func TestFinalizeAgentBridgeResponseRejectsUnsupportedConfidence(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{

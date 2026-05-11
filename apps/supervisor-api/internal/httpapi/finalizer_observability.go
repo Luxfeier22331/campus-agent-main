@@ -65,8 +65,11 @@ func buildRagSupervisorObservability(
 	switch status {
 	case "completed":
 		retrievalAttempted = true
+	case "error":
+		retrievalAttempted = sourceCount > 0 || stringValue(diagnostics["fail_close_reason"]) != ""
 	case "no_answer":
-		retrievalAttempted = stringValue(diagnostics["no_answer_reason"]) != "curriculum_course_map_unsupported"
+		retrievalAttempted = stringValue(diagnostics["no_answer_reason"]) != "curriculum_course_map_unsupported" ||
+			stringValue(diagnostics["fail_close_reason"]) != ""
 	case "needs_clarification":
 		retrievalAttempted = sourceCount > 0
 	}
@@ -75,8 +78,10 @@ func buildRagSupervisorObservability(
 	if citationExpected {
 		citationCount = len(supportingSources)
 	}
-	denied := stringValue(diagnostics["no_answer_reason"]) == "restricted_access_denied"
+	denied := stringValue(diagnostics["no_answer_reason"]) == "restricted_access_denied" ||
+		stringValue(diagnostics["semantic_outcome"]) == "restricted_access_denied"
 	freshnessFailClosed, _ := diagnostics["freshness_fail_closed"].(bool)
+	failCloseReason := stringValue(diagnostics["fail_close_reason"])
 	return map[string]any{
 		"retrieval_attempted":    retrievalAttempted,
 		"candidate_count":        sourceCount,
@@ -89,7 +94,8 @@ func buildRagSupervisorObservability(
 		"semantic_outcome":       ragSemanticOutcome(status, diagnostics),
 		"scope_class":            "in_scope",
 		"acl_decision":           aclDecision(denied),
-		"fail_closed":            denied || freshnessFailClosed,
+		"fail_closed":            denied || freshnessFailClosed || failCloseReason != "" || status == "error",
+		"fail_close_reason":      defaultString(failCloseReason, stringValue(diagnostics["no_answer_reason"])),
 		"prompt_runtime_state":   stringValue(diagnostics["prompt_runtime_state"]),
 		"prompt_runtime_detail":  stringValue(diagnostics["prompt_runtime_detail"]),
 		"resolved_scope_corpus":  optionalStringValue(diagnostics["resolved_scope_corpus"]),
@@ -107,7 +113,7 @@ func buildStructuredSupervisorObservability(
 	result map[string]any,
 	selectedTool string,
 ) map[string]any {
-	tool := defaultString(selectedTool, inferSelectedTool(target, result))
+	tool := selectedTool
 	outcome := stringValue(result["outcome"])
 	failCloseReason := stringValue(result["fail_close_reason"])
 	return map[string]any{
@@ -140,6 +146,9 @@ func ragSemanticOutcome(status string, diagnostics map[string]any) string {
 	}
 	if status == "completed" {
 		return "grounded_answer"
+	}
+	if status == "error" {
+		return "runtime_error"
 	}
 	if status == "needs_clarification" {
 		return "needs_clarification"
@@ -187,25 +196,6 @@ func aclDecision(denied bool) string {
 		return "denied"
 	}
 	return "allowed"
-}
-
-func inferSelectedTool(target string, result map[string]any) string {
-	switch {
-	case target == "navigation-agent":
-		return "place_lookup"
-	case target == "notice-agent" && len(arrayValue(result["notice_cards"])) > 0:
-		return "campus_notice_discover"
-	case stringValue(result["contact_focus"]) != "":
-		return "contact_directory_lookup"
-	case stringValue(result["guide_focus"]) != "":
-		return "service_guide_lookup"
-	case stringValue(result["intent"]) != "":
-		return "transport_schedule_lookup"
-	case stringValue(result["subject_query"]) != "":
-		return "service_status_lookup"
-	default:
-		return ""
-	}
 }
 
 func candidateCountForTool(tool string, result map[string]any) int {
