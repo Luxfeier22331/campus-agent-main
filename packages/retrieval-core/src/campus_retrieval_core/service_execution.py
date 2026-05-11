@@ -6,8 +6,8 @@ from campus_shared.regulation_semantic_registry import (
 )
 
 from campus_retrieval_core.evidence_attributes import (
-    EvidenceContractDiagnostics,
     EvidenceAttributes,
+    EvidenceContractDiagnostics,
     evidence_attributes_for_source,
     evidence_contract_diagnostics_for_source,
 )
