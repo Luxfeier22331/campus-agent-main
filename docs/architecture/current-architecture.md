@@ -98,7 +98,11 @@ document/index release`
 - `curriculum/program_semester_facts` agent-internal retrieval surface；用于
   single-program + single-semester
   课程事实检索，`retrieval_enabled=true`，`query_enabled_by_default=false`
-- `campus_services/*` 当前仍保持 `offline_preparation`
+- `campus_services/service_status`、`campus_services/service_guide`、
+  `campus_services/contact_directory`、`campus_services/transport_schedule` 与
+  `calendar/academic_calendar` 当前保持 `structured_query_serving`：只通过 admitted
+  structured tools 消费 current projection/read model，不进入 generic retrieval 默认
+  query scope；`campus_services/service_catalog` 仍保持 `offline_preparation`
 
 当前非 serving capture-only scope：
 

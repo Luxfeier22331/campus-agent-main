@@ -64,7 +64,6 @@ updated: 2026-04-18
   - `AUTHENTICATED_NOTICE_SSO_TGC`
   - `AUTHENTICATED_NOTICE_JSESSIONID`
   - `AUTHENTICATED_NOTICE_NGINX`
-- `AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER` 仍可作为兼容输入，但不再是推荐主形态
 - 生产 job 应配置 collector lease URL；本地 smoke 可不配置 lease
 
 ## 执行顺序

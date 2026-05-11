@@ -101,7 +101,13 @@ updated: 2026-04-23
 - `regulations/scoped_rules` 当前只作为院级/专项 regulation canonical/chunk-only
   non-serving holding collection；不属于默认 query-enabled scope，也不得进入当前
   document-site read-model 或 RAG release candidate
-- `campus_services/*` 当前仍是 `offline_preparation`
+- `campus_services/service_status`、`campus_services/service_guide`、
+  `campus_services/contact_directory`、`campus_services/transport_schedule` 与
+  `calendar/academic_calendar` 当前是 `structured_query_serving`：它们只允许通过
+  admitted structured tools 消费 current projection/read model，不进入 generic
+  retrieval 默认 query scope
+- `campus_services/service_catalog` 当前仍是 `offline_preparation`；later-wave
+  `service_process_lookup` 未开放前，它不承担 structured product serving
 - 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed
   bridge，不应误读成长期最终 serving scope
 

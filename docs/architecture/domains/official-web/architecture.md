@@ -162,15 +162,11 @@ official-web recovery 的当前默认形态是 consumer-driven collection。
 - collector 默认执行必须 fail closed：没有 `app-api` target workset admission 时，不得从
   `enabled hosts` 或 `hostFilter` 自行推导 collection scope
 - `hostFilter` 只允许缩小已准入 target workset；它不是 target admission
-- 不再允许显式 legacy/debug collector run；`legacy_contract_excluded` 只用于标记和阻断
-  pre-target-workset 历史 run
-- `apps/app-api` 在 `official_web.run_admission_decisions` 写入 run-level
-  admission ledger
-- 当前 legacy cleanup decision 使用 `legacy_contract_excluded`
-- projection drain 遇到 `legacy_contract_excluded` run 时只消费 outbox event，不
-  materialize operator projection，不 dispatch ingestion handoff
-- ingestion selected-write release task admission 即使收到带有 legacy exclusion 的 handoff
-  payload，也必须 fail closed，不得产出 ready selected-write task
+- 不再允许显式 legacy/debug collector run；没有 `app-api` target workset admission 时必须
+  fail closed
+- `apps/app-api` 不再为 `official_web` 维护独立 run cleanup admission ledger
+- projection drain 直接推进 admitted run 的 operator projection 与 ingestion handoff，
+  不再读取 `legacy_contract_excluded` 之类的历史 cleanup decision
 - 本地 `.tmp` / collector `.tmp` 证据目录可以删除；PG source ledger 与对象存储 source-truth 不因
   cleanup CLI 自动删除
 

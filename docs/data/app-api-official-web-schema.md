@@ -265,19 +265,14 @@ updated: 2026-05-02
 - unique `(run_id)`
 - `(site_id, decision, decided_at desc)`
 
-当前允许的 cleanup decision：
+该表只属于历史 schema 演化记录，不再属于当前活跃 runtime contract。
 
-- `legacy_contract_excluded`
+当前代码中：
 
-规则：
-
-- `legacy_contract_excluded` 表示该 run 来自 target workset admission 之前的历史契约，
-  只能作为历史 source ledger 保留，不得继续进入 handoff 或 selected-write
-- 该表不替代 run lifecycle status；不要把 `crawl_runs.status` 或
-  `ingestion_dispatch_status` 扩展成 cleanup 语义
-- cleanup CLI 只能写 admission ledger；不删除 `crawl_runs`、`run_artifacts`、对象存储
-  source-truth 或 derived artifacts
-- projection drain 必须在 materialize projection 和 dispatch handoff 前读取该表
+- `official_web` projection drain 直接基于 `crawl_runs`、`run_outbox` 与 run-level
+  dispatch/execution 状态推进
+- `apps/app-api` 不再维护独立 cleanup admission ledger
+- 历史 migration artifacts 可以保留，但不应再被解释为当前运行时依赖
 
 ## `official_web.page_observations`
 

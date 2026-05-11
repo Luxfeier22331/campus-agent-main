@@ -263,7 +263,6 @@ wrangler secret put APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN --env staging
 deploy shell 还需要可用的 staging shared DB 管理连接：
 
 - `STAGING_APP_API_OPERATOR_DATABASE_URL`
-- `STAGING_APP_API_MANAGEMENT_DATABASE_URL`（legacy alias）
 - 可选：`STAGING_APP_API_DATABASE_SSLMODE=require`
 - `APP_API_STAGING_SMOKE_AUTH_SECRET` 或
   `STAGING_APP_API_SMOKE_AUTH_SECRET`，用于 `chat:e2e:staging` 与

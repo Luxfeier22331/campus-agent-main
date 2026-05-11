@@ -38,8 +38,9 @@ workflow owner。
 - materials、procedure、entry、office hours、contact 与 eligibility 缺关键来源时必须
   manual review 或 fail-close
 - 入口 URL 只能作为用户可见说明，不得生成自动提交、预约或 work-order payload
-- 对象存储保存 versioned/current projection truth；Docker runtime 只读 mounted current
-  file
+- PostgreSQL release catalog、`structured_projection_current` 与 typed read model
+  保存 current serving truth；Docker runtime 只读 PG current release/read model，
+  不回扫对象存储 raw source
 
 ## Input Source Truth
 

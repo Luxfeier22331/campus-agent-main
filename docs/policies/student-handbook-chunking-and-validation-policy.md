@@ -276,9 +276,9 @@ retrieval/rerank/answer synthesis 直接使用的 answer-ready evidence。该 ev
 当前 query-serving handbook target path 还必须满足 legacy quarantine 约束：
 
 - rebuilt `student_rules` target alias 只能消费 `answer_ready_evidence.v3` 主路径证据
-- 如果某个命中 chunk 仍需 `text_cue`、`public_semantic` 或 `public_content_role`
-  这类 legacy primary fallback 才能分类，它只能留在显式 `legacy_old_index_compatibility`
-  诊断/历史路径中，不能进入 target serving pass
+- 如果某个 answer-bearing 命中 chunk 缺少 `answer_ready_evidence.v3` 必需 contract 字段，
+  它只能留在显式 `legacy_old_index_compatibility` 诊断/历史路径中，不能进入 target
+  serving pass
 
 语义切分不变量：
 

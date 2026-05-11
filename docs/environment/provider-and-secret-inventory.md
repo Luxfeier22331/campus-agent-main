@@ -79,12 +79,14 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 - Provider / system: S3-compatible object storage
   作用: raw source、source truth、derived artifacts
   主要 env keys: `OBJECT_STORE_ENDPOINT` `OBJECT_STORE_ACCESS_KEY`
-  `OBJECT_STORE_SECRET_KEY` `OBJECT_STORE_BUCKET_SOURCE`
-  `OBJECT_STORE_BUCKET_DERIVED`
+  `OBJECT_STORE_SECRET_KEY` `OBJECT_STORE_SOURCE_ACCESS_KEY`
+  `OBJECT_STORE_SOURCE_SECRET_KEY` `OBJECT_STORE_DERIVED_ACCESS_KEY`
+  `OBJECT_STORE_DERIVED_SECRET_KEY` `OBJECT_STORE_BUCKET_SOURCE` `OBJECT_STORE_BUCKET_DERIVED`
   放置位置: root `.env`
   何时必需: ingestion / replay / rebuild
   获取方式: 本地开发默认用 Docker MinIO；云端可用任何 S3-compatible provider，创建 bucket 与 access
-  key 即可
+  key 即可。ingestion 支持 shared credential mode 或 source+derived bucket-scoped credential
+  mode；source-only collector 与 derived-only online runtime 使用更窄的 bucket-scoped key。
 
 - Provider / system: OCR service
   作用: canonical raw ingestion / replay，lane-level compare
@@ -351,21 +353,18 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 - `CAMPUS_SHARED_POSTGRES_URL`
 - `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
-- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`（legacy alias）
 - `DOCUMENT_REGISTRY_DATABASE_URL`
 - `RAW_ASSET_REGISTRY_DATABASE_URL`
 - `apps/app-api/.env`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH`
   - `APP_API_OPERATOR_DATABASE_URL`
-  - `APP_API_MANAGEMENT_DATABASE_URL`（legacy alias）
 
 如果使用 Supabase：
 
 1. 打开项目 **Connect** 面板。
 1. 复制 session pooler DSN 作为 `CAMPUS_SHARED_POSTGRES_URL`。
 1. 复制 session pooler `:5432` DSN 作为 `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`。
-1. 如需兼容旧脚本，可把同一个值同时写入 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`。
 
 外部参考：
 
@@ -381,8 +380,7 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 说明：
 
 - 本地 Docker Postgres 是 `local dev / test path`，不是 deployed runtime truth
-- `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` 给 repo-owned operator 路径；legacy
-  `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 仅作兼容别名，不再承诺 direct posture
+- `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` 给 repo-owned operator 路径
 
 ## 5. S3-compatible object storage
 
@@ -429,17 +427,18 @@ Worker gated reader 交付：
 
 凭据姿态：
 
-- 默认优先使用一套 shared `OBJECT_STORE_ACCESS_KEY` / `OBJECT_STORE_SECRET_KEY` 访问两只
-  bucket
-- 如果 provider / control plane 只能为不同 bucket 发不同凭据，repo 现在也接受 bucket-scoped
-  credential pairs：
-  - `OBJECT_STORE_SOURCE_ACCESS_KEY` / `OBJECT_STORE_SOURCE_SECRET_KEY`
-  - `OBJECT_STORE_DERIVED_ACCESS_KEY` / `OBJECT_STORE_DERIVED_SECRET_KEY`
+- ingestion / replay / rebuild 支持两种正式模式：shared credential mode 使用一套
+  `OBJECT_STORE_ACCESS_KEY` / `OBJECT_STORE_SECRET_KEY` 访问 source 与 derived 两只
+  bucket；bucket-scoped credential mode 分别配置 `OBJECT_STORE_SOURCE_ACCESS_KEY` /
+  `OBJECT_STORE_SOURCE_SECRET_KEY` 与 `OBJECT_STORE_DERIVED_ACCESS_KEY` /
+  `OBJECT_STORE_DERIVED_SECRET_KEY`
 - source-only collector（例如
   `official-web-collector`、`authenticated-notice-collector`）可以只配置
   `OBJECT_STORE_SOURCE_*`
-- ingestion / replay / rebuild 默认同时触达 source 与 derived，两只 bucket 都必须有可用凭据；可以是
-  shared pair，也可以是 source+derived 两组分桶凭据
+- derived-only online runtime（例如 supervisor notice canonical body reads）只配置
+  `OBJECT_STORE_DERIVED_*`
+- ingestion / replay / rebuild 默认同时触达 source 与 derived，两只 bucket 都必须有可用凭据；
+  shared mode 和 bucket-scoped mode 都是当前 accepted runtime contract，不是 fallback。
 - `OBJECT_STORE_REGION` 在当前 repo 里是 SDK/signing 参数；如果 provider 没有公开 region
   概念，保持默认 `us-east-1` 即可，除非该 provider 文档明确要求其他值
 

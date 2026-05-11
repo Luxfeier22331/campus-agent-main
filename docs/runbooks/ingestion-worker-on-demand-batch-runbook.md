@@ -159,8 +159,6 @@ scripts/run-ingestion-worker-batch.sh internal-notice-multimodal-drain \
 ```bash
 CAMPUS_SHARED_POSTGRES_URL=postgresql://...dev...
 CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgresql://...dev...
-# legacy alias accepted by current worker builders:
-CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgresql://...dev...
 ```
 
 internal notice 的 projection、admission、attempt 与 read model 是不同 logical ownership
@@ -222,7 +220,7 @@ scripts/run-official-web-release-tasks.sh
 
 - `OFFICIAL_WEB_RELEASE_TASK_DATABASE_URL` 或 shared `CAMPUS_SHARED_POSTGRES_URL`
 - `OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_URL` 或
-  `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` / `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`
+  `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
 - `OBJECT_STORE_ENDPOINT` / `OBJECT_STORE_ACCESS_KEY` / `OBJECT_STORE_SECRET_KEY`
 - `INGESTION_WORKER_APP_API_BASE_URL`
 - `INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET`

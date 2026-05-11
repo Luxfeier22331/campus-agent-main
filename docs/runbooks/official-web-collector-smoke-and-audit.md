@@ -41,8 +41,6 @@ updated: 2026-05-01
   projection replay 的稳定性。
 - collector 不再提供 broad-crawl / debug bypass 入口；没有 app-api target workset
   admission 时必须 fail closed。
-- `legacy_contract_excluded` 只用于阻断 pre-target-workset 历史 run 的 handoff、
-  selected-write 与 promotion，不是可发起的新采集模式。
 
 必须明确区分：
 
@@ -66,7 +64,7 @@ updated: 2026-05-01
 - `apps/app-api/.dev.vars` `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` 非空
 - `apps/app-api/.env` 已提供
   `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` 与
-  `APP_API_OPERATOR_DATABASE_URL`（legacy `APP_API_MANAGEMENT_DATABASE_URL` 仍兼容）
+  `APP_API_OPERATOR_DATABASE_URL`
 - 如果 root worktree `.env` 已配置共享 Supabase Postgres，可先运行 `uv run --all-packages
   python -m scripts.sync_app_api_local_db_env --repo-root
   <current-worktree-root>`

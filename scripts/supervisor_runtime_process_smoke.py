@@ -210,8 +210,8 @@ def _profile_api_env(
             env.update(
                 {
                     "OBJECT_STORE_ENDPOINT": object_store_base_url,
-                    "OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
-                    "OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
+                    "OBJECT_STORE_DERIVED_ACCESS_KEY": "smoke-access-key",
+                    "OBJECT_STORE_DERIVED_SECRET_KEY": "smoke-secret-key",
                     "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
                 }
             )
@@ -222,8 +222,8 @@ def _profile_api_env(
             "SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE": "true",
             "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
             "OBJECT_STORE_ENDPOINT": object_store_base_url,
-            "OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
-            "OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
+            "OBJECT_STORE_DERIVED_ACCESS_KEY": "smoke-access-key",
+            "OBJECT_STORE_DERIVED_SECRET_KEY": "smoke-secret-key",
             "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
         }
         if profile == "transport_notice_override_multistep":
