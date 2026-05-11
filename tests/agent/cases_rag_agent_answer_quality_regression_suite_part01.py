@@ -308,6 +308,116 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
         self.assertIn("国家奖学金", draft.answer_text)
         self.assertIn("社会奖学金", draft.answer_text)
 
+    def test_disciplinary_relief_how_long_answer_prefers_waiting_condition_over_approval_steps(
+        self,
+    ) -> None:
+        title = "中央民族大学解除学生纪律处分实施办法"
+        condition_source = replace(
+            _make_policy_source(
+                doc_id="handbook:demerit-relief",
+                title=title,
+                snippet="第三条 学生受处分满考察期后，可以申请解除纪律处分。",
+                score=0.88,
+                chunk="discipline-relief-condition",
+                detail_label="第三条",
+            ),
+            content_role="eligibility",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="eligibility_condition",
+                semantic_role="eligibility_condition",
+                claim_type="condition",
+                condition_subject="discipline_relief_condition",
+                condition_polarity="positive",
+                action_type="lift_discipline",
+                article_no="第三条",
+            ),
+        )
+        approval_source = replace(
+            _make_policy_source(
+                doc_id="handbook:demerit-relief",
+                title=title,
+                snippet="学院审核后报学生处，学生处审核后报请主管校领导审批决定。",
+                score=0.96,
+                chunk="discipline-relief-approval",
+            ),
+            content_role="procedure",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="procedure_step",
+                semantic_role="procedure_step",
+                claim_type="procedure",
+                condition_subject="application_procedure",
+                condition_polarity="positive",
+                action_type="lift_discipline",
+            ),
+        )
+        evidence = EvidenceBundle(
+            query_text="被处分后多久可以申请解除处分",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(approval_source, condition_source),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("满考察期后", draft.answer_text)
+        self.assertIn("申请解除纪律处分", draft.answer_text)
+        self.assertNotIn("主管校领导审批", draft.answer_text)
+
+    def test_attendance_absence_threshold_answer_prefers_absence_threshold_clause(self) -> None:
+        title = "中央民族大学学生违纪处分实施办法"
+        threshold_source = replace(
+            _make_policy_source(
+                doc_id="handbook:discipline",
+                title=title,
+                snippet="第三十三条 一学期内旷课累计达到10学时以上的，按违纪处理。",
+                score=0.86,
+                chunk="absence-threshold",
+                detail_label="第三十三条",
+            ),
+            content_role="requirement",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="eligibility_condition",
+                semantic_role="eligibility_condition",
+                claim_type="condition",
+                condition_subject="generic_condition",
+                condition_polarity="positive",
+                article_no="第三十三条",
+            ),
+        )
+        generic_source = replace(
+            _make_policy_source(
+                doc_id="handbook:discipline",
+                title=title,
+                snippet="学生应遵守学校纪律，违纪处分按照规定程序执行。",
+                score=0.95,
+                chunk="discipline-generic",
+            ),
+            content_role="requirement",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="eligibility_condition",
+                semantic_role="eligibility_condition",
+                claim_type="condition",
+                condition_subject="generic_condition",
+                condition_polarity="positive",
+            ),
+        )
+        evidence = EvidenceBundle(
+            query_text="旷课多少学时会按违纪处理",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(generic_source, threshold_source),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("10学时", draft.answer_text)
+        self.assertIn("旷课", draft.answer_text)
+        self.assertNotIn("按照规定程序执行", draft.answer_text)
+
     def test_detail_clause_prefers_statements_covering_query_critical_terms(self) -> None:
         evidence = EvidenceBundle(
             query_text="国奖第九条里对论文和著作怎么要求的？",
@@ -336,6 +446,96 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
         self.assertIn("论文", draft.answer_text)
         self.assertIn("著作", draft.answer_text)
         self.assertNotIn("体育竞赛", draft.answer_text)
+
+    def test_rewritten_policy_title_detail_query_still_answers_clause_content(self) -> None:
+        title = "中央民族大学本科学生国家奖学金评审办法"
+        evidence = EvidenceBundle(
+            query_text=f"{title} 国奖第九条里对论文和著作怎么要求的?",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title=title,
+                        snippet=(
+                            f"{title} / 第三章 评选条件 / 第九条\n"
+                            "2. 在学术研究上取得显著成绩,以第一作者发表的论文被SCI、EI、"
+                            "ISTP、SSCI全文收录,以第一、二作者出版学术专著。"
+                        ),
+                        score=0.96,
+                        chunk="national-paper-book",
+                        detail_label="第九条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="example_evidence",
+                        semantic_role="example",
+                        claim_type="condition",
+                        condition_subject="paper_or_publication",
+                        condition_polarity="positive",
+                        article_no="第九条",
+                        clause_no="2.",
+                    ),
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("第九条", draft.answer_text)
+        self.assertIn("论文", draft.answer_text)
+        self.assertIn("第一作者", draft.answer_text)
+        self.assertIn("第一、二作者", draft.answer_text)
+        self.assertNotIn("相关依据为", draft.answer_text)
+        self.assertNotEqual(draft.presentation_kind, "document_identity")
+
+    def test_detail_clause_answer_splits_paper_and_book_requirements_when_query_asks_both(
+        self,
+    ) -> None:
+        title = "中央民族大学本科学生国家奖学金评审办法"
+        evidence = EvidenceBundle(
+            query_text="国奖第九条里对论文和著作怎么要求的？",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national-scholarship",
+                        title=title,
+                        snippet=(
+                            "第九条 在学术研究上取得显著成绩，以第一作者发表的论文被SCI、EI、"
+                            "ISTP、SSCI全文收录，以第一、二作者出版学术专著(须通过专家鉴定)。"
+                        ),
+                        score=0.96,
+                        chunk="national-paper-book",
+                        detail_label="第九条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="example_evidence",
+                        semantic_role="example",
+                        claim_type="condition",
+                        condition_subject="paper_or_publication",
+                        condition_polarity="positive",
+                        article_no="第九条",
+                    ),
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertTrue(draft.answer_text.startswith("国家奖学金第九条对论文和著作的要求是"))
+        self.assertIn("第九条对论文和著作的要求", draft.answer_text)
+        self.assertIn("论文要求", draft.answer_text)
+        self.assertIn("著作要求", draft.answer_text)
+        self.assertIn("论文要求：以第一作者发表的论文", draft.answer_text)
+        self.assertIn("著作要求：以第一、二作者出版学术专著", draft.answer_text)
+        self.assertNotIn("著作要求：以第一作者发表的论文", draft.answer_text)
+        self.assertNotIn("根据学生手册相关规定", draft.answer_text)
+        self.assertIn(f"依据《{title}》第九条", draft.answer_text)
+        self.assertIn("第一作者", draft.answer_text)
+        self.assertIn("第一、二作者", draft.answer_text)
+        self.assertIn("第九条", draft.answer_text)
 
     def test_detail_clause_answer_preserves_policy_title_and_detail_label(self) -> None:
         title = "中央民族大学本科学生国家奖学金评审办法"

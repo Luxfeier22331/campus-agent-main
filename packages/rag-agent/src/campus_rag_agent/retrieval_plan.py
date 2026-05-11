@@ -48,7 +48,6 @@ def build_ordered_retrieval_plan(
     need_ids: tuple[str, ...] = (),
     semantic_hint: RetrievalSemanticHint | None = None,
     max_replans: int = 1,
-    allow_live_source_lookup: bool = False,
     indexed_lookup_timeout_ms: int | None = DEFAULT_INDEXED_LOOKUP_TIMEOUT_MS,
 ) -> RetrievalPlan:
     admitted_scope = RetrievalScope(corpus=scope.corpus, collection=retrieval_collection)
@@ -161,32 +160,6 @@ def build_ordered_retrieval_plan(
                 expected_output="candidate_set",
             ),
         )
-    elif query_mode == "live_assisted":
-        steps = (
-            RetrievalStep(
-                step_id="freshness-gate",
-                step_type="freshness_gate",
-                scope=admitted_scope,
-                query_text=query_text,
-                need_ids=need_ids,
-                semantic_hint=semantic_hint,
-                selector=base_selector,
-                budget=step_budget,
-                expected_output="freshness_decision",
-            ),
-            RetrievalStep(
-                step_id="live-source-lookup",
-                step_type="live_source_lookup",
-                scope=admitted_scope,
-                query_text=query_text,
-                need_ids=need_ids,
-                semantic_hint=semantic_hint,
-                depends_on_step_ids=("freshness-gate",),
-                selector=base_selector,
-                budget=step_budget,
-                expected_output="live_candidates",
-            ),
-        )
     else:
         needs_entity_resolution = bool(
             base_selector.canonical_course_ids
@@ -263,12 +236,10 @@ def build_ordered_retrieval_plan(
         version_query=version_query,
         source_trust_policy=RetrievalSourceTrustPolicy(
             minimum_tier=minimum_source_trust_tier,
-            allow_live_source_lookup=allow_live_source_lookup,
         ),
         budget=RetrievalPlanBudget(
             max_steps=len(steps) + max_replans,
             max_replans=max_replans,
-            max_live_lookups=1 if allow_live_source_lookup else 0,
         ),
         steps=steps,
     )
@@ -279,6 +250,6 @@ def _default_minimum_source_trust_tier(
     retrieval_collection: str,
     query_mode: str,
 ) -> str:
-    if query_mode in {"freshness_sensitive", "live_assisted"}:
+    if query_mode == "freshness_sensitive":
         return "T3"
     return _COLLECTION_MINIMUM_SOURCE_TRUST_TIER.get(retrieval_collection.strip(), "T1")

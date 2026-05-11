@@ -266,6 +266,7 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                 "rewritten_query": "",
                 "clarification_reason": "",
                 "no_answer_reason": "",
+                "fail_close_reason": "",
                 "semantic_outcome": "",
                 "retrieval_adequacy_verdict": "",
                 "retrieval_adequacy_reason": "",
@@ -306,6 +307,9 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                 "partial_answer": True,
                 "prompt_runtime_state": "",
                 "prompt_runtime_detail": "",
+                "answer_presentation_kind": "",
+                "answer_fallback_path": "",
+                "answer_fallback_reason": "",
                 "retrieval_plan_summary": None,
                 "stage_activities": (),
                 "retrieved_sources": (),
@@ -337,6 +341,9 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
         self.assertIn("freshness_fail_closed", field_names)
         self.assertIn("prompt_runtime_state", field_names)
         self.assertIn("prompt_runtime_detail", field_names)
+        self.assertIn("answer_presentation_kind", field_names)
+        self.assertIn("answer_fallback_path", field_names)
+        self.assertIn("answer_fallback_reason", field_names)
         self.assertIn("remote_content_suspicion_summary", field_names)
         self.assertIn("source_trust_summary", field_names)
 

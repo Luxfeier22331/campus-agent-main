@@ -116,6 +116,18 @@ _POLICY_ACTION_REWRITE_RULES: tuple[tuple[tuple[str, ...], str], ...] = (
 _FOCUSED_QUERY_CONTEXT_TERMS = ("条件", "要求", "资格", "程序", "流程", "材料", "申请")
 _PROCEDURE_FOCUS_TERMS = ("流程", "步骤")
 _REISSUE_PROCEDURE_QUERY_CUES = ("补办", "补发", "挂失", "遗失", "丢失", "丢了", "补卡", "补证")
+_CATEGORY_OVERVIEW_CONDITION_CUES = (
+    "需要满足什么条件",
+    "需满足什么条件",
+    "要满足什么条件",
+    "需要满足哪些条件",
+    "需满足哪些条件",
+    "要满足哪些条件",
+    "需要符合什么条件",
+    "一般需要什么条件",
+)
+_DISCIPLINE_RELIEF_TIME_CUES = ("多久", "多长时间", "什么时候", "何时", "考察期", "满考察期")
+_ATTENDANCE_DISCIPLINE_DOC_ID = "handbook:9350d885657d7409e524e73666b828b826f07191"
 
 
 def plan_student_handbook_query(query_text: str) -> HandbookQueryPlan:
@@ -128,6 +140,14 @@ def plan_student_handbook_query(query_text: str) -> HandbookQueryPlan:
             policy_object=matched_object,
         )
         focus_hints = extract_policy_query_focus(normalized_query)
+        query_condition_subject = _query_condition_subject(
+            normalized_query,
+            category_display_name=matched_object.title,
+        )
+        query_action_type = _query_action_type(
+            normalized_query,
+            category_display_name=matched_object.title,
+        )
         return HandbookQueryPlan(
             status="resolved",
             rewritten_query_text=rewritten_query_text,
@@ -144,8 +164,14 @@ def plan_student_handbook_query(query_text: str) -> HandbookQueryPlan:
             focus_detail_labels=focus_hints.detail_labels,
             focus_article_nos=focus_hints.article_nos,
             focus_clause_nos=focus_hints.clause_nos,
-            focus_terms=focus_hints.focus_terms,
+            focus_terms=_augment_focus_terms(
+                normalized_query=normalized_query,
+                focus_terms=focus_hints.focus_terms,
+                query_condition_subject=query_condition_subject,
+            ),
             focus_mode=focus_hints.focus_mode,
+            query_condition_subject=query_condition_subject,
+            query_action_type=query_action_type,
         )
     if len(matched_objects) > 1:
         return HandbookQueryPlan(
@@ -344,6 +370,60 @@ def _resolve_category_specific_lookup_plan(
         query_action_type=query_action_type,
     ):
         return None
+    if _is_category_overview_condition_query(normalized_query):
+        return HandbookQueryPlan(
+            status="resolved",
+            rewritten_query_text=normalized_query,
+            focused_query_text=normalized_query,
+            task_kind="specific_policy_lookup",
+            category_id=matched_category.category_id,
+            category_display_name=matched_category.display_name,
+            audience=matched_category.audience,
+            category_member_document_ids=matched_category.member_policy_document_ids,
+            query_condition_subject=query_condition_subject or "generic_condition",
+            query_action_type=query_action_type,
+        )
+    override_document_id = _resolve_category_specific_document_override(
+        matched_category=matched_category,
+        normalized_query=normalized_query,
+    )
+    if override_document_id:
+        matched_object = _policy_object_by_document_id(override_document_id)
+        if matched_object is not None:
+            rewritten_query_text = _build_rewritten_query(
+                normalized_query=normalized_query,
+                policy_object=matched_object,
+            )
+            focus_hints = extract_policy_query_focus(normalized_query)
+            return HandbookQueryPlan(
+                status="resolved",
+                rewritten_query_text=rewritten_query_text,
+                focused_query_text=_build_focused_query(
+                    normalized_query=normalized_query,
+                    rewritten_query_text=rewritten_query_text,
+                    policy_object=matched_object,
+                    focus_hints=focus_hints,
+                ),
+                target_document_ids=(matched_object.document_id,),
+                resolved_policy_document_id=matched_object.document_id,
+                resolved_policy_title=matched_object.title,
+                task_kind="specific_policy_lookup",
+                category_id=matched_category.category_id,
+                category_display_name=matched_category.display_name,
+                audience=matched_category.audience,
+                category_member_document_ids=matched_category.member_policy_document_ids,
+                focus_detail_labels=focus_hints.detail_labels,
+                focus_article_nos=focus_hints.article_nos,
+                focus_clause_nos=focus_hints.clause_nos,
+                focus_terms=_augment_focus_terms(
+                    normalized_query=normalized_query,
+                    focus_terms=focus_hints.focus_terms,
+                    query_condition_subject=query_condition_subject,
+                ),
+                focus_mode=focus_hints.focus_mode,
+                query_condition_subject=query_condition_subject or "generic_condition",
+                query_action_type=query_action_type,
+            )
     if len(matched_category.member_policy_document_ids) != 1:
         return HandbookQueryPlan(
             status="needs_clarification",
@@ -386,7 +466,11 @@ def _resolve_category_specific_lookup_plan(
         focus_detail_labels=focus_hints.detail_labels,
         focus_article_nos=focus_hints.article_nos,
         focus_clause_nos=focus_hints.clause_nos,
-        focus_terms=focus_hints.focus_terms,
+        focus_terms=_augment_focus_terms(
+            normalized_query=normalized_query,
+            focus_terms=focus_hints.focus_terms,
+            query_condition_subject=query_condition_subject,
+        ),
         focus_mode=focus_hints.focus_mode,
         query_condition_subject=query_condition_subject,
         query_action_type=query_action_type,
@@ -511,11 +595,37 @@ def _is_category_scoped_policy_question(
     )
 
 
+def _is_category_overview_condition_query(normalized_query: str) -> bool:
+    compact_query = _compact_text(normalized_query)
+    return _has_any_compact_cue(compact_query, _CATEGORY_OVERVIEW_CONDITION_CUES)
+
+
+def _resolve_category_specific_document_override(
+    *,
+    matched_category: HandbookPolicyCategory,
+    normalized_query: str,
+) -> str:
+    compact_query = _compact_text(normalized_query)
+    if matched_category.category_id == "discipline_appeal_hearing" and (
+        "旷课" in compact_query or ("缺勤" in compact_query and "学时" in compact_query)
+    ):
+        return _ATTENDANCE_DISCIPLINE_DOC_ID
+    return ""
+
+
 def _query_condition_subject(
     normalized_query: str,
     *,
     category_display_name: str,
 ) -> str:
+    compact_query = _compact_text(normalized_query)
+    if "旷课" in compact_query and ("学时" in compact_query or "多少" in compact_query):
+        return "generic_condition"
+    if _has_any_compact_cue(compact_query, ("解除处分", "处分解除")) and _has_any_compact_cue(
+        compact_query,
+        _DISCIPLINE_RELIEF_TIME_CUES,
+    ):
+        return "discipline_relief_condition"
     return resolve_regulation_condition_subject(
         text=normalized_query,
         context_text=normalized_query,
@@ -525,6 +635,25 @@ def _query_condition_subject(
             category_display_name=category_display_name,
         ),
     ).value
+
+
+def _augment_focus_terms(
+    *,
+    normalized_query: str,
+    focus_terms: tuple[str, ...],
+    query_condition_subject: str,
+) -> tuple[str, ...]:
+    terms = list(focus_terms)
+    compact_query = _compact_text(normalized_query)
+    if "旷课" in compact_query and "旷课" not in terms:
+        terms.append("旷课")
+    if "学时" in compact_query and "学时" not in terms:
+        terms.append("学时")
+    if query_condition_subject == "discipline_relief_condition":
+        for term in ("考察期", "解除处分"):
+            if term not in terms:
+                terms.append(term)
+    return tuple(terms)
 
 
 def _query_action_type(

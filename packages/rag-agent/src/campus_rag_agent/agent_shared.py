@@ -58,9 +58,31 @@ def _lead_context_title(
     normalized_title = _normalize_snippet(title)
     if normalized_title and normalized_title in normalized_query:
         return title
+    if _query_asks_for_governing_document_title(normalized_query) and _source_title_is_policy(
+        normalized_title
+    ):
+        return title
     if len(title) <= 24 and any(token in normalized_query for token in _title_signal_tokens(title)):
         return title
     return ""
+
+
+def _query_asks_for_governing_document_title(query_text: str) -> bool:
+    return any(
+        cue in query_text
+        for cue in (
+            "哪份管理办法",
+            "哪份办法",
+            "哪个管理办法",
+            "哪个办法",
+            "依据哪份",
+            "依据哪个",
+        )
+    )
+
+
+def _source_title_is_policy(title: str) -> bool:
+    return title.endswith(("办法", "规定", "细则", "章程", "条例"))
 
 
 def _source_context_label(

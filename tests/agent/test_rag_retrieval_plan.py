@@ -352,26 +352,16 @@ class RagRetrievalPlanTest(unittest.TestCase):
         self.assertEqual(plan.steps[1].depends_on_step_ids, ("freshness-gate",))
         self.assertEqual(plan.source_trust_policy.minimum_tier, "T3")
 
-    def test_build_ordered_retrieval_plan_uses_live_source_lookup_for_live_assisted_query(
-        self,
-    ) -> None:
-        plan = build_ordered_retrieval_plan(
-            query_text="中央民族大学今天有什么讲座",
-            scope=KnowledgeScope(corpus="official_web", collection="stable_reference"),
-            retrieval_collection="stable_reference",
-            query_mode="live_assisted",
-            top_k=3,
-            version_query=VersionQuery(mode="current"),
-            allow_live_source_lookup=True,
-        )
-
-        self.assertEqual(plan.query_mode, "live_assisted")
-        self.assertEqual(len(plan.steps), 2)
-        self.assertEqual(plan.steps[0].step_type, "freshness_gate")
-        self.assertEqual(plan.steps[1].step_type, "live_source_lookup")
-        self.assertEqual(plan.steps[1].depends_on_step_ids, ("freshness-gate",))
-        self.assertTrue(plan.source_trust_policy.allow_live_source_lookup)
-        self.assertEqual(plan.budget.max_live_lookups, 1)
+    def test_build_ordered_retrieval_plan_rejects_removed_live_assisted_query_mode(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported retrieval query mode: live_assisted"):
+            build_ordered_retrieval_plan(
+                query_text="中央民族大学今天有什么讲座",
+                scope=KnowledgeScope(corpus="official_web", collection="stable_reference"),
+                retrieval_collection="stable_reference",
+                query_mode="live_assisted",
+                top_k=3,
+                version_query=VersionQuery(mode="current"),
+            )
 
     def test_delegate_to_rag_agent_executes_compare_plan_as_dual_steps(self) -> None:
         seen_version_ids: list[tuple[str, ...]] = []

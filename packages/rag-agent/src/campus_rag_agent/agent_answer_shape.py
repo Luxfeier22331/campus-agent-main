@@ -34,6 +34,7 @@ _RETRIEVAL_INTENT_TO_ANSWER_SHAPE = {
     "procedure_steps": AnswerShape.DETAIL_CLAUSE,
     "condition_table": AnswerShape.CONDITION_OVERVIEW,
     "version_compare": AnswerShape.GENERAL_SUMMARY,
+    "curriculum_document": AnswerShape.TITLE_LOOKUP,
     "curriculum_fact": AnswerShape.FACT_LOOKUP,
     "official_reference": AnswerShape.TITLE_LOOKUP,
     "general_fact": AnswerShape.FACT_LOOKUP,
@@ -56,9 +57,14 @@ def infer_answer_shape(*, evidence: EvidenceBundle) -> AnswerShape:
         return AnswerShape.COURSE_LIST
     if _is_curriculum_lookup_query(query):
         return AnswerShape.FACT_LOOKUP
+    if _query_asks_for_governing_document_title(query):
+        return AnswerShape.TITLE_LOOKUP
     if any(hint in normalized_query for hint in _FACT_QUERY_HINTS):
         return AnswerShape.FACT_LOOKUP
-    if _query_targets_source_title(query_text=query, sources=evidence.sources):
+    if _query_targets_source_title(
+        query_text=query,
+        sources=evidence.sources,
+    ) and not _query_requests_regulation_content(query):
         return AnswerShape.TITLE_LOOKUP
     regulation_shape = _infer_regulation_answer_shape_from_evidence(evidence)
     if regulation_shape is not None:
@@ -150,6 +156,8 @@ def _is_condition_overview_role(source: EvidenceSource) -> bool:
 
 
 def answer_shape_support_budget(shape: AnswerShape, default_budget: int) -> int:
+    if shape == AnswerShape.TITLE_LOOKUP:
+        return 1
     if shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
         return max(default_budget, 8)
     if shape == AnswerShape.CONDITION_OVERVIEW:
@@ -175,6 +183,45 @@ def _query_targets_source_title(
         if doc_title and doc_title in normalized_query:
             return True
     return False
+
+
+def _query_asks_for_governing_document_title(query_text: str) -> bool:
+    return any(
+        cue in query_text
+        for cue in (
+            "哪份管理办法",
+            "哪份办法",
+            "哪个管理办法",
+            "哪个办法",
+            "依据哪份",
+            "依据哪个",
+        )
+    )
+
+
+def _query_requests_regulation_content(query_text: str) -> bool:
+    normalized = _normalize_snippet(query_text)
+    if not normalized:
+        return False
+    if any(hint in normalized for hint in (*_DETAIL_QUERY_HINTS, *_JUDGMENT_QUERY_HINTS)):
+        return True
+    return any(
+        cue in normalized
+        for cue in (
+            "第",
+            "条",
+            "款",
+            "条件",
+            "要求",
+            "资格",
+            "材料",
+            "流程",
+            "步骤",
+            "程序",
+            "申请",
+            "办理",
+        )
+    )
 
 
 __all__ = [

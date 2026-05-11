@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
@@ -38,6 +38,9 @@ class AnswerDraft:
     answer_text: str
     supporting_sources: tuple[EvidenceSource, ...]
     supporting_contexts: tuple[str, ...] = ()
+    presentation_kind: str = ""
+    fallback_path: str = ""
+    fallback_reason: str = ""
     typed_draft: TypedAnswerDraft = field(
         default_factory=lambda: TypedAnswerDraft(kind="unsupported", unsupported_reason="empty")
     )
@@ -63,6 +66,9 @@ class RagAgent:
                 answer_text="",
                 supporting_sources=(),
                 supporting_contexts=(),
+                presentation_kind="",
+                fallback_path="",
+                fallback_reason="",
                 typed_draft=TypedAnswerDraft(
                     kind="unsupported",
                     unsupported_reason="no_supporting_evidence",
@@ -87,16 +93,17 @@ class RagAgent:
             if not resolved_audience:
                 resolved_audience = inferred_audience
         support_budget = answer_shape_support_budget(answer_shape, self.max_answer_sources)
-        if support_budget > self.max_answer_sources:
+        candidate_budget = max(support_budget, self.max_answer_sources)
+        if candidate_budget > self.max_answer_sources:
             candidate_sources = _select_doc_diverse_answer_sources(
                 sources=evidence.sources,
-                max_sources=support_budget,
+                max_sources=candidate_budget,
             )
         else:
             candidate_sources = select_supporting_evidence_sources(
                 query_text=evidence.query_text,
                 sources=evidence.sources,
-                max_sources=support_budget,
+                max_sources=candidate_budget,
             )
         selected_rows = _select_answer_support_rows(
             query_text=evidence.query_text,
@@ -107,7 +114,7 @@ class RagAgent:
         )
         supporting_sources = tuple(source for source, _ in selected_rows)
         supporting_contexts = _render_supporting_contexts(selected_rows)
-        answer_text = _compose_direct_answer(
+        answer_result = _compose_direct_answer(
             evidence=evidence,
             selected_rows=selected_rows,
             answer_shape=answer_shape,
@@ -129,18 +136,33 @@ class RagAgent:
             ),
             retrieval_intent=retrieval_intent,
         )
+        if answer_result.presentation is not None:
+            typed_draft = replace(typed_draft, presentation=answer_result.presentation)
+        if typed_draft.kind == "short_reference" and typed_draft.presentation is None:
+            typed_draft = replace(
+                typed_draft,
+                presentation=answer_result.presentation,
+            )
         validation = validate_typed_answer_draft(
             typed_draft,
             expected_answer_kind=(
                 retrieval_intent.expected.answer_kind if retrieval_intent is not None else ""
             ),
         )
+        answer_text = answer_result.answer_text
         if validation.verdict != "valid":
             answer_text = ""
         return AnswerDraft(
             answer_text=answer_text,
             supporting_sources=supporting_sources,
             supporting_contexts=supporting_contexts,
+            presentation_kind=(
+                answer_result.presentation.kind.value
+                if answer_result.presentation is not None
+                else ""
+            ),
+            fallback_path=answer_result.fallback_path,
+            fallback_reason=answer_result.fallback_reason,
             typed_draft=typed_draft,
         )
 

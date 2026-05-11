@@ -14,6 +14,7 @@ RetrievalIntentKind = Literal[
     "procedure_steps",
     "condition_table",
     "version_compare",
+    "curriculum_document_lookup",
     "curriculum_fact_lookup",
     "official_reference_lookup",
     "general_fact_lookup",
@@ -28,6 +29,7 @@ RetrievalAnswerKind = Literal[
     "procedure_steps",
     "condition_table",
     "version_compare",
+    "curriculum_document",
     "curriculum_fact",
     "official_reference",
     "general_fact",
@@ -65,6 +67,7 @@ ALLOWED_RETRIEVAL_INTENT_KINDS = (
     "procedure_steps",
     "condition_table",
     "version_compare",
+    "curriculum_document_lookup",
     "curriculum_fact_lookup",
     "official_reference_lookup",
     "general_fact_lookup",
@@ -79,6 +82,7 @@ ALLOWED_RETRIEVAL_ANSWER_KINDS = (
     "procedure_steps",
     "condition_table",
     "version_compare",
+    "curriculum_document",
     "curriculum_fact",
     "official_reference",
     "general_fact",
@@ -167,6 +171,7 @@ class RetrievalIntentTarget:
     corpus: str
     collection: str
     document_ids: tuple[str, ...] = field(default_factory=tuple)
+    document_titles: tuple[str, ...] = field(default_factory=tuple)
     preferred_document_ids: tuple[str, ...] = field(default_factory=tuple)
     version_ids: tuple[str, ...] = field(default_factory=tuple)
     revision_track: str = ""
@@ -181,6 +186,7 @@ class RetrievalIntentTarget:
     def __post_init__(self) -> None:
         for field_name in (
             "document_ids",
+            "document_titles",
             "preferred_document_ids",
             "version_ids",
             "article_nos",
@@ -208,6 +214,7 @@ class RetrievalIntentTarget:
             "corpus": self.corpus,
             "collection": self.collection,
             "document_ids": list(self.document_ids),
+            "document_titles": list(self.document_titles),
             "preferred_document_ids": list(self.preferred_document_ids),
             "version_ids": list(self.version_ids),
             "revision_track": self.revision_track,
@@ -252,18 +259,21 @@ class RetrievalIntent:
     def _validate_required_target(self) -> None:
         if self.kind == "policy_list" and not self.target.category_id:
             raise ValueError("policy_list requires category_id")
+        if self.kind == "policy_object_lookup" and not (
+            self.target.document_ids or self.target.document_titles
+        ):
+            raise ValueError("policy_object_lookup requires document_ids or document_titles")
         if (
             self.kind
             in {
-                "policy_object_lookup",
                 "specific_clause_lookup",
                 "eligibility_judgment",
                 "procedure_steps",
                 "condition_table",
             }
-            and not self.target.document_ids
+            and not (self.target.document_ids or self.target.category_member_document_ids)
         ):
-            raise ValueError(f"{self.kind} requires document_ids")
+            raise ValueError(f"{self.kind} requires document_ids or category_member_document_ids")
         if self.kind == "version_compare" and len(self.target.version_ids) < 2:
             raise ValueError("version_compare requires at least two version_ids")
         if self.kind == "clarification_required" and not self.clarification_reason:
@@ -446,6 +456,7 @@ def retrieval_intent_for_institutional_rules_plan(plan) -> RetrievalIntent:
             corpus="regulations",
             collection="institutional_rules",
             document_ids=plan.target_document_ids,
+            document_titles=plan.target_document_titles,
             condition_subject=plan.query_condition_subject,
         ),
         critical_terms=plan.focus_terms,
@@ -486,6 +497,29 @@ def retrieval_intent_for_curriculum_plan(plan) -> RetrievalIntent:
                 preferred_document_ids=plan.preferred_document_ids,
             ),
             unsupported_reason=plan.unsupported_reason,
+        )
+    if (
+        getattr(plan, "intent_kind", "") == "generic"
+        and plan.target_document_ids
+        and not _looks_like_curriculum_fact_query(plan.rewritten_query_text)
+    ):
+        return RetrievalIntent(
+            kind="curriculum_document_lookup",
+            normalized_query=plan.rewritten_query_text,
+            expected=RetrievalIntentExpectation(
+                answer_kind="curriculum_document",
+                evidence_roles=("primary_content", "reference_fact"),
+                coverage_policy="single_document_focus",
+                selection_policy="answer_role_first",
+                replan_policy="focus_gap_replan",
+            ),
+            target=RetrievalIntentTarget(
+                corpus="curriculum",
+                collection="curriculum_plan",
+                document_ids=plan.target_document_ids,
+                preferred_document_ids=plan.preferred_document_ids,
+            ),
+            critical_terms=(plan.resolved_document_title or "curriculum_document",),
         )
     return RetrievalIntent(
         kind="curriculum_fact_lookup",
@@ -570,19 +604,23 @@ def _specific_policy_intent_kind(plan) -> str:
     query = f"{plan.rewritten_query_text} {plan.focused_query_text}"
     if plan.focus_article_nos or plan.focus_clause_nos or plan.focus_detail_labels:
         return "specific_clause_lookup"
-    if plan.query_action_type:
-        return "procedure_steps"
+    if plan.query_condition_subject == "discipline_relief_condition":
+        return "condition_table"
     if _looks_like_judgment_query(query):
         return "eligibility_judgment"
     if plan.query_condition_subject == "application_procedure":
         return "procedure_steps"
     if plan.query_condition_subject:
         return "condition_table"
-    if _looks_like_procedure_query(query):
+    if plan.query_action_type and _looks_like_procedure_query(query):
         return "procedure_steps"
     if _looks_like_condition_query(query):
         return "condition_table"
-    return "specific_clause_lookup"
+    if plan.query_action_type:
+        return "procedure_steps"
+    if _looks_like_procedure_query(query):
+        return "procedure_steps"
+    return "policy_object_lookup"
 
 
 def _specific_policy_expectation(plan) -> RetrievalIntentExpectation:
@@ -616,6 +654,14 @@ def _specific_policy_expectation(plan) -> RetrievalIntentExpectation:
             coverage_policy="condition_subject_alignment",
             selection_policy="answer_role_first",
             replan_policy="intent_gap_replan",
+        )
+    if kind == "policy_object_lookup":
+        return RetrievalIntentExpectation(
+            answer_kind="policy_object",
+            evidence_roles=("primary_content", "policy_object"),
+            coverage_policy="single_document_focus",
+            selection_policy="answer_role_first",
+            replan_policy="focus_gap_replan",
         )
     return RetrievalIntentExpectation(
         answer_kind="specific_clause",
@@ -651,6 +697,20 @@ def _looks_like_judgment_query(query_text: str) -> bool:
 
 def _looks_like_condition_query(query_text: str) -> bool:
     return any(token in query_text for token in ("条件", "要求", "资格", "参评", "评选"))
+
+
+def _looks_like_curriculum_fact_query(query_text: str) -> bool:
+    return any(
+        token in query_text
+        for token in (
+            "总学分",
+            "学制",
+            "几年",
+            "授予学位",
+            "学位授予",
+            "多少学分",
+        )
+    )
 
 
 def _condition_subject_expected_roles(

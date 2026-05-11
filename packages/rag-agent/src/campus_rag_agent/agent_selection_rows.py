@@ -56,6 +56,8 @@ def _select_answer_support_rows(
     ranked_source_input = consumable_sources
     if course_list_query or curriculum_lookup_query:
         max_seen_statements = 6
+    elif shape == AnswerShape.TITLE_LOOKUP:
+        max_seen_statements = 1
     elif shape in {AnswerShape.CATEGORY_DISCOVERY_LIST, AnswerShape.CONDITION_OVERVIEW}:
         max_seen_statements = max(3, max_sources)
     elif shape == AnswerShape.JUDGMENT_CLAUSE:
@@ -91,6 +93,16 @@ def _select_answer_support_rows(
         ranked_sources = _filter_title_lookup_sources_for_answer_bearing_overview(ranked_sources)
         if not ranked_sources:
             return ()
+    strict_critical_source_filter = shape in {
+        AnswerShape.CONDITION_OVERVIEW,
+        AnswerShape.FACT_LOOKUP,
+    } and any(
+        _filter_statements_for_query_critical_terms(
+            query_text=query_text,
+            statements=_rank_source_statements(query_text, source, mode=mode),
+        )
+        for source in ranked_sources
+    )
     rows: list[tuple[EvidenceSource, tuple[str, ...]]] = []
     seen_statements: set[str] = set()
 
@@ -109,6 +121,15 @@ def _select_answer_support_rows(
             )
         if shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
             ranked_statements = _filter_category_discovery_statements(ranked_statements)
+        if shape in {AnswerShape.CONDITION_OVERVIEW, AnswerShape.FACT_LOOKUP}:
+            critical_term_statements = _filter_statements_for_query_critical_terms(
+                query_text=query_text,
+                statements=ranked_statements,
+            )
+            if critical_term_statements:
+                ranked_statements = critical_term_statements
+            elif strict_critical_source_filter:
+                ranked_statements = ()
         novel_statements = tuple(
             statement
             for statement in ranked_statements
@@ -121,6 +142,8 @@ def _select_answer_support_rows(
                 if len(rows) >= max_sources:
                     break
                 continue
+        if shape == AnswerShape.TITLE_LOOKUP:
+            novel_statements = tuple(novel_statements[:1])
         if shape == AnswerShape.JUDGMENT_CLAUSE:
             novel_statements = tuple(novel_statements[:1])
         if not novel_statements:
@@ -140,6 +163,8 @@ def _select_answer_support_rows(
         ):
             break
         if shape == AnswerShape.JUDGMENT_CLAUSE:
+            break
+        if shape == AnswerShape.TITLE_LOOKUP:
             break
         if (
             (course_list_query or curriculum_lookup_query)
@@ -266,6 +291,18 @@ def _query_critical_term_groups(query_text: str) -> tuple[tuple[str, ...], ...]:
         groups.append(("专利", "发明"))
     if "竞赛" in normalized:
         groups.append(("竞赛", "比赛"))
+    if "旷课" in normalized:
+        groups.append(("旷课",))
+        if "学时" in normalized or "多少" in normalized:
+            groups.append(("学时",))
+    if "解除处分" in normalized or "处分解除" in normalized:
+        groups.append(("解除处分", "解除纪律处分"))
+        if any(token in normalized for token in ("多久", "多长时间", "什么时候", "何时")):
+            groups.append(("考察期", "期满", "届满"))
+    if "总学分" in normalized:
+        groups.append(("总学分",))
+    if "学制" in normalized or "几年" in normalized:
+        groups.append(("学制",))
     return tuple(groups)
 
 

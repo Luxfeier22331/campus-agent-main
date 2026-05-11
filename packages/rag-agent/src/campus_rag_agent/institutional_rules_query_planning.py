@@ -40,10 +40,12 @@ class InstitutionalRulesQueryPlan:
         "default_staff_governance",
         "public_service_targeted",
         "governance_targeted",
+        "title_targeted",
     ]
     normalized_query: str
     focused_query_text: str = ""
     target_document_ids: tuple[str, ...] = ()
+    target_document_titles: tuple[str, ...] = ()
     category_id: str = ""
     category_member_document_ids: tuple[str, ...] = ()
     query_condition_subject: str = ""
@@ -59,7 +61,7 @@ class InstitutionalRulesQueryPlan:
 
     @property
     def task_kind(self) -> Literal["category_discovery", "specific_policy_lookup"]:
-        if self.mode in {"public_service_targeted", "governance_targeted"}:
+        if self.mode in {"public_service_targeted", "governance_targeted", "title_targeted"}:
             return "specific_policy_lookup"
         return "category_discovery"
 
@@ -70,11 +72,41 @@ class InstitutionalRulesQueryPlan:
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _DISCOVERY_QUERY_CUES = ("有哪些", "都有什么", "有什么", "哪些")
+_CONTENT_QUERY_CUES = (
+    "第",
+    "条",
+    "款",
+    "条件",
+    "要求",
+    "材料",
+    "流程",
+    "步骤",
+    "怎么办",
+    "如何",
+    "怎么",
+    "能否",
+    "能不能",
+    "多少",
+    "几",
+)
 _TITLE_PREFIX_PATTERNS = (re.compile(r"^中央民族大学"),)
 _TITLE_SUFFIX_PATTERNS = (
     re.compile(
         r"(建设与运行管理办法|运行管理办法（试行）|运行管理办法|管理办法（试行）|管理办法|实施细则|规定（试行）|规定|章程|办法)$"
     ),
+)
+_TITLE_PARENTHESES_SUFFIX_RE = re.compile(r"([（(][^）)]{1,16}[）)])+$")
+_TITLE_TERMINAL_SUFFIXES = (
+    "办法",
+    "规定",
+    "细则",
+    "章程",
+    "规程",
+    "规则",
+    "条例",
+    "规范",
+    "方案",
+    "计划",
 )
 _TITLE_SPLIT_RE = re.compile(r"[、/与和及]")
 _MINIMUM_TITLE_SIGNAL_LENGTH = 2
@@ -119,6 +151,20 @@ def plan_institutional_rules_query(query_text: str) -> InstitutionalRulesQueryPl
             normalized_query=normalized_query,
             focused_query_text=normalized_query,
             target_document_ids=(matched_public_service_docs[0].document_id,),
+            query_condition_subject=query_condition_subject,
+            query_action_type=query_action_type,
+        )
+
+    if _looks_like_bare_institutional_policy_title_query(
+        raw_query=query_text,
+        normalized_query=normalized_query,
+    ):
+        stripped_query = query_text.strip()
+        return InstitutionalRulesQueryPlan(
+            mode="title_targeted",
+            normalized_query=normalized_query,
+            focused_query_text=normalized_query,
+            target_document_titles=(stripped_query,),
             query_condition_subject=query_condition_subject,
             query_action_type=query_action_type,
         )
@@ -293,6 +339,21 @@ def _candidate_variants(candidate: str) -> tuple[str, ...]:
 
 def _contains_any(value: str, terms: tuple[str, ...]) -> bool:
     return any(_normalize_text(term) in value for term in terms if _normalize_text(term))
+
+
+def _looks_like_bare_institutional_policy_title_query(
+    *,
+    raw_query: str,
+    normalized_query: str,
+) -> bool:
+    if not raw_query.strip() or not normalized_query:
+        return False
+    if any(cue in normalized_query for cue in (*_DISCOVERY_QUERY_CUES, *_CONTENT_QUERY_CUES)):
+        return False
+    title_core = _TITLE_PARENTHESES_SUFFIX_RE.sub("", normalized_query)
+    if not title_core.startswith("中央民族大学"):
+        return False
+    return title_core.endswith(_TITLE_TERMINAL_SUFFIXES)
 
 
 def _normalize_text(value: str) -> str:

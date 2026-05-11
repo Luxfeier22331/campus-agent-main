@@ -594,6 +594,46 @@ class RagAgentAnswerGroundingTestPart02(unittest.TestCase):
         self.assertIn("6月1日至9月30日", draft.supporting_contexts[0])
         self.assertNotIn("文号：", draft.supporting_contexts[0])
 
+    def test_supporting_context_preserves_detail_label_for_clause_grounding(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="国奖第九条里对论文和著作怎么要求的？",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                EvidenceSource(
+                    doc_id="handbook:national-scholarship",
+                    revision_track="source-faithful",
+                    version_id="v1:national-scholarship",
+                    chunk_id="national-scholarship-article-9",
+                    anchor={"page_start": 1, "page_end": 1},
+                    canonical_url="https://campus.example/handbook/national-scholarship",
+                    latest_url="https://campus.example/handbook/national-scholarship",
+                    source_channel="pdf_ocr",
+                    collection="student_rules",
+                    is_current=True,
+                    snippet=(
+                        "第九条 在学术研究上取得显著成绩，以第一作者发表的论文被SCI、EI、"
+                        "ISTP、SSCI全文收录，以第一、二作者出版学术专著(须通过专家鉴定)。"
+                    ),
+                    score=0.96,
+                    source_title="中央民族大学本科学生国家奖学金评审办法",
+                    structural_path=("中央民族大学本科学生国家奖学金评审办法",),
+                    content_kind="policy_page",
+                    content_role="requirement",
+                    detail_label="第九条",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertEqual(len(draft.supporting_contexts), 1)
+        self.assertIn(
+            "中央民族大学本科学生国家奖学金评审办法 第九条：", draft.supporting_contexts[0]
+        )
+        self.assertIn("以第一作者发表的论文", draft.supporting_contexts[0])
+
 
 if __name__ == "__main__":
     unittest.main()

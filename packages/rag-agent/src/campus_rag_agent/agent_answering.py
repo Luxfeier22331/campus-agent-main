@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import re
+from dataclasses import dataclass
+
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_collection
 
@@ -9,6 +12,7 @@ from .agent_answering_generic import _compose_generic_answer
 from .agent_answering_procedure import _compose_procedure_answer
 from .agent_answering_support import _render_supporting_contexts
 from .agent_curriculum_answering import (
+    _compose_curriculum_identity_answer,
     _compose_curriculum_lookup_answer,
     _compose_curriculum_semester_course_list_answer,
 )
@@ -16,7 +20,16 @@ from .agent_curriculum_terms import _is_curriculum_semester_course_list_query
 from .agent_official_web import _compose_official_web_answer
 from .agent_selection_query import _query_mode
 from .agent_selection_statements import _is_generic_intro_statement
-from .agent_shared import _normalize_snippet
+from .agent_shared import _answer_prefix, _lead_source_title, _normalize_snippet
+from .answer_presentation_contract import AnswerPresentationDraft, PresentationKind
+
+
+@dataclass(frozen=True, slots=True)
+class DirectAnswerResult:
+    answer_text: str
+    presentation: AnswerPresentationDraft | None = None
+    fallback_path: str = ""
+    fallback_reason: str = ""
 
 
 def _compose_direct_answer(
@@ -26,20 +39,44 @@ def _compose_direct_answer(
     answer_shape: AnswerShape | None = None,
     category_display_name: str = "",
     audience: str = "",
-) -> str:
+) -> DirectAnswerResult:
     if not selected_rows:
-        return ""
+        return DirectAnswerResult(answer_text="")
 
     mode = _query_mode(evidence.query_text)
     if answer_shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
-        return _compose_category_discovery_list_answer(
-            selected_rows=selected_rows,
-            category_display_name=category_display_name,
-            audience=audience,
+        return DirectAnswerResult(
+            answer_text=_compose_category_discovery_list_answer(
+                selected_rows=selected_rows,
+                category_display_name=category_display_name,
+                audience=audience,
+            ),
         )
+    if answer_shape == AnswerShape.TITLE_LOOKUP and evidence.corpus == "curriculum":
+        curriculum_identity_answer = _compose_curriculum_identity_answer(
+            evidence=evidence,
+            selected_rows=selected_rows,
+        )
+        if curriculum_identity_answer:
+            normalized_answer = finalize_answer_text(curriculum_identity_answer)
+            return DirectAnswerResult(
+                answer_text=normalized_answer,
+                presentation=AnswerPresentationDraft(
+                    kind=PresentationKind.BRIEF_REFERENCE,
+                    answer_shape=AnswerShape.TITLE_LOOKUP,
+                    fragments=(normalized_answer,),
+                ),
+            )
+    if answer_shape == AnswerShape.TITLE_LOOKUP and not (
+        evidence.corpus == "official_web"
+        and is_official_web_stable_reference_like_collection(evidence.collection)
+    ):
+        return _compose_document_identity_answer(evidence=evidence, selected_rows=selected_rows)
     if mode == "procedure":
-        return finalize_answer_text(
-            _compose_procedure_answer(evidence=evidence, selected_rows=selected_rows)
+        return DirectAnswerResult(
+            answer_text=finalize_answer_text(
+                _compose_procedure_answer(evidence=evidence, selected_rows=selected_rows)
+            )
         )
     if evidence.corpus == "official_web" and is_official_web_stable_reference_like_collection(
         evidence.collection
@@ -49,24 +86,224 @@ def _compose_direct_answer(
             selected_rows=selected_rows,
         )
         if official_web_answer:
-            return finalize_answer_text(official_web_answer)
+            normalized_answer = finalize_answer_text(official_web_answer)
+            fragments = tuple(
+                fragment
+                for fragment in (item.strip() for item in normalized_answer.split("；"))
+                if fragment
+            )[:2]
+            return DirectAnswerResult(
+                answer_text=normalized_answer,
+                presentation=AnswerPresentationDraft(
+                    kind=PresentationKind.BRIEF_REFERENCE,
+                    answer_shape=AnswerShape.TITLE_LOOKUP,
+                    fragments=fragments or (normalized_answer,),
+                ),
+            )
     if _is_curriculum_semester_course_list_query(evidence.query_text):
         semester_course_list_answer = _compose_curriculum_semester_course_list_answer(
             evidence=evidence,
             selected_rows=selected_rows,
         )
         if semester_course_list_answer:
-            return finalize_answer_text(semester_course_list_answer)
+            return DirectAnswerResult(answer_text=finalize_answer_text(semester_course_list_answer))
     if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
         curriculum_lookup_answer = _compose_curriculum_lookup_answer(
             evidence=evidence,
             selected_rows=selected_rows,
         )
         if curriculum_lookup_answer:
-            return finalize_answer_text(curriculum_lookup_answer)
-    return finalize_answer_text(
-        _compose_generic_answer(evidence=evidence, selected_rows=selected_rows)
+            return DirectAnswerResult(answer_text=finalize_answer_text(curriculum_lookup_answer))
+    if answer_shape == AnswerShape.DETAIL_CLAUSE:
+        detail_clause_answer = _compose_focused_detail_clause_answer(
+            evidence=evidence,
+            selected_rows=selected_rows,
+        )
+        if detail_clause_answer:
+            return DirectAnswerResult(answer_text=finalize_answer_text(detail_clause_answer))
+    collapse_to_short = answer_shape == AnswerShape.GENERAL_SUMMARY
+    generic_answer = finalize_answer_text(
+        _compose_generic_answer(
+            evidence=evidence,
+            selected_rows=selected_rows,
+            collapse_to_short=collapse_to_short,
+        )
     )
+    if not generic_answer:
+        return DirectAnswerResult(answer_text="")
+    if not collapse_to_short:
+        return DirectAnswerResult(answer_text=generic_answer)
+    return DirectAnswerResult(
+        answer_text=generic_answer,
+        presentation=AnswerPresentationDraft(
+            kind=PresentationKind.GENERAL_SUMMARY,
+            answer_shape=AnswerShape.GENERAL_SUMMARY,
+            fragments=(generic_answer,),
+        ),
+    )
+
+
+def _compose_document_identity_answer(
+    *,
+    evidence: EvidenceBundle,
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> DirectAnswerResult:
+    title = _lead_source_title(tuple(source for source, _ in selected_rows))
+    if not title:
+        return DirectAnswerResult(answer_text="")
+    answer_text = finalize_answer_text(f"{_answer_prefix(evidence)}，相关依据为《{title}》。")
+    return DirectAnswerResult(
+        answer_text=answer_text,
+        presentation=AnswerPresentationDraft(
+            kind=PresentationKind.DOCUMENT_IDENTITY,
+            answer_shape=AnswerShape.TITLE_LOOKUP,
+            fragments=(answer_text,),
+            identity_tokens=(title,),
+        ),
+    )
+
+
+def _compose_focused_detail_clause_answer(
+    *,
+    evidence: EvidenceBundle,
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> str:
+    if evidence.corpus != "regulations":
+        return ""
+    normalized_query = _normalize_snippet(evidence.query_text)
+    focus_labels = _detail_focus_labels(normalized_query)
+    if len(focus_labels) < 2:
+        return ""
+    source, statements = selected_rows[0]
+    statement = next((_normalize_snippet(item) for item in statements if item.strip()), "")
+    if not statement:
+        return ""
+    focused_parts = tuple(
+        part for label in focus_labels if (part := _extract_detail_focus_part(statement, label))
+    )
+    if len(focused_parts) < len(focus_labels):
+        return ""
+    context_label = _detail_context_label(source=source)
+    focused_topic = "和".join(focus_labels)
+    subject_label = _detail_query_subject_label(evidence.query_text)
+    if context_label:
+        source_tail = f"依据{context_label}。"
+        if subject_label:
+            return f"{subject_label}对{focused_topic}的要求是：{'；'.join(focused_parts)}。{source_tail}"
+        return f"{context_label}对{focused_topic}的要求是：{'；'.join(focused_parts)}。"
+    return f"{_answer_prefix(evidence)}，对{focused_topic}的要求是：{'；'.join(focused_parts)}。"
+
+
+def _detail_focus_labels(query_text: str) -> tuple[str, ...]:
+    labels: list[str] = []
+    if "论文" in query_text:
+        labels.append("论文")
+    if "著作" in query_text or "专著" in query_text:
+        labels.append("著作")
+    if "专利" in query_text:
+        labels.append("专利")
+    return tuple(labels)
+
+
+def _detail_query_subject_label(query_text: str) -> str:
+    normalized = _normalize_snippet(query_text)
+    if "国奖" in normalized or "国家奖学金" in normalized:
+        return "国家奖学金第九条" if "第九条" in normalized else "国家奖学金"
+    return ""
+
+
+def _extract_detail_focus_part(statement: str, label: str) -> str:
+    normalized = _normalize_snippet(statement).rstrip("。；; ")
+    if not normalized:
+        return ""
+    if label in {"论文", "著作"}:
+        fragment = _extract_paper_book_clause(normalized, label=label)
+        if fragment:
+            prefix = "论文要求" if label == "论文" else "著作要求"
+            return f"{prefix}：{fragment}"
+    if label == "论文":
+        fragment = _extract_between(
+            normalized,
+            left=("以第一作者发表的论文", "第一作者发表的论文", "发表的论文", "论文"),
+            right=("以第一、二作者", "以第一、二作者出版", "著作", "专著", "发明专利", "体育竞赛"),
+        )
+        return f"论文要求：{fragment}" if fragment else ""
+    if label == "著作":
+        fragment = _extract_between(
+            normalized,
+            left=(
+                "以第一、二作者出版学术专著",
+                "以第一、二作者出版",
+                "出版学术专著",
+                "学术专著",
+                "著作",
+            ),
+            right=("发明专利", "体育竞赛", "获得"),
+        )
+        return f"著作要求：{fragment}" if fragment else ""
+    if label == "专利":
+        fragment = _extract_between(
+            normalized,
+            left=("发明专利", "专利"),
+            right=("体育竞赛", "获得"),
+        )
+        return f"专利要求：{fragment}" if fragment else ""
+    return ""
+
+
+def _extract_paper_book_clause(text: str, *, label: str) -> str:
+    start_cues = (
+        ("以第一作者", "第一作者", "论文")
+        if label == "论文"
+        else ("以第一、二作者", "第一、二作者", "出版学术专著", "学术专著", "著作")
+    )
+    for start_cue in start_cues:
+        start = text.find(start_cue)
+        if start < 0:
+            continue
+        end = len(text)
+        if label == "论文":
+            for right_cue in ("以第一、二作者", "出版学术专著", "学术专著"):
+                index = text.find(right_cue, start + len(start_cue))
+                if index >= 0:
+                    end = min(end, index)
+        for separator in ("；", ";", "。"):
+            index = text.find(separator, start)
+            if index >= 0:
+                end = min(end, index)
+        return text[start:end].strip(" ，,；;。")
+    return ""
+
+
+def _extract_between(
+    text: str,
+    *,
+    left: tuple[str, ...],
+    right: tuple[str, ...],
+) -> str:
+    left_match = next((cue for cue in left if cue in text), "")
+    if not left_match:
+        return ""
+    start = text.index(left_match)
+    end = len(text)
+    for cue in right:
+        index = text.find(cue, start + len(left_match))
+        if index >= 0:
+            end = min(end, index)
+    fragment = text[start:end].strip(" ，,；;。")
+    return re.sub(r"^第[一二三四五六七八九十0-9]+条\s*", "", fragment).strip()
+
+
+def _detail_context_label(*, source: EvidenceSource) -> str:
+    title = _lead_source_title((source,))
+    detail_label = _normalize_snippet(source.detail_label)
+    if title and detail_label:
+        return f"《{title}》{detail_label}"
+    if title:
+        return f"《{title}》"
+    if detail_label:
+        return detail_label
+    return ""
 
 
 def _compose_category_discovery_list_answer(

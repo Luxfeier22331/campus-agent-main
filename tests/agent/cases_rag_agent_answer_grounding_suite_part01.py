@@ -343,7 +343,7 @@ class RagAgentAnswerGroundingTestPart01(unittest.TestCase):
         self.assertIsNotNone(response.error)
         assert response.error is not None
         self.assertEqual(response.error.code, "retrieval_failed")
-        self.assertIn("legacy old-index fallback is not allowed", response.error.message)
+        self.assertIn("answer-ready evidence contract missing", response.error.message)
         self.assertEqual(response.result.evidence.sources, ())
         self.assertEqual(response.agent_observability.tool_outcome, "retrieval_failed")
 

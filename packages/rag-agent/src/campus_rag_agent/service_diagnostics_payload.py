@@ -55,6 +55,7 @@ def _build_rag_result_payload(
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
     request_id: str = "",
     no_answer_reason: str = "",
+    fail_close_reason: str = "",
     allow_session_follow_up: bool = False,
     semantic_outcome: str = "",
     retrieval_adequacy: RetrievalAdequacyAssessment | None = None,
@@ -67,6 +68,9 @@ def _build_rag_result_payload(
     source_trust_summary: SourceTrustSummary | None = None,
     prompt_runtime_state: str = "",
     prompt_runtime_detail: str = "",
+    answer_presentation_kind: str = "",
+    answer_fallback_path: str = "",
+    answer_fallback_reason: str = "",
     retrieved_evidence: EvidenceBundle | None = None,
     retrieval_execution_result: RetrievalExecutionResult | None = None,
     planner_information_needs: tuple[RagPlannerInformationNeed, ...] = (),
@@ -82,6 +86,7 @@ def _build_rag_result_payload(
         curriculum_program_family_plan=curriculum_program_family_plan,
         request_id=request_id,
         no_answer_reason=no_answer_reason,
+        fail_close_reason=fail_close_reason,
         allow_session_follow_up=allow_session_follow_up,
         semantic_outcome=semantic_outcome,
         retrieval_adequacy=retrieval_adequacy,
@@ -94,6 +99,9 @@ def _build_rag_result_payload(
         source_trust_summary=source_trust_summary,
         prompt_runtime_state=prompt_runtime_state,
         prompt_runtime_detail=prompt_runtime_detail,
+        answer_presentation_kind=answer_presentation_kind,
+        answer_fallback_path=answer_fallback_path,
+        answer_fallback_reason=answer_fallback_reason,
         retrieved_evidence=retrieved_evidence,
         retrieval_execution_result=retrieval_execution_result,
         planner_information_needs=planner_information_needs,
@@ -116,6 +124,7 @@ def _build_rag_result_diagnostics(
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
     request_id: str = "",
     no_answer_reason: str = "",
+    fail_close_reason: str = "",
     allow_session_follow_up: bool = False,
     semantic_outcome: str = "",
     retrieval_adequacy: RetrievalAdequacyAssessment | None = None,
@@ -128,6 +137,9 @@ def _build_rag_result_diagnostics(
     source_trust_summary: SourceTrustSummary | None = None,
     prompt_runtime_state: str = "",
     prompt_runtime_detail: str = "",
+    answer_presentation_kind: str = "",
+    answer_fallback_path: str = "",
+    answer_fallback_reason: str = "",
     retrieved_evidence: EvidenceBundle | None = None,
     retrieval_execution_result: RetrievalExecutionResult | None = None,
     planner_information_needs: tuple[RagPlannerInformationNeed, ...] = (),
@@ -202,8 +214,12 @@ def _build_rag_result_diagnostics(
                 retrieval_adequacy=retrieval_adequacy,
                 semantic_outcome=semantic_outcome,
                 no_answer_reason=no_answer_reason,
+                fail_close_reason=fail_close_reason,
                 grounding_verdict=grounding_verdict,
                 prompt_runtime_state=prompt_runtime_state,
+                answer_presentation_kind=answer_presentation_kind,
+                answer_fallback_path=answer_fallback_path,
+                answer_fallback_reason=answer_fallback_reason,
             ),
             **kwargs,
         )
@@ -214,6 +230,7 @@ def _build_rag_result_diagnostics(
         if resolved_scope is not None
         else "",
         "no_answer_reason": no_answer_reason,
+        "fail_close_reason": fail_close_reason,
         "semantic_outcome": semantic_outcome,
         "retrieval_adequacy_verdict": _retrieval_adequacy_verdict(retrieval_adequacy),
         "retrieval_adequacy_reason": _retrieval_adequacy_reason(retrieval_adequacy),
@@ -223,6 +240,9 @@ def _build_rag_result_diagnostics(
         "freshness_fail_closed": freshness_fail_closed,
         "prompt_runtime_state": prompt_runtime_state,
         "prompt_runtime_detail": prompt_runtime_detail,
+        "answer_presentation_kind": answer_presentation_kind,
+        "answer_fallback_path": answer_fallback_path,
+        "answer_fallback_reason": answer_fallback_reason,
         "unsupported_fields": unsupported_fields,
     }
 
@@ -276,9 +296,7 @@ def _build_rag_result_diagnostics(
             **base_fields,
             resolved_policy_document_id=handbook_plan.resolved_policy_document_id,
             resolved_policy_title=handbook_plan.resolved_policy_title,
-            rewritten_query=(
-                handbook_plan.rewritten_query_text if handbook_plan.status == "resolved" else ""
-            ),
+            rewritten_query=_handbook_diagnostics_query(handbook_plan),
             clarification_reason=handbook_plan.clarification_reason,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
         )
@@ -341,6 +359,12 @@ def _summarize_retrieved_titles(evidence: EvidenceBundle) -> tuple[str, ...]:
         if len(titles) >= 3:
             break
     return tuple(titles)
+
+
+def _handbook_diagnostics_query(handbook_plan: HandbookQueryPlan) -> str:
+    if handbook_plan.status != "resolved":
+        return ""
+    return handbook_plan.focused_query_text or handbook_plan.rewritten_query_text
 
 
 def _resolve_retrieved_sources(

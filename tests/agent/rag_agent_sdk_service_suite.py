@@ -139,8 +139,9 @@ class RagAgentSdkServiceTest(unittest.TestCase):
 
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.confidence, "low")
-        self.assertEqual(response.result.diagnostics.no_answer_reason, "rag_sdk_guardrail_failed")
-        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "")
+        self.assertEqual(response.result.diagnostics.fail_close_reason, "rag_sdk_guardrail_failed")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "fail_closed_generation")
         self.assertEqual(
             response.result.diagnostics.prompt_runtime_state, "rag_sdk_guardrail_failed"
         )
@@ -185,15 +186,23 @@ class RagAgentSdkServiceTest(unittest.TestCase):
             rag_sdk_runner=runner,
         )
 
-        self.assertEqual(response.status, "no_answer")
-        self.assertEqual(response.result.diagnostics.no_answer_reason, "rag_sdk_runtime_failed")
+        self.assertEqual(response.status, "error")
+        self.assertEqual(response.error.code, "rag_sdk_runtime_failed")
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "")
+        self.assertEqual(response.result.diagnostics.fail_close_reason, "rag_sdk_runtime_failed")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "runtime_error")
 
     def test_direct_service_requires_explicit_sdk_runner(self) -> None:
-        with self.assertRaises(TypeError):
-            delegate_to_rag_agent(
-                _request(),
-                retriever=lambda *args, **kwargs: _evidence(),
-            )
+        response = delegate_to_rag_agent(
+            _request(),
+            retriever=lambda *args, **kwargs: _evidence(),
+        )
+
+        self.assertEqual(response.status, "error")
+        self.assertEqual(response.error.code, "rag_sdk_runtime_unavailable")
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "")
+        self.assertEqual(response.result.diagnostics.fail_close_reason, "rag_sdk_runtime_unavailable")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "runtime_error")
 
 
 def _request() -> AgentRequest:

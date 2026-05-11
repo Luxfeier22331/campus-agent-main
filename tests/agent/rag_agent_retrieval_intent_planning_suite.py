@@ -80,7 +80,9 @@ class RagAgentRetrievalIntentPlanningTest(unittest.TestCase):
             "material_requirement",
         )
 
-    def test_multi_member_category_condition_query_fails_closed_as_clarification(self) -> None:
+    def test_multi_member_category_specific_award_condition_query_fails_closed_as_clarification(
+        self,
+    ) -> None:
         plan = plan_student_handbook_query("奖学金申请条件是什么")
 
         self.assertEqual(plan.status, "needs_clarification")
@@ -89,6 +91,63 @@ class RagAgentRetrievalIntentPlanningTest(unittest.TestCase):
         self.assertEqual(plan.retrieval_intent.kind, "clarification_required")
         self.assertEqual(plan.retrieval_intent.expected.answer_kind, "clarification")
         self.assertEqual(plan.retrieval_intent.clarification_reason, "category_policy_ambiguous")
+
+    def test_multi_member_category_overview_condition_query_uses_condition_intent(self) -> None:
+        plan = plan_student_handbook_query("申请奖学金需要满足什么条件")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.task_kind, "specific_policy_lookup")
+        self.assertEqual(plan.category_id, "scholarship")
+        self.assertEqual(plan.retrieval_intent.kind, "condition_table")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "condition_table")
+        self.assertEqual(
+            plan.retrieval_intent.target.category_member_document_ids,
+            plan.category_member_document_ids,
+        )
+
+    def test_attendance_absence_threshold_query_uses_condition_intent_without_clarification(
+        self,
+    ) -> None:
+        plan = plan_student_handbook_query("旷课多少学时会按违纪处理")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.task_kind, "specific_policy_lookup")
+        self.assertEqual(
+            plan.target_document_ids,
+            ("handbook:9350d885657d7409e524e73666b828b826f07191",),
+        )
+        self.assertEqual(plan.retrieval_intent.kind, "condition_table")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "condition_table")
+        self.assertEqual(
+            plan.retrieval_intent.target.document_ids,
+            ("handbook:9350d885657d7409e524e73666b828b826f07191",),
+        )
+        self.assertIn("旷课", plan.retrieval_intent.critical_terms)
+
+    def test_disciplinary_relief_how_long_query_uses_condition_intent_not_procedure(
+        self,
+    ) -> None:
+        plan = plan_student_handbook_query("被处分后多久可以申请解除处分")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.retrieval_intent.kind, "condition_table")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "condition_table")
+        self.assertEqual(
+            plan.retrieval_intent.target.condition_subject,
+            "discipline_relief_condition",
+        )
+        self.assertIn("考察期", plan.retrieval_intent.critical_terms)
+
+    def test_curriculum_named_document_total_credit_query_uses_fact_lookup_intent(self) -> None:
+        plan = plan_curriculum_query("民族学本科人才培养方案总学分要求是多少")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.retrieval_intent.kind, "curriculum_fact_lookup")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "curriculum_fact")
+        self.assertEqual(
+            plan.retrieval_intent.target.document_ids,
+            ("curriculum:民族学本科人才培养方案",),
+        )
 
     def test_handbook_clarification_exposes_clarification_intent(self) -> None:
         plan = plan_student_handbook_query("奖学金怎么申请？")
@@ -116,6 +175,20 @@ class RagAgentRetrievalIntentPlanningTest(unittest.TestCase):
         self.assertEqual(plan.retrieval_intent.expected.answer_kind, "policy_object")
         self.assertEqual(plan.retrieval_intent.target.collection, "institutional_rules")
         self.assertEqual(plan.retrieval_intent.target.document_ids, plan.target_document_ids)
+        self.assertEqual(plan.retrieval_intent.target.category_member_document_ids, ())
+
+    def test_institutional_exact_released_title_uses_policy_object_intent_without_static_group(
+        self,
+    ) -> None:
+        title = "中央民族大学丰台校区就医管理办法（暂行）"
+        plan = plan_institutional_rules_query(title)
+
+        self.assertEqual(plan.task_kind, "specific_policy_lookup")
+        self.assertEqual(plan.retrieval_intent.kind, "policy_object_lookup")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "policy_object")
+        self.assertEqual(plan.retrieval_intent.target.collection, "institutional_rules")
+        self.assertEqual(plan.retrieval_intent.target.document_ids, ())
+        self.assertEqual(plan.retrieval_intent.target.document_titles, (title,))
         self.assertEqual(plan.retrieval_intent.target.category_member_document_ids, ())
 
     def test_institutional_public_service_deadline_query_exposes_typed_condition_intent(
@@ -163,6 +236,17 @@ class RagAgentRetrievalIntentPlanningTest(unittest.TestCase):
         self.assertEqual(plan.retrieval_intent.expected.answer_kind, "curriculum_fact")
         self.assertEqual(plan.retrieval_intent.target.corpus, "curriculum")
         self.assertEqual(plan.retrieval_intent.target.collection, "curriculum_plan")
+
+    def test_curriculum_title_only_query_exposes_reference_intent(self) -> None:
+        plan = plan_curriculum_query("民族学本科人才培养方案")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.intent_kind, "generic")
+        self.assertEqual(plan.retrieval_intent.kind, "curriculum_document_lookup")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "curriculum_document")
+        self.assertEqual(plan.retrieval_intent.target.corpus, "curriculum")
+        self.assertEqual(plan.retrieval_intent.target.collection, "curriculum_plan")
+        self.assertEqual(plan.retrieval_intent.target.document_ids, plan.target_document_ids)
 
     def test_curriculum_course_plan_exposes_curriculum_fact_intent(self) -> None:
         plan = plan_curriculum_course_query("思政课第几学期开")

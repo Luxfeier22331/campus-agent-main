@@ -449,6 +449,8 @@ class RagStageActivitySummary:
     supporting_evidence_count: int = 0
     grounding_verdict: str = ""
     fallback_reason: str = ""
+    presentation_kind: str = ""
+    fallback_path: str = ""
     latency_ms: int | None = None
     retrieval_ms: int | None = None
     prompt_ms: int | None = None
@@ -496,6 +498,7 @@ class RagResultDiagnostics:
     rewritten_query: str = ""
     clarification_reason: str = ""
     no_answer_reason: str = ""
+    fail_close_reason: str = ""
     semantic_outcome: str = ""
     retrieval_adequacy_verdict: str = ""
     retrieval_adequacy_reason: str = ""
@@ -529,6 +532,9 @@ class RagResultDiagnostics:
     partial_answer: bool = False
     prompt_runtime_state: str = ""
     prompt_runtime_detail: str = ""
+    answer_presentation_kind: str = ""
+    answer_fallback_path: str = ""
+    answer_fallback_reason: str = ""
     retrieval_plan_summary: RetrievalPlanSummary | None = field(default=None, compare=False)
     stage_activities: tuple[RagStageActivitySummary, ...] = field(default_factory=tuple)
     retrieved_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)

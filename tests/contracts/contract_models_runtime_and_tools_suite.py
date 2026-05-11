@@ -249,6 +249,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                     supporting_evidence_count=0,
                     grounding_verdict="",
                     fallback_reason="",
+                    presentation_kind="document_identity",
+                    fallback_path="",
                     latency_ms=12,
                     retrieval_ms=12,
                     prompt_ms=0,
@@ -271,6 +273,8 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                     "supporting_evidence_count": 0,
                     "grounding_verdict": "",
                     "fallback_reason": "",
+                    "presentation_kind": "document_identity",
+                    "fallback_path": "",
                     "latency_ms": 12,
                     "retrieval_ms": 12,
                     "prompt_ms": 0,
@@ -711,6 +715,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             payload["result"]["diagnostics"]["no_answer_reason"],
             "resolved_policy_clause_not_found",
         )
+        self.assertEqual(payload["result"]["diagnostics"]["fail_close_reason"], "")
         self.assertEqual(
             payload["result"]["diagnostics"]["semantic_outcome"],
             "unsupported_by_evidence",

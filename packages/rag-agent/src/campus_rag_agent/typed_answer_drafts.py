@@ -14,6 +14,10 @@ from campus_shared.regulation_semantic_registry import (
 )
 
 from campus_rag_agent.agent_answer_shape import AnswerShape
+from campus_rag_agent.answer_presentation_contract import (
+    AnswerPresentationDraft,
+    validate_answer_presentation_draft,
+)
 from campus_rag_agent.retrieval_intent import RetrievalIntent
 
 
@@ -57,6 +61,15 @@ class EligibilityJudgmentDraft(TypedDraftSupport):
 
 
 @dataclass(frozen=True, slots=True)
+class DetailClauseDraftItem(TypedDraftSupport):
+    text: str = ""
+    answer_role: str = ""
+    article_no: str = ""
+    clause_no: str = ""
+    section_kind: str = ""
+
+
+@dataclass(frozen=True, slots=True)
 class ConditionTableDraftRow(TypedDraftSupport):
     condition_subject: str = ""
     polarity: str = ""
@@ -70,9 +83,12 @@ class TypedAnswerDraft:
     items: tuple[PolicyListDraftItem, ...] = field(default_factory=tuple)
     steps: tuple[ProcedureStepDraftItem, ...] = field(default_factory=tuple)
     judgment: EligibilityJudgmentDraft | None = None
+    detail_clauses: tuple[DetailClauseDraftItem, ...] = field(default_factory=tuple)
     rows: tuple[ConditionTableDraftRow, ...] = field(default_factory=tuple)
+    references: tuple[TypedDraftSupport, ...] = field(default_factory=tuple)
     unsupported_reason: str = ""
     clarification_question: str = ""
+    presentation: AnswerPresentationDraft | None = None
 
 
 @dataclass(frozen=True, slots=True)
@@ -104,6 +120,13 @@ def build_typed_answer_draft(
         answer_shape = AnswerShape.JUDGMENT_CLAUSE
     elif expected_answer_kind == "condition_table":
         answer_shape = AnswerShape.CONDITION_OVERVIEW
+    elif expected_answer_kind in {
+        "policy_object",
+        "official_reference",
+        "curriculum_document",
+        "curriculum_fact",
+    }:
+        answer_shape = AnswerShape.TITLE_LOOKUP
     if answer_shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
         return TypedAnswerDraft(
             kind="policy_list",
@@ -132,13 +155,30 @@ def build_typed_answer_draft(
                 _build_condition_row(source, statements) for source, statements in selected_rows
             ),
         )
-    if any(_source_answer_role(source) == "procedure_step" for source, _ in selected_rows):
+    if _should_build_procedure_steps_draft(
+        expected_answer_kind=expected_answer_kind,
+        selected_rows=selected_rows,
+    ):
         return TypedAnswerDraft(
             kind="procedure_steps",
             steps=tuple(
                 _build_procedure_step(source, statements)
                 for source, statements in selected_rows
                 if _source_answer_role(source) == "procedure_step"
+            ),
+        )
+    if answer_shape == AnswerShape.DETAIL_CLAUSE:
+        return TypedAnswerDraft(
+            kind="detail_clause",
+            detail_clauses=tuple(
+                _build_detail_clause(source, statements) for source, statements in selected_rows
+            ),
+        )
+    if answer_shape == AnswerShape.TITLE_LOOKUP:
+        return TypedAnswerDraft(
+            kind="short_reference",
+            references=tuple(
+                _build_short_reference(source, statements) for source, statements in selected_rows
             ),
         )
     if selected_rows:
@@ -156,7 +196,13 @@ def validate_typed_answer_draft(
     *,
     expected_answer_kind: str = "",
 ) -> TypedAnswerDraftValidationResult:
-    if expected_answer_kind and draft.kind != expected_answer_kind:
+    presentation_validation = _validate_presentation_contract(draft)
+    if presentation_validation is not None:
+        return presentation_validation
+    if expected_answer_kind and not _draft_kind_matches_expected(
+        draft_kind=draft.kind,
+        expected_answer_kind=expected_answer_kind,
+    ):
         return _invalid("typed_answer_kind_mismatch")
     if draft.kind == "policy_list":
         if not draft.items or any(not item.has_support or not item.text for item in draft.items):
@@ -191,6 +237,17 @@ def validate_typed_answer_draft(
         ):
             return _invalid("eligibility_judgment_contract_missing")
         return _valid(_claim_supports("eligibility_judgment", (draft.judgment,)))
+    if draft.kind == "detail_clause":
+        if not draft.detail_clauses or any(
+            not detail.has_support or not detail.text for detail in draft.detail_clauses
+        ):
+            return _invalid("detail_clause_support_missing")
+        if any(
+            _is_v3_contract_item(detail) and not detail.answer_role
+            for detail in draft.detail_clauses
+        ):
+            return _invalid("detail_clause_contract_missing")
+        return _valid(_detail_clause_claim_supports(draft.detail_clauses))
     if draft.kind == "condition_table":
         if not draft.rows or any(not row.has_support for row in draft.rows):
             return _invalid("condition_row_support_missing")
@@ -206,6 +263,22 @@ def validate_typed_answer_draft(
         ):
             return _invalid("condition_row_contract_missing")
         return _valid(_condition_row_claim_supports(draft.rows))
+    if draft.kind == "short_factual_summary":
+        if not draft.references or any(
+            not ref.has_support or not ref.excerpt for ref in draft.references
+        ):
+            return _invalid("short_factual_summary_support_missing")
+        if len(draft.references) > 2:
+            return _invalid("short_factual_summary_reference_budget_exceeded")
+        return _valid(_claim_supports("short_factual_summary", draft.references))
+    if draft.kind == "short_reference":
+        if not draft.references or any(
+            not ref.has_support or not ref.excerpt for ref in draft.references
+        ):
+            return _invalid("short_reference_support_missing")
+        if len(draft.references) > 2:
+            return _invalid("short_reference_reference_budget_exceeded")
+        return _valid(_claim_supports("title_or_entity_identity", draft.references))
     if draft.kind == "unsupported":
         if not draft.unsupported_reason:
             return _invalid("unsupported_reason_missing")
@@ -273,6 +346,21 @@ def _build_judgment(
     )
 
 
+def _build_detail_clause(
+    source: EvidenceSource,
+    statements: tuple[str, ...],
+) -> DetailClauseDraftItem:
+    attributes = evidence_attributes_for_source(source)
+    return DetailClauseDraftItem(
+        **_support_kwargs(source, statements),
+        text=_first_statement(source, statements),
+        answer_role=attributes.answer_role,
+        article_no=attributes.article_no,
+        clause_no=attributes.clause_no,
+        section_kind=attributes.section_kind,
+    )
+
+
 def _build_condition_row(
     source: EvidenceSource,
     statements: tuple[str, ...],
@@ -285,6 +373,13 @@ def _build_condition_row(
         condition_text=_first_statement(source, statements),
         answer_role=attributes.answer_role,
     )
+
+
+def _build_short_reference(
+    source: EvidenceSource,
+    statements: tuple[str, ...],
+) -> TypedDraftSupport:
+    return TypedDraftSupport(**_support_kwargs(source, statements))
 
 
 def _support_kwargs(
@@ -318,6 +413,18 @@ def _first_statement(source: EvidenceSource, statements: tuple[str, ...]) -> str
 
 def _source_answer_role(source: EvidenceSource) -> str:
     return evidence_attributes_for_source(source).answer_role
+
+
+def _should_build_procedure_steps_draft(
+    *,
+    expected_answer_kind: str,
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> bool:
+    if expected_answer_kind == "procedure_steps":
+        return True
+    if expected_answer_kind not in {"", "general_fact"}:
+        return False
+    return any(_source_answer_role(source) == "procedure_step" for source, _ in selected_rows)
 
 
 def _is_policy_list_source(
@@ -391,6 +498,42 @@ def _is_v3_contract_item(item: TypedDraftSupport) -> bool:
     return item.evidence_contract_version == ANSWER_READY_EVIDENCE_CONTRACT_VERSION
 
 
+def _draft_kind_matches_expected(*, draft_kind: str, expected_answer_kind: str) -> bool:
+    if draft_kind == expected_answer_kind:
+        return True
+    if (draft_kind, expected_answer_kind) == ("detail_clause", "specific_clause"):
+        return True
+    if expected_answer_kind in {
+        "policy_object",
+        "official_reference",
+        "curriculum_document",
+        "curriculum_fact",
+    }:
+        return draft_kind == "short_reference"
+    if expected_answer_kind == "general_fact":
+        return draft_kind in {
+            "condition_table",
+            "detail_clause",
+            "eligibility_judgment",
+            "procedure_steps",
+            "short_reference",
+        }
+    if expected_answer_kind == "curriculum_fact":
+        return draft_kind in {"short_reference", "short_factual_summary"}
+    return False
+
+
+def _validate_presentation_contract(
+    draft: TypedAnswerDraft,
+) -> TypedAnswerDraftValidationResult | None:
+    if draft.presentation is None:
+        return None
+    result = validate_answer_presentation_draft(draft.presentation)
+    if result.verdict == "valid":
+        return None
+    return _invalid(result.failure_reason)
+
+
 def _claim_supports(
     claim_type: str,
     supports: tuple[TypedDraftSupport, ...],
@@ -424,6 +567,28 @@ def _condition_row_claim_supports(
     )
 
 
+def _detail_clause_claim_supports(
+    detail_clauses: tuple[DetailClauseDraftItem, ...],
+) -> tuple[ClaimSupport, ...]:
+    return tuple(
+        ClaimSupport(
+            claim_type=_detail_clause_claim_type(detail),
+            claim_text=detail.text,
+            supported=detail.has_support,
+            support_source_doc_id=detail.source_id,
+            support_snippet=detail.excerpt,
+            support_source_trust_tier=detail.source_trust_tier,
+        )
+        for detail in detail_clauses
+    )
+
+
+def _detail_clause_claim_type(detail: DetailClauseDraftItem) -> str:
+    if detail.answer_role in {"definition", "supporting_detail"}:
+        return detail.answer_role
+    return "detail_clause"
+
+
 def _condition_row_claim_type(row: ConditionTableDraftRow) -> str:
     if row.answer_role in {"table_fact", "time_constraint", "material_requirement"}:
         return row.answer_role
@@ -441,6 +606,7 @@ def _invalid(reason: str) -> TypedAnswerDraftValidationResult:
 __all__ = [
     "CategoryDiscoveryDraftContext",
     "ConditionTableDraftRow",
+    "DetailClauseDraftItem",
     "EligibilityJudgmentDraft",
     "PolicyListDraftItem",
     "ProcedureStepDraftItem",

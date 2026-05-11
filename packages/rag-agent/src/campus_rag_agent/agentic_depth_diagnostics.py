@@ -194,6 +194,8 @@ def _expected_evidence_kinds_from_retrieval_intent(
         return ("condition_table",)
     if kind == "version_compare":
         return ("version_compare",)
+    if kind == "curriculum_document_lookup":
+        return ("curriculum_document",)
     if kind == "curriculum_fact_lookup":
         return ("curriculum_fact",)
     if kind == "official_reference_lookup":
@@ -235,6 +237,8 @@ def _question_for_kind(user_goal: str, evidence_kind: str) -> str:
         return f"{user_goal} - identify the admitted condition rows"
     if evidence_kind == "version_compare":
         return f"{user_goal} - identify both admitted version sides"
+    if evidence_kind == "curriculum_document":
+        return f"{user_goal} - identify the admitted curriculum document"
     if evidence_kind == "curriculum_fact":
         return f"{user_goal} - identify the admitted curriculum fact"
     if evidence_kind == "official_reference":

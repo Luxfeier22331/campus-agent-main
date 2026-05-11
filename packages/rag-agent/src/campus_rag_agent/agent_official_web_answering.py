@@ -48,7 +48,10 @@ def _compose_official_web_reference_answer(
         if not sentences:
             return ""
         if "学校简介" in normalized_title:
-            fragments = _build_official_web_school_reference_fragments(sentences)
+            fragments = _build_official_web_school_reference_fragments(
+                sentences,
+                prefer_prestige=evidence.collection != "stable_reference",
+            )
         elif "学校概况" in normalized_title:
             fragments = _build_official_web_school_overview_fragments(sentences)
         elif normalized_title == "本科培养":

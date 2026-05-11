@@ -4,14 +4,16 @@ import re
 
 from .agent_official_web_reference_sentences import _first_matching_official_web_sentence
 from .agent_official_web_terms import _OFFICIAL_WEB_SERVICE_TRIAD
+from .agent_shared import _normalize_snippet
 
 
 def _simplify_school_intro_sentence(sentence: str) -> str:
     if not sentence:
         return ""
-    simplified = sentence.replace("中央民族大学是党和国家为", "中央民族大学是一所为")
-    simplified = simplified.replace("、促进中华民族大团结", "")
-    return simplified.replace("的一所特色鲜明的高等院校", "创建的特色鲜明高等院校")
+    normalized = _normalize_snippet(sentence)
+    if "中央民族大学" in normalized:
+        normalized = normalized[normalized.find("中央民族大学") :]
+    return normalized.replace("、促进中华民族大团结", "")
 
 
 def _simplify_school_origin_sentence(sentence: str) -> str:
@@ -26,10 +28,17 @@ def _simplify_school_origin_sentence(sentence: str) -> str:
     )
 
 
-def _build_official_web_school_reference_fragments(sentences: tuple[str, ...]) -> tuple[str, ...]:
+def _build_official_web_school_reference_fragments(
+    sentences: tuple[str, ...],
+    *,
+    prefer_prestige: bool = False,
+) -> tuple[str, ...]:
     intro = _first_matching_official_web_sentence(
         sentences,
-        lambda sentence: "中央民族大学" in sentence and "是一所" in sentence,
+        lambda sentence: (
+            "中央民族大学" in sentence
+            and any(token in sentence for token in ("中央民族大学是", "是一所", "高等院校"))
+        ),
     )
     origin = _first_matching_official_web_sentence(
         sentences,
@@ -39,12 +48,22 @@ def _build_official_web_school_reference_fragments(sentences: tuple[str, ...]) -
         sentences, lambda sentence: "双一流" in sentence
     )
     fragments: list[str] = []
-    if intro:
-        fragments.append(_simplify_school_intro_sentence(intro))
-    if origin:
-        fragments.append(_simplify_school_origin_sentence(origin))
-    if prestige:
-        fragments.append("中央民族大学现为国家“双一流”建设高校")
+    if prefer_prestige:
+        if origin:
+            fragments.append(_simplify_school_origin_sentence(origin))
+        elif intro:
+            fragments.append(_simplify_school_intro_sentence(intro))
+        if prestige:
+            fragments.append("中央民族大学现为国家“双一流”建设高校")
+        elif intro and not fragments:
+            fragments.append(_simplify_school_intro_sentence(intro))
+    else:
+        if intro:
+            fragments.append(_simplify_school_intro_sentence(intro))
+        if origin:
+            fragments.append(_simplify_school_origin_sentence(origin))
+        elif prestige:
+            fragments.append("中央民族大学现为国家“双一流”建设高校")
     return tuple(fragment for fragment in fragments if fragment)
 
 

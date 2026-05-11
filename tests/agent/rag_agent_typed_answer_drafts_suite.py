@@ -125,6 +125,147 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
         self.assertEqual(draft.typed_draft.rows[0].condition_subject, "deadline")
         self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")
 
+    def test_policy_object_intent_preserves_short_reference_over_chunk_semantics(self) -> None:
+        source = _make_handbook_source(
+            doc_id="institutional:medical",
+            title="中央民族大学丰台校区就医管理办法（暂行）",
+            snippet="为全力做好丰台校区医疗服务保障，切实解决师生就医问题，经学校研究决定。",
+            score=0.91,
+            chunk_id_suffix="medical-procedure-title-lookup",
+            content_role="procedure",
+            is_answer_bearing=True,
+            semantic_role="procedure_step",
+            polarity="positive",
+            action_type="medical_service",
+            claim_type="procedure",
+        )
+        source = replace(
+            source,
+            anchor=_answer_ready_anchor(
+                answer_role="procedure_step",
+                condition_subject="application_procedure",
+                procedure_step_index=1,
+                procedure_actor="school",
+                procedure_action="provide_service",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="中央民族大学丰台校区就医管理办法（暂行）",
+                corpus="regulations",
+                collection="institutional_rules",
+                sources=(source,),
+            ),
+            retrieval_intent=_retrieval_intent(
+                kind="policy_object_lookup",
+                answer_kind="policy_object",
+                collection="institutional_rules",
+                document_titles=("中央民族大学丰台校区就医管理办法（暂行）",),
+            ),
+        )
+
+        self.assertEqual(draft.typed_draft.kind, "short_reference")
+        self.assertEqual(draft.presentation_kind, "document_identity")
+        self.assertIn("相关依据为", draft.answer_text)
+        self.assertIn("中央民族大学丰台校区就医管理办法（暂行）", draft.answer_text)
+        result = validate_typed_answer_draft(
+            draft.typed_draft,
+            expected_answer_kind="policy_object",
+        )
+        self.assertEqual(result.verdict, "valid")
+
+    def test_general_fact_intent_preserves_answer_ready_condition_draft(self) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:dormitory-lighting",
+            title="中央民族大学关于学生宿舍照明的管理规定",
+            snippet=(
+                "10月至次年5月31日，周日至周四熄灯时间为每天晚上24:00；"
+                "6月1日至9月30日学生宿舍不统一熄灯。"
+            ),
+            score=0.91,
+            chunk_id_suffix="dormitory-lighting-time-rule-general-fact",
+            content_role="time_rule",
+            is_answer_bearing=True,
+        )
+        source = replace(
+            source,
+            anchor=_answer_ready_anchor(
+                answer_role="time_constraint",
+                condition_subject="deadline",
+                condition_polarity="positive",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="宿舍照明",
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            ),
+            retrieval_intent=_retrieval_intent(
+                kind="general_fact_lookup",
+                answer_kind="general_fact",
+                collection="student_rules",
+            ),
+        )
+
+        self.assertEqual(draft.typed_draft.kind, "condition_table")
+        result = validate_typed_answer_draft(
+            draft.typed_draft,
+            expected_answer_kind="general_fact",
+        )
+        self.assertEqual(result.verdict, "valid")
+        self.assertEqual(result.claim_supports[0].claim_type, "time_constraint")
+
+    def test_general_fact_intent_preserves_answer_ready_procedure_draft(self) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:student-card",
+            title="中央民族大学本科(预科)学生证管理办法",
+            snippet="学生证遗失后，应先到学院挂失，再提交书面申请办理补办手续。",
+            score=0.91,
+            chunk_id_suffix="student-card-procedure-general-fact",
+            content_role="procedure",
+            is_answer_bearing=True,
+            semantic_role="procedure_step",
+            polarity="positive",
+            action_type="reissue",
+            claim_type="procedure",
+        )
+        source = replace(
+            source,
+            anchor=_answer_ready_anchor(
+                answer_role="procedure_step",
+                condition_subject="application_procedure",
+                procedure_step_index=1,
+                procedure_actor="student",
+                procedure_action="submit_materials",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="学生证",
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            ),
+            retrieval_intent=_retrieval_intent(
+                kind="general_fact_lookup",
+                answer_kind="general_fact",
+                collection="student_rules",
+            ),
+        )
+
+        self.assertEqual(draft.typed_draft.kind, "procedure_steps")
+        result = validate_typed_answer_draft(
+            draft.typed_draft,
+            expected_answer_kind="general_fact",
+        )
+        self.assertEqual(result.verdict, "valid")
+        self.assertEqual(result.claim_supports[0].claim_type, "procedure_step")
+
     def test_typed_draft_validation_rejects_answer_kind_mismatch_against_retrieval_intent(
         self,
     ) -> None:
@@ -365,6 +506,89 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
         self.assertEqual(draft.typed_draft.rows[0].source_id, source.doc_id)
         self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")
 
+    def test_supporting_detail_clause_validates_without_condition_subject(self) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:three-assists",
+            title="中央民族大学研究生“三助”工作管理办法",
+            snippet=(
+                "第三条 研究生担任助教、助研、助管工作是研究生培养的重要环节，应当依据本办法管理。"
+            ),
+            score=0.91,
+            chunk_id_suffix="three-assists-supporting-detail",
+            content_role="article_body",
+            is_answer_bearing=True,
+            semantic_role="supporting_detail",
+            polarity="neutral",
+            claim_type="policy_clause",
+        )
+        source = replace(
+            source,
+            collection="institutional_rules",
+            anchor=_answer_ready_anchor(
+                answer_role="supporting_detail",
+                article_no="第三条",
+                condition_polarity="neutral",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="研究生助教助研助管工作应该依据哪份管理办法？",
+                corpus="regulations",
+                collection="institutional_rules",
+                sources=(source,),
+            ),
+            answer_shape=AnswerShape.DETAIL_CLAUSE,
+        )
+
+        self.assertEqual(draft.typed_draft.kind, "detail_clause")
+        self.assertIn("中央民族大学研究生“三助”工作管理办法", draft.answer_text)
+        self.assertEqual(draft.typed_draft.detail_clauses[0].article_no, "第三条")
+        self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")
+
+    def test_specific_clause_intent_accepts_detail_clause_typed_draft(self) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:three-assists",
+            title="中央民族大学研究生“三助”工作管理办法",
+            snippet=(
+                "第三条 研究生担任助教、助研、助管工作是研究生培养的重要环节，应当依据本办法管理。"
+            ),
+            score=0.91,
+            chunk_id_suffix="three-assists-intent-detail-clause",
+            content_role="article_body",
+            is_answer_bearing=True,
+            semantic_role="supporting_detail",
+            polarity="neutral",
+            claim_type="policy_clause",
+        )
+        source = replace(
+            source,
+            collection="institutional_rules",
+            anchor=_answer_ready_anchor(
+                answer_role="supporting_detail",
+                article_no="第三条",
+                condition_polarity="neutral",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="研究生助教助研助管工作应该依据哪份管理办法？",
+                corpus="regulations",
+                collection="institutional_rules",
+                sources=(source,),
+            ),
+            retrieval_intent=_retrieval_intent(
+                kind="specific_clause_lookup",
+                answer_kind="specific_clause",
+                collection="institutional_rules",
+                document_ids=("handbook:three-assists",),
+            ),
+        )
+
+        self.assertEqual(draft.typed_draft.kind, "detail_clause")
+        self.assertIn("中央民族大学研究生“三助”工作管理办法", draft.answer_text)
+
     def test_table_fact_draft_emits_table_fact_claim_support(self) -> None:
         source = _make_handbook_source(
             doc_id="handbook:professional-scholarship",
@@ -588,6 +812,7 @@ def _retrieval_intent(
     answer_kind: str,
     collection: str = "student_rules",
     document_ids: tuple[str, ...] = (),
+    document_titles: tuple[str, ...] = (),
     condition_subject: str = "",
 ) -> RetrievalIntent:
     return RetrievalIntent(
@@ -598,6 +823,7 @@ def _retrieval_intent(
             corpus="regulations",
             collection=collection,
             document_ids=document_ids,
+            document_titles=document_titles,
             condition_subject=condition_subject,
         ),
     )

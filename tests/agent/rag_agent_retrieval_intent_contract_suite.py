@@ -55,6 +55,7 @@ class RagAgentRetrievalIntentContractTest(unittest.TestCase):
                     "corpus": "regulations",
                     "collection": "student_rules",
                     "document_ids": [],
+                    "document_titles": [],
                     "preferred_document_ids": [],
                     "version_ids": [],
                     "revision_track": "",
@@ -102,6 +103,51 @@ class RagAgentRetrievalIntentContractTest(unittest.TestCase):
                 self.assertEqual(intent.kind, kind)
                 self.assertEqual(intent.expected.answer_kind, answer_kind)
 
+    def test_category_scoped_condition_intent_can_target_member_documents(self) -> None:
+        intent = RetrievalIntent(
+            kind="condition_table",
+            normalized_query="申请奖学金需要满足什么条件",
+            expected=RetrievalIntentExpectation(
+                answer_kind="condition_table",
+                evidence_roles=("eligibility_condition",),
+                coverage_policy="condition_subject_alignment",
+            ),
+            target=RetrievalIntentTarget(
+                corpus="regulations",
+                collection="student_rules",
+                category_id="scholarship",
+                category_member_document_ids=("handbook:national", "handbook:professional"),
+                condition_subject="generic_condition",
+            ),
+        )
+
+        self.assertEqual(intent.kind, "condition_table")
+        self.assertEqual(intent.target.document_ids, ())
+        self.assertEqual(
+            intent.target.category_member_document_ids,
+            ("handbook:national", "handbook:professional"),
+        )
+
+    def test_policy_object_lookup_can_target_document_title_before_doc_id_resolution(
+        self,
+    ) -> None:
+        intent = RetrievalIntent(
+            kind="policy_object_lookup",
+            normalized_query="中央民族大学丰台校区就医管理办法（暂行）",
+            expected=RetrievalIntentExpectation(answer_kind="policy_object"),
+            target=RetrievalIntentTarget(
+                corpus="regulations",
+                collection="institutional_rules",
+                document_titles=("中央民族大学丰台校区就医管理办法（暂行）",),
+            ),
+        )
+
+        self.assertEqual(intent.target.document_ids, ())
+        self.assertEqual(
+            intent.target.document_titles,
+            ("中央民族大学丰台校区就医管理办法（暂行）",),
+        )
+
     def test_rejects_invalid_empty_required_target(self) -> None:
         with self.assertRaisesRegex(ValueError, "policy_list requires category_id"):
             RetrievalIntent(
@@ -117,6 +163,31 @@ class RagAgentRetrievalIntentContractTest(unittest.TestCase):
                 normalized_query="国奖第九条",
                 expected=RetrievalIntentExpectation(answer_kind="specific_clause"),
                 target=RetrievalIntentTarget(corpus="regulations", collection="student_rules"),
+            )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "condition_table requires document_ids or category_member_document_ids",
+        ):
+            RetrievalIntent(
+                kind="condition_table",
+                normalized_query="申请奖学金需要满足什么条件",
+                expected=RetrievalIntentExpectation(answer_kind="condition_table"),
+                target=RetrievalIntentTarget(corpus="regulations", collection="student_rules"),
+            )
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "policy_object_lookup requires document_ids or document_titles",
+        ):
+            RetrievalIntent(
+                kind="policy_object_lookup",
+                normalized_query="中央民族大学丰台校区就医管理办法（暂行）",
+                expected=RetrievalIntentExpectation(answer_kind="policy_object"),
+                target=RetrievalIntentTarget(
+                    corpus="regulations",
+                    collection="institutional_rules",
+                ),
             )
 
     def test_rejects_invalid_enum_values(self) -> None:

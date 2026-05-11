@@ -56,13 +56,15 @@ def _tool_outcome(
     response: AgentResponse,
     diagnostics: RagResultDiagnostics | None,
 ) -> str:
+    if response.error is not None and response.error.code:
+        return response.error.code
     if diagnostics is not None:
         if diagnostics.semantic_outcome:
             return diagnostics.semantic_outcome
+        if diagnostics.fail_close_reason:
+            return diagnostics.fail_close_reason
         if diagnostics.no_answer_reason:
             return diagnostics.no_answer_reason
-    if response.error is not None and response.error.code:
-        return response.error.code
     return response.status
 
 
@@ -76,6 +78,8 @@ def _failure_class(
         return "clarification"
     if diagnostics is None:
         return ""
+    if diagnostics.fail_close_reason:
+        return diagnostics.fail_close_reason
     if diagnostics.no_answer_reason:
         return diagnostics.no_answer_reason
     if diagnostics.grounding_downgraded:
@@ -93,6 +97,8 @@ def _fail_close_reason(
         return response.error.code
     if diagnostics is None:
         return ""
+    if diagnostics.fail_close_reason:
+        return diagnostics.fail_close_reason
     if diagnostics.freshness_fail_closed or diagnostics.grounding_downgraded:
         return diagnostics.no_answer_reason or diagnostics.semantic_outcome
     if diagnostics.semantic_outcome == "restricted_access_denied":
@@ -132,6 +138,7 @@ def _safe_details(
         _set_if_present(result_guardrail, "grounding_verdict", diagnostics.grounding_verdict)
         result_guardrail["unsupported_field_count"] = len(diagnostics.unsupported_fields)
         _set_if_present(result_guardrail, "no_answer_reason", diagnostics.no_answer_reason)
+        _set_if_present(result_guardrail, "fail_close_reason", diagnostics.fail_close_reason)
         _set_if_present(result_guardrail, "semantic_outcome", diagnostics.semantic_outcome)
         _set_if_present(result_guardrail, "prompt_runtime_state", diagnostics.prompt_runtime_state)
     if response.error is not None:
@@ -199,6 +206,8 @@ def _result_guardrail_outcome(
             return "source_backed" if source_ref_count > 0 else "source_gap"
         if diagnostics.semantic_outcome == "restricted_access_denied":
             return "access_denied"
+        if diagnostics.fail_close_reason:
+            return "fail_close"
         if diagnostics.grounding_downgraded or diagnostics.freshness_fail_closed:
             return "fail_close"
     if response.status == "completed":

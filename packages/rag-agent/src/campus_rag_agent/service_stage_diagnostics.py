@@ -15,18 +15,16 @@ def build_rag_stage_activity_summaries(
     retrieval_adequacy: RetrievalAdequacyAssessment | None,
     semantic_outcome: str,
     no_answer_reason: str,
+    fail_close_reason: str,
     grounding_verdict: str,
     prompt_runtime_state: str,
+    answer_presentation_kind: str = "",
+    answer_fallback_path: str = "",
+    answer_fallback_reason: str = "",
 ) -> tuple[RagStageActivitySummary, ...]:
-    plan_id = (
-        retrieval_execution_result.plan.plan_id
-        if retrieval_execution_result is not None
-        else _fallback_plan_id(evidence)
-    )
+    plan_id = retrieval_execution_result.plan.plan_id if retrieval_execution_result is not None else ""
     query_mode = (
-        retrieval_execution_result.plan.query_mode
-        if retrieval_execution_result is not None
-        else "current"
+        retrieval_execution_result.plan.query_mode if retrieval_execution_result is not None else ""
     )
     candidate_count = _retrieval_candidate_count(retrieval_execution_result)
     if not candidate_count and retrieved_evidence is not None:
@@ -37,6 +35,7 @@ def build_rag_stage_activity_summaries(
     fallback_reason = _resolve_fallback_reason(
         retrieval_adequacy=retrieval_adequacy,
         no_answer_reason=no_answer_reason,
+        fail_close_reason=fail_close_reason,
         prompt_runtime_state=prompt_runtime_state,
     )
     retrieval_ms = _retrieval_latency_ms(retrieval_execution_result)
@@ -47,7 +46,7 @@ def build_rag_stage_activity_summaries(
             plan_id=plan_id,
             query_mode=query_mode,
             stage_name="planner",
-            stage_status="completed" if plan_id else "unresolved",
+            stage_status="completed" if plan_id else "not_run",
             candidate_count=0,
             supporting_evidence_count=0,
             latency_ms=0,
@@ -97,7 +96,9 @@ def build_rag_stage_activity_summaries(
             stage_status=_synthesis_stage_status(semantic_outcome=semantic_outcome),
             candidate_count=candidate_count,
             supporting_evidence_count=supporting_evidence_count,
-            fallback_reason=prompt_runtime_state,
+            fallback_reason=answer_fallback_reason or prompt_runtime_state,
+            presentation_kind=answer_presentation_kind,
+            fallback_path=answer_fallback_path,
             latency_ms=0,
             retrieval_ms=0,
             prompt_ms=0,
@@ -128,25 +129,16 @@ def build_rag_stage_activity_summaries(
             diagnostic_ms=0,
         ),
     )
-
-
-def _fallback_plan_id(evidence: EvidenceBundle) -> str:
-    corpus = evidence.corpus.strip()
-    collection = evidence.collection.strip()
-    if not corpus or not collection:
-        return ""
-    return f"{corpus}:{collection}:unexecuted"
-
-
 def _resolve_fallback_reason(
     *,
     retrieval_adequacy: RetrievalAdequacyAssessment | None,
     no_answer_reason: str,
+    fail_close_reason: str,
     prompt_runtime_state: str,
 ) -> str:
     if retrieval_adequacy is not None and retrieval_adequacy.verdict != "sufficient":
         return retrieval_adequacy.reason
-    return no_answer_reason or prompt_runtime_state
+    return fail_close_reason or no_answer_reason or prompt_runtime_state
 
 
 def _retrieval_latency_ms(execution_result: RetrievalExecutionResult | None) -> int:
@@ -170,7 +162,7 @@ def _retrieval_stage_status(
     candidate_count: int,
 ) -> str:
     if execution_result is None:
-        return "completed" if candidate_count else "not_run"
+        return "not_run"
     statuses = {result.status for result in execution_result.step_results}
     if "failed" in statuses:
         return "failed_closed"

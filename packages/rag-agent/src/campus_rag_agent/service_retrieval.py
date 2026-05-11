@@ -198,10 +198,12 @@ def build_rag_retrieval_context(
             handbook_plan.focused_query_text or handbook_plan.rewritten_query_text
         )
         target_document_ids = handbook_plan.target_document_ids
+        preferred_document_ids = handbook_plan.preferred_document_ids
         focus_detail_labels = handbook_plan.focus_detail_labels
         focus_article_nos = handbook_plan.focus_article_nos
         focus_clause_nos = handbook_plan.focus_clause_nos
         focus_terms = handbook_plan.focus_terms
+        category_member_document_ids = handbook_plan.category_member_document_ids
         focused_retrieval_top_k = 4
     elif (
         effective_scope.corpus == "regulations"
@@ -209,6 +211,10 @@ def build_rag_retrieval_context(
     ):
         resolved_institutional_rules_plan = (
             institutional_rules_plan or plan_institutional_rules_query(effective_user_goal)
+        )
+        retrieval_goal = resolved_institutional_rules_plan.rewritten_query_text
+        focused_retrieval_goal = resolved_institutional_rules_plan.focused_query_text or (
+            resolved_institutional_rules_plan.rewritten_query_text
         )
         target_document_ids = resolved_institutional_rules_plan.target_document_ids
 
@@ -281,7 +287,6 @@ def build_retrieval_plan_for_context(
             need_ids=tuple(need.need_id for need in information_needs),
             semantic_hint=_semantic_hint_from_retrieval_intent(retrieval_intent),
             version_query=request.payload.version_query,
-            allow_live_source_lookup=runtime_profile.live_search_fallback_allowed,
         )
     if (
         effective_scope.corpus == "regulations"
@@ -308,7 +313,6 @@ def build_retrieval_plan_for_context(
             need_ids=tuple(need.need_id for need in information_needs),
             semantic_hint=_semantic_hint_from_retrieval_intent(retrieval_intent),
             version_query=request.payload.version_query,
-            allow_live_source_lookup=runtime_profile.live_search_fallback_allowed,
         )
     if (
         effective_scope.corpus == "regulations"
@@ -340,7 +344,6 @@ def build_retrieval_plan_for_context(
             comparison_version_id=retrieval_context.version_answer_context.comparison_version_id,
             need_ids=tuple(need.need_id for need in information_needs),
             semantic_hint=_semantic_hint_from_retrieval_intent(retrieval_intent),
-            allow_live_source_lookup=runtime_profile.live_search_fallback_allowed,
         )
     return build_ordered_retrieval_plan(
         query_text=retrieval_context.retrieval_goal,
@@ -364,7 +367,6 @@ def build_retrieval_plan_for_context(
         comparison_version_id=retrieval_context.version_answer_context.comparison_version_id,
         need_ids=tuple(need.need_id for need in information_needs),
         semantic_hint=_semantic_hint_from_retrieval_intent(retrieval_intent),
-        allow_live_source_lookup=runtime_profile.live_search_fallback_allowed,
     )
 
 
@@ -380,7 +382,6 @@ def _build_category_discovery_retrieval_plan(
     need_ids: tuple[str, ...],
     semantic_hint: RetrievalSemanticHint | None,
     version_query,
-    allow_live_source_lookup: bool,
 ) -> RetrievalPlan:
     admitted_scope = RetrievalScope(corpus=scope.corpus, collection=retrieval_collection)
     broad_step = RetrievalStep(
@@ -422,12 +423,10 @@ def _build_category_discovery_retrieval_plan(
                 retrieval_collection=retrieval_collection,
                 query_mode=query_mode,
             ),
-            allow_live_source_lookup=allow_live_source_lookup,
         ),
         budget=RetrievalPlanBudget(
             max_steps=len(steps),
             max_replans=0,
-            max_live_lookups=0,
         ),
         steps=steps,
     )
@@ -450,7 +449,6 @@ def _build_specific_policy_focused_retrieval_plan(
     need_ids: tuple[str, ...],
     semantic_hint: RetrievalSemanticHint | None,
     version_query,
-    allow_live_source_lookup: bool,
 ) -> RetrievalPlan:
     admitted_scope = RetrievalScope(corpus=scope.corpus, collection=retrieval_collection)
     broad_step = RetrievalStep(
@@ -502,12 +500,10 @@ def _build_specific_policy_focused_retrieval_plan(
                 retrieval_collection=retrieval_collection,
                 query_mode=query_mode,
             ),
-            allow_live_source_lookup=allow_live_source_lookup,
         ),
         budget=RetrievalPlanBudget(
             max_steps=len(steps) + 1,
             max_replans=1,
-            max_live_lookups=0,
         ),
         steps=steps,
     )
@@ -546,13 +542,31 @@ def execute_rag_retrieval_context(
     evidence = execution_result.merged_evidence
     evidence = _with_query_text(
         evidence,
-        effective_user_goal
-        if effective_scope.corpus == "curriculum"
-        and effective_scope.collection == "curriculum_plan"
-        else user_goal,
+        _answer_selection_query_text(
+            effective_scope=effective_scope,
+            effective_user_goal=effective_user_goal,
+            user_goal=user_goal,
+            retrieval_context=retrieval_context,
+        ),
     )
     apply_remote_content_suspicion_labels(evidence)
     return RagRetrievalResult(evidence=evidence, execution_result=execution_result)
+
+
+def _answer_selection_query_text(
+    *,
+    effective_scope: KnowledgeScope,
+    effective_user_goal: str,
+    user_goal: str,
+    retrieval_context: RagRetrievalContext,
+) -> str:
+    if effective_scope.corpus == "curriculum" and effective_scope.collection == "curriculum_plan":
+        return effective_user_goal
+    return (
+        retrieval_context.focused_retrieval_goal.strip()
+        or retrieval_context.retrieval_goal.strip()
+        or user_goal
+    )
 
 
 def _semantic_hint_from_retrieval_intent(
@@ -591,6 +605,8 @@ def _need_kinds_from_retrieval_intent(retrieval_intent: RetrievalIntent) -> tupl
         return ("condition_table",)
     if kind == "version_compare":
         return ("version_compare",)
+    if kind == "curriculum_document_lookup":
+        return ("curriculum_document",)
     if kind == "curriculum_fact_lookup":
         return ("curriculum_fact",)
     if kind == "official_reference_lookup":

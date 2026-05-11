@@ -99,6 +99,23 @@ def _compose_curriculum_lookup_answer(
     return ""
 
 
+def _compose_curriculum_identity_answer(
+    *,
+    evidence: EvidenceBundle,
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> str:
+    statements = _flatten_curriculum_statements(selected_rows)
+    if not statements:
+        return ""
+    lead_title = _lead_source_title(tuple(source for source, _ in selected_rows))
+    first_fact = _curriculum_identity_summary(_normalize_snippet(statements[0]))
+    if not first_fact:
+        return ""
+    if lead_title:
+        return f"《{lead_title}》明确：{first_fact}"
+    return f"{_answer_prefix(evidence)}，{first_fact}"
+
+
 def _flatten_curriculum_statements(
     selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
 ) -> tuple[str, ...]:
@@ -144,6 +161,25 @@ def _curriculum_fact_sentence(lead_title: str, body: str) -> str:
     return f"{body}。"
 
 
+def _first_sentence(text: str) -> str:
+    for terminator in ("。", "！", "？", "!", "?"):
+        if terminator in text:
+            return text.split(terminator, 1)[0].strip()
+    return text.strip()
+
+
+def _curriculum_identity_summary(text: str) -> str:
+    normalized = _normalize_snippet(text)
+    if not normalized:
+        return ""
+    if "培养目标" in normalized:
+        return "该培养方案包含培养目标等内容"
+    first_sentence = _first_sentence(normalized)
+    if len(first_sentence) > 80:
+        return first_sentence[:80].rstrip("，,；;:： ") + "等内容"
+    return first_sentence
+
+
 def _program_semester_source_title(
     selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
 ) -> str:
@@ -159,6 +195,7 @@ def _program_semester_source_title(
 
 
 __all__ = [
+    "_compose_curriculum_identity_answer",
     "_compose_curriculum_lookup_answer",
     "_compose_curriculum_semester_course_list_answer",
     "_curriculum_fact_sentence",

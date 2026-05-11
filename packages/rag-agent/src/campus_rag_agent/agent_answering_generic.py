@@ -15,10 +15,17 @@ def _compose_generic_answer(
     *,
     evidence: EvidenceBundle,
     selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+    collapse_to_short: bool = False,
 ) -> str:
-    fragments = ["；".join(statements) for _, statements in selected_rows if statements]
+    if collapse_to_short:
+        fragments = [_first_statement(statements) for _, statements in selected_rows if statements]
+    else:
+        fragments = ["；".join(statements) for _, statements in selected_rows if statements]
     if not fragments:
         fragments = [_render_source_support(source) for source, _ in selected_rows]
+    fragments = [fragment for fragment in fragments if fragment]
+    if not fragments:
+        return ""
 
     answer_prefix = _answer_prefix(evidence)
     supporting_sources = tuple(source for source, _ in selected_rows)
@@ -28,6 +35,13 @@ def _compose_generic_answer(
         else ""
     )
     topic_label = _query_topic_label(evidence.query_text)
+    if collapse_to_short:
+        fragment = fragments[0]
+        if context_label and _normalize_snippet(context_label) not in _normalize_snippet(fragment):
+            return f"{answer_prefix}，{context_label}明确：{fragment}"
+        if topic_label and topic_label not in _normalize_snippet(fragment):
+            return f"{answer_prefix}，关于{topic_label}：{fragment}"
+        return f"{answer_prefix}，{fragment}"
     if context_label and _normalize_snippet(context_label) not in _normalize_snippet(
         " ".join(fragments)
     ):
@@ -35,6 +49,14 @@ def _compose_generic_answer(
     if topic_label and topic_label not in _normalize_snippet(" ".join(fragments)):
         return f"{answer_prefix}，关于{topic_label}：{'；'.join(fragments)}"
     return f"{answer_prefix}，{'；'.join(fragments)}"
+
+
+def _first_statement(statements: tuple[str, ...]) -> str:
+    for statement in statements:
+        normalized = _normalize_snippet(statement)
+        if normalized:
+            return normalized
+    return ""
 
 
 def _query_topic_label(query_text: str) -> str:

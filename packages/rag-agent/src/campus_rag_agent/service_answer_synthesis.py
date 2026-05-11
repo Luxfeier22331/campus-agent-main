@@ -2,7 +2,13 @@ from __future__ import annotations
 
 from collections.abc import Callable
 
-from campus_contracts import AgentObservability, AgentRequest, AgentResponse, KnowledgeScope
+from campus_contracts import (
+    AgentObservability,
+    AgentRequest,
+    AgentResponse,
+    ErrorInfo,
+    KnowledgeScope,
+)
 
 from campus_rag_agent.agent import RagAgent
 from campus_rag_agent.grounding_validation import validate_prompt_answer_grounding
@@ -45,9 +51,25 @@ def build_required_rag_sdk_response(
     projection_context_summaries=(),
     retrieval_intent: RetrievalIntent | None = None,
 ) -> AgentResponse:
+    answer_draft = RagAgent().build_answer(
+        supporting_evidence,
+        retrieval_intent=retrieval_intent,
+    )
     if runner is _RAG_SDK_RUNNER_NOT_PROVIDED or runner is None:
-        raise TypeError(
-            "delegate_to_rag_agent requires an explicit rag_sdk_runner for query-enabled RAG synthesis"
+        return _rag_sdk_runtime_error_response(
+            request=request,
+            resolved_scope=resolved_scope,
+            evidence=supporting_evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            error_code="rag_sdk_runtime_unavailable",
+            detail="explicit rag_sdk_runner is required for query-enabled RAG synthesis",
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
         )
     request_projection = RagSdkRunRequest(
         user_goal=user_goal,
@@ -58,19 +80,14 @@ def build_required_rag_sdk_response(
             retrieval_intent=retrieval_intent,
         ),
         evidence=RagSdkEvidenceProjection.from_evidence_bundle(supporting_evidence),
-        typed_answer=RagAgent()
-        .build_answer(
-            supporting_evidence,
-            retrieval_intent=retrieval_intent,
-        )
-        .typed_draft,
+        typed_answer=answer_draft.typed_draft,
         request_id=request.request_id,
         selector_blocked_query_slot_ids=selector_blocked_query_slot_ids(retrieval_plan),
     )
     try:
         result = runner(request_projection)
     except TimeoutError as exc:
-        return _rag_sdk_fail_closed_response(
+        return _rag_sdk_runtime_error_response(
             request=request,
             resolved_scope=resolved_scope,
             evidence=supporting_evidence,
@@ -80,13 +97,13 @@ def build_required_rag_sdk_response(
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
-            no_answer_reason="rag_sdk_timeout",
+            error_code="rag_sdk_timeout",
             detail=str(exc) or "RAG SDK runner timed out",
             planner_information_needs=planner_information_needs,
             projection_context_summaries=projection_context_summaries,
         )
     except Exception as exc:
-        return _rag_sdk_fail_closed_response(
+        return _rag_sdk_runtime_error_response(
             request=request,
             resolved_scope=resolved_scope,
             evidence=supporting_evidence,
@@ -96,13 +113,13 @@ def build_required_rag_sdk_response(
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
-            no_answer_reason="rag_sdk_runtime_failed",
+            error_code="rag_sdk_runtime_failed",
             detail=str(exc) or "RAG SDK runner failed",
             planner_information_needs=planner_information_needs,
             projection_context_summaries=projection_context_summaries,
         )
     if result.failure_class.strip():
-        return _rag_sdk_fail_closed_response(
+        return _rag_sdk_runtime_error_response(
             request=request,
             resolved_scope=resolved_scope,
             evidence=supporting_evidence,
@@ -112,7 +129,7 @@ def build_required_rag_sdk_response(
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
-            no_answer_reason=result.failure_class.strip(),
+            error_code=result.failure_class.strip(),
             detail=result.failure_detail.strip() or result.failure_class.strip(),
             planner_information_needs=planner_information_needs,
             projection_context_summaries=projection_context_summaries,
@@ -122,7 +139,7 @@ def build_required_rag_sdk_response(
         evidence=RagSdkEvidenceProjection.from_evidence_bundle(supporting_evidence),
     )
     if not validation.accepted:
-        return _rag_sdk_fail_closed_response(
+        return _rag_sdk_generation_fail_closed_response(
             request=request,
             resolved_scope=resolved_scope,
             evidence=supporting_evidence,
@@ -132,7 +149,7 @@ def build_required_rag_sdk_response(
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
-            no_answer_reason="rag_sdk_guardrail_failed",
+            fail_close_reason="rag_sdk_guardrail_failed",
             detail=validation.failure_reason,
             claim_supports=validation.claim_supports,
             unsupported_fields=(validation.failure_reason,),
@@ -145,7 +162,7 @@ def build_required_rag_sdk_response(
         provider_grounding_supports=result.provider_grounding_supports,
     )
     if grounding.verdict != "grounded":
-        return _rag_sdk_fail_closed_response(
+        return _rag_sdk_generation_fail_closed_response(
             request=request,
             resolved_scope=resolved_scope,
             evidence=supporting_evidence,
@@ -155,7 +172,7 @@ def build_required_rag_sdk_response(
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
-            no_answer_reason="insufficient_grounding",
+            fail_close_reason="insufficient_grounding",
             detail="rag_sdk_answer_text_unsupported",
             claim_supports=grounding.claim_supports,
             unsupported_fields=grounding.unsupported_fields,
@@ -165,7 +182,7 @@ def build_required_rag_sdk_response(
     try:
         safe_trace_details = safe_rag_sdk_trace_details(result)
     except ValueError:
-        return _rag_sdk_fail_closed_response(
+        return _rag_sdk_runtime_error_response(
             request=request,
             resolved_scope=resolved_scope,
             evidence=supporting_evidence,
@@ -175,7 +192,7 @@ def build_required_rag_sdk_response(
             curriculum_plan=curriculum_plan,
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
-            no_answer_reason="rag_sdk_runtime_failed",
+            error_code="rag_sdk_runtime_failed",
             detail="rag_sdk_trace_projection_unsafe",
             planner_information_needs=planner_information_needs,
             projection_context_summaries=projection_context_summaries,
@@ -198,10 +215,16 @@ def build_required_rag_sdk_response(
             allow_session_follow_up=True,
             semantic_outcome=result.output.semantic_outcome or "grounded_answer",
             retrieval_adequacy=sufficient_retrieval_adequacy(),
-            claim_supports=grounding.claim_supports or validation.claim_supports,
+            claim_supports=_completed_claim_supports(
+                validation_claim_supports=validation.claim_supports,
+                grounding_claim_supports=grounding.claim_supports,
+            ),
             grounding_verdict="grounded",
             prompt_runtime_state="rag_sdk_completed",
             prompt_runtime_detail=safe_rag_sdk_runtime_detail(result),
+            answer_presentation_kind=answer_draft.presentation_kind,
+            answer_fallback_path=answer_draft.fallback_path,
+            answer_fallback_reason=answer_draft.fallback_reason,
             planner_information_needs=planner_information_needs,
             projection_context_summaries=projection_context_summaries,
         ),
@@ -256,6 +279,7 @@ def _rag_task_kind_from_retrieval_intent(
         "condition_table",
         "general_fact_lookup",
         "official_reference_lookup",
+        "curriculum_document_lookup",
         "curriculum_fact_lookup",
     }:
         return RagTaskKind.SPECIFIC_POLICY_LOOKUP
@@ -266,6 +290,14 @@ def _rag_task_kind_from_retrieval_intent(
     if retrieval_intent.kind == "unsupported":
         return RagTaskKind.UNSUPPORTED_SCOPE
     return RagTaskKind.FACT_LOOKUP
+
+
+def _completed_claim_supports(
+    *,
+    validation_claim_supports,
+    grounding_claim_supports,
+):
+    return validation_claim_supports or grounding_claim_supports
 
 
 def selector_blocked_query_slot_ids(retrieval_plan) -> tuple[str, ...]:
@@ -304,7 +336,7 @@ def safe_rag_sdk_trace_details(result: RagSdkRunResult) -> dict[str, object]:
     return {"rag_sdk_trace_projection": dict(projection)}
 
 
-def _rag_sdk_fail_closed_response(
+def _rag_sdk_generation_fail_closed_response(
     *,
     request: AgentRequest,
     resolved_scope: KnowledgeScope,
@@ -315,7 +347,7 @@ def _rag_sdk_fail_closed_response(
     curriculum_plan,
     curriculum_course_plan,
     curriculum_program_family_plan,
-    no_answer_reason: str,
+    fail_close_reason: str,
     detail: str,
     claim_supports=(),
     unsupported_fields=(),
@@ -340,14 +372,64 @@ def _rag_sdk_fail_closed_response(
             curriculum_course_plan=curriculum_course_plan,
             curriculum_program_family_plan=curriculum_program_family_plan,
             request_id=request.request_id,
-            no_answer_reason=no_answer_reason,
-            semantic_outcome="unsupported_by_evidence",
+            no_answer_reason="",
+            fail_close_reason=fail_close_reason,
+            semantic_outcome="fail_closed_generation",
             retrieval_adequacy=sufficient_retrieval_adequacy(),
             claim_supports=claim_supports,
             unsupported_fields=unsupported_fields,
             grounding_verdict="unsupported",
             grounding_downgraded=True,
-            prompt_runtime_state=no_answer_reason,
+            prompt_runtime_state=fail_close_reason,
+            prompt_runtime_detail=detail,
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
+        ),
+    )
+
+
+def _rag_sdk_runtime_error_response(
+    *,
+    request: AgentRequest,
+    resolved_scope: KnowledgeScope,
+    evidence,
+    retrieved_evidence,
+    retrieval_execution_result,
+    handbook_plan,
+    curriculum_plan,
+    curriculum_course_plan,
+    curriculum_program_family_plan,
+    error_code: str,
+    detail: str,
+    planner_information_needs=(),
+    projection_context_summaries=(),
+) -> AgentResponse:
+    return AgentResponse(
+        target="rag-agent",
+        status="error",
+        confidence="low",
+        error=ErrorInfo(
+            code=error_code,
+            message=detail,
+            retryable=error_code in {"rag_sdk_timeout", "rag_sdk_runtime_failed"},
+        ),
+        result=_build_rag_result_payload(
+            evidence=evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            resolved_scope=resolved_scope,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            request_id=request.request_id,
+            no_answer_reason="",
+            fail_close_reason=error_code,
+            semantic_outcome="runtime_error",
+            retrieval_adequacy=sufficient_retrieval_adequacy(),
+            grounding_verdict="unsupported",
+            grounding_downgraded=True,
+            prompt_runtime_state=error_code,
             prompt_runtime_detail=detail,
             planner_information_needs=planner_information_needs,
             projection_context_summaries=projection_context_summaries,

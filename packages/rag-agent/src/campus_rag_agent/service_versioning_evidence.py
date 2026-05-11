@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import replace
 
 from campus_contracts import EvidenceBundle, EvidenceSource
+from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 from campus_retrieval_core.evidence_ranking import (
     select_supporting_evidence_sources,
 )
@@ -201,7 +202,7 @@ def _category_source_sort_key(source: EvidenceSource) -> tuple[int, int, int, fl
 
 
 def _category_source_answer_role_priority(source: EvidenceSource) -> int:
-    answer_role = str(source.anchor.get("answer_role") or source.semantic_role or "").strip()
+    answer_role = evidence_attributes_for_source(source).answer_role
     if answer_role == "category_overview":
         return 4
     if answer_role == "eligibility_intro":
