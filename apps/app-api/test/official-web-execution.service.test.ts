@@ -59,7 +59,6 @@ function createSiteSource(): OfficialWebSiteProjectionSource {
 describe("official web execution status service", () => {
 	it("persists target field review summaries from trusted ingestion callbacks", async () => {
 		const store: OfficialWebProjectionProjectorStore = {
-			getRunAdmissionDecision: vi.fn(),
 			getRunProjectionSource: vi.fn().mockResolvedValue(createRunSource()),
 			getSiteProjectionSource: vi.fn().mockResolvedValue(createSiteSource()),
 			listPendingEvents: vi.fn(),
@@ -73,7 +72,6 @@ describe("official web execution status service", () => {
 			upsertTargetArtifactVerificationSummaries: vi.fn(),
 		};
 		const service = buildOfficialWebExecutionStatusService({
-			now: () => new Date("2026-05-01T08:05:00.000Z"),
 			store,
 		});
 
@@ -127,7 +125,6 @@ describe("official web execution status service", () => {
 
 	it("coalesces multiple target field reviews for the same job and run before persistence", async () => {
 		const store: OfficialWebProjectionProjectorStore = {
-			getRunAdmissionDecision: vi.fn(),
 			getRunProjectionSource: vi.fn().mockResolvedValue(createRunSource()),
 			getSiteProjectionSource: vi.fn().mockResolvedValue(createSiteSource()),
 			listPendingEvents: vi.fn(),
@@ -141,7 +138,6 @@ describe("official web execution status service", () => {
 			upsertTargetArtifactVerificationSummaries: vi.fn(),
 		};
 		const service = buildOfficialWebExecutionStatusService({
-			now: () => new Date("2026-05-01T08:05:00.000Z"),
 			store,
 		});
 
@@ -214,5 +210,39 @@ describe("official web execution status service", () => {
 				updatedAt: "2026-05-01T08:05:00.000Z",
 			},
 		]);
+	});
+
+	it("rejects execution status callbacks without explicit updatedAt", async () => {
+		const store: OfficialWebProjectionProjectorStore = {
+			getRunProjectionSource: vi.fn().mockResolvedValue(createRunSource()),
+			getSiteProjectionSource: vi.fn().mockResolvedValue(createSiteSource()),
+			listPendingEvents: vi.fn(),
+			markEventFailed: vi.fn(),
+			markEventProcessed: vi.fn(),
+			markTimedOutRunsAsAbandoned: vi.fn(),
+			updateRunDispatchStatus: vi.fn(),
+			updateRunExecutionStatus: vi.fn().mockResolvedValue(true),
+			upsertRunProjection: vi.fn(),
+			upsertSiteProjection: vi.fn(),
+			upsertTargetArtifactVerificationSummaries: vi.fn(),
+		};
+		const service = buildOfficialWebExecutionStatusService({
+			store,
+		});
+
+		await expect(
+			service.updateRunExecutionStatus({
+				payload: {
+					executionRef: "owexec_01",
+					status: "staged",
+				},
+				runId: "owrun_field_review",
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			details: { field: "updatedAt" },
+			status: 422,
+		});
+		expect(store.updateRunExecutionStatus).not.toHaveBeenCalled();
 	});
 });

@@ -52,7 +52,7 @@ export async function defaultDocsReadinessProbe(env: Env): Promise<AppDocsReadin
 			endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
 			environment: config.environment,
 			authShellOrigin: config.authShellOrigin,
-			publicChatOrigin: config.publicChatOrigin ?? config.authShellOrigin,
+			publicChatOrigin: config.publicChatOrigin,
 			resendApiKey: config.resendApiKey,
 			resendFetch: fetch,
 		});

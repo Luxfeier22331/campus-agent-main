@@ -313,7 +313,6 @@ def consume_handoff_record(
             consumer_review_manifest=read_json(consumer_review_manifest_path)
             if consumer_review_manifest_path is not None
             else None,
-            run_admission_decision=_run_admission_decision_from_payload(payload),
             target_inventory_manifest=_read_target_inventory_manifest_if_present(site_id),
         )
         promotion_report = build_promotion_report(
@@ -491,11 +490,6 @@ def _execution_ref(
     return canonical_context.execution_id
 
 
-def _run_admission_decision_from_payload(payload: dict[str, object]) -> dict[str, object] | None:
-    decision = payload.get("runAdmissionDecision") or payload.get("run_admission_decision")
-    return decision if isinstance(decision, dict) else None
-
-
 def _admit_selected_write_release_tasks(
     *,
     release_task_store: OfficialWebReleaseTaskStore | None,
@@ -581,10 +575,8 @@ def download_source_truth_bundle(
         missing_code="missing_source_truth_bundle",
         invalid_code="invalid_source_truth_bundle",
     )
-    site_id = require_text(payload.get("siteId") or payload.get("site_id"), "siteId")
-    crawl_run_id = require_text(
-        payload.get("crawlRunId") or payload.get("crawl_run_id"), "crawlRunId"
-    )
+    site_id = require_text(payload.get("siteId"), "siteId")
+    crawl_run_id = require_text(payload.get("crawlRunId"), "crawlRunId")
     if site_id != expected_site_id:
         raise OfficialWebHandoffConsumeError(
             code="invalid_source_truth_bundle",
@@ -620,21 +612,14 @@ def materialize_replay_input(
         )
     for page in pages:
         page_payload = require_object(page, "pages[]")
-        raw_asset_id = require_text(
-            page_payload.get("rawAssetId") or page_payload.get("raw_asset_id"), "rawAssetId"
-        )
-        raw_version_id = require_text(
-            page_payload.get("rawVersionId") or page_payload.get("raw_version_id"),
-            "rawVersionId",
-        )
+        raw_asset_id = require_text(page_payload.get("rawAssetId"), "rawAssetId")
+        raw_version_id = require_text(page_payload.get("rawVersionId"), "rawVersionId")
         manifest_key = require_text(
-            page_payload.get("pageManifestObjectKey")
-            or page_payload.get("page_manifest_object_key"),
+            page_payload.get("pageManifestObjectKey"),
             "pageManifestObjectKey",
         )
         blocks_key = require_text(
-            page_payload.get("contentBlocksObjectKey")
-            or page_payload.get("content_blocks_object_key"),
+            page_payload.get("contentBlocksObjectKey"),
             "contentBlocksObjectKey",
         )
         manifest_bytes = download_bytes(

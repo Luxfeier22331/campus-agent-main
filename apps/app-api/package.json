@@ -22,7 +22,6 @@
 		"chat:e2e:staging": "node ./scripts/run-with-staging-smoke-env.mjs pnpm exec tsx ./scripts/chat-e2e.ts --profile staging",
 		"docs:gated:smoke:staging": "node ./scripts/run-with-staging-smoke-env.mjs pnpm exec tsx ./scripts/staging-docs-gated-smoke.ts",
 		"official-web:drain-projection": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/drain-official-web-projection.ts",
-		"official-web:legacy-cleanup": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/official-web-legacy-cleanup.ts",
 		"official-web:seed-smoke": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-official-web-smoke.ts",
 		"requests:seed-smoke": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/seed-request-smoke.ts",
 		"collection-rename:audit": "node ./scripts/run-with-local-env.mjs pnpm exec tsx ./scripts/collection-rename-backfill.ts audit",

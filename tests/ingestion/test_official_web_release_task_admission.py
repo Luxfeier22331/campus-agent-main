@@ -50,6 +50,54 @@ class OfficialWebReleaseTaskAdmissionTest(unittest.TestCase):
             ["official_web/muc_public/runs/owrun_001/source-truth-bundle.json"],
         )
 
+    def test_rejects_stable_reference_release_gate_with_snake_case_evidence_contract(
+        self,
+    ) -> None:
+        gate = _approved_gate()
+        evidence = dict(gate["evidenceJson"])
+        evidence["selected_write_target"] = evidence.pop("selectedWriteTarget")
+        gate["evidenceJson"] = evidence
+
+        with self.assertRaisesRegex(ValueError, "stable-reference"):
+            build_stable_reference_release_task_from_gate(gate)
+
+    def test_rejects_stable_reference_release_gate_with_legacy_evidence_container(
+        self,
+    ) -> None:
+        gate = _approved_gate()
+        gate["evidence"] = gate.pop("evidenceJson")
+
+        with self.assertRaisesRegex(ValueError, "evidenceJson"):
+            build_stable_reference_release_task_from_gate(gate)
+
+    def test_rejects_stable_reference_release_gate_without_evidence_json(
+        self,
+    ) -> None:
+        gate = _approved_gate()
+        gate.pop("evidenceJson")
+
+        with self.assertRaisesRegex(ValueError, "evidenceJson"):
+            build_stable_reference_release_task_from_gate(gate)
+
+    def test_rejects_release_input_ref_with_snake_case_source_urls(self) -> None:
+        gate = _approved_gate()
+        evidence = dict(gate["evidenceJson"])
+        source_urls = evidence.pop("sourceUrls")
+        evidence["source_urls"] = source_urls
+        gate["evidenceJson"] = evidence
+
+        with self.assertRaisesRegex(ValueError, "sourceUrls"):
+            build_stable_reference_release_task_from_gate(gate)
+
+    def test_rejects_release_input_ref_with_snake_case_source_object_keys(self) -> None:
+        gate = _approved_gate()
+        evidence = dict(gate["evidenceJson"])
+        evidence["source_object_keys"] = evidence.pop("sourceObjectKeys")
+        gate["evidenceJson"] = evidence
+
+        with self.assertRaisesRegex(ValueError, "sourceObjectKeys"):
+            build_stable_reference_release_task_from_gate(gate)
+
     def test_rejects_unapproved_or_non_stable_reference_gate(self) -> None:
         with self.assertRaisesRegex(ValueError, "approved"):
             build_stable_reference_release_task_from_gate(
@@ -126,6 +174,81 @@ class OfficialWebReleaseTaskAdmissionTest(unittest.TestCase):
             task.input_ref["optionalEvidence"],
             ["email", "location", "office_hours"],
         )
+
+    def test_rejects_selected_write_candidate_with_camel_case_target_field(self) -> None:
+        candidate = _information_disclosure_candidate(source_refs=[])
+        candidate["selectedWriteTarget"] = candidate.pop("selected_write_target")
+
+        with self.assertRaisesRegex(ValueError, "selected_write_target"):
+            build_selected_write_release_task_from_candidate(
+                candidate,
+                run_id="owrun_info_disclosure",
+                source_object_keys=[
+                    "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+                ],
+            )
+
+    def test_rejects_selected_write_candidate_with_camel_case_field_status(self) -> None:
+        candidate = _information_disclosure_candidate(source_refs=[])
+        candidate["fieldStatus"] = candidate.pop("field_status")
+
+        with self.assertRaisesRegex(ValueError, "field_status"):
+            build_selected_write_release_task_from_candidate(
+                candidate,
+                run_id="owrun_info_disclosure",
+                source_object_keys=[
+                    "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+                ],
+            )
+
+    def test_rejects_selected_write_candidate_with_camel_case_source_refs(self) -> None:
+        candidate = _information_disclosure_candidate(
+            source_refs=[
+                {
+                    "raw_asset_id": "owasset_info_procedure",
+                    "raw_version_id": "owver_info_procedure",
+                    "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                }
+            ]
+        )
+        candidate["sourceRefs"] = candidate.pop("source_refs")
+
+        with self.assertRaisesRegex(ValueError, "source_refs"):
+            build_selected_write_release_task_from_candidate(
+                candidate,
+                run_id="owrun_info_disclosure",
+                source_object_keys=[
+                    "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+                ],
+            )
+
+    def test_rejects_selected_write_candidate_with_missing_source_ref(self) -> None:
+        candidate = _information_disclosure_candidate(source_refs=[])
+        candidate.pop("source_ref")
+
+        with self.assertRaisesRegex(ValueError, "source_ref"):
+            build_selected_write_release_task_from_candidate(
+                candidate,
+                run_id="owrun_info_disclosure",
+                source_object_keys=[
+                    "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+                ],
+            )
+
+    def test_rejects_selected_write_candidate_with_camel_case_source_ref_fields(self) -> None:
+        candidate = _information_disclosure_candidate(source_refs=[])
+        source_ref = dict(candidate["source_ref"])
+        source_ref["rawAssetId"] = source_ref.pop("raw_asset_id")
+        candidate["source_ref"] = source_ref
+
+        with self.assertRaisesRegex(ValueError, "source_ref.raw_asset_id"):
+            build_selected_write_release_task_from_candidate(
+                candidate,
+                run_id="owrun_info_disclosure",
+                source_object_keys=[
+                    "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+                ],
+            )
 
     def test_builds_service_guide_composition_release_task_with_all_source_urls(self) -> None:
         task = build_selected_write_release_task_from_candidate(

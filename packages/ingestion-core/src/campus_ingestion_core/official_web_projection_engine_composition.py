@@ -69,12 +69,8 @@ def _resolve_consumer_projection(
     for match in matches:
         if not isinstance(match, dict):
             continue
-        consumer_family = _require_optional_text(
-            match.get("consumerFamily") or match.get("consumer_family")
-        )
-        materialization_policy = _require_optional_text(
-            match.get("materializationPolicy") or match.get("materialization_policy")
-        )
+        consumer_family = _require_optional_text(match.get("consumerFamily"))
+        materialization_policy = _require_optional_text(match.get("materializationPolicy"))
         if consumer_family is None or materialization_policy is None:
             continue
         if consumer_family == "stable_reference_candidate":
@@ -83,9 +79,7 @@ def _resolve_consumer_projection(
             continue
         target_corpus, target_collection = _target_from_consumer_match(match)
         selected_write_target = (
-            _require_optional_text(
-                match.get("selectedWriteTarget") or match.get("selected_write_target")
-            )
+            _require_optional_text(match.get("selectedWriteTarget"))
             or ""
         )
         candidate_pages.append(
@@ -94,13 +88,9 @@ def _resolve_consumer_projection(
                 consumer_family=consumer_family,
                 manifest=manifest,
                 materialization_policy=materialization_policy,
-                matched_evidence=_string_list(
-                    match.get("matchedEvidence") or match.get("matched_evidence")
-                )
+                matched_evidence=_string_list(match.get("matchedEvidence"))
                 or _target_lineage_matched_evidence(match),
-                review_policy=_require_optional_text(
-                    match.get("reviewPolicy") or match.get("review_policy")
-                )
+                review_policy=_require_optional_text(match.get("reviewPolicy"))
                 or "",
                 selected_write_target=selected_write_target,
                 target_lineage=match,
@@ -122,21 +112,17 @@ def _is_non_answer_bearing_source_pack_preview_seed(
     manifest: dict[str, object],
     matches: list[dict[str, object]],
 ) -> bool:
-    if str(manifest.get("pageFamily") or manifest.get("page_family") or "").strip() not in {
+    if str(manifest.get("pageFamily") or "").strip() not in {
         "directory_page",
         "listing_page",
     }:
         return False
-    source_pack_id = _require_optional_text(
-        manifest.get("sourcePackId") or manifest.get("source_pack_id")
-    )
-    source_pack_entry_id = _require_optional_text(
-        manifest.get("sourcePackEntryId") or manifest.get("source_pack_entry_id")
-    )
+    source_pack_id = _require_optional_text(manifest.get("sourcePackId"))
+    source_pack_entry_id = _require_optional_text(manifest.get("sourcePackEntryId"))
     if source_pack_id is None or source_pack_entry_id is None or not matches:
         return False
     return all(
-        _require_optional_text(match.get("worksetReason") or match.get("workset_reason"))
+        _require_optional_text(match.get("worksetReason"))
         == "source_pack_preview_seed"
         for match in matches
         if isinstance(match, dict)
@@ -324,9 +310,7 @@ def _build_email_service_candidate_page(
     )
     raw_version_id = _require_text(policy_manifest.get("rawVersionId"), "rawVersionId")
     selected_write_target = (
-        _require_optional_text(
-            target_lineage.get("selectedWriteTarget") or target_lineage.get("selected_write_target")
-        )
+        _require_optional_text(target_lineage.get("selectedWriteTarget"))
         or ""
     )
     policy_lines = _main_content_lines(policy_blocks)
@@ -403,7 +387,6 @@ def _build_email_service_candidate_page(
         "consumer_family": "service_guide_candidate",
         "materialization_policy": _require_optional_text(
             target_lineage.get("materializationPolicy")
-            or target_lineage.get("materialization_policy")
         )
         or "",
         "target_corpus": "campus_services",
@@ -414,9 +397,7 @@ def _build_email_service_candidate_page(
         "title": title,
         "matched_evidence": _target_lineage_matched_evidence(target_lineage),
         "selected_write_target": selected_write_target,
-        "review_policy": _require_optional_text(
-            target_lineage.get("reviewPolicy") or target_lineage.get("review_policy")
-        ),
+        "review_policy": _require_optional_text(target_lineage.get("reviewPolicy")),
         "reason": "candidate_only consumer denominator match",
         "typed_candidate_schema_version": "official_web_service_guide_candidate.v1",
         "typed_candidate": typed_candidate,
@@ -456,9 +437,7 @@ def _build_information_disclosure_service_candidate_page(
     )
     raw_version_id = _require_text(procedure_manifest.get("rawVersionId"), "rawVersionId")
     selected_write_target = (
-        _require_optional_text(
-            target_lineage.get("selectedWriteTarget") or target_lineage.get("selected_write_target")
-        )
+        _require_optional_text(target_lineage.get("selectedWriteTarget"))
         or ""
     )
     procedure_lines = _main_content_lines(procedure_blocks)
@@ -527,7 +506,6 @@ def _build_information_disclosure_service_candidate_page(
         "consumer_family": "service_guide_candidate",
         "materialization_policy": _require_optional_text(
             target_lineage.get("materializationPolicy")
-            or target_lineage.get("materialization_policy")
         )
         or "",
         "target_corpus": "campus_services",
@@ -538,9 +516,7 @@ def _build_information_disclosure_service_candidate_page(
         "title": title,
         "matched_evidence": _target_lineage_matched_evidence(target_lineage),
         "selected_write_target": selected_write_target,
-        "review_policy": _require_optional_text(
-            target_lineage.get("reviewPolicy") or target_lineage.get("review_policy")
-        ),
+        "review_policy": _require_optional_text(target_lineage.get("reviewPolicy")),
         "reason": "candidate_only consumer denominator match",
         "typed_candidate_schema_version": "official_web_service_guide_candidate.v1",
         "typed_candidate": typed_candidate,

@@ -283,7 +283,7 @@ def _page_object_refs_from_bundle_payload(
                 code="invalid_source_truth_bundle",
                 message="bundle pages[] must be an object.",
             )
-        source_unit_id = str(page.get("rawAssetId") or page.get("raw_asset_id") or "").strip()
+        source_unit_id = require_text(page.get("rawAssetId"), "rawAssetId")
         for field_name, role in (
             ("pageManifestObjectKey", "official_web_page_manifest"),
             ("contentBlocksObjectKey", "official_web_content_blocks"),

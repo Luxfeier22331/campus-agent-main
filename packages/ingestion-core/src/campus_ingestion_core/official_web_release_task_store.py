@@ -14,7 +14,6 @@ from campus_ingestion_core.official_web_release_task_store_models import (
     DEFAULT_OFFICIAL_WEB_RELEASE_TASK_LEASE_SECONDS,
     DEFAULT_OFFICIAL_WEB_RELEASE_TASK_TABLE,
     OFFICIAL_WEB_RELEASE_TASK_DATABASE_ENV_KEY,
-    OFFICIAL_WEB_RELEASE_TASK_MANAGEMENT_DATABASE_ENV_KEY,
     OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_ENV_KEY,
     OfficialWebReleaseTaskConflictError,
     OfficialWebReleaseTaskLeaseError,
@@ -31,7 +30,6 @@ from campus_ingestion_core.official_web_release_task_store_rows import (
 from campus_ingestion_core.postgres_runtime import build_operator_postgres_connection_url
 from campus_ingestion_core.registry import (
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _ensure_table_schema,
     _postgres_connection,
@@ -729,10 +727,8 @@ def build_official_web_release_task_store_from_env(
     source = env if env is not None else os.environ
     database_url = (
         (source.get(OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_ENV_KEY) or "").strip()
-        or (source.get(OFFICIAL_WEB_RELEASE_TASK_MANAGEMENT_DATABASE_ENV_KEY) or "").strip()
         or (source.get(OFFICIAL_WEB_RELEASE_TASK_DATABASE_ENV_KEY) or "").strip()
         or (source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY) or "").strip()
-        or (source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY) or "").strip()
         or (source.get(SHARED_POSTGRES_ENV_KEY) or "").strip()
     )
     if not database_url:
@@ -742,9 +738,7 @@ def build_official_web_release_task_store_from_env(
         )
     if (
         source.get(OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_ENV_KEY)
-        or source.get(OFFICIAL_WEB_RELEASE_TASK_MANAGEMENT_DATABASE_ENV_KEY)
         or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-        or source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
     ):
         database_url = build_operator_postgres_connection_url(database_url)
     return PostgresOfficialWebReleaseTaskStore(database_url, table_name=table_name)
@@ -754,7 +748,6 @@ __all__ = [
     "DEFAULT_OFFICIAL_WEB_RELEASE_TASK_LEASE_SECONDS",
     "DEFAULT_OFFICIAL_WEB_RELEASE_TASK_TABLE",
     "OFFICIAL_WEB_RELEASE_TASK_DATABASE_ENV_KEY",
-    "OFFICIAL_WEB_RELEASE_TASK_MANAGEMENT_DATABASE_ENV_KEY",
     "OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_ENV_KEY",
     "InMemoryOfficialWebReleaseTaskStore",
     "OfficialWebReleaseTaskConflictError",

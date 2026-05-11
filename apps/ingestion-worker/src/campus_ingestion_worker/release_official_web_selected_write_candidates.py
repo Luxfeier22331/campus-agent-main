@@ -17,13 +17,10 @@ def _matching_selected_write_candidates(
     selected_write_task: dict[str, object],
 ) -> list[dict[str, object]]:
     selected_write_target = _require_text(
-        selected_write_task.get("selectedWriteTarget")
-        or selected_write_task.get("selected_write_target"),
+        selected_write_task.get("selectedWriteTarget"),
         "selectedWriteTarget",
     )
-    job_id = _require_text(
-        selected_write_task.get("jobId") or selected_write_task.get("job_id"), "jobId"
-    )
+    job_id = _require_text(selected_write_task.get("jobId"), "jobId")
     source_urls = _string_list(_evidence(selected_write_task).get("sourceUrls"))
     candidates = replay_report.get("consumer_candidate_pages")
     if not isinstance(candidates, list):

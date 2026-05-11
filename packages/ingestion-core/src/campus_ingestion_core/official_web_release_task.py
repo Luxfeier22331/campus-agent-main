@@ -16,6 +16,26 @@ OFFICIAL_WEB_RELEASE_TASK_TYPES = frozenset(
 
 OFFICIAL_WEB_RELEASE_TASK_EXECUTABLE_STATUSES = frozenset({"claimed", "running", "materialized"})
 
+_LEGACY_WIRE_FIELD_REPLACEMENTS = {
+    "attempt_count": "attemptCount",
+    "created_at": "createdAt",
+    "input_ref": "inputRef",
+    "inventory_id": "inventoryId",
+    "job_id": "jobId",
+    "last_error_code": "lastErrorCode",
+    "last_error_message": "lastErrorMessage",
+    "lease_expires_at": "leaseExpiresAt",
+    "lease_owner": "leaseOwner",
+    "max_attempts": "maxAttempts",
+    "output_ref": "outputRef",
+    "publish_alias": "publishAlias",
+    "run_id": "runId",
+    "selected_write_target": "selectedWriteTarget",
+    "task_id": "taskId",
+    "task_type": "taskType",
+    "updated_at": "updatedAt",
+}
+
 
 @dataclass(frozen=True, slots=True)
 class OfficialWebReleaseTask:
@@ -71,37 +91,36 @@ class OfficialWebReleaseTask:
 
     @classmethod
     def from_payload(cls, payload: Mapping[str, Any]) -> OfficialWebReleaseTask:
-        input_ref = _mapping(_first_present(payload, "inputRef", "input_ref"), "inputRef")
+        _reject_legacy_wire_fields(payload)
+        input_ref = _mapping(payload.get("inputRef"), "inputRef")
         return cls(
-            attempt_count=_int(_first_present(payload, "attemptCount", "attempt_count"), 0),
-            created_at=_first_present(payload, "createdAt", "created_at"),
+            attempt_count=_int(payload.get("attemptCount"), 0),
+            created_at=payload.get("createdAt"),
             input_ref=input_ref,
-            inventory_id=_text(_first_present(payload, "inventoryId", "inventory_id")),
-            job_id=_text(_first_present(payload, "jobId", "job_id")),
-            last_error_code=_text(
-                _first_present(payload, "lastErrorCode", "last_error_code"), required=False
-            ),
+            inventory_id=_text(payload.get("inventoryId")),
+            job_id=_text(payload.get("jobId")),
+            last_error_code=_text(payload.get("lastErrorCode"), required=False),
             last_error_message=_text(
-                _first_present(payload, "lastErrorMessage", "last_error_message"),
+                payload.get("lastErrorMessage"),
                 required=False,
             ),
-            lease_expires_at=_first_present(payload, "leaseExpiresAt", "lease_expires_at"),
+            lease_expires_at=payload.get("leaseExpiresAt"),
             lease_owner=_text(
-                _first_present(payload, "leaseOwner", "lease_owner"),
+                payload.get("leaseOwner"),
                 required=False,
             ),
-            max_attempts=_int(_first_present(payload, "maxAttempts", "max_attempts"), 3),
-            output_ref=_optional_mapping(_first_present(payload, "outputRef", "output_ref")),
-            publish_alias=bool(_first_present(payload, "publishAlias", "publish_alias") is True),
-            run_id=_text(_first_present(payload, "runId", "run_id")),
+            max_attempts=_int(payload.get("maxAttempts"), 3),
+            output_ref=_optional_mapping(payload.get("outputRef")),
+            publish_alias=bool(payload.get("publishAlias") is True),
+            run_id=_text(payload.get("runId")),
             selected_write_target=_text(
-                _first_present(payload, "selectedWriteTarget", "selected_write_target"),
+                payload.get("selectedWriteTarget"),
                 required=False,
             ),
             status=_text(payload.get("status")),
-            task_id=_text(_first_present(payload, "taskId", "task_id")),
-            task_type=_text(_first_present(payload, "taskType", "task_type")),
-            updated_at=_first_present(payload, "updatedAt", "updated_at"),
+            task_id=_text(payload.get("taskId")),
+            task_type=_text(payload.get("taskType")),
+            updated_at=payload.get("updatedAt"),
         )
 
     @property
@@ -310,11 +329,20 @@ def utc_now() -> datetime:
     return datetime.now(tz=UTC)
 
 
-def _first_present(payload: Mapping[str, Any], *keys: str) -> Any:
-    for key in keys:
-        if key in payload:
-            return payload[key]
-    return None
+def _reject_legacy_wire_fields(payload: Mapping[str, Any]) -> None:
+    legacy_replacements = {
+        legacy_field: canonical_field
+        for legacy_field, canonical_field in _LEGACY_WIRE_FIELD_REPLACEMENTS.items()
+        if legacy_field in payload
+    }
+    if legacy_replacements:
+        replacements = ", ".join(
+            f"{legacy_field}->{canonical_field}"
+            for legacy_field, canonical_field in legacy_replacements.items()
+        )
+        raise ValueError(
+            f"legacy release task fields are not accepted; use camelCase fields: {replacements}"
+        )
 
 
 def _datetime(value: Any, field_name: str) -> datetime:

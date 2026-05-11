@@ -13,6 +13,7 @@ CASE_MODULES = (
     "tests.ingestion.cases_test_release_official_web_selected_write_part03",
     "tests.ingestion.cases_test_release_official_web_selected_write_part04",
     "tests.ingestion.cases_test_release_official_web_selected_write_part05",
+    "tests.ingestion.cases_test_release_official_web_selected_write_part06",
 )
 
 

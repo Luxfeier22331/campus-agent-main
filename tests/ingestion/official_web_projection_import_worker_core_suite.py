@@ -145,3 +145,53 @@ class OfficialWebProjectionImportCoreTest(unittest.TestCase):
                     scope_refresh=("official_web", "muc_public_pages"),
                     require_promotable=True,
                 )
+
+    def test_import_projection_output_rejects_snake_case_bundle_page_identity_fallback(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            projection_dir = root / "projection-output"
+            replay_input_dir = root / "replay-input"
+            work_dir = root / "work"
+            projection_report = _projection_report()
+            canonical_path = projection_dir / "canonical.md"
+            document_units_path = projection_dir / "document-units.jsonl"
+            projection_report["documents"][0]["canonical_markdown_path"] = str(canonical_path)
+            projection_report["documents"][0]["document_units_path"] = str(document_units_path)
+            _write_json(projection_dir / "projection-report.json", projection_report)
+            canonical_path.write_text("# 学校简介\n\n中央民族大学学校简介。", encoding="utf-8")
+            _write_jsonl(document_units_path, [_document_units_row()])
+            bundle = _bundle_payload()
+            page = bundle["pages"][0]
+            assert isinstance(page, dict)
+            bundle["pages"] = [
+                {
+                    "raw_asset_id": page["rawAssetId"],
+                    "raw_version_id": page["rawVersionId"],
+                    "normalized_canonical_url": page["normalizedCanonicalUrl"],
+                    "page_family": page["pageFamily"],
+                    "page_manifest_object_key": page["pageManifestObjectKey"],
+                    "content_blocks_object_key": page["contentBlocksObjectKey"],
+                    "provider_extraction_object_key": page["providerExtractionObjectKey"],
+                    "response_html_object_key": page["responseHtmlObjectKey"],
+                    "response_body_hash": page["responseBodyHash"],
+                    "block_count": page["blockCount"],
+                }
+            ]
+            _write_json(replay_input_dir / "source-truth-bundle.json", bundle)
+            object_store = _FakeObjectStore()
+
+            with self.assertRaisesRegex(ValueError, "rawAssetId"):
+                worker.import_projection_output(
+                    work_dir=work_dir,
+                    projection_output_dir=projection_dir,
+                    replay_input_dir=replay_input_dir,
+                    source_object_store=object_store,
+                    derived_object_store=object_store,
+                    document_registry=InMemoryDocumentRegistry(),
+                    raw_asset_registry=InMemoryRawAssetRegistry(),
+                    object_store_settings=_object_store_settings(),
+                    scope_refresh=("official_web", "muc_public_pages"),
+                    require_promotable=True,
+                )

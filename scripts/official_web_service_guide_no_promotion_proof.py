@@ -43,6 +43,13 @@ DEFAULT_TARGET_INVENTORY_PATH = (
     Path("configs") / "sources" / "official_web" / "muc_public" / "target-inventory.json"
 )
 
+_LEGACY_RELEASE_TASK_FIELD_REPLACEMENTS = {
+    "inventory_id": "inventoryId",
+    "selected_write_target": "selectedWriteTarget",
+    "task_id": "taskId",
+    "task_type": "taskType",
+}
+
 
 def build_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
@@ -69,11 +76,7 @@ def resolve_service_guide_task_ids_from_seam_report(
         seam_report,
         release_store=release_store,
     )
-    return [
-        str(task.get("taskId") or task.get("task_id") or "").strip()
-        for task in tasks
-        if str(task.get("taskId") or task.get("task_id") or "").strip()
-    ]
+    return [_require_canonical_release_task_field(task, "taskId") for task in tasks]
 
 
 def resolve_service_guide_tasks_from_seam_report(
@@ -106,16 +109,18 @@ def resolve_service_guide_tasks_from_seam_report(
         ):
             to_payload = getattr(task, "to_payload", None)
             if callable(to_payload):
-                resolved.append(dict(to_payload()))
+                task_payload = dict(to_payload())
+                _assert_canonical_service_guide_release_task_payload(task_payload)
+                resolved.append(task_payload)
                 continue
-            resolved.append(
-                {
-                    "taskId": task_id,
-                    "inventoryId": str(getattr(task, "inventory_id", "") or "").strip(),
-                    "taskType": task_type,
-                    "selectedWriteTarget": selected_write_target,
-                }
-            )
+            task_payload = {
+                "taskId": task_id,
+                "inventoryId": str(getattr(task, "inventory_id", "") or "").strip(),
+                "taskType": task_type,
+                "selectedWriteTarget": selected_write_target,
+            }
+            _assert_canonical_service_guide_release_task_payload(task_payload)
+            resolved.append(task_payload)
     if not resolved:
         raise RuntimeError("no service-guide selected-write tasks found in seam report")
     return resolved
@@ -180,11 +185,7 @@ def _merge_preview_release_tasks(
 
     def merge_items(items: list[dict[str, object]]) -> None:
         for item in items:
-            task_id = str(item.get("taskId") or item.get("task_id") or "").strip()
-            inventory_id = str(item.get("inventoryId") or item.get("inventory_id") or "").strip()
-            key = inventory_id or task_id
-            if not key:
-                continue
+            key = _require_canonical_release_task_field(item, "inventoryId")
             if key not in merged_by_key:
                 ordered_keys.append(key)
             merged_by_key[key] = dict(item)
@@ -192,6 +193,45 @@ def _merge_preview_release_tasks(
     merge_items(persisted_release_tasks)
     merge_items(re_admitted_release_tasks)
     return [merged_by_key[key] for key in ordered_keys]
+
+
+def _assert_canonical_service_guide_release_task_payload(task_payload: dict[str, object]) -> None:
+    _require_canonical_release_task_field(task_payload, "taskId")
+    _require_canonical_release_task_field(task_payload, "inventoryId")
+    task_type = _require_canonical_release_task_field(task_payload, "taskType")
+    selected_write_target = _require_canonical_release_task_field(
+        task_payload,
+        "selectedWriteTarget",
+    )
+    if task_type != "official_web_selected_write_service_guide":
+        raise ValueError("service-guide release task payload must use service-guide taskType")
+    if selected_write_target != "campus_services/service_guide":
+        raise ValueError(
+            "service-guide release task payload must use campus_services/service_guide target"
+        )
+
+
+def _require_canonical_release_task_field(
+    task_payload: dict[str, object],
+    field_name: str,
+) -> str:
+    legacy_replacements = {
+        legacy_field: canonical_field
+        for legacy_field, canonical_field in _LEGACY_RELEASE_TASK_FIELD_REPLACEMENTS.items()
+        if legacy_field in task_payload
+    }
+    if legacy_replacements:
+        replacements = ", ".join(
+            f"{legacy_field}->{canonical_field}"
+            for legacy_field, canonical_field in legacy_replacements.items()
+        )
+        raise ValueError(
+            f"legacy release task fields are not accepted; use camelCase fields: {replacements}"
+        )
+    text = str(task_payload.get(field_name) or "").strip()
+    if not text:
+        raise ValueError(f"release task payload must contain {field_name}")
+    return text
 
 
 def resolve_service_guide_preview_release_tasks(
@@ -533,9 +573,7 @@ def run_service_guide_no_promotion_proof(
         execution_report=execution_report,
     )
     task_ids = [
-        str(task.get("taskId") or task.get("task_id") or "").strip()
-        for task in preview_release_tasks
-        if str(task.get("taskId") or task.get("task_id") or "").strip()
+        _require_canonical_release_task_field(task, "taskId") for task in preview_release_tasks
     ]
     output_dir.mkdir(parents=True, exist_ok=True)
     preview_output_dir = output_dir / "selected-write-preview"

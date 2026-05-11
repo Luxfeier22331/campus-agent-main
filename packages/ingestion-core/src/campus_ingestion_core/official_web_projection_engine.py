@@ -52,17 +52,15 @@ def replay_official_web_source_truth_local(
     routing_path: Path | None = None,
 ) -> OfficialWebProjectionReplayReport:
     bundle_payload = _read_json(output_dir / "source-truth-bundle.json")
-    schema_version = str(
-        bundle_payload.get("schemaVersion") or bundle_payload.get("schema_version") or ""
-    ).strip()
+    schema_version = str(bundle_payload.get("schemaVersion") or "").strip()
     if schema_version != OFFICIAL_WEB_SOURCE_TRUTH_BUNDLE_SCHEMA_VERSION:
         raise ValueError(f"unsupported source-truth bundle schema_version: {schema_version!r}")
     site_id = _require_text(
-        bundle_payload.get("siteId") or bundle_payload.get("site_id"),
+        bundle_payload.get("siteId"),
         "siteId",
     )
     crawl_run_id = _require_text(
-        bundle_payload.get("crawlRunId") or bundle_payload.get("crawl_run_id"),
+        bundle_payload.get("crawlRunId"),
         "crawlRunId",
     )
     declarations = load_official_web_projection_declarations(
@@ -83,9 +81,7 @@ def replay_official_web_source_truth_local(
     pages = bundle_payload.get("pages")
     if not isinstance(pages, list):
         raise ValueError("source-truth bundle pages must be an array")
-    collection_mode = _require_optional_text(
-        bundle_payload.get("collectionMode") or bundle_payload.get("collection_mode")
-    )
+    collection_mode = _require_optional_text(bundle_payload.get("collectionMode"))
 
     projection_output_dir.mkdir(parents=True, exist_ok=True)
     documents: list[dict[str, object]] = []
@@ -98,20 +94,18 @@ def replay_official_web_source_truth_local(
     for raw_page in pages:
         if not isinstance(raw_page, dict):
             raise ValueError("source-truth bundle page must be an object")
-        page_family = _require_page_family(
-            raw_page.get("pageFamily") or raw_page.get("page_family")
-        )
+        page_family = _require_page_family(_require_text(raw_page.get("pageFamily"), "pageFamily"))
         declaration = declaration_by_page_family.get(page_family)
         if declaration is None:
             raise ValueError(f"missing projection declaration for page_family={page_family}")
         manifest, blocks = _load_local_page_source_truth(
             output_dir=output_dir,
             raw_asset_id=_require_text(
-                raw_page.get("rawAssetId") or raw_page.get("raw_asset_id"),
+                raw_page.get("rawAssetId"),
                 "rawAssetId",
             ),
             raw_version_id=_require_text(
-                raw_page.get("rawVersionId") or raw_page.get("raw_version_id"),
+                raw_page.get("rawVersionId"),
                 "rawVersionId",
             ),
         )
@@ -131,12 +125,9 @@ def replay_official_web_source_truth_local(
         )
         target_lineage_issues.extend(page_target_lineage_issues)
         for target_match in target_matches:
-            consumer_family = _require_optional_text(
-                target_match.get("consumerFamily") or target_match.get("consumer_family")
-            )
+            consumer_family = _require_optional_text(target_match.get("consumerFamily"))
             materialization_policy = _require_optional_text(
                 target_match.get("materializationPolicy")
-                or target_match.get("materialization_policy")
             )
             if consumer_family:
                 target_family_counts[consumer_family] = (

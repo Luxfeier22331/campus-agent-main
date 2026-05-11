@@ -28,13 +28,10 @@ def build_stable_reference_release_task_from_gate(
     status = _optional_text(release_gate.get("status"))
     if decision != "approved" or status != "approved":
         raise ValueError("stable-reference release gate must be approved before task admission")
-    evidence = _mapping(
-        release_gate.get("evidenceJson") or release_gate.get("evidence") or {},
-        "evidenceJson",
-    )
-    selected_write_target = _optional_text(
-        evidence.get("selectedWriteTarget") or evidence.get("selected_write_target")
-    )
+    if "evidenceJson" not in release_gate:
+        raise ValueError("evidenceJson is required")
+    evidence = _mapping(release_gate.get("evidenceJson"), "evidenceJson")
+    selected_write_target = _optional_text(evidence.get("selectedWriteTarget"))
     if selected_write_target != "official_web/stable_reference":
         raise ValueError("release gate is not a stable-reference target")
     input_ref = _release_input_ref(
@@ -63,80 +60,59 @@ def build_selected_write_release_task_from_candidate(
 ) -> OfficialWebReleaseTask:
     if candidate.get("ready_for_selected_write") is not True:
         raise ValueError("selected-write candidate is not ready for task admission")
+    _reject_legacy_selected_write_candidate_fields(candidate)
     selected_write_target = _required_text(
-        candidate.get("selected_write_target") or candidate.get("selectedWriteTarget"),
+        candidate.get("selected_write_target"),
         "selected_write_target",
     )
     task_type = _SELECTED_WRITE_TASK_TYPE_BY_TARGET.get(selected_write_target)
     if task_type is None:
         raise ValueError(f"unsupported selected-write target: {selected_write_target}")
     candidate_key = _required_text(
-        candidate.get("candidate_key") or candidate.get("candidateKey"),
+        candidate.get("candidate_key"),
         "candidate_key",
     )
-    field_status = _mapping(
-        candidate.get("field_status") or candidate.get("fieldStatus"),
-        "field_status",
-    )
+    field_status = _mapping(candidate.get("field_status"), "field_status")
     if not field_status:
         raise ValueError("field_status must contain at least one item")
     required_fields = _required_string_list(
-        candidate.get("required_fields") or candidate.get("requiredFields"),
+        candidate.get("required_fields"),
         "required_fields",
     )
-    required_evidence = _string_list(
-        candidate.get("required_evidence") or candidate.get("requiredEvidence")
-    )
-    optional_fields = _string_list(
-        candidate.get("optional_fields") or candidate.get("optionalFields")
-    )
-    optional_evidence = _string_list(
-        candidate.get("optional_evidence") or candidate.get("optionalEvidence")
-    )
+    required_evidence = _string_list(candidate.get("required_evidence"))
+    optional_fields = _string_list(candidate.get("optional_fields"))
+    optional_evidence = _string_list(candidate.get("optional_evidence"))
     _assert_selected_write_field_status_ready(
         field_status=field_status,
         optional_fields=optional_fields,
         required_fields=required_fields,
     )
-    source_ref = _mapping(candidate.get("source_ref") or {}, "source_ref")
-    _required_text(
-        source_ref.get("raw_asset_id") or source_ref.get("rawAssetId"),
-        "source_ref.raw_asset_id",
-    )
-    _required_text(
-        source_ref.get("raw_version_id") or source_ref.get("rawVersionId"),
-        "source_ref.raw_version_id",
-    )
+    source_ref = _mapping(candidate.get("source_ref"), "source_ref")
+    _reject_legacy_selected_write_source_ref_fields(source_ref)
+    _required_text(source_ref.get("raw_asset_id"), "source_ref.raw_asset_id")
+    _required_text(source_ref.get("raw_version_id"), "source_ref.raw_version_id")
     source_refs = _source_refs(candidate=candidate, primary_source_ref=source_ref)
     source_urls = _source_urls_from_refs(
         source_refs=source_refs,
         fallback_url=_required_text(
-            candidate.get("normalized_canonical_url") or candidate.get("normalizedCanonicalUrl"),
+            candidate.get("normalized_canonical_url"),
             "normalized_canonical_url",
         ),
     )
-    typed_candidate = _mapping(
-        candidate.get("typed_candidate") or candidate.get("typedCandidate") or {},
-        "typed_candidate",
-    )
+    typed_candidate = _mapping(candidate.get("typed_candidate") or {}, "typed_candidate")
     source_urls = _dedupe_strings(
         [
             *source_urls,
-            *_string_list(
-                typed_candidate.get("supporting_source_urls")
-                or typed_candidate.get("supportingSourceUrls")
-            ),
+            *_string_list(typed_candidate.get("supporting_source_urls")),
         ]
     )
     evidence = {
         "candidateKey": candidate_key,
         "fieldStatus": dict(field_status),
         "inventoryId": _optional_text(candidate.get("inventory_id")),
-        "matchedEvidence": _string_list(
-            candidate.get("matched_evidence") or candidate.get("matchedEvidence")
-        ),
+        "matchedEvidence": _string_list(candidate.get("matched_evidence")),
         "normalizedCanonicalUrl": _required_text(
-            candidate.get("normalized_canonical_url") or candidate.get("normalizedCanonicalUrl"),
+            candidate.get("normalized_canonical_url"),
             "normalized_canonical_url",
         ),
         "requiredEvidence": required_evidence,
@@ -156,7 +132,7 @@ def build_selected_write_release_task_from_candidate(
             candidate.get("typed_candidate_schema_version")
         ),
     }
-    target_label = _optional_text(candidate.get("target_label") or candidate.get("targetLabel"))
+    target_label = _optional_text(candidate.get("target_label"))
     if target_label is not None:
         evidence["targetLabel"] = target_label
     return build_official_web_release_task(
@@ -220,13 +196,52 @@ def _release_input_ref(
     payload = dict(evidence)
     payload["policyVersion"] = policy_version
     payload["sourceObjectKeys"] = _required_string_list(
-        payload.get("sourceObjectKeys") or payload.get("source_object_keys"),
+        payload.get("sourceObjectKeys"),
         "sourceObjectKeys",
     )
-    source_urls = _string_list(payload.get("sourceUrls") or payload.get("source_urls"))
+    if "source_urls" in payload and "sourceUrls" not in payload:
+        raise ValueError("sourceUrls must use canonical camelCase")
+    source_urls = _string_list(payload.get("sourceUrls"))
     if source_urls:
         payload["sourceUrls"] = source_urls
     return payload
+
+
+def _reject_legacy_selected_write_candidate_fields(candidate: Mapping[str, Any]) -> None:
+    legacy_fields = {
+        "candidateKey": "candidate_key",
+        "fieldStatus": "field_status",
+        "matchedEvidence": "matched_evidence",
+        "normalizedCanonicalUrl": "normalized_canonical_url",
+        "optionalEvidence": "optional_evidence",
+        "optionalFields": "optional_fields",
+        "requiredEvidence": "required_evidence",
+        "requiredFields": "required_fields",
+        "selectedWriteTarget": "selected_write_target",
+        "sourceRef": "source_ref",
+        "sourceRefs": "source_refs",
+        "targetCandidateId": "target_candidate_id",
+        "targetDeclarationVersion": "target_declaration_version",
+        "targetId": "target_id",
+        "targetLabel": "target_label",
+        "typedCandidate": "typed_candidate",
+        "typedCandidateSchemaVersion": "typed_candidate_schema_version",
+    }
+    for legacy_field, canonical_field in legacy_fields.items():
+        if legacy_field in candidate:
+            raise ValueError(f"{canonical_field} must use canonical snake_case")
+
+
+def _reject_legacy_selected_write_source_ref_fields(source_ref: Mapping[str, Any]) -> None:
+    legacy_fields = {
+        "normalizedCanonicalUrl": "normalized_canonical_url",
+        "rawAssetId": "raw_asset_id",
+        "rawVersionId": "raw_version_id",
+        "sourceChannel": "source_channel",
+    }
+    for legacy_field, canonical_field in legacy_fields.items():
+        if legacy_field in source_ref:
+            raise ValueError(f"source_ref.{canonical_field} must use canonical snake_case")
 
 
 def _source_refs(
@@ -234,54 +249,40 @@ def _source_refs(
     candidate: Mapping[str, Any],
     primary_source_ref: Mapping[str, Any],
 ) -> list[dict[str, Any]]:
-    raw_refs = candidate.get("source_refs") or candidate.get("sourceRefs")
+    raw_refs = candidate.get("source_refs")
     refs: list[dict[str, Any]] = []
     if isinstance(raw_refs, Sequence) and not isinstance(raw_refs, str | bytes):
         for raw_ref in raw_refs:
             if not isinstance(raw_ref, Mapping):
                 continue
-            normalized_url = _optional_text(
-                raw_ref.get("normalized_canonical_url") or raw_ref.get("normalizedCanonicalUrl")
-            )
+            _reject_legacy_selected_write_source_ref_fields(raw_ref)
+            normalized_url = _optional_text(raw_ref.get("normalized_canonical_url"))
             if not normalized_url:
                 continue
             refs.append(
                 {
-                    "source_channel": _optional_text(
-                        raw_ref.get("source_channel") or raw_ref.get("sourceChannel")
-                    )
+                    "source_channel": _optional_text(raw_ref.get("source_channel"))
                     or "official_web",
-                    "raw_asset_id": _optional_text(
-                        raw_ref.get("raw_asset_id") or raw_ref.get("rawAssetId")
-                    )
-                    or "",
-                    "raw_version_id": _optional_text(
-                        raw_ref.get("raw_version_id") or raw_ref.get("rawVersionId")
-                    )
-                    or "",
+                    "raw_asset_id": _optional_text(raw_ref.get("raw_asset_id")) or "",
+                    "raw_version_id": _optional_text(raw_ref.get("raw_version_id")) or "",
                     "normalized_canonical_url": normalized_url,
                 }
             )
     if not refs:
         refs.append(
             {
-                "source_channel": _optional_text(
-                    primary_source_ref.get("source_channel")
-                    or primary_source_ref.get("sourceChannel")
-                )
+                "source_channel": _optional_text(primary_source_ref.get("source_channel"))
                 or "official_web",
                 "raw_asset_id": _required_text(
-                    primary_source_ref.get("raw_asset_id") or primary_source_ref.get("rawAssetId"),
+                    primary_source_ref.get("raw_asset_id"),
                     "source_ref.raw_asset_id",
                 ),
                 "raw_version_id": _required_text(
-                    primary_source_ref.get("raw_version_id")
-                    or primary_source_ref.get("rawVersionId"),
+                    primary_source_ref.get("raw_version_id"),
                     "source_ref.raw_version_id",
                 ),
                 "normalized_canonical_url": _required_text(
-                    primary_source_ref.get("normalized_canonical_url")
-                    or primary_source_ref.get("normalizedCanonicalUrl"),
+                    primary_source_ref.get("normalized_canonical_url"),
                     "source_ref.normalized_canonical_url",
                 ),
             }
@@ -296,10 +297,7 @@ def _source_urls_from_refs(
 ) -> list[str]:
     urls = [
         url
-        for url in (
-            _optional_text(ref.get("normalized_canonical_url") or ref.get("normalizedCanonicalUrl"))
-            for ref in source_refs
-        )
+        for url in (_optional_text(ref.get("normalized_canonical_url")) for ref in source_refs)
         if url
     ]
     if not urls:
@@ -311,9 +309,7 @@ def _dedupe_source_refs(refs: Sequence[Mapping[str, Any]]) -> list[dict[str, Any
     result: list[dict[str, Any]] = []
     seen: set[str] = set()
     for ref in refs:
-        normalized_url = _optional_text(
-            ref.get("normalized_canonical_url") or ref.get("normalizedCanonicalUrl")
-        )
+        normalized_url = _optional_text(ref.get("normalized_canonical_url"))
         if not normalized_url or normalized_url in seen:
             continue
         seen.add(normalized_url)

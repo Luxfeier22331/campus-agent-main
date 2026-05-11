@@ -6,7 +6,6 @@ export {
 	type OfficialWebProjectionProjector,
 	type OfficialWebProjectionProjectorDependencies,
 	type OfficialWebProjectionProjectorStore,
-	type OfficialWebRunAdmissionDecision,
 	type OfficialWebRunOutboxEvent,
 	type OfficialWebRunProjectionMaterialization,
 	type OfficialWebRunProjectionSource,

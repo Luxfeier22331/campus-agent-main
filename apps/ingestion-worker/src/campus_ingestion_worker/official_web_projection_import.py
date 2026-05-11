@@ -81,8 +81,8 @@ def import_projection_output(
 
     page_by_identity = {
         (
-            _require_text(page.get("rawAssetId") or page.get("raw_asset_id"), "rawAssetId"),
-            _require_text(page.get("rawVersionId") or page.get("raw_version_id"), "rawVersionId"),
+            _require_text(page.get("rawAssetId"), "rawAssetId"),
+            _require_text(page.get("rawVersionId"), "rawVersionId"),
         ): _require_object(page, "pages[]")
         for page in raw_pages
     }
@@ -124,9 +124,7 @@ def import_projection_output(
         )
         document_units_bytes = document_units_path.read_bytes()
         metadata = load_metadata_from_bytes(document_units_bytes)
-        provider_key = _optional_text(
-            page.get("providerExtractionObjectKey") or page.get("provider_extraction_object_key")
-        )
+        provider_key = _optional_text(page.get("providerExtractionObjectKey"))
         provider_bytes = _load_provider_bytes(
             replay_input_dir=replay_input_dir,
             raw_asset_id=raw_asset_id,
@@ -161,11 +159,9 @@ def import_projection_output(
                     for key in (
                         _optional_text(
                             page.get("pageManifestObjectKey")
-                            or page.get("page_manifest_object_key")
                         ),
                         _optional_text(
                             page.get("contentBlocksObjectKey")
-                            or page.get("content_blocks_object_key")
                         ),
                     )
                     if key is not None
@@ -255,27 +251,16 @@ def _build_official_web_raw_asset_record(
     bundle_page: dict[str, object],
     document: DocumentImportInput,
 ) -> RawAssetRecord:
-    raw_asset_id = _require_text(
-        bundle_page.get("rawAssetId") or bundle_page.get("raw_asset_id"), "rawAssetId"
-    )
-    raw_version_id = _require_text(
-        bundle_page.get("rawVersionId") or bundle_page.get("raw_version_id"),
-        "rawVersionId",
-    )
-    object_key = _require_text(
-        bundle_page.get("responseHtmlObjectKey") or bundle_page.get("response_html_object_key"),
-        "responseHtmlObjectKey",
-    )
+    raw_asset_id = _require_text(bundle_page.get("rawAssetId"), "rawAssetId")
+    raw_version_id = _require_text(bundle_page.get("rawVersionId"), "rawVersionId")
+    object_key = _require_text(bundle_page.get("responseHtmlObjectKey"), "responseHtmlObjectKey")
     return RawAssetRecord(
         raw_asset_id=raw_asset_id,
         raw_version_id=raw_version_id,
         corpus=document.corpus,
         collection=document.collection,
         raw_source_uri=document.raw_source_uri or f"official_web://{raw_asset_id}",
-        content_hash=_require_text(
-            bundle_page.get("responseBodyHash") or bundle_page.get("response_body_hash"),
-            "responseBodyHash",
-        ),
+        content_hash=_require_text(bundle_page.get("responseBodyHash"), "responseBodyHash"),
         source_filename=Path(object_key).name,
         object_key=object_key,
         ingestion_timestamp=_utcnow(),

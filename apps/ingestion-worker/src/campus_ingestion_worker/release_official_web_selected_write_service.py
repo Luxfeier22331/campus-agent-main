@@ -185,10 +185,7 @@ def _candidate_source_refs(
             canonical_source_ref,
             source_ref,
             *_string_list(typed_candidate.get("supporting_source_urls")),
-            *_string_list(
-                _evidence(selected_write_task).get("sourceUrls")
-                or _evidence(selected_write_task).get("source_urls")
-            ),
+            *_string_list(_evidence(selected_write_task).get("sourceUrls")),
         ]
     )
 

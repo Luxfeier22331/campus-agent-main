@@ -5,6 +5,11 @@ import unittest
 from pathlib import Path
 from tempfile import TemporaryDirectory
 
+from campus_ingestion_worker.official_web_handoff_consumer_runtime import (
+    download_source_truth_bundle,
+    materialize_replay_input,
+)
+
 from tests.support.in_memory_registry import InMemoryDocumentRegistry, InMemoryRawAssetRegistry
 
 from .official_web_handoff_consumer_test_support import (
@@ -21,6 +26,65 @@ from .official_web_handoff_consumer_test_support import (
 
 
 class OfficialWebHandoffConsumerFailureTest(unittest.TestCase):
+    def test_source_truth_bundle_rejects_snake_case_run_identity_fallback(self) -> None:
+        object_store = FakeReplayObjectStore(
+            {
+                (
+                    "campus-rag-source",
+                    _bundle_key(),
+                ): json.dumps(
+                    {
+                        "schemaVersion": "official_web_source_truth_bundle.v1",
+                        "sourceChannel": "official_web",
+                        "site_id": "campus_public",
+                        "crawl_run_id": "owrun_projection_001",
+                        "pages": [],
+                    }
+                ).encode("utf-8")
+            }
+        )
+
+        with self.assertRaisesRegex(ValueError, "siteId must be a non-empty string"):
+            download_source_truth_bundle(
+                object_store=object_store,
+                bucket="campus-rag-source",
+                key=_bundle_key(),
+                expected_site_id="campus_public",
+                expected_run_id="owrun_projection_001",
+            )
+
+    def test_replay_input_materialization_rejects_snake_case_page_artifact_fallback(
+        self,
+    ) -> None:
+        bundle = _bundle_payload()
+        page = bundle["pages"][0]
+        assert isinstance(page, dict)
+        manifest_key = str(page["pageManifestObjectKey"])
+        blocks_key = str(page["contentBlocksObjectKey"])
+        snake_case_page = {
+            "raw_asset_id": page["rawAssetId"],
+            "raw_version_id": page["rawVersionId"],
+            "page_manifest_object_key": manifest_key,
+            "content_blocks_object_key": blocks_key,
+        }
+        bundle["pages"] = [snake_case_page]
+
+        with (
+            TemporaryDirectory() as temp_dir,
+            self.assertRaisesRegex(ValueError, "rawAssetId must be a non-empty string"),
+        ):
+            materialize_replay_input(
+                replay_input_dir=Path(temp_dir),
+                bundle_payload=bundle,
+                object_store=FakeReplayObjectStore(
+                    {
+                        ("campus-rag-source", manifest_key): b"{}",
+                        ("campus-rag-source", blocks_key): b"",
+                    }
+                ),
+                bucket="campus-rag-source",
+            )
+
     def test_consume_handoff_record_marks_failure_when_bundle_is_missing(self) -> None:
         with TemporaryDirectory() as temp_dir:
             root = Path(temp_dir)

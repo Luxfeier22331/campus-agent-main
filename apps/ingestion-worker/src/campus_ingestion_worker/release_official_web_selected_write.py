@@ -298,8 +298,7 @@ def _prepare_selected_write_projection(
             )
         generated_at = _utcnow()
         selected_write_target = _require_text(
-            selected_write_task.get("selectedWriteTarget")
-            or selected_write_task.get("selected_write_target"),
+            selected_write_task.get("selectedWriteTarget"),
             "selectedWriteTarget",
         )
         if selected_write_target == "campus_services/contact_directory":
@@ -393,7 +392,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     object_store = S3ObjectStoreAdmin(settings)
     release_task = _read_json_object(Path(args.release_task_path).resolve())
-    task_id = _require_text(release_task.get("taskId") or release_task.get("task_id"), "taskId")
+    task_id = _require_text(release_task.get("taskId"), "taskId")
     result = release_official_web_selected_write(
         release_task=release_task,
         object_store=object_store,

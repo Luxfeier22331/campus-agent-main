@@ -137,14 +137,14 @@ def _unique(values: object) -> list[str]:
 
 
 def _consumer_matches(payload: dict[str, object]) -> list[dict[str, object]]:
-    raw_matches = payload.get("consumerMatches") or payload.get("consumer_matches")
+    raw_matches = payload.get("consumerMatches")
     if not isinstance(raw_matches, list):
         return []
     return [item for item in raw_matches if isinstance(item, dict)]
 
 
 def _target_matches(payload: dict[str, object]) -> list[dict[str, object]]:
-    raw_matches = payload.get("targetMatches") or payload.get("target_matches")
+    raw_matches = payload.get("targetMatches")
     if not isinstance(raw_matches, list):
         return []
     return [item for item in raw_matches if isinstance(item, dict)]
@@ -173,27 +173,19 @@ def _page_lineage_fields(
     return {
         "sourcePackId": _require_optional_text(
             manifest.get("sourcePackId")
-            or manifest.get("source_pack_id")
             or raw_page.get("sourcePackId")
-            or raw_page.get("source_pack_id")
         ),
         "sourcePackEntryId": _require_optional_text(
             manifest.get("sourcePackEntryId")
-            or manifest.get("source_pack_entry_id")
             or raw_page.get("sourcePackEntryId")
-            or raw_page.get("source_pack_entry_id")
         ),
         "compositionGroup": _require_optional_text(
             manifest.get("compositionGroup")
-            or manifest.get("composition_group")
             or raw_page.get("compositionGroup")
-            or raw_page.get("composition_group")
         ),
         "compositionRole": _require_optional_text(
             manifest.get("compositionRole")
-            or manifest.get("composition_role")
             or raw_page.get("compositionRole")
-            or raw_page.get("composition_role")
         ),
     }
 
@@ -226,23 +218,10 @@ def _target_lineage_issues(
 ) -> list[dict[str, object]]:
     if collection_mode != _TARGET_WORKSET_COLLECTION_MODE and not target_matches:
         return []
-    raw_asset_id = str(
-        raw_page.get("rawAssetId")
-        or raw_page.get("raw_asset_id")
-        or manifest.get("rawAssetId")
-        or ""
-    )
-    raw_version_id = str(
-        raw_page.get("rawVersionId")
-        or raw_page.get("raw_version_id")
-        or manifest.get("rawVersionId")
-        or ""
-    )
+    raw_asset_id = str(raw_page.get("rawAssetId") or manifest.get("rawAssetId") or "")
+    raw_version_id = str(raw_page.get("rawVersionId") or manifest.get("rawVersionId") or "")
     normalized_canonical_url = str(
-        raw_page.get("normalizedCanonicalUrl")
-        or raw_page.get("normalized_canonical_url")
-        or manifest.get("normalizedCanonicalUrl")
-        or ""
+        raw_page.get("normalizedCanonicalUrl") or manifest.get("normalizedCanonicalUrl") or ""
     )
 
     base_issue = {
@@ -262,11 +241,9 @@ def _target_lineage_issues(
         return issues
 
     for target_match in target_matches:
-        consumer_family = _require_optional_text(
-            target_match.get("consumerFamily") or target_match.get("consumer_family")
-        )
+        consumer_family = _require_optional_text(target_match.get("consumerFamily"))
         materialization_policy = _require_optional_text(
-            target_match.get("materializationPolicy") or target_match.get("materialization_policy")
+            target_match.get("materializationPolicy")
         )
         if consumer_family not in _TARGET_CONSUMER_FAMILIES:
             issues.append(
@@ -303,62 +280,32 @@ def _target_lineage_issues(
 
 def _target_projection_fields(target_lineage: dict[str, object]) -> dict[str, object]:
     return {
-        "target_job_id": _require_optional_text(
-            target_lineage.get("targetJobId") or target_lineage.get("target_job_id")
-        ),
-        "target_candidate_id": _require_optional_text(
-            target_lineage.get("targetCandidateId") or target_lineage.get("target_candidate_id")
-        ),
-        "target_id": _require_optional_text(
-            target_lineage.get("targetId") or target_lineage.get("target_id")
-        ),
+        "target_job_id": _require_optional_text(target_lineage.get("targetJobId")),
+        "target_candidate_id": _require_optional_text(target_lineage.get("targetCandidateId")),
+        "target_id": _require_optional_text(target_lineage.get("targetId")),
         "target_declaration_version": _require_optional_text(
             target_lineage.get("targetDeclarationVersion")
-            or target_lineage.get("target_declaration_version")
         ),
-        "target_consumer_family": _require_optional_text(
-            target_lineage.get("consumerFamily") or target_lineage.get("consumer_family")
-        ),
-        "retention_policy": _require_optional_text(
-            target_lineage.get("retentionPolicy") or target_lineage.get("retention_policy")
-        ),
+        "target_consumer_family": _require_optional_text(target_lineage.get("consumerFamily")),
+        "retention_policy": _require_optional_text(target_lineage.get("retentionPolicy")),
         "materialization_policy": _require_optional_text(
             target_lineage.get("materializationPolicy")
-            or target_lineage.get("materialization_policy")
         ),
-        "selected_write_target": _require_optional_text(
-            target_lineage.get("selectedWriteTarget") or target_lineage.get("selected_write_target")
-        )
+        "selected_write_target": _require_optional_text(target_lineage.get("selectedWriteTarget"))
         or "",
-        "review_policy": _require_optional_text(
-            target_lineage.get("reviewPolicy") or target_lineage.get("review_policy")
-        ),
-        "workset_reason": _require_optional_text(
-            target_lineage.get("worksetReason") or target_lineage.get("workset_reason")
-        ),
-        "source_pack_id": _require_optional_text(
-            target_lineage.get("sourcePackId") or target_lineage.get("source_pack_id")
-        ),
-        "source_pack_entry_id": _require_optional_text(
-            target_lineage.get("sourcePackEntryId") or target_lineage.get("source_pack_entry_id")
-        ),
-        "target_label": _require_optional_text(
-            target_lineage.get("targetLabel") or target_lineage.get("target_label")
-        ),
-        "composition_group": _require_optional_text(
-            target_lineage.get("compositionGroup") or target_lineage.get("composition_group")
-        ),
-        "composition_role": _require_optional_text(
-            target_lineage.get("compositionRole") or target_lineage.get("composition_role")
-        ),
+        "review_policy": _require_optional_text(target_lineage.get("reviewPolicy")),
+        "workset_reason": _require_optional_text(target_lineage.get("worksetReason")),
+        "source_pack_id": _require_optional_text(target_lineage.get("sourcePackId")),
+        "source_pack_entry_id": _require_optional_text(target_lineage.get("sourcePackEntryId")),
+        "target_label": _require_optional_text(target_lineage.get("targetLabel")),
+        "composition_group": _require_optional_text(target_lineage.get("compositionGroup")),
+        "composition_role": _require_optional_text(target_lineage.get("compositionRole")),
     }
 
 
 def _target_lineage_matched_evidence(match: dict[str, object]) -> list[str]:
-    workset_reason = _require_optional_text(
-        match.get("worksetReason") or match.get("workset_reason")
-    )
-    target_id = _require_optional_text(match.get("targetId") or match.get("target_id"))
+    workset_reason = _require_optional_text(match.get("worksetReason"))
+    target_id = _require_optional_text(match.get("targetId"))
     values = [item for item in (workset_reason, target_id) if item]
     return values or ["target_lineage_match"]
 
@@ -368,29 +315,22 @@ def _find_consumer_match(
     consumer_family: str,
 ) -> dict[str, object] | None:
     for match in matches:
-        if (
-            str(match.get("consumerFamily") or match.get("consumer_family") or "")
-            == consumer_family
-        ):
+        if str(match.get("consumerFamily") or "") == consumer_family:
             return match
     return None
 
 
 def _target_from_consumer_match(match: dict[str, object]) -> tuple[str, str]:
-    selected_write_target = _require_optional_text(
-        match.get("selectedWriteTarget") or match.get("selected_write_target")
-    )
+    selected_write_target = _require_optional_text(match.get("selectedWriteTarget"))
     if selected_write_target and "/" in selected_write_target:
         corpus, collection = selected_write_target.split("/", 1)
         if corpus and collection:
             return corpus, collection
-    target_corpus = _require_optional_text(match.get("targetCorpus") or match.get("target_corpus"))
-    target_collection = _require_optional_text(
-        match.get("targetCollection") or match.get("target_collection")
-    )
+    target_corpus = _require_optional_text(match.get("targetCorpus"))
+    target_collection = _require_optional_text(match.get("targetCollection"))
     if target_corpus and target_collection:
         return target_corpus, target_collection
-    consumer_family = str(match.get("consumerFamily") or match.get("consumer_family") or "")
+    consumer_family = str(match.get("consumerFamily") or "")
     if consumer_family == "regulation_candidate":
         return "regulations", "institutional_rules"
     if consumer_family == "student_regulation_candidate":
@@ -403,17 +343,11 @@ def _target_from_consumer_match(match: dict[str, object]) -> tuple[str, str]:
 def _regulation_release_scope(target_lineage: dict[str, object] | None) -> str:
     if target_lineage is None:
         return "regulations/institutional_rules"
-    selected_write_target = _require_optional_text(
-        target_lineage.get("selectedWriteTarget") or target_lineage.get("selected_write_target")
-    )
+    selected_write_target = _require_optional_text(target_lineage.get("selectedWriteTarget"))
     if selected_write_target and selected_write_target.startswith("regulations/"):
         return selected_write_target
-    target_corpus = _require_optional_text(
-        target_lineage.get("targetCorpus") or target_lineage.get("target_corpus")
-    )
-    target_collection = _require_optional_text(
-        target_lineage.get("targetCollection") or target_lineage.get("target_collection")
-    )
+    target_corpus = _require_optional_text(target_lineage.get("targetCorpus"))
+    target_collection = _require_optional_text(target_lineage.get("targetCollection"))
     if target_corpus == "regulations" and target_collection:
         return f"{target_corpus}/{target_collection}"
     return "regulations/institutional_rules"

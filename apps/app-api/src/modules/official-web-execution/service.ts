@@ -33,7 +33,6 @@ export interface OfficialWebExecutionStatusService {
 }
 
 export interface OfficialWebExecutionStatusServiceDependencies {
-	now?: () => Date;
 	store: OfficialWebProjectionProjectorStore;
 }
 
@@ -69,10 +68,16 @@ function normalizeRequiredStatus(value: unknown): OfficialWebIngestionExecutionS
 	return normalized as OfficialWebIngestionExecutionStatus;
 }
 
-function normalizeUpdatedAt(value: unknown, fallbackNow: Date): string {
+function normalizeUpdatedAt(value: unknown): string {
 	const normalized = normalizeOptionalString(value);
 	if (!normalized) {
-		return fallbackNow.toISOString();
+		throw new AppApiRouteError({
+			code: "validation_failed",
+			details: { field: "updatedAt" },
+			message: "updatedAt must be a valid ISO timestamp.",
+			retryable: false,
+			status: 422,
+		});
 	}
 
 	const parsed = new Date(normalized);
@@ -236,12 +241,10 @@ function coalesceTargetFieldReviews(
 export function buildOfficialWebExecutionStatusService(
 	dependencies: OfficialWebExecutionStatusServiceDependencies,
 ): OfficialWebExecutionStatusService {
-	const now = dependencies.now ?? (() => new Date());
-
 	return {
 		async updateRunExecutionStatus(input) {
 			const status = normalizeRequiredStatus(input.payload.status);
-			const updatedAt = normalizeUpdatedAt(input.payload.updatedAt, now());
+			const updatedAt = normalizeUpdatedAt(input.payload.updatedAt);
 			const executionRef = normalizeOptionalString(input.payload.executionRef);
 			const shouldPersistExecutionError = status === "failed" || status === "staged";
 			const errorCode = shouldPersistExecutionError

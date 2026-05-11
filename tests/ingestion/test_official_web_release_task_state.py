@@ -104,6 +104,24 @@ class OfficialWebReleaseTaskStateTest(unittest.TestCase):
         self.assertEqual(failed.status, "failed_terminal")
         self.assertEqual(failed.last_error_code, "projection_failed")
 
+    def test_from_payload_rejects_snake_case_wire_fields(self) -> None:
+        payload = {
+            "created_at": "2026-05-01T08:00:00+00:00",
+            "input_ref": {
+                "sourceObjectKeys": ["official_web/muc_public/runs/owrun/source-truth-bundle.json"]
+            },
+            "inventory_id": "muc-main-homepage-contact",
+            "job_id": "owtarget_contact",
+            "run_id": "owrun",
+            "status": "claimed",
+            "task_id": "owtask_contact",
+            "task_type": "official_web_selected_write_contact_directory",
+            "updated_at": "2026-05-01T08:00:00+00:00",
+        }
+
+        with self.assertRaisesRegex(ValueError, "taskId"):
+            OfficialWebReleaseTask.from_payload(payload)
+
 
 if __name__ == "__main__":
     unittest.main()

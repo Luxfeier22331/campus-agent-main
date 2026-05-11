@@ -520,6 +520,168 @@ class OfficialWebProjectionCoreReplayTestPart01(unittest.TestCase):
             )
             self.assertGreaterEqual(len(contact_candidate["evidence_spans"]), 2)
 
+    def test_replay_ignores_snake_case_consumer_matches_on_bundle_page_entry(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            contact_match = {
+                "consumerFamily": "contact_directory_candidate",
+                "ownerSurface": "contact_directory_lookup",
+                "ownerAgentOrRuntime": "campus-services-agent",
+                "materializationPolicy": "candidate_only",
+                "selectedWriteTarget": "campus_services/contact_directory",
+                "reviewPolicy": "selected_write_requires_review",
+                "matchedEvidence": ["phone"],
+                "matchedKeywords": ["联系我们"],
+                "matchedPatterns": [],
+            }
+            page = _page_bundle_entry(
+                raw_asset_id="owasset_snake_case_match",
+                raw_version_id="owver_snake_case_match",
+                normalized_canonical_url="https://www.example.edu/contact",
+                page_family="article_detail",
+            )
+            page["consumer_matches"] = [contact_match]
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "sourceChannel": "official_web",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_projection_snake_case_match",
+                    "generatedAt": "2026-05-01T09:00:00.000Z",
+                    "pages": [page],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_snake_case_match",
+                raw_version_id="owver_snake_case_match",
+                normalized_canonical_url="https://www.example.edu/contact",
+                page_title="联系我们",
+                page_family="article_detail",
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_snake_case_match",
+                        raw_version_id="owver_snake_case_match",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="联系我们",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_snake_case_match",
+                        raw_version_id="owver_snake_case_match",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="联系电话：010-68933381。",
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+
+            self.assertEqual(report.counts["emitted_documents"], 1)
+            self.assertEqual(report.counts["consumer_candidate_pages"], 0)
+
+    def test_replay_rejects_snake_case_source_truth_bundle_identity_fields(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schema_version": "official_web_source_truth_bundle.v1",
+                    "source_channel": "official_web",
+                    "site_id": "campus_public",
+                    "crawl_run_id": "owrun_projection_001",
+                    "generated_at": "2026-03-31T09:00:00.000Z",
+                    "pages": [],
+                },
+            )
+
+            with self.assertRaisesRegex(ValueError, "unsupported source-truth bundle"):
+                replay_official_web_source_truth_local(
+                    output_dir=output_dir,
+                    projection_output_dir=projection_dir,
+                    declarations_path=declarations_path,
+                )
+
+    def test_replay_rejects_snake_case_source_truth_page_identity_fields(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "sourceChannel": "official_web",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_projection_snake_page",
+                    "generatedAt": "2026-05-01T09:00:00.000Z",
+                    "pages": [
+                        {
+                            "raw_asset_id": "owasset_snake_page",
+                            "raw_version_id": "owver_snake_page",
+                            "normalized_canonical_url": "https://www.example.edu/snake",
+                            "page_family": "article_detail",
+                            "page_manifest_object_key": (
+                                "official_web/owasset_snake_page/undated/owver_snake_page/source-truth/page-manifest.json"
+                            ),
+                            "content_blocks_object_key": (
+                                "official_web/owasset_snake_page/undated/owver_snake_page/source-truth/content-blocks.jsonl"
+                            ),
+                        }
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_snake_page",
+                raw_version_id="owver_snake_page",
+                normalized_canonical_url="https://www.example.edu/snake",
+                page_title="Snake Page",
+                page_family="article_detail",
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_snake_page",
+                        raw_version_id="owver_snake_page",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="Snake Page",
+                    )
+                ],
+            )
+
+            with self.assertRaisesRegex(ValueError, "pageFamily"):
+                replay_official_web_source_truth_local(
+                    output_dir=output_dir,
+                    projection_output_dir=projection_dir,
+                    declarations_path=declarations_path,
+                )
+
 
 if __name__ == "__main__":
     unittest.main()

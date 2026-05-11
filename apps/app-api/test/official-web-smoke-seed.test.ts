@@ -39,7 +39,6 @@ describe("official web smoke seed helper", () => {
 				},
 				APP_API_ENVIRONMENT: "development",
 				APP_API_INTERNAL_SHARED_SECRET: "internal-secret",
-				APP_API_MANAGEMENT_DATABASE_URL: undefined,
 				APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN: "collector-token",
 				APP_API_OPERATOR_DATABASE_URL: undefined,
 				APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com,help_bot@outlook.com",

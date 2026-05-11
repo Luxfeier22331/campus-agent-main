@@ -190,12 +190,7 @@ def _service_procedure_group_seed(
     target_lineage: dict[str, object] | None,
     normalized_canonical_url: str,
 ) -> str:
-    target_label = (
-        _require_optional_text(
-            (target_lineage or {}).get("targetLabel") or (target_lineage or {}).get("target_label")
-        )
-        or ""
-    )
+    target_label = _require_optional_text((target_lineage or {}).get("targetLabel")) or ""
     combined = f"{title}\n{target_label}\n{normalized_canonical_url}".lower()
     if "vpn" in combined:
         return "vpn"
@@ -358,12 +353,7 @@ def _contact_candidate_display_name(
 def _target_label_from_lineage(target_lineage: dict[str, object] | None) -> str:
     if not isinstance(target_lineage, dict):
         return ""
-    return (
-        _require_optional_text(
-            target_lineage.get("targetLabel") or target_lineage.get("target_label")
-        )
-        or ""
-    )
+    return _require_optional_text(target_lineage.get("targetLabel")) or ""
 
 
 def _filter_service_entry_points(entries: list[str]) -> list[str]:

@@ -131,15 +131,9 @@ def _project_document(
         "normalized_canonical_url": manifest["normalizedCanonicalUrl"],
         "raw_asset_id": manifest["rawAssetId"],
         "raw_version_id": manifest["rawVersionId"],
-        "published_at": _require_optional_text(
-            manifest.get("publishedAt") or manifest.get("published_at")
-        ),
-        "fetched_at": _require_optional_text(
-            manifest.get("fetchedAt") or manifest.get("fetched_at")
-        ),
-        "last_modified": _require_optional_text(
-            manifest.get("lastModified") or manifest.get("last_modified")
-        ),
+        "published_at": _require_optional_text(manifest.get("publishedAt")),
+        "fetched_at": _require_optional_text(manifest.get("fetchedAt")),
+        "last_modified": _require_optional_text(manifest.get("lastModified")),
         "unit_count": len(units),
         "serving_intent": _resolve_document_serving_intent(
             page_family=declaration.page_family,

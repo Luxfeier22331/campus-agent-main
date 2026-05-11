@@ -278,9 +278,12 @@ class OfficialWebProjectionCoreReplayTestPart06(unittest.TestCase):
             _write_json(
                 output_dir / "source-truth-bundle.json",
                 {
-                    "schema_version": "official_web_source_truth_bundle.v1",
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "sourceChannel": "official_web",
                     "crawlRunId": "owrun_network_auth_entry",
-                    "site_id": "campus_public",
+                    "siteId": "campus_public",
+                    "collectionMode": "target-workset",
+                    "generatedAt": "2026-05-01T09:00:00.000Z",
                     "pages": [
                         _page_bundle_entry(
                             raw_asset_id="owasset_network_auth",
@@ -371,9 +374,12 @@ class OfficialWebProjectionCoreReplayTestPart06(unittest.TestCase):
             _write_json(
                 output_dir / "source-truth-bundle.json",
                 {
-                    "schema_version": "official_web_source_truth_bundle.v1",
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "sourceChannel": "official_web",
                     "crawlRunId": "owrun_vpn_steps",
-                    "site_id": "campus_public",
+                    "siteId": "campus_public",
+                    "collectionMode": "target-workset",
+                    "generatedAt": "2026-05-01T09:00:00.000Z",
                     "pages": [
                         _page_bundle_entry(
                             raw_asset_id="owasset_vpn",

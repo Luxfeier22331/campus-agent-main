@@ -60,7 +60,7 @@ describe("docs readiness", () => {
 		expect(mockedBuildBetterAuthConfig).toHaveBeenCalledWith(
 			expect.objectContaining({
 				authShellOrigin: "https://hub.muc.wiki",
-				publicChatOrigin: "https://hub.muc.wiki",
+				publicChatOrigin: undefined,
 			}),
 		);
 	});

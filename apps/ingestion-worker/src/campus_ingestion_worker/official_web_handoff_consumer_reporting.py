@@ -23,7 +23,6 @@ from campus_ingestion_worker.official_web_handoff_consumer_selected_write import
     _candidate_admission_action,
     _candidate_blocked_reason,
     _candidate_review_verdict,
-    _is_run_admission_excluded,
     _is_selected_write_candidate,
     _ready_for_selected_write,
     _review_verdicts,
@@ -241,14 +240,12 @@ def build_consumer_candidate_review_report(
     *,
     replay_report: dict[str, object],
     consumer_review_manifest: dict[str, object] | None = None,
-    run_admission_decision: dict[str, object] | None = None,
     target_inventory_manifest: dict[str, object] | None = None,
 ) -> dict[str, object]:
     verdicts = _review_verdicts(
         consumer_review_manifest=consumer_review_manifest,
         replay_report=replay_report,
     )
-    run_excluded = _is_run_admission_excluded(run_admission_decision)
     target_inventory_entries = _target_inventory_entries(target_inventory_manifest)
     raw_candidates = require_object_list(
         replay_report.get("consumer_candidate_pages"),
@@ -258,7 +255,6 @@ def build_consumer_candidate_review_report(
         _build_consumer_candidate_review_entry(
             index=index,
             candidate=candidate,
-            run_excluded=run_excluded,
             target_inventory_entry=_target_inventory_entry_for_candidate(
                 candidate=candidate,
                 target_inventory_entries=target_inventory_entries,
@@ -347,7 +343,6 @@ def build_consumer_candidate_review_report(
             rejected_count=len(selected_write_rejected),
             pending_count=len(selected_write_pending),
             blocked_count=len(selected_write_blocked),
-            run_excluded=run_excluded,
             ready_candidates=selected_write_ready,
         ),
         "stableReferenceRelease": {
@@ -375,7 +370,6 @@ def _build_consumer_candidate_review_entry(
     *,
     index: int,
     candidate: dict[str, object],
-    run_excluded: bool,
     target_inventory_entry: dict[str, object] | None,
     verdicts: dict[str, dict[str, object]],
 ) -> dict[str, object]:
@@ -437,7 +431,6 @@ def _build_consumer_candidate_review_entry(
             typed_candidate=typed_candidate,
             typed_candidate_schema_version=typed_candidate_schema_version,
         )
-        and not run_excluded
     )
     effective_admission_action = (
         "selected_write_ready" if ready_for_selected_write else admission_action
@@ -496,7 +489,6 @@ def _build_consumer_candidate_review_entry(
             admission_action=admission_action,
             quality_gate=quality_gate,
             review_verdict=review_verdict,
-            run_excluded=run_excluded,
             required_fields=blocking_review_fields,
             field_status=field_status,
             typed_candidate=typed_candidate,

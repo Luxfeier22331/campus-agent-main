@@ -119,11 +119,7 @@ def release_official_web_target(
         target_documents = _filter_projection_report_to_release_target(
             projection_output_dir=projection_output_dir,
             release_gate=release_gate,
-            source_urls=_string_list(
-                _object_mapping(
-                    release_gate.get("evidenceJson") or release_gate.get("evidence")
-                ).get("sourceUrls")
-            ),
+            source_urls=_string_list(_evidence_json(release_gate).get("sourceUrls")),
         )
         if not target_documents:
             raise OfficialWebTargetReleaseError(
@@ -287,7 +283,7 @@ def _resolve_object_store_settings(
 
 
 def _source_bundle_key(release_gate: dict[str, object]) -> str:
-    evidence = _object_mapping(release_gate.get("evidenceJson") or release_gate.get("evidence"))
+    evidence = _evidence_json(release_gate)
     source_keys = _string_list(evidence.get("sourceObjectKeys"))
     for key in source_keys:
         if key.endswith("source-truth-bundle.json"):
@@ -298,6 +294,15 @@ def _source_bundle_key(release_gate: dict[str, object]) -> str:
         code="missing_source_truth_bundle_key",
         message="release gate evidence has no sourceObjectKeys.",
     )
+
+
+def _evidence_json(release_gate: dict[str, object]) -> dict[str, object]:
+    if "evidenceJson" not in release_gate:
+        raise OfficialWebTargetReleaseError(
+            code="legacy_release_gate_evidence_field",
+            message="release gate must include evidenceJson.",
+        )
+    return _object_mapping(release_gate.get("evidenceJson"))
 
 
 def _download_source_truth_bundle(
@@ -454,7 +459,7 @@ def main(argv: Sequence[str] | None = None) -> None:
     )
     object_store = S3ObjectStoreAdmin(settings)
     release_task = _read_json_object(Path(args.release_task_path).resolve())
-    task_id = _require_text(release_task.get("taskId") or release_task.get("task_id"), "taskId")
+    task_id = _require_text(release_task.get("taskId"), "taskId")
     result = release_official_web_target(
         release_task=release_task,
         object_store=object_store,

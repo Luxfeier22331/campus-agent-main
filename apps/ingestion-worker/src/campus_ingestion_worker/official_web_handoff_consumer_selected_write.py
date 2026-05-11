@@ -27,12 +27,9 @@ def _candidate_blocked_reason(
     quality_gate: dict[object, object],
     required_fields: list[str],
     review_verdict: str,
-    run_excluded: bool,
     typed_candidate: dict[object, object],
     typed_candidate_schema_version: str | None,
 ) -> str:
-    if run_excluded:
-        return "run_admission_decision_excluded"
     if admission_action == "inventory_only":
         return "inventory_only_until_runtime_admission"
     if admission_action == "release_gate_required":
@@ -57,7 +54,6 @@ def _build_selected_write_admission_preview(
     rejected_count: int,
     pending_count: int,
     blocked_count: int,
-    run_excluded: bool,
     ready_candidates: list[dict[str, object]],
 ) -> dict[str, object]:
     if candidate_count == 0:
@@ -68,16 +64,6 @@ def _build_selected_write_admission_preview(
             "pending_record_count": 0,
             "blocked_record_count": 0,
             "reason": "no_selected_write_candidates",
-            "preview_records": [],
-        }
-    if run_excluded:
-        return {
-            "decision": "blocked",
-            "ready_record_count": 0,
-            "rejected_record_count": rejected_count,
-            "pending_record_count": pending_count,
-            "blocked_record_count": blocked_count,
-            "reason": "run_admission_decision_excluded",
             "preview_records": [],
         }
     if ready_count == 0 and rejected_count == candidate_count:
@@ -103,17 +89,6 @@ def _build_selected_write_admission_preview(
             _selected_write_preview_record(candidate) for candidate in ready_candidates
         ],
     }
-
-
-def _is_run_admission_excluded(
-    run_admission_decision: dict[str, object] | None,
-) -> bool:
-    if run_admission_decision is None:
-        return False
-    decision = optional_text(
-        run_admission_decision.get("decision") or run_admission_decision.get("admissionDecision")
-    )
-    return decision == "legacy_contract_excluded"
 
 
 def _review_verdicts(

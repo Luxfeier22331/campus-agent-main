@@ -33,4 +33,5 @@ id = "00000000-0000-0000-0000-000000000000"
 
 [[hyperdrive]]
 binding = "APP_API_DB_FRESH"
+# Local smoke uses the dedicated fresh-read binding explicitly.
 id = "00000000-0000-0000-0000-000000000000"

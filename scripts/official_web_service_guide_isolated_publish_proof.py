@@ -289,9 +289,7 @@ def run_service_guide_isolated_publish_proof(
         )
         trusted_time_rfc3339 = _trusted_time_from_full_impact_bundle(full_impact_bundle)
         for task_payload in preview_release_tasks:
-            task_id = str(task_payload.get("taskId") or task_payload.get("task_id") or "").strip()
-            if not task_id:
-                raise RuntimeError("service-guide preview release task missing taskId")
+            task_id = _require_canonical_release_task_id(task_payload)
             reporter = _SnapshotReporter()
             work_dir = output_dir / task_id
             result = release_official_web_selected_write(
@@ -377,6 +375,15 @@ def _required_env(key: str, message: str) -> str:
     if not value:
         raise RuntimeError(message)
     return value
+
+
+def _require_canonical_release_task_id(task_payload: dict[str, object]) -> str:
+    if "task_id" in task_payload:
+        raise ValueError("legacy release task field task_id is not accepted; use taskId")
+    task_id = str(task_payload.get("taskId") or "").strip()
+    if not task_id:
+        raise RuntimeError("service-guide preview release task missing taskId")
+    return task_id
 
 
 def main(argv: list[str] | None = None) -> None:

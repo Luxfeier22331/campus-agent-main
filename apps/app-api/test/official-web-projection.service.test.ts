@@ -115,7 +115,6 @@ function createPendingEvent(
 describe("official web projection projector", () => {
 	it("dispatches terminal handoff events before materializing dispatched projections", async () => {
 		const store: OfficialWebProjectionProjectorStore = {
-			getRunAdmissionDecision: vi.fn().mockResolvedValue(null),
 			listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
 			markEventFailed: vi.fn(),
 			markEventProcessed: vi.fn(),
@@ -197,7 +196,6 @@ describe("official web projection projector", () => {
 
 	it("preserves deleted page changes without raw asset identity in terminal handoff payloads", async () => {
 		const store: OfficialWebProjectionProjectorStore = {
-			getRunAdmissionDecision: vi.fn().mockResolvedValue(null),
 			listPendingEvents: vi.fn().mockResolvedValue([
 				createPendingEvent({
 					eventId: "owevt_completed_deleted_01HQ",
@@ -268,7 +266,6 @@ describe("official web projection projector", () => {
 
 	it("materializes accepted run and site projections and marks events processed", async () => {
 		const store: OfficialWebProjectionProjectorStore = {
-			getRunAdmissionDecision: vi.fn().mockResolvedValue(null),
 			listPendingEvents: vi
 				.fn()
 				.mockResolvedValue([createPendingEvent({ eventType: "official_web.run.accepted" })]),
@@ -328,57 +325,8 @@ describe("official web projection projector", () => {
 		});
 	});
 
-	it("marks pre-target-workset excluded run events processed without projection or handoff", async () => {
-		const store: OfficialWebProjectionProjectorStore = {
-			getRunAdmissionDecision: vi.fn().mockResolvedValue({
-				decidedAt: "2026-05-01T09:00:00.000Z",
-				decision: "legacy_contract_excluded",
-				decisionId: "owad_legacy_01HQ",
-				reasonCode: "pre_target_workset_contract",
-				runId: "owrun_01HQ",
-				siteId: "www_muc_edu_cn",
-			}),
-			listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
-			markEventFailed: vi.fn(),
-			markEventProcessed: vi.fn(),
-			markTimedOutRunsAsAbandoned: vi.fn().mockResolvedValue(0),
-			updateRunDispatchStatus: vi.fn(),
-			updateRunExecutionStatus: vi.fn().mockResolvedValue(true),
-			upsertRunProjection: vi.fn(),
-			upsertSiteProjection: vi.fn(),
-			getRunProjectionSource: vi.fn(),
-			getSiteProjectionSource: vi.fn(),
-		};
-		const handoffPublisher = {
-			publish: vi.fn(),
-		};
-		const projector = buildOfficialWebProjectionProjector({
-			handoffPublisher,
-			now: () => new Date("2026-03-29T08:17:33.000Z"),
-			store,
-		});
-
-		const result = await projector.drain();
-
-		expect(result).toEqual({
-			abandoned: 0,
-			failed: 0,
-			processed: 1,
-			skipped: 1,
-		});
-		expect(store.getRunProjectionSource).not.toHaveBeenCalled();
-		expect(store.upsertRunProjection).not.toHaveBeenCalled();
-		expect(store.upsertSiteProjection).not.toHaveBeenCalled();
-		expect(handoffPublisher.publish).not.toHaveBeenCalled();
-		expect(store.markEventProcessed).toHaveBeenCalledWith({
-			eventId: "owevt_completed_01HQ",
-			processedAt: "2026-03-29T08:17:33.000Z",
-		});
-	});
-
 	it("records a retryable failure when the run source is missing", async () => {
 		const store: OfficialWebProjectionProjectorStore = {
-			getRunAdmissionDecision: vi.fn().mockResolvedValue(null),
 			listPendingEvents: vi.fn().mockResolvedValue([createPendingEvent()]),
 			markEventFailed: vi.fn(),
 			markEventProcessed: vi.fn(),
@@ -414,7 +362,6 @@ describe("official web projection projector", () => {
 
 	it("marks terminal projection failures as processed when the retry budget is exhausted", async () => {
 		const store: OfficialWebProjectionProjectorStore = {
-			getRunAdmissionDecision: vi.fn().mockResolvedValue(null),
 			listPendingEvents: vi.fn().mockResolvedValue([
 				createPendingEvent({
 					attemptCount: 4,
@@ -455,7 +402,6 @@ describe("official web projection projector", () => {
 
 	it("marks terminal dispatch failures as ingestion_failed when retries are exhausted", async () => {
 		const store: OfficialWebProjectionProjectorStore = {
-			getRunAdmissionDecision: vi.fn().mockResolvedValue(null),
 			listPendingEvents: vi.fn().mockResolvedValue([
 				createPendingEvent({
 					attemptCount: 4,
@@ -519,7 +465,6 @@ describe("official web projection projector", () => {
 
 	it("marks timed-out runs abandoned before draining pending events", async () => {
 		const store: OfficialWebProjectionProjectorStore = {
-			getRunAdmissionDecision: vi.fn().mockResolvedValue(null),
 			listPendingEvents: vi.fn().mockResolvedValue([]),
 			markEventFailed: vi.fn(),
 			markEventProcessed: vi.fn(),

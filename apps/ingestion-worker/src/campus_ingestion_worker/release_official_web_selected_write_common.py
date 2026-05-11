@@ -84,7 +84,7 @@ class _PreparedSelectedWriteProjection:
 def _source_document(*, selected_write_task: dict[str, object]) -> dict[str, object]:
     evidence = _evidence(selected_write_task)
     return {
-        "title": selected_write_task.get("inventoryId") or selected_write_task.get("inventory_id"),
+        "title": selected_write_task.get("inventoryId"),
         "source_refs": _string_list(evidence.get("sourceUrls")),
     }
 
@@ -94,26 +94,16 @@ def _selected_write_field_review(selected_write_task: dict[str, object]) -> dict
     return {
         "field_status": {
             str(key).strip(): str(value).strip()
-            for key, value in _object_mapping(
-                evidence.get("fieldStatus") or evidence.get("field_status")
-            ).items()
+            for key, value in _object_mapping(evidence.get("fieldStatus")).items()
             if str(key).strip() and str(value).strip()
         },
-        "required_fields": _string_list(
-            evidence.get("requiredFields") or evidence.get("required_fields")
-        ),
-        "optional_fields": _string_list(
-            evidence.get("optionalFields") or evidence.get("optional_fields")
-        ),
+        "required_fields": _string_list(evidence.get("requiredFields")),
+        "optional_fields": _string_list(evidence.get("optionalFields")),
     }
 
 
 def _target_label(selected_write_task: dict[str, object]) -> str:
-    return str(
-        _evidence(selected_write_task).get("targetLabel")
-        or _evidence(selected_write_task).get("target_label")
-        or ""
-    ).strip()
+    return str(_evidence(selected_write_task).get("targetLabel") or "").strip()
 
 
 def _candidate_source_ref(
@@ -122,7 +112,7 @@ def _candidate_source_ref(
     selected_write_task: dict[str, object],
 ) -> str:
     inventory_id = _require_text(
-        selected_write_task.get("inventoryId") or selected_write_task.get("inventory_id"),
+        selected_write_task.get("inventoryId"),
         "inventoryId",
     )
     raw_version_id = _require_text(candidate.get("raw_version_id"), "candidate.raw_version_id")
@@ -140,12 +130,10 @@ def _public_source_refs_for_selected_write_task(
     selected_write_task: dict[str, object],
 ) -> list[str]:
     evidence = _evidence(selected_write_task)
-    urls = _string_list(evidence.get("sourceUrls") or evidence.get("source_urls"))
+    urls = _string_list(evidence.get("sourceUrls"))
     refs = []
-    for item in _mapping_list(evidence.get("sourceRefs") or evidence.get("source_refs")):
-        ref_url = str(
-            item.get("normalized_canonical_url") or item.get("normalizedCanonicalUrl") or ""
-        ).strip()
+    for item in _mapping_list(evidence.get("sourceRefs")):
+        ref_url = str(item.get("normalized_canonical_url") or "").strip()
         if ref_url:
             refs.append(ref_url)
     return _unique_strings([*urls, *refs])
@@ -182,18 +170,15 @@ def _assert_selected_write_release_task(task: OfficialWebReleaseTask) -> None:
 
 
 def _assert_machine_field_review_ready(input_ref: Mapping[str, object]) -> None:
-    field_status = _object_mapping(input_ref.get("fieldStatus") or input_ref.get("field_status"))
+    _reject_legacy_input_ref_fields(input_ref)
+    field_status = _object_mapping(input_ref.get("fieldStatus"))
     if not field_status:
         raise OfficialWebSelectedWriteReleaseError(
             code="missing_machine_field_review",
             message="selected-write task evidence must include fieldStatus.",
         )
-    required_fields = _string_list(
-        input_ref.get("requiredFields") or input_ref.get("required_fields")
-    )
-    optional_fields = _string_list(
-        input_ref.get("optionalFields") or input_ref.get("optional_fields")
-    )
+    required_fields = _string_list(input_ref.get("requiredFields"))
+    optional_fields = _string_list(input_ref.get("optionalFields"))
     missing_required = [
         field_name
         for field_name in required_fields
@@ -226,6 +211,28 @@ def _assert_machine_field_review_ready(input_ref: Mapping[str, object]) -> None:
             code="missing_machine_field_review_required_fields",
             message="selected-write task evidence must include requiredFields.",
         )
+    if not _string_list(input_ref.get("sourceUrls")):
+        raise OfficialWebSelectedWriteReleaseError(
+            code="missing_selected_write_source_urls",
+            message="selected-write task evidence must include sourceUrls.",
+        )
+
+
+def _reject_legacy_input_ref_fields(input_ref: Mapping[str, object]) -> None:
+    legacy_fields = {
+        "field_status": "fieldStatus",
+        "optional_fields": "optionalFields",
+        "required_fields": "requiredFields",
+        "source_refs": "sourceRefs",
+        "source_urls": "sourceUrls",
+        "target_label": "targetLabel",
+    }
+    for legacy_field, canonical_field in legacy_fields.items():
+        if legacy_field in input_ref and canonical_field not in input_ref:
+            raise OfficialWebSelectedWriteReleaseError(
+                code="legacy_selected_write_input_ref_field",
+                message=f"selected-write task evidence must use {canonical_field}.",
+            )
 
 
 def _selected_write_task_from_release_task(task: OfficialWebReleaseTask) -> dict[str, object]:
@@ -270,9 +277,7 @@ def _as_mapping(value: object) -> dict[str, object]:
 
 
 def _evidence(selected_write_task: dict[str, object]) -> dict[str, object]:
-    return _object_mapping(
-        selected_write_task.get("evidenceJson") or selected_write_task.get("evidence")
-    )
+    return _object_mapping(selected_write_task.get("evidenceJson"))
 
 
 def _string_list(value: object) -> list[str]:

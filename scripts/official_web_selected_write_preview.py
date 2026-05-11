@@ -67,17 +67,13 @@ def run_selected_write_preview(
             )
         )
     for task_payload in normalized_release_tasks:
-        task_id = str(task_payload.get("taskId") or task_payload.get("task_id") or "").strip()
-        if not task_id:
-            raise ValueError("release task payload must contain taskId")
+        task_id = _require_canonical_release_task_field(task_payload, "taskId")
         tasks_to_preview.append(
             (
                 task_id,
                 {**task_payload, "status": "claimed"},
-                str(task_payload.get("taskType") or task_payload.get("task_type") or "").strip(),
-                str(
-                    task_payload.get("inventoryId") or task_payload.get("inventory_id") or ""
-                ).strip(),
+                _require_canonical_release_task_field(task_payload, "taskType"),
+                _require_canonical_release_task_field(task_payload, "inventoryId"),
             )
         )
     for task_id, release_task_payload, task_type, inventory_id in tasks_to_preview:
@@ -141,6 +137,31 @@ def _count_by_field(results: list[dict[str, Any]], field_name: str) -> dict[str,
             continue
         counts[key] = counts.get(key, 0) + 1
     return counts
+
+
+def _require_canonical_release_task_field(task_payload: dict[str, Any], field_name: str) -> str:
+    legacy_fields = {
+        "inventory_id": "inventoryId",
+        "task_id": "taskId",
+        "task_type": "taskType",
+    }
+    legacy_replacements = {
+        legacy_field: canonical_field
+        for legacy_field, canonical_field in legacy_fields.items()
+        if legacy_field in task_payload
+    }
+    if legacy_replacements:
+        replacements = ", ".join(
+            f"{legacy_field}->{canonical_field}"
+            for legacy_field, canonical_field in legacy_replacements.items()
+        )
+        raise ValueError(
+            f"legacy release task fields are not accepted; use camelCase fields: {replacements}"
+        )
+    text = str(task_payload.get(field_name) or "").strip()
+    if not text:
+        raise ValueError(f"release task payload must contain {field_name}")
+    return text
 
 
 def _projection_display_names(bundle: dict[str, Any], collection: str) -> list[str]:

@@ -8,7 +8,10 @@ from tempfile import TemporaryDirectory
 from unittest.mock import patch
 
 from campus_ingestion_core.campusrag_ingestion_reporting import ImportReport
-from campus_ingestion_worker.release_official_web_target import release_official_web_target
+from campus_ingestion_worker.release_official_web_target import (
+    _source_bundle_key,
+    release_official_web_target,
+)
 
 
 class _FakeObjectStore:
@@ -76,6 +79,18 @@ def _release_task() -> dict[str, object]:
 
 
 class ReleaseOfficialWebTargetTest(unittest.TestCase):
+    def test_source_bundle_key_requires_canonical_evidence_json_container(self) -> None:
+        with self.assertRaisesRegex(Exception, "evidenceJson"):
+            _source_bundle_key(
+                {
+                    "evidence": {
+                        "sourceObjectKeys": [
+                            "official_web/muc_public/runs/owrun/source-truth-bundle.json"
+                        ]
+                    }
+                }
+            )
+
     def test_release_imports_only_target_document_without_scope_refreshing_stable_reference(
         self,
     ) -> None:

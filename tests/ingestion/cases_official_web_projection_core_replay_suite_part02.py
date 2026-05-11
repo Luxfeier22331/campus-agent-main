@@ -212,6 +212,95 @@ class OfficialWebProjectionCoreReplayTestPart02(unittest.TestCase):
             )
             self.assertNotIn("public_notice_inventory", json.dumps(asdict(report)))
 
+    def test_target_workset_rejects_snake_case_target_match_fields(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            output_dir = root / "collector-output"
+            projection_dir = root / "projection-output"
+            declarations_path = root / "projection-declarations.json"
+            _write_json(declarations_path, _declarations_payload())
+            snake_case_match = {
+                "target_job_id": "owtargetjob_snake",
+                "target_candidate_id": "owtargetcandidate_snake",
+                "target_id": "campus-services-contact-directory",
+                "target_declaration_version": "muc_public_target_source_map_v2",
+                "consumer_family": "contact_directory_candidate",
+                "retention_policy": "retain_source_truth",
+                "materialization_policy": "candidate_only",
+                "selected_write_target": "campus_services/contact_directory",
+                "review_policy": "selected_write_requires_review",
+                "workset_reason": "target_source_map_match",
+            }
+            _write_json(
+                output_dir / "source-truth-bundle.json",
+                {
+                    "schemaVersion": "official_web_source_truth_bundle.v1",
+                    "sourceChannel": "official_web",
+                    "siteId": "campus_public",
+                    "crawlRunId": "owrun_target_snake",
+                    "collectionMode": "target-workset",
+                    "generatedAt": "2026-05-01T09:00:00.000Z",
+                    "pages": [
+                        {
+                            **_page_bundle_entry(
+                                raw_asset_id="owasset_target_snake",
+                                raw_version_id="owver_target_snake",
+                                normalized_canonical_url="https://www.example.edu/contact",
+                                page_family="article_detail",
+                            ),
+                            "targetMatches": [snake_case_match],
+                        },
+                    ],
+                },
+            )
+            _write_output_page(
+                output_dir,
+                site_id="campus_public",
+                host="www.example.edu",
+                raw_asset_id="owasset_target_snake",
+                raw_version_id="owver_target_snake",
+                normalized_canonical_url="https://www.example.edu/contact",
+                page_title="联系我们",
+                page_family="article_detail",
+                blocks=[
+                    _block(
+                        raw_asset_id="owasset_target_snake",
+                        raw_version_id="owver_target_snake",
+                        row_id="title-1",
+                        row_index=0,
+                        block_order=0,
+                        block_role="title",
+                        text="联系我们",
+                    ),
+                    _block(
+                        raw_asset_id="owasset_target_snake",
+                        raw_version_id="owver_target_snake",
+                        row_id="p-1",
+                        row_index=1,
+                        block_order=1,
+                        block_role="paragraph",
+                        text="办公地点：中慧楼二层，联系电话：010-68933381。",
+                    ),
+                ],
+            )
+
+            report = replay_official_web_source_truth_local(
+                output_dir=output_dir,
+                projection_output_dir=projection_dir,
+                declarations_path=declarations_path,
+            )
+
+            self.assertEqual(report.counts["consumer_candidate_pages"], 0)
+            self.assertEqual(report.target_family_counts, {})
+            self.assertEqual(report.target_materialization_policy_counts, {})
+            self.assertEqual(
+                {issue["code"] for issue in report.target_lineage_issues},
+                {
+                    "unsupported_target_consumer_family",
+                    "unsupported_target_materialization_policy",
+                },
+            )
+
     def test_target_workset_regulation_candidate_stays_release_gated_and_targets_institutional_rules(
         self,
     ) -> None:
