@@ -537,6 +537,172 @@ class CampusServicesAgentTestPart02(unittest.TestCase):
         self.assertEqual(result.contact_points[0].value, "010-68930001")
         self.assertEqual(result.field_status, {"office_hours": "source_not_provided"})
 
+    def test_http_query_service_rejects_missing_echo_fields_instead_of_request_fallback(
+        self,
+    ) -> None:
+        cases = (
+            (
+                "service status query result missing required field: subject_query",
+                {
+                    "outcome": "resolved_current",
+                    "resolved_subject": "两校区通勤班车丰台校区乘车点",
+                    "observed_status": "limited_service",
+                },
+                lambda service: service.lookup_service_status(
+                    ServiceStatusQuery(
+                        payload=ServiceStatusLookupPayload(
+                            subject_query="通勤班车丰台校区乘车点现在在哪里",
+                        )
+                    )
+                ),
+            ),
+            (
+                "service guide query result missing required field: service_query",
+                {
+                    "guide_focus": "procedure",
+                    "outcome": "resolved_current",
+                    "resolved_service": {
+                        "service_id": "service:handbook:check-in",
+                        "display_name": "公寓楼新生办理入住手续流程",
+                    },
+                    "source_refs": ["handbook:student_rules:pages:252-255#page=253"],
+                },
+                lambda service: service.lookup_service_guide(
+                    ServiceGuideQuery(
+                        payload=ServiceGuideLookupPayload(
+                            service_query="宿舍入住怎么办理",
+                            guide_focus="procedure",
+                        )
+                    )
+                ),
+            ),
+            (
+                "service guide query result missing required field: guide_focus",
+                {
+                    "service_query": "宿舍入住怎么办理",
+                    "outcome": "resolved_current",
+                    "resolved_service": {
+                        "service_id": "service:handbook:check-in",
+                        "display_name": "公寓楼新生办理入住手续流程",
+                    },
+                    "source_refs": ["handbook:student_rules:pages:252-255#page=253"],
+                },
+                lambda service: service.lookup_service_guide(
+                    ServiceGuideQuery(
+                        payload=ServiceGuideLookupPayload(
+                            service_query="宿舍入住怎么办理",
+                            guide_focus="procedure",
+                        )
+                    )
+                ),
+            ),
+            (
+                "contact directory query result missing required field: query_text",
+                {
+                    "contact_focus": "phone",
+                    "outcome": "resolved_current",
+                    "resolved_contact": {
+                        "contact_id": "contact:grad-admission-office",
+                        "display_name": "研究生院招生办公室",
+                    },
+                    "contact_points": [
+                        {
+                            "channel_type": "phone",
+                            "label": "招生咨询",
+                            "value": "010-68930001",
+                            "source_refs": ["handbook:contact-directory:2026#page=261"],
+                        }
+                    ],
+                    "source_refs": ["handbook:contact-directory:2026#page=261"],
+                },
+                lambda service: service.lookup_contact_directory(
+                    ContactDirectoryQuery(
+                        payload=ContactDirectoryLookupPayload(
+                            query_text="研究生院招生办公室电话是多少",
+                            contact_focus="phone",
+                        )
+                    )
+                ),
+            ),
+            (
+                "contact directory query result missing required field: contact_focus",
+                {
+                    "query_text": "研究生院招生办公室电话是多少",
+                    "outcome": "resolved_current",
+                    "resolved_contact": {
+                        "contact_id": "contact:grad-admission-office",
+                        "display_name": "研究生院招生办公室",
+                    },
+                    "contact_points": [
+                        {
+                            "channel_type": "phone",
+                            "label": "招生咨询",
+                            "value": "010-68930001",
+                            "source_refs": ["handbook:contact-directory:2026#page=261"],
+                        }
+                    ],
+                    "source_refs": ["handbook:contact-directory:2026#page=261"],
+                },
+                lambda service: service.lookup_contact_directory(
+                    ContactDirectoryQuery(
+                        payload=ContactDirectoryLookupPayload(
+                            query_text="研究生院招生办公室电话是多少",
+                            contact_focus="phone",
+                        )
+                    )
+                ),
+            ),
+            (
+                "transport schedule query result missing required field: query_text",
+                {
+                    "intent": "first_departure",
+                    "outcome": "resolved_current",
+                    "resolved_route": {
+                        "route_id": "route:haidian-to-fengtai",
+                        "display_name": "海淀到丰台通勤车",
+                        "service_family": "intercampus_commute",
+                    },
+                },
+                lambda service: service.lookup_transport_schedule(
+                    TransportScheduleQuery(
+                        payload=TransportScheduleLookupPayload(
+                            query_text="我明天早上要去丰台上课，最早的班车是几点",
+                            intent="first_departure",
+                        )
+                    )
+                ),
+            ),
+            (
+                "transport schedule query result missing required field: intent",
+                {
+                    "query_text": "我明天早上要去丰台上课，最早的班车是几点",
+                    "outcome": "resolved_current",
+                    "resolved_route": {
+                        "route_id": "route:haidian-to-fengtai",
+                        "display_name": "海淀到丰台通勤车",
+                        "service_family": "intercampus_commute",
+                    },
+                },
+                lambda service: service.lookup_transport_schedule(
+                    TransportScheduleQuery(
+                        payload=TransportScheduleLookupPayload(
+                            query_text="我明天早上要去丰台上课，最早的班车是几点",
+                            intent="first_departure",
+                        )
+                    )
+                ),
+            ),
+        )
+        for error_message, response_body, call in cases:
+            with self.subTest(error_message=error_message):
+                query_service = CampusServicesHTTPQueryService(
+                    base_url="http://supervisor-api.internal",
+                    shared_secret="query-secret",
+                    transport=RecordingQueryHTTPTransport(response_body),
+                )
+                with self.assertRaisesRegex(RuntimeError, error_message):
+                    call(query_service)
+
     def test_http_query_service_decodes_service_guide_materials_and_fail_close_reason(
         self,
     ) -> None:

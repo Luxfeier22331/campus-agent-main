@@ -82,6 +82,70 @@ func TestLookupServiceGuideFailsClosedWhenRequestedFocusWasNotProvidedBySource(t
 	}
 }
 
+func TestLookupServiceGuideFailsClosedForLegacyFlatProcedureRecord(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		`{
+			"schema_version":"campus_services_service_guide_projection.v1",
+			"generated_at":"2026-05-04T12:00:00+08:00",
+			"source_families":["legacy_projection"],
+			"service_guide_records":[
+				{
+					"service_id":"service:handbook:legacy-check-in",
+					"display_name":"宿舍入住办理",
+					"aliases":["宿舍入住","入住"],
+					"category":"student_housing",
+					"campus_scope":"all",
+					"audience":["student"],
+					"effective_from":"2018-09-01T00:00:00+08:00",
+					"effective_until":"2099-12-31T23:59:59+08:00",
+					"source_refs":["handbook:student_rules:pages:252-255#page=253"],
+					"guide_sections":[
+						{
+							"section_id":"service:handbook:legacy-check-in:section:procedure",
+							"section_type":"procedure",
+							"title":"宿舍入住办理",
+							"content":"1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",
+							"order":1,
+							"source_refs":["handbook:student_rules:pages:252-255#page=253"]
+						}
+					],
+					"materials":[],
+					"entry_refs":[],
+					"office_hours":[],
+					"contact_refs":[],
+					"eligibility_notes":["新生"],
+					"extraction_status":"ready"
+				}
+			],
+			"conflict_records":[],
+			"manual_review_sources":[]
+		}`,
+		"2026-05-04T12:30:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"宿舍入住怎么办理",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "field_not_provided_by_source" {
+		t.Fatalf("fail_close_reason = %q, want field_not_provided_by_source", result.FailCloseReason)
+	}
+	if len(result.GuideSections) != 0 {
+		t.Fatalf("guide_sections = %#v, want none", result.GuideSections)
+	}
+	if len(result.ProcedureGroups) != 0 {
+		t.Fatalf("procedure_groups = %#v, want none", result.ProcedureGroups)
+	}
+}
+
 func TestLookupServiceGuideIncludesContactSourceRefs(t *testing.T) {
 	runtime := newRuntimeWithServiceGuideReadModel(
 		t,

@@ -159,6 +159,35 @@ func TestLookupServiceGuideSelectsFocusedVPNProcedureGroup(t *testing.T) {
 	}
 }
 
+func TestLookupServiceGuideDoesNotGuessFirstProcedureGroupWhenQueryDoesNotMatch(t *testing.T) {
+	runtime := newRuntimeWithServiceGuideReadModel(
+		t,
+		serviceGuideVPNProjectionFixture(),
+		"2026-05-04T10:30:00+08:00",
+	)
+
+	response := runtime.LookupServiceGuide(context.Background(), []byte(`{
+		"service_query":"VPN证书异常怎么处理",
+		"guide_focus":"procedure",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(serviceGuideResult)
+	if result.Outcome != "clarification_required" {
+		t.Fatalf("outcome = %q, want clarification_required", result.Outcome)
+	}
+	if result.ClarificationReason != "procedure_group_ambiguous" {
+		t.Fatalf("clarification_reason = %q, want procedure_group_ambiguous", result.ClarificationReason)
+	}
+	if len(result.ProcedureGroups) != 0 {
+		t.Fatalf("procedure_groups = %#v, want none", result.ProcedureGroups)
+	}
+	if len(result.GuideSections) != 0 {
+		t.Fatalf("guide_sections = %#v, want none", result.GuideSections)
+	}
+}
+
 func TestLookupServiceGuideMatchesCanonicalVPNGroupedProcedureFixture(t *testing.T) {
 	runtime := newRuntimeWithServiceGuideReadModel(
 		t,

@@ -4,6 +4,7 @@ import unittest
 
 from campus_ingestion_core import default_query_scopes, load_runtime_profile
 from campus_ingestion_core.corpus_profiles import (
+    CollectionRuntimeProfile,
     is_official_web_stable_reference_like_collection,
     is_official_web_stable_reference_like_profile,
     load_chunk_profile,
@@ -208,7 +209,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.corpus, "campus_services")
         self.assertEqual(profile.collection, "service_guide")
-        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.serving_stage, "structured_query_serving")
         self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
@@ -240,7 +241,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.corpus, "campus_services")
         self.assertEqual(profile.collection, "service_status")
-        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.serving_stage, "structured_query_serving")
         self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
@@ -270,7 +271,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.corpus, "campus_services")
         self.assertEqual(profile.collection, "contact_directory")
-        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.serving_stage, "structured_query_serving")
         self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
@@ -302,7 +303,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.corpus, "campus_services")
         self.assertEqual(profile.collection, "transport_schedule")
-        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.serving_stage, "structured_query_serving")
         self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
@@ -319,7 +320,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.corpus, "calendar")
         self.assertEqual(profile.collection, "academic_calendar")
-        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.serving_stage, "structured_query_serving")
         self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
@@ -368,7 +369,6 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.serving_surface, "mixed")
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
-        self.assertFalse(profile.live_search_fallback_allowed)
         self.assertEqual(profile.qdrant_index_binding.alias_name, "muc_public_pages")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "muc_public_pages")
 
@@ -385,7 +385,6 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.serving_surface, "stable_reference")
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
-        self.assertFalse(profile.live_search_fallback_allowed)
         self.assertEqual(profile.required_metadata_fields, ())
         self.assertEqual(profile.primary_evidence_page_families, ())
         self.assertIsNone(profile.listing_page_role)
@@ -415,7 +414,6 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.serving_surface, "fresh_news")
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
-        self.assertFalse(profile.live_search_fallback_allowed)
         self.assertEqual(
             profile.required_metadata_fields,
             (
@@ -451,7 +449,6 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.serving_surface, "news_archive")
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
-        self.assertFalse(profile.live_search_fallback_allowed)
         self.assertEqual(
             profile.required_metadata_fields,
             (
@@ -608,10 +605,44 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         }
 
         for tool_name, profile in profiles.items():
+            self.assertEqual(profile.serving_stage, "structured_query_serving", tool_name)
             self.assertTrue(profile.structured_query_enabled, tool_name)
             self.assertIn(tool_name, profile.structured_query_tools)
             self.assertFalse(profile.retrieval_enabled, tool_name)
             self.assertFalse(profile.query_enabled_by_default, tool_name)
+
+    def test_structured_query_serving_profile_rejects_generic_query_opening(self) -> None:
+        base_kwargs = {
+            "corpus": "campus_services",
+            "collection": "service_status",
+            "serving_stage": "structured_query_serving",
+            "allowed_artifact_modes": ("source_truth_only",),
+            "split_manifest_required": False,
+            "cleaning_policy_version": "service_status_projection_v1",
+            "chunk_profile_version": "service_status_projection_v1",
+            "retrieval_enabled": False,
+            "query_enabled_by_default": False,
+            "structured_query_enabled": True,
+            "structured_query_tools": ("service_status_lookup",),
+        }
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "structured_query_serving requires retrieval_enabled=false",
+        ):
+            CollectionRuntimeProfile(**{**base_kwargs, "retrieval_enabled": True})
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "structured_query_serving requires query_enabled_by_default=false",
+        ):
+            CollectionRuntimeProfile(**{**base_kwargs, "query_enabled_by_default": True})
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "structured_query_serving requires structured_query_enabled=true",
+        ):
+            CollectionRuntimeProfile(**{**base_kwargs, "structured_query_enabled": False})
 
 
 if __name__ == "__main__":

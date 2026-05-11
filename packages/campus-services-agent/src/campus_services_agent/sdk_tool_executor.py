@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import hashlib
+import json
 from collections.abc import Mapping
 from dataclasses import asdict
 from typing import get_args, get_origin, get_type_hints
@@ -72,11 +74,18 @@ def execute_campus_services_sdk_tool(
                 access_context=_access_context_from_request(agent_request),
             )
         )
-        return _bounded_sdk_tool_result(
+        bounded = _bounded_sdk_tool_result(
             result,
             query_key="query_text",
             query_value=result.query_text,
         )
+        _attach_output_projection_ref(
+            bounded,
+            agent_request=agent_request,
+            projection_kind="schedule_baseline",
+            payload=_schedule_baseline_projection_payload(bounded),
+        )
+        return bounded
     if execution.name == "contact_directory_lookup":
         payload = ContactDirectoryLookupPayload(
             **_normalize_dataclass_arguments(
@@ -364,6 +373,80 @@ def _bounded_sdk_tool_result(
             ),
         )
     return bounded
+
+
+def _attach_output_projection_ref(
+    bounded: dict[str, object],
+    *,
+    agent_request,
+    projection_kind: str,
+    payload: Mapping[str, object],
+) -> None:
+    if projection_kind not in tuple(agent_request.workflow_context.expected_output_artifacts):
+        return
+    if not any(_has_projection_value(value) for value in payload.values()):
+        return
+    bounded["output_projection_ref"] = _safe_projection_ref(
+        agent_request.workflow_context.step_id,
+        projection_kind,
+        payload,
+    )
+
+
+def _schedule_baseline_projection_payload(bounded: Mapping[str, object]) -> dict[str, object]:
+    resolved_route = bounded.get("resolved_route")
+    route_id = ""
+    route_display_name = ""
+    service_family = ""
+    if isinstance(resolved_route, Mapping):
+        route_id = str(resolved_route.get("route_id") or "").strip()
+        route_display_name = str(resolved_route.get("display_name") or "").strip()
+        service_family = str(resolved_route.get("service_family") or "").strip()
+    payload: dict[str, object] = {
+        "route_id": route_id,
+        "route_display_name": route_display_name,
+        "service_family": service_family,
+        "summary": str(bounded.get("query_text") or "").strip(),
+    }
+    source_refs = bounded.get("source_refs")
+    if isinstance(source_refs, list):
+        refs = [str(item).strip() for item in source_refs if str(item).strip()]
+        if refs:
+            payload["source_refs"] = refs
+    return payload
+
+
+def _safe_projection_ref(
+    source_step_id: str,
+    projection_kind: str,
+    payload: Mapping[str, object],
+) -> dict[str, object]:
+    encoded = json.dumps(payload, ensure_ascii=False, separators=(",", ":"), sort_keys=True).encode(
+        "utf-8"
+    )
+    digest = hashlib.sha256(encoded).hexdigest()
+    return {
+        "projection_id": f"projection:{projection_kind}:{digest[:16]}",
+        "source_step_id": source_step_id,
+        "projection_kind": projection_kind,
+        "content_hash": f"sha256:{digest}",
+        "safety": {
+            "truncated": False,
+            "redacted": False,
+            "max_chars": 1600,
+            "fields_present": sorted(
+                key for key, value in payload.items() if _has_projection_value(value)
+            ),
+        },
+    }
+
+
+def _has_projection_value(value: object) -> bool:
+    if isinstance(value, str):
+        return bool(value.strip())
+    if isinstance(value, list | tuple | dict):
+        return len(value) > 0
+    return value is not None
 
 
 def _copy_nested_sdk_result_list(

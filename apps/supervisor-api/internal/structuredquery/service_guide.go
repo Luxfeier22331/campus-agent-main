@@ -106,6 +106,20 @@ func (r *Runtime) lookupServiceGuide(ctx context.Context, request serviceGuideRe
 		}
 		return failClosedServiceGuide(request, timeAnchor, "source_truth_unavailable")
 	}
+	if request.GuideFocus == "procedure" && len(record.ProcedureGroups) > 1 {
+		if _, matched := selectProcedureGroups(record.ProcedureGroups, request.ServiceQuery); !matched {
+			body := serviceGuideResult{
+				ServiceQuery:        request.ServiceQuery,
+				GuideFocus:          request.GuideFocus,
+				Outcome:             "clarification_required",
+				ResolvedService:     serviceGuideRefFromRecord(record),
+				QueriedTimeAnchor:   timeAnchor,
+				ClarificationReason: "procedure_group_ambiguous",
+				FieldStatus:         normalizedFieldStatus(record.FieldStatus),
+			}
+			return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+		}
+	}
 	body := serviceGuideResultFromRecord(request, record, timeAnchor)
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 }

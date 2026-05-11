@@ -216,7 +216,7 @@ func TestLookupServiceGuideReadsGroupedProcedureFromPostgresReadModel(t *testing
 	}
 }
 
-func TestLookupServiceGuideMixedBundleKeepsLegacyFlatProcedureCompatibility(t *testing.T) {
+func TestLookupServiceGuideMixedBundleFailsClosedForLegacyFlatProcedureRecord(t *testing.T) {
 	store := &fakeServiceGuideReadModelStore{
 		bundle: mustProjectionBundle(
 			t,
@@ -316,14 +316,20 @@ func TestLookupServiceGuideMixedBundleKeepsLegacyFlatProcedureCompatibility(t *t
 		"audience":"student"
 	}`))
 	legacyResult := legacyResponse.Body.(serviceGuideResult)
-	if legacyResult.Outcome != "resolved_current" {
-		t.Fatalf("legacy outcome = %q, want resolved_current", legacyResult.Outcome)
+	if legacyResult.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("legacy outcome = %q, want temporarily_unverifiable", legacyResult.Outcome)
+	}
+	if legacyResult.FailCloseReason != "field_not_provided_by_source" {
+		t.Fatalf(
+			"legacy fail_close_reason = %q, want field_not_provided_by_source",
+			legacyResult.FailCloseReason,
+		)
 	}
 	if len(legacyResult.ProcedureGroups) != 0 {
-		t.Fatalf("legacy procedure_groups = %#v, want none for flat legacy record", legacyResult.ProcedureGroups)
+		t.Fatalf("legacy procedure_groups = %#v, want none", legacyResult.ProcedureGroups)
 	}
-	if len(legacyResult.GuideSections) != 1 || !strings.Contains(legacyResult.GuideSections[0].Content, "到指定公寓楼报到") {
-		t.Fatalf("legacy guide_sections = %#v, want flat procedure section fallback", legacyResult.GuideSections)
+	if len(legacyResult.GuideSections) != 0 {
+		t.Fatalf("legacy guide_sections = %#v, want none", legacyResult.GuideSections)
 	}
 
 	groupedResponse := runtime.LookupServiceGuide(context.Background(), []byte(`{

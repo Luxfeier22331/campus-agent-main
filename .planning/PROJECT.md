@@ -2,7 +2,7 @@
 
 ## What This Is
 
-`campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是一次性做全量校园知识问答，而是在新架构下把 `supervisor -> rag-agent -> retrieval` 主路径稳定成立，并让 serving surface 由 runtime profile 显式控制。当前 query-enabled surface 是 `regulations/student_rules`、`regulations/institutional_rules`、`curriculum/curriculum_plan` 与 `official_web/stable_reference`；`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled；`campus_services` 仍保持 offline preparation。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
+`campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是一次性做全量校园知识问答，而是在新架构下把 `supervisor -> rag-agent -> retrieval` 主路径稳定成立，并让 serving surface 由 runtime profile 显式控制。当前 query-enabled surface 是 `regulations/student_rules`、`regulations/institutional_rules`、`curriculum/curriculum_plan` 与 `official_web/stable_reference`；`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled；`campus_services` 已有 structured-query serving tools，但不进入 generic retrieval 默认 query scope。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
 
 ## Planning File Contract
 
@@ -25,7 +25,7 @@
 - 当前 query-enabled scope 是 `regulations/student_rules`、`regulations/institutional_rules`、`curriculum/curriculum_plan` 与 `official_web/stable_reference`；`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled
 - 2026-05-01 本轮“目前打开内容”验证按当前执行范围显式排除 `official_web/*`，只覆盖 `regulations/student_rules`、`regulations/institutional_rules` 与 `curriculum/curriculum_plan`；验证结果为 qrels/manifest `41 tests OK`、agent/supervisor/contract `180 tests OK`、retrieval-core 非 official-web 路径 `138 tests OK`、scoped profile/qrels coverage `coverage_issues=0`。误跑的 `official_web` freshness/live-assisted suite 失败不计入本轮验收范围，也不改变 official-web planning truth。
 - `student_rules` 与 `curriculum_plan` 的 source OCR runtime profile 当前都已切到 `mineru_api + vlm + mineru-vlm-adapted-v2`；覆盖历史 Paddle 派生 canonical truth 的 cutover 现由独立 `handbook-curriculum-mineru-cutover` workstream 收口
-- `campus_services/*` 仍为 `offline_preparation`
+- `campus_services/service_status`、`campus_services/service_guide`、`campus_services/contact_directory`、`campus_services/transport_schedule` 与 `calendar/academic_calendar` 当前为 `structured_query_serving`：仅通过 admitted structured tools 消费 current projection/read model，不进入 generic retrieval 默认 query scope；`campus_services/service_catalog` 仍为 `offline_preparation`
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
 - planning 执行面当前按原生 workstream-first 多线推进；repo 级总览固定收口到 `.planning/WORKSTREAMS.md`，单条线的当前真相固定收口到 `.planning/workstreams/<slug>/`

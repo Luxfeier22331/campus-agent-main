@@ -1,7 +1,7 @@
 {
 	"corpus": "campus_services",
 	"collection": "transport_schedule",
-	"serving_stage": "offline_preparation",
+	"serving_stage": "structured_query_serving",
 	"allowed_artifact_modes": ["source_truth_only"],
 	"split_manifest_required": false,
 	"cleaning_policy_version": "transport_schedule_projection_v1",

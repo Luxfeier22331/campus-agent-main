@@ -82,10 +82,7 @@ class CampusServicesHTTPQueryService:
                 access_context=asdict(query.access_context),
             ),
         )
-        return _service_status_result_from_dict(
-            body,
-            fallback_subject_query=query.payload.subject_query,
-        )
+        return _service_status_result_from_dict(body)
 
     def lookup_service_guide(self, query: ServiceGuideQuery) -> ServiceGuideLookupResult:
         body = self._post(
@@ -95,11 +92,7 @@ class CampusServicesHTTPQueryService:
                 access_context=asdict(query.access_context),
             ),
         )
-        return _service_guide_result_from_dict(
-            body,
-            fallback_service_query=query.payload.service_query,
-            fallback_guide_focus=str(query.payload.guide_focus),
-        )
+        return _service_guide_result_from_dict(body)
 
     def lookup_contact_directory(
         self,
@@ -112,11 +105,7 @@ class CampusServicesHTTPQueryService:
                 access_context=asdict(query.access_context),
             ),
         )
-        return _contact_directory_result_from_dict(
-            body,
-            fallback_query_text=query.payload.query_text,
-            fallback_contact_focus=str(query.payload.contact_focus),
-        )
+        return _contact_directory_result_from_dict(body)
 
     def lookup_academic_calendar(
         self,
@@ -129,10 +118,7 @@ class CampusServicesHTTPQueryService:
                 access_context=asdict(query.access_context),
             ),
         )
-        return _academic_calendar_result_from_dict(
-            body,
-            fallback_query_text=query.payload.query_text,
-        )
+        return _academic_calendar_result_from_dict(body)
 
     def lookup_transport_schedule(
         self,
@@ -145,11 +131,7 @@ class CampusServicesHTTPQueryService:
                 access_context=asdict(query.access_context),
             ),
         )
-        return _transport_schedule_result_from_dict(
-            body,
-            fallback_query_text=query.payload.query_text,
-            fallback_intent=str(query.payload.intent),
-        )
+        return _transport_schedule_result_from_dict(body)
 
     def _post(self, path: str, json_body: dict[str, object]) -> dict[str, object]:
         status_code, body = self._transport(
@@ -211,13 +193,13 @@ def _query_body(
     }
 
 
-def _service_status_result_from_dict(
-    body: dict[str, object],
-    *,
-    fallback_subject_query: str,
-) -> ServiceStatusLookupResult:
+def _service_status_result_from_dict(body: dict[str, object]) -> ServiceStatusLookupResult:
     return ServiceStatusLookupResult(
-        subject_query=_string(body.get("subject_query")) or fallback_subject_query,
+        subject_query=_required_string(
+            body,
+            "subject_query",
+            result_name="service status query",
+        ),
         outcome=_string(body.get("outcome")),
         resolved_subject=_string(body.get("resolved_subject")),
         observed_status=_string(body.get("observed_status")),
@@ -232,15 +214,18 @@ def _service_status_result_from_dict(
     )
 
 
-def _service_guide_result_from_dict(
-    body: dict[str, object],
-    *,
-    fallback_service_query: str,
-    fallback_guide_focus: str,
-) -> ServiceGuideLookupResult:
+def _service_guide_result_from_dict(body: dict[str, object]) -> ServiceGuideLookupResult:
     return ServiceGuideLookupResult(
-        service_query=_string(body.get("service_query")) or fallback_service_query,
-        guide_focus=_string(body.get("guide_focus")) or fallback_guide_focus,
+        service_query=_required_string(
+            body,
+            "service_query",
+            result_name="service guide query",
+        ),
+        guide_focus=_required_string(
+            body,
+            "guide_focus",
+            result_name="service guide query",
+        ),
         outcome=_string(body.get("outcome")),
         resolved_service=_service_guide_service_ref(body.get("resolved_service")),
         guide_sections=tuple(
@@ -293,15 +278,18 @@ def _service_guide_result_from_dict(
     )
 
 
-def _contact_directory_result_from_dict(
-    body: dict[str, object],
-    *,
-    fallback_query_text: str,
-    fallback_contact_focus: str,
-) -> ContactDirectoryLookupResult:
+def _contact_directory_result_from_dict(body: dict[str, object]) -> ContactDirectoryLookupResult:
     return ContactDirectoryLookupResult(
-        query_text=_string(body.get("query_text")) or fallback_query_text,
-        contact_focus=_string(body.get("contact_focus")) or fallback_contact_focus,
+        query_text=_required_string(
+            body,
+            "query_text",
+            result_name="contact directory query",
+        ),
+        contact_focus=_required_string(
+            body,
+            "contact_focus",
+            result_name="contact directory query",
+        ),
         outcome=_string(body.get("outcome")),
         resolved_contact=_contact_directory_contact_ref(body.get("resolved_contact")),
         contact_points=tuple(
@@ -334,15 +322,18 @@ def _contact_directory_result_from_dict(
     )
 
 
-def _transport_schedule_result_from_dict(
-    body: dict[str, object],
-    *,
-    fallback_query_text: str,
-    fallback_intent: str,
-) -> TransportScheduleLookupResult:
+def _transport_schedule_result_from_dict(body: dict[str, object]) -> TransportScheduleLookupResult:
     return TransportScheduleLookupResult(
-        query_text=_string(body.get("query_text")) or fallback_query_text,
-        intent=_string(body.get("intent")) or fallback_intent,
+        query_text=_required_string(
+            body,
+            "query_text",
+            result_name="transport schedule query",
+        ),
+        intent=_required_string(
+            body,
+            "intent",
+            result_name="transport schedule query",
+        ),
         outcome=_string(body.get("outcome")),
         resolved_route=_transport_route_ref(body.get("resolved_route")),
         service_status=_string(body.get("service_status")),
@@ -381,13 +372,13 @@ def _transport_schedule_result_from_dict(
     )
 
 
-def _academic_calendar_result_from_dict(
-    body: dict[str, object],
-    *,
-    fallback_query_text: str,
-) -> AcademicCalendarLookupResult:
+def _academic_calendar_result_from_dict(body: dict[str, object]) -> AcademicCalendarLookupResult:
     return AcademicCalendarLookupResult(
-        query_text=_string(body.get("query_text")) or fallback_query_text,
+        query_text=_required_string(
+            body,
+            "query_text",
+            result_name="academic calendar query",
+        ),
         outcome=_string(body.get("outcome")),
         answer_focus=_string(body.get("answer_focus")),
         requested_date=_string(body.get("requested_date")),
@@ -739,6 +730,18 @@ def _list(value: object) -> list[object]:
 
 def _string(value: object) -> str:
     return value.strip() if isinstance(value, str) else ""
+
+
+def _required_string(
+    body: dict[str, object],
+    field_name: str,
+    *,
+    result_name: str,
+) -> str:
+    value = _string(body.get(field_name))
+    if not value:
+        raise RuntimeError(f"{result_name} result missing required field: {field_name}")
+    return value
 
 
 def _string_tuple(value: object) -> tuple[str, ...]:

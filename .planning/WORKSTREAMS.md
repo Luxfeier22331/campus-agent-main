@@ -48,7 +48,7 @@ updated: 2026-05-10
 
 | Workstream | Slug | Native Dir | Entry | Current Phase | Current Slice |
 |------------|------|------------|-------|---------------|---------------|
-| _None_ | `n/a` | `n/a` | `n/a` | `n/a` | `eval` completed on 2026-05-10; authenticated canonical regulation collection moved to backlog seed rather than remaining an eval blocker |
+| — | — | — | — | — | — |
 
 ## Completed
 
@@ -131,6 +131,7 @@ updated: 2026-05-10
 | `supervisor-api server live acceptance` | `supervisor-api-server-live-acceptance` | `yes` | `.planning/workstreams/supervisor-api-server-live-acceptance/README.md` | 只有在新增 server-live smoke profile、runtime contract 变更导致当前 artifact 失效，或需要重新验证 non-WSL host acceptance 时恢复 |
 | `ingestion worker independent deployment hardening` | `ingestion-worker-independent-deployment-hardening` | `yes` | `.planning/workstreams/ingestion-worker-independent-deployment-hardening/README.md` | 只有在部署 substrate / runtime contract 变更导致当前 phase 7 证据失效，或资源画像持续越界需要重开 runtime migration 评估时恢复 |
 | `public chat answer feedback and quality signals` | `public-chat-answer-feedback-quality-signals` | `yes` | `.planning/workstreams/public-chat-answer-feedback-quality-signals/README.md` | 只有在 answer feedback contract、operator quality feedback denominator、negative feedback eval candidate intake、或 public-chat-web feedback rollout / rollback posture 被显式改写时恢复 |
+| `Rag-Agent Answer Contract Hardening` | `rag-agent-answer-contract-hardening` | `yes` | `.planning/workstreams/rag-agent-answer-contract-hardening/README.md` | 只有在 title / identity answers 重新扩成 summary chain、official-web brief answers超出受控 fact budget、generic fallback 重新获得主要 answer authority，或 stage diagnostics / ragas diagnostics 不能再暴露 `presentation_kind` / `fallback_path` / `fallback_reason` 时恢复 |
 | `Retrieval Intent Taxonomy Contract Closeout` | `retrieval-intent-taxonomy-contract-closeout` | `yes` | `.planning/workstreams/retrieval-intent-taxonomy-contract-closeout/README.md` | 只有在 covered serving surface 再次出现 `retrieval_intent` 缺口、answer-shape / SDK synthesis 回流成 raw-query 主分类、retrieval-core 恢复第二套 intent truth，或 stage diagnostics 失去阶段归因时恢复 |
 
 ## Deferred

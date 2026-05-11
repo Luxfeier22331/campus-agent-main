@@ -1,12 +1,13 @@
 # academic_calendar collection config
 
-`academic_calendar` is an offline structured projection consumed through
+`academic_calendar` is a structured projection consumed through
 `academic_calendar_lookup`.
 
-This profile does not open retrieval or a default query-serving alias. It only
-declares that the projection-backed structured query runtime may consume the
-current academic calendar read model for teaching week, named event ranges,
-term windows, day status, and makeup class facts.
+This profile uses `structured_query_serving`: it does not open generic
+retrieval or a default query-serving alias. It only declares that the
+projection-backed structured query runtime may consume the current academic
+calendar read model for teaching week, named event ranges, term windows, day
+status, and makeup class facts.
 
 ## Source Truth
 

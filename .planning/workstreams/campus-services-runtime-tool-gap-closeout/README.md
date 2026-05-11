@@ -2,7 +2,7 @@
 doc_type: index
 status: completed
 created: 2026-04-27
-updated: 2026-04-28
+updated: 2026-05-10
 ---
 
 # Workstream: Campus Services Runtime Tool Gap Closeout
@@ -19,6 +19,9 @@ updated: 2026-04-28
 - current slice: none
 - closeout artifact:
   `.tmp/evals/campus-services-product-path-opening-gate-accept-20260428T034731/`
+- post-closeout hardening note: 2026-05-10 收口了 runtime-profile serving stage
+  语义；已 admitted 的 structured profiles 使用 `structured_query_serving`，同时继续保持
+  `retrieval_enabled=false` 与 `query_enabled_by_default=false`
 - reopen rule: 只有在 campus-services tool denominator、新 product-path tool、
   admission profile、opening verdict 或 runtime gate contract 被显式改写，或
   `public-chat-campus-services-e2e-acceptance` 发现真实入口证据与当前 local gate
@@ -28,6 +31,7 @@ updated: 2026-04-28
 
 - roadmap: `./ROADMAP.md`
 - state: `./STATE.md`
+- gap ledger: `./GAP-LEDGER.md`
 
 ## Boundary Notes
 

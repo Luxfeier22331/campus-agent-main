@@ -5,7 +5,7 @@ This directory holds the repo-tracked config scaffolding for the
 
 Current runtime truth:
 
-- serving stage: `offline_preparation`
+- serving stage: `structured_query_serving`
 - retrieval enabled: `false`
 - query enabled by default: `false`
 - structured query enabled: `true` via `transport_schedule_lookup`

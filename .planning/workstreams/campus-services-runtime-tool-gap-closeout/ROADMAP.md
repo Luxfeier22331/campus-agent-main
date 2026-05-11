@@ -2,7 +2,7 @@
 doc_type: roadmap
 status: completed
 created: 2026-04-27
-updated: 2026-04-28
+updated: 2026-05-10
 ---
 
 # Roadmap: Campus Services Runtime Tool Gap Closeout
@@ -10,6 +10,8 @@ updated: 2026-04-28
 本 workstream 已完成 Phase 1-5。四个首发 tool 的 runtime denominator、answer
 shaping、source trace 与 product-path admission gate 已收口；真实 public/chat
 入口与 staging 级证据后续由 `public-chat-campus-services-e2e-acceptance` 接手。
+2026-05-10 post-closeout hardening 已补齐 `structured_query_serving` profile
+语义，使 admitted structured tools 与 generic retrieval query-serving 明确分层。
 
 Latest closeout artifact:
 `.tmp/evals/campus-services-product-path-opening-gate-accept-20260428T034731/`

@@ -1,7 +1,7 @@
 {
 	"corpus": "calendar",
 	"collection": "academic_calendar",
-	"serving_stage": "offline_preparation",
+	"serving_stage": "structured_query_serving",
 	"allowed_artifact_modes": ["source_truth_only"],
 	"split_manifest_required": false,
 	"cleaning_policy_version": "academic_calendar_projection_v1",

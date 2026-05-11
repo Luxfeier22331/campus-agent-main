@@ -51,7 +51,10 @@ func serviceGuideResultFromRecord(
 func serviceGuideFocusBackedByRecord(record serviceGuideRecord, focus string) bool {
 	switch focus {
 	case "overview", "procedure":
-		return serviceGuideHasSection(record.GuideSections, focus) || len(record.ProcedureGroups) > 0
+		if focus == "procedure" {
+			return len(record.ProcedureGroups) > 0
+		}
+		return serviceGuideHasSection(record.GuideSections, focus)
 	case "required_materials":
 		return len(record.Materials) > 0 || serviceGuideHasSection(record.GuideSections, focus)
 	case "entry":
@@ -75,6 +78,9 @@ func serviceGuideFocusBackedByRecord(record serviceGuideRecord, focus string) bo
 }
 
 func serviceGuideFocusNotProvidedBySource(record serviceGuideRecord, focus string) bool {
+	if focus == "procedure" && len(record.ProcedureGroups) == 0 {
+		return true
+	}
 	for _, fieldName := range serviceGuideFocusFieldNames(focus) {
 		if strings.TrimSpace(record.FieldStatus[fieldName]) == "source_not_provided" {
 			return true
@@ -200,10 +206,13 @@ func focusedProcedureSections(
 	record serviceGuideRecord,
 	request serviceGuideRequest,
 ) []serviceGuideSection {
-	if request.GuideFocus != "procedure" || len(record.ProcedureGroups) == 0 {
+	if request.GuideFocus != "procedure" {
 		return filterServiceGuideSections(record.GuideSections, request.GuideFocus)
 	}
-	selected := selectProcedureGroups(record.ProcedureGroups, request.ServiceQuery)
+	selected, _ := selectProcedureGroups(record.ProcedureGroups, request.ServiceQuery)
+	if len(selected) == 0 {
+		return nil
+	}
 	sections := make([]serviceGuideSection, 0, len(selected))
 	for _, group := range selected {
 		stepLines := make([]string, 0, len(group.Steps))
@@ -228,7 +237,7 @@ func serviceGuideProcedureGroups(
 	if request.GuideFocus != "procedure" {
 		return nil
 	}
-	selected := selectProcedureGroups(record.ProcedureGroups, request.ServiceQuery)
+	selected, _ := selectProcedureGroups(record.ProcedureGroups, request.ServiceQuery)
 	if len(selected) == 0 {
 		return nil
 	}
@@ -256,9 +265,9 @@ func serviceGuideProcedureGroups(
 func selectProcedureGroups(
 	records []serviceGuideProcedureGroupRecord,
 	query string,
-) []serviceGuideProcedureGroupRecord {
+) ([]serviceGuideProcedureGroupRecord, bool) {
 	if len(records) == 0 {
-		return nil
+		return nil, false
 	}
 	normalizedQuery := normalizeSearchText(query)
 	bestScore := 0
@@ -278,9 +287,9 @@ func selectProcedureGroups(
 		}
 	}
 	if len(selected) > 0 {
-		return selected
+		return selected, true
 	}
-	return []serviceGuideProcedureGroupRecord{records[0]}
+	return nil, false
 }
 
 func serviceGuideProcedureGroupScore(
@@ -293,7 +302,9 @@ func serviceGuideProcedureGroupScore(
 	score := 0
 	for _, tag := range group.FocusTags {
 		normalizedTag := normalizeSearchText(tag)
-		if normalizedTag != "" && strings.Contains(normalizedQuery, normalizedTag) {
+		if normalizedTag != "" &&
+			strings.Contains(normalizedQuery, normalizedTag) &&
+			serviceGuideProcedureTagCarriesSpecificFocus(normalizedTag) {
 			score += 100
 		}
 	}
@@ -318,14 +329,34 @@ func serviceGuideProcedureGroupScore(
 		score += 80
 	}
 	for _, step := range group.Steps {
-		score += sharedSearchTextScore(normalizedQuery, normalizeSearchText(step.Content))
+		score += serviceGuideProcedureStepScore(normalizedQuery, normalizeSearchText(step.Content))
+	}
+	return score
+}
+
+func serviceGuideProcedureTagCarriesSpecificFocus(tag string) bool {
+	switch tag {
+	case "procedure", "entry", "vpn", "identity", "passwordreset", "login":
+		return false
+	default:
+		return true
+	}
+}
+
+func serviceGuideProcedureStepScore(normalizedQuery string, normalizedStepContent string) int {
+	if normalizedQuery == "" || normalizedStepContent == "" {
+		return 0
+	}
+	score := sharedSearchTextScore(normalizedQuery, normalizedStepContent)
+	if score < 4 {
+		return 0
 	}
 	return score
 }
 
 func serviceGuideSelectedSectionIDs(record serviceGuideRecord, request serviceGuideRequest) []string {
 	if request.GuideFocus == "procedure" && len(record.ProcedureGroups) > 0 {
-		selectedGroups := selectProcedureGroups(record.ProcedureGroups, request.ServiceQuery)
+		selectedGroups, _ := selectProcedureGroups(record.ProcedureGroups, request.ServiceQuery)
 		ids := make([]string, 0, len(selectedGroups))
 		for _, group := range selectedGroups {
 			ids = append(ids, group.GroupID)

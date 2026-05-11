@@ -15,7 +15,7 @@ This directory holds the repo-tracked config scaffolding for the
 
 Current runtime truth:
 
-- serving stage: `offline_preparation`
+- serving stage: `structured_query_serving`
 - query enabled: `false`
 - structured query enabled: `true` via `contact_directory_lookup`
 - serving alias: `contact_directory`
@@ -28,10 +28,10 @@ Current runtime truth:
 
 `contact_directory` is the long-term home for structured campus contact content
 such as handbook-derived phone pages and future campus contact directories. Its
-current runtime profile remains `offline_preparation` and is not part of the
-default query-serving surface. Even in `offline_preparation`, this collection
-participates in the release-managed alias lifecycle: Qdrant should expose a
-stable `contact_directory` alias that points at versioned physical collections.
+current runtime profile is `structured_query_serving` and is not part of the
+default generic retrieval query-serving surface. It participates in the
+release-managed alias lifecycle: Qdrant should expose a stable
+`contact_directory` alias that points at versioned physical collections.
 
 Current structured projection:
 

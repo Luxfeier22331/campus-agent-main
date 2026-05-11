@@ -203,6 +203,33 @@ class CampusServicesAcademicCalendarTest(unittest.TestCase):
         self.assertIn("劳动节假期是5 月 1 日到 5 月 5 日，共 5 天", response.answer_text)
         self.assertIn("4 月 27 日到 5 月 5 日", response.answer_text)
 
+    def test_http_query_service_rejects_missing_academic_calendar_query_text(self) -> None:
+        query_service = CampusServicesHTTPQueryService(
+            base_url="http://supervisor-api.internal",
+            shared_secret="query-secret",
+            transport=RecordingQueryHTTPTransport(
+                {
+                    "outcome": "resolved_current",
+                    "query_kind": "date_week",
+                    "week_index": 11,
+                    "source_refs": ["official_web:academic-calendar-2025-2026"],
+                }
+            ),
+        )
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "academic calendar query result missing required field: query_text",
+        ):
+            query_service.lookup_academic_calendar(
+                AcademicCalendarQuery(
+                    payload=AcademicCalendarLookupPayload(
+                        query_text="今天第几教学周",
+                        query_kind="date_week",
+                    )
+                )
+            )
+
     def test_academic_calendar_response_describes_spring_break_without_correction_tone(
         self,
     ) -> None:

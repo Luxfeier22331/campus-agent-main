@@ -28,11 +28,35 @@ func serviceGuideProjectionFixture() string {
 						"source_refs":["handbook:student_rules:pages:252-255#page=253"]
 					}
 				],
+				"procedure_groups":[
+					{
+						"group_id":"service:handbook:check-in:procedure_group:check_in",
+						"title":"入住流程",
+						"focus_tags":["procedure","入住","宿舍"],
+						"order":1,
+						"steps":[
+							{
+								"step_id":"service:handbook:check-in:procedure_group:check_in:step:1",
+								"content":"持通知书到院系注册。",
+								"order":1,
+								"source_refs":["handbook:student_rules:pages:252-255#page=253"]
+							},
+							{
+								"step_id":"service:handbook:check-in:procedure_group:check_in:step:2",
+								"content":"到指定公寓楼报到。",
+								"order":2,
+								"source_refs":["handbook:student_rules:pages:252-255#page=253"]
+							}
+						],
+						"source_refs":["handbook:student_rules:pages:252-255#page=253"]
+					}
+				],
 				"materials":[],
 				"entry_refs":[],
 				"office_hours":[],
 				"contact_refs":[],
 				"eligibility_notes":["新生"],
+				"field_status":{"service_process":"present"},
 				"extraction_status":"ready"
 			},
 			{
@@ -55,11 +79,29 @@ func serviceGuideProjectionFixture() string {
 						"source_refs":["handbook:student_rules:pages:252-255#page=255"]
 					}
 				],
+				"procedure_groups":[
+					{
+						"group_id":"service:handbook:undergrad-check-out:procedure_group:check_out",
+						"title":"本科生退宿流程",
+						"focus_tags":["procedure","本科生","退宿"],
+						"order":1,
+						"steps":[
+							{
+								"step_id":"service:handbook:undergrad-check-out:procedure_group:check_out:step:1",
+								"content":"写好退宿申请。",
+								"order":1,
+								"source_refs":["handbook:student_rules:pages:252-255#page=255"]
+							}
+						],
+						"source_refs":["handbook:student_rules:pages:252-255#page=255"]
+					}
+				],
 				"materials":[],
 				"entry_refs":[],
 				"office_hours":[],
 				"contact_refs":[],
 				"eligibility_notes":["本科生"],
+				"field_status":{"service_process":"present"},
 				"extraction_status":"ready"
 			},
 			{
@@ -82,11 +124,29 @@ func serviceGuideProjectionFixture() string {
 						"source_refs":["handbook:student_rules:pages:252-255#page=255"]
 					}
 				],
+				"procedure_groups":[
+					{
+						"group_id":"service:handbook:grad-check-out:procedure_group:check_out",
+						"title":"研究生退宿流程",
+						"focus_tags":["procedure","研究生","退宿"],
+						"order":1,
+						"steps":[
+							{
+								"step_id":"service:handbook:grad-check-out:procedure_group:check_out:step:1",
+								"content":"写好退宿申请。",
+								"order":1,
+								"source_refs":["handbook:student_rules:pages:252-255#page=255"]
+							}
+						],
+						"source_refs":["handbook:student_rules:pages:252-255#page=255"]
+					}
+				],
 				"materials":[],
 				"entry_refs":[],
 				"office_hours":[],
 				"contact_refs":[],
 				"eligibility_notes":["研究生"],
+				"field_status":{"service_process":"present"},
 				"extraction_status":"ready"
 			}
 		],
@@ -191,6 +251,29 @@ func serviceGuideTransportReservationProjectionFixture() string {
 						"source_refs":["notice:muc_internal_portal:354777"]
 					}
 				],
+				"procedure_groups":[
+					{
+						"group_id":"service:transport-reservation:subway-shuttle:procedure_group:reserve",
+						"title":"预约流程",
+						"focus_tags":["procedure","预约","接驳车","地铁"],
+						"order":1,
+						"steps":[
+							{
+								"step_id":"service:transport-reservation:subway-shuttle:procedure_group:reserve:step:1",
+								"content":"通过服务门户或企业微信进入接驳车预约系统。",
+								"order":1,
+								"source_refs":["notice:muc_internal_portal:354777"]
+							},
+							{
+								"step_id":"service:transport-reservation:subway-shuttle:procedure_group:reserve:step:2",
+								"content":"发车前一天9:00开放预约，约满即止。",
+								"order":2,
+								"source_refs":["notice:muc_internal_portal:354777"]
+							}
+						],
+						"source_refs":["notice:muc_internal_portal:354777"]
+					}
+				],
 				"materials":[],
 				"entry_refs":[
 					{"entry_id":"service:transport-reservation:subway-shuttle:entry:service-portal","label":"服务门户","entry_type":"instructions_only","url":"","location_ref":"","source_refs":["notice:muc_internal_portal:354777"]},
@@ -199,6 +282,7 @@ func serviceGuideTransportReservationProjectionFixture() string {
 				"office_hours":[],
 				"contact_refs":[],
 				"eligibility_notes":[],
+				"field_status":{"service_process":"present","service_entry":"present"},
 				"extraction_status":"ready"
 			}
 		],
@@ -255,6 +339,35 @@ func serviceGuideCampusCardProjectionFixture() string {
 						"content":"海淀校区校园卡管理中心咨询电话010-68933381；丰台校区卡务中心咨询电话010-83878225。",
 						"order":4,
 						"source_refs":["https://met.muc.edu.cn/info/1027/1127.htm"]
+					}
+				],
+				"procedure_groups":[
+					{
+						"group_id":"service:campus-card:lost-reissue:procedure_group:report_loss_and_reissue",
+						"title":"挂失与补卡流程",
+						"focus_tags":["procedure","挂失","补卡","校园卡"],
+						"order":1,
+						"steps":[
+							{
+								"step_id":"service:campus-card:lost-reissue:procedure_group:report_loss_and_reissue:step:1",
+								"content":"通过圈存机、企业微信或民大通APP办理挂失。",
+								"order":1,
+								"source_refs":["https://met.muc.edu.cn/info/1027/1127.htm","https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"]
+							},
+							{
+								"step_id":"service:campus-card:lost-reissue:procedure_group:report_loss_and_reissue:step:2",
+								"content":"挂失后可在学生自助补卡机补办校园卡。",
+								"order":2,
+								"source_refs":["https://met.muc.edu.cn/info/1027/1127.htm","https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"]
+							},
+							{
+								"step_id":"service:campus-card:lost-reissue:procedure_group:report_loss_and_reissue:step:3",
+								"content":"补卡后原余额可在30分钟后通过POS机刷卡领取或圈存机领取到新卡。",
+								"order":3,
+								"source_refs":["https://met.muc.edu.cn/info/1027/1127.htm","https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"]
+							}
+						],
+						"source_refs":["https://met.muc.edu.cn/info/1027/1127.htm","https://yx.muc.edu.cn/shuzixiaoyuan/yikatong/"]
 					}
 				],
 				"materials":[],

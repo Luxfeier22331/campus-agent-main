@@ -2,7 +2,7 @@
 doc_type: state
 status: completed
 created: 2026-04-27
-updated: 2026-04-28
+updated: 2026-05-10
 ---
 
 # State: Campus Services Runtime Tool Gap Closeout
@@ -14,6 +14,41 @@ updated: 2026-04-28
 - current slice: none
 - owner: none
 - active implementation: no
+
+## Post-Closeout Hardening (2026-05-10)
+
+- 已补齐 runtime-profile serving stage 语义：
+  - `campus_services/service_status`
+  - `campus_services/service_guide`
+  - `campus_services/contact_directory`
+  - `campus_services/transport_schedule`
+  - `calendar/academic_calendar`
+- 上述 structured profiles 当前使用 `structured_query_serving`，表示 admitted structured
+  tools 可以消费 current projection/read model。
+- 它们仍保持 `retrieval_enabled=false` 与 `query_enabled_by_default=false`；不进入
+  generic retrieval 默认 query scope。
+- `campus_services/service_catalog` 继续保持 `offline_preparation`，因为 later-wave
+  `service_process_lookup` 仍未开放。
+- 本次 focused verification：
+  - `uv run --all-packages python -m unittest tests.ingestion.test_corpus_runtime_profile tests.supervisor.test_query_serving_scope_policy_drift -q`
+    pass，34 tests。
+  - `uv run --all-packages python -m unittest tests.ingestion.test_corpus_runtime_profile tests.supervisor.test_query_serving_scope_policy_drift tests.evals.campus_services_product_path_opening_gate_suite tests.evals.campus_services_product_path_eval_gate_profile_suite tests.agent.test_campus_services_agent tests.agent.campus_services_academic_calendar_suite tests.ingestion.test_structured_projection_postgres -q`
+    pass，95 tests。
+  - `go test ./internal/structuredquery ./internal/runtimepolicy ./internal/httpapi`
+    pass。
+  - `uv run --all-packages python -m scripts.eval_gate accept --profile campus-services-product-path --json`
+    pass；artifact：
+    `.tmp/evals/campus-services-product-path-opening-gate-accept-20260510T154245/`。
+    Gate summary：8/8 checks passed；
+    `service_status_lookup`、`transport_schedule_lookup`、`service_guide_lookup`
+    与 `contact_directory_lookup` 为 `open`；
+    `service_process_lookup` 为 `keep_closed`。
+  - `pnpm --dir apps/public-chat-web exec vitest run test/worker.test.ts`
+    pass，23 tests。
+
+## Residual Gap Ledger
+
+- 详见 `./GAP-LEDGER.md`。
 
 ## Closeout Summary (2026-04-28)
 

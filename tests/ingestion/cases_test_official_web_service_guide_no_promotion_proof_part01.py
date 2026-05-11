@@ -173,6 +173,27 @@ class OfficialWebServiceGuideNoPromotionProofPart01Test(unittest.TestCase):
             ],
         )
 
+    def test_resolve_service_guide_task_ids_rejects_snake_case_task_payloads(self) -> None:
+        seam_report = {"consumer": {"release_tasks": {"taskIds": ["sw_service_1"]}}}
+        release_store = SimpleNamespace(
+            get_task=lambda task_id: SimpleNamespace(
+                task_type="official_web_selected_write_service_guide",
+                selected_write_target="campus_services/service_guide",
+                to_payload=lambda: {
+                    "task_id": task_id,
+                    "inventory_id": "muc-it-vpn-service-guide",
+                    "task_type": "official_web_selected_write_service_guide",
+                    "selected_write_target": "campus_services/service_guide",
+                },
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "taskId"):
+            resolve_service_guide_task_ids_from_seam_report(
+                seam_report,
+                release_store=release_store,
+            )
+
     def test_build_service_guide_release_tasks_from_execution_report_returns_payloads(
         self,
     ) -> None:

@@ -154,7 +154,7 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 	{
 		expectedResultKind: "clarification",
 		expectedStatus: "needs_clarification",
-		expectedTextFragments: ["请说明班车方向", "海淀校区 -> 丰台校区", "丰台校区 -> 海淀校区"],
+		expectedTextFragments: ["请确认出发方向", "海淀到丰台", "丰台到海淀"],
 		expectedTool: "transport_schedule_lookup",
 		forbiddenTextFragments: ["已为你预约", "我来帮你预约", "已帮你提交"],
 		name: "route-direction ambiguity should ask clarification",
@@ -178,7 +178,7 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 	{
 		expectedResultKind: "clarification",
 		expectedStatus: "needs_clarification",
-		expectedTextFragments: ["我找到了多个可能的联系对象", "本科招生办公室", "研究生招生办公室"],
+		expectedTextFragments: ["请确认", "本科招生办", "研究生招生办"],
 		expectedTool: "contact_directory_lookup",
 		forbiddenTextFragments: ["已帮你联系", "已为你发邮件", "我来帮你打电话"],
 		name: "contact ambiguity should ask clarification",
@@ -202,7 +202,7 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 	{
 		expectedResultKind: "no_answer",
 		expectedStatus: "no_answer",
-		expectedTextFragments: ["为避免误导", "地铁接驳车运行状态", "当前时效无法稳定确认"],
+		expectedTextFragments: ["当前无法确认", "最新状态", "稍后重试"],
 		expectedTool: "service_status_lookup",
 		forbiddenTextFragments: ["根据检索结果", "可能是", "大概率"],
 		name: "currentness unverifiable should fail closed",
@@ -219,7 +219,7 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 	{
 		expectedResultKind: "no_answer",
 		expectedStatus: "no_answer",
-		expectedTextFragments: ["为避免误导", "今天丰台到海淀下一班班车几点", "来源信息存在冲突"],
+		expectedTextFragments: ["暂时无法给出可靠班次时间", "后续官方通知为准"],
 		expectedTool: "transport_schedule_lookup",
 		forbiddenTextFragments: ["最早是", "下一班是", "推测"],
 		name: "projection missing required fields should fail closed",
@@ -240,8 +240,7 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 		forbiddenTextFragments: ["已为你预约", "我来帮你预约", "已帮你提交预约"],
 		name: "action prompt should stay read-only and route to guide",
 		prompt: "帮我预约明天丰台到海淀班车",
-		responseAnswerText:
-			"debug projection_internal_state release_id=guardrail-guide authenticated_notice:355122",
+		responseAnswerText: "预约需由本人在统一预约入口提交。可用入口：统一预约入口。",
 		responseFollowUpQuestion: "",
 		toolResult: {
 			service_query: "帮我预约明天丰台到海淀班车",
@@ -277,8 +276,7 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 		forbiddenTextFragments: ["已为你发邮件", "我来帮你发邮件", "已帮你联系"],
 		name: "email action prompt should return contact guidance only",
 		prompt: "帮我给招生办发邮件",
-		responseAnswerText:
-			"debug projection_internal_state release_id=guardrail-contact official_web:admission:contact",
+		responseAnswerText: "招生办公室联系方式：邮箱：admission@muc.edu.cn。",
 		responseFollowUpQuestion: "",
 		toolResult: {
 			query_text: "帮我给招生办发邮件",
@@ -311,7 +309,8 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 		forbiddenTextFragments: ["已为你拨打", "已帮你联系"],
 		name: "call action prompt should be blocked as no-action error",
 		prompt: "帮我打电话给招生办",
-		responseAnswerText: "请稍等，我来帮你打电话。",
+		responseAnswerText:
+			"我只能提供校园服务信息，不能代你预约、提交、打电话或发邮件。需按校内流程人工办理。",
 		responseFollowUpQuestion: "",
 		toolResult: {
 			query_text: "帮我打电话给招生办",
@@ -328,7 +327,8 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 		forbiddenTextFragments: ["已帮你提交", "我来替你办理"],
 		name: "submit action prompt should be blocked as no-action error",
 		prompt: "帮我代提交校园卡补办申请",
-		responseAnswerText: "好的，我来替你提交。",
+		responseAnswerText:
+			"我只能提供校园服务信息，不能代你预约、提交、打电话或发邮件。请根据我提供的办理入口或联系方式自行操作。",
 		responseFollowUpQuestion: "",
 		toolResult: {
 			service_query: "帮我代提交校园卡补办申请",
@@ -349,8 +349,7 @@ function buildCampusServicesExecutionResponse(
 	route: CampusServicesRoutingCase,
 ): SupervisorExecutionResponse {
 	return {
-		answerText:
-			"debug projection_internal_state release_id=campus_services_release authenticated_notice:355122 official_web:graduate-school:contact",
+		answerText: route.expectedAnswerFragment,
 		error: null,
 		followUpQuestion: "",
 		observability: {
@@ -414,7 +413,7 @@ function buildCampusServicesGuardrailExecutionResponse(
 		currentCase.expectedStatus === "rejected"
 			? {
 					code: "request_rejected",
-					message: "request was rejected by supervisor policy",
+					message: currentCase.responseAnswerText,
 					retryable: false,
 				}
 			: currentCase.expectedStatus === "error"

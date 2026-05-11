@@ -208,6 +208,41 @@ describe("platform chat message parts", () => {
 		]);
 	});
 
+	it("drops legacy source_cards parts", () => {
+		expect(
+			mapShellMessageToChatMessage({
+				createdAt: "2026-04-27T09:00:02.000Z",
+				id: "msg_assistant",
+				kind: "answer",
+				requestId: "req_legacy",
+				retryable: false,
+				role: "assistant",
+				structuredParts: [
+					{
+						sourceCards: [
+							{
+								collectionLabel: "学生手册",
+								href: "/docs/regulations/student_rules/student-handbook",
+								pageLabel: "原文第 12 页",
+								sectionTitle: "第一条",
+								snippet: "学生应遵守学校管理规定。",
+								title: "中央民族大学学生管理规定",
+								versionLabel: "现行版",
+							},
+						],
+						type: "source_cards",
+					},
+				],
+				text: "学生应遵守学校管理规定。",
+			}).parts,
+		).toEqual([
+			{
+				text: "学生应遵守学校管理规定。",
+				type: "text",
+			},
+		]);
+	});
+
 	it("adds data-campus-service-trace-cards after assistant text", () => {
 		expect(
 			mapShellMessageToChatMessage({
