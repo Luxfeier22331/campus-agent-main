@@ -169,6 +169,8 @@ def _focused_replan_query(
             semantic_hint=semantic_hint,
             references=references,
         )
+    if trigger_reason == "polarity_conflict" and _is_lift_discipline_procedure_query(query_text):
+        return "解除处分 申请 条件 程序 办理步骤"
     if _semantic_hint_has_need_kind(semantic_hint, "procedure_steps") or any(
         need_id.endswith((":procedure_steps", ":procedure")) for need_id in need_ids
     ):

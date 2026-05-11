@@ -604,6 +604,8 @@ def _specific_policy_intent_kind(plan) -> str:
     query = f"{plan.rewritten_query_text} {plan.focused_query_text}"
     if plan.focus_article_nos or plan.focus_clause_nos or plan.focus_detail_labels:
         return "specific_clause_lookup"
+    if _looks_like_discipline_relief_operation_query(query):
+        return "procedure_steps"
     if plan.query_condition_subject == "discipline_relief_condition":
         return "condition_table"
     if _looks_like_judgment_query(query):
@@ -697,6 +699,14 @@ def _looks_like_judgment_query(query_text: str) -> bool:
 
 def _looks_like_condition_query(query_text: str) -> bool:
     return any(token in query_text for token in ("条件", "要求", "资格", "参评", "评选"))
+
+
+def _looks_like_discipline_relief_operation_query(query_text: str) -> bool:
+    if not any(
+        token in query_text for token in ("处分怎么消", "消处分", "处分怎么解除", "怎么解除处分")
+    ):
+        return False
+    return not any(token in query_text for token in ("多久", "多长时间", "什么时候", "何时"))
 
 
 def _looks_like_curriculum_fact_query(query_text: str) -> bool:
