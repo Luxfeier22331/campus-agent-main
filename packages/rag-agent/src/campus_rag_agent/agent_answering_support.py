@@ -32,7 +32,9 @@ def _render_supporting_contexts(
 
 def _render_supporting_context(source: EvidenceSource, statements: tuple[str, ...]) -> str:
     fragments = tuple(statement for statement in statements if statement)
-    body = "；".join(fragments) if fragments else _render_source_support(source)
+    context_labels = _supporting_context_structural_labels(source)
+    body_fragments = tuple(dict.fromkeys((*context_labels, *fragments)))
+    body = "；".join(body_fragments) if body_fragments else _render_source_support(source)
     if not body:
         return ""
     title = _normalize_snippet(source.source_title)
@@ -52,6 +54,19 @@ def _render_supporting_context(source: EvidenceSource, statements: tuple[str, ..
 def _is_clause_detail_label(detail_label: str) -> bool:
     normalized = _normalize_snippet(detail_label)
     return normalized.startswith("第") and normalized.endswith("条")
+
+
+def _supporting_context_structural_labels(source: EvidenceSource) -> tuple[str, ...]:
+    if source.collection != "curriculum_plan":
+        return ()
+    if source.content_role != "table_fact":
+        return ()
+    labels = tuple(
+        label
+        for label in (_normalize_snippet(item) for item in source.structural_path[1:])
+        if label and label not in {"课程设置和修读建议", "课程清单如下"}
+    )
+    return labels
 
 
 __all__ = ["_render_supporting_contexts"]
