@@ -41,7 +41,7 @@ function parseErrorCode(payload: unknown): ErrorCode | null {
 	return null;
 }
 
-function parseErrorMessage(payload: unknown, fallback: string) {
+function parseErrorMessage(payload: unknown, defaultMessage: string) {
 	if (
 		payload &&
 		typeof payload === "object" &&
@@ -63,7 +63,7 @@ function parseErrorMessage(payload: unknown, fallback: string) {
 		return payload.cause;
 	}
 
-	return fallback;
+	return defaultMessage;
 }
 
 export const fetcher = async <T>(url: string): Promise<T> => {

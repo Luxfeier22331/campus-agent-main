@@ -12,9 +12,12 @@ interface ClientAuthResponse {
 	} | null;
 }
 
-function readAuthErrorMessage(response: ClientAuthResponse | undefined, fallback: string): string {
+function readAuthErrorMessage(
+	response: ClientAuthResponse | undefined,
+	defaultMessage: string,
+): string {
 	const message = response?.error?.message?.trim();
-	return message || fallback;
+	return message || defaultMessage;
 }
 
 export async function signOutChatSession(options: SignOutChatSessionOptions = {}): Promise<void> {

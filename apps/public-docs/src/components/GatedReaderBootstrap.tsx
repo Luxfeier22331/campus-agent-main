@@ -47,7 +47,7 @@ type ReaderState =
 	| { status: "not_found" }
 	| { status: "ready"; reader: ReaderPayload; resolve: DocsResolveResponse };
 
-export default function GatedReaderFallback() {
+export default function GatedReaderBootstrap() {
 	const [state, setState] = useState<ReaderState>({ status: "loading" });
 
 	useEffect(() => {
@@ -98,11 +98,11 @@ export default function GatedReaderFallback() {
 	}, []);
 
 	if (state.status === "loading") {
-		return <div className="reader-fallback-status">正在读取文档...</div>;
+		return <div className="reader-bootstrap-status">正在读取文档...</div>;
 	}
 	if (state.status === "not_found") {
 		return (
-			<div className="reader-fallback-status">
+			<div className="reader-bootstrap-status">
 				<h1>未找到或无权访问该文档</h1>
 				<p>请确认你已使用具备访问权限的校园身份登录。</p>
 			</div>
@@ -111,7 +111,7 @@ export default function GatedReaderFallback() {
 
 	const title = state.reader.document?.title || state.resolve.document.title;
 	return (
-		<article className="reader-fallback-article">
+		<article className="reader-bootstrap-article">
 			<header className="document-meta-panel">
 				<div className="document-meta-summary">
 					<span>{state.resolve.resolvedVersion.label}</span>

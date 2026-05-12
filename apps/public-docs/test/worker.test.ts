@@ -262,7 +262,7 @@ describe("public docs worker shell", () => {
 		await expect(response.text()).resolves.toContain("docs");
 	});
 
-	it("serves the gated reader fallback shell when a docs route misses static assets", async () => {
+	it("serves the gated reader bootstrap shell when a docs route misses static assets", async () => {
 		const worker = await importWorker();
 		const assetRequests: string[] = [];
 		const response = await worker.fetch(
@@ -275,8 +275,8 @@ describe("public docs worker shell", () => {
 				ASSETS: {
 					fetch: async (request: Request) => {
 						assetRequests.push(new URL(request.url).pathname);
-						if (new URL(request.url).pathname === "/reader-fallback.html") {
-							return new Response("<!doctype html><html><body>reader fallback</body></html>", {
+						if (new URL(request.url).pathname === "/reader-bootstrap.html") {
+							return new Response("<!doctype html><html><body>reader bootstrap</body></html>", {
 								headers: {
 									"cache-control": "public, max-age=3600",
 									"content-type": "text/html; charset=utf-8",
@@ -294,14 +294,14 @@ describe("public docs worker shell", () => {
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
 		expect(getPublicDocsSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
-		await expect(response.text()).resolves.toContain("reader fallback");
+		await expect(response.text()).resolves.toContain("reader bootstrap");
 		expect(assetRequests).toEqual([
 			"/docs/curriculum/curriculum_plan/restricted-program",
-			"/reader-fallback.html",
+			"/reader-bootstrap.html",
 		]);
 	});
 
-	it("serves the reader fallback shell for gated scoped regulation docs routes", async () => {
+	it("serves the reader bootstrap shell for gated scoped regulation docs routes", async () => {
 		const worker = await importWorker();
 		const documentSlug =
 			"中央民族大学中华民族共同体学院-2026年-英才计划-硕博连读研究生招生实施细则";
@@ -317,8 +317,8 @@ describe("public docs worker shell", () => {
 				ASSETS: {
 					fetch: async (request: Request) => {
 						assetRequests.push(new URL(request.url).pathname);
-						if (new URL(request.url).pathname === "/reader-fallback.html") {
-							return new Response("<!doctype html><html><body>reader fallback</body></html>", {
+						if (new URL(request.url).pathname === "/reader-bootstrap.html") {
+							return new Response("<!doctype html><html><body>reader bootstrap</body></html>", {
 								headers: {
 									"cache-control": "public, max-age=3600",
 									"content-type": "text/html; charset=utf-8",
@@ -336,14 +336,14 @@ describe("public docs worker shell", () => {
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
 		expect(getPublicDocsSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
-		await expect(response.text()).resolves.toContain("reader fallback");
+		await expect(response.text()).resolves.toContain("reader bootstrap");
 		expect(assetRequests).toEqual([
 			`/docs/regulations/scoped_rules/${encodedSlug}`,
-			"/reader-fallback.html",
+			"/reader-bootstrap.html",
 		]);
 	});
 
-	it("serves the gated collection fallback shell when a collection route misses static assets", async () => {
+	it("serves the gated collection bootstrap shell when a collection route misses static assets", async () => {
 		const worker = await importWorker();
 		const assetRequests: string[] = [];
 		const response = await worker.fetch(
@@ -356,8 +356,8 @@ describe("public docs worker shell", () => {
 				ASSETS: {
 					fetch: async (request: Request) => {
 						assetRequests.push(new URL(request.url).pathname);
-						if (new URL(request.url).pathname === "/collection-fallback.html") {
-							return new Response("<!doctype html><html><body>collection fallback</body></html>", {
+						if (new URL(request.url).pathname === "/collection-bootstrap.html") {
+							return new Response("<!doctype html><html><body>collection bootstrap</body></html>", {
 								headers: {
 									"cache-control": "public, max-age=3600",
 									"content-type": "text/html; charset=utf-8",
@@ -365,8 +365,8 @@ describe("public docs worker shell", () => {
 								status: 200,
 							});
 						}
-						if (new URL(request.url).pathname === "/reader-fallback.html") {
-							return new Response("<!doctype html><html><body>reader fallback</body></html>", {
+						if (new URL(request.url).pathname === "/reader-bootstrap.html") {
+							return new Response("<!doctype html><html><body>reader bootstrap</body></html>", {
 								headers: {
 									"cache-control": "public, max-age=3600",
 									"content-type": "text/html; charset=utf-8",
@@ -384,8 +384,11 @@ describe("public docs worker shell", () => {
 		expect(response.status).toBe(200);
 		expect(response.headers.get("cache-control")).toBe("no-store");
 		expect(getPublicDocsSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_DOCS_SECURITY_HEADERS);
-		await expect(response.text()).resolves.toContain("collection fallback");
-		expect(assetRequests).toEqual(["/docs/regulations/scoped_rules/", "/collection-fallback.html"]);
+		await expect(response.text()).resolves.toContain("collection bootstrap");
+		expect(assetRequests).toEqual([
+			"/docs/regulations/scoped_rules/",
+			"/collection-bootstrap.html",
+		]);
 	});
 
 	it("serves gated static assets only after app-api admission check passes", async () => {

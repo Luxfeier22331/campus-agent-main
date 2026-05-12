@@ -81,24 +81,19 @@ function resolveBuildSmokeManifestPath(input: {
 		return envPath;
 	}
 
-	for (const candidate of resolveDefaultBuildSmokeManifestCandidates(input.repoRoot ?? REPO_ROOT)) {
-		if (existsSync(candidate)) {
-			return candidate;
-		}
+	const candidate = resolveDefaultBuildSmokeManifestPath(input.repoRoot ?? REPO_ROOT);
+	if (existsSync(candidate)) {
+		return candidate;
 	}
 	return;
 }
 
-function resolveDefaultBuildSmokeManifestCandidates(repoRoot: string): string[] {
+function resolveDefaultBuildSmokeManifestPath(repoRoot: string): string {
 	const manifestName =
 		process.env.CLOUDFLARE_ENV === "staging"
 			? "public-docs-sync-manifest.staging.json"
 			: "public-docs-sync-manifest.json";
-	const fallbackName =
-		manifestName === "public-docs-sync-manifest.json"
-			? "public-docs-sync-manifest.staging.json"
-			: "public-docs-sync-manifest.json";
-	return [resolve(repoRoot, "var", manifestName), resolve(repoRoot, "var", fallbackName)];
+	return resolve(repoRoot, "var", manifestName);
 }
 
 function parseBuildSmokeManifest(rawManifest: string): PublishedReaderBuildSmokeManifest {

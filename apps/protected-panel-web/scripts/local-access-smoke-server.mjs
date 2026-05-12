@@ -26,8 +26,8 @@ function readPort() {
 	return port;
 }
 
-function readValue(name, fallback) {
-	return process.env[name]?.trim() || fallback;
+function readValue(name, defaultValue) {
+	return process.env[name]?.trim() || defaultValue;
 }
 
 function sanitizeRedirectTarget(value) {

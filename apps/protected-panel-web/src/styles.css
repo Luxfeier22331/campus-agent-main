@@ -9,8 +9,8 @@ body {
 	background: #f6f7f9;
 }
 
-.panel-boot-fallback,
-.panel-route-fallback {
+.panel-boot-placeholder,
+.panel-route-placeholder {
 	align-items: center;
 	color: #2f3a4a;
 	display: flex;
@@ -21,15 +21,15 @@ body {
 	justify-content: center;
 }
 
-.panel-boot-fallback {
+.panel-boot-placeholder {
 	min-height: 100dvh;
 }
 
-.panel-route-fallback {
+.panel-route-placeholder {
 	min-height: 16rem;
 }
 
-.panel-boot-fallback__spinner {
+.panel-boot-placeholder__spinner {
 	animation: panel-spinner 0.8s linear infinite;
 	border: 0.2rem solid rgba(47, 58, 74, 0.16);
 	border-radius: 999px;
@@ -45,7 +45,7 @@ body {
 }
 
 @media (prefers-reduced-motion: reduce) {
-	.panel-boot-fallback__spinner {
+	.panel-boot-placeholder__spinner {
 		animation: none;
 	}
 }

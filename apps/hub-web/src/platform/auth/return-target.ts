@@ -46,7 +46,7 @@ function isAppPath(pathname: string, app: string | null): boolean {
 	return Boolean(prefix && (pathname === prefix || pathname.startsWith(`${prefix}/`)));
 }
 
-function resolveFallbackTarget(appOrigins: HubAuthReturnOrigins): string {
+function resolveDefaultReturnTarget(appOrigins: HubAuthReturnOrigins): string {
 	const origin = appOrigins.chat?.[0] ?? DEFAULT_CHAT_ORIGIN;
 	return new URL(APP_PATH_PREFIXES.chat, origin).toString();
 }
@@ -60,12 +60,12 @@ export function resolveHubAuthReturnTarget(
 ): string {
 	const params = typeof search === "string" ? new URLSearchParams(search) : search;
 	const appOrigins = options.appOrigins ?? resolveHubAuthReturnOrigins({});
-	const fallbackTarget = resolveFallbackTarget(appOrigins);
+	const defaultReturnTarget = resolveDefaultReturnTarget(appOrigins);
 	const returnApp = params.get("return_app")?.trim() || null;
 	const returnTo = params.get("return_to")?.trim();
 
 	if (!returnTo) {
-		return fallbackTarget;
+		return defaultReturnTarget;
 	}
 
 	if (returnTo.startsWith("/") && !returnTo.startsWith("//")) {
@@ -75,7 +75,7 @@ export function resolveHubAuthReturnTarget(
 		) {
 			return new URL(returnTo, appOrigins.chat?.[0] ?? DEFAULT_CHAT_ORIGIN).toString();
 		}
-		return isHubOwnedShellPath(returnTo) ? returnTo : fallbackTarget;
+		return isHubOwnedShellPath(returnTo) ? returnTo : defaultReturnTarget;
 	}
 
 	try {
@@ -93,8 +93,8 @@ export function resolveHubAuthReturnTarget(
 			return target.toString();
 		}
 	} catch {
-		return fallbackTarget;
+		return defaultReturnTarget;
 	}
 
-	return fallbackTarget;
+	return defaultReturnTarget;
 }

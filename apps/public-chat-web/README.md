@@ -15,7 +15,7 @@ Current runtime composition:
 - vendored UI/runtime source-of-truth lives in `vendor/vercel-ai-chatbot/`
 - repo-owned platform seams live in `src/platform/`
 - exact import-compat ownership lives in `src/platform/vendor-compat/`
-- `src/styles.css` only serves the boot fallback; the active chat shell comes
+- `src/styles.css` only serves the boot placeholder; the active chat shell comes
   from the vendored runtime
 
 It owns:
@@ -114,7 +114,8 @@ Observability:
 - proxied `/api/auth/*` requests also preserve browser `Origin` and `Referer` so
   shared Better Auth origin / CSRF checks stay effective; other `/api/*` routes
   keep the narrower header allowlist
-- Sentry stays fail-open when `SENTRY_DSN` is unset
+- Sentry is optional runtime-shell telemetry; when `SENTRY_DSN` is unset it is
+  disabled and does not change chat request admission
 - raw cookies, raw prompt/answer text, and other auth material are not intended
   to enter the sink
 

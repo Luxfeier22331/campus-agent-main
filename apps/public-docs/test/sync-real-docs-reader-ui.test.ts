@@ -10,7 +10,7 @@ import {
 	buildMobileTableRowTitle,
 } from "../src/components/DocsContentEnhancer";
 import { normalizeSearchInputAccessibility } from "../src/components/SearchKeyboardGuard";
-import { buildLocalSearchFallbackResults } from "../src/search/local-search-fallback-core";
+import { buildStaticSearchSuggestions } from "../src/search/static-search-suggestions";
 
 describe("public-docs reader UI contracts", () => {
 	it("keeps collection routes out of the top navigation", () => {
@@ -413,8 +413,8 @@ describe("public-docs reader UI contracts", () => {
 		expect(css).not.toContain("flex-basis: 100%;");
 	});
 
-	it("builds fallback local search suggestions from the generated search index shape", () => {
-		const results = buildLocalSearchFallbackResults("奖学金", [
+	it("builds static search suggestions from the generated search index shape", () => {
+		const results = buildStaticSearchSuggestions("奖学金", [
 			{
 				title: "中央民族大学本科学生国家奖学金评审办法",
 				routePath: "/docs/regulations/student_rules/national-scholarship-evaluation",
@@ -431,8 +431,8 @@ describe("public-docs reader UI contracts", () => {
 		});
 	});
 
-	it("falls back to section and content matches when titles do not match", () => {
-		const results = buildLocalSearchFallbackResults("毕业要求", [
+	it("uses section and content matches when titles do not match", () => {
+		const results = buildStaticSearchSuggestions("毕业要求", [
 			{
 				title: "计算机类本科人才培养方案",
 				routePath: "/docs/curriculum/curriculum_plan/计算机类本科人才培养方案",

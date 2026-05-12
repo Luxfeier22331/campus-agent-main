@@ -42,10 +42,10 @@ export class HubAuthSubmissionError extends Error {
 
 function readAuthErrorMessage(
 	response: { error?: { message?: string } | null } | undefined,
-	fallback: string,
+	defaultMessage: string,
 ): string {
 	const message = response?.error?.message?.trim();
-	return message || fallback;
+	return message || defaultMessage;
 }
 
 function classifyAuthError(

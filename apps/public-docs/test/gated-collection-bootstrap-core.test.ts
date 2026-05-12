@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import {
 	buildCollectionNavigationUrl,
 	parseCollectionRouteFromPath,
-} from "../src/components/GatedCollectionFallback";
+} from "../src/components/GatedCollectionBootstrap";
 
-describe("gated collection fallback helpers", () => {
+describe("gated collection bootstrap helpers", () => {
 	it("parses a docs collection route and builds the same-site navigation URL", () => {
 		const target = parseCollectionRouteFromPath("/docs/regulations/scoped_rules/");
 

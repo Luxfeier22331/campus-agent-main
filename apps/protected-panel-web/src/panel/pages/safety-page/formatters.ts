@@ -16,9 +16,9 @@ export function formatSafetyWindowLabel(window: OperatorOverviewWindow) {
 	return SAFETY_WINDOW_OPTIONS.find((option) => option.value === window)?.label ?? window;
 }
 
-export function toQueryErrorMessage(error: unknown, fallback: string) {
+export function toQueryErrorMessage(error: unknown, defaultMessage: string) {
 	if (!error || typeof error !== "object") {
-		return fallback;
+		return defaultMessage;
 	}
 
 	const maybeError = error as {

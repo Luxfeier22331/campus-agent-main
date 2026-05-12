@@ -12,8 +12,8 @@ export interface Env {
 
 const DOCS_API_PREFIX = "/api/docs/";
 const GATED_DOCS_PREFIX = "/_gated-docs/";
-const COLLECTION_FALLBACK_PATH = "/collection-fallback.html";
-const READER_FALLBACK_PATH = "/reader-fallback.html";
+const COLLECTION_BOOTSTRAP_PATH = "/collection-bootstrap.html";
+const READER_BOOTSTRAP_PATH = "/reader-bootstrap.html";
 const FORWARDED_HEADERS = [
 	"accept",
 	"content-type",
@@ -255,14 +255,14 @@ async function serveStaticDocs(request: Request, env: Env): Promise<Response> {
 	const response = await env.ASSETS.fetch(request);
 	const pathname = new URL(request.url).pathname;
 	if (response.status === 404 && isDocsCollectionRoute(pathname)) {
-		const fallbackUrl = new URL(COLLECTION_FALLBACK_PATH, request.url);
-		const fallbackResponse = await env.ASSETS.fetch(new Request(fallbackUrl.toString(), request));
-		return withNoStore(fallbackResponse);
+		const bootstrapUrl = new URL(COLLECTION_BOOTSTRAP_PATH, request.url);
+		const bootstrapResponse = await env.ASSETS.fetch(new Request(bootstrapUrl.toString(), request));
+		return withNoStore(bootstrapResponse);
 	}
 	if (response.status === 404 && isDocsReaderRoute(pathname)) {
-		const fallbackUrl = new URL(READER_FALLBACK_PATH, request.url);
-		const fallbackResponse = await env.ASSETS.fetch(new Request(fallbackUrl.toString(), request));
-		return withNoStore(fallbackResponse);
+		const bootstrapUrl = new URL(READER_BOOTSTRAP_PATH, request.url);
+		const bootstrapResponse = await env.ASSETS.fetch(new Request(bootstrapUrl.toString(), request));
+		return withNoStore(bootstrapResponse);
 	}
 
 	const contentType = response.headers.get("content-type") ?? "";

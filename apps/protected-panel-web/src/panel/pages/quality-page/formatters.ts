@@ -58,9 +58,9 @@ export function formatTrendBucketLabel(value: string) {
 	}).format(new Date(value));
 }
 
-export function toQueryErrorMessage(error: unknown, fallback: string) {
+export function toQueryErrorMessage(error: unknown, defaultMessage: string) {
 	if (!error || typeof error !== "object") {
-		return fallback;
+		return defaultMessage;
 	}
 
 	const maybeError = error as {

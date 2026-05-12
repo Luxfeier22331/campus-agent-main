@@ -28,7 +28,7 @@ describe("curriculum generated markdown", () => {
 		expect(markdown).not.toContain("高等数学(下)");
 	});
 
-	it("normalizes stale fallback publication text before rendering generated curriculum docs", () => {
+	it("normalizes stale machine publication text before rendering generated curriculum docs", () => {
 		const jsonlText = [
 			'{"row_type":"heading","clean_text":"示例培养方案","heading_level":1}',
 			'{"row_type":"paragraph","clean_text":"总评成绩=平时考核(30%)+期中考核(30%)+期末考核(40%); 1.平时考核。"}',

@@ -319,7 +319,7 @@ export function buildDocumentReaderMetadataFromJsonl(input: {
 	collectionLabel: string;
 	objectKey?: string;
 	statusLabel?: string;
-	fallbackSourceLabel?: string;
+	defaultSourceLabel?: string;
 }): DocumentReaderMetadata {
 	const rows = [...iterJsonlRows(input.jsonlText)];
 	const docId = firstNonEmpty(rows.map((row) => normalizeText(row.doc_id)));
@@ -334,7 +334,7 @@ export function buildDocumentReaderMetadataFromJsonl(input: {
 				normalizeText(asRecord(row.metadata)?.source_pdf),
 				normalizeText(asRecord(row.metadata)?.source_file),
 			]),
-		) || input.fallbackSourceLabel;
+		) || input.defaultSourceLabel;
 	const pageRange = resolvePageRange(rows);
 	const versionYear = sourceYearFromObjectKey(input.objectKey);
 	const metadata: DocumentReaderMetadata = {
@@ -353,7 +353,7 @@ export function buildDocumentReaderMetadataFromFrontmatter(input: {
 	collectionLabel: string;
 	versionYear?: string;
 	statusLabel?: string;
-	fallbackSourceLabel?: string;
+	defaultSourceLabel?: string;
 }): DocumentReaderMetadata {
 	const fields = parseSimpleFrontmatterFields(input.frontmatterLines);
 	const sourceLabel =
@@ -363,7 +363,7 @@ export function buildDocumentReaderMetadataFromFrontmatter(input: {
 			fields.source_file,
 			fields.sourceDocument,
 			fields.source,
-		]) || input.fallbackSourceLabel;
+		]) || input.defaultSourceLabel;
 	const pageStart = parseOptionalInt(fields.page_start ?? fields.source_page_start);
 	const pageEnd = parseOptionalInt(fields.page_end ?? fields.source_page_end) ?? pageStart;
 	return compactDocumentReaderMetadata({

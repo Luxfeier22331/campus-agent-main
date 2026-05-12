@@ -23,10 +23,10 @@ function expectAbsent(record, key, message) {
 	}
 }
 
-function resolveTurnstileOption(name, rawValue, validValues, fallback) {
+function resolveTurnstileOption(name, rawValue, validValues, defaultValue) {
 	const value = rawValue?.trim();
 	if (!value) {
-		return fallback;
+		return defaultValue;
 	}
 	if (!validValues.has(value)) {
 		fail(

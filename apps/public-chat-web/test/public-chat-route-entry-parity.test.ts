@@ -18,7 +18,7 @@ describe("public chat route entry parity", () => {
 		expect(appRouterSource).toContain('session.kind === "loading"');
 		expect(appRouterSource).toContain('session.kind === "unauthenticated"');
 		expect(appRouterSource).toContain('session.kind === "error"');
-		expect(appRouterSource).toContain("ChatRouteErrorFallback");
+		expect(appRouterSource).toContain("ChatRouteErrorPlaceholder");
 		expect(appRouterSource).toContain("重新连接");
 		expect(appRouterSource).toContain("!session.principal.canChat");
 		expect(appRouterSource).toContain("FullDocumentRedirect");
@@ -36,7 +36,7 @@ describe("public chat route entry parity", () => {
 
 	it("removes repo-owned route entry fallback and SPA login redirect logic from the chat shell", () => {
 		expect(appShellSource).not.toContain("readChatRouteRedirectTarget");
-		expect(appShellSource).not.toContain("ChatShellBootstrapFallback");
+		expect(appShellSource).not.toContain("ChatShellBootstrapPlaceholder");
 		expect(appShellSource).not.toContain("ThemeProvider");
 		expect(appShellSource).not.toContain("TooltipProvider");
 		expect(appShellSource).not.toContain('router.replace("/login")');

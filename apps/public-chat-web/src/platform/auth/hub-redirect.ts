@@ -30,9 +30,9 @@ function trimToNull(value: string | null | undefined): string | null {
 	return trimmed ? trimmed : null;
 }
 
-export function normalizeReturnToPath(value: string, fallback = "/chat"): string {
+export function normalizeReturnToPath(value: string, defaultPath = "/chat"): string {
 	if (!value.startsWith("/") || value.startsWith("//")) {
-		return fallback;
+		return defaultPath;
 	}
 
 	return value;

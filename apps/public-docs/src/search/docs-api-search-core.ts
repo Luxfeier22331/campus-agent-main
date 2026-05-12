@@ -1,4 +1,4 @@
-import type { LocalSearchFallbackSuggestion, SearchIndexPage } from "./local-search-fallback-core";
+import type { SearchIndexPage, StaticSearchSuggestion } from "./static-search-suggestions";
 
 export interface DocsSearchScope {
 	collection: string;
@@ -42,7 +42,7 @@ export function collectDocsSearchScopes(pages: SearchIndexPage[]): DocsSearchSco
 export function mapDocsApiResultsToSuggestions(
 	query: string,
 	responses: ScopedDocsApiSearchResponse[],
-): LocalSearchFallbackSuggestion[] {
+): StaticSearchSuggestion[] {
 	const normalizedQuery = query.trim();
 	const highlightLength = new TextEncoder().encode(normalizedQuery).length;
 	return responses.flatMap(({ response }) =>

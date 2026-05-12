@@ -98,9 +98,9 @@ function normalizeFilterValue(value: string) {
 	return value.trim() ? value.trim() : null;
 }
 
-function toQueryErrorMessage(error: unknown, fallback: string) {
+function toQueryErrorMessage(error: unknown, defaultMessage: string) {
 	if (!error || typeof error !== "object") {
-		return fallback;
+		return defaultMessage;
 	}
 
 	const maybeError = error as {

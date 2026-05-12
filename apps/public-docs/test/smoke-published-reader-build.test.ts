@@ -118,4 +118,21 @@ describe("published reader build smoke", () => {
 			manifestFilePath: manifestPath,
 		});
 	});
+
+	it("fails closed instead of using a staging manifest for local build smoke", () => {
+		vi.stubEnv("CLOUDFLARE_ENV", "");
+		vi.stubEnv("PUBLIC_DOCS_SYNC_MANIFEST_PATH", "");
+		const directory = createTempDir();
+		const buildDir = resolve(directory, "doc_build");
+		const stagingManifestPath = resolve(directory, "var/public-docs-sync-manifest.staging.json");
+		writeFile(resolve(buildDir, "index.html"), "<!doctype html>");
+		writeManifest(stagingManifestPath);
+
+		expect(() =>
+			smokePublishedReaderBuild({
+				buildDir,
+				repoRoot: directory,
+			}),
+		).toThrow(/published reader build smoke manifest is missing/);
+	});
 });

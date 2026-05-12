@@ -50,10 +50,10 @@ function run(command, args, options = {}) {
 	process.exit(result.error ? 1 : 0);
 }
 
-function resolveTurnstileOption(name, rawValue, validValues, fallback) {
+function resolveTurnstileOption(name, rawValue, validValues, defaultValue) {
 	const value = rawValue?.trim();
 	if (!value) {
-		return fallback;
+		return defaultValue;
 	}
 	if (!validValues.has(value)) {
 		fail(
