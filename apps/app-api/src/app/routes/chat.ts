@@ -7,12 +7,12 @@ import type { ChatCommandStreamEvent } from "../../modules/runtime-command";
 import { requireSessionPrincipal } from "../principal";
 import {
 	buildInternalEvalPrincipalFromRequest,
-	createFallbackCorrelation,
+	createRouteErrorCorrelation,
 	readJsonRequestBody,
 	resolveWaitUntil,
 } from "../request-utils";
 import {
-	routeErrorResponseWithFallbackCorrelation,
+	routeErrorResponseWithRouteErrorCorrelation,
 	serviceCredentialRequiredResponse,
 } from "../responses";
 import type { AppRequestScope } from "../types";
@@ -153,7 +153,7 @@ export function registerChatRoutes(input: {
 			return resolved.response;
 		}
 
-		const fallbackCorrelation = createFallbackCorrelation();
+		const routeErrorCorrelation = createRouteErrorCorrelation();
 
 		try {
 			const response = await scope.resolveChatCommandService().submit({
@@ -181,7 +181,7 @@ export function registerChatRoutes(input: {
 			);
 		} catch (error) {
 			if (error instanceof AppApiRouteError) {
-				return routeErrorResponseWithFallbackCorrelation(error, fallbackCorrelation);
+				return routeErrorResponseWithRouteErrorCorrelation(error, routeErrorCorrelation);
 			}
 			throw error;
 		}
@@ -199,7 +199,7 @@ export function registerChatRoutes(input: {
 			return resolved.response;
 		}
 
-		const fallbackCorrelation = createFallbackCorrelation();
+		const routeErrorCorrelation = createRouteErrorCorrelation();
 
 		try {
 			const service = scope.resolveChatCommandService();
@@ -242,7 +242,7 @@ export function registerChatRoutes(input: {
 			});
 		} catch (error) {
 			if (error instanceof AppApiRouteError) {
-				return routeErrorResponseWithFallbackCorrelation(error, fallbackCorrelation);
+				return routeErrorResponseWithRouteErrorCorrelation(error, routeErrorCorrelation);
 			}
 			throw error;
 		}
@@ -253,7 +253,7 @@ export function registerChatRoutes(input: {
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
 			return serviceCredentialRequiredResponse();
 		}
-		const fallbackCorrelation = createFallbackCorrelation();
+		const routeErrorCorrelation = createRouteErrorCorrelation();
 
 		try {
 			const response = await scope.resolveChatCommandService().submit({
@@ -279,7 +279,7 @@ export function registerChatRoutes(input: {
 			);
 		} catch (error) {
 			if (error instanceof AppApiRouteError) {
-				return routeErrorResponseWithFallbackCorrelation(error, fallbackCorrelation);
+				return routeErrorResponseWithRouteErrorCorrelation(error, routeErrorCorrelation);
 			}
 			throw error;
 		}
@@ -396,7 +396,7 @@ export function registerChatRoutes(input: {
 				return resolved.response;
 			}
 
-			const fallbackCorrelation = createFallbackCorrelation();
+			const routeErrorCorrelation = createRouteErrorCorrelation();
 			try {
 				const body = requireObjectBody(await readJsonRequestBody(c.req.raw));
 				const response = await scope.resolveChatConversationService().setMessageFeedback({
@@ -409,7 +409,7 @@ export function registerChatRoutes(input: {
 				return jsonResponse(response);
 			} catch (error) {
 				if (error instanceof AppApiRouteError) {
-					return routeErrorResponseWithFallbackCorrelation(error, fallbackCorrelation);
+					return routeErrorResponseWithRouteErrorCorrelation(error, routeErrorCorrelation);
 				}
 				throw error;
 			}

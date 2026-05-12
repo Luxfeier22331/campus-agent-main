@@ -682,9 +682,9 @@ func isAcademicCalendarGuideQuery(normalizedGoal string) bool {
 		strings.Contains(normalizedGoal, "链接")
 }
 
-func defaultString(value string, fallback string) string {
+func defaultString(value string, defaultValue string) string {
 	if strings.TrimSpace(value) == "" {
-		return fallback
+		return defaultValue
 	}
 	return value
 }

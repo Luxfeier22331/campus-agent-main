@@ -77,7 +77,7 @@ class RetrievalObservationBridgeTest(unittest.TestCase):
         self.assertNotIn("target_document_ids", sanitized)
         self.assertNotIn("top_source_ids", sanitized)
 
-    def test_marks_release_drift_and_reranker_degraded_without_raw_fields(self) -> None:
+    def test_marks_release_drift_and_reranker_failure_without_raw_fields(self) -> None:
         sanitized = sanitize_retrieval_observation(
             {
                 "request_id": "req-drift",
@@ -92,20 +92,19 @@ class RetrievalObservationBridgeTest(unittest.TestCase):
                 "latency_ms": 9,
                 "query_sha256": "hash-drift",
                 "scope": {"corpus": "regulations", "collection": "student_rules"},
-                "reranker_degraded": True,
-                "reranker_failure_kind": "reranker_degraded",
+                "reranker_failure_kind": "reranker_failed",
                 "query": "raw query",
             }
         )
 
         self.assertTrue(sanitized["release_metadata_drift"])
-        self.assertTrue(sanitized["reranker_degraded"])
-        self.assertEqual(sanitized["reranker_failure_kind"], "reranker_degraded")
+        self.assertEqual(sanitized["reranker_failure_kind"], "reranker_failed")
+        self.assertNotIn("reranker_degraded", sanitized)
         self.assertFalse(sanitized["no_hit"])
         self.assertFalse(sanitized["low_confidence"])
         self.assertNotIn("query", sanitized)
 
-    def test_runtime_event_sink_emits_sanitized_retrieval_event_and_swallows_failure(self) -> None:
+    def test_runtime_event_sink_emits_sanitized_retrieval_event_and_fails_closed(self) -> None:
         events: list[tuple[str, dict[str, object]]] = []
         sink = build_retrieval_runtime_event_sink(
             lambda event_name, attributes: events.append((event_name, attributes))
@@ -131,10 +130,7 @@ class RetrievalObservationBridgeTest(unittest.TestCase):
             lambda _event_name, _attributes: (_ for _ in ()).throw(OSError("sink down"))
         )
 
-        with self.assertLogs(
-            "campus_supervisor_agent_worker.retrieval_observation_bridge",
-            level="WARNING",
-        ):
+        with self.assertRaisesRegex(OSError, "sink down"):
             failing_sink({"request_id": "req-failure", "reference_count": 0})
 
         self.assertEqual(events[0][0], "retrieval.runtime_observation")
@@ -191,7 +187,7 @@ class RetrievalObservationBridgeTest(unittest.TestCase):
                 headers="",
             )
 
-    def test_composed_observation_sink_runs_all_sinks_and_keeps_failures_warning_only(self) -> None:
+    def test_composed_observation_sink_fails_closed_when_any_sink_fails(self) -> None:
         seen: list[dict[str, object]] = []
         sink = compose_retrieval_observation_sinks(
             lambda observation: seen.append(dict(observation)),
@@ -200,10 +196,7 @@ class RetrievalObservationBridgeTest(unittest.TestCase):
 
         self.assertIsNotNone(sink)
         assert sink is not None
-        with self.assertLogs(
-            "campus_supervisor_agent_worker.retrieval_observation_bridge",
-            level="WARNING",
-        ):
+        with self.assertRaisesRegex(OSError, "disk full"):
             sink({"request_id": "req-compose"})
 
         self.assertEqual(seen, [{"request_id": "req-compose"}])

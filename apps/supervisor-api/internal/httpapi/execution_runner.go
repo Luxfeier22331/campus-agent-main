@@ -132,13 +132,15 @@ func (s *Server) runBridgeExecution(
 		}
 	}
 
-	s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 		Name:                string(mode) + ".accepted",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
 		Lane:                executionRequest.Lane,
 		RequestedCapability: executionRequest.RequestedCapability,
-	}, executionRequest))
+	}, executionRequest)); err != nil {
+		return terminalResult(*telemetryDeliveryTerminal())
+	}
 
 	s.lifecycle.Transition(executionRequest.RequestID, lifecycle.StateQueued)
 	if emitProgress != nil {
@@ -173,7 +175,7 @@ func (s *Server) runBridgeExecution(
 		if code == "execution_cancelled" || code == "client_canceled" {
 			status = statusClientClosedRequest
 		}
-		s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+		if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 			Name:                string(mode) + ".admission_rejected",
 			RequestID:           executionRequest.RequestID,
 			TraceID:             executionRequest.TraceID,
@@ -183,8 +185,10 @@ func (s *Server) runBridgeExecution(
 			Outcome:             code,
 			StatusCode:          status,
 			Duration:            time.Since(startedAt),
-		}, executionRequest))
-		s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
+		}, executionRequest)); err != nil {
+			return terminalResult(*telemetryDeliveryTerminal())
+		}
+		if err := s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
 			Decision:            string(decision),
 			Duration:            time.Since(startedAt),
 			EventType:           "execution.admission_rejected",
@@ -194,7 +198,9 @@ func (s *Server) runBridgeExecution(
 			RequestedCapability: executionRequest.RequestedCapability,
 			Retryable:           retryable,
 			TraceID:             executionRequest.TraceID,
-		}, executionRequest))
+		}, executionRequest)); err != nil {
+			return terminalResult(*executionAuditDeliveryTerminal())
+		}
 		return terminalResult(executionTerminal{
 			State:      state,
 			Code:       code,
@@ -221,7 +227,7 @@ func (s *Server) runBridgeExecution(
 	}
 	if !s.bridgeBreaker.Allow() {
 		s.metrics.RecordBridgeFailure("circuit_open")
-		s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+		if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 			Name:                string(mode) + ".failed",
 			RequestID:           executionRequest.RequestID,
 			TraceID:             executionRequest.TraceID,
@@ -231,8 +237,10 @@ func (s *Server) runBridgeExecution(
 			FailureCode:         "circuit_open",
 			StatusCode:          http.StatusServiceUnavailable,
 			Duration:            time.Since(startedAt),
-		}, executionRequest))
-		s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
+		}, executionRequest)); err != nil {
+			return terminalResult(*telemetryDeliveryTerminal())
+		}
+		if err := s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
 			Duration:            time.Since(startedAt),
 			EventType:           "execution.bridge_failed",
 			FailureKind:         "circuit_open",
@@ -243,7 +251,9 @@ func (s *Server) runBridgeExecution(
 			RequestedCapability: executionRequest.RequestedCapability,
 			Retryable:           true,
 			TraceID:             executionRequest.TraceID,
-		}, executionRequest))
+		}, executionRequest)); err != nil {
+			return terminalResult(*executionAuditDeliveryTerminal())
+		}
 		return terminalResult(executionTerminal{
 			State:       lifecycle.StateFailed,
 			Code:        "supervisor_bridge_circuit_open",
@@ -262,7 +272,7 @@ func (s *Server) runBridgeExecution(
 	defer bridgeCancel()
 
 	bridgeStartedAt := time.Now()
-	bridgeResponse, bridgeRunState, err := s.executeBridgeWithRetry(
+	bridgeResponse, bridgeRunState, terminal, err := s.executeBridgeWithRetry(
 		bridgeCtx,
 		requestCtx,
 		executionRequest,
@@ -276,6 +286,9 @@ func (s *Server) runBridgeExecution(
 			),
 		},
 	)
+	if terminal != nil {
+		return terminalResult(*terminal)
+	}
 	bridgeDuration := time.Since(bridgeStartedAt)
 	if bridgeRunState.AttemptCount <= 0 {
 		bridgeRunState.AttemptCount = 1
@@ -295,7 +308,7 @@ func (s *Server) runBridgeExecution(
 			s.metrics.RecordBridgeFailure(failureKind)
 		}
 		if state != lifecycle.StateClientCanceled {
-			s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+			if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 				Name:                terminalTelemetryEventName(mode, state),
 				RequestID:           executionRequest.RequestID,
 				TraceID:             executionRequest.TraceID,
@@ -305,8 +318,10 @@ func (s *Server) runBridgeExecution(
 				FailureCode:         failureKind,
 				StatusCode:          status,
 				Duration:            time.Since(startedAt),
-			}, executionRequest))
-			s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
+			}, executionRequest)); err != nil {
+				return terminalResult(*telemetryDeliveryTerminal())
+			}
+			if err := s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
 				BridgeDuration:      bridgeDuration,
 				Duration:            time.Since(startedAt),
 				EventType:           auditEventTypeForBridgeFailure(state),
@@ -318,7 +333,9 @@ func (s *Server) runBridgeExecution(
 				RequestedCapability: executionRequest.RequestedCapability,
 				Retryable:           state != lifecycle.StateCanceled,
 				TraceID:             executionRequest.TraceID,
-			}, executionRequest))
+			}, executionRequest)); err != nil {
+				return terminalResult(*executionAuditDeliveryTerminal())
+			}
 		}
 		return terminalResult(executionTerminal{
 			State:       state,
@@ -347,7 +364,7 @@ func (s *Server) executeBridgeWithRetry(
 	executionRequest execution.AnswerExecutionRequest,
 	emitProgress func(executionRunnerEvent),
 	request bridge.Request,
-) (bridge.ExecuteResponse, bridgeExecutionRunState, error) {
+) (bridge.ExecuteResponse, bridgeExecutionRunState, *executionTerminal, error) {
 	maxAttempts := s.config.BridgeRetryMaxAttempts
 	if maxAttempts <= 0 {
 		maxAttempts = 1
@@ -361,19 +378,21 @@ func (s *Server) executeBridgeWithRetry(
 	for attempt := 1; attempt <= maxAttempts; attempt++ {
 		runState.AttemptCount = attempt
 		attemptStartedAt := time.Now()
-		s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+		if emitErr := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 			Name:                "agent.bridge.started",
 			RequestID:           executionRequest.RequestID,
 			TraceID:             executionRequest.TraceID,
 			Lane:                executionRequest.Lane,
 			RequestedCapability: executionRequest.RequestedCapability,
 			Decision:            "attempt_started",
-		}, executionRequest))
+		}, executionRequest)); emitErr != nil {
+			return bridge.ExecuteResponse{}, runState, telemetryDeliveryTerminal(), nil
+		}
 		response, err := s.bridge.Execute(bridgeCtx, request)
 		attemptDuration := time.Since(attemptStartedAt)
 		s.metrics.RecordBridgeDuration(attemptDuration)
 		if err == nil {
-			s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+			if emitErr := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 				Name:                "agent.bridge.completed",
 				RequestID:           executionRequest.RequestID,
 				TraceID:             executionRequest.TraceID,
@@ -381,8 +400,10 @@ func (s *Server) executeBridgeWithRetry(
 				RequestedCapability: executionRequest.RequestedCapability,
 				Outcome:             "completed",
 				BridgeDuration:      attemptDuration,
-			}, executionRequest))
-			return response, runState, nil
+			}, executionRequest)); emitErr != nil {
+				return bridge.ExecuteResponse{}, runState, telemetryDeliveryTerminal(), nil
+			}
+			return response, runState, nil, nil
 		}
 		lastErr = err
 		failureKind, retryable := s.retryableBridgeExecutionFailure(
@@ -392,7 +413,7 @@ func (s *Server) executeBridgeWithRetry(
 			executionRequest.RequestID,
 		)
 		if !retryable || attempt >= maxAttempts {
-			s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+			if emitErr := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 				Name:                "agent.bridge.failed",
 				RequestID:           executionRequest.RequestID,
 				TraceID:             executionRequest.TraceID,
@@ -401,7 +422,9 @@ func (s *Server) executeBridgeWithRetry(
 				Outcome:             "failed",
 				FailureCode:         failureKind,
 				BridgeDuration:      attemptDuration,
-			}, executionRequest))
+			}, executionRequest)); emitErr != nil {
+				return bridge.ExecuteResponse{}, runState, telemetryDeliveryTerminal(), nil
+			}
 			break
 		}
 		runState.RetryCount++
@@ -424,7 +447,7 @@ func (s *Server) executeBridgeWithRetry(
 			break
 		}
 	}
-	return bridge.ExecuteResponse{}, runState, lastErr
+	return bridge.ExecuteResponse{}, runState, nil, lastErr
 }
 
 func (s *Server) retryableBridgeExecutionFailure(
@@ -479,13 +502,13 @@ func (s *Server) recordBridgeWriteOutcome(
 	queueWaitDuration time.Duration,
 	mode executionMode,
 	writeOutcome bridgeWriteOutcome,
-) {
+) *executionTerminal {
 	if writeOutcome.CircuitFailure {
 		s.bridgeBreaker.RecordFailure()
 	} else if writeOutcome.CircuitSuccess {
 		s.bridgeBreaker.RecordSuccess()
 	}
-	s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 		Name:                terminalTelemetryEventName(mode, writeOutcome.State),
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
@@ -495,9 +518,11 @@ func (s *Server) recordBridgeWriteOutcome(
 		FailureCode:         writeOutcome.FailureKind,
 		StatusCode:          writeOutcome.StatusCode,
 		Duration:            time.Since(startedAt),
-	}, executionRequest))
+	}, executionRequest)); err != nil {
+		return telemetryDeliveryTerminal()
+	}
 	if writeOutcome.State == lifecycle.StateFailed && writeOutcome.FailureKind != "" {
-		s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
+		if err := s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
 			BridgeDuration:      bridgeDuration,
 			Duration:            time.Since(startedAt),
 			EventType:           "execution.bridge_failed",
@@ -509,10 +534,12 @@ func (s *Server) recordBridgeWriteOutcome(
 			RequestedCapability: executionRequest.RequestedCapability,
 			Retryable:           writeOutcome.StatusCode >= 500,
 			TraceID:             executionRequest.TraceID,
-		}, executionRequest))
+		}, executionRequest)); err != nil {
+			return executionAuditDeliveryTerminal()
+		}
 	}
 	if writeOutcome.State == lifecycle.StateCanceled {
-		s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
+		if err := s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
 			BridgeDuration:      bridgeDuration,
 			Duration:            time.Since(startedAt),
 			EventType:           "execution.cancelled",
@@ -523,7 +550,34 @@ func (s *Server) recordBridgeWriteOutcome(
 			RequestedCapability: executionRequest.RequestedCapability,
 			Retryable:           false,
 			TraceID:             executionRequest.TraceID,
-		}, executionRequest))
+		}, executionRequest)); err != nil {
+			return executionAuditDeliveryTerminal()
+		}
+	}
+	return nil
+}
+
+func executionAuditDeliveryTerminal() *executionTerminal {
+	return &executionTerminal{
+		State:       lifecycle.StateFailed,
+		Code:        "execution_audit_delivery_failed",
+		Message:     "Supervisor execution audit delivery failed.",
+		StatusCode:  http.StatusServiceUnavailable,
+		Retryable:   true,
+		Outcome:     "execution_audit_delivery_failed",
+		FailureKind: "execution_audit_delivery_failed",
+	}
+}
+
+func telemetryDeliveryTerminal() *executionTerminal {
+	return &executionTerminal{
+		State:       lifecycle.StateFailed,
+		Code:        "telemetry_delivery_failed",
+		Message:     "Supervisor telemetry delivery failed.",
+		StatusCode:  http.StatusServiceUnavailable,
+		Retryable:   true,
+		Outcome:     "telemetry_delivery_failed",
+		FailureKind: "telemetry_delivery_failed",
 	}
 }
 

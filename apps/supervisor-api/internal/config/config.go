@@ -51,13 +51,6 @@ type Config struct {
 	ExecutionAuditURL                 string
 	ExecutionAuditSharedSecret        string
 	ExecutionAuditTimeoutMS           int
-	ExecutionAuditQueueCapacity       int
-	ExecutionAuditBatchSize           int
-	ExecutionAuditFlushMS             int
-	ExecutionAuditRetryMaxAttempts    int
-	ExecutionAuditRetryBaseMS         int
-	ExecutionAuditSpoolDir            string
-	ExecutionAuditSpoolMaxBytes       int
 	OpenCapabilities                  []string
 	MultiStepWorkflowEnabled          bool
 	WorkflowRunDatabaseURL            string
@@ -127,13 +120,6 @@ type envValues struct {
 	ExecutionAuditURL                 string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_URL"`
 	ExecutionAuditSharedSecret        string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET"`
 	ExecutionAuditTimeoutMS           int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS" envDefault:"500"`
-	ExecutionAuditQueueCapacity       int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY" envDefault:"128"`
-	ExecutionAuditBatchSize           int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE" envDefault:"10"`
-	ExecutionAuditFlushMS             int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_FLUSH_MS" envDefault:"1000"`
-	ExecutionAuditRetryMaxAttempts    int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_MAX_ATTEMPTS" envDefault:"3"`
-	ExecutionAuditRetryBaseMS         int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS" envDefault:"100"`
-	ExecutionAuditSpoolDir            string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR"`
-	ExecutionAuditSpoolMaxBytes       int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES" envDefault:"10485760"`
 	WorkflowRunDatabaseURL            string  `env:"SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL"`
 	QueryServingScopesPath            string  `env:"SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH"`
 	InternalQuerySharedSecret         string  `env:"SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"`
@@ -239,13 +225,6 @@ func LoadFromEnv() (Config, error) {
 		ExecutionAuditURL:                 strings.TrimSpace(values.ExecutionAuditURL),
 		ExecutionAuditSharedSecret:        strings.TrimSpace(values.ExecutionAuditSharedSecret),
 		ExecutionAuditTimeoutMS:           values.ExecutionAuditTimeoutMS,
-		ExecutionAuditQueueCapacity:       values.ExecutionAuditQueueCapacity,
-		ExecutionAuditBatchSize:           values.ExecutionAuditBatchSize,
-		ExecutionAuditFlushMS:             values.ExecutionAuditFlushMS,
-		ExecutionAuditRetryMaxAttempts:    values.ExecutionAuditRetryMaxAttempts,
-		ExecutionAuditRetryBaseMS:         values.ExecutionAuditRetryBaseMS,
-		ExecutionAuditSpoolDir:            strings.TrimSpace(values.ExecutionAuditSpoolDir),
-		ExecutionAuditSpoolMaxBytes:       values.ExecutionAuditSpoolMaxBytes,
 		OpenCapabilities:                  openCapabilities,
 		MultiStepWorkflowEnabled:          multiStepWorkflowEnabled,
 		WorkflowRunDatabaseURL:            readWorkflowRunDatabaseURL(values),
@@ -300,12 +279,6 @@ func validateEnvValues(values envValues, runtimeProfile string) error {
 		{"SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS", values.OTelExportTimeoutMS},
 		{"SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS", values.OTelExportIntervalMS},
 		{"SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", values.ExecutionAuditTimeoutMS},
-		{"SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY", values.ExecutionAuditQueueCapacity},
-		{"SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE", values.ExecutionAuditBatchSize},
-		{"SUPERVISOR_API_EXECUTION_AUDIT_FLUSH_MS", values.ExecutionAuditFlushMS},
-		{"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_MAX_ATTEMPTS", values.ExecutionAuditRetryMaxAttempts},
-		{"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS", values.ExecutionAuditRetryBaseMS},
-		{"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES", values.ExecutionAuditSpoolMaxBytes},
 		{"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS", values.StructuredQueryTimeoutMS},
 	}
 	for _, check := range checks {
@@ -357,17 +330,17 @@ func promptRuntimeBaseURL(values envValues) string {
 	return readString("LLM_BASE_URL", "https://api.openai.com/v1")
 }
 
-func defaultString(value string, fallback string) string {
+func defaultString(value string, defaultValue string) string {
 	if value == "" {
-		return fallback
+		return defaultValue
 	}
 	return value
 }
 
-func readString(name string, fallback string) string {
+func readString(name string, defaultValue string) string {
 	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
-		return fallback
+		return defaultValue
 	}
 	return value
 }
@@ -417,10 +390,10 @@ func normalizePostgresDatabaseURL(databaseURL string) string {
 	return databaseURL
 }
 
-func readPositiveIntStrict(name string, fallback int) (int, error) {
+func readPositiveIntStrict(name string, defaultValue int) (int, error) {
 	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
-		return fallback, nil
+		return defaultValue, nil
 	}
 
 	parsed, err := strconv.Atoi(value)
@@ -430,10 +403,10 @@ func readPositiveIntStrict(name string, fallback int) (int, error) {
 	return parsed, nil
 }
 
-func readNonNegativeIntStrict(name string, fallback int) (int, error) {
+func readNonNegativeIntStrict(name string, defaultValue int) (int, error) {
 	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
-		return fallback, nil
+		return defaultValue, nil
 	}
 
 	parsed, err := strconv.Atoi(value)
@@ -443,10 +416,10 @@ func readNonNegativeIntStrict(name string, fallback int) (int, error) {
 	return parsed, nil
 }
 
-func readBoolStrict(name string, fallback bool) (bool, error) {
+func readBoolStrict(name string, defaultValue bool) (bool, error) {
 	value := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
 	if value == "" {
-		return fallback, nil
+		return defaultValue, nil
 	}
 	return parseBoolStrict(name, value)
 }

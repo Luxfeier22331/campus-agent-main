@@ -129,7 +129,7 @@ events 只能按以下路径进入 panel：
 - `app-api` 继续是 audit projection owner；`supervisor-api` 不写 Postgres、不提供
   operator query backend
 - `app-api` execution audit ingest 成功后必须调度 request-scoped projector drain；
-  scheduled drain 只是兜底，避免 operator 在 panel 中等待下一轮 cron
+  scheduled drain 只承担周期性一致性检查，不承担 answer path 的补救语义
 - ingest payload 只允许 `request_id`、`trace_id`、lane、decision、failure kind、
   duration、queue wait、bridge duration、HTTP status、retryable 等 safe fields
 - payload 禁止 raw prompt、raw answer、raw transcript、auth material、retrieval
@@ -139,10 +139,9 @@ events 只能按以下路径进入 panel：
 - `app-api` 可以按 optional deep-link template 把 request trace / issue backlink 写入
   `operator.trace_backlink_projection`；这是 app-owned projection write，不是 panel
   route-time sink query
-- Go `supervisor-api` 的 execution audit writer 可以批量发送、失败重试并写本地 spool；
-  `/readyz` / `/metrics` 必须暴露 emitted、dropped、failed、retried、spooled、
-  spool-drained、spool-dropped 与 batch size，便于 operator 区分“runtime 事件已产生”和
-  “projection ingest 暂时不可达”
+- Go `supervisor-api` 的 execution audit writer 开启后必须同步发送每个 safe audit
+  event；sink 不可用时 answer path fail closed。`/readyz` / `/metrics` 必须暴露
+  enabled、configured、emitted、failed 与 last error，便于 operator 诊断投递状态。
 
 ## Read-Model Families
 
@@ -335,7 +334,7 @@ dump 或 raw vendor payload 直接暴露给 panel。
   `dependency_missing`、`provider_config_missing`、`provider_key_missing`、`model_missing`、
   `sdk_tool_missing`、`tool_not_admitted`、`plan_not_admitted`、`sdk_timeout` 与
   `sdk_guardrail_failed`；这些 reason 只能表达 degraded/fail-close，不得暗示存在
-  fallback runtime
+  alternate runtime path
 - 对 `single_handoff` 不能包装成 `multi_step`；对 direct structured runtime 不能伪造 agent
   collaboration trace
 - 需要区分“multi-agent 规划正确但某个 step 证据不足”和“顶层 routing / workflow plan 错误”
@@ -425,7 +424,7 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 - 这次请求进了哪个 structured runtime family
 - 返回的是 current answer、historical reference、canonical body，还是 deterministic
   fail-close / unavailable
-- 历史降级发生的原因是什么
+- 显式历史参考或 fail-close 的原因是什么
 - notice 结果来自 public `official_web` 还是 restricted `internal_notice` source
   family
 
@@ -584,6 +583,9 @@ ownership matrix 固定在
 
 - `apps/supervisor-api` 是 online trace owner，负责 request admission、bridge
   attempt 与 finalization 的 sanitized OTLP trace signal
+- `apps/supervisor-api` 在启用 OTel 后对 configured product answer paths 采用
+  fail-close 语义；telemetry 交付失败返回 `telemetry_delivery_failed`，sampling 丢弃仍只作为
+  显式采样计数
 - `apps/supervisor-agent-worker` 负责把 `retrieval.runtime_observation` 映射成 sanitized
   runtime event sink
 - `apps/ingestion-worker` 负责 offline run-level started/completed/failed telemetry

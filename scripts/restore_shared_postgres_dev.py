@@ -148,7 +148,7 @@ def parse_args(argv: Sequence[str] | None = None) -> argparse.Namespace:
     parser.add_argument(
         "--app-api-database-sslmode",
         default=DEFAULT_SHARED_APP_API_DATABASE_SSLMODE,
-        help="Fallback APP_API_DATABASE_SSLMODE when no app-api dev vars backup is available.",
+        help="Default APP_API_DATABASE_SSLMODE when no app-api dev vars backup is available.",
     )
     parser.add_argument(
         "--json",
@@ -330,8 +330,8 @@ def _resolve_optional_existing_source(
         if not resolved.exists():
             raise FileNotFoundError(f"Source file not found: {resolved}")
         return resolved
-    fallback = repo_root / default_relative_path
-    return fallback if fallback.exists() else None
+    default_source = repo_root / default_relative_path
+    return default_source if default_source.exists() else None
 
 
 def _validate_shared_root_env_source(source_env_path: Path) -> None:

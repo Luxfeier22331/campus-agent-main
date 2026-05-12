@@ -609,17 +609,15 @@ func TestAnswerBridgeProtocolFailureAuditIncludesBridgeDuration(t *testing.T) {
 	defer auditServer.Close()
 
 	server := NewServer(config.Config{
-		AuthMode:                    "bearer",
-		BearerToken:                 "secret-token",
-		DefaultActorID:              "runtime-bearer-user",
-		ExecutionAuditBatchSize:     1,
-		ExecutionAuditEnabled:       true,
-		ExecutionAuditQueueCapacity: 4,
-		ExecutionAuditSharedSecret:  "audit-secret",
-		ExecutionAuditTimeoutMS:     500,
-		ExecutionAuditURL:           auditServer.URL + "/api/internal/execution/audit-events",
-		RequestBodyLimitBytes:       1_048_576,
-		MaxConcurrentAnswers:        8,
+		AuthMode:                   "bearer",
+		BearerToken:                "secret-token",
+		DefaultActorID:             "runtime-bearer-user",
+		ExecutionAuditEnabled:      true,
+		ExecutionAuditSharedSecret: "audit-secret",
+		ExecutionAuditTimeoutMS:    500,
+		ExecutionAuditURL:          auditServer.URL + "/api/internal/execution/audit-events",
+		RequestBodyLimitBytes:      1_048_576,
+		MaxConcurrentAnswers:       8,
 	}, &fakeBridge{
 		configured: true,
 		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {

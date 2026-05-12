@@ -45,14 +45,17 @@ let stagingSmokeLockFd = null;
 let child = null;
 let shuttingDown = false;
 
-function positiveIntegerEnv(name, fallback) {
+function positiveIntegerEnv(name, defaultValue) {
 	const raw = process.env[name]?.trim();
 	if (!raw) {
-		return fallback;
+		return defaultValue;
 	}
 
 	const parsed = Number.parseInt(raw, 10);
-	return Number.isFinite(parsed) && parsed > 0 ? parsed : fallback;
+	if (!Number.isFinite(parsed) || parsed <= 0) {
+		throw new Error(`${name} must be a positive integer.`);
+	}
+	return parsed;
 }
 
 function delay(ms) {

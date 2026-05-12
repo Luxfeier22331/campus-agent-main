@@ -60,7 +60,6 @@ _ALLOWED_SCALAR_FIELDS = frozenset(
         "top_score",
         "score_gap",
         "as_of",
-        "reranker_degraded",
         "reranker_failure_kind",
     }
 )
@@ -94,13 +93,11 @@ def sanitize_retrieval_observation(observation: Mapping[str, object]) -> dict[st
     reference_count = _as_int(sanitized.get("reference_count"))
     terminal_state = str(sanitized.get("terminal_state") or "")
     failure_kind = str(sanitized.get("failure_kind") or "")
-    reranker_degraded = bool(sanitized.get("reranker_degraded"))
     sanitized["no_hit"] = has_reference_count and reference_count == 0
     sanitized["low_confidence"] = (
         has_reference_count and terminal_state == "completed" and reference_count == 0
     )
     sanitized["release_metadata_drift"] = failure_kind == "release_metadata_drift"
-    sanitized["reranker_degraded"] = reranker_degraded
 
     return {key: value for key, value in sanitized.items() if value is not None}
 
@@ -109,18 +106,10 @@ def build_retrieval_runtime_event_sink(
     emit_event: RuntimeEventEmitter,
 ) -> RetrievalObservationSink:
     def sink(observation: dict[str, object]) -> None:
-        try:
-            emit_event(
-                "retrieval.runtime_observation",
-                sanitize_retrieval_observation(observation),
-            )
-        except Exception:
-            _LOGGER.warning(
-                "retrieval runtime event sink failed for request_id=%s step_id=%s",
-                observation.get("request_id"),
-                observation.get("step_id"),
-                exc_info=True,
-            )
+        emit_event(
+            "retrieval.runtime_observation",
+            sanitize_retrieval_observation(observation),
+        )
 
     return sink
 
@@ -263,15 +252,7 @@ def compose_retrieval_observation_sinks(
 
     def sink(observation: dict[str, object]) -> None:
         for active_sink in active_sinks:
-            try:
-                active_sink(observation)
-            except Exception:
-                _LOGGER.warning(
-                    "retrieval observation sink failed for request_id=%s step_id=%s",
-                    observation.get("request_id"),
-                    observation.get("step_id"),
-                    exc_info=True,
-                )
+            active_sink(observation)
 
     return sink
 

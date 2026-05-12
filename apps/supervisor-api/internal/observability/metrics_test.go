@@ -47,12 +47,10 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 			MetricsConfigured: true,
 		},
 		ExecutionAudit: ExecutionAuditSnapshot{
-			BatchSize:         10,
-			RetriedCount:      4,
-			SpooledCount:      3,
-			SpoolDrainedCount: 2,
-			SpoolDroppedCount: 1,
-			SpoolEnabled:      true,
+			Enabled:      true,
+			Configured:   true,
+			EmittedCount: 7,
+			FailedCount:  1,
 		},
 	}))
 
@@ -76,12 +74,10 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 		`campus_supervisor_api_telemetry_sample_ratio 0.25`,
 		`campus_supervisor_api_telemetry_metrics_enabled 1`,
 		`campus_supervisor_api_telemetry_metrics_exporter_configured 1`,
-		`campus_supervisor_api_execution_audit_batch_size 10`,
-		`campus_supervisor_api_execution_audit_retried_total 4`,
-		`campus_supervisor_api_execution_audit_spooled_total 3`,
-		`campus_supervisor_api_execution_audit_spool_drained_total 2`,
-		`campus_supervisor_api_execution_audit_spool_dropped_total 1`,
-		`campus_supervisor_api_execution_audit_spool_enabled 1`,
+		`campus_supervisor_api_execution_audit_emitted_total 7`,
+		`campus_supervisor_api_execution_audit_failed_total 1`,
+		`campus_supervisor_api_execution_audit_enabled 1`,
+		`campus_supervisor_api_execution_audit_configured 1`,
 	}
 	for _, snippet := range expectedSnippets {
 		if !strings.Contains(output, snippet) {

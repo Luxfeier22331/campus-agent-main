@@ -43,6 +43,37 @@ func TestLookupTransportScheduleReturnsCurrentSnapshotMetadata(t *testing.T) {
 	}
 }
 
+func TestLookupTransportScheduleCurrentYearMissFailsClosedWithoutHistoricalDowngrade(t *testing.T) {
+	runtime := newRuntimeWithTransportReadModel(
+		t,
+		transportProjectionFixture(),
+		"2026-04-24T10:30:00+08:00",
+	)
+
+	response := runtime.LookupTransportSchedule(context.Background(), []byte(`{
+		"query_text":"2025 年校车时刻表是什么时候发布的",
+		"intent":"schedule_snapshot_metadata",
+		"snapshot_query":{"mode":"current_year","year_hint":"2025"}
+	}`))
+
+	if response.StatusCode != 200 {
+		t.Fatalf("status = %d, want 200", response.StatusCode)
+	}
+	result, ok := response.Body.(transportScheduleResult)
+	if !ok {
+		t.Fatalf("body = %T, want transportScheduleResult", response.Body)
+	}
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "current_state_unverifiable" {
+		t.Fatalf("fail_close_reason = %q, want current_state_unverifiable", result.FailCloseReason)
+	}
+	if result.ScheduleSnapshot != nil {
+		t.Fatalf("schedule_snapshot = %#v, want nil", result.ScheduleSnapshot)
+	}
+}
+
 func TestLookupTransportScheduleReadsPostgresReadModelWithoutProjectionPath(t *testing.T) {
 	runtime := NewRuntime(Options{
 		TransportScheduleReadModelStore: &fakeTransportScheduleReadModelStore{
@@ -597,9 +628,6 @@ func TestLookupServiceStatusFailsClosedWhenEffectiveWindowExpired(t *testing.T) 
 	}
 	if result.FailCloseReason != "current_state_unverifiable" {
 		t.Fatalf("fail_close_reason = %q, want current_state_unverifiable", result.FailCloseReason)
-	}
-	if result.HistoricalDowngradeReason != "current_effective_miss" {
-		t.Fatalf("historical_downgrade_reason = %q", result.HistoricalDowngradeReason)
 	}
 }
 

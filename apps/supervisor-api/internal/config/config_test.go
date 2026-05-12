@@ -29,7 +29,6 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_URL", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", "")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY", "")
 	t.Setenv("SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED", "")
 	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL", "")
 	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE", "")
@@ -138,17 +137,6 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	}
 	if cfg.ExecutionAuditTimeoutMS != 500 {
 		t.Fatalf("execution audit timeout = %d, want 500", cfg.ExecutionAuditTimeoutMS)
-	}
-	if cfg.ExecutionAuditQueueCapacity != 128 {
-		t.Fatalf("execution audit queue capacity = %d, want 128", cfg.ExecutionAuditQueueCapacity)
-	}
-	if cfg.ExecutionAuditBatchSize != 10 ||
-		cfg.ExecutionAuditFlushMS != 1_000 ||
-		cfg.ExecutionAuditRetryMaxAttempts != 3 ||
-		cfg.ExecutionAuditRetryBaseMS != 100 ||
-		cfg.ExecutionAuditSpoolDir != "" ||
-		cfg.ExecutionAuditSpoolMaxBytes != 10_485_760 {
-		t.Fatalf("unexpected execution audit hardening defaults: %#v", cfg)
 	}
 	if cfg.OTelSampleRatio != 1.0 {
 		t.Fatalf("otel sample ratio = %v, want 1.0", cfg.OTelSampleRatio)
@@ -271,13 +259,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_URL", "http://app-api:27031/api/internal/execution/audit-events")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", "audit-secret")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", "250")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY", "16")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE", "3")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_FLUSH_MS", "25")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_RETRY_MAX_ATTEMPTS", "5")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS", "10")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR", "/tmp/supervisor-audit-spool")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES", "2048")
 	t.Setenv("SUPERVISOR_API_OTEL_SAMPLE_RATIO", "0.25")
 	t.Setenv("SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION", "custom-attrs-v1")
 	t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", "campus_services, notice")
@@ -327,13 +308,6 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.ExecutionAuditURL != "http://app-api:27031/api/internal/execution/audit-events" ||
 		cfg.ExecutionAuditSharedSecret != "audit-secret" ||
 		cfg.ExecutionAuditTimeoutMS != 250 ||
-		cfg.ExecutionAuditQueueCapacity != 16 ||
-		cfg.ExecutionAuditBatchSize != 3 ||
-		cfg.ExecutionAuditFlushMS != 25 ||
-		cfg.ExecutionAuditRetryMaxAttempts != 5 ||
-		cfg.ExecutionAuditRetryBaseMS != 10 ||
-		cfg.ExecutionAuditSpoolDir != "/tmp/supervisor-audit-spool" ||
-		cfg.ExecutionAuditSpoolMaxBytes != 2048 ||
 		cfg.OTelSampleRatio != 0.25 ||
 		cfg.OTelAllowedAttributesVersion != "custom-attrs-v1" ||
 		len(cfg.OpenCapabilities) != 2 ||

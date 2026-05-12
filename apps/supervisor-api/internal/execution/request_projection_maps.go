@@ -194,9 +194,9 @@ func sessionSlotsToMaps(slots []sessionSlot) []map[string]any {
 	return results
 }
 
-func defaultIfEmpty(value string, fallback string) string {
+func defaultIfEmpty(value string, defaultValue string) string {
 	if value == "" {
-		return fallback
+		return defaultValue
 	}
 	return value
 }

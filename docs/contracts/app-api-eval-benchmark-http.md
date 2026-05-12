@@ -196,7 +196,8 @@ response body：
   - `validation_failed`
 - internal auth 失败固定返回：
   - `service_credential_required`
-- route/service-level 错误允许由 fallback correlation 生成临时 `requestId` / `traceId`
+- route/service-level 错误使用 route-error correlation 生成诊断用 `requestId` /
+  `traceId`
 
 ## Lifecycle Notes
 

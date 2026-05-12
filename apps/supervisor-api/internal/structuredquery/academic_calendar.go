@@ -36,39 +36,39 @@ type academicCalendarRelatedContext struct {
 }
 
 type academicCalendarResult struct {
-	QueryText             string   `json:"query_text"`
-	Outcome               string   `json:"outcome"`
-	QueryKind             string   `json:"query_kind,omitempty"`
-	AnswerFocus           string   `json:"answer_focus,omitempty"`
-	RequestedDate         string   `json:"requested_date,omitempty"`
-	ResolvedDate          string   `json:"resolved_date,omitempty"`
-	AcademicYearLabel     string   `json:"academic_year_label,omitempty"`
-	TermLabel             string   `json:"term_label,omitempty"`
-	WeekIndex             int      `json:"week_index,omitempty"`
-	DayKind               string   `json:"day_kind,omitempty"`
-	ClassDayPattern       string   `json:"class_day_pattern,omitempty"`
-	IsMakeupClass         *bool    `json:"is_makeup_class,omitempty"`
-	HolidayName           string   `json:"holiday_name,omitempty"`
-	SourceRefs            []string `json:"source_refs,omitempty"`
-	QueriedTimeAnchor     string   `json:"queried_time_anchor,omitempty"`
-	EffectiveFrom         string   `json:"effective_from,omitempty"`
-	EffectiveUntil        string   `json:"effective_until,omitempty"`
-	FailCloseReason       string   `json:"fail_close_reason,omitempty"`
-	EventName             string   `json:"event_name,omitempty"`
-	EventType             string   `json:"event_type,omitempty"`
-	EventAliases          []string `json:"event_aliases,omitempty"`
-	EventStartDate        string   `json:"event_start_date,omitempty"`
-	EventEndDateExclusive string   `json:"event_end_date_exclusive,omitempty"`
-	DisplayStartDate      string   `json:"display_start_date,omitempty"`
-	DisplayEndDate        string   `json:"display_end_date,omitempty"`
-	AppliesTo             []string `json:"applies_to,omitempty"`
-	SourceTitle           string   `json:"source_title,omitempty"`
-	SourceURL             string   `json:"source_url,omitempty"`
-	CalendarRecordID      string   `json:"calendar_record_id,omitempty"`
-	ConflictRefs          []string `json:"conflict_refs,omitempty"`
-	DurationDays          int      `json:"duration_days,omitempty"`
-	PrimaryRecordID       string   `json:"primary_record_id,omitempty"`
-	PrimarySourceRefs     []string `json:"primary_source_refs,omitempty"`
+	QueryText               string                           `json:"query_text"`
+	Outcome                 string                           `json:"outcome"`
+	QueryKind               string                           `json:"query_kind,omitempty"`
+	AnswerFocus             string                           `json:"answer_focus,omitempty"`
+	RequestedDate           string                           `json:"requested_date,omitempty"`
+	ResolvedDate            string                           `json:"resolved_date,omitempty"`
+	AcademicYearLabel       string                           `json:"academic_year_label,omitempty"`
+	TermLabel               string                           `json:"term_label,omitempty"`
+	WeekIndex               int                              `json:"week_index,omitempty"`
+	DayKind                 string                           `json:"day_kind,omitempty"`
+	ClassDayPattern         string                           `json:"class_day_pattern,omitempty"`
+	IsMakeupClass           *bool                            `json:"is_makeup_class,omitempty"`
+	HolidayName             string                           `json:"holiday_name,omitempty"`
+	SourceRefs              []string                         `json:"source_refs,omitempty"`
+	QueriedTimeAnchor       string                           `json:"queried_time_anchor,omitempty"`
+	EffectiveFrom           string                           `json:"effective_from,omitempty"`
+	EffectiveUntil          string                           `json:"effective_until,omitempty"`
+	FailCloseReason         string                           `json:"fail_close_reason,omitempty"`
+	EventName               string                           `json:"event_name,omitempty"`
+	EventType               string                           `json:"event_type,omitempty"`
+	EventAliases            []string                         `json:"event_aliases,omitempty"`
+	EventStartDate          string                           `json:"event_start_date,omitempty"`
+	EventEndDateExclusive   string                           `json:"event_end_date_exclusive,omitempty"`
+	DisplayStartDate        string                           `json:"display_start_date,omitempty"`
+	DisplayEndDate          string                           `json:"display_end_date,omitempty"`
+	AppliesTo               []string                         `json:"applies_to,omitempty"`
+	SourceTitle             string                           `json:"source_title,omitempty"`
+	SourceURL               string                           `json:"source_url,omitempty"`
+	CalendarRecordID        string                           `json:"calendar_record_id,omitempty"`
+	ConflictRefs            []string                         `json:"conflict_refs,omitempty"`
+	DurationDays            int                              `json:"duration_days,omitempty"`
+	PrimaryRecordID         string                           `json:"primary_record_id,omitempty"`
+	PrimarySourceRefs       []string                         `json:"primary_source_refs,omitempty"`
 	RelatedCalendarContexts []academicCalendarRelatedContext `json:"related_calendar_contexts,omitempty"`
 }
 
@@ -156,38 +156,38 @@ func (r *Runtime) lookupAcademicCalendar(ctx context.Context, request academicCa
 	isMakeup := record.IsMakeupClass
 	durationDays := academicCalendarDurationDays(record)
 	body := academicCalendarResult{
-		QueryText:             request.QueryText,
-		Outcome:               "resolved_current",
-		QueryKind:             queryKind,
-		AnswerFocus:           answerFocus,
-		RequestedDate:         targetDate,
-		ResolvedDate:          resolvedDate,
-		AcademicYearLabel:     record.AcademicYearLabel,
-		TermLabel:             record.TermLabel,
-		WeekIndex:             record.WeekIndex,
-		DayKind:               record.DayKind,
-		ClassDayPattern:       record.ClassDayPattern,
-		IsMakeupClass:         &isMakeup,
-		HolidayName:           record.HolidayName,
-		SourceRefs:            append([]string(nil), record.SourceRefs...),
-		QueriedTimeAnchor:     timeAnchor,
-		EffectiveFrom:         record.StartDate,
-		EffectiveUntil:        record.EndDate,
-		EventName:             academicCalendarRecordEventName(record),
-		EventType:             record.EventType,
-		EventAliases:          append([]string(nil), record.EventAliases...),
-		EventStartDate:        academicCalendarDefaultString(record.EventStartDate, record.StartDate),
-		EventEndDateExclusive: academicCalendarRecordEndExclusive(record),
-		DisplayStartDate:      academicCalendarDefaultString(record.DisplayStartDate, record.StartDate),
-		DisplayEndDate:        academicCalendarDefaultString(record.DisplayEndDate, record.EndDate),
-		AppliesTo:             append([]string(nil), record.AppliesTo...),
-		SourceTitle:           record.SourceTitle,
-		SourceURL:             record.SourceURL,
-		CalendarRecordID:      record.CalendarRecordID,
-		ConflictRefs:          append([]string(nil), record.ConflictRefs...),
-		DurationDays:          durationDays,
-		PrimaryRecordID:       record.CalendarRecordID,
-		PrimarySourceRefs:     append([]string(nil), record.SourceRefs...),
+		QueryText:               request.QueryText,
+		Outcome:                 "resolved_current",
+		QueryKind:               queryKind,
+		AnswerFocus:             answerFocus,
+		RequestedDate:           targetDate,
+		ResolvedDate:            resolvedDate,
+		AcademicYearLabel:       record.AcademicYearLabel,
+		TermLabel:               record.TermLabel,
+		WeekIndex:               record.WeekIndex,
+		DayKind:                 record.DayKind,
+		ClassDayPattern:         record.ClassDayPattern,
+		IsMakeupClass:           &isMakeup,
+		HolidayName:             record.HolidayName,
+		SourceRefs:              append([]string(nil), record.SourceRefs...),
+		QueriedTimeAnchor:       timeAnchor,
+		EffectiveFrom:           record.StartDate,
+		EffectiveUntil:          record.EndDate,
+		EventName:               academicCalendarRecordEventName(record),
+		EventType:               record.EventType,
+		EventAliases:            append([]string(nil), record.EventAliases...),
+		EventStartDate:          academicCalendarDefaultString(record.EventStartDate, record.StartDate),
+		EventEndDateExclusive:   academicCalendarRecordEndExclusive(record),
+		DisplayStartDate:        academicCalendarDefaultString(record.DisplayStartDate, record.StartDate),
+		DisplayEndDate:          academicCalendarDefaultString(record.DisplayEndDate, record.EndDate),
+		AppliesTo:               append([]string(nil), record.AppliesTo...),
+		SourceTitle:             record.SourceTitle,
+		SourceURL:               record.SourceURL,
+		CalendarRecordID:        record.CalendarRecordID,
+		ConflictRefs:            append([]string(nil), record.ConflictRefs...),
+		DurationDays:            durationDays,
+		PrimaryRecordID:         record.CalendarRecordID,
+		PrimarySourceRefs:       append([]string(nil), record.SourceRefs...),
 		RelatedCalendarContexts: relatedContexts,
 	}
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
@@ -210,9 +210,9 @@ func academicCalendarRequestedDate(request academicCalendarRequest, timeAnchor s
 	return parsedAnchor.Format("2006-01-02")
 }
 
-func academicCalendarDefaultString(value string, fallback string) string {
+func academicCalendarDefaultString(value string, defaultValue string) string {
 	if strings.TrimSpace(value) == "" {
-		return fallback
+		return defaultValue
 	}
 	return value
 }

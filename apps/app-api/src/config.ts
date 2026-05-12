@@ -153,14 +153,14 @@ export function parseCsvList(value?: string): string[] {
 		.filter(Boolean);
 }
 
-export function parsePositiveInteger(value: string | undefined, fallback: number): number {
+export function parsePositiveInteger(value: string | undefined, defaultValue: number): number {
 	if (!value?.trim()) {
-		return fallback;
+		return defaultValue;
 	}
 
 	const parsed = Number.parseInt(value, 10);
 	if (!Number.isFinite(parsed) || parsed < 1) {
-		return fallback;
+		return defaultValue;
 	}
 
 	return parsed;

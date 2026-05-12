@@ -351,6 +351,45 @@ func TestLookupContactDirectoryClarifiesAmbiguousEntity(t *testing.T) {
 	}
 }
 
+func TestLookupContactDirectoryFailsClosedWhenContactPointLacksSourceRefs(t *testing.T) {
+	runtime := newRuntimeWithContactDirectoryReadModel(
+		t,
+		`{
+			"schema_version":"campus_services_contact_directory_projection.v1",
+			"contact_records":[
+				{
+					"contact_id":"contact:campus-card",
+					"display_name":"校园卡管理中心",
+					"aliases":["校园卡"],
+					"phones":[
+						{"phone_id":"phone:card","label":"咨询","number":"010-68933381","source_refs":[]}
+					],
+					"source_refs":["official_web:muc-card-contact"],
+					"extraction_status":"ready"
+				}
+			],
+			"contact_conflict_records":[],
+			"contact_manual_review_sources":[]
+		}`,
+		"2026-04-27T10:30:00+08:00",
+	)
+
+	response := runtime.LookupContactDirectory(context.Background(), []byte(`{
+		"query_text":"校园卡管理中心电话",
+		"contact_focus":"phone",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(contactDirectoryResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "stable_contact_unavailable" {
+		t.Fatalf("fail_close_reason = %q", result.FailCloseReason)
+	}
+}
+
 func TestLookupContactDirectoryFailsClosedForManualReviewSource(t *testing.T) {
 	runtime := newRuntimeWithContactDirectoryReadModel(
 		t,

@@ -55,7 +55,7 @@ export function operatorAccessForbiddenResponse() {
 	);
 }
 
-export function routeErrorResponseWithFallbackCorrelation(
+export function routeErrorResponseWithRouteErrorCorrelation(
 	error: AppApiRouteError,
 	correlation: {
 		requestId: string;

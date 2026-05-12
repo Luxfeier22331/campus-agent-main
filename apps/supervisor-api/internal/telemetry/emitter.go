@@ -2,6 +2,7 @@ package telemetry
 
 import (
 	"context"
+	"errors"
 	"hash/fnv"
 	"log/slog"
 	"strconv"
@@ -15,8 +16,8 @@ import (
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/metric"
-	"go.opentelemetry.io/otel/sdk/resource"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
@@ -47,15 +48,15 @@ type Event struct {
 }
 
 type Status struct {
-	Enabled                  bool   `json:"enabled"`
-	ExporterConfigured       bool   `json:"exporter_configured"`
-	MetricsEnabled           bool   `json:"metrics_enabled"`
-	MetricsExporterConfigured bool  `json:"metrics_exporter_configured"`
-	ExportedCount            uint64 `json:"exported_count"`
-	DroppedCount             uint64 `json:"dropped_count"`
-	FailedCount              uint64 `json:"failed_count"`
-	LastError                string `json:"last_error"`
-	SampleRatio              string `json:"sample_ratio"`
+	Enabled                   bool   `json:"enabled"`
+	ExporterConfigured        bool   `json:"exporter_configured"`
+	MetricsEnabled            bool   `json:"metrics_enabled"`
+	MetricsExporterConfigured bool   `json:"metrics_exporter_configured"`
+	ExportedCount             uint64 `json:"exported_count"`
+	DroppedCount              uint64 `json:"dropped_count"`
+	FailedCount               uint64 `json:"failed_count"`
+	LastError                 string `json:"last_error"`
+	SampleRatio               string `json:"sample_ratio"`
 }
 
 type Emitter struct {
@@ -81,6 +82,8 @@ type Emitter struct {
 	bridgeDuration metric.Float64Histogram
 	logger         *slog.Logger
 }
+
+var ErrTelemetryUnavailable = errors.New("telemetry unavailable")
 
 func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Emitter {
 	otel.SetTextMapPropagator(runtimeTextMapPropagator)
@@ -178,17 +181,19 @@ func NewEmitter(ctx context.Context, cfg config.Config, logger *slog.Logger) *Em
 	return emitter
 }
 
-func (e *Emitter) Emit(ctx context.Context, event Event) {
+func (e *Emitter) Emit(ctx context.Context, event Event) error {
 	if e == nil || !e.enabled {
-		return
+		return nil
 	}
 	if e.tracer == nil {
-		e.recordDrop()
-		return
+		return e.unavailable("OTel trace exporter is not configured.")
+	}
+	if e.metricsEnabled && e.meterProvider == nil {
+		return e.unavailable("OTel metrics exporter is not configured.")
 	}
 	if !e.shouldSample(event) {
 		e.recordDrop()
-		return
+		return nil
 	}
 
 	attributes := []attribute.KeyValue{
@@ -226,7 +231,12 @@ func (e *Emitter) Emit(ctx context.Context, event Event) {
 	)
 	span.End()
 	e.recordMetric(event)
+	if err := e.flush(ctx); err != nil {
+		e.recordFailure(err.Error())
+		return err
+	}
 	e.recordExport()
+	return nil
 }
 
 func (e *Emitter) Status() Status {
@@ -328,6 +338,29 @@ func (e *Emitter) recordFailure(value string) {
 	e.lastError = value
 }
 
+func (e *Emitter) unavailable(message string) error {
+	err := errors.Join(ErrTelemetryUnavailable, errors.New(message))
+	e.recordFailure(message)
+	return err
+}
+
+func (e *Emitter) flush(ctx context.Context) error {
+	if e == nil {
+		return nil
+	}
+	if e.tracerProvider != nil {
+		if err := e.tracerProvider.ForceFlush(ctx); err != nil {
+			return errors.Join(ErrTelemetryUnavailable, err)
+		}
+	}
+	if e.metricsEnabled && e.meterProvider != nil {
+		if err := e.meterProvider.ForceFlush(ctx); err != nil {
+			return errors.Join(ErrTelemetryUnavailable, err)
+		}
+	}
+	return nil
+}
+
 func (e *Emitter) setLastError(value string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -374,9 +407,9 @@ func parseHeaders(value string) map[string]string {
 	return headers
 }
 
-func defaultString(value string, fallback string) string {
+func defaultString(value string, defaultValue string) string {
 	if strings.TrimSpace(value) == "" {
-		return fallback
+		return defaultValue
 	}
 	return strings.TrimSpace(value)
 }
@@ -385,7 +418,7 @@ func formatSampleRatio(value float64) string {
 	return strings.TrimRight(strings.TrimRight(fmtFloat(value), "0"), ".")
 }
 
-func statusSafeLastError(value string, fallback string) string {
+func statusSafeLastError(value string, redactedMessage string) string {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
 		return ""
@@ -395,7 +428,7 @@ func statusSafeLastError(value string, fallback string) string {
 		strings.Contains(lower, "dial tcp") ||
 		strings.Contains(lower, "token=") ||
 		strings.Contains(lower, "authorization") {
-		return fallback
+		return redactedMessage
 	}
 	return trimmed
 }

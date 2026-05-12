@@ -772,8 +772,8 @@ query。
 - `notice-agent`
   - 承接 `campus_notice_discover`、selected notice ref resolution、official source card
     rendering 与 bounded notice context projection
-  - 回答 notice 发现、候选消歧、官方链接回链、短摘要/事实抽取所需的内部 context，以及
-    current-year miss 时的 historical downgrade
+  - 回答 notice 发现、候选消歧、官方链接回链、短摘要/事实抽取所需的内部 context；current-year
+    miss 不得自动触发历史回退
   - 不作为默认正文阅读器；canonical notice body / OCR owner text 不得直接进入用户面全文输出
   - future source family 至少显式区分 public `official_web` notice-like pages 与
     restricted `campus_notices/internal_notice`
@@ -826,8 +826,8 @@ handoff seam 已存在，不等于这条 runtime lane 已开放。
   regression / eval evidence 与 app-owned typed observability summary 同时满足
 - 在 gate 仍关闭时，产品主路径只能保持当前 routing truth 或 deterministic fail-close；不得通过 stub /
   unavailable adapter 伪装成“能力已上线”
-- historical downgrade 与 stable-RAG boundary 属于 opening criteria，不是后续 prompt
-  polish 或 operator 文案问题
+- 显式历史参考、current miss fail-closed 与 stable-RAG boundary 属于 opening criteria，
+  不是后续 prompt polish 或 operator 文案问题
 - `campus-services-agent` 的领域 opening 规则与 projection owner 细节，统一看
   `docs/architecture/domains/campus-services/architecture.md`
 

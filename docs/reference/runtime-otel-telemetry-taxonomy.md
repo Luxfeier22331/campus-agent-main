@@ -68,8 +68,8 @@ explicitly allowed below.
 | `ingestion.run.failed` | `apps/ingestion-worker` | Run failure kind, stage and retryability |
 | `index.release.audit` | `apps/ingestion-worker` | Payload index, manifest, point payload and release guard audit result |
 | `index.release.publish` | `apps/ingestion-worker` | Alias/current pointer publish attempt and result |
-| `telemetry.export.failed` | runtime / adapter | Exporter or sink failure without product-path failure |
-| `telemetry.export.dropped` | runtime / adapter | Sampled/dropped/backpressured telemetry count |
+| `telemetry.export.failed` | runtime / adapter | Exporter or sink failure; configured product answer paths fail closed |
+| `telemetry.export.dropped` | runtime / adapter | Explicitly sampled telemetry count |
 
 ## Allowed Attribute Groups
 
@@ -138,7 +138,7 @@ explicitly allowed below.
 - `no_hit`
 - `low_confidence`
 - `release_metadata_drift`
-- `reranker_degraded`
+- `reranker_failed`
 - `reranker_failure_kind`
 
 `top_source_ids` and other document identifiers may be recorded only in event/log payloads with a
@@ -232,12 +232,12 @@ Runtime adapters or Collector/backend aggregation may derive these low-cardinali
 - retrieval count by corpus/collection/query mode/retrieval mode/terminal state
 - retrieval no-hit / low-confidence / forbidden-hit count
 - release metadata drift count
-- reranker degraded count
+- reranker failed count
 - ingestion run count by source family/collection/status
 - chunk and embedding count summary
 - embedding cache hit/miss count
 - index publish/audit success and failure count
-- telemetry exported/dropped/failed count
+- telemetry exported/sampled-dropped/failed count
 
 Raw document ids, raw query hashes and source urls must not become metric labels.
 
@@ -246,8 +246,8 @@ Raw document ids, raw query hashes and source urls must not become metric labels
 Phase implementations must add or maintain tests for:
 
 - disabled telemetry is a no-op
-- missing endpoint when enabled reports degraded telemetry health
-- exporter/sink failure does not fail the product path
+- missing endpoint when enabled reports degraded telemetry health and fails closed on configured product paths
+- exporter/sink failure fails closed on configured product paths
 - forbidden fields are absent from emitted attributes
 - `query_sha256` is present when retrieval observation is emitted
 - trace/request correlation propagates across app-api, supervisor-api and worker boundaries

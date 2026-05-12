@@ -24,7 +24,7 @@ func (s *Server) handleDirectTerminalAnswer(
 		finalizerContextFromExecutionRequest(executionRequest, "terminal"),
 	)
 	setOutcome(response, "supervisor_response")
-	s.telemetry.Emit(request.Context(), runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(request.Context(), runtimeTelemetryEvent(telemetry.Event{
 		Name:                "answer.completed",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
@@ -33,7 +33,10 @@ func (s *Server) handleDirectTerminalAnswer(
 		Outcome:             "supervisor_response",
 		StatusCode:          http.StatusOK,
 		Duration:            time.Since(startedAt),
-	}, executionRequest))
+	}, executionRequest)); err != nil {
+		s.writeTelemetryFailure(response, executionRequest.RequestID, executionRequest.TraceID)
+		return true
+	}
 	writeJSON(response, http.StatusOK, supervisorResponse)
 	return true
 }
@@ -53,7 +56,7 @@ func (s *Server) handleDirectTerminalAnswerStream(
 		finalizerContextFromExecutionRequest(executionRequest, "terminal"),
 	)
 	setOutcome(response, "supervisor_response")
-	s.telemetry.Emit(request.Context(), runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(request.Context(), runtimeTelemetryEvent(telemetry.Event{
 		Name:                "answer_stream.completed",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
@@ -62,7 +65,17 @@ func (s *Server) handleDirectTerminalAnswerStream(
 		Outcome:             "supervisor_response",
 		StatusCode:          http.StatusOK,
 		Duration:            time.Since(startedAt),
-	}, executionRequest))
+	}, executionRequest)); err != nil {
+		emitStructuredRuntimeStreamFailure(
+			response,
+			executionRequest,
+			http.StatusServiceUnavailable,
+			"telemetry_delivery_failed",
+			"Supervisor telemetry delivery failed.",
+			true,
+		)
+		return true
+	}
 	emitSSE(response, "execution.completed", streamPayload{
 		RequestID:  executionRequest.RequestID,
 		TraceID:    executionRequest.TraceID,

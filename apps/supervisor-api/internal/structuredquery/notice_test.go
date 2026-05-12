@@ -188,8 +188,8 @@ func TestLookupCampusNoticeDiscoverReadsRestrictedNoticeReadModel(t *testing.T) 
 	if result.NoticeCards[0].PrimaryRole != "notice_window" {
 		t.Fatalf("primary_role = %q", result.NoticeCards[0].PrimaryRole)
 	}
-	if result.NoticeCards[0].CanonicalURL != result.NoticeCards[0].SourceURL {
-		t.Fatalf("canonical_url = %q, want source_url fallback", result.NoticeCards[0].CanonicalURL)
+	if result.NoticeCards[0].CanonicalURL != "" {
+		t.Fatalf("canonical_url = %q, want empty when read model has no canonical_url", result.NoticeCards[0].CanonicalURL)
 	}
 	if store.searchQueryText != "家具采购" {
 		t.Fatalf("search query = %q, want 家具采购", store.searchQueryText)

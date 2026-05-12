@@ -29,8 +29,9 @@ Current status:
 - Emits answer-path structured logs with `trace_id`, `status_code`, `outcome`,
   and `duration_ms`, without logging raw `user_goal`.
 - Emits allowlisted execution audit events to `app-api` internal ingest when
-  configured; this is batched, retried, optionally spooled, best-effort, and
-  never blocks answer requests.
+  configured. Execution audit is disabled by default; when explicitly enabled,
+  delivery is synchronous and fail-closed, so sink failures stop answer
+  completion with a stable diagnostic error.
 - Propagates explicit cancel to the Python private bridge through
   `/internal/bridge/execution/cancel`; Python records the cooperative cancel
   signal and the semantic orchestration path checks it around routing, RAG
@@ -139,7 +140,7 @@ Current cancellation boundary:
 - `POST /internal/execution/cancel` accepts `{ "request_id": "..." }` with
   `x-worker-origin-auth` and marks the active Go execution as
   `cancel_requested`.
-- Go `apps/supervisor-api` also sends a best-effort cooperative cancel to the
+- Go `apps/supervisor-api` also sends a cooperative cancel signal to the
   Python bridge. The bridge marks active request ids as `cancel_requested`, and
   default supervisor orchestration stops at deterministic checkpoints. This
   does not guarantee provider / prompt executor mid-flight termination once a
@@ -168,7 +169,8 @@ Current structured query runtime boundary:
 - `SUPERVISOR_NOTICE_BODY_LIMIT_BYTES` bounds canonical notice body reads from
   object storage.
 - `INTERNAL_NOTICE_READ_MODEL_DATABASE_URL` configures the notice read-model PG
-  connection; `CAMPUS_SHARED_POSTGRES_URL` is the fallback.
+  connection; if unset, the runtime uses `CAMPUS_SHARED_POSTGRES_URL` as the
+  shared database connection.
 - `INTERNAL_NOTICE_READ_MODEL_TABLE` defaults to
   `ingestion_projection.internal_notice_read_model`.
 - `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_DERIVED_ACCESS_KEY`,
@@ -204,9 +206,10 @@ Current observability boundary:
   is reachable outside a trusted local network; local development leaves it
   empty by default.
 - OTel trace export is disabled by default. When enabled,
-  `SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT` must be configured; telemetry
-  export is fail-open for answer requests and surfaces exported / dropped /
-  failed / sample-ratio / last-error state in `/readyz` and `/metrics`.
+  `SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT` must be configured. Configured
+  answer paths fail closed with `telemetry_delivery_failed` when telemetry
+  delivery fails; `/readyz` and `/metrics` expose exported / sampled-dropped /
+  failed / sample-ratio / last-error state for diagnosis.
 - `apps/supervisor-api` is the online trace owner. It extracts inbound
   `traceparent` / `baggage`, accepts current `app-api` `sentry-trace` as an
   ingress compatibility source, and propagates only `traceparent`, `baggage`,
@@ -219,10 +222,9 @@ Current observability boundary:
   labels such as scope gate, policy gate, context preflight, routing next action,
   planning outcome, selected target/tool, terminal outcome, and fail-close
   reason.
-- `/readyz` reports `execution_audit_runtime`, and `/metrics` reports emitted,
-  dropped, failed, retry, spool, queue depth, batch size, enabled, and
-  configured counters/gauges. `/readyz` degrades when execution audit is enabled
-  but missing its ingest URL or shared secret.
+- `/readyz` reports `execution_audit_runtime`, and `/metrics` reports enabled,
+  configured, emitted, and failed counters/gauges. `/readyz` degrades when
+  execution audit is enabled but missing its ingest URL or shared secret.
 
 Requirements:
 
@@ -260,13 +262,6 @@ export SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=false
 export SUPERVISOR_API_EXECUTION_AUDIT_URL=http://127.0.0.1:27031/api/internal/execution/audit-events
 export SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET=app-api-internal-secret
 export SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS=500
-export SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY=128
-export SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE=10
-export SUPERVISOR_API_EXECUTION_AUDIT_FLUSH_MS=1000
-export SUPERVISOR_API_EXECUTION_AUDIT_RETRY_MAX_ATTEMPTS=3
-export SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS=100
-export SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR=
-export SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES=10485760
 export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 export SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD=5
 export SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS=10000

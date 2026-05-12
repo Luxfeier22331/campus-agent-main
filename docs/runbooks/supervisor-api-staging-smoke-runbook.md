@@ -204,6 +204,6 @@ transport debug；默认 staging closeout 不直接探 supervisor full `/readyz`
 infra/local/staging/stop-supervisor-api-staging.sh
 ```
 
-1. 按 fallback runbook 恢复 legacy dev-backed runtime
-1. 如果 execution upstream URL 曾经改动，再把 `STAGING_SUPERVISOR_API_BASE_URL` 改回旧值并重新 deploy
-   `app-api-staging`
+1. 保持 execution upstream 指向 canonical staging runtime，并修复 canonical runtime 或
+   `app-api-staging` 配置后重新执行 smoke
+1. 不恢复 legacy dev-backed runtime；如果历史 runtime 仍在运行，先停掉再重试 canonical 启动

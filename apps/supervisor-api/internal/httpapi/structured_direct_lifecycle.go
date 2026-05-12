@@ -70,7 +70,7 @@ func (s *Server) beginDirectStructuredExecution(
 		if code == "execution_cancelled" || code == "client_canceled" {
 			status = statusClientClosedRequest
 		}
-		s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+		if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 			Name:                "answer.admission_rejected",
 			RequestID:           executionRequest.RequestID,
 			TraceID:             executionRequest.TraceID,
@@ -80,8 +80,12 @@ func (s *Server) beginDirectStructuredExecution(
 			Outcome:             code,
 			StatusCode:          status,
 			Duration:            time.Since(startedAt),
-		}, executionRequest))
-		s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
+		}, executionRequest)); err != nil {
+			complete(lifecycle.StateFailed)
+			s.writeTelemetryFailure(response, executionRequest.RequestID, executionRequest.TraceID)
+			return nil, nil, false
+		}
+		if err := s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
 			Decision:            string(decision),
 			Duration:            time.Since(startedAt),
 			EventType:           "execution.admission_rejected",
@@ -91,7 +95,11 @@ func (s *Server) beginDirectStructuredExecution(
 			RequestedCapability: executionRequest.RequestedCapability,
 			Retryable:           retryable,
 			TraceID:             executionRequest.TraceID,
-		}, executionRequest))
+		}, executionRequest)); err != nil {
+			complete(lifecycle.StateFailed)
+			s.writeExecutionAuditFailure(response, executionRequest.RequestID, executionRequest.TraceID)
+			return nil, nil, false
+		}
 		complete(s.lifecycleStateForRejectedAdmission(
 			executionRequest.RequestID,
 			decision,
@@ -178,7 +186,7 @@ func (s *Server) beginDirectStructuredStreamExecution(
 		if code == "execution_cancelled" || code == "client_canceled" {
 			status = statusClientClosedRequest
 		}
-		s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+		if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 			Name:                "answer_stream.admission_rejected",
 			RequestID:           executionRequest.RequestID,
 			TraceID:             executionRequest.TraceID,
@@ -188,8 +196,19 @@ func (s *Server) beginDirectStructuredStreamExecution(
 			Outcome:             code,
 			StatusCode:          status,
 			Duration:            time.Since(startedAt),
-		}, executionRequest))
-		s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
+		}, executionRequest)); err != nil {
+			complete(lifecycle.StateFailed)
+			emitStructuredRuntimeStreamFailure(
+				response,
+				executionRequest,
+				http.StatusServiceUnavailable,
+				"telemetry_delivery_failed",
+				"Supervisor telemetry delivery failed.",
+				true,
+			)
+			return nil, nil, false
+		}
+		if err := s.emitExecutionAudit(requestCtx, runtimeAuditEvent(executionaudit.Event{
 			Decision:            string(decision),
 			Duration:            time.Since(startedAt),
 			EventType:           "execution.admission_rejected",
@@ -199,7 +218,19 @@ func (s *Server) beginDirectStructuredStreamExecution(
 			RequestedCapability: executionRequest.RequestedCapability,
 			Retryable:           retryable,
 			TraceID:             executionRequest.TraceID,
-		}, executionRequest))
+		}, executionRequest)); err != nil {
+			complete(lifecycle.StateFailed)
+			setOutcome(response, "execution_audit_delivery_failed")
+			emitStructuredRuntimeStreamFailure(
+				response,
+				executionRequest,
+				http.StatusServiceUnavailable,
+				"execution_audit_delivery_failed",
+				"Supervisor execution audit delivery failed.",
+				true,
+			)
+			return nil, nil, false
+		}
 		complete(state)
 		setOutcome(response, code)
 		emitSSE(response, terminalStreamEventName(state), streamPayload{

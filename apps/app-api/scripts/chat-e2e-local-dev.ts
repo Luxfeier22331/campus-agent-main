@@ -51,9 +51,9 @@ function readOptionalValue(value: string | undefined): string | null {
 	return trimmed ? trimmed : null;
 }
 
-function readPositiveInteger(value: string | null, fallback: number): number {
+function readPositiveInteger(value: string | null, defaultValue: number): number {
 	if (!value) {
-		return fallback;
+		return defaultValue;
 	}
 	const parsed = Number.parseInt(value, 10);
 	if (Number.isNaN(parsed) || parsed <= 0) {

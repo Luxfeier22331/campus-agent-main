@@ -381,7 +381,7 @@ func workflowSelectedTools(handoff *execution.RuntimeHandoff, selectedTool strin
 	return []string{}
 }
 
-func workflowSelectedToolsFromRun(run execution.WorkflowRun, fallback string) []string {
+func workflowSelectedToolsFromRun(run execution.WorkflowRun) []string {
 	selected := make([]string, 0, len(run.HandoffChain))
 	seen := map[string]struct{}{}
 	for _, handoff := range run.HandoffChain {
@@ -395,9 +395,6 @@ func workflowSelectedToolsFromRun(run execution.WorkflowRun, fallback string) []
 		seen[tool] = struct{}{}
 		selected = append(selected, tool)
 	}
-	if len(selected) == 0 && fallback != "" {
-		selected = append(selected, fallback)
-	}
 	return selected
 }
 
@@ -407,9 +404,12 @@ func workflowTraceSelectedTools(
 	selectedTool string,
 ) []string {
 	if run.Mode == execution.WorkflowModeMultiStep {
-		return workflowSelectedToolsFromRun(run, selectedTool)
+		return workflowSelectedToolsFromRun(run)
 	}
-	return workflowSelectedToolsFromRun(run, selectedTool)
+	if len(run.HandoffChain) > 0 {
+		return workflowSelectedToolsFromRun(run)
+	}
+	return workflowSelectedTools(handoff, selectedTool)
 }
 
 func workflowToolCallParentStep(branch string) string {

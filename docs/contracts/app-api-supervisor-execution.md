@@ -343,12 +343,13 @@ browser-facing execution response，也不是 panel query backend。
 调用规则：
 
 - 由 Go `apps/supervisor-api` 使用 `x-app-internal-auth` 调用 `app-api`
-- delivery 是 best-effort / fail-open；audit sink 不可用不得影响 answer request
-- Go writer 可以 batch、flush、retry，并在配置 spool dir 时写入 local spool；这些只影响
-  delivery hardening，不改变 `app-api` ingest payload contract
+- delivery 是 fail-closed；开启 execution audit 后，audit sink 不可用或返回非 2xx 时，
+  `apps/supervisor-api` 必须返回稳定诊断错误，不得继续完成 answer request
+- Go writer 同步发送每个 safe audit event；不存在 batch、flush、retry、local spool 或
+  drop path
 - `app-api` 验证 `request_id` 与 `trace_id` 后写入 `runtime.projection_outbox`
 - ingest 成功后 `app-api` 会调度 request-scoped projector drain；cron projector drain
-  作为兜底继续物化到 `operator.request_audit_projection`
+  只承担周期性一致性检查，不承担 answer path 的补救语义
 - `Sentry` / `Axiom` 只作为 sanitized telemetry sink 或 backlink 来源，不成为 panel
   canonical truth
 - request lifecycle 中的 trace / issue backlink 由 `app-api` optional recorder

@@ -150,8 +150,8 @@ Expected evidence:
 - The payload includes runtime span names, request id and allowed telemetry version.
 - The payload does not include raw query, bearer token, auth header name, raw prompt, raw answer or
   forbidden field names.
-- `TestRuntimeOtelUnavailableCollectorDoesNotFailAnswerPath` keeps the answer path successful even
-  when the configured Collector endpoint is unavailable.
+- `TestRuntimeOtelUnavailableCollectorFailsClosedForAnswerPath` returns
+  `telemetry_delivery_failed` when a configured Collector endpoint is unavailable.
 
 Retrieval runtime event smoke:
 

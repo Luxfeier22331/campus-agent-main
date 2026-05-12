@@ -4,8 +4,8 @@ import type { Env } from "../../config";
 import { AppApiRouteError, jsonResponse } from "../../http";
 import type { ResolvedAppPrincipal } from "../../modules/auth";
 import { requireSessionPrincipal } from "../principal";
-import { createFallbackCorrelation, readJsonRequestBody } from "../request-utils";
-import { routeErrorResponseWithFallbackCorrelation } from "../responses";
+import { createRouteErrorCorrelation, readJsonRequestBody } from "../request-utils";
+import { routeErrorResponseWithRouteErrorCorrelation } from "../responses";
 import type { AppRequestScope } from "../types";
 
 function requireObjectBody(value: unknown): Record<string, unknown> {
@@ -108,7 +108,7 @@ export function registerProfileMemoryRoutes(input: {
 			return resolved.response;
 		}
 
-		const fallbackCorrelation = createFallbackCorrelation();
+		const routeErrorCorrelation = createRouteErrorCorrelation();
 		try {
 			const body = requireObjectBody(await readJsonRequestBody(c.req.raw));
 			const result = await scope.resolveProfileMemoryService().upsert({
@@ -119,7 +119,7 @@ export function registerProfileMemoryRoutes(input: {
 			return jsonResponse(result);
 		} catch (error) {
 			if (error instanceof AppApiRouteError) {
-				return routeErrorResponseWithFallbackCorrelation(error, fallbackCorrelation);
+				return routeErrorResponseWithRouteErrorCorrelation(error, routeErrorCorrelation);
 			}
 			throw error;
 		}
@@ -137,7 +137,7 @@ export function registerProfileMemoryRoutes(input: {
 			return resolved.response;
 		}
 
-		const fallbackCorrelation = createFallbackCorrelation();
+		const routeErrorCorrelation = createRouteErrorCorrelation();
 		try {
 			const body = requireObjectBody(await readJsonRequestBody(c.req.raw));
 			const profileMemory = await scope.resolveProfileMemoryService().setEnabled({
@@ -147,7 +147,7 @@ export function registerProfileMemoryRoutes(input: {
 			return jsonResponse({ profileMemory });
 		} catch (error) {
 			if (error instanceof AppApiRouteError) {
-				return routeErrorResponseWithFallbackCorrelation(error, fallbackCorrelation);
+				return routeErrorResponseWithRouteErrorCorrelation(error, routeErrorCorrelation);
 			}
 			throw error;
 		}

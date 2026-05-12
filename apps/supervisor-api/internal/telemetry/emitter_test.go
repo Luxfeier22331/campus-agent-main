@@ -3,6 +3,7 @@ package telemetry
 import (
 	"bytes"
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"testing"
@@ -31,16 +32,19 @@ func TestEmitterDisabledNoops(t *testing.T) {
 	}
 }
 
-func TestEmitterEnabledWithoutEndpointFailsOpen(t *testing.T) {
+func TestEmitterEnabledWithoutEndpointFailsClosed(t *testing.T) {
 	emitter := NewEmitter(context.Background(), config.Config{
 		OTelEnabled: true,
 	}, nil)
 
-	emitter.Emit(context.Background(), Event{
+	err := emitter.Emit(context.Background(), Event{
 		Name:      "answer.accepted",
 		RequestID: "req-001",
 		TraceID:   "trace-001",
 	})
+	if !errors.Is(err, ErrTelemetryUnavailable) {
+		t.Fatalf("error = %v, want ErrTelemetryUnavailable", err)
+	}
 
 	status := emitter.Status()
 	if !status.Enabled {
@@ -52,8 +56,11 @@ func TestEmitterEnabledWithoutEndpointFailsOpen(t *testing.T) {
 	if status.LastError == "" {
 		t.Fatal("last error should be populated")
 	}
-	if status.DroppedCount != 1 {
-		t.Fatalf("dropped count = %d, want 1", status.DroppedCount)
+	if status.FailedCount == 0 {
+		t.Fatalf("failed count = %d, want non-zero", status.FailedCount)
+	}
+	if status.DroppedCount != 0 {
+		t.Fatalf("dropped count = %d, want 0", status.DroppedCount)
 	}
 }
 

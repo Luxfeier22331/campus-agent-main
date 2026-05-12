@@ -93,13 +93,15 @@ func (s *Server) runMultiStepBridgeExecution(
 	}
 	workflowRun = createdRun
 
-	s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 		Name:                string(mode) + ".accepted",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
 		Lane:                executionRequest.Lane,
 		RequestedCapability: executionRequest.RequestedCapability,
-	}, executionRequest))
+	}, executionRequest)); err != nil {
+		return terminalResult(*telemetryDeliveryTerminal())
+	}
 	s.lifecycle.Transition(executionRequest.RequestID, lifecycle.StateQueued)
 	if emitProgress != nil {
 		emitProgress(executionRunnerEvent{
@@ -227,7 +229,7 @@ func (s *Server) runMultiStepBridgeExecution(
 			time.Duration(s.config.BridgeTimeoutMS)*time.Millisecond,
 		)
 		bridgeStartedAt := time.Now()
-		bridgeResponse, bridgeRunState, err := s.executeBridgeWithRetry(
+		bridgeResponse, bridgeRunState, terminal, err := s.executeBridgeWithRetry(
 			bridgeCtx,
 			requestCtx,
 			executionRequest,
@@ -242,6 +244,10 @@ func (s *Server) runMultiStepBridgeExecution(
 			},
 		)
 		bridgeCancel()
+		if terminal != nil {
+			completeWorkflowRun(execution.WorkflowStateFailed)
+			return terminalResult(*terminal)
+		}
 		bridgeDuration := time.Since(bridgeStartedAt)
 		totalBridgeDuration += bridgeDuration
 		totalRunState.AttemptCount += bridgeRunState.AttemptCount
@@ -347,10 +353,6 @@ func (s *Server) runMultiStepBridgeExecution(
 				})
 			}
 		}
-		stepProjectionIDs := workflowProjectionIDsForSourceStep(
-			workflowContextProjections,
-			stepID,
-		)
 		workflowRun, _ = s.workflowRuns.AppendStep(requestCtx, runID, execution.WorkflowStep{
 			StepID:       stepID,
 			SpanKind:     "handoff",
@@ -395,7 +397,6 @@ func (s *Server) runMultiStepBridgeExecution(
 				SourceIDs: workflowSummarySourceIDs(
 					bridgeResult,
 					bridgeAgentObservability,
-					stepProjectionIDs,
 				),
 				SafeDetails:                workflowSafeDetails(bridgeAgentObservability),
 				ProviderToolCallProjection: workflowProviderToolCallProjection(bridgeAgentObservability),

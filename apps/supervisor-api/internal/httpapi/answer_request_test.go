@@ -118,20 +118,18 @@ func TestAnswerBridgeNotConfiguredEmitsTelemetryAndExecutionAudit(t *testing.T) 
 	defer auditServer.Close()
 
 	server := NewServer(config.Config{
-		AuthMode:                    "bearer",
-		BearerToken:                 "secret-token",
-		DefaultActorID:              "runtime-bearer-user",
-		ExecutionAuditBatchSize:     1,
-		ExecutionAuditEnabled:       true,
-		ExecutionAuditQueueCapacity: 4,
-		ExecutionAuditSharedSecret:  "audit-secret",
-		ExecutionAuditTimeoutMS:     500,
-		ExecutionAuditURL:           auditServer.URL + "/api/internal/execution/audit-events",
-		OTelEnabled:                 true,
-		OTelEndpoint:                telemetryServer.URL,
-		OTelSampleRatio:             1,
-		RequestBodyLimitBytes:       1_048_576,
-		MaxConcurrentAnswers:        8,
+		AuthMode:                   "bearer",
+		BearerToken:                "secret-token",
+		DefaultActorID:             "runtime-bearer-user",
+		ExecutionAuditEnabled:      true,
+		ExecutionAuditSharedSecret: "audit-secret",
+		ExecutionAuditTimeoutMS:    500,
+		ExecutionAuditURL:          auditServer.URL + "/api/internal/execution/audit-events",
+		OTelEnabled:                true,
+		OTelEndpoint:               telemetryServer.URL,
+		OTelSampleRatio:            1,
+		RequestBodyLimitBytes:      1_048_576,
+		MaxConcurrentAnswers:       8,
 	}, nil)
 	defer func() {
 		_ = server.Shutdown(context.Background())
@@ -180,6 +178,36 @@ func TestAnswerBridgeNotConfiguredEmitsTelemetryAndExecutionAudit(t *testing.T) 
 	case <-time.After(time.Second):
 		t.Fatal("timed out waiting for execution audit event")
 	}
+}
+
+func TestAnswerFailsClosedWhenExecutionAuditDeliveryFails(t *testing.T) {
+	auditServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.WriteHeader(http.StatusBadGateway)
+	}))
+	defer auditServer.Close()
+
+	server := NewServer(config.Config{
+		AuthMode:                   "bearer",
+		BearerToken:                "secret-token",
+		DefaultActorID:             "runtime-bearer-user",
+		ExecutionAuditEnabled:      true,
+		ExecutionAuditSharedSecret: "audit-secret",
+		ExecutionAuditTimeoutMS:    500,
+		ExecutionAuditURL:          auditServer.URL + "/api/internal/execution/audit-events",
+		RequestBodyLimitBytes:      1_048_576,
+		MaxConcurrentAnswers:       8,
+	}, nil)
+	response := httptest.NewRecorder()
+	request := newTestRequest(
+		http.MethodPost,
+		"/api/v1/answer",
+		delegateAnswerBody("req-audit-delivery-failed"),
+	)
+	request.Header.Set("authorization", "Bearer secret-token")
+
+	server.ServeHTTP(response, request)
+
+	assertError(t, response, http.StatusServiceUnavailable, "execution_audit_delivery_failed")
 }
 
 func TestAnswerRejectsClosedStructuredRuntimeBeforeBridge(t *testing.T) {

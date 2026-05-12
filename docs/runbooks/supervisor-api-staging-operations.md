@@ -197,7 +197,7 @@ until infra/local/staging/status-supervisor-api-staging.sh --check; do \
 - `Start-ScheduledTask` 会比 WSL 内部 `start-supervisor-api-staging.sh` 更早返回
 - 因此冷启动后第一下 `status --check` 可能只是任务尚未完全拉起；canonical 操作是轮询到 green
 - 如果旧的 dev-backed runtime 还在运行，`start-supervisor-api-staging.sh` 会直接 fail-fast，要求先停掉
-  fallback runtime，再启动 canonical runtime
+  legacy runtime，再启动 canonical runtime
 
 ## 日志与轮转
 
@@ -277,7 +277,7 @@ curl -sS http://127.0.0.1:27010/metrics | grep execution_audit
   变量；未显式配置时，会从 `SUPERVISOR_API_STAGING_APP_API_BASE_URL` 与
   `APP_API_INTERNAL_SHARED_SECRET` 派生 internal ingest URL 和 shared secret
 - 如果 emitted 增加但 panel 未出现，检查 `app-api` scheduled projector drain；
-  internal ingest 成功时也会触发 request-scoped drain，cron 是兜底
+  internal ingest 成功时也会触发 request-scoped drain，cron 只承担周期性一致性检查
 
 - 如果变量缺失，重新执行：
 

@@ -345,7 +345,8 @@ updated: 2026-04-23
 
 说明：
 
-- sink 是 best-effort；sink 失败只记录 warning，不让 answer path 失败
+- sink 是显式 runtime contract；配置 sink 后，sink 失败必须让 answer path fail closed
+  并暴露稳定诊断原因
 - JSONL sink 是 local/debug 通道
 - durable event sink 使用 `retrieval.runtime_observation` 事件名，交给 runtime adapter 接入
   OTel-compatible logs/events 或 operator observation storage

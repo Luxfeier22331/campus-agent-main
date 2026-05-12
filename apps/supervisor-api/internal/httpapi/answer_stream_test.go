@@ -75,20 +75,18 @@ func TestAnswerStreamBridgeNotConfiguredEmitsTelemetryAndExecutionAudit(t *testi
 	defer auditServer.Close()
 
 	server := NewServer(config.Config{
-		AuthMode:                    "bearer",
-		BearerToken:                 "secret-token",
-		DefaultActorID:              "runtime-bearer-user",
-		ExecutionAuditBatchSize:     1,
-		ExecutionAuditEnabled:       true,
-		ExecutionAuditQueueCapacity: 4,
-		ExecutionAuditSharedSecret:  "audit-secret",
-		ExecutionAuditTimeoutMS:     500,
-		ExecutionAuditURL:           auditServer.URL + "/api/internal/execution/audit-events",
-		OTelEnabled:                 true,
-		OTelEndpoint:                telemetryServer.URL,
-		OTelSampleRatio:             1,
-		RequestBodyLimitBytes:       1_048_576,
-		MaxConcurrentAnswers:        8,
+		AuthMode:                   "bearer",
+		BearerToken:                "secret-token",
+		DefaultActorID:             "runtime-bearer-user",
+		ExecutionAuditEnabled:      true,
+		ExecutionAuditSharedSecret: "audit-secret",
+		ExecutionAuditTimeoutMS:    500,
+		ExecutionAuditURL:          auditServer.URL + "/api/internal/execution/audit-events",
+		OTelEnabled:                true,
+		OTelEndpoint:               telemetryServer.URL,
+		OTelSampleRatio:            1,
+		RequestBodyLimitBytes:      1_048_576,
+		MaxConcurrentAnswers:       8,
 	}, nil)
 	defer func() {
 		_ = server.Shutdown(context.Background())

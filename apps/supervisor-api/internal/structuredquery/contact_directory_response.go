@@ -152,7 +152,7 @@ func contactDirectoryContactPoints(record contactDirectoryRecord) []contactDirec
 		}
 		sourceRefs := normalizedStringSlice(point.SourceRefs)
 		if len(sourceRefs) == 0 {
-			sourceRefs = append([]string(nil), record.SourceRefs...)
+			continue
 		}
 		points = append(points, contactDirectoryContactPoint{
 			ChannelType:       normalizeContactChannel(point.ChannelType, value),
@@ -171,12 +171,16 @@ func contactDirectoryContactPoints(record contactDirectoryRecord) []contactDirec
 		if number == "" {
 			continue
 		}
+		sourceRefs := normalizedStringSlice(phone.SourceRefs)
+		if len(sourceRefs) == 0 {
+			continue
+		}
 		points = append(points, contactDirectoryContactPoint{
 			ChannelType:     "phone",
 			Label:           contactDefaultString(strings.TrimSpace(phone.Label), strings.TrimSpace(record.DisplayName)),
 			Value:           number,
 			NormalizedValue: normalizeContactValue(number),
-			SourceRefs:      normalizeSourceRefs(phone.SourceRefs, record.SourceRefs),
+			SourceRefs:      sourceRefs,
 		})
 	}
 	for _, email := range record.Emails {
@@ -184,12 +188,16 @@ func contactDirectoryContactPoints(record contactDirectoryRecord) []contactDirec
 		if address == "" {
 			continue
 		}
+		sourceRefs := normalizedStringSlice(email.SourceRefs)
+		if len(sourceRefs) == 0 {
+			continue
+		}
 		points = append(points, contactDirectoryContactPoint{
 			ChannelType:     "email",
 			Label:           contactDefaultString(strings.TrimSpace(email.Label), strings.TrimSpace(record.DisplayName)),
 			Value:           address,
 			NormalizedValue: strings.ToLower(address),
-			SourceRefs:      normalizeSourceRefs(email.SourceRefs, record.SourceRefs),
+			SourceRefs:      sourceRefs,
 		})
 	}
 	return dedupeContactPoints(points)
@@ -206,11 +214,15 @@ func contactDirectoryLocationRefs(record contactDirectoryRecord) []contactDirect
 			continue
 		}
 		locationRef := contactDefaultString(strings.TrimSpace(entry.LocationRef), label)
+		sourceRefs := normalizedStringSlice(entry.SourceRefs)
+		if len(sourceRefs) == 0 {
+			continue
+		}
 		items = append(items, contactDirectoryLocationRef{
 			Label:       label,
 			LocationRef: locationRef,
 			AddressText: strings.TrimSpace(entry.AddressText),
-			SourceRefs:  normalizeSourceRefs(entry.SourceRefs, record.SourceRefs),
+			SourceRefs:  sourceRefs,
 		})
 	}
 	return dedupeLocationRefs(items)
@@ -224,13 +236,17 @@ func contactDirectoryOfficeHoursRows(record contactDirectoryRecord) []contactDir
 			continue
 		}
 		hoursID := contactDefaultString(strings.TrimSpace(entry.HoursID), label)
+		sourceRefs := normalizedStringSlice(entry.SourceRefs)
+		if len(sourceRefs) == 0 {
+			continue
+		}
 		items = append(items, contactDirectoryOfficeHours{
 			HoursID:       hoursID,
 			Label:         label,
 			DayPattern:    strings.TrimSpace(entry.DayPattern),
 			TimeRange:     strings.TrimSpace(entry.TimeRange),
 			EffectiveNote: strings.TrimSpace(entry.EffectiveNote),
-			SourceRefs:    normalizeSourceRefs(entry.SourceRefs, record.SourceRefs),
+			SourceRefs:    sourceRefs,
 		})
 	}
 	return items
@@ -248,7 +264,7 @@ func contactDirectoryLocationEntries(record contactDirectoryRecord) []contactDir
 			entries = append(entries, contactDirectoryLocationEntry{
 				Label:       text,
 				LocationRef: text,
-				SourceRefs:  append([]string(nil), record.SourceRefs...),
+				SourceRefs:  nil,
 			})
 		case map[string]any:
 			entries = append(entries, contactDirectoryLocationEntry{
@@ -298,14 +314,6 @@ func normalizeContactValue(value string) string {
 	return replacer.Replace(value)
 }
 
-func normalizeSourceRefs(sourceRefs []string, fallback []string) []string {
-	normalized := normalizedStringSlice(sourceRefs)
-	if len(normalized) > 0 {
-		return normalized
-	}
-	return normalizedStringSlice(fallback)
-}
-
 func normalizedStringSlice(values []string) []string {
 	seen := map[string]struct{}{}
 	normalized := []string{}
@@ -345,9 +353,9 @@ func anyStringSliceValue(raw any) []string {
 	return values
 }
 
-func contactDefaultString(value string, fallback string) string {
+func contactDefaultString(value string, defaultValue string) string {
 	if strings.TrimSpace(value) == "" {
-		return fallback
+		return defaultValue
 	}
 	return value
 }

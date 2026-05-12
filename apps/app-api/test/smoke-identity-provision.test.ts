@@ -54,6 +54,32 @@ describe("app-api smoke identity provisioning", () => {
 		});
 	});
 
+	it("rejects legacy management database input for smoke provisioning runtime env", () => {
+		expect(() =>
+			buildSmokeIdentityProvisionRuntimeEnv({
+				appApiEnvironment: "development",
+				appName: "campus-agent-app-api",
+				authTurnstileSecretKey: "1x0000000000000000000000000000000AA",
+				betterAuthSecret: "smoke-identity-secret-smoke-identity-secret",
+				captchaToken: "XXXX.DUMMY.TOKEN.XXXX",
+				databaseSslMode: "require",
+				email: "help_bot@outlook.com",
+				endUserEmailAllowlist: "help_bot@outlook.com",
+				endUserEmailDomainAllowlist: "muc.edu.cn",
+				internalSharedSecret: "smoke-identity-internal-secret",
+				managementDatabaseUrl: "postgresql://legacy-management.example/campus_agent",
+				name: "Smoke User",
+				operatorDatabaseUrl: "",
+				operatorEmailAllowlist: "ops@example.com",
+				password: "SmokePass!2026",
+				passwordEnvKey: "APP_API_SMOKE_IDENTITY_PASSWORD",
+				publicChatOrigin: "https://campus-chat-staging.ayafeed.com",
+				supervisorApiBaseUrl: "https://supervisor.internal",
+				supervisorApiSharedSecret: "smoke-identity-supervisor-secret",
+			}),
+		).toThrow("operatorDatabaseUrl is required");
+	});
+
 	it("requires an explicit captcha token when not using the Cloudflare testing secret", () => {
 		expect(() =>
 			readSmokeIdentityProvisionInput(["--email", "help_bot@outlook.com", "--name", "Smoke User"], {

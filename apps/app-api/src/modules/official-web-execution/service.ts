@@ -93,8 +93,8 @@ function normalizeUpdatedAt(value: unknown): string {
 	return parsed.toISOString();
 }
 
-function normalizeBoolean(value: unknown, fallback: boolean): boolean {
-	return typeof value === "boolean" ? value : fallback;
+function normalizeBoolean(value: unknown, defaultValue: boolean): boolean {
+	return typeof value === "boolean" ? value : defaultValue;
 }
 
 function sanitizeIdPart(value: string): string {

@@ -314,11 +314,7 @@ func noticeReadModelRowAuthorized(
 }
 
 func noticeCanonicalURL(row noticeReadModelRecord) string {
-	canonicalURL := strings.TrimSpace(row.CanonicalURL)
-	if canonicalURL != "" {
-		return canonicalURL
-	}
-	return strings.TrimSpace(row.SourceURL)
+	return strings.TrimSpace(row.CanonicalURL)
 }
 
 func noticeEntitlementGroupsOverlap(left []string, right []string) bool {

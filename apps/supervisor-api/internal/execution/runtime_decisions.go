@@ -451,11 +451,11 @@ func failCloseReason(frame runtimepolicy.RoutingFrame) string {
 	return frame.ScopeReason
 }
 
-func defaultRuntimeString(value string, fallback string) string {
+func defaultRuntimeString(value string, defaultValue string) string {
 	if value != "" {
 		return value
 	}
-	return fallback
+	return defaultValue
 }
 
 func runtimeSessionSlots(slots []sessionSlot) []runtimepolicy.SessionSlot {

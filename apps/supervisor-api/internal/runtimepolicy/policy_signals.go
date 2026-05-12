@@ -324,9 +324,9 @@ func containsAny(normalizedValue string, signals []string) bool {
 	return firstMatch(normalizedValue, signals) != ""
 }
 
-func defaultString(value string, fallback string) string {
+func defaultString(value string, defaultValue string) string {
 	if strings.TrimSpace(value) == "" {
-		return fallback
+		return defaultValue
 	}
 	return value
 }

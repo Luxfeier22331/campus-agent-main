@@ -161,20 +161,24 @@ export function readSmokeIdentityProvisionInput(argv, env = process.env) {
 }
 
 export function buildSmokeIdentityProvisionRuntimeEnv(input) {
+	const operatorDatabaseUrl = requireValue(
+		input.operatorDatabaseUrl,
+		"operatorDatabaseUrl is required for smoke identity provisioning.",
+	);
 	return {
 		APP_API_NAME: input.appName,
 		APP_API_ENVIRONMENT: input.appApiEnvironment,
 		APP_API_DATABASE_SSLMODE: input.databaseSslMode,
 		APP_API_DB: {
-			connectionString: input.operatorDatabaseUrl || input.managementDatabaseUrl,
+			connectionString: operatorDatabaseUrl,
 		},
 		APP_API_DB_FRESH: {
-			connectionString: input.operatorDatabaseUrl || input.managementDatabaseUrl,
+			connectionString: operatorDatabaseUrl,
 		},
 		APP_API_END_USER_EMAIL_ALLOWLIST: input.endUserEmailAllowlist,
 		APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: input.endUserEmailDomainAllowlist,
 		APP_API_INTERNAL_SHARED_SECRET: input.internalSharedSecret,
-		APP_API_OPERATOR_DATABASE_URL: input.operatorDatabaseUrl || input.managementDatabaseUrl,
+		APP_API_OPERATOR_DATABASE_URL: operatorDatabaseUrl,
 		APP_API_OPERATOR_EMAIL_ALLOWLIST: input.operatorEmailAllowlist,
 		AUTH_RESET_EMAIL_FROM: input.authResetEmailFrom || DEFAULT_AUTH_RESET_EMAIL_FROM,
 		AUTH_TURNSTILE_SECRET_KEY: input.authTurnstileSecretKey,

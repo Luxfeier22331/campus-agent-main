@@ -63,13 +63,13 @@ function renderSafeUrlTemplate(
 	}
 }
 
-function normalizeFingerprintPart(value: string | null | undefined, fallback: string): string {
+function normalizeFingerprintPart(value: string | null | undefined, defaultValue: string): string {
 	const normalized = value
 		?.trim()
 		.toLowerCase()
 		.replace(/[^a-z0-9._-]+/gu, "_")
 		.replace(/^_+|_+$/gu, "");
-	return normalized ? normalized.slice(0, 80) : fallback;
+	return normalized ? normalized.slice(0, 80) : defaultValue;
 }
 
 function buildIssueFingerprint(input: OperatorTraceBacklinkRecordInput): string | null {

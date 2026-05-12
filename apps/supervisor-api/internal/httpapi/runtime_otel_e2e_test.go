@@ -93,25 +93,17 @@ func TestRuntimeOtelOnlineSmokeExportsSanitizedTraceToCollector(t *testing.T) {
 		t.Fatalf("shutdown exporter: %v", err)
 	}
 
-	collected := waitForOTLPRequest(t, received)
-	if collected.Method != http.MethodPost {
-		t.Fatalf("collector method = %s, want POST", collected.Method)
-	}
-	if collected.Path != "/v1/traces" {
-		t.Fatalf("collector path = %s, want /v1/traces", collected.Path)
-	}
-	if !strings.Contains(collected.ContentType, "application/x-protobuf") {
-		t.Fatalf("content-type = %q, want OTLP protobuf", collected.ContentType)
-	}
-	for _, required := range []string{
+	required := []string{
 		"supervisor_api.runtime.request.accepted",
 		"supervisor_api.agent.bridge.started",
 		"supervisor_api.agent.bridge.completed",
 		"supervisor_api.runtime.request.finalized",
 		"req-runtime-otel-online-smoke",
 		"telemetry.allowed_attributes_version",
-	} {
-		if !bytes.Contains(collected.Body, []byte(required)) {
+	}
+	collectedBody := waitForOTLPPayloadContaining(t, received, required)
+	for _, required := range required {
+		if !bytes.Contains(collectedBody, []byte(required)) {
 			t.Fatalf("OTLP payload missing %q", required)
 		}
 	}
@@ -124,13 +116,13 @@ func TestRuntimeOtelOnlineSmokeExportsSanitizedTraceToCollector(t *testing.T) {
 		"raw.query",
 		"raw.answer",
 	} {
-		if bytes.Contains(collected.Body, []byte(forbidden)) {
+		if bytes.Contains(collectedBody, []byte(forbidden)) {
 			t.Fatalf("OTLP payload leaked forbidden value %q", forbidden)
 		}
 	}
 }
 
-func TestRuntimeOtelUnavailableCollectorDoesNotFailAnswerPath(t *testing.T) {
+func TestRuntimeOtelUnavailableCollectorFailsClosedForAnswerPath(t *testing.T) {
 	server := NewServer(config.Config{
 		AuthMode:              "bearer",
 		BearerToken:           "secret-token",
@@ -164,12 +156,13 @@ func TestRuntimeOtelUnavailableCollectorDoesNotFailAnswerPath(t *testing.T) {
 
 	server.ServeHTTP(response, request)
 
-	if response.Code != http.StatusOK {
-		t.Fatalf("status = %d, want 200; body: %s", response.Code, response.Body.String())
-	}
+	assertError(t, response, http.StatusServiceUnavailable, "telemetry_delivery_failed")
 	status := server.telemetry.Status()
 	if !status.Enabled || !status.ExporterConfigured {
 		t.Fatalf("telemetry status = %#v, want enabled configured exporter", status)
+	}
+	if status.FailedCount == 0 {
+		t.Fatalf("telemetry failed count = %d, want non-zero", status.FailedCount)
 	}
 }
 
@@ -185,4 +178,43 @@ func waitForOTLPRequest(
 		t.Fatal("timed out waiting for OTLP request")
 	}
 	return capturedOTLPRequest{}
+}
+
+func waitForOTLPPayloadContaining(
+	t *testing.T,
+	received <-chan capturedOTLPRequest,
+	required []string,
+) []byte {
+	t.Helper()
+	deadline := time.After(time.Second)
+	var combined []byte
+	for {
+		select {
+		case request := <-received:
+			if request.Method != http.MethodPost {
+				t.Fatalf("collector method = %s, want POST", request.Method)
+			}
+			if request.Path != "/v1/traces" {
+				t.Fatalf("collector path = %s, want /v1/traces", request.Path)
+			}
+			if !strings.Contains(request.ContentType, "application/x-protobuf") {
+				t.Fatalf("content-type = %q, want OTLP protobuf", request.ContentType)
+			}
+			combined = append(combined, request.Body...)
+			if payloadContainsAll(combined, required) {
+				return combined
+			}
+		case <-deadline:
+			t.Fatalf("timed out waiting for OTLP payload containing %v", required)
+		}
+	}
+}
+
+func payloadContainsAll(payload []byte, required []string) bool {
+	for _, item := range required {
+		if !bytes.Contains(payload, []byte(item)) {
+			return false
+		}
+	}
+	return true
 }

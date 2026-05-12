@@ -116,7 +116,6 @@ func workflowProviderToolCallProjection(agentObservability map[string]any) map[s
 func workflowSummarySourceIDs(
 	result map[string]any,
 	agentObservability map[string]any,
-	fallbackProjectionIDs []string,
 ) []string {
 	sourceIDs := workflowSourceIDs(result)
 	if len(sourceIDs) > 0 {
@@ -125,7 +124,7 @@ func workflowSummarySourceIDs(
 	safeDetails := workflowSafeDetails(agentObservability)
 	sourceRefsUsed := stringArrayValue(safeDetails["source_refs_used"])
 	if len(sourceRefsUsed) == 0 {
-		return append([]string{}, fallbackProjectionIDs...)
+		return []string{}
 	}
 	unique := make([]string, 0, len(sourceRefsUsed))
 	for _, sourceID := range sourceRefsUsed {

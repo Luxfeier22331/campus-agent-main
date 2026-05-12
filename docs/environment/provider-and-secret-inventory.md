@@ -74,7 +74,7 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   放置位置: root `.env`；再 fan out 到 `apps/app-api/.env`
   何时必需: app-api、本地 eval ingress、registry/operator 路径
   获取方式: 如果用 Supabase，operator/runtime 默认都取 session pooler `:5432`；legacy
-  `*_MANAGEMENT_*` 只保留兼容别名；如果本地开发，走 Docker Postgres 恢复入口
+  `*_MANAGEMENT_*` 不再作为 runtime env path；如果本地开发，走 Docker Postgres 恢复入口
 
 - Provider / system: S3-compatible object storage
   作用: raw source、source truth、derived artifacts

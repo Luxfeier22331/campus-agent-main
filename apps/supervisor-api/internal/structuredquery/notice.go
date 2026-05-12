@@ -147,36 +147,34 @@ type noticeCard struct {
 }
 
 type noticeDiscoverResult struct {
-	QueryText                 string       `json:"query_text"`
-	Outcome                   string       `json:"outcome"`
-	SourceFamilies            []string     `json:"source_families,omitempty"`
-	NoticeCards               []noticeCard `json:"notice_cards,omitempty"`
-	QueriedTimeAnchor         string       `json:"queried_time_anchor,omitempty"`
-	HistoricalDowngradeReason string       `json:"historical_downgrade_reason,omitempty"`
-	FailCloseReason           string       `json:"fail_close_reason,omitempty"`
+	QueryText         string       `json:"query_text"`
+	Outcome           string       `json:"outcome"`
+	SourceFamilies    []string     `json:"source_families,omitempty"`
+	NoticeCards       []noticeCard `json:"notice_cards,omitempty"`
+	QueriedTimeAnchor string       `json:"queried_time_anchor,omitempty"`
+	FailCloseReason   string       `json:"fail_close_reason,omitempty"`
 }
 
 type noticeGetResult struct {
-	NoticeID                  string              `json:"notice_id"`
-	Outcome                   string              `json:"outcome"`
-	Title                     string              `json:"title,omitempty"`
-	SourceFamily              string              `json:"source_family,omitempty"`
-	SourceURL                 string              `json:"source_url,omitempty"`
-	CanonicalURL              string              `json:"canonical_url,omitempty"`
-	NormalizedBody            string              `json:"normalized_body,omitempty"`
-	ReferenceOnly             bool                `json:"reference_only,omitempty"`
-	DisplayPolicy             noticeDisplayPolicy `json:"display_policy"`
-	BodyExcerpt               string              `json:"body_excerpt,omitempty"`
-	BoundedSummary            string              `json:"bounded_summary,omitempty"`
-	ExtractedFacts            []string            `json:"extracted_facts,omitempty"`
-	PublishedAt               string              `json:"published_at,omitempty"`
-	EffectiveAt               string              `json:"effective_at,omitempty"`
-	TargetSurface             string              `json:"target_surface,omitempty"`
-	PrimaryRole               string              `json:"primary_role,omitempty"`
-	AttachmentRefs            []string            `json:"attachment_refs,omitempty"`
-	ProvenanceRefs            []string            `json:"provenance_refs,omitempty"`
-	HistoricalDowngradeReason string              `json:"historical_downgrade_reason,omitempty"`
-	FailCloseReason           string              `json:"fail_close_reason,omitempty"`
+	NoticeID        string              `json:"notice_id"`
+	Outcome         string              `json:"outcome"`
+	Title           string              `json:"title,omitempty"`
+	SourceFamily    string              `json:"source_family,omitempty"`
+	SourceURL       string              `json:"source_url,omitempty"`
+	CanonicalURL    string              `json:"canonical_url,omitempty"`
+	NormalizedBody  string              `json:"normalized_body,omitempty"`
+	ReferenceOnly   bool                `json:"reference_only,omitempty"`
+	DisplayPolicy   noticeDisplayPolicy `json:"display_policy"`
+	BodyExcerpt     string              `json:"body_excerpt,omitempty"`
+	BoundedSummary  string              `json:"bounded_summary,omitempty"`
+	ExtractedFacts  []string            `json:"extracted_facts,omitempty"`
+	PublishedAt     string              `json:"published_at,omitempty"`
+	EffectiveAt     string              `json:"effective_at,omitempty"`
+	TargetSurface   string              `json:"target_surface,omitempty"`
+	PrimaryRole     string              `json:"primary_role,omitempty"`
+	AttachmentRefs  []string            `json:"attachment_refs,omitempty"`
+	ProvenanceRefs  []string            `json:"provenance_refs,omitempty"`
+	FailCloseReason string              `json:"fail_close_reason,omitempty"`
 }
 
 type noticeChangeSetQueryScope struct {

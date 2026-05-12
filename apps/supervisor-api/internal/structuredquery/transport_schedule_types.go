@@ -45,7 +45,6 @@ type transportScheduleResult struct {
 	StopRefs                  []transportStopRef            `json:"stop_refs,omitempty"`
 	RelatedNoticeRefs         []string                      `json:"related_notice_refs,omitempty"`
 	OperationalNotices        []transportOperationalNotice  `json:"operational_notices,omitempty"`
-	HistoricalDowngradeReason string                        `json:"historical_downgrade_reason,omitempty"`
 	FailCloseReason           string                        `json:"fail_close_reason,omitempty"`
 }
 

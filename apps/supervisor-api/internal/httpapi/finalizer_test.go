@@ -289,6 +289,47 @@ func TestWorkflowSourceIDsCollectsStringSliceRefs(t *testing.T) {
 	}
 }
 
+func TestWorkflowSelectedToolsFromRunDoesNotSynthesizeFallbackTool(t *testing.T) {
+	selected := workflowTraceSelectedTools(
+		execution.WorkflowRun{
+			Mode:         execution.WorkflowModeSingleHandoff,
+			HandoffChain: []execution.HandoffStep{{Target: "campus-services-agent"}},
+		},
+		&execution.RuntimeHandoff{Target: "campus-services-agent"},
+		"transport_schedule_lookup",
+	)
+
+	if len(selected) != 0 {
+		t.Fatalf("selected tools = %#v, want empty when run has no selected tool", selected)
+	}
+}
+
+func TestWorkflowSummarySourceIDsDoesNotSynthesizeProjectionIDs(t *testing.T) {
+	sourceIDs := workflowSummarySourceIDs(
+		map[string]any{"outcome": "resolved_current"},
+		map[string]any{},
+	)
+
+	if len(sourceIDs) != 0 {
+		t.Fatalf("sourceIDs = %#v, want empty when result and safe details have no source refs", sourceIDs)
+	}
+}
+
+func TestWorkflowSummarySourceIDsUsesExplicitSafeDetails(t *testing.T) {
+	sourceIDs := workflowSummarySourceIDs(
+		map[string]any{"outcome": "resolved_current"},
+		map[string]any{
+			"safe_details": map[string]any{
+				"source_refs_used": []any{"notice:smoke:001"},
+			},
+		},
+	)
+
+	if len(sourceIDs) != 1 || sourceIDs[0] != "notice:smoke:001" {
+		t.Fatalf("sourceIDs = %#v, want explicit source_refs_used", sourceIDs)
+	}
+}
+
 func TestFinalizeAgentBridgeResponseRejectsDelegateBranchWithoutHandoff(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{

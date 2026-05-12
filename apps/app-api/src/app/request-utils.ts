@@ -78,7 +78,7 @@ export function resolveRequestSurface(request: Request): string {
 	return "app_api";
 }
 
-export function createFallbackCorrelation() {
+export function createRouteErrorCorrelation() {
 	return {
 		requestId: `req_${crypto.randomUUID().replace(/-/g, "")}`,
 		traceId: `trace_${crypto.randomUUID().replace(/-/g, "")}`,
