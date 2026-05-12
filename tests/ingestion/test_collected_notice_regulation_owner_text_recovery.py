@@ -315,7 +315,7 @@ class CollectedNoticeRegulationOwnerTextRecoveryTests(unittest.TestCase):
             row["source_notice_id"]: row["reason_codes"]
             for row in preview.readiness_gap_report["gaps"]
         }
-        self.assertEqual(gaps["301"], ["manual_review_required"])
+        self.assertEqual(gaps["301"], ["candidate_requires_machine_review"])
 
     def test_preview_to_output_files_uses_phase_evidence_filenames(self) -> None:
         preview = build_collected_notice_regulation_owner_text_recovery_preview(

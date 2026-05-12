@@ -254,7 +254,7 @@
 			"inventory_only": false,
 			"release_blockers": ["no_preview_evidence", "machine_field_review_pending"],
 			"preview_status": "candidate",
-			"notes": "Unified identity password reset guide should answer informational questions about self-service reset, recovery path, service-portal fallback and on-site handling only."
+			"notes": "Unified identity password reset guide should answer informational questions about self-service reset, recovery path, service portal route and on-site handling only."
 		},
 		{
 			"inventory_id": "muc-it-network-account-management-guide",

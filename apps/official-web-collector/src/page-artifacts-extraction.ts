@@ -175,7 +175,7 @@ export function extractBlockCandidates(input: {
 					? isInBoilerplateRegion
 						? "boilerplate_region_ancestor"
 						: "navigation_or_footer_ancestor"
-					: "fallback_block_selector",
+					: "generic_block_selector",
 			parentHeadingHint,
 		});
 	}

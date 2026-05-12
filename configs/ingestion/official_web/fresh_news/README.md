@@ -14,7 +14,7 @@ Current runtime truth:
 - serving surface: `fresh_news`
 - query enabled: `false`
 - freshness-sensitive queries supported: `false`
-- live-search fallback allowed: `false`
+- live-search expansion allowed: `false`
 - split manifest required: `true`
 - required metadata fields: `published_at`, `crawled_at`, `last_seen_at`,
   `host`, `page_family`, `section`, `news_kind`

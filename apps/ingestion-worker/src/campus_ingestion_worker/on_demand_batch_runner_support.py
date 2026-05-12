@@ -39,9 +39,9 @@ def parse_stdout_json(stdout: str) -> Any:
 def wrap_with_time(command: tuple[str, ...]) -> tuple[str, ...]:
     time_binary = shutil.which("time")
     if not time_binary:
-        fallback = Path("/usr/bin/time")
-        if fallback.exists():
-            time_binary = str(fallback)
+        system_time_binary = Path("/usr/bin/time")
+        if system_time_binary.exists():
+            time_binary = str(system_time_binary)
     if not time_binary:
         return command
     return (

@@ -124,7 +124,7 @@ def build_authenticated_notice_run_processing_snapshots(
                 _job_summary(record=record, trace_rows=traces_by_job_id.get(record.job_id, ()))
                 for record in ordered_records
             ],
-            "timeline": _timeline(merged_trace_rows, fallback_records=ordered_records),
+            "timeline": _timeline(merged_trace_rows, baseline_records=ordered_records),
             "lastErrorCode": _latest_error_code(latest_record, merged_trace_rows),
             "lastErrorMessage": _latest_error_message(latest_record, merged_trace_rows),
             "firstObservedAt": _first_observed_at(ordered_records, merged_trace_rows),
@@ -340,7 +340,7 @@ def _job_summary(
 def _timeline(
     trace_rows: Sequence[Mapping[str, Any]],
     *,
-    fallback_records: Sequence[NoticeIngestQueueRecord],
+    baseline_records: Sequence[NoticeIngestQueueRecord],
 ) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     for trace_row in sorted(trace_rows, key=_trace_sort_key):
@@ -374,7 +374,7 @@ def _timeline(
             "status": record.status,
             "summary": f"queue job observed: {record.status}",
         }
-        for record in fallback_records
+        for record in baseline_records
     ]
 
 

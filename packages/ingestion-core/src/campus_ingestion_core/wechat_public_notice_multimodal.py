@@ -21,8 +21,6 @@ from campus_ingestion_core.postgres_runtime import (
     normalize_postgres_connection_url,
 )
 from campus_ingestion_core.registry import (
-    DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _coerce_json_payload,
@@ -625,29 +623,26 @@ def build_wechat_public_notice_multimodal_attempt_store_from_env(
     if prefer_operator:
         operator_database_url = (
             source.get(DEFAULT_WECHAT_PUBLIC_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_ENV_KEY)
-            or source.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY)
             or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
             or ""
         ).strip()
         if not operator_database_url:
             raise ValueError(
                 f"{DEFAULT_WECHAT_PUBLIC_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_ENV_KEY} or "
-                f"{DOCUMENT_REGISTRY_OPERATOR_ENV_KEY} or {SHARED_POSTGRES_OPERATOR_ENV_KEY} "
-                "is required when prefer_operator=True"
+                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
             )
         return PostgresWeChatPublicNoticeMultimodalAttemptStore(
             build_operator_postgres_connection_url(operator_database_url)
         )
     database_url = (
         source.get(DEFAULT_WECHAT_PUBLIC_NOTICE_MULTIMODAL_ATTEMPT_ENV_KEY)
-        or source.get(DOCUMENT_REGISTRY_ENV_KEY)
         or source.get(SHARED_POSTGRES_ENV_KEY)
         or ""
     ).strip()
     if not database_url:
         raise ValueError(
             f"{DEFAULT_WECHAT_PUBLIC_NOTICE_MULTIMODAL_ATTEMPT_ENV_KEY} or "
-            f"{DOCUMENT_REGISTRY_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
+            f"{SHARED_POSTGRES_ENV_KEY} is required"
         )
     return PostgresWeChatPublicNoticeMultimodalAttemptStore(database_url=database_url)
 

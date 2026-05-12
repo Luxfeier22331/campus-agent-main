@@ -24,7 +24,7 @@ def structured_regulation_chunks(text: str) -> list[tuple[str, str]]:
     if section_matches:
         return [("article", chunk) for chunk in _chunks_from_matches(stripped, section_matches)]
     chunks = [chunk.strip() for chunk in re.split(r"\n{2,}", stripped) if chunk.strip()]
-    return [("regulation_body_fallback", chunk) for chunk in chunks]
+    return [("regulation_body_unstructured", chunk) for chunk in chunks]
 
 
 def _chunks_from_matches(text: str, matches: list[re.Match[str]]) -> list[str]:

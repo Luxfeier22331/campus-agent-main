@@ -500,12 +500,12 @@ def _unit_findings(
             findings.append(
                 _finding(
                     severity=FINDING_HIGH,
-                    code="pdf_candidate_uses_multimodal_fallback",
+                    code="pdf_candidate_uses_direct_multimodal_path",
                     source_notice_id=source_notice_id,
                     title=title,
                     detail=(
                         "pdf media must use text extraction or OCR-first processing before "
-                        "multimodal fallback"
+                        "direct multimodal processing"
                     ),
                 )
             )
@@ -516,10 +516,10 @@ def _unit_findings(
             findings.append(
                 _finding(
                     severity=FINDING_HIGH,
-                    code="office_candidate_uses_multimodal_fallback",
+                    code="office_candidate_uses_direct_multimodal_path",
                     source_notice_id=source_notice_id,
                     title=title,
-                    detail="office media must use office text extraction before multimodal fallback",
+                    detail="office media must use office text extraction before direct multimodal processing",
                 )
             )
         if str(candidate.get("status") or "") == "pending" and not candidate.get(

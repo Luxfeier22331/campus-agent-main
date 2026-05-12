@@ -415,6 +415,45 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
             "passed",
         )
 
+    def test_institutional_terminal_provision_with_applicability_emits_audience_scope_contract(
+        self,
+    ) -> None:
+        chunks = self._build_chunks(
+            document_id=(
+                "institutional_regulation:muc:"
+                "中央民族大学毕业生就业奖励办法:f16e569519f7"
+            ),
+            rows=(
+                self._row(
+                    document_id=(
+                        "institutional_regulation:muc:"
+                        "中央民族大学毕业生就业奖励办法:f16e569519f7"
+                    ),
+                    root_unit_id=(
+                        "institutional_regulation:muc:"
+                        "中央民族大学毕业生就业奖励办法:f16e569519f7:unit-0025"
+                    ),
+                    clean_text=(
+                        "第十八条 本办法自公布之日起实施，适用于2019届及以后毕业的学生。"
+                        "原《中央民族大学毕业生就业奖励办法》同时废止。"
+                    ),
+                    section_path=(),
+                    title="中央民族大学毕业生就业奖励办法",
+                    article_label="第十八条",
+                    promotion_class="formal_regulation",
+                ),
+            ),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        metadata = chunks[0].metadata
+        self.assertEqual(metadata["answer_role"], "eligibility_condition")
+        self.assertEqual(metadata["condition_subject"], "audience_scope")
+        self.assertEqual(metadata["condition_group_subject"], "audience_scope")
+        self.assertEqual(metadata["condition_polarity"], "positive")
+        self.assertEqual(metadata["is_answer_bearing"], True)
+        self.assertEqual(metadata["answer_ready_contract_validation_status"], "passed")
+
     def test_institutional_eligibility_clause_with_pending_investigation_does_not_become_procedure(
         self,
     ) -> None:

@@ -252,7 +252,7 @@ def build_regulation_document_units(
 ) -> list[dict[str, Any]]:
     chunks = _structured_chunks(canonical_body)
     if not chunks:
-        chunks = [("regulation_body_fallback", canonical_body.strip())]
+        chunks = [("regulation_body_unstructured", canonical_body.strip())]
     return [
         {
             "unit_id": f"{target_document_id}#unit-{index:04d}",

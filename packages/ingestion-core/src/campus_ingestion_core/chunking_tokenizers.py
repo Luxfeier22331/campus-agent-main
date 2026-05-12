@@ -34,9 +34,8 @@ class RegexApproxTokenCounter:
 
 
 class TiktokenTokenCounter:
-    def __init__(self, *, model_name: str, fallback_name: str = DEFAULT_TOKENIZER_NAME) -> None:
+    def __init__(self, *, model_name: str) -> None:
         self.model_name = model_name
-        self.fallback_name = fallback_name
 
     @property
     def name(self) -> str:
@@ -46,18 +45,21 @@ class TiktokenTokenCounter:
         try:
             import tiktoken
         except ImportError:
-            return RegexApproxTokenCounter(name=self.fallback_name).count(text)
+            raise RuntimeError(
+                f"tiktoken is required to count tokens for model {self.model_name}"
+            ) from None
         try:
             encoding = tiktoken.encoding_for_model(self.model_name)
-        except Exception:
-            try:
-                encoding = tiktoken.get_encoding("cl100k_base")
-            except Exception:
-                return RegexApproxTokenCounter(name=self.fallback_name).count(text)
+        except Exception as exc:
+            raise RuntimeError(
+                f"tiktoken encoding is unavailable for model {self.model_name}"
+            ) from exc
         try:
             return len(encoding.encode(text))
-        except Exception:
-            return RegexApproxTokenCounter(name=self.fallback_name).count(text)
+        except Exception as exc:
+            raise RuntimeError(
+                f"tiktoken failed to encode text for model {self.model_name}"
+            ) from exc
 
 
 class HuggingFaceTokenCounter:

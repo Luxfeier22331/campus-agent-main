@@ -40,7 +40,7 @@ def build_regulation_unit_pieces(
         unit=unit,
         require_regulation_body_role=require_regulation_body_role,
     ):
-        return _fallback_unit_pieces(
+        return _generic_unit_pieces(
             unit=unit,
             text=unit.text,
             chunk_profile=chunk_profile,
@@ -73,7 +73,7 @@ def build_regulation_unit_pieces(
                 segments=answer_ready_segments,
                 chunk_profile=chunk_profile,
             )
-        return _fallback_unit_pieces(
+        return _generic_unit_pieces(
             unit=unit,
             text=cleaned_text,
             chunk_profile=chunk_profile,
@@ -91,7 +91,7 @@ def build_regulation_unit_pieces(
             chunk_profile=chunk_profile,
         )
 
-    return _fallback_unit_pieces(
+    return _generic_unit_pieces(
         unit=unit,
         text=cleaned_text,
         chunk_profile=chunk_profile,
@@ -156,7 +156,7 @@ def _short_contextualized_piece(
     )
 
 
-def _fallback_unit_pieces(
+def _generic_unit_pieces(
     *,
     unit: StructuredUnit,
     text: str,

@@ -4,6 +4,8 @@ from dataclasses import asdict, replace
 from pathlib import Path
 
 from campus_ingestion_core import (
+    DEFAULT_BUCKET_DERIVED,
+    ObjectStoreBucketSettings,
     ObjectStoreSettings,
     audit_official_web_projection_chunking,
     build_document_registry_from_env,
@@ -388,7 +390,7 @@ def consume_handoff_record(
             or build_raw_asset_registry_from_env(prefer_operator=True),
             object_store_settings=resolve_persist_object_store_settings(
                 source_bucket=settings.source_bucket,
-                require_env=(
+                require_full_object_store_settings=(
                     derived_object_store is None
                     or document_registry is None
                     or raw_asset_registry is None
@@ -679,10 +681,13 @@ def resolve_derived_object_store(
 def resolve_persist_object_store_settings(
     *,
     source_bucket: str,
-    require_env: bool,
-) -> ObjectStoreSettings:
-    del require_env
-
+    require_full_object_store_settings: bool,
+) -> ObjectStoreBucketSettings:
+    if not require_full_object_store_settings:
+        return ObjectStoreBucketSettings(
+            bucket_source=source_bucket,
+            bucket_derived=DEFAULT_BUCKET_DERIVED,
+        )
     env_settings = ObjectStoreSettings.from_env()
     return ObjectStoreSettings(
         endpoint=env_settings.endpoint,

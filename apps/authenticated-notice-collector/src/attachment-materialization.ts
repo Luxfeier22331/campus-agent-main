@@ -186,6 +186,7 @@ export async function materializeBundleAttachments(
 					noticeId: String(record.notice_id),
 					observedAt: input.observedAt,
 					originHost: materializationCandidate.originHost,
+					requiredAdmission: Boolean(fetchAdmission),
 					requireVisualContent: !fetchAdmission,
 					requestBackoffBaseMs: input.requestBackoffBaseMs,
 					requestMaxRetries: input.requestMaxRetries,
@@ -238,6 +239,7 @@ async function materializeSingleAttachment(input: {
 	noticeId: string;
 	observedAt: string;
 	originHost: string | null;
+	requiredAdmission: boolean;
 	requireVisualContent: boolean;
 	requestBackoffBaseMs: number;
 	requestMaxRetries: number;
@@ -299,7 +301,7 @@ async function materializeSingleAttachment(input: {
 		const initialFilename = resolveAttachmentFilename({
 			attachmentFilename: input.attachment.original_filename,
 			contentDisposition: result.contentDisposition,
-			fallbackUrl: input.attachment.final_url,
+			sourceUrl: input.attachment.final_url,
 		});
 		const extensionContentType =
 			MIME_TYPE_BY_EXTENSION[path.posix.extname(initialFilename).toLowerCase()] ?? null;
@@ -426,6 +428,17 @@ async function materializeSingleAttachment(input: {
 					error_message: terminalMessage,
 				},
 			};
+		}
+		if (input.requiredAdmission) {
+			throw new Error(
+				[
+					"attachment_materialization_failed",
+					`notice=${input.noticeId}`,
+					`attachment=${input.attachmentRefId}`,
+					message,
+				].join(":"),
+				{ cause: error },
+			);
 		}
 		return {
 			attachment: {
@@ -560,11 +573,11 @@ async function fetchExternalVisualBinary(input: {
 function resolveAttachmentFilename(input: {
 	attachmentFilename: string | null;
 	contentDisposition: string | null;
-	fallbackUrl: string | null;
+	sourceUrl: string | null;
 }): string {
 	const attachmentFilename = normalizeAttachmentFilename(
 		input.attachmentFilename,
-		input.fallbackUrl,
+		input.sourceUrl,
 	);
 	if (attachmentFilename !== "attachment") {
 		return attachmentFilename;
@@ -627,9 +640,9 @@ function inferYearLabel(value: string | null): string | null {
 	return match?.[1] ?? null;
 }
 
-function normalizeAttachmentFilename(filename: string | null, fallbackUrl: string | null): string {
-	const fallback = fallbackUrl ? safeBasename(fallbackUrl) : "";
-	const candidate = (filename ?? "").trim() || fallback || "attachment";
+function normalizeAttachmentFilename(filename: string | null, sourceUrl: string | null): string {
+	const sourceBasename = sourceUrl ? safeBasename(sourceUrl) : "";
+	const candidate = (filename ?? "").trim() || sourceBasename || "attachment";
 	return safeBasename(candidate);
 }
 

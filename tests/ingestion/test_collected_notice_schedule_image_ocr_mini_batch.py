@@ -115,10 +115,10 @@ def _consumer_manifest() -> dict[str, object]:
             },
             {
                 "source_notice_id": "355900",
-                "title": "manual review",
+                "title": "machine review",
                 "consumption_class": "needs_multimodal",
-                "ocr_priority": "manual_review",
-                "overlay_kind": "manual_review",
+                "ocr_priority": "machine_review_required",
+                "overlay_kind": "unresolved_machine_review",
             },
         ]
     }

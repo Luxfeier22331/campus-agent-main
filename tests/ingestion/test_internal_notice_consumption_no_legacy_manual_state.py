@@ -66,6 +66,15 @@ class InternalNoticeConsumptionNoLegacyManualStateTest(unittest.TestCase):
         self.assertNotIn("manual_review_count", fields)
         self.assertIn("machine_processing_required_count", fields)
 
+    def test_consumption_layer_schema_has_no_manual_review_attempt_status(self) -> None:
+        root = Path(__file__).resolve().parents[2]
+        schema = (
+            root / "configs/ingestion/campus_notices/internal_notice/consumption-layer-schema.sql"
+        ).read_text(encoding="utf-8")
+
+        self.assertNotIn("'manual_review'", schema)
+        self.assertIn("'machine_review_required'", schema)
+
     def test_authenticated_notice_source_truth_uses_multimodal_processing_classification(
         self,
     ) -> None:

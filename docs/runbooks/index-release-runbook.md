@@ -432,13 +432,14 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
   audit 与 alias publish summary。
 - `release_index` legacy provider-response replay 只用于 no-alias replay；event 只保留
   import result counts，不发布 serving alias。
-- sink/exporter 失败时，worker stdout 的 `telemetry.status` 应为 `degraded` 且
-  `failure_kind=telemetry_export_failed`；job 本身不得因为 telemetry export failure 失败。
+- sink/exporter 失败时，worker stdout 的 `telemetry.status` 应为 `failed` 且
+  `failure_kind=telemetry_export_failed`；job 必须 fail closed，暴露 telemetry 配置、
+  权限或存储问题。
 
 supervisor-agent-worker 可通过 `SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH` 显式注入
 retrieval observation JSONL sink。该 sink 只写 sanitized retrieval observation，用于
 eval / backlog intake，不反向改变 release manifest、runtime profile 或 serving alias；sink
-写入失败只记录 warning，不得让在线 retrieval answer path 失败。
+写入失败必须让在线 retrieval answer path fail closed。
 
 生产观测接入不应继续依赖 JSONL 文件作为主通道。长期接法是：
 
@@ -453,14 +454,14 @@ eval / backlog intake，不反向改变 release manifest、runtime profile 或 s
    attribute filtering、environment/resource attribute enrichment 和 backend export。
 5. metrics 从 event 派生，不由 retrieval-core 直接上报。首批 dashboard/alert 只看：
    retrieval latency、no-hit rate、fail-closed count by `failure_kind`、release metadata
-   drift、reranker degraded、live-assisted branch count。
+   drift、reranker failed、live-assisted branch count。
 
 生产接入验收至少跑三类样本：
 
 - no-hit：确认只有 `query_sha256`，没有 raw query text。
 - release drift：确认 `failure_kind=release_metadata_drift` 可被单独聚合和告警。
-- reranker degraded：确认 answer path 返回 baseline evidence，同时 event 带
-  `reranker_degraded=true`。
+- reranker failed：确认 answer path fail closed，同时 event 带
+  `failure_kind=reranker_failed`。
 
 这些验收只证明 telemetry pipeline 可用，不允许绕过 release gate、qrels gate 或 runtime
 profile gate。
@@ -503,8 +504,8 @@ deterministic adoption evidence 可追溯时，才允许进入 runtime candidate
 
 启用 reranker 的 release payload 必须带同一组 reranker metadata；runtime release drift guard
 会对 opt-in profile 缺失或不一致的 release fail closed。runtime reranker provider
-不可用、超时或 executor 缺失时，retrieval service 必须返回 baseline hybrid/RRF 结果，并在
-observation 中写入 `failure_kind=reranker_degraded` / `reranker_degraded=true`。
+不可用、超时或 executor 缺失时，retrieval service 必须 fail closed，并在
+observation 中写入 `failure_kind=reranker_failed`。
 
 这些检查只产生 release evidence、tuning recommendation 或 backlog candidate；不得直接改写
 runtime profile、canonical qrels 或 serving alias。

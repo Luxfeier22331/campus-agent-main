@@ -46,12 +46,13 @@ party life, and cultural publicity activity. A third expansion splits academic
 program selection and campus news/publicity, and widens student status,
 finance reimbursement/subsidy, exchange/study-abroad, course operation,
 facility/library/IT service status, competition, staff, governance, and research
-publicity rules. A fourth expansion adds the remaining high-confidence
-other/review_later splits for selected-graduate recruitment exams, red 1+1
-governance activity, library reader services, portal/App trials, logistics
-service information, bank deduction, counselor grade appointment, and academic
-calendar notices; fallback `other/review_later` remains a low-confidence boundary
-with `machine_processing_policy=skip`, not a VLM backlog. The full read-only
+publicity rules. A fourth expansion adds the remaining high-confidence splits
+for selected-graduate recruitment exams, red 1+1 governance activity, library
+reader services, portal/App trials, logistics service information, bank
+deduction, counselor grade appointment, and academic calendar notices; historical
+`other/review_later` replay residue is a low-confidence audit label with
+`machine_processing_policy=skip`, not a VLM backlog or current consumer state.
+The full read-only
 taxonomy audit path now writes all `review_later` notices and deterministic
 clusters via `--audit-output-path`; it is operator evidence only and does not
 create selected consumer admission.
@@ -323,8 +324,8 @@ create selected consumer admission.
       `library_service_status`、`it_platform_operation_notice`、
       `facility_transport_classroom_status`、`finance_payment_action`、
       `staff_internal_admin` 与 `academic_course_exam_operation`
-    - fallback `other/review_later` 明确
-      `machine_processing_policy=skip`，只作为低置信分流边界，不形成 VLM backlog
+    - 历史低置信 `other/review_later` 回放项明确
+      `machine_processing_policy=skip`，只作为审计标签，不形成 VLM backlog
     - routing taxonomy fixture 扩到 91 cases；历史 3000 条 bundle 回放结果：
       `other/review_later=205`、`notice_level_query=1385`、
       `service_status_candidate=198`、`defer=1091`
@@ -347,7 +348,7 @@ create selected consumer admission.
   - notice-level query 候选写入 `target_surface=notice_level_query`
   - procurement 历史通知写入 `target_surface=procurement_notice_history`
   - internal restricted no-adoption 写入 `target_surface=unsupported`
-  - `held_in_notice_runtime` 保留为旧常量名兼容 alias；新状态值为
+  - `held_in_notice_runtime` 不再作为兼容 alias 或 query-retained 状态；当前状态值为
     `retained_for_notice_query`
 
 ## Blockers
@@ -389,7 +390,7 @@ create selected consumer admission.
     拆分 source-required、skipped-low-value 与 action-required counts
   - routing sampler / taxonomy 测试：细化 family 分类、bundle sampling 与
     source-truth inventory sampling worker CLI
-  - routing taxonomy eval fixture 覆盖 127 cases，包含 fallback
+  - routing taxonomy eval fixture 覆盖 127 cases，包含历史低置信
     `other/review_later` machine skip guard
 - planning verification:
   - `git diff --check -- ...notice-consumption-layer...`

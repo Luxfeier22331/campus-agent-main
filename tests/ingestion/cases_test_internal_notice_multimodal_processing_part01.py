@@ -412,18 +412,31 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
         self.assertEqual(select_params, ("notice_unit:351907:pending_multimodal",))
         self.assertEqual(attempts, (attempt,))
 
-    def test_attempt_store_builder_uses_dedicated_url_before_admission_fallback(self) -> None:
+    def test_attempt_store_builder_uses_dedicated_url_before_shared_postgres(self) -> None:
         with patch(
             "campus_ingestion_core.internal_notice_multimodal_processing_attempts.PostgresInternalNoticeMultimodalAttemptStore"
         ) as store_cls:
             build_internal_notice_multimodal_attempt_store_from_env(
                 {
                     "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL": "postgresql://attempt/db",
-                    "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL": "postgresql://admission/db",
+                    "CAMPUS_SHARED_POSTGRES_URL": "postgresql://shared/db",
                 }
             )
 
         store_cls.assert_called_once_with(database_url="postgresql://attempt/db")
+
+    def test_attempt_store_builder_rejects_admission_url_without_attempt_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_internal_notice_multimodal_attempt_store_from_env(
+                {
+                    "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL": "postgresql://admission/db",
+                }
+            )
 
     def test_process_pending_multimodal_requires_selected_notice_ids(self) -> None:
         with self.assertRaisesRegex(ValueError, "selected notice_ids are required"):

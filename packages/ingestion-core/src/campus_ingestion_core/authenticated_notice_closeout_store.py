@@ -28,8 +28,6 @@ from campus_ingestion_core.postgres_runtime import (
     build_operator_postgres_connection_url,
 )
 from campus_ingestion_core.registry import (
-    DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
 )
@@ -45,24 +43,19 @@ def build_authenticated_notice_closeout_store_from_env(
         operator_database_url = (
             source.get(DEFAULT_CLOSEOUT_STORE_OPERATOR_ENV_KEY)
             or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-            or source.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY)
             or ""
         ).strip()
         if not operator_database_url:
             raise ValueError(
                 f"{DEFAULT_CLOSEOUT_STORE_OPERATOR_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or "
-                f"{DOCUMENT_REGISTRY_OPERATOR_ENV_KEY} is required when "
+                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when "
                 "prefer_operator=True"
             )
         return PostgresAuthenticatedNoticeCloseoutStore(
             build_operator_postgres_connection_url(operator_database_url)
         )
     database_url = (
-        source.get(DEFAULT_CLOSEOUT_STORE_ENV_KEY)
-        or source.get(SHARED_POSTGRES_ENV_KEY)
-        or source.get(DOCUMENT_REGISTRY_ENV_KEY)
-        or ""
+        source.get(DEFAULT_CLOSEOUT_STORE_ENV_KEY) or source.get(SHARED_POSTGRES_ENV_KEY) or ""
     ).strip()
     if not database_url:
         raise ValueError(

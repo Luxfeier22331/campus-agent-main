@@ -186,7 +186,6 @@ def _build_report(entries: Sequence[NoticeConsumptionProjectionEntry]) -> dict[s
             0,
         ),
         "retained_for_notice_query_count": retained_for_notice_query_count,
-        "held_in_notice_runtime_count": retained_for_notice_query_count,
         "pending_multimodal_processing_count": consumption_status_counts.get(
             NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
             0,

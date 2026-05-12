@@ -662,8 +662,8 @@ async function materializeReleasedFiles(input: {
 			const contentSha256 = createHash("sha256").update(result.body).digest("hex");
 			const resolvedFilename = resolveFileReleaseFilename({
 				contentDisposition: result.contentDisposition,
-				fallbackFilename: record.file_release.upfilename,
-				fallbackUrl: candidateUrl,
+				sourceFilename: record.file_release.upfilename,
+				sourceUrl: candidateUrl,
 			});
 			const resolvedContentType =
 				resolveReleasedFileContentType({
@@ -725,15 +725,14 @@ async function materializeReleasedFiles(input: {
 				});
 				continue;
 			}
-			bundleRecords.push({
-				...record,
-				released_file: {
-					...record.released_file,
-					last_error: message,
-					last_error_class: "transient_failed",
-					updated_at: input.observedAt,
-				},
-			});
+			throw new Error(
+				[
+					"file_release_materialization_failed",
+					`file_release=${record.file_release_id}`,
+					message,
+				].join(":"),
+				{ cause: error },
+			);
 		}
 	}
 

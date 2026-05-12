@@ -161,6 +161,11 @@ def required_payload_index_schemas() -> PayloadIndexSchema:
         ("policy_projection_version", qdrant_models.PayloadSchemaType.KEYWORD),
         ("status", qdrant_models.PayloadSchemaType.KEYWORD),
         ("source_channel", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("answer_role", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("condition_subject", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("condition_group_subject", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("article_no", qdrant_models.PayloadSchemaType.KEYWORD),
+        ("clause_no", qdrant_models.PayloadSchemaType.KEYWORD),
         ("is_current", qdrant_models.PayloadSchemaType.BOOL),
     )
 
@@ -178,9 +183,7 @@ def _chunk_lineage_payload_defaults(
         defaults["source_notice_ids"] = source_notice_ids
         if len(source_notice_ids) == 1:
             defaults["notice_id"] = source_notice_ids[0]
-    source_document_ids = _source_document_ids(
-        metadata=metadata, fallback_document_id=chunk.document_id
-    )
+    source_document_ids = _source_document_ids(metadata=metadata, chunk_id=chunk.chunk_id)
     if source_document_ids:
         defaults["source_document_ids"] = source_document_ids
     return defaults
@@ -189,7 +192,7 @@ def _chunk_lineage_payload_defaults(
 def _source_document_ids(
     *,
     metadata: Mapping[str, object],
-    fallback_document_id: str,
+    chunk_id: str,
 ) -> list[str]:
     source_document_ids = _string_list(metadata.get("source_document_ids"))
     if source_document_ids:
@@ -205,7 +208,7 @@ def _source_document_ids(
         if value:
             candidates.append(value)
     if not candidates:
-        candidates.append(fallback_document_id)
+        raise ValueError(f"source_document_ids lineage is required for chunk {chunk_id}")
     return list(dict.fromkeys(candidates))
 
 

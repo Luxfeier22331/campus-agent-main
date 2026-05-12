@@ -133,7 +133,7 @@ class RebuildInternalNoticeConsumptionProjectionWorkerCliTest(unittest.TestCase)
         self.assertEqual(payload["projection_entry_count"], 2)
         self.assertEqual(payload["ready_for_target_count"], 1)
         self.assertEqual(payload["retained_for_notice_query_count"], 1)
-        self.assertEqual(payload["held_in_notice_runtime_count"], 1)
+        self.assertNotIn("held_in_notice_runtime_count", payload)
         self.assertEqual(payload["primary_role_counts"][NOTICE_PRIMARY_ROLE_NOTICE_WINDOW], 1)
         self.assertIn(
             NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,

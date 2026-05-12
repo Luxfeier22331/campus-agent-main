@@ -172,7 +172,6 @@ class AuthenticatedNoticeOcrProviderRuntime:
 class AuthenticatedNoticeOcrRuntime:
     client: OnlineOcrClient
     provider: str
-    fallback_runtimes: tuple[AuthenticatedNoticeOcrProviderRuntime, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)

@@ -32,7 +32,7 @@ from campus_ingestion_core.registry_scope_release_support import (
     sample_release_payloads as _sample_release_payloads,
 )
 
-_ANSWER_READY_PUBLISHED_FALLBACK_PROVENANCE_FIELDS = (
+_ANSWER_READY_DISALLOWED_PROVENANCE_FIELDS = (
     "condition_subject_provenance",
     "procedure_action_provenance",
 )
@@ -287,7 +287,7 @@ def _published_answer_ready_payload_issues(
                 f"sample_{index}_answer_ready_contract:{issue}" for issue in validation.issues
             )
             issues.extend(
-                _published_answer_ready_fallback_provenance_issues(
+                _published_answer_ready_disallowed_provenance_issues(
                     sample_index=index,
                     metadata=metadata,
                 )
@@ -303,10 +303,10 @@ def _published_answer_ready_payload_issues(
                 for issue in runtime_validation.issues
             )
             issues.extend(
-                _published_answer_ready_fallback_provenance_issues(
+                _published_answer_ready_disallowed_provenance_issues(
                     sample_index=index,
                     metadata=runtime_metadata,
-                    issue_prefix="answer_ready_runtime_fallback_provenance",
+                    issue_prefix="answer_ready_runtime_disallowed_provenance",
                 )
             )
     return tuple(issues)
@@ -318,14 +318,14 @@ def _is_target_answer_ready_payload(metadata: Mapping[str, object]) -> bool:
     return bool(contract_version == ANSWER_READY_EVIDENCE_CONTRACT_VERSION and answer_role)
 
 
-def _published_answer_ready_fallback_provenance_issues(
+def _published_answer_ready_disallowed_provenance_issues(
     *,
     sample_index: int,
     metadata: Mapping[str, object],
-    issue_prefix: str = "answer_ready_fallback_provenance",
+    issue_prefix: str = "answer_ready_disallowed_provenance",
 ) -> tuple[str, ...]:
     issues: list[str] = []
-    for field_name in _ANSWER_READY_PUBLISHED_FALLBACK_PROVENANCE_FIELDS:
+    for field_name in _ANSWER_READY_DISALLOWED_PROVENANCE_FIELDS:
         value = str(metadata.get(field_name) or "").strip()
         if value.startswith("fallback:"):
             issues.append(f"sample_{sample_index}_{issue_prefix}:{field_name}={value}")

@@ -205,10 +205,12 @@ def _build_attachment_refs(
             if url is not None:
                 seen_urls.update(_inline_image_url_dedup_keys(url))
     notice = _notice_payload(bundle_record)
-    for fallback in _html_inline_image_refs(str(notice.get("notice_content") or "")):
-        fallback_keys = set(_inline_image_url_dedup_keys(fallback["source_url"]))
-        fallback_keys.update(_inline_image_url_dedup_keys(fallback["normalized_source_url"]))
-        if seen_urls & fallback_keys:
+    for inline_image in _html_inline_image_refs(str(notice.get("notice_content") or "")):
+        inline_image_keys = set(_inline_image_url_dedup_keys(inline_image["source_url"]))
+        inline_image_keys.update(
+            _inline_image_url_dedup_keys(inline_image["normalized_source_url"])
+        )
+        if seen_urls & inline_image_keys:
             continue
         rows.append(
             {
@@ -218,18 +220,18 @@ def _build_attachment_refs(
                 "attachment_ref_id": f"attachment-{len(rows) + 1:04d}",
                 "ref_order": len(rows) + 1,
                 "notice_id": notice_id,
-                "relation_source": "notice_html_img_fallback",
+                "relation_source": "notice_html_inline_img",
                 "resource_role": "inline_image",
                 "content_kind": "inline_image",
-                "anchor_text": fallback["anchor_text"],
-                "original_filename": fallback["original_filename"],
-                "source_url": fallback["source_url"],
-                "normalized_source_url": fallback["normalized_source_url"],
-                "final_url": fallback["normalized_source_url"],
+                "anchor_text": inline_image["anchor_text"],
+                "original_filename": inline_image["original_filename"],
+                "source_url": inline_image["source_url"],
+                "normalized_source_url": inline_image["normalized_source_url"],
+                "final_url": inline_image["normalized_source_url"],
                 "origin_scope": "internal",
                 "object_key": None,
                 "content_sha256": None,
-                "mime_type": _mime_type_for_filename(fallback["original_filename"]),
+                "mime_type": _mime_type_for_filename(inline_image["original_filename"]),
                 "byte_size": None,
                 "storage_provider": None,
                 "ingest_status": "reference_only",
@@ -237,7 +239,7 @@ def _build_attachment_refs(
                 "last_error_class": None,
             }
         )
-        seen_urls.update(fallback_keys)
+        seen_urls.update(inline_image_keys)
     return tuple(rows)
 
 
@@ -306,7 +308,7 @@ def _html_inline_image_refs(html_value: str) -> tuple[dict[str, str], ...]:
             or _optional_text(attrs.get("alt"))
             or _filename_from_url(source_url)
         )
-        filename = _filename_from_url(source_url, fallback=anchor_text)
+        filename = _filename_from_url(source_url, preferred_text=anchor_text)
         rows.append(
             {
                 "source_url": source_url,
@@ -354,10 +356,10 @@ def _inline_image_url_dedup_keys(value: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys((normalized, scheme_agnostic, path_only)))
 
 
-def _filename_from_url(value: str, fallback: str | None = None) -> str:
+def _filename_from_url(value: str, preferred_text: str | None = None) -> str:
     parsed = urlparse(unescape(value).strip())
     path_name = unquote(str(parsed.path or "").rstrip("/").split("/")[-1])
-    candidate = _optional_text(fallback) or _optional_text(path_name) or "inline-image"
+    candidate = _optional_text(preferred_text) or _optional_text(path_name) or "inline-image"
     return candidate.split("/")[-1].strip() or "inline-image"
 
 

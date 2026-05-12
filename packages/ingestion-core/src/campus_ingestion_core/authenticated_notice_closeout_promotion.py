@@ -128,7 +128,7 @@ class CloseoutPromotionCoordinator:
             return self.build_run_summary(run.run_id)
         except Exception as exc:
             failed_promotion = self._merge_promotion(
-                self._latest_promotion(run.run_id, fallback=promotion),
+                self._latest_promotion(run.run_id, current_promotion=promotion),
                 last_error=str(exc),
             )
             self._persist_progress(run=run, request=request, promotion=failed_promotion)
@@ -381,10 +381,10 @@ class CloseoutPromotionCoordinator:
             segments=("promotions", str(promotion["promotion_id"])),
         )
 
-    def _latest_promotion(self, run_id: str, *, fallback: dict[str, Any]) -> dict[str, Any]:
+    def _latest_promotion(self, run_id: str, *, current_promotion: dict[str, Any]) -> dict[str, Any]:
         run = self.closeout_store.get_run(run_id)
         if run is None or not run.promotion:
-            return dict(fallback)
+            return dict(current_promotion)
         return dict(run.promotion)
 
     @staticmethod

@@ -25,7 +25,7 @@ ALLOWED_SERVING_SURFACES = ("mixed", "stable_reference", "fresh_news", "news_arc
 OFFICIAL_WEB_STABLE_REFERENCE_LIKE_COLLECTIONS = frozenset({"muc_public_pages", "stable_reference"})
 OFFICIAL_WEB_STABLE_REFERENCE_LIKE_SURFACES = frozenset({"mixed", "stable_reference"})
 ALLOWED_ARTIFACT_MODES = ("normalized", "source_truth_only")
-ALLOWED_LISTING_PAGE_ROLES = ("discovery_only", "navigation_fallback", "primary_evidence")
+ALLOWED_LISTING_PAGE_ROLES = ("discovery_only", "navigation_hint", "primary_evidence")
 ALLOWED_SOURCE_OCR_IMAGE_ROUTING_STRATEGIES = ("default", "mineru_primary")
 DEFAULT_DENSE_PREFETCH_LIMIT = 20
 DEFAULT_SPARSE_PREFETCH_LIMIT = 20
@@ -59,7 +59,6 @@ class CollectionRuntimeProfile:
     source_ocr_provider: str | None = None
     source_ocr_model: str | None = None
     source_parser_version: str | None = None
-    source_ocr_fallback_enabled: bool = False
     source_ocr_image_routing_strategy: str | None = None
     serving_surface: str | None = None
     supports_freshness_sensitive_queries: bool = False
@@ -267,7 +266,6 @@ def load_runtime_profile(
         source_ocr_provider=_optional_text(payload.get("source_ocr_provider")),
         source_ocr_model=_optional_text(payload.get("source_ocr_model")),
         source_parser_version=_optional_text(payload.get("source_parser_version")),
-        source_ocr_fallback_enabled=bool(payload.get("source_ocr_fallback_enabled", False)),
         source_ocr_image_routing_strategy=_optional_text(
             payload.get("source_ocr_image_routing_strategy")
         ),

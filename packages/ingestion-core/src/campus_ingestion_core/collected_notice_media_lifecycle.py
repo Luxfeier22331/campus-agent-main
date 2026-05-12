@@ -23,26 +23,11 @@ MEDIA_LIFECYCLE_NONTERMINAL_STATUSES = frozenset(
 )
 MEDIA_LIFECYCLE_STATUSES = MEDIA_LIFECYCLE_TERMINAL_STATUSES | MEDIA_LIFECYCLE_NONTERMINAL_STATUSES
 
-_COMPLETED_ALIASES = frozenset(("ready", "succeeded", "stored", "processed", "admitted"))
-_MANUAL_REVIEW_ALIASES = frozenset(("review", "low_confidence", "ocr_low_confidence"))
 
-
-def normalize_media_lifecycle_status(
-    status: object,
-    *,
-    allow_legacy_failed: bool = False,
-) -> str:
+def normalize_media_lifecycle_status(status: object) -> str:
     normalized = str(status or "").strip()
     if normalized in MEDIA_LIFECYCLE_STATUSES:
         return normalized
-    if normalized in _COMPLETED_ALIASES:
-        return MEDIA_LIFECYCLE_COMPLETED
-    if normalized in _MANUAL_REVIEW_ALIASES:
-        return MEDIA_LIFECYCLE_MANUAL_REVIEW
-    if normalized == "failed" and allow_legacy_failed:
-        return MEDIA_LIFECYCLE_FAILED_RETRYABLE
-    if not normalized:
-        return MEDIA_LIFECYCLE_PENDING
     raise ValueError(f"media lifecycle status has unsupported value: {normalized}")
 
 

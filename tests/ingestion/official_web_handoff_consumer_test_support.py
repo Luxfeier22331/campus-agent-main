@@ -12,11 +12,11 @@ from campus_ingestion_core.official_web_projection_shared import (
     OfficialWebProjectionReplayReport,
     OfficialWebProjectionValidationReport,
 )
-from campus_ingestion_worker import (
+from campus_ingestion_worker.official_web_handoff_consumer_models import (
     OfficialWebHandoffConsumeResult,
     OfficialWebHandoffConsumerSettings,
-    consume_handoff_record,
 )
+from campus_ingestion_worker.official_web_handoff_consumer_runtime import consume_handoff_record
 
 
 def _write_json(path: Path, payload: object) -> None:

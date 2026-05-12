@@ -11,6 +11,7 @@ from campus_ingestion_core.regulation_semantics import (
     infer_regulation_body_content_role,
     load_default_regulation_semantics_registry,
     looks_like_condition_claim_text,
+    looks_like_explicit_applicability_clause,
     normalize_regulation_semantic_text,
 )
 
@@ -177,8 +178,6 @@ def _resolve_content_role(
         return "table_fact"
     if _is_amount_or_quota_fact(text):
         return "table_fact"
-    if _is_closing_provision(detail_label=detail_label, anchor=anchor, text=text):
-        return "closing_provision"
     shared_body_role = infer_regulation_body_content_role(
         detail_label=detail_label,
         section_leaf=_section_leaf(anchor),
@@ -186,6 +185,8 @@ def _resolve_content_role(
     )
     if shared_body_role:
         return shared_body_role
+    if _is_closing_provision(detail_label=detail_label, anchor=anchor, text=text):
+        return "closing_provision"
     if explicit_role in _EXPLICIT_REGULATION_BODY_CONTENT_ROLES:
         return explicit_role
     return ""
@@ -500,6 +501,8 @@ def _is_terminal_provision_line(line: str) -> bool:
     registry = load_default_regulation_semantics_registry()
     normalized = _strip_leading_label(_normalize_text(line))
     if not normalized:
+        return False
+    if looks_like_explicit_applicability_clause(normalized):
         return False
     if any(keyword in normalized for keyword in registry.terminal_provision_markers):
         return True

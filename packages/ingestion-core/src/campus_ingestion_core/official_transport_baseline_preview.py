@@ -130,7 +130,7 @@ def _parse_baseline_rows(
                 service_date_policy=service_policy,
                 route_direction=_route_direction(route_id),
                 route_id=route_id,
-                sequence=_int_or_position(cells[2], fallback=row_index),
+                sequence=_int_or_position(cells[2], default_value=row_index),
                 departure_time=departure_time,
                 rider_type=_rider_type(cells[4]),
                 note=cells[5],
@@ -386,11 +386,11 @@ def _rider_type(value: str) -> str:
     return value.strip()
 
 
-def _int_or_position(value: str, *, fallback: int) -> int:
+def _int_or_position(value: str, *, default_value: int) -> int:
     try:
         return int(re.sub(r"\D+", "", value))
     except ValueError:
-        return fallback
+        return default_value
 
 
 def _positive_int(value: str | None, *, default: int) -> int:

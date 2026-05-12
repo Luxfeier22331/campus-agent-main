@@ -31,7 +31,7 @@ class OfficialWebHandoffConsumerStagingTestPart03(unittest.TestCase):
 
             with (
                 patch(
-                    "campus_ingestion_worker.official_web_handoff_consumer.replay_official_web_source_truth_local",
+                    "campus_ingestion_worker.official_web_handoff_consumer_runtime.replay_official_web_source_truth_local",
                     return_value=OfficialWebProjectionReplayReport(
                         schema_version="official_web_projection_replay_report.v1",
                         site_id="campus_public",
@@ -84,7 +84,7 @@ class OfficialWebHandoffConsumerStagingTestPart03(unittest.TestCase):
                     ),
                 ),
                 patch(
-                    "campus_ingestion_worker.official_web_handoff_consumer.validate_official_web_projection_output",
+                    "campus_ingestion_worker.official_web_handoff_consumer_runtime.validate_official_web_projection_output",
                     return_value=OfficialWebProjectionValidationReport(
                         schema_version="official_web_projection_validation_report.v1",
                         valid=True,
@@ -94,7 +94,7 @@ class OfficialWebHandoffConsumerStagingTestPart03(unittest.TestCase):
                     ),
                 ),
                 patch(
-                    "campus_ingestion_worker.official_web_handoff_consumer.audit_official_web_projection_chunking",
+                    "campus_ingestion_worker.official_web_handoff_consumer_runtime.audit_official_web_projection_chunking",
                     return_value=OfficialWebProjectionChunkingAuditReport(
                         schema_version="official_web_projection_chunking_audit.v1",
                         projection_output_dir=str(execution_root_dir / "projection"),
@@ -107,7 +107,7 @@ class OfficialWebHandoffConsumerStagingTestPart03(unittest.TestCase):
                     ),
                 ),
                 patch(
-                    "campus_ingestion_worker.official_web_handoff_consumer._persist_projection_output",
+                    "campus_ingestion_worker.official_web_handoff_consumer_runtime.persist_projection_output",
                     return_value=ImportReport(
                         import_mode="official_web_source_truth_replay",
                         success_count=1,

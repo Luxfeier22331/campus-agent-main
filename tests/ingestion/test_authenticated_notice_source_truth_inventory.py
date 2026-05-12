@@ -425,7 +425,7 @@ class AuthenticatedNoticeSourceTruthReplayPayloadContractTest(unittest.TestCase)
                 "notice_id": "355120",
                 "document_id": "notice:muc_internal_portal:355120",
                 "raw_record": {"raw_asset_id": "asset:355120"},
-                "expected_attachment_documents": [
+                "attachment_projection_plans": [
                     {
                         "attachment_ref_id": "attachment-0003",
                         "classification": "text_extractable",
@@ -462,6 +462,27 @@ class AuthenticatedNoticeSourceTruthReplayPayloadContractTest(unittest.TestCase)
             [parent["notice_id"] for parent in batch_payload["source_truth_parents"]],
             ["355120", "355119"],
         )
+
+    def test_replay_rejects_legacy_expected_attachment_documents_without_projection_plans(
+        self,
+    ) -> None:
+        parents = (
+            {
+                "notice_id": "355120",
+                "document_id": "notice:muc_internal_portal:355120",
+                "expected_attachment_documents": [
+                    {
+                        "attachment_ref_id": "attachment-0003",
+                        "classification": "text_extractable",
+                        "document_id": "notice_attachment:muc_internal_portal:355120:attachment-0003",
+                        "materialization_policy": "required_document",
+                    }
+                ],
+            },
+        )
+
+        with self.assertRaisesRegex(ValueError, "attachment_projection_plans"):
+            build_authenticated_notice_source_truth_replay_expected_scope(parents)
 
 
 if __name__ == "__main__":

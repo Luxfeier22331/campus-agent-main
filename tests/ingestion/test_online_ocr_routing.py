@@ -110,7 +110,7 @@ def _build_mineru_archive_with_list_and_running_header_bytes() -> bytes:
     return buffer.getvalue()
 
 
-def _build_mineru_fallback_archive_with_nested_content_bytes() -> bytes:
+def _build_mineru_archive_with_nested_content_bytes() -> bytes:
     content_items = [
         [
             {
@@ -288,9 +288,9 @@ class OnlineOcrRoutingTest(unittest.TestCase):
         )
 
         self.assertTrue(decision.canonical_allowed)
-        self.assertEqual(decision.route_id, "pdf_mineru_primary_with_paddle_fallback")
+        self.assertEqual(decision.route_id, "pdf_mineru_primary")
         self.assertEqual(decision.canonical_provider, "mineru_api")
-        self.assertEqual(decision.fallback_provider, "paddleocr_async_jobs")
+        self.assertIsNone(decision.alternate_provider)
         self.assertEqual(decision.parser_version, "mineru-vlm-adapted-v2")
         self.assertTrue(decision.persist_raw_provider_artifact)
 
@@ -304,7 +304,7 @@ class OnlineOcrRoutingTest(unittest.TestCase):
         self.assertTrue(decision.canonical_allowed)
         self.assertEqual(decision.route_id, "generic_image_paddle_primary")
         self.assertEqual(decision.canonical_provider, "paddleocr_async_jobs")
-        self.assertIsNone(decision.fallback_provider)
+        self.assertIsNone(decision.alternate_provider)
         self.assertEqual(decision.parser_version, "paddleocr-vl-1.5")
 
     def test_select_online_ocr_routing_uses_mineru_primary_image_strategy_for_generic_image(
@@ -318,9 +318,9 @@ class OnlineOcrRoutingTest(unittest.TestCase):
         )
 
         self.assertTrue(decision.canonical_allowed)
-        self.assertEqual(decision.route_id, "generic_image_mineru_primary_with_paddle_fallback")
+        self.assertEqual(decision.route_id, "generic_image_mineru_primary")
         self.assertEqual(decision.canonical_provider, "mineru_api")
-        self.assertEqual(decision.fallback_provider, "paddleocr_async_jobs")
+        self.assertIsNone(decision.alternate_provider)
         self.assertEqual(decision.parser_version, "mineru-vlm-adapted-v2")
         self.assertTrue(decision.persist_raw_provider_artifact)
 
@@ -345,7 +345,7 @@ class OnlineOcrRoutingTest(unittest.TestCase):
         self.assertFalse(decision.canonical_allowed)
         self.assertEqual(decision.route_id, "semantic_image_deferred")
         self.assertIsNone(decision.canonical_provider)
-        self.assertIsNone(decision.fallback_provider)
+        self.assertIsNone(decision.alternate_provider)
         self.assertIn("semantic_image_deferred", decision.reason_codes)
 
     def test_adapt_mineru_archive_to_canonical_provider_payload_builds_paddle_shaped_jsonl(
@@ -404,11 +404,11 @@ class OnlineOcrRoutingTest(unittest.TestCase):
             "（一）无经济来源的烈士子女和优抚家庭子女；\n（二）无经济来源的孤儿；",
         )
 
-    def test_adapt_mineru_archive_to_canonical_provider_payload_extracts_nested_fallback_content(
+    def test_adapt_mineru_archive_to_canonical_provider_payload_extracts_nested_content(
         self,
     ) -> None:
         payload = adapt_mineru_archive_to_canonical_provider_payload(
-            _build_mineru_fallback_archive_with_nested_content_bytes()
+            _build_mineru_archive_with_nested_content_bytes()
         )
 
         result = json.loads(payload.decode("utf-8").splitlines()[0])["result"]

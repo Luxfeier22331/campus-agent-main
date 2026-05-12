@@ -26,7 +26,7 @@ def _segments_to_pieces(
     chunk_profile: ChunkProfile,
 ) -> tuple[SemanticChunkPiece, ...]:
     expanded_segments: list[_RegulationSegment] = []
-    fallback_profile = _without_overlap(chunk_profile)
+    token_guardrail_profile = _without_overlap(chunk_profile)
     for segment in segments:
         segment_unit = StructuredUnitChunkInput(
             unit_type=unit.unit_type,
@@ -43,9 +43,9 @@ def _segments_to_pieces(
         if chunk_profile.count_tokens(segment.text) <= display_budget.max_tokens:
             expanded_segments.append(segment)
             continue
-        fallback_pieces = chunk_structured_unit(
+        token_guardrail_pieces = chunk_structured_unit(
             unit=segment_unit,
-            chunk_profile=fallback_profile,
+            chunk_profile=token_guardrail_profile,
         )
         expanded_segments.extend(
             _RegulationSegment(
@@ -55,7 +55,7 @@ def _segments_to_pieces(
                 split_reason=piece.split_reason or segment.split_reason,
                 boundary_rule=piece.boundary_rule or segment.boundary_rule,
             )
-            for piece in fallback_pieces
+            for piece in token_guardrail_pieces
         )
 
     total = len(expanded_segments)

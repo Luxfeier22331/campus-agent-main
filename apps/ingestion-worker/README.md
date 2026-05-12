@@ -401,7 +401,7 @@ Behavior:
 - Inventories historical inbox records against source-bucket
   `source-truth-bundle.json` availability
 - Reuses recoverable local collector outputs instead of introducing worker-local
-  `/tmp` fallback into runtime execution
+  `/tmp` recovery paths into runtime execution
 - Uploads canonical run artifacts under `official_web/{siteId}/runs/{runId}/...`
 - Uploads canonical source assets under
   `official_web/{rawAssetId}/undated/{rawVersionId}/...`
@@ -537,7 +537,8 @@ Behavior:
 - Optional `OCR_MINERU_*` settings enable a second provider only for
   `RAW_INGESTION_ARTIFACT_MODE=source_truth_only` conditional routing. Current
   repo truth is:
-  - typed PDF: `MinerU primary -> Paddle fallback`
+  - typed PDF: MinerU primary; Paddle is only an explicit secondary lane when
+    the typed routing contract requests it
   - `generic_image`: dual-run Paddle + MinerU, refine raw asset type, then
     choose canonical provider
   - refined `simple_table_image`: Paddle primary
@@ -1279,7 +1280,8 @@ Behavior:
   smoke releases to the PG release catalog and typed read-model tables.
 - Verifies that each collection's current pointer resolves to the smoke release.
 - Intended for local `open_structured` runtime smoke and deployment readiness
-  checks. It requires a real PG URL and does not create file fallback fixtures.
+  checks. It requires a real PG URL and does not create file-based projection
+  fixtures.
 
 ### `migrate_student_handbook_source_faithful`
 

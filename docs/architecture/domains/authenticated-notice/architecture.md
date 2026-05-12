@@ -158,7 +158,7 @@ center 或 owner-specific downstream admission。
 - 内部通知系统的稳定资源身份首先由 notice identity 决定
 - list/detail API、正文 HTML、链接观测与附件关系都应围绕同一条 notice 归并
 - `notice_browser_url` / `portal_print_url` 只作为可浏览详情入口 metadata；它们不替代
-  `source_notice_link`、`campusnotice://...` fallback、raw asset id 或 document id
+  `source_notice_link`、`campusnotice://...` canonical URI、raw asset id 或 document id
 
 ## Object-Native Collector To Worker Handoff
 
@@ -211,7 +211,7 @@ required object roles：
     stale object ref 推断 bytes 可用
 
 worker `--run-id` import 必须通过 Python-owned ledger resolver 读取上述字段。resolver
-不读取 TypeScript 私有类型，不从 run ledger 的 local path fallback，也不假设 collector 与
+不读取 TypeScript 私有类型，不从 run ledger 的 local path recovery field 推断对象位置，也不假设 collector 与
 worker 共享 volume。
 
 explicit object-ref import 允许作为等价主链路输入，但必须提供 `source_bucket`、
@@ -283,7 +283,7 @@ notice-family taxonomy review 是 source-channel/operator 侧的只读抽样工�
   `notice_level_query`；把设施、教室、自习室、交通/班车、IT 平台、图书馆开放/关闭等可用性/开放时间变化归入
   `service_status_candidate`；把内部行政、人事/员工内部事项、研究宣传征稿、党团治理生活、一般文化宣传和校园新闻归入
   `defer`，且默认跳过低价值视觉处理
-- fallback `other` 在缺少动作、服务、宣传或高价值证据时直接关闭为
+- 未命中规则的 `other` 在缺少动作、服务、宣传或高价值证据时直接关闭为
   `no_adoption`，默认 `machine_processing_policy=skip`；需要视觉/附件理解的
   高价值通知进入 `pending_multimodal_processing`，不形成延后人工处理状态
 - 它不代表 consumer admission，不写 projection/read model，也不打开 query-serving
@@ -1047,8 +1047,8 @@ attachment extraction lane 固定按类型分流，不做多套 fallback：
   主链路；只保留 relation truth，并显式记录 `review_reason`
 - `ocr_required`：走 shared OCR lane，并始终先归一化成 repo-owned canonical provider
   payload；对 `internal_notice`，规章制度 / 手册类 `pdf` 默认也进入这条 lane。provider 选择以 shared
-  file-asset routing 为准：文档型 `pdf` / complex document image 默认 `MinerU primary ->
-  Paddle fallback`，generic image 保持 Paddle 优先。native PDF extraction 最多只作为
+  file-asset routing 为准：文档型 `pdf` / complex document image 默认 MinerU primary，
+  Paddle 只作为显式 secondary lane，generic image 保持 Paddle 优先。native PDF extraction 最多只作为
   diagnostics / probe，不是 canonical 主链路。对 `state=done` 但 provider result
   持续不可读的情况，只有在 attachment 已经确认属于有效 OCR candidate，且已结合 notice 正文上下文排除错误分流后，才视为
   provider contract breach

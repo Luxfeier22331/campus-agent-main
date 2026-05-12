@@ -353,7 +353,6 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.source_ocr_provider, "mineru_api")
         self.assertEqual(profile.source_ocr_model, "vlm")
         self.assertEqual(profile.source_parser_version, "mineru-vlm-adapted-v2")
-        self.assertTrue(profile.source_ocr_fallback_enabled)
         self.assertEqual(profile.source_ocr_image_routing_strategy, "mineru_primary")
 
     def test_load_official_web_runtime_profile_current_truth_remains_offline_and_not_freshness_ready(

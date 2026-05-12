@@ -331,6 +331,7 @@ from campus_ingestion_core.scope_catalog import (
 from campus_ingestion_core.settings import (
     DEFAULT_BUCKET_DERIVED,
     DEFAULT_BUCKET_SOURCE,
+    ObjectStoreBucketSettings,
     ObjectStoreSettings,
 )
 from campus_ingestion_core.sparse import (
@@ -443,6 +444,7 @@ __all__ = [
     "LocalDataRebuildReport",
     "MockEmbeddingSettings",
     "MockSparseEmbeddingSettings",
+    "ObjectStoreBucketSettings",
     "ObjectStoreSettings",
     "OfficialWebProjectionChunkingAuditDocumentReport",
     "OfficialWebProjectionChunkingAuditReport",

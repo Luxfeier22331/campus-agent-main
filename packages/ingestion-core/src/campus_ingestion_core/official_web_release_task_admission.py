@@ -94,7 +94,7 @@ def build_selected_write_release_task_from_candidate(
     source_refs = _source_refs(candidate=candidate, primary_source_ref=source_ref)
     source_urls = _source_urls_from_refs(
         source_refs=source_refs,
-        fallback_url=_required_text(
+        normalized_canonical_url=_required_text(
             candidate.get("normalized_canonical_url"),
             "normalized_canonical_url",
         ),
@@ -293,7 +293,7 @@ def _source_refs(
 def _source_urls_from_refs(
     *,
     source_refs: Sequence[Mapping[str, Any]],
-    fallback_url: str,
+    normalized_canonical_url: str,
 ) -> list[str]:
     urls = [
         url
@@ -301,7 +301,7 @@ def _source_urls_from_refs(
         if url
     ]
     if not urls:
-        urls = [_required_text(fallback_url, "normalized_canonical_url")]
+        urls = [_required_text(normalized_canonical_url, "normalized_canonical_url")]
     return _dedupe_strings(urls)
 
 

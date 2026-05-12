@@ -27,10 +27,6 @@ from campus_ingestion_core.notice_consumption_projection import (
     DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY,
 )
 from campus_ingestion_core.registry import (
-    DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-    RAW_ASSET_REGISTRY_ENV_KEY,
-    RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
 )
@@ -44,8 +40,6 @@ def _build_inventory_store_from_env_if_configured(
     management_env_keys = (
         DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
         SHARED_POSTGRES_OPERATOR_ENV_KEY,
-        DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-        RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
     )
     if any(env.get(key) for key in management_env_keys):
         return builder(
@@ -55,8 +49,6 @@ def _build_inventory_store_from_env_if_configured(
     runtime_env_keys = (
         DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY,
         SHARED_POSTGRES_ENV_KEY,
-        DOCUMENT_REGISTRY_ENV_KEY,
-        RAW_ASSET_REGISTRY_ENV_KEY,
     )
     if any(env.get(key) for key in runtime_env_keys):
         return builder(env)
@@ -89,7 +81,6 @@ def _build_consumption_projection_store_from_env_if_configured(
 ) -> NoticeConsumptionProjectionStore | None:
     projection_operator_env_keys = (
         DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY,
-        DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
         SHARED_POSTGRES_OPERATOR_ENV_KEY,
     )
     if any(env.get(key) for key in projection_operator_env_keys):
@@ -97,7 +88,6 @@ def _build_consumption_projection_store_from_env_if_configured(
     projection_runtime_env_keys = (
         DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY,
         SHARED_POSTGRES_ENV_KEY,
-        DOCUMENT_REGISTRY_ENV_KEY,
     )
     if any(env.get(key) for key in projection_runtime_env_keys):
         return build_notice_consumption_projection_store_from_env(env)
@@ -109,7 +99,6 @@ def _build_read_model_store_from_env_if_configured(
 ) -> InternalNoticeReadModelStore | None:
     read_model_operator_env_keys = (
         DEFAULT_INTERNAL_NOTICE_READ_MODEL_OPERATOR_ENV_KEY,
-        DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
         SHARED_POSTGRES_OPERATOR_ENV_KEY,
     )
     if any(env.get(key) for key in read_model_operator_env_keys):
@@ -117,7 +106,6 @@ def _build_read_model_store_from_env_if_configured(
     read_model_runtime_env_keys = (
         DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,
         SHARED_POSTGRES_ENV_KEY,
-        DOCUMENT_REGISTRY_ENV_KEY,
     )
     if any(env.get(key) for key in read_model_runtime_env_keys):
         return build_internal_notice_read_model_store_from_env(env)

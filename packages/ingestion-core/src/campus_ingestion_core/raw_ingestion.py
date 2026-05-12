@@ -125,7 +125,6 @@ class RawIngestionProcessSettings:
     artifact_mode: str
     split_manifest_path: Path | None
     source_ocr_provider: str
-    source_ocr_fallback_enabled: bool
     source_ocr_image_routing_strategy: str | None
     parser_version: str
     embedding_model: str
@@ -188,7 +187,6 @@ class RawIngestionProcessSettings:
             artifact_mode=request.artifact_mode,
             split_manifest_path=request.split_manifest_path,
             source_ocr_provider=source_ocr_runtime.provider,
-            source_ocr_fallback_enabled=profile.source_ocr_fallback_enabled,
             source_ocr_image_routing_strategy=profile.source_ocr_image_routing_strategy,
             parser_version=source_ocr_runtime.parser_version,
             embedding_model=(

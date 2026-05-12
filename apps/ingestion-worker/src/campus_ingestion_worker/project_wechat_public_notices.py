@@ -12,7 +12,6 @@ from typing import Any
 from campus_ingestion_core.authenticated_notice_closeout_models import utc_now
 from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWriter
 from campus_ingestion_core.internal_notice_consumption_admission import (
-    DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_ENV_KEY,
     build_internal_notice_consumption_admission_store_from_env,
     record_internal_notice_consumption_admission,
 )
@@ -21,15 +20,11 @@ from campus_ingestion_core.internal_notice_read_model import (
 )
 from campus_ingestion_core.local_rebuild_support import S3ObjectStoreAdmin
 from campus_ingestion_core.notice_consumption_projection import (
-    DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY,
     InMemoryNoticeConsumptionProjectionStore,
     build_notice_consumption_projection_store_from_env,
 )
 from campus_ingestion_core.postgres_runtime import open_postgres_connection
-from campus_ingestion_core.registry import (
-    DOCUMENT_REGISTRY_ENV_KEY,
-    SHARED_POSTGRES_ENV_KEY,
-)
+from campus_ingestion_core.registry import SHARED_POSTGRES_ENV_KEY
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.wechat_public_notice_projection import (
     WECHAT_PUBLIC_NOTICE_SOURCE_COLLECTION,
@@ -408,14 +403,6 @@ def _load_capture_run_refs(
     if not resolved_capture_run_id and not latest_completed_capture_run:
         return (), ""
     database_url = _capture_ledger_database_url(env)
-    if not database_url:
-        raise ValueError(
-            f"{WECHAT_CAPTURE_LEDGER_ENV_KEY} or "
-            f"{SHARED_POSTGRES_ENV_KEY} or "
-            f"{DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY} or "
-            f"{DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_ENV_KEY} or "
-            f"{DOCUMENT_REGISTRY_ENV_KEY} is required for capture-run selection"
-        )
     with open_postgres_connection(database_url) as conn, conn.cursor() as cursor:
         if latest_completed_capture_run:
             cursor.execute(
@@ -533,14 +520,14 @@ def _build_capture_refs_from_artifacts(
 
 
 def _capture_ledger_database_url(env: dict[str, str]) -> str:
-    return (
-        env.get(WECHAT_CAPTURE_LEDGER_ENV_KEY)
-        or env.get(SHARED_POSTGRES_ENV_KEY)
-        or env.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY)
-        or env.get(DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_ENV_KEY)
-        or env.get(DOCUMENT_REGISTRY_ENV_KEY)
-        or ""
+    database_url = (
+        env.get(WECHAT_CAPTURE_LEDGER_ENV_KEY) or env.get(SHARED_POSTGRES_ENV_KEY) or ""
     ).strip()
+    if not database_url:
+        raise ValueError(
+            f"{WECHAT_CAPTURE_LEDGER_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
+        )
+    return database_url
 
 
 def _build_report(

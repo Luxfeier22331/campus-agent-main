@@ -17,10 +17,6 @@ from campus_ingestion_core.notice_consumption_projection import (
     DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY,
 )
 from campus_ingestion_core.registry import (
-    DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-    RAW_ASSET_REGISTRY_ENV_KEY,
-    RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
 )
@@ -34,10 +30,6 @@ def env_has_inventory_store_config(env: dict[str, str]) -> bool:
             DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY,
             SHARED_POSTGRES_OPERATOR_ENV_KEY,
             SHARED_POSTGRES_ENV_KEY,
-            DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-            DOCUMENT_REGISTRY_ENV_KEY,
-            RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
-            RAW_ASSET_REGISTRY_ENV_KEY,
         )
     )
 
@@ -62,8 +54,6 @@ def env_has_consumption_projection_config(env: dict[str, str]) -> bool:
             DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY,
             SHARED_POSTGRES_OPERATOR_ENV_KEY,
             SHARED_POSTGRES_ENV_KEY,
-            DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-            DOCUMENT_REGISTRY_ENV_KEY,
         )
     )
 
@@ -76,8 +66,6 @@ def env_has_read_model_config(env: dict[str, str]) -> bool:
             DEFAULT_INTERNAL_NOTICE_READ_MODEL_ENV_KEY,
             SHARED_POSTGRES_OPERATOR_ENV_KEY,
             SHARED_POSTGRES_ENV_KEY,
-            DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-            DOCUMENT_REGISTRY_ENV_KEY,
         )
     )
 

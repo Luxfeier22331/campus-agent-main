@@ -841,7 +841,7 @@ class InternalNoticeScheduleImageOcrTest(unittest.TestCase):
         self.assertEqual(select_params, ("355122", "attachment-1", 1))
         self.assertEqual(attempts, (attempt,))
 
-    def test_attempt_store_builder_uses_schedule_ocr_url_before_shared_fallback(self) -> None:
+    def test_attempt_store_builder_uses_schedule_ocr_url_before_shared_postgres(self) -> None:
         with patch(
             "campus_ingestion_core.internal_notice_schedule_image_ocr."
             "PostgresScheduleImageOcrAttemptStore"
@@ -856,6 +856,19 @@ class InternalNoticeScheduleImageOcrTest(unittest.TestCase):
             )
 
         store_cls.assert_called_once_with(database_url="postgresql://schedule-ocr/db")
+
+    def test_attempt_store_builder_rejects_admission_url_without_ocr_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_schedule_image_ocr_attempt_store_from_env(
+                {
+                    "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL": "postgresql://admission/db",
+                }
+            )
 
     def test_notice_review_separates_schedule_tables_from_visual_guide_images(self) -> None:
         table_evidence = _evidence(

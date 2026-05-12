@@ -198,7 +198,7 @@ def _records(
         if not isinstance(raw_row, Mapping):
             continue
         row = dict(raw_row)
-        record_id = _record_id(row, id_fields=id_fields, fallback_index=index)
+        record_id = _record_id(row, id_fields=id_fields, generated_index=index)
         records.append(_record_payload(release_id, record_id, row, source_ref_field, table_name))
     return records
 
@@ -253,7 +253,7 @@ def _record_payload(
     return payload
 
 
-def _record_id(row: Mapping[str, Any], *, id_fields: Sequence[str], fallback_index: int) -> str:
+def _record_id(row: Mapping[str, Any], *, id_fields: Sequence[str], generated_index: int) -> str:
     parts: list[str] = []
     for field in id_fields:
         value = row.get(field)
@@ -262,7 +262,7 @@ def _record_id(row: Mapping[str, Any], *, id_fields: Sequence[str], fallback_ind
         else:
             parts.append(str(value or ""))
     normalized = "|".join(part for part in parts if part)
-    return normalized or f"record-{fallback_index}"
+    return normalized or f"record-{generated_index}"
 
 
 def _source_ref(row: Mapping[str, Any], field: str) -> str:

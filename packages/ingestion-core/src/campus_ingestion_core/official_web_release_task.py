@@ -354,9 +354,9 @@ def _datetime(value: Any, field_name: str) -> datetime:
     raise ValueError(f"{field_name} must be a datetime")
 
 
-def _int(value: Any, fallback: int) -> int:
+def _int(value: Any, default_value: int) -> int:
     if value is None:
-        return fallback
+        return default_value
     return int(value)
 
 

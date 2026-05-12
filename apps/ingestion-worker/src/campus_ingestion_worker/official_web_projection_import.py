@@ -10,6 +10,7 @@ from typing import Protocol
 
 from campus_ingestion_core import (
     DEFAULT_BUCKET_SOURCE,
+    ObjectStoreBucketSettings,
     ObjectStoreSettings,
     build_document_registry_from_env,
     build_raw_asset_registry_from_env,
@@ -68,7 +69,7 @@ def import_projection_output(
     derived_object_store: OfficialWebProjectionDerivedObjectStore,
     document_registry: DocumentRegistry,
     raw_asset_registry: RawAssetRegistry,
-    object_store_settings: ObjectStoreSettings,
+    object_store_settings: ObjectStoreBucketSettings,
     scope_refresh: tuple[str, str] | None = None,
     require_promotable: bool = False,
     dry_run: bool = False,
@@ -327,7 +328,7 @@ def _load_provider_bytes(
     raw_version_id: str,
     provider_key: str | None,
     source_object_store: OfficialWebProjectionSourceObjectStore,
-    object_store_settings: ObjectStoreSettings,
+    object_store_settings: ObjectStoreBucketSettings,
 ) -> bytes | None:
     local_provider_path = (
         replay_input_dir

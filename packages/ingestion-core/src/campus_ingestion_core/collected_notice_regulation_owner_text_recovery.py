@@ -464,7 +464,7 @@ def _candidate_gap_reasons(
     reasons: list[str] = []
     status = str(candidate.get("status") or "")
     if status == "manual_review":
-        reasons.append("manual_review_required")
+        reasons.append("candidate_requires_machine_review")
     elif status not in {"pending", "failed_retryable"}:
         reasons.append("candidate_not_active_recoverable")
     if str(candidate.get("media_kind") or "") not in media_kind_set:

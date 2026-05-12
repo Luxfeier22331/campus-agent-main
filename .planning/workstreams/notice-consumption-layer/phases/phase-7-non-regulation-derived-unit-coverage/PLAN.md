@@ -32,5 +32,5 @@ Close the remaining internal_notice non-regulation derived-unit implementation g
 
 - `procurement_notice` is now a notice category and projection role for archive/query use, not a regulation/service target.
 - internal restricted roster and lecture notices now emit explicit `no_adoption` units.
-- service-status-like notices now emit `service_status_override` units with `target_surface=service_status_runtime` but `consumption_status=held_in_notice_runtime`.
-- form/template attachments now emit `attachment_form_template` units that remain in `notice_runtime`.
+- service-status-like notices now emit `service_status_override` units with `target_surface=campus_services/service_status_candidate`.
+- form/template attachments now emit `attachment_form_template` units for explicit downstream candidate handling rather than `notice_runtime`.

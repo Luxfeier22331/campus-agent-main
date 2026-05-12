@@ -179,10 +179,10 @@ export function ensureRuntimeDirs(config: CollectorConfig): void {
 	}
 }
 
-function parsePositiveInteger(raw: string | undefined, fallback: number): number {
+function parsePositiveInteger(raw: string | undefined, defaultValue: number): number {
 	const parsed = Number(raw || "");
 	if (!Number.isFinite(parsed) || parsed <= 0) {
-		return fallback;
+		return defaultValue;
 	}
 	return Math.floor(parsed);
 }
@@ -195,12 +195,12 @@ function parseOptionalPositiveInteger(raw: string | undefined): number | null {
 	return Math.floor(parsed);
 }
 
-function parseBooleanFlag(raw: string | undefined, fallback: boolean): boolean {
+function parseBooleanFlag(raw: string | undefined, defaultValue: boolean): boolean {
 	const normalized = String(raw ?? "")
 		.trim()
 		.toLowerCase();
 	if (!normalized) {
-		return fallback;
+		return defaultValue;
 	}
 	if (["1", "true", "yes", "on"].includes(normalized)) {
 		return true;
@@ -208,7 +208,7 @@ function parseBooleanFlag(raw: string | undefined, fallback: boolean): boolean {
 	if (["0", "false", "no", "off"].includes(normalized)) {
 		return false;
 	}
-	return fallback;
+	return defaultValue;
 }
 
 function parseCollectionMode(raw: string | undefined): NoticeCollectionMode {

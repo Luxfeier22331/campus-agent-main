@@ -1251,7 +1251,7 @@ def _write_wechat_canonical_markdown(
         or entry.source_notice_document_id
         or entry.source_notice_id,
         revision_track="source-faithful",
-        version_id=_canonical_version_token(metadata, fallback=entry.source_notice_id),
+        version_id=_canonical_version_token(metadata, source_notice_id=entry.source_notice_id),
         filename="canonical.md",
         title=title,
         year=_text(metadata.get("publish_day")) or "",
@@ -1325,8 +1325,8 @@ def _build_body_excerpt_from_text(value: str) -> str:
     return value.strip()[:DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS]
 
 
-def _canonical_version_token(metadata: Mapping[str, object], *, fallback: str) -> str:
-    base = _text(metadata.get("metadata_hash")) or fallback
+def _canonical_version_token(metadata: Mapping[str, object], *, source_notice_id: str) -> str:
+    base = _text(metadata.get("metadata_hash")) or source_notice_id
     fingerprint = "\n".join(
         (
             base,

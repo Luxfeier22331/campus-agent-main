@@ -139,6 +139,7 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
                 object_store=object_store,
                 derived_bucket="campus-rag-derived",
                 structured_projection_publisher=publisher,
+                publish_mode="promote",
             )
 
         self.assertEqual(report.release_id, "transport-schedule-20260424T090000")
@@ -194,6 +195,7 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
                 object_store=object_store,
                 derived_bucket="campus-rag-derived",
                 structured_projection_publisher=publisher,
+                publish_mode="promote",
             )
 
         self.assertEqual(report.release_id, "transport-schedule-20260320T090000")
@@ -585,7 +587,95 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
                 selected_notice_ids=("245272",),
             )
 
-    def test_main_publishes_release_to_structured_projection_postgres_when_configured(
+    def test_main_defaults_to_preview_publish_mode(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            source_root = root / "source"
+            notice_root = source_root / "authenticated_notice_portal" / "notice-1001"
+            notice_root.mkdir(parents=True)
+            _write_json(
+                notice_root / "notice-manifest.json",
+                {
+                    "site_id": "muc_internal_portal",
+                    "notice_id": "1001",
+                    "notice_title_normalized": "校车时刻表",
+                    "notice_release_time": "2026-04-20 18:00",
+                },
+            )
+            _write_jsonl(
+                notice_root / "content-blocks.jsonl",
+                [
+                    {
+                        "text_normalized": (
+                            "本时刻表自2026年4月21日起执行。"
+                            "海淀校区至丰台校区工作日发车时间：06:50。"
+                        )
+                    }
+                ],
+            )
+            inventory_path = root / "inventory.json"
+            _write_json(
+                inventory_path,
+                {
+                    "parents": [
+                        {
+                            "notice_manifest_key": "authenticated_notice_portal/notice-1001/notice-manifest.json",
+                            "content_blocks_key": "authenticated_notice_portal/notice-1001/content-blocks.jsonl",
+                        }
+                    ]
+                },
+            )
+            object_store = _FakeObjectStore()
+            publisher = _FakeStructuredProjectionPublisher()
+
+            with (
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.load_worker_env"
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.ObjectStoreSettings.from_env",
+                    return_value=SimpleNamespace(
+                        bucket_source="campus-rag-source",
+                        bucket_derived="campus-rag-derived",
+                    ),
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.S3ObjectStoreAdmin",
+                    return_value=object_store,
+                ),
+                patch(
+                    "campus_ingestion_worker.build_transport_schedule_projection.build_structured_projection_publisher_from_env",
+                    return_value=publisher,
+                ),
+                patch("sys.stdout", new_callable=io.StringIO),
+            ):
+                worker.main(
+                    [
+                        "--source-truth-inventory",
+                        str(inventory_path),
+                        "--source-truth-root",
+                        str(source_root),
+                        "--work-dir",
+                        str(root / "work"),
+                        "--release-id",
+                        "transport-schedule-cli-20260424T090000",
+                        "--generated-at",
+                        "2026-04-24T09:00:00+08:00",
+                        "--service-horizon-days",
+                        "3",
+                    ]
+                )
+
+        self.assertEqual(publisher.calls, [])
+        self.assertNotIn(
+            (
+                "campus-rag-derived",
+                "campus_services/releases/transport_schedule/current/campus-services-projection.json",
+            ),
+            object_store.objects,
+        )
+
+    def test_main_publishes_release_to_structured_projection_postgres_when_explicitly_promoted(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -663,6 +753,8 @@ class BuildTransportScheduleProjectionWorkerTest(unittest.TestCase):
                         "2026-04-24T09:00:00+08:00",
                         "--service-horizon-days",
                         "3",
+                        "--publish-mode",
+                        "promote",
                     ]
                 )
 

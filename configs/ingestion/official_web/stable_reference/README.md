@@ -14,7 +14,7 @@ Current runtime truth:
 - serving surface: `stable_reference`
 - query enabled: `true`
 - freshness-sensitive queries supported: `false`
-- live-search fallback allowed: `false`
+- live-search expansion allowed: `false`
 - required metadata fields: `none`
 - primary evidence page families: `repo policy decides by stable-reference
   semantics; not restricted to news-only detail pages`

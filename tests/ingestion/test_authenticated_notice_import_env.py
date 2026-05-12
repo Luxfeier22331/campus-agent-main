@@ -5,10 +5,12 @@ from unittest.mock import patch
 
 from campus_ingestion_core.authenticated_notice_import_env import (
     _build_consumption_projection_store_from_env_if_configured,
+    _build_inventory_store_from_env_if_configured,
     _build_read_model_store_from_env_if_configured,
 )
 from campus_ingestion_core.authenticated_notice_import_env_presence import (
     env_has_consumption_projection_config,
+    env_has_inventory_store_config,
     env_has_read_model_config,
 )
 
@@ -41,6 +43,21 @@ class AuthenticatedNoticeImportEnvTest(unittest.TestCase):
                 "read-model-store",
             )
         build_read_model_store.assert_called_once_with(env, prefer_operator=True)
+
+    def test_registry_env_does_not_enable_source_truth_projection_or_read_model_stores(
+        self,
+    ) -> None:
+        env = {
+            "DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://document-registry.example/postgres",
+            "RAW_ASSET_REGISTRY_DATABASE_URL": "postgresql://raw-registry.example/postgres",
+        }
+
+        self.assertFalse(env_has_inventory_store_config(env))
+        self.assertFalse(env_has_consumption_projection_config(env))
+        self.assertFalse(env_has_read_model_config(env))
+        self.assertIsNone(_build_inventory_store_from_env_if_configured(env))
+        self.assertIsNone(_build_consumption_projection_store_from_env_if_configured(env))
+        self.assertIsNone(_build_read_model_store_from_env_if_configured(env))
 
 
 if __name__ == "__main__":

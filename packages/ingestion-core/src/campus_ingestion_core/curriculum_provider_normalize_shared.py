@@ -73,7 +73,7 @@ def _normalize_page_payload(
                     provider_log_id=provider_log_id,
                     provider_page_id=provider_page_id,
                     row_index=row_index_start + block_offset,
-                    fallback_block_index=block_offset,
+                    generated_block_index=block_offset,
                     page_height=page_height,
                 )
             )
@@ -94,11 +94,11 @@ def _normalize_page_payload(
             ocr_model=ocr_model,
             provider_log_id=provider_log_id,
             provider_page_id=provider_page_id,
-            provider_block_id="markdown-fallback",
+            provider_block_id="markdown-page-text",
             row_index=row_index_start + 1,
-            row_id=f"page-{provider_page_id:04d}-block-fallback",
+            row_id=f"page-{provider_page_id:04d}-block-page-text",
             row_type="paragraph",
-            block_role="markdown_fallback",
+            block_role="markdown_page_text",
             heading_level=None,
             reading_order=1,
             bbox=None,
@@ -110,7 +110,7 @@ def _normalize_page_payload(
             title_candidate_score=0.0,
             section_hint=None,
             classification_confidence=0.7,
-            classification_reason="markdown_fallback:page_text",
+            classification_reason="markdown_page_text",
         )
     ]
 
@@ -125,14 +125,14 @@ def _normalize_block(
     provider_log_id: str,
     provider_page_id: int,
     row_index: int,
-    fallback_block_index: int,
+    generated_block_index: int,
     page_height: float | None,
 ) -> dict[str, object]:
     block_label = str(raw_block.get("block_label") or "unknown").strip() or "unknown"
     block_content = raw_block.get("block_content")
     text_raw = str(block_content) if isinstance(block_content, str) else ""
     text_normalized = _normalize_text(text_raw)
-    block_id = str(raw_block.get("block_id") or fallback_block_index)
+    block_id = str(raw_block.get("block_id") or generated_block_index)
     reading_order = raw_block.get("block_order")
     bbox = raw_block.get("block_bbox")
     bbox_value = normalize_bbox(bbox)
@@ -161,7 +161,7 @@ def _normalize_block(
         provider_page_id=provider_page_id,
         provider_block_id=block_id,
         row_index=row_index,
-        row_id=f"page-{provider_page_id:04d}-block-{block_id}-{fallback_block_index:04d}",
+        row_id=f"page-{provider_page_id:04d}-block-{block_id}-{generated_block_index:04d}",
         row_type=row_type,
         block_role=block_role,
         heading_level=heading_level,
@@ -277,7 +277,7 @@ def _classify_block(
     if block_label == "number":
         if _looks_like_page_number(text=text, bbox=bbox, page_height=page_height):
             return "page_number", "number", None, 0.9, "provider_label:number:page_number"
-        return "paragraph", "number", None, 0.5, "provider_label:number:body_fallback"
+        return "paragraph", "number", None, 0.5, "provider_label:number:body"
     if block_label in {"image", "header_image"}:
         return "image", block_label, None, 0.95, f"provider_label:{block_label}"
     if block_label == "footer":

@@ -608,6 +608,83 @@ describe("authenticated notice collector file release export", () => {
 		]);
 	});
 
+	it("fails closed when object-backed file release download has a transient failure", async () => {
+		await expect(
+			collectFileReleaseBundle({
+				attachmentArtifactStore: {
+					storageProvider: "object_store",
+					headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
+					putObject: async () => {
+						throw new Error("unexpected upload");
+					},
+				},
+				createApiContext: async () => ({
+					dispose: async () => undefined,
+					get: async () => ({
+						body: async () => {
+							throw new Error("socket closed before file body completed");
+						},
+						headers: () => ({
+							"content-disposition": "attachment; filename*=UTF-8''sample.pdf",
+							"content-type": "application/pdf",
+						}),
+						json: async () => ({}),
+						ok: () => true,
+						status: () => 200,
+						statusText: () => "OK",
+					}),
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				}),
+				exportedAt: "2026-04-12T00:30:00.000Z",
+				fetchFileReleaseDetail: async ({ fileReleaseId }) => ({
+					filecode: "民大校发〔2026〕39号",
+					filedepartment: "教务处",
+					filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+					filetime: "2026-03-31 13:51:11",
+					filetypeid: 18,
+					fileurl: "/comsys/20181214/webapps/comsys-prompt-portlet-web/file/sample.pdf",
+					id: fileReleaseId,
+					state: 1,
+					upfilename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法.pdf",
+				}),
+				fetchFileReleaseDownloadUrl: async () => ({
+					state: true,
+					url: "/comsys-prompt-portlet-web/file/sample.pdf",
+				}),
+				fetchFileReleaseCodeTypes: async () => ({ data: [], state: true }),
+				fetchFileReleaseExplainDepartments: async () => ({
+					data: [],
+					state: true,
+				}),
+				fetchFileReleasePage: async () => ({
+					data: [
+						{
+							filecode: "民大校发〔2026〕39号",
+							filedepartment: "教务处",
+							filename: "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+							filetime: "2026-03-31 13:51:11",
+							id: 646,
+							typename: "教学管理",
+							user_name: "张老师",
+						},
+					],
+					dws: [],
+					size: 1,
+					state: true,
+					sync: false,
+				}),
+				fetchFileReleaseTypes: async () => ({ data: [], state: true }),
+				pageSize: 10,
+				requestBackoffBaseMs: 1,
+				requestMaxRetries: 1,
+				siteId: "muc_internal_portal",
+				sourceHomeUrl: "https://portal.example.edu",
+			}),
+		).rejects.toThrow("file_release_materialization_failed:file_release=646");
+	});
+
 	it("writes file release bundle and manifest under the configured exports directory", () => {
 		const tempDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-file-release-export-"));
 		tempDirs.push(tempDir);

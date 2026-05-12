@@ -17,6 +17,7 @@ from campus_ingestion_core.wechat_public_notice_multimodal import (
     WeChatPublicNoticeMultimodalAttempt,
     WeChatPublicNoticeMultimodalProviderResult,
     build_wechat_public_notice_inline_image_artifact_keys,
+    build_wechat_public_notice_multimodal_attempt_store_from_env,
     load_wechat_public_notice_inline_image_outcome,
     process_wechat_public_notice_pending_multimodal_entries,
 )
@@ -293,6 +294,34 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
         )
         self.assertEqual(len(current_scope_attempts), 1)
         self.assertEqual(current_scope_attempts[0].attempt_number, 1)
+
+    def test_attempt_store_builder_rejects_document_registry_url_without_attempt_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "WECHAT_PUBLIC_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_wechat_public_notice_multimodal_attempt_store_from_env(
+                {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
+            )
+
+    def test_attempt_store_builder_rejects_document_registry_operator_url_without_attempt_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "WECHAT_PUBLIC_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL or "
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_wechat_public_notice_multimodal_attempt_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://registry-operator.example/postgres"
+                    )
+                },
+                prefer_operator=True,
+            )
 
 
 class _InMemoryProjectionStore:

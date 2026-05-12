@@ -119,7 +119,7 @@ describe("authenticated notice collector portal bootstrap", () => {
 		expect(closed).toBe(true);
 	});
 
-	it("falls back to stored auth when the portal route times out", async () => {
+	it("fails closed when the portal route times out before bootstrap completes", async () => {
 		const runtimeDir = fs.mkdtempSync(
 			path.join(os.tmpdir(), "collector-portal-bootstrap-timeout-"),
 		);
@@ -127,67 +127,38 @@ describe("authenticated notice collector portal bootstrap", () => {
 		const calls: string[] = [];
 
 		const config = buildConfig(runtimeDir);
-		const apiContext = await createApiContextFromStorageState(config, {
-			createRequestContext: async (input) => {
-				calls.push(`request.newContext:${input.storageState.cookies[0]?.value ?? "missing"}`);
-				return {
-					dispose: async () => undefined,
-					get: async () => {
-						throw new Error("unexpected get");
-					},
-					post: async () => {
-						throw new Error("unexpected post");
-					},
-				};
-			},
-			launchBrowser: async () => ({
-				close: async () => {
-					calls.push("browser.close");
+		await expect(
+			createApiContextFromStorageState(config, {
+				createRequestContext: async () => {
+					throw new Error("unexpected request context");
 				},
-				newContext: async () => ({
-					newPage: async () => ({
-						close: async () => {
-							calls.push("page.close");
-						},
-						goto: async () => {
-							throw new Error(
-								"page.goto: net::ERR_TIMED_OUT at https://portal.example.edu/page/11#/",
-							);
+				launchBrowser: async () => ({
+					close: async () => {
+						calls.push("browser.close");
+					},
+					newContext: async () => ({
+						newPage: async () => ({
+							close: async () => {
+								calls.push("page.close");
+							},
+							goto: async () => {
+								throw new Error(
+									"page.goto: net::ERR_TIMED_OUT at https://portal.example.edu/page/11#/",
+								);
+							},
+						}),
+						storageState: async () => {
+							throw new Error("unexpected storage state read");
 						},
 					}),
-					storageState: async (input) => {
-						calls.push(`storageState:${input?.path ?? "none"}`);
-						return {
-							cookies: [
-								{
-									domain: "portal.example.edu",
-									expires: -1,
-									httpOnly: true,
-									name: "JSESSIONID",
-									path: "/",
-									sameSite: "Lax",
-									secure: false,
-									value: "fallback-session",
-								},
-							],
-							origins: [],
-						};
-					},
 				}),
 			}),
-		});
+		).rejects.toThrow("net::ERR_TIMED_OUT");
 
-		expect(calls).toEqual([
-			`storageState:${config.authStorageStatePath}`,
-			"request.newContext:fallback-session",
-			"page.close",
-			"browser.close",
-		]);
-
-		await apiContext.dispose();
+		expect(calls).toEqual(["page.close", "browser.close"]);
 	});
 
-	it("falls back to stored auth when browser launch times out before bootstrap", async () => {
+	it("fails closed when browser launch times out before bootstrap", async () => {
 		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-launch-timeout-"));
 		tempDirs.push(runtimeDir);
 		const calls: string[] = [];
@@ -214,30 +185,22 @@ describe("authenticated notice collector portal bootstrap", () => {
 			"utf-8",
 		);
 
-		const apiContext = await createApiContextFromStorageState(config, {
-			createRequestContext: async (input) => {
-				calls.push(`request.newContext:${input.storageState.cookies[0]?.value ?? "missing"}`);
-				return {
-					dispose: async () => undefined,
-					get: async () => {
-						throw new Error("unexpected get");
-					},
-					post: async () => {
-						throw new Error("unexpected post");
-					},
-				};
-			},
-			launchBrowser: async () => {
-				throw new Error("browserType.launch: Timeout 180000ms exceeded.");
-			},
-		});
+		await expect(
+			createApiContextFromStorageState(config, {
+				createRequestContext: async () => {
+					calls.push("request.newContext");
+					throw new Error("unexpected request context");
+				},
+				launchBrowser: async () => {
+					throw new Error("browserType.launch: Timeout 180000ms exceeded.");
+				},
+			}),
+		).rejects.toThrow("Timeout 180000ms exceeded");
 
-		expect(calls).toEqual(["request.newContext:stored-session"]);
-
-		await apiContext.dispose();
+		expect(calls).toEqual([]);
 	});
 
-	it("seeds stored auth from an explicit SSO_TGC token before bootstrap fallback", async () => {
+	it("seeds stored auth from an explicit SSO_TGC token before portal bootstrap", async () => {
 		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-sso-token-"));
 		tempDirs.push(runtimeDir);
 		const calls: string[] = [];
@@ -268,9 +231,16 @@ describe("authenticated notice collector portal bootstrap", () => {
 					},
 				};
 			},
-			launchBrowser: async () => {
-				throw new Error("browserType.launch: Timeout 180000ms exceeded.");
-			},
+			launchBrowser: async () => ({
+				close: async () => undefined,
+				newContext: async () => ({
+					newPage: async () => ({
+						close: async () => undefined,
+						goto: async () => undefined,
+					}),
+					storageState: async () => ({ cookies: [], origins: [] }),
+				}),
+			}),
 		});
 
 		expect(calls).toEqual(["request.newContext:seeded-token"]);
@@ -278,7 +248,7 @@ describe("authenticated notice collector portal bootstrap", () => {
 		await apiContext.dispose();
 	});
 
-	it("seeds stored auth from explicit portal cookies before bootstrap fallback", async () => {
+	it("seeds stored auth from explicit portal cookies before portal bootstrap", async () => {
 		const runtimeDir = fs.mkdtempSync(path.join(os.tmpdir(), "collector-portal-explicit-cookies-"));
 		tempDirs.push(runtimeDir);
 		const calls: string[] = [];
@@ -329,9 +299,16 @@ describe("authenticated notice collector portal bootstrap", () => {
 					},
 				};
 			},
-			launchBrowser: async () => {
-				throw new Error("browserType.launch: Timeout 180000ms exceeded.");
-			},
+			launchBrowser: async () => ({
+				close: async () => undefined,
+				newContext: async () => ({
+					newPage: async () => ({
+						close: async () => undefined,
+						goto: async () => undefined,
+					}),
+					storageState: async () => ({ cookies: [], origins: [] }),
+				}),
+			}),
 		});
 
 		expect(calls).toEqual(["request.newContext:seeded-session"]);
@@ -419,9 +396,16 @@ describe("authenticated notice collector portal bootstrap", () => {
 					},
 				};
 			},
-			launchBrowser: async () => {
-				throw new Error("browserType.launch: Timeout 180000ms exceeded.");
-			},
+			launchBrowser: async () => ({
+				close: async () => undefined,
+				newContext: async () => ({
+					newPage: async () => ({
+						close: async () => undefined,
+						goto: async () => undefined,
+					}),
+					storageState: async () => ({ cookies: [], origins: [] }),
+				}),
+			}),
 		});
 
 		expect(calls).toEqual(["request.newContext:fresh-session"]);
@@ -518,9 +502,16 @@ describe("authenticated notice collector portal bootstrap", () => {
 					},
 				};
 			},
-			launchBrowser: async () => {
-				throw new Error("browserType.launch: Timeout 180000ms exceeded.");
-			},
+			launchBrowser: async () => ({
+				close: async () => undefined,
+				newContext: async () => ({
+					newPage: async () => ({
+						close: async () => undefined,
+						goto: async () => undefined,
+					}),
+					storageState: async () => ({ cookies: [], origins: [] }),
+				}),
+			}),
 		});
 
 		await apiContext.dispose();

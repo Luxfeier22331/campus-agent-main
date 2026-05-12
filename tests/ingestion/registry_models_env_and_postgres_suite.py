@@ -15,7 +15,7 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://registry.example/postgres")
 
-    def test_build_document_registry_from_env_falls_back_to_shared_postgres_url(self) -> None:
+    def test_build_document_registry_from_env_uses_shared_postgres_url(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresDocumentRegistry") as registry_cls:
             instance = registry_cls.return_value
 
@@ -77,17 +77,6 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
                 }
             )
 
-    def test_build_raw_asset_registry_from_env_uses_database_url(self) -> None:
-        with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
-            instance = registry_cls.return_value
-
-            registry = build_raw_asset_registry_from_env(
-                {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
-            )
-
-            self.assertIs(registry, instance)
-            registry_cls.assert_called_once_with("postgresql://registry.example/postgres")
-
     def test_build_raw_asset_registry_from_env_prefers_dedicated_database_url(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
             instance = registry_cls.return_value
@@ -102,7 +91,7 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://raw-registry.example/postgres")
 
-    def test_build_raw_asset_registry_from_env_falls_back_to_shared_postgres_url(self) -> None:
+    def test_build_raw_asset_registry_from_env_uses_shared_postgres_url(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
             instance = registry_cls.return_value
 
@@ -112,6 +101,17 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
 
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
+
+    def test_build_raw_asset_registry_from_env_rejects_document_registry_url_without_raw_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "RAW_ASSET_REGISTRY_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_raw_asset_registry_from_env(
+                {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
+            )
 
     def test_build_raw_asset_registry_from_env_prefers_operator_database_url_when_requested(
         self,
@@ -142,6 +142,22 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
             build_raw_asset_registry_from_env(
                 {
                     "RAW_ASSET_REGISTRY_DATABASE_URL": "postgresql://runtime.example/postgres",
+                },
+                prefer_operator=True,
+            )
+
+    def test_build_raw_asset_registry_from_env_rejects_document_registry_operator_url_without_raw_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL or CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_raw_asset_registry_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://registry-operator.example/postgres"
+                    )
                 },
                 prefer_operator=True,
             )
@@ -230,6 +246,34 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
                 prefer_operator=True,
             )
 
+    def test_build_closeout_store_from_env_rejects_document_registry_url_without_closeout_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_authenticated_notice_closeout_store_from_env(
+                {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
+            )
+
+    def test_build_closeout_store_from_env_rejects_document_registry_operator_url_without_closeout_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "AUTHENTICATED_NOTICE_CLOSEOUT_OPERATOR_DATABASE_URL or "
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_authenticated_notice_closeout_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://registry-operator.example/postgres"
+                    )
+                },
+                prefer_operator=True,
+            )
+
     def test_build_source_truth_inventory_store_from_env_prefers_operator_database_url_when_requested(
         self,
     ) -> None:
@@ -268,18 +312,147 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
                 prefer_operator=True,
             )
 
+    def test_build_source_truth_inventory_store_from_env_rejects_registry_urls_without_inventory_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_authenticated_notice_source_truth_inventory_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://document-registry.example/postgres",
+                    "RAW_ASSET_REGISTRY_DATABASE_URL": "postgresql://raw-registry.example/postgres",
+                }
+            )
+
+    def test_build_source_truth_inventory_store_from_env_rejects_registry_operator_urls_without_inventory_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_OPERATOR_DATABASE_URL or "
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_authenticated_notice_source_truth_inventory_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://document-registry-operator.example/postgres"
+                    ),
+                    "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://raw-registry-operator.example/postgres"
+                    ),
+                },
+                prefer_operator=True,
+            )
+
     def test_build_file_release_inventory_store_from_env_prefers_operator_database_url_when_requested(
         self,
     ) -> None:
         with patch(
             "campus_ingestion_core.authenticated_notice_file_release_inventory.PostgresAuthenticatedNoticeFileReleaseInventoryStore"
         ) as store_cls:
-            instance = store_cls.return_value
-
             store = build_authenticated_notice_file_release_inventory_store_from_env(
                 {
                     "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_DATABASE_URL": "postgresql://runtime.example/postgres",
                     "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_OPERATOR_DATABASE_URL": "postgresql://operator.example/postgres",
+                },
+                prefer_operator=True,
+            )
+
+        self.assertIs(store, store_cls.return_value)
+        store_cls.assert_called_once_with(
+            database_url=(
+                "postgresql://operator.example/postgres?__campus_connection_mode=operator_session"
+            )
+        )
+
+    def test_build_file_release_inventory_store_from_env_rejects_registry_urls_without_inventory_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_authenticated_notice_file_release_inventory_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://document-registry.example/postgres",
+                    "RAW_ASSET_REGISTRY_DATABASE_URL": "postgresql://raw-registry.example/postgres",
+                }
+            )
+
+    def test_build_file_release_inventory_store_from_env_rejects_registry_operator_urls_without_inventory_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_OPERATOR_DATABASE_URL or "
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_authenticated_notice_file_release_inventory_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://document-registry-operator.example/postgres"
+                    ),
+                    "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://raw-registry-operator.example/postgres"
+                    ),
+                },
+                prefer_operator=True,
+            )
+
+    def test_build_notice_consumption_projection_store_from_env_rejects_document_registry_url_without_projection_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_notice_consumption_projection_store_from_env(
+                {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
+            )
+
+    def test_build_notice_consumption_projection_store_from_env_rejects_document_registry_operator_url_without_projection_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL or "
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_notice_consumption_projection_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://registry-operator.example/postgres"
+                    )
+                },
+                prefer_operator=True,
+            )
+
+    def test_build_internal_notice_read_model_store_from_env_rejects_document_registry_url_without_read_model_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_internal_notice_read_model_store_from_env(
+                {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
+            )
+
+    def test_build_internal_notice_read_model_store_from_env_rejects_document_registry_operator_url_without_read_model_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_READ_MODEL_OPERATOR_DATABASE_URL or "
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_internal_notice_read_model_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://registry-operator.example/postgres"
+                    )
                 },
                 prefer_operator=True,
             )

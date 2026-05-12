@@ -36,10 +36,22 @@ class OfficialWebHandoffConsumerPromotionGateTest(unittest.TestCase):
         ):
             consumer_runtime.resolve_persist_object_store_settings(
                 source_bucket="official-web-source",
-                require_env=False,
+                require_full_object_store_settings=True,
             )
 
         self.assertIn("OBJECT_STORE_ENDPOINT", str(raised.exception))
+
+    def test_resolve_persist_object_store_settings_uses_bucket_contract_for_injected_dependencies(
+        self,
+    ) -> None:
+        with patch.dict("os.environ", {}, clear=True):
+            settings = consumer_runtime.resolve_persist_object_store_settings(
+                source_bucket="official-web-source",
+                require_full_object_store_settings=False,
+            )
+
+        self.assertEqual(settings.bucket_source, "official-web-source")
+        self.assertEqual(settings.bucket_derived, "campus-rag-derived")
 
     def test_persist_projection_output_refreshes_each_promotable_target_scope(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -162,7 +174,7 @@ class OfficialWebHandoffConsumerPromotionGateTest(unittest.TestCase):
 
             with (
                 patch(
-                    "campus_ingestion_worker.official_web_handoff_consumer.replay_official_web_source_truth_local",
+                    "campus_ingestion_worker.official_web_handoff_consumer_runtime.replay_official_web_source_truth_local",
                     return_value=OfficialWebProjectionReplayReport(
                         schema_version="official_web_projection_replay_report.v1",
                         site_id="campus_public",
@@ -196,7 +208,7 @@ class OfficialWebHandoffConsumerPromotionGateTest(unittest.TestCase):
                     ),
                 ),
                 patch(
-                    "campus_ingestion_worker.official_web_handoff_consumer.validate_official_web_projection_output",
+                    "campus_ingestion_worker.official_web_handoff_consumer_runtime.validate_official_web_projection_output",
                     return_value=OfficialWebProjectionValidationReport(
                         schema_version="official_web_projection_validation_report.v1",
                         valid=True,
@@ -206,7 +218,7 @@ class OfficialWebHandoffConsumerPromotionGateTest(unittest.TestCase):
                     ),
                 ),
                 patch(
-                    "campus_ingestion_worker.official_web_handoff_consumer.audit_official_web_projection_chunking",
+                    "campus_ingestion_worker.official_web_handoff_consumer_runtime.audit_official_web_projection_chunking",
                     return_value=OfficialWebProjectionChunkingAuditReport(
                         schema_version="official_web_projection_chunking_audit.v1",
                         projection_output_dir=str(execution_root_dir / "projection"),
@@ -278,7 +290,7 @@ class OfficialWebHandoffConsumerPromotionGateTest(unittest.TestCase):
 
             with (
                 patch(
-                    "campus_ingestion_worker.official_web_handoff_consumer.replay_official_web_source_truth_local",
+                    "campus_ingestion_worker.official_web_handoff_consumer_runtime.replay_official_web_source_truth_local",
                     return_value=OfficialWebProjectionReplayReport(
                         schema_version="official_web_projection_replay_report.v1",
                         site_id="campus_public",
@@ -310,7 +322,7 @@ class OfficialWebHandoffConsumerPromotionGateTest(unittest.TestCase):
                     ),
                 ),
                 patch(
-                    "campus_ingestion_worker.official_web_handoff_consumer.validate_official_web_projection_output",
+                    "campus_ingestion_worker.official_web_handoff_consumer_runtime.validate_official_web_projection_output",
                     return_value=OfficialWebProjectionValidationReport(
                         schema_version="official_web_projection_validation_report.v1",
                         valid=True,
@@ -320,7 +332,7 @@ class OfficialWebHandoffConsumerPromotionGateTest(unittest.TestCase):
                     ),
                 ),
                 patch(
-                    "campus_ingestion_worker.official_web_handoff_consumer.audit_official_web_projection_chunking",
+                    "campus_ingestion_worker.official_web_handoff_consumer_runtime.audit_official_web_projection_chunking",
                     return_value=OfficialWebProjectionChunkingAuditReport(
                         schema_version="official_web_projection_chunking_audit.v1",
                         projection_output_dir=str(execution_root_dir / "projection"),
@@ -392,7 +404,7 @@ class OfficialWebHandoffConsumerPromotionGateTest(unittest.TestCase):
 
             with (
                 patch(
-                    "campus_ingestion_worker.official_web_handoff_consumer.replay_official_web_source_truth_local",
+                    "campus_ingestion_worker.official_web_handoff_consumer_runtime.replay_official_web_source_truth_local",
                     return_value=OfficialWebProjectionReplayReport(
                         schema_version="official_web_projection_replay_report.v1",
                         site_id="campus_public",
@@ -441,7 +453,7 @@ class OfficialWebHandoffConsumerPromotionGateTest(unittest.TestCase):
                     ),
                 ),
                 patch(
-                    "campus_ingestion_worker.official_web_handoff_consumer.validate_official_web_projection_output",
+                    "campus_ingestion_worker.official_web_handoff_consumer_runtime.validate_official_web_projection_output",
                     return_value=OfficialWebProjectionValidationReport(
                         schema_version="official_web_projection_validation_report.v1",
                         valid=True,
@@ -451,7 +463,7 @@ class OfficialWebHandoffConsumerPromotionGateTest(unittest.TestCase):
                     ),
                 ),
                 patch(
-                    "campus_ingestion_worker.official_web_handoff_consumer.audit_official_web_projection_chunking",
+                    "campus_ingestion_worker.official_web_handoff_consumer_runtime.audit_official_web_projection_chunking",
                     return_value=OfficialWebProjectionChunkingAuditReport(
                         schema_version="official_web_projection_chunking_audit.v1",
                         projection_output_dir=str(execution_root_dir / "projection"),

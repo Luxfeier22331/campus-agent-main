@@ -112,7 +112,7 @@ class OnlineOcrRoutingDecision:
     route_id: str
     canonical_allowed: bool
     canonical_provider: str | None
-    fallback_provider: str | None
+    alternate_provider: str | None
     parser_version: str | None
     reason_codes: tuple[str, ...]
     persist_raw_provider_artifact: bool
@@ -325,10 +325,10 @@ def select_online_ocr_routing(
     if normalized_asset_subkind == "pdf":
         if mineru_available:
             return OnlineOcrRoutingDecision(
-                route_id="pdf_mineru_primary_with_paddle_fallback",
+                route_id="pdf_mineru_primary",
                 canonical_allowed=True,
                 canonical_provider=MINERU_PROVIDER,
-                fallback_provider=PADDLE_ASYNC_PROVIDER,
+                alternate_provider=None,
                 parser_version=MINERU_ADAPTED_PARSER_VERSION,
                 reason_codes=("asset_subkind_pdf", "mineru_available", "pdf_primary_candidate"),
                 persist_raw_provider_artifact=True,
@@ -337,7 +337,7 @@ def select_online_ocr_routing(
             route_id="pdf_paddle_primary",
             canonical_allowed=True,
             canonical_provider=PADDLE_ASYNC_PROVIDER,
-            fallback_provider=None,
+            alternate_provider=None,
             parser_version=PADDLE_PARSER_VERSION,
             reason_codes=("asset_subkind_pdf", "mineru_unavailable"),
             persist_raw_provider_artifact=False,
@@ -346,10 +346,10 @@ def select_online_ocr_routing(
     if normalized_asset_subkind in _MINERU_COMPLEX_IMAGE_SUBKINDS:
         if mineru_available:
             return OnlineOcrRoutingDecision(
-                route_id="complex_image_mineru_primary_with_paddle_fallback",
+                route_id="complex_image_mineru_primary",
                 canonical_allowed=True,
                 canonical_provider=MINERU_PROVIDER,
-                fallback_provider=PADDLE_ASYNC_PROVIDER,
+                alternate_provider=None,
                 parser_version=MINERU_ADAPTED_PARSER_VERSION,
                 reason_codes=("complex_table_image", "explicit_allow", "mineru_available"),
                 persist_raw_provider_artifact=True,
@@ -358,7 +358,7 @@ def select_online_ocr_routing(
             route_id="complex_image_paddle_primary",
             canonical_allowed=True,
             canonical_provider=PADDLE_ASYNC_PROVIDER,
-            fallback_provider=None,
+            alternate_provider=None,
             parser_version=PADDLE_PARSER_VERSION,
             reason_codes=("complex_table_image", "mineru_unavailable"),
             persist_raw_provider_artifact=False,
@@ -369,7 +369,7 @@ def select_online_ocr_routing(
             route_id=f"{normalized_asset_subkind}_deferred",
             canonical_allowed=False,
             canonical_provider=None,
-            fallback_provider=None,
+            alternate_provider=None,
             parser_version=None,
             reason_codes=(f"{normalized_asset_subkind}_deferred",),
             persist_raw_provider_artifact=False,
@@ -381,10 +381,10 @@ def select_online_ocr_routing(
     ):
         if normalized_image_routing_strategy == "mineru_primary" and mineru_available:
             return OnlineOcrRoutingDecision(
-                route_id="generic_image_mineru_primary_with_paddle_fallback",
+                route_id="generic_image_mineru_primary",
                 canonical_allowed=True,
                 canonical_provider=MINERU_PROVIDER,
-                fallback_provider=PADDLE_ASYNC_PROVIDER,
+                alternate_provider=None,
                 parser_version=MINERU_ADAPTED_PARSER_VERSION,
                 reason_codes=(
                     "generic_or_simple_image",
@@ -397,7 +397,7 @@ def select_online_ocr_routing(
             route_id="generic_image_paddle_primary",
             canonical_allowed=True,
             canonical_provider=PADDLE_ASYNC_PROVIDER,
-            fallback_provider=None,
+            alternate_provider=None,
             parser_version=PADDLE_PARSER_VERSION,
             reason_codes=("generic_or_simple_image",),
             persist_raw_provider_artifact=False,
@@ -408,7 +408,7 @@ def select_online_ocr_routing(
             route_id="binary_deferred",
             canonical_allowed=False,
             canonical_provider=None,
-            fallback_provider=None,
+            alternate_provider=None,
             parser_version=None,
             reason_codes=("binary_deferred",),
             persist_raw_provider_artifact=False,
@@ -418,7 +418,7 @@ def select_online_ocr_routing(
         route_id="default_paddle_primary",
         canonical_allowed=True,
         canonical_provider=PADDLE_ASYNC_PROVIDER,
-        fallback_provider=None,
+        alternate_provider=None,
         parser_version=PADDLE_PARSER_VERSION,
         reason_codes=("default_safe_paddle",),
         persist_raw_provider_artifact=False,
@@ -442,7 +442,7 @@ def select_adjudicated_image_routing(
             route_id=f"{asset_subkind}_deferred",
             canonical_allowed=False,
             canonical_provider=None,
-            fallback_provider=None,
+            alternate_provider=None,
             parser_version=None,
             reason_codes=(f"{asset_subkind}_deferred", "dual_run_refined"),
             persist_raw_provider_artifact=False,
@@ -454,26 +454,26 @@ def select_adjudicated_image_routing(
                 route_id="complex_image_mineru_selected",
                 canonical_allowed=True,
                 canonical_provider=candidate_provider,
-                fallback_provider=baseline_provider if baseline_usable else None,
+                alternate_provider=baseline_provider if baseline_usable else None,
                 parser_version=_parser_version_for_provider(candidate_provider),
                 reason_codes=("complex_table_image", "dual_run_refined", "mineru_selected"),
                 persist_raw_provider_artifact=(candidate_provider == MINERU_PROVIDER),
             )
         if baseline_usable:
             return OnlineOcrRoutingDecision(
-                route_id="complex_image_paddle_salvage",
+                route_id="complex_image_paddle_selected",
                 canonical_allowed=True,
                 canonical_provider=baseline_provider,
-                fallback_provider=None,
+                alternate_provider=None,
                 parser_version=_parser_version_for_provider(baseline_provider),
-                reason_codes=("complex_table_image", "dual_run_refined", "paddle_salvage"),
+                reason_codes=("complex_table_image", "dual_run_refined", "paddle_selected"),
                 persist_raw_provider_artifact=False,
             )
         return OnlineOcrRoutingDecision(
             route_id="complex_image_unusable",
             canonical_allowed=False,
             canonical_provider=None,
-            fallback_provider=None,
+            alternate_provider=None,
             parser_version=None,
             reason_codes=("complex_table_image", "dual_run_refined", "no_usable_provider"),
             persist_raw_provider_artifact=False,
@@ -485,26 +485,26 @@ def select_adjudicated_image_routing(
                 route_id="simple_table_image_paddle_primary",
                 canonical_allowed=True,
                 canonical_provider=baseline_provider,
-                fallback_provider=candidate_provider if candidate_usable else None,
+                alternate_provider=candidate_provider if candidate_usable else None,
                 parser_version=_parser_version_for_provider(baseline_provider),
                 reason_codes=("simple_table_image", "dual_run_refined", "paddle_primary"),
                 persist_raw_provider_artifact=False,
             )
         if candidate_usable:
             return OnlineOcrRoutingDecision(
-                route_id="simple_table_image_mineru_salvage",
+                route_id="simple_table_image_mineru_selected",
                 canonical_allowed=True,
                 canonical_provider=candidate_provider,
-                fallback_provider=None,
+                alternate_provider=None,
                 parser_version=_parser_version_for_provider(candidate_provider),
-                reason_codes=("simple_table_image", "dual_run_refined", "mineru_salvage"),
+                reason_codes=("simple_table_image", "dual_run_refined", "mineru_selected"),
                 persist_raw_provider_artifact=(candidate_provider == MINERU_PROVIDER),
             )
         return OnlineOcrRoutingDecision(
             route_id="simple_table_image_unusable",
             canonical_allowed=False,
             canonical_provider=None,
-            fallback_provider=None,
+            alternate_provider=None,
             parser_version=None,
             reason_codes=("simple_table_image", "dual_run_refined", "no_usable_provider"),
             persist_raw_provider_artifact=False,
@@ -516,26 +516,26 @@ def select_adjudicated_image_routing(
                 route_id="generic_image_paddle_primary",
                 canonical_allowed=True,
                 canonical_provider=baseline_provider,
-                fallback_provider=None,
+                alternate_provider=None,
                 parser_version=_parser_version_for_provider(baseline_provider),
                 reason_codes=("generic_image", "dual_run_refined", "paddle_safe_default"),
                 persist_raw_provider_artifact=False,
             )
         if candidate_usable:
             return OnlineOcrRoutingDecision(
-                route_id="generic_image_mineru_salvage",
+                route_id="generic_image_mineru_selected",
                 canonical_allowed=True,
                 canonical_provider=candidate_provider,
-                fallback_provider=None,
+                alternate_provider=None,
                 parser_version=_parser_version_for_provider(candidate_provider),
-                reason_codes=("generic_image", "dual_run_refined", "mineru_availability_salvage"),
+                reason_codes=("generic_image", "dual_run_refined", "mineru_selected"),
                 persist_raw_provider_artifact=(candidate_provider == MINERU_PROVIDER),
             )
         return OnlineOcrRoutingDecision(
             route_id="generic_image_unusable",
             canonical_allowed=False,
             canonical_provider=None,
-            fallback_provider=None,
+            alternate_provider=None,
             parser_version=None,
             reason_codes=("generic_image", "dual_run_refined", "no_usable_provider"),
             persist_raw_provider_artifact=False,
@@ -545,7 +545,7 @@ def select_adjudicated_image_routing(
         route_id="default_paddle_primary",
         canonical_allowed=True,
         canonical_provider=PADDLE_ASYNC_PROVIDER,
-        fallback_provider=None,
+        alternate_provider=None,
         parser_version=PADDLE_PARSER_VERSION,
         reason_codes=("default_safe_paddle", "dual_run_refined"),
         persist_raw_provider_artifact=False,

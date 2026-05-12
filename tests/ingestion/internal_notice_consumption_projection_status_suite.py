@@ -62,7 +62,7 @@ class InternalNoticeConsumptionProjectionStatusTest(unittest.TestCase):
         pending_reasons = {reason for unit in pending_status.units for reason in unit.reasons}
         self.assertIn("attachment_backed_regulation_body_missing", pending_reasons)
 
-    def test_read_notice_consumption_projection_status_counts_legacy_runtime_hold_status(
+    def test_read_notice_consumption_projection_status_does_not_retain_legacy_runtime_hold_status(
         self,
     ) -> None:
         projection_store = InMemoryNoticeConsumptionProjectionStore(
@@ -81,7 +81,9 @@ class InternalNoticeConsumptionProjectionStatusTest(unittest.TestCase):
             source_notice_id="355000",
         )
 
-        self.assertEqual(status.held_unit_count, 1)
+        self.assertEqual(status.unit_count, 1)
+        self.assertEqual(status.held_unit_count, 0)
+        self.assertEqual(status.units[0].consumption_status, "held_in_notice_runtime")
 
     def test_read_notice_consumption_projection_status_counts_pending_multimodal_units(
         self,

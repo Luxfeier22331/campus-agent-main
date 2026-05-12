@@ -27,26 +27,7 @@ def prefetch_existing_scope_records(
     )
     if callable(list_importable_scope_records):
         return tuple(list_importable_scope_records(scope[0], scope[1]))
-    try:
-        return registry.list_by_scope(scope[0], scope[1])
-    except ValueError as exc:
-        if scope_refresh == scope and can_recover_scope_refresh_from_legacy_registry_rows(
-            registry=registry,
-            exc=exc,
-        ):
-            return ()
-        raise
-
-
-def can_recover_scope_refresh_from_legacy_registry_rows(
-    *,
-    registry: object,
-    exc: ValueError,
-) -> bool:
-    list_processed_object_keys = getattr(registry, "list_processed_object_keys_by_scope", None)
-    return callable(list_processed_object_keys) and (
-        "registry payload contains unsupported authorization projection keys" in str(exc)
-    )
+    return registry.list_by_scope(scope[0], scope[1])
 
 
 def group_documents_by_scope(

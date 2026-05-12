@@ -469,7 +469,7 @@ class AuthenticatedNoticeStateMachineAuditTests(unittest.TestCase):
         self.assertEqual(audit["verdict"], "failed")
         self.assertEqual(
             audit["finding_counts_by_code"],
-            {"pdf_candidate_uses_multimodal_fallback": 1},
+            {"pdf_candidate_uses_direct_multimodal_path": 1},
         )
 
     def test_explicit_candidate_inventory_rejects_legacy_failed_status(self) -> None:

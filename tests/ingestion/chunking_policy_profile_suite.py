@@ -74,6 +74,13 @@ class ChunkingPolicyProfileTest(_ChunkingPolicyTestCase):
             "Qwen3-Embedding-4B",
         )
 
+    def test_tiktoken_counter_fails_closed_when_dependency_is_missing(self) -> None:
+        with (
+            mock.patch.dict(sys.modules, {"tiktoken": None}),
+            self.assertRaisesRegex(RuntimeError, "tiktoken is required"),
+        ):
+            TiktokenTokenCounter(model_name="text-embedding-3-large").count("hello")
+
     def test_resolve_prefetched_hf_tokenizer_path_requires_local_cache(self) -> None:
         with (
             mock.patch(

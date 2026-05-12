@@ -12,7 +12,6 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
 from campus_ingestion_core.internal_notice_consumption_notice_heuristics import (
     _looks_like_attachment_form_template_notice_title,
     _looks_like_attachment_form_template_plan,
-    _looks_like_service_status_override_notice,
     _looks_like_stable_contact_update_notice,
     _notice_title_compact,
     _resolve_notice_level_primary_role,
@@ -85,7 +84,6 @@ def _build_notice_level_entries(
     if routes_to_service_status_candidate(
         inventory_entry=inventory_entry,
         routing_sample=routing_sample,
-        fallback_service_detector=_looks_like_service_status_override_notice,
     ):
         entries.append(
             _build_service_status_override_entry(
@@ -410,38 +408,4 @@ def _build_attachment_form_template_entries(
         )
     if entries or inventory_entry.text_extractable_count <= 0:
         return tuple(entries)
-    if not _looks_like_attachment_form_template_notice_title(notice_title):
-        return tuple(entries)
-    fallback_plan = plans[0] if plans else {}
-    attachment_ref_id = str(fallback_plan.get("attachment_ref_id") or "").strip()
-    attachment_document_id = str(fallback_plan.get("document_id") or "").strip()
-    entries.append(
-        NoticeConsumptionProjectionEntry(
-            source_family=NOTICE_SOURCE_FAMILY_INTERNAL_RESTRICTED,
-            source_corpus=inventory_entry.corpus,
-            source_collection=inventory_entry.collection,
-            source_notice_id=inventory_entry.notice_id,
-            unit_id=f"notice_unit:{inventory_entry.document_id}:attachment_form_template",
-            primary_role=NOTICE_PRIMARY_ROLE_ATTACHMENT_FORM_TEMPLATE,
-            semantic_owner=NOTICE_SEMANTIC_OWNER_ATTACHMENT_DOCUMENT,
-            default_agent=NOTICE_DEFAULT_AGENT_NOTICE,
-            target_surface=NOTICE_TARGET_SURFACE_NOTICE_LEVEL_QUERY,
-            temporal_policy=NOTICE_TEMPORAL_POLICY_POINT_IN_TIME_PUBLICATION,
-            completeness_status=NOTICE_COMPLETENESS_REFERENCE_ONLY,
-            answerability=NOTICE_ANSWERABILITY_REFERENCE_ONLY,
-            consumption_status=NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-            source_notice_document_id=inventory_entry.document_id,
-            source_document_id=attachment_document_id or inventory_entry.document_id,
-            source_attachment_ref_ids=(attachment_ref_id,) if attachment_ref_id else (),
-            source_notice_release_time=str(parent_snapshot.get("notice_release_time") or "")
-            or None,
-            role_metadata={
-                "notice_title": notice_title,
-                "attachment_ref_id": attachment_ref_id or None,
-                "attachment_document_id": attachment_document_id or None,
-                "notice_query_reason": "attachment_form_template_query_hint_only",
-                "template_signal": "notice_title_with_text_attachment",
-            },
-        )
-    )
     return tuple(entries)

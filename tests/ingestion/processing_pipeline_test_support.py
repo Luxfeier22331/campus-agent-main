@@ -23,6 +23,7 @@ from campus_ingestion_core.handbook_cleanup import (
 from campus_ingestion_core.models import DocumentRegistryRecord, RawAssetRef
 from campus_ingestion_core.object_store import build_processed_artifact_key
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
+from campus_ingestion_core.process_indexing import _chunk_lineage_payload_defaults
 from campus_ingestion_core.split_manifest import SplitManifestDocument
 
 from tests.ingestion._handbook_chunking_test_support import build_hermetic_handbook_v3_chunk_profile

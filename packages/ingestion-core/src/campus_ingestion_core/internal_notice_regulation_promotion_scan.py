@@ -162,7 +162,7 @@ def _scan_document(
         source_attachment_sha256=source_attachment_sha256,
         regulation_title_normalized=regulation_title_normalized,
         promotion_body=promotion_body,
-        fallback_content_hash=record.content_hash,
+        source_content_hash=record.content_hash,
     )
     quality_gates: list[str] = []
     document_nature = _detect_document_nature(
@@ -435,13 +435,13 @@ def _build_duplicate_group_key(
     source_attachment_sha256: str | None,
     regulation_title_normalized: str | None,
     promotion_body: str,
-    fallback_content_hash: str,
+    source_content_hash: str,
 ) -> str | None:
     if source_attachment_sha256:
         return source_attachment_sha256
     substantive_body = promotion_body.strip()
     if not substantive_body:
-        return fallback_content_hash
+        return source_content_hash
     title = (regulation_title_normalized or "").strip()
     digest = hashlib.sha256("\n".join((title, substantive_body)).encode("utf-8")).hexdigest()
     return f"semantic:{digest}"

@@ -14,7 +14,7 @@ Current runtime truth:
 - serving surface: `news_archive`
 - query enabled: `false`
 - freshness-sensitive queries supported: `false`
-- live-search fallback allowed: `false`
+- live-search expansion allowed: `false`
 - required metadata fields: `published_at`, `crawled_at`, `last_seen_at`,
   `host`, `page_family`, `section`, `news_kind`
 - primary evidence page families: `article_detail`
@@ -30,7 +30,7 @@ Boundary notes:
   default answer contract of `fresh_news`
 - it is not the default online official-web answer surface
 - it must not silently backfill recent-news asks or freshness failures
-- listing pages remain discovery/fallback hints only; they are not archive
+- listing pages remain discovery/navigation hints only; they are not archive
   primary evidence
 - declaring this profile does not mean archive routing, retention policy, or
   archive-specific retrieval behavior has already been implemented

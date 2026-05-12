@@ -139,6 +139,18 @@ class ObjectStoreSettings:
         )
 
 
+@dataclass(frozen=True, slots=True)
+class ObjectStoreBucketSettings:
+    bucket_source: str = DEFAULT_BUCKET_SOURCE
+    bucket_derived: str = DEFAULT_BUCKET_DERIVED
+
+    def __post_init__(self) -> None:
+        if not self.bucket_source:
+            raise ValueError("OBJECT_STORE_BUCKET_SOURCE is required")
+        if not self.bucket_derived:
+            raise ValueError("OBJECT_STORE_BUCKET_DERIVED is required")
+
+
 def _parse_bool(value: str | None, *, default: bool) -> bool:
     if value is None or value == "":
         return default

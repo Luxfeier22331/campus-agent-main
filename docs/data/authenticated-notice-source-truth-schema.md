@@ -519,8 +519,8 @@ media extraction candidate inventory 与 closeout result manifest 的 media life
 - `notice_media_source_object_verification_report.v1` 是 source-object live verification
   report。每行必须包含 bucket、object key、status、storage provider、reference-only
   posture、expected/observed hash、expected/observed size、`check_method` 与
-  `live_checked_at`。production strict gate 只接受 `head_checksum` 或 `get_hash`，其中
-  `get_hash` 是 HEAD 无可用 checksum 时的受控 fallback。
+  `live_checked_at`。production strict gate 只接受 `head_checksum` 或 `get_hash`；`get_hash`
+  是 HEAD 无可用 checksum 时的受控校验方法，不改变 fail-closed gate。
 - direct closeout promotion 与 on-demand closeout promotion 都必须消费通过的
   `notice_media_closeout_target_admission_state_machine_audit.v1`；destructive quarantine
   cleanup 必须消费同一 audit，并通过 `input_hashes.candidate_inventory_sha256` 证明 cleanup

@@ -201,8 +201,8 @@ describe("official-web-collector dynamic shell crawl", () => {
 						networkObservationTimeoutMs: 100,
 						matchedResponseUrl: "https://www.example.edu/api/content",
 						matchedSelector: null,
-						usedNetworkIdleFallback: false,
-						usedFixedDelayFallback: false,
+						usedNetworkIdleWait: false,
+						usedFixedDelayWait: false,
 					},
 					captures: [
 						{

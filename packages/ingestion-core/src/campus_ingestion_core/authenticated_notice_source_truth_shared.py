@@ -109,7 +109,7 @@ def resolve_authenticated_notice_attachment_object_key(
         content_sha256=content_sha256,
         filename=_normalize_attachment_filename(
             filename=attachment.get("original_filename"),
-            fallback_key=object_key,
+            object_key=object_key,
         ),
         year=year,
         corpus=corpus,
@@ -244,10 +244,10 @@ def _optional_text(value: object) -> str | None:
 def _normalize_attachment_filename(
     *,
     filename: object,
-    fallback_key: str | None = None,
+    object_key: str | None = None,
 ) -> str:
     value = str(filename or "").strip()
-    fallback = str(fallback_key or "").strip()
-    candidate_source = value or fallback
+    key_filename = str(object_key or "").strip()
+    candidate_source = value or key_filename
     candidate = Path(candidate_source.replace("\\", "/")).name.strip().replace("/", "_")
     return candidate or "attachment"

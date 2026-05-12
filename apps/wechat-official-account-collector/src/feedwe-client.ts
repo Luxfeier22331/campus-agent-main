@@ -417,7 +417,7 @@ function normalizeBaseUrl(value: string): string {
 	return normalized.endsWith("/") ? normalized : `${normalized}/`;
 }
 
-function normalizeInteger(value: unknown, fallback: number): number {
+function normalizeInteger(value: unknown, defaultValue: number): number {
 	if (typeof value === "number" && Number.isInteger(value) && value >= 0) {
 		return value;
 	}
@@ -427,7 +427,7 @@ function normalizeInteger(value: unknown, fallback: number): number {
 			return parsed;
 		}
 	}
-	return fallback;
+	return defaultValue;
 }
 
 function normalizeNullableInteger(value: unknown): number | null {

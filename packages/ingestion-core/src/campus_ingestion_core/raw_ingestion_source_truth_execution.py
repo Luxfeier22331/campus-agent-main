@@ -160,7 +160,7 @@ def _build_source_truth_only_routing_decision_payload(
             "route_id": route_decision.route_id,
             "canonical_allowed": route_decision.canonical_allowed,
             "canonical_provider": route_decision.canonical_provider,
-            "fallback_provider": route_decision.fallback_provider,
+            "alternate_provider": route_decision.alternate_provider,
             "parser_version": route_decision.parser_version,
             "reason_codes": list(route_decision.reason_codes),
             "persist_raw_provider_artifact": route_decision.persist_raw_provider_artifact,
@@ -345,26 +345,7 @@ def _execute_source_truth_only_routed_online_ocr(
         )
 
     providers_to_try = [route_decision.canonical_provider]
-    allow_fallback_provider = not (
-        settings.source_ocr_provider == ONLINE_OCR_PROVIDER_MINERU_API
-        and route_decision.canonical_provider == ONLINE_OCR_PROVIDER_MINERU_API
-        and not settings.source_ocr_fallback_enabled
-    )
-    if (
-        allow_fallback_provider
-        and route_decision.fallback_provider
-        and route_decision.fallback_provider not in providers_to_try
-    ):
-        providers_to_try.append(route_decision.fallback_provider)
-    elif (
-        route_decision.fallback_provider
-        and route_decision.fallback_provider not in providers_to_try
-    ):
-        errors = [
-            "fallback provider is disabled because collection source OCR provider is pinned to mineru_api"
-        ]
-    else:
-        errors = []
+    errors: list[str] = []
     for route_provider in providers_to_try:
         provider = _resolve_route_provider(settings=settings, provider=route_provider)
         if provider is None:

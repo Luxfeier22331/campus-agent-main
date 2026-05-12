@@ -423,11 +423,10 @@ def resolve_scoped_rule_unit_chunk_profile(
 
 
 def resolve_structured_text(raw: dict[str, object]) -> str:
-    for field_name in ("clean_text", "raw_text", "text"):
-        value = raw.get(field_name)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    raise ValueError("structured unit must contain clean_text, raw_text, or text")
+    value = raw.get("clean_text")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    raise ValueError("structured unit must contain clean_text")
 
 
 def normalize_optional_text(value: object) -> str | None:

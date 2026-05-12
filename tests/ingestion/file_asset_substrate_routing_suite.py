@@ -20,9 +20,9 @@ class FileAssetRoutingSubstrateTest(unittest.TestCase):
         )
 
         self.assertTrue(decision.canonical_allowed)
-        self.assertEqual(decision.route_id, "pdf_mineru_primary_with_paddle_fallback")
+        self.assertEqual(decision.route_id, "pdf_mineru_primary")
         self.assertEqual(decision.canonical_provider, "mineru_api")
-        self.assertEqual(decision.fallback_provider, "paddleocr_async_jobs")
+        self.assertIsNone(decision.alternate_provider)
 
     def test_refined_spatial_image_stays_fail_closed_after_dual_run(self) -> None:
         initial_typed_metadata = RawAssetTypedMetadata(

@@ -39,10 +39,10 @@ def _load_mineru_content_items(archive: zipfile.ZipFile) -> list[dict[str, Any]]
             if isinstance(payload, list):
                 return [item for item in payload if isinstance(item, dict)]
 
-    for fallback_name in ("content_list_v2.json", "content_list.json"):
-        if fallback_name not in archive.namelist():
+    for canonical_name in ("content_list_v2.json", "content_list.json"):
+        if canonical_name not in archive.namelist():
             continue
-        payload = json.loads(archive.read(fallback_name).decode("utf-8"))
+        payload = json.loads(archive.read(canonical_name).decode("utf-8"))
         flattened: list[dict[str, Any]] = []
         _flatten_content_items(payload, flattened)
         if flattened:

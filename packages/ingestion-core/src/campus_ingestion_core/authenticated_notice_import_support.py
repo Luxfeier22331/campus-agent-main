@@ -52,10 +52,6 @@ from campus_ingestion_core.notice_consumption_projection import (
     NOTICE_TARGET_SURFACE_STABLE_CONTACT_CANDIDATE,
 )
 from campus_ingestion_core.registry import (
-    DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-    RAW_ASSET_REGISTRY_ENV_KEY,
-    RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
 )
@@ -307,8 +303,6 @@ def build_inventory_store_from_env_if_configured(
     operator_env_keys = (
         DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
         SHARED_POSTGRES_OPERATOR_ENV_KEY,
-        DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-        RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
     )
     if any(env.get(key) for key in operator_env_keys):
         return build_authenticated_notice_source_truth_inventory_store_from_env(
@@ -318,8 +312,6 @@ def build_inventory_store_from_env_if_configured(
     runtime_env_keys = (
         DEFAULT_SOURCE_TRUTH_INVENTORY_ENV_KEY,
         SHARED_POSTGRES_ENV_KEY,
-        DOCUMENT_REGISTRY_ENV_KEY,
-        RAW_ASSET_REGISTRY_ENV_KEY,
     )
     if any(env.get(key) for key in runtime_env_keys):
         return build_authenticated_notice_source_truth_inventory_store_from_env(env)

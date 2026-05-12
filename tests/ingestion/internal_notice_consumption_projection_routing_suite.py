@@ -484,6 +484,53 @@ class InternalNoticeConsumptionProjectionRoutingTest(unittest.TestCase):
             "attachment_form_template_query_hint_only",
         )
 
+    def test_attachment_form_template_requires_explicit_matching_attachment_plan(
+        self,
+    ) -> None:
+        registry, inventory_store, object_store = _build_runtime(
+            extra_notice_rows=(
+                _notice_runtime_record(
+                    notice_id="355120",
+                    title_slug="certificate-project-application",
+                    title="关于开放2025年度拔尖创新人才证书项目第二轮报名的通知",
+                ),
+            )
+        )
+        inventory_store.upsert_many(
+            (
+                _inventory_entry_with_attachment_projection_plans(
+                    notice_id="355120",
+                    notice_title="关于开放2025年度拔尖创新人才证书项目第二轮报名的通知",
+                    plans=(
+                        {
+                            "attachment_ref_id": "attachment-0001",
+                            "classification": "text_extractable",
+                            "document_id": (
+                                "notice_attachment:muc_internal_portal:355120:attachment-0001"
+                            ),
+                            "materialization_policy": "required_document",
+                            "attachment_filename": "普通说明材料.docx",
+                        },
+                    ),
+                ),
+            )
+        )
+
+        entries = build_internal_notice_consumption_projection_entries(
+            env=_env(),
+            registry=registry,
+            source_truth_inventory_store=inventory_store,
+            object_store=object_store,
+        )
+
+        self.assertFalse(
+            any(
+                entry.source_notice_id == "355120"
+                and entry.primary_role == NOTICE_PRIMARY_ROLE_ATTACHMENT_FORM_TEMPLATE
+                for entry in entries
+            )
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -228,7 +228,7 @@ def _reject_legacy_input_ref_fields(input_ref: Mapping[str, object]) -> None:
         "target_label": "targetLabel",
     }
     for legacy_field, canonical_field in legacy_fields.items():
-        if legacy_field in input_ref and canonical_field not in input_ref:
+        if legacy_field in input_ref:
             raise OfficialWebSelectedWriteReleaseError(
                 code="legacy_selected_write_input_ref_field",
                 message=f"selected-write task evidence must use {canonical_field}.",

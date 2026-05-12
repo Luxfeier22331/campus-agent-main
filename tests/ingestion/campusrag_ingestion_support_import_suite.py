@@ -96,7 +96,7 @@ class CampusragIngestionImportSuite(_CampusragIngestionSupportBase):
             ("handbook:doc-keep", "handbook:doc-new"),
         )
 
-    def test_collect_import_document_stats_scope_refresh_can_recover_from_legacy_registry_rows(
+    def test_collect_import_document_stats_scope_refresh_rejects_legacy_registry_rows(
         self,
     ) -> None:
         doc_keep = _document_input(
@@ -111,27 +111,22 @@ class CampusragIngestionImportSuite(_CampusragIngestionSupportBase):
         )
         registry = _LegacyProjectionBlockedScopeRefreshRegistry(records=())
 
-        stats = collect_import_document_stats(
-            documents=[doc_keep, doc_new],
-            registry=registry,
-            raw_asset_registry=_FakeRawAssetRegistry(),
-            writer=_FakeWriter(),
-            object_store=self.object_store,
-            parser_version="campusrag-import-v1",
-            embedding_model="Qwen3-Embedding-4B",
-            cleaning_policy_version="student_rules_cleaning_v1",
-            default_visibility_scope=None,
-            scope_refresh=("regulations", "student_rules"),
-        )
+        with self.assertRaisesRegex(ValueError, "unsupported authorization projection keys"):
+            collect_import_document_stats(
+                documents=[doc_keep, doc_new],
+                registry=registry,
+                raw_asset_registry=_FakeRawAssetRegistry(),
+                writer=_FakeWriter(),
+                object_store=self.object_store,
+                parser_version="campusrag-import-v1",
+                embedding_model="Qwen3-Embedding-4B",
+                cleaning_policy_version="student_rules_cleaning_v1",
+                default_visibility_scope=None,
+                scope_refresh=("regulations", "student_rules"),
+            )
 
-        self.assertEqual(stats.success_count, 2)
-        self.assertEqual(stats.failed_count, 0)
         self.assertEqual(registry.list_by_scope_calls, [("regulations", "student_rules")])
-        self.assertEqual(len(registry.replace_scope_calls), 1)
-        self.assertEqual(
-            tuple(record.document_id for record in registry.replace_scope_calls[0][2]),
-            ("handbook:doc-keep", "handbook:doc-new"),
-        )
+        self.assertEqual(len(registry.replace_scope_calls), 0)
 
     def test_collect_import_document_stats_prefers_importable_scope_prefetch(self) -> None:
         doc_new = _document_input(

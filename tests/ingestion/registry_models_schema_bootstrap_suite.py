@@ -68,9 +68,6 @@ class RegistryModelsSchemaBootstrapSuite(unittest.TestCase):
             build_document_registry_from_env({})
         with self.assertRaisesRegex(
             ValueError,
-            (
-                "RAW_ASSET_REGISTRY_DATABASE_URL or DOCUMENT_REGISTRY_DATABASE_URL or "
-                "CAMPUS_SHARED_POSTGRES_URL"
-            ),
+            "RAW_ASSET_REGISTRY_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
         ):
             build_raw_asset_registry_from_env({})

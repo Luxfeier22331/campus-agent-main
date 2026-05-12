@@ -9,12 +9,7 @@ from campus_ingestion_core.postgres_runtime import (
     build_management_postgres_connection_url,
     open_postgres_connection,
 )
-from campus_ingestion_core.registry import (
-    DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-    RAW_ASSET_REGISTRY_ENV_KEY,
-    RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
-)
+from campus_ingestion_core.registry import SHARED_POSTGRES_OPERATOR_ENV_KEY
 
 RESET_SCHEMA_VERSION = "collected_notice_reset_report.v1"
 BACKUP_SCHEMA_VERSION = "collected_notice_reset_backup.v1"
@@ -305,25 +300,19 @@ def choose_service_guide_current_reset_action(
             reason="mixed current release is reset and a stable service_guide release exists",
         )
     return ServiceGuideCurrentResetAction(
-        action="manual_review_required",
+        action="blocked_missing_stable_release",
         release_id=None,
-        reason="mixed current release is reset and no stable service_guide release exists",
+        reason=(
+            "mixed current release is reset and no stable service_guide release exists; "
+            "service_guide current pointer must be absent until an explicit stable release is published"
+        ),
     )
 
 
 def resolve_collected_notice_reset_database_url(env: Mapping[str, str]) -> str:
-    database_url = (
-        env.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY)
-        or env.get(RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY)
-        or env.get(DOCUMENT_REGISTRY_ENV_KEY)
-        or env.get(RAW_ASSET_REGISTRY_ENV_KEY)
-        or ""
-    ).strip()
+    database_url = (env.get(SHARED_POSTGRES_OPERATOR_ENV_KEY) or "").strip()
     if not database_url:
-        raise ValueError(
-            f"{DOCUMENT_REGISTRY_OPERATOR_ENV_KEY} or {RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY} "
-            f"or {DOCUMENT_REGISTRY_ENV_KEY} or {RAW_ASSET_REGISTRY_ENV_KEY} is required"
-        )
+        raise ValueError(f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required")
     return build_management_postgres_connection_url(database_url)
 
 
@@ -390,7 +379,7 @@ def generate_collected_notice_reset_dry_run_report(
             "post-reset source-truth / holding / registry reset-scope counts are zero",
             "post-reset derived/downstream reset-scope counts are zero or explicitly preserved",
             "collector run ledger count remains non-zero",
-            "service_guide current pointer references a stable release or is absent for manual review",
+            "service_guide current pointer references a stable release or is absent with a blocked diagnostic",
         ],
     }
 
@@ -634,7 +623,7 @@ def _planned_current_updates(
     current_action: ServiceGuideCurrentResetAction,
 ) -> list[dict[str, Any]]:
     row_count = 0
-    if current_action.action in {"promote_stable_release", "manual_review_required"}:
+    if current_action.action in {"promote_stable_release", "blocked_missing_stable_release"}:
         cursor.execute(
             """
             select count(*)
@@ -657,11 +646,11 @@ def _planned_current_updates(
 
 
 def _planned_blocks(current_action: ServiceGuideCurrentResetAction) -> list[dict[str, Any]]:
-    if current_action.action != "manual_review_required":
+    if current_action.action != "blocked_missing_stable_release":
         return []
     return [
         {
-            "name": "service_guide_current_manual_review",
+            "name": "service_guide_current_missing_stable_release",
             "reason": current_action.reason,
         }
     ]
@@ -695,7 +684,7 @@ def _execute_service_guide_current_action(
                 "row_count": 1,
             }
         ]
-    if current_action.action == "manual_review_required":
+    if current_action.action == "blocked_missing_stable_release":
         cursor.execute(
             """
             delete from ingestion_projection.structured_projection_current
@@ -706,7 +695,7 @@ def _execute_service_guide_current_action(
             {
                 "name": "service_guide_current_pointer",
                 "table": "ingestion_projection.structured_projection_current",
-                "action": "manual_review_required",
+                "action": "blocked_missing_stable_release",
                 "release_id": None,
                 "row_count": int(cursor.rowcount if cursor.rowcount is not None else 0),
             }

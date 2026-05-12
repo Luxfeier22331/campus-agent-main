@@ -551,7 +551,7 @@ def _build_text_extractable_provider_payload(
 
 
 def _guess_attachment_filename(attachment_ref: dict[str, Any]) -> str:
-    fallback_candidate: str | None = None
+    extensionless_candidate: str | None = None
     for field_name in (
         "original_filename",
         "final_url",
@@ -570,10 +570,10 @@ def _guess_attachment_filename(attachment_ref: dict[str, Any]) -> str:
                 suffix = suffix[1:]
             if suffix:
                 return candidate
-            if fallback_candidate is None:
-                fallback_candidate = candidate
-    if fallback_candidate is not None:
-        return fallback_candidate
+            if extensionless_candidate is None:
+                extensionless_candidate = candidate
+    if extensionless_candidate is not None:
+        return extensionless_candidate
     attachment_ref_id = (
         _normalize_optional_text(attachment_ref.get("attachment_ref_id")) or "attachment"
     )

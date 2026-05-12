@@ -13,22 +13,12 @@ from typing import Any, Literal, Protocol
 
 import httpx
 
-from campus_ingestion_core.internal_notice_consumption_admission import (
-    DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_ENV_KEY,
-    DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_ENV_KEY,
-)
 from campus_ingestion_core.models import DocumentRegistryRecord
-from campus_ingestion_core.notice_consumption_projection import (
-    DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY,
-    DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY,
-)
 from campus_ingestion_core.postgres_runtime import (
     build_operator_postgres_connection_url,
     normalize_postgres_connection_url,
 )
 from campus_ingestion_core.registry import (
-    DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _coerce_json_payload,
@@ -604,7 +594,6 @@ def build_schedule_image_ocr_attempt_store_from_env(
         if not operator_database_url:
             raise ValueError(
                 f"{DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_ENV_KEY} or "
                 f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} "
                 "is required when prefer_operator=True"
             )
@@ -615,9 +604,7 @@ def build_schedule_image_ocr_attempt_store_from_env(
     if not database_url:
         raise ValueError(
             f"{DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_ENV_KEY} or "
-            f"{DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_ENV_KEY} or "
-            f"{DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} "
-            "is required"
+            f"{SHARED_POSTGRES_ENV_KEY} is required"
         )
     return PostgresScheduleImageOcrAttemptStore(database_url=database_url)
 
@@ -1129,9 +1116,6 @@ def _required_text(raw: Mapping[str, Any], key: str) -> str:
 def _schedule_ocr_operator_database_url(source: Mapping[str, str]) -> str:
     return (
         source.get(DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_OPERATOR_ENV_KEY)
-        or source.get(DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_ENV_KEY)
-        or source.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY)
-        or source.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY)
         or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
         or ""
     ).strip()
@@ -1140,10 +1124,7 @@ def _schedule_ocr_operator_database_url(source: Mapping[str, str]) -> str:
 def _schedule_ocr_runtime_database_url(source: Mapping[str, str]) -> str:
     return (
         source.get(DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_ENV_KEY)
-        or source.get(DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_ENV_KEY)
-        or source.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY)
         or source.get(SHARED_POSTGRES_ENV_KEY)
-        or source.get(DOCUMENT_REGISTRY_ENV_KEY)
         or ""
     ).strip()
 

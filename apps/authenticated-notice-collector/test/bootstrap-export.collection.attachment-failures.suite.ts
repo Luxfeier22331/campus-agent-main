@@ -132,8 +132,9 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 			},
 		]);
 	});
-	it("keeps the batch running when a single attachment download fails", async () => {
-		const result = await collectBootstrapBundle({
+	it("fails closed when a required attachment download has a transient failure", async () => {
+		await expect(
+			collectBootstrapBundle({
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
 				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
@@ -230,19 +231,10 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 			requestMaxRetries: 1,
 			siteId: "muc_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
-		});
-
-		expect(result.stats.attachmentObjectsUploaded).toBe(0);
-		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
-			storage_provider: "reference_only",
-			object_key: null,
-			original_filename: "broken.pdf",
-			last_error:
-				"You did not provide the number of bytes specified by the Content-Length HTTP header.",
-			last_error_class: "transient_failed",
-			ingest_status: "reference_only",
-		});
-		expect(result.bundleRecords[0]?.links).toEqual([]);
+			}),
+		).rejects.toThrow(
+			"attachment_materialization_failed:notice=355600:attachment=attachment-0001",
+		);
 	});
 	it("records first observed 404 attachment downloads as typed terminal unavailable", async () => {
 		const result = await collectBootstrapBundle({

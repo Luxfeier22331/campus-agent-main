@@ -17,9 +17,6 @@ from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWrite
 from campus_ingestion_core.internal_notice_consumption_notice_entries import (
     _build_notice_level_entries,
 )
-from campus_ingestion_core.internal_notice_consumption_notice_heuristics import (
-    _looks_like_service_status_override_notice,
-)
 from campus_ingestion_core.internal_notice_consumption_projection_models import (
     InternalNoticeConsumptionProjectionObjectStore,
 )
@@ -236,7 +233,6 @@ def build_internal_notice_consumption_projection_entries(
             report=report,
             inventory_entry=inventory_entry,
             routing_sample=routing_samples_by_notice.get(report.notice_id),
-            fallback_service_detector=_looks_like_service_status_override_notice,
         ):
             continue
         source_record = source_record_by_lineage.get((report.document_id, report.revision_track))

@@ -66,6 +66,23 @@ class ReleaseOfficialWebSelectedWriteTestPart06(unittest.TestCase):
                     work_dir=Path(temp_dir),
                 )
 
+    def test_rejects_legacy_input_ref_field_even_when_canonical_field_is_present(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            task = _selected_write_task()
+            input_ref = dict(task["inputRef"])
+            input_ref["source_urls"] = ["https://legacy.example.edu/"]
+            task = {**task, "inputRef": input_ref}
+
+            with self.assertRaisesRegex(Exception, "sourceUrls"):
+                release_official_web_selected_write(
+                    release_task=task,
+                    object_store=_FakeObjectStore(),
+                    derived_object_store=_FakeObjectStore(),
+                    projection_reporter=_FakeProjectionReporter(),
+                    structured_projection_publisher=_FakeStructuredProjectionPublisher(),
+                    work_dir=Path(temp_dir),
+                )
+
     def test_worker_selected_write_task_requires_canonical_identity_fields(self) -> None:
         replay_report = {
             "consumer_candidate_pages": [

@@ -78,10 +78,10 @@ function resolveVisualAuditOutputDir(config: CollectorConfig, generatedAt: strin
 	);
 }
 
-function parsePositiveInteger(raw: string | undefined, fallback: number): number {
+function parsePositiveInteger(raw: string | undefined, defaultValue: number): number {
 	const parsed = Number(raw || "");
 	if (!Number.isFinite(parsed) || parsed <= 0) {
-		return fallback;
+		return defaultValue;
 	}
 	return Math.floor(parsed);
 }

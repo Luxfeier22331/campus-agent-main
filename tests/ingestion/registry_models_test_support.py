@@ -21,6 +21,12 @@ from campus_ingestion_core.authenticated_notice_attachment_fetch_status_store im
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
+from campus_ingestion_core.internal_notice_read_model_env import (
+    build_internal_notice_read_model_store_from_env,
+)
+from campus_ingestion_core.notice_consumption_projection import (
+    build_notice_consumption_projection_store_from_env,
+)
 from campus_ingestion_core.models import (
     DocumentRegistryRecord,
     RawAssetRecord,
@@ -188,6 +194,8 @@ __all__ = [
     "build_authenticated_notice_file_release_inventory_store_from_env",
     "build_authenticated_notice_source_truth_inventory_store_from_env",
     "build_document_registry_from_env",
+    "build_internal_notice_read_model_store_from_env",
+    "build_notice_consumption_projection_store_from_env",
     "build_raw_asset_registry_from_env",
     "json",
     "patch",

@@ -123,7 +123,7 @@ materializer，并补齐 stable-contact candidate 的最小离线构建路径。
     `service_status_candidate` 为 185，`defer` 为 1041。
   - 2026-04-26 routing taxonomy expansion round 4：继续补齐选调生招录、红色
     1+1、图书馆考研读者服务、门户/App 试运行、后勤服务信息、银行扣款、辅导员岗位等级评聘与
-    校历/开学放假等窄规则；fallback `other/review_later` 明确
+    校历/开学放假等窄规则；历史低置信 `other/review_later` 回放项明确
     `machine_processing_policy=skip`，不作为 VLM backlog。历史 3000 条 bundle
     回放中 `other/review_later` 收敛到 205，`notice_level_query` 为 1385，
     `service_status_candidate` 为 198，`defer` 为 1091。

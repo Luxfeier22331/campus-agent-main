@@ -102,7 +102,7 @@ Allowed current values:
 ## Content Blocks
 
 `content-blocks.jsonl` stores only content that is actually present in the
-canonical source page or trusted fallback metadata.
+canonical source page or trusted provider metadata.
 
 The collector always writes one title block. It may also write:
 

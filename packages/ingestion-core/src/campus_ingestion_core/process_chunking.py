@@ -279,7 +279,7 @@ def build_indexable_chunks_from_jsonl(
                 parser_version=record.parser_version,
                 embedding_model=_resolve_embedding_model_name(
                     embedding_model,
-                    fallback=record.embedding_model,
+                    registry_model_name=record.embedding_model,
                 ),
                 entitlement_groups=document_entitlement_groups,
                 visibility_scope=document_visibility_scope,
@@ -432,15 +432,15 @@ def embed_texts(
 def _resolve_embedding_model_name(
     embedding_model: BaseEmbedding | object | None,
     *,
-    fallback: str,
+    registry_model_name: str,
 ) -> str:
     if embedding_model is None:
-        return fallback
+        return registry_model_name
     for attribute in ("model_name", "model"):
         value = getattr(embedding_model, attribute, None)
         if isinstance(value, str) and value.strip():
             return value.strip()
-    return fallback
+    return registry_model_name
 
 
 __all__ = [

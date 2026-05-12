@@ -21,13 +21,11 @@ from campus_ingestion_core.notice_consumption_projection_shared import (
     NOTICE_COMPLETENESS_COMPLETE,
     NOTICE_COMPLETENESS_REFERENCE_ONLY,
     NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING,
-    NOTICE_CONSUMPTION_STATUS_LEGACY_HELD_IN_NOTICE_RUNTIME,
     NOTICE_CONSUMPTION_STATUS_NO_ADOPTION,
     NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME,
     NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
     NOTICE_CONSUMPTION_STATUS_READY_FOR_TARGET,
     NOTICE_CONSUMPTION_STATUS_RETAINED_FOR_NOTICE_QUERY,
-    NOTICE_CONSUMPTION_STATUSES_RETAINED_FOR_NOTICE_QUERY,
     NOTICE_DEFAULT_AGENT_CAMPUS_SERVICES,
     NOTICE_DEFAULT_AGENT_NOTICE,
     NOTICE_DEFAULT_AGENT_RAG,
@@ -75,8 +73,6 @@ from campus_ingestion_core.notice_consumption_projection_shared import (
 )
 from campus_ingestion_core.postgres_runtime import build_operator_postgres_connection_url
 from campus_ingestion_core.registry import (
-    DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _postgres_connection,
@@ -92,14 +88,12 @@ def build_notice_consumption_projection_store_from_env(
     if prefer_operator:
         operator_database_url = (
             source.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY)
-            or source.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY)
             or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
             or ""
         ).strip()
         if not operator_database_url:
             raise ValueError(
                 f"{DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY} or "
-                f"{DOCUMENT_REGISTRY_OPERATOR_ENV_KEY} or "
                 f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
             )
         return PostgresNoticeConsumptionProjectionStore(
@@ -108,7 +102,6 @@ def build_notice_consumption_projection_store_from_env(
     database_url = (
         source.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY)
         or source.get(SHARED_POSTGRES_ENV_KEY)
-        or source.get(DOCUMENT_REGISTRY_ENV_KEY)
         or ""
     ).strip()
     if not database_url:
@@ -131,8 +124,6 @@ __all__ = [
     "NOTICE_COMPLETENESS_COMPLETE",
     "NOTICE_COMPLETENESS_REFERENCE_ONLY",
     "NOTICE_COMPLETENESS_REQUIRES_MULTIMODAL_PROCESSING",
-    "NOTICE_CONSUMPTION_STATUSES_RETAINED_FOR_NOTICE_QUERY",
-    "NOTICE_CONSUMPTION_STATUS_LEGACY_HELD_IN_NOTICE_RUNTIME",
     "NOTICE_CONSUMPTION_STATUS_NOTICE_RUNTIME",
     "NOTICE_CONSUMPTION_STATUS_NO_ADOPTION",
     "NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING",

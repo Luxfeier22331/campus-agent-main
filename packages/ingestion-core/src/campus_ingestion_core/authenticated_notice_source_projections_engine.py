@@ -360,24 +360,9 @@ def _resolve_authenticated_notice_ocr_runtime(
         settings_by_provider=settings_by_provider,
         explicit_clients=explicit_clients,
     )
-    fallback_runtimes: list[AuthenticatedNoticeOcrProviderRuntime] = []
-    fallback_enabled = bool(getattr(runtime_profile, "source_ocr_fallback_enabled", False))
-    if fallback_enabled:
-        for provider in (active_provider, ONLINE_OCR_PROVIDER_ASYNC_JOBS):
-            if provider == primary_runtime.provider or provider not in available_providers:
-                continue
-            fallback_runtimes.append(
-                _build_authenticated_notice_ocr_provider_runtime(
-                    provider=provider,
-                    settings_by_provider=settings_by_provider,
-                    explicit_clients=explicit_clients,
-                )
-            )
-            break
     return AuthenticatedNoticeOcrRuntime(
         client=primary_runtime.client,
         provider=primary_runtime.provider,
-        fallback_runtimes=tuple(fallback_runtimes),
     )
 
 
@@ -760,33 +745,25 @@ def _parse_attachment_with_ocr_runtimes(
     media_type: str | None,
     error_prefix: str,
 ) -> bytes:
-    runtimes = (
-        AuthenticatedNoticeOcrProviderRuntime(
-            client=ocr_runtime.client,
-            provider=ocr_runtime.provider,
-        ),
-        *ocr_runtime.fallback_runtimes,
-    )
     errors: list[str] = []
-    for runtime in runtimes:
-        try:
-            if file_path is not None:
-                provider_result = runtime.client.parse_file(file_path)
-            else:
-                if file_bytes is None:
-                    raise ValueError("file bytes are required when file path is unavailable")
-                provider_result = parse_online_ocr_bytes(
-                    ocr_client=runtime.client,
-                    file_bytes=file_bytes,
-                    filename=filename,
-                    media_type=media_type,
-                )
-            return _normalize_authenticated_notice_ocr_provider_payload(
-                provider_response_bytes=provider_result.provider_result_bytes,
-                provider=runtime.provider,
+    try:
+        if file_path is not None:
+            provider_result = ocr_runtime.client.parse_file(file_path)
+        else:
+            if file_bytes is None:
+                raise ValueError("file bytes are required when file path is unavailable")
+            provider_result = parse_online_ocr_bytes(
+                ocr_client=ocr_runtime.client,
+                file_bytes=file_bytes,
+                filename=filename,
+                media_type=media_type,
             )
-        except Exception as exc:
-            errors.append(str(exc) if len(runtimes) == 1 else f"{runtime.provider}: {exc}")
+        return _normalize_authenticated_notice_ocr_provider_payload(
+            provider_response_bytes=provider_result.provider_result_bytes,
+            provider=ocr_runtime.provider,
+        )
+    except Exception as exc:
+        errors.append(str(exc))
     raise RuntimeError(f"{error_prefix}: {' | '.join(errors)}")
 
 

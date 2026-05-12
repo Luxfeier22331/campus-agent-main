@@ -227,14 +227,14 @@ def assemble_chunk_text(
             total_token_count=total_token_count,
         )
 
-    fallback_text, header_token_count = _compose_contextual_chunk_text(
+    required_variant_text, header_token_count = _compose_contextual_chunk_text(
         display_text=normalized_display_text,
         variant=context_plan.required_variant,
         chunk_profile=chunk_profile,
     )
-    total_token_count = _estimate_token_count(fallback_text, chunk_profile=chunk_profile)
+    total_token_count = _estimate_token_count(required_variant_text, chunk_profile=chunk_profile)
     return ChunkTextAssembly(
-        text=fallback_text,
+        text=required_variant_text,
         header_mode=context_plan.required_variant.mode,
         header_token_count=header_token_count,
         display_token_count=display_token_count,

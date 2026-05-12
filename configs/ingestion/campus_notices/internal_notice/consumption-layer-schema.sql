@@ -236,7 +236,7 @@ ingestion_projection.collected_notice_released_file_text_extraction_attempt (
             'pending',
             'completed',
             'skipped',
-            'manual_review',
+            'machine_review_required',
             'failed_retryable',
             'failed_terminal'
         )
@@ -290,7 +290,7 @@ CREATE TABLE IF NOT EXISTS ingestion_projection.collected_notice_pdf_ocr_text_ex
             'pending',
             'completed',
             'skipped',
-            'manual_review',
+            'machine_review_required',
             'failed_retryable',
             'failed_terminal'
         )
@@ -344,7 +344,7 @@ CREATE TABLE IF NOT EXISTS ingestion_projection.collected_notice_office_text_ext
             'pending',
             'completed',
             'skipped',
-            'manual_review',
+            'machine_review_required',
             'failed_retryable',
             'failed_terminal'
         )
@@ -398,7 +398,7 @@ CREATE TABLE IF NOT EXISTS ingestion_projection.collected_notice_image_ocr_text_
             'pending',
             'completed',
             'skipped',
-            'manual_review',
+            'machine_review_required',
             'failed_retryable',
             'failed_terminal'
         )

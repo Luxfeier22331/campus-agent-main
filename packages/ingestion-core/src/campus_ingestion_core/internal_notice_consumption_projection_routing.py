@@ -53,7 +53,6 @@ def routes_to_service_status_candidate(
     *,
     inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
     routing_sample: AuthenticatedNoticeRoutingSample | None,
-    fallback_service_detector,
 ) -> bool:
     if routing_sample is not None:
         if routing_sample.suggested_consumption_route != "service_status_candidate":
@@ -62,10 +61,13 @@ def routes_to_service_status_candidate(
             resolve_collected_notice_target_candidates(
                 notice_family=routing_sample.notice_family,
                 primary_route=routing_sample.suggested_consumption_route,
-                title=_inventory_title(inventory_entry, fallback=routing_sample.notice_title),
+                title=_inventory_title(
+                    inventory_entry,
+                    sample_notice_title=routing_sample.notice_title,
+                ),
             )
         )
-    return bool(fallback_service_detector(inventory_entry))
+    return False
 
 
 def should_suppress_regulation_promotion(
@@ -73,15 +75,13 @@ def should_suppress_regulation_promotion(
     report: InternalNoticeRegulationPromotionDocumentReport,
     inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry | None,
     routing_sample: AuthenticatedNoticeRoutingSample | None,
-    fallback_service_detector,
 ) -> bool:
+    del inventory_entry
     if report.action != "promote_candidate":
         return False
     if routing_sample is not None:
         return routing_sample.suggested_consumption_route != "regulation_candidate"
-    if inventory_entry is None:
-        return False
-    return bool(fallback_service_detector(inventory_entry))
+    return False
 
 
 def resolve_service_status_candidate_kind(
@@ -106,10 +106,10 @@ def resolve_service_status_candidate_kind(
 def _inventory_title(
     entry: AuthenticatedNoticeSourceTruthInventoryEntry,
     *,
-    fallback: str,
+    sample_notice_title: str,
 ) -> str:
     parent_snapshot = dict(entry.parent_snapshot or {})
-    return str(parent_snapshot.get("notice_title") or fallback or "").strip()
+    return str(parent_snapshot.get("notice_title") or sample_notice_title or "").strip()
 
 
 def routing_metadata(

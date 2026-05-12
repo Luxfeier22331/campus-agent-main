@@ -54,7 +54,7 @@ class AuthenticatedNoticeImportBundleTest(unittest.TestCase):
         ]
         self.assertEqual(len(attachment_refs), 1)
         self.assertEqual(attachment_refs[0]["resource_role"], "inline_image")
-        self.assertEqual(attachment_refs[0]["relation_source"], "notice_html_img_fallback")
+        self.assertEqual(attachment_refs[0]["relation_source"], "notice_html_inline_img")
         self.assertEqual(attachment_refs[0]["original_filename"], "周末地铁接驳车安排.png")
         self.assertEqual(
             attachment_refs[0]["source_url"],

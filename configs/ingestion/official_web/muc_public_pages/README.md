@@ -14,7 +14,7 @@ Current runtime truth:
 - serving surface: `mixed`
 - query enabled: `false`
 - freshness-sensitive queries supported: `false`
-- live-search fallback allowed: `false`
+- live-search expansion allowed: `false`
 - serving alias: `muc_public_pages`
 - collection prefix: `muc_public_pages`
 - retrieval qrels manifest: `split-manifest.v1.json`

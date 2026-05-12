@@ -6,16 +6,10 @@ from collections.abc import Sequence
 from dataclasses import asdict
 from pathlib import Path
 
-from campus_ingestion_core import (
-    audit_official_web_projection_chunking,
-    replay_official_web_source_truth_local,
-    validate_official_web_projection_output,
-)
 from campus_ingestion_core.official_web_release_task_store import (
     build_official_web_release_task_store_from_env,
 )
 
-from campus_ingestion_worker import official_web_handoff_consumer_runtime as _runtime
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 from campus_ingestion_worker.official_web_handoff_consumer_models import (
     OFFICIAL_WEB_HANDOFF_CONSUME_REPORT_SCHEMA_VERSION,
@@ -25,25 +19,10 @@ from campus_ingestion_worker.official_web_handoff_consumer_models import (
     OfficialWebHandoffConsumerSettings,
     OfficialWebSourceObjectStore,
 )
-
-_persist_projection_output = _runtime.persist_projection_output
-
-
-def _sync_runtime_compat_symbols() -> None:
-    _runtime.replay_official_web_source_truth_local = replay_official_web_source_truth_local
-    _runtime.validate_official_web_projection_output = validate_official_web_projection_output
-    _runtime.audit_official_web_projection_chunking = audit_official_web_projection_chunking
-    _runtime.persist_projection_output = _persist_projection_output
-
-
-def consume_official_web_handoffs(*args, **kwargs) -> OfficialWebHandoffConsumeBatchReport:
-    _sync_runtime_compat_symbols()
-    return _runtime.consume_official_web_handoffs(*args, **kwargs)
-
-
-def consume_handoff_record(*args, **kwargs) -> OfficialWebHandoffConsumeResult:
-    _sync_runtime_compat_symbols()
-    return _runtime.consume_handoff_record(*args, **kwargs)
+from campus_ingestion_worker.official_web_handoff_consumer_runtime import (
+    consume_handoff_record,
+    consume_official_web_handoffs,
+)
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -90,14 +69,10 @@ __all__ = [
     "OfficialWebHandoffConsumeResult",
     "OfficialWebHandoffConsumerSettings",
     "OfficialWebSourceObjectStore",
-    "_persist_projection_output",
-    "audit_official_web_projection_chunking",
     "build_parser",
     "consume_handoff_record",
     "consume_official_web_handoffs",
     "main",
-    "replay_official_web_source_truth_local",
-    "validate_official_web_projection_output",
 ]
 
 
