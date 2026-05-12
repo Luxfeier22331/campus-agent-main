@@ -82,7 +82,7 @@ uv run --all-packages python -m scripts.workstream_harness result write \
 
 ## Compatibility Normalization
 
-harness 会在输入端兼容少量已观测到的新 agent 旧形状，但持久化到 runtime ledger 的 payload
+harness 会在输入端归一化少量已观测到的新 agent 旧形状，但持久化到 runtime ledger 的 payload
 仍然必须回写为 canonical `workstream_harness_result_v1`。
 
 source precedence 已收口为单一 truth source：
@@ -92,7 +92,7 @@ source precedence 已收口为单一 truth source：
 如果 `result_file` 不存在、不可读或不可解析，hook / wrapper 会直接拒绝 stop 或把 run 记为
 `failed_needs_repair`，不再静默回退到 message JSON。
 
-当前受支持的兼容输入：
+当前受支持的旧形状输入：
 
 - `result: "success"` / `"done"` / `"complete"`
   - 归一化为 `completed`
@@ -105,7 +105,7 @@ source precedence 已收口为单一 truth source：
   - `command` -> `commands: [...]`
   - `details` -> `notes`
 
-兼容层的目标是适配 agent 新行为，不是放宽 canonical schema。
+输入归一化的目标是适配 agent 新行为，不是放宽 canonical schema。
 如果 payload 语义仍然不明确，hook 依旧会拒绝停止。
 
 ## Blocker Taxonomy

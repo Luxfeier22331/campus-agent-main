@@ -91,10 +91,10 @@ uv run --all-packages python -m scripts.workstream_harness result write \
 ```
 
 - 正常 closeout 时，final assistant message 应该保留给人看，不应再把这段 JSON 直接显示给用户
-- stop hook 会兼容少量已观测到的新 agent 旧形状，例如：
+- stop hook 会归一化少量已观测到的新 agent 旧形状，例如：
   - `result: "success"`
   - `verification: [{ "command": "...", "result": "passed", "details": "..." }]`
-- 兼容只发生在输入端；runtime ledger 仍然只保存 canonical v1 payload
+- 归一化只发生在输入端；runtime ledger 仍然只保存 canonical v1 payload
 - `Stop` hook 与 wrapper 都只从 `result_file` 解析终态
 - 如果 `result_file` 缺失、非法或不可读，run 会被拦截或收口为 `failed_needs_repair`
 - `Stop` hook 会拦截缺失或非法终态，并给一次 continuation 机会
