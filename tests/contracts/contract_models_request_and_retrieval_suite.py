@@ -308,8 +308,8 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                 "prompt_runtime_state": "",
                 "prompt_runtime_detail": "",
                 "answer_presentation_kind": "",
-                "answer_fallback_path": "",
-                "answer_fallback_reason": "",
+                "answer_presentation_path": "",
+                "answer_diagnostic_reason": "",
                 "retrieval_plan_summary": None,
                 "stage_activities": (),
                 "retrieved_sources": (),
@@ -342,8 +342,8 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
         self.assertIn("prompt_runtime_state", field_names)
         self.assertIn("prompt_runtime_detail", field_names)
         self.assertIn("answer_presentation_kind", field_names)
-        self.assertIn("answer_fallback_path", field_names)
-        self.assertIn("answer_fallback_reason", field_names)
+        self.assertIn("answer_presentation_path", field_names)
+        self.assertIn("answer_diagnostic_reason", field_names)
         self.assertIn("remote_content_suspicion_summary", field_names)
         self.assertIn("source_trust_summary", field_names)
 

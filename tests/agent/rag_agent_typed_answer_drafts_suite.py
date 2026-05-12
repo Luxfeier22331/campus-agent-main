@@ -17,6 +17,9 @@ from campus_rag_agent.typed_answer_drafts import (
 )
 from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 
+from tests.agent.rag_agent_answer_quality_regression_suite_support import (
+    _make_curriculum_plan_source,
+)
 from tests.agent.rag_agent_test_support import _make_handbook_source
 
 
@@ -266,6 +269,127 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
         self.assertEqual(result.verdict, "valid")
         self.assertEqual(result.claim_supports[0].claim_type, "procedure_step")
 
+    def test_general_summary_uses_short_factual_summary_draft_for_management_query(
+        self,
+    ) -> None:
+        status_source = _make_handbook_source(
+            doc_id="handbook:study-abroad",
+            title="中央民族大学本科生境外留学管理办法",
+            snippet="参加留学项目学生的学籍在外留学期间仍属于中央民族大学。",
+            score=0.91,
+            chunk_id_suffix="study-abroad-status-summary-draft",
+            detail_label="第八条",
+            content_role="article_body",
+            is_answer_bearing=True,
+        )
+        status_source = replace(
+            status_source,
+            anchor=_answer_ready_anchor(
+                answer_role="supporting_detail",
+                article_no="第八条",
+            ),
+        )
+        credit_source = _make_handbook_source(
+            doc_id="handbook:study-abroad",
+            title="中央民族大学本科生境外留学管理办法",
+            snippet="境外课程及获得的学分按照协议予以转换和承认。",
+            score=0.9,
+            chunk_id_suffix="study-abroad-credit-summary-draft",
+            detail_label="第十一条",
+            content_role="eligibility",
+            is_answer_bearing=True,
+        )
+        credit_source = replace(
+            credit_source,
+            anchor=_answer_ready_anchor(
+                answer_role="eligibility_condition",
+                condition_subject="generic_condition",
+                condition_polarity="positive",
+                article_no="第十一条",
+            ),
+        )
+        grade_source = _make_handbook_source(
+            doc_id="handbook:study-abroad",
+            title="中央民族大学本科生境外留学管理办法",
+            snippet="成绩认定采用对应原则，境外课程必须全部转换登录进入学校学生个人成绩单。",
+            score=0.89,
+            chunk_id_suffix="study-abroad-grade-summary-draft",
+            detail_label="第十二条",
+            content_role="article_body",
+            is_answer_bearing=True,
+        )
+        grade_source = replace(
+            grade_source,
+            anchor=_answer_ready_anchor(
+                answer_role="supporting_detail",
+                article_no="第十二条",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="本科生出国境外留学期间学籍和成绩怎么管理",
+                corpus="regulations",
+                collection="student_rules",
+                sources=(status_source, credit_source, grade_source),
+            ),
+            answer_shape=AnswerShape.GENERAL_SUMMARY,
+        )
+
+        self.assertEqual(draft.typed_draft.kind, "short_factual_summary")
+        self.assertLessEqual(len(draft.typed_draft.references), 2)
+        self.assertIn("学籍在外留学期间仍属于中央民族大学", draft.answer_text)
+        self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")
+
+    def test_curriculum_fact_intent_allows_multi_source_short_factual_summary(
+        self,
+    ) -> None:
+        sources = tuple(
+                _make_curriculum_plan_source(
+                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                    chunk_id=f"curriculum:economics:chunk-00{index}",
+                    source_title="经济学拔尖人才创新班人才培养方案",
+                    snippet=snippet,
+                    score=0.9 - index / 100,
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                )
+            for index, snippet in enumerate(
+                (
+                    "通识教育 类别 | 课程号 | 课程名称",
+                    "学科基础教育 课程号 | 课程名称 | 学分",
+                    "专业核心课程 经济学拔尖人才创新班必修的专业核心课程30学分。",
+                    "专业选修课程 经济学拔尖人才创新班专业选修课程至少任选7门课程。",
+                ),
+                start=1,
+            )
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="经济学拔尖人才创新班人才培养方案课程设置怎么安排",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                sources=sources,
+            ),
+            retrieval_intent=_retrieval_intent(
+                kind="curriculum_fact_lookup",
+                answer_kind="curriculum_fact",
+                corpus="curriculum",
+                collection="curriculum_plan",
+                document_ids=("curriculum:经济学拔尖人才创新班人才培养方案",),
+            ),
+        )
+
+        self.assertEqual(draft.typed_draft.kind, "short_factual_summary")
+        self.assertEqual(len(draft.typed_draft.references), 4)
+        result = validate_typed_answer_draft(
+            draft.typed_draft,
+            expected_answer_kind="curriculum_fact",
+        )
+        self.assertEqual(result.verdict, "valid")
+
     def test_typed_draft_validation_rejects_answer_kind_mismatch_against_retrieval_intent(
         self,
     ) -> None:
@@ -504,6 +628,61 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
         self.assertEqual(draft.typed_draft.kind, "condition_table")
         self.assertEqual(draft.typed_draft.rows[0].polarity, "negative")
         self.assertEqual(draft.typed_draft.rows[0].source_id, source.doc_id)
+        self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")
+
+    def test_condition_table_projects_condition_subject_from_intent_for_focused_supporting_detail(
+        self,
+    ) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:discipline",
+            title="中央民族大学学生违纪处分实施办法",
+            snippet=(
+                "第三十三条 违反学校考勤管理规定，无故旷课者，视情节给予如下处分："
+                "一学期累计旷课16节以下者，给予学院通报批评处分。"
+            ),
+            score=0.91,
+            chunk_id_suffix="attendance-threshold-supporting-detail",
+            detail_label="第三十三条",
+            content_role="article_body",
+            is_answer_bearing=True,
+            semantic_role="supporting_detail",
+            polarity="neutral",
+            claim_type="policy_clause",
+        )
+        source = replace(
+            source,
+            anchor=_answer_ready_anchor(
+                answer_role="supporting_detail",
+                article_no="第三十三条",
+                condition_polarity="neutral",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="旷课多少学时会按违纪处理",
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            ),
+            retrieval_intent=_retrieval_intent(
+                kind="condition_table",
+                answer_kind="condition_table",
+                collection="student_rules",
+                document_ids=("handbook:discipline",),
+                condition_subject="attendance_absence_threshold",
+                evidence_roles=("eligibility_condition", "table_fact", "supporting_detail"),
+            ),
+        )
+
+        self.assertEqual(draft.typed_draft.kind, "condition_table")
+        self.assertEqual(
+            draft.typed_draft.rows[0].condition_subject,
+            "attendance_absence_threshold",
+        )
+        self.assertEqual(draft.typed_draft.rows[0].polarity, "neutral")
+        self.assertEqual(draft.typed_draft.rows[0].answer_role, "supporting_detail")
+        self.assertIn("16节", draft.typed_draft.rows[0].condition_text)
         self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")
 
     def test_supporting_detail_clause_validates_without_condition_subject(self) -> None:
@@ -810,17 +989,22 @@ def _retrieval_intent(
     *,
     kind: str,
     answer_kind: str,
+    corpus: str = "regulations",
     collection: str = "student_rules",
     document_ids: tuple[str, ...] = (),
     document_titles: tuple[str, ...] = (),
     condition_subject: str = "",
+    evidence_roles: tuple[str, ...] = (),
 ) -> RetrievalIntent:
     return RetrievalIntent(
         kind=kind,
         normalized_query="测试 query",
-        expected=RetrievalIntentExpectation(answer_kind=answer_kind),
+        expected=RetrievalIntentExpectation(
+            answer_kind=answer_kind,
+            evidence_roles=evidence_roles,
+        ),
         target=RetrievalIntentTarget(
-            corpus="regulations",
+            corpus=corpus,
             collection=collection,
             document_ids=document_ids,
             document_titles=document_titles,

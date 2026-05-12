@@ -307,7 +307,7 @@ compatibility current artifact 只允许 `promote` 写入：
 
 local / smoke runtime 与 production runtime 都通过 PostgreSQL
 `structured_projection_current` current pointer 和 typed read model 消费当前 release；
-mounted readonly current projection file fallback 已下线。
+mounted readonly current projection file runtime 已下线。
 
 长期 production publication 必须同时写入 PostgreSQL：
 

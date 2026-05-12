@@ -6,9 +6,11 @@ import unicodedata
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
-from typing import Literal
+from typing import Literal, Protocol
 
 from campus_retrieval_core.evidence_semantics import infer_evidence_query_intent
+from campus_retrieval_core.query_focus import extract_query_focus
+from campus_shared.regulation_semantic_registry import load_regulation_discovery_config
 
 from .retrieval_intent import (
     RetrievalIntent,
@@ -26,11 +28,25 @@ class InstitutionalRuleConsumptionEntry:
 
 
 @dataclass(frozen=True, slots=True)
+class InstitutionalRulePolicyObjectEntry:
+    document_id: str
+    title: str
+    title_aliases: tuple[str, ...]
+
+
+class InstitutionalRuleMatchable(Protocol):
+    document_id: str
+    title: str
+    title_aliases: tuple[str, ...]
+
+
+@dataclass(frozen=True, slots=True)
 class InstitutionalRulesQueryPlanningConfig:
     default_nav_group: Literal["public_service", "staff_governance"]
     public_service_terms: tuple[str, ...]
     staff_governance_terms: tuple[str, ...]
     documents: tuple[InstitutionalRuleConsumptionEntry, ...]
+    policy_objects: tuple[InstitutionalRulePolicyObjectEntry, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -155,6 +171,32 @@ def plan_institutional_rules_query(query_text: str) -> InstitutionalRulesQueryPl
             query_action_type=query_action_type,
         )
 
+    matched_policy_objects = _match_documents(normalized_query, config.policy_objects)
+    if _should_target_single_document(
+        normalized_query=normalized_query,
+        matched_documents=matched_policy_objects,
+        query_is_strong=query_intent.is_strong,
+    ):
+        targeted_query_intent = _infer_targeted_policy_query_intent(
+            query_text=query_text,
+            normalized_query=normalized_query,
+            matched_document=matched_policy_objects[0],
+        )
+        focus = extract_query_focus(query_text)
+        return InstitutionalRulesQueryPlan(
+            mode="title_targeted",
+            normalized_query=normalized_query,
+            focused_query_text=normalized_query,
+            target_document_ids=(matched_policy_objects[0].document_id,),
+            target_document_titles=(matched_policy_objects[0].title,),
+            query_condition_subject=targeted_query_intent.condition_subject,
+            query_action_type=targeted_query_intent.action_type,
+            focus_detail_labels=focus.detail_labels,
+            focus_article_nos=focus.article_nos,
+            focus_clause_nos=focus.clause_nos,
+            focus_terms=focus.focus_terms,
+        )
+
     if _looks_like_bare_institutional_policy_title_query(
         raw_query=query_text,
         normalized_query=normalized_query,
@@ -165,8 +207,6 @@ def plan_institutional_rules_query(query_text: str) -> InstitutionalRulesQueryPl
             normalized_query=normalized_query,
             focused_query_text=normalized_query,
             target_document_titles=(stripped_query,),
-            query_condition_subject=query_condition_subject,
-            query_action_type=query_action_type,
         )
 
     if _contains_any(normalized_query, config.staff_governance_terms):
@@ -249,14 +289,27 @@ def _load_institutional_rules_query_planning_config() -> InstitutionalRulesQuery
             if isinstance(term, str) and term.strip()
         ),
         documents=documents,
+        policy_objects=_load_institutional_rules_policy_objects(),
+    )
+
+
+def _load_institutional_rules_policy_objects() -> tuple[InstitutionalRulePolicyObjectEntry, ...]:
+    discovery = load_regulation_discovery_config("institutional_rules")
+    return tuple(
+        InstitutionalRulePolicyObjectEntry(
+            document_id=policy_object.document_id,
+            title=policy_object.title,
+            title_aliases=policy_object.aliases,
+        )
+        for policy_object in discovery.policy_objects
     )
 
 
 def _match_documents(
     normalized_query: str,
-    documents: tuple[InstitutionalRuleConsumptionEntry, ...],
-) -> tuple[InstitutionalRuleConsumptionEntry, ...]:
-    scored_matches: list[tuple[InstitutionalRuleConsumptionEntry, int]] = []
+    documents: tuple[InstitutionalRuleMatchable, ...],
+) -> tuple[InstitutionalRuleMatchable, ...]:
+    scored_matches: list[tuple[InstitutionalRuleMatchable, int]] = []
     for entry in documents:
         score = _document_match_score(normalized_query, entry)
         if score > 0:
@@ -271,7 +324,7 @@ def _match_documents(
 def _should_target_single_document(
     *,
     normalized_query: str,
-    matched_documents: tuple[InstitutionalRuleConsumptionEntry, ...],
+    matched_documents: tuple[InstitutionalRuleMatchable, ...],
     query_is_strong: bool,
 ) -> bool:
     if len(matched_documents) != 1:
@@ -283,7 +336,7 @@ def _should_target_single_document(
 
 def _document_match_score(
     normalized_query: str,
-    entry: InstitutionalRuleConsumptionEntry,
+    entry: InstitutionalRuleMatchable,
 ) -> int:
     score = 0
     for candidate in (entry.title, *entry.title_aliases):
@@ -304,6 +357,44 @@ def _candidate_match_score(normalized_query: str, candidate: str) -> int:
             if signal_score > best_signal_score:
                 best_signal_score = signal_score
     return best_signal_score
+
+
+def _infer_targeted_policy_query_intent(
+    *,
+    query_text: str,
+    normalized_query: str,
+    matched_document: InstitutionalRuleMatchable,
+):
+    residual_query = _matched_document_residual_query(
+        normalized_query=normalized_query,
+        matched_document=matched_document,
+    )
+    if residual_query:
+        return infer_evidence_query_intent(residual_query)
+    return infer_evidence_query_intent("")
+
+
+def _matched_document_residual_query(
+    *,
+    normalized_query: str,
+    matched_document: InstitutionalRuleMatchable,
+) -> str:
+    residuals: list[str] = []
+    for candidate in (matched_document.title, *matched_document.title_aliases):
+        for variant in _candidate_variants(candidate):
+            normalized_variant = _normalize_text(variant)
+            if normalized_variant and normalized_variant in normalized_query:
+                residuals.append(normalized_query.replace(normalized_variant, "", 1))
+    if not residuals:
+        return normalized_query
+    return min(
+        (_strip_query_punctuation(residual) for residual in residuals),
+        key=len,
+    )
+
+
+def _strip_query_punctuation(value: str) -> str:
+    return str(value or "").strip("《》<>\"'“”‘’()（）[]【】:：,，.。?？/、-—_ ")
 
 
 def _candidate_signals(candidate: str) -> tuple[str, ...]:

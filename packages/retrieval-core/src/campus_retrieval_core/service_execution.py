@@ -150,8 +150,6 @@ def build_succeeded_step_result(
     *,
     evidence: EvidenceBundle,
     latency_ms: int,
-    reranker_degraded: bool = False,
-    reranker_failure_kind: str = "",
 ) -> RetrievalStepResult:
     grounding, grounding_failure_kind = _select_grounding_sources(
         query_text=step.query_text,
@@ -159,7 +157,7 @@ def build_succeeded_step_result(
         sources=evidence.sources,
     )
     status = "succeeded" if grounding else "empty"
-    failure_kind = "reranker_degraded" if reranker_degraded else None
+    failure_kind = None
     if status == "empty" and evidence.sources:
         failure_kind = grounding_failure_kind or "no_grounding"
     contract_diagnostics = _merge_contract_diagnostics(evidence.sources)
@@ -183,8 +181,6 @@ def build_succeeded_step_result(
             candidate_count=len(evidence.sources),
             reference_count=len(evidence.sources),
             failure_kind=failure_kind,
-            reranker_degraded=reranker_degraded,
-            reranker_failure_kind=reranker_failure_kind,
             contract_missing=contract_diagnostics.contract_missing,
             contract_issue_reason=contract_diagnostics.contract_issue_reason,
             missing_contract_fields=contract_diagnostics.missing_contract_fields,

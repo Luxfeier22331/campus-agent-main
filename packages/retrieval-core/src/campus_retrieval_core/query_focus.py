@@ -11,11 +11,17 @@ _WHITESPACE_RE = re.compile(r"\s+")
 _DETAIL_LABEL_RE = re.compile(
     r"(第\s*(?P<number>\d+|[一二三四五六七八九十百零两〇]+)\s*(?P<unit>[条款项]))"
 )
+_COHORT_YEAR_RE = re.compile(r"(?P<year>20\d{2})\s*届")
 _FOCUS_TERM_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("论文", ("论文", "发表")),
     ("著作", ("著作", "专著", "出版")),
     ("专利", ("专利", "发明")),
     ("竞赛", ("竞赛", "比赛")),
+    ("旷课", ("旷课", "缺勤", "考勤")),
+    ("学时", ("学时", "课时")),
+    ("节", ("节",)),
+    ("解除处分", ("解除处分", "处分解除", "解除纪律处分")),
+    ("考察期", ("考察期", "期满", "届满")),
 )
 _RANK_THRESHOLD_EXCEPTION_CUES = (
     "没前十",
@@ -35,6 +41,7 @@ _RANK_THRESHOLD_GROUPS: tuple[tuple[str, ...], ...] = (
     ("前10", "前十"),
     ("前30", "前三十"),
 )
+_AFTER_COHORT_CUES = ("及以后", "以后", "之后", "起")
 
 
 @dataclass(frozen=True, slots=True)
@@ -101,10 +108,22 @@ def build_focus_groups(query_text: str) -> tuple[tuple[str, ...], ...]:
             groups.append(("专利", "发明"))
         elif focus_term == "竞赛":
             groups.append(("竞赛", "比赛"))
+        elif focus_term == "旷课":
+            groups.append(("旷课", "缺勤", "考勤"))
+        elif focus_term == "学时":
+            groups.append(("学时", "课时", "节"))
+        elif focus_term == "节":
+            groups.append(("学时", "课时", "节"))
+        elif focus_term == "解除处分":
+            groups.append(("解除处分", "处分解除", "解除纪律处分"))
+        elif focus_term == "考察期":
+            groups.append(("考察期", "期满", "届满"))
         elif focus_term == "前10":
             groups.append(_RANK_THRESHOLD_GROUPS[0])
         elif focus_term == "前30" and _query_explicitly_mentions_threshold(query_text, "前30"):
             groups.append(_RANK_THRESHOLD_GROUPS[1])
+        elif _is_cohort_focus_term(focus_term):
+            groups.append(_cohort_focus_group(focus_term))
     return tuple(groups)
 
 
@@ -216,7 +235,34 @@ def _extract_focus_terms(normalized_query: str) -> tuple[str, ...]:
             focus_terms.append(canonical_term)
     if any(_compact_text(cue) in compact_query for cue in _RANK_THRESHOLD_EXCEPTION_CUES):
         focus_terms.extend(term for term in ("前10", "前30") if term not in focus_terms)
+    for match in _COHORT_YEAR_RE.finditer(normalized_query):
+        year = match.group("year")
+        term = f"{year}届"
+        if term not in focus_terms:
+            focus_terms.append(term)
+        if any(cue in compact_query[match.end() :] for cue in _AFTER_COHORT_CUES):
+            after_term = f"{year}届及以后"
+            if after_term not in focus_terms:
+                focus_terms.append(after_term)
     return tuple(focus_terms)
+
+
+def _is_cohort_focus_term(focus_term: str) -> bool:
+    return bool(re.fullmatch(r"20\d{2}届(?:及以后)?", focus_term))
+
+
+def _cohort_focus_group(focus_term: str) -> tuple[str, ...]:
+    year = focus_term[:4]
+    if focus_term.endswith("及以后"):
+        return (
+            f"{year}届及以后",
+            f"{year}届及其以后",
+            f"{year}届以后",
+            f"{year}届之后",
+            f"{year}届起",
+            year,
+        )
+    return (f"{year}届", year)
 
 
 def _query_explicitly_mentions_threshold(query_text: str, threshold: str) -> bool:

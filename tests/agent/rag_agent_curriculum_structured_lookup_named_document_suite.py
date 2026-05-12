@@ -397,12 +397,20 @@ class RagAgentCurriculumStructuredLookupNamedDocumentTest(unittest.TestCase):
                 _make_handbook_source(
                     doc_id=target_doc_id,
                     title=target_title,
-                    snippet="学生受处分后符合条件的，可以按规定申请解除处分。",
+                    snippet=(
+                        "第三条 受警告、严重警告、记过处分者，从处分决定生效之日起经过六个月"
+                        "考察期后，可以申请解除处分；受留校察看处分者，须经过十二个月考察期后"
+                        "方可申请解除处分。"
+                    ),
                     score=0.93,
                     chunk_id_suffix="disciplinary-relief",
-                    detail_label="解除处分",
-                    content_role="procedure",
+                    detail_label="第三条",
+                    content_role="requirement",
                     is_answer_bearing=True,
+                    semantic_role="eligibility_condition",
+                    polarity="positive",
+                    action_type="lift_discipline",
+                    claim_type="condition",
                 ),
             ),
         )

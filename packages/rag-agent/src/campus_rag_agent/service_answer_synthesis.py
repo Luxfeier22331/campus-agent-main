@@ -7,6 +7,8 @@ from campus_contracts import (
     AgentRequest,
     AgentResponse,
     ErrorInfo,
+    EvidenceBundle,
+    EvidenceSource,
     KnowledgeScope,
 )
 
@@ -55,11 +57,15 @@ def build_required_rag_sdk_response(
         supporting_evidence,
         retrieval_intent=retrieval_intent,
     )
+    answer_selected_evidence = _answer_selected_evidence(
+        evidence=supporting_evidence,
+        supporting_sources=answer_draft.supporting_sources,
+    )
     if runner is _RAG_SDK_RUNNER_NOT_PROVIDED or runner is None:
         return _rag_sdk_runtime_error_response(
             request=request,
             resolved_scope=resolved_scope,
-            evidence=supporting_evidence,
+            evidence=answer_selected_evidence,
             retrieved_evidence=retrieved_evidence,
             retrieval_execution_result=retrieval_execution_result,
             handbook_plan=handbook_plan,
@@ -79,7 +85,7 @@ def build_required_rag_sdk_response(
             intent_frame=intent_frame,
             retrieval_intent=retrieval_intent,
         ),
-        evidence=RagSdkEvidenceProjection.from_evidence_bundle(supporting_evidence),
+        evidence=RagSdkEvidenceProjection.from_evidence_bundle(answer_selected_evidence),
         typed_answer=answer_draft.typed_draft,
         request_id=request.request_id,
         selector_blocked_query_slot_ids=selector_blocked_query_slot_ids(retrieval_plan),
@@ -90,7 +96,7 @@ def build_required_rag_sdk_response(
         return _rag_sdk_runtime_error_response(
             request=request,
             resolved_scope=resolved_scope,
-            evidence=supporting_evidence,
+            evidence=answer_selected_evidence,
             retrieved_evidence=retrieved_evidence,
             retrieval_execution_result=retrieval_execution_result,
             handbook_plan=handbook_plan,
@@ -106,7 +112,7 @@ def build_required_rag_sdk_response(
         return _rag_sdk_runtime_error_response(
             request=request,
             resolved_scope=resolved_scope,
-            evidence=supporting_evidence,
+            evidence=answer_selected_evidence,
             retrieved_evidence=retrieved_evidence,
             retrieval_execution_result=retrieval_execution_result,
             handbook_plan=handbook_plan,
@@ -122,7 +128,7 @@ def build_required_rag_sdk_response(
         return _rag_sdk_runtime_error_response(
             request=request,
             resolved_scope=resolved_scope,
-            evidence=supporting_evidence,
+            evidence=answer_selected_evidence,
             retrieved_evidence=retrieved_evidence,
             retrieval_execution_result=retrieval_execution_result,
             handbook_plan=handbook_plan,
@@ -136,13 +142,13 @@ def build_required_rag_sdk_response(
         )
     validation = validate_rag_sdk_answer_output(
         result.output,
-        evidence=RagSdkEvidenceProjection.from_evidence_bundle(supporting_evidence),
+        evidence=RagSdkEvidenceProjection.from_evidence_bundle(answer_selected_evidence),
     )
     if not validation.accepted:
         return _rag_sdk_generation_fail_closed_response(
             request=request,
             resolved_scope=resolved_scope,
-            evidence=supporting_evidence,
+            evidence=answer_selected_evidence,
             retrieved_evidence=retrieved_evidence,
             retrieval_execution_result=retrieval_execution_result,
             handbook_plan=handbook_plan,
@@ -158,14 +164,14 @@ def build_required_rag_sdk_response(
         )
     grounding = validate_prompt_answer_grounding(
         answer_text=result.output.answer_text,
-        evidence=supporting_evidence,
+        evidence=answer_selected_evidence,
         provider_grounding_supports=result.provider_grounding_supports,
     )
     if grounding.verdict != "grounded":
         return _rag_sdk_generation_fail_closed_response(
             request=request,
             resolved_scope=resolved_scope,
-            evidence=supporting_evidence,
+            evidence=answer_selected_evidence,
             retrieved_evidence=retrieved_evidence,
             retrieval_execution_result=retrieval_execution_result,
             handbook_plan=handbook_plan,
@@ -185,7 +191,7 @@ def build_required_rag_sdk_response(
         return _rag_sdk_runtime_error_response(
             request=request,
             resolved_scope=resolved_scope,
-            evidence=supporting_evidence,
+            evidence=answer_selected_evidence,
             retrieved_evidence=retrieved_evidence,
             retrieval_execution_result=retrieval_execution_result,
             handbook_plan=handbook_plan,
@@ -203,7 +209,7 @@ def build_required_rag_sdk_response(
         answer_text=result.output.answer_text,
         confidence=result.output.confidence or confidence,
         result=_build_rag_result_payload(
-            evidence=supporting_evidence,
+            evidence=answer_selected_evidence,
             retrieved_evidence=retrieved_evidence,
             retrieval_execution_result=retrieval_execution_result,
             resolved_scope=resolved_scope,
@@ -223,8 +229,8 @@ def build_required_rag_sdk_response(
             prompt_runtime_state="rag_sdk_completed",
             prompt_runtime_detail=safe_rag_sdk_runtime_detail(result),
             answer_presentation_kind=answer_draft.presentation_kind,
-            answer_fallback_path=answer_draft.fallback_path,
-            answer_fallback_reason=answer_draft.fallback_reason,
+            answer_presentation_path=answer_draft.presentation_path,
+            answer_diagnostic_reason=answer_draft.diagnostic_reason,
             planner_information_needs=planner_information_needs,
             projection_context_summaries=projection_context_summaries,
         ),
@@ -298,6 +304,21 @@ def _completed_claim_supports(
     grounding_claim_supports,
 ):
     return validation_claim_supports or grounding_claim_supports
+
+
+def _answer_selected_evidence(
+    *,
+    evidence: EvidenceBundle,
+    supporting_sources: tuple[EvidenceSource, ...],
+) -> EvidenceBundle:
+    if not supporting_sources:
+        raise ValueError("answer synthesis requires answer-selected supporting sources")
+    return EvidenceBundle(
+        query_text=evidence.query_text,
+        corpus=evidence.corpus,
+        collection=evidence.collection,
+        sources=supporting_sources,
+    )
 
 
 def selector_blocked_query_slot_ids(retrieval_plan) -> tuple[str, ...]:

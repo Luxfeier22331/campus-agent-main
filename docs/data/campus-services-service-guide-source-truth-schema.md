@@ -148,7 +148,7 @@ current artifact：
 `service_guide_read_model` typed read model。Go `apps/supervisor-api` 通过 PG current
 release 读取 `service_guide_lookup` 数据，不直接读对象存储、不持有对象存储凭据。
 
-文件 projection path runtime fallback 已下线；本地 fixture、smoke 与 bootstrap 也应通过
+文件 projection path runtime 已下线；本地 fixture、smoke 与 bootstrap 也应通过
 PostgreSQL release catalog / typed read model 验证，不再挂载 current projection file。
 
 ## Service Guide Record
@@ -387,7 +387,7 @@ runtime 不做：
 - raw source scan
 - browser fetch
 - form submit / booking / payment / work-order call
-- generic retrieval fallback
+- generic retrieval secondary answer path
 
 ## Opening Gate
 

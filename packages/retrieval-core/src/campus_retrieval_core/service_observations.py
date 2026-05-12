@@ -51,15 +51,7 @@ def emit_retrieval_observations(
             request_id=request_id or f"{execution.plan.plan_id}:step-{index}",
             include_query_text=include_query_text,
         )
-        try:
-            observation_sink(observation)
-        except Exception:
-            logger.warning(
-                "retrieval observation sink failed for request_id=%s step_id=%s",
-                observation.get("request_id"),
-                observation.get("step_id"),
-                exc_info=True,
-            )
+        observation_sink(observation)
 
 
 def build_retrieval_observation(
@@ -112,8 +104,7 @@ def build_retrieval_observation(
         observation["as_of"] = execution.plan.version_query.as_of
     if include_query_text:
         observation["query"] = activity.query_text
-    if activity.reranker_degraded:
-        observation["reranker_degraded"] = True
+    if activity.reranker_failure_kind:
         observation["reranker_failure_kind"] = activity.reranker_failure_kind
     if activity.contract_missing:
         observation["contract_missing"] = True

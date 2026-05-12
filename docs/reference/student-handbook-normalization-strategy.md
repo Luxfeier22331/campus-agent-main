@@ -449,7 +449,7 @@ document-level cleaning 之后生成。
 - `is_current` 表示该表示线是否是当前对外生效线；source-faithful handbook 默认 `false`
 - `source-faithful` 是审计/回放表示线，不是长期默认 serving line；query-serving 默认应优先消费
   `current-effective`，只有在 collection runtime profile 显式允许时，才把 current 的
-  `source-faithful` 作为过渡 fallback
+  `source-faithful` 作为显式过渡 serving line
 - 如果 `pdf_ocr` 与 `official_web` 经过规范化后得到完全一致的文档正文，它们应共享同一个 `document_id +
   revision_track + version_id`；差异保留在 provenance，而不是扩成两份 serving document
 - `policy_doc_no` 仅在可稳定识别时保留

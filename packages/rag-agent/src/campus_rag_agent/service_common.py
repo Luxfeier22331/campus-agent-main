@@ -108,6 +108,7 @@ def _execute_retrieval_request_with_callable_retriever(
         canonical_program_family_ids=retrieval_request.canonical_program_family_ids,
         authorized_filter=retrieval_request.authorized_filter,
         personalization_hint=retrieval_request.personalization_hint,
+        semantic_hint=retrieval_request.semantic_hint,
         top_k=retrieval_request.top_k,
     )
 

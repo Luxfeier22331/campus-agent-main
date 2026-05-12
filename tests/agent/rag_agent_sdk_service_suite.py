@@ -2,7 +2,10 @@ from __future__ import annotations
 
 import unittest
 
+from dataclasses import replace
+
 from campus_contracts import AgentRequest, EvidenceBundle, KnowledgeScope, RagRequestPayload
+from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 from campus_rag_agent.rag_sdk_models import RagSdkEvidenceAnchor, RagSdkRunRequest, RagSdkRunResult
 from campus_rag_agent.rag_sdk_output import (
     RagSdkAnswerOutput,
@@ -113,6 +116,55 @@ class RagAgentSdkServiceTest(unittest.TestCase):
         trace_projection = response.agent_observability.safe_details["rag_sdk_trace_projection"]
         self.assertEqual(trace_projection["schema_version"], "rag-sdk-trace-projection-v1")
         self.assertNotIn("raw_prompt", str(response.agent_observability.safe_details))
+
+    def test_sdk_receives_answer_selected_evidence_order_for_condition_table(self) -> None:
+        captured: RagSdkRunRequest | None = None
+        evidence = _professional_scholarship_amount_evidence()
+        table_source = evidence.sources[2]
+
+        def runner(request: RagSdkRunRequest) -> RagSdkRunResult:
+            nonlocal captured
+            captured = request
+            lead_anchor = request.evidence.anchors[0]
+            return RagSdkRunResult(
+                output=RagSdkAnswerOutput(
+                    answer_text="专业一等奖学奖金奖励标准为2000元。",
+                    answer_kind="short_answer",
+                    semantic_outcome="grounded_answer",
+                    confidence="medium",
+                    cited_source_ids=(lead_anchor.source_id,),
+                    claims=(
+                        RagSdkClaim(
+                            claim_id="claim-1",
+                            text="专业一等奖学奖金奖励标准为2000元。",
+                            claim_type="table_fact",
+                        ),
+                    ),
+                    claim_supports=(
+                        RagSdkClaimSupport(claim_id="claim-1", anchors=(lead_anchor,)),
+                    ),
+                    evidence_anchors=(lead_anchor,),
+                ),
+                trace_projection={"schema_version": "rag-sdk-trace-projection-v1"},
+            )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="专业奖学金一等奖金额是多少？",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+            rag_sdk_runner=runner,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIsNotNone(captured)
+        assert captured is not None
+        self.assertEqual(captured.evidence.anchors[0].chunk_id, table_source.chunk_id)
+        self.assertEqual(response.result.evidence.sources[0].chunk_id, table_source.chunk_id)
 
     def test_sdk_guardrail_failure_fails_closed_without_legacy_blend(self) -> None:
         evidence = _evidence()
@@ -232,6 +284,100 @@ def _evidence() -> EvidenceBundle:
             ),
         ),
     )
+
+
+def _professional_scholarship_amount_evidence() -> EvidenceBundle:
+    doc_id = "handbook:professional-scholarship"
+    title = "中央民族大学本科学生专业奖学金评定办法"
+    return EvidenceBundle(
+        query_text="专业奖学金一等奖金额是多少？",
+        corpus="regulations",
+        collection="student_rules",
+        sources=(
+            _condition_source(
+                doc_id=doc_id,
+                title=title,
+                snippet="专业一等奖学金从班内综合测评排名前10%以内评选,按应参评学生人数的5%评定。",
+                chunk_id_suffix="professional-scholarship-quota-1",
+            ),
+            _condition_source(
+                doc_id=doc_id,
+                title=title,
+                snippet="专业二等奖学金从班内综合测评排名前25%以内评选,按应参评学生人数的15%评定。",
+                chunk_id_suffix="professional-scholarship-quota-2",
+            ),
+            replace(
+                _make_handbook_source(
+                    doc_id=doc_id,
+                    title=title,
+                    snippet="专业一等奖学奖金奖励标准为2000元,专业二等奖学奖金奖励标准为1200元。",
+                    score=0.9,
+                    chunk_id_suffix="professional-scholarship-amount",
+                    detail_label="第十六条",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                    semantic_role="table_fact",
+                    claim_type="amount_or_quota",
+                ),
+                content_kind="table_unit",
+                anchor=_answer_ready_anchor(
+                    doc_id=doc_id,
+                    answer_role="table_fact",
+                    condition_subject="amount_or_quota",
+                    condition_polarity="positive",
+                    semantic_role="table_fact",
+                    claim_type="amount_or_quota",
+                    table_fact_type="amount_or_quota",
+                ),
+            ),
+        ),
+    )
+
+
+def _condition_source(
+    *,
+    doc_id: str,
+    title: str,
+    snippet: str,
+    chunk_id_suffix: str,
+):
+    return replace(
+        _make_handbook_source(
+            doc_id=doc_id,
+            title=title,
+            snippet=snippet,
+            score=0.91,
+            chunk_id_suffix=chunk_id_suffix,
+            detail_label="第十二条",
+            content_role="eligibility",
+            is_answer_bearing=True,
+            semantic_role="eligibility_condition",
+            claim_type="condition",
+        ),
+        anchor=_answer_ready_anchor(
+            doc_id=doc_id,
+            answer_role="eligibility_condition",
+            condition_subject="amount_or_quota",
+            condition_polarity="positive",
+            semantic_role="condition",
+            claim_type="condition",
+        ),
+    )
+
+
+def _answer_ready_anchor(**metadata: object) -> dict[str, object]:
+    doc_id = str(metadata.pop("doc_id"))
+    return {
+        INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+            "evidence_contract_version": "answer_ready_evidence.v3",
+            "parent_unit_id": f"{doc_id}:article-1",
+            "condition_group_subject": metadata.get("condition_subject"),
+            "condition_group_id": f"{doc_id}:article-1:{metadata.get('condition_subject')}",
+            "condition_subject_taxonomy_version": "condition_subject.v1",
+            "condition_subject_provenance": "suite-fixture",
+            **metadata,
+        }
+    }
 
 
 if __name__ == "__main__":

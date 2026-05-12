@@ -44,7 +44,7 @@ RetrievalFailureKind = Literal[
     "procedure_group_answer_role_mismatch",
     "condition_group_answer_role_mismatch",
     "release_metadata_drift",
-    "reranker_degraded",
+    "reranker_failed",
 ]
 RetrievalCoveragePolicy = Literal[
     "none",
@@ -105,7 +105,7 @@ ALLOWED_RETRIEVAL_FAILURE_KINDS = (
     "procedure_group_answer_role_mismatch",
     "condition_group_answer_role_mismatch",
     "release_metadata_drift",
-    "reranker_degraded",
+    "reranker_failed",
 )
 ALLOWED_RETRIEVAL_COVERAGE_POLICIES = (
     "none",
@@ -284,7 +284,6 @@ class RetrievalStepActivity:
     candidate_count: int = 0
     reference_count: int = 0
     failure_kind: RetrievalFailureKind | str | None = None
-    reranker_degraded: bool = False
     reranker_failure_kind: str = ""
     contract_missing: bool = False
     contract_issue_reason: str = ""
@@ -462,6 +461,7 @@ class RetrievalRequest:
     canonical_program_family_ids: tuple[str, ...] = field(default_factory=tuple)
     authorized_filter: AuthorizedRetrievalFilter | None = None
     personalization_hint: PersonalizationHint | None = None
+    semantic_hint: RetrievalSemanticHint | None = None
     top_k: int = 3
     timeout_ms: int | None = None
 

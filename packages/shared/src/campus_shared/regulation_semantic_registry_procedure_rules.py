@@ -107,6 +107,8 @@ REGULATION_PROCEDURE_ACTOR_DEFINITIONS: dict[str, RegulationProcedureActorDefini
 REGULATION_CONDITION_SUBJECT_ALIASES: dict[str, str] = {
     "discipline_relief_procedure": "application_procedure",
     "general_eligibility": "generic_condition",
+    "absence_threshold": "attendance_absence_threshold",
+    "attendance_threshold": "attendance_absence_threshold",
 }
 
 REGULATION_PROCEDURE_ACTION_ALIASES: dict[str, str] = {}

@@ -147,6 +147,11 @@ def _resolve_condition_subject_keyword_rule(
     *,
     answer_role: str,
 ) -> RegulationSemanticAssignment:
+    if _looks_like_explicit_applicability_clause(compact_text):
+        return RegulationSemanticAssignment(
+            value="audience_scope",
+            provenance="keyword:适用对象范围",
+        )
     assignment = _resolve_keyword_rule(compact_text, REGULATION_CONDITION_SUBJECT_KEYWORD_RULES)
     if not assignment.value:
         return assignment
@@ -161,6 +166,31 @@ def _resolve_condition_subject_keyword_rule(
     }:
         return RegulationSemanticAssignment(value="", provenance="")
     return assignment
+
+
+def _looks_like_explicit_applicability_clause(text: str) -> bool:
+    compact = _compact(text)
+    if not compact:
+        return False
+    if not any(marker in compact for marker in ("适用于", "适用范围")):
+        return False
+    return any(
+        marker in compact
+        for marker in (
+            "学生",
+            "毕业生",
+            "本科生",
+            "研究生",
+            "教职工",
+            "教师",
+            "人员",
+            "单位",
+            "部门",
+            "学院",
+            "2019届",
+            "20",
+        )
+    )
 
 
 def _looks_like_procedure_intro_or_category(text: str) -> bool:

@@ -80,7 +80,7 @@ raw/source-truth/projection/document/chunk/index`
 - retrieval plan 必须是 typed / observable artifact，而不是 prompt 内隐式黑盒
 - planner 不能绕过 runtime profile、authz、source-trust 或 freshness gate
 - admitted live retrieval 只能命中 repo-owned source channel，不得退化为 general web
-  fallback
+  answer path
 - provider-native function calling、remote MCP、built-in web tool 或其他外部 tool
   substrate 不得替代 repo-owned admission、source-trust、ToolSpec、eval 与
   observability truth

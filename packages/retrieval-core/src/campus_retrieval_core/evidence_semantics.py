@@ -77,6 +77,14 @@ _LIFT_DISCIPLINE_QUERY_CUES = (
 )
 _REISSUE_QUERY_CUES = ("补办", "补发", "挂失", "遗失", "丢失", "丢了", "补卡", "补证")
 _CONDITION_QUERY_CUES = ("条件", "要求", "资格", "能不能", "可以吗", "能否", "是否可以")
+_AUDIENCE_SCOPE_QUERY_CUES = (
+    "适用于",
+    "适用范围",
+    "适用对象",
+    "适用人群",
+    "适用学生",
+    "面向",
+)
 _DISCOVERY_QUERY_CUES = ("有哪些", "都有什么", "有什么", "哪些")
 _RANK_THRESHOLD_QUERY_CUES = (
     "没前十",
@@ -108,6 +116,8 @@ _DEADLINE_QUERY_CUES = (
     "时间要求",
 )
 _MATERIAL_QUERY_CUES = ("什么材料", "哪些材料", "提交材料", "证明材料", "书面申请", "要交什么")
+_ATTENDANCE_ABSENCE_QUERY_CUES = ("旷课", "缺勤", "考勤")
+_CLASS_HOUR_QUERY_CUES = ("学时", "课时", "节", "多少")
 
 
 @dataclass(frozen=True, slots=True)
@@ -327,12 +337,18 @@ def infer_query_action_type(query_text: str) -> str:
 
 def infer_query_condition_subject(query_text: str) -> str:
     normalized = _normalize_query(query_text)
+    if any(cue in normalized for cue in _AUDIENCE_SCOPE_QUERY_CUES):
+        return "audience_scope"
     if any(cue in normalized for cue in _LIFT_DISCIPLINE_QUERY_CUES) and any(
         cue in normalized for cue in _PROCEDURE_QUERY_CUES
     ):
         return "application_procedure"
     if any(cue in normalized for cue in _MATERIAL_QUERY_CUES):
         return "material_requirement"
+    if any(cue in normalized for cue in _ATTENDANCE_ABSENCE_QUERY_CUES) and any(
+        cue in normalized for cue in _CLASS_HOUR_QUERY_CUES
+    ):
+        return "attendance_absence_threshold"
     if any(cue in normalized for cue in _DEADLINE_QUERY_CUES):
         return "deadline"
     if any(cue in normalized for cue in _AMOUNT_OR_QUOTA_QUERY_CUES):

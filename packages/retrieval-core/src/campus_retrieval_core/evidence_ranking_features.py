@@ -157,6 +157,7 @@ def is_primary_support_candidate(feature: SourceRankingFeatures) -> bool:
         "exception_rule",
         "exclusion_rule",
         "procedure_step",
+        "supporting_detail",
         "table_fact",
     }:
         return True

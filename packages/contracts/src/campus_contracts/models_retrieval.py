@@ -448,9 +448,9 @@ class RagStageActivitySummary:
     candidate_count: int = 0
     supporting_evidence_count: int = 0
     grounding_verdict: str = ""
-    fallback_reason: str = ""
+    diagnostic_reason: str = ""
     presentation_kind: str = ""
-    fallback_path: str = ""
+    presentation_path: str = ""
     latency_ms: int | None = None
     retrieval_ms: int | None = None
     prompt_ms: int | None = None
@@ -533,8 +533,8 @@ class RagResultDiagnostics:
     prompt_runtime_state: str = ""
     prompt_runtime_detail: str = ""
     answer_presentation_kind: str = ""
-    answer_fallback_path: str = ""
-    answer_fallback_reason: str = ""
+    answer_presentation_path: str = ""
+    answer_diagnostic_reason: str = ""
     retrieval_plan_summary: RetrievalPlanSummary | None = field(default=None, compare=False)
     stage_activities: tuple[RagStageActivitySummary, ...] = field(default_factory=tuple)
     retrieved_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)

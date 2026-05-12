@@ -309,19 +309,27 @@ def _runtime_metrics_missing(summary: dict[str, object]) -> bool:
         return True
     if "total_checks" in summary:
         return False
-    required_fields = (
+    required_string_fields = (
         "started_at",
         "finished_at",
-        "runtime_seconds",
-        "retry_count",
-        "provider_calls",
         "collector_version",
         "runtime_profile",
     )
-    legacy_required_fields = ("runtime_seconds", "retry_count", "provider_calls")
-    if all(field_name in summary for field_name in required_fields):
-        return any(not str(summary.get(field_name) or "").strip() for field_name in required_fields)
-    return not all(field_name in summary for field_name in legacy_required_fields)
+    required_numeric_fields = (
+        "runtime_seconds",
+        "retry_count",
+        "provider_calls",
+    )
+    if any(not str(summary.get(field_name) or "").strip() for field_name in required_string_fields):
+        return True
+    for field_name in required_numeric_fields:
+        if field_name not in summary:
+            return True
+        try:
+            _non_negative_int(summary[field_name], field_name)
+        except Exception:
+            return True
+    return False
 
 
 __all__ = [

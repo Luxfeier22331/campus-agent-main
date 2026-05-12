@@ -175,7 +175,7 @@ def _read_release_payloads(
         timeout_seconds=timeout_seconds,
     )
     if collection_payload:
-        payloads.append(collection_payload)
+        return (collection_payload,)
     scroll = getattr(backend.qdrant_client, "scroll", None)
     if not callable(scroll):
         return tuple(payloads)

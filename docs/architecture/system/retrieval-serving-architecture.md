@@ -252,13 +252,14 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
 - tuning 不扩大 query-enabled scope
 - reranker 不作为全局默认；只有 collection runtime profile 显式 opt-in，且 deterministic
   adoption gate 同时满足 quality、latency、cost 与 regression 约束后，才能进入生产候选
-- reranker runtime 失败、超时或 executor 缺失时必须 fallback 到 baseline hybrid/RRF candidate
-  order，并写入 `failure_kind=reranker_degraded` 的 observation
+- reranker runtime 失败、超时或 executor 缺失时必须 fail closed，并写入
+  `failure_kind=reranker_failed` 的 observation；不得返回 baseline hybrid/RRF
+  candidate order 伪装成功
 - supplemental judge / RAGAS 指标只能做诊断，不作为 alias publish 或 profile patch 的唯一通过依据
 - runtime retrieval 可以把 request/step outcome 发给显式注入的 observation sink；observation
   只作为 eval/backlog intake，不反向改变 release manifest、runtime profile 或 serving alias
-- observation sink 是 best-effort runtime intake；sink 写入失败必须记录 warning，但不得让
-  retrieval answer path 失败
+- observation sink 是显式配置的 runtime intake；sink 写入失败表示观测链路配置或存储不满足
+  contract，retrieval answer path 必须 fail closed 并暴露该诊断
 - sanitized runtime observation 默认不写入原始 query text，只写 `query_sha256`；只有显式
   operator 调试开关打开时，才允许把 query text 写入 JSONL observation
 - indexed lookup backend fail-closed exception 必须在重新抛出前写入 sanitized failed
@@ -284,7 +285,7 @@ query-enabled collection 的 release / serving hardening 固定包含以下层�
   做跨组件关联
 - metrics 从 observation 派生，不要求 retrieval-core 直接发 metrics：request count、
   latency histogram、no-hit / low-confidence / forbidden-hit count、release metadata
-  drift count、reranker degraded count、live-assisted count 都应由 runtime adapter 或
+  drift count、reranker failed count、live-assisted count 都应由 runtime adapter 或
   Collector/backend 聚合
 - OTel Collector 只作为可替换 telemetry pipeline：接收 OTLP logs/metrics/traces，经
   memory/batch/filter/attribute processors 做限流、批处理、脱敏和资源属性补齐，再 export

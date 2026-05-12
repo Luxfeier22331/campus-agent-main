@@ -217,6 +217,10 @@ def build_rag_retrieval_context(
             resolved_institutional_rules_plan.rewritten_query_text
         )
         target_document_ids = resolved_institutional_rules_plan.target_document_ids
+        focus_detail_labels = resolved_institutional_rules_plan.focus_detail_labels
+        focus_article_nos = resolved_institutional_rules_plan.focus_article_nos
+        focus_clause_nos = resolved_institutional_rules_plan.focus_clause_nos
+        focus_terms = resolved_institutional_rules_plan.focus_terms
 
     version_answer_context = _resolve_version_answer_context(
         request=request,

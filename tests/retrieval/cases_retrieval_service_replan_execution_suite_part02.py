@@ -224,12 +224,12 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
         self.assertEqual(observations[0]["terminal_state"], "failed_closed")
         self.assertEqual(observations[0]["failure_kind"], "release_metadata_drift")
 
-    def test_execute_retrieval_plan_fails_closed_when_target_regulation_path_hits_legacy_fallback(
+    def test_execute_retrieval_plan_fails_closed_when_target_regulation_path_misses_answer_ready_contract(
         self,
     ) -> None:
         observations: list[dict[str, object]] = []
         plan = RetrievalPlan(
-            plan_id="regulations:student_rules:target-v3-legacy-fallback-blocked",
+            plan_id="regulations:student_rules:target-v3-missing-contract-blocked",
             query_mode="current",
             admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
             source_trust_policy=RetrievalSourceTrustPolicy(minimum_tier="T1"),
@@ -267,7 +267,7 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
                     ),
                 ),
                 observation_sink=observations.append,
-                observation_request_id="req-target-v3-legacy-fallback-blocked",
+                observation_request_id="req-target-v3-missing-contract-blocked",
             )
 
         self.assertEqual(len(observations), 1)
@@ -278,7 +278,7 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
         self,
     ) -> None:
         plan = RetrievalPlan(
-            plan_id="regulations:student_rules:target-v3-default-legacy-fallback-blocked",
+            plan_id="regulations:student_rules:target-v3-default-missing-contract-blocked",
             query_mode="current",
             admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
             steps=(
@@ -420,7 +420,7 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
         self.assertEqual(events[0][1]["request_id"], "req-1")
         self.assertNotIn("query", events[0][1])
 
-    def test_execute_retrieval_plan_does_not_fail_when_observation_sink_raises(self) -> None:
+    def test_execute_retrieval_plan_fails_closed_when_observation_sink_raises(self) -> None:
         plan = RetrievalPlan(
             plan_id="official_web:stable_reference:observation-sink-failure",
             query_mode="current",
@@ -436,8 +436,8 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
             ),
         )
 
-        with self.assertLogs("campus_retrieval_core.service", level="WARNING") as logs:
-            result = execute_retrieval_plan(
+        with self.assertRaisesRegex(OSError, "disk full"):
+            execute_retrieval_plan(
                 plan,
                 retrieve_step=lambda request: EvidenceBundle(
                     query_text=request.query_text,
@@ -455,10 +455,6 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
                 observation_sink=lambda _observation: (_ for _ in ()).throw(OSError("disk full")),
                 observation_request_id="req-observation-sink-failure",
             )
-
-        self.assertEqual(result.step_results[0].status, "succeeded")
-        self.assertEqual(len(result.merged_evidence.sources), 1)
-        self.assertIn("retrieval observation sink failed", logs.output[0])
 
     def test_execute_retrieval_plan_emits_failure_observation_before_reraising_backend_error(
         self,
@@ -572,7 +568,7 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
         self.assertEqual(result.step_results[0].status, "succeeded")
         self.assertEqual(len(result.merged_evidence.sources), 1)
 
-    def test_execute_retrieval_plan_falls_back_to_baseline_when_reranker_degrades(self) -> None:
+    def test_execute_retrieval_plan_fails_closed_when_reranker_degrades(self) -> None:
         observations: list[dict[str, object]] = []
         plan = RetrievalPlan(
             plan_id="regulations:student_rules:reranker-degraded",
@@ -594,9 +590,9 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
                 "campus_retrieval_core.service.load_runtime_profile",
                 return_value=Mock(reranker_enabled_by_default=True, reranker_top_n=20),
             ),
-            self.assertLogs("campus_retrieval_core.service", level="WARNING") as logs,
+            self.assertRaisesRegex(RuntimeError, "reranker_failed"),
         ):
-            result = execute_retrieval_plan(
+            execute_retrieval_plan(
                 plan,
                 retrieve_step=lambda request: EvidenceBundle(
                     query_text=request.query_text,
@@ -614,14 +610,12 @@ class RetrievalServiceReplanExecutionTestPart02(unittest.TestCase):
                     TimeoutError("reranker timed out")
                 ),
                 observation_sink=observations.append,
-                observation_request_id="req-reranker-degraded",
+                observation_request_id="req-reranker-failed",
             )
 
-        self.assertEqual(result.step_results[0].status, "succeeded")
-        self.assertEqual(len(result.merged_evidence.sources), 1)
-        self.assertEqual(observations[0]["failure_kind"], "reranker_degraded")
-        self.assertEqual(observations[0]["reranker_degraded"], True)
-        self.assertIn("retrieval reranker degraded", logs.output[0])
+        self.assertEqual(observations[0]["terminal_state"], "failed_closed")
+        self.assertEqual(observations[0]["failure_kind"], "reranker_failed")
+        self.assertNotIn("reranker_degraded", observations[0])
 
 
 if __name__ == "__main__":

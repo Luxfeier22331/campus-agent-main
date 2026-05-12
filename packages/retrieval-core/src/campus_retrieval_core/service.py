@@ -8,6 +8,7 @@ from campus_ingestion_core.corpus_profiles import load_runtime_profile
 
 from campus_retrieval_core.backend_qdrant import QdrantRetrievalBackend, RetrievalBackendError
 from campus_retrieval_core.models import RetrievalRequest
+from campus_retrieval_core.models import RetrievalSemanticHint
 from campus_retrieval_core.service_observations import (
     build_jsonl_retrieval_observation_sink,
     build_retrieval_observation_event_sink,
@@ -65,6 +66,7 @@ def retrieve_sources(
     canonical_program_family_ids: tuple[str, ...] = (),
     authorized_filter: AuthorizedRetrievalFilter | None = None,
     personalization_hint: PersonalizationHint | None = None,
+    semantic_hint: RetrievalSemanticHint | None = None,
     top_k: int | None = None,
     backend: QdrantRetrievalBackend | None = None,
     observation_sink=None,
@@ -91,6 +93,7 @@ def retrieve_sources(
         canonical_program_family_ids=canonical_program_family_ids,
         authorized_filter=authorized_filter,
         personalization_hint=personalization_hint,
+        semantic_hint=semantic_hint,
         top_k=runtime_top_k,
     )
     runtime_backend = backend or build_retrieval_backend()

@@ -109,8 +109,8 @@ def _classify_observation(
     terminal_state = (_text(observation.get("terminal_state")) or "").lower()
     if "drift" in failure_kind or "release_metadata" in failure_kind:
         return "drift_guard_failure"
-    if "reranker" in failure_kind or bool(observation.get("reranker_degraded")):
-        return "reranker_degraded"
+    if "reranker" in failure_kind:
+        return "reranker_failed"
     if "forbidden" in failure_kind or bool(observation.get("forbidden_hit")):
         return "forbidden_hit"
     if "authz" in failure_kind or bool(observation.get("authz_filtered_all")):
@@ -139,7 +139,7 @@ def _recommended_action(failure_class: str) -> str:
         "authz_filtered_all": "authz_projection_review",
         "version_mismatch": "version_qrels_candidate",
         "drift_guard_failure": "release_metadata_repair",
-        "reranker_degraded": "reranker_gate_review",
+        "reranker_failed": "reranker_failure_triage",
         "runtime_fail_closed": "runtime_failure_triage",
     }.get(failure_class, "operator_review")
 

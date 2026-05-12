@@ -136,8 +136,8 @@ handbook markdown。
 
 - `chunk_size = 384` 作为正常 display target，优先让多数正文在加上上下文后仍落在中等 chunk 区间
 - `max_chunk_size = 512` 作为 final contextualized hard ceiling，允许较完整地保留一条制度语义片段
-- `chunk_overlap = 64` 作为 token guardrail fallback 的连续性保护，而不是主切分手段
-- `min_chunk_size = 96` 约束 fallback token windows 不要过碎
+- `chunk_overlap = 64` 作为 token guardrail window 的连续性保护，而不是主切分手段
+- `min_chunk_size = 96` 约束 token guardrail windows 不要过碎
 - `safety_margin = 16` 给 final-text-aware 预算留出 tokenizer 与组装误差缓冲
 
 当前没有证据表明 handbook 需要进一步放宽预算。预算变更只能由 embedding / retrieval / eval 结果驱动，不能由 sample
@@ -189,7 +189,7 @@ handbook markdown。
 
 1. 如果正文在 final budget 内，作为单 chunk 保留
 1. 超预算时优先按可识别名单行、枚举块、流程块拆分
-1. 结构仍不满足预算时，退化到 `token_guardrail`
+1. 结构仍不满足预算时，进入 `token_guardrail` hard-budget window
 
 不变量：
 
@@ -209,10 +209,10 @@ handbook markdown。
 - 不保留 generic table label
 - 表格预算单独按表格窗口处理，不沿用 textual 碎块逻辑
 
-### Fallback
+### Token Guardrail
 
-所有 unit 的最后兜底都是 `token_guardrail`，但它只在结构边界无法满足预算时才允许触发。`token_guardrail`
-是保底机制，不是 handbook 的主切分策略。
+所有 unit 的最后 hard-budget 机制都是 `token_guardrail`，但它只在结构边界无法满足预算时才允许触发。
+`token_guardrail` 是显式预算保护机制，不是 handbook 的主切分策略。
 
 ## Chunk 组装规则
 
@@ -235,7 +235,7 @@ chunk 组装必须严格区分三层：
 - `compact_path` 标题 + 紧凑路径 + 文号
 - `compact_identity` 标题 + 末级结构身份 + 条款身份 + 文号
 - `title_only` 只保留标题级上下文
-- `required` 当其他 variant 都不满足时的最低兜底上下文
+- `required` 当其他 variant 都不满足时的最低必要上下文
 
 ### 组装不变量
 

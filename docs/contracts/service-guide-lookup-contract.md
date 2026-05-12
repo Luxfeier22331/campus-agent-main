@@ -318,7 +318,7 @@ ServiceGuideCandidate
 - builder 必须输出 validation summary；带人工审核标记的旧 source truth 不能进入新 release
 - Go `apps/supervisor-api` 通过 PostgreSQL `structured_projection_current` current
   pointer 与 typed `service_guide_read_model` 读取当前 release，不直接读取对象存储，也不再支持
-  mounted current projection file fallback
+  mounted current projection file runtime path
 
 projection schema 细节见
 `docs/data/campus-services-service-guide-source-truth-schema.md`。

@@ -400,6 +400,8 @@ def _case_metric_overrides(
         return _identity_grounding_metric_overrides()
     if _case_asks_for_governing_document(payload):
         return _identity_grounding_metric_overrides()
+    if _case_is_curriculum_document_view(payload, default_scope=default_scope):
+        return {"answer_relevancy": False, "faithfulness": False}
     for scenario_id, raw_case_ids in coverage_scenarios.items():
         if not isinstance(raw_case_ids, list | tuple):
             continue
@@ -444,6 +446,21 @@ def _case_asks_for_governing_document(payload: dict[str, object]) -> bool:
             "依据哪个",
         )
     )
+
+
+def _case_is_curriculum_document_view(
+    payload: dict[str, object],
+    *,
+    default_scope: KnowledgeScope,
+) -> bool:
+    if default_scope.corpus != "curriculum" or default_scope.collection != "curriculum_plan":
+        return False
+    query = str(payload.get("query") or "").strip()
+    if not query:
+        return False
+    if not any(cue in query for cue in ("想看", "要看", "我要看", "查看", "看一下", "看下", "看看")):
+        return False
+    return any(term in query for term in ("培养方案", "教学计划"))
 
 
 def _identity_grounding_metric_overrides() -> dict[str, bool]:

@@ -7,7 +7,7 @@ from tests.agent.rag_agent_request_prompt_grounding_suite_support import *
 
 
 class RagAgentRequestPromptGroundingTestPart01(unittest.TestCase):
-    def test_invalid_no_answer_prompt_output_falls_back_to_deterministic_copy(self) -> None:
+    def test_invalid_no_answer_prompt_output_fails_closed(self) -> None:
         class FakePromptExecutor:
             def compose_no_answer(
                 self, packet: object
@@ -33,10 +33,12 @@ class RagAgentRequestPromptGroundingTestPart01(unittest.TestCase):
             prompt_executor=FakePromptExecutor(),
         )
 
-        self.assertEqual(response.status, "no_answer")
-        self.assertIn("未检索到足够依据", response.answer_text)
+        self.assertEqual(response.status, "error")
+        self.assertEqual(response.error.code, "prompt_contract_failed")
         self.assertIsNotNone(response.result.diagnostics)
-        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "prompt_runtime_failed")
+        self.assertEqual(response.result.diagnostics.fail_close_reason, "prompt_contract_failed")
+        self.assertEqual(response.result.diagnostics.prompt_runtime_state, "prompt_contract_failed")
         self.assertIsNone(response.result.diagnostics.prompt_trace)
 
     def test_prompt_answer_with_unsupported_claims_downgrades_to_no_answer(self) -> None:

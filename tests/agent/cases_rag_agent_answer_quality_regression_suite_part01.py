@@ -3,6 +3,13 @@ from __future__ import annotations
 
 import unittest
 
+from campus_rag_agent.query_planning import plan_student_handbook_query
+from campus_rag_agent.retrieval_intent import (
+    RetrievalIntent,
+    RetrievalIntentExpectation,
+    RetrievalIntentTarget,
+)
+
 from tests.agent.rag_agent_answer_quality_regression_suite_support import *
 
 
@@ -306,7 +313,710 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
         self.assertIn("专项奖学金", draft.answer_text)
         self.assertIn("专业奖学金", draft.answer_text)
         self.assertIn("国家奖学金", draft.answer_text)
-        self.assertIn("社会奖学金", draft.answer_text)
+        self.assertIn("社会奖助学金", draft.answer_text)
+
+    def test_condition_overview_prioritizes_core_eligibility_rows_over_award_facts(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="申请奖学金需要满足什么条件",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:special",
+                        title="中央民族大学本科学生专项奖学金评定办法",
+                        snippet="本科学生专项奖学金用以奖励在科研、文体、品德、学生工作等某一方面有突出表现的学生。",
+                        score=1.0,
+                        chunk="special-object",
+                        detail_label="第九条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:professional",
+                        title="中央民族大学本科学生专业奖学金评定办法",
+                        snippet="学校为本科学生专业奖学金获得者颁发荣誉证书和奖金。",
+                        score=1.0,
+                        chunk="professional-award",
+                        detail_label="第十六条",
+                    ),
+                    content_role="table_fact",
+                    anchor=_answer_ready_anchor(
+                        answer_role="table_fact",
+                        condition_subject="amount_or_quota",
+                        condition_group_subject="amount_or_quota",
+                        condition_polarity="neutral",
+                        semantic_role="table_fact",
+                        claim_type="amount_or_quota",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="(一)拥护中国共产党,热爱祖国,维护国家统一和民族团结;",
+                        score=1.0,
+                        chunk="national-core-1",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="(二)遵纪守法,遵守学校规章制度;",
+                        score=1.0,
+                        chunk="national-core-2",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="(三)诚实守信,道德品质优秀,所评学年品行测评等级为优秀;",
+                        score=1.0,
+                        chunk="national-core-3",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="(一)学习成绩优异,所评学年学习成绩排名与综合测评排名均位于前10%以内。",
+                        score=1.0,
+                        chunk="national-core-4",
+                        detail_label="第九条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertNotIn("颁发荣誉证书", draft.answer_text)
+        self.assertIn("遵纪守法", draft.answer_text)
+        self.assertIn("学习成绩", draft.answer_text)
+
+    def test_condition_overview_preserves_policy_member_coverage_before_repeated_rows(
+        self,
+    ) -> None:
+        member_doc_ids = (
+            "handbook:national",
+            "handbook:inspirational",
+            "handbook:professional",
+            "handbook:special",
+            "handbook:social",
+        )
+        evidence = EvidenceBundle(
+            query_text="申请奖学金需要满足什么条件",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="遵纪守法,遵守学校规章制度。",
+                        score=1.0,
+                        chunk="national-discipline",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="遵纪守法,遵守学校规章制度。",
+                        score=1.0,
+                        chunk="national-discipline",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="诚实守信,道德品质优秀。",
+                        score=1.0,
+                        chunk="national-integrity",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:special",
+                        title="中央民族大学本科学生专项奖学金评定办法",
+                        snippet="参评专项奖学金应当遵纪守法,遵守学校规章制度。",
+                        score=0.91,
+                        chunk="special-duplicate-condition",
+                        detail_label="第十条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:special",
+                        title="中央民族大学本科学生专项奖学金评定办法",
+                        snippet="参评专项奖学金应当诚实守信,道德品质优良。",
+                        score=0.9,
+                        chunk="special-novel-condition",
+                        detail_label="第十条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:professional",
+                        title="中央民族大学本科学生专业奖学金评定办法",
+                        snippet="参评专业奖学金应当学习刻苦,学业成绩优秀。",
+                        score=0.9,
+                        chunk="professional-condition",
+                        detail_label="第十条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:social",
+                        title="中央民族大学社会奖助学金管理办法",
+                        snippet=(
+                            "第一条 社会奖学金用于奖励品学兼优或在某一方面有特殊才华的学生。\n"
+                            "第三条 学校向捐赠方颁发捐赠证书。\n"
+                            "第四条 凡申请社会奖助学金的学生,必须在满足我校奖助学金"
+                            "基本评选条件的基础上,同时符合该项奖助学金的评选要求。"
+                        ),
+                        score=0.89,
+                        chunk="social-condition",
+                        detail_label="第五条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:inspirational",
+                        title="中央民族大学本科学生国家励志奖学金评审办法",
+                        snippet="参评国家励志奖学金应当家庭经济困难,生活俭朴。",
+                        score=0.88,
+                        chunk="inspirational-condition",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+            ),
+        )
+
+        retrieval_intent = RetrievalIntent(
+            kind="condition_table",
+            normalized_query=evidence.query_text,
+            expected=RetrievalIntentExpectation(
+                answer_kind="condition_table",
+                evidence_roles=("eligibility_condition",),
+                coverage_policy="category_member_coverage",
+                selection_policy="one_answer_ready_source_per_member",
+            ),
+            target=RetrievalIntentTarget(
+                corpus="regulations",
+                collection="student_rules",
+                category_id="scholarship",
+                category_member_document_ids=member_doc_ids,
+                condition_subject="generic_condition",
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence, retrieval_intent=retrieval_intent)
+
+        self.assertEqual(
+            tuple(source.doc_id for source in draft.supporting_sources),
+            member_doc_ids,
+        )
+        self.assertIn("专项奖学金", draft.answer_text)
+        self.assertIn("专业奖学金", draft.answer_text)
+        self.assertIn("社会奖助学金", draft.answer_text)
+        self.assertIn("国家励志奖学金", draft.answer_text)
+        self.assertIn("诚实守信", draft.answer_text)
+        self.assertNotIn("颁发捐赠证书", draft.answer_text)
+        self.assertNotIn("连续捐赠三年", draft.answer_text)
+
+    def test_condition_overview_member_coverage_keeps_duplicate_intros_without_cross_policy_rows(
+        self,
+    ) -> None:
+        member_doc_ids = (
+            "handbook:national",
+            "handbook:inspirational",
+            "handbook:professional",
+            "handbook:special",
+            "handbook:social",
+        )
+        evidence = EvidenceBundle(
+            query_text="申请奖学金需要满足什么条件",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="参评本科学生国家奖学金须具备以下基本条件:",
+                        score=0.94,
+                        chunk="national-intro",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_intro",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="intro",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:inspirational",
+                        title="中央民族大学本科学生国家励志奖学金评审办法",
+                        snippet="参评本科学生国家励志奖学金需具备以下基本条件:",
+                        score=0.93,
+                        chunk="inspirational-intro",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_intro",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="intro",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:professional",
+                        title="中央民族大学本科学生专业奖学金评定办法",
+                        snippet="参评本科学生专业奖学金需具备以下基本条件:",
+                        score=0.92,
+                        chunk="professional-intro",
+                        detail_label="第十条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_intro",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="intro",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:professional",
+                        title="中央民族大学本科学生专业奖学金评定办法",
+                        snippet="参评本科学生专项奖学金,还需具备以下相应条件:",
+                        score=0.91,
+                        chunk="professional-cross-policy-intro",
+                        detail_label="第十一条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_intro",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="intro",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:special",
+                        title="中央民族大学本科学生专项奖学金评定办法",
+                        snippet="参评本科学生专项奖学金需具备以下基本条件:",
+                        score=0.9,
+                        chunk="special-intro",
+                        detail_label="第十条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_intro",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="intro",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:social",
+                        title="中央民族大学社会奖助学金管理办法",
+                        snippet="凡申请社会奖助学金的学生,必须同时符合该项奖助学金的评选要求。",
+                        score=0.89,
+                        chunk="social-condition",
+                        detail_label="第四条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+            ),
+        )
+        retrieval_intent = RetrievalIntent(
+            kind="condition_table",
+            normalized_query=evidence.query_text,
+            expected=RetrievalIntentExpectation(
+                answer_kind="condition_table",
+                evidence_roles=("eligibility_condition", "eligibility_intro"),
+                coverage_policy="category_member_coverage",
+                selection_policy="one_answer_ready_source_per_member",
+            ),
+            target=RetrievalIntentTarget(
+                corpus="regulations",
+                collection="student_rules",
+                category_id="scholarship",
+                category_member_document_ids=member_doc_ids,
+                condition_subject="generic_condition",
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence, retrieval_intent=retrieval_intent)
+
+        self.assertEqual(tuple(source.doc_id for source in draft.supporting_sources), member_doc_ids)
+        self.assertIn("国家励志奖学金", draft.answer_text)
+        self.assertIn("专项奖学金", draft.answer_text)
+        self.assertNotIn(
+            "专业奖学金评定办法 第十一条：参评本科学生专项奖学金",
+            draft.answer_text,
+        )
+
+    def test_condition_overview_member_coverage_prefers_condition_rows_over_intro_rows(
+        self,
+    ) -> None:
+        member_doc_ids = ("handbook:national", "handbook:inspirational")
+        evidence = EvidenceBundle(
+            query_text="申请奖学金需要满足什么条件",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="参评本科学生国家奖学金须具备以下基本条件:",
+                        score=0.99,
+                        chunk="national-intro",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_intro",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="intro",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="参评国家奖学金应当遵纪守法,学习成绩优异,综合测评排名靠前。",
+                        score=0.9,
+                        chunk="national-condition",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="rank_threshold",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:inspirational",
+                        title="中央民族大学本科学生国家励志奖学金评审办法",
+                        snippet="参评国家励志奖学金应当家庭经济困难,生活俭朴,学习成绩优秀。",
+                        score=0.91,
+                        chunk="inspirational-condition",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+            ),
+        )
+        retrieval_intent = RetrievalIntent(
+            kind="condition_table",
+            normalized_query=evidence.query_text,
+            expected=RetrievalIntentExpectation(
+                answer_kind="condition_table",
+                evidence_roles=("eligibility_condition", "eligibility_intro"),
+                coverage_policy="category_member_coverage",
+                selection_policy="one_answer_ready_source_per_member",
+            ),
+            target=RetrievalIntentTarget(
+                corpus="regulations",
+                collection="student_rules",
+                category_id="scholarship",
+                category_member_document_ids=member_doc_ids,
+                condition_subject="generic_condition",
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence, retrieval_intent=retrieval_intent)
+
+        self.assertEqual(tuple(source.doc_id for source in draft.supporting_sources), member_doc_ids)
+        self.assertIn("学习成绩优异", draft.answer_text)
+        self.assertIn("家庭经济困难", draft.answer_text)
+        self.assertNotIn("国家奖学金须具备以下基本条件", draft.answer_text)
+
+    def test_condition_overview_multi_policy_answer_does_not_use_single_policy_context_prefix(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="申请奖学金需要满足什么条件",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:inspirational",
+                        title="中央民族大学本科学生国家励志奖学金评审办法",
+                        snippet="拥护中国共产党,热爱祖国,维护国家统一和民族团结;",
+                        score=1.0,
+                        chunk="inspirational-condition",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title="中央民族大学本科学生国家奖学金评审办法",
+                        snippet="遵纪守法,遵守学校规章制度;",
+                        score=0.99,
+                        chunk="national-condition",
+                        detail_label="第八条",
+                    ),
+                    anchor=_answer_ready_anchor(
+                        answer_role="eligibility_condition",
+                        condition_subject="generic_condition",
+                        condition_group_subject="generic_condition",
+                        condition_polarity="positive",
+                        semantic_role="condition",
+                        claim_type="condition",
+                    ),
+                ),
+            ),
+        )
+        retrieval_intent = RetrievalIntent(
+            kind="condition_table",
+            normalized_query=evidence.query_text,
+            expected=RetrievalIntentExpectation(
+                answer_kind="condition_table",
+                evidence_roles=("eligibility_condition",),
+                coverage_policy="category_member_coverage",
+                selection_policy="one_answer_ready_source_per_member",
+            ),
+            target=RetrievalIntentTarget(
+                corpus="regulations",
+                collection="student_rules",
+                category_id="scholarship",
+                category_member_document_ids=("handbook:inspirational", "handbook:national"),
+                condition_subject="generic_condition",
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence, retrieval_intent=retrieval_intent)
+
+        self.assertNotIn("《中央民族大学本科学生国家励志奖学金评审办法》 第八条明确", draft.answer_text)
+        self.assertIn("中央民族大学本科学生国家励志奖学金评审办法 第八条", draft.answer_text)
+        self.assertIn("中央民族大学本科学生国家奖学金评审办法 第八条", draft.answer_text)
+
+    def test_condition_overview_excludes_procedure_material_rows_when_condition_rows_exist(
+        self,
+    ) -> None:
+        title = "中央民族大学解除学生纪律处分实施办法"
+        condition_source = replace(
+            _make_policy_source(
+                doc_id="handbook:demerit-relief",
+                title=title,
+                snippet="第三条 学生受处分满考察期后，可以申请解除纪律处分。",
+                score=0.88,
+                chunk="discipline-relief-condition",
+                detail_label="第三条",
+            ),
+            content_role="eligibility",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="eligibility_condition",
+                semantic_role="eligibility_condition",
+                claim_type="condition",
+                condition_subject="discipline_relief_condition",
+                condition_polarity="positive",
+                action_type="lift_discipline",
+                article_no="第三条",
+            ),
+        )
+        material_source = replace(
+            _make_policy_source(
+                doc_id="handbook:demerit-relief",
+                title=title,
+                snippet=(
+                    "无异议后,学院将公示情况说明随同解除处分审批表、获奖证书原件、"
+                    "参加公益活动证明材料等材料一并报学生处审核。"
+                ),
+                score=0.96,
+                chunk="discipline-relief-materials",
+                detail_label="第七条",
+            ),
+            content_role="procedure",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="procedure_step",
+                semantic_role="procedure_step",
+                claim_type="procedure",
+                condition_subject="application_procedure",
+                condition_polarity="positive",
+                action_type="lift_discipline",
+                article_no="第七条",
+            ),
+        )
+        evidence = EvidenceBundle(
+            query_text="被处分后多久可以申请解除处分",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(material_source, condition_source),
+        )
+
+        draft = RagAgent().build_answer(
+            evidence,
+            retrieval_intent=plan_student_handbook_query(evidence.query_text).retrieval_intent,
+        )
+
+        self.assertIn("满考察期后", draft.answer_text)
+        self.assertNotIn("审批表", draft.answer_text)
+        self.assertNotIn("证明材料", draft.answer_text)
 
     def test_disciplinary_relief_how_long_answer_prefers_waiting_condition_over_approval_steps(
         self,
@@ -417,6 +1127,180 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
         self.assertIn("10学时", draft.answer_text)
         self.assertIn("旷课", draft.answer_text)
         self.assertNotIn("按照规定程序执行", draft.answer_text)
+
+    def test_attendance_absence_threshold_treats_periods_as_class_hours(self) -> None:
+        title = "中央民族大学学生违纪处分实施办法"
+        threshold_source = replace(
+            _make_policy_source(
+                doc_id="handbook:discipline",
+                title=title,
+                snippet=(
+                    "第三十三条 违反学校考勤管理规定，无故旷课者，视情节给予如下处分："
+                    "一学期累计旷课16节以下者，给予学院(系)通报批评处分；"
+                    "一学期累计旷课达16-23节者，给予警告处分。"
+                ),
+                score=0.86,
+                chunk="absence-threshold-periods",
+                detail_label="第三十三条",
+            ),
+            content_role="procedure",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="eligibility_condition",
+                semantic_role="eligibility_condition",
+                claim_type="condition",
+                condition_subject="generic_condition",
+                condition_polarity="positive",
+                article_no="第三十三条",
+            ),
+        )
+        generic_source = replace(
+            _make_policy_source(
+                doc_id="handbook:discipline",
+                title=title,
+                snippet=(
+                    "第八条 凡具有中央民族大学正式学籍的学生违反学校纪律需按本办法给予处分的，"
+                    "本(预)科学生由学生处负责处理。第九条 学生发生违纪行为，"
+                    "由学生处、教务处等共同负责调查取证相关违纪事实。"
+                ),
+                score=0.95,
+                chunk="discipline-generic-authority",
+                detail_label="第八条-第九条",
+            ),
+            content_role="eligibility",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="eligibility_condition",
+                semantic_role="condition",
+                claim_type="condition",
+                condition_subject="generic_condition",
+                condition_polarity="positive",
+            ),
+        )
+        evidence = EvidenceBundle(
+            query_text="旷课多少学时会按违纪处理",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(generic_source, threshold_source),
+        )
+
+        draft = RagAgent().build_answer(
+            evidence,
+            retrieval_intent=plan_student_handbook_query(evidence.query_text).retrieval_intent,
+        )
+
+        self.assertIn("16", draft.answer_text)
+        self.assertIn("旷课", draft.answer_text)
+        self.assertNotIn("共同负责调查取证", draft.answer_text)
+
+    def test_attendance_absence_threshold_keeps_quantified_threshold_rows(self) -> None:
+        title = "中央民族大学学生违纪处分实施办法"
+        threshold_source = replace(
+            _make_policy_source(
+                doc_id="handbook:9350d885657d7409e524e73666b828b826f07191",
+                title=title,
+                snippet="\n".join(
+                    (
+                        "第三十三条 违反学校考勤管理规定，无故旷课者，视情节给予如下处分：",
+                        "(一)一学期累计旷课16节以下者，给予学院(系)通报批评处分；",
+                        "(二)一学期累计旷课达16-23节者，给予警告处分；",
+                        "(三)一学期累计旷课达24-31节者，给予严重警告处分；",
+                        "(四)一学期累计旷课达32-39节者，给予记过处分；",
+                        "(五)一学期累计旷课达40-49节者，给予留校察看处分；",
+                        "(六)一学期累计旷课达50节(含)以上者，可以给予开除学籍处分。",
+                    )
+                ),
+                score=0.91,
+                chunk="absence-threshold-live-chunk",
+                detail_label="第三十三条",
+            ),
+            content_role="article_body",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="supporting_detail",
+                semantic_role="supporting_detail",
+                claim_type="policy_clause",
+                condition_polarity="neutral",
+                article_no="第三十三条",
+            ),
+        )
+        evidence = EvidenceBundle(
+            query_text="旷课多少学时会按违纪处理",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(threshold_source,),
+        )
+
+        draft = RagAgent().build_answer(
+            evidence,
+            retrieval_intent=plan_student_handbook_query(evidence.query_text).retrieval_intent,
+        )
+
+        self.assertIn("16节以下", draft.answer_text)
+        self.assertIn("50节(含)以上", draft.answer_text)
+        self.assertNotIn("视情节给予如下处分：第三十三条", draft.answer_text)
+        self.assertIsNotNone(draft.typed_draft)
+        self.assertEqual(draft.typed_draft.kind, "condition_table")
+        self.assertGreaterEqual(len(draft.typed_draft.rows), 2)
+
+    def test_disciplinary_relief_how_long_keeps_period_condition_over_procedure_rows(
+        self,
+    ) -> None:
+        title = "中央民族大学解除学生纪律处分实施办法"
+        condition_source = replace(
+            _make_policy_source(
+                doc_id="handbook:demerit-relief",
+                title=title,
+                snippet="第五条 学生受处分考察期满后，符合解除处分条件的，可以申请解除处分。",
+                score=0.84,
+                chunk="discipline-relief-period-condition",
+                detail_label="第五条",
+            ),
+            content_role="eligibility",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="eligibility_condition",
+                semantic_role="eligibility_condition",
+                claim_type="condition",
+                condition_subject="discipline_relief_condition",
+                condition_polarity="positive",
+                action_type="lift_discipline",
+                article_no="第五条",
+            ),
+        )
+        procedure_source = replace(
+            _make_policy_source(
+                doc_id="handbook:demerit-relief",
+                title=title,
+                snippet="第七条 学院审核后报学生处，学生处审核后报请主管校领导审批决定。",
+                score=0.96,
+                chunk="discipline-relief-approval",
+                detail_label="第七条",
+            ),
+            content_role="procedure",
+            is_answer_bearing=True,
+            anchor=_answer_ready_anchor(
+                answer_role="procedure_step",
+                semantic_role="procedure_step",
+                claim_type="procedure",
+                condition_subject="application_procedure",
+                condition_polarity="positive",
+                action_type="lift_discipline",
+                article_no="第七条",
+            ),
+        )
+        evidence = EvidenceBundle(
+            query_text="被处分后多久可以申请解除处分",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(procedure_source, condition_source),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("考察期满", draft.answer_text)
+        self.assertIn("可以申请解除处分", draft.answer_text)
+        self.assertNotIn("主管校领导审批", draft.answer_text)
 
     def test_detail_clause_prefers_statements_covering_query_critical_terms(self) -> None:
         evidence = EvidenceBundle(

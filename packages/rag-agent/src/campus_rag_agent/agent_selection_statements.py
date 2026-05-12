@@ -24,6 +24,11 @@ from .agent_shared import (
     _render_source_support,
     _replace_academic_years_match,
 )
+from .agent_summary_facets import (
+    general_summary_off_nominal_penalty,
+    general_summary_preferred_term_score,
+    general_summary_query_facets,
+)
 
 _LEADING_ENUM_RE = re.compile(r"^(?:[0-9]{1,2}[.、]\s*|[一二三四五六七八九十百]+[、.]\s*)")
 _ACTION_STATEMENT_HINTS = (
@@ -102,23 +107,18 @@ def _extract_source_statements(source: EvidenceSource) -> tuple[str, ...]:
 
     statements: list[str] = []
     for raw_line in re.split(r"[\r\n]+", source.snippet):
-        line = _normalize_snippet(raw_line)
-        if _looks_like_handbook_metadata_line(line):
-            continue
-        line = _strip_handbook_inline_metadata(line)
-        if _is_official_web_source(source):
-            line = _normalize_official_web_statement_line(line=line, title=title)
-        if not line or line in ignored_lines or line.startswith("文号："):
-            continue
-        if title and line.startswith(title):
-            continue
-        line = _LEADING_ENUM_RE.sub("", line)
-        line = re.sub(r"^[（(]?[一二三四五六七八九十百]+[)）]\s*", "", line)
-        line = re.sub(r"\s*[:：]\s*$", "", line).strip()
-        line = re.sub(r"(学制[:： ]*)(\d+)年", _replace_academic_years_match, line)
-        if not line or line in ignored_lines or line.startswith("文号："):
-            continue
-        statements.append(line)
+        for line in _candidate_statement_lines(raw_line, source=source, title=title):
+            if not line or line in ignored_lines or line.startswith("文号："):
+                continue
+            if title and line.startswith(title):
+                continue
+            line = _LEADING_ENUM_RE.sub("", line)
+            line = re.sub(r"^[（(]?[一二三四五六七八九十百]+[)）]\s*", "", line)
+            line = re.sub(r"\s*[:：]\s*$", "", line).strip()
+            line = re.sub(r"(学制[:： ]*)(\d+)年", _replace_academic_years_match, line)
+            if not line or line in ignored_lines or line.startswith("文号："):
+                continue
+            statements.append(line)
 
     if statements:
         statements = _prepend_structural_short_fact_labels(
@@ -128,6 +128,40 @@ def _extract_source_statements(source: EvidenceSource) -> tuple[str, ...]:
         return tuple(dict.fromkeys(_merge_short_fact_label_value_statements(statements)))
     rendered = _render_source_support(source)
     return (rendered,) if rendered else ()
+
+
+def _candidate_statement_lines(
+    raw_line: str,
+    *,
+    source: EvidenceSource,
+    title: str,
+) -> tuple[str, ...]:
+    line = _normalize_snippet(raw_line)
+    if not line:
+        return ()
+    if _looks_like_handbook_metadata_line(line):
+        return ()
+    if _is_official_web_source(source):
+        return _candidate_official_web_statement_lines(line=line, title=title)
+    stripped = _strip_handbook_inline_metadata(line)
+    return (stripped,) if stripped else ()
+
+
+def _candidate_official_web_statement_lines(*, line: str, title: str) -> tuple[str, ...]:
+    segments = tuple(
+        _normalize_snippet(segment).strip(" /|｜")
+        for segment in re.split(r"\s*[|｜]\s*", line)
+        if _normalize_snippet(segment).strip(" /|｜")
+    )
+    if len(segments) <= 1:
+        normalized = _normalize_official_web_statement_line(line=line, title=title)
+        return (normalized,) if normalized else ()
+    candidates: list[str] = []
+    for segment in segments:
+        normalized = _normalize_official_web_statement_line(line=segment, title=title)
+        if normalized:
+            candidates.append(normalized)
+    return tuple(candidates)
 
 
 def _looks_like_handbook_metadata_line(line: str) -> bool:
@@ -261,6 +295,13 @@ def _score_statement(
             for cue in ("体育竞赛", "学术研究", "论文", "专著", "发明专利", "竞赛")
         ):
             score -= 3
+    summary_facets = general_summary_query_facets(query_text)
+    if summary_facets:
+        score += general_summary_preferred_term_score(statement, summary_facets)
+        score += general_summary_off_nominal_penalty(
+            query_text=query_text,
+            text=statement,
+        )
     return score
 
 

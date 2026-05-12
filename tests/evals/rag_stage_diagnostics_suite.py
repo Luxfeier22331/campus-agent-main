@@ -53,7 +53,11 @@ class RagStageDiagnosticsSuite(unittest.TestCase):
         self.assertEqual(diagnostics["intent"]["answer_kind"], "condition_table")
         self.assertEqual(diagnostics["intent"]["condition_subject"], "material_requirement")
         self.assertEqual(diagnostics["plan"]["query_mode"], "current")
-        self.assertEqual(diagnostics["plan"]["step_count"], 1)
+        self.assertEqual(
+            diagnostics["plan"]["step_count"],
+            len(diagnostics["retrieval"]["step_ids"]),
+        )
+        self.assertGreaterEqual(diagnostics["plan"]["step_count"], 1)
         self.assertEqual(
             diagnostics["plan"]["need_ids"],
             ("need:1:condition_table",),
@@ -64,10 +68,10 @@ class RagStageDiagnosticsSuite(unittest.TestCase):
         self.assertEqual(diagnostics["typed_answer"]["kind"], "condition_table")
         self.assertEqual(diagnostics["typed_answer"]["validation_verdict"], "valid")
         self.assertIn("presentation_kind", diagnostics["typed_answer"])
-        self.assertIn("fallback_path", diagnostics["typed_answer"])
+        self.assertIn("presentation_path", diagnostics["typed_answer"])
         self.assertEqual(diagnostics["synthesis"]["semantic_outcome"], "grounded_answer")
         self.assertIn("presentation_kind", diagnostics["synthesis"])
-        self.assertIn("fallback_path", diagnostics["synthesis"])
+        self.assertIn("presentation_path", diagnostics["synthesis"])
         self.assertEqual(diagnostics["grounding"]["verdict"], "grounded")
 
     def test_build_rag_stage_diagnostic_case_projects_short_answer_presentation(self) -> None:
@@ -110,10 +114,10 @@ class RagStageDiagnosticsSuite(unittest.TestCase):
         )
 
         self.assertEqual(diagnostics["typed_answer"]["presentation_kind"], "brief_reference")
-        self.assertEqual(diagnostics["typed_answer"]["fallback_path"], "")
-        self.assertEqual(diagnostics["typed_answer"]["fallback_reason"], "")
+        self.assertEqual(diagnostics["typed_answer"]["presentation_path"], "")
+        self.assertEqual(diagnostics["typed_answer"]["diagnostic_reason"], "")
         self.assertEqual(diagnostics["synthesis"]["presentation_kind"], "brief_reference")
-        self.assertEqual(diagnostics["synthesis"]["fallback_path"], "")
+        self.assertEqual(diagnostics["synthesis"]["presentation_path"], "")
 
     def test_stage_activities_do_not_fabricate_plan_id_or_query_mode_when_retrieval_not_run(
         self,

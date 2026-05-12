@@ -104,6 +104,23 @@ class BackendQdrantReleaseGuardTest(unittest.TestCase):
         self.assertEqual(qdrant_client.scroll_calls, 1)
         self.assertEqual(qdrant_client.query_calls, 2)
 
+    def test_release_guard_uses_collection_metadata_without_scanning_user_points(self) -> None:
+        profile = _make_runtime_profile()
+        qdrant_client = _ReleaseGuardQdrantClient(
+            collection_payload=_release_payload(profile=profile, settings=_settings())
+        )
+        backend = _backend(qdrant_client=qdrant_client)
+
+        with patch(
+            "campus_retrieval_core.backend_qdrant.load_runtime_profile",
+            return_value=profile,
+        ):
+            backend.retrieve(_request())
+
+        self.assertEqual(qdrant_client.get_collection_calls, 1)
+        self.assertEqual(qdrant_client.scroll_calls, 0)
+        self.assertEqual(qdrant_client.query_calls, 1)
+
     def test_release_guard_retries_get_collection_without_timeout_for_older_qdrant_client(
         self,
     ) -> None:

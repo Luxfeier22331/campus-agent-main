@@ -9,6 +9,7 @@ from campus_retrieval_core.models import (
     RetrievalRequest,
     RetrievalScope,
     RetrievalSelector,
+    RetrievalSemanticHint,
     RetrievalStep,
     RetrievalStepBudget,
 )
@@ -162,6 +163,68 @@ class RetrievalServiceTypedStepExecutionTest(unittest.TestCase):
         self.assertEqual(seen_requests[0].canonical_course_ids, ("course:muc.xigai",))
         self.assertEqual(result.step_results[0].status, "succeeded")
         self.assertEqual(result.step_results[0].activity.step_type, "entity_resolution")
+
+    def test_execute_retrieval_plan_passes_semantic_hint_to_backend_request(self) -> None:
+        seen_requests: list[RetrievalRequest] = []
+        semantic_hint = RetrievalSemanticHint(
+            intent_kind="condition_table",
+            answer_kind="condition_table",
+            need_kinds=("condition_table",),
+            coverage_policy="condition_subject_alignment",
+            selection_policy="answer_role_first",
+            rerank_policy="disabled",
+            replan_policy="intent_gap_replan",
+            expected_answer_roles=(
+                "eligibility_condition",
+                "exception_rule",
+                "eligibility_intro",
+                "table_fact",
+            ),
+            condition_subject="generic_condition",
+            category_id="scholarship",
+        )
+
+        def fake_retrieve_step(request: RetrievalRequest) -> EvidenceBundle:
+            seen_requests.append(request)
+            return EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(
+                    _make_source(
+                        chunk_id="national-scholarship-condition",
+                        snippet="参评本科学生国家奖学金须具备品行测评优秀、学习成绩优异等条件。",
+                    ),
+                ),
+            )
+
+        result = execute_retrieval_plan(
+            RetrievalPlan(
+                plan_id="regulations:student_rules:semantic-hint-request",
+                query_mode="current",
+                admitted_scopes=(
+                    RetrievalScope(corpus="regulations", collection="student_rules"),
+                ),
+                budget=RetrievalPlanBudget(max_steps=1, max_replans=0),
+                steps=(
+                    RetrievalStep(
+                        step_id="condition-table",
+                        step_type="indexed_lookup",
+                        scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                        query_text="申请奖学金需要满足什么条件",
+                        semantic_hint=semantic_hint,
+                        selector=RetrievalSelector(
+                            target_document_ids=("handbook:national-scholarship",),
+                        ),
+                        budget=RetrievalStepBudget(top_k=3),
+                    ),
+                ),
+            ),
+            retrieve_step=fake_retrieve_step,
+        )
+
+        self.assertEqual(result.step_results[0].status, "succeeded")
+        self.assertIs(seen_requests[0].semantic_hint, semantic_hint)
 
 
 def _typed_step_plan(

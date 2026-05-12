@@ -114,6 +114,27 @@ class RetrievalHandbookQrelsFixtureTest(unittest.TestCase):
             }.issubset(forbidden_case_ids)
         )
 
+    def test_attendance_threshold_qrels_distinguishes_direct_answer_from_bridge_source(
+        self,
+    ) -> None:
+        dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
+
+        case = next(
+            item
+            for item in dataset.cases
+            if item.case_id == "short-fact-attendance-discipline-threshold"
+        )
+        grades_by_doc_id = {source.doc_id: source.grade for source in case.expected_sources}
+
+        self.assertEqual(
+            grades_by_doc_id["handbook:9350d885657d7409e524e73666b828b826f07191"],
+            2,
+        )
+        self.assertEqual(
+            grades_by_doc_id["handbook:e53d05ae90e91f1c45843c50c3a777f774a88afc"],
+            1,
+        )
+
     def test_handbook_qrels_fixture_contains_selected_version_locked_cases(self) -> None:
         dataset = load_retrieval_qrels_dataset(FIXTURE_PATH)
 

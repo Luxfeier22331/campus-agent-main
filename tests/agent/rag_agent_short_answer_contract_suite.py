@@ -79,8 +79,8 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
         self.assertNotIn("前10", draft.answer_text)
         self.assertEqual(len(draft.supporting_sources), 1)
         self.assertEqual(draft.presentation_kind, "document_identity")
-        self.assertEqual(draft.fallback_path, "")
-        self.assertEqual(draft.fallback_reason, "")
+        self.assertEqual(draft.presentation_path, "")
+        self.assertEqual(draft.diagnostic_reason, "")
         self.assertIsNotNone(draft.typed_draft.presentation)
         self.assertEqual(draft.typed_draft.presentation.kind.value, "document_identity")
         self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")
@@ -116,7 +116,7 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
         self.assertIn("《中央民族大学研究生“三助”工作管理办法》", draft.answer_text)
         self.assertNotIn("研究生培养的重要环节", draft.answer_text)
         self.assertEqual(draft.presentation_kind, "document_identity")
-        self.assertEqual(draft.fallback_path, "")
+        self.assertEqual(draft.presentation_path, "")
         self.assertEqual(draft.typed_draft.presentation.kind.value, "document_identity")
 
     def test_curriculum_title_lookup_uses_document_identity_presentation(self) -> None:
@@ -152,10 +152,10 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
         self.assertIn("培养目标", draft.answer_text)
         self.assertNotIn("总学分", draft.answer_text)
         self.assertEqual(draft.presentation_kind, "brief_reference")
-        self.assertEqual(draft.fallback_path, "")
+        self.assertEqual(draft.presentation_path, "")
         self.assertEqual(draft.typed_draft.presentation.kind.value, "brief_reference")
 
-    def test_curriculum_title_lookup_with_retrieval_intent_keeps_non_empty_answer(self) -> None:
+    def test_curriculum_document_intent_keeps_short_identity_answer(self) -> None:
         title = "民族学本科人才培养方案"
         evidence = EvidenceBundle(
             query_text=title,
@@ -191,12 +191,12 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
 
         self.assertTrue(draft.answer_text)
         self.assertIn("《民族学本科人才培养方案》", draft.answer_text)
-        self.assertIn("培养目标", draft.answer_text)
+        self.assertIn("相关培养方案", draft.answer_text)
         self.assertNotIn("本专业培养具有民族学理论基础", draft.answer_text)
         self.assertEqual(draft.presentation_kind, "brief_reference")
-        self.assertEqual(draft.fallback_path, "")
+        self.assertEqual(draft.presentation_path, "")
 
-    def test_curriculum_paraphrased_title_lookup_keeps_brief_identity_answer(self) -> None:
+    def test_curriculum_paraphrased_document_intent_keeps_brief_identity_answer(self) -> None:
         title = "数字经济本科人才培养方案"
         evidence = EvidenceBundle(
             query_text="想看数字经济这个专业的培养方案",
@@ -231,11 +231,117 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
         )
 
         self.assertIn(f"《{title}》", draft.answer_text)
-        self.assertIn("培养目标", draft.answer_text)
+        self.assertIn("可以查看", draft.answer_text)
+        self.assertNotIn("相关培养方案为", draft.answer_text)
         self.assertNotIn("掌握数据分析能力", draft.answer_text)
         self.assertNotIn("总学分", draft.answer_text)
         self.assertEqual(draft.presentation_kind, "brief_reference")
         self.assertLessEqual(draft.answer_text.count("。"), 1)
+
+    def test_curriculum_document_lookup_does_not_expand_long_training_goal(self) -> None:
+        title = "数字经济本科人才培养方案"
+        evidence = EvidenceBundle(
+            query_text="想看数字经济这个专业的培养方案",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0001",
+                    source_title=title,
+                    snippet=(
+                        "数字经济本科人才培养方案\n\n一、培养目标\n\n"
+                        "本专业服务于国家战略与民族地区发展，培养政治素质过硬、综合素质优异、"
+                        "数字技能高超、经济理论扎实，具备前沿学术研究能力和数字创新创业能力，"
+                        "具有积极的世界观、人生观、价值观，具有强烈社会责任感、深厚家国情怀、"
+                        "宽广国际视野、良好人文科学素养。"
+                    ),
+                    score=0.9,
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            evidence,
+            retrieval_intent=plan_curriculum_query(evidence.query_text).retrieval_intent,
+        )
+
+        self.assertIn(f"《{title}》", draft.answer_text)
+        self.assertIn("可以查看", draft.answer_text)
+        self.assertIn("培养方案", draft.answer_text)
+        self.assertEqual(draft.presentation_kind, "brief_reference")
+        self.assertNotIn("服务于国家战略", draft.answer_text)
+        self.assertNotIn("数字技能高超", draft.answer_text)
+
+    def test_official_web_title_lookup_skips_title_only_statement_when_content_exists(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="中央民族大学校友会简介",
+            corpus="official_web",
+            collection="stable_reference",
+            sources=(
+                _make_official_web_source(
+                    doc_id="official_web:muc_public:article_detail:alumni-profile",
+                    title="校友会简介",
+                    snippet=(
+                        "标题：校友会简介 | 中央民族大学校友会简介 | "
+                        "新时代，中央民族大学校友会将携手国内外校友，践行服务校友、"
+                        "服务母校、服务社会。"
+                    ),
+                    score=0.9,
+                    chunk_id_suffix="alumni-profile",
+                    content_role="reference_fact",
+                    collection="stable_reference",
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("服务校友", draft.answer_text)
+        self.assertIn("服务母校", draft.answer_text)
+        self.assertNotEqual(
+            draft.answer_text,
+            "根据官网页面内容，《校友会简介》明确：中央民族大学校友会简介",
+        )
+        self.assertEqual(draft.presentation_kind, "brief_reference")
+
+    def test_official_web_title_lookup_skips_prefixed_title_line_when_content_exists(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="中央民族大学校友会简介",
+            corpus="official_web",
+            collection="stable_reference",
+            sources=(
+                _make_official_web_source(
+                    doc_id="official_web:muc_public:article_detail:alumni-profile",
+                    title="校友会简介",
+                    snippet=(
+                        "标题：校友会简介\n"
+                        "中央民族大学校友会简介\n"
+                        "新时代，中央民族大学校友会将携手国内外校友，"
+                        "在践行“服务校友、服务母校、服务社会”的征途上，"
+                        "为促进校友事业发展阔步前行。"
+                    ),
+                    score=0.9,
+                    chunk_id_suffix="alumni-profile-newlines",
+                    content_role="reference_fact",
+                    collection="stable_reference",
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("服务校友、服务母校、服务社会", draft.answer_text)
+        self.assertNotEqual(
+            draft.answer_text,
+            "根据官网页面内容，《校友会简介》明确：中央民族大学校友会简介",
+        )
+        self.assertEqual(draft.presentation_kind, "brief_reference")
 
     def test_title_lookup_typed_draft_stays_valid_for_document_identity(self) -> None:
         title = "中央民族大学本科学生国家奖学金评审办法"
@@ -290,7 +396,7 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
         self.assertIn("延安民族学院", draft.answer_text)
         self.assertNotIn("三个校区", draft.answer_text)
         self.assertEqual(draft.presentation_kind, "brief_reference")
-        self.assertEqual(draft.fallback_path, "")
+        self.assertEqual(draft.presentation_path, "")
         self.assertEqual(draft.typed_draft.presentation.kind.value, "brief_reference")
 
     def test_general_summary_presentation_collapses_to_single_short_sentence(self) -> None:
@@ -322,8 +428,8 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
         self.assertNotIn("线上访问", draft.answer_text)
         self.assertNotIn("；", draft.answer_text)
         self.assertEqual(draft.presentation_kind, "general_summary")
-        self.assertEqual(draft.fallback_path, "")
-        self.assertEqual(draft.fallback_reason, "")
+        self.assertEqual(draft.presentation_path, "")
+        self.assertEqual(draft.diagnostic_reason, "")
         self.assertIsNotNone(draft.typed_draft.presentation)
         self.assertEqual(draft.typed_draft.presentation.kind.value, "general_summary")
         self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")

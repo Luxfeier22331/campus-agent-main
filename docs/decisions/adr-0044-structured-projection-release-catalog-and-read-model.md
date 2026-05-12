@@ -102,10 +102,10 @@ Redis 可以用于：
 Redis 不拥有 release catalog、current pointer、typed read model 或 artifact truth。
 Redis 缺失、flush 或重启不得导致 canonical current projection 丢失。
 
-### 决策 5：runtime 不支持 mounted current JSON fallback
+### 决策 5：runtime 不支持 mounted current JSON
 
 mounted current JSON file 只能作为人工 artifact inspection 输入，不能作为
-`apps/supervisor-api` runtime fallback、local smoke fallback 或 Docker
+`apps/supervisor-api` runtime path、local smoke path 或 Docker
 compatibility path。runtime 必须读取 PG current pointer 与 typed read model。
 
 ### 决策 6：发布流程必须是 release transaction

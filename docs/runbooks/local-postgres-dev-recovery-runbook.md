@@ -268,7 +268,7 @@ uv run --package campus-ingestion-worker python -m \
 
 - root `.env` source 必须是真正的 shared/cloud Postgres env，不能仍指向 `127.0.0.1:5432`
 - 如果缺少 app-api 独立 backup，会从 shared root env 重新同步 `apps/app-api/.env`
-- 如果缺少 `.dev.vars` backup，`APP_API_DATABASE_SSLMODE` fallback 为 `prefer`
+- 如果缺少 `.dev.vars` backup，`APP_API_DATABASE_SSLMODE` 必须来自显式参数或脚本默认值
 
 ## 可选覆写
 

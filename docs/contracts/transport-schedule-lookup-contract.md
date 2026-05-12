@@ -233,9 +233,6 @@ TransportScheduleLookupResult
 - stop_refs[]: TransportStopRef
 - related_notice_refs[]: str
 - operational_notices[]: TransportOperationalNotice
-- historical_downgrade_reason:
-  - current_year_miss
-  - current_effective_miss
 - fail_close_reason:
   - current_state_unverifiable
   - source_truth_unavailable
@@ -341,7 +338,7 @@ TransportOperationalNotice
 - `resolved_current`
   - 当前有效 snapshot + 当前或显式服务日下可被当前系统可信回答
 - `resolved_historical_reference`
-  - 用户显式要求历史版本，或 current/current-year/current-effective miss 后降级到历史版本
+  - 仅当用户显式要求历史版本，例如 `snapshot_query.mode=as_of`
 - `clarification_required`
   - 路线、方向、站点或服务日约束不足，不能猜
 - `not_found`
@@ -387,8 +384,7 @@ TransportOperationalNotice
     `schedule_snapshot_metadata` 不消费该字段
 - `resolved_historical_reference`
   - `schedule_snapshot` 应出现
-  - 仅当答案来自 current/current-year/current-effective miss 的历史降级时，才填写
-    `historical_downgrade_reason`
+  - 只能来自显式历史查询，不得由 current/current-year/current-effective miss 自动触发
 - `temporarily_unverifiable`
   - 必须填写 `fail_close_reason`
   - 不得伪造 `selected_departure`、`departure_options`、`service_window` 或
@@ -419,7 +415,6 @@ TransportOperationalNotice
   - `timetable_entries`
   - `candidate_routes`
   - `clarification_reason`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
 ### 2. 最近的地铁接驳车时刻表是什么
@@ -443,7 +438,6 @@ TransportOperationalNotice
   - `service_window`
   - `candidate_routes`
   - `clarification_reason`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
 ### 3. 最近一版校车时刻表是什么时候发布的
@@ -467,7 +461,6 @@ TransportOperationalNotice
   - `timetable_entries`
   - `candidate_routes`
   - `clarification_reason`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
 ### 4. 最近一班校车是什么时候
@@ -491,7 +484,6 @@ TransportOperationalNotice
   - `service_window`
   - `schedule_snapshot`
   - `timetable_entries`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
 ### 5. 最近一班去丰台的班车是什么时候
@@ -517,7 +509,6 @@ TransportOperationalNotice
   - `timetable_entries`
   - `candidate_routes`
   - `clarification_reason`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
 ### 6. 我明天早上要去丰台上课，最早的班车是几点
@@ -544,7 +535,6 @@ TransportOperationalNotice
   - `timetable_entries`
   - `candidate_routes`
   - `clarification_reason`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
 ### 7. 我今天晚上从丰台回海淀，最后一班车是几点
@@ -572,7 +562,6 @@ TransportOperationalNotice
   - `timetable_entries`
   - `candidate_routes`
   - `clarification_reason`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
 ### 8. 今天下午 5 点以后去丰台还有哪些班车
@@ -599,7 +588,6 @@ TransportOperationalNotice
   - `timetable_entries`
   - `candidate_routes`
   - `clarification_reason`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
 ### 9. 今天这条线的运营时间是什么
@@ -625,7 +613,6 @@ TransportOperationalNotice
   - `timetable_entries`
   - `candidate_routes`
   - `clarification_reason`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
 ### 10. 按 2026-04-10 那版时刻表，最早一班是几点
@@ -653,7 +640,6 @@ TransportOperationalNotice
   - `timetable_entries`
   - `candidate_routes`
   - `clarification_reason`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
 ### 11. 当前这条线还能不能跑
@@ -680,7 +666,6 @@ TransportOperationalNotice
   - `timetable_entries`
   - `candidate_routes`
   - `clarification_reason`
-  - `historical_downgrade_reason`
 
 ### 12. 去丰台的班车是哪条
 
@@ -703,7 +688,6 @@ TransportOperationalNotice
   - `service_window`
   - `schedule_snapshot`
   - `timetable_entries`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
 ### 13. 北门到丰台的班车几点走
@@ -729,7 +713,6 @@ TransportOperationalNotice
   - `schedule_snapshot`
   - `timetable_entries`
   - `candidate_routes`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
 ### 14. 不存在的 XX 专线什么时候发车
@@ -752,10 +735,9 @@ TransportOperationalNotice
   - `timetable_entries`
   - `candidate_routes`
   - `clarification_reason`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
-### 15. 今年的校车时刻表没有，那去年的也行
+### 15. 今年的校车时刻表没有
 
 - 归一化 payload
   - `intent=timetable`
@@ -763,22 +745,21 @@ TransportOperationalNotice
   - `snapshot_query.mode=current_year`
   - `snapshot_query.year_hint=2026`
 - 预期 outcome
-  - `resolved_historical_reference`
-  - `historical_downgrade_reason=current_year_miss`
+  - `temporarily_unverifiable`
+  - `fail_close_reason=current_state_unverifiable`
 - 必填结果字段
   - `query_text`
   - `intent`
-  - `resolved_route`
-  - `schedule_snapshot`
-  - `timetable_entries`
-  - `historical_downgrade_reason`
+  - `fail_close_reason`
 - 必须为空
+  - `resolved_route`
   - `selected_departure`
   - `departure_options`
   - `service_window`
+  - `schedule_snapshot`
+  - `timetable_entries`
   - `candidate_routes`
   - `clarification_reason`
-  - `fail_close_reason`
 
 ### 16. 今天地铁接驳车是不是停运了
 
@@ -805,7 +786,6 @@ TransportOperationalNotice
   - `timetable_entries`
   - `candidate_routes`
   - `clarification_reason`
-  - `historical_downgrade_reason`
   - `fail_close_reason`
 
 ## Deferred
@@ -815,7 +795,7 @@ TransportOperationalNotice
 - 班车 browser card / panel card 的最终前端字段 shape
 - map route overlay、geometry polyline 或站点地图交互
 - 多 snapshot compare
-- 跨 source family 的 live fallback
+- 跨 source family 的 live query path
 - 用户个性化偏好驱动的默认上车点 / 默认校区注入
 
 ## Related Docs

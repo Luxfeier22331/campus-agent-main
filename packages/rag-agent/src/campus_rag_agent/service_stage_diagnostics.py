@@ -19,8 +19,8 @@ def build_rag_stage_activity_summaries(
     grounding_verdict: str,
     prompt_runtime_state: str,
     answer_presentation_kind: str = "",
-    answer_fallback_path: str = "",
-    answer_fallback_reason: str = "",
+    answer_presentation_path: str = "",
+    answer_diagnostic_reason: str = "",
 ) -> tuple[RagStageActivitySummary, ...]:
     plan_id = retrieval_execution_result.plan.plan_id if retrieval_execution_result is not None else ""
     query_mode = (
@@ -32,7 +32,7 @@ def build_rag_stage_activity_summaries(
     if not candidate_count:
         candidate_count = len(evidence.sources)
     supporting_evidence_count = len(evidence.sources)
-    fallback_reason = _resolve_fallback_reason(
+    diagnostic_reason = _resolve_diagnostic_reason(
         retrieval_adequacy=retrieval_adequacy,
         no_answer_reason=no_answer_reason,
         fail_close_reason=fail_close_reason,
@@ -63,7 +63,7 @@ def build_rag_stage_activity_summaries(
             stage_status=_retrieval_stage_status(retrieval_execution_result, candidate_count),
             candidate_count=candidate_count,
             supporting_evidence_count=0,
-            fallback_reason=_retrieval_fallback_reason(retrieval_execution_result),
+            diagnostic_reason=_retrieval_diagnostic_reason(retrieval_execution_result),
             latency_ms=retrieval_ms,
             retrieval_ms=retrieval_ms,
             prompt_ms=0,
@@ -77,11 +77,11 @@ def build_rag_stage_activity_summaries(
             stage_name="evidence_selection",
             stage_status=_evidence_selection_stage_status(
                 semantic_outcome=semantic_outcome,
-                fallback_reason=fallback_reason,
+                diagnostic_reason=diagnostic_reason,
             ),
             candidate_count=candidate_count,
             supporting_evidence_count=supporting_evidence_count,
-            fallback_reason=fallback_reason,
+            diagnostic_reason=diagnostic_reason,
             latency_ms=0,
             retrieval_ms=0,
             prompt_ms=0,
@@ -96,9 +96,9 @@ def build_rag_stage_activity_summaries(
             stage_status=_synthesis_stage_status(semantic_outcome=semantic_outcome),
             candidate_count=candidate_count,
             supporting_evidence_count=supporting_evidence_count,
-            fallback_reason=answer_fallback_reason or prompt_runtime_state,
+            diagnostic_reason=answer_diagnostic_reason or prompt_runtime_state,
             presentation_kind=answer_presentation_kind,
-            fallback_path=answer_fallback_path,
+            presentation_path=answer_presentation_path,
             latency_ms=0,
             retrieval_ms=0,
             prompt_ms=0,
@@ -117,7 +117,7 @@ def build_rag_stage_activity_summaries(
             candidate_count=candidate_count,
             supporting_evidence_count=supporting_evidence_count,
             grounding_verdict=grounding_verdict,
-            fallback_reason=(
+            diagnostic_reason=(
                 "insufficient_grounding"
                 if grounding_verdict and grounding_verdict != "grounded"
                 else ""
@@ -129,7 +129,7 @@ def build_rag_stage_activity_summaries(
             diagnostic_ms=0,
         ),
     )
-def _resolve_fallback_reason(
+def _resolve_diagnostic_reason(
     *,
     retrieval_adequacy: RetrievalAdequacyAssessment | None,
     no_answer_reason: str,
@@ -173,7 +173,7 @@ def _retrieval_stage_status(
     return "empty"
 
 
-def _retrieval_fallback_reason(execution_result: RetrievalExecutionResult | None) -> str:
+def _retrieval_diagnostic_reason(execution_result: RetrievalExecutionResult | None) -> str:
     if execution_result is None:
         return ""
     for result in execution_result.step_results:
@@ -185,11 +185,11 @@ def _retrieval_fallback_reason(execution_result: RetrievalExecutionResult | None
 def _evidence_selection_stage_status(
     *,
     semantic_outcome: str,
-    fallback_reason: str,
+    diagnostic_reason: str,
 ) -> str:
     if semantic_outcome in {"grounded_answer", "compare_grounded_answer"}:
         return "completed"
-    if fallback_reason:
+    if diagnostic_reason:
         return "failed_closed"
     return "completed"
 

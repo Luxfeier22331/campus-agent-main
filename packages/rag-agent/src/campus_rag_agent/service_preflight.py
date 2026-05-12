@@ -58,7 +58,7 @@ def _maybe_return_pre_retrieval_response(
             user_goal=user_goal,
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
-            fallback_question=_build_clarification_question(
+            deterministic_question=_build_clarification_question(
                 user_goal,
                 empty_evidence,
                 recent_goal=personalization_hint.recent_goal,
@@ -90,7 +90,7 @@ def _maybe_return_pre_retrieval_response(
             user_goal=user_goal,
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
-            fallback_question=_build_clarification_question(
+            deterministic_question=_build_clarification_question(
                 user_goal,
                 empty_evidence,
                 recent_goal=personalization_hint.recent_goal,
@@ -114,7 +114,7 @@ def _maybe_return_pre_retrieval_response(
             user_goal=user_goal,
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
-            fallback_question=_build_clarification_question(
+            deterministic_question=_build_clarification_question(
                 user_goal,
                 empty_evidence,
                 recent_goal=personalization_hint.recent_goal,
@@ -142,7 +142,7 @@ def _maybe_return_pre_retrieval_response(
             user_goal=user_goal,
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
-            fallback_question=_build_clarification_question(
+            deterministic_question=_build_clarification_question(
                 user_goal,
                 empty_evidence,
                 recent_goal=personalization_hint.recent_goal,
@@ -164,7 +164,7 @@ def _maybe_return_pre_retrieval_response(
             prompt_executor=prompt_executor,
             intent_frame=intent_frame,
             no_answer_reason=curriculum_plan.unsupported_reason,
-            fallback_answer=_build_curriculum_unsupported_response(curriculum_plan),
+            deterministic_answer_text=_build_curriculum_unsupported_response(curriculum_plan),
             semantic_outcome="unsupported_scope",
             retrieval_adequacy=insufficient_retrieval_adequacy("unsupported_query_type"),
             handbook_plan=handbook_plan,

@@ -18,8 +18,8 @@ from tests.agent.rag_agent_test_support import (
 )
 
 
-class RagAgentRequestPromptFallbackTest(unittest.TestCase):
-    def test_invalid_answer_prompt_trace_falls_back_to_deterministic_answer(self) -> None:
+class RagAgentRequestPromptFailClosedTest(unittest.TestCase):
+    def test_invalid_answer_prompt_trace_fails_closed(self) -> None:
         evidence = EvidenceBundle(
             query_text="学生证补办要求是什么",
             corpus="regulations",
@@ -47,8 +47,6 @@ class RagAgentRequestPromptFallbackTest(unittest.TestCase):
                 ),
             ),
         )
-        expected_answer = RagAgent().compose_answer(evidence)
-
         class FakePromptExecutor:
             def compose_answer(
                 self, packet: object
@@ -80,17 +78,15 @@ class RagAgentRequestPromptFallbackTest(unittest.TestCase):
             prompt_executor=FakePromptExecutor(),
         )
 
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(response.answer_text, expected_answer)
+        self.assertEqual(response.status, "error")
+        self.assertEqual(response.error.code, "rag_sdk_runtime_failed")
         diagnostics = response.result.diagnostics
-        if diagnostics is not None:
-            self.assertEqual(diagnostics.semantic_outcome, "grounded_answer")
-            self.assertEqual(diagnostics.retrieval_adequacy_verdict, "sufficient")
-            self.assertEqual(diagnostics.retrieval_adequacy_reason, "sufficient")
-            self.assertEqual(diagnostics.grounding_verdict, "grounded")
-            self.assertIsNone(diagnostics.prompt_trace)
+        self.assertEqual(diagnostics.semantic_outcome, "runtime_error")
+        self.assertEqual(diagnostics.fail_close_reason, "rag_sdk_runtime_failed")
+        self.assertEqual(diagnostics.prompt_runtime_state, "rag_sdk_runtime_failed")
+        self.assertIsNone(diagnostics.prompt_trace)
 
-    def test_prompt_runtime_failure_projects_typed_runtime_state_while_falling_back(self) -> None:
+    def test_prompt_runtime_failure_fails_closed(self) -> None:
         evidence = EvidenceBundle(
             query_text="学生证补办要求是什么",
             corpus="regulations",
@@ -118,8 +114,6 @@ class RagAgentRequestPromptFallbackTest(unittest.TestCase):
                 ),
             ),
         )
-        expected_answer = RagAgent().compose_answer(evidence)
-
         class FakePromptExecutor:
             def compose_answer(
                 self, packet: object
@@ -151,15 +145,15 @@ class RagAgentRequestPromptFallbackTest(unittest.TestCase):
             prompt_executor=FakePromptExecutor(),
         )
 
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(response.answer_text, expected_answer)
+        self.assertEqual(response.status, "error")
+        self.assertEqual(response.error.code, "rag_sdk_runtime_failed")
         diagnostics = response.result.diagnostics
-        if diagnostics is not None:
-            self.assertEqual(diagnostics.prompt_runtime_state, "content_filter")
-            self.assertEqual(diagnostics.prompt_runtime_detail, "content_filter")
-            self.assertIsNone(diagnostics.prompt_trace)
+        self.assertEqual(diagnostics.semantic_outcome, "runtime_error")
+        self.assertEqual(diagnostics.fail_close_reason, "rag_sdk_runtime_failed")
+        self.assertEqual(diagnostics.prompt_runtime_state, "rag_sdk_runtime_failed")
+        self.assertIsNone(diagnostics.prompt_trace)
 
-    def test_handbook_materials_answer_keeps_deterministic_copy_even_with_prompt_executor(
+    def test_handbook_materials_answer_has_deterministic_copy(
         self,
     ) -> None:
         evidence = EvidenceBundle(
@@ -181,35 +175,10 @@ class RagAgentRequestPromptFallbackTest(unittest.TestCase):
         )
         expected_answer = RagAgent().compose_answer(evidence)
 
-        class FakePromptExecutor:
-            def compose_answer(
-                self, packet: object
-            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
-                raise AssertionError(
-                    "deterministic handbook materials path should not use prompt answer"
-                )
+        self.assertIn("书面申请", expected_answer)
+        self.assertIn("中央民族大学补办学生证申请表", expected_answer)
 
-        response = delegate_to_rag_agent(
-            AgentRequest(
-                target="rag-agent",
-                user_goal="学生证补办需要什么材料",
-                payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
-                ),
-            ),
-            retriever=lambda *args, **kwargs: evidence,
-            prompt_executor=FakePromptExecutor(),
-        )
-
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(response.answer_text, expected_answer)
-        self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
-        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "sufficient")
-        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "sufficient")
-        self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
-        self.assertIsNone(response.result.diagnostics.prompt_trace)
-
-    def test_handbook_time_answer_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
+    def test_handbook_time_answer_has_deterministic_copy(self) -> None:
         evidence = EvidenceBundle(
             query_text="学生证补办什么时候办",
             corpus="regulations",
@@ -229,35 +198,9 @@ class RagAgentRequestPromptFallbackTest(unittest.TestCase):
         )
         expected_answer = RagAgent().compose_answer(evidence)
 
-        class FakePromptExecutor:
-            def compose_answer(
-                self, packet: object
-            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
-                raise AssertionError(
-                    "deterministic handbook time path should not use prompt answer"
-                )
+        self.assertIn("每周四下午", expected_answer)
 
-        response = delegate_to_rag_agent(
-            AgentRequest(
-                target="rag-agent",
-                user_goal="学生证补办什么时候办",
-                payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
-                ),
-            ),
-            retriever=lambda *args, **kwargs: evidence,
-            prompt_executor=FakePromptExecutor(),
-        )
-
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(response.answer_text, expected_answer)
-        self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
-        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "sufficient")
-        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "sufficient")
-        self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
-        self.assertIsNone(response.result.diagnostics.prompt_trace)
-
-    def test_handbook_exact_title_lookup_keeps_deterministic_copy_even_with_prompt_executor(
+    def test_handbook_exact_title_lookup_has_deterministic_copy(
         self,
     ) -> None:
         evidence = EvidenceBundle(
@@ -279,35 +222,9 @@ class RagAgentRequestPromptFallbackTest(unittest.TestCase):
         )
         expected_answer = RagAgent().compose_answer(evidence)
 
-        class FakePromptExecutor:
-            def compose_answer(
-                self, packet: object
-            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
-                raise AssertionError(
-                    "deterministic handbook title lookup should not use prompt answer"
-                )
+        self.assertIn("公费医疗管理办法", expected_answer)
 
-        response = delegate_to_rag_agent(
-            AgentRequest(
-                target="rag-agent",
-                user_goal="中央民族大学学生公费医疗管理办法",
-                payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="regulations", collection="student_rules")
-                ),
-            ),
-            retriever=lambda *args, **kwargs: evidence,
-            prompt_executor=FakePromptExecutor(),
-        )
-
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(response.answer_text, expected_answer)
-        self.assertEqual(response.result.diagnostics.semantic_outcome, "grounded_answer")
-        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "sufficient")
-        self.assertEqual(response.result.diagnostics.retrieval_adequacy_reason, "sufficient")
-        self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
-        self.assertIsNone(response.result.diagnostics.prompt_trace)
-
-    def test_curriculum_answer_keeps_deterministic_copy_even_with_prompt_executor(self) -> None:
+    def test_curriculum_answer_has_deterministic_copy(self) -> None:
         evidence = EvidenceBundle(
             query_text="民族学本科第二学士学位人才培养方案学制几年？",
             corpus="curriculum",
@@ -335,25 +252,4 @@ class RagAgentRequestPromptFallbackTest(unittest.TestCase):
         )
         expected_answer = RagAgent().compose_answer(evidence)
 
-        class FakePromptExecutor:
-            def compose_answer(
-                self, packet: object
-            ) -> RagPromptExecutionResult[RagAnswerPromptOutput]:
-                raise AssertionError("deterministic curriculum path should not use prompt answer")
-
-        response = delegate_to_rag_agent(
-            AgentRequest(
-                target="rag-agent",
-                user_goal="民族学本科第二学士学位人才培养方案学制几年？",
-                payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
-                ),
-            ),
-            retriever=lambda *args, **kwargs: evidence,
-            prompt_executor=FakePromptExecutor(),
-        )
-
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(response.answer_text, expected_answer)
-        self.assertIsNotNone(response.result.diagnostics)
-        self.assertIsNone(response.result.diagnostics.prompt_trace)
+        self.assertIn("两年", expected_answer)

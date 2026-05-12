@@ -68,7 +68,7 @@ Accepted on 2026-04-05.
 
 - 校内路径规划默认走自有图谱
 - 周边关键地点只接入对当前产品有价值的受控连接边
-- provider route response 只能作为 coverage 外 fallback，不反向升级为 canonical campus route
+- provider route response 只能作为 coverage 外 secondary candidate，不反向升级为 canonical campus route
   truth
 
 ### 决策 3：不把高德作为默认基础依赖
@@ -78,7 +78,8 @@ Accepted on 2026-04-05.
 直接含义：
 
 - 高德不再作为当前长期方案里的默认主链路前提
-- 如后续保留高德，只允许作为可替换 adapter 参与 geocode、POI search 或校外 fallback
+- 如后续保留高德，只允许作为可替换 adapter 参与 geocode、POI search 或校外 secondary
+  route candidate
 - 去掉高德不会使 campus navigation capability 失效
 
 ### 决策 4：不使用 OSM Foundation 公共瓦片或公共 Nominatim 作为生产主链路

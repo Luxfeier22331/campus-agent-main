@@ -144,7 +144,7 @@ uncorrelated cases with a reason.
 - `issue_link`
 - `issue_fingerprint`
 
-默认优先读取 inline `request_correlation`；外部 manifest 只作为 fallback。
+默认优先读取 inline `request_correlation`；外部 manifest 只作为显式第二来源。
 
 `workflow_trace_summary` 是 sanitized orchestration trace projection，至少允许承载：
 

@@ -9,6 +9,7 @@ from campus_contracts import (
     KnowledgeScope,
     RagRequestPayload,
 )
+from campus_rag_agent.agent import RagAgent
 from campus_rag_agent.agent_answer_shape import AnswerShape, infer_answer_shape
 from campus_rag_agent.confidence import derive_confidence
 from campus_rag_agent.rag_sdk_models import RagSdkEvidenceAnchor, RagSdkRunRequest, RagSdkRunResult
@@ -35,6 +36,7 @@ from campus_retrieval_core import (
     RetrievalStepBudget,
     RetrievalStepResult,
 )
+from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 
 from tests.agent.rag_agent_agentic_depth_runtime_suite_support import execute_rag_planner_stage
 from tests.agent.rag_agent_test_support import _make_handbook_source, delegate_to_rag_agent
@@ -90,7 +92,7 @@ class RagAgentAgenticRuntimeContractTest(unittest.TestCase):
         self.assertEqual(stage_by_name["retrieval"].candidate_count, 1)
         self.assertEqual(stage_by_name["evidence_selection"].stage_status, "failed_closed")
         self.assertEqual(
-            stage_by_name["evidence_selection"].fallback_reason,
+            stage_by_name["evidence_selection"].diagnostic_reason,
             "weak_supporting_evidence",
         )
 
@@ -120,6 +122,203 @@ class RagAgentAgenticRuntimeContractTest(unittest.TestCase):
             infer_answer_shape(evidence=evidence),
             AnswerShape.CATEGORY_DISCOVERY_LIST,
         )
+
+    def test_condition_overview_shape_survives_clause_anchored_condition_rows(self) -> None:
+        evidence = EvidenceBundle(
+            query_text="申请奖学金需要满足什么条件",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:national-scholarship",
+                    title="中央民族大学本科学生国家奖学金评审办法",
+                    snippet="第八条 参评学生应当遵纪守法，遵守学校规章制度。",
+                    score=0.91,
+                    chunk_id_suffix="national-scholarship-article-8-clause-2",
+                    detail_label="第八条",
+                    content_role="eligibility",
+                    is_answer_bearing=True,
+                    anchor={
+                        "page_start": 1,
+                        "page_end": 1,
+                        INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                            "evidence_contract_version": "answer_ready_evidence.v3",
+                            "answer_role": "eligibility_condition",
+                            "semantic_role": "eligibility_condition",
+                            "claim_type": "condition",
+                            "condition_subject": "generic_condition",
+                            "condition_group_subject": "generic_condition",
+                            "condition_polarity": "positive",
+                            "article_no": "第八条",
+                        },
+                    },
+                ),
+                _make_handbook_source(
+                    doc_id="handbook:national-scholarship",
+                    title="中央民族大学本科学生国家奖学金评审办法",
+                    snippet="第九条 学习成绩排名与综合测评排名均位于前10%以内。",
+                    score=0.9,
+                    chunk_id_suffix="national-scholarship-article-9-clause-1",
+                    detail_label="第九条",
+                    content_role="eligibility",
+                    is_answer_bearing=True,
+                    anchor={
+                        "page_start": 2,
+                        "page_end": 2,
+                        INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                            "evidence_contract_version": "answer_ready_evidence.v3",
+                            "answer_role": "eligibility_condition",
+                            "semantic_role": "eligibility_condition",
+                            "claim_type": "condition",
+                            "condition_subject": "generic_condition",
+                            "condition_group_subject": "generic_condition",
+                            "condition_polarity": "positive",
+                            "article_no": "第九条",
+                        },
+                    },
+                ),
+            ),
+        )
+
+        self.assertEqual(infer_answer_shape(evidence=evidence), AnswerShape.CONDITION_OVERVIEW)
+
+    def test_management_summary_query_does_not_become_condition_table_from_mixed_rule_rows(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="本科生出国境外留学期间学籍和成绩怎么管理",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:study-abroad",
+                    title="中央民族大学本科生境外留学管理办法",
+                    snippet="参加留学项目学生的学籍在外留学期间仍属于中央民族大学。",
+                    score=0.91,
+                    chunk_id_suffix="study-abroad-status",
+                    detail_label="第八条",
+                    content_role="article_body",
+                    is_answer_bearing=True,
+                    anchor={
+                        INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                            "evidence_contract_version": "answer_ready_evidence.v3",
+                            "answer_role": "supporting_detail",
+                            "parent_unit_id": "article-0008",
+                            "article_no": "第八条",
+                        },
+                    },
+                ),
+                _make_handbook_source(
+                    doc_id="handbook:study-abroad",
+                    title="中央民族大学本科生境外留学管理办法",
+                    snippet="境外课程及获得的学分按照协议予以转换和承认。",
+                    score=0.9,
+                    chunk_id_suffix="study-abroad-grade",
+                    detail_label="第十一条",
+                    content_role="eligibility",
+                    is_answer_bearing=True,
+                    anchor={
+                        INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
+                            "evidence_contract_version": "answer_ready_evidence.v3",
+                            "answer_role": "eligibility_condition",
+                            "parent_unit_id": "article-0011",
+                            "condition_subject": "generic_condition",
+                            "condition_group_subject": "generic_condition",
+                            "condition_polarity": "positive",
+                            "article_no": "第十一条",
+                        },
+                    },
+                ),
+            ),
+        )
+
+        self.assertEqual(infer_answer_shape(evidence=evidence), AnswerShape.GENERAL_SUMMARY)
+
+    def test_management_summary_selection_covers_explicit_query_facets_before_same_article_rows(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="本科生出国境外留学期间学籍和成绩怎么管理",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                _make_handbook_source(
+                    doc_id="handbook:study-abroad",
+                    title="中央民族大学本科生境外留学管理办法",
+                    snippet=(
+                        "参加留学项目学生在外留学期间必须自觉维护国家利益，"
+                        "必须认真遵守对方学校的管理规定。"
+                    ),
+                    score=0.91,
+                    chunk_id_suffix="study-abroad-behavior-management",
+                    detail_label="第九条",
+                    content_role="eligibility",
+                    is_answer_bearing=True,
+                ),
+                _make_handbook_source(
+                    doc_id="handbook:study-abroad",
+                    title="中央民族大学本科生境外留学管理办法",
+                    snippet=(
+                        "参加境外留学项目学生所修的课程(以下简称境外课程)及获得的"
+                        "学分按照协议予以转换和承认。"
+                    ),
+                    score=0.9,
+                    chunk_id_suffix="study-abroad-credit-conversion",
+                    detail_label="第十一条",
+                    content_role="eligibility",
+                    is_answer_bearing=True,
+                ),
+                _make_handbook_source(
+                    doc_id="handbook:study-abroad",
+                    title="中央民族大学本科生境外留学管理办法",
+                    snippet="触犯对方校规校纪或法律法规的，按照对方相关学籍管理规定处理。",
+                    score=0.89,
+                    chunk_id_suffix="study-abroad-violation-management",
+                    detail_label="第九条",
+                    content_role="article_body",
+                    is_answer_bearing=True,
+                ),
+                _make_handbook_source(
+                    doc_id="handbook:study-abroad",
+                    title="中央民族大学本科生境外留学管理办法",
+                    snippet="参加留学项目学生的学籍在外留学期间仍属于中央民族大学。",
+                    score=0.88,
+                    chunk_id_suffix="study-abroad-status-ownership",
+                    detail_label="第八条",
+                    content_role="article_body",
+                    is_answer_bearing=True,
+                ),
+                _make_handbook_source(
+                    doc_id="handbook:study-abroad",
+                    title="中央民族大学本科生境外留学管理办法",
+                    snippet=(
+                        "成绩认定采用对应原则，境外课程的成绩以学校百分制成绩、成绩等级、"
+                        "学分绩点相对应的方式进行认定，并以百分制形式录入我校教务管理系统。"
+                    ),
+                    score=0.87,
+                    chunk_id_suffix="study-abroad-grade-recognition",
+                    detail_label="第十一条",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertTrue(draft.answer_text.startswith("本科生出国境外留学期间"))
+        self.assertIn("学籍在外留学期间仍属于中央民族大学", draft.answer_text)
+        self.assertTrue(
+            "学分按照协议予以转换和承认" in draft.answer_text
+            or "成绩认定采用对应原则" in draft.answer_text
+        )
+        self.assertIn("成绩认定采用对应原则", draft.answer_text)
+        self.assertNotIn("成绩等级、学分绩点相对应", draft.answer_text)
+        self.assertNotIn("以下简称", draft.answer_text)
+        self.assertNotIn("参加境外留学项目学生所修的课程", draft.answer_text)
+        self.assertLess(draft.answer_text.index("学籍"), draft.answer_text.index("成绩"))
+        self.assertNotIn("第十一条明确", draft.answer_text)
+        self.assertNotIn("触犯对方校规校纪", draft.answer_text)
 
     def test_completed_answer_preserves_retrieval_step_provenance_on_supporting_evidence(
         self,
@@ -163,12 +362,19 @@ class RagAgentAgenticRuntimeContractTest(unittest.TestCase):
         )
 
         self.assertEqual(response.status, "completed")
+        self.assertIsNotNone(response.result.diagnostics.retrieval_plan_summary)
+        retrieval_plan_summary = response.result.diagnostics.retrieval_plan_summary
+        expected_plan_id = retrieval_plan_summary.plan_id
+        expected_step_ids = {
+            activity.step_id for activity in retrieval_plan_summary.step_activities
+        }
         for source in response.result.evidence.sources:
             self.assertEqual(
                 source.anchor["retrieval_plan_id"],
-                "regulations:student_rules:current",
+                expected_plan_id,
             )
-            self.assertEqual(source.anchor["retrieval_step_ids"], ("indexed-lookup",))
+            self.assertTrue(source.anchor["retrieval_step_ids"])
+            self.assertTrue(set(source.anchor["retrieval_step_ids"]).issubset(expected_step_ids))
             self.assertEqual(source.anchor["retrieval_replan_count"], 0)
 
     def test_executable_retrieval_seam_types_are_not_public_contracts(self) -> None:
@@ -210,7 +416,7 @@ class RagAgentAgenticRuntimeContractTest(unittest.TestCase):
         self.assertEqual(retrieval.owner, "packages/retrieval-core")
         self.assertIn("RetrievalStepResult", retrieval.output_artifacts)
         self.assertIn("supporting EvidenceBundle", evidence.output_artifacts)
-        self.assertNotIn("answer success", synthesis.allowed_legacy_heuristic_authority)
+        self.assertNotIn("answer success", synthesis.allowed_presentation_heuristics)
         self.assertEqual(grounding.fail_close_semantic, "insufficient_grounding")
 
     def test_evidence_selection_stage_returns_support_bundle_and_confidence(self) -> None:

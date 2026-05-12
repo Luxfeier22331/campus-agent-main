@@ -600,12 +600,15 @@ def _specific_policy_intent_kind(plan) -> str:
     query = f"{plan.rewritten_query_text} {plan.focused_query_text}"
     if plan.focus_article_nos or plan.focus_clause_nos or plan.focus_detail_labels:
         return "specific_clause_lookup"
-    if _looks_like_discipline_relief_operation_query(query):
-        return "procedure_steps"
-    if plan.query_condition_subject == "discipline_relief_condition":
+    if plan.query_condition_subject in {
+        "discipline_relief_condition",
+        "discipline_relief_exclusion",
+    }:
         return "condition_table"
     if _looks_like_judgment_query(query):
         return "eligibility_judgment"
+    if _looks_like_discipline_relief_operation_query(query):
+        return "procedure_steps"
     if plan.query_condition_subject == "application_procedure":
         return "procedure_steps"
     if plan.query_condition_subject:
@@ -636,18 +639,29 @@ def _specific_policy_expectation(plan) -> RetrievalIntentExpectation:
             answer_kind="eligibility_judgment",
             evidence_roles=_condition_subject_expected_roles(
                 plan.query_condition_subject,
-                fallback=("judgment_clause", "eligibility", "requirement"),
+                default_roles=("judgment_clause", "eligibility", "requirement"),
             ),
             coverage_policy="condition_subject_alignment",
             selection_policy="answer_role_first",
             replan_policy="intent_gap_replan",
         )
     if kind == "condition_table":
+        if plan.category_member_document_ids and not plan.target_document_ids:
+            return RetrievalIntentExpectation(
+                answer_kind="condition_table",
+                evidence_roles=_condition_subject_expected_roles(
+                    plan.query_condition_subject,
+                    default_roles=("eligibility", "requirement", "condition"),
+                ),
+                coverage_policy="category_member_coverage",
+                selection_policy="one_answer_ready_source_per_member",
+                replan_policy="coverage_gap_replan",
+            )
         return RetrievalIntentExpectation(
             answer_kind="condition_table",
             evidence_roles=_condition_subject_expected_roles(
                 plan.query_condition_subject,
-                fallback=("eligibility", "requirement", "condition"),
+                default_roles=("eligibility", "requirement", "condition"),
             ),
             coverage_policy="condition_subject_alignment",
             selection_policy="answer_role_first",
@@ -671,12 +685,26 @@ def _specific_policy_expectation(plan) -> RetrievalIntentExpectation:
 
 
 def _institutional_specific_policy_intent_kind(plan) -> str:
+    query = f"{plan.normalized_query} {plan.focused_query_text}"
+    if plan.target_document_titles and not plan.target_document_ids:
+        return "policy_object_lookup"
+    if plan.target_document_titles and _institutional_title_only_query(query, plan):
+        return "policy_object_lookup"
     if plan.focus_article_nos or plan.focus_clause_nos or plan.focus_detail_labels:
         return "specific_clause_lookup"
     kind = _specific_policy_intent_kind(plan)
     if kind == "specific_clause_lookup":
         return "policy_object_lookup"
     return kind
+
+
+def _institutional_title_only_query(query_text: str, plan) -> bool:
+    normalized_query = _compact_text(query_text)
+    for title in plan.target_document_titles:
+        normalized_title = _compact_text(title)
+        if normalized_title and normalized_query == normalized_title:
+            return True
+    return False
 
 
 def _looks_like_procedure_query(query_text: str) -> bool:
@@ -689,7 +717,16 @@ def _looks_like_procedure_query(query_text: str) -> bool:
 def _looks_like_judgment_query(query_text: str) -> bool:
     return any(
         token in query_text
-        for token in ("能不能", "能否", "可以吗", "可不可以", "还能", "是否可以", "算不算")
+        for token in (
+            "能不能",
+            "能否",
+            "可以吗",
+            "可不可以",
+            "还能",
+            "是否可以",
+            "算不算",
+            "适用于",
+        )
     )
 
 
@@ -722,15 +759,19 @@ def _looks_like_curriculum_fact_query(query_text: str) -> bool:
 def _condition_subject_expected_roles(
     condition_subject: str,
     *,
-    fallback: tuple[str, ...],
+    default_roles: tuple[str, ...],
 ) -> tuple[str, ...]:
     normalized_subject = condition_subject.strip()
     if not normalized_subject:
-        return fallback
+        return default_roles
     definition = REGULATION_CONDITION_SUBJECT_DEFINITIONS.get(normalized_subject)
     if definition is None or not definition.expected_answer_roles:
-        return fallback
+        return default_roles
     return definition.expected_answer_roles
+
+
+def _compact_text(value: str) -> str:
+    return "".join(str(value or "").split()).lower()
 
 
 def _normalize_and_validate_literal(

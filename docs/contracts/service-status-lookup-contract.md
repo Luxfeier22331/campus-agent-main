@@ -64,7 +64,6 @@ ServiceStatusLookupResult
 - subject_query: str
 - outcome:
   - resolved_current
-  - resolved_historical_reference
   - clarification_required
   - not_found
   - temporarily_unverifiable
@@ -80,9 +79,6 @@ ServiceStatusLookupResult
 - effective_until: RFC3339 datetime
 - override_source_refs[]: str
 - related_notice_refs[]: str
-- historical_downgrade_reason:
-  - current_year_miss
-  - current_effective_miss
 - fail_close_reason:
   - current_state_unverifiable
   - source_truth_unavailable
@@ -95,9 +91,8 @@ ServiceStatusLookupResult
 
 - `resolved_current` 时必须给出 `resolved_subject`
 - `temporarily_unverifiable` 时必须给出 `fail_close_reason`
-- `resolved_historical_reference` 不强制要求 `historical_downgrade_reason`
-  - 只有当答案来自 current/current-year/current-effective miss 的历史降级时才填写
-  - 如果用户显式要求历史参考或 `as_of`，可以为空
+- current/current-year/current-effective miss 不得自动返回历史记录；当前性不可证时必须
+  `temporarily_unverifiable`
 
 ## Query-Time Rules
 
@@ -111,8 +106,7 @@ ServiceStatusLookupResult
 - baseline 与临时 override 同时命中时，runtime 必须先按 query time 过滤 current effective
   window，再优先选择更晚 `effective_from` / 更窄 effective window 的临时记录
 - matched record 的 effective window 已过期时，不得继续回答
-  `resolved_current`；应返回 `temporarily_unverifiable`，并用
-  `historical_downgrade_reason=current_effective_miss` 标识当前有效性缺口
+  `resolved_current`；应返回 `temporarily_unverifiable/current_state_unverifiable`
 - 需要 canonical notice 正文或公告发现时，应切到 `notice-agent`
 
 ## Observability Summary

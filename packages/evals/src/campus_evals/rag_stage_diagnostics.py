@@ -51,7 +51,7 @@ def build_rag_stage_diagnostic_case(
         (
             activity.failure_kind
             for activity in step_activities
-            if activity.failure_kind == "reranker_degraded"
+            if activity.failure_kind == "reranker_failed"
         ),
         "",
     )
@@ -112,7 +112,7 @@ def build_rag_stage_diagnostic_case(
         },
         "rerank": {
             "enabled": rerank_enabled,
-            "degraded": bool(rerank_failure_kind),
+            "failed": bool(rerank_failure_kind),
             "failure_kind": rerank_failure_kind,
             "failure_class": "rerank_regression" if rerank_failure_kind else "",
         },
@@ -130,8 +130,8 @@ def build_rag_stage_diagnostic_case(
             "validation_verdict": draft_validation.verdict,
             "validation_failure_reason": draft_validation.failure_reason,
             "presentation_kind": answer_draft.presentation_kind,
-            "fallback_path": answer_draft.fallback_path,
-            "fallback_reason": answer_draft.fallback_reason,
+            "presentation_path": answer_draft.presentation_path,
+            "diagnostic_reason": answer_draft.diagnostic_reason,
             "failure_class": (
                 "typed_answer_invalid" if draft_validation.verdict != "valid" else ""
             ),
@@ -142,8 +142,8 @@ def build_rag_stage_diagnostic_case(
             "presentation_kind": (
                 diagnostics.answer_presentation_kind or answer_draft.presentation_kind
             ),
-            "fallback_path": diagnostics.answer_fallback_path or answer_draft.fallback_path,
-            "fallback_reason": diagnostics.answer_fallback_reason or answer_draft.fallback_reason,
+            "presentation_path": diagnostics.answer_presentation_path or answer_draft.presentation_path,
+            "diagnostic_reason": diagnostics.answer_diagnostic_reason or answer_draft.diagnostic_reason,
             "failure_class": (
                 "synthesis_contract_failed"
                 if diagnostics.prompt_runtime_state

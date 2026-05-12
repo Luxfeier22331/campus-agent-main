@@ -40,7 +40,7 @@ def build_single_step_plan(request: RetrievalRequest) -> RetrievalPlan:
                 step_type="indexed_lookup",
                 scope=RetrievalScope(corpus=request.corpus, collection=request.collection),
                 query_text=request.query_text,
-                semantic_hint=None,
+                semantic_hint=request.semantic_hint,
                 selector=RetrievalSelector(
                     target_document_ids=request.target_document_ids,
                     target_version_ids=request.target_version_ids,
@@ -84,6 +84,7 @@ def build_retrieval_request_from_step(
         canonical_program_family_ids=step.selector.canonical_program_family_ids,
         authorized_filter=authorized_filter,
         personalization_hint=personalization_hint,
+        semantic_hint=step.semantic_hint,
         top_k=step.budget.top_k,
         timeout_ms=step.budget.timeout_ms,
     )

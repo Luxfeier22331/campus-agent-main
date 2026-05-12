@@ -37,6 +37,17 @@ def public_regulation_consumption_manifest_path() -> Path:
     )
 
 
+def institutional_rules_query_planning_path() -> Path:
+    return (
+        regulation_repo_root()
+        / "configs"
+        / "ingestion"
+        / "regulations"
+        / "institutional_rules"
+        / "query-planning.json"
+    )
+
+
 def load_student_rules_discovery_config() -> RegulationDiscoveryConfig:
     payload = _load_student_rules_query_planning_config()
     return _build_student_rules_discovery_config(payload)
@@ -58,6 +69,7 @@ def load_regulation_discovery_config(collection: str) -> RegulationDiscoveryConf
 
 def load_institutional_rules_discovery_config() -> RegulationDiscoveryConfig:
     payload = _load_public_regulation_consumption_manifest()
+    query_planning_payload = _load_institutional_rules_query_planning_config()
     policy = payload.get("institutional_rules_policy", {})
     documents = tuple(
         item
@@ -65,25 +77,17 @@ def load_institutional_rules_discovery_config() -> RegulationDiscoveryConfig:
         if isinstance(item, Mapping)
         and str(item.get("canonical_scope") or "").strip() == "regulations/institutional_rules"
     )
-    policy_objects: list[RegulationPolicyObjectDefinition] = []
-    policy_titles: dict[str, str] = {}
+    policy_objects = _institutional_policy_objects(
+        public_documents=documents,
+        query_planning_payload=query_planning_payload,
+    )
+    policy_titles = {policy.document_id: policy.title for policy in policy_objects}
     docs_by_group: dict[str, list[Mapping[str, object]]] = {}
     for document in documents:
         document_id = str(document.get("document_id") or "").strip()
         title = str(document.get("title") or "").strip()
         if not document_id or not title:
             continue
-        aliases = tuple(
-            str(alias).strip() for alias in document.get("title_aliases", ()) if str(alias).strip()
-        )
-        policy_objects.append(
-            RegulationPolicyObjectDefinition(
-                document_id=document_id,
-                title=title,
-                aliases=aliases,
-            )
-        )
-        policy_titles[document_id] = title
         docs_nav_group = str(document.get("docs_nav_group") or "").strip()
         if docs_nav_group:
             docs_by_group.setdefault(docs_nav_group, []).append(document)
@@ -141,6 +145,50 @@ def load_institutional_rules_discovery_config() -> RegulationDiscoveryConfig:
         policy_objects=tuple(policy_objects),
         policy_titles_by_document_id=policy_titles,
         categories=tuple(categories),
+    )
+
+
+def _institutional_policy_objects(
+    *,
+    public_documents: tuple[Mapping[str, object], ...],
+    query_planning_payload: Mapping[str, object],
+) -> tuple[RegulationPolicyObjectDefinition, ...]:
+    policy_objects_by_id: dict[str, RegulationPolicyObjectDefinition] = {}
+    for document in public_documents:
+        policy_object = _policy_object_from_mapping(
+            document,
+            aliases_field="title_aliases",
+        )
+        if policy_object is not None:
+            policy_objects_by_id[policy_object.document_id] = policy_object
+    for item in query_planning_payload.get("policy_objects", ()):
+        if not isinstance(item, Mapping):
+            continue
+        policy_object = _policy_object_from_mapping(
+            item,
+            aliases_field="aliases",
+        )
+        if policy_object is not None:
+            policy_objects_by_id[policy_object.document_id] = policy_object
+    return tuple(policy_objects_by_id.values())
+
+
+def _policy_object_from_mapping(
+    item: Mapping[str, object],
+    *,
+    aliases_field: str,
+) -> RegulationPolicyObjectDefinition | None:
+    document_id = str(item.get("document_id") or "").strip()
+    title = str(item.get("title") or "").strip()
+    if not document_id or not title:
+        return None
+    aliases = tuple(
+        str(alias).strip() for alias in item.get(aliases_field, ()) if str(alias).strip()
+    )
+    return RegulationPolicyObjectDefinition(
+        document_id=document_id,
+        title=title,
+        aliases=aliases,
     )
 
 
@@ -240,6 +288,11 @@ def _load_student_rules_query_planning_config_impl() -> dict[str, object]:
 @lru_cache(maxsize=1)
 def _load_public_regulation_consumption_manifest() -> dict[str, object]:
     return json.loads(public_regulation_consumption_manifest_path().read_text(encoding="utf-8"))
+
+
+@lru_cache(maxsize=1)
+def _load_institutional_rules_query_planning_config() -> dict[str, object]:
+    return json.loads(institutional_rules_query_planning_path().read_text(encoding="utf-8"))
 
 
 def _load_student_rules_query_planning_config() -> dict[str, object]:

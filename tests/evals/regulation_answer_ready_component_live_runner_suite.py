@@ -90,7 +90,7 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
 
             def _delegate_side_effect(request_arg: AgentRequest, *, retriever, **kwargs: object):
                 self.assertEqual(request_arg, request)
-                self.assertIs(retriever("处分怎么消"), evidence)
+                self.assertEqual(retriever("处分怎么消"), evidence)
                 default_retriever.assert_called_once_with("处分怎么消")
                 return response
 

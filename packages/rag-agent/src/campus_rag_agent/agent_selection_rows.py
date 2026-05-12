@@ -7,8 +7,13 @@ from campus_retrieval_core.evidence_semantics import (
     infer_query_condition_subject,
     semantic_alignment_score,
 )
+from campus_shared.regulation_semantic_registry import REGULATION_CONDITION_SUBJECT_DEFINITIONS
 
 from .agent_answer_shape import AnswerShape
+from .agent_condition_duration import (
+    query_asks_condition_duration_lookup,
+    statement_has_condition_duration_answer,
+)
 from .agent_curriculum_terms import (
     _is_curriculum_course_list_query,
     _is_curriculum_lookup_query,
@@ -23,6 +28,15 @@ from .agent_official_web_terms import (
     _is_official_web_reference_query,
     _is_official_web_source,
 )
+from .agent_selection_condition_overview import (
+    condition_overview_should_expand_statements,
+    condition_overview_source_quality_score,
+    condition_overview_statement_budget,
+    condition_overview_statement_dedupe_key,
+    filter_condition_overview_statements,
+    order_condition_overview_sources_for_policy_coverage,
+    select_condition_overview_member_rows,
+)
 from .agent_selection_query import _query_mode
 from .agent_selection_statements import (
     _is_generic_intro_statement,
@@ -30,6 +44,12 @@ from .agent_selection_statements import (
     _score_source_statements,
 )
 from .agent_shared import _lead_source_title, _normalize_snippet
+from .agent_summary_facets import (
+    general_summary_is_off_nominal,
+    general_summary_preferred_term_score,
+    general_summary_query_facets,
+    general_summary_text_facet_indexes,
+)
 from .retrieval_intent import RetrievalIntent
 
 
@@ -48,6 +68,7 @@ def _select_answer_support_rows(
     shape = answer_shape or AnswerShape.GENERAL_SUMMARY
     course_list_query = _is_curriculum_course_list_query(query_text)
     curriculum_lookup_query = _is_curriculum_lookup_query(query_text)
+    curriculum_course_settings_query = _query_asks_curriculum_course_settings(query_text)
     consumable_sources = tuple(
         source for source in sources if not _should_ignore_official_web_source(source)
     )
@@ -64,6 +85,16 @@ def _select_answer_support_rows(
         max_seen_statements = 1
     else:
         max_seen_statements = 3
+    row_budget = max_sources
+    if curriculum_course_settings_query:
+        max_seen_statements = max(max_seen_statements, max_sources * 3)
+    if shape == AnswerShape.CONDITION_OVERVIEW:
+        quantified_row_budget = _condition_overview_quantified_row_budget(
+            sources=consumable_sources,
+            retrieval_intent=retrieval_intent,
+        )
+        max_seen_statements = max(max_seen_statements, quantified_row_budget)
+        row_budget = max(row_budget, quantified_row_budget)
     ranked_sources = (
         tuple(ranked_source_input)
         if course_list_query
@@ -76,6 +107,7 @@ def _select_answer_support_rows(
                     query_text,
                     source,
                     mode=mode,
+                    answer_shape=shape,
                     retrieval_intent=retrieval_intent,
                 ),
                 reverse=True,
@@ -89,10 +121,33 @@ def _select_answer_support_rows(
         answer_shape=shape,
         retrieval_intent=retrieval_intent,
     )
+    if shape == AnswerShape.CONDITION_OVERVIEW:
+        ranked_sources = order_condition_overview_sources_for_policy_coverage(
+            query_text=query_text,
+            sources=ranked_sources,
+            mode=mode,
+            retrieval_intent=retrieval_intent,
+            source_sort_key=_answer_source_sort_key,
+        )
     if shape == AnswerShape.TITLE_LOOKUP and not course_list_query and not curriculum_lookup_query:
         ranked_sources = _filter_title_lookup_sources_for_answer_bearing_overview(ranked_sources)
         if not ranked_sources:
             return ()
+    condition_overview_member_rows = (
+        select_condition_overview_member_rows(
+            query_text=query_text,
+            sources=ranked_sources,
+            mode=mode,
+            retrieval_intent=retrieval_intent,
+            max_sources=max_sources,
+        )
+        if shape == AnswerShape.CONDITION_OVERVIEW
+        and retrieval_intent is not None
+        and retrieval_intent.expected.selection_policy == "one_answer_ready_source_per_member"
+        else None
+    )
+    if condition_overview_member_rows is not None:
+        return condition_overview_member_rows
     strict_critical_source_filter = shape in {
         AnswerShape.CONDITION_OVERVIEW,
         AnswerShape.FACT_LOOKUP,
@@ -105,6 +160,10 @@ def _select_answer_support_rows(
     )
     rows: list[tuple[EvidenceSource, tuple[str, ...]]] = []
     seen_statements: set[str] = set()
+    strict_condition_duration_filter = (
+        shape == AnswerShape.CONDITION_OVERVIEW
+        and query_asks_condition_duration_lookup(query_text)
+    )
 
     for index, source in enumerate(ranked_sources):
         ranked_statements = _rank_source_statements(query_text, source, mode=mode)
@@ -130,10 +189,59 @@ def _select_answer_support_rows(
                 ranked_statements = critical_term_statements
             elif strict_critical_source_filter:
                 ranked_statements = ()
+        if shape == AnswerShape.CONDITION_OVERVIEW:
+            ranked_statements = filter_condition_overview_statements(
+                source=source,
+                statements=ranked_statements,
+                retrieval_intent=retrieval_intent,
+            )
+            if strict_condition_duration_filter:
+                ranked_statements = tuple(
+                    statement
+                    for statement in ranked_statements
+                    if statement_has_condition_duration_answer(statement)
+                )
+            ranked_statements = condition_overview_statement_budget(
+                source=source,
+                statements=ranked_statements,
+                retrieval_intent=retrieval_intent,
+                max_statements=max_seen_statements - len(seen_statements),
+            )
+        if (
+            shape == AnswerShape.TITLE_LOOKUP
+            and _is_official_web_reference_query(query_text=query_text, source=source)
+        ):
+            ranked_statements = _filter_official_web_reference_identity_statements(
+                source=source,
+                statements=ranked_statements,
+            )
+        if shape == AnswerShape.CONDITION_OVERVIEW and condition_overview_should_expand_statements(
+            source=source,
+            statements=ranked_statements,
+            retrieval_intent=retrieval_intent,
+        ):
+            for statement in ranked_statements:
+                statement_key = _statement_dedupe_key(
+                    statement,
+                    answer_shape=shape,
+                )
+                if statement_key in seen_statements:
+                    continue
+                rows.append((source, (statement,)))
+                seen_statements.add(statement_key)
+                if len(rows) >= row_budget or len(seen_statements) >= max_seen_statements:
+                    break
+            if len(rows) >= row_budget or len(seen_statements) >= max_seen_statements:
+                break
+            continue
         novel_statements = tuple(
             statement
             for statement in ranked_statements
-            if _normalize_snippet(statement).lower() not in seen_statements
+            if _statement_dedupe_key(
+                statement,
+                answer_shape=shape,
+            )
+            not in seen_statements
         )
         if shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
             novel_statements = tuple(novel_statements[:1])
@@ -146,17 +254,36 @@ def _select_answer_support_rows(
             novel_statements = tuple(novel_statements[:1])
         if shape == AnswerShape.JUDGMENT_CLAUSE:
             novel_statements = tuple(novel_statements[:1])
+        if shape == AnswerShape.GENERAL_SUMMARY:
+            novel_statements = tuple(
+                statement
+                for statement in novel_statements
+                if not general_summary_is_off_nominal(
+                    query_text=query_text,
+                    text=statement,
+                )
+            )
+            novel_statements = _select_general_summary_statements_for_facet_coverage(
+                query_text=query_text,
+                statements=novel_statements,
+                covered_facets=_covered_general_summary_facets_for_rows(
+                    query_text=query_text,
+                    rows=tuple(rows),
+                ),
+            )
         if not novel_statements:
             continue
         rows.append((source, novel_statements))
         seen_statements.update(
-            _normalize_snippet(statement).lower() for statement in novel_statements
+            _statement_dedupe_key(statement, answer_shape=shape)
+            for statement in novel_statements
         )
         if _should_stop_after_official_web_reference_rows(query_text=query_text, rows=tuple(rows)):
             break
         if (
             shape not in {AnswerShape.CATEGORY_DISCOVERY_LIST, AnswerShape.CONDITION_OVERVIEW}
             and not course_list_query
+            and not curriculum_lookup_query
             and index == 0
             and len(novel_statements) >= 2
             and not _is_official_web_reference_query(query_text=query_text, source=source)
@@ -168,6 +295,7 @@ def _select_answer_support_rows(
             break
         if (
             (course_list_query or curriculum_lookup_query)
+            and not curriculum_course_settings_query
             and len(rows) >= 2
             and len(seen_statements) >= 5
         ):
@@ -175,10 +303,11 @@ def _select_answer_support_rows(
         if (
             index == 0
             and mode == "time"
+            and not _curriculum_course_settings_source(query_text=query_text, source=source)
             and any("学制" in statement for statement in novel_statements)
         ):
             break
-        if len(rows) >= max_sources or len(seen_statements) >= max_seen_statements:
+        if len(rows) >= row_budget or len(seen_statements) >= max_seen_statements:
             break
 
     if rows:
@@ -187,11 +316,98 @@ def _select_answer_support_rows(
     return ()
 
 
+def _select_general_summary_statements_for_facet_coverage(
+    *,
+    query_text: str,
+    statements: tuple[str, ...],
+    covered_facets: frozenset[int],
+) -> tuple[str, ...]:
+    facets = general_summary_query_facets(query_text)
+    if not facets or not statements:
+        return statements
+    uncovered = frozenset(range(len(facets))) - covered_facets
+    if not uncovered:
+        return tuple(statements[:1])
+    ranked = sorted(
+        statements,
+        key=lambda statement: (
+            len(general_summary_text_facet_indexes(statement, facets) & uncovered),
+            general_summary_preferred_term_score(statement, facets),
+            len(general_summary_text_facet_indexes(statement, facets)),
+            len(statement),
+        ),
+        reverse=True,
+    )
+    selected: list[str] = []
+    next_covered = set(covered_facets)
+    if not uncovered:
+        return ()
+    for statement in ranked:
+        statement_facets = general_summary_text_facet_indexes(statement, facets)
+        if not (statement_facets - next_covered):
+            continue
+        selected.append(statement)
+        next_covered.update(statement_facets)
+        if len(selected) >= 1:
+            break
+    return tuple(selected)
+
+
+def _covered_general_summary_facets_for_rows(
+    *,
+    query_text: str,
+    rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> frozenset[int]:
+    facets = general_summary_query_facets(query_text)
+    if not facets:
+        return frozenset()
+    covered: set[int] = set()
+    for _, statements in rows:
+        for statement in statements:
+            covered.update(general_summary_text_facet_indexes(statement, facets))
+    return frozenset(covered)
+
+
 def _should_ignore_official_web_source(source: EvidenceSource) -> bool:
     return (
         _is_official_web_source(source)
         and source.content_role in _OFFICIAL_WEB_IGNORED_CONTENT_ROLES
     )
+
+
+def _statement_dedupe_key(statement: str, *, answer_shape: AnswerShape) -> str:
+    if answer_shape == AnswerShape.CONDITION_OVERVIEW:
+        return condition_overview_statement_dedupe_key(statement)
+    return _normalize_snippet(statement).lower()
+
+
+def _condition_overview_quantified_row_budget(
+    *,
+    sources: tuple[EvidenceSource, ...],
+    retrieval_intent: RetrievalIntent | None,
+) -> int:
+    row_count = 0
+    for source in sources:
+        statements = condition_overview_statement_budget(
+            source=source,
+            statements=(),
+            retrieval_intent=retrieval_intent,
+            max_statements=99,
+        )
+        row_count = max(row_count, len(statements))
+    return row_count
+
+
+def _curriculum_course_settings_source(*, query_text: str, source: EvidenceSource) -> bool:
+    if source.collection != "curriculum_plan" or source.content_role != "table_fact":
+        return False
+    normalized_query = _normalize_snippet(query_text)
+    return "课程设置" in normalized_query or "修读建议" in normalized_query
+
+
+def _query_asks_curriculum_course_settings(query_text: str) -> bool:
+    normalized_query = _normalize_snippet(query_text)
+    return "课程设置" in normalized_query or "修读建议" in normalized_query
 
 
 def _filter_title_lookup_sources_for_answer_bearing_overview(
@@ -209,16 +425,51 @@ def _answer_source_sort_key(
     source: EvidenceSource,
     *,
     mode: str,
+    answer_shape: AnswerShape | None = None,
     retrieval_intent: RetrievalIntent | None = None,
-) -> tuple[int, int, int, int, int, int, int, int]:
+) -> tuple[int, ...]:
+    condition_overview_quality_score = (
+        condition_overview_source_quality_score(source)
+        if answer_shape == AnswerShape.CONDITION_OVERVIEW
+        else 0
+    )
+    curriculum_fact_quality_score = _curriculum_fact_source_quality_score(
+        query_text=query_text,
+        source=source,
+        answer_shape=answer_shape,
+    )
+    general_summary_facet_score = _general_summary_source_facet_score(
+        query_text=query_text,
+        source=source,
+        answer_shape=answer_shape,
+    )
     scored = _score_source_statements(query_text, source, mode=mode)
     if not scored:
-        return (0, 0, 0, 0, 0, 0, 0, 0)
+        return (
+            _retrieval_intent_alignment_score(retrieval_intent=retrieval_intent, source=source),
+            _query_anchor_match_score(query_text, source),
+            condition_overview_quality_score,
+            curriculum_fact_quality_score,
+            general_summary_facet_score,
+            _regulation_semantic_answer_sort_score(
+                query_text=query_text,
+                source=source,
+                retrieval_intent=retrieval_intent,
+            ),
+            _query_critical_source_match_score(query_text, source),
+            0,
+            0,
+            0,
+            1 if source.is_answer_bearing else 0,
+        )
     best_score = scored[0][0]
     total_score = sum(score for score, _ in scored[:3])
     return (
         _retrieval_intent_alignment_score(retrieval_intent=retrieval_intent, source=source),
         _query_anchor_match_score(query_text, source),
+        condition_overview_quality_score,
+        curriculum_fact_quality_score,
+        general_summary_facet_score,
         _regulation_semantic_answer_sort_score(
             query_text=query_text,
             source=source,
@@ -230,6 +481,61 @@ def _answer_source_sort_key(
         len(scored),
         1 if source.is_answer_bearing else 0,
     )
+
+
+def _curriculum_fact_source_quality_score(
+    *,
+    query_text: str,
+    source: EvidenceSource,
+    answer_shape: AnswerShape | None,
+) -> int:
+    if answer_shape != AnswerShape.FACT_LOOKUP or source.collection != "curriculum_plan":
+        return 0
+    normalized_query = _normalize_snippet(query_text)
+    normalized_source = _normalize_snippet(
+        " ".join(
+            fragment
+            for fragment in (source.detail_label, source.snippet)
+            if fragment
+        )
+    )
+    if not normalized_source:
+        return 0
+    if "总学分" in normalized_query or "学分要求" in normalized_query:
+        if "学制、总学分和学位授予" in normalized_source:
+            return 8
+        if "总学分" in normalized_source and "|" not in normalized_source:
+            return 6
+        if "总学分" in normalized_source:
+            return 3
+    if ("学制" in normalized_query or "几年" in normalized_query) and "学制" in normalized_source:
+        return 8
+    return 0
+
+
+def _general_summary_source_facet_score(
+    *,
+    query_text: str,
+    source: EvidenceSource,
+    answer_shape: AnswerShape | None,
+) -> int:
+    if answer_shape != AnswerShape.GENERAL_SUMMARY:
+        return 0
+    facets = general_summary_query_facets(query_text)
+    if not facets:
+        return 0
+    text = " ".join(
+        fragment
+        for fragment in (
+            source.detail_label,
+            source.snippet,
+        )
+        if fragment
+    )
+    facet_count = len(general_summary_text_facet_indexes(text, facets))
+    if not facet_count:
+        return 0
+    return facet_count * 36 + general_summary_preferred_term_score(text, facets)
 
 
 def _regulation_semantic_answer_sort_score(
@@ -253,10 +559,17 @@ def _filter_statements_for_query_critical_terms(
     critical_groups = _query_critical_term_groups(query_text)
     if not critical_groups:
         return statements
-    return tuple(
+    strict_matches = tuple(
         statement
         for statement in statements
         if _statement_covers_critical_groups(statement, critical_groups)
+    )
+    if strict_matches:
+        return strict_matches
+    return tuple(
+        statement
+        for statement in statements
+        if _statement_covers_any_critical_group(statement, critical_groups)
     )
 
 
@@ -294,7 +607,9 @@ def _query_critical_term_groups(query_text: str) -> tuple[tuple[str, ...], ...]:
     if "旷课" in normalized:
         groups.append(("旷课",))
         if "学时" in normalized or "多少" in normalized:
-            groups.append(("学时",))
+            groups.extend(
+                _condition_subject_focus_equivalent_groups("attendance_absence_threshold")
+            )
     if "解除处分" in normalized or "处分解除" in normalized:
         groups.append(("解除处分", "解除纪律处分"))
         if any(token in normalized for token in ("多久", "多长时间", "什么时候", "何时")):
@@ -304,6 +619,15 @@ def _query_critical_term_groups(query_text: str) -> tuple[tuple[str, ...], ...]:
     if "学制" in normalized or "几年" in normalized:
         groups.append(("学制",))
     return tuple(groups)
+
+
+def _condition_subject_focus_equivalent_groups(
+    condition_subject: str,
+) -> tuple[tuple[str, ...], ...]:
+    definition = REGULATION_CONDITION_SUBJECT_DEFINITIONS.get(condition_subject)
+    if definition is None:
+        return ()
+    return definition.query_focus_equivalents
 
 
 def _query_anchor_match_score(query_text: str, source: EvidenceSource) -> int:
@@ -348,6 +672,14 @@ def _statement_covers_critical_groups(
     return all(any(term in normalized for term in group) for group in groups)
 
 
+def _statement_covers_any_critical_group(
+    statement: str,
+    groups: tuple[tuple[str, ...], ...],
+) -> bool:
+    normalized = _normalize_snippet(statement)
+    return any(any(term in normalized for term in group) for group in groups)
+
+
 def _prefer_non_intro_statements(statements: tuple[str, ...]) -> tuple[str, ...]:
     filtered = tuple(
         statement for statement in statements if not _is_generic_intro_statement(statement)
@@ -373,6 +705,34 @@ def _filter_category_discovery_statements(statements: tuple[str, ...]) -> tuple[
             continue
         filtered.append(statement)
     return tuple(filtered)
+
+
+def _filter_official_web_reference_identity_statements(
+    *,
+    source: EvidenceSource,
+    statements: tuple[str, ...],
+) -> tuple[str, ...]:
+    substantive_statements = tuple(
+        statement
+        for statement in statements
+        if not _is_official_web_reference_identity_statement(source=source, statement=statement)
+    )
+    return substantive_statements or statements
+
+
+def _is_official_web_reference_identity_statement(
+    *,
+    source: EvidenceSource,
+    statement: str,
+) -> bool:
+    normalized_statement = _normalize_snippet(statement).strip("《》:：，,。 ")
+    normalized_title = _normalize_snippet(source.source_title).strip("《》:：，,。 ")
+    if not normalized_statement or not normalized_title:
+        return False
+    return normalized_statement in {
+        normalized_title,
+        f"中央民族大学{normalized_title}",
+    }
 
 
 def _filter_sources_for_query_subject_alignment(
@@ -442,11 +802,26 @@ def _retrieval_intent_alignment_score(
         elif attributes.condition_subject or attributes.condition_group_subject:
             score -= 12
     if retrieval_intent.expected.evidence_roles:
-        if attributes.answer_role in retrieval_intent.expected.evidence_roles:
-            score += 18
+        role_priority = _retrieval_intent_answer_role_priority(
+            retrieval_intent=retrieval_intent,
+            answer_role=attributes.answer_role,
+        )
+        if role_priority > 0:
+            score += role_priority
         elif attributes.answer_role:
             score -= 6
     return score
+
+
+def _retrieval_intent_answer_role_priority(
+    *,
+    retrieval_intent: RetrievalIntent,
+    answer_role: str,
+) -> int:
+    roles = tuple(role for role in retrieval_intent.expected.evidence_roles if role)
+    if not answer_role or answer_role not in roles:
+        return 0
+    return 28 + (len(roles) - roles.index(answer_role)) * 6
 
 
 def _trim_judgment_statement_for_query(*, query_text: str, statement: str) -> str:

@@ -23,7 +23,7 @@ supporting evidence 的逻辑数据模型。
 - 具体数据库表、对象存储 key 或 telemetry sink schema
 - browser-facing source card HTTP shape
 - retrieval backend vendor payload
-- 当前 single-shot baseline 的兼容补丁
+- 当前 single-shot baseline 的一次性补丁
 
 ## Goal
 

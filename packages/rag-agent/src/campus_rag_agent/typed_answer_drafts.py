@@ -8,6 +8,7 @@ from campus_shared.answer_ready_evidence_contract import (
     ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
 )
 from campus_shared.regulation_semantic_registry import (
+    REGULATION_CONDITION_SUBJECT_DEFINITIONS,
     RegulationCategoryDefinition,
     load_regulation_discovery_config,
     regulation_categories_for_document,
@@ -124,9 +125,10 @@ def build_typed_answer_draft(
         "policy_object",
         "official_reference",
         "curriculum_document",
-        "curriculum_fact",
     }:
         answer_shape = AnswerShape.TITLE_LOOKUP
+    elif expected_answer_kind == "curriculum_fact":
+        answer_shape = AnswerShape.GENERAL_SUMMARY
     if answer_shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
         return TypedAnswerDraft(
             kind="policy_list",
@@ -152,7 +154,23 @@ def build_typed_answer_draft(
         return TypedAnswerDraft(
             kind="condition_table",
             rows=tuple(
-                _build_condition_row(source, statements) for source, statements in selected_rows
+                _build_condition_row(
+                    source,
+                    statements,
+                    retrieval_intent=retrieval_intent,
+                )
+                for source, statements in selected_rows
+            ),
+        )
+    if answer_shape == AnswerShape.GENERAL_SUMMARY:
+        return TypedAnswerDraft(
+            kind="short_factual_summary",
+            references=tuple(
+                _build_short_reference(source, statements)
+                for source, statements in _short_factual_summary_rows(
+                    selected_rows=selected_rows,
+                    expected_answer_kind=expected_answer_kind,
+                )
             ),
         )
     if _should_build_procedure_steps_draft(
@@ -185,7 +203,12 @@ def build_typed_answer_draft(
         return TypedAnswerDraft(
             kind="condition_table",
             rows=tuple(
-                _build_condition_row(source, statements) for source, statements in selected_rows
+                _build_condition_row(
+                    source,
+                    statements,
+                    retrieval_intent=retrieval_intent,
+                )
+                for source, statements in selected_rows
             ),
         )
     return TypedAnswerDraft(kind="unsupported", unsupported_reason="no_supporting_evidence")
@@ -268,7 +291,10 @@ def validate_typed_answer_draft(
             not ref.has_support or not ref.excerpt for ref in draft.references
         ):
             return _invalid("short_factual_summary_support_missing")
-        if len(draft.references) > 2:
+        if _short_factual_summary_reference_budget_exceeded(
+            draft=draft,
+            expected_answer_kind=expected_answer_kind,
+        ):
             return _invalid("short_factual_summary_reference_budget_exceeded")
         return _valid(_claim_supports("short_factual_summary", draft.references))
     if draft.kind == "short_reference":
@@ -364,11 +390,18 @@ def _build_detail_clause(
 def _build_condition_row(
     source: EvidenceSource,
     statements: tuple[str, ...],
+    *,
+    retrieval_intent: RetrievalIntent | None = None,
 ) -> ConditionTableDraftRow:
     attributes = evidence_attributes_for_source(source)
+    condition_subject = attributes.condition_subject or _condition_subject_from_retrieval_intent(
+        source=source,
+        statements=statements,
+        retrieval_intent=retrieval_intent,
+    )
     return ConditionTableDraftRow(
         **_support_kwargs(source, statements),
-        condition_subject=attributes.condition_subject,
+        condition_subject=condition_subject,
         polarity=attributes.condition_polarity or attributes.polarity,
         condition_text=_first_statement(source, statements),
         answer_role=attributes.answer_role,
@@ -409,6 +442,70 @@ def _first_statement(source: EvidenceSource, statements: tuple[str, ...]) -> str
         if normalized:
             return normalized
     return source.snippet.strip()
+
+
+def _condition_subject_from_retrieval_intent(
+    *,
+    source: EvidenceSource,
+    statements: tuple[str, ...],
+    retrieval_intent: RetrievalIntent | None,
+) -> str:
+    if retrieval_intent is None:
+        return ""
+    if retrieval_intent.expected.answer_kind != "condition_table":
+        return ""
+    condition_subject = retrieval_intent.target.condition_subject
+    if not condition_subject:
+        return ""
+    definition = REGULATION_CONDITION_SUBJECT_DEFINITIONS.get(condition_subject)
+    if definition is None:
+        return ""
+    attributes = evidence_attributes_for_source(source)
+    if attributes.answer_role not in retrieval_intent.expected.evidence_roles:
+        return ""
+    if not _source_text_covers_condition_subject(
+        source=source,
+        statements=statements,
+        condition_subject=condition_subject,
+    ):
+        return ""
+    return condition_subject
+
+
+def _source_text_covers_condition_subject(
+    *,
+    source: EvidenceSource,
+    statements: tuple[str, ...],
+    condition_subject: str,
+) -> bool:
+    definition = REGULATION_CONDITION_SUBJECT_DEFINITIONS.get(condition_subject)
+    if definition is None:
+        return False
+    normalized = _normalize_evidence_text(
+        " ".join(
+            fragment
+            for fragment in (
+                source.source_title,
+                source.detail_label,
+                source.snippet,
+                *statements,
+            )
+            if fragment
+        )
+    )
+    if not normalized:
+        return False
+    direct_terms = tuple(term for term in definition.query_focus_terms if term)
+    if direct_terms and not any(term in normalized for term in direct_terms):
+        return False
+    return all(
+        any(term in normalized for term in equivalent_group if term)
+        for equivalent_group in definition.query_focus_equivalents
+    )
+
+
+def _normalize_evidence_text(text: str) -> str:
+    return "".join(text.split())
 
 
 def _source_answer_role(source: EvidenceSource) -> str:
@@ -507,7 +604,6 @@ def _draft_kind_matches_expected(*, draft_kind: str, expected_answer_kind: str) 
         "policy_object",
         "official_reference",
         "curriculum_document",
-        "curriculum_fact",
     }:
         return draft_kind == "short_reference"
     if expected_answer_kind == "general_fact":
@@ -521,6 +617,24 @@ def _draft_kind_matches_expected(*, draft_kind: str, expected_answer_kind: str) 
     if expected_answer_kind == "curriculum_fact":
         return draft_kind in {"short_reference", "short_factual_summary"}
     return False
+
+
+def _short_factual_summary_reference_budget_exceeded(
+    *,
+    draft: TypedAnswerDraft,
+    expected_answer_kind: str,
+) -> bool:
+    max_references = 6 if expected_answer_kind == "curriculum_fact" else 2
+    return len(draft.references) > max_references
+
+
+def _short_factual_summary_rows(
+    *,
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+    expected_answer_kind: str,
+) -> tuple[tuple[EvidenceSource, tuple[str, ...]], ...]:
+    max_references = 6 if expected_answer_kind == "curriculum_fact" else 2
+    return selected_rows[:max_references]
 
 
 def _validate_presentation_contract(

@@ -101,6 +101,21 @@ class RetrievalQrelsCoverageTest(unittest.TestCase):
         self.assertTrue(case.supplemental_metric_overrides.get("faithfulness", True))
         self.assertFalse(case.supplemental_metric_overrides.get("identity_grounding", False))
 
+    def test_curriculum_document_view_cases_disable_faithfulness_metric(self) -> None:
+        from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
+
+        dataset = load_retrieval_qrels_dataset(
+            Path("packages/evals/fixtures/curriculum_plan_retrieval_qrels.json")
+        )
+
+        case = next(
+            case for case in dataset.cases if case.case_id == "digital-economy-plan-paraphrase"
+        )
+
+        self.assertFalse(case.supplemental_metric_overrides.get("answer_relevancy", True))
+        self.assertFalse(case.supplemental_metric_overrides.get("faithfulness", True))
+        self.assertFalse(case.supplemental_metric_overrides.get("identity_grounding", False))
+
 
 if __name__ == "__main__":
     unittest.main()

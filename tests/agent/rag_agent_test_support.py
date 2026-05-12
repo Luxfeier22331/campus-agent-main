@@ -45,6 +45,7 @@ from campus_rag_agent.prompt_execution import (
     RagClarifyPromptOutput,
     RagPromptExecutionResult,
     RagPromptExecutor,
+    wrap_rag_prompt_executor,
 )
 from campus_rag_agent.prompt_packets import build_rag_answer_prompt_packet
 from campus_rag_agent.prompts.registry import get_rag_prompt_spec
@@ -484,7 +485,18 @@ def _deferred_default_grounded_runner(bundle_ref):
         evidence = bundle_ref()
         if evidence is None:
             raise RuntimeError("test default rag sdk runner called before retrieval evidence")
-        return _default_grounded_runner_for_evidence(evidence)(request)
+        selected_evidence = EvidenceBundle(
+            query_text=request.evidence.query_text,
+            corpus=request.evidence.corpus,
+            collection=request.evidence.collection,
+            sources=tuple(
+                source
+                for source in evidence.sources
+                if source.chunk_id in request.evidence.chunk_ids
+                and source.doc_id in request.evidence.source_ids
+            ),
+        )
+        return _default_grounded_runner_for_evidence(selected_evidence)(request)
 
     return runner
 
@@ -671,6 +683,7 @@ def delegate_to_rag_agent(
             include_retrieval_observation_query_text=include_retrieval_observation_query_text,
             rag_sdk_runner=rag_sdk_runner,
         )
+    runtime_prompt_executor = wrap_rag_prompt_executor(prompt_executor)
     captured_bundle: EvidenceBundle | None = None
     captured_request: AgentRequest | None = request
     captured_sources_by_chunk_id: dict[str, EvidenceSource] = {}
@@ -693,16 +706,16 @@ def delegate_to_rag_agent(
     return _service_delegate_to_rag_agent(
         request,
         retriever=wrapped_retriever,
-        prompt_executor=prompt_executor,
+        prompt_executor=runtime_prompt_executor,
         retrieval_observation_sink=retrieval_observation_sink,
         include_retrieval_observation_query_text=include_retrieval_observation_query_text,
         rag_sdk_runner=(
             _deferred_prompt_grounded_runner(
                 bundle_ref=lambda: captured_bundle,
                 request_ref=lambda: captured_request,
-                prompt_executor=prompt_executor,
+                prompt_executor=runtime_prompt_executor,
             )
-            if prompt_executor is not None
+            if runtime_prompt_executor is not None
             else _deferred_default_grounded_runner(lambda: captured_bundle)
         ),
     )

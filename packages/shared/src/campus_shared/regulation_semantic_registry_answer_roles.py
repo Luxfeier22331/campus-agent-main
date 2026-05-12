@@ -13,6 +13,7 @@ from .regulation_semantic_registry_predicates import (
     _has_required_procedure_action_marker,
     _is_example_evidence_answer_role,
     _is_procedure_step_answer_role,
+    _looks_like_explicit_applicability_clause,
     _looks_like_implicit_exclusion_clause,
     _looks_like_large_guideline_manifesto,
     _looks_like_material_intro_or_category,
@@ -39,6 +40,11 @@ def resolve_regulation_answer_role(
         return RegulationSemanticAssignment(
             value="supporting_detail",
             provenance="no_answer_ready_marker",
+        )
+    if _looks_like_explicit_applicability_clause(text_only):
+        return RegulationSemanticAssignment(
+            value="eligibility_condition",
+            provenance="matched_applicability_marker",
         )
     if any(marker in text_only for marker in REGULATION_ANSWER_ROLE_TERMINAL_PROVISION_MARKERS):
         return RegulationSemanticAssignment(

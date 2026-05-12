@@ -8,6 +8,8 @@ class RegulationConditionSubjectDefinition:
     subject_id: str
     description: str
     expected_answer_roles: tuple[str, ...]
+    query_focus_terms: tuple[str, ...] = ()
+    query_focus_equivalents: tuple[tuple[str, ...], ...] = ()
     release_blocking: bool = True
 
 

@@ -4,6 +4,18 @@ from .regulation_semantic_registry_types import RegulationSemanticKeywordRule
 
 REGULATION_CONDITION_SUBJECT_KEYWORD_RULES: tuple[RegulationSemanticKeywordRule, ...] = (
     RegulationSemanticKeywordRule(
+        value="attendance_absence_threshold",
+        markers=("旷课", "学时"),
+        provenance="keyword:旷课学时阈值",
+        match_mode="all",
+    ),
+    RegulationSemanticKeywordRule(
+        value="attendance_absence_threshold",
+        markers=("旷课", "节"),
+        provenance="keyword:旷课节次阈值",
+        match_mode="all",
+    ),
+    RegulationSemanticKeywordRule(
         value="security_or_confidentiality_requirement",
         markers=(
             "安全等级要求",
@@ -160,6 +172,12 @@ REGULATION_INTRO_SCOPE_TARGET_ROLE_RULES: tuple[tuple[frozenset[str], str, str],
 )
 
 REGULATION_GENERIC_POLICY_TABLE_SUBJECT_RULES: tuple[RegulationSemanticKeywordRule, ...] = (
+    RegulationSemanticKeywordRule(
+        value="attendance_absence_threshold",
+        markers=("旷课", "节"),
+        provenance="table_fact_type:generic_policy_table+keyword:旷课节次阈值",
+        match_mode="all",
+    ),
     RegulationSemanticKeywordRule(
         value="rank_threshold",
         markers=("绩点", "成绩", "综测", "排名", "百分制"),

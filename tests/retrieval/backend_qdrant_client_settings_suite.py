@@ -82,6 +82,11 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
                 "policy_projection_version": qdrant_models.PayloadSchemaType.KEYWORD,
                 "status": qdrant_models.PayloadSchemaType.KEYWORD,
                 "source_channel": qdrant_models.PayloadSchemaType.KEYWORD,
+                "answer_role": qdrant_models.PayloadSchemaType.KEYWORD,
+                "condition_subject": qdrant_models.PayloadSchemaType.KEYWORD,
+                "condition_group_subject": qdrant_models.PayloadSchemaType.KEYWORD,
+                "article_no": qdrant_models.PayloadSchemaType.KEYWORD,
+                "clause_no": qdrant_models.PayloadSchemaType.KEYWORD,
                 "is_current": qdrant_models.PayloadSchemaType.BOOL,
             }
 
@@ -215,6 +220,11 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
                 "policy_projection_version",
                 "status",
                 "source_channel",
+                "answer_role",
+                "condition_subject",
+                "condition_group_subject",
+                "article_no",
+                "clause_no",
                 "is_current",
             ],
         )
@@ -238,6 +248,19 @@ class BackendQdrantClientSettingsTest(unittest.TestCase):
         self.assertIn("source_notice_ids", indexed_fields)
         self.assertIn("source_document_ids", indexed_fields)
         self.assertIn("target_surface", indexed_fields)
+
+    def test_required_payload_indexes_include_retrieval_focus_filter_fields(self) -> None:
+        indexed_schemas = dict(required_payload_index_schemas())
+
+        self.assertEqual(indexed_schemas["answer_role"], qdrant_models.PayloadSchemaType.KEYWORD)
+        self.assertEqual(
+            indexed_schemas["condition_subject"], qdrant_models.PayloadSchemaType.KEYWORD
+        )
+        self.assertEqual(
+            indexed_schemas["condition_group_subject"], qdrant_models.PayloadSchemaType.KEYWORD
+        )
+        self.assertEqual(indexed_schemas["article_no"], qdrant_models.PayloadSchemaType.KEYWORD)
+        self.assertEqual(indexed_schemas["clause_no"], qdrant_models.PayloadSchemaType.KEYWORD)
 
     def test_backend_rejects_query_disabled_corpus(self) -> None:
         backend = QdrantRetrievalBackend(

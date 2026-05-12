@@ -10,6 +10,7 @@ REGULATION_GROUPED_ANSWER_ROLES = frozenset(
         "exclusion_rule",
         "example_evidence",
         "procedure_step",
+        "supporting_detail",
         "time_constraint",
         "table_fact",
     }
@@ -21,21 +22,24 @@ REGULATION_CONDITION_SUBJECT_DEFINITIONS: dict[str, RegulationConditionSubjectDe
         subject_id="application_procedure",
         description="办理、申请、审核、公示、补办等程序性步骤或流程条件。",
         expected_answer_roles=("procedure_step", "eligibility_intro"),
+        query_focus_terms=("申请", "办理", "流程", "程序"),
     ),
     "rank_threshold": RegulationConditionSubjectDefinition(
         subject_id="rank_threshold",
         description="成绩、排名、综测等排序阈值条件。",
         expected_answer_roles=(
-            "eligibility_condition",
             "exception_rule",
+            "eligibility_condition",
             "example_evidence",
             "table_fact",
         ),
+        query_focus_terms=("排名", "前10", "前30"),
     ),
     "paper_or_publication": RegulationConditionSubjectDefinition(
         subject_id="paper_or_publication",
         description="论文、发表、科研成果、专利、竞赛成果等要求。",
-        expected_answer_roles=("eligibility_condition", "exception_rule", "example_evidence"),
+        expected_answer_roles=("example_evidence", "eligibility_condition", "exception_rule"),
+        query_focus_terms=("论文", "著作", "发表", "出版"),
     ),
     "academic_performance": RegulationConditionSubjectDefinition(
         subject_id="academic_performance",
@@ -46,6 +50,19 @@ REGULATION_CONDITION_SUBJECT_DEFINITIONS: dict[str, RegulationConditionSubjectDe
             "example_evidence",
             "table_fact",
         ),
+        query_focus_terms=("成绩", "学分", "培养环节"),
+        query_focus_equivalents=(("学时", "课时", "节"),),
+    ),
+    "attendance_absence_threshold": RegulationConditionSubjectDefinition(
+        subject_id="attendance_absence_threshold",
+        description="旷课、考勤缺勤累计节次或学时对应的违纪处分阈值。",
+        expected_answer_roles=(
+            "eligibility_condition",
+            "table_fact",
+            "supporting_detail",
+        ),
+        query_focus_terms=("旷课", "考勤", "学时", "课时", "节"),
+        query_focus_equivalents=(("学时", "课时", "节"),),
     ),
     "conduct_or_discipline_status": RegulationConditionSubjectDefinition(
         subject_id="conduct_or_discipline_status",
@@ -62,6 +79,7 @@ REGULATION_CONDITION_SUBJECT_DEFINITIONS: dict[str, RegulationConditionSubjectDe
             "material_requirement",
             "table_fact",
         ),
+        query_focus_terms=("材料", "证明", "提交"),
     ),
     "deadline": RegulationConditionSubjectDefinition(
         subject_id="deadline",
@@ -73,6 +91,7 @@ REGULATION_CONDITION_SUBJECT_DEFINITIONS: dict[str, RegulationConditionSubjectDe
             "time_constraint",
             "table_fact",
         ),
+        query_focus_terms=("时间", "截止", "期限"),
     ),
     "appeal_or_review_right": RegulationConditionSubjectDefinition(
         subject_id="appeal_or_review_right",
@@ -86,13 +105,14 @@ REGULATION_CONDITION_SUBJECT_DEFINITIONS: dict[str, RegulationConditionSubjectDe
             "eligibility_condition",
             "exception_rule",
             "example_evidence",
-            "procedure_step",
         ),
+        query_focus_terms=("解除处分", "条件", "考察期"),
     ),
     "discipline_relief_exclusion": RegulationConditionSubjectDefinition(
         subject_id="discipline_relief_exclusion",
         description="解除处分的不予受理、不得申请或排除情形。",
         expected_answer_roles=("exclusion_rule",),
+        query_focus_terms=("解除处分", "不予", "情形"),
     ),
     "safety_or_security_restriction": RegulationConditionSubjectDefinition(
         subject_id="safety_or_security_restriction",
@@ -132,7 +152,8 @@ REGULATION_CONDITION_SUBJECT_DEFINITIONS: dict[str, RegulationConditionSubjectDe
     "amount_or_quota": RegulationConditionSubjectDefinition(
         subject_id="amount_or_quota",
         description="名额、金额、比例、额度等定量条件。",
-        expected_answer_roles=("eligibility_condition", "exclusion_rule", "table_fact"),
+        expected_answer_roles=("table_fact", "eligibility_condition", "exclusion_rule"),
+        query_focus_terms=("金额", "名额", "比例", "额度"),
     ),
     "example_evidence": RegulationConditionSubjectDefinition(
         subject_id="example_evidence",
@@ -158,6 +179,7 @@ REGULATION_CONDITION_SUBJECT_DEFINITIONS: dict[str, RegulationConditionSubjectDe
         subject_id="student_card_or_identity_credential",
         description="学生证、证件挂失、补办、身份凭证相关规则。",
         expected_answer_roles=("procedure_step", "eligibility_condition", "exclusion_rule"),
+        query_focus_terms=("学生证", "挂失", "补办"),
     ),
     "dormitory_or_accommodation": RegulationConditionSubjectDefinition(
         subject_id="dormitory_or_accommodation",

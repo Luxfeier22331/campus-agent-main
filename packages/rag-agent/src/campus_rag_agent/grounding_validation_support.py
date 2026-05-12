@@ -58,7 +58,7 @@ def _build_source_support_candidates(source: EvidenceSource) -> tuple[SupportCan
     if ensure_remote_content_suspicion_labels(source):
         return ()
     snippets = [
-        source.source_title.strip(),
+        _source_title_or_doc_label(source),
         source.detail_label.strip(),
         *(item.strip() for item in source.structural_path if item.strip()),
         source.snippet.strip(),
@@ -89,6 +89,15 @@ def _build_source_support_candidates(source: EvidenceSource) -> tuple[SupportCan
             )
         )
     return tuple(_dedupe_support_candidates(candidates))
+
+
+def _source_title_or_doc_label(source: EvidenceSource) -> str:
+    explicit_title = source.source_title.strip()
+    if explicit_title:
+        return explicit_title
+    if ":" not in source.doc_id:
+        return ""
+    return source.doc_id.split(":", 1)[-1].strip()
 
 
 def _derive_structured_fact_snippets(snippet: str) -> list[str]:

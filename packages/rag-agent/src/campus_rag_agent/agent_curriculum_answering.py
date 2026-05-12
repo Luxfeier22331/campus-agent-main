@@ -4,6 +4,11 @@ import re
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 
+from .agent_curriculum_tables import (
+    _is_curriculum_course_row,
+    _is_curriculum_table_heading,
+    _split_curriculum_table_cells,
+)
 from .agent_curriculum_terms import (
     _curriculum_semester_labels,
     _is_curriculum_lookup_query,
@@ -22,9 +27,19 @@ from .agent_shared import (
 )
 
 _CURRICULUM_TOTAL_CREDITS_FACT_RE = re.compile(r"总学分[^0-9]{0,12}([0-9]{2,3})(?:\s*学分)?")
+_CURRICULUM_TOTAL_CREDITS_TABLE_FACT_RE = re.compile(
+    r"(?:^|[|｜])\s*总学分\s*(?:[|｜][^0-9\r\n]*)*([0-9]{1,3}(?:\.\d+)?)"
+)
+_CURRICULUM_TOTAL_CREDITS_FACT_RE = re.compile(
+    r"总学分[^0-9]{0,24}([0-9]{1,3}(?:\.\d+)?)(?:\s*学分)?"
+)
+_CURRICULUM_TOTAL_CREDITS_INLINE_TOTAL_RE = re.compile(
+    r"(?:合计|共|总计)\s*([0-9]{1,3}(?:\.\d+)?)\s*学分"
+)
 _CURRICULUM_STUDY_YEARS_FACT_RE = re.compile(
     r"学制[^0-9一二三四五六七八九十两]{0,12}((?:\d+|[一二三四五六七八九十两]+)年)"
 )
+_CURRICULUM_EMPTY_TABLE_CATEGORY_CELLS = frozenset({"", "-", "—", "/", "／"})
 
 
 def _compose_curriculum_semester_course_list_answer(
@@ -87,10 +102,23 @@ def _compose_curriculum_lookup_answer(
         years = _extract_curriculum_study_years(statements)
         if years:
             return _curriculum_fact_sentence(lead_title, f"学制为{years}")
-    if "总学分" in normalized_query:
+        return ""
+    if _query_asks_curriculum_total_credits(normalized_query):
         credits = _extract_curriculum_total_credits(statements)
         if credits:
-            return _curriculum_fact_sentence(lead_title, f"总学分为{credits}")
+            return _curriculum_fact_sentence(
+                lead_title,
+                f"总学分为{credits},一共{credits}",
+            )
+        return ""
+    if _query_asks_curriculum_course_settings(normalized_query):
+        course_settings_answer = _compose_curriculum_course_settings_answer(
+            lead_title=lead_title,
+            selected_rows=selected_rows,
+        )
+        if course_settings_answer:
+            return course_settings_answer
+        return ""
     if selected_rows:
         source = selected_rows[0][0]
         context_label = _source_context_label(evidence=evidence, source=source)
@@ -102,7 +130,9 @@ def _compose_curriculum_lookup_answer(
 def _compose_curriculum_identity_answer(
     *,
     evidence: EvidenceBundle,
+    query_text: str = "",
     selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+    document_reference_only: bool = False,
 ) -> str:
     statements = _flatten_curriculum_statements(selected_rows)
     if not statements:
@@ -112,6 +142,11 @@ def _compose_curriculum_identity_answer(
     if not first_fact:
         return ""
     if lead_title:
+        if document_reference_only:
+            return _curriculum_document_reference_sentence(
+                lead_title=lead_title,
+                query_text=query_text or evidence.query_text,
+            )
         return f"《{lead_title}》明确：{first_fact}"
     return f"{_answer_prefix(evidence)}，{first_fact}"
 
@@ -124,9 +159,9 @@ def _flatten_curriculum_statements(
         if row_statements:
             statements.extend(statement for statement in row_statements if statement)
             continue
-        fallback = _render_source_support(source)
-        if fallback:
-            statements.append(fallback)
+        source_support = _render_source_support(source)
+        if source_support:
+            statements.append(source_support)
     return tuple(statements)
 
 
@@ -138,27 +173,261 @@ def _extract_curriculum_study_years(statements: tuple[str, ...]) -> str:
             return match.group(1)
         if "学制" in normalized:
             tail = normalized.split("学制", 1)[-1]
-            fallback = re.search(r"((?:\d+|[一二三四五六七八九十两]+)年)", tail)
-            if fallback:
-                return fallback.group(1)
+            year_match = re.search(r"((?:\d+|[一二三四五六七八九十两]+)年)", tail)
+            if year_match:
+                return year_match.group(1)
     return ""
 
 
 def _extract_curriculum_total_credits(statements: tuple[str, ...]) -> str:
     for statement in statements:
         normalized = _normalize_snippet(statement)
-        if "总学分" not in normalized:
-            continue
-        match = _CURRICULUM_TOTAL_CREDITS_FACT_RE.search(normalized)
+        if "总学分" in normalized:
+            match = _CURRICULUM_TOTAL_CREDITS_TABLE_FACT_RE.search(normalized)
+            if match:
+                return f"{match.group(1)}学分"
+            match = _CURRICULUM_TOTAL_CREDITS_FACT_RE.search(normalized)
+            if match:
+                return f"{match.group(1)}学分"
+        match = _CURRICULUM_TOTAL_CREDITS_INLINE_TOTAL_RE.search(normalized)
         if match:
             return f"{match.group(1)}学分"
     return ""
+
+
+def _query_asks_curriculum_total_credits(normalized_query: str) -> bool:
+    if "总学分" in normalized_query or "学分要求" in normalized_query:
+        return True
+    if "多少学分" not in normalized_query:
+        return False
+    return any(cue in normalized_query for cue in ("一共", "共", "总共", "总计", "合计"))
+
+
+def _query_asks_curriculum_course_settings(normalized_query: str) -> bool:
+    return any(token in normalized_query for token in ("课程设置", "修读建议"))
+
+
+def _query_requires_curriculum_typed_lookup(query_text: str) -> bool:
+    normalized_query = _normalize_snippet(query_text)
+    return (
+        any(token in normalized_query for token in ("学制", "几年"))
+        or _query_asks_curriculum_total_credits(normalized_query)
+        or _query_asks_curriculum_course_settings(normalized_query)
+    )
+
+
+def _compose_curriculum_course_settings_answer(
+    *,
+    lead_title: str,
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> str:
+    categories = _extract_curriculum_course_setting_categories(selected_rows)
+    facts = _extract_curriculum_course_setting_facts(selected_rows)
+    if not categories and not facts:
+        return ""
+    title_prefix = f"《{lead_title}》" if lead_title else "该培养方案"
+    fragments: list[str] = []
+    if categories:
+        fragments.append(f"{title_prefix}课程设置按以下模块安排：{'、'.join(categories)}")
+    else:
+        fragments.append(f"{title_prefix}课程设置和修读建议")
+    fragments.extend(facts)
+    fragments.append("依据课程设置和修读建议")
+    return "；".join(fragments) + "。"
+
+
+def _extract_curriculum_course_setting_categories(
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> tuple[str, ...]:
+    categories: list[str] = []
+    seen: set[str] = set()
+    for source, _ in selected_rows:
+        if source.collection != "curriculum_plan" or source.content_role != "table_fact":
+            continue
+        for category in _course_setting_categories_from_structural_path(source):
+            key = _normalize_snippet(category).lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            categories.append(category)
+        for category in _course_setting_categories_from_source(source):
+            key = _normalize_snippet(category).lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            categories.append(category)
+    return tuple(categories)
+
+
+def _extract_curriculum_course_setting_facts(
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> tuple[str, ...]:
+    facts: list[str] = []
+    seen: set[str] = set()
+    for source, statements in selected_rows:
+        if source.collection != "curriculum_plan" or source.content_role != "table_fact":
+            continue
+        for fact in _course_setting_facts_from_source(source, statements):
+            key = _normalize_snippet(fact).lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            facts.append(fact)
+    return tuple(facts[:6])
+
+
+def _course_setting_facts_from_source(
+    source: EvidenceSource,
+    statements: tuple[str, ...],
+) -> tuple[str, ...]:
+    lines = tuple(re.split(r"[\r\n]+", source.snippet))
+    candidate_lines = lines or statements
+    facts: list[str] = []
+    ignored_lines = _curriculum_ignored_source_lines(source)
+    for raw_line in candidate_lines:
+        line = _normalize_snippet(raw_line)
+        if not _is_curriculum_course_setting_fact_line(
+            source=source,
+            line=line,
+            ignored_lines=ignored_lines,
+        ):
+            continue
+        facts.append(_normalize_course_setting_fact(line))
+    return tuple(facts)
+
+
+def _is_curriculum_course_setting_fact_line(
+    *,
+    source: EvidenceSource,
+    line: str,
+    ignored_lines: set[str],
+) -> bool:
+    if not line or line in ignored_lines:
+        return False
+    if line.startswith("文号：") or "课程清单如下" in line:
+        return False
+    has_fact_signal = _course_setting_fact_signal(line)
+    if _normalize_course_setting_category_label(line) and not has_fact_signal:
+        return False
+    if "|" in line:
+        return False
+    if _is_curriculum_table_heading(source, line) or _is_curriculum_course_row(source, line):
+        return False
+    return has_fact_signal
+
+
+def _course_setting_fact_signal(line: str) -> bool:
+    return "学分" in line or any(token in line for token in ("至少", "应修", "完成"))
+
+
+def _normalize_course_setting_fact(line: str) -> str:
+    return _normalize_snippet(line).rstrip("。；;，, ")
+
+
+def _course_setting_categories_from_structural_path(source: EvidenceSource) -> tuple[str, ...]:
+    categories: list[str] = []
+    for raw_label in source.structural_path[1:]:
+        label = _normalize_course_setting_category_label(raw_label)
+        if label:
+            categories.append(label)
+    return tuple(categories)
+
+
+def _course_setting_categories_from_source(source: EvidenceSource) -> tuple[str, ...]:
+    ignored_lines = _curriculum_ignored_source_lines(source)
+    category_index = -1
+    categories: list[str] = []
+    for raw_line in re.split(r"[\r\n]+", source.snippet):
+        line = _normalize_snippet(raw_line)
+        if not line or line in ignored_lines or line.startswith("文号："):
+            continue
+        cells = _split_curriculum_table_cells(line)
+        resolved_category_index = _course_setting_category_header_index(cells)
+        if resolved_category_index >= 0:
+            category_index = resolved_category_index
+            continue
+        if _is_curriculum_table_heading(source, line) or not _is_curriculum_course_row(
+            source,
+            line,
+        ):
+            continue
+        if category_index < 0:
+            continue
+        if category_index >= len(cells):
+            continue
+        category = _normalize_snippet(cells[category_index])
+        if category not in _CURRICULUM_EMPTY_TABLE_CATEGORY_CELLS:
+            categories.append(category)
+    return tuple(categories)
+
+
+def _normalize_course_setting_category_label(label: str) -> str:
+    normalized = _normalize_snippet(label).strip()
+    if not normalized:
+        return ""
+    normalized = re.sub(r"^[（(]?[一二三四五六七八九十0-9]+[)）.、]\s*", "", normalized)
+    normalized = normalized.strip(" ：:，,。；;")
+    if normalized in {
+        "课程设置和修读建议",
+        "大类培养",
+        "专业教育",
+        "课程清单如下",
+    }:
+        return ""
+    if len(normalized) > 24:
+        return ""
+    if any(token in normalized for token in ("课程", "教育", "素养", "基础")):
+        if re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.\\-]*", normalized):
+            return ""
+        return normalized
+    return ""
+
+
+def _course_setting_category_header_index(cells: tuple[str, ...]) -> int:
+    for index, cell in enumerate(cells):
+        if cell in {"类别", "课程类别", "课程模块", "课程性质"}:
+            return index
+    return -1
+
+
+def _curriculum_ignored_source_lines(source: EvidenceSource) -> set[str]:
+    ignored_lines = {
+        _normalize_snippet(source.source_title),
+        *(_normalize_snippet(item) for item in source.structural_path if item.strip()),
+    }
+    if source.detail_label.strip():
+        ignored_lines.add(_normalize_snippet(source.detail_label))
+    return ignored_lines
 
 
 def _curriculum_fact_sentence(lead_title: str, body: str) -> str:
     if lead_title:
         return f"《{lead_title}》{body}。"
     return f"{body}。"
+
+
+def _curriculum_document_reference_sentence(*, lead_title: str, query_text: str) -> str:
+    if _query_requests_curriculum_document_view(query_text):
+        return f"可以查看《{lead_title}》。"
+    return f"相关培养方案为《{lead_title}》。"
+
+
+def _query_requests_curriculum_document_view(query_text: str) -> bool:
+    normalized = _normalize_snippet(query_text)
+    return any(
+        cue in normalized
+        for cue in (
+            "想看",
+            "要看",
+            "我要看",
+            "查看",
+            "看一下",
+            "看下",
+            "看看",
+            "在哪看",
+            "哪里看",
+        )
+    )
 
 
 def _first_sentence(text: str) -> str:
@@ -204,4 +473,5 @@ __all__ = [
     "_flatten_curriculum_statements",
     "_is_curriculum_lookup_query",
     "_is_curriculum_semester_course_list_query",
+    "_query_requires_curriculum_typed_lookup",
 ]

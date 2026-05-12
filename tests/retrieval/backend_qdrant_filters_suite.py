@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from campus_retrieval_core.models import RetrievalSemanticHint
+
 from tests.retrieval.backend_qdrant_test_support import (
     STUDENT_HANDBOOK_QDRANT_COLLECTION,
     AuthorizedRetrievalFilter,
@@ -246,11 +248,148 @@ class BackendQdrantFiltersTest(unittest.TestCase):
         )
 
         conditions = qdrant_filter.must or []
-        self.assertTrue(
-            any(getattr(condition, "key", None) == "article_no" for condition in conditions)
+        article_condition = next(
+            condition for condition in conditions if getattr(condition, "key", None) == "article_no"
+        )
+        self.assertEqual(
+            getattr(getattr(article_condition, "match", None), "any", None),
+            ["第九条"],
         )
         self.assertFalse(
             any(getattr(condition, "key", None) == "detail_label" for condition in conditions)
+        )
+
+    def test_build_qdrant_filter_normalizes_focus_clause_numbers_to_payload_labels(self) -> None:
+        qdrant_filter = _build_qdrant_filter(
+            RetrievalRequest(
+                query_text="第九条第1款",
+                corpus="regulations",
+                collection="student_rules",
+                focus_article_nos=("第九条",),
+                focus_clause_nos=("1",),
+            )
+        )
+
+        conditions = qdrant_filter.must or []
+        article_condition = next(
+            condition for condition in conditions if getattr(condition, "key", None) == "article_no"
+        )
+        clause_condition = next(
+            condition for condition in conditions if getattr(condition, "key", None) == "clause_no"
+        )
+        self.assertEqual(
+            getattr(getattr(article_condition, "match", None), "any", None),
+            ["第九条"],
+        )
+        self.assertEqual(
+            getattr(getattr(clause_condition, "match", None), "any", None),
+            ["第一款"],
+        )
+
+    def test_build_qdrant_filter_applies_condition_table_primary_answer_role_filter(
+        self,
+    ) -> None:
+        qdrant_filter = _build_qdrant_filter(
+            RetrievalRequest(
+                query_text="申请奖学金需要满足什么条件",
+                corpus="regulations",
+                collection="student_rules",
+                target_document_ids=(
+                    "handbook:national-scholarship",
+                    "handbook:professional-scholarship",
+                ),
+                semantic_hint=RetrievalSemanticHint(
+                    intent_kind="condition_table",
+                    answer_kind="condition_table",
+                    need_kinds=("condition_table",),
+                    coverage_policy="condition_subject_alignment",
+                    selection_policy="answer_role_first",
+                    rerank_policy="disabled",
+                    replan_policy="intent_gap_replan",
+                    expected_answer_roles=(
+                        "eligibility_condition",
+                        "exception_rule",
+                        "eligibility_intro",
+                        "table_fact",
+                    ),
+                    condition_subject="generic_condition",
+                    category_id="scholarship",
+                ),
+            )
+        )
+
+        answer_role_condition = next(
+            condition
+            for condition in qdrant_filter.must or ()
+            if getattr(condition, "key", None) == "answer_role"
+        )
+        self.assertEqual(
+            getattr(getattr(answer_role_condition, "match", None), "any", None),
+            ["eligibility_condition", "exception_rule", "table_fact"],
+        )
+        condition_subject_filter = next(
+            condition
+            for condition in qdrant_filter.must or ()
+            if getattr(condition, "min_should", None) is not None
+        )
+        min_should = condition_subject_filter.min_should
+        self.assertEqual(min_should.min_count, 1)
+        self.assertEqual(
+            {
+                getattr(condition, "key", None): tuple(
+                    getattr(getattr(condition, "match", None), "any", None) or ()
+                )
+                for condition in min_should.conditions
+            },
+            {
+                "condition_subject": ("generic_condition",),
+                "condition_group_subject": ("generic_condition",),
+            },
+        )
+
+    def test_build_qdrant_filter_applies_answer_role_filter_for_category_member_condition_lookup(
+        self,
+    ) -> None:
+        qdrant_filter = _build_qdrant_filter(
+            RetrievalRequest(
+                query_text="申请奖学金需要满足什么条件",
+                corpus="regulations",
+                collection="student_rules",
+                target_document_ids=("handbook:professional-scholarship",),
+                semantic_hint=RetrievalSemanticHint(
+                    intent_kind="condition_table",
+                    answer_kind="condition_table",
+                    need_kinds=("condition_table",),
+                    coverage_policy="category_member_coverage",
+                    selection_policy="one_answer_ready_source_per_member",
+                    rerank_policy="disabled",
+                    replan_policy="coverage_gap_replan",
+                    expected_answer_roles=(
+                        "eligibility_condition",
+                        "exception_rule",
+                        "eligibility_intro",
+                        "table_fact",
+                    ),
+                    condition_subject="generic_condition",
+                    category_id="scholarship",
+                ),
+            )
+        )
+
+        answer_role_condition = next(
+            condition
+            for condition in qdrant_filter.must or ()
+            if getattr(condition, "key", None) == "answer_role"
+        )
+        self.assertEqual(
+            getattr(getattr(answer_role_condition, "match", None), "any", None),
+            ["eligibility_condition", "exception_rule", "table_fact"],
+        )
+        self.assertFalse(
+            any(
+                getattr(condition, "min_should", None) is not None
+                for condition in qdrant_filter.must or ()
+            )
         )
 
     def test_backend_fail_closes_scoped_restricted_documents_when_request_has_no_visibility_scope(

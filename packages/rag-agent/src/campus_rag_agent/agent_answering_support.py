@@ -8,8 +8,22 @@ from .agent_shared import _normalize_snippet, _render_source_support
 def _render_supporting_contexts(
     selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
 ) -> tuple[str, ...]:
-    contexts: list[str] = []
+    merged_rows: list[tuple[EvidenceSource, tuple[str, ...]]] = []
+    source_index_by_key: dict[tuple[str, str, str], int] = {}
     for source, statements in selected_rows:
+        source_key = (source.doc_id, source.chunk_id, source.snippet)
+        if source_key in source_index_by_key:
+            index = source_index_by_key[source_key]
+            existing_source, existing_statements = merged_rows[index]
+            merged_rows[index] = (
+                existing_source,
+                tuple(dict.fromkeys((*existing_statements, *statements))),
+            )
+            continue
+        source_index_by_key[source_key] = len(merged_rows)
+        merged_rows.append((source, statements))
+    contexts: list[str] = []
+    for source, statements in merged_rows:
         context = _render_supporting_context(source, statements)
         if context:
             contexts.append(context)

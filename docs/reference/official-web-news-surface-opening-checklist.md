@@ -55,7 +55,7 @@ opening contract。
 5. promote prerequisites summary
    - 当前 `serving_stage`
    - 是否仍 `query_enabled_by_default=false`
-   - 是否允许 live-search fallback
+   - 是否允许显式 live-search admission
    - 使用了哪个 physical collection / alias
 
 ## `fresh_news` Opening Gate
@@ -63,7 +63,7 @@ opening contract。
 以下条件必须同时成立：
 
 - primary evidence 默认只允许 `article_detail`
-- `listing_page` 只承担 discovery / freshness trigger / navigation fallback
+- `listing_page` 只承担 discovery / freshness trigger / navigation link
 - `published_at`、`crawled_at`、`last_seen_at` 已达到可路由、可排序、可 stale 判定
 - query routing 已能把稳定说明、近期新闻、显式历史新闻分开
 - “今天 / 最新 / 最近 / 刚刚” 会先走 freshness gate

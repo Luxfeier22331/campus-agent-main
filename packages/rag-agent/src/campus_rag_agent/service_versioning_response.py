@@ -125,6 +125,7 @@ def _build_version_aware_completed_response(
     retrieval_intent: RetrievalIntent | None = None,
 ) -> AgentResponse:
     answer_text = _build_version_aware_answer_text(
+        user_goal=user_goal,
         evidence=evidence,
         version_answer_context=version_answer_context,
         retrieval_intent=retrieval_intent,
@@ -156,15 +157,24 @@ def _build_version_aware_completed_response(
 
 def _build_version_aware_answer_text(
     *,
+    user_goal: str = "",
     evidence: EvidenceBundle,
     version_answer_context: _VersionAnswerContext,
     retrieval_intent: RetrievalIntent | None = None,
 ) -> str:
     if version_answer_context.mode == "historical":
-        base_answer = RagAgent().compose_answer(evidence, retrieval_intent=retrieval_intent)
+        base_answer = RagAgent().compose_answer(
+            evidence,
+            query_text=user_goal,
+            retrieval_intent=retrieval_intent,
+        )
         return f"以下内容基于该制度的历史版本（非现行版本）：{base_answer}"
     if version_answer_context.mode == "as_of":
-        base_answer = RagAgent().compose_answer(evidence, retrieval_intent=retrieval_intent)
+        base_answer = RagAgent().compose_answer(
+            evidence,
+            query_text=user_goal,
+            retrieval_intent=retrieval_intent,
+        )
         return (
             f"以下内容基于截至{version_answer_context.as_of}可解析到的版本"
             f"（不代表当前现行规定）：{base_answer}"
@@ -173,9 +183,14 @@ def _build_version_aware_answer_text(
         evidence,
         version_answer_context=version_answer_context,
     )
-    primary_answer = RagAgent().compose_answer(primary_evidence, retrieval_intent=retrieval_intent)
+    primary_answer = RagAgent().compose_answer(
+        primary_evidence,
+        query_text=user_goal,
+        retrieval_intent=retrieval_intent,
+    )
     comparison_answer = RagAgent().compose_answer(
         comparison_evidence,
+        query_text=user_goal,
         retrieval_intent=retrieval_intent,
     )
     change_summary = _build_compare_change_summary(

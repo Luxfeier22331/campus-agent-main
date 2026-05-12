@@ -11,10 +11,13 @@ from campus_shared.regulation_semantic_registry import (
     load_regulation_discovery_config,
     regulation_categories_for_document,
 )
+from campus_shared.regulation_semantic_registry_predicates import (
+    _looks_like_explicit_applicability_clause,
+)
 
 _WHITESPACE_RE = re.compile(r"\s+")
 _SCOPE_RULE_RE = re.compile(
-    r"^(?:本(?:办法|规定|细则|制度|通知|规则)|该(?:办法|规定|细则|制度|通知|规则)).{0,24}(?:适用于|适用范围)"
+    r"^(?:本(?:办法|规定|细则|制度|通知|规则)|该(?:办法|规定|细则|制度|通知|规则)).{0,48}(?:适用于|适用范围)"
 )
 _DEFINITION_RE = re.compile(r"^(?:本(?:办法|规定|细则|制度|通知|规则)所称|本条所称)")
 _CLOCK_TIME_RE = re.compile(r"\d{1,2}[:：]\d{2}")
@@ -245,6 +248,10 @@ def looks_like_deadline_constraint_text(
     normalized = compact_semantic_text(text)
     active = registry or _DEFAULT_REGISTRY
     return any(marker in normalized for marker in active.deadline_constraint_markers)
+
+
+def looks_like_explicit_applicability_clause(text: str) -> bool:
+    return _looks_like_explicit_applicability_clause(text)
 
 
 def infer_table_fact_type(
@@ -510,6 +517,7 @@ __all__ = [
     "load_regulation_discovery_config",
     "looks_like_condition_claim_text",
     "looks_like_deadline_constraint_text",
+    "looks_like_explicit_applicability_clause",
     "looks_like_requirement_text",
     "starts_example_list",
     "starts_procedure_list",

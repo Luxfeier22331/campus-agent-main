@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import time
 from dataclasses import replace
+
 from campus_contracts import EvidenceBundle
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 from campus_shared.answer_ready_evidence_contract import answer_ready_contract_applies
@@ -19,6 +20,8 @@ from campus_retrieval_core.service_requests import build_retrieval_request_from_
 
 def classify_retrieval_exception_failure_kind(exc: Exception) -> str:
     message = str(exc).lower()
+    if "reranker_failed" in message:
+        return "reranker_failed"
     if (
         "release metadata" in message
         or "answer-ready evidence contract missing" in message
@@ -51,7 +54,6 @@ def execute_index_backed_step(
         )
 
     started_at = time.perf_counter()
-    reranker_failure_kind = ""
     if step.step_type == "compare_pair_lookup":
         evidence_chunks: list[EvidenceBundle] = []
         for request in build_compare_pair_requests(
@@ -60,7 +62,7 @@ def execute_index_backed_step(
             personalization_hint=personalization_hint,
         ):
             evidence = request_executor(request)
-            evidence, current_reranker_failure_kind = apply_profile_gated_reranker(
+            evidence = apply_profile_gated_reranker(
                 step=step,
                 request=request,
                 evidence=evidence,
@@ -68,8 +70,6 @@ def execute_index_backed_step(
                 load_runtime_profile_fn=load_runtime_profile_fn,
                 logger=logger,
             )
-            if current_reranker_failure_kind and not reranker_failure_kind:
-                reranker_failure_kind = current_reranker_failure_kind
             evidence_chunks.append(evidence)
         evidence = merge_evidence_chunks(
             query_text=step.query_text,
@@ -84,7 +84,7 @@ def execute_index_backed_step(
             personalization_hint=personalization_hint,
         )
         evidence = request_executor(request)
-        evidence, reranker_failure_kind = apply_profile_gated_reranker(
+        evidence = apply_profile_gated_reranker(
             step=step,
             request=request,
             evidence=evidence,
@@ -93,7 +93,7 @@ def execute_index_backed_step(
             logger=logger,
         )
     runtime_profile = load_runtime_profile_fn(step.scope.corpus, step.scope.collection)
-    _fail_closed_on_disallowed_legacy_fallback(
+    _fail_closed_on_missing_answer_ready_contract(
         plan=plan,
         step=step,
         runtime_profile=runtime_profile,
@@ -104,8 +104,6 @@ def execute_index_backed_step(
         step,
         evidence=evidence,
         latency_ms=latency_ms,
-        reranker_degraded=bool(reranker_failure_kind),
-        reranker_failure_kind=reranker_failure_kind,
     )
 
 
@@ -120,7 +118,7 @@ def validate_index_backed_step(step: RetrievalStep) -> str | None:
     return None
 
 
-def _fail_closed_on_disallowed_legacy_fallback(
+def _fail_closed_on_missing_answer_ready_contract(
     *,
     plan: RetrievalPlan | None,
     step: RetrievalStep,
@@ -209,17 +207,17 @@ def apply_profile_gated_reranker(
     rerank_step,
     load_runtime_profile_fn,
     logger,
-) -> tuple[EvidenceBundle, str]:
+) -> EvidenceBundle:
     profile = load_runtime_profile_fn(request.corpus, request.collection)
     if not getattr(profile, "reranker_enabled_by_default", False):
-        return evidence, ""
+        return evidence
     if (
         step.semantic_hint is not None
         and step.semantic_hint.rerank_policy != "profile_gated_if_eligible"
     ):
-        return evidence, ""
+        return evidence
     if rerank_step is None:
-        return evidence, "reranker_executor_unavailable"
+        raise RuntimeError("reranker_failed: reranker executor is unavailable")
     try:
         return rerank_step(
             request,
@@ -227,15 +225,15 @@ def apply_profile_gated_reranker(
                 evidence,
                 top_n=getattr(profile, "reranker_top_n", None),
             ),
-        ), ""
-    except Exception:
-        logger.warning(
-            "retrieval reranker degraded for %s/%s",
+        )
+    except Exception as exc:
+        logger.error(
+            "retrieval reranker failed for %s/%s",
             request.corpus,
             request.collection,
             exc_info=True,
         )
-        return evidence, "reranker_degraded"
+        raise RuntimeError("reranker_failed: reranker executor failed") from exc
 
 
 def bounded_rerank_candidate_bundle(

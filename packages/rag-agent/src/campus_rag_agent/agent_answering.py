@@ -11,10 +11,16 @@ from .agent_answer_text_cleanup import finalize_answer_text
 from .agent_answering_generic import _compose_generic_answer
 from .agent_answering_procedure import _compose_procedure_answer
 from .agent_answering_support import _render_supporting_contexts
+from .agent_condition_duration import (
+    condition_duration_subject_label,
+    extract_condition_duration_parts,
+    query_asks_condition_duration_lookup,
+)
 from .agent_curriculum_answering import (
     _compose_curriculum_identity_answer,
     _compose_curriculum_lookup_answer,
     _compose_curriculum_semester_course_list_answer,
+    _query_requires_curriculum_typed_lookup,
 )
 from .agent_curriculum_terms import _is_curriculum_semester_course_list_query
 from .agent_official_web import _compose_official_web_answer
@@ -28,22 +34,90 @@ from .answer_presentation_contract import AnswerPresentationDraft, PresentationK
 class DirectAnswerResult:
     answer_text: str
     presentation: AnswerPresentationDraft | None = None
-    fallback_path: str = ""
-    fallback_reason: str = ""
+    presentation_path: str = ""
+    diagnostic_reason: str = ""
+
+
+@dataclass(frozen=True, slots=True)
+class _ConditionAnswerRow:
+    source: EvidenceSource
+    statement: str
+    context_label: str
+
+
+_CONDITION_DIMENSION_RULES: tuple[tuple[str, tuple[str, ...]], ...] = (
+    (
+        "思想品德与诚信",
+        (
+            "思想",
+            "品德",
+            "道德",
+            "品行",
+            "诚信",
+            "诚实守信",
+            "遵纪守法",
+            "规章制度",
+            "热爱祖国",
+            "拥护中国共产党",
+            "民族团结",
+            "国家统一",
+        ),
+    ),
+    (
+        "学习与综合表现",
+        (
+            "学习成绩",
+            "学业成绩",
+            "成绩",
+            "综合测评",
+            "综合考评",
+            "综合表现",
+            "排名",
+            "学业",
+            "课程",
+            "学分",
+            "成绩优良",
+            "成绩优秀",
+        ),
+    ),
+    ("经济困难与生活状况", ("家庭经济困难", "经济困难", "生活俭朴", "困难认定")),
+    (
+        "项目专项要求",
+        (
+            "具体项目",
+            "项目要求",
+            "专项",
+            "该项",
+            "相应条件",
+            "评选要求",
+            "当年通知",
+            "学院细则",
+            "通知",
+        ),
+    ),
+    ("材料与证明", ("材料", "证明", "申请表", "申请书", "提交")),
+    ("时间与期限", ("截止", "期限", "日内", "工作日", "公示期")),
+    ("身份与适用范围", ("全日制", "在校", "正式学籍", "学籍", "学生身份")),
+    ("名额金额与等级", ("名额", "金额", "奖金", "比例", "额度", "奖学金等级", "奖励等级")),
+    ("限制或排除情形", ("不得", "不予", "不能", "取消资格", "无资格", "排除")),
+)
 
 
 def _compose_direct_answer(
     *,
     evidence: EvidenceBundle,
+    query_text: str = "",
     selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
     answer_shape: AnswerShape | None = None,
     category_display_name: str = "",
     audience: str = "",
+    expected_answer_kind: str = "",
 ) -> DirectAnswerResult:
     if not selected_rows:
         return DirectAnswerResult(answer_text="")
 
-    mode = _query_mode(evidence.query_text)
+    answer_query_text = query_text.strip() or evidence.query_text
+    mode = _query_mode(answer_query_text)
     if answer_shape == AnswerShape.CATEGORY_DISCOVERY_LIST:
         return DirectAnswerResult(
             answer_text=_compose_category_discovery_list_answer(
@@ -55,7 +129,9 @@ def _compose_direct_answer(
     if answer_shape == AnswerShape.TITLE_LOOKUP and evidence.corpus == "curriculum":
         curriculum_identity_answer = _compose_curriculum_identity_answer(
             evidence=evidence,
+            query_text=answer_query_text,
             selected_rows=selected_rows,
+            document_reference_only=expected_answer_kind == "curriculum_document",
         )
         if curriculum_identity_answer:
             normalized_answer = finalize_answer_text(curriculum_identity_answer)
@@ -72,7 +148,11 @@ def _compose_direct_answer(
         and is_official_web_stable_reference_like_collection(evidence.collection)
     ):
         return _compose_document_identity_answer(evidence=evidence, selected_rows=selected_rows)
-    if mode == "procedure":
+    if mode == "procedure" and answer_shape not in {
+        AnswerShape.CONDITION_OVERVIEW,
+        AnswerShape.FACT_LOOKUP,
+        AnswerShape.JUDGMENT_CLAUSE,
+    }:
         return DirectAnswerResult(
             answer_text=finalize_answer_text(
                 _compose_procedure_answer(evidence=evidence, selected_rows=selected_rows)
@@ -114,6 +194,8 @@ def _compose_direct_answer(
         )
         if curriculum_lookup_answer:
             return DirectAnswerResult(answer_text=finalize_answer_text(curriculum_lookup_answer))
+        if _query_requires_curriculum_typed_lookup(evidence.query_text):
+            return DirectAnswerResult(answer_text="")
     if answer_shape == AnswerShape.DETAIL_CLAUSE:
         detail_clause_answer = _compose_focused_detail_clause_answer(
             evidence=evidence,
@@ -121,6 +203,14 @@ def _compose_direct_answer(
         )
         if detail_clause_answer:
             return DirectAnswerResult(answer_text=finalize_answer_text(detail_clause_answer))
+    if answer_shape == AnswerShape.CONDITION_OVERVIEW:
+        condition_table_answer = _compose_condition_table_answer(
+            evidence=evidence,
+            query_text=answer_query_text,
+            selected_rows=selected_rows,
+        )
+        if condition_table_answer:
+            return DirectAnswerResult(answer_text=finalize_answer_text(condition_table_answer))
     collapse_to_short = answer_shape == AnswerShape.GENERAL_SUMMARY
     generic_answer = finalize_answer_text(
         _compose_generic_answer(
@@ -192,6 +282,259 @@ def _compose_focused_detail_clause_answer(
             return f"{subject_label}对{focused_topic}的要求是：{'；'.join(focused_parts)}。{source_tail}"
         return f"{context_label}对{focused_topic}的要求是：{'；'.join(focused_parts)}。"
     return f"{_answer_prefix(evidence)}，对{focused_topic}的要求是：{'；'.join(focused_parts)}。"
+
+
+def _compose_condition_table_answer(
+    *,
+    evidence: EvidenceBundle,
+    query_text: str = "",
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> str:
+    rows: list[_ConditionAnswerRow] = []
+    for source, statements in selected_rows:
+        statement = next((_normalize_snippet(item) for item in statements if item.strip()), "")
+        if not statement:
+            continue
+        statement = statement.rstrip("。；; ")
+        context_label = _condition_row_context_label(source)
+        rows.append(
+            _ConditionAnswerRow(
+                source=source,
+                statement=statement,
+                context_label=context_label,
+            )
+        )
+    if not rows:
+        return ""
+    rendered_rows = "；".join(_render_condition_answer_row(row) for row in rows)
+    dimension_summary = _condition_dimension_summary(tuple(rows))
+    answer_query_text = query_text.strip() or evidence.query_text
+    answer_frame = _condition_answer_frame(query_text=answer_query_text, rows=tuple(rows))
+    if dimension_summary:
+        body = f"{dimension_summary}；分制度依据：{rendered_rows}"
+    elif threshold_body := _single_source_threshold_condition_body(
+        query_text=answer_query_text,
+        rows=tuple(rows),
+    ):
+        return threshold_body
+    elif duration_body := _duration_condition_body(
+        query_text=answer_query_text,
+        rows=tuple(rows),
+    ):
+        return duration_body
+    elif single_context_label := _single_condition_context_label(tuple(rows)):
+        rendered_statements = "；".join(row.statement for row in rows)
+        body = f"依据{single_context_label}：{rendered_statements}"
+    else:
+        body = f"相关条件包括：{rendered_rows}"
+    if answer_frame:
+        return f"{answer_frame}。{body}"
+    return f"{_answer_prefix(evidence)}，{body}"
+
+
+def _render_condition_answer_row(row: _ConditionAnswerRow) -> str:
+    if row.context_label:
+        return f"{row.context_label}：{row.statement}"
+    return row.statement
+
+
+def _single_condition_context_label(rows: tuple[_ConditionAnswerRow, ...]) -> str:
+    context_labels = {row.context_label for row in rows if row.context_label}
+    if len(context_labels) != 1:
+        return ""
+    return next(iter(context_labels))
+
+
+def _single_source_threshold_condition_body(
+    *,
+    query_text: str,
+    rows: tuple[_ConditionAnswerRow, ...],
+) -> str:
+    if not _query_asks_threshold_lookup(query_text):
+        return ""
+    single_context_label = _single_condition_context_label(rows)
+    if not single_context_label:
+        return ""
+    quantified_rows = tuple(row for row in rows if _condition_row_has_numeric_threshold(row))
+    if len(quantified_rows) < 2:
+        return ""
+    rendered_statements = "；".join(row.statement for row in quantified_rows)
+    threshold_label = _condition_threshold_subject_label(query_text)
+    if threshold_label == "旷课按违纪处理":
+        return (
+            "旷课违纪处理以一学期累计旷课节次分档（制度原文以“节”计）："
+            f"{rendered_statements}。依据{single_context_label}。"
+        )
+    return (
+        f"{threshold_label}的阈值或分档如下："
+        f"{rendered_statements}。依据{single_context_label}。"
+    )
+
+
+def _query_asks_threshold_lookup(query_text: str) -> bool:
+    normalized = _normalize_snippet(query_text)
+    if not normalized:
+        return False
+    return any(cue in normalized for cue in ("多少", "几", "达到", "超过")) and any(
+        cue in normalized for cue in ("学时", "课时", "节", "分", "名", "人", "元", "比例")
+    )
+
+
+def _duration_condition_body(
+    *,
+    query_text: str,
+    rows: tuple[_ConditionAnswerRow, ...],
+) -> str:
+    if not _query_asks_duration_lookup(query_text):
+        return ""
+    duration_rows = tuple(
+        row for row in rows if _extract_duration_condition_parts(row.statement)
+    )
+    if not duration_rows:
+        return ""
+    duration_parts = tuple(
+        part for row in duration_rows for part in _extract_duration_condition_parts(row.statement)
+    )
+    if not duration_parts:
+        return ""
+    context_labels = tuple(
+        dict.fromkeys(row.context_label for row in duration_rows if row.context_label)
+    )
+    if not context_labels:
+        return ""
+    source_tail = (
+        f"。依据{context_labels[0]}。"
+        if len(context_labels) == 1
+        else f"。依据{'；'.join(context_labels)}。"
+    )
+    return (
+        f"{_condition_duration_subject_label(query_text)}："
+        f"{'；'.join(dict.fromkeys(duration_parts))}{source_tail}"
+    )
+
+
+def _query_asks_duration_lookup(query_text: str) -> bool:
+    return query_asks_condition_duration_lookup(query_text)
+
+
+def _extract_duration_condition_parts(statement: str) -> tuple[str, ...]:
+    return extract_condition_duration_parts(statement)
+
+
+def _condition_duration_subject_label(query_text: str) -> str:
+    return condition_duration_subject_label(query_text)
+
+
+def _condition_row_has_numeric_threshold(row: _ConditionAnswerRow) -> bool:
+    return bool(
+        re.search(
+            r"\d+(?:\s*[-－—至到]\s*\d+)?\s*(?:节|学时|课时|分|名|人|元|%|％|比例)",
+            row.statement,
+        )
+    )
+
+
+def _condition_threshold_subject_label(query_text: str) -> str:
+    normalized = _normalize_snippet(query_text)
+    if "旷课" in normalized and "违纪" in normalized:
+        return "旷课按违纪处理"
+    if "旷课" in normalized:
+        return "旷课处理"
+    return "该条件"
+
+
+def _condition_dimension_summary(rows: tuple[_ConditionAnswerRow, ...]) -> str:
+    if len({row.source.doc_id for row in rows if row.source.doc_id}) < 2:
+        return ""
+    dimensions = _condition_dimension_labels(rows)
+    if not dimensions:
+        return ""
+    return "条件维度主要包括：" + "、".join(dimensions)
+
+
+def _condition_answer_frame(
+    *,
+    query_text: str,
+    rows: tuple[_ConditionAnswerRow, ...],
+) -> str:
+    normalized_query = _normalize_snippet(query_text)
+    if not normalized_query:
+        return ""
+    if _query_asks_absence_discipline_threshold(normalized_query, rows=rows):
+        return "旷课按违纪处理的阈值或分档如下"
+    application_subject = _condition_application_subject(normalized_query)
+    if application_subject:
+        return f"申请{application_subject}需要满足以下条件"
+    return ""
+
+
+def _query_asks_absence_discipline_threshold(
+    query_text: str,
+    *,
+    rows: tuple[_ConditionAnswerRow, ...],
+) -> bool:
+    if "旷课" not in query_text:
+        return False
+    if not any(cue in query_text for cue in ("多少", "学时", "课时", "节", "违纪处理")):
+        return False
+    row_text = "".join(row.statement for row in rows)
+    return "旷课" in row_text and any(cue in row_text for cue in ("节", "学时", "课时"))
+
+
+def _condition_application_subject(query_text: str) -> str:
+    for pattern in (
+        r"申请(?P<subject>[^，,。?？]{1,40}?)(?:需要|需|要|应当|应该|须|必须)?(?:满足|具备)",
+        r"(?P<subject>[^，,。?？]{1,40}?)(?:申请)?条件(?:是|有哪些|是什么)",
+    ):
+        match = re.search(pattern, query_text)
+        if match is None:
+            continue
+        subject = _normalize_condition_application_subject(match.group("subject"))
+        if subject:
+            return subject
+    return ""
+
+
+def _normalize_condition_application_subject(subject: str) -> str:
+    normalized = _normalize_snippet(subject).strip(" ，,。?？:：")
+    normalized = re.sub(r"^(?:我|学生|本科生|研究生|校级)?(?:想|要|可以)?申请", "", normalized)
+    normalized = re.sub(r"(?:需要|需|要|应当|应该|须|必须)$", "", normalized)
+    normalized = normalized.strip(" ，,。?？:：")
+    if not normalized or len(normalized) > 40:
+        return ""
+    return normalized
+
+
+def _condition_dimension_labels(rows: tuple[_ConditionAnswerRow, ...]) -> tuple[str, ...]:
+    matched: list[str] = []
+    for label, cues in _CONDITION_DIMENSION_RULES:
+        if any(_condition_row_matches_dimension(row, cues=cues) for row in rows):
+            matched.append(label)
+        if len(matched) >= 4:
+            break
+    return tuple(matched)
+
+
+def _condition_row_matches_dimension(row: _ConditionAnswerRow, *, cues: tuple[str, ...]) -> bool:
+    compact = "".join(
+        _normalize_snippet(fragment)
+        for fragment in (
+            row.statement,
+            row.context_label,
+        )
+        if fragment
+    )
+    if not compact:
+        return False
+    return any(cue in compact for cue in cues)
+
+
+def _condition_row_context_label(source: EvidenceSource) -> str:
+    title = _lead_source_title((source,))
+    detail_label = _normalize_snippet(source.detail_label)
+    if title and detail_label:
+        return f"{title} {detail_label}"
+    return title or detail_label
 
 
 def _detail_focus_labels(query_text: str) -> tuple[str, ...]:

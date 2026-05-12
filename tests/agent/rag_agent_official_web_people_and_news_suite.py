@@ -10,6 +10,8 @@ from tests.agent.rag_agent_test_support import (
     delegate_to_rag_agent,
     unittest,
 )
+from campus_rag_agent import RagAgent
+from campus_rag_agent.retrieval_intent import retrieval_intent_for_official_web_stable_reference
 
 
 class RagAgentOfficialWebPeopleAndNewsTest(unittest.TestCase):
@@ -199,6 +201,41 @@ class RagAgentOfficialWebPeopleAndNewsTest(unittest.TestCase):
         self.assertIn("服务校友、服务母校、服务社会", response.answer_text)
         self.assertNotIn("高举习近平新时代中国特色社会主义思想的伟大旗帜", response.answer_text)
         self.assertNotIn("阔步前行", response.answer_text)
+
+    def test_official_web_stable_reference_title_lookup_uses_body_fact_context(self) -> None:
+        evidence = _make_official_web_evidence(
+            query_text="中央民族大学校友会简介",
+            collection="stable_reference",
+            sources=(
+                _make_official_web_source(
+                    doc_id="official_web:muc_public:article_detail:3f735e1c08be05c5426948f7ea737d3d422c6e02",
+                    title="校友会简介",
+                    snippet=(
+                        "标题：校友会简介\n"
+                        "中央民族大学校友会简介\n"
+                        "新时代，中央民族大学校友会将携手国内外校友，高举习近平新时代中国特色社会主义思想的伟大旗帜，"
+                        "在践行“服务校友、服务母校、服务社会”的征途上，为促进校友事业发展，为助力母校教育事业发展，"
+                        "为推动民族地区社会经济发展，为推进国家民族团结进步事业，阔步前行。"
+                    ),
+                    score=0.033333335,
+                    chunk_id_suffix="alumni-profile-stable-reference",
+                    content_role="reference_fact",
+                    collection="stable_reference",
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            evidence,
+            retrieval_intent=retrieval_intent_for_official_web_stable_reference(
+                query_text=evidence.query_text,
+                scope=KnowledgeScope(corpus="official_web", collection="stable_reference"),
+            ),
+        )
+
+        self.assertIn("服务校友、服务母校、服务社会", draft.answer_text)
+        self.assertIn("服务校友、服务母校、服务社会", " ".join(draft.supporting_contexts))
+        self.assertNotEqual(draft.supporting_contexts, ("中央民族大学校友会简介",))
 
     def test_official_web_notice_answer_uses_fact_style_without_title_wrapper(self) -> None:
         evidence = _make_official_web_evidence(

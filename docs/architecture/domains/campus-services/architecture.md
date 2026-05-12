@@ -131,7 +131,7 @@ later-wave 已冻结方向包括：
     `guide_sections.procedure` 只保留兼容摘要，不承担 query-time 反解析职责
   - 长期 runtime 通过 PostgreSQL `structured_projection_current` current pointer 与
     `service_guide_read_model` typed read model 读取当前 release
-  - 文件 projection path runtime fallback 已下线；本地 fixture / smoke / bootstrap
+  - 文件 projection path runtime 已下线；本地 fixture / smoke / bootstrap
     也必须走 PostgreSQL release catalog 与 typed read model
   - handbook flow page、official-web 办事说明页与 future service entry page 只作为
     provenance 上游
@@ -190,8 +190,7 @@ workflow。
   `campus_services/releases/transport_schedule/{release_id}/...`
 - ingestion worker 发布 release 时同时写入 PostgreSQL release catalog、
   `structured_projection_current` current pointer 与 transport typed read model
-- Docker runtime 读取 PostgreSQL current release + typed read model；文件
-  projection path fallback 已下线
+- Docker runtime 读取 PostgreSQL current release + typed read model；文件 projection path 已下线
 - Go `apps/supervisor-api` 不直接读对象存储、不持有对象存储凭据
 
 这条数据面补全仍不打开产品主路径；它只是满足 backing query implementation 的前置条件。

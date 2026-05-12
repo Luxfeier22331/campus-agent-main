@@ -245,7 +245,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--reruns",
         type=int,
         default=1,
-        help="Accepted for shared eval_gate profile compatibility; must be 1.",
+        help="Deterministic gate rerun contract; must be 1.",
     )
     accept_parser.add_argument("--timeout-seconds", type=float, default=45.0)
     accept_parser.add_argument("--verbose", action="store_true")

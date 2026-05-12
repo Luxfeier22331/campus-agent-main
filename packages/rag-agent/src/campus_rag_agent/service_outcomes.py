@@ -29,6 +29,7 @@ from .service_common import _build_empty_evidence
 from .service_diagnostics_adequacy import _empty_evidence_retrieval_adequacy
 from .service_diagnostics_payload import _build_rag_result_payload
 from .service_prompt_runtime import (
+    _build_prompt_runtime_error_response,
     _compose_clarification_response,
     _compose_no_answer_response,
     _with_prompt_trace,
@@ -164,7 +165,7 @@ def build_empty_retrieval_no_answer_response(
             resolved_scope=context.resolved_scope,
             evidence=evidence,
             no_answer_reason=no_answer_reason,
-            fallback_answer=_build_no_answer_response(
+            deterministic_answer_text=_build_no_answer_response(
                 evidence,
                 resolved_policy_title=_resolved_policy_title(context.handbook_plan),
             ),
@@ -172,6 +173,13 @@ def build_empty_retrieval_no_answer_response(
             intent_frame=context.intent_frame,
         )
     )
+    if prompt_runtime_state:
+        return _prompt_runtime_error_response(
+            context,
+            evidence=evidence,
+            prompt_runtime_state=prompt_runtime_state,
+            prompt_runtime_detail=prompt_runtime_detail,
+        )
     return AgentResponse(
         target="rag-agent",
         status="no_answer",
@@ -219,7 +227,7 @@ def maybe_build_evidence_clarification_response(
             request=context.request,
             resolved_scope=context.resolved_scope,
             evidence=evidence,
-            fallback_question=_build_clarification_question(
+            deterministic_question=_build_clarification_question(
                 context.user_goal,
                 evidence,
                 recent_goal=context.personalization_hint.recent_goal,
@@ -232,6 +240,13 @@ def maybe_build_evidence_clarification_response(
             intent_frame=context.intent_frame,
         )
     )
+    if prompt_runtime_state:
+        return _prompt_runtime_error_response(
+            context,
+            evidence=evidence,
+            prompt_runtime_state=prompt_runtime_state,
+            prompt_runtime_detail=prompt_runtime_detail,
+        )
     return AgentResponse(
         target="rag-agent",
         status="needs_clarification",
@@ -351,7 +366,7 @@ def _build_unsupported_by_evidence_response(
             resolved_scope=context.resolved_scope,
             evidence=evidence,
             no_answer_reason=no_answer_reason,
-            fallback_answer=_build_no_answer_response(
+            deterministic_answer_text=_build_no_answer_response(
                 evidence,
                 resolved_policy_title=_resolved_policy_title(context.handbook_plan),
             ),
@@ -359,6 +374,13 @@ def _build_unsupported_by_evidence_response(
             intent_frame=context.intent_frame,
         )
     )
+    if prompt_runtime_state:
+        return _prompt_runtime_error_response(
+            context,
+            evidence=evidence,
+            prompt_runtime_state=prompt_runtime_state,
+            prompt_runtime_detail=prompt_runtime_detail,
+        )
     return AgentResponse(
         target="rag-agent",
         status="no_answer",
@@ -385,4 +407,29 @@ def _build_unsupported_by_evidence_response(
             ),
             prompt_trace,
         ),
+    )
+
+
+def _prompt_runtime_error_response(
+    context: RagOutcomeContext,
+    *,
+    evidence: EvidenceBundle,
+    prompt_runtime_state: str,
+    prompt_runtime_detail: str,
+) -> AgentResponse:
+    return _build_prompt_runtime_error_response(
+        request=context.request,
+        resolved_scope=context.resolved_scope,
+        evidence=evidence,
+        retrieved_evidence=context.retrieved_evidence,
+        retrieval_execution_result=context.retrieval_execution_result,
+        prompt_runtime_state=prompt_runtime_state,
+        prompt_runtime_detail=prompt_runtime_detail,
+        build_rag_result_payload=_build_rag_result_payload,
+        handbook_plan=context.handbook_plan,
+        curriculum_plan=context.curriculum_plan,
+        curriculum_course_plan=context.curriculum_course_plan,
+        curriculum_program_family_plan=context.curriculum_program_family_plan,
+        planner_information_needs=context.planner_information_needs,
+        projection_context_summaries=context.projection_context_summaries,
     )

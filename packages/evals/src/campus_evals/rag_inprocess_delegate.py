@@ -20,10 +20,19 @@ def delegate_to_rag_agent_inprocess(
 ) -> AgentResponse:
     effective_retriever = retriever or _default_retriever
     captured_bundle: EvidenceBundle | None = None
+    captured_sources_by_chunk_id = {}
 
     def wrapped_retriever(*args, **kwargs):
         nonlocal captured_bundle
-        captured_bundle = effective_retriever(*args, **kwargs)
+        retrieved_bundle = effective_retriever(*args, **kwargs)
+        for source in retrieved_bundle.sources:
+            captured_sources_by_chunk_id[source.chunk_id] = source
+        captured_bundle = EvidenceBundle(
+            query_text=retrieved_bundle.query_text,
+            corpus=retrieved_bundle.corpus,
+            collection=retrieved_bundle.collection,
+            sources=tuple(captured_sources_by_chunk_id.values()),
+        )
         return captured_bundle
 
     return _service_delegate_to_rag_agent(

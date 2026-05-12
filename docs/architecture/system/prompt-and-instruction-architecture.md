@@ -811,7 +811,7 @@ prompt version bump 必须与 eval artifact 一起进入变更记录。
 1. `grounding gate`
 
 - 回答中的关键对象名、条件、时间、数量和制度名，必须能在 evidence packet 找到支持
-- 如果关键 claim 找不到支持，应自动降级到 `unsupported_by_evidence`
+- 如果关键 claim 找不到支持，应 fail closed 为 `unsupported_by_evidence`
 
 1. `deny-path gate`
 

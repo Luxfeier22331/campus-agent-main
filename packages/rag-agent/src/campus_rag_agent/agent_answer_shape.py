@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from enum import StrEnum
 
 from campus_contracts import EvidenceBundle, EvidenceSource
@@ -25,6 +26,7 @@ _FACT_QUERY_HINTS = ("学制", "几年", "总学分", "多少", "什么时候", 
 _TITLE_LOOKUP_HINTS = ("想看", "查询", "查看", "培养方案", "规定", "办法")
 _DETAIL_QUERY_HINTS = ("怎么要求", "如何要求", "什么要求", "哪条", "哪一条", "第几条")
 _JUDGMENT_QUERY_HINTS = ("能不能", "是否可以", "可不可以", "还能", "可以吗", "符合吗")
+_MANAGEMENT_SUMMARY_HINTS = ("怎么管理", "如何管理", "管理规定", "怎么处理", "如何处理")
 
 _RETRIEVAL_INTENT_TO_ANSWER_SHAPE = {
     "policy_list": AnswerShape.CATEGORY_DISCOVERY_LIST,
@@ -66,16 +68,21 @@ def infer_answer_shape(*, evidence: EvidenceBundle) -> AnswerShape:
         sources=evidence.sources,
     ) and not _query_requests_regulation_content(query):
         return AnswerShape.TITLE_LOOKUP
+    if _query_requests_management_summary(normalized_query):
+        return AnswerShape.GENERAL_SUMMARY
     regulation_shape = _infer_regulation_answer_shape_from_evidence(evidence)
     if regulation_shape is not None:
-        if regulation_shape == AnswerShape.CONDITION_OVERVIEW and any(
-            hint in normalized_query for hint in _DETAIL_QUERY_HINTS
-        ):
-            return AnswerShape.DETAIL_CLAUSE
-        if regulation_shape in {AnswerShape.CONDITION_OVERVIEW, AnswerShape.DETAIL_CLAUSE} and any(
-            hint in normalized_query for hint in _JUDGMENT_QUERY_HINTS
-        ):
+        if regulation_shape in {
+            AnswerShape.CONDITION_OVERVIEW,
+            AnswerShape.DETAIL_CLAUSE,
+            AnswerShape.JUDGMENT_CLAUSE,
+        } and any(hint in normalized_query for hint in _JUDGMENT_QUERY_HINTS):
             return AnswerShape.JUDGMENT_CLAUSE
+        if regulation_shape in {
+            AnswerShape.CONDITION_OVERVIEW,
+            AnswerShape.JUDGMENT_CLAUSE,
+        } and _query_requests_specific_regulation_detail(normalized_query):
+            return AnswerShape.DETAIL_CLAUSE
         return regulation_shape
     return AnswerShape.GENERAL_SUMMARY
 
@@ -94,8 +101,6 @@ def _infer_regulation_answer_shape_from_evidence(
         return None
     if any(_is_category_overview_source(source) for source in answer_bearing_sources):
         return AnswerShape.CATEGORY_DISCOVERY_LIST
-    if any(_has_clause_focus(source) for source in answer_bearing_sources):
-        return AnswerShape.DETAIL_CLAUSE
     if any(_is_procedure_source(source) for source in answer_bearing_sources):
         return AnswerShape.DETAIL_CLAUSE
     if any(_is_condition_answer_source(source) for source in answer_bearing_sources):
@@ -113,7 +118,15 @@ def _infer_regulation_answer_shape_from_evidence(
         if len(subjects) > 1 or len(answer_bearing_sources) > 1:
             return AnswerShape.CONDITION_OVERVIEW
         return AnswerShape.JUDGMENT_CLAUSE
+    if any(_has_clause_focus(source) for source in answer_bearing_sources):
+        return AnswerShape.DETAIL_CLAUSE
     return AnswerShape.GENERAL_SUMMARY
+
+
+def _query_requests_specific_regulation_detail(query_text: str) -> bool:
+    if any(hint in query_text for hint in _DETAIL_QUERY_HINTS):
+        return True
+    return re.search(r"第[一二三四五六七八九十百千万0-9]+条", query_text) is not None
 
 
 def _is_category_overview_source(source: EvidenceSource) -> bool:
@@ -220,6 +233,30 @@ def _query_requests_regulation_content(query_text: str) -> bool:
             "程序",
             "申请",
             "办理",
+        )
+    )
+
+
+def _query_requests_management_summary(query_text: str) -> bool:
+    if not any(hint in query_text for hint in _MANAGEMENT_SUMMARY_HINTS):
+        return False
+    return not any(
+        cue in query_text
+        for cue in (
+            "条件",
+            "要求",
+            "资格",
+            "材料",
+            "流程",
+            "步骤",
+            "程序",
+            "申请",
+            "办理",
+            "能不能",
+            "是否可以",
+            "第",
+            "条",
+            "款",
         )
     )
 

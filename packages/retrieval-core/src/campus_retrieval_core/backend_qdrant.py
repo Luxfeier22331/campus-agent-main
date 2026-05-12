@@ -66,6 +66,10 @@ from campus_retrieval_core.backend_qdrant_runtime import (
     _RetrievalDeadline,
     _retry_qdrant_read,
 )
+from campus_retrieval_core.backend_qdrant_typed_rows import (
+    retrieve_answer_role_rows,
+    should_use_answer_role_row_lookup,
+)
 from campus_retrieval_core.curriculum_query_resolution import interpret_curriculum_query
 from campus_retrieval_core.evidence_ranking import (
     prioritize_evidence_sources,
@@ -181,6 +185,20 @@ class QdrantRetrievalBackend:
                 settings=self.settings,
                 timeout_seconds=deadline.qdrant_timeout_seconds(),
             )
+            if should_use_answer_role_row_lookup(request):
+                evidence = retrieve_answer_role_rows(
+                    self,
+                    request=request,
+                    profile=profile,
+                    qdrant_collection_name=qdrant_collection_name,
+                    deadline=deadline,
+                )
+                return EvidenceBundle(
+                    query_text=request.query_text,
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    sources=evidence.sources[: request.top_k],
+                )
             dense_query_embedding = get_dense_query_embedding(self, query_text, profile=profile)
             initial_query_limit = _resolve_initial_query_limit(request=request, profile=profile)
             response = _retry_qdrant_read(

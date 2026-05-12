@@ -1,6 +1,11 @@
 from __future__ import annotations
 
-from campus_retrieval_core.query_focus import source_covers_query_focus
+from campus_retrieval_core.evidence_semantics import infer_query_condition_subject
+from campus_retrieval_core.query_focus import (
+    build_focus_groups,
+    extract_query_focus,
+    source_covers_query_focus,
+)
 
 from tests.retrieval.backend_qdrant_test_support import (
     _make_source,
@@ -129,6 +134,67 @@ class BackendQdrantPolicyFocusRankingTest(unittest.TestCase):
                 query_text="成绩没前十还能评国奖吗？",
                 source=source,
             )
+        )
+
+    def test_attendance_absence_threshold_focus_tracks_absence_and_class_hour_units(
+        self,
+    ) -> None:
+        query = "中央民族大学学生违纪处分实施办法 旷课 学时 课时 节"
+
+        focus = extract_query_focus(query)
+
+        self.assertIn("旷课", focus.focus_terms)
+        self.assertIn("学时", focus.focus_terms)
+        self.assertIn("节", focus.focus_terms)
+        self.assertIn(("学时", "课时", "节"), build_focus_groups(query))
+        self.assertEqual(infer_query_condition_subject(query), "attendance_absence_threshold")
+
+    def test_applicability_lookup_maps_to_audience_scope_subject(self) -> None:
+        self.assertEqual(
+            infer_query_condition_subject("中央民族大学毕业生就业奖励办法适用于2019届及以后毕业生吗"),
+            "audience_scope",
+        )
+
+    def test_select_supporting_evidence_sources_prefers_absence_threshold_over_procedure_rows(
+        self,
+    ) -> None:
+        selected = select_supporting_evidence_sources(
+            query_text="中央民族大学学生违纪处分实施办法 旷课 学时 课时 节",
+            max_sources=2,
+            sources=(
+                _make_source(
+                    doc_id="handbook:discipline",
+                    chunk_id="discipline-procedure",
+                    snippet="第十二条 对违纪学生作出处分决定,应当依据告知、听证、处理、送达处分决定的程序进行。",
+                    score=0.96,
+                    source_title="中央民族大学学生违纪处分实施办法",
+                    detail_label="第十二条",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                    semantic_role="procedure_step",
+                    claim_type="procedure",
+                ),
+                _make_source(
+                    doc_id="handbook:discipline",
+                    chunk_id="discipline-absence-threshold",
+                    snippet=(
+                        "第三十三条 违反学校考勤管理规定,无故旷课者,视情节给予如下处分:"
+                        "一学期累计旷课16节以下者,给予学院通报批评处分。"
+                    ),
+                    score=0.72,
+                    source_title="中央民族大学学生违纪处分实施办法",
+                    detail_label="第三十三条",
+                    content_role="eligibility",
+                    is_answer_bearing=True,
+                    semantic_role="eligibility_condition",
+                    claim_type="condition",
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            tuple(source.chunk_id for source in selected),
+            ("discipline-absence-threshold",),
         )
 
 

@@ -18,9 +18,11 @@ from campus_shared.regulation_semantic_registry import (
     REGULATION_PROCEDURE_ACTOR_DEFINITIONS,
     canonical_regulation_condition_subject,
     canonical_regulation_procedure_actor,
+    load_regulation_discovery_config,
     load_student_rules_discovery_config,
     regulation_categories_for_document,
     resolve_regulation_action_type,
+    resolve_regulation_answer_role,
     resolve_regulation_condition_group_subject,
     resolve_regulation_condition_subject,
     resolve_regulation_group_subject,
@@ -126,6 +128,24 @@ class RegulationSemanticRegistryFoundationSuite:
             category.member_policy_document_ids,
         )
 
+    def test_institutional_rules_registry_exposes_full_runtime_policy_objects(self) -> None:
+        discovery = load_regulation_discovery_config("institutional_rules")
+
+        self.assertEqual(
+            discovery.policy_titles_by_document_id[
+                "institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7"
+            ],
+            "中央民族大学毕业生就业奖励办法",
+        )
+        self.assertTrue(
+            any(
+                policy.document_id
+                == "institutional_regulation:muc:中央民族大学本科毕业论文-设计-工作管理办法:a7716c82cbe1"
+                and policy.title == "中央民族大学本科毕业论文（设计）工作管理办法"
+                for policy in discovery.policy_objects
+            )
+        )
+
     def test_shared_taxonomy_definitions_carry_governance_metadata(self) -> None:
         procedure = REGULATION_PROCEDURE_ACTION_DEFINITIONS["submit_materials"]
         actor = REGULATION_PROCEDURE_ACTOR_DEFINITIONS["student"]
@@ -181,6 +201,28 @@ class RegulationSemanticRegistryFoundationSuite:
 
         self.assertEqual(assignment.value, "generic_condition")
         self.assertEqual(assignment.provenance, "metadata:condition_subject")
+
+    def test_terminal_provision_with_explicit_applicability_is_answer_ready_audience_scope(
+        self,
+    ) -> None:
+        text = "第十八条 本办法自公布之日起实施，适用于2019届及以后毕业的学生。"
+
+        role_assignment = resolve_regulation_answer_role(text=text)
+        subject_assignment = resolve_regulation_condition_subject(
+            text=text,
+            answer_role=role_assignment.value,
+        )
+        group_subject_assignment = resolve_regulation_condition_group_subject(
+            text=text,
+            answer_role=role_assignment.value,
+            inherited_condition_subject=subject_assignment.value,
+        )
+
+        self.assertEqual(role_assignment.value, "eligibility_condition")
+        self.assertEqual(role_assignment.provenance, "matched_applicability_marker")
+        self.assertEqual(subject_assignment.value, "audience_scope")
+        self.assertEqual(subject_assignment.provenance, "keyword:适用对象范围")
+        self.assertEqual(group_subject_assignment.value, "audience_scope")
 
     def test_shared_condition_subject_resolution_prefers_structured_group_subject(self) -> None:
         assignment = resolve_regulation_condition_subject(
@@ -491,3 +533,31 @@ class RegulationSemanticRegistryFoundationSuite:
 
         self.assertEqual(assignment.value, "arts_competition")
         self.assertEqual(assignment.provenance, "keyword:文艺比赛")
+
+    def test_attendance_absence_threshold_clause_is_answer_ready_condition_subject(
+        self,
+    ) -> None:
+        text = (
+            "第三十三条 违反学校考勤管理规定，无故旷课者，视情节给予如下处分："
+            "一学期累计旷课16节以下者，给予学院通报批评处分。"
+        )
+
+        role_assignment = resolve_regulation_answer_role(text=text)
+        subject_assignment = resolve_regulation_condition_subject(
+            text=text,
+            answer_role=role_assignment.value,
+        )
+        group_subject_assignment = resolve_regulation_condition_group_subject(
+            text=text,
+            answer_role=role_assignment.value,
+            inherited_condition_subject=subject_assignment.value,
+        )
+
+        self.assertIn(
+            role_assignment.value,
+            REGULATION_CONDITION_SUBJECT_DEFINITIONS[
+                "attendance_absence_threshold"
+            ].expected_answer_roles,
+        )
+        self.assertEqual(subject_assignment.value, "attendance_absence_threshold")
+        self.assertEqual(group_subject_assignment.value, "attendance_absence_threshold")

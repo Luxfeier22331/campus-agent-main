@@ -113,7 +113,9 @@ def passed_case_result(
             scores={},
         )
     metric_failures = _unavailable_metric_failures(
-        metric_scores, metric_names=applicable_metric_names
+        metric_scores,
+        metric_names=applicable_metric_names,
+        projection=projection,
     )
     failure_attribution = _attribute_case_failure(
         projection=projection,
@@ -132,9 +134,7 @@ def passed_case_result(
     )
     if metric_failures:
         result["error_type"] = "RagasMetricUnavailable"
-        result["error_message"] = _metric_unavailable_message(
-            str(metric_failures[0]["metric_name"])
-        )
+        result["error_message"] = str(metric_failures[0]["error_message"])
         result["metric_failures"] = metric_failures
     return result
 
@@ -231,8 +231,8 @@ def _case_result_payload(
         "answer_text": projection.response,
         "answer_shape": projection.metadata.get("answer_shape") or "",
         "presentation_kind": projection.metadata.get("presentation_kind") or "",
-        "fallback_path": projection.metadata.get("fallback_path") or "",
-        "fallback_reason": projection.metadata.get("fallback_reason") or "",
+        "presentation_path": projection.metadata.get("presentation_path") or "",
+        "diagnostic_reason": projection.metadata.get("diagnostic_reason") or "",
         "retrieval_intent_kind": projection.metadata.get("retrieval_intent_kind") or "",
         "retrieval_answer_kind": projection.metadata.get("retrieval_answer_kind") or "",
         "retrieved_context_count": len(projection.retrieved_contexts),
@@ -346,17 +346,27 @@ def _unavailable_metric_failures(
     scores: Mapping[str, object],
     *,
     metric_names: tuple[str, ...],
+    projection: RagasProjection | None = None,
 ) -> list[dict[str, str]]:
     failures: list[dict[str, str]] = []
+    metric_diagnostics = (
+        dict(projection.metadata.get("metric_diagnostics") or {})
+        if projection is not None
+        else {}
+    )
     for metric_name in metric_names:
         score = scores.get(metric_name)
         if isinstance(score, int | float):
             continue
+        diagnostic = dict(metric_diagnostics.get(metric_name) or {})
         failures.append(
             {
                 "metric_name": metric_name,
                 "error_type": "RagasMetricUnavailable",
-                "error_message": _metric_unavailable_message(metric_name),
+                "error_message": _metric_unavailable_message(
+                    metric_name,
+                    diagnostic=diagnostic,
+                ),
             }
         )
     return failures
@@ -402,8 +412,22 @@ def _case_metric_failures_for_report(
     return failures
 
 
-def _metric_unavailable_message(metric_name: str) -> str:
-    return f"requested RAGAS metric {metric_name} did not return a numeric score"
+def _metric_unavailable_message(
+    metric_name: str,
+    *,
+    diagnostic: Mapping[str, object] | None = None,
+) -> str:
+    base = f"requested RAGAS metric {metric_name} did not return a numeric score"
+    if diagnostic is None:
+        return base
+    rationale = str(diagnostic.get("rationale") or "").strip()
+    metadata = dict(diagnostic.get("metadata") or {})
+    judge_error = str(metadata.get("judge_error") or "").strip()
+    failure_reasons = tuple(str(item) for item in metadata.get("failure_reasons") or () if str(item))
+    details = tuple(item for item in (rationale, judge_error, ", ".join(failure_reasons)) if item)
+    if not details:
+        return base
+    return f"{base}: {' | '.join(details)}"
 
 
 def _summarize_performance_breakdown(results: list[dict[str, object]]) -> dict[str, object]:

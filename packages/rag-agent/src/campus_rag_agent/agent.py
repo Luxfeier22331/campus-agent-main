@@ -15,6 +15,7 @@ from .agent_answer_shape import (
 from .agent_answering import _compose_direct_answer, _render_supporting_contexts
 from .agent_selection_query import _query_mode
 from .agent_selection_rows import _select_answer_support_rows
+from .agent_shared import _normalize_snippet
 from .retrieval_intent import RetrievalIntent
 from .typed_answer_drafts import (
     CategoryDiscoveryDraftContext,
@@ -39,8 +40,8 @@ class AnswerDraft:
     supporting_sources: tuple[EvidenceSource, ...]
     supporting_contexts: tuple[str, ...] = ()
     presentation_kind: str = ""
-    fallback_path: str = ""
-    fallback_reason: str = ""
+    presentation_path: str = ""
+    diagnostic_reason: str = ""
     typed_draft: TypedAnswerDraft = field(
         default_factory=lambda: TypedAnswerDraft(kind="unsupported", unsupported_reason="empty")
     )
@@ -55,6 +56,7 @@ class RagAgent:
         self,
         evidence: EvidenceBundle,
         *,
+        query_text: str = "",
         answer_shape: AnswerShape | None = None,
         category_id: str = "",
         category_display_name: str = "",
@@ -67,14 +69,15 @@ class RagAgent:
                 supporting_sources=(),
                 supporting_contexts=(),
                 presentation_kind="",
-                fallback_path="",
-                fallback_reason="",
+                presentation_path="",
+                diagnostic_reason="",
                 typed_draft=TypedAnswerDraft(
                     kind="unsupported",
                     unsupported_reason="no_supporting_evidence",
                 ),
             )
 
+        answer_query_text = query_text.strip() or evidence.query_text
         answer_shape = answer_shape or (
             answer_shape_from_retrieval_intent(retrieval_intent)
             if retrieval_intent is not None
@@ -93,8 +96,29 @@ class RagAgent:
             if not resolved_audience:
                 resolved_audience = inferred_audience
         support_budget = answer_shape_support_budget(answer_shape, self.max_answer_sources)
+        if _needs_curriculum_course_settings_support_budget(
+            evidence=evidence,
+            query_text=answer_query_text,
+        ):
+            support_budget = max(support_budget, 6)
         candidate_budget = max(support_budget, self.max_answer_sources)
-        if candidate_budget > self.max_answer_sources:
+        if _needs_curriculum_course_settings_support_budget(
+            evidence=evidence,
+            query_text=answer_query_text,
+        ):
+            candidate_budget = max(candidate_budget, len(evidence.sources))
+        if _needs_curriculum_course_settings_support_budget(
+            evidence=evidence,
+            query_text=answer_query_text,
+        ):
+            candidate_sources = select_supporting_evidence_sources(
+                query_text=evidence.query_text,
+                sources=evidence.sources,
+                max_sources=candidate_budget,
+            )
+        elif answer_shape in {AnswerShape.CONDITION_OVERVIEW, AnswerShape.GENERAL_SUMMARY}:
+            candidate_sources = evidence.sources
+        elif candidate_budget > self.max_answer_sources:
             candidate_sources = _select_doc_diverse_answer_sources(
                 sources=evidence.sources,
                 max_sources=candidate_budget,
@@ -112,14 +136,18 @@ class RagAgent:
             answer_shape=answer_shape,
             retrieval_intent=retrieval_intent,
         )
-        supporting_sources = tuple(source for source, _ in selected_rows)
+        supporting_sources = _dedupe_supporting_sources(selected_rows)
         supporting_contexts = _render_supporting_contexts(selected_rows)
         answer_result = _compose_direct_answer(
             evidence=evidence,
+            query_text=answer_query_text,
             selected_rows=selected_rows,
             answer_shape=answer_shape,
             category_display_name=resolved_category_display_name,
             audience=resolved_audience,
+            expected_answer_kind=(
+                retrieval_intent.expected.answer_kind if retrieval_intent is not None else ""
+            ),
         )
         typed_draft = build_typed_answer_draft(
             answer_shape=answer_shape,
@@ -161,8 +189,8 @@ class RagAgent:
                 if answer_result.presentation is not None
                 else ""
             ),
-            fallback_path=answer_result.fallback_path,
-            fallback_reason=answer_result.fallback_reason,
+            presentation_path=answer_result.presentation_path,
+            diagnostic_reason=answer_result.diagnostic_reason,
             typed_draft=typed_draft,
         )
 
@@ -170,9 +198,14 @@ class RagAgent:
         self,
         evidence: EvidenceBundle,
         *,
+        query_text: str = "",
         retrieval_intent: RetrievalIntent | None = None,
     ) -> str:
-        return self.build_answer(evidence, retrieval_intent=retrieval_intent).answer_text
+        return self.build_answer(
+            evidence,
+            query_text=query_text,
+            retrieval_intent=retrieval_intent,
+        ).answer_text
 
 
 def _infer_category_context(sources: tuple[EvidenceSource, ...]) -> tuple[str, str]:
@@ -185,6 +218,20 @@ def _infer_category_context(sources: tuple[EvidenceSource, ...]) -> tuple[str, s
         if category_display_name or audience:
             return category_display_name, audience
     return "", ""
+
+
+def _dedupe_supporting_sources(
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> tuple[EvidenceSource, ...]:
+    supporting_sources: list[EvidenceSource] = []
+    seen_keys: set[tuple[str, str, str]] = set()
+    for source, _ in selected_rows:
+        key = (source.doc_id, source.chunk_id, source.snippet)
+        if key in seen_keys:
+            continue
+        supporting_sources.append(source)
+        seen_keys.add(key)
+    return tuple(supporting_sources)
 
 
 def _select_doc_diverse_answer_sources(
@@ -213,3 +260,14 @@ def _select_doc_diverse_answer_sources(
     if selected:
         return tuple(selected)
     return tuple(sources[:max_sources])
+
+
+def _needs_curriculum_course_settings_support_budget(
+    *,
+    evidence: EvidenceBundle,
+    query_text: str,
+) -> bool:
+    if evidence.corpus != "curriculum" or evidence.collection != "curriculum_plan":
+        return False
+    normalized_query = _normalize_snippet(query_text or evidence.query_text)
+    return "课程设置" in normalized_query or "修读建议" in normalized_query

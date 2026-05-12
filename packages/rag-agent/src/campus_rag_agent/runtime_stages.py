@@ -10,7 +10,7 @@ class RagRuntimeStageContract:
     input_artifacts: tuple[str, ...] = field(default_factory=tuple)
     output_artifacts: tuple[str, ...] = field(default_factory=tuple)
     fail_close_semantic: str = ""
-    allowed_legacy_heuristic_authority: tuple[str, ...] = field(default_factory=tuple)
+    allowed_presentation_heuristics: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
         if not self.stage_name.strip():
@@ -35,7 +35,7 @@ RAG_AGENT_RUNTIME_STAGES: tuple[RagRuntimeStageContract, ...] = (
             "RetrievalPlan",
         ),
         fail_close_semantic="scope_or_version_unresolved",
-        allowed_legacy_heuristic_authority=(),
+        allowed_presentation_heuristics=(),
     ),
     RagRuntimeStageContract(
         stage_name="retrieval",
@@ -51,7 +51,7 @@ RAG_AGENT_RUNTIME_STAGES: tuple[RagRuntimeStageContract, ...] = (
             "merged EvidenceBundle",
         ),
         fail_close_semantic="retrieval_failed",
-        allowed_legacy_heuristic_authority=(),
+        allowed_presentation_heuristics=(),
     ),
     RagRuntimeStageContract(
         stage_name="evidence_selection",
@@ -66,7 +66,7 @@ RAG_AGENT_RUNTIME_STAGES: tuple[RagRuntimeStageContract, ...] = (
             "retrieval adequacy",
         ),
         fail_close_semantic="unsupported_by_evidence",
-        allowed_legacy_heuristic_authority=(
+        allowed_presentation_heuristics=(
             "answer shape may adjust support budget",
             "title_lookup may label presentation only",
         ),
@@ -83,8 +83,8 @@ RAG_AGENT_RUNTIME_STAGES: tuple[RagRuntimeStageContract, ...] = (
             "deterministic answer draft",
             "optional prompt answer draft",
         ),
-        fail_close_semantic="prompt_fallback_or_no_answer",
-        allowed_legacy_heuristic_authority=(
+        fail_close_semantic="prompt_runtime_failed_or_no_answer",
+        allowed_presentation_heuristics=(
             "presentation hint",
             "support row rendering",
         ),
@@ -103,7 +103,7 @@ RAG_AGENT_RUNTIME_STAGES: tuple[RagRuntimeStageContract, ...] = (
             "source trust summary",
         ),
         fail_close_semantic="insufficient_grounding",
-        allowed_legacy_heuristic_authority=(),
+        allowed_presentation_heuristics=(),
     ),
 )
 

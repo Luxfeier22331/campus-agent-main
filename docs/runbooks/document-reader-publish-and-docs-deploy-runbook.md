@@ -446,7 +446,7 @@ version、reason 和 rollback command，不会修改旧 `deployed` 或 `failed` 
   `/_gated-docs/...` static assets。
 - restricted reader asset 只经 `/_gated-docs/...` 返回，且必须在 Worker 内先走
   same-site `/api/docs/.../admission` 校验后再读取静态资产。
-- restricted collection landing 由 `collection-fallback.html` 在客户端经 same-site
+- restricted collection landing 由 `collection-bootstrap.html` 在客户端经 same-site
   `/api/docs/collections/:corpus/:collection/navigation` 读取已授权标题与 canonical
   URL；不得生成匿名 static MDX，也不得暴露正文、object key 或 raw provider locator。
 - gated reader asset response 必须设置 `Cache-Control: no-store` 与 `Vary: Cookie, Authorization`。
