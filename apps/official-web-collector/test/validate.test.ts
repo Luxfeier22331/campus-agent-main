@@ -80,6 +80,7 @@ describe("official-web-collector validate", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_validate_001",
+			localArtifactsOnly: true,
 			controlPlaneClient: createTargetWorksetControlPlaneForTest({
 				runId: "owrun_validate_001",
 			}),
@@ -185,6 +186,7 @@ describe("official-web-collector validate", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_validate_002",
+			localArtifactsOnly: true,
 			controlPlaneClient: createTargetWorksetControlPlaneForTest({
 				runId: "owrun_validate_002",
 			}),
@@ -312,6 +314,7 @@ describe("official-web-collector validate", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_validate_003",
+			localArtifactsOnly: true,
 			controlPlaneClient: createTargetWorksetControlPlaneForTest({
 				runId: "owrun_validate_003",
 			}),
@@ -451,6 +454,7 @@ describe("official-web-collector validate", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_validate_target_missing_lineage",
+			localArtifactsOnly: true,
 			controlPlaneClient: {
 				startRun: async () => ({
 					run: {

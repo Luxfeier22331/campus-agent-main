@@ -542,6 +542,7 @@ describe("official web consumer denominator", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_consumer_filter",
+			localArtifactsOnly: true,
 			controlPlaneClient: createTargetWorksetControlPlaneForTest({
 				runId: "owrun_consumer_filter",
 			}),

@@ -58,6 +58,25 @@ export function registerCrawlCliSuite() {
 		).toThrowError(/OFFICIAL_WEB_APP_API_BASE_URL.*OFFICIAL_WEB_SERVICE_TOKEN/u);
 	});
 
+	it("marks local artifact-only execution explicitly when requested", () => {
+		const resolveCollectorCrawlMainInput = getResolveCollectorCrawlMainInput();
+		const result = resolveCollectorCrawlMainInput(
+			["--site-id", "campus_public", "--local-artifacts-only"],
+			{
+				OFFICIAL_WEB_APP_API_BASE_URL: "https://app-api.internal",
+				OFFICIAL_WEB_SERVICE_TOKEN: "service-token",
+			},
+		) as {
+			options: {
+				artifactStore?: unknown;
+				localArtifactsOnly?: boolean;
+			};
+		};
+
+		expect(result.options.artifactStore).toBeUndefined();
+		expect(result.options.localArtifactsOnly).toBe(true);
+	});
+
 	it("rejects removed broad crawl CLI flags", () => {
 		const resolveCollectorCrawlMainInput = getResolveCollectorCrawlMainInput();
 		const removedFlag = `--legacy-${"broad"}-crawl`;

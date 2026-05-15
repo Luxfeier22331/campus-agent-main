@@ -74,6 +74,7 @@ export function resolveCollectorCrawlMainInput(
 			"target-candidate-id": { type: "string", multiple: true },
 			"max-pages-per-host": { type: "string" },
 			"max-total-pages": { type: "string" },
+			"local-artifacts-only": { type: "boolean" },
 		},
 		allowPositionals: false,
 	});
@@ -115,6 +116,7 @@ export function resolveCollectorCrawlMainInput(
 			maxPagesPerHost: parseOptionalInt(values["max-pages-per-host"]),
 			maxTotalPages: parseOptionalInt(values["max-total-pages"]),
 			artifactStore: createS3ArtifactStoreFromEnv(env),
+			localArtifactsOnly: values["local-artifacts-only"],
 			controlPlaneClient,
 			sourcePackLineagePath: values["source-pack-lineage-path"],
 			disableConditionalHeaders: values["disable-conditional-headers"],

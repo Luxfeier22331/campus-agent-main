@@ -102,6 +102,7 @@ describe("official-web-collector robots handling", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_robots_retry_success",
+				localArtifactsOnly: true,
 				controlPlaneClient: createTargetWorksetControlPlaneForTest({
 					runId: "owrun_robots_retry_success",
 				}),
@@ -135,6 +136,7 @@ describe("official-web-collector robots handling", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_robots_retry_failure",
+				localArtifactsOnly: true,
 				controlPlaneClient: createTargetWorksetControlPlaneForTest({
 					runId: "owrun_robots_retry_failure",
 				}),

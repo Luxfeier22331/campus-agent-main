@@ -387,7 +387,16 @@ async function requestFeedWeJson(input: {
 		});
 	}
 
-	const raw = (await response.json().catch(() => null)) as unknown;
+	let raw: unknown;
+	try {
+		raw = await response.json();
+	} catch {
+		throw new FeedWeRequestError({
+			code: "provider_response_invalid",
+			message: "FeedWe response must be valid JSON.",
+			status: 502,
+		});
+	}
 	if (!response.ok) {
 		throw new FeedWeRequestError({
 			code: "provider_http_error",

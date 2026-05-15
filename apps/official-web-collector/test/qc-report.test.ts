@@ -283,6 +283,7 @@ async function writeOutputDir(input: {
 		configRoot,
 		outputDir,
 		crawlRunId: input.crawlRunId,
+		localArtifactsOnly: true,
 		controlPlaneClient: createTargetWorksetControlPlaneForTest({
 			runId: input.crawlRunId,
 		}),

@@ -224,6 +224,7 @@ describe("official-web-collector multi-host crawl", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_multi_host_queue",
+				localArtifactsOnly: true,
 				controlPlaneClient: createTargetWorksetControlPlaneForTest({
 					runId: "owrun_multi_host_queue",
 					duePages: [

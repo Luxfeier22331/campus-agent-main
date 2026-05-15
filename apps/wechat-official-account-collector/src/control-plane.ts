@@ -12,6 +12,14 @@ export class WeChatOfficialAccountControlPlaneTransportError extends Error {
 	}
 }
 
+interface WeChatOfficialAccountControlPlaneErrorEnvelope {
+	error?: {
+		code?: string;
+		message?: string;
+		retryable?: boolean;
+	};
+}
+
 export interface WeChatOfficialAccountControlPlaneClient {
 	startRun(input: {
 		accountName: string;
@@ -155,17 +163,61 @@ async function requestJson<T>(input: {
 		});
 	}
 
-	const parsed = (await response.json().catch(() => null)) as {
-		error?: { code?: string; message?: string; retryable?: boolean };
-	} | null;
+	const parsed = await parseJsonResponse(response);
 	if (response.status !== 200) {
+		const errorEnvelope = parseControlPlaneErrorEnvelope(parsed, response.status);
 		throw new WeChatOfficialAccountControlPlaneTransportError({
-			code: parsed?.error?.code ?? "app_api_error",
-			message: parsed?.error?.message ?? "WeChat official-account control-plane request failed.",
-			retryable: parsed?.error?.retryable ?? response.status >= 500,
+			code: errorEnvelope.code,
+			message: errorEnvelope.message,
+			retryable: errorEnvelope.retryable,
 			status: response.status,
 		});
 	}
 
 	return parsed as T;
+}
+
+async function parseJsonResponse(
+	response: Response,
+): Promise<WeChatOfficialAccountControlPlaneErrorEnvelope> {
+	try {
+		return (await response.json()) as WeChatOfficialAccountControlPlaneErrorEnvelope;
+	} catch (error) {
+		throw new WeChatOfficialAccountControlPlaneTransportError({
+			code: "app_api_invalid_json",
+			message:
+				error instanceof Error
+					? `WeChat official-account control-plane returned invalid JSON: ${error.message}`
+					: "WeChat official-account control-plane returned invalid JSON.",
+			retryable: response.status >= 500,
+			status: response.status,
+		});
+	}
+}
+
+function parseControlPlaneErrorEnvelope(
+	parsed: WeChatOfficialAccountControlPlaneErrorEnvelope,
+	status: number,
+): { code: string; message: string; retryable: boolean } {
+	const error = parsed.error;
+	if (
+		!error ||
+		typeof error.code !== "string" ||
+		error.code.trim() === "" ||
+		typeof error.message !== "string" ||
+		error.message.trim() === "" ||
+		typeof error.retryable !== "boolean"
+	) {
+		throw new WeChatOfficialAccountControlPlaneTransportError({
+			code: "app_api_invalid_error_envelope",
+			message: "WeChat official-account control-plane returned an invalid error envelope.",
+			retryable: false,
+			status,
+		});
+	}
+	return {
+		code: error.code,
+		message: error.message,
+		retryable: error.retryable,
+	};
 }

@@ -73,6 +73,7 @@ export interface CrawlSiteOptions {
 	maxPagesPerHost?: number;
 	maxTotalPages?: number;
 	artifactStore?: OfficialWebArtifactStore;
+	localArtifactsOnly?: boolean;
 	controlPlaneClient?: OfficialWebControlPlaneClient;
 	sourcePackLineagePath?: string;
 	dynamicShellDiscoverer?: OfficialWebDynamicShellDiscoverer;
@@ -305,7 +306,7 @@ export async function crawlSite(
 		});
 		const uploadResult =
 			options.artifactStore == null
-				? { uploadedArtifacts: [], artifactUploadCount: 0 }
+				? resolveLocalArtifactOnlyUploadResult(options)
 				: await uploadCollectorArtifacts({
 						siteId: plan.siteId,
 						crawlRunId: plan.crawlRunId,
@@ -408,6 +409,16 @@ function resolveExecutionHostFilter(input: {
 				.filter(Boolean),
 		),
 	].sort();
+}
+
+function resolveLocalArtifactOnlyUploadResult(options: CrawlSiteOptions): {
+	uploadedArtifacts: OfficialWebRunArtifactRef[];
+	artifactUploadCount: number;
+} {
+	if (options.localArtifactsOnly === true) {
+		return { uploadedArtifacts: [], artifactUploadCount: 0 };
+	}
+	throw new Error("official-web collector requires artifactStore unless localArtifactsOnly is true");
 }
 
 function assertCollectorRunAdmission(input: {

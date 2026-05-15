@@ -233,6 +233,7 @@ describe("official-web-collector dynamic shell crawl", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_dynamic_shell",
+				localArtifactsOnly: true,
 				controlPlaneClient: createTargetWorksetControlPlaneForTest({
 					runId: "owrun_dynamic_shell",
 					duePages: [

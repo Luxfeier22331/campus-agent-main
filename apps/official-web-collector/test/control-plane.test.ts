@@ -353,4 +353,118 @@ describe("official-web control plane client", () => {
 			}),
 		).rejects.toBeInstanceOf(OfficialWebControlPlaneTransportError);
 	});
+
+	it("fails closed when control-plane error payload misses the typed error contract", async () => {
+		const client = createOfficialWebControlPlaneClient(
+			{
+				appApiBaseUrl: "https://app-api.internal",
+				serviceToken: "service-token",
+			},
+			{
+				fetchImplementation: vi.fn().mockResolvedValue(
+					new Response(
+						JSON.stringify({
+							error: {
+								message: "Payload fingerprint differs.",
+							},
+						}),
+						{ status: 409 },
+					),
+				),
+			},
+		);
+
+		await expect(
+			client.startRun({
+				siteId: "campus_public",
+				schedulerRunKey: "cron-2026-03-29T08:00:00Z",
+				runIntent: "baseline",
+				triggerType: "scheduled",
+				collectorVersion: "official-web-collector@0.1.0",
+				configVersion: "git:abc1234",
+				crawlPolicyVersion: "2026-03-29",
+				hostSet: ["www.example.edu"],
+				seedSet: ["https://www.example.edu/"],
+				startedAt: "2026-03-29T08:00:01.000Z",
+			}),
+		).rejects.toMatchObject({
+			code: "app_api_invalid_error_envelope",
+			retryable: false,
+			status: 409,
+		});
+	});
+
+	it("fails closed when control-plane returns a non-JSON error payload", async () => {
+		const client = createOfficialWebControlPlaneClient(
+			{
+				appApiBaseUrl: "https://app-api.internal",
+				serviceToken: "service-token",
+			},
+			{
+				fetchImplementation: vi.fn().mockResolvedValue(
+					new Response("<html>bad gateway</html>", {
+						status: 502,
+						headers: {
+							"content-type": "text/html; charset=utf-8",
+						},
+					}),
+				),
+			},
+		);
+
+		await expect(
+			client.startRun({
+				siteId: "campus_public",
+				schedulerRunKey: "cron-2026-03-29T08:00:00Z",
+				runIntent: "baseline",
+				triggerType: "scheduled",
+				collectorVersion: "official-web-collector@0.1.0",
+				configVersion: "git:abc1234",
+				crawlPolicyVersion: "2026-03-29",
+				hostSet: ["www.example.edu"],
+				seedSet: ["https://www.example.edu/"],
+				startedAt: "2026-03-29T08:00:01.000Z",
+			}),
+		).rejects.toMatchObject({
+			code: "app_api_invalid_json",
+			status: 502,
+		});
+	});
+
+	it("fails closed when control-plane returns a non-JSON success payload", async () => {
+		const client = createOfficialWebControlPlaneClient(
+			{
+				appApiBaseUrl: "https://app-api.internal",
+				serviceToken: "service-token",
+			},
+			{
+				fetchImplementation: vi.fn().mockResolvedValue(
+					new Response("ok", {
+						status: 200,
+						headers: {
+							"content-type": "text/plain; charset=utf-8",
+						},
+					}),
+				),
+			},
+		);
+
+		await expect(
+			client.startRun({
+				siteId: "campus_public",
+				schedulerRunKey: "cron-2026-03-29T08:00:00Z",
+				runIntent: "baseline",
+				triggerType: "scheduled",
+				collectorVersion: "official-web-collector@0.1.0",
+				configVersion: "git:abc1234",
+				crawlPolicyVersion: "2026-03-29",
+				hostSet: ["www.example.edu"],
+				seedSet: ["https://www.example.edu/"],
+				startedAt: "2026-03-29T08:00:01.000Z",
+			}),
+		).rejects.toMatchObject({
+			code: "app_api_invalid_json",
+			status: 200,
+		});
+	});
 });
