@@ -3,6 +3,7 @@ from __future__ import annotations
 import importlib
 import io
 import json
+import os
 import unittest
 from unittest.mock import patch
 
@@ -67,6 +68,25 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["backup_id"], "b20260401T010203Z")
 
+    def test_backup_create_requires_explicit_operator(self) -> None:
+        with (
+            patch("campus_ingestion_worker.qdrant_backup_create.load_worker_env"),
+            patch.dict(os.environ, {"USER": "ambient-user"}, clear=False),
+            self.assertRaises(SystemExit),
+        ):
+            backup_create_worker.main(
+                [
+                    "--corpus",
+                    "regulations",
+                    "--collection",
+                    "student_rules",
+                    "--release-id",
+                    "r20260331_120000",
+                    "--backup-reason",
+                    "pre-gc",
+                ]
+            )
+
     def test_backup_restore_main_builds_typed_request_from_cli_args(self) -> None:
         with (
             patch("campus_ingestion_worker.qdrant_backup_restore.load_worker_env"),
@@ -108,6 +128,25 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
         self.assertEqual(request.backup_id, "b20260401T010203Z")
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["verification_status"], "passed")
+
+    def test_backup_restore_requires_explicit_operator(self) -> None:
+        with (
+            patch("campus_ingestion_worker.qdrant_backup_restore.load_worker_env"),
+            patch.dict(os.environ, {"USER": "ambient-user"}, clear=False),
+            self.assertRaises(SystemExit),
+        ):
+            backup_restore_worker.main(
+                [
+                    "--corpus",
+                    "regulations",
+                    "--collection",
+                    "student_rules",
+                    "--release-id",
+                    "r20260331_120000",
+                    "--backup-id",
+                    "b20260401T010203Z",
+                ]
+            )
 
     def test_gc_check_main_builds_typed_request_from_cli_args(self) -> None:
         with (
@@ -189,6 +228,23 @@ class QdrantBackupWorkerCliTest(unittest.TestCase):
         self.assertEqual(request.operator, "tester")
         payload = json.loads(stdout.getvalue())
         self.assertTrue(payload["deleted"])
+
+    def test_gc_delete_requires_explicit_operator(self) -> None:
+        with (
+            patch("campus_ingestion_worker.qdrant_gc_delete.load_worker_env"),
+            patch.dict(os.environ, {"USER": "ambient-user"}, clear=False),
+            self.assertRaises(SystemExit),
+        ):
+            gc_delete_worker.main(
+                [
+                    "--corpus",
+                    "regulations",
+                    "--collection",
+                    "student_rules",
+                    "--release-id",
+                    "r20260328_095627",
+                ]
+            )
 
 
 if __name__ == "__main__":

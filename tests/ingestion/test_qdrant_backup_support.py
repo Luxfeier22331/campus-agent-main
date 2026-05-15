@@ -35,6 +35,7 @@ DERIVED_BUCKET = "campus-rag-derived"
 class _FakeBackupObjectStore:
     def __init__(self) -> None:
         self.objects: dict[tuple[str, str], bytes] = {}
+        self.fail_head_keys: set[tuple[str, str]] = set()
 
     def get_bytes(self, *, bucket: str, key: str) -> bytes:
         return self.objects[(bucket, key)]
@@ -49,6 +50,8 @@ class _FakeBackupObjectStore:
         Path(file_path).write_bytes(self.objects[(bucket, key)])
 
     def head_object(self, *, bucket: str, key: str) -> dict[str, object]:
+        if (bucket, key) in self.fail_head_keys:
+            raise RuntimeError(f"head unavailable for {key}")
         data = self.objects[(bucket, key)]
         return {"ContentLength": len(data)}
 

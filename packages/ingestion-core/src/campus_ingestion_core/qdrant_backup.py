@@ -18,6 +18,9 @@ from campus_ingestion_core.index_release import resolve_alias_target
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.object_store import build_qdrant_backup_artifact_key
 from campus_ingestion_core.qdrant_backup_io import (
+    ObjectExistenceProbeError,
+)
+from campus_ingestion_core.qdrant_backup_io import (
     object_exists as _object_exists,
 )
 from campus_ingestion_core.qdrant_backup_io import (
@@ -48,7 +51,7 @@ class SnapshotBackupRequest:
     collection: str
     release_id: str
     backup_reason: str
-    operator: str = "unknown"
+    operator: str
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,7 +60,7 @@ class SnapshotRestoreRequest:
     collection: str
     release_id: str
     backup_id: str
-    operator: str = "unknown"
+    operator: str
     apply_alias: bool = False
     target_collection_name: str | None = None
 
@@ -103,7 +106,7 @@ class CollectionGcDeleteRequest:
     corpus: str
     collection: str
     release_id: str
-    operator: str = "unknown"
+    operator: str
     protected_physical_collection_names: tuple[str, ...] = ()
     manual_blockers: tuple[str, ...] = ()
 
@@ -297,6 +300,7 @@ def create_snapshot_backup(
     object_store: BackupObjectStore | None = None,
     qdrant_admin: SnapshotQdrantAdmin | None = None,
 ) -> SnapshotBackupManifest:
+    _require_operator(request.operator)
     source = dict(env if env is not None else os.environ)
     bucket_derived = resolve_object_store_bucket_names(source)[1]
     runtime_object_store = object_store or S3ObjectStoreAdmin(ObjectStoreSettings.from_env(source))
@@ -378,6 +382,7 @@ def restore_snapshot_backup(
     object_store: BackupObjectStore | None = None,
     qdrant_admin: SnapshotQdrantAdmin | None = None,
 ) -> SnapshotRestoreReport:
+    _require_operator(request.operator)
     source = dict(env if env is not None else os.environ)
     bucket_derived = resolve_object_store_bucket_names(source)[1]
     runtime_object_store = object_store or S3ObjectStoreAdmin(ObjectStoreSettings.from_env(source))
@@ -528,12 +533,20 @@ def check_snapshot_gc_eligibility(
     backup_manifest = None
     backup_manifest_key = None
     if role != "preview_candidate":
-        if target_manifest.validation_summary_object_key is None or not _object_exists(
-            object_store=runtime_object_store,
-            bucket=bucket_derived,
-            key=target_manifest.validation_summary_object_key,
-        ):
+        if target_manifest.validation_summary_object_key is None:
             blockers.append("missing_validation_summary")
+        else:
+            try:
+                validation_summary_exists = _object_exists(
+                    object_store=runtime_object_store,
+                    bucket=bucket_derived,
+                    key=target_manifest.validation_summary_object_key,
+                )
+            except ObjectExistenceProbeError:
+                blockers.append("validation_summary_probe_failed")
+            else:
+                if not validation_summary_exists:
+                    blockers.append("missing_validation_summary")
         backup_manifest, backup_manifest_key = _find_backup_manifest_for_release(
             object_store=runtime_object_store,
             bucket=bucket_derived,
@@ -544,12 +557,18 @@ def check_snapshot_gc_eligibility(
         )
         if backup_manifest is None:
             blockers.append("missing_snapshot_backup")
-        elif not _object_exists(
-            object_store=runtime_object_store,
-            bucket=bucket_derived,
-            key=backup_manifest.snapshot_object_key,
-        ):
-            blockers.append("missing_snapshot_object")
+        else:
+            try:
+                snapshot_object_exists = _object_exists(
+                    object_store=runtime_object_store,
+                    bucket=bucket_derived,
+                    key=backup_manifest.snapshot_object_key,
+                )
+            except ObjectExistenceProbeError:
+                blockers.append("snapshot_object_probe_failed")
+            else:
+                if not snapshot_object_exists:
+                    blockers.append("missing_snapshot_object")
     blockers.extend(request.manual_blockers)
     eligible = role in {"archive_candidate", "preview_candidate"} and not blockers
     return CollectionGcEligibilityReport(
@@ -571,6 +590,7 @@ def delete_gc_eligible_collection(
     object_store: BackupObjectStore | None = None,
     qdrant_admin: SnapshotQdrantAdmin | None = None,
 ) -> CollectionGcDeleteReport:
+    _require_operator(request.operator)
     source = dict(env if env is not None else os.environ)
     bucket_derived = resolve_object_store_bucket_names(source)[1]
     runtime_object_store = object_store or S3ObjectStoreAdmin(ObjectStoreSettings.from_env(source))
@@ -632,3 +652,8 @@ def delete_gc_eligible_collection(
         payload=asdict(report),
     )
     return report
+
+
+def _require_operator(operator: str) -> None:
+    if not str(operator or "").strip():
+        raise ValueError("operator is required")

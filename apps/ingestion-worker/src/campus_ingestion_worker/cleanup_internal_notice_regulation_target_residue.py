@@ -48,7 +48,12 @@ def main(argv: Sequence[str] | None = None) -> None:
     load_worker_env()
     env = dict(os.environ)
     args = build_parser().parse_args(list(argv) if argv is not None else None)
-    bucket = args.bucket or env.get("OBJECT_STORE_BUCKET_DERIVED") or "campus-rag-derived"
+    bucket = (args.bucket or env.get("OBJECT_STORE_BUCKET_DERIVED") or "").strip()
+    if not bucket:
+        raise SystemExit(
+            "cleanup_internal_notice_regulation_target_residue requires --bucket "
+            "or OBJECT_STORE_BUCKET_DERIVED"
+        )
     report = cleanup_internal_notice_regulation_target_residue(
         request=RegulationTargetResidueCleanupRequest(
             notice_id=args.notice_id,

@@ -15,6 +15,9 @@ source_cleanup_worker = importlib.import_module(
 attachment_cleanup_worker = importlib.import_module(
     "campus_ingestion_worker.cleanup_authenticated_notice_source_attachment_keys"
 )
+regulation_residue_cleanup_worker = importlib.import_module(
+    "campus_ingestion_worker.cleanup_internal_notice_regulation_target_residue"
+)
 source_hygiene = importlib.import_module("campus_ingestion_core.source_bucket_hygiene")
 attachment_cleanup = importlib.import_module(
     "campus_ingestion_core.authenticated_notice_attachment_key_cleanup"
@@ -47,6 +50,35 @@ class CleanupDestructiveWorkerGuardsTest(unittest.TestCase):
                         str(Path(temp_dir) / "out"),
                     ]
                 )
+
+    def test_regulation_residue_cleanup_requires_explicit_bucket(self) -> None:
+        with (
+            tempfile.TemporaryDirectory() as temp_dir,
+            patch(
+                "campus_ingestion_worker.cleanup_internal_notice_regulation_target_residue."
+                "load_worker_env"
+            ),
+            patch.dict("os.environ", {}, clear=True),
+            self.assertRaises(SystemExit),
+        ):
+            regulation_residue_cleanup_worker.main(
+                [
+                    "--notice-id",
+                    "355282",
+                    "--title",
+                    "中央民族大学采购工作管理办法",
+                    "--collection",
+                    "institutional_rules",
+                    "--document-id",
+                    "regulation:muc:procurement",
+                    "--version-id",
+                    "sha256:abc",
+                    "--target-key",
+                    "regulations/institutional_rules/procurement.md",
+                    "--output-dir",
+                    temp_dir,
+                ]
+            )
 
     def test_source_bucket_cleanup_dry_run_does_not_delete_objects(self) -> None:
         with tempfile.TemporaryDirectory() as temp_dir:

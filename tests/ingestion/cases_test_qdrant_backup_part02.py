@@ -134,6 +134,32 @@ class QdrantBackupTestPart02(unittest.TestCase):
             "student_rules__r20260328_095627",
         )
 
+    def test_delete_gc_eligible_collection_rejects_missing_operator(self) -> None:
+        object_store = _FakeBackupObjectStore()
+        qdrant_admin = _FakeQdrantSnapshotAdmin()
+        _seed_release_manifest(
+            object_store=object_store,
+            corpus="regulations",
+            collection="student_rules",
+            release_id="r20260328_095627",
+            physical_collection_name="student_rules__r20260328_095627",
+            previous_physical_collection_name="student_rules__r20260327_100000",
+            serving_alias="student_rules",
+        )
+
+        with self.assertRaisesRegex(ValueError, "operator is required"):
+            delete_gc_eligible_collection(
+                request=CollectionGcDeleteRequest(
+                    corpus="regulations",
+                    collection="student_rules",
+                    release_id="r20260328_095627",
+                    operator="",
+                ),
+                env={},
+                object_store=object_store,
+                qdrant_admin=qdrant_admin,
+            )
+
     def test_delete_gc_eligible_collection_refuses_ineligible_release(self) -> None:
         object_store = _FakeBackupObjectStore()
         qdrant_admin = _FakeQdrantSnapshotAdmin()

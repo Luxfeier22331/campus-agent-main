@@ -83,6 +83,33 @@ class QdrantBackupTestPart01(unittest.TestCase):
             hashlib.sha256(object_store.objects[(DERIVED_BUCKET, snapshot_key)]).hexdigest(),
         )
 
+    def test_create_snapshot_backup_rejects_missing_operator(self) -> None:
+        object_store = _FakeBackupObjectStore()
+        qdrant_admin = _FakeQdrantSnapshotAdmin()
+        _seed_release_manifest(
+            object_store=object_store,
+            corpus="regulations",
+            collection="student_rules",
+            release_id="r20260331_120000",
+            physical_collection_name="student_rules__r20260331_120000",
+            previous_physical_collection_name="student_rules__r20260330_120000",
+            serving_alias="student_rules",
+        )
+
+        with self.assertRaisesRegex(ValueError, "operator is required"):
+            create_snapshot_backup(
+                request=SnapshotBackupRequest(
+                    corpus="regulations",
+                    collection="student_rules",
+                    release_id="r20260331_120000",
+                    backup_reason="pre-gc",
+                    operator="",
+                ),
+                env={},
+                object_store=object_store,
+                qdrant_admin=qdrant_admin,
+            )
+
     def test_load_index_release_manifest_preserves_post_publish_audit_metadata(self) -> None:
         object_store = _FakeBackupObjectStore()
         audit_summary_key = build_index_release_artifact_key(
@@ -245,6 +272,33 @@ class QdrantBackupTestPart01(unittest.TestCase):
             filename="restore-report.json",
         )
         self.assertIn((DERIVED_BUCKET, restore_report_key), object_store.objects)
+
+    def test_restore_snapshot_backup_rejects_missing_operator(self) -> None:
+        object_store = _FakeBackupObjectStore()
+        qdrant_admin = _FakeQdrantSnapshotAdmin()
+        _seed_release_manifest(
+            object_store=object_store,
+            corpus="regulations",
+            collection="student_rules",
+            release_id="r20260331_120000",
+            physical_collection_name="student_rules__r20260331_120000",
+            previous_physical_collection_name="student_rules__r20260330_120000",
+            serving_alias="student_rules",
+        )
+
+        with self.assertRaisesRegex(ValueError, "operator is required"):
+            restore_snapshot_backup(
+                request=SnapshotRestoreRequest(
+                    corpus="regulations",
+                    collection="student_rules",
+                    release_id="r20260331_120000",
+                    backup_id="b20260401T010203Z",
+                    operator="",
+                ),
+                env={},
+                object_store=object_store,
+                qdrant_admin=qdrant_admin,
+            )
 
     def test_restore_snapshot_backup_fails_verification_when_points_count_mismatches(self) -> None:
         object_store = _FakeBackupObjectStore()
@@ -472,6 +526,153 @@ class QdrantBackupTestPart01(unittest.TestCase):
         self.assertTrue(report.eligible)
         self.assertEqual(report.blockers, ())
         self.assertEqual(report.role, "archive_candidate")
+
+    def test_gc_check_fails_closed_when_validation_summary_head_fails(self) -> None:
+        object_store = _FakeBackupObjectStore()
+        qdrant_admin = _FakeQdrantSnapshotAdmin()
+        validation_summary_key = build_index_release_artifact_key(
+            corpus="regulations",
+            collection="student_rules",
+            release_id="r20260328_095627",
+            filename="validation-summary.json",
+        )
+        _seed_release_manifest(
+            object_store=object_store,
+            corpus="regulations",
+            collection="student_rules",
+            release_id="r20260328_095627",
+            physical_collection_name="student_rules__r20260328_095627",
+            previous_physical_collection_name="student_rules__r20260327_100000",
+            serving_alias="student_rules",
+            validation_summary_key=validation_summary_key,
+        )
+        _seed_release_manifest(
+            object_store=object_store,
+            corpus="regulations",
+            collection="student_rules",
+            release_id="r20260331_120000",
+            physical_collection_name="student_rules__r20260331_120000",
+            previous_physical_collection_name="student_rules__r20260330_120000",
+            serving_alias="student_rules",
+        )
+        object_store.fail_head_keys.add((DERIVED_BUCKET, validation_summary_key))
+        qdrant_admin.aliases["student_rules"] = "student_rules__r20260331_120000"
+        qdrant_admin.collections.update(
+            {
+                "student_rules__r20260328_095627",
+                "student_rules__r20260331_120000",
+            }
+        )
+
+        report = check_snapshot_gc_eligibility(
+            request=CollectionGcCheckRequest(
+                corpus="regulations",
+                collection="student_rules",
+                release_id="r20260328_095627",
+            ),
+            env={},
+            object_store=object_store,
+            qdrant_admin=qdrant_admin,
+        )
+
+        self.assertFalse(report.eligible)
+        self.assertIn("validation_summary_probe_failed", report.blockers)
+        self.assertNotIn("missing_validation_summary", report.blockers)
+
+    def test_gc_check_fails_closed_when_snapshot_object_head_fails(self) -> None:
+        object_store = _FakeBackupObjectStore()
+        qdrant_admin = _FakeQdrantSnapshotAdmin()
+        validation_summary_key = build_index_release_artifact_key(
+            corpus="regulations",
+            collection="student_rules",
+            release_id="r20260328_095627",
+            filename="validation-summary.json",
+        )
+        manifest_key = _seed_release_manifest(
+            object_store=object_store,
+            corpus="regulations",
+            collection="student_rules",
+            release_id="r20260328_095627",
+            physical_collection_name="student_rules__r20260328_095627",
+            previous_physical_collection_name="student_rules__r20260327_100000",
+            serving_alias="student_rules",
+            validation_summary_key=validation_summary_key,
+        )
+        _seed_release_manifest(
+            object_store=object_store,
+            corpus="regulations",
+            collection="student_rules",
+            release_id="r20260331_120000",
+            physical_collection_name="student_rules__r20260331_120000",
+            previous_physical_collection_name="student_rules__r20260330_120000",
+            serving_alias="student_rules",
+        )
+        backup_manifest = SnapshotBackupManifest(
+            backup_id="b20260401T010203Z",
+            backup_mode="qdrant_collection_snapshot_export",
+            captured_at="2026-04-01T01:02:03+00:00",
+            corpus="regulations",
+            collection="student_rules",
+            release_id="r20260328_095627",
+            serving_alias="student_rules",
+            physical_collection_name="student_rules__r20260328_095627",
+            alias_bindings={"student_rules": "student_rules__r20260331_120000"},
+            index_release_manifest_key=manifest_key,
+            validation_summary_key=validation_summary_key,
+            snapshot_object_key=build_qdrant_backup_artifact_key(
+                corpus="regulations",
+                collection="student_rules",
+                release_id="r20260328_095627",
+                backup_id="b20260401T010203Z",
+                filename="student_rules__r20260328_095627.snapshot",
+            ),
+            snapshot_sha256=hashlib.sha256(b"snapshot").hexdigest(),
+            backup_reason="pre-gc",
+            operator="tester",
+        )
+        object_store.put_bytes(
+            bucket=DERIVED_BUCKET,
+            key=backup_manifest.snapshot_object_key,
+            data=b"snapshot",
+            content_type="application/octet-stream",
+        )
+        object_store.put_bytes(
+            bucket=DERIVED_BUCKET,
+            key=build_qdrant_backup_artifact_key(
+                corpus="regulations",
+                collection="student_rules",
+                release_id="r20260328_095627",
+                backup_id="b20260401T010203Z",
+                filename="backup-manifest.json",
+            ),
+            data=(json.dumps(asdict(backup_manifest), ensure_ascii=False, indent=2) + "\n").encode(
+                "utf-8"
+            ),
+            content_type="application/json",
+        )
+        object_store.fail_head_keys.add((DERIVED_BUCKET, backup_manifest.snapshot_object_key))
+        qdrant_admin.aliases["student_rules"] = "student_rules__r20260331_120000"
+        qdrant_admin.collections.update(
+            {
+                "student_rules__r20260328_095627",
+                "student_rules__r20260331_120000",
+            }
+        )
+
+        report = check_snapshot_gc_eligibility(
+            request=CollectionGcCheckRequest(
+                corpus="regulations",
+                collection="student_rules",
+                release_id="r20260328_095627",
+            ),
+            env={},
+            object_store=object_store,
+            qdrant_admin=qdrant_admin,
+        )
+
+        self.assertFalse(report.eligible)
+        self.assertIn("snapshot_object_probe_failed", report.blockers)
+        self.assertNotIn("missing_snapshot_object", report.blockers)
 
     def test_gc_check_allows_preview_candidate_without_snapshot_backup(self) -> None:
         object_store = _FakeBackupObjectStore()

@@ -7,11 +7,19 @@ from pathlib import Path
 from typing import Any
 
 
+class ObjectExistenceProbeError(RuntimeError):
+    pass
+
+
 def object_exists(*, object_store: Any, bucket: str, key: str) -> bool:
     try:
         object_store.head_object(bucket=bucket, key=key)
-    except Exception:
+    except KeyError:
         return False
+    except Exception as exc:
+        raise ObjectExistenceProbeError(
+            f"object existence probe failed for {bucket}/{key}"
+        ) from exc
     return True
 
 
@@ -46,6 +54,7 @@ def write_json_object(
 
 
 __all__ = [
+    "ObjectExistenceProbeError",
     "object_exists",
     "sha256_file",
     "utc_now_iso",
