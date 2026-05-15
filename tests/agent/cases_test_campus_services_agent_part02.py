@@ -21,12 +21,23 @@ class CampusServicesAgentTestPart02(unittest.TestCase):
                     campus_scope="all",
                     audience=("student",),
                 ),
-                guide_sections=(
-                    ServiceGuideSection(
-                        section_id="service:campus-card:lost-reissue:section:procedure",
-                        section_type="procedure",
+                procedure_groups=(
+                    ServiceGuideProcedureGroup(
+                        group_id="service:campus-card:lost-reissue:procedure_group:lost-reissue",
                         title="挂失与补卡流程",
-                        content="先通过民大通办理挂失，再到自助补卡机补卡。",
+                        focus_tags=("挂失", "补卡"),
+                        steps=(
+                            ServiceGuideProcedureStep(
+                                step_id="service:campus-card:lost-reissue:step:report-loss",
+                                content="先通过民大通办理挂失。",
+                                source_refs=("official_web:campus-card",),
+                            ),
+                            ServiceGuideProcedureStep(
+                                step_id="service:campus-card:lost-reissue:step:reissue",
+                                content="再到自助补卡机补卡。",
+                                source_refs=("official_web:campus-card",),
+                            ),
+                        ),
                         source_refs=("official_web:campus-card",),
                     ),
                 ),
@@ -91,12 +102,24 @@ class CampusServicesAgentTestPart02(unittest.TestCase):
                     campus_scope="all",
                     audience=("student",),
                 ),
-                guide_sections=(
-                    ServiceGuideSection(
-                        section_id="service:official-web:information-disclosure-application:section:procedure",
-                        section_type="procedure",
+                procedure_groups=(
+                    ServiceGuideProcedureGroup(
+                        group_id=(
+                            "service:official-web:information-disclosure-application:"
+                            "procedure_group:submit"
+                        ),
                         title="申请流程",
-                        content="申请人填写申请表后提交学校信息公开办公室。",
+                        focus_tags=("申请", "提交"),
+                        steps=(
+                            ServiceGuideProcedureStep(
+                                step_id=(
+                                    "service:official-web:information-disclosure-application:"
+                                    "step:fill-form"
+                                ),
+                                content="申请人填写申请表后提交学校信息公开办公室。",
+                                source_refs=("https://xxgk.muc.edu.cn/info/1007/1113.htm",),
+                            ),
+                        ),
                         source_refs=("https://xxgk.muc.edu.cn/info/1007/1113.htm",),
                     ),
                 ),

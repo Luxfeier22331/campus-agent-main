@@ -23,10 +23,19 @@ def service_guide_response(result: ServiceGuideLookupResult) -> AgentResponse:
             else result.service_query
         )
         guide_text = _service_guide_text(result)
+        if not guide_text:
+            return AgentResponse(
+                target="campus-services-agent",
+                status="no_answer",
+                answer_text="当前还不能稳定确认这项办理指南。",
+                confidence="low",
+                result=result,
+                agent_observability=_agent_observability("service_guide_lookup", result),
+            )
         return AgentResponse(
             target="campus-services-agent",
             status="completed",
-            answer_text=f"{service_name}：\n{guide_text}" if guide_text else service_name,
+            answer_text=f"{service_name}：\n{guide_text}",
             confidence="high",
             result=result,
             agent_observability=_agent_observability("service_guide_lookup", result),
@@ -354,7 +363,6 @@ def _service_guide_text(result: ServiceGuideLookupResult) -> str:
     focus = str(getattr(result, "guide_focus", "") or "").strip()
     parts: list[str] = []
     if focus == "entry":
-        parts.extend(_service_guide_entry_sections(result))
         entry_line = _service_guide_entry_line(result)
         if entry_line:
             parts.append(entry_line)
@@ -390,23 +398,22 @@ def _service_guide_text(result: ServiceGuideLookupResult) -> str:
             parts.append(contact_line)
         if result.eligibility_notes:
             parts.append("适用范围：" + "、".join(result.eligibility_notes))
-    display_source_refs = _display_source_refs(result.source_refs)
-    if display_source_refs:
-        parts.append("来源：" + "、".join(display_source_refs))
+    if parts:
+        display_source_refs = _display_source_refs(result.source_refs)
+        if display_source_refs:
+            parts.append("来源：" + "、".join(display_source_refs))
     return "\n".join(part for part in dict.fromkeys(parts) if part)
 
 
 def _service_guide_procedure_parts(result: ServiceGuideLookupResult) -> list[str]:
     parts: list[str] = []
     selected_groups = getattr(result, "procedure_groups", ()) or ()
-    if selected_groups:
-        for group in selected_groups:
-            step_lines = [step.content for step in getattr(group, "steps", ()) if step.content]
-            if not step_lines:
-                continue
-            parts.append(f"{group.title}：" + "\n".join(step_lines))
-        return parts
-    return _service_guide_sections_for_type(result, "procedure")
+    for group in selected_groups:
+        step_lines = [step.content for step in getattr(group, "steps", ()) if step.content]
+        if not step_lines:
+            continue
+        parts.append(f"{group.title}：" + "\n".join(step_lines))
+    return parts
 
 
 def _service_guide_sections_for_type(
@@ -426,18 +433,7 @@ def _service_guide_sections_for_type(
 
 
 def _service_guide_entry_sections(result: ServiceGuideLookupResult) -> list[str]:
-    sections = _service_guide_sections_for_type(result, "entry")
-    if sections:
-        return sections
-    return [
-        (
-            f"{section.title}：{section.content}"
-            if section.title and section.title != section.content
-            else section.content
-        )
-        for section in result.guide_sections
-        if section.content
-    ]
+    return _service_guide_sections_for_type(result, "entry")
 
 
 def _service_guide_materials_line(result: ServiceGuideLookupResult) -> str:

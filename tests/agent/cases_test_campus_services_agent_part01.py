@@ -382,7 +382,7 @@ class CampusServicesAgentTestPart01(unittest.TestCase):
         self.assertIn("急诊证明", response.answer_text)
         self.assertIn("住院收据", response.answer_text)
 
-    def test_service_guide_procedure_response_renders_selected_vpn_group_only(self) -> None:
+    def test_service_guide_procedure_response_requires_procedure_groups(self) -> None:
         response = service_guide_response(
             ServiceGuideLookupResult(
                 service_query="VPN客户端怎么安装",
@@ -423,9 +423,9 @@ class CampusServicesAgentTestPart01(unittest.TestCase):
             )
         )
 
-        self.assertEqual(response.status, "completed")
-        self.assertIn("客户端安装", response.answer_text)
-        self.assertIn("Install EasyConnect.pkg", response.answer_text)
+        self.assertEqual(response.status, "no_answer")
+        self.assertIn("当前还不能稳定确认这项办理指南", response.answer_text)
+        self.assertNotIn("Install EasyConnect.pkg", response.answer_text)
         self.assertNotIn("统一身份认证账号和密码登录", response.answer_text)
         self.assertEqual(
             response.agent_observability.safe_details["selected_section_ids"],
@@ -582,6 +582,42 @@ class CampusServicesAgentTestPart01(unittest.TestCase):
         self.assertIn("https://www.muc.edu.cn/ggfw/mdxl.htm", response.answer_text)
         self.assertNotIn("所需材料", response.answer_text)
         self.assertNotIn("办理时间", response.answer_text)
+
+    def test_service_guide_entry_response_does_not_fallback_to_guide_sections(self) -> None:
+        response = service_guide_response(
+            ServiceGuideLookupResult(
+                service_query="校历在哪里看",
+                guide_focus="entry",
+                outcome="resolved_current",
+                resolved_service=ServiceGuideServiceRef(
+                    service_id="service:official_web:academic-calendar-guide",
+                    display_name="中央民族大学校历查看方式",
+                    aliases=("校历怎么看",),
+                    category="campus_service",
+                    campus_scope="all",
+                    audience=("student",),
+                ),
+                guide_sections=(
+                    ServiceGuideSection(
+                        section_id="service:official_web:academic-calendar-guide:section:entry",
+                        section_type="entry",
+                        title="查看入口",
+                        content="访问中央民族大学公开校历页面查看当学年校历。",
+                        source_refs=("https://met.muc.edu.cn/info/1068/1832.htm",),
+                    ),
+                ),
+                entry_refs=(),
+                source_refs=("https://met.muc.edu.cn/info/1068/1832.htm",),
+                queried_time_anchor="2026-05-04T10:30:00+08:00",
+                effective_from="2026-05-04T00:00:00+08:00",
+                effective_until="2099-12-31T23:59:59+08:00",
+                matched_service_category="campus_service",
+            )
+        )
+
+        self.assertEqual(response.status, "no_answer")
+        self.assertIn("当前还不能稳定确认这项办理指南", response.answer_text)
+        self.assertNotIn("访问中央民族大学公开校历页面", response.answer_text)
 
 
 if __name__ == "__main__":
