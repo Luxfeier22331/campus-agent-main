@@ -129,6 +129,130 @@ class RetrievalQrelsPolicyTest(unittest.TestCase):
             issues,
         )
 
+    def test_qrels_coverage_requires_empty_expected_sources_cases_in_no_hit_scenario(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            fixture = root / "qrels.json"
+            fixture.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "regulations",
+                        "collection": "student_rules",
+                        "baseline": {},
+                        "coverage_scenarios": {"no_hit": ["declared-no-hit"]},
+                        "cases": [
+                            {
+                                "case_id": "declared-no-hit",
+                                "split": "smoke",
+                                "query": "火星校区飞船停靠规则",
+                                "expected_sources": [],
+                            },
+                            {
+                                "case_id": "undeclared-no-hit",
+                                "split": "smoke",
+                                "query": "校内宇宙签证办理处",
+                                "expected_sources": [],
+                            },
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            policy_path = root / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "retrieval-qrels-denominator-policy-v1",
+                        "normalized_denominator_classes": ["no_hit"],
+                        "scopes": {
+                            "regulations/student_rules": {
+                                "fixture": "qrels.json",
+                                "min_case_count": 1,
+                                "required_classes": ["no_hit"],
+                                "required_scenarios": ["no_hit"],
+                                "scenario_denominator_classes": {"no_hit": ["no_hit"]},
+                            }
+                        },
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            issues = validate_default_query_enabled_qrels_coverage(
+                qrels_paths={"regulations/student_rules": fixture},
+                policy_path=policy_path,
+            )
+
+        self.assertIn(
+            "regulations/student_rules: empty-result qrels cases missing from empty-result scenarios: undeclared-no-hit",
+            issues,
+        )
+
+    def test_qrels_coverage_allows_authz_denied_empty_expected_sources_cases(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            fixture = root / "qrels.json"
+            fixture.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "corpus": "regulations",
+                        "collection": "institutional_rules",
+                        "baseline": {},
+                        "coverage_scenarios": {"authz_denied": ["restricted-deny"]},
+                        "cases": [
+                            {
+                                "case_id": "restricted-deny",
+                                "split": "smoke",
+                                "query": "受限制度标题",
+                                "expected_sources": [],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+            policy_path = root / "policy.json"
+            policy_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "retrieval-qrels-denominator-policy-v1",
+                        "normalized_denominator_classes": ["authz_filtered"],
+                        "scopes": {
+                            "regulations/institutional_rules": {
+                                "fixture": "qrels.json",
+                                "min_case_count": 1,
+                                "required_classes": ["no_hit"],
+                                "required_scenarios": ["authz_denied"],
+                                "scenario_denominator_classes": {
+                                    "authz_denied": ["authz_filtered"]
+                                },
+                            }
+                        },
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            issues = validate_default_query_enabled_qrels_coverage(
+                qrels_paths={"regulations/institutional_rules": fixture},
+                policy_path=policy_path,
+            )
+
+        self.assertNotIn(
+            "regulations/institutional_rules: empty-result qrels cases missing from empty-result scenarios: restricted-deny",
+            issues,
+        )
+
 
 if __name__ == "__main__":
     unittest.main()

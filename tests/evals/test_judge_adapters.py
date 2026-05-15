@@ -126,8 +126,8 @@ class JudgeSettingsTest(unittest.TestCase):
     def test_judge_settings_from_env_reads_shared_judge_profile(self) -> None:
         settings = JudgeLLMSettings.from_env(
             {
-                "LLM_BASE_URL": "https://llm.example/v1",
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_BASE_URL": "https://llm.example/v1",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "120",
                 "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS": "4",
@@ -163,20 +163,20 @@ class JudgeSettingsTest(unittest.TestCase):
     def test_judge_settings_from_env_reads_eval_llm_transport_with_surface_override(self) -> None:
         default_settings = JudgeLLMSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
             }
         )
         shared_override = JudgeLLMSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EVAL_LLM_TRANSPORT": "chat_completions",
             }
         )
         surface_override = JudgeLLMSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EVAL_LLM_TRANSPORT": "responses",
                 "EVAL_JUDGE_LLM_TRANSPORT": "chat_completions",
@@ -191,7 +191,7 @@ class JudgeSettingsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "EVAL_LLM_TRANSPORT must be one of"):
             JudgeLLMSettings.from_env(
                 {
-                    "LLM_API_KEY": "llm-key",
+                    "EVAL_LLM_API_KEY": "llm-key",
                     "EVAL_RAGAS_MODEL": "gpt-5.4",
                     "EVAL_LLM_TRANSPORT": "legacy_sdk",
                 }
@@ -201,7 +201,7 @@ class JudgeSettingsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "EVAL_JUDGE_MODEL or EVAL_RAGAS_MODEL is required"):
             JudgeLLMSettings.from_env(
                 {
-                    "LLM_API_KEY": "llm-key",
+                    "EVAL_LLM_API_KEY": "llm-key",
                 }
             )
 
@@ -214,7 +214,7 @@ class JudgeSettingsTest(unittest.TestCase):
             )
 
         self.assertEqual(raised.exception.surface_name, "eval.judge")
-        self.assertEqual(raised.exception.checked_keys, ("EVAL_LLM_API_KEY", "LLM_API_KEY"))
+        self.assertEqual(raised.exception.checked_keys, ("EVAL_LLM_API_KEY",))
         self.assertIn("eval.judge", str(raised.exception))
         self.assertIn("EVAL_LLM_API_KEY", str(raised.exception))
 
@@ -233,7 +233,7 @@ class JudgeSettingsTest(unittest.TestCase):
     def test_judge_settings_from_env_reads_request_pacing_override(self) -> None:
         settings = JudgeLLMSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "15",
             }
@@ -244,8 +244,8 @@ class JudgeSettingsTest(unittest.TestCase):
     def test_build_json_judge_attaches_request_pacer_when_configured(self) -> None:
         settings = JudgeLLMSettings.from_env(
             {
-                "LLM_BASE_URL": "https://llm.example/v1",
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_BASE_URL": "https://llm.example/v1",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
             }
@@ -301,8 +301,8 @@ class JudgeSettingsTest(unittest.TestCase):
 
         settings = JudgeLLMSettings.from_env(
             {
-                "LLM_BASE_URL": "https://llm.example/v1",
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_BASE_URL": "https://llm.example/v1",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
                 "EVAL_JUDGE_LLM_TRANSPORT": "chat_completions",
                 "RAGAS_REASONING_EFFORT": "none",
@@ -338,10 +338,10 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
     def test_build_handbook_ragas_adapter_passes_metric_names_to_scorer(self) -> None:
         ragas_settings = RagasSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
         )
 
@@ -368,7 +368,7 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         adapter = build_answer_rubric_adapter(
             JudgeLLMSettings.from_env(
                 {
-                    "LLM_API_KEY": "llm-key",
+                    "EVAL_LLM_API_KEY": "llm-key",
                     "EVAL_RAGAS_MODEL": "gpt-5.4",
                 }
             ),
@@ -410,7 +410,7 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         adapter = build_refusal_rubric_adapter(
             JudgeLLMSettings.from_env(
                 {
-                    "LLM_API_KEY": "llm-key",
+                    "EVAL_LLM_API_KEY": "llm-key",
                     "EVAL_RAGAS_MODEL": "gpt-5.4",
                 }
             ),
@@ -464,10 +464,10 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
     def test_handbook_ragas_adapter_marks_non_completed_cases_not_applicable(self) -> None:
         ragas_settings = RagasSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
         )
         adapter = build_handbook_ragas_adapter(
@@ -494,10 +494,10 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
     ) -> None:
         ragas_settings = RagasSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
         )
         adapter = build_handbook_ragas_adapter(
@@ -532,7 +532,7 @@ class JudgeAdapterApplicabilityTest(unittest.TestCase):
         adapter = build_answer_rubric_adapter(
             JudgeLLMSettings.from_env(
                 {
-                    "LLM_API_KEY": "llm-key",
+                    "EVAL_LLM_API_KEY": "llm-key",
                     "EVAL_RAGAS_MODEL": "gpt-5.4",
                 }
             ),

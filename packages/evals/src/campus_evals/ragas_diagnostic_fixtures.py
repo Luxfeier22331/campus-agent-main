@@ -53,14 +53,8 @@ PREFERRED_RAGAS_DIAGNOSTIC_CASE_IDS = {
     ),
     "official_web/stable_reference": (
         "stable-reference-school-profile",
-        "stable-reference-school-overview",
-        "stable-reference-current-leadership",
-        "stable-reference-alumni-association-profile",
-        "stable-reference-foundation-profile",
-        "stable-reference-undergraduate-education",
-        "stable-reference-graduate-education",
-        "stable-reference-postdoctoral-program",
-        "stable-reference-scholars",
+        "stable-reference-teaching-research-units",
+        "stable-reference-fee-disclosure",
         "stable-reference-no-hit-fictional-service",
     ),
 }
@@ -71,14 +65,8 @@ RAGAS_DIAGNOSTIC_CASE_METRIC_OVERRIDES = {
     "institutional-title-exact-81401d3a02d6": {"answer_relevancy": False},
     "ethnology-plan-title": {"answer_relevancy": False},
     "stable-reference-school-profile": {"answer_relevancy": False},
-    "stable-reference-school-overview": {"answer_relevancy": False},
-    "stable-reference-current-leadership": {"answer_relevancy": False},
-    "stable-reference-alumni-association-profile": {"answer_relevancy": False},
-    "stable-reference-foundation-profile": {"answer_relevancy": False},
-    "stable-reference-undergraduate-education": {"answer_relevancy": False},
-    "stable-reference-graduate-education": {"answer_relevancy": False},
-    "stable-reference-postdoctoral-program": {"answer_relevancy": False},
-    "stable-reference-scholars": {"answer_relevancy": False},
+    "stable-reference-teaching-research-units": {"answer_relevancy": False},
+    "stable-reference-fee-disclosure": {"answer_relevancy": False},
 }
 
 __all__ = [

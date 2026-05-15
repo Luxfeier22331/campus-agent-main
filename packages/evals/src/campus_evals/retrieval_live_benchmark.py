@@ -13,6 +13,7 @@ import campus_retrieval_core.backend_qdrant as backend_qdrant_module
 from campus_contracts import AuthorizedRetrievalFilter
 from campus_rag_agent.handbook_query_planning import plan_student_handbook_query
 from campus_rag_agent.institutional_rules_query_planning import plan_institutional_rules_query
+from campus_rag_agent.query_planning import plan_curriculum_query
 from campus_rag_agent.retrieval_intent import RetrievalIntent
 from campus_retrieval_core import RetrievalRequest, build_retrieval_backend
 from campus_retrieval_core.models import RetrievalSemanticHint
@@ -157,6 +158,7 @@ def _build_retrieval_request(*, case: RetrievalQrelsCase, default_top_k: int) ->
     target_document_ids = _coerce_tuple(overrides.get("target_document_ids"))
     handbook_plan = None
     institutional_rules_plan = None
+    curriculum_plan = None
     retrieval_intent = None
     if (
         case.scope.corpus == "regulations"
@@ -180,6 +182,16 @@ def _build_retrieval_request(*, case: RetrievalQrelsCase, default_top_k: int) ->
             or institutional_rules_plan.rewritten_query_text
         )
         target_document_ids = institutional_rules_plan.target_document_ids
+    if (
+        case.scope.corpus == "curriculum"
+        and case.scope.collection == "curriculum_plan"
+        and not target_document_ids
+    ):
+        curriculum_plan = plan_curriculum_query(case.query)
+        retrieval_intent = curriculum_plan.retrieval_intent
+        if curriculum_plan.status == "resolved":
+            query_text = curriculum_plan.rewritten_query_text
+            target_document_ids = curriculum_plan.target_document_ids
     return RetrievalRequest(
         query_text=query_text,
         corpus=case.scope.corpus,
@@ -187,7 +199,8 @@ def _build_retrieval_request(*, case: RetrievalQrelsCase, default_top_k: int) ->
         authorized_filter=_build_authorized_filter(overrides),
         target_document_ids=target_document_ids,
         preferred_document_ids=_coerce_tuple(overrides.get("preferred_document_ids"))
-        or _handbook_plan_preferred_document_ids(handbook_plan),
+        or _handbook_plan_preferred_document_ids(handbook_plan)
+        or _planning_tuple(curriculum_plan, "preferred_document_ids"),
         focus_detail_labels=_coerce_tuple(overrides.get("focus_detail_labels"))
         or _planning_tuple(handbook_plan, "focus_detail_labels")
         or _planning_tuple(institutional_rules_plan, "focus_detail_labels"),

@@ -33,23 +33,15 @@ from campus_evals.live_benchmark import (
 )
 from campus_evals.models import ExecutionResult, GoldenCase, ObservedTrace
 from campus_evals.rag_inprocess_delegate import delegate_to_rag_agent_inprocess
-from campus_evals.scenarios import (
-    official_web_fresh_news_release_gate_cases,
-    official_web_release_gate_cases,
-    official_web_stable_reference_release_gate_cases,
-)
+from campus_evals.scenarios import official_web_stable_reference_release_gate_cases
 
-RUN_PREFIX = "official-web-live-gate"
-REPAIR_PREFIX = "official-web-live-gate-repair"
 STABLE_REFERENCE_RUN_PREFIX = "official-web-stable-reference-live-gate"
 STABLE_REFERENCE_REPAIR_PREFIX = "official-web-stable-reference-live-gate-repair"
-FRESH_NEWS_RUN_PREFIX = "official-web-fresh-news-live-gate"
-FRESH_NEWS_REPAIR_PREFIX = "official-web-fresh-news-live-gate-repair"
 OFFICIAL_WEB_LIVE_GATE_POLICY_PATH = (
     Path(__file__).resolve().parents[2] / "fixtures" / "official_web_live_gate_policy.json"
 )
-OFFICIAL_WEB_SCOPE_CHOICES = ("mixed", "stable_reference", "fresh_news")
-OfficialWebLiveScopeKey = Literal["mixed", "stable_reference", "fresh_news"]
+OFFICIAL_WEB_SCOPE_CHOICES = ("stable_reference",)
+OfficialWebLiveScopeKey = Literal["stable_reference"]
 
 Retriever = Callable[..., EvidenceBundle]
 Delegate = Callable[..., AgentResponse]
@@ -109,7 +101,7 @@ def build_official_web_live_executor(
 
 
 def build_parser() -> argparse.ArgumentParser:
-    parser = build_parser_for_profile(build_official_web_live_profile())
+    parser = build_parser_for_profile(build_official_web_live_profile(scope_key="stable_reference"))
     for action in parser._actions:
         if not isinstance(action, argparse._SubParsersAction):
             continue
@@ -117,7 +109,7 @@ def build_parser() -> argparse.ArgumentParser:
             subparser.add_argument(
                 "--official-web-scope",
                 choices=OFFICIAL_WEB_SCOPE_CHOICES,
-                default="mixed",
+                default="stable_reference",
                 help="Select the repo-tracked official_web eval scope to validate.",
             )
             subparser.add_argument(
@@ -131,7 +123,7 @@ def build_parser() -> argparse.ArgumentParser:
 def build_official_web_live_profile(
     *,
     qdrant_collection_name: str | None = None,
-    scope_key: OfficialWebLiveScopeKey = "mixed",
+    scope_key: OfficialWebLiveScopeKey = "stable_reference",
 ) -> BenchmarkProfile:
     profile_spec = _build_profile_spec(scope_key)
     http_settings = build_default_profile_http_settings()
@@ -193,16 +185,6 @@ def _strip_official_web_profile_args(argv: list[str]) -> list[str]:
 
 
 def _build_profile_spec(scope_key: OfficialWebLiveScopeKey) -> dict[str, object]:
-    if scope_key == "mixed":
-        return {
-            "profile_id": "official_web",
-            "benchmark_type": "official_web_live_gate",
-            "repair_benchmark_type": "official_web_live_gate_repair",
-            "run_prefix": RUN_PREFIX,
-            "repair_prefix": REPAIR_PREFIX,
-            "description": "Run or repair official_web mixed live benchmark against a specified physical collection.",
-            "cases_factory": official_web_release_gate_cases,
-        }
     if scope_key == "stable_reference":
         return {
             "profile_id": "official_web_stable_reference",
@@ -212,16 +194,6 @@ def _build_profile_spec(scope_key: OfficialWebLiveScopeKey) -> dict[str, object]
             "repair_prefix": STABLE_REFERENCE_REPAIR_PREFIX,
             "description": "Run or repair official_web stable_reference live benchmark against a specified physical collection.",
             "cases_factory": official_web_stable_reference_release_gate_cases,
-        }
-    if scope_key == "fresh_news":
-        return {
-            "profile_id": "official_web_fresh_news",
-            "benchmark_type": "official_web_fresh_news_live_gate",
-            "repair_benchmark_type": "official_web_fresh_news_live_gate_repair",
-            "run_prefix": FRESH_NEWS_RUN_PREFIX,
-            "repair_prefix": FRESH_NEWS_REPAIR_PREFIX,
-            "description": "Run or repair official_web fresh_news seed live benchmark against a specified physical collection.",
-            "cases_factory": official_web_fresh_news_release_gate_cases,
         }
     raise ValueError(f"unsupported official_web live scope: {scope_key}")
 

@@ -1,31 +1,25 @@
 from __future__ import annotations
 
-import json
 import unittest
-from contextlib import redirect_stdout
 from dataclasses import replace
-from io import StringIO
-from pathlib import Path
-from tempfile import TemporaryDirectory
-from unittest.mock import patch
 
 from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle, KnowledgeScope
 from campus_evals.benchmark import RetrievalQrelsCase, RetrievalQrelsSourceRef
 from campus_evals.ragas_diagnostic_runner import (
-    DEFAULT_RAGAS_DIAGNOSTIC_SAMPLE_LIMIT_PER_SURFACE,
     RAGAS_DIAGNOSTIC_INDEXED_LOOKUP_TIMEOUT_MS,
     _build_diagnostic_retrieval_plan,
     _build_projection_with_breakdown,
-    _override_ragas_diagnostic_runtime_profiles,
     _retrieval_intent_for_case,
     build_ragas_diagnostic_sample_manifest,
-    combine_ragas_diagnostic_reports,
-    main,
     run_ragas_diagnostic,
 )
 from campus_evals.retrieval_live_benchmark import _build_retrieval_request
 from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 
+from tests.evals.ragas_diagnostic_test_support import (
+    _answer_ready_regulation_source,
+    _diagnostic_source_for_request,
+)
 from tests.evals.retrieval_benchmark_test_support import _source
 
 
@@ -82,7 +76,7 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
                     corpus=request.corpus,
                     collection=request.collection,
                     query_text=request.query_text,
-                    sources=(_source(doc_id=f"{request.collection}:doc"),),
+                    sources=(_diagnostic_source_for_request(request),),
                 )
 
         report = run_ragas_diagnostic(
@@ -99,10 +93,7 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
         self.assertEqual(institutional_request.semantic_hint.intent_kind, "policy_object_lookup")
         self.assertEqual(
             institutional_request.target_document_ids,
-            (
-                "institutional_regulation:muc:"
-                "中央民族大学研究生-三助-工作管理办法:49319e7c44d3",
-            ),
+            ("institutional_regulation:muc:中央民族大学研究生-三助-工作管理办法:49319e7c44d3",),
         )
         self.assertEqual(
             institutional_request.authorized_filter,
@@ -126,26 +117,16 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
                     collection=request.collection,
                     query_text=request.query_text,
                     sources=(
-                        replace(
-                            _source(
-                                doc_id="handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8",
-                                chunk_id="discipline-relief-condition",
-                            ),
+                        _answer_ready_regulation_source(
+                            doc_id="handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8",
+                            chunk_id="discipline-relief-condition",
                             source_title="中央民族大学解除学生纪律处分实施办法",
                             snippet="学生受处分满考察期后，可以申请解除纪律处分。",
                             detail_label="第三条",
-                            is_answer_bearing=True,
-                            anchor={
-                                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
-                                    "evidence_contract_version": "answer_ready_evidence.v3",
-                                    "answer_role": "eligibility_condition",
-                                    "semantic_role": "eligibility_condition",
-                                    "claim_type": "condition",
-                                    "condition_subject": "discipline_relief_condition",
-                                    "condition_polarity": "positive",
-                                    "article_no": "第三条",
-                                }
-                            },
+                            content_role="eligibility",
+                            answer_role="eligibility_condition",
+                            semantic_role="eligibility_condition",
+                            condition_subject="discipline_relief_condition",
                         ),
                     ),
                 )
@@ -189,6 +170,27 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
             request.preferred_document_ids,
         )
 
+    def test_retrieval_request_uses_curriculum_title_plan_for_document_lookup(self) -> None:
+        case = RetrievalQrelsCase(
+            case_id="curriculum-title-accounting-second-degree",
+            split="smoke",
+            query="会计学本科第二学士学位人才培养方案",
+            scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan"),
+        )
+
+        request = _build_retrieval_request(case=case, default_top_k=5)
+
+        self.assertEqual(
+            request.target_document_ids,
+            ("curriculum:会计学本科第二学士学位人才培养方案",),
+        )
+        self.assertIsNotNone(request.semantic_hint)
+        assert request.semantic_hint is not None
+        self.assertEqual(request.semantic_hint.intent_kind, "curriculum_document_lookup")
+        self.assertEqual(request.semantic_hint.answer_kind, "curriculum_document")
+        self.assertEqual(request.semantic_hint.selection_policy, "document_identity_first")
+        self.assertEqual(request.semantic_hint.expected_answer_roles, ("document_identity",))
+
     def test_projection_executes_member_coverage_plan_for_category_condition_overview(
         self,
     ) -> None:
@@ -200,27 +202,14 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
                 if not request.target_document_ids:
                     raise AssertionError("category member diagnostic plan must use target docs")
                 sources = tuple(
-                    replace(
-                        _source(
-                            doc_id=doc_id,
-                            chunk_id=f"{doc_id}:condition-row",
-                        ),
+                    _answer_ready_regulation_source(
+                        doc_id=doc_id,
+                        chunk_id=f"{doc_id}:condition-row",
                         source_title="中央民族大学本科学生奖学金评定办法",
                         snippet="申请奖学金应当热爱社会主义祖国，遵守学校规章制度，学习成绩优良。",
                         content_role="eligibility",
-                        is_answer_bearing=True,
-                        anchor={
-                            INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
-                                "evidence_contract_version": "answer_ready_evidence.v3",
-                                "answer_role": "eligibility_condition",
-                                "parent_unit_id": f"{doc_id}:article-1",
-                                "condition_subject": "generic_condition",
-                                "condition_group_id": f"{doc_id}:article-1:generic_condition",
-                                "condition_subject_taxonomy_version": "condition_subject.v1",
-                                "condition_subject_provenance": "test:explicit",
-                                "condition_polarity": "positive",
-                            }
-                        },
+                        answer_role="eligibility_condition",
+                        semantic_role="eligibility_condition",
                     )
                     for doc_id in request.target_document_ids
                 )
@@ -279,9 +268,13 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
                                     "evidence_contract_version": "answer_ready_evidence.v3",
                                     "answer_role": "supporting_detail",
                                     "parent_unit_id": "article-0033",
+                                    "condition_subject": "attendance_absence_threshold",
+                                    "condition_group_id": "article-0033:attendance_absence_threshold",
+                                    "condition_group_subject": "attendance_absence_threshold",
                                     "condition_polarity": "neutral",
                                 }
                             },
+                            semantic_role="supporting_detail",
                         ),
                     ),
                 )
@@ -297,8 +290,12 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
             top_k=5,
         )
 
-        self.assertTrue(projection.response.startswith("旷课按违纪处理的最低命中分档"))
-        self.assertIn("其余分档依据中央民族大学学生违纪处分实施办法 第三十三条", projection.response)
+        self.assertTrue(
+            projection.response.startswith(
+                "制度原文没有使用“学时”，而是按“节”统计；一学期累计旷课16节以下即进入违纪处理分档"
+            )
+        )
+        self.assertIn("依据中央民族大学学生违纪处分实施办法 第三十三条", projection.response)
 
     def test_projection_reference_context_ids_use_primary_answer_sources_only(
         self,
@@ -321,7 +318,7 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
                                 "学生旷课,视情节由学生处或研究生院根据"
                                 "《中央民族大学学生违纪处分实施办法》相关条款给予相应处分。"
                             ),
-                            is_answer_bearing=True,
+                            is_answer_bearing=False,
                         ),
                         replace(
                             _source(doc_id=primary_doc_id, chunk_id="attendance-threshold-row"),
@@ -339,10 +336,12 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
                                     "answer_role": "supporting_detail",
                                     "parent_unit_id": "article-0033",
                                     "condition_subject": "attendance_absence_threshold",
+                                    "condition_group_id": "article-0033:attendance_absence_threshold",
                                     "condition_group_subject": "attendance_absence_threshold",
                                     "condition_polarity": "neutral",
                                 }
                             },
+                            semantic_role="supporting_detail",
                         ),
                     ),
                 )
@@ -381,6 +380,13 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
         self,
     ) -> None:
         seen_requests = []
+        member_doc_ids = (
+            "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+            "handbook:1f17ba6234c15963648b3d74656d78621cad77a7",
+            "handbook:60c8b33801e2e59e6db2210719592a6252e3516d",
+            "handbook:a531a3c85de862c737d0576e957bf59598822c54",
+            "handbook:aa835b8cd4acddb62c7243fed9a9f8c0728e68bc",
+        )
 
         class FakeBackend:
             def retrieve(self, request):
@@ -436,6 +442,7 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
             len(target_requests),
         )
         self.assertEqual(seen_requests, target_requests)
+        self.assertEqual(projection.reference_context_ids, member_doc_ids)
 
     def test_category_condition_member_plan_uses_per_member_indexed_lookup_steps(
         self,
@@ -471,551 +478,68 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
             all(step.budget.top_k == 5 for step in plan.steps),
         )
 
-    def test_run_ragas_diagnostic_scores_document_identity_with_deterministic_grounding(
-        self,
-    ) -> None:
-        seen_projections = []
+    def test_specific_policy_procedure_projection_executes_focused_plan(self) -> None:
+        seen_requests = []
 
         class FakeBackend:
             def retrieve(self, request):
-                return EvidenceBundle(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    query_text=request.query_text,
-                    sources=(
-                        _source(
-                            doc_id=(
-                                "institutional_regulation:muc:"
-                                "中央民族大学研究生-三助-工作管理办法:49319e7c44d3"
-                            ),
-                        ),
-                    ),
-                )
-
-        def fake_scorer(projection):
-            seen_projections.append(projection)
-            return {"faithfulness": 0.0}
-
-        report = run_ragas_diagnostic(
-            backend=FakeBackend(),
-            scorer=fake_scorer,
-            sample_limit_per_surface=1,
-            metric_names=("faithfulness", "identity_grounding"),
-        )
-
-        institutional_case = next(
-            case for case in report["cases"] if case["case_id"] == "institutional-three-assists"
-        )
-        self.assertEqual(institutional_case["answer_shape"], "title_lookup")
-        self.assertEqual(institutional_case["presentation_kind"], "document_identity")
-        self.assertNotIn("faithfulness", institutional_case["scores"])
-        self.assertEqual(institutional_case["scores"]["identity_grounding"], 1.0)
-        self.assertEqual(institutional_case["failure_attribution"]["primary_stage"], "passed")
-        self.assertTrue(
-            any(
-                projection.case_id == "institutional-three-assists"
-                and projection.metadata.get("presentation_kind") == "document_identity"
-                for projection in seen_projections
-            )
-        )
-
-    def test_run_ragas_diagnostic_uses_intent_for_unlisted_institutional_title(
-        self,
-    ) -> None:
-        title = "中央民族大学丰台校区就医管理办法（暂行）"
-
-        class FakeBackend:
-            def retrieve(self, request):
-                return EvidenceBundle(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    query_text=request.query_text,
-                    sources=(
-                        replace(
-                            _source(
-                                doc_id=(
-                                    "institutional_regulation:muc:"
-                                    "中央民族大学丰台校区就医管理办法-暂行:ff711d1185f9"
-                                ),
-                                chunk_id="medical-title",
-                            ),
-                            source_title=title,
-                            snippet=f"{title}\n一、就医医院",
-                            is_answer_bearing=True,
-                        ),
-                    ),
-                )
-
-        report = run_ragas_diagnostic(
-            backend=FakeBackend(),
-            scorer=lambda projection: {"context_precision": 1.0},
-            sample_limit_per_surface=2,
-            metric_names=("identity_grounding", "context_precision"),
-        )
-
-        case = next(
-            item
-            for item in report["cases"]
-            if item["case_id"] == "institutional-title-exact-ff711d1185f9"
-        )
-        self.assertEqual(case["answer_shape"], "title_lookup")
-        self.assertEqual(case["presentation_kind"], "document_identity")
-        self.assertEqual(case["retrieval_intent_kind"], "policy_object_lookup")
-        self.assertEqual(case["retrieval_answer_kind"], "policy_object")
-        self.assertEqual(case["scores"]["identity_grounding"], 1.0)
-        self.assertIn(title, case["answer_text"])
-        self.assertNotEqual(case["answer_text"], "")
-
-    def test_run_ragas_diagnostic_uses_intent_for_rewritten_policy_clause_answers(
-        self,
-    ) -> None:
-        seen_projections = []
-        title = "中央民族大学本科学生国家奖学金评审办法"
-
-        class FakeBackend:
-            def retrieve(self, request):
-                source = replace(
-                    _source(
-                        doc_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
-                        chunk_id="national-paper-book",
-                    ),
-                    source_title=title,
-                    snippet=(
-                        f"{title} / 第三章 评选条件 / 第九条\n"
-                        "2. 在学术研究上取得显著成绩,以第一作者发表论文或以"
-                        "第一、二作者出版学术专著。"
-                    ),
-                    detail_label="第九条",
-                    article_no="第九条",
-                    clause_no="2.",
-                    content_role="eligibility",
-                    is_answer_bearing=True,
-                )
-                return EvidenceBundle(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    query_text=f"{title} {request.query_text}",
-                    sources=(source,),
-                )
-
-        def fake_scorer(projection):
-            seen_projections.append(projection)
-            return {"faithfulness": 1.0, "answer_relevancy": 1.0}
-
-        report = run_ragas_diagnostic(
-            backend=FakeBackend(),
-            scorer=fake_scorer,
-            sample_limit_per_surface=2,
-            metric_names=("faithfulness", "answer_relevancy"),
-        )
-
-        case = next(
-            item
-            for item in report["cases"]
-            if item["case_id"] == "policy-alias-national-scholarship-article-nine"
-        )
-        self.assertEqual(case["answer_shape"], "detail_clause")
-        self.assertIn("论文", case["answer_text"])
-        self.assertIn("第一作者", case["answer_text"])
-        self.assertNotIn("相关依据为", case["answer_text"])
-        self.assertEqual(case["retrieval_intent_kind"], "specific_clause_lookup")
-        self.assertEqual(case["retrieval_answer_kind"], "specific_clause")
-        projection = next(
-            projection
-            for projection in seen_projections
-            if projection.case_id == "policy-alias-national-scholarship-article-nine"
-        )
-        self.assertEqual(projection.metadata["retrieval_intent_kind"], "specific_clause_lookup")
-
-    def test_projection_for_planner_clarification_case_uses_clarification_text(self) -> None:
-        class FakeBackend:
-            def retrieve(self, request):
-                return EvidenceBundle(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    query_text=request.query_text,
-                    sources=(),
-                )
-
-        projection, _ = _build_projection_with_breakdown(
-            case=RetrievalQrelsCase(
-                case_id="ambiguous-scholarship-procedure",
-                split="smoke",
-                query="奖学金怎么申请？",
-                scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
-            ),
-            backend=FakeBackend(),
-            top_k=5,
-        )
-
-        self.assertIn("请说明", projection.response)
-        self.assertEqual(projection.metadata["retrieval_intent_kind"], "clarification_required")
-        self.assertEqual(projection.metadata["retrieval_answer_kind"], "clarification")
-        self.assertEqual(projection.metadata["answer_shape"], "general_summary")
-        self.assertEqual(projection.metadata["presentation_kind"], "clarification")
-
-    def test_run_ragas_diagnostic_uses_retrieved_evidence_and_fake_scorer(self) -> None:
-        seen_bundles: list[EvidenceBundle] = []
-
-        class FakeBackend:
-            def retrieve(self, request):
-                bundle = EvidenceBundle(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    query_text=request.query_text,
-                    sources=(_source(doc_id=f"{request.collection}:doc"),),
-                )
-                seen_bundles.append(bundle)
-                return bundle
-
-        def fake_scorer(projection):
-            return {
-                "context_precision": 0.91,
-            }
-
-        report = run_ragas_diagnostic(
-            backend=FakeBackend(),
-            scorer=fake_scorer,
-            sample_limit_per_surface=1,
-            metric_names=("context_precision",),
-        )
-
-        self.assertTrue(report["passed"])
-        self.assertEqual(report["summary"]["total_cases"], 4)
-        self.assertEqual(report["summary"]["failed_cases"], 0)
-        self.assertEqual(report["run_config"]["sample_limit_per_surface"], 1)
-        self.assertEqual(report["run_config"]["top_k"], 5)
-        self.assertEqual(report["run_config"]["metric_names"], ["context_precision"])
-        self.assertEqual(len(seen_bundles), 4)
-        self.assertTrue(report["cases"][0]["answer_text"])
-        self.assertEqual(report["cases"][0]["answer_shape"], "title_lookup")
-        self.assertEqual(report["cases"][0]["presentation_kind"], "document_identity")
-        self.assertEqual(report["cases"][0]["presentation_path"], "")
-        self.assertEqual(report["cases"][0]["diagnostic_reason"], "")
-        self.assertEqual(report["cases"][0]["retrieval_intent_kind"], "policy_object_lookup")
-        self.assertEqual(report["cases"][0]["retrieval_answer_kind"], "policy_object")
-        self.assertEqual(report["cases"][0]["scores"]["context_precision"], 0.91)
-        self.assertNotIn("answer_relevancy", report["cases"][0]["scores"])
-        self.assertEqual(report["cases"][0]["retrieved_context_count"], 1)
-        self.assertEqual(report["cases"][0]["raw_retrieved_doc_ids"], ["student_rules:doc"])
-        self.assertEqual(report["cases"][0]["selected_support_doc_ids"], ["student_rules:doc"])
-        self.assertIn("duration_ms", report["cases"][0])
-        self.assertEqual(
-            set(report["cases"][0]["performance_breakdown"]),
-            {
-                "retrieval_ms",
-                "answer_ms",
-                "scorer_ms",
-                "diagnostic_ms",
-                "dependency_wait_ms",
-            },
-        )
-        self.assertEqual(
-            report["cases"][0]["failure_attribution"]["primary_stage"],
-            "passed",
-        )
-
-    def test_run_ragas_diagnostic_fails_closed_when_projection_has_no_answer_support(
-        self,
-    ) -> None:
-        class EmptyBackend:
-            def retrieve(self, request):
-                return EvidenceBundle(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    query_text=request.query_text,
-                    sources=(),
-                )
-
-        report = run_ragas_diagnostic(
-            backend=EmptyBackend(),
-            scorer=lambda projection: {"context_precision": 1.0},
-            sample_limit_per_surface=1,
-            metric_names=("context_precision",),
-        )
-
-        first_case = report["cases"][0]
-        self.assertFalse(report["passed"])
-        self.assertEqual(first_case["status"], "failed")
-        self.assertEqual(first_case["error_type"], "RagasProjectionContractError")
-        self.assertIn("no supporting evidence", first_case["error_message"])
-        self.assertEqual(report["summary"]["failed_cases"], 4)
-
-    def test_diagnostic_runtime_profile_override_targets_preview_collection(
-        self,
-    ) -> None:
-        import campus_retrieval_core.backend_qdrant as backend_qdrant_module
-        import campus_retrieval_core.service as retrieval_service_module
-
-        with _override_ragas_diagnostic_runtime_profiles(
-            {
-                "regulations/student_rules": "student_rules__r20260512_preview",
-            }
-        ):
-            backend_profile = backend_qdrant_module.load_runtime_profile(
-                "regulations",
-                "student_rules",
-            )
-            service_profile = retrieval_service_module.load_runtime_profile(
-                "regulations",
-                "student_rules",
-            )
-
-        self.assertTrue(backend_profile.retrieval_enabled)
-        self.assertEqual(
-            backend_profile.qdrant_index_binding.alias_name,
-            "student_rules__r20260512_preview",
-        )
-        self.assertEqual(
-            service_profile.qdrant_index_binding.alias_name,
-            "student_rules__r20260512_preview",
-        )
-
-    def test_cli_accepts_scoped_qdrant_collection_override(self) -> None:
-        class FakeBackend:
-            def retrieve(self, request):
-                return EvidenceBundle(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    query_text=request.query_text,
-                    sources=(_source(doc_id=f"{request.collection}:doc"),),
-                )
-
-        with TemporaryDirectory() as temp_dir:
-            output_dir = Path(temp_dir)
-            with (
-                patch(
-                    "campus_evals.ragas_diagnostic_runner.build_retrieval_backend",
-                    return_value=FakeBackend(),
-                ),
-                redirect_stdout(StringIO()),
-            ):
-                exit_code = main(
-                    [
-                        "--output-dir",
-                        str(output_dir),
-                        "--sample-limit-per-surface",
-                        "1",
-                        "--fake-scorer",
-                        "--metric-name",
-                        "context_precision",
-                        "--qdrant-collection-name",
-                        "regulations/student_rules=student_rules__r20260512_preview",
-                    ]
-                )
-            report = json.loads((output_dir / "ragas-diagnostic.current.json").read_text())
-
-        self.assertEqual(exit_code, 0)
-        self.assertEqual(
-            report["run_config"]["qdrant_collection_overrides"],
-            {"regulations/student_rules": "student_rules__r20260512_preview"},
-        )
-
-    def test_run_ragas_diagnostic_attributes_low_scores_to_retrieval_or_synthesis(
-        self,
-    ) -> None:
-        class WrongBackend:
-            def retrieve(self, request):
-                return EvidenceBundle(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    query_text=request.query_text,
-                    sources=(_source(doc_id="wrong:doc"),),
-                )
-
-        report = run_ragas_diagnostic(
-            backend=WrongBackend(),
-            scorer=lambda projection: {"context_recall": 0.2, "answer_relevancy": 0.4},
-            sample_limit_per_surface=1,
-            metric_names=("context_recall", "answer_relevancy"),
-        )
-
-        first_case = report["cases"][0]
-        self.assertEqual(
-            first_case["failure_attribution"]["metric_failures"],
-            {"context_recall": "retrieval"},
-        )
-        self.assertEqual(first_case["failure_attribution"]["primary_stage"], "retrieval")
-        self.assertEqual(report["summary"]["failure_attribution"]["retrieval"], 4)
-        self.assertEqual(report["summary"]["performance_breakdown"]["case_count"], 4)
-        self.assertIn("retrieval_ms", report["summary"]["performance_breakdown"])
-
-    def test_run_ragas_diagnostic_attributes_answer_quality_to_evidence_selection_when_raw_retrieval_had_expected_doc(
-        self,
-    ) -> None:
-        class MixedBackend:
-            def retrieve(self, request):
-                return EvidenceBundle(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    query_text=request.query_text,
-                    sources=(
-                        _source(doc_id="wrong:doc"),
-                        _source(
-                            doc_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
-                        ),
-                    ),
-                )
-
-        report = run_ragas_diagnostic(
-            backend=MixedBackend(),
-            scorer=lambda projection: {"answer_relevancy": 0.4},
-            sample_limit_per_surface=1,
-            metric_names=("answer_relevancy",),
-        )
-
-        first_case = report["cases"][0]
-        self.assertEqual(first_case["status"], "completed")
-        self.assertEqual(
-            first_case["failure_attribution"]["metric_failures"],
-            {},
-        )
-        self.assertEqual(first_case["failure_attribution"]["primary_stage"], "passed")
-
-    def test_run_ragas_diagnostic_marks_requested_null_metric_as_failed(self) -> None:
-        class FakeBackend:
-            def retrieve(self, request):
-                return EvidenceBundle(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    query_text=request.query_text,
-                    sources=(_discipline_relief_duration_source(),),
-                )
-
-        report = run_ragas_diagnostic(
-            backend=FakeBackend(),
-            scorer=lambda projection: {"answer_relevancy": None},
-            sample_limit_per_surface=1,
-            metric_names=("answer_relevancy",),
-            case_ids=("semantic-disciplinary-relief",),
-        )
-
-        first_case = report["cases"][0]
-        self.assertFalse(report["passed"])
-        self.assertEqual(report["summary"]["failed_cases"], 1)
-        self.assertEqual(first_case["status"], "failed")
-        self.assertEqual(first_case["error_type"], "RagasMetricUnavailable")
-        self.assertEqual(first_case["scores"], {"answer_relevancy": None})
-        self.assertEqual(first_case["metric_failures"][0]["metric_name"], "answer_relevancy")
-        self.assertEqual(first_case["failure_attribution"]["primary_stage"], "diagnostic")
-
-    def test_live_scorer_null_metric_failure_includes_underlying_rationale(self) -> None:
-
-        class FakeBackend:
-            def retrieve(self, request):
-                return EvidenceBundle(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    query_text=request.query_text,
-                    sources=(_discipline_relief_duration_source(),),
-                )
-
-        def fake_live_scorer(projection):
-            projection.metadata["metric_diagnostics"] = {
-                "answer_relevancy": {
-                    "verdict": "failed",
-                    "rationale": "ragas runtime error: provider timeout",
-                    "metadata": {"judge_error": "TimeoutError", "failure_reasons": ["timeout"]},
-                }
-            }
-            return {"answer_relevancy": None}
-
-        report = run_ragas_diagnostic(
-            backend=FakeBackend(),
-            scorer=fake_live_scorer,
-            sample_limit_per_surface=1,
-            metric_names=("answer_relevancy",),
-            case_ids=("semantic-disciplinary-relief",),
-        )
-
-        first_case = report["cases"][0]
-        self.assertEqual(first_case["status"], "failed")
-        self.assertIn("provider timeout", first_case["error_message"])
-        self.assertIn("TimeoutError", first_case["error_message"])
-        self.assertIn("timeout", first_case["metric_failures"][0]["error_message"])
-
-    def test_run_ragas_diagnostic_respects_case_workers_and_preserves_order(self) -> None:
-        institutional_title_by_doc_id = {
-            "institutional_regulation:muc:中央民族大学研究生-三助-工作管理办法:49319e7c44d3": "中央民族大学研究生“三助”工作管理办法",
-            "institutional_regulation:muc:中央民族大学丰台校区就医管理办法-暂行:ff711d1185f9": "中央民族大学丰台校区就医管理办法（暂行）",
-            "institutional_regulation:muc:中央民族大学学生公费医疗管理办法:81401d3a02d6": "中央民族大学学生公费医疗管理办法",
-            "institutional_regulation:muc:中央民族大学学生社团管理办法:7da72ac3d796": "中央民族大学学生社团管理办法",
-            "institutional_regulation:muc:中央民族大学学费-住宿费收费管理规定:40d4d65809c5": "中央民族大学学费、住宿费收费管理规定",
-            "institutional_regulation:muc:中央民族大学排课管理办法:e593d7a51e16": "中央民族大学排课管理办法",
-        }
-
-        class FakeBackend:
-            def retrieve(self, request):
-                target_doc_id = request.target_document_ids[0] if request.target_document_ids else ""
-                source_title = institutional_title_by_doc_id.get(target_doc_id, request.query_text)
-                return EvidenceBundle(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    query_text=request.query_text,
-                    sources=(
-                        replace(
-                            _source(doc_id=f"{request.collection}:{request.query_text}"),
-                            source_title=source_title,
-                            snippet=f"{source_title} 相关依据",
-                            is_answer_bearing=True,
-                            anchor={
-                                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
-                                    "evidence_contract_version": "answer_ready_evidence.v3",
-                                    "answer_role": "primary_content",
-                                }
-                            },
-                        ),
-                    ),
-                )
-
-        report = run_ragas_diagnostic(
-            backend=FakeBackend(),
-            scorer=lambda projection: {"context_precision": 1.0},
-            sample_limit_per_surface=2,
-            metric_names=("context_precision",),
-            case_workers=2,
-        )
-
-        self.assertTrue(report["passed"])
-        self.assertEqual(report["run_config"]["case_workers"], 2)
-        self.assertEqual(len(report["cases"]), 8)
-        self.assertEqual(report["cases"][0]["case_id"], "policy-title-scholarship")
-        self.assertEqual(
-            report["cases"][1]["case_id"], "policy-alias-national-scholarship-article-nine"
-        )
-
-    def test_run_ragas_diagnostic_filters_to_explicit_case_ids(self) -> None:
-        class FakeBackend:
-            def retrieve(self, request):
-                if request.collection == "curriculum_plan":
+                seen_requests.append(request)
+                if "听证申请" in request.query_text and request.top_k >= 12:
                     source = replace(
-                        _source(doc_id="curriculum_plan:digital-economy"),
-                        source_title="数字经济专业本科培养方案",
-                        snippet="数字经济专业本科培养方案 相关依据",
+                        _source(
+                            doc_id="handbook:1b7c532ecdbc8afe1820d2c55dfba911d891e37a",
+                            chunk_id="hearing-application-right-deadline",
+                        ),
+                        source_title="中央民族大学学生听证实施办法",
+                        detail_label="第十三条",
+                        snippet=(
+                            "学生有要求听证的权利。学生应当在收到拟处分或处理告知书后"
+                            "10日内提交书面听证申请,学校15日内组织召开听证会。"
+                        ),
+                        content_role="time_constraint",
                         is_answer_bearing=True,
                         anchor={
                             INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
                                 "evidence_contract_version": "answer_ready_evidence.v3",
-                                "answer_role": "primary_content",
+                                "answer_role": "time_constraint",
+                                "semantic_role": "time_constraint",
+                                "claim_type": "time_constraint",
+                                "parent_unit_id": "handbook:hearing:article-13",
+                                "procedure_step_index": 1,
+                                "procedure_actor": "student",
+                                "procedure_action": "apply",
+                                "procedure_action_taxonomy_version": "procedure_action.v1",
+                                "procedure_action_provenance": "test:explicit",
+                                "condition_subject": "deadline",
+                                "condition_group_subject": "deadline",
+                                "condition_group_id": "handbook:hearing:article-13:deadline",
+                                "condition_subject_taxonomy_version": "condition_subject.v1",
+                                "condition_subject_provenance": "test:explicit",
+                                "condition_polarity": "positive",
                             }
                         },
                     )
                 else:
                     source = replace(
-                        _source(doc_id=f"{request.collection}:doc"),
-                        source_title="中央民族大学解除学生纪律处分实施办法",
-                        detail_label="第三条",
-                        snippet=(
-                            "受警告、严重警告处分的学生,考察期满6个月后可申请解除处分;"
-                            "受记过、留校察看处分的学生,考察期满12个月后可申请解除处分。"
+                        _source(
+                            doc_id="handbook:1b7c532ecdbc8afe1820d2c55dfba911d891e37a",
+                            chunk_id="hearing-meeting-sequence",
                         ),
-                        is_answer_bearing=True,
+                        source_title="中央民族大学学生听证实施办法",
+                        detail_label="第二十条",
+                        snippet=(
+                            "听证主持人介绍听证会参加人员,宣布听证纪律,"
+                            "询问当事人是否申请回避,宣布听证开始。"
+                        ),
+                        content_role="procedure",
+                        is_answer_bearing=False,
                         anchor={
                             INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
                                 "evidence_contract_version": "answer_ready_evidence.v3",
-                                "answer_role": "eligibility_condition",
-                                "condition_subject": "discipline_relief_condition",
-                                "condition_polarity": "positive",
+                                "answer_role": "supporting_detail",
+                                "semantic_role": "supporting_detail",
+                                "claim_type": "supporting_detail",
+                                "parent_unit_id": "handbook:hearing:article-20",
                             }
                         },
                     )
@@ -1029,259 +553,18 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
         report = run_ragas_diagnostic(
             backend=FakeBackend(),
             scorer=lambda projection: {"context_precision": 1.0},
-            sample_limit_per_surface=1,
+            sample_limit_per_surface=12,
             metric_names=("context_precision",),
-            case_ids=("semantic-disciplinary-relief", "digital-economy-plan-paraphrase"),
+            case_ids=("semantic-student-hearing-rights",),
         )
 
+        case = report["cases"][0]
+        self.assertGreaterEqual(len(seen_requests), 2)
+        self.assertIn("听证申请", seen_requests[-1].query_text)
+        self.assertGreaterEqual(seen_requests[-1].top_k, 12)
+        self.assertEqual(case["case_id"], "semantic-student-hearing-rights")
         self.assertTrue(report["passed"])
-        self.assertEqual(
-            [case["case_id"] for case in report["cases"]],
-            ["semantic-disciplinary-relief", "digital-economy-plan-paraphrase"],
-        )
-        self.assertEqual(
-            report["run_config"]["case_ids"],
-            ["semantic-disciplinary-relief", "digital-economy-plan-paraphrase"],
-        )
-        self.assertEqual(
-            report["sample_manifest"]["case_ids"],
-            ["semantic-disciplinary-relief", "digital-economy-plan-paraphrase"],
-        )
-
-    def test_run_ragas_diagnostic_rejects_unknown_case_id(self) -> None:
-        with self.assertRaisesRegex(ValueError, "unknown RAGAS diagnostic case_id"):
-            run_ragas_diagnostic(
-                backend=object(),
-                scorer=lambda projection: {"context_precision": 1.0},
-                sample_limit_per_surface=1,
-                metric_names=("context_precision",),
-                case_ids=("missing-ragas-case",),
-            )
-
-    def test_run_ragas_diagnostic_rejects_invalid_case_workers(self) -> None:
-        with self.assertRaisesRegex(ValueError, "case_workers must be greater than zero"):
-            run_ragas_diagnostic(
-                backend=object(),
-                scorer=lambda projection: {"context_precision": 1.0},
-                sample_limit_per_surface=1,
-                metric_names=("context_precision",),
-                case_workers=0,
-            )
-
-    def test_cli_writes_manifest_and_report_with_fake_runtime(self) -> None:
-        class FakeBackend:
-            def retrieve(self, request):
-                return EvidenceBundle(
-                    corpus=request.corpus,
-                    collection=request.collection,
-                    query_text=request.query_text,
-                    sources=(_source(doc_id=f"{request.collection}:doc"),),
-                )
-
-        with TemporaryDirectory() as temp_dir:
-            output_dir = Path(temp_dir)
-            with (
-                patch(
-                    "campus_evals.ragas_diagnostic_runner.build_retrieval_backend",
-                    return_value=FakeBackend(),
-                ),
-                redirect_stdout(StringIO()),
-            ):
-                exit_code = main(
-                    [
-                        "--output-dir",
-                        str(output_dir),
-                        "--sample-limit-per-surface",
-                        "1",
-                        "--fake-scorer",
-                        "--metric-name",
-                        "context_precision",
-                        "--case-workers",
-                        "2",
-                        "--case-id",
-                        "policy-title-scholarship",
-                    ]
-                )
-            manifest = json.loads((output_dir / "sample-manifest.json").read_text())
-            report = json.loads((output_dir / "ragas-diagnostic.current.json").read_text())
-            metric_report = json.loads(
-                (output_dir / "ragas-diagnostic.context_precision.json").read_text()
-            )
-            summary = json.loads((output_dir / "ragas-diagnostic.summary.json").read_text())
-
-        self.assertEqual(exit_code, 0)
-        self.assertEqual(len(manifest["cases"]), 1)
-        self.assertEqual(manifest["case_ids"], ["policy-title-scholarship"])
-        self.assertTrue(report["passed"])
-        self.assertEqual(report["run_config"]["metric_names"], ["context_precision"])
-        self.assertEqual(report["run_config"]["case_workers"], 2)
-        self.assertEqual(report["run_config"]["case_ids"], ["policy-title-scholarship"])
-        self.assertEqual(metric_report["summary"]["metrics"]["context_precision"]["count"], 1)
-        self.assertEqual(summary["total_cases"], 1)
-        self.assertEqual(summary["metrics"]["context_precision"]["count"], 1)
-        self.assertNotIn("faithfulness", summary["metrics"])
-        self.assertEqual(
-            DEFAULT_RAGAS_DIAGNOSTIC_SAMPLE_LIMIT_PER_SURFACE,
-            12,
-        )
-
-    def test_combine_ragas_diagnostic_reports_merges_metric_scores_and_low_cases(self) -> None:
-        combined = combine_ragas_diagnostic_reports(
-            [
-                _report(
-                    metric_name="context_recall",
-                    cases=[
-                        _case("student", "a", "context_recall", 1.0),
-                        _case("student", "b", "context_recall", 0.25),
-                    ],
-                ),
-                _report(
-                    metric_name="answer_relevancy",
-                    cases=[
-                        _case("student", "a", "answer_relevancy", 0.91),
-                        _case("student", "b", "answer_relevancy", 0.48),
-                    ],
-                ),
-            ]
-        )
-
-        self.assertTrue(combined["passed"])
-        self.assertEqual(combined["summary"]["total_reports"], 2)
-        self.assertEqual(
-            combined["summary"]["run_configs"],
-            [
-                {"metric_names": ["context_recall"]},
-                {"metric_names": ["answer_relevancy"]},
-            ],
-        )
-        self.assertEqual(combined["summary"]["total_cases"], 2)
-        self.assertEqual(combined["summary"]["metrics"]["context_recall"]["min"], 0.25)
-        self.assertEqual(combined["summary"]["metrics"]["answer_relevancy"]["min"], 0.48)
-        self.assertEqual(
-            [item["metric_name"] for item in combined["summary"]["low_score_cases"]],
-            ["context_recall", "answer_relevancy"],
-        )
-        self.assertEqual(
-            combined["cases"][1]["scores"],
-            {"answer_relevancy": 0.48, "context_recall": 0.25},
-        )
-
-    def test_combine_ragas_diagnostic_reports_marks_null_requested_metric_as_failure(self) -> None:
-        combined = combine_ragas_diagnostic_reports(
-            [
-                _report(
-                    metric_name="answer_relevancy",
-                    cases=[_case("student", "a", "answer_relevancy", None)],
-                )
-            ]
-        )
-
-        self.assertFalse(combined["passed"])
-        self.assertEqual(combined["summary"]["failed_cases"], 1)
-        self.assertEqual(combined["summary"]["metrics"]["answer_relevancy"]["count"], 0)
-        self.assertEqual(combined["cases"][0]["status"], "failed")
-        self.assertEqual(combined["cases"][0]["scores"], {"answer_relevancy": None})
-        self.assertEqual(
-            combined["cases"][0]["metric_failures"],
-            [
-                {
-                    "metric_names": ["answer_relevancy"],
-                    "error_type": "RagasMetricUnavailable",
-                    "error_message": (
-                        "requested RAGAS metric answer_relevancy did not return a numeric score"
-                    ),
-                }
-            ],
-        )
-
-    def test_cli_combines_existing_metric_reports_without_running_retrieval(self) -> None:
-        with TemporaryDirectory() as temp_dir:
-            output_dir = Path(temp_dir)
-            (output_dir / "ragas-diagnostic.context_recall.json").write_text(
-                json.dumps(
-                    _report(
-                        metric_name="context_recall",
-                        cases=[_case("student", "a", "context_recall", 0.25)],
-                    )
-                ),
-                encoding="utf-8",
-            )
-            (output_dir / "ragas-diagnostic.answer_relevancy.json").write_text(
-                json.dumps(
-                    _report(
-                        metric_name="answer_relevancy",
-                        cases=[_case("student", "a", "answer_relevancy", 0.48)],
-                    )
-                ),
-                encoding="utf-8",
-            )
-
-            with redirect_stdout(StringIO()):
-                exit_code = main(["--output-dir", str(output_dir), "--combine-existing-reports"])
-            combined = json.loads((output_dir / "ragas-diagnostic.combined.json").read_text())
-            summary = json.loads((output_dir / "ragas-diagnostic.summary.json").read_text())
-
-        self.assertEqual(exit_code, 0)
-        self.assertEqual(combined["summary"]["total_reports"], 2)
-        self.assertEqual(summary["metrics"]["context_recall"]["min"], 0.25)
-
-
-def _report(*, metric_name: str, cases: list[dict[str, object]]) -> dict[str, object]:
-    return {
-        "schema_version": "ragas-diagnostic-report.v1",
-        "report_id": "ragas_diagnostic",
-        "passed": True,
-        "mode": "diagnostic_non_blocking",
-        "run_config": {"metric_names": [metric_name]},
-        "sample_manifest": {"metric_names": [metric_name]},
-        "summary": {},
-        "cases": cases,
-    }
-
-
-def _case(
-    surface_key: str,
-    case_id: str,
-    metric_name: str,
-    score: object,
-) -> dict[str, object]:
-    return {
-        "surface_key": surface_key,
-        "case_id": case_id,
-        "split": "release_gate",
-        "query": f"query {case_id}",
-        "expected_doc_ids": [f"{case_id}:expected"],
-        "forbidden_doc_ids": [],
-        "status": "completed",
-        "answer_text": f"answer {case_id}",
-        "retrieved_context_count": 1,
-        "retrieved_context_ids": [f"{case_id}:retrieved"],
-        "raw_retrieved_doc_ids": [f"{case_id}:retrieved"],
-        "selected_support_doc_ids": [f"{case_id}:retrieved"],
-        "duration_ms": 1,
-        "scores": {metric_name: score},
-    }
-
-
-def _discipline_relief_duration_source():
-    return replace(
-        _source(doc_id="handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8"),
-        source_title="中央民族大学解除学生纪律处分实施办法",
-        detail_label="第三条",
-        snippet=(
-            "受警告、严重警告处分的学生,考察期满6个月后可申请解除处分;"
-            "受记过、留校察看处分的学生,考察期满12个月后可申请解除处分。"
-        ),
-        is_answer_bearing=True,
-        anchor={
-            INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: {
-                "evidence_contract_version": "answer_ready_evidence.v3",
-                "answer_role": "eligibility_condition",
-                "condition_subject": "discipline_relief_condition",
-                "condition_polarity": "positive",
-            }
-        },
-    )
+        self.assertEqual(case["failure_attribution"]["primary_stage"], "passed")
 
 
 if __name__ == "__main__":

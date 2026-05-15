@@ -88,7 +88,37 @@ class RetrievalQrelsCoverageTest(unittest.TestCase):
         self.assertFalse(case.supplemental_metric_overrides.get("faithfulness", True))
         self.assertTrue(case.supplemental_metric_overrides.get("identity_grounding", False))
 
-    def test_curriculum_title_cases_do_not_use_document_identity_grounding_metric(self) -> None:
+    def test_governing_document_execution_cases_use_identity_grounding_metric(self) -> None:
+        from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
+
+        dataset = load_retrieval_qrels_dataset(
+            Path("packages/evals/fixtures/student_handbook_retrieval_qrels.json")
+        )
+
+        case = next(
+            case for case in dataset.cases if case.case_id == "semantic-student-safety-education"
+        )
+
+        self.assertFalse(case.supplemental_metric_overrides.get("answer_relevancy", True))
+        self.assertFalse(case.supplemental_metric_overrides.get("faithfulness", True))
+        self.assertTrue(case.supplemental_metric_overrides.get("identity_grounding", False))
+
+    def test_threshold_distribution_cases_do_not_use_answer_relevancy_gate(self) -> None:
+        from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
+
+        dataset = load_retrieval_qrels_dataset(
+            Path("packages/evals/fixtures/student_handbook_retrieval_qrels.json")
+        )
+
+        case = next(
+            case
+            for case in dataset.cases
+            if case.case_id == "short-fact-attendance-discipline-threshold"
+        )
+
+        self.assertFalse(case.supplemental_metric_overrides.get("answer_relevancy", True))
+
+    def test_curriculum_title_cases_use_document_identity_grounding_metric(self) -> None:
         from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
 
         dataset = load_retrieval_qrels_dataset(
@@ -98,8 +128,8 @@ class RetrievalQrelsCoverageTest(unittest.TestCase):
         case = next(case for case in dataset.cases if case.case_id == "ethnology-plan-title")
 
         self.assertFalse(case.supplemental_metric_overrides.get("answer_relevancy", True))
-        self.assertTrue(case.supplemental_metric_overrides.get("faithfulness", True))
-        self.assertFalse(case.supplemental_metric_overrides.get("identity_grounding", False))
+        self.assertFalse(case.supplemental_metric_overrides.get("faithfulness", True))
+        self.assertTrue(case.supplemental_metric_overrides.get("identity_grounding", False))
 
     def test_curriculum_document_view_cases_disable_faithfulness_metric(self) -> None:
         from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset

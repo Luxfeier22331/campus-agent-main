@@ -4,9 +4,11 @@ import unittest
 from pathlib import Path
 
 from campus_evals.profile_registry import (
+    accepted_profile_ids,
     dispatchable_profile_ids,
     get_profile_definition,
     iter_profile_definitions,
+    operations_policy_profile_ids,
     resolve_profile_id,
 )
 
@@ -31,6 +33,13 @@ class ProfileRegistryAndAuditSuite(unittest.TestCase):
         self.assertIn("answer-quality-contract", profile_ids)
         self.assertNotIn("multi-agent-product-path", profile_ids)
         self.assertEqual(len(profile_ids), len(set(profile_ids)))
+
+    def test_official_web_fresh_news_is_not_eval_gate_profile(self) -> None:
+        self.assertNotIn("official-web-fresh-news", accepted_profile_ids())
+        self.assertNotIn("official-web-fresh-news", dispatchable_profile_ids())
+        self.assertNotIn("official_web_fresh_news", operations_policy_profile_ids())
+        with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
+            get_profile_definition("official-web-fresh-news")
 
     def test_profile_registry_contains_no_duplicate_runner_profiles(self) -> None:
         definitions = tuple(iter_profile_definitions())

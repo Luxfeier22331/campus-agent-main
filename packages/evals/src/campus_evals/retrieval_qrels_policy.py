@@ -151,7 +151,9 @@ def validate_default_query_enabled_qrels_coverage(
         for required_class in scope_policy.required_classes:
             if required_class not in coverage_classes:
                 issues.append(f"{scope_key}: missing qrels coverage class {required_class}")
-        declared_scenarios, scenario_issues = _declared_qrels_scenarios(qrels_path)
+        declared_scenarios, scenario_memberships, scenario_issues = _declared_qrels_scenarios(
+            qrels_path
+        )
         issues.extend(f"{scope_key}: {issue}" for issue in scenario_issues)
         for required_scenario in scope_policy.required_scenarios:
             if required_scenario not in declared_scenarios:
@@ -161,6 +163,16 @@ def validate_default_query_enabled_qrels_coverage(
                 issues.append(
                     f"{scope_key}: qrels scenario {scenario_id} has no denominator class mapping"
                 )
+        undeclared_empty_result_case_ids = _undeclared_empty_result_case_ids(
+            dataset,
+            scope_policy=scope_policy,
+            scenario_memberships=scenario_memberships,
+        )
+        if undeclared_empty_result_case_ids:
+            issues.append(
+                f"{scope_key}: empty-result qrels cases missing from empty-result scenarios: "
+                + ", ".join(undeclared_empty_result_case_ids)
+            )
     return tuple(issues)
 
 
@@ -210,14 +222,17 @@ def _qrels_coverage_classes(dataset) -> set[str]:
     return coverage
 
 
-def _declared_qrels_scenarios(path: str | Path) -> tuple[set[str], tuple[str, ...]]:
+def _declared_qrels_scenarios(
+    path: str | Path,
+) -> tuple[set[str], dict[str, tuple[str, ...]], tuple[str, ...]]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     raw_scenarios = payload.get("coverage_scenarios")
     if not isinstance(raw_scenarios, dict):
-        return set(), ("missing qrels coverage_scenarios",)
+        return set(), {}, ("missing qrels coverage_scenarios",)
     cases = payload.get("cases") or ()
     case_ids = {str(case.get("case_id") or "").strip() for case in cases if isinstance(case, dict)}
     scenarios: set[str] = set()
+    scenario_memberships: dict[str, tuple[str, ...]] = {}
     issues: list[str] = []
     for scenario_id, raw_case_ids in raw_scenarios.items():
         normalized_scenario_id = str(scenario_id).strip()
@@ -241,7 +256,32 @@ def _declared_qrels_scenarios(path: str | Path) -> tuple[set[str], tuple[str, ..
             )
             continue
         scenarios.add(normalized_scenario_id)
-    return scenarios, tuple(issues)
+        scenario_memberships[normalized_scenario_id] = scenario_case_ids
+    return scenarios, scenario_memberships, tuple(issues)
+
+
+def _undeclared_empty_result_case_ids(
+    dataset,
+    *,
+    scope_policy: RetrievalQrelsScopePolicy,
+    scenario_memberships: dict[str, tuple[str, ...]],
+) -> tuple[str, ...]:
+    empty_result_scenario_ids = {
+        scenario_id
+        for scenario_id, denominator_classes in scope_policy.scenario_denominator_classes.items()
+        if any(
+            denominator_class in {"no_hit", "authz_filtered"}
+            for denominator_class in denominator_classes
+        )
+    }
+    declared_empty_result_case_ids: set[str] = set()
+    for scenario_id in empty_result_scenario_ids:
+        declared_empty_result_case_ids.update(scenario_memberships.get(scenario_id) or ())
+    return tuple(
+        case.case_id
+        for case in dataset.cases
+        if not case.expected_sources and case.case_id not in declared_empty_result_case_ids
+    )
 
 
 def _string_tuple(value: object) -> tuple[str, ...]:

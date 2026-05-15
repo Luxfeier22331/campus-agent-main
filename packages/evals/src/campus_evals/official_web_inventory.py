@@ -10,7 +10,7 @@ OFFICIAL_WEB_CURRENT_TRUTH_INVENTORY_PATH = (
     / "official_web_muc_public_pages_current_truth_inventory.json"
 )
 
-_ALLOWED_ANSWER_GATE_STATUSES = frozenset({"release_gate_required", "inventory_only"})
+_ALLOWED_ANSWER_GATE_STATUSES = frozenset({"inventory_only"})
 _ALLOWED_INVENTORY_DISPOSITIONS = frozenset(
     {"retain_inventory_only", "current_scope_follow_up_candidate", "future_fresh_news_surface"}
 )
@@ -35,8 +35,6 @@ def load_official_web_current_truth_inventory() -> dict[str, object]:
         answer_gate_status = str(raw_entry.get("answer_gate_status") or "").strip()
         if answer_gate_status not in _ALLOWED_ANSWER_GATE_STATUSES:
             raise ValueError(f"unsupported official_web answer gate status: {answer_gate_status}")
-        if answer_gate_status != "inventory_only":
-            continue
         disposition = str(raw_entry.get("inventory_disposition") or "").strip()
         if disposition not in _ALLOWED_INVENTORY_DISPOSITIONS:
             raise ValueError(f"unsupported official_web inventory disposition: {disposition}")
@@ -55,16 +53,11 @@ def load_official_web_current_truth_inventory() -> dict[str, object]:
     return payload
 
 
-def official_web_release_gate_doc_ids() -> frozenset[str]:
-    return official_web_current_truth_doc_ids_by_bucket()["release_gate_required"]
-
-
 def official_web_current_truth_doc_ids_by_bucket() -> dict[str, frozenset[str]]:
     payload = load_official_web_current_truth_inventory()
     documents = payload["documents"]
     doc_ids_by_bucket: dict[str, set[str]] = {
-        "release_gate_required": set(),
-        **{disposition: set() for disposition in sorted(_ALLOWED_INVENTORY_DISPOSITIONS)},
+        disposition: set() for disposition in sorted(_ALLOWED_INVENTORY_DISPOSITIONS)
     }
 
     for entry in documents:
@@ -72,9 +65,6 @@ def official_web_current_truth_doc_ids_by_bucket() -> dict[str, frozenset[str]]:
             continue
         answer_gate_status = str(entry.get("answer_gate_status") or "").strip()
         doc_id = str(entry.get("doc_id") or "").strip()
-        if answer_gate_status == "release_gate_required":
-            doc_ids_by_bucket["release_gate_required"].add(doc_id)
-            continue
         if answer_gate_status != "inventory_only":
             continue
         disposition = str(entry.get("inventory_disposition") or "").strip()
@@ -141,7 +131,6 @@ __all__ = [
     "official_web_future_fresh_news_titles",
     "official_web_inventory_only_doc_ids_by_disposition",
     "official_web_inventory_only_titles_by_disposition",
-    "official_web_release_gate_doc_ids",
     "official_web_retain_inventory_only_doc_ids",
     "official_web_retain_inventory_only_titles",
 ]

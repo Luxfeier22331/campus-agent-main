@@ -99,6 +99,16 @@ def validate_retrieval_qrels_fixture(
 
     issues: list[str] = []
     for case in dataset.cases:
+        if (
+            dataset.scope.corpus == "official_web"
+            and dataset.scope.collection == "muc_public_pages"
+            and (case.expected_sources or case.forbidden_sources)
+        ):
+            issues.append(
+                f"{ambiguity_severity}: case {case.case_id} uses {scope_label} as answer-bearing qrels truth; "
+                "official_web/muc_public_pages is inventory/QC only. Move answer-bearing cases to an explicit "
+                "query-enabled surface such as official_web/stable_reference."
+            )
         family_alias_issue = _find_course_family_alias_qrels_issue(case)
         if family_alias_issue is not None:
             issues.append(f"{ambiguity_severity}: {family_alias_issue}")
@@ -144,7 +154,22 @@ def load_retrieval_qrels_dataset(path: str | Path) -> RetrievalQrelsDataset:
         scope=scope,
         baseline=dict(payload.get("baseline") or {}),
         cases=cases,
+        coverage_scenarios=_load_coverage_scenarios(coverage_scenarios),
     )
+
+
+def _load_coverage_scenarios(payload: object) -> dict[str, tuple[str, ...]]:
+    if not isinstance(payload, dict):
+        return {}
+    scenarios: dict[str, tuple[str, ...]] = {}
+    for scenario_id, raw_case_ids in payload.items():
+        normalized_scenario_id = str(scenario_id).strip()
+        if not normalized_scenario_id or not isinstance(raw_case_ids, list | tuple):
+            continue
+        case_ids = tuple(str(case_id).strip() for case_id in raw_case_ids if str(case_id).strip())
+        if case_ids:
+            scenarios[normalized_scenario_id] = case_ids
+    return scenarios
 
 
 def resolve_retrieval_fixture_manifest_path(path: str | Path) -> Path:
@@ -402,6 +427,8 @@ def _case_metric_overrides(
         return _identity_grounding_metric_overrides()
     if _case_is_curriculum_document_view(payload, default_scope=default_scope):
         return {"answer_relevancy": False, "faithfulness": False}
+    if _case_is_curriculum_title_lookup(payload, default_scope=default_scope):
+        return _identity_grounding_metric_overrides()
     for scenario_id, raw_case_ids in coverage_scenarios.items():
         if not isinstance(raw_case_ids, list | tuple):
             continue
@@ -414,7 +441,7 @@ def _case_metric_overrides(
         }:
             return _identity_grounding_metric_overrides()
         if scenario_id == "program_title":
-            return {"answer_relevancy": False}
+            return _identity_grounding_metric_overrides()
     return {}
 
 
@@ -439,11 +466,25 @@ def _case_asks_for_governing_document(payload: dict[str, object]) -> bool:
         cue in query
         for cue in (
             "哪份管理办法",
+            "哪份规定",
             "哪份办法",
+            "哪份规定执行",
+            "哪份办法执行",
             "哪个管理办法",
+            "哪个规定",
             "哪个办法",
+            "哪个规定执行",
+            "哪个办法执行",
+            "按哪份规定",
+            "按哪份办法",
+            "按哪个规定",
+            "按哪个办法",
             "依据哪份",
+            "依据哪份规定",
+            "依据哪份办法",
             "依据哪个",
+            "依据哪个规定",
+            "依据哪个办法",
         )
     )
 
@@ -458,9 +499,26 @@ def _case_is_curriculum_document_view(
     query = str(payload.get("query") or "").strip()
     if not query:
         return False
-    if not any(cue in query for cue in ("想看", "要看", "我要看", "查看", "看一下", "看下", "看看")):
+    if not any(
+        cue in query for cue in ("想看", "要看", "我要看", "查看", "看一下", "看下", "看看")
+    ):
         return False
     return any(term in query for term in ("培养方案", "教学计划"))
+
+
+def _case_is_curriculum_title_lookup(
+    payload: dict[str, object],
+    *,
+    default_scope: KnowledgeScope,
+) -> bool:
+    if default_scope.corpus != "curriculum" or default_scope.collection != "curriculum_plan":
+        return False
+    query = str(payload.get("query") or "").strip()
+    if not query:
+        return False
+    if any(cue in query for cue in _QRELS_QUERY_ASK_CUES):
+        return False
+    return query.endswith(("培养方案", "课程教学计划", "实施方案"))
 
 
 def _identity_grounding_metric_overrides() -> dict[str, bool]:

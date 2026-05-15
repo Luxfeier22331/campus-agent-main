@@ -158,6 +158,14 @@ class EvalGateTest(unittest.TestCase):
                 publish_grader_version="grader@2026-04-29",
             )
 
+    def test_official_web_fresh_news_is_not_eval_gate_profile(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
+            run_eval_acceptance(
+                profile="official-web-fresh-news",
+                output_dir=Path("/tmp/eval-artifacts"),
+                qdrant_collection_name="official_web_fresh_news__r20260404_222909",
+            )
+
     def test_all_observation_profiles_are_registered(self) -> None:
         profiles = (
             "public-chat-product-path",
@@ -180,25 +188,12 @@ class EvalGateTest(unittest.TestCase):
 
         self.assertEqual([summary["exit_code"] for summary in summaries], [0] * len(profiles))
 
-    def test_multi_agent_runtime_contract_profile_and_deprecated_alias_share_runner(self) -> None:
-        seen_profiles: list[str] = []
-
-        def fake_runner(argv: list[str]) -> int:
-            del argv
-            return 0
-
-        with patch("scripts.eval_gate._resolve_profile_runner", return_value=fake_runner):
-            for profile in ("multi-agent-runtime-contract", "multi-agent-product-path"):
-                summary = run_eval_acceptance(
-                    profile=profile,
-                    output_dir=Path(f"/tmp/{profile}"),
-                )
-                seen_profiles.append(str(summary["profile"]))
-
-        self.assertEqual(
-            seen_profiles,
-            ["multi-agent-runtime-contract", "multi-agent-runtime-contract"],
-        )
+    def test_multi_agent_product_path_deprecated_alias_is_rejected(self) -> None:
+        with self.assertRaisesRegex(ValueError, "unsupported eval profile"):
+            run_eval_acceptance(
+                profile="multi-agent-product-path",
+                output_dir=Path("/tmp/multi-agent-product-path"),
+            )
 
     def test_main_publish_defaults_to_dry_run_json_output(self) -> None:
         buffer = io.StringIO()

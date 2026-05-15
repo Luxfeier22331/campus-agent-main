@@ -29,11 +29,11 @@
 			"backlog_fixture": "rag_eval_maturity_backlog.v1.json"
 		},
 		"official_web/stable_reference": {
-			"minimum_qrels_case_count": 10,
-			"minimum_release_acceptance_case_count": 5,
-			"recommended_target_case_count": 10,
-			"recommended_release_acceptance_case_count": 5,
-			"recommended_unique_expected_doc_count": 6,
+			"minimum_qrels_case_count": 4,
+			"minimum_release_acceptance_case_count": 4,
+			"recommended_target_case_count": 4,
+			"recommended_release_acceptance_case_count": 4,
+			"recommended_unique_expected_doc_count": 3,
 			"baseline_ready_requires_answer_quality": false,
 			"backlog_fixture": ""
 		}

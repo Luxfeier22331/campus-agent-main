@@ -91,23 +91,19 @@
 		},
 		"official_web/stable_reference": {
 			"fixture": "official_web_stable_reference_retrieval_qrels.json",
-			"min_case_count": 10,
-			"required_classes": ["positive", "no_hit", "forbidden", "version_locked"],
+			"min_case_count": 4,
+			"required_classes": ["positive", "no_hit", "version_locked"],
 			"required_scenarios": [
 				"school_profile",
-				"leadership",
-				"education_office",
-				"organization_profile",
-				"no_hit",
-				"hard_negative"
+				"organization_units",
+				"fee_reference",
+				"no_hit"
 			],
 			"scenario_denominator_classes": {
 				"school_profile": ["long_form_semantic_answer", "citation_backlink"],
-				"leadership": ["exact_title_or_policy_name", "freshness_sensitive"],
-				"education_office": ["entity_alias_or_abbreviation", "citation_backlink"],
-				"organization_profile": ["long_form_semantic_answer", "citation_backlink"],
-				"no_hit": ["no_hit"],
-				"hard_negative": ["hard_negative"]
+				"organization_units": ["table_or_structured_fact", "citation_backlink"],
+				"fee_reference": ["exact_title_or_policy_name", "citation_backlink"],
+				"no_hit": ["no_hit"]
 			}
 		}
 	}

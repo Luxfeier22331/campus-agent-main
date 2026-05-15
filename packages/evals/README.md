@@ -649,12 +649,11 @@ student handbook formal benchmark：
   - `uv run --all-packages python -m campus_evals.official_web_live_benchmark
     run --reruns 1 --official-web-scope stable_reference
     --qdrant-collection-name <physical-collection>`
-  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark
-    run --reruns 1 --official-web-scope fresh_news --qdrant-collection-name
-    <physical-collection>`
-  - 该入口只做本地 deterministic 验证：通过 monkeypatch 临时打开所选 `official_web/*` scope 的
-    retrieval，并把 alias 指向指定 unpublished physical collection；repo-tracked
-    `offline_preparation` truth 不会被命令行改写
+  - 该入口只服务 `official_web/stable_reference` 本地 deterministic 验证：通过
+    monkeypatch 临时打开该 scope 的 retrieval，并把 alias 指向指定 unpublished physical
+    collection；repo-tracked runtime truth 不会被命令行改写
+  - `official_web/fresh_news` 当前只保留 retrieval qrels seed validation，不是 live answer
+    gate scope，也不进入 eval-release dispatch
 
 runtime observability artifact：
 

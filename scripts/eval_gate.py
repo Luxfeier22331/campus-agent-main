@@ -423,7 +423,7 @@ def _resolve_profile_runner(profile: str) -> Callable[[list[str]], int]:
         from campus_evals.curriculum_live_benchmark import main as runner
 
         return runner
-    if normalized in {"official-web-stable-reference", "official-web-fresh-news"}:
+    if normalized == "official-web-stable-reference":
         from campus_evals.official_web_live_benchmark import main as runner
 
         return runner

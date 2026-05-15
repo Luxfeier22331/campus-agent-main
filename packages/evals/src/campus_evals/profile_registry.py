@@ -62,15 +62,6 @@ _PROFILE_DEFINITIONS = (
         supports_case_results_publish=True,
     ),
     EvalProfileDefinition(
-        "official-web-fresh-news",
-        "official_web",
-        1,
-        "official-web-fresh-news-live-gate-accept",
-        "case_results",
-        official_web_scope="fresh_news",
-        supports_case_results_publish=True,
-    ),
-    EvalProfileDefinition(
         "service-guide-lookup",
         "release_gate",
         1,

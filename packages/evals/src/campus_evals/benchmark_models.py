@@ -127,6 +127,7 @@ class RetrievalQrelsDataset:
     scope: KnowledgeScope
     baseline: dict[str, object]
     cases: tuple[RetrievalQrelsCase, ...]
+    coverage_scenarios: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

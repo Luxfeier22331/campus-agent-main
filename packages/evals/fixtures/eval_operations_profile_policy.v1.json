@@ -55,23 +55,6 @@
 			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
 		},
 		{
-			"profile_id": "official_web_fresh_news",
-			"budget": { "max_cases_per_run": 80, "max_provider_calls_per_run": 80 },
-			"runtime_timeout_seconds": 600,
-			"max_retries": 1,
-			"pacing_seconds": 0.0,
-			"breaker": { "failure_threshold": 3, "cooldown_seconds": 60 },
-			"retention": { "artifact_days": 30, "promoted_artifact_days": 180 },
-			"allowed_gate_modes": ["manual", "scheduled", "release_gate"],
-			"failure_dispositions": ["failed", "skipped", "quarantined", "repaired"],
-			"quarantine": {
-				"allowed": true,
-				"max_days": 7,
-				"readmission_rule": "requires freshness owner review and one clean scheduled run"
-			},
-			"required_version_fields": ["case_set_version", "policy_artifact", "runtime_version"]
-		},
-		{
 			"profile_id": "service_guide_lookup",
 			"budget": { "max_cases_per_run": 40, "max_provider_calls_per_run": 0 },
 			"runtime_timeout_seconds": 300,

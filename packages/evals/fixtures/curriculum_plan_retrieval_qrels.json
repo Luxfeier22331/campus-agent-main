@@ -17,7 +17,7 @@
 		"credit_total": ["ethnology-total-credits"],
 		"course_table": ["economics-course-settings-table"],
 		"semester_course_list": ["law-ethnic-class-fourth-semester-courses"],
-		"no_hit": ["no-hit-impossible-query"]
+		"no_hit": ["no-hit-impossible-query", "no-hit-nonexistent-program"]
 	},
 	"cases": [
 		{

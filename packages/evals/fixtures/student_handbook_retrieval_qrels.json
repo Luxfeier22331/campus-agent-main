@@ -57,7 +57,7 @@
 			"policy-title-athlete-postgraduate-exemption",
 			"policy-title-muc-student-management"
 		],
-		"no_hit": ["no-hit-impossible-query"],
+		"no_hit": ["no-hit-impossible-query", "no-hit-nonexistent-visa"],
 		"version_locked": ["policy-title-medical"]
 	},
 	"cases": [
@@ -317,6 +317,9 @@
 					"rationale": "学生考勤管理办法第十五至十七条提供旷课处分链路背景；具体分档阈值以学生违纪处分实施办法第三十三条为直接答案依据。"
 				}
 			],
+			"supplemental_metric_overrides": {
+				"answer_relevancy": false
+			},
 			"notes": "短事实 retrieval 样本。"
 		},
 		{

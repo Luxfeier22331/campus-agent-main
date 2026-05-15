@@ -270,7 +270,6 @@ operator publish 只允许从 accepted artifact 进入。
 - `student_rules`
 - `curriculum_plan`
 - `official_web/stable_reference`
-- `official_web/fresh_news`
 - `workflow_trace_gate.v1` artifact/runtime gate
 - `public_chat_product_path`
 - `service_status_lookup`
