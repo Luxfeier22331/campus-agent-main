@@ -276,8 +276,8 @@ def _evidence_from_payload(payload: Mapping[str, Any]) -> ScheduleImageOcrEviden
 
 def _provider_result_from_payload(payload: Mapping[str, Any]) -> ScheduleImageOcrProviderResult:
     return ScheduleImageOcrProviderResult(
-        provider=_text(payload.get("provider")) or "unknown",
-        model=_text(payload.get("model")) or "unknown",
+        provider=_required_text(payload, "provider", label="schedule OCR result"),
+        model=_required_text(payload, "model", label="schedule OCR result"),
         confidence=_confidence(_text(payload.get("confidence"))),
         extracted_text=_text(payload.get("extracted_text")),
         tables=_tables(payload.get("tables")),
@@ -308,10 +308,15 @@ def _read_json(path: Path) -> dict[str, Any]:
     return payload
 
 
-def _required_text(payload: Mapping[str, Any], key: str) -> str:
+def _required_text(
+    payload: Mapping[str, Any],
+    key: str,
+    *,
+    label: str = "schedule OCR manifest",
+) -> str:
     value = _text(payload.get(key))
     if not value:
-        raise ValueError(f"schedule OCR manifest missing {key}")
+        raise ValueError(f"{label} missing {key}")
     return value
 
 

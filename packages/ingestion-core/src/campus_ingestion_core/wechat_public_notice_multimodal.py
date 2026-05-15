@@ -506,50 +506,25 @@ class ChatCompletionsWeChatPublicNoticeMultimodalProvider:
         env: Mapping[str, str] | None = None,
     ) -> ChatCompletionsWeChatPublicNoticeMultimodalProvider:
         source = env if env is not None else os.environ
-        api_key = (
-            source.get("WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY")
-            or source.get("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY")
-            or source.get("PROMPT_RUNTIME_API_KEY")
-            or source.get("LLM_API_KEY")
-            or ""
-        ).strip()
-        model = (
-            source.get("WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL")
-            or source.get("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL")
-            or source.get("PROMPT_RUNTIME_MODEL")
-            or ""
-        ).strip()
+        api_key = (source.get("WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY") or "").strip()
+        model = (source.get("WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL") or "").strip()
         provider = (
-            source.get("WECHAT_PUBLIC_NOTICE_MULTIMODAL_PROVIDER")
-            or source.get("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_PROVIDER")
-            or "openai-chat-completions"
+            source.get("WECHAT_PUBLIC_NOTICE_MULTIMODAL_PROVIDER") or "openai-chat-completions"
         ).strip()
         base_url = (
             source.get("WECHAT_PUBLIC_NOTICE_MULTIMODAL_BASE_URL")
-            or source.get("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_BASE_URL")
-            or source.get("PROMPT_RUNTIME_BASE_URL")
-            or source.get("LLM_BASE_URL")
             or DEFAULT_WECHAT_PUBLIC_NOTICE_MULTIMODAL_BASE_URL
         ).strip()
         max_output_tokens = int(
             (
                 source.get("WECHAT_PUBLIC_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS")
-                or source.get("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MAX_OUTPUT_TOKENS")
-                or source.get("PROMPT_RUNTIME_MAX_OUTPUT_TOKENS")
                 or str(DEFAULT_WECHAT_PUBLIC_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS)
             ).strip()
         )
         if not api_key:
-            raise ValueError(
-                "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY or "
-                "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY or PROMPT_RUNTIME_API_KEY "
-                "or LLM_API_KEY is required"
-            )
+            raise ValueError("WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY is required")
         if not model:
-            raise ValueError(
-                "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL or "
-                "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL or PROMPT_RUNTIME_MODEL is required"
-            )
+            raise ValueError("WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL is required")
         return cls(
             api_key=api_key,
             model=model,

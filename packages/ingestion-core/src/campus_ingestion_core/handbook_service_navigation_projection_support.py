@@ -304,6 +304,17 @@ def _validate_projection_artifact(
                 "handbook service navigation projection artifact mismatch: "
                 f"{key} expected {expected!r}, got {actual!r}"
             )
+    flow_graph = projection_artifact["flow_graph"]
+    if flow_graph.global_manual_review_required:
+        raise ValueError(
+            "handbook service navigation projection artifact manual review state is not supported"
+        )
+    for page_finding in flow_graph.page_findings:
+        for flow in page_finding.flows:
+            if flow.manual_review_notes:
+                raise ValueError(
+                    "handbook service navigation projection artifact manual review notes are not supported"
+                )
 
 
 def _resolve_projection_extractor_runtime(source: dict[str, str]) -> dict[str, str]:
@@ -311,11 +322,7 @@ def _resolve_projection_extractor_runtime(source: dict[str, str]) -> dict[str, s
         DEFAULT_PROMPT_RUNTIME_BASE_URL,
     )
 
-    base_url = (
-        source.get("PROMPT_RUNTIME_BASE_URL")
-        or source.get("LLM_BASE_URL")
-        or DEFAULT_PROMPT_RUNTIME_BASE_URL
-    ).strip()
+    base_url = (source.get("PROMPT_RUNTIME_BASE_URL") or DEFAULT_PROMPT_RUNTIME_BASE_URL).strip()
     model_name = (source.get("PROMPT_RUNTIME_MODEL") or "").strip()
     reasoning_effort = (source.get("PROMPT_RUNTIME_REASONING_EFFORT") or "").strip()
     runtime = {

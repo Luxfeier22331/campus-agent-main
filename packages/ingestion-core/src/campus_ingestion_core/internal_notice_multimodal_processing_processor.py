@@ -233,35 +233,22 @@ def build_internal_notice_multimodal_processor_from_env(
 
 def _settings_from_env(env: Mapping[str, str] | None) -> dict[str, object]:
     source = env if env is not None else os.environ
-    api_key = (
-        source.get("INTERNAL_NOTICE_MULTIMODAL_API_KEY")
-        or source.get("PROMPT_RUNTIME_API_KEY")
-        or source.get("LLM_API_KEY")
-        or ""
-    ).strip()
-    model = (
-        source.get("INTERNAL_NOTICE_MULTIMODAL_MODEL") or source.get("PROMPT_RUNTIME_MODEL") or ""
-    ).strip()
+    api_key = (source.get("INTERNAL_NOTICE_MULTIMODAL_API_KEY") or "").strip()
+    model = (source.get("INTERNAL_NOTICE_MULTIMODAL_MODEL") or "").strip()
     base_url = (
         source.get("INTERNAL_NOTICE_MULTIMODAL_BASE_URL")
-        or source.get("PROMPT_RUNTIME_BASE_URL")
-        or source.get("LLM_BASE_URL")
         or DEFAULT_INTERNAL_NOTICE_MULTIMODAL_BASE_URL
     ).strip()
     max_output_tokens = int(
         (
             source.get("INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS")
-            or source.get("PROMPT_RUNTIME_MAX_OUTPUT_TOKENS")
             or str(DEFAULT_INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS)
         ).strip()
     )
     if not api_key:
-        raise ValueError(
-            "INTERNAL_NOTICE_MULTIMODAL_API_KEY or PROMPT_RUNTIME_API_KEY or "
-            "LLM_API_KEY is required"
-        )
+        raise ValueError("INTERNAL_NOTICE_MULTIMODAL_API_KEY is required")
     if not model:
-        raise ValueError("INTERNAL_NOTICE_MULTIMODAL_MODEL or PROMPT_RUNTIME_MODEL is required")
+        raise ValueError("INTERNAL_NOTICE_MULTIMODAL_MODEL is required")
     return {
         "api_key": api_key,
         "model": model,

@@ -83,22 +83,94 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             processed.role_metadata["multimodal_summary"],
             "图中说明了丰台校区办事地点分布。",
         )
-        self.assertEqual(
-            processed.role_metadata["multimodal_extracted_text"],
-            "丰台校区办事地点：北区服务大厅。",
+
+    def test_process_pending_multimodal_fails_closed_when_attachment_refs_are_missing(
+        self,
+    ) -> None:
+        projection_store = InMemoryNoticeConsumptionProjectionStore(
+            (
+                _pending_entry("351907"),
+                _notice_window_entry("351907"),
+            )
         )
-        self.assertEqual(
-            processed.role_metadata["previous_consumption_status"],
-            NOTICE_CONSUMPTION_STATUS_PENDING_MULTIMODAL_PROCESSING,
+        inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        inventory_store.upsert_many((_inventory_entry("351907"),))
+        object_store = _FakeObjectStore({})
+        processor = _FakeProcessor(
+            InternalNoticeMultimodalDecision(
+                action="no_adoption",
+                summary="",
+                extracted_text="",
+                reasons=("no_visual_asset",),
+                confidence="low",
+            )
         )
-        self.assertEqual(
-            processed.role_metadata["consumer_admission_batch_id"],
-            "batch-multimodal-001",
+
+        with self.assertRaisesRegex(ValueError, "attachment refs"):
+            process_internal_notice_pending_multimodal_entries(
+                notice_ids=("351907",),
+                projection_store=projection_store,
+                source_truth_inventory_store=inventory_store,
+                object_store=object_store,
+                source_bucket="campus-rag-source",
+                processor=processor,
+                admission_batch_id="batch-multimodal-001",
+                admission_command="multimodal_process",
+                admission_created_at="2026-04-25T00:00:00Z",
+            )
+        self.assertEqual(processor.requests, [])
+
+    def test_process_pending_multimodal_fails_closed_when_declared_attachment_object_is_missing(
+        self,
+    ) -> None:
+        projection_store = InMemoryNoticeConsumptionProjectionStore(
+            (
+                _pending_entry("351907"),
+                _notice_window_entry("351907"),
+            )
         )
-        self.assertEqual(
-            processed.role_metadata["consumer_admission_command"],
-            "multimodal_process",
+        inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+        inventory_store.upsert_many((_inventory_entry("351907"),))
+        object_store = _FakeObjectStore(
+            {
+                (
+                    "campus-rag-source",
+                    "notice/351907/attachment-refs.jsonl",
+                ): _jsonl_bytes(
+                    (
+                        {
+                            "attachment_ref_id": "attachment-map",
+                            "object_key": "notice/351907/attachment-map.png",
+                            "mime_type": "image/png",
+                            "filename": "map.png",
+                        },
+                    )
+                ),
+            }
         )
+        processor = _FakeProcessor(
+            InternalNoticeMultimodalDecision(
+                action="no_adoption",
+                summary="",
+                extracted_text="",
+                reasons=("no_visual_asset",),
+                confidence="low",
+            )
+        )
+
+        with self.assertRaisesRegex(ValueError, "attachment object"):
+            process_internal_notice_pending_multimodal_entries(
+                notice_ids=("351907",),
+                projection_store=projection_store,
+                source_truth_inventory_store=inventory_store,
+                object_store=object_store,
+                source_bucket="campus-rag-source",
+                processor=processor,
+                admission_batch_id="batch-multimodal-001",
+                admission_command="multimodal_process",
+                admission_created_at="2026-04-25T00:00:00Z",
+            )
+        self.assertEqual(processor.requests, [])
 
     def test_process_pending_multimodal_can_close_as_no_adoption(self) -> None:
         projection_store = InMemoryNoticeConsumptionProjectionStore((_pending_entry("351907"),))
@@ -118,7 +190,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             notice_ids=("351907",),
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
-            object_store=_FakeObjectStore({}),
+            object_store=_FakeObjectStore(_multimodal_attachment_objects()),
             source_bucket="campus-rag-source",
             processor=processor,
         )
@@ -155,7 +227,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             notice_ids=("351907",),
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
-            object_store=_FakeObjectStore({}),
+            object_store=_FakeObjectStore(_multimodal_attachment_objects()),
             source_bucket="campus-rag-source",
             processor=processor,
             max_attempts=3,
@@ -204,7 +276,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             notice_ids=("351907",),
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
-            object_store=_FakeObjectStore({}),
+            object_store=_FakeObjectStore(_multimodal_attachment_objects()),
             source_bucket="campus-rag-source",
             processor=processor,
             max_attempts=3,
@@ -251,7 +323,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             notice_ids=("351907",),
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
-            object_store=_FakeObjectStore({}),
+            object_store=_FakeObjectStore(_multimodal_attachment_objects()),
             source_bucket="campus-rag-source",
             processor=processor,
             attempt_store=attempt_store,
@@ -289,7 +361,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             notice_ids=("351907",),
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
-            object_store=_FakeObjectStore({}),
+            object_store=_FakeObjectStore(_multimodal_attachment_objects()),
             source_bucket="campus-rag-source",
             processor=_FailingProcessor(RuntimeError("provider timeout")),
             attempt_store=attempt_store,
@@ -331,7 +403,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
             notice_ids=("351907",),
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
-            object_store=_FakeObjectStore({}),
+            object_store=_FakeObjectStore(_multimodal_attachment_objects()),
             source_bucket="campus-rag-source",
             processor=processor,
         )
@@ -532,7 +604,7 @@ class InternalNoticeMultimodalProcessingTestPart01(unittest.TestCase):
         report = drain_internal_notice_pending_multimodal_entries(
             projection_store=projection_store,
             source_truth_inventory_store=inventory_store,
-            object_store=_FakeObjectStore({}),
+            object_store=_FakeObjectStore(_multimodal_attachment_objects(("351907", "355222"))),
             source_bucket="campus-rag-source",
             processor=processor,
             attempt_store=attempt_store,

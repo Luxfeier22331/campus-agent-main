@@ -178,6 +178,31 @@ class InternalNoticeScheduleImageOcrTest(unittest.TestCase):
             ),
         )
 
+    def test_chat_provider_from_env_requires_schedule_specific_credentials(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY is required",
+        ):
+            ChatCompletionsScheduleImageOcrProvider.from_env(
+                {
+                    "PROMPT_RUNTIME_API_KEY": "shared-key",
+                    "PROMPT_RUNTIME_MODEL": "gpt-shared",
+                    "PROMPT_RUNTIME_BASE_URL": "https://shared.example/v1",
+                }
+            )
+
+    def test_chat_provider_from_env_requires_schedule_specific_model(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL is required",
+        ):
+            ChatCompletionsScheduleImageOcrProvider.from_env(
+                {
+                    "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY": "test-key",
+                    "INTERNAL_NOTICE_MULTIMODAL_MODEL": "gpt-other-lane",
+                }
+            )
+
     def test_chat_provider_normalizes_row_cell_objects_with_rowspans(self) -> None:
         response = {
             "choices": [
@@ -491,6 +516,23 @@ class InternalNoticeScheduleImageOcrTest(unittest.TestCase):
         )
         self.assertTrue(keys.layout_elements_key.endswith("/source-truth/layout-elements.jsonl"))
         self.assertTrue(keys.ocr_manifest_key.endswith("/source-truth/ocr-manifest.json"))
+
+    def test_source_artifact_keys_reject_missing_provider_or_model(self) -> None:
+        evidence = _evidence()
+
+        with self.assertRaisesRegex(ValueError, "schedule image OCR provider is required"):
+            build_schedule_image_ocr_artifact_keys(
+                evidence=evidence,
+                provider="",
+                model="fixture-table-v1",
+            )
+
+        with self.assertRaisesRegex(ValueError, "schedule image OCR model is required"):
+            build_schedule_image_ocr_artifact_keys(
+                evidence=evidence,
+                provider="fixture-ocr",
+                model="",
+            )
 
     def test_write_source_artifacts_records_attempt_without_using_pg_for_ocr_body(
         self,

@@ -12,6 +12,7 @@ from campus_ingestion_core.notice_consumption_projection import (
     NoticeConsumptionProjectionEntry,
 )
 from campus_ingestion_core.wechat_public_notice_multimodal import (
+    ChatCompletionsWeChatPublicNoticeMultimodalProvider,
     InMemoryWeChatPublicNoticeMultimodalAttemptStore,
     WeChatPublicNoticeFetchedInlineImage,
     WeChatPublicNoticeMultimodalAttempt,
@@ -321,6 +322,31 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
                     )
                 },
                 prefer_operator=True,
+            )
+
+    def test_chat_provider_from_env_requires_wechat_specific_credentials(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY is required",
+        ):
+            ChatCompletionsWeChatPublicNoticeMultimodalProvider.from_env(
+                {
+                    "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY": "other-lane-key",
+                    "PROMPT_RUNTIME_MODEL": "gpt-shared",
+                    "PROMPT_RUNTIME_BASE_URL": "https://shared.example/v1",
+                }
+            )
+
+    def test_chat_provider_from_env_requires_wechat_specific_model(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL is required",
+        ):
+            ChatCompletionsWeChatPublicNoticeMultimodalProvider.from_env(
+                {
+                    "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY": "test-key",
+                    "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL": "gpt-other-lane",
+                }
             )
 
 

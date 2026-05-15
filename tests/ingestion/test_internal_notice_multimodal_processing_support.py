@@ -232,4 +232,25 @@ def _jsonl_bytes(rows: tuple[dict[str, object], ...]) -> bytes:
     return "\n".join(json.dumps(row, ensure_ascii=False) for row in rows).encode("utf-8")
 
 
+def _multimodal_attachment_objects(
+    notice_ids: tuple[str, ...] = ("351907",),
+    *,
+    bucket: str = "campus-rag-source",
+) -> dict[tuple[str, str], bytes]:
+    objects: dict[tuple[str, str], bytes] = {}
+    for notice_id in notice_ids:
+        objects[(bucket, f"notice/{notice_id}/attachment-map.png")] = b"PNGDATA"
+        objects[(bucket, f"notice/{notice_id}/attachment-refs.jsonl")] = _jsonl_bytes(
+            (
+                {
+                    "attachment_ref_id": "attachment-map",
+                    "object_key": f"notice/{notice_id}/attachment-map.png",
+                    "mime_type": "image/png",
+                    "filename": "map.png",
+                },
+            )
+        )
+    return objects
+
+
 __all__ = [name for name in globals() if not name.startswith("__")]

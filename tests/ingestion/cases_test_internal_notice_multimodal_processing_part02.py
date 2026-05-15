@@ -27,6 +27,31 @@ class InternalNoticeMultimodalProcessingTestPart02(unittest.TestCase):
                 }
             )
 
+    def test_processor_builder_requires_internal_notice_specific_credentials(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_MULTIMODAL_API_KEY is required",
+        ):
+            build_internal_notice_multimodal_processor_from_env(
+                {
+                    "PROMPT_RUNTIME_API_KEY": "shared-key",
+                    "PROMPT_RUNTIME_MODEL": "gpt-shared",
+                    "PROMPT_RUNTIME_BASE_URL": "https://shared.example/v1",
+                }
+            )
+
+    def test_processor_builder_requires_internal_notice_specific_model(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_MULTIMODAL_MODEL is required",
+        ):
+            build_internal_notice_multimodal_processor_from_env(
+                {
+                    "INTERNAL_NOTICE_MULTIMODAL_API_KEY": "test-key",
+                    "PROMPT_RUNTIME_MODEL": "gpt-shared",
+                }
+            )
+
     def test_agents_sdk_processor_returns_normalized_decision_and_ignores_extra_fields(
         self,
     ) -> None:

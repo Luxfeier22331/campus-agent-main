@@ -486,14 +486,24 @@ def _load_multimodal_processing_attachments(
         attachment_ref_id = str(plan.get("attachment_ref_id") or "").strip()
         if not attachment_ref_id:
             continue
-        ref = refs_by_id.get(attachment_ref_id) or {}
+        ref = refs_by_id.get(attachment_ref_id)
+        if ref is None:
+            raise ValueError(
+                "multimodal processing attachment refs missing declared attachment "
+                f"{attachment_ref_id!r}"
+            )
         object_key = str(ref.get("object_key") or "").strip()
         if not object_key:
-            continue
+            raise ValueError(
+                "multimodal processing attachment refs missing object_key for "
+                f"{attachment_ref_id!r}"
+            )
         try:
             data = object_store.get_bytes(bucket=source_bucket, key=object_key)
-        except Exception:
-            continue
+        except Exception as exc:
+            raise ValueError(
+                f"multimodal processing attachment object is missing or unreadable: {object_key}"
+            ) from exc
         attachments.append(
             InternalNoticeMultimodalAttachment(
                 attachment_ref_id=attachment_ref_id,
@@ -519,8 +529,11 @@ def _load_attachment_refs(
 ) -> tuple[dict[str, object], ...]:
     try:
         payload = object_store.get_bytes(bucket=source_bucket, key=attachment_refs_key)
-    except Exception:
-        return ()
+    except Exception as exc:
+        raise ValueError(
+            "multimodal processing attachment refs are missing or unreadable: "
+            f"{attachment_refs_key}"
+        ) from exc
     rows: list[dict[str, object]] = []
     for line in payload.decode("utf-8").splitlines():
         stripped = line.strip()

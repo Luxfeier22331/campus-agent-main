@@ -13,6 +13,10 @@ from tests.ingestion._curriculum_course_map_probe_test_support import (
 )
 
 _probe_module = load_curriculum_course_map_probe_module()
+_runtime_support_module = __import__(
+    "campus_ingestion_core.curriculum_course_map_multimodal_probe_runtime_support",
+    fromlist=["_resolve_base_url"],
+)
 CourseMapEdge = _probe_module.CourseMapEdge
 CourseMapFinding = _probe_module.CourseMapFinding
 CourseMapNode = _probe_module.CourseMapNode
@@ -29,6 +33,7 @@ _extract_chat_completions_output_parsed = _probe_module._extract_chat_completion
 _extract_output_parsed = _probe_module._extract_output_parsed
 _is_retryable_probe_exception = _probe_module._is_retryable_probe_exception
 _normalize_prompt_runtime_transport = _probe_module._normalize_prompt_runtime_transport
+_resolve_base_url = _runtime_support_module._resolve_base_url
 _build_responses_multimodal_input = _probe_module._build_responses_multimodal_input
 _to_responses_multimodal_content = _probe_module._to_responses_multimodal_content
 _request_course_map_detector_payload_async = (
