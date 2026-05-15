@@ -31,6 +31,10 @@ Boundary notes:
 - this collection is reserved for public-web stable reference pages such as
   institution overview, department/contact pages, and long-lived explanatory
   content
+- brand-history, school-history-person, celebrity-biography, and promotional
+  honor pages are not part of the default stable-reference answer denominator;
+  keep them in source/inventory audit truth unless a dedicated brand-history
+  surface is admitted
 - it is now the first query-enabled `official_web/*` surface and should be
   consumed through the published alias `official_web_stable_reference`
 - it is the only default query-enabled official-web surface; `fresh_news` and

@@ -3,6 +3,11 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+from campus_ingestion_core.chunking_tables import serialize_table_unit_text
+from campus_ingestion_core.handbook_cleanup_tables import (
+    _build_table_unit_semantics,
+    _normalize_table_cells_matrix,
+)
 from campus_ingestion_core.official_web_projection_content import (
     _build_semantic_content_hash,
     _classify_article_line,
@@ -235,6 +240,30 @@ def _build_projection_units(
         if block_role in {"table", "table_row", "table_cell"}:
             flush_buffer()
             current_section_path = list(section_path)
+            table_cells = block.get("tableCells")
+            table_context = _resolve_official_web_table_context(
+                title=title,
+                section_path=section_path,
+            )
+            table_semantics = _build_official_web_table_semantics(
+                table_cells=table_cells,
+                table_context=table_context,
+                title=title,
+                normalized_canonical_url=str(manifest["normalizedCanonicalUrl"]),
+                row_id=str(block.get("rowId") or ""),
+            )
+            table_metadata = _build_official_web_table_metadata(
+                table_semantics=table_semantics,
+                table_context=table_context,
+            )
+            clean_text = serialize_table_unit_text(
+                caption_lines=tuple(
+                    str(item) for item in table_metadata.get("caption_lines") or []
+                ),
+                header_line=str(table_metadata.get("table_header_line") or ""),
+                row_lines=tuple(str(item) for item in table_metadata.get("table_row_lines") or []),
+                note_lines=tuple(str(item) for item in table_metadata.get("note_lines") or []),
+            )
             unit_index = len(units) + 1
             units.append(
                 _build_structured_unit_row(
@@ -243,7 +272,7 @@ def _build_projection_units(
                     chunk_id=f"{document_id}:unit-{unit_index:04d}",
                     root_unit_id=f"{document_id}:root-{unit_index:04d}",
                     unit_type="table_unit",
-                    clean_text=text,
+                    clean_text=clean_text,
                     source_pdf=f"official_web:{manifest['siteId']}",
                     source_url=str(manifest["normalizedCanonicalUrl"]),
                     anchor={
@@ -253,6 +282,7 @@ def _build_projection_units(
                         "page_family": manifest["pageFamily"],
                         "section_path": list(section_path),
                         "row_ids": [str(block.get("rowId") or "")],
+                        "table_context": table_context,
                     },
                     metadata=_build_projection_unit_metadata(
                         declaration=declaration,
@@ -265,8 +295,9 @@ def _build_projection_units(
                             title=title,
                         ),
                         is_answer_bearing=True,
+                        extra_metadata=table_metadata,
                     ),
-                    table_cells=block.get("tableCells"),
+                    table_cells=[list(row) for row in table_semantics.matrix],
                 )
             )
             continue
@@ -673,6 +704,98 @@ def _build_structured_unit_row(
     }
 
 
+def _resolve_official_web_table_context(*, title: str, section_path: list[str]) -> str:
+    labels = [item.strip() for item in section_path if item.strip()]
+    if labels:
+        return labels[-1]
+    normalized_title = title.strip()
+    if normalized_title:
+        return normalized_title
+    raise ValueError("official_web table unit requires title or section_path table context")
+
+
+def _build_official_web_table_semantics(
+    *,
+    table_cells: object,
+    table_context: str,
+    title: str,
+    normalized_canonical_url: str,
+    row_id: str,
+):
+    normalized_cells = _strip_official_web_table_caption_rows(
+        _normalize_table_cells_matrix(table_cells),
+        table_context=table_context,
+        title=title,
+    )
+    table_semantics = _build_table_unit_semantics(
+        table_cells=normalized_cells,
+        table_context=table_context,
+    )
+    if table_semantics is None:
+        location = f"{normalized_canonical_url}#{row_id}" if row_id else normalized_canonical_url
+        raise ValueError(
+            "official_web table block must expose evidence-grade tableCells semantics: "
+            f"{location}"
+        )
+    return table_semantics
+
+
+def _strip_official_web_table_caption_rows(
+    table_cells: list[list[str]] | None,
+    *,
+    table_context: str,
+    title: str,
+) -> list[list[str]] | None:
+    if not table_cells:
+        return table_cells
+    rows = list(table_cells)
+    while rows and _is_official_web_table_caption_row(
+        rows[0],
+        table_context=table_context,
+        title=title,
+    ):
+        rows = rows[1:]
+    return rows or table_cells
+
+
+def _is_official_web_table_caption_row(
+    row: list[str],
+    *,
+    table_context: str,
+    title: str,
+) -> bool:
+    non_empty = [cell.strip() for cell in row if cell.strip()]
+    if len(non_empty) != 1:
+        return False
+    caption = " ".join(non_empty[0].split()).strip()
+    allowed_captions = {
+        " ".join(value.split()).strip()
+        for value in (table_context, title)
+        if " ".join(value.split()).strip()
+    }
+    return bool(caption and caption in allowed_captions)
+
+
+def _build_official_web_table_metadata(*, table_semantics, table_context: str) -> dict[str, object]:
+    columns = list(table_semantics.column_paths)
+    metadata: dict[str, object] = {
+        "table_context": table_context,
+        "caption_lines": list(table_semantics.caption_lines),
+        "note_lines": list(table_semantics.note_lines),
+        "table_header_rows": [list(row) for row in table_semantics.header_rows],
+        "table_body_rows": [list(row) for row in table_semantics.body_rows],
+        "table_column_paths": columns,
+        "table_columns": columns,
+        "table_headers": columns,
+        "table_header_line": table_semantics.header_line,
+        "table_row_lines": list(table_semantics.row_lines),
+        "table_header_row_count": len(table_semantics.header_rows),
+        "table_row_count": len(table_semantics.row_lines),
+        "table_column_count": len(columns),
+    }
+    return metadata
+
+
 def _build_projection_unit_metadata(
     *,
     declaration: OfficialWebProjectionDeclaration,
@@ -681,6 +804,7 @@ def _build_projection_unit_metadata(
     semantic_content_hash: str,
     content_role: str | None = None,
     is_answer_bearing: bool | None = None,
+    extra_metadata: dict[str, object] | None = None,
 ) -> dict[str, object]:
     serving_intent = _resolve_document_serving_intent(
         page_family=declaration.page_family,
@@ -724,4 +848,6 @@ def _build_projection_unit_metadata(
     )
     if promotion_block_reason is not None:
         metadata["promotion_block_reason"] = promotion_block_reason
+    if extra_metadata:
+        metadata.update(extra_metadata)
     return metadata

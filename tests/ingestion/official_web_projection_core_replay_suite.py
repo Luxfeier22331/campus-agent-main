@@ -15,6 +15,7 @@ CASE_MODULES = (
     "tests.ingestion.cases_official_web_projection_core_replay_suite_part05",
     "tests.ingestion.cases_official_web_projection_core_replay_suite_part06",
     "tests.ingestion.cases_official_web_projection_core_replay_suite_part07",
+    "tests.ingestion.cases_official_web_projection_core_replay_suite_part08",
 )
 
 

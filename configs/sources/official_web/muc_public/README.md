@@ -16,9 +16,9 @@ site.
 - `credentials.schema.json`: anonymous public crawl posture for v1
 - `projection-declarations.json`: first-wave source-truth fan-out for the
   currently declared page families
-- `projection-routing.json`: downstream scope override truth for the first
-  corpus split bootstrap; unmatched pages still fall back to the declaration
-  target scope
+- `projection-routing.json`: legacy downstream scope override config; current
+  repo truth keeps it empty, and target-first source-pack / release-gate
+  admission owns query-enabled scope promotion
 - `consumer-denominator.json`: downstream consumer denominator for deciding
   which fetched pages are retained as source-truth candidates during recovery
 - `target-source-map.json`: target-first admitted downstream surfaces,
@@ -114,16 +114,16 @@ both the stable regression gate and any expansion batch. If a new batch surfaces
 a family outside this declaration set, fix the declaration or batch scope before
 treating it as validated.
 
-`projection-routing.json` is the repo-tracked document-level routing truth
-layered on top of `projection-declarations.json`:
+`projection-routing.json` is a legacy document-level routing layer on top of
+`projection-declarations.json`, but the current repo-tracked file intentionally
+keeps `routes` empty:
 
 - declarations still own the baseline `page_family -> action / document_kind /
   default target scope`
-- routing only overrides the downstream target scope for explicitly matched
-  subsets
-- current routing now splits:
-  - stable-reference subset -> `official_web/stable_reference`
-  - current fresh-news seed set -> `official_web/fresh_news`
+- routing must not independently open `official_web/stable_reference`,
+  `official_web/fresh_news`, or `official_web/news_archive`
+- query-enabled official-web scope admission must come from explicit
+  target-inventory / source-pack / release-gate lineage
 - everything else, including `retain_inventory_only`, stays on the mixed
   `official_web/muc_public_pages` bridge until a later phase moves it explicitly
 

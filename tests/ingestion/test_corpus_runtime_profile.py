@@ -478,11 +478,11 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         fresh_news_profile = load_runtime_profile("official_web", "fresh_news")
         news_archive_profile = load_runtime_profile("official_web", "news_archive")
 
-        self.assertTrue(is_official_web_stable_reference_like_profile(bridge_profile))
+        self.assertFalse(is_official_web_stable_reference_like_profile(bridge_profile))
         self.assertTrue(is_official_web_stable_reference_like_profile(stable_reference_profile))
         self.assertFalse(is_official_web_stable_reference_like_profile(fresh_news_profile))
         self.assertFalse(is_official_web_stable_reference_like_profile(news_archive_profile))
-        self.assertTrue(is_official_web_stable_reference_like_collection("muc_public_pages"))
+        self.assertFalse(is_official_web_stable_reference_like_collection("muc_public_pages"))
         self.assertTrue(is_official_web_stable_reference_like_collection("stable_reference"))
         self.assertFalse(is_official_web_stable_reference_like_collection("fresh_news"))
         self.assertFalse(is_official_web_stable_reference_like_collection("news_archive"))

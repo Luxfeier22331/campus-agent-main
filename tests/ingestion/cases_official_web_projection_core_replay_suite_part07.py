@@ -1,6 +1,7 @@
 # ruff: noqa: F403,F405
 from __future__ import annotations
 
+import json
 import unittest
 
 from tests.ingestion.official_web_projection_core_replay_suite_support import *
@@ -215,7 +216,7 @@ class OfficialWebProjectionCoreReplayTestPart07(unittest.TestCase):
                 {issue["code"] for issue in validation.issues},
             )
 
-    def test_replay_official_web_source_truth_local_routes_fresh_news_seed_titles_to_fresh_news_scope(
+    def test_replay_official_web_source_truth_local_supports_explicit_route_override(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -390,6 +391,18 @@ class OfficialWebProjectionCoreReplayTestPart07(unittest.TestCase):
                 documents_by_title["校园新闻"]["target_collection"], "muc_public_pages"
             )
             self.assertIsNone(documents_by_title["校园新闻"]["routing_route_id"])
+
+    def test_repo_tracked_projection_routing_keeps_query_enabled_surfaces_closed(
+        self,
+    ) -> None:
+        payload = json.loads(
+            Path("configs/sources/official_web/muc_public/projection-routing.json").read_text(
+                encoding="utf-8"
+            )
+        )
+        routes = payload.get("routes")
+        self.assertIsInstance(routes, list)
+        self.assertEqual(routes, [])
 
     def test_replay_official_web_source_truth_local_keeps_generic_fallback_pages_in_manual_review_for_muc_public_pages(
         self,

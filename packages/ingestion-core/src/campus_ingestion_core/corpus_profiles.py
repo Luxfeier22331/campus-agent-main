@@ -22,8 +22,8 @@ ALLOWED_SERVING_STAGES = (
     "offline_preparation",
 )
 ALLOWED_SERVING_SURFACES = ("mixed", "stable_reference", "fresh_news", "news_archive")
-OFFICIAL_WEB_STABLE_REFERENCE_LIKE_COLLECTIONS = frozenset({"muc_public_pages", "stable_reference"})
-OFFICIAL_WEB_STABLE_REFERENCE_LIKE_SURFACES = frozenset({"mixed", "stable_reference"})
+OFFICIAL_WEB_STABLE_REFERENCE_LIKE_COLLECTIONS = frozenset({"stable_reference"})
+OFFICIAL_WEB_STABLE_REFERENCE_LIKE_SURFACES = frozenset({"stable_reference"})
 ALLOWED_ARTIFACT_MODES = ("normalized", "source_truth_only")
 ALLOWED_LISTING_PAGE_ROLES = ("discovery_only", "navigation_hint", "primary_evidence")
 ALLOWED_SOURCE_OCR_IMAGE_ROUTING_STRATEGIES = ("default", "mineru_primary")

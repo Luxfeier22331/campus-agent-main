@@ -49,8 +49,6 @@ def _resolve_consumer_projection(
 ) -> dict[str, object] | None:
     if not matches and composition_override is None:
         return None
-    if _is_non_answer_bearing_source_pack_preview_seed(manifest=manifest, matches=matches):
-        return {"action": "candidate", "candidate_pages": []}
     stable_match = _find_consumer_match(matches, "stable_reference_candidate")
     if stable_match is not None:
         return {
@@ -60,6 +58,8 @@ def _resolve_consumer_projection(
             "routing_route_id": "consumer-denominator:stable_reference_candidate",
             "target_lineage": stable_match,
         }
+    if _is_non_answer_bearing_source_pack_preview_seed(manifest=manifest, matches=matches):
+        return {"action": "candidate", "candidate_pages": []}
 
     candidate_pages = _candidate_pages_from_override(composition_override)
     skipped_consumer_families = _skipped_consumer_families(composition_override)
