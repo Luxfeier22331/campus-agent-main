@@ -494,6 +494,131 @@ class RagAgentCurriculumSemesterAnsweringTest(unittest.TestCase):
             },
         )
 
+    def test_curriculum_semester_answer_preserves_grade_alias_with_canonical_semester(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="法学民族班培养方案里大二下有什么课",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:law-semester-4",
+                    chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0016",
+                    anchor={"page_start": 153, "page_end": 153},
+                    canonical_url="https://campus.example/curriculum/law-ethnic",
+                    latest_url="https://campus.example/curriculum/law-ethnic",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(二)专业教育\n\n"
+                        "课程清单如下:\n"
+                        "专业方向 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 开设学期\n"
+                        "民族班 | 1036040100 | 合同法 | 2 | 36 | / | 4\n"
+                        "民族班 | 1036040175 | 侵权责任法 | 2 | 36 | / | 4"
+                    ),
+                    score=0.98,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=(
+                        "法学（民族实验班）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                    ),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("《法学（民族实验班）本科人才培养方案》大二下（第四学期）有", draft.answer_text)
+        self.assertIn("合同法", draft.answer_text)
+        self.assertIn("侵权责任法", draft.answer_text)
+
+    def test_curriculum_semester_answer_uses_original_answer_query_label_after_retrieval_rewrite(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="法学民族实验班培养方案里第四学期有什么课",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:law-semester-4-general",
+                    chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0010",
+                    anchor={"page_start": 150, "page_end": 150},
+                    canonical_url="https://campus.example/curriculum/law-ethnic",
+                    latest_url="https://campus.example/curriculum/law-ethnic",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(一) 大类培养\n\n"
+                        "1. 通识教育\n\n"
+                        "课程清单如下:\n"
+                        "类别 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                        "思政课 | 1037010044 | 中华民族共同体概论 | 2 | 36 | 12 | 4\n"
+                        "基本素养课 | 1042010082 | 大学英语(四) | 2 | 54 | 36 | 4"
+                    ),
+                    score=0.98,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=(
+                        "法学（民族实验班）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                    ),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:law-semester-4-major",
+                    chunk_id="curriculum:法学（民族实验班）本科人才培养方案:chunk-0016",
+                    anchor={"page_start": 153, "page_end": 153},
+                    canonical_url="https://campus.example/curriculum/law-ethnic",
+                    latest_url="https://campus.example/curriculum/law-ethnic",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=False,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "(二)专业教育\n\n"
+                        "2.专业选修课程\n\n"
+                        "课程清单如下:\n"
+                        "专业方向 | 课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 开设学期\n"
+                        "民族班 | 1036040145 | 合同法 | 2 | 36 | 9 | 4\n"
+                        "民族班 | 1036040023 | 公司法 | 2 | 36 | / | 4"
+                    ),
+                    score=0.97,
+                    source_title="法学（民族实验班）本科人才培养方案",
+                    structural_path=(
+                        "法学（民族实验班）本科人才培养方案",
+                        "五、课程设置和修读建议",
+                    ),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            evidence,
+            query_text="法学民族班培养方案里大二下有什么课",
+        )
+
+        self.assertIn("《法学（民族实验班）本科人才培养方案》大二下（第四学期）有", draft.answer_text)
+        self.assertIn("中华民族共同体概论", draft.answer_text)
+        self.assertIn("大学英语(四)", draft.answer_text)
+        self.assertIn("合同法", draft.answer_text)
+        self.assertIn("公司法", draft.answer_text)
+
     def test_curriculum_semester_answer_merges_program_semester_fact_partial_chunks_without_leaking_broken_course_fragments(
         self,
     ) -> None:

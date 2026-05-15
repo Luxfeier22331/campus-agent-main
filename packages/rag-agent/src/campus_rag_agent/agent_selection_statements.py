@@ -69,6 +69,7 @@ _HANDBOOK_METADATA_LINE_RE = re.compile(r"^(?:标题|章节|条款)[:：]")
 _HANDBOOK_INLINE_METADATA_SEGMENT_RE = re.compile(
     r"(?:^|\s*[|｜]\s*)(?:标题|章节|条款)[:：][^|｜\n\r]+"
 )
+_INLINE_ARTICLE_MARKER_RE = re.compile(r"第[一二三四五六七八九十百零0-9]+条")
 _GENERIC_INTRO_STATEMENT_HINTS = (
     "具备以下基本条件",
     "需具备以下基本条件",
@@ -142,12 +143,22 @@ def _candidate_statement_lines(
     if _looks_like_handbook_metadata_line(line):
         return ()
     if _is_official_web_source(source):
-        return _candidate_official_web_statement_lines(line=line, title=title)
+        return _candidate_official_web_statement_lines(line=line, source=source, title=title)
     stripped = _strip_handbook_inline_metadata(line)
-    return (stripped,) if stripped else ()
+    if not stripped:
+        return ()
+    return _split_inline_article_segments(stripped)
 
 
-def _candidate_official_web_statement_lines(*, line: str, title: str) -> tuple[str, ...]:
+def _candidate_official_web_statement_lines(
+    *,
+    line: str,
+    source: EvidenceSource,
+    title: str,
+) -> tuple[str, ...]:
+    if source.content_kind == "table_unit" and " | " in line:
+        normalized = _normalize_official_web_statement_line(line=line, title=title)
+        return (normalized,) if normalized else ()
     segments = tuple(
         _normalize_snippet(segment).strip(" /|｜")
         for segment in re.split(r"\s*[|｜]\s*", line)
@@ -185,6 +196,25 @@ def _strip_handbook_inline_metadata(line: str) -> str:
         return ""
     stripped = _HANDBOOK_INLINE_METADATA_SEGMENT_RE.sub("", normalized).strip(" |｜")
     return _normalize_snippet(stripped)
+
+
+def _split_inline_article_segments(line: str) -> tuple[str, ...]:
+    normalized = _normalize_snippet(line)
+    if not normalized:
+        return ()
+    markers = tuple(_INLINE_ARTICLE_MARKER_RE.finditer(normalized))
+    if len(markers) < 2:
+        return (normalized,)
+    segments: list[str] = []
+    leading_prefix = normalized[: markers[0].start()].strip()
+    for index, marker in enumerate(markers):
+        end = markers[index + 1].start() if index + 1 < len(markers) else len(normalized)
+        segment = normalized[marker.start() : end].strip()
+        if index == 0 and leading_prefix:
+            segment = f"{leading_prefix} {segment}".strip()
+        if segment:
+            segments.append(segment)
+    return tuple(segments) or (normalized,)
 
 
 def _prepend_structural_short_fact_labels(
@@ -261,6 +291,11 @@ def _score_statement(
         source, statement
     ):
         score += 4
+    if _query_asks_curriculum_total_credits(query_text):
+        if _is_curriculum_total_credit_statement(normalized):
+            score += 10
+        elif "学分" in normalized:
+            score -= 4
     if mode == "procedure":
         score += sum(2 for token in _ACTION_STATEMENT_HINTS if token in normalized)
         if source.content_role == "procedure":
@@ -303,6 +338,24 @@ def _score_statement(
             text=statement,
         )
     return score
+
+
+def _query_asks_curriculum_total_credits(query_text: str) -> bool:
+    normalized = _normalize_snippet(query_text)
+    return (
+        "总学分" in normalized
+        or "学分要求" in normalized
+        or ("多少学分" in normalized and any(cue in normalized for cue in ("一共", "共", "总共")))
+    )
+
+
+def _is_curriculum_total_credit_statement(statement: str) -> bool:
+    normalized = _normalize_snippet(statement)
+    if "总学分" in normalized:
+        return True
+    if re.search(r"(?:^|[|｜])\s*合计\s*(?:[|｜]\s*)+[0-9]{1,3}(?:\.\d+)?\s*$", normalized):
+        return True
+    return bool(re.search(r"(?:合计|共计(?:获得)?|总计)\s*[0-9]{1,3}(?:\.\d+)?\s*学分", normalized))
 
 
 def _candidate_source_statements(

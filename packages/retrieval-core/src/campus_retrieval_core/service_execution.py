@@ -293,7 +293,7 @@ def _semantic_grounding_failure_kind(
             return "group_support_missing"
         if intent.answer_role == "procedure" and _has_same_group_but_wrong_answer_role(
             sources=sources,
-            expected_roles={"procedure_step"},
+            expected_roles=_expected_procedure_answer_roles(semantic_hint),
         ):
             return "procedure_group_answer_role_mismatch"
         if intent.answer_role == "condition" and _has_same_group_but_wrong_answer_role(
@@ -314,7 +314,7 @@ def _semantic_grounding_failure_kind(
         return "group_support_missing"
     if intent.answer_role == "procedure" and _grounding_lacks_expected_answer_role(
         grounding=grounding,
-        expected_roles={"procedure_step"},
+        expected_roles=_expected_procedure_answer_roles(semantic_hint),
     ):
         return "procedure_group_answer_role_mismatch"
     if intent.answer_role == "condition" and _grounding_lacks_expected_answer_role(
@@ -388,6 +388,15 @@ def _expected_condition_answer_roles(condition_subject: str) -> set[str]:
     if definition is None:
         return {"eligibility_condition", "exception_rule", "exclusion_rule"}
     return set(definition.expected_answer_roles)
+
+
+def _expected_procedure_answer_roles(
+    semantic_hint: RetrievalSemanticHint | None,
+) -> set[str]:
+    if semantic_hint is None:
+        return {"procedure_step"}
+    expected_roles = {role for role in semantic_hint.expected_answer_roles if role}
+    return expected_roles or {"procedure_step"}
 
 
 def _has_group_subject_only_match(

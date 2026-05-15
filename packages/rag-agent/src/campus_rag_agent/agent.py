@@ -13,6 +13,7 @@ from .agent_answer_shape import (
     infer_answer_shape,
 )
 from .agent_answering import _compose_direct_answer, _render_supporting_contexts
+from .agent_official_web_reference_selection import official_web_reference_support_budget
 from .agent_selection_query import _query_mode
 from .agent_selection_rows import _select_answer_support_rows
 from .agent_shared import _normalize_snippet
@@ -96,16 +97,27 @@ class RagAgent:
             if not resolved_audience:
                 resolved_audience = inferred_audience
         support_budget = answer_shape_support_budget(answer_shape, self.max_answer_sources)
+        support_budget = official_web_reference_support_budget(
+            evidence=evidence,
+            query_text=answer_query_text,
+            default_budget=support_budget,
+        )
+        if _needs_procedure_step_completeness_support_budget(retrieval_intent):
+            support_budget = max(support_budget, 5)
         if _needs_curriculum_course_settings_support_budget(
             evidence=evidence,
             query_text=answer_query_text,
         ):
             support_budget = max(support_budget, 6)
         candidate_budget = max(support_budget, self.max_answer_sources)
+        if _needs_procedure_step_completeness_support_budget(retrieval_intent):
+            candidate_budget = max(candidate_budget, len(evidence.sources))
         if _needs_curriculum_course_settings_support_budget(
             evidence=evidence,
             query_text=answer_query_text,
         ):
+            candidate_budget = max(candidate_budget, len(evidence.sources))
+        if _needs_document_identity_candidate_scan(retrieval_intent):
             candidate_budget = max(candidate_budget, len(evidence.sources))
         if _needs_curriculum_course_settings_support_budget(
             evidence=evidence,
@@ -116,7 +128,11 @@ class RagAgent:
                 sources=evidence.sources,
                 max_sources=candidate_budget,
             )
-        elif answer_shape in {AnswerShape.CONDITION_OVERVIEW, AnswerShape.GENERAL_SUMMARY}:
+        elif (
+            _needs_procedure_step_completeness_support_budget(retrieval_intent)
+            or _needs_document_identity_candidate_scan(retrieval_intent)
+            or answer_shape in {AnswerShape.CONDITION_OVERVIEW, AnswerShape.GENERAL_SUMMARY}
+        ):
             candidate_sources = evidence.sources
         elif candidate_budget > self.max_answer_sources:
             candidate_sources = _select_doc_diverse_answer_sources(
@@ -130,7 +146,7 @@ class RagAgent:
                 max_sources=candidate_budget,
             )
         selected_rows = _select_answer_support_rows(
-            query_text=evidence.query_text,
+            query_text=answer_query_text,
             sources=candidate_sources,
             max_sources=support_budget,
             answer_shape=answer_shape,
@@ -271,3 +287,20 @@ def _needs_curriculum_course_settings_support_budget(
         return False
     normalized_query = _normalize_snippet(query_text or evidence.query_text)
     return "课程设置" in normalized_query or "修读建议" in normalized_query
+
+
+def _needs_document_identity_candidate_scan(retrieval_intent: RetrievalIntent | None) -> bool:
+    return (
+        retrieval_intent is not None
+        and retrieval_intent.expected.selection_policy == "document_identity_first"
+    )
+
+
+def _needs_procedure_step_completeness_support_budget(
+    retrieval_intent: RetrievalIntent | None,
+) -> bool:
+    return (
+        retrieval_intent is not None
+        and retrieval_intent.kind == "procedure_steps"
+        and retrieval_intent.expected.coverage_policy == "procedure_step_completeness"
+    )

@@ -7,6 +7,7 @@ from tests.retrieval.backend_qdrant_test_support import (
     MockEmbeddingSettings,
     MockSparseEmbeddingSettings,
     QdrantRetrievalBackend,
+    RetrievalBackendError,
     RetrievalRequest,
     RetrievalSettings,
     build_mock_embedding_model,
@@ -263,6 +264,68 @@ class BackendQdrantCurriculumRankingBackendSupportTest(unittest.TestCase):
             ("curriculum:中央民族大学大学生社会实践环节实施方案",),
         )
         qdrant_client.scroll.assert_called_once()
+
+    def test_backend_fails_closed_when_curriculum_title_rescue_scroll_fails(self) -> None:
+        registry = InMemoryDocumentRegistry()
+        embedding_model = Mock()
+        embedding_model.get_query_embedding.return_value = (0.1, 0.2, 0.3)
+        sparse_embedding_model = Mock()
+        sparse_embedding_model.build_query.return_value = "sparse-social-practice"
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = True
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(
+            aliases=[]
+        )
+        qdrant_client.query_points.return_value = qdrant_models.QueryResponse(
+            points=[
+                qdrant_models.ScoredPoint(
+                    id="point-russian",
+                    version=0,
+                    score=0.72,
+                    payload={
+                        "document_id": "curriculum:俄语（俄语、中亚语）本科人才培养方案",
+                        "revision_track": "source-faithful",
+                        "version_id": "v1:russian",
+                        "chunk_id": "curriculum:俄语（俄语、中亚语）本科人才培养方案:chunk-0001",
+                        "corpus": "curriculum",
+                        "collection": "curriculum_plan",
+                        "visibility_level": "public",
+                        "status": "active",
+                        "source_uri": "https://campus.example/curriculum/russian",
+                        "canonical_url": "https://campus.example/curriculum/russian",
+                        "latest_url": "https://campus.example/curriculum/russian",
+                        "source_channel": "pdf_ocr",
+                        "is_current": True,
+                        "anchor": {"section_path": ["俄语（俄语、中亚语）本科人才培养方案"]},
+                        "text": "俄语（俄语、中亚语）本科人才培养方案。",
+                    },
+                ),
+            ]
+        )
+        qdrant_client.scroll.side_effect = RuntimeError("qdrant scroll unavailable")
+        backend = QdrantRetrievalBackend(
+            settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                document_registry_database_url="postgresql://registry.example/postgres",
+            ),
+            registry=registry,
+            qdrant_client=qdrant_client,
+            embedding_model=embedding_model,
+            sparse_embedding_model=sparse_embedding_model,
+        )
+
+        with self.assertRaisesRegex(
+            RetrievalBackendError,
+            "qdrant curriculum title rescue scroll failed",
+        ):
+            backend.retrieve(
+                RetrievalRequest(
+                    query_text="中央民族大学大学生社会实践环节实施方案",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    top_k=3,
+                )
+            )
 
     def test_backend_rescue_keeps_curriculum_title_scroll_authorized_for_restricted_document(
         self,

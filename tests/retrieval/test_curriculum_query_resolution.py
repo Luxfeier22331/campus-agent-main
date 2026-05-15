@@ -52,6 +52,7 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
         self.assertEqual(interpretation.program_query_fragment, "法学民族实验班培养方案")
         self.assertEqual(interpretation.program_compact_key, "法学民族实验班")
         self.assertEqual(interpretation.semester_labels, ("第四学期",))
+        self.assertEqual(interpretation.semester_alias_labels, (("大二下", "第四学期"),))
         self.assertEqual(interpretation.intent_kind, "course_list")
 
     def test_interpret_curriculum_query_marks_course_map_as_structured_lookup(self) -> None:
@@ -77,6 +78,17 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
             interpretation.program_compact_key,
             "中央民族大学大学生社会实践环节实施",
         )
+
+    def test_interpret_curriculum_query_marks_course_teaching_plan_title_as_document_lookup(
+        self,
+    ) -> None:
+        interpretation = interpret_curriculum_query("中央民族大学通识课程中华文化课程教学计划")
+
+        self.assertEqual(
+            interpretation.program_query_fragment,
+            "中央民族大学通识课程中华文化课程教学计划",
+        )
+        self.assertEqual(interpretation.intent_kind, "generic")
 
     def test_interpret_curriculum_query_marks_course_settings_and_study_advice_as_structured_lookup(
         self,

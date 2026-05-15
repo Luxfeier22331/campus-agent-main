@@ -6,6 +6,7 @@ from tests.retrieval.backend_qdrant_test_support import (
     InMemoryDocumentRegistry,
     Mock,
     QdrantRetrievalBackend,
+    RetrievalBackendError,
     RetrievalRequest,
     RetrievalSettings,
     qdrant_models,
@@ -336,6 +337,88 @@ class BackendQdrantDocumentScrollFallbackTest(unittest.TestCase):
         qdrant_client.scroll.assert_called_once()
         self.assertIn(f"{doc_id}:chunk-0001", tuple(source.chunk_id for source in result.sources))
         self.assertIn("培养目标", " ".join(source.snippet for source in result.sources))
+
+    def test_backend_fails_closed_when_named_document_followup_query_fails(
+        self,
+    ) -> None:
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = True
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(
+            aliases=[]
+        )
+        qdrant_client.query_points.side_effect = (
+            qdrant_models.QueryResponse(
+                points=[
+                    qdrant_models.ScoredPoint(
+                        id="point-ethnology-intro",
+                        version=0,
+                        score=0.91,
+                        payload={
+                            "document_id": "curriculum:民族学本科第二学士学位人才培养方案",
+                            "revision_track": "source-faithful",
+                            "version_id": "v1:ethnology-second-degree",
+                            "chunk_id": "curriculum:民族学本科第二学士学位人才培养方案:chunk-0001",
+                            "corpus": "curriculum",
+                            "collection": "curriculum_plan",
+                            "visibility_level": "public",
+                            "status": "active",
+                            "source_uri": "https://campus.example/curriculum/ethnology",
+                            "canonical_url": "https://campus.example/curriculum/ethnology",
+                            "latest_url": "https://campus.example/curriculum/ethnology",
+                            "source_channel": "pdf_ocr",
+                            "is_current": True,
+                            "title": "民族学本科第二学士学位人才培养方案",
+                            "anchor": {
+                                "section_path": [
+                                    "民族学本科第二学士学位人才培养方案",
+                                    "一、培养目标",
+                                ]
+                            },
+                            "text": "民族学本科第二学士学位人才培养方案 一、培养目标。",
+                        },
+                    ),
+                ]
+            ),
+            RuntimeError("qdrant support query unavailable"),
+        )
+        backend = _backend(qdrant_client=qdrant_client)
+
+        with self.assertRaisesRegex(
+            RetrievalBackendError,
+            "qdrant document support follow-up query failed",
+        ):
+            backend.retrieve(
+                RetrievalRequest(
+                    query_text="民族学本科第二学士学位人才培养方案学制几年？",
+                    corpus="curriculum",
+                    collection="curriculum_plan",
+                    top_k=3,
+                )
+            )
+
+    def test_backend_fails_closed_when_target_document_support_scroll_fails(self) -> None:
+        qdrant_client = Mock()
+        qdrant_client.collection_exists.return_value = True
+        qdrant_client.get_aliases.return_value = qdrant_models.CollectionsAliasesResponse(
+            aliases=[]
+        )
+        qdrant_client.query_points.return_value = qdrant_models.QueryResponse(points=[])
+        qdrant_client.scroll.side_effect = RuntimeError("qdrant scroll unavailable")
+        backend = _backend(qdrant_client=qdrant_client)
+
+        with self.assertRaisesRegex(
+            RetrievalBackendError,
+            "qdrant same-document support scroll failed",
+        ):
+            backend.retrieve(
+                RetrievalRequest(
+                    query_text="学生证丢了怎么办？",
+                    corpus="regulations",
+                    collection="student_rules",
+                    target_document_ids=("handbook:student-card",),
+                    top_k=3,
+                )
+            )
 
 
 def _backend(*, qdrant_client: object) -> QdrantRetrievalBackend:

@@ -147,6 +147,46 @@ class RagRetrievalPlanTest(unittest.TestCase):
             ),
         )
 
+    def test_resolved_policy_procedure_focus_uses_larger_focused_candidate_budget(self) -> None:
+        request = AgentRequest(
+            target="rag-agent",
+            user_goal="学生什么时候可以申请听证",
+            payload=RagRequestPayload(
+                scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+                version_query=VersionQuery(mode="current"),
+            ),
+        )
+        handbook_plan = plan_student_handbook_query(request.user_goal)
+        retrieval_context = build_rag_retrieval_context(
+            request=request,
+            effective_scope=request.payload.scope,
+            user_goal=request.user_goal,
+            effective_user_goal=request.user_goal,
+            handbook_plan=handbook_plan,
+            curriculum_plan=None,
+            curriculum_course_plan=None,
+            curriculum_program_family_plan=None,
+            build_document_registry_from_env_fn=lambda: object(),
+            resolve_version_query_fn=lambda **_: ResolvedVersionQuery(
+                mode="current",
+                status="resolved",
+            ),
+        )
+
+        assert retrieval_context is not None
+        plan = build_retrieval_plan_for_context(
+            request=request,
+            effective_scope=request.payload.scope,
+            user_goal=request.user_goal,
+            retrieval_context=retrieval_context,
+            retrieval_intent=handbook_plan.retrieval_intent,
+        )
+
+        self.assertEqual(plan.steps[1].step_id, "policy-focused-lookup")
+        self.assertGreaterEqual(plan.steps[1].budget.top_k, 12)
+        self.assertIn("听证申请", plan.steps[1].query_text)
+        self.assertIn("10日内", plan.steps[1].query_text)
+
     def test_resolved_policy_historical_clause_query_uses_focused_historical_step(self) -> None:
         request = AgentRequest(
             target="rag-agent",

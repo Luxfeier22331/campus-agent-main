@@ -178,6 +178,128 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
         )
         self.assertEqual(result.verdict, "valid")
 
+    def test_policy_object_intent_accepts_answer_ready_target_document_body_roles(self) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:national-grant",
+            title="中央民族大学本科生国家助学金评审办法",
+            snippet=(
+                "学校助学服务中心于每年11月15日前将当年国家助学金政策落实情况"
+                "进行认真总结，并报上级主管部门备案。"
+            ),
+            score=0.91,
+            chunk_id_suffix="national-grant-policy-object-body-role",
+            content_role="procedure",
+            is_answer_bearing=True,
+            semantic_role="procedure_step",
+            polarity="positive",
+            action_type="archive",
+            claim_type="procedure",
+        )
+        source = replace(
+            source,
+            anchor=_answer_ready_anchor(
+                answer_role="procedure_step",
+                condition_subject="application_procedure",
+                procedure_step_index=1,
+                procedure_actor="school",
+                procedure_action="archive",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="中央民族大学本科生国家助学金评审办法",
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            ),
+            retrieval_intent=_retrieval_intent(
+                kind="policy_object_lookup",
+                answer_kind="policy_object",
+                collection="student_rules",
+                document_ids=("handbook:national-grant",),
+                evidence_roles=("document_identity",),
+                selection_policy="document_identity_first",
+            ),
+        )
+
+        self.assertEqual(draft.supporting_sources, (source,))
+        self.assertEqual(draft.typed_draft.kind, "short_reference")
+        self.assertEqual(draft.presentation_kind, "document_identity")
+        self.assertIn("相关依据为", draft.answer_text)
+        self.assertIn("中央民族大学本科生国家助学金评审办法", draft.answer_text)
+        result = validate_typed_answer_draft(
+            draft.typed_draft,
+            expected_answer_kind="policy_object",
+        )
+        self.assertEqual(result.verdict, "valid")
+
+    def test_policy_object_intent_scans_past_non_answer_bearing_title_chunks(self) -> None:
+        title = "中央民族大学全日制本科学生学士学位授予补充规定"
+        weak_sources = tuple(
+            _make_handbook_source(
+                doc_id="handbook:degree-supplement",
+                title=title,
+                snippet=f"{title} 文号：民大校发[2013]218号 第{index}项补充说明。",
+                score=0.93 - index / 100,
+                chunk_id_suffix=f"degree-supplement-weak-{index}",
+                content_role="",
+                semantic_role="supporting_detail",
+                is_answer_bearing=False,
+                anchor=_answer_ready_anchor(
+                    answer_role="supporting_detail",
+                ),
+            )
+            for index in range(1, 4)
+        )
+        answer_ready_source = _make_handbook_source(
+            doc_id="handbook:degree-supplement",
+            title=title,
+            snippet=(
+                f"{title} 文号：民大校发[2013]218号 本补充规定经校学位评定委员会"
+                "审议通过公布执行。"
+            ),
+            score=0.88,
+            chunk_id_suffix="degree-supplement-answer-ready",
+            content_role="deadline",
+            detail_label="五",
+            is_answer_bearing=True,
+        )
+        answer_ready_source = replace(
+            answer_ready_source,
+            anchor=_answer_ready_anchor(
+                answer_role="time_constraint",
+                condition_subject="deadline",
+                condition_polarity="positive",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text=title,
+                corpus="regulations",
+                collection="student_rules",
+                sources=(*weak_sources, answer_ready_source),
+            ),
+            retrieval_intent=_retrieval_intent(
+                kind="policy_object_lookup",
+                answer_kind="policy_object",
+                collection="student_rules",
+                document_ids=("handbook:degree-supplement",),
+                evidence_roles=("document_identity",),
+                selection_policy="document_identity_first",
+            ),
+        )
+
+        self.assertEqual(draft.supporting_sources, (answer_ready_source,))
+        self.assertEqual(draft.presentation_kind, "document_identity")
+        self.assertIn(f"《{title}》", draft.answer_text)
+        result = validate_typed_answer_draft(
+            draft.typed_draft,
+            expected_answer_kind="policy_object",
+        )
+        self.assertEqual(result.verdict, "valid")
+
     def test_general_fact_intent_preserves_answer_ready_condition_draft(self) -> None:
         source = _make_handbook_source(
             doc_id="handbook:dormitory-lighting",
@@ -834,6 +956,64 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
         self.assertEqual(result.verdict, "valid")
         self.assertEqual(result.claim_supports[0].claim_type, "time_constraint")
 
+    def test_procedure_intent_accepts_typed_application_deadline_step(self) -> None:
+        source = _make_handbook_source(
+            doc_id="handbook:appeal",
+            title="中央民族大学学生申诉管理办法",
+            snippet=(
+                "学生对学校的处理或者处分决定有异议的,可以在接到学校处理或者处分"
+                "决定书之日起10日内,向学校学生申诉处理委员会提出书面申诉。"
+            ),
+            score=0.91,
+            chunk_id_suffix="appeal-written-deadline",
+            content_role="deadline",
+            is_answer_bearing=True,
+        )
+        source = replace(
+            source,
+            anchor=_answer_ready_anchor(
+                answer_role="time_constraint",
+                semantic_role="time_constraint",
+                claim_type="time_constraint",
+                condition_subject="deadline",
+                condition_group_subject="deadline",
+                condition_group_id="handbook:appeal:article-7:deadline",
+                condition_polarity="positive",
+                procedure_step_index=7,
+                procedure_actor="student",
+                procedure_action="appeal",
+                procedure_action_taxonomy_version="procedure_action.v1",
+                procedure_action_provenance="keyword:申诉",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="学生对处分决定不服应该按什么程序申诉",
+                corpus="regulations",
+                collection="student_rules",
+                sources=(source,),
+            ),
+            retrieval_intent=_retrieval_intent(
+                kind="procedure_steps",
+                answer_kind="procedure_steps",
+                collection="student_rules",
+                document_ids=("handbook:appeal",),
+                condition_subject="application_procedure",
+            ),
+        )
+
+        result = validate_typed_answer_draft(
+            draft.typed_draft,
+            expected_answer_kind="procedure_steps",
+        )
+
+        self.assertEqual(draft.typed_draft.kind, "procedure_steps")
+        self.assertEqual(result.verdict, "valid")
+        self.assertEqual(result.claim_supports[0].claim_type, "procedure_step")
+        self.assertIn("10日内", draft.answer_text)
+        self.assertIn("书面申诉", draft.answer_text)
+
     def test_material_requirement_draft_emits_material_requirement_claim_support(self) -> None:
         source = _make_handbook_source(
             doc_id="handbook:appeal",
@@ -995,6 +1175,7 @@ def _retrieval_intent(
     document_titles: tuple[str, ...] = (),
     condition_subject: str = "",
     evidence_roles: tuple[str, ...] = (),
+    selection_policy: str = "default",
 ) -> RetrievalIntent:
     return RetrievalIntent(
         kind=kind,
@@ -1002,6 +1183,7 @@ def _retrieval_intent(
         expected=RetrievalIntentExpectation(
             answer_kind=answer_kind,
             evidence_roles=evidence_roles,
+            selection_policy=selection_policy,
         ),
         target=RetrievalIntentTarget(
             corpus=corpus,

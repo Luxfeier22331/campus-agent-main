@@ -72,6 +72,10 @@ def infer_answer_shape(*, evidence: EvidenceBundle) -> AnswerShape:
         return AnswerShape.GENERAL_SUMMARY
     regulation_shape = _infer_regulation_answer_shape_from_evidence(evidence)
     if regulation_shape is not None:
+        if regulation_shape == AnswerShape.DETAIL_CLAUSE and _query_requests_condition_timing(
+            normalized_query
+        ):
+            return AnswerShape.CONDITION_OVERVIEW
         if regulation_shape in {
             AnswerShape.CONDITION_OVERVIEW,
             AnswerShape.DETAIL_CLAUSE,
@@ -259,6 +263,10 @@ def _query_requests_management_summary(query_text: str) -> bool:
             "款",
         )
     )
+
+
+def _query_requests_condition_timing(query_text: str) -> bool:
+    return any(cue in query_text for cue in ("多久", "多长时间", "什么时候", "何时"))
 
 
 __all__ = [

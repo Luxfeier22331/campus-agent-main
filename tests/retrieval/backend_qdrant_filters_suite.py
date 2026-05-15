@@ -347,6 +347,48 @@ class BackendQdrantFiltersTest(unittest.TestCase):
             },
         )
 
+    def test_build_qdrant_filter_does_not_subject_filter_material_lookup_with_procedure_roles(
+        self,
+    ) -> None:
+        qdrant_filter = _build_qdrant_filter(
+            RetrievalRequest(
+                query_text="申请解除处分需要提交哪些材料",
+                corpus="regulations",
+                collection="student_rules",
+                target_document_ids=("handbook:discipline-relief",),
+                semantic_hint=RetrievalSemanticHint(
+                    intent_kind="condition_table",
+                    answer_kind="condition_table",
+                    need_kinds=("condition_table",),
+                    coverage_policy="condition_subject_alignment",
+                    selection_policy="answer_role_first",
+                    expected_answer_roles=(
+                        "procedure_step",
+                        "material_requirement",
+                        "supporting_detail",
+                    ),
+                    condition_subject="material_requirement",
+                ),
+            )
+        )
+
+        answer_role_condition = next(
+            condition
+            for condition in qdrant_filter.must or ()
+            if getattr(condition, "key", None) == "answer_role"
+        )
+
+        self.assertEqual(
+            getattr(getattr(answer_role_condition, "match", None), "any", None),
+            ["procedure_step", "material_requirement", "supporting_detail"],
+        )
+        self.assertFalse(
+            any(
+                getattr(condition, "min_should", None) is not None
+                for condition in qdrant_filter.must or ()
+            )
+        )
+
     def test_build_qdrant_filter_applies_answer_role_filter_for_category_member_condition_lookup(
         self,
     ) -> None:
@@ -390,6 +432,66 @@ class BackendQdrantFiltersTest(unittest.TestCase):
                 getattr(condition, "min_should", None) is not None
                 for condition in qdrant_filter.must or ()
             )
+        )
+
+    def test_build_qdrant_filter_keeps_condition_subject_filter_for_supporting_detail_thresholds(
+        self,
+    ) -> None:
+        qdrant_filter = _build_qdrant_filter(
+            RetrievalRequest(
+                query_text="旷课多少学时会按违纪处理",
+                corpus="regulations",
+                collection="student_rules",
+                target_document_ids=(
+                    "handbook:student-discipline",
+                    "handbook:attendance",
+                ),
+                semantic_hint=RetrievalSemanticHint(
+                    intent_kind="condition_table",
+                    answer_kind="condition_table",
+                    need_kinds=("condition_table",),
+                    coverage_policy="condition_subject_alignment",
+                    selection_policy="answer_role_first",
+                    expected_answer_roles=(
+                        "eligibility_condition",
+                        "table_fact",
+                        "supporting_detail",
+                    ),
+                    condition_subject="attendance_absence_threshold",
+                ),
+            )
+        )
+
+        answer_role_condition = next(
+            condition
+            for condition in qdrant_filter.must or ()
+            if getattr(condition, "key", None) == "answer_role"
+        )
+        self.assertEqual(
+            getattr(getattr(answer_role_condition, "match", None), "any", None),
+            ["eligibility_condition", "table_fact", "supporting_detail"],
+        )
+        condition_subject_filter = next(
+            (
+                condition
+                for condition in qdrant_filter.must or ()
+                if getattr(condition, "min_should", None) is not None
+            ),
+            None,
+        )
+        self.assertIsNotNone(condition_subject_filter)
+        min_should = condition_subject_filter.min_should
+        self.assertEqual(
+            {
+                getattr(condition, "key", None): tuple(
+                    getattr(getattr(condition, "match", None), "any", None) or ()
+                )
+                for condition in min_should.conditions
+            },
+            {
+                "condition_subject": ("attendance_absence_threshold",),
+                "condition_group_subject": ("attendance_absence_threshold",),
+            },
         )
 
     def test_backend_fail_closes_scoped_restricted_documents_when_request_has_no_visibility_scope(

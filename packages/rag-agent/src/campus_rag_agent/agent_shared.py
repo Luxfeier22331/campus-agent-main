@@ -37,8 +37,14 @@ def _lead_source_title(sources: tuple[EvidenceSource, ...]) -> str:
         return ""
     explicit_title = _normalize_snippet(sources[0].source_title)
     if explicit_title:
-        return explicit_title
+        return _normalize_title_display_text(explicit_title)
     return sources[0].doc_id.split(":", 1)[-1].strip()
+
+
+def _normalize_title_display_text(title: str) -> str:
+    normalized = _normalize_snippet(title)
+    normalized = re.sub(r"\s+([“”])", r"\1", normalized)
+    return re.sub(r"([“”])\s+", r"\1", normalized)
 
 
 def _lead_context_title(
@@ -161,9 +167,7 @@ def _arabic_number_to_chinese(value: str) -> str:
 
 
 def _answer_prefix(evidence: EvidenceBundle) -> str:
-    if evidence.corpus == "official_web" and is_official_web_stable_reference_like_collection(
-        evidence.collection
-    ):
+    if evidence.corpus == "official_web":
         return "根据官网页面内容"
     if evidence.corpus == "curriculum":
         return "根据培养方案相关内容"

@@ -6,6 +6,7 @@ from campus_contracts import EvidenceSource
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 from qdrant_client.http import models as qdrant_models
 
+from campus_retrieval_core.backend_qdrant_errors import RetrievalBackendError
 from campus_retrieval_core.backend_qdrant_evidence import build_evidence_sources_from_records
 from campus_retrieval_core.backend_qdrant_filters import _build_qdrant_filter
 from campus_retrieval_core.curriculum_query_resolution import interpret_curriculum_query
@@ -89,8 +90,8 @@ def _scroll_curriculum_exact_document_sources(
             with_vectors=False,
             timeout=timeout_seconds,
         )
-    except Exception:
-        return ()
+    except Exception as exc:
+        raise RetrievalBackendError("qdrant curriculum title rescue scroll failed") from exc
     if not records:
         return ()
     return build_evidence_sources_from_records(

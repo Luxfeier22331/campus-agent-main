@@ -10,19 +10,15 @@ from .agent_official_web_reference_news import (
 )
 from .agent_official_web_reference_people import (
     _build_official_web_roster_fragments,
-    _build_official_web_scholar_reference_fragments,
 )
 from .agent_official_web_reference_school import (
-    _build_official_web_alumni_reference_fragments,
-    _build_official_web_foundation_reference_fragments,
-    _build_official_web_graduate_reference_fragments,
-    _build_official_web_postdoctoral_reference_fragments,
-    _build_official_web_school_overview_fragments,
     _build_official_web_school_reference_fragments,
-    _build_official_web_undergraduate_reference_fragments,
 )
 from .agent_official_web_reference_sentences import (
     _flatten_official_web_sentences,
+)
+from .agent_official_web_reference_structured import (
+    build_official_web_structured_reference_fragments,
 )
 from .agent_official_web_terms import (
     _OFFICIAL_WEB_NOTICE_LOCATION_HINTS,
@@ -41,31 +37,21 @@ def _compose_official_web_reference_answer(
 ) -> str:
     lead_title = _lead_source_title(tuple(source for source, _ in selected_rows))
     normalized_title = _normalize_snippet(lead_title)
-    if normalized_title == "学术名流":
-        fragments = _build_official_web_scholar_reference_fragments(selected_rows)
+    sentences = _flatten_official_web_sentences(selected_rows, lead_title=lead_title)
+    if not sentences:
+        return ""
+    if "学校简介" in normalized_title:
+        fragments = _build_official_web_school_reference_fragments(
+            sentences,
+            prefer_prestige=False,
+        )
+    elif structured_fragments := build_official_web_structured_reference_fragments(
+        normalized_title=normalized_title,
+        selected_rows=selected_rows,
+    ):
+        fragments = structured_fragments
     else:
-        sentences = _flatten_official_web_sentences(selected_rows, lead_title=lead_title)
-        if not sentences:
-            return ""
-        if "学校简介" in normalized_title:
-            fragments = _build_official_web_school_reference_fragments(
-                sentences,
-                prefer_prestige=evidence.collection != "stable_reference",
-            )
-        elif "学校概况" in normalized_title:
-            fragments = _build_official_web_school_overview_fragments(sentences)
-        elif normalized_title == "本科培养":
-            fragments = _build_official_web_undergraduate_reference_fragments(sentences)
-        elif normalized_title == "博士后":
-            fragments = _build_official_web_postdoctoral_reference_fragments(sentences)
-        elif normalized_title == "研究生培养":
-            fragments = _build_official_web_graduate_reference_fragments(sentences)
-        elif "校友会" in normalized_title:
-            fragments = _build_official_web_alumni_reference_fragments(sentences)
-        elif "基金会" in normalized_title:
-            fragments = _build_official_web_foundation_reference_fragments(sentences)
-        else:
-            fragments = _build_official_web_generic_fragments(sentences)
+        fragments = _build_official_web_generic_fragments(sentences)
 
     if not fragments:
         return ""

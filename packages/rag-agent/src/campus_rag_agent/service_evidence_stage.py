@@ -11,7 +11,10 @@ from campus_rag_agent.query_planning import (
     CurriculumQueryPlan,
     HandbookQueryPlan,
 )
-from campus_rag_agent.remote_content_hardening import apply_remote_content_suspicion_labels
+from campus_rag_agent.remote_content_hardening import (
+    apply_remote_content_suspicion_labels,
+    should_block_remote_content_generation,
+)
 
 from .service_versioning_context import _VersionAnswerContext
 from .service_versioning_evidence import (
@@ -37,6 +40,7 @@ def execute_rag_evidence_selection_stage(
     curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
     retrieval_execution_result: RetrievalExecutionResult | None = None,
+    remote_content_block_response_builder=None,
 ) -> RagEvidenceSelectionStageResult:
     supporting_evidence = _build_version_aware_supporting_evidence(
         retrieved_evidence,
@@ -50,6 +54,16 @@ def execute_rag_evidence_selection_stage(
         retrieval_execution_result=retrieval_execution_result,
     )
     apply_remote_content_suspicion_labels(supporting_evidence)
+    if should_block_remote_content_generation(supporting_evidence):
+        if remote_content_block_response_builder is None:
+            raise RuntimeError("remote content block response builder is required")
+        return RagEvidenceSelectionStageResult(
+            response=remote_content_block_response_builder(supporting_evidence),
+            supporting_evidence=supporting_evidence,
+            confidence="low",
+            compare_support_incomplete=False,
+            step_support_count=_step_support_count(supporting_evidence),
+        )
     return RagEvidenceSelectionStageResult(
         response=None,
         supporting_evidence=supporting_evidence,

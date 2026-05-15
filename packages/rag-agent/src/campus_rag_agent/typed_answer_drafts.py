@@ -182,7 +182,7 @@ def build_typed_answer_draft(
             steps=tuple(
                 _build_procedure_step(source, statements)
                 for source, statements in selected_rows
-                if _source_answer_role(source) == "procedure_step"
+                if _is_procedure_step_draft_source(source)
             ),
         )
     if answer_shape == AnswerShape.DETAIL_CLAUSE:
@@ -302,7 +302,7 @@ def validate_typed_answer_draft(
             not ref.has_support or not ref.excerpt for ref in draft.references
         ):
             return _invalid("short_reference_support_missing")
-        if len(draft.references) > 2:
+        if len(draft.references) > _short_reference_max_references(expected_answer_kind):
             return _invalid("short_reference_reference_budget_exceeded")
         return _valid(_claim_supports("title_or_entity_identity", draft.references))
     if draft.kind == "unsupported":
@@ -512,6 +512,11 @@ def _source_answer_role(source: EvidenceSource) -> str:
     return evidence_attributes_for_source(source).answer_role
 
 
+def _source_has_procedure_contract(source: EvidenceSource) -> bool:
+    procedure = evidence_attributes_for_source(source).procedure
+    return procedure.step_index is not None and bool(procedure.actor) and bool(procedure.action)
+
+
 def _should_build_procedure_steps_draft(
     *,
     expected_answer_kind: str,
@@ -522,6 +527,14 @@ def _should_build_procedure_steps_draft(
     if expected_answer_kind not in {"", "general_fact"}:
         return False
     return any(_source_answer_role(source) == "procedure_step" for source, _ in selected_rows)
+
+
+def _is_procedure_step_draft_source(source: EvidenceSource) -> bool:
+    if _source_answer_role(source) == "procedure_step":
+        return True
+    return _source_answer_role(source) == "time_constraint" and _source_has_procedure_contract(
+        source
+    )
 
 
 def _is_policy_list_source(
@@ -626,6 +639,12 @@ def _short_factual_summary_reference_budget_exceeded(
 ) -> bool:
     max_references = 6 if expected_answer_kind == "curriculum_fact" else 2
     return len(draft.references) > max_references
+
+
+def _short_reference_max_references(expected_answer_kind: str) -> int:
+    if expected_answer_kind == "official_reference":
+        return 6
+    return 2
 
 
 def _short_factual_summary_rows(

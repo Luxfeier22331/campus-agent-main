@@ -11,6 +11,7 @@ from campus_ingestion_core.corpus_profiles import (
 from qdrant_client.http import models as qdrant_models
 
 from campus_retrieval_core.backend_qdrant_embeddings import get_dense_query_embedding
+from campus_retrieval_core.backend_qdrant_errors import RetrievalBackendError
 from campus_retrieval_core.backend_qdrant_evidence import (
     build_evidence_sources,
     build_evidence_sources_from_records,
@@ -200,8 +201,8 @@ def _expand_named_document_support(
             ),
             deadline=deadline,
         )
-    except Exception:
-        return tuple(sources)
+    except Exception as exc:
+        raise RetrievalBackendError("qdrant document support follow-up query failed") from exc
     if deadline.is_expired():
         return tuple(sources)
     additional_sources = build_evidence_sources(backend, response.points or ())
@@ -268,8 +269,10 @@ def _supplement_curriculum_same_doc_semester_sources(
                 ),
                 deadline=deadline,
             )
-        except Exception:
-            return ()
+        except Exception as exc:
+            raise RetrievalBackendError(
+                "qdrant curriculum same-document support scroll failed"
+            ) from exc
         if not batch:
             break
         records.extend(batch)
@@ -416,8 +419,8 @@ def _scroll_same_document_sources(
                 ),
                 deadline=deadline,
             )
-        except Exception:
-            return ()
+        except Exception as exc:
+            raise RetrievalBackendError("qdrant same-document support scroll failed") from exc
         if not batch:
             break
         records.extend(batch)
@@ -485,8 +488,8 @@ def _recover_official_web_lead_chunk_support(
             ),
             deadline=deadline,
         )
-    except Exception:
-        return sources
+    except Exception as exc:
+        raise RetrievalBackendError("qdrant official-web lead chunk support scroll failed") from exc
     if not scrolled_records:
         return sources
     lead_sources = tuple(

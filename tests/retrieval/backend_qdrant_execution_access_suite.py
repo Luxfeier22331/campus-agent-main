@@ -266,95 +266,92 @@ class BackendQdrantExecutionAccessTest(unittest.TestCase):
         )
 
     def test_backend_collapses_same_doc_chunk_crowding_for_official_web(self) -> None:
-        profile = _make_runtime_profile(corpus="official_web", collection="muc_public_pages")
+        profile = _make_runtime_profile(
+            corpus="official_web",
+            collection="stable_reference",
+            serving_surface="stable_reference",
+        )
         qdrant_client = Mock()
         qdrant_client.collection_exists.return_value = True
         qdrant_client.query_points.return_value = qdrant_models.QueryResponse(
             points=[
                 qdrant_models.ScoredPoint(
-                    id="employment-base-primary",
+                    id="school-profile-primary",
                     version=0,
                     score=0.93,
                     payload={
                         "_node_content": TextNode(
-                            text="中央民族大学与北京丰台人才集团共建就业实习实践基地。",
+                            text="中央民族大学是党和国家为解决民族问题而创建的一所特色鲜明的高等院校。",
                             metadata={
-                                "document_id": "official_web:muc_public:article_detail:employment-base",
+                                "document_id": "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
                                 "revision_track": "source-faithful",
-                                "version_id": "owdocver:employment-base",
-                                "chunk_id": "employment-base:chunk-1",
+                                "version_id": "owdocver:school-profile",
+                                "chunk_id": "school-profile:chunk-1",
                                 "acl_level": "public",
                                 "source_channel": "official_web",
-                                "collection": "muc_public_pages",
+                                "collection": "stable_reference",
                                 "is_current": True,
-                                "canonical_url": "https://news.muc.edu.cn/info/1011/61874.htm",
-                                "latest_url": "https://news.muc.edu.cn/info/1011/61874.htm",
+                                "canonical_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                                "latest_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
                                 "anchor": {
                                     "page_family": "article_detail",
-                                    "section_path": [
-                                        "中央民族大学与北京丰台人才集团共建就业实习实践基地"
-                                    ],
+                                    "section_path": ["学校简介"],
                                 },
-                                "title": "中央民族大学与北京丰台人才集团共建就业实习实践基地",
+                                "title": "学校简介",
                             },
                         ).model_dump_json(),
                     },
                 ),
                 qdrant_models.ScoredPoint(
-                    id="employment-base-support",
+                    id="school-profile-support",
                     version=0,
                     score=0.92,
                     payload={
                         "_node_content": TextNode(
-                            text="双方将在就业实习实践等方面深化合作。",
+                            text="学校前身是延安民族学院。",
                             metadata={
-                                "document_id": "official_web:muc_public:article_detail:employment-base",
+                                "document_id": "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
                                 "revision_track": "source-faithful",
-                                "version_id": "owdocver:employment-base",
-                                "chunk_id": "employment-base:chunk-2",
+                                "version_id": "owdocver:school-profile",
+                                "chunk_id": "school-profile:chunk-2",
                                 "acl_level": "public",
                                 "source_channel": "official_web",
-                                "collection": "muc_public_pages",
+                                "collection": "stable_reference",
                                 "is_current": True,
-                                "canonical_url": "https://news.muc.edu.cn/info/1011/61874.htm",
-                                "latest_url": "https://news.muc.edu.cn/info/1011/61874.htm",
+                                "canonical_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                                "latest_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
                                 "anchor": {
                                     "page_family": "article_detail",
-                                    "section_path": [
-                                        "中央民族大学与北京丰台人才集团共建就业实习实践基地",
-                                        "正文",
-                                    ],
+                                    "section_path": ["学校简介", "历史沿革"],
                                 },
-                                "title": "中央民族大学与北京丰台人才集团共建就业实习实践基地",
+                                "title": "学校简介",
                             },
                         ).model_dump_json(),
                     },
                 ),
                 qdrant_models.ScoredPoint(
-                    id="law-interpretation-primary",
+                    id="teaching-units-primary",
                     version=0,
                     score=0.88,
                     payload={
                         "_node_content": TextNode(
-                            text="校长强世功接受“统战新语”专访 解读民族团结进步促进法。",
+                            text="教学和科研单位包括民族学与社会学学院、信息工程学院等。",
                             metadata={
-                                "document_id": "official_web:muc_public:article_detail:law-interpretation",
+                                "document_id": "official_web:muc_public:directory_page:b8993ee7004c02e028bc5f6bb166e26ac4eb5afc",
                                 "revision_track": "source-faithful",
-                                "version_id": "owdocver:law-interpretation",
-                                "chunk_id": "law-interpretation:chunk-1",
+                                "version_id": "owdocver:teaching-units",
+                                "chunk_id": "teaching-units:chunk-1",
                                 "acl_level": "public",
                                 "source_channel": "official_web",
-                                "collection": "muc_public_pages",
+                                "collection": "stable_reference",
                                 "is_current": True,
-                                "canonical_url": "https://news.muc.edu.cn/info/1011/61954.htm",
-                                "latest_url": "https://news.muc.edu.cn/info/1011/61954.htm",
+                                "canonical_url": "https://www.muc.edu.cn/jxyky.htm",
+                                "latest_url": "https://www.muc.edu.cn/jxyky.htm",
                                 "anchor": {
-                                    "page_family": "article_detail",
-                                    "section_path": [
-                                        "校长强世功接受“统战新语”专访 解读民族团结进步促进法"
-                                    ],
+                                    "page_family": "directory_page",
+                                    "section_path": ["教学和科研单位"],
                                 },
-                                "title": "校长强世功接受“统战新语”专访 解读民族团结进步促进法",
+                                "title": "教学和科研单位",
                             },
                         ).model_dump_json(),
                     },
@@ -377,9 +374,9 @@ class BackendQdrantExecutionAccessTest(unittest.TestCase):
         ):
             result = backend.retrieve(
                 RetrievalRequest(
-                    query_text="中央民族大学与北京丰台人才集团共建就业实习实践基地",
+                    query_text="中央民族大学学校简介",
                     corpus="official_web",
-                    collection="muc_public_pages",
+                    collection="stable_reference",
                     top_k=3,
                 )
             )
@@ -388,12 +385,8 @@ class BackendQdrantExecutionAccessTest(unittest.TestCase):
             tuple((source.doc_id, source.chunk_id) for source in result.sources),
             (
                 (
-                    "official_web:muc_public:article_detail:employment-base",
-                    "employment-base:chunk-1",
-                ),
-                (
-                    "official_web:muc_public:article_detail:law-interpretation",
-                    "law-interpretation:chunk-1",
+                    "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
+                    "school-profile:chunk-1",
                 ),
             ),
         )

@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import unittest
 
+from campus_rag_agent.query_planning import plan_curriculum_query
+
 from tests.agent.rag_agent_answer_quality_regression_suite_support import *
 
 
@@ -76,7 +78,10 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
             ),
         )
 
-        draft = RagAgent().build_answer(evidence)
+        draft = RagAgent().build_answer(
+            evidence,
+            retrieval_intent=plan_curriculum_query(evidence.query_text).retrieval_intent,
+        )
 
         self.assertEqual(draft.answer_text, "")
         self.assertEqual(draft.supporting_sources, ())
@@ -118,11 +123,14 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
             ),
         )
 
-        draft = RagAgent().build_answer(evidence)
+        draft = RagAgent().build_answer(
+            evidence,
+            retrieval_intent=plan_curriculum_query(evidence.query_text).retrieval_intent,
+        )
 
         self.assertIn(f"《{title}》", draft.answer_text)
-        self.assertIn("总学分为8学分", draft.answer_text)
         self.assertIn("一共8学分", draft.answer_text)
+        self.assertIn("总学分为8学分", draft.answer_text)
         self.assertNotIn("深化公共外语教学改革", draft.answer_text)
         self.assertNotIn("根据培养方案相关内容", draft.answer_text)
 
@@ -152,12 +160,113 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
             ),
         )
 
-        draft = RagAgent().build_answer(evidence)
+        draft = RagAgent().build_answer(
+            evidence,
+            retrieval_intent=plan_curriculum_query(evidence.query_text).retrieval_intent,
+        )
 
         self.assertIn(f"《{title}》", draft.answer_text)
-        self.assertIn("总学分为8学分", draft.answer_text)
         self.assertIn("一共8学分", draft.answer_text)
+        self.assertIn("总学分为8学分", draft.answer_text)
         self.assertEqual(draft.supporting_sources[0].chunk_id, f"curriculum:{title}:chunk-0005")
+
+    def test_curriculum_course_teaching_plan_total_credit_query_selects_live_credit_requirement_chunk(
+        self,
+    ) -> None:
+        title = "中央民族大学通识课程“大学英语”课程教学计划"
+        rewritten_query = f"{title} 大学英语课程教学计划一共多少学分"
+        evidence = EvidenceBundle(
+            query_text=rewritten_query,
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0007",
+                    source_title="中央民族大学通识课程 “大学英语”课程教学计划",
+                    snippet=(
+                        "三、修读要求\n"
+                        "(一)学分数及修读方式\n"
+                        "类型 | 考试名称和要求\n"
+                        "英语等级社会考试 | 托福(TOEFL)90分及以上"
+                    ),
+                    score=0.029,
+                    structural_path=(title, "三、修读要求", "(一)学分数及修读方式"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0008",
+                    source_title="中央民族大学通识课程 “大学英语”课程教学计划",
+                    snippet=(
+                        "三、修读要求\n"
+                        "(二)学期安排及各级别课程设置\n"
+                        "级别 | 修读学期\n"
+                        "普通级-4 | 在1-4学期达到表2中关于英语社会等级考试要求,"
+                        "可自愿申请免修未修读完成的所有大学英语课程,成绩按照95分进行核算。"
+                    ),
+                    score=0.032,
+                    structural_path=(title, "三、修读要求", "(二)学期安排及各级别课程设置"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0004",
+                    source_title="中央民族大学通识课程 “大学英语”课程教学计划",
+                    snippet=(
+                        "二、课程设计\n"
+                        "课程类别 | 课程模块 | 课程名称\n"
+                        "公共英语 | 英语视听说和读写 | 大学英语(一)(二)(三)(四)"
+                    ),
+                    score=0.030,
+                    structural_path=(title, "二、课程设计", "(一)课程内容"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0002",
+                    source_title="中央民族大学通识课程 “大学英语”课程教学计划",
+                    snippet=(
+                        "一、教学目标\n"
+                        "1. 全面增强学生英语语言综合应用能力,提高综合素养。"
+                    ),
+                    score=0.030,
+                    structural_path=(title, "一、教学目标"),
+                    content_kind="section_text",
+                ),
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0006",
+                    source_title="中央民族大学通识课程 “大学英语”课程教学计划",
+                    snippet=(
+                        "三、修读要求\n"
+                        "(一)学分数及修读方式\n"
+                        "本科在读期间,必须完成第1-4学期大学英语课程修读要求,"
+                        "每学期修读完成2学分课程,共计获得8学分。"
+                    ),
+                    score=0.031,
+                    structural_path=(title, "三、修读要求", "(一)学分数及修读方式"),
+                    content_kind="section_text",
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            evidence,
+            query_text="大学英语课程教学计划一共多少学分",
+            retrieval_intent=plan_curriculum_query(rewritten_query).retrieval_intent,
+        )
+
+        self.assertIn(f"《{title}》", draft.answer_text)
+        self.assertIn("一共8学分", draft.answer_text)
+        self.assertIn("总学分为8学分", draft.answer_text)
+        self.assertEqual(draft.supporting_sources[0].chunk_id, f"curriculum:{title}:chunk-0006")
 
     def test_curriculum_total_credit_query_fail_closes_without_total_credit_fact(
         self,
@@ -334,6 +443,51 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
         self.assertTrue(any("专业选修课程" in item for item in draft.supporting_contexts))
         self.assertNotIn("课程号 | 课程名称", draft.answer_text)
 
+    def test_curriculum_course_settings_answer_uses_only_selected_statement_facts(
+        self,
+    ) -> None:
+        title = "经济学拔尖人才创新班人才培养方案"
+        evidence = EvidenceBundle(
+            query_text="经济学拔尖人才创新班人才培养方案课程设置怎么安排",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0012",
+                    source_title=title,
+                    snippet=(
+                        "五、课程设置和修读建议\n"
+                        "(一) 大类培养\n"
+                        "2.学科基础教育\n"
+                        "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                        "1034030125 | 政治经济学 | 4 | 72 | 9 | 1\n"
+                        "1034030090 | 中级微观经济学 | 3 | 54 | 9 | 2\n"
+                        "1034030111 | 中级宏观经济学 | 3 | 54 | 9 | 3\n"
+                        "1034030009 | 国际经济学 | 3 | 54 | 9 | 3\n"
+                        "1034030011 | 金融学 | 3 | 54 | 9 | 3\n"
+                        "1034030012 | 财政学 | 3 | 54 | 9 | 3\n"
+                        "1034030159 | 经济学经典原著选读 | 2 | 36 | 6 | 3"
+                    ),
+                    score=0.91,
+                    structural_path=(title, "五、课程设置和修读建议", "(一) 大类培养", "2.学科基础教育"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        supporting_text = " ".join(draft.supporting_contexts)
+        self.assertIn("经济学经典原著选读", draft.answer_text)
+        self.assertIn("经济学经典原著选读", supporting_text)
+        self.assertNotIn("政治经济学，4学分，修读学期1", draft.answer_text)
+        self.assertNotIn("国际经济学，3学分，修读学期3", draft.answer_text)
+        self.assertNotIn("金融学，3学分，修读学期3", draft.answer_text)
+        self.assertNotIn("财政学，3学分，修读学期3", draft.answer_text)
+
     def test_student_rules_table_fact_lookup_uses_scholarship_amount_row(self) -> None:
         title = "中央民族大学本科学生专业奖学金评定办法"
         table_source = replace(
@@ -494,6 +648,55 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
         self.assertEqual(draft.supporting_sources[0].chunk_id, f"curriculum:{title}:chunk-0005")
         self.assertNotIn("各教学环节学时学分", draft.answer_text)
 
+    def test_curriculum_total_credit_query_extracts_total_from_credit_matrix_total_row(
+        self,
+    ) -> None:
+        title = "汉语国际教育（国际学生）本科人才培养方案"
+        evidence = EvidenceBundle(
+            query_text="汉语国际教育国际学生本科人才培养方案总学分是多少",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0017",
+                    source_title=title,
+                    snippet=(
+                        "五、课程设置和修读建议\n"
+                        "课程号 | 课程名称 | 学分 | 学时 | 开设学期 | 备注\n"
+                        "1051040100 | 海外汉语课堂教学与管理专题(双语) | 2 | 36 | 5 | 至少选修1门,完成2学分"
+                    ),
+                    score=0.029,
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0006",
+                    source_title=title,
+                    snippet=(
+                        "四、各教学环节学时学分\n\n"
+                        "板块名称 | 类别 | 学分设置 | 修读性质 | 总学时 | 理论学时 | 实践学时\n"
+                        "语言课 | 学科基础课 | 58 | 必修 | 1260 | / | /\n"
+                        "通识课 | 基本素养课 | 4 | 必修 | 108 | 36 | 72\n"
+                        "合计 | 146"
+                    ),
+                    score=0.028,
+                    structural_path=(title, "四、各教学环节学时学分"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("总学分为146学分", draft.answer_text)
+        self.assertEqual(draft.supporting_sources[0].chunk_id, f"curriculum:{title}:chunk-0006")
+        self.assertNotIn("完成2学分", draft.answer_text)
+
     def test_curriculum_academic_years_fact_lookup_prefers_academic_years_chunk_over_course_table(
         self,
     ) -> None:
@@ -534,6 +737,56 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
         self.assertIn("学制为两年", draft.answer_text)
         self.assertEqual(draft.supporting_sources[0].chunk_id, f"curriculum:{title}:chunk-0005")
         self.assertNotIn("教学进程计划表", draft.answer_text)
+
+    def test_curriculum_academic_years_fact_lookup_accepts_non_answer_bearing_section_text(
+        self,
+    ) -> None:
+        title = "教育学本科第二学士学位人才培养方案"
+        evidence = EvidenceBundle(
+            query_text=f"{title}学制几年",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0005",
+                    source_title=title,
+                    snippet=(
+                        "三、学制、总学分和学位授予\n\n"
+                        "学制:2年\n\n"
+                        "总学分:60 学分\n\n"
+                        "学位授予:教育学第二学士学位"
+                    ),
+                    score=0.033,
+                    content_kind="section_text",
+                    structural_path=(title, "三、学制、总学分和学位授予"),
+                    is_answer_bearing=False,
+                ),
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0008",
+                    source_title=title,
+                    snippet=(
+                        "五、课程设置和修读建议\n\n"
+                        "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                        "1041030045 | 教育学原理 | 3 | 54 | 9 | 1"
+                    ),
+                    score=0.034,
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            evidence,
+            retrieval_intent=plan_curriculum_query(evidence.query_text).retrieval_intent,
+        )
+
+        self.assertIn("学制为两年", draft.answer_text)
+        self.assertEqual(draft.supporting_sources[0].chunk_id, f"curriculum:{title}:chunk-0005")
+        self.assertNotIn("教育学原理", draft.answer_text)
 
 
 if __name__ == "__main__":

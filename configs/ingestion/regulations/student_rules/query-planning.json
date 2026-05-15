@@ -30,7 +30,12 @@
 		{
 			"document_id": "handbook:53a0861781aba2462c1db5dba0059babe2341f3b",
 			"title": "普通高等学校学生安全教育及管理暂行规定",
-			"aliases": ["学生安全教育及管理暂行规定"]
+			"aliases": [
+				"学生安全教育及管理暂行规定",
+				"学生安全教育和事故管理",
+				"安全教育和事故管理",
+				"安全教育事故管理"
+			]
 		},
 		{
 			"document_id": "handbook:aafad3e5b2a6e60decaf15f8258401e1dcd398d9",
@@ -135,7 +140,7 @@
 		{
 			"document_id": "handbook:1b7c532ecdbc8afe1820d2c55dfba911d891e37a",
 			"title": "中央民族大学学生听证实施办法",
-			"aliases": ["学生听证实施办法"]
+			"aliases": ["学生听证实施办法", "听证", "申请听证", "学生听证", "什么时候可以申请听证"]
 		},
 		{
 			"document_id": "handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8",

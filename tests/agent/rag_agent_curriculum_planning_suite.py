@@ -256,6 +256,55 @@ class RagAgentCurriculumPlanningTest(unittest.TestCase):
         )
         self.assertEqual(plan.resolved_document_title, "经济学拔尖人才创新班人才培养方案")
 
+    def test_plan_curriculum_query_treats_course_teaching_plan_title_as_document_lookup(
+        self,
+    ) -> None:
+        query_title = "中央民族大学通识课程中华文化课程教学计划"
+        canonical_title = "中央民族大学通识课程“中华文化”课程教学计划"
+        plan = plan_curriculum_query(query_title)
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.intent_kind, "generic")
+        self.assertEqual(plan.target_document_ids, (f"curriculum:{canonical_title}",))
+        self.assertEqual(plan.retrieval_intent.kind, "curriculum_document_lookup")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "curriculum_document")
+
+    def test_plan_curriculum_query_resolves_short_course_teaching_plan_before_major_plan(
+        self,
+    ) -> None:
+        canonical_title = "中央民族大学通识课程“大学英语”课程教学计划"
+
+        plan = plan_curriculum_query("大学英语课程教学计划一共多少学分")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.target_document_ids, (f"curriculum:{canonical_title}",))
+        self.assertEqual(plan.resolved_document_title, canonical_title)
+        self.assertEqual(plan.retrieval_intent.kind, "curriculum_fact_lookup")
+
+    def test_plan_curriculum_query_resolves_parenthesized_language_track_title(
+        self,
+    ) -> None:
+        plan = plan_curriculum_query("俄语中亚语本科人才培养方案")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(
+            plan.target_document_ids,
+            ("curriculum:俄语（俄语、中亚语）本科人才培养方案",),
+        )
+        self.assertEqual(plan.retrieval_intent.kind, "curriculum_document_lookup")
+
+    def test_plan_curriculum_query_prefers_specific_strong_base_family_over_plain_major(
+        self,
+    ) -> None:
+        plan = plan_curriculum_query("中国少数民族语言文学强基计划本科人才培养方案")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(
+            plan.target_document_ids,
+            ("curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",),
+        )
+        self.assertEqual(plan.retrieval_intent.kind, "curriculum_document_lookup")
+
     def test_delegate_to_rag_agent_fail_closes_course_map_queries_without_retrieval(self) -> None:
         retriever_called = False
 

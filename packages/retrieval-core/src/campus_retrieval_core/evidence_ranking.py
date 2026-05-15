@@ -3,6 +3,7 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from campus_contracts import EvidenceSource
+from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_collection
 
 from campus_retrieval_core.curriculum_query_resolution import (
     filter_curriculum_query_sources,
@@ -14,7 +15,10 @@ from campus_retrieval_core.query_focus import (
     select_sources_covering_query_focus,
 )
 
-from .evidence_ranking_curriculum import select_curriculum_lookup_support_sources
+from .evidence_ranking_curriculum import (
+    select_curriculum_fact_support_sources,
+    select_curriculum_lookup_support_sources,
+)
 from .evidence_ranking_features import (
     build_document_ranking_features,
     build_ranking_features,
@@ -160,6 +164,14 @@ def select_supporting_evidence_sources(
     )
     if curriculum_lookup_selected:
         return curriculum_lookup_selected
+    curriculum_fact_selected = select_curriculum_fact_support_sources(
+        query_text=query_text,
+        ranked_features=ranked_features,
+        locked_doc_id=locked_doc_id,
+        max_sources=max_sources,
+    )
+    if curriculum_fact_selected:
+        return curriculum_fact_selected
 
     primary: list[EvidenceSource] = []
     secondary: list[EvidenceSource] = []
@@ -197,6 +209,11 @@ def select_supporting_evidence_sources(
 def query_targets_source_title(*, query_text: str, source: EvidenceSource) -> bool:
     if query_targets_curriculum_source_title(query_text=query_text, source=source):
         return True
+    if (
+        source.source_channel == "official_web"
+        and not is_official_web_stable_reference_like_collection(source.collection)
+    ):
+        return False
     normalized_query = normalize_text(query_text)
     query_key = match_key(normalized_query)
     if not query_key:

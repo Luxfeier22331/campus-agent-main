@@ -134,13 +134,17 @@ def filter_condition_overview_statements(
     if not statements:
         return ()
     if retrieval_intent is None or retrieval_intent.expected.answer_kind != "condition_table":
-        return statements
+        return _filter_off_target_condition_fact_statements(statements)
     expected_roles = set(retrieval_intent.expected.evidence_roles)
     if not expected_roles:
-        return statements
+        return _filter_off_target_condition_fact_statements(statements)
     attributes = evidence_attributes_for_source(source)
     if attributes.answer_role in expected_roles:
-        return statements
+        return _filter_off_target_condition_fact_statements(
+            statements,
+            source=source,
+            retrieval_intent=retrieval_intent,
+        )
     return ()
 
 
@@ -190,6 +194,150 @@ def condition_overview_statement_dedupe_key(statement: str) -> str:
     )
     normalized = normalized.strip(" ，,。；;:：")
     return normalized or _normalize_snippet(statement).lower()
+
+
+def _filter_off_target_condition_fact_statements(
+    statements: tuple[str, ...],
+    *,
+    source: EvidenceSource | None = None,
+    retrieval_intent: RetrievalIntent | None = None,
+) -> tuple[str, ...]:
+    filtered: list[str] = []
+    for statement in statements:
+        normalized = _normalize_off_target_condition_fact_statement(
+            statement,
+            source=source,
+            retrieval_intent=retrieval_intent,
+        )
+        if not normalized:
+            continue
+        if _is_off_target_condition_fact_statement(
+            normalized,
+            source=source,
+            retrieval_intent=retrieval_intent,
+        ):
+            continue
+        filtered.append(normalized)
+    return tuple(filtered)
+
+
+def _is_off_target_condition_fact_statement(
+    statement: str,
+    *,
+    source: EvidenceSource | None,
+    retrieval_intent: RetrievalIntent | None,
+) -> bool:
+    normalized = _normalize_snippet(statement)
+    if not normalized:
+        return True
+    if any(cue in normalized for cue in ("颁发荣誉证书", "颁发证书", "获得者颁发")):
+        return True
+    return _is_review_action_statement_without_condition_predicate(
+        normalized,
+        source=source,
+        retrieval_intent=retrieval_intent,
+    )
+
+
+def _is_review_action_statement_without_condition_predicate(
+    statement: str,
+    *,
+    source: EvidenceSource | None,
+    retrieval_intent: RetrievalIntent | None,
+) -> bool:
+    if retrieval_intent is None or retrieval_intent.expected.answer_kind != "condition_table":
+        return False
+    if source is not None and evidence_attributes_for_source(source).answer_role not in {
+        "eligibility_condition",
+        "eligibility_intro",
+    }:
+        return False
+    compact = "".join(statement.split())
+    if not compact:
+        return True
+    if _has_condition_overview_predicate(compact):
+        return False
+    return any(
+        cue in compact
+        for cue in (
+            "本人申请",
+            "民主评议",
+            "评议推荐",
+            "推荐",
+            "审核",
+            "审批",
+            "公示",
+            "报送",
+            "复评",
+            "复审",
+        )
+    )
+
+
+def _has_condition_overview_predicate(compact_statement: str) -> bool:
+    return any(
+        cue in compact_statement
+        for cue in (
+            "符合",
+            "满足",
+            "具备",
+            "应当",
+            "应为",
+            "须",
+            "需",
+            "必须",
+            "可申请",
+            "可以申请",
+            "不得",
+            "不能",
+            "不予",
+            "条件之一",
+            "基本条件",
+            "评选条件",
+            "评选要求",
+            "申请资格",
+            "参评资格",
+            "成绩",
+            "排名",
+            "综合测评",
+            "遵纪守法",
+            "诚实守信",
+            "热爱祖国",
+            "家庭经济困难",
+        )
+    )
+
+
+def _normalize_off_target_condition_fact_statement(
+    statement: str,
+    *,
+    source: EvidenceSource | None,
+    retrieval_intent: RetrievalIntent | None,
+) -> str:
+    normalized = _normalize_snippet(statement)
+    if not normalized:
+        return ""
+    if (
+        source is not None
+        and retrieval_intent is not None
+        and evidence_attributes_for_source(source).answer_role == "table_fact"
+        and retrieval_intent.target.condition_subject == "amount_or_quota"
+    ):
+        normalized = _trim_amount_or_quota_table_fact_statement(normalized)
+    return normalized
+
+
+def _trim_amount_or_quota_table_fact_statement(statement: str) -> str:
+    normalized = _normalize_snippet(statement)
+    if not normalized:
+        return ""
+    amount_match = re.search(
+        r"(其中,)?[^。；;]*?(?:奖励标准|奖金额度|金额标准|标准为)[^。；;]*",
+        normalized,
+    )
+    if amount_match is not None:
+        return amount_match.group(0).lstrip("，,")
+    return normalized
 
 
 def select_condition_overview_member_rows(
@@ -270,6 +418,7 @@ def _select_condition_overview_row_for_doc(
                         source=source,
                         statement=statement,
                         mode=mode,
+                        retrieval_intent=retrieval_intent,
                     ),
                     source,
                     statement,
@@ -287,19 +436,39 @@ def _condition_overview_member_candidate_sort_key(
     source: EvidenceSource,
     statement: str,
     mode: str,
-) -> tuple[int, int, int, int, int]:
+    retrieval_intent: RetrievalIntent | None,
+) -> tuple[int, int, int, int, int, int]:
     attributes = evidence_attributes_for_source(source)
     scored_statements = dict(
         (scored_statement, score)
         for score, scored_statement in _score_source_statements(query_text, source, mode=mode)
     )
     return (
+        _condition_overview_expected_role_priority(
+            answer_role=attributes.answer_role,
+            retrieval_intent=retrieval_intent,
+        ),
         _CONDITION_OVERVIEW_MEMBER_ROW_ROLE_PRIORITY.get(attributes.answer_role, 0),
         condition_overview_source_quality_score(source),
         scored_statements.get(statement, 0),
         0 if _is_generic_intro_statement(statement) else 1,
         len(_normalize_snippet(statement)),
     )
+
+
+def _condition_overview_expected_role_priority(
+    *,
+    answer_role: str,
+    retrieval_intent: RetrievalIntent | None,
+) -> int:
+    if retrieval_intent is None:
+        return 0
+    expected_roles = tuple(
+        role.strip() for role in retrieval_intent.expected.evidence_roles if role.strip()
+    )
+    if not expected_roles or answer_role not in expected_roles:
+        return 0
+    return len(expected_roles) - expected_roles.index(answer_role)
 
 
 def _member_condition_statement_key(*, source: EvidenceSource, statement: str) -> str:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from campus_contracts import AgentRequest, AgentResponse
+from campus_ingestion_core import load_runtime_profile
 
 from campus_rag_agent.intent import RagIntentFrame
 from campus_rag_agent.prompt_execution import RagPromptExecutor
@@ -12,13 +13,14 @@ from campus_rag_agent.retrieval_adequacy import (
 from .service_clarification import (
     _build_clarification_question,
 )
-from .service_common import _build_empty_evidence
+from .service_common import _build_empty_evidence, _is_official_web_query_enabled_profile
 from .service_diagnostics_adequacy import _clarification_retrieval_adequacy
 from .service_preflight_responses import (
     build_pre_retrieval_clarification_response,
     build_pre_retrieval_no_answer_response,
 )
 from .service_response_text import _build_curriculum_unsupported_response
+from .service_response_text import _build_no_answer_response
 from .service_scope_plans import _has_resolved_query_plan
 
 
@@ -35,6 +37,25 @@ def _maybe_return_pre_retrieval_response(
     curriculum_course_plan,
     curriculum_program_family_plan,
 ) -> AgentResponse | None:
+    if effective_scope.corpus == "official_web":
+        runtime_profile = load_runtime_profile(effective_scope.corpus, effective_scope.collection)
+        if not _is_official_web_query_enabled_profile(runtime_profile):
+            empty_evidence = _build_empty_evidence(effective_scope, user_goal)
+            return build_pre_retrieval_no_answer_response(
+                request=request,
+                effective_scope=effective_scope,
+                user_goal=user_goal,
+                prompt_executor=prompt_executor,
+                intent_frame=intent_frame,
+                no_answer_reason="scope_not_query_enabled",
+                deterministic_answer_text=_build_no_answer_response(empty_evidence),
+                semantic_outcome="unsupported_scope",
+                retrieval_adequacy=insufficient_retrieval_adequacy("scope_not_query_enabled"),
+                handbook_plan=handbook_plan,
+                curriculum_plan=curriculum_plan,
+                curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
+            )
     if intent_frame.response_mode == "clarify" and not _has_resolved_query_plan(
         handbook_plan=handbook_plan,
         curriculum_plan=curriculum_plan,

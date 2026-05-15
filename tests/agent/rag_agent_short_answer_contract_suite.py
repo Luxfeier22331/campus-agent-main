@@ -151,9 +151,9 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
         self.assertIn("《民族学本科人才培养方案》", draft.answer_text)
         self.assertIn("培养目标", draft.answer_text)
         self.assertNotIn("总学分", draft.answer_text)
-        self.assertEqual(draft.presentation_kind, "brief_reference")
+        self.assertEqual(draft.presentation_kind, "document_identity")
         self.assertEqual(draft.presentation_path, "")
-        self.assertEqual(draft.typed_draft.presentation.kind.value, "brief_reference")
+        self.assertEqual(draft.typed_draft.presentation.kind.value, "document_identity")
 
     def test_curriculum_document_intent_keeps_short_identity_answer(self) -> None:
         title = "民族学本科人才培养方案"
@@ -193,8 +193,42 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
         self.assertIn("《民族学本科人才培养方案》", draft.answer_text)
         self.assertIn("相关培养方案", draft.answer_text)
         self.assertNotIn("本专业培养具有民族学理论基础", draft.answer_text)
-        self.assertEqual(draft.presentation_kind, "brief_reference")
+        self.assertEqual(draft.presentation_kind, "document_identity")
         self.assertEqual(draft.presentation_path, "")
+
+    def test_curriculum_document_lookup_accepts_title_grounding_without_answer_bearing(
+        self,
+    ) -> None:
+        title = "会计学本科第二学士学位人才培养方案"
+        evidence = EvidenceBundle(
+            query_text=title,
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0001",
+                    source_title=title,
+                    snippet=(
+                        "会计学本科第二学士学位人才培养方案 一、培养目标 培养适应"
+                        "社会主义市场经济需要的会计学人才。"
+                    ),
+                    score=0.9,
+                    is_answer_bearing=False,
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            evidence,
+            retrieval_intent=plan_curriculum_query(title).retrieval_intent,
+        )
+
+        self.assertTrue(draft.answer_text)
+        self.assertIn(f"《{title}》", draft.answer_text)
+        self.assertEqual(len(draft.supporting_sources), 1)
+        self.assertEqual(draft.supporting_sources[0].doc_id, f"curriculum:{title}")
+        self.assertEqual(draft.presentation_kind, "document_identity")
 
     def test_curriculum_paraphrased_document_intent_keeps_brief_identity_answer(self) -> None:
         title = "数字经济本科人才培养方案"
@@ -235,7 +269,7 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
         self.assertNotIn("相关培养方案为", draft.answer_text)
         self.assertNotIn("掌握数据分析能力", draft.answer_text)
         self.assertNotIn("总学分", draft.answer_text)
-        self.assertEqual(draft.presentation_kind, "brief_reference")
+        self.assertEqual(draft.presentation_kind, "document_identity")
         self.assertLessEqual(draft.answer_text.count("。"), 1)
 
     def test_curriculum_document_lookup_does_not_expand_long_training_goal(self) -> None:
@@ -270,7 +304,7 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
         self.assertIn(f"《{title}》", draft.answer_text)
         self.assertIn("可以查看", draft.answer_text)
         self.assertIn("培养方案", draft.answer_text)
-        self.assertEqual(draft.presentation_kind, "brief_reference")
+        self.assertEqual(draft.presentation_kind, "document_identity")
         self.assertNotIn("服务于国家战略", draft.answer_text)
         self.assertNotIn("数字技能高超", draft.answer_text)
 
@@ -278,20 +312,20 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
         self,
     ) -> None:
         evidence = EvidenceBundle(
-            query_text="中央民族大学校友会简介",
+            query_text="中央民族大学教学和科研单位",
             corpus="official_web",
             collection="stable_reference",
             sources=(
                 _make_official_web_source(
-                    doc_id="official_web:muc_public:article_detail:alumni-profile",
-                    title="校友会简介",
+                    doc_id="official_web:muc_public:directory_page:b8993ee7004c02e028bc5f6bb166e26ac4eb5afc",
+                    title="教学和科研单位",
                     snippet=(
-                        "标题：校友会简介 | 中央民族大学校友会简介 | "
-                        "新时代，中央民族大学校友会将携手国内外校友，践行服务校友、"
-                        "服务母校、服务社会。"
+                        "标题：教学和科研单位 | 教学和科研单位 | "
+                        "学校设有民族学与社会学学院、中国少数民族语言文学学院、经济学院、"
+                        "信息工程学院等教学和科研单位。"
                     ),
                     score=0.9,
-                    chunk_id_suffix="alumni-profile",
+                    chunk_id_suffix="teaching-units",
                     content_role="reference_fact",
                     collection="stable_reference",
                 ),
@@ -300,11 +334,11 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
 
         draft = RagAgent().build_answer(evidence)
 
-        self.assertIn("服务校友", draft.answer_text)
-        self.assertIn("服务母校", draft.answer_text)
+        self.assertIn("民族学与社会学学院", draft.answer_text)
+        self.assertIn("信息工程学院", draft.answer_text)
         self.assertNotEqual(
             draft.answer_text,
-            "根据官网页面内容，《校友会简介》明确：中央民族大学校友会简介",
+            "根据官网页面内容，《教学和科研单位》明确：教学和科研单位",
         )
         self.assertEqual(draft.presentation_kind, "brief_reference")
 
@@ -312,22 +346,21 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
         self,
     ) -> None:
         evidence = EvidenceBundle(
-            query_text="中央民族大学校友会简介",
+            query_text="中央民族大学教学和科研单位",
             corpus="official_web",
             collection="stable_reference",
             sources=(
                 _make_official_web_source(
-                    doc_id="official_web:muc_public:article_detail:alumni-profile",
-                    title="校友会简介",
+                    doc_id="official_web:muc_public:directory_page:b8993ee7004c02e028bc5f6bb166e26ac4eb5afc",
+                    title="教学和科研单位",
                     snippet=(
-                        "标题：校友会简介\n"
-                        "中央民族大学校友会简介\n"
-                        "新时代，中央民族大学校友会将携手国内外校友，"
-                        "在践行“服务校友、服务母校、服务社会”的征途上，"
-                        "为促进校友事业发展阔步前行。"
+                        "标题：教学和科研单位\n"
+                        "教学和科研单位\n"
+                        "学校设有民族学与社会学学院、中国少数民族语言文学学院、经济学院、"
+                        "信息工程学院等教学和科研单位。"
                     ),
                     score=0.9,
-                    chunk_id_suffix="alumni-profile-newlines",
+                    chunk_id_suffix="teaching-units-newlines",
                     content_role="reference_fact",
                     collection="stable_reference",
                 ),
@@ -336,10 +369,11 @@ class RagAgentShortAnswerContractSuite(unittest.TestCase):
 
         draft = RagAgent().build_answer(evidence)
 
-        self.assertIn("服务校友、服务母校、服务社会", draft.answer_text)
+        self.assertIn("民族学与社会学学院", draft.answer_text)
+        self.assertIn("信息工程学院", draft.answer_text)
         self.assertNotEqual(
             draft.answer_text,
-            "根据官网页面内容，《校友会简介》明确：中央民族大学校友会简介",
+            "根据官网页面内容，《教学和科研单位》明确：教学和科研单位",
         )
         self.assertEqual(draft.presentation_kind, "brief_reference")
 

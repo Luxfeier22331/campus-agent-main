@@ -129,6 +129,7 @@ _CATEGORY_OVERVIEW_CONDITION_CUES = (
 )
 _DISCIPLINE_RELIEF_TIME_CUES = ("多久", "多长时间", "什么时候", "何时", "考察期", "满考察期")
 _DISCIPLINE_RELIEF_ACTION_CUES = ("解除处分", "处分解除", "消处分")
+_HEARING_APPLICATION_CUES = ("申请听证", "听证申请", "要求听证")
 _DISCIPLINE_RELIEF_EXCLUSION_CUES = (
     "不能",
     "不得",
@@ -376,6 +377,15 @@ def _match_policy_objects(normalized_query: str) -> tuple[HandbookPolicyObject, 
     return tuple(matches)
 
 
+def _query_exactly_targets_policy_object(
+    *,
+    normalized_query: str,
+    policy_object: HandbookPolicyObject,
+) -> bool:
+    compact_query = _compact_text(normalized_query)
+    return any(compact_query == term for term in _match_terms(policy_object))
+
+
 def _match_policy_category(normalized_query: str) -> HandbookPolicyCategory | None:
     compact_query = _compact_text(normalized_query)
     for category in _load_query_planning_config().policy_categories:
@@ -616,6 +626,14 @@ def _build_focused_query(
         for term in _PROCEDURE_FOCUS_TERMS:
             if term not in focused_parts:
                 focused_parts.append(term)
+    elif _has_any_compact_cue(compact_query, _HEARING_APPLICATION_CUES):
+        for term in ("听证申请", "10日内", "书面听证申请", "申请听证"):
+            if term not in focused_parts:
+                focused_parts.append(term)
+    elif _looks_like_appeal_after_discipline_query(compact_query):
+        for term in ("书面申诉", "10日内", "处分决定书", "申诉材料"):
+            if term not in focused_parts:
+                focused_parts.append(term)
     elif focus_hints.focus_mode == "none" and tuple(focus_terms) == tuple(focus_hints.focus_terms):
         return rewritten_query_text
     focused_parts.extend(
@@ -710,8 +728,12 @@ def _query_condition_subject(
     category_display_name: str,
 ) -> str:
     compact_query = _compact_text(normalized_query)
+    if _looks_like_hearing_application_deadline_query(compact_query):
+        return "deadline"
     if _looks_like_discipline_relief_operation_query(compact_query):
         return "application_procedure"
+    if _has_any_compact_cue(compact_query, _REISSUE_PROCEDURE_QUERY_CUES):
+        return "student_card_or_identity_credential"
     if "旷课" in compact_query and ("学时" in compact_query or "多少" in compact_query):
         return "attendance_absence_threshold"
     if _looks_like_discipline_relief_exclusion_query(compact_query):
@@ -721,6 +743,10 @@ def _query_condition_subject(
         _DISCIPLINE_RELIEF_TIME_CUES,
     ):
         return "discipline_relief_condition"
+    if _has_any_compact_cue(compact_query, _HEARING_APPLICATION_CUES):
+        return "application_procedure"
+    if _looks_like_appeal_after_discipline_query(compact_query):
+        return "application_procedure"
     if _looks_like_rank_threshold_query(compact_query):
         return "rank_threshold"
     if _looks_like_paper_publication_condition_query(compact_query):
@@ -847,6 +873,22 @@ def _looks_like_discipline_relief_operation_query(compact_query: str) -> bool:
     ):
         return False
     return not _has_any_compact_cue(compact_query, _DISCIPLINE_RELIEF_TIME_CUES)
+
+
+def _looks_like_appeal_after_discipline_query(compact_query: str) -> bool:
+    return _has_any_compact_cue(compact_query, ("处分决定", "处理决定", "处分")) and _has_any_compact_cue(
+        compact_query,
+        ("申诉", "不服"),
+    )
+
+
+def _looks_like_hearing_application_deadline_query(compact_query: str) -> bool:
+    if not _has_any_compact_cue(compact_query, _HEARING_APPLICATION_CUES):
+        return False
+    return _has_any_compact_cue(
+        compact_query,
+        ("什么时候", "何时", "多久内", "几天内", "多少天", "时间", "期限", "截止"),
+    )
 
 
 def _looks_like_rank_threshold_query(compact_query: str) -> bool:

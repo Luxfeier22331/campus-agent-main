@@ -14,7 +14,6 @@ _PROCEDURE_SIDE_NOTE_HINTS = (
     "充值",
     "销毁",
     "转借",
-    "处分",
     "负责解释",
     "不良后果",
     "第二次",
@@ -43,15 +42,25 @@ def _compose_procedure_answer(
     *,
     evidence: EvidenceBundle,
     selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+    query_text: str = "",
 ) -> str:
+    answer_query_text = query_text.strip() or evidence.query_text
     procedure_parts = _build_procedure_answer_parts(selected_rows)
     if not procedure_parts:
         return _compose_generic_answer(evidence=evidence, selected_rows=selected_rows)
 
     core_steps = [part for part in procedure_parts[:3] if part]
+    if len(core_steps) == 1 and _is_single_appeal_deadline_action(core_steps[0]):
+        return _compose_single_appeal_deadline_answer(
+            query_text=answer_query_text,
+            action=core_steps[0],
+            prefix=_answer_prefix(evidence),
+        )
     step_fragments: list[str] = []
     for index, fragment in enumerate(core_steps):
         if len(core_steps) == 1:
+            step_fragments.append(fragment)
+        elif index == 0 and fragment.startswith(("可以", "应", "须", "需", "必须")):
             step_fragments.append(fragment)
         elif index == 0:
             step_fragments.append(f"先{fragment}")
@@ -64,7 +73,7 @@ def _compose_procedure_answer(
     if not step_fragments:
         return _compose_generic_answer(evidence=evidence, selected_rows=selected_rows)
 
-    return f"{_answer_prefix(evidence)}，{_procedure_intro(evidence.query_text)}{'；'.join(step_fragments)}"
+    return f"{_answer_prefix(evidence)}，{_procedure_intro(answer_query_text)}{'；'.join(step_fragments)}"
 
 
 def _build_procedure_answer_parts(
@@ -78,6 +87,15 @@ def _build_procedure_answer_parts(
 
     for _, statements in selected_rows:
         for statement in statements:
+            compound_fragments = _extract_compound_procedure_fragments(statement)
+            for full_fragment in compound_fragments:
+                normalized_full_fragment = _normalize_snippet(full_fragment).lower()
+                if normalized_full_fragment in seen_fragments:
+                    continue
+                seen_fragments.add(normalized_full_fragment)
+                immediate_actions.append(full_fragment)
+            if compound_fragments:
+                continue
             for raw_fragment in re.split(r"[，,；。]", statement):
                 fragment = _normalize_procedure_fragment(raw_fragment)
                 if not fragment:
@@ -158,10 +176,57 @@ def _build_procedure_answer_parts(
     )
 
 
+def _extract_compound_procedure_fragments(statement: str) -> tuple[str, ...]:
+    normalized = _normalize_snippet(statement).rstrip("。；; ")
+    if not normalized:
+        return ()
+    fragments: list[str] = []
+    appeal_match = re.search(
+        r"(?:可以在|应在|须在)?[^，,。；;]*?决定书之日起10日内,"
+        r"向学校学生申诉处理委员会提出书面申诉",
+        normalized,
+    )
+    if appeal_match is not None:
+        fragments.append(appeal_match.group(0).strip(" ，,。；;"))
+    return tuple(dict.fromkeys(fragments))
+
+
+def _is_single_appeal_deadline_action(fragment: str) -> bool:
+    normalized = _normalize_snippet(fragment)
+    return (
+        "决定书之日起10日内" in normalized
+        and "学生申诉处理委员会" in normalized
+        and "书面申诉" in normalized
+    )
+
+
+def _compose_single_appeal_deadline_answer(
+    *,
+    query_text: str,
+    action: str,
+    prefix: str,
+) -> str:
+    normalized_query = _normalize_snippet(query_text)
+    if "处分" in normalized_query and "不服" in normalized_query:
+        normalized_action = action.strip().rstrip("。；;")
+        if normalized_action.startswith("可以在"):
+            normalized_action = "可在" + normalized_action.removeprefix("可以在")
+        elif normalized_action.startswith("在"):
+            normalized_action = "可在" + normalized_action.removeprefix("在")
+        elif normalized_action.startswith("可以"):
+            normalized_action = "可" + normalized_action.removeprefix("可以")
+        normalized_action = normalized_action.replace("日内,", "日内")
+        normalized_action = normalized_action.replace("日内，", "日内")
+        return f"如对处分决定不服，{normalized_action}。"
+    subject = "申诉时"
+    return f"{prefix}，{subject}，{action}"
+
+
 def _normalize_procedure_fragment(fragment: str) -> str:
     normalized = _normalize_snippet(fragment).strip("；，。 ")
     if not normalized:
         return ""
+    normalized = _strip_procedure_metadata_prefix(normalized)
     normalized = normalized.replace("(见附表)", "").replace("（见附表）", "")
     if "申请补办" in normalized:
         normalized = re.sub(r"^学生[^，。；]*?应", "", normalized)
@@ -171,11 +236,29 @@ def _normalize_procedure_fragment(fragment: str) -> str:
     return _normalize_snippet(normalized).strip("；，。 ")
 
 
+def _strip_procedure_metadata_prefix(fragment: str) -> str:
+    normalized = _normalize_snippet(fragment)
+    normalized = re.sub(
+        r"^[^，。；]*?(?:办法|规定|细则|条例|章程)\s+文号[:：][^，。；]*\s*",
+        "",
+        normalized,
+    )
+    normalized = re.sub(
+        r"^[^，。；]*?(?:办法|规定|细则|条例|章程)\s+(?=[一二三四五六七八九十百0-9]+[、.．])",
+        "",
+        normalized,
+    )
+    normalized = re.sub(r"^[一二三四五六七八九十百0-9]+[、.．]\s*", "", normalized)
+    return _normalize_snippet(normalized)
+
+
 def _classify_procedure_fragment(fragment: str) -> str:
     normalized = _normalize_snippet(fragment)
     if not normalized or any(token in normalized for token in _PROCEDURE_SIDE_NOTE_HINTS):
         return ""
     if "挂失" in normalized or "申请补办" in normalized:
+        return "immediate_action"
+    if "提出书面申诉" in normalized or "书面申诉" in normalized:
         return "immediate_action"
     if any(token in normalized for token in ("写明", "书面申请", "填写", "申请表")):
         return "required_material"

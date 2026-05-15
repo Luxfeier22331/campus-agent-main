@@ -138,9 +138,12 @@ def _compose_direct_answer(
             return DirectAnswerResult(
                 answer_text=normalized_answer,
                 presentation=AnswerPresentationDraft(
-                    kind=PresentationKind.BRIEF_REFERENCE,
+                    kind=PresentationKind.DOCUMENT_IDENTITY,
                     answer_shape=AnswerShape.TITLE_LOOKUP,
                     fragments=(normalized_answer,),
+                    identity_tokens=(
+                        _lead_source_title(tuple(source for source, _ in selected_rows)),
+                    ),
                 ),
             )
     if answer_shape == AnswerShape.TITLE_LOOKUP and not (
@@ -148,14 +151,21 @@ def _compose_direct_answer(
         and is_official_web_stable_reference_like_collection(evidence.collection)
     ):
         return _compose_document_identity_answer(evidence=evidence, selected_rows=selected_rows)
-    if mode == "procedure" and answer_shape not in {
-        AnswerShape.CONDITION_OVERVIEW,
-        AnswerShape.FACT_LOOKUP,
-        AnswerShape.JUDGMENT_CLAUSE,
-    }:
+    if expected_answer_kind == "procedure_steps" or (
+        mode == "procedure"
+        and answer_shape not in {
+            AnswerShape.CONDITION_OVERVIEW,
+            AnswerShape.FACT_LOOKUP,
+            AnswerShape.JUDGMENT_CLAUSE,
+        }
+    ):
         return DirectAnswerResult(
             answer_text=finalize_answer_text(
-                _compose_procedure_answer(evidence=evidence, selected_rows=selected_rows)
+                _compose_procedure_answer(
+                    evidence=evidence,
+                    query_text=answer_query_text,
+                    selected_rows=selected_rows,
+                )
             )
         )
     if evidence.corpus == "official_web" and is_official_web_stable_reference_like_collection(
@@ -183,6 +193,7 @@ def _compose_direct_answer(
     if _is_curriculum_semester_course_list_query(evidence.query_text):
         semester_course_list_answer = _compose_curriculum_semester_course_list_answer(
             evidence=evidence,
+            query_text=answer_query_text,
             selected_rows=selected_rows,
         )
         if semester_course_list_answer:
@@ -322,6 +333,11 @@ def _compose_condition_table_answer(
         rows=tuple(rows),
     ):
         return duration_body
+    elif hearing_body := _hearing_application_deadline_body(
+        query_text=answer_query_text,
+        rows=tuple(rows),
+    ):
+        return hearing_body
     elif single_context_label := _single_condition_context_label(tuple(rows)):
         rendered_statements = "；".join(row.statement for row in rows)
         body = f"依据{single_context_label}：{rendered_statements}"
@@ -361,8 +377,10 @@ def _single_source_threshold_condition_body(
     rendered_statements = "；".join(row.statement for row in quantified_rows)
     threshold_label = _condition_threshold_subject_label(query_text)
     if threshold_label == "旷课按违纪处理":
+        threshold_entry = _absence_threshold_entry_fragment(quantified_rows[0].statement)
         return (
-            "旷课违纪处理以一学期累计旷课节次分档（制度原文以“节”计）："
+            "制度原文没有使用“学时”，而是按“节”统计；"
+            f"{threshold_entry}即进入违纪处理分档。完整分档："
             f"{rendered_statements}。依据{single_context_label}。"
         )
     return (
@@ -417,6 +435,59 @@ def _query_asks_duration_lookup(query_text: str) -> bool:
     return query_asks_condition_duration_lookup(query_text)
 
 
+def _hearing_application_deadline_body(
+    *,
+    query_text: str,
+    rows: tuple[_ConditionAnswerRow, ...],
+) -> str:
+    normalized_query = _normalize_snippet(query_text)
+    if "听证" not in normalized_query:
+        return ""
+    if not any(cue in normalized_query for cue in ("什么时候", "何时", "申请听证", "听证申请")):
+        return ""
+    relevant_rows = tuple(row for row in rows if "听证" in row.statement)
+    if not relevant_rows:
+        return ""
+    statement = relevant_rows[0].statement.rstrip("。；; ")
+    right_fragment = _extract_hearing_right_fragment(statement)
+    deadline_fragment = _extract_hearing_deadline_fragment(statement)
+    if not right_fragment or not deadline_fragment:
+        return ""
+    return (
+        "申请听证的时间要求："
+        f"{deadline_fragment}；可申请前提：{right_fragment}。"
+    )
+
+
+def _extract_hearing_right_fragment(statement: str) -> str:
+    normalized = _normalize_snippet(statement).rstrip("。；; ")
+    marker = "有要求听证的权利"
+    marker_index = normalized.find(marker)
+    if marker_index < 0:
+        return ""
+    subject = "拟被处分或者处理的学生"
+    subject_index = normalized.rfind(subject, 0, marker_index)
+    if subject_index < 0:
+        return ""
+    start = subject_index
+    return normalized[start : marker_index + len(marker)].strip(" ，,。；;")
+
+
+def _extract_hearing_deadline_fragment(statement: str) -> str:
+    normalized = _normalize_snippet(statement).rstrip("。；; ")
+    match = re.search(
+        r"(?:拟被处分或者处理的学生)?如有听证要求,?应在收到拟处分或处理告知书后"
+        r"10日内提交书面听证申请",
+        normalized,
+    )
+    if match is None:
+        return ""
+    fragment = match.group(0).strip(" ，,。；;")
+    if fragment.startswith("拟被处分或者处理的学生"):
+        fragment = fragment.removeprefix("拟被处分或者处理的学生")
+    return fragment
+
+
 def _extract_duration_condition_parts(statement: str) -> tuple[str, ...]:
     return extract_condition_duration_parts(statement)
 
@@ -432,6 +503,18 @@ def _condition_row_has_numeric_threshold(row: _ConditionAnswerRow) -> bool:
             row.statement,
         )
     )
+
+
+def _absence_threshold_entry_fragment(statement: str) -> str:
+    normalized = _normalize_snippet(statement).rstrip("。；; ")
+    match = re.match(
+        r"(?P<threshold>一学期累计旷课(?:达)?\d+(?:\s*[-－—至到]\s*\d+)?"
+        r"\s*节(?:\\(含\\)|（含）)?(?:以下|以上)?)者",
+        normalized,
+    )
+    if match is None:
+        return normalized
+    return match.group("threshold")
 
 
 def _condition_threshold_subject_label(query_text: str) -> str:

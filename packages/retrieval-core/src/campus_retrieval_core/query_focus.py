@@ -22,6 +22,12 @@ _FOCUS_TERM_GROUPS: tuple[tuple[str, tuple[str, ...]], ...] = (
     ("节", ("节",)),
     ("解除处分", ("解除处分", "处分解除", "解除纪律处分")),
     ("考察期", ("考察期", "期满", "届满")),
+    ("听证申请", ("听证申请", "申请听证", "要求听证", "听证权利")),
+    ("10日内", ("10日内", "十日内")),
+    ("书面听证申请", ("书面听证申请", "提交书面听证申请")),
+    ("书面申诉", ("书面申诉", "提出书面申诉")),
+    ("处分决定书", ("处分决定书", "处分决定", "处理决定书", "处理决定")),
+    ("材料", ("材料", "申请表", "证明", "成绩单", "思想汇报")),
 )
 _RANK_THRESHOLD_EXCEPTION_CUES = (
     "没前十",
@@ -118,6 +124,18 @@ def build_focus_groups(query_text: str) -> tuple[tuple[str, ...], ...]:
             groups.append(("解除处分", "处分解除", "解除纪律处分"))
         elif focus_term == "考察期":
             groups.append(("考察期", "期满", "届满"))
+        elif focus_term == "听证申请":
+            groups.append(("听证申请", "申请听证", "要求听证", "听证权利"))
+        elif focus_term == "10日内":
+            groups.append(("10日内", "十日内"))
+        elif focus_term == "书面听证申请":
+            groups.append(("书面听证申请", "提交书面听证申请"))
+        elif focus_term == "书面申诉":
+            groups.append(("书面申诉", "提出书面申诉"))
+        elif focus_term == "处分决定书":
+            groups.append(("处分决定书", "处分决定", "处理决定书", "处理决定"))
+        elif focus_term == "材料":
+            groups.append(("材料", "申请表", "证明", "成绩单", "思想汇报"))
         elif focus_term == "前10":
             groups.append(_RANK_THRESHOLD_GROUPS[0])
         elif focus_term == "前30" and _query_explicitly_mentions_threshold(query_text, "前30"):
@@ -235,6 +253,8 @@ def _extract_focus_terms(normalized_query: str) -> tuple[str, ...]:
             focus_terms.append(canonical_term)
     if any(_compact_text(cue) in compact_query for cue in _RANK_THRESHOLD_EXCEPTION_CUES):
         focus_terms.extend(term for term in ("前10", "前30") if term not in focus_terms)
+    if "申诉材料" in compact_query:
+        focus_terms = [term for term in focus_terms if term != "材料"]
     for match in _COHORT_YEAR_RE.finditer(normalized_query):
         year = match.group("year")
         term = f"{year}届"

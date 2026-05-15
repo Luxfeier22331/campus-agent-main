@@ -23,6 +23,7 @@ from .service_outcomes import (
     build_low_confidence_no_answer_response,
     build_missing_scope_clarification_response,
     build_no_supporting_evidence_response,
+    build_remote_content_suspicion_no_answer_response,
     maybe_build_evidence_clarification_response,
     maybe_build_resolved_policy_clause_fail_closed_response,
 )
@@ -215,6 +216,10 @@ def _build_rag_agent_response(
         curriculum_plan=curriculum_plan,
         curriculum_course_plan=curriculum_course_plan,
         retrieval_execution_result=retrieval_execution_result,
+        remote_content_block_response_builder=lambda supporting_evidence: build_remote_content_suspicion_no_answer_response(
+            outcome_context,
+            supporting_evidence=supporting_evidence,
+        ),
     )
     if evidence_selection_stage.response is not None:
         return evidence_selection_stage.response

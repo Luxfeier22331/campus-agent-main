@@ -41,6 +41,7 @@ from .service_response_text import (
     _resolved_policy_title,
     _should_fail_closed_resolved_policy_clause,
 )
+from .remote_content_hardening import build_remote_content_suspicion_summary
 
 
 @dataclass(frozen=True, slots=True)
@@ -293,6 +294,23 @@ def build_no_supporting_evidence_response(
     )
 
 
+def build_remote_content_suspicion_no_answer_response(
+    context: RagOutcomeContext,
+    *,
+    supporting_evidence: EvidenceBundle,
+) -> AgentResponse:
+    return _build_unsupported_by_evidence_response(
+        context,
+        evidence=supporting_evidence,
+        no_answer_reason="remote_content_suspicion_blocked",
+        retrieval_adequacy_reason="remote_content_suspicion_blocked",
+        remote_content_suspicion_summary=build_remote_content_suspicion_summary(
+            supporting_evidence,
+            generation_blocked=True,
+        ),
+    )
+
+
 def _retrieval_reference_count(retrieval_execution_result: RetrievalExecutionResult | None) -> int:
     if retrieval_execution_result is None:
         return 0
@@ -359,6 +377,7 @@ def _build_unsupported_by_evidence_response(
     evidence: EvidenceBundle,
     no_answer_reason: str,
     retrieval_adequacy_reason: str,
+    remote_content_suspicion_summary=None,
 ) -> AgentResponse:
     answer_text, prompt_trace, prompt_runtime_state, prompt_runtime_detail = (
         _compose_no_answer_response(
@@ -400,6 +419,7 @@ def _build_unsupported_by_evidence_response(
                 no_answer_reason=no_answer_reason,
                 semantic_outcome="unsupported_by_evidence",
                 retrieval_adequacy=insufficient_retrieval_adequacy(retrieval_adequacy_reason),
+                remote_content_suspicion_summary=remote_content_suspicion_summary,
                 prompt_runtime_state=prompt_runtime_state,
                 prompt_runtime_detail=prompt_runtime_detail,
                 planner_information_needs=context.planner_information_needs,

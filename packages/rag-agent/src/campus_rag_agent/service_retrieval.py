@@ -73,6 +73,7 @@ retrieve_sources = _retrieve_sources
 _COURSE_FAMILY_SCHEDULE_TOP_K = 8
 _HANDBOOK_CATEGORY_DISCOVERY_TOP_K = 10
 _HANDBOOK_CATEGORY_MEMBER_TOP_K = 2
+_HANDBOOK_FOCUSED_POLICY_TOP_K = 12
 
 
 @dataclass(frozen=True, slots=True)
@@ -204,7 +205,7 @@ def build_rag_retrieval_context(
         focus_clause_nos = handbook_plan.focus_clause_nos
         focus_terms = handbook_plan.focus_terms
         category_member_document_ids = handbook_plan.category_member_document_ids
-        focused_retrieval_top_k = 4
+        focused_retrieval_top_k = _HANDBOOK_FOCUSED_POLICY_TOP_K
     elif (
         effective_scope.corpus == "regulations"
         and effective_scope.collection == "institutional_rules"

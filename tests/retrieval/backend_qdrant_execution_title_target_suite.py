@@ -20,9 +20,14 @@ from tests.retrieval.backend_qdrant_test_support import (
 
 class BackendQdrantExecutionTitleTargetTest(unittest.TestCase):
     def test_backend_locks_title_targeted_official_web_reference_query_to_exact_doc(self) -> None:
-        profile = _make_runtime_profile(corpus="official_web", collection="muc_public_pages")
+        profile = _make_runtime_profile(
+            corpus="official_web",
+            collection="stable_reference",
+            serving_surface="stable_reference",
+        )
         qdrant_client = Mock()
         qdrant_client.collection_exists.return_value = True
+        qdrant_client.scroll.return_value = ([], None)
         qdrant_client.query_points.return_value = qdrant_models.QueryResponse(
             points=[
                 qdrant_models.ScoredPoint(
@@ -39,7 +44,7 @@ class BackendQdrantExecutionTitleTargetTest(unittest.TestCase):
                                 "chunk_id": "school-overview:chunk-1",
                                 "acl_level": "public",
                                 "source_channel": "official_web",
-                                "collection": "muc_public_pages",
+                                "collection": "stable_reference",
                                 "is_current": True,
                                 "canonical_url": "https://www.muc.edu.cn/xxgk1.htm",
                                 "latest_url": "https://www.muc.edu.cn/xxgk1.htm",
@@ -66,7 +71,7 @@ class BackendQdrantExecutionTitleTargetTest(unittest.TestCase):
                                 "chunk_id": "school-profile:chunk-1",
                                 "acl_level": "public",
                                 "source_channel": "official_web",
-                                "collection": "muc_public_pages",
+                                "collection": "stable_reference",
                                 "is_current": True,
                                 "canonical_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
                                 "latest_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
@@ -99,7 +104,7 @@ class BackendQdrantExecutionTitleTargetTest(unittest.TestCase):
                 RetrievalRequest(
                     query_text="中央民族大学学校简介",
                     corpus="official_web",
-                    collection="muc_public_pages",
+                    collection="stable_reference",
                     top_k=3,
                 )
             )
@@ -117,7 +122,11 @@ class BackendQdrantExecutionTitleTargetTest(unittest.TestCase):
     def test_backend_title_targeted_official_web_reference_query_recovers_lead_chunk_from_same_doc_support(
         self,
     ) -> None:
-        profile = _make_runtime_profile(corpus="official_web", collection="muc_public_pages")
+        profile = _make_runtime_profile(
+            corpus="official_web",
+            collection="stable_reference",
+            serving_surface="stable_reference",
+        )
         qdrant_client = Mock()
         qdrant_client.collection_exists.return_value = True
         qdrant_client.scroll.return_value = (
@@ -134,7 +143,7 @@ class BackendQdrantExecutionTitleTargetTest(unittest.TestCase):
                                 "chunk_id": "school-profile:chunk-0001",
                                 "acl_level": "public",
                                 "source_channel": "official_web",
-                                "collection": "muc_public_pages",
+                                "collection": "stable_reference",
                                 "is_current": True,
                                 "canonical_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
                                 "latest_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
@@ -170,7 +179,7 @@ class BackendQdrantExecutionTitleTargetTest(unittest.TestCase):
                                     "chunk_id": "school-profile:chunk-0004",
                                     "acl_level": "public",
                                     "source_channel": "official_web",
-                                    "collection": "muc_public_pages",
+                                    "collection": "stable_reference",
                                     "is_current": True,
                                     "canonical_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
                                     "latest_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
@@ -201,7 +210,7 @@ class BackendQdrantExecutionTitleTargetTest(unittest.TestCase):
                                     "chunk_id": "school-profile:chunk-0004",
                                     "acl_level": "public",
                                     "source_channel": "official_web",
-                                    "collection": "muc_public_pages",
+                                    "collection": "stable_reference",
                                     "is_current": True,
                                     "canonical_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
                                     "latest_url": "https://www.muc.edu.cn/xxgk1/xxjj.htm",
@@ -235,7 +244,7 @@ class BackendQdrantExecutionTitleTargetTest(unittest.TestCase):
                 RetrievalRequest(
                     query_text="中央民族大学学校简介",
                     corpus="official_web",
-                    collection="muc_public_pages",
+                    collection="stable_reference",
                     top_k=3,
                 )
             )

@@ -32,7 +32,7 @@ from campus_rag_agent.remote_content_hardening import (
 )
 from campus_rag_agent.retrieval_adequacy import RetrievalAdequacyAssessment
 
-from .service_common import _source_label
+from .service_common import _is_official_web_query_enabled_profile, _source_label
 from .service_diagnostics_adequacy import (
     _retrieval_adequacy_reason,
     _retrieval_adequacy_verdict,
@@ -245,6 +245,9 @@ def _build_rag_result_diagnostics(
         "answer_diagnostic_reason": answer_diagnostic_reason,
         "unsupported_fields": unsupported_fields,
     }
+    scope_class = _diagnostic_scope_class(resolved_scope=resolved_scope)
+    if scope_class:
+        base_fields["scope_class"] = scope_class
 
     if (
         handbook_plan is None
@@ -359,6 +362,19 @@ def _summarize_retrieved_titles(evidence: EvidenceBundle) -> tuple[str, ...]:
         if len(titles) >= 3:
             break
     return tuple(titles)
+
+
+def _diagnostic_scope_class(*, resolved_scope: KnowledgeScope | None) -> str:
+    if resolved_scope is None:
+        return ""
+    if resolved_scope.corpus != "official_web":
+        return ""
+    from campus_ingestion_core import load_runtime_profile
+
+    profile = load_runtime_profile(resolved_scope.corpus, resolved_scope.collection)
+    if _is_official_web_query_enabled_profile(profile):
+        return "in_scope"
+    return ""
 
 
 def _handbook_diagnostics_query(handbook_plan: HandbookQueryPlan) -> str:

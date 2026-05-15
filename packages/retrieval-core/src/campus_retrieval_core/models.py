@@ -57,6 +57,7 @@ RetrievalCoveragePolicy = Literal[
 RetrievalSelectionPolicy = Literal[
     "default",
     "answer_role_first",
+    "document_identity_first",
     "one_answer_ready_source_per_member",
     "focused_clause_first",
     "official_reference_first",
@@ -118,6 +119,7 @@ ALLOWED_RETRIEVAL_COVERAGE_POLICIES = (
 ALLOWED_RETRIEVAL_SELECTION_POLICIES = (
     "default",
     "answer_role_first",
+    "document_identity_first",
     "one_answer_ready_source_per_member",
     "focused_clause_first",
     "official_reference_first",

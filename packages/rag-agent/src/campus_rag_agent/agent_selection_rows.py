@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import re
+
 from campus_contracts import EvidenceSource
 from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 from campus_retrieval_core.evidence_ranking import query_targets_source_title
@@ -18,11 +20,11 @@ from .agent_curriculum_terms import (
     _is_curriculum_course_list_query,
     _is_curriculum_lookup_query,
 )
-from .agent_official_web_reference_people import (
-    _extract_official_web_scholar_domains,
-    _extract_official_web_scholar_name,
+from .agent_official_web_reference_selection import (
+    official_web_reference_title_lookup_max_seen_statements,
+    official_web_reference_title_lookup_should_continue_rows,
+    official_web_reference_title_lookup_statement_budget,
 )
-from .agent_official_web_reference_sentences import _flatten_official_web_sentences
 from .agent_official_web_terms import (
     _OFFICIAL_WEB_IGNORED_CONTENT_ROLES,
     _is_official_web_reference_query,
@@ -40,10 +42,11 @@ from .agent_selection_condition_overview import (
 from .agent_selection_query import _query_mode
 from .agent_selection_statements import (
     _is_generic_intro_statement,
+    _query_asks_curriculum_total_credits,
     _rank_source_statements,
     _score_source_statements,
 )
-from .agent_shared import _lead_source_title, _normalize_snippet
+from .agent_shared import _normalize_snippet
 from .agent_summary_facets import (
     general_summary_is_off_nominal,
     general_summary_preferred_term_score,
@@ -88,6 +91,13 @@ def _select_answer_support_rows(
     row_budget = max_sources
     if curriculum_course_settings_query:
         max_seen_statements = max(max_seen_statements, max_sources * 3)
+    if shape == AnswerShape.TITLE_LOOKUP:
+        max_seen_statements = official_web_reference_title_lookup_max_seen_statements(
+            query_text=query_text,
+            sources=consumable_sources,
+            default_budget=max_seen_statements,
+            max_sources=max_sources,
+        )
     if shape == AnswerShape.CONDITION_OVERVIEW:
         quantified_row_budget = _condition_overview_quantified_row_budget(
             sources=consumable_sources,
@@ -121,6 +131,16 @@ def _select_answer_support_rows(
         answer_shape=shape,
         retrieval_intent=retrieval_intent,
     )
+    ranked_sources = _filter_sources_for_retrieval_intent_target_documents(
+        sources=ranked_sources,
+        retrieval_intent=retrieval_intent,
+    )
+    ranked_sources = _filter_sources_for_retrieval_intent_roles(
+        sources=ranked_sources,
+        retrieval_intent=retrieval_intent,
+    )
+    if not ranked_sources:
+        return ()
     if shape == AnswerShape.CONDITION_OVERVIEW:
         ranked_sources = order_condition_overview_sources_for_policy_coverage(
             query_text=query_text,
@@ -129,8 +149,20 @@ def _select_answer_support_rows(
             retrieval_intent=retrieval_intent,
             source_sort_key=_answer_source_sort_key,
         )
+    if _requires_student_card_procedure_focus_filter(query_text=query_text, mode=mode):
+        focused_sources = _filter_student_card_procedure_sources(ranked_sources)
+        if focused_sources:
+            ranked_sources = focused_sources
+    ranked_sources = _order_procedure_sources_by_contract(
+        sources=ranked_sources,
+        answer_shape=shape,
+        retrieval_intent=retrieval_intent,
+    )
     if shape == AnswerShape.TITLE_LOOKUP and not course_list_query and not curriculum_lookup_query:
-        ranked_sources = _filter_title_lookup_sources_for_answer_bearing_overview(ranked_sources)
+        ranked_sources = _filter_title_lookup_sources_for_answer_bearing_overview(
+            query_text=query_text,
+            sources=ranked_sources,
+        )
         if not ranked_sources:
             return ()
     condition_overview_member_rows = (
@@ -161,8 +193,7 @@ def _select_answer_support_rows(
     rows: list[tuple[EvidenceSource, tuple[str, ...]]] = []
     seen_statements: set[str] = set()
     strict_condition_duration_filter = (
-        shape == AnswerShape.CONDITION_OVERVIEW
-        and query_asks_condition_duration_lookup(query_text)
+        shape == AnswerShape.CONDITION_OVERVIEW and query_asks_condition_duration_lookup(query_text)
     )
 
     for index, source in enumerate(ranked_sources):
@@ -207,9 +238,8 @@ def _select_answer_support_rows(
                 retrieval_intent=retrieval_intent,
                 max_statements=max_seen_statements - len(seen_statements),
             )
-        if (
-            shape == AnswerShape.TITLE_LOOKUP
-            and _is_official_web_reference_query(query_text=query_text, source=source)
+        if shape == AnswerShape.TITLE_LOOKUP and _is_official_web_reference_query(
+            query_text=query_text, source=source
         ):
             ranked_statements = _filter_official_web_reference_identity_statements(
                 source=source,
@@ -251,9 +281,24 @@ def _select_answer_support_rows(
                     break
                 continue
         if shape == AnswerShape.TITLE_LOOKUP:
-            novel_statements = tuple(novel_statements[:1])
+            novel_statements = tuple(
+                novel_statements[
+                    : _title_lookup_statement_budget(
+                        query_text=query_text,
+                        source=source,
+                    )
+                ]
+            )
         if shape == AnswerShape.JUDGMENT_CLAUSE:
             novel_statements = tuple(novel_statements[:1])
+        if (
+            shape == AnswerShape.TITLE_LOOKUP
+            and retrieval_intent is not None
+            and retrieval_intent.expected.selection_policy == "document_identity_first"
+            and not novel_statements
+        ):
+            rows.append((source, ()))
+            break
         if shape == AnswerShape.GENERAL_SUMMARY:
             novel_statements = tuple(
                 statement
@@ -275,8 +320,7 @@ def _select_answer_support_rows(
             continue
         rows.append((source, novel_statements))
         seen_statements.update(
-            _statement_dedupe_key(statement, answer_shape=shape)
-            for statement in novel_statements
+            _statement_dedupe_key(statement, answer_shape=shape) for statement in novel_statements
         )
         if _should_stop_after_official_web_reference_rows(query_text=query_text, rows=tuple(rows)):
             break
@@ -291,7 +335,13 @@ def _select_answer_support_rows(
             break
         if shape == AnswerShape.JUDGMENT_CLAUSE:
             break
-        if shape == AnswerShape.TITLE_LOOKUP:
+        if shape == AnswerShape.TITLE_LOOKUP and not (
+            rows
+            and official_web_reference_title_lookup_should_continue_rows(
+                query_text=query_text,
+                source=rows[0][0],
+            )
+        ):
             break
         if (
             (course_list_query or curriculum_lookup_query)
@@ -411,9 +461,82 @@ def _query_asks_curriculum_course_settings(query_text: str) -> bool:
 
 
 def _filter_title_lookup_sources_for_answer_bearing_overview(
+    *,
+    query_text: str,
     sources: tuple[EvidenceSource, ...],
 ) -> tuple[EvidenceSource, ...]:
-    return tuple(source for source in sources if not _is_table_like_answer_source(source))
+    return tuple(
+        source
+        for source in sources
+        if not _is_table_like_answer_source(source)
+        or _is_official_web_reference_query(query_text=query_text, source=source)
+    )
+
+
+def _title_lookup_statement_budget(*, query_text: str, source: EvidenceSource) -> int:
+    return official_web_reference_title_lookup_statement_budget(
+        query_text=query_text,
+        source=source,
+        default_budget=1,
+    )
+
+
+def _requires_student_card_procedure_focus_filter(*, query_text: str, mode: str) -> bool:
+    if mode != "procedure":
+        return False
+    normalized_query = _normalize_snippet(query_text)
+    return "学生证" in normalized_query and any(
+        token in normalized_query for token in ("补办", "补发", "挂失", "遗失", "丢失", "丢了")
+    )
+
+
+def _filter_student_card_procedure_sources(
+    sources: tuple[EvidenceSource, ...],
+) -> tuple[EvidenceSource, ...]:
+    return tuple(source for source in sources if _source_covers_student_card_procedure(source))
+
+
+def _source_covers_student_card_procedure(source: EvidenceSource) -> bool:
+    normalized_source = _normalize_snippet(
+        " ".join(fragment for fragment in (source.detail_label, source.snippet) if fragment)
+    )
+    if not normalized_source:
+        return False
+    return "学生证" in normalized_source and any(
+        token in normalized_source for token in ("补办", "补发", "挂失", "遗失", "损坏")
+    )
+
+
+def _order_procedure_sources_by_contract(
+    *,
+    sources: tuple[EvidenceSource, ...],
+    answer_shape: AnswerShape,
+    retrieval_intent: RetrievalIntent | None,
+) -> tuple[EvidenceSource, ...]:
+    if retrieval_intent is None or retrieval_intent.expected.answer_kind != "procedure_steps":
+        return sources
+    if answer_shape not in {AnswerShape.DETAIL_CLAUSE, AnswerShape.GENERAL_SUMMARY}:
+        return sources
+    indexed = tuple(
+        source
+        for source in sources
+        if evidence_attributes_for_source(source).procedure.step_index is not None
+    )
+    if not indexed:
+        return sources
+    return tuple(
+        sorted(
+            sources,
+            key=lambda source: _procedure_contract_order_key(source),
+        )
+    )
+
+
+def _procedure_contract_order_key(source: EvidenceSource) -> tuple[int, int]:
+    step_index = evidence_attributes_for_source(source).procedure.step_index
+    if step_index is None:
+        return (1, 0)
+    return (0, step_index)
 
 
 def _is_table_like_answer_source(source: EvidenceSource) -> bool:
@@ -493,11 +616,7 @@ def _curriculum_fact_source_quality_score(
         return 0
     normalized_query = _normalize_snippet(query_text)
     normalized_source = _normalize_snippet(
-        " ".join(
-            fragment
-            for fragment in (source.detail_label, source.snippet)
-            if fragment
-        )
+        " ".join(fragment for fragment in (source.detail_label, source.snippet) if fragment)
     )
     if not normalized_source:
         return 0
@@ -508,9 +627,24 @@ def _curriculum_fact_source_quality_score(
             return 6
         if "总学分" in normalized_source:
             return 3
+    if _query_asks_curriculum_total_credits(query_text) and _text_has_curriculum_total_credit_fact(
+        normalized_source
+    ):
+        return 8
     if ("学制" in normalized_query or "几年" in normalized_query) and "学制" in normalized_source:
         return 8
     return 0
+
+
+def _text_has_curriculum_total_credit_fact(text: str) -> bool:
+    normalized = _normalize_snippet(text)
+    if not normalized:
+        return False
+    if "总学分" in normalized:
+        return True
+    if re.search(r"(?:^|[|｜])\s*合计\s*(?:[|｜]\s*)+[0-9]{1,3}(?:\.\d+)?\s*$", normalized):
+        return True
+    return bool(re.search(r"(?:合计|共计(?:获得)?|总计)\s*[0-9]{1,3}(?:\.\d+)?\s*学分", normalized))
 
 
 def _general_summary_source_facet_score(
@@ -615,7 +749,7 @@ def _query_critical_term_groups(query_text: str) -> tuple[tuple[str, ...], ...]:
         if any(token in normalized for token in ("多久", "多长时间", "什么时候", "何时")):
             groups.append(("考察期", "期满", "届满"))
     if "总学分" in normalized:
-        groups.append(("总学分",))
+        groups.append(("总学分", "合计"))
     if "学制" in normalized or "几年" in normalized:
         groups.append(("学制",))
     return tuple(groups)
@@ -785,6 +919,73 @@ def _filter_sources_for_query_subject_alignment(
     return sources
 
 
+def _filter_sources_for_retrieval_intent_roles(
+    *,
+    sources: tuple[EvidenceSource, ...],
+    retrieval_intent: RetrievalIntent | None,
+) -> tuple[EvidenceSource, ...]:
+    if retrieval_intent is None:
+        return sources
+    if retrieval_intent.expected.selection_policy == "document_identity_first":
+        return tuple(source for source in sources if _source_can_ground_document_identity(source))
+    expected_roles = frozenset(
+        role.strip() for role in retrieval_intent.expected.evidence_roles if role.strip()
+    )
+    if not expected_roles:
+        return sources
+    return tuple(
+        source
+        for source in sources
+        if _source_matches_retrieval_intent_roles(source=source, expected_roles=expected_roles)
+    )
+
+
+def _source_matches_retrieval_intent_roles(
+    *,
+    source: EvidenceSource,
+    expected_roles: frozenset[str],
+) -> bool:
+    attributes = evidence_attributes_for_source(source)
+    source_roles = {
+        role
+        for role in (
+            attributes.answer_role,
+            attributes.semantic_role,
+            source.semantic_role,
+            source.content_role,
+            source.content_kind,
+        )
+        if role
+    }
+    return bool(source_roles & expected_roles)
+
+
+def _filter_sources_for_retrieval_intent_target_documents(
+    *,
+    sources: tuple[EvidenceSource, ...],
+    retrieval_intent: RetrievalIntent | None,
+) -> tuple[EvidenceSource, ...]:
+    if retrieval_intent is None or not retrieval_intent.target.document_ids:
+        return sources
+    if (
+        retrieval_intent.target.corpus != "curriculum"
+        or retrieval_intent.target.collection != "curriculum_plan"
+    ):
+        return sources
+    target_document_ids = frozenset(retrieval_intent.target.document_ids)
+    return tuple(source for source in sources if source.doc_id in target_document_ids)
+
+
+def _source_can_ground_document_identity(source: EvidenceSource) -> bool:
+    if not source.is_answer_bearing and source.collection != "curriculum_plan":
+        return False
+    if _is_table_like_answer_source(source):
+        return False
+    if _should_ignore_official_web_source(source):
+        return False
+    return bool(_normalize_snippet(source.source_title))
+
+
 def _retrieval_intent_alignment_score(
     *,
     retrieval_intent: RetrievalIntent | None,
@@ -887,49 +1088,16 @@ def _should_stop_after_official_web_reference_rows(
     ):
         return False
     normalized_title = _normalize_snippet(lead_source.source_title)
-    lead_title = _lead_source_title(tuple(source for source, _ in rows))
-    sentences = _flatten_official_web_sentences(rows, lead_title=lead_title)
-    if normalized_title == "学校概况":
-        has_campus = any(
-            "三个校区" in sentence or ("海淀" in sentence and "丰台" in sentence)
-            for sentence in sentences
-        )
-        has_discipline = any(
-            "12个学科门类" in sentence or "71个本科专业" in sentence for sentence in sentences
-        )
-        return has_campus and has_discipline
-    if normalized_title == "学术名流":
-        names = {
-            name
-            for source, statements in rows
-            if (name := _extract_official_web_scholar_name(source, statements))
-        }
-        domains = {
-            domain
-            for _, statements in rows
-            for domain in _extract_official_web_scholar_domains(statements)
-        }
-        return len(names) >= 3 and bool(domains)
-    if normalized_title == "本科培养":
-        has_scale = any("本科专业" in sentence and "在招专业" in sentence for sentence in sentences)
-        has_excellence = any(
-            "强基计划" in sentence or "一流本科专业" in sentence for sentence in sentences
-        )
-        return has_scale and has_excellence
-    if normalized_title == "博士后":
-        has_stations = any("博士后科研流动站" in sentence for sentence in sentences)
-        has_assessment = any(
-            "合格率均为100" in sentence or "优秀博士后流动站" in sentence for sentence in sentences
-        )
-        return has_stations and has_assessment
-    if normalized_title == "研究生培养":
-        has_discipline = any("12个学科门类" in sentence for sentence in sentences)
-        has_authorization = any(
-            "24个研究生招生培养单位" in sentence or "博士一级学科授权点" in sentence
-            for sentence in sentences
-        )
-        return has_discipline and has_authorization
-    return True
+    if official_web_reference_title_lookup_should_continue_rows(
+        query_text=query_text,
+        source=lead_source,
+    ):
+        return False
+    return normalized_title in {
+        "学校简介",
+        "教学和科研单位",
+        "中央民族大学大学教育收费公示表",
+    }
 
 
 __all__ = [

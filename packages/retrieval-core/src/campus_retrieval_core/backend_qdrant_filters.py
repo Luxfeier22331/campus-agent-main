@@ -250,6 +250,11 @@ def _condition_subjects_for_request(request: RetrievalRequest) -> tuple[str, ...
         return ()
     if not semantic_hint.condition_subject:
         return ()
+    if any(
+        role in {"procedure_step", "material_requirement"}
+        for role in semantic_hint.expected_answer_roles
+    ):
+        return ()
     return (semantic_hint.condition_subject,)
 
 

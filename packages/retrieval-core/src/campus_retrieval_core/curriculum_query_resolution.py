@@ -40,7 +40,17 @@ _SEMESTER_NUMERIC_LABELS = {
 _COURSE_MAP_LOOKUP_CUES = ("课程地图", "拓扑图", "课程结构图", "结果拓扑图")
 _COURSE_SETTINGS_LOOKUP_CUES = ("课程设置",)
 _STUDY_ADVICE_LOOKUP_CUES = ("修读建议",)
-_COURSE_LIST_CUES = ("什么课", "哪些课", "有哪些课", "有什么课", "课程", "课表", "修什么")
+_COURSE_LIST_CUES = (
+    "什么课",
+    "哪些课",
+    "有哪些课",
+    "有什么课",
+    "包括什么课",
+    "包括哪些课",
+    "课程有哪些",
+    "课表",
+    "修什么",
+)
 _GENERIC_QUERY_NOISE = (
     "请问",
     "想问",
@@ -72,6 +82,7 @@ class CurriculumQueryInterpretation:
     program_query_fragment: str
     program_compact_key: str
     semester_labels: tuple[str, ...]
+    semester_alias_labels: tuple[tuple[str, str], ...]
     intent_kind: str
     curriculum_lookup_target: Literal["", "course_map", "course_settings", "study_advice"] = ""
 
@@ -84,8 +95,10 @@ class _CurriculumFamilyAliasConfig:
 
 
 def interpret_curriculum_query(query_text: str) -> CurriculumQueryInterpretation:
+    original_query_text = _normalize_curriculum_query_base_text(query_text)
     normalized_query_text = _normalize_curriculum_query_text(query_text)
     semester_labels = _extract_semester_labels(normalized_query_text)
+    semester_alias_labels = _extract_semester_alias_labels(original_query_text)
     program_query_fragment = _extract_program_query_fragment(normalized_query_text)
     curriculum_lookup_target = _resolve_curriculum_lookup_target(normalized_query_text)
     intent_kind = _resolve_intent_kind(normalized_query_text)
@@ -94,6 +107,7 @@ def interpret_curriculum_query(query_text: str) -> CurriculumQueryInterpretation
         program_query_fragment=program_query_fragment,
         program_compact_key=_compact_curriculum_title_key(program_query_fragment),
         semester_labels=semester_labels,
+        semester_alias_labels=semester_alias_labels,
         intent_kind=intent_kind,
         curriculum_lookup_target=curriculum_lookup_target,
     )
@@ -196,12 +210,16 @@ def build_curriculum_document_support_query_text(
 
 
 def _normalize_curriculum_query_text(query_text: str) -> str:
-    normalized = _WHITESPACE_RE.sub(" ", unicodedata.normalize("NFKC", query_text)).strip()
+    normalized = _normalize_curriculum_query_base_text(query_text)
     for source, target in _load_safe_alias_replacements():
         normalized = normalized.replace(source, target)
     for source, target in _SEMESTER_ALIASES:
         normalized = normalized.replace(source, target)
     return normalized
+
+
+def _normalize_curriculum_query_base_text(query_text: str) -> str:
+    return _WHITESPACE_RE.sub(" ", unicodedata.normalize("NFKC", query_text)).strip()
 
 
 @lru_cache(maxsize=1)
@@ -268,6 +286,14 @@ def _extract_semester_labels(query_text: str) -> tuple[str, ...]:
         if label in query_text
     ]
     return tuple(semester_labels)
+
+
+def _extract_semester_alias_labels(query_text: str) -> tuple[tuple[str, str], ...]:
+    return tuple(
+        dict.fromkeys(
+            (source, target) for source, target in _SEMESTER_ALIASES if source in query_text
+        )
+    )
 
 
 def _extract_program_query_fragment(query_text: str) -> str:

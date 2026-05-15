@@ -130,6 +130,85 @@ class RetrievalServiceReplanExecutionTestPart03(unittest.TestCase):
         self.assertEqual(result.step_results[0].status, "empty")
         self.assertEqual(result.step_results[0].activity.failure_kind, "group_support_missing")
 
+    def test_execute_retrieval_plan_keeps_answer_ready_deadline_despite_negative_context_words(
+        self,
+    ) -> None:
+        plan = RetrievalPlan(
+            plan_id="regulations:student_rules:hearing-application-deadline",
+            query_mode="current",
+            admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
+            budget=RetrievalPlanBudget(max_steps=1, max_replans=0),
+            steps=(
+                RetrievalStep(
+                    step_id="indexed-lookup",
+                    step_type="indexed_lookup",
+                    scope=RetrievalScope(corpus="regulations", collection="student_rules"),
+                    query_text=(
+                        "中央民族大学学生听证实施办法 听证申请 10日内 书面听证申请"
+                    ),
+                    semantic_hint=RetrievalSemanticHint(
+                        intent_kind="procedure_steps",
+                        answer_kind="procedure_steps",
+                        need_kinds=("procedure_steps",),
+                        coverage_policy="procedure_step_completeness",
+                        selection_policy="answer_role_first",
+                        rerank_policy="disabled",
+                        replan_policy="intent_gap_replan",
+                        expected_answer_roles=(
+                            "procedure_step",
+                            "time_constraint",
+                            "eligibility_condition",
+                        ),
+                    ),
+                    selector=RetrievalSelector(target_document_ids=("handbook:hearing",)),
+                    budget=RetrievalStepBudget(top_k=2),
+                ),
+            ),
+        )
+
+        result = execute_retrieval_plan(
+            plan,
+            retrieve_step=lambda request: EvidenceBundle(
+                query_text=request.query_text,
+                corpus=request.corpus,
+                collection=request.collection,
+                sources=(
+                    _make_source(
+                        chunk_id="hearing-application-deadline",
+                        doc_id="handbook:hearing",
+                        source_title="中央民族大学学生听证实施办法",
+                        snippet=(
+                            "学校拟给予学生开除学籍、退学处理、取消学籍、取消入学资格时,"
+                            "应当告知学生有要求听证的权利。学生应当在收到告知书后10日内"
+                            "提交书面听证申请。"
+                        ),
+                        score=0.92,
+                        content_role="deadline",
+                        is_answer_bearing=True,
+                        semantic_role="time_constraint",
+                        polarity="positive",
+                        claim_type="time_constraint",
+                        anchor=_answer_ready_anchor(
+                            answer_role="time_constraint",
+                            condition_subject="application_procedure",
+                            condition_group_subject="application_procedure",
+                            condition_group_id="handbook:hearing:article-13:application_procedure",
+                            parent_unit_id="handbook:hearing:article-13",
+                            semantic_role="time_constraint",
+                            claim_type="time_constraint",
+                            polarity="positive",
+                        ),
+                    ),
+                ),
+            ),
+        )
+
+        self.assertEqual(result.step_results[0].status, "succeeded")
+        self.assertEqual(
+            tuple(source.chunk_id for source in result.step_results[0].grounding),
+            ("hearing-application-deadline",),
+        )
+
     def test_execute_retrieval_plan_fail_closes_when_replan_drops_existing_version_filter(
         self,
     ) -> None:

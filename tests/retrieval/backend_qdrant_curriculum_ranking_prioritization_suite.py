@@ -292,6 +292,67 @@ class BackendQdrantCurriculumRankingPrioritizationTest(unittest.TestCase):
 
         self.assertEqual(selected, ())
 
+    def test_select_supporting_evidence_sources_prefers_curriculum_total_credit_fact_chunk(
+        self,
+    ) -> None:
+        title = "中央民族大学通识课程“大学英语”课程教学计划"
+
+        selected = select_supporting_evidence_sources(
+            query_text=f"{title} 大学英语课程教学计划一共多少学分",
+            max_sources=3,
+            sources=(
+                _make_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0007",
+                    snippet=(
+                        "三、修读要求\n"
+                        "(一)学分数及修读方式\n"
+                        "类型 | 考试名称和要求\n"
+                        "英语等级社会考试 | 托福(TOEFL)90分及以上"
+                    ),
+                    score=0.029,
+                    source_title="中央民族大学通识课程 “大学英语”课程教学计划",
+                    structural_path=(title, "三、修读要求", "(一)学分数及修读方式"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                _make_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0008",
+                    snippet=(
+                        "三、修读要求\n"
+                        "(二)学期安排及各级别课程设置\n"
+                        "级别 | 修读学期\n"
+                        "普通级-4 | 在1-4学期达到表2中关于英语社会等级考试要求,"
+                        "可自愿申请免修未修读完成的所有大学英语课程,成绩按照95分进行核算。"
+                    ),
+                    score=0.032,
+                    source_title="中央民族大学通识课程 “大学英语”课程教学计划",
+                    structural_path=(title, "三、修读要求", "(二)学期安排及各级别课程设置"),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                _make_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0006",
+                    snippet=(
+                        "三、修读要求\n"
+                        "(一)学分数及修读方式\n"
+                        "本科在读期间,必须完成第1-4学期大学英语课程修读要求,"
+                        "每学期修读完成2学分课程,共计获得8学分。"
+                    ),
+                    score=0.031,
+                    source_title="中央民族大学通识课程 “大学英语”课程教学计划",
+                    structural_path=(title, "三、修读要求", "(一)学分数及修读方式"),
+                    content_kind="section_text",
+                ),
+            ),
+        )
+
+        self.assertEqual(selected[0].chunk_id, f"curriculum:{title}:chunk-0006")
+
     def test_prioritize_evidence_sources_does_not_force_shortest_title_for_ambiguous_ethnic_experimental_fragment(
         self,
     ) -> None:

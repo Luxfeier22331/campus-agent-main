@@ -15,6 +15,21 @@ _OFFICIAL_WEB_NOTICE_TOPIC_HINTS = ("讲座主题", "活动主题", "主题：",
 _OFFICIAL_WEB_REFERENCE_QUERY_HINTS = ("简介", "概况", "介绍")
 _OFFICIAL_WEB_ROSTER_QUERY_HINTS = ("现任领导", "领导班子")
 _OFFICIAL_WEB_NEWS_QUERY_HINTS = ("解读", "专访")
+_OFFICIAL_WEB_FEE_REFERENCE_QUERY_HINTS = (
+    "收费公示",
+    "教育收费",
+    "收费",
+    "学费",
+    "住宿费",
+)
+_OFFICIAL_WEB_FEE_FACT_HINTS = (
+    "学费",
+    "住宿费",
+    "元/生",
+    "元／生",
+    "生.学年",
+    "生/学年",
+)
 _OFFICIAL_WEB_METADATA_LINE_PREFIXES = ("标题：", "章节：")
 _OFFICIAL_WEB_DISCLAIMER_HINTS = ("Copyright@", "新闻网版权与免责声明", "投稿方式：", "版权均属于")
 _OFFICIAL_WEB_SLOGAN_HINTS = ("高举习近平新时代中国特色社会主义思想", "阔步前行")
@@ -22,22 +37,11 @@ _OFFICIAL_WEB_SERVICE_TRIAD = "服务校友、服务母校、服务社会"
 _OFFICIAL_WEB_IGNORED_CONTENT_ROLES = frozenset(
     {"source_attribution", "boilerplate", "media_caption"}
 )
-_OFFICIAL_WEB_SCHOLAR_DOMAIN_HINTS = (
-    ("历史学", ("历史学会", "新史学", "历史学", "中国史", "清史", "辽史", "元史", "考古")),
-    ("社会学/民族学/人类学", ("社会学", "民族学", "人类学")),
-    ("语言学/藏学", ("语言学", "藏学", "藏文", "突厥语", "彝语", "羌语", "语言文字")),
-    ("音乐/艺术", ("音乐", "二胡", "民乐", "艺术")),
-)
 _OFFICIAL_WEB_REFERENCE_PAGE_TITLES = frozenset(
     {
         "学校简介",
-        "学校概况",
-        "校友会简介",
-        "基金会简介",
-        "本科培养",
-        "博士后",
-        "研究生培养",
-        "学术名流",
+        "教学和科研单位",
+        "中央民族大学大学教育收费公示表",
     }
 )
 
@@ -122,45 +126,28 @@ def _score_official_web_statement(
             token in normalized_statement for token in ("入选", "大事记")
         ):
             score -= 6
-    normalized_title = _normalize_snippet(source.source_title)
-    if normalized_title == "本科培养":
-        if "本科专业" in normalized_statement or "在招专业" in normalized_statement:
+    if _is_official_web_fee_reference_query(query_text=query_text, source=source):
+        if _looks_like_official_web_fee_table_header(normalized_statement):
+            score -= 10
+        if any(token in normalized_statement for token in _OFFICIAL_WEB_FEE_FACT_HINTS):
             score += 10
-        if "强基计划" in normalized_statement or "一流本科专业" in normalized_statement:
-            score += 8
-        if any(token in normalized_statement for token in ("担当使命", "强国栋梁")):
-            score -= 8
-    elif normalized_title == "博士后":
-        if "博士后科研流动站" in normalized_statement:
-            score += 10
-        if "合格率均为100" in normalized_statement or "优秀博士后流动站" in normalized_statement:
-            score += 8
-        if "双一流" in normalized_statement:
-            score -= 6
-    elif normalized_title == "研究生培养":
-        if "12个学科门类" in normalized_statement:
-            score += 10
-        if "24个研究生招生培养单位" in normalized_statement:
-            score += 9
-        if (
-            "博士一级学科授权点" in normalized_statement
-            or "硕士一级学科授权点" in normalized_statement
-        ):
-            score += 8
-        if any(token in normalized_statement for token in ("600余项", "500多人")):
-            score -= 6
-    elif normalized_title == "学术名流":
-        if any(
-            token in normalized_statement
-            for _, tokens in _OFFICIAL_WEB_SCHOLAR_DOMAIN_HINTS
-            for token in tokens
-        ):
-            score += 8
-        if "代表著作" in normalized_statement or "主要著作" in normalized_statement:
-            score += 4
-        if re.search(r"^(19|20)\d{2}年", normalized_statement):
-            score -= 3
+        if "批准收费的机关及文号" in normalized_statement:
+            score -= 4
     return score
+
+
+def _is_official_web_fee_reference_query(*, query_text: str, source: EvidenceSource) -> bool:
+    normalized_query = _normalize_snippet(query_text)
+    normalized_title = _normalize_snippet(source.source_title)
+    return any(
+        token in normalized_query or token in normalized_title
+        for token in _OFFICIAL_WEB_FEE_REFERENCE_QUERY_HINTS
+    )
+
+
+def _looks_like_official_web_fee_table_header(statement: str) -> bool:
+    normalized = _normalize_snippet(statement)
+    return all(token in normalized for token in ("收费项目", "计费单位", "收费标准"))
 
 
 def _is_official_web_notice_query(*, query_text: str, source: EvidenceSource) -> bool:

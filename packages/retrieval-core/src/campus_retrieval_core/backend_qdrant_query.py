@@ -23,11 +23,9 @@ from campus_retrieval_core.models import RetrievalRequest
 from .backend_qdrant_source_metadata import _is_curriculum_course_list_table_source
 
 _OFFICIAL_WEB_REFERENCE_SUPPORT_QUERY_HINTS = {
-    "学校概况": "三个校区 12个学科门类",
-    "本科培养": "本科专业 强基计划",
-    "博士后": "博士后科研流动站 合格率",
-    "研究生培养": "12个学科门类 研究生招生培养单位",
-    "学术名流": "历史学 社会学 民族学 人类学 语言学 音乐",
+    "学校简介": "延安民族学院 双一流",
+    "教学和科研单位": "学院 学部 研究院",
+    "中央民族大学大学教育收费公示表": "收费 学费 住宿费 公示",
 }
 _DOCUMENT_SUPPORT_QUERY_SUFFIXES = (
     "怎么安排",

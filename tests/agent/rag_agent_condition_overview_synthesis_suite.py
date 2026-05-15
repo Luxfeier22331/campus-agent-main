@@ -187,13 +187,19 @@ class RagAgentConditionOverviewSynthesisTest(unittest.TestCase):
 
         draft = RagAgent().build_answer(evidence, retrieval_intent=retrieval_intent)
 
-        self.assertTrue(draft.answer_text.startswith("旷课违纪处理以一学期累计旷课节次分档"))
+        self.assertTrue(
+            draft.answer_text.startswith(
+                "制度原文没有使用“学时”，而是按“节”统计；"
+                "一学期累计旷课16节以下即进入违纪处理分档"
+            )
+        )
         self.assertLess(
-            draft.answer_text.index("节次分档"),
+            draft.answer_text.index("完整分档"),
             draft.answer_text.index("依据"),
         )
         self.assertNotIn("最低命中分档", draft.answer_text)
-        self.assertIn("制度原文以“节”计", draft.answer_text)
+        self.assertIn("制度原文没有使用“学时”", draft.answer_text)
+        self.assertIn("按“节”统计", draft.answer_text)
         self.assertIn("16节以下", draft.answer_text)
         self.assertIn("50节(含)以上", draft.answer_text)
         self.assertIn("依据学生违纪处分实施办法 第三十三条", draft.answer_text)
@@ -270,7 +276,12 @@ class RagAgentConditionOverviewSynthesisTest(unittest.TestCase):
             query_text="旷课多少学时会按违纪处理",
         )
 
-        self.assertTrue(draft.answer_text.startswith("旷课违纪处理以一学期累计旷课节次分档"))
+        self.assertTrue(
+            draft.answer_text.startswith(
+                "制度原文没有使用“学时”，而是按“节”统计；"
+                "一学期累计旷课16节以下即进入违纪处理分档"
+            )
+        )
         self.assertIn("依据学生违纪处分实施办法 第三十三条", draft.answer_text)
 
     def test_threshold_answer_dedupes_repeated_chunk_rows(self) -> None:

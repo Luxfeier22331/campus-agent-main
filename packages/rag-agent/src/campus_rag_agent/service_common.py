@@ -123,7 +123,15 @@ def _is_official_web_freshness_fail_close(evidence: EvidenceBundle) -> bool:
         return False
     profile = load_runtime_profile(evidence.corpus, evidence.collection)
     return (
-        is_official_web_stable_reference_like_profile(profile)
+        _is_official_web_query_enabled_profile(profile)
         and not profile.supports_freshness_sensitive_queries
         and _is_official_web_freshness_sensitive_query(evidence.query_text)
+    )
+
+
+def _is_official_web_query_enabled_profile(profile) -> bool:
+    return (
+        is_official_web_stable_reference_like_profile(profile)
+        and profile.retrieval_enabled
+        and profile.query_enabled_by_default
     )

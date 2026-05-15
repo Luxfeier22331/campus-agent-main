@@ -3,6 +3,9 @@ from __future__ import annotations
 import unittest
 
 from campus_contracts import AgentRequest, KnowledgeScope, RagRequestPayload
+from campus_ingestion_core.curriculum_program_semester_facts_projection import (
+    build_curriculum_program_semester_fact_document_id,
+)
 from campus_rag_agent.curriculum_query_planning import (
     plan_curriculum_course_query,
     plan_curriculum_query,
@@ -55,6 +58,37 @@ class RagAgentRetrievalIntentPlanningTest(unittest.TestCase):
         self.assertEqual(
             judgment_plan.retrieval_intent.expected.evidence_roles[:2],
             ("exception_rule", "eligibility_condition"),
+        )
+
+    def test_exact_policy_title_with_selection_terms_stays_document_identity_intent(self) -> None:
+        for query in (
+            "中央民族大学十佳大学生评选办法",
+            "中央民族大学本科学生先进班集体评选办法",
+            "中央民族大学优秀本科毕业生评选办法",
+        ):
+            plan = plan_student_handbook_query(query)
+            with self.subTest(query=query):
+                self.assertEqual(plan.status, "resolved")
+                self.assertEqual(plan.retrieval_intent.kind, "policy_object_lookup")
+                self.assertEqual(plan.retrieval_intent.expected.answer_kind, "policy_object")
+                self.assertEqual(
+                    plan.retrieval_intent.expected.selection_policy,
+                    "document_identity_first",
+                )
+
+    def test_governing_document_query_uses_document_identity_intent(self) -> None:
+        plan = plan_student_handbook_query("学生安全教育和事故管理按哪个规定执行")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.retrieval_intent.kind, "policy_object_lookup")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "policy_object")
+        self.assertEqual(
+            plan.retrieval_intent.target.document_ids,
+            ("handbook:53a0861781aba2462c1db5dba0059babe2341f3b",),
+        )
+        self.assertEqual(
+            plan.retrieval_intent.expected.selection_policy,
+            "document_identity_first",
         )
 
     def test_national_scholarship_paper_judgment_targets_publication_condition(
@@ -120,6 +154,55 @@ class RagAgentRetrievalIntentPlanningTest(unittest.TestCase):
             plan.retrieval_intent.target.condition_subject,
             "material_requirement",
         )
+
+    def test_material_requirement_intent_admits_supporting_detail_evidence(self) -> None:
+        plan = plan_student_handbook_query("申请解除处分需要提交哪些材料")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.retrieval_intent.kind, "condition_table")
+        self.assertEqual(
+            plan.retrieval_intent.target.condition_subject,
+            "material_requirement",
+        )
+        self.assertIn("supporting_detail", plan.retrieval_intent.expected.evidence_roles)
+
+    def test_hearing_application_query_targets_hearing_policy_intent(self) -> None:
+        plan = plan_student_handbook_query("学生什么时候可以申请听证")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.resolved_policy_document_id, "handbook:1b7c532ecdbc8afe1820d2c55dfba911d891e37a")
+        self.assertEqual(plan.retrieval_intent.kind, "condition_table")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "condition_table")
+        self.assertEqual(plan.retrieval_intent.target.condition_subject, "deadline")
+        self.assertIn("time_constraint", plan.retrieval_intent.expected.evidence_roles)
+        self.assertIn("听证申请", plan.focused_query_text)
+        self.assertIn("10日内", plan.focused_query_text)
+
+    def test_appeal_after_discipline_query_preserves_written_appeal_focus(self) -> None:
+        plan = plan_student_handbook_query("学生对处分决定不服应该按什么程序申诉")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(
+            plan.resolved_policy_document_id,
+            "handbook:1e404fb7e280b32c46f09280590255c57e6bd72d",
+        )
+        self.assertEqual(plan.retrieval_intent.kind, "procedure_steps")
+        self.assertEqual(
+            plan.retrieval_intent.target.condition_subject,
+            "application_procedure",
+        )
+        self.assertIn("time_constraint", plan.retrieval_intent.expected.evidence_roles)
+        self.assertIn("书面申诉", plan.focused_query_text)
+        self.assertIn("10日内", plan.focused_query_text)
+
+    def test_reissue_procedure_intent_admits_adjacent_material_and_time_evidence(self) -> None:
+        plan = plan_student_handbook_query("学生证丢了怎么办")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.retrieval_intent.kind, "procedure_steps")
+        self.assertIn("procedure_step", plan.retrieval_intent.expected.evidence_roles)
+        self.assertIn("material_requirement", plan.retrieval_intent.expected.evidence_roles)
+        self.assertIn("time_constraint", plan.retrieval_intent.expected.evidence_roles)
 
     def test_multi_member_category_specific_award_condition_query_fails_closed_as_clarification(
         self,
@@ -251,6 +334,31 @@ class RagAgentRetrievalIntentPlanningTest(unittest.TestCase):
             ("curriculum:民族学本科人才培养方案",),
         )
 
+    def test_curriculum_semester_course_query_uses_program_semester_fact_intent_target(
+        self,
+    ) -> None:
+        plan = plan_curriculum_query("法学民族实验班培养方案里第四学期有什么课")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.intent_kind, "course_list")
+        self.assertEqual(plan.retrieval_intent.kind, "curriculum_fact_lookup")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "curriculum_fact")
+        self.assertEqual(plan.retrieval_intent.target.corpus, "curriculum")
+        self.assertEqual(plan.retrieval_intent.target.collection, "program_semester_facts")
+        self.assertEqual(
+            plan.retrieval_intent.target.document_ids,
+            (
+                build_curriculum_program_semester_fact_document_id(
+                    "curriculum:法学（民族实验班）本科人才培养方案",
+                    "第四学期",
+                ),
+            ),
+        )
+        self.assertIn(
+            "semester_course_list",
+            plan.retrieval_intent.expected.evidence_roles,
+        )
+
     def test_handbook_clarification_exposes_clarification_intent(self) -> None:
         plan = plan_student_handbook_query("奖学金怎么申请？")
 
@@ -275,6 +383,14 @@ class RagAgentRetrievalIntentPlanningTest(unittest.TestCase):
 
         self.assertEqual(plan.retrieval_intent.kind, "policy_object_lookup")
         self.assertEqual(plan.retrieval_intent.expected.answer_kind, "policy_object")
+        self.assertEqual(
+            plan.retrieval_intent.expected.evidence_roles,
+            ("document_identity",),
+        )
+        self.assertEqual(
+            plan.retrieval_intent.expected.selection_policy,
+            "document_identity_first",
+        )
         self.assertEqual(plan.retrieval_intent.target.collection, "institutional_rules")
         self.assertEqual(plan.retrieval_intent.target.document_ids, plan.target_document_ids)
         self.assertEqual(plan.retrieval_intent.target.category_member_document_ids, ())
@@ -309,6 +425,26 @@ class RagAgentRetrievalIntentPlanningTest(unittest.TestCase):
             (
                 "institutional_regulation:muc:"
                 "中央民族大学本科毕业论文-设计-工作管理办法:a7716c82cbe1",
+            ),
+        )
+        self.assertEqual(plan.retrieval_intent.target.document_titles, (title,))
+        self.assertEqual(plan.retrieval_intent.target.category_member_document_ids, ())
+
+    def test_institutional_exact_title_with_selection_terms_stays_policy_object_intent(
+        self,
+    ) -> None:
+        title = "中央民族大学优秀研究生导师、优秀研究生导师团队评选办法（试行）"
+        plan = plan_institutional_rules_query(title)
+
+        self.assertEqual(plan.mode, "title_targeted")
+        self.assertEqual(plan.task_kind, "specific_policy_lookup")
+        self.assertEqual(plan.retrieval_intent.kind, "policy_object_lookup")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "policy_object")
+        self.assertEqual(
+            plan.retrieval_intent.target.document_ids,
+            (
+                "institutional_regulation:muc:"
+                "中央民族大学优秀研究生导师-优秀研究生导师团队评选办法-试行:8c293d7d2b82",
             ),
         )
         self.assertEqual(plan.retrieval_intent.target.document_titles, (title,))

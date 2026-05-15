@@ -149,6 +149,95 @@ class BackendQdrantPolicyFocusRankingTest(unittest.TestCase):
         self.assertIn(("学时", "课时", "节"), build_focus_groups(query))
         self.assertEqual(infer_query_condition_subject(query), "attendance_absence_threshold")
 
+    def test_hearing_application_focus_prefers_right_and_deadline_clause_over_meeting_sequence(
+        self,
+    ) -> None:
+        query = "中央民族大学学生听证实施办法 听证申请 10日内 书面听证申请"
+
+        focus = extract_query_focus(query)
+        ranked = prioritize_evidence_sources(
+            query_text=query,
+            sources=(
+                _make_source(
+                    doc_id="handbook:hearing",
+                    chunk_id="hearing-meeting-sequence",
+                    snippet=(
+                        "第二十条 听证主持人介绍听证会参加人员,宣布听证纪律,"
+                        "询问当事人是否申请回避,宣布听证开始。"
+                    ),
+                    score=0.96,
+                    source_title="中央民族大学学生听证实施办法",
+                    detail_label="第二十条",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                    semantic_role="procedure_step",
+                    claim_type="procedure",
+                ),
+                _make_source(
+                    doc_id="handbook:hearing",
+                    chunk_id="hearing-application-right-deadline",
+                    snippet=(
+                        "第十三条 学生有要求听证的权利。学生应当在收到拟处分或处理"
+                        "告知书后10日内提交书面听证申请,学校15日内组织召开听证会。"
+                    ),
+                    score=0.72,
+                    source_title="中央民族大学学生听证实施办法",
+                    detail_label="第十三条",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                    semantic_role="procedure_step",
+                    claim_type="procedure",
+                ),
+            ),
+        )
+
+        self.assertIn("听证申请", focus.focus_terms)
+        self.assertIn("10日内", focus.focus_terms)
+        self.assertIn("书面听证申请", focus.focus_terms)
+        self.assertEqual(ranked[0].chunk_id, "hearing-application-right-deadline")
+
+    def test_appeal_focus_prefers_written_appeal_deadline_over_committee_intro(self) -> None:
+        query = "中央民族大学学生申诉管理办法 书面申诉 10日内 处分决定书 申诉材料 程序"
+
+        selected = select_supporting_evidence_sources(
+            query_text=query,
+            max_sources=2,
+            sources=(
+                _make_source(
+                    doc_id="handbook:appeal",
+                    chunk_id="appeal-committee-intro",
+                    snippet=(
+                        "第五条 学校成立中央民族大学学生申诉处理委员会,"
+                        "负责受理学生对处理或处分决定不服提起的申诉。"
+                    ),
+                    score=0.95,
+                    source_title="中央民族大学学生申诉管理办法",
+                    detail_label="第五条",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                    semantic_role="procedure_step",
+                    claim_type="procedure",
+                ),
+                _make_source(
+                    doc_id="handbook:appeal",
+                    chunk_id="appeal-written-deadline",
+                    snippet=(
+                        "第七条 学生对学校处理或者处分决定有异议的,可以在接到学校"
+                        "处理或者处分决定书之日起10日内,向学生申诉处理委员会提出书面申诉。"
+                    ),
+                    score=0.73,
+                    source_title="中央民族大学学生申诉管理办法",
+                    detail_label="第七条",
+                    content_role="procedure",
+                    is_answer_bearing=True,
+                    semantic_role="procedure_step",
+                    claim_type="procedure",
+                ),
+            ),
+        )
+
+        self.assertEqual(tuple(source.chunk_id for source in selected), ("appeal-written-deadline",))
+
     def test_applicability_lookup_maps_to_audience_scope_subject(self) -> None:
         self.assertEqual(
             infer_query_condition_subject("中央民族大学毕业生就业奖励办法适用于2019届及以后毕业生吗"),
