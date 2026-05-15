@@ -148,6 +148,7 @@ def _make_chunk(*, record: DocumentRegistryRecord) -> IndexableChunk:
             "unit_type": "section_text",
             "final_token_count": 32,
             "root_unit_id": "student_rules:handbook:root-0001",
+            "source_document_ids": [record.document_id],
             "chunk_policy_version": "student_rules_semantic_v3",
             "cleaning_policy_version": "student_rules_cleaning_v1",
         },

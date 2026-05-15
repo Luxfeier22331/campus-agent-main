@@ -65,6 +65,7 @@ class ProcessingPipelineMetadataAndAuthzTest(unittest.TestCase):
         self.assertEqual(chunk.metadata["split_strategy"], "structure_first")
         self.assertEqual(chunk.metadata["chunk_policy_version"], DEFAULT_CHUNK_POLICY_VERSION)
         self.assertEqual(chunk.metadata["cleaning_policy_version"], DEFAULT_CLEANING_POLICY_VERSION)
+        self.assertEqual(chunk.metadata["source_document_ids"], ["handbook:test-001"])
         self.assertEqual(
             chunk.metadata["display_text"],
             "Student handbook library hours are from 08:00 to 22:00.",

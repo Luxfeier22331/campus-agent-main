@@ -21,6 +21,7 @@ from campus_retrieval_core.backend_qdrant_query import (
     _build_hybrid_prefetch,
     _build_rrf_query,
 )
+from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
@@ -48,6 +49,8 @@ class ReleaseRetrievalAcceptanceCase:
     expected_document_ids: tuple[str, ...] = field(default_factory=tuple)
     expected_version_ids: tuple[str, ...] = field(default_factory=tuple)
     expected_chunk_ids: tuple[str, ...] = field(default_factory=tuple)
+    expected_answer_roles: tuple[str, ...] = field(default_factory=tuple)
+    expected_condition_subjects: tuple[str, ...] = field(default_factory=tuple)
     forbidden_document_ids: tuple[str, ...] = field(default_factory=tuple)
     expected_no_hit: bool = False
     target_document_ids: tuple[str, ...] = field(default_factory=tuple)
@@ -62,6 +65,8 @@ class ReleaseRetrievalAcceptanceCase:
             "expected_document_ids",
             "expected_version_ids",
             "expected_chunk_ids",
+            "expected_answer_roles",
+            "expected_condition_subjects",
             "forbidden_document_ids",
             "target_document_ids",
             "target_version_ids",
@@ -329,6 +334,8 @@ def _coerce_case(raw_case: dict[str, object]) -> ReleaseRetrievalAcceptanceCase:
         expected_document_ids=_tuple_field(raw_case.get("expected_document_ids")),
         expected_version_ids=_tuple_field(raw_case.get("expected_version_ids")),
         expected_chunk_ids=_tuple_field(raw_case.get("expected_chunk_ids")),
+        expected_answer_roles=_tuple_field(raw_case.get("expected_answer_roles")),
+        expected_condition_subjects=_tuple_field(raw_case.get("expected_condition_subjects")),
         forbidden_document_ids=_tuple_field(raw_case.get("forbidden_document_ids")),
         expected_no_hit=bool(raw_case.get("expected_no_hit") or False),
         target_document_ids=_tuple_field(raw_case.get("target_document_ids")),
@@ -353,6 +360,16 @@ def _evaluate_case(
     source_document_ids = {source.doc_id for source in sources}
     source_version_ids = {source.version_id for source in sources}
     source_chunk_ids = {source.chunk_id for source in sources}
+    source_answer_roles = {
+        evidence_attributes_for_source(source).answer_role
+        for source in sources
+        if evidence_attributes_for_source(source).answer_role
+    }
+    source_condition_subjects = {
+        evidence_attributes_for_source(source).condition_subject
+        for source in sources
+        if evidence_attributes_for_source(source).condition_subject
+    }
     failures: list[str] = []
 
     if case.expected_no_hit:
@@ -369,6 +386,14 @@ def _evaluate_case(
             failures.append("expected_version_ids")
         if case.expected_chunk_ids and not set(case.expected_chunk_ids).issubset(source_chunk_ids):
             failures.append("expected_chunk_ids")
+        if case.expected_answer_roles and not set(case.expected_answer_roles).issubset(
+            source_answer_roles
+        ):
+            failures.append("expected_answer_roles")
+        if case.expected_condition_subjects and not set(
+            case.expected_condition_subjects
+        ).issubset(source_condition_subjects):
+            failures.append("expected_condition_subjects")
         if case.expected_document_ids and not any(
             source.canonical_url and source.latest_url for source in sources
         ):
@@ -387,6 +412,8 @@ def _evaluate_case(
         "hit_document_ids": sorted(source_document_ids),
         "hit_version_ids": sorted(source_version_ids),
         "hit_chunk_ids": sorted(source_chunk_ids),
+        "hit_answer_roles": sorted(source_answer_roles),
+        "hit_condition_subjects": sorted(source_condition_subjects),
         "forbidden_hits": forbidden_hits,
     }
 

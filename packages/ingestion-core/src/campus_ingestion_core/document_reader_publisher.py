@@ -211,20 +211,27 @@ def _load_optional_course_map_assets(
     )
     try:
         surface_bytes = object_store.get_bytes(bucket=bucket, key=surface_key)
-    except Exception:
+    except (FileNotFoundError, KeyError):
         return None, None
-
     try:
         surface = load_curriculum_course_map_docs_surface(surface_bytes)
-        image_objects: dict[str, bytes] = {}
-        for block in surface.blocks:
+    except Exception as exc:
+        raise ValueError(
+            f"invalid course-map reader asset for {record.document_id}: {surface_key}"
+        ) from exc
+
+    image_objects: dict[str, bytes] = {}
+    for block in surface.blocks:
+        try:
             image_objects[block.image_object_key] = object_store.get_bytes(
                 bucket=bucket,
                 key=block.image_object_key,
             )
-        return surface_bytes, image_objects
-    except Exception:
-        return None, None
+        except Exception as exc:
+            raise ValueError(
+                f"missing course-map image for {record.document_id}: {block.image_object_key}"
+            ) from exc
+    return surface_bytes, image_objects
 
 
 def _load_reader_title(reader_json: bytes) -> str:

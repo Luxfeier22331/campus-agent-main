@@ -134,6 +134,66 @@ class RegistryScopeReleaseAcceptanceWiringTest(
 
         self.assertIsNone(report.published_at)
 
+    def test_publish_scope_release_no_alias_with_acceptance_writes_query_ready_metadata(
+        self,
+    ) -> None:
+        record = _make_record()
+        object_store = _FakeObjectStore()
+        qdrant_client = QdrantClient(location=":memory:")
+
+        report = publish_scope_release(
+            corpus="regulations",
+            collection="student_rules",
+            records=(record,),
+            chunks=(_make_chunk(record=record),),
+            object_store=object_store,
+            qdrant_client=qdrant_client,
+            object_store_settings=_object_store_settings(),
+            runtime_profile=load_runtime_profile("regulations", "student_rules"),
+            sparse_embedding_model=build_mock_sparse_embedding_model(),
+            publish_alias=False,
+            upsert_batch_size=128,
+            qrels_coverage_issues=(),
+            acceptance_case_path=str(
+                _write_cases(
+                    {
+                        "cases": [
+                            {
+                                "case_id": "expected-hit",
+                                "corpus": "regulations",
+                                "collection": "student_rules",
+                                "query": "学生手册",
+                                "expected_document_ids": [record.document_id],
+                            }
+                        ]
+                    }
+                )
+            ),
+            retrieval_settings=RetrievalSettings(
+                qdrant_url=":memory:",
+                embedding_provider="mock",
+                embedding_model="mock-embedding-8d",
+                embedding_dimensions=3,
+                sparse_provider="mock",
+            ),
+        )
+
+        points, _ = qdrant_client.scroll(
+            collection_name=report.physical_collection_name,
+            limit=1,
+            with_payload=True,
+            with_vectors=False,
+        )
+        payload = points[0].payload or {}
+
+        self.assertIsNone(report.published_at)
+        self.assertEqual(report.retrieval_acceptance_status, "passed")
+        self.assertEqual(payload["retrieval_acceptance_status"], "passed")
+        self.assertEqual(payload["quality_gate_status"], "passed")
+        self.assertEqual(payload["chunk_quality_status"], "passed")
+        self.assertEqual(payload["qrels_coverage_status"], "passed")
+        self.assertEqual(payload["release_metadata_consistency_status"], "passed")
+
     def test_publish_scope_release_blocks_alias_when_acceptance_fails_and_writes_artifact(
         self,
     ) -> None:

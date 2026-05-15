@@ -224,6 +224,67 @@ class IndexReleaseAcceptanceRuntimeSuite:
         self.assertEqual(result.summary["failed_case_ids"], ["forbidden-hit"])
         self.assertIn("forbidden_document_ids", result.summary["cases"][0]["failures"])
 
+    def test_run_release_retrieval_acceptance_fails_when_condition_subject_contract_missing(
+        self,
+    ) -> None:
+        source_without_subject = EvidenceSource(
+            doc_id="student_rules:attendance-discipline",
+            revision_track="source-faithful",
+            version_id="v1:attendance-discipline",
+            chunk_id="student_rules:attendance-discipline:chunk-0033",
+            anchor={
+                "_retrieval_evidence_attributes": {
+                    "answer_role": "supporting_detail",
+                    "evidence_contract_version": "answer_ready_evidence.v3",
+                    "parent_unit_id": "article-0033",
+                }
+            },
+            canonical_url="https://docs.example/attendance-discipline",
+            latest_url="https://docs.example/attendance-discipline",
+            source_channel="manual_curated",
+            collection="student_rules",
+            is_current=True,
+            snippet="一学期累计旷课16节以下者，给予学院通报批评处分。",
+            score=0.91,
+        )
+        cases = load_release_retrieval_acceptance_cases(
+            _write_cases(
+                {
+                    "cases": [
+                        {
+                            "case_id": "attendance-threshold",
+                            "corpus": "regulations",
+                            "collection": "student_rules",
+                            "query": "旷课多少学时会按违纪处理",
+                            "expected_document_ids": ["student_rules:attendance-discipline"],
+                            "expected_condition_subjects": ["attendance_absence_threshold"],
+                        }
+                    ]
+                }
+            ),
+            corpus="regulations",
+            collection="student_rules",
+        )
+
+        result = run_release_retrieval_acceptance(
+            cases=cases,
+            executor=_FakeAcceptanceExecutor(
+                bundles={
+                    "旷课多少学时会按违纪处理": EvidenceBundle(
+                        query_text="旷课多少学时会按违纪处理",
+                        corpus="regulations",
+                        collection="student_rules",
+                        sources=(source_without_subject,),
+                    )
+                }
+            ),
+            physical_collection_name="student_rules__r20260512_test",
+        )
+
+        self.assertEqual(result.status, "failed")
+        self.assertEqual(result.summary["failed_case_ids"], ["attendance-threshold"])
+        self.assertIn("expected_condition_subjects", result.summary["cases"][0]["failures"])
+
     def test_physical_collection_executor_reads_new_collection_without_alias(self) -> None:
         record = _make_record()
         chunk = _make_chunk(record=record)

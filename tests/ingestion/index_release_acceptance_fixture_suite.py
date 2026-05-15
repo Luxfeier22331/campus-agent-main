@@ -126,6 +126,12 @@ class IndexReleaseAcceptanceFixtureSuite:
             case_by_id["short-fact-attendance-discipline-threshold"].expected_document_ids,
             ("handbook:9350d885657d7409e524e73666b828b826f07191",),
         )
+        self.assertEqual(
+            case_by_id[
+                "short-fact-attendance-discipline-threshold"
+            ].expected_condition_subjects,
+            ("attendance_absence_threshold",),
+        )
         self.assertTrue(case_by_id["no-hit-impossible-query"].expected_no_hit)
 
     def test_default_query_enabled_release_acceptance_fixtures_load(self) -> None:

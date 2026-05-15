@@ -182,8 +182,14 @@ def resolve_release_qrels_coverage_issues(
     runtime_profile: CollectionRuntimeProfile,
     publish_alias: bool,
     qrels_coverage_issues: Sequence[str] | None,
+    require_coverage: bool | None = None,
 ) -> tuple[str, ...]:
-    if not (publish_alias and requires_release_retrieval_acceptance(runtime_profile)):
+    coverage_required = (
+        publish_alias and requires_release_retrieval_acceptance(runtime_profile)
+        if require_coverage is None
+        else require_coverage
+    )
+    if not coverage_required:
         return tuple(str(issue) for issue in qrels_coverage_issues or () if str(issue).strip())
     if qrels_coverage_issues is not None:
         return tuple(str(issue) for issue in qrels_coverage_issues if str(issue).strip())

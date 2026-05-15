@@ -183,7 +183,35 @@ class DocumentReaderPublisherTest(unittest.TestCase):
                 records=(record,),
             )
 
-    def test_publish_document_reader_assets_skips_invalid_course_map_surface(self) -> None:
+    def test_publish_document_reader_assets_ignores_absent_course_map_surface(self) -> None:
+        record = _make_record(
+            document_id="curriculum:without-course-map-surface",
+            title_slug="without-course-map-surface",
+            visibility_level="public",
+            entitlement_groups=(),
+        )
+        object_store = FakeObjectStore(
+            {
+                ("campus-rag-derived", record.canonical_markdown_object_key or ""): (
+                    "# 无课程地图培养方案\n\n## 培养目标\n\n正文。\n"
+                ).encode(),
+                ("campus-rag-derived", record.document_units_object_key or ""): (
+                    _document_units_jsonl(record, "无课程地图培养方案")
+                ).encode(),
+            }
+        )
+
+        report = publish_document_reader_assets(
+            bucket_derived="campus-rag-derived",
+            generated_at="2026-04-27T08:00:00+00:00",
+            object_store=object_store,
+            records=(record,),
+        )
+
+        self.assertEqual(report.document_count, 1)
+        self.assertFalse(any(key.endswith("course-maps.json") for _, key in object_store.writes))
+
+    def test_publish_document_reader_assets_rejects_invalid_course_map_surface(self) -> None:
         record = _make_record(
             document_id="curriculum:invalid-course-map-surface",
             title_slug="invalid-course-map-surface",
@@ -205,15 +233,75 @@ class DocumentReaderPublisherTest(unittest.TestCase):
             }
         )
 
-        report = publish_document_reader_assets(
-            bucket_derived="campus-rag-derived",
-            generated_at="2026-04-27T08:00:00+00:00",
-            object_store=object_store,
-            records=(record,),
+        with self.assertRaisesRegex(ValueError, "invalid course-map reader asset"):
+            publish_document_reader_assets(
+                bucket_derived="campus-rag-derived",
+                generated_at="2026-04-27T08:00:00+00:00",
+                object_store=object_store,
+                records=(record,),
+            )
+
+    def test_publish_document_reader_assets_rejects_missing_course_map_image(self) -> None:
+        record = _make_record(
+            document_id="curriculum:missing-course-map-image",
+            title_slug="missing-course-map-image",
+            visibility_level="public",
+            entitlement_groups=(),
+        )
+        surface_key = build_curriculum_course_map_docs_surface_object_key(
+            record.document_units_object_key or ""
+        )
+        image_key = (
+            "curriculum/documents/curriculum_plan/missing-course-map-image--missing/"
+            "current-effective/2026/reader-assets/course-maps/page-0001-row-01-map-01.png"
+        )
+        course_map_surface = {
+            "schemaVersion": "curriculum_course_map_docs_surface_v2",
+            "generatedAt": "2026-04-27T08:00:00+00:00",
+            "documentId": record.document_id,
+            "documentTitle": "缺图培养方案",
+            "rawAssetId": "asset:course-map",
+            "rawVersionId": "sha256:course-map",
+            "blocks": [
+                {
+                    "blockId": "page-0001-row-01-map-01",
+                    "pageNumber": 1,
+                    "rowId": "page-0001-row-01",
+                    "mapIndex": 1,
+                    "title": "课程地图",
+                    "status": "ready",
+                    "titleConfidence": "visible",
+                    "parentHeadingHint": "课程地图",
+                    "displayStageLabels": ["第一学期"],
+                    "nodes": [],
+                    "edges": [],
+                    "extractionNotes": [],
+                    "imageObjectKey": image_key,
+                    "regionBBoxProvider": [0, 0, 10, 10],
+                }
+            ],
+        }
+        object_store = FakeObjectStore(
+            {
+                ("campus-rag-derived", record.canonical_markdown_object_key or ""): (
+                    "# 缺图培养方案\n\n## 培养目标\n\n正文。\n"
+                ).encode(),
+                ("campus-rag-derived", record.document_units_object_key or ""): (
+                    _document_units_jsonl(record, "缺图培养方案")
+                ).encode(),
+                ("campus-rag-derived", surface_key): (
+                    json.dumps(course_map_surface, ensure_ascii=False).encode("utf-8")
+                ),
+            }
         )
 
-        self.assertEqual(report.document_count, 1)
-        self.assertFalse(any(key.endswith("course-maps.json") for _, key in object_store.writes))
+        with self.assertRaisesRegex(ValueError, "missing course-map image"):
+            publish_document_reader_assets(
+                bucket_derived="campus-rag-derived",
+                generated_at="2026-04-27T08:00:00+00:00",
+                object_store=object_store,
+                records=(record,),
+            )
 
 
 def _make_record(
@@ -320,6 +408,7 @@ def _document_units_jsonl(record: DocumentRegistryRecord, title: str) -> str:
             "doc_id": record.document_id,
             "version_id": record.version_id,
             "chunk_id": "chunk-001",
+            "clean_text": "第一节",
             "root_unit_id": "root-001",
             "unit_type": "heading",
             "text": "第一节",
@@ -330,6 +419,7 @@ def _document_units_jsonl(record: DocumentRegistryRecord, title: str) -> str:
             "doc_id": record.document_id,
             "version_id": record.version_id,
             "chunk_id": "chunk-002",
+            "clean_text": "第一学期开设法理学。",
             "root_unit_id": "root-002",
             "unit_type": "paragraph",
             "text": "第一学期开设法理学。",

@@ -74,18 +74,27 @@ class AuthenticatedNoticeSourceTruthInventoryEntry:
     def from_dict(cls, payload: dict[str, Any]) -> AuthenticatedNoticeSourceTruthInventoryEntry:
         raw = dict(payload)
         raw["parent_snapshot"] = dict(raw.get("parent_snapshot") or {})
-        raw["attachment_ref_count"] = int(raw.get("attachment_ref_count") or 0)
+        for field_name in (
+            "attachment_ref_count",
+            "multimodal_processing_required_count",
+            "notice_risk_label",
+            "attachment_mix_score",
+            "has_text_table_attachment",
+            "has_spatial_attachment",
+            "has_reference_only_attachment",
+        ):
+            if field_name not in raw:
+                raise ValueError(f"{field_name} is required")
+        raw["attachment_ref_count"] = int(raw["attachment_ref_count"])
         raw["multimodal_processing_required_count"] = int(
-            raw.get("multimodal_processing_required_count") or 0
+            raw["multimodal_processing_required_count"]
         )
         raw["unsupported_binary_count"] = int(raw.get("unsupported_binary_count") or 0)
-        raw["notice_risk_label"] = str(raw.get("notice_risk_label") or NOTICE_RISK_LABEL_BODY_ONLY)
-        raw["attachment_mix_score"] = int(raw.get("attachment_mix_score") or 0)
-        raw["has_text_table_attachment"] = _coerce_bool(raw.get("has_text_table_attachment"))
-        raw["has_spatial_attachment"] = _coerce_bool(raw.get("has_spatial_attachment"))
-        raw["has_reference_only_attachment"] = _coerce_bool(
-            raw.get("has_reference_only_attachment")
-        )
+        raw["notice_risk_label"] = str(raw["notice_risk_label"])
+        raw["attachment_mix_score"] = int(raw["attachment_mix_score"])
+        raw["has_text_table_attachment"] = _coerce_bool(raw["has_text_table_attachment"])
+        raw["has_spatial_attachment"] = _coerce_bool(raw["has_spatial_attachment"])
+        raw["has_reference_only_attachment"] = _coerce_bool(raw["has_reference_only_attachment"])
         raw["has_unsupported_binary_attachment"] = _coerce_bool(
             raw.get("has_unsupported_binary_attachment")
         )

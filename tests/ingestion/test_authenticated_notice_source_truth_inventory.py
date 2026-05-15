@@ -287,7 +287,7 @@ class AuthenticatedNoticeSourceTruthInventoryPagingTest(unittest.TestCase):
         self.assertNotIn("limit %s", query.lower())
         self.assertEqual(params, ("campus_notices", "internal_notice", ["000002", "000003"]))
 
-    def test_inventory_store_list_by_scope_accepts_legacy_rows_without_new_profile_fields(
+    def test_inventory_store_list_by_scope_rejects_rows_without_current_profile_fields(
         self,
     ) -> None:
         store = object.__new__(PostgresAuthenticatedNoticeSourceTruthInventoryStore)
@@ -304,25 +304,18 @@ class AuthenticatedNoticeSourceTruthInventoryPagingTest(unittest.TestCase):
         legacy_payload["obsolete_profile_count"] = 3
         cursor = _PagedCursor([[(json.dumps(legacy_payload),)]])
 
-        with patch(
-            "campus_ingestion_core.authenticated_notice_source_truth_inventory._postgres_connection",
-            return_value=_FakeConnectionContextManager(cursor),
+        with (
+            patch(
+                "campus_ingestion_core.authenticated_notice_source_truth_inventory._postgres_connection",
+                return_value=_FakeConnectionContextManager(cursor),
+            ),
+            self.assertRaisesRegex(ValueError, "attachment_ref_count is required"),
         ):
-            records = store.list_by_scope(
+            store.list_by_scope(
                 "campus_notices",
                 "internal_notice",
                 notice_ids=("000004",),
             )
-
-        self.assertEqual(len(records), 1)
-        self.assertEqual(records[0].notice_id, "000004")
-        self.assertEqual(records[0].attachment_ref_count, 0)
-        self.assertEqual(records[0].multimodal_processing_required_count, 0)
-        self.assertEqual(records[0].notice_risk_label, "body_only")
-        self.assertEqual(records[0].attachment_mix_score, 0)
-        self.assertFalse(records[0].has_text_table_attachment)
-        self.assertFalse(records[0].has_spatial_attachment)
-        self.assertFalse(records[0].has_reference_only_attachment)
 
     def test_inventory_parent_selection_keeps_one_latest_parent_per_notice(self) -> None:
         older = _document_record("notice:muc_internal_portal:355122", "sha256:older")

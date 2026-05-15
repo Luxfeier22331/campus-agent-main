@@ -152,6 +152,10 @@ def release_registry_scope(
 ) -> RegistryScopeReleaseReport:
     source = dict(env if env is not None else os.environ)
     runtime_profile = load_runtime_profile(corpus, collection)
+    acceptance_case_path_text = (acceptance_case_path or "").strip()
+    release_acceptance_requested = bool(
+        acceptance_case_path_text and _requires_release_retrieval_acceptance(runtime_profile)
+    )
     object_store_settings = ObjectStoreSettings.from_env(source)
     if object_store is None:
         from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
@@ -279,7 +283,8 @@ def release_registry_scope(
         official_web_min_release_documents=official_web_min_release_documents,
         retrieval_settings=(
             RetrievalSettings.from_env(source)
-            if publish_alias and _requires_release_retrieval_acceptance(runtime_profile)
+            if (publish_alias or release_acceptance_requested)
+            and _requires_release_retrieval_acceptance(runtime_profile)
             else None
         ),
         embedding_cache_stats=embedding_cache_stats,
@@ -346,16 +351,19 @@ def publish_scope_release(
         collection=collection,
         runtime_profile=runtime_profile,
     )
+    acceptance_case_path_text = (acceptance_case_path or "").strip()
+    run_retrieval_acceptance = bool(
+        _requires_release_retrieval_acceptance(runtime_profile) and acceptance_case_path_text
+    )
     qrels_issues = _resolve_release_qrels_coverage_issues(
         corpus=corpus,
         collection=collection,
         runtime_profile=runtime_profile,
         publish_alias=publish_alias,
         qrels_coverage_issues=qrels_coverage_issues,
+        require_coverage=run_retrieval_acceptance,
     )
-    qrels_coverage_required = publish_alias and _requires_release_retrieval_acceptance(
-        runtime_profile
-    )
+    qrels_coverage_required = run_retrieval_acceptance
     quality_gate = evaluate_release_chunk_quality(
         chunks=tuple(chunks),
         max_token_count=chunk_budget.max_token_count,
@@ -392,11 +400,7 @@ def publish_scope_release(
         component_eval_status="",
         component_eval_summary_object_key=None,
     )
-    if (
-        publish_alias
-        and _requires_release_retrieval_acceptance(runtime_profile)
-        and quality_gate.status != "passed"
-    ):
+    if run_retrieval_acceptance and quality_gate.status != "passed":
         write_index_release_artifacts(
             writer=object_store,
             bucket=object_store_settings.bucket_derived,
@@ -466,27 +470,14 @@ def publish_scope_release(
             f"index release validation failed for {corpus}/{collection}: {validation.summary}"
         )
 
-    if not publish_alias:
-        artifacts = write_index_release_artifacts(
-            writer=object_store,
-            bucket=object_store_settings.bucket_derived,
-            manifest=prepublish_manifest,
-            validation_summary=validation.summary,
-            quality_gate_summary=quality_gate.summary,
-        )
-        return _build_release_report(
-            artifacts,
-            embedding_cache_stats=embedding_cache_stats,
-        )
-
     acceptance_result = None
-    if _requires_release_retrieval_acceptance(runtime_profile):
+    if run_retrieval_acceptance:
         if retrieval_settings is None:
             raise ValueError(
                 f"retrieval settings are required before release acceptance for {corpus}/{collection}"
             )
         cases = load_release_retrieval_acceptance_cases(
-            str(acceptance_case_path),
+            acceptance_case_path_text,
             corpus=corpus,
             collection=collection,
         )
@@ -562,6 +553,12 @@ def publish_scope_release(
             manifest_object_key=f"{corpus}/releases/{collection}/{release_id}/index-release.json",
         ),
     )
+
+    if not publish_alias:
+        return _build_release_report(
+            prepublish_artifacts if acceptance_result is None else acceptance_artifacts,
+            embedding_cache_stats=embedding_cache_stats,
+        )
 
     published_at = datetime.now(UTC).isoformat()
     published_manifest = build_index_release_manifest(

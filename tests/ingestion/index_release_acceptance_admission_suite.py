@@ -122,7 +122,7 @@ class IndexReleaseAcceptanceAdmissionSuite:
 
         with self.assertRaisesRegex(
             RegulationRagReleaseAdmissionError,
-            "unsupported semantic_oracle_status: pending_phase8",
+            "semantic_oracle_status_not_passed:pending_phase8",
         ):
             validate_regulation_rag_release_admission_manifest_shape(manifest)
 
