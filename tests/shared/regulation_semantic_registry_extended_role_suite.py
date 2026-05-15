@@ -242,6 +242,33 @@ class RegulationSemanticRegistryExtendedRoleSuite:
         self.assertEqual(assignment.value, "procedure_step")
         self.assertEqual(assignment.provenance, "matched_procedure_marker")
 
+    def test_shared_answer_role_resolution_treats_written_appeal_deadline_as_time_constraint(
+        self,
+    ) -> None:
+        assignment = resolve_regulation_answer_role(
+            text=(
+                "学生对学校的处理或者处分决定有异议的,可以在接到学校处理或者处分"
+                "决定书之日起10日内,向学校学生申诉处理委员会提出书面申诉。"
+            ),
+            prefix_text="第三章 申诉与受理",
+        )
+
+        self.assertEqual(assignment.value, "time_constraint")
+
+    def test_shared_answer_role_resolution_treats_hearing_application_deadline_as_time_constraint(
+        self,
+    ) -> None:
+        assignment = resolve_regulation_answer_role(
+            text=(
+                "学校拟给予学生开除学籍、退学处理、取消学籍、取消入学资格时,"
+                "应当告知学生有要求听证的权利。学生应当在收到告知书后10日内"
+                "提交书面听证申请。"
+            ),
+            prefix_text="第三章 听证的规定和程序",
+        )
+
+        self.assertEqual(assignment.value, "time_constraint")
+
     def test_shared_answer_role_resolution_distinguishes_material_and_time_intro(self) -> None:
         material = resolve_regulation_answer_role(text="申诉人应提交以下材料：")
         deadline = resolve_regulation_answer_role(text="申诉应在下列期限内提出：")

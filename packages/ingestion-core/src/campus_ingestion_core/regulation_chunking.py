@@ -19,6 +19,7 @@ from .regulation_chunking_answer_ready_grouping import _build_answer_ready_regul
 from .regulation_chunking_list_helpers import _build_regulation_list_segments
 from .regulation_chunking_piece_conversion import _segments_to_pieces
 from .regulation_chunking_shared import (
+    _RegulationSegment,
     _TEXTUAL_REGULATION_UNIT_TYPES,
     _contextualize_short_subject_value,
     _section_path,
@@ -67,6 +68,10 @@ def build_regulation_unit_pieces(
             text=cleaned_text,
             chunk_profile=chunk_profile,
         )
+        if not answer_ready_segments:
+            answer_ready_segments = _build_sentence_answer_ready_segments(
+                text=cleaned_text,
+            )
         if answer_ready_segments:
             return _segments_to_pieces(
                 unit=unit,
@@ -172,6 +177,75 @@ def _generic_unit_pieces(
         ),
         chunk_profile=_without_overlap(chunk_profile),
     )
+
+
+def _build_sentence_answer_ready_segments(text: str) -> tuple[_RegulationSegment, ...]:
+    sentences = _split_answer_ready_sentences(text)
+    if len(sentences) < 2:
+        return ()
+    if not _looks_like_mixed_deadline_and_consequence_sentences(sentences):
+        return ()
+    segments: list[_RegulationSegment] = []
+    for sentence in sentences:
+        role_metadata = build_answer_role_metadata(
+            text=sentence,
+            prefix_text="",
+            role_hint=None,
+        )
+        answer_role = str(role_metadata.get("answer_role") or "").strip()
+        if answer_role == "supporting_detail":
+            return ()
+        segments.append(
+            _RegulationSegment(
+                text=sentence,
+                anchor={},
+                metadata=role_metadata,
+                split_reason="structure_boundary",
+                boundary_rule="regulation_answer_ready_sentence",
+            )
+        )
+    return tuple(segments)
+
+
+def _split_answer_ready_sentences(text: str) -> tuple[str, ...]:
+    normalized = text.strip()
+    if not normalized:
+        return ()
+    sentences: list[str] = []
+    current: list[str] = []
+    for char in normalized:
+        current.append(char)
+        if char not in "。；;":
+            continue
+        sentence = "".join(current).strip()
+        if sentence:
+            sentences.append(sentence)
+        current = []
+    trailing = "".join(current).strip()
+    if trailing:
+        sentences.append(trailing)
+    return tuple(sentence for sentence in sentences if sentence)
+
+
+def _looks_like_mixed_deadline_and_consequence_sentences(sentences: tuple[str, ...]) -> bool:
+    has_deadline = False
+    has_consequence = False
+    for sentence in sentences:
+        role = str(
+            build_answer_role_metadata(
+                text=sentence,
+                prefix_text="",
+                role_hint=None,
+            ).get("answer_role")
+            or ""
+        )
+        if role == "time_constraint" and any(marker in sentence for marker in ("申诉", "听证")):
+            has_deadline = True
+        if role == "exclusion_rule" and any(
+            marker in sentence for marker in ("视为放弃", "不再受理")
+        ):
+            has_consequence = True
+    return has_deadline and has_consequence
 
 
 __all__ = ["build_regulation_unit_pieces"]

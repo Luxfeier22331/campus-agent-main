@@ -115,6 +115,202 @@ class HandbookChunkingPipelinePart07Test(unittest.TestCase):
             "positive",
         )
 
+    def test_hearing_application_deadline_keeps_positive_time_constraint_metadata(
+        self,
+    ) -> None:
+        record = _registry_record_for_document("handbook:test-hearing-application-deadline")
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="article_body",
+                    root_unit_id="article-hearing-application",
+                    clean_text=(
+                        "学生要求听证的,应在收到拟处分或处理告知书后10日内"
+                        "提交书面听证申请。"
+                    ),
+                    anchor={
+                        "section_path": ["第二章 听证申请"],
+                        "article_label": "第十条",
+                    },
+                    metadata={"title": "中央民族大学学生听证实施办法"},
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+
+        self.assertEqual(len(chunks), 1)
+        metadata = chunks[0].metadata
+        self.assertEqual(metadata["answer_role"], "time_constraint")
+        self.assertEqual(metadata["content_role"], "deadline")
+        self.assertEqual(metadata["semantic_role"], "time_constraint")
+        self.assertEqual(metadata["claim_type"], "time_constraint")
+        self.assertEqual(metadata["polarity"], "positive")
+        self.assertEqual(metadata["condition_subject"], "deadline")
+        self.assertEqual(metadata["condition_polarity"], "positive")
+        self.assertEqual(
+            metadata["answer_ready_contract_validation_status"],
+            "passed",
+        )
+        self.assertEqual(metadata["procedure_actor"], "student")
+        self.assertEqual(metadata["procedure_action"], "apply")
+        self.assertEqual(metadata["procedure_action_taxonomy_version"], "procedure_action.v1")
+
+    def test_appeal_deadline_and_late_consequence_emit_separate_answer_ready_contracts(
+        self,
+    ) -> None:
+        record = _registry_record_for_document("handbook:test-appeal-deadline-consequence")
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="article_body",
+                    root_unit_id="article-appeal-deadline",
+                    clean_text=(
+                        "学生对学校的处理或者处分决定有异议的,可以在接到学校处理或者"
+                        "处分决定书之日起10日内,向学校学生申诉处理委员会提出书面申诉。\n"
+                        "学生在申诉期内未提出申诉的视为放弃申诉,学校不再受理。\n"
+                        "最长不得超过6个月。"
+                    ),
+                    anchor={
+                        "section_path": ["第三章 申诉申请"],
+                        "article_label": "第十条",
+                    },
+                    metadata={"title": "中央民族大学学生申诉管理办法"},
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+        chunks_by_text = {chunk.metadata["display_text"]: chunk.metadata for chunk in chunks}
+
+        deadline_text = (
+            "学生对学校的处理或者处分决定有异议的,可以在接到学校处理或者"
+            "处分决定书之日起10日内,向学校学生申诉处理委员会提出书面申诉。"
+        )
+        self.assertIn(deadline_text, chunks_by_text)
+        deadline = chunks_by_text[deadline_text]
+        self.assertEqual(deadline["answer_role"], "time_constraint")
+        self.assertEqual(deadline["semantic_role"], "time_constraint")
+        self.assertEqual(deadline["claim_type"], "time_constraint")
+        self.assertEqual(deadline["polarity"], "positive")
+        self.assertEqual(deadline["condition_subject"], "deadline")
+        self.assertEqual(deadline["condition_polarity"], "positive")
+        self.assertEqual(deadline["procedure_actor"], "student")
+        self.assertEqual(deadline["procedure_action"], "appeal")
+        self.assertEqual(
+            deadline["procedure_action_taxonomy_version"],
+            "procedure_action.v1",
+        )
+        self.assertEqual(
+            deadline["answer_ready_contract_validation_status"],
+            "passed",
+        )
+
+        consequence = chunks_by_text[
+            "学生在申诉期内未提出申诉的视为放弃申诉,学校不再受理。"
+        ]
+        self.assertEqual(consequence["answer_role"], "exclusion_rule")
+        self.assertEqual(consequence["polarity"], "negative")
+        self.assertEqual(consequence["condition_polarity"], "negative")
+
+    def test_student_card_report_loss_and_reissue_deadlines_keep_procedure_metadata(
+        self,
+    ) -> None:
+        record = _registry_record_for_document("handbook:test-student-card-reissue")
+        structured_payload = (
+            json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="article_body",
+                    root_unit_id="article-student-card-report-loss",
+                    clean_text=(
+                        "六、学生如将学生证遗失或损坏,应及时到学院(系)挂失,"
+                        "写明遗失或损坏的原因、时间、地点等,并报学生处备案。"
+                    ),
+                    anchor={
+                        "section_path": ["学生证补办"],
+                        "article_label": "第六条",
+                    },
+                    metadata={"title": "中央民族大学本科(预科)学生证管理办法"},
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+            + json.dumps(
+                _structured_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    unit_type="article_body",
+                    root_unit_id="article-student-card-reissue",
+                    clean_text=(
+                        "八、学生补办学生证,必须提出书面申请,并填写"
+                        "《中央民族大学补办学生证申请表》。申请表经学院(系)"
+                        "领导审批后,到学生处办理补办手续。学生证集中补办时间为每周四下午。"
+                    ),
+                    anchor={
+                        "section_path": ["学生证补办"],
+                        "article_label": "第八条",
+                    },
+                    metadata={"title": "中央民族大学本科(预科)学生证管理办法"},
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=build_hermetic_handbook_v3_chunk_profile(),
+        )
+        chunks_by_text = {chunk.metadata["display_text"]: chunk.metadata for chunk in chunks}
+
+        report_loss = chunks_by_text[
+            "六、学生如将学生证遗失或损坏,应及时到学院(系)挂失,"
+            "写明遗失或损坏的原因、时间、地点等,并报学生处备案。"
+        ]
+        self.assertEqual(report_loss["answer_role"], "time_constraint")
+        self.assertEqual(report_loss["condition_subject"], "deadline")
+        self.assertEqual(report_loss["procedure_step_index"], 6)
+        self.assertEqual(report_loss["procedure_actor"], "student")
+        self.assertEqual(report_loss["procedure_action"], "report_loss")
+        self.assertEqual(
+            report_loss["procedure_action_taxonomy_version"],
+            "procedure_action.v1",
+        )
+
+        reissue = chunks_by_text[
+            "八、学生补办学生证,必须提出书面申请,并填写"
+            "《中央民族大学补办学生证申请表》。申请表经学院(系)"
+            "领导审批后,到学生处办理补办手续。学生证集中补办时间为每周四下午。"
+        ]
+        self.assertEqual(reissue["answer_role"], "time_constraint")
+        self.assertEqual(reissue["condition_subject"], "deadline")
+        self.assertEqual(reissue["procedure_step_index"], 8)
+        self.assertEqual(reissue["procedure_actor"], "student")
+        self.assertEqual(reissue["procedure_action"], "reissue")
+        self.assertEqual(
+            reissue["procedure_action_taxonomy_version"],
+            "procedure_action.v1",
+        )
+
     def test_generic_policy_table_chunk_gets_non_empty_condition_subject(self) -> None:
         record = _registry_record_for_document("handbook:test-gpa-table")
         structured_payload = (

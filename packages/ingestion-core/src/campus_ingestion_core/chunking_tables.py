@@ -97,6 +97,8 @@ def build_table_piece_specs(
             resolve_display_budget=resolve_display_budget,
         )
 
+    display_budget = resolve_display_budget(unit, chunk_profile)
+    max_window_tokens = display_budget.max_tokens
     prefix_lines = [*caption_lines]
     if header_line:
         prefix_lines.append(header_line)
@@ -108,7 +110,7 @@ def build_table_piece_specs(
     current_tokens = fixed_token_count
     for row_line in row_lines:
         row_tokens = count_tokens(row_line)
-        if current_rows and current_tokens + row_tokens > chunk_profile.max_chunk_size:
+        if current_rows and current_tokens + row_tokens > max_window_tokens:
             windows.append(current_rows)
             current_rows = [row_line]
             current_tokens = fixed_token_count + row_tokens

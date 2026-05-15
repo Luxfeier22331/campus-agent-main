@@ -7,6 +7,7 @@ from campus_shared.answer_ready_evidence_contract import (
     ANSWER_READY_CONDITION_SUBJECT_TAXONOMY_VERSION,
     ANSWER_READY_EVIDENCE_CONTRACT_VERSION,
     ANSWER_READY_PROCEDURE_ACTION_TAXONOMY_VERSION,
+    ANSWER_READY_PROCEDURAL_TIME_ACTION_MARKERS,
 )
 from campus_shared.regulation_semantic_registry import (
     REGULATION_GROUPED_ANSWER_ROLES,
@@ -72,6 +73,8 @@ def build_answer_ready_contract_metadata(
         )
         contract["condition_subject_provenance"] = condition_subject_assignment.provenance
     if answer_role == "procedure_step":
+        contract.update(build_procedure_step_metadata(text=text, metadata=metadata))
+    if answer_role == "time_constraint" and _is_procedural_time_constraint(text):
         contract.update(build_procedure_step_metadata(text=text, metadata=metadata))
     condition_subject = _text(contract.get("condition_subject"))
     if condition_subject:
@@ -297,6 +300,13 @@ def build_procedure_step_metadata(*, text: str, metadata: dict[str, object]) -> 
     if next_actor:
         result["procedure_next_actor"] = next_actor
     return result
+
+
+def _is_procedural_time_constraint(text: str) -> bool:
+    compact = _compact(text)
+    if not compact:
+        return False
+    return any(marker in compact for marker in ANSWER_READY_PROCEDURAL_TIME_ACTION_MARKERS)
 
 
 def build_eligibility_intro_metadata(

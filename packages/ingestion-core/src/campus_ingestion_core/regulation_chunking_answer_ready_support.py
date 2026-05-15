@@ -54,7 +54,6 @@ def _answer_role(
         "exclusion_rule",
         "material_requirement",
         "supporting_detail",
-        "time_constraint",
     }:
         return parsed_role
     if role_hint == "eligibility_condition" and parsed_role in {
@@ -145,7 +144,6 @@ def _atomic_item_should_reparse(*, role: str, text: str, prefix_text: str) -> bo
         "exception_rule",
         "exclusion_rule",
         "material_requirement",
-        "time_constraint",
     }:
         return True
     compact = compact_for_role(text)

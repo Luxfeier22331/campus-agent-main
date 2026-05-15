@@ -166,6 +166,11 @@ def resolve_regulation_procedure_actor(
     actor_assignment = _resolve_keyword_rule(compact, REGULATION_PROCEDURE_ACTOR_RULES)
     if actor_assignment.value:
         return actor_assignment
+    if "提出" in compact and "申请" in compact:
+        return RegulationSemanticAssignment(
+            value="applicant",
+            provenance="keyword:提出申请",
+        )
     if any(marker in compact for marker in ("提交", "递交", "报送", "上报", "填写")) and any(
         marker in compact
         for marker in (

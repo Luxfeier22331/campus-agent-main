@@ -225,6 +225,7 @@ def build_indexable_chunks_from_jsonl(
             "split_strategy": runtime_profile.split_strategy,
             "chunk_policy_version": runtime_profile.chunk_policy_version,
             "cleaning_policy_version": runtime_profile.cleaning_policy_version,
+            "source_document_ids": [record.document_id],
             **candidate.metadata,
             "display_text": candidate.piece.text,
             "contextualized_text": candidate.chunk_assembly.header_token_count > 0,

@@ -25,7 +25,6 @@ _PROCEDURE_STEP_HINT_OVERRIDE_ROLES = frozenset(
         "exclusion_rule",
         "material_requirement",
         "supporting_detail",
-        "time_constraint",
     }
 )
 _ELIGIBILITY_CONDITION_HINT_OVERRIDE_ROLES = frozenset(

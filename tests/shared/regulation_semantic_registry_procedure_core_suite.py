@@ -112,6 +112,17 @@ class RegulationSemanticRegistryProcedureCoreSuite:
         self.assertEqual(canonical_regulation_procedure_action(assignment.value), "appeal")
         self.assertEqual(assignment.provenance, "keyword:申诉听证")
 
+    def test_shared_procedure_action_resolution_treats_hearing_application_as_apply(
+        self,
+    ) -> None:
+        assignment = resolve_regulation_procedure_action(
+            text="学生应当在收到告知书后10日内提交书面听证申请。",
+            actor="student",
+        )
+
+        self.assertEqual(canonical_regulation_procedure_action(assignment.value), "apply")
+        self.assertEqual(assignment.provenance, "keyword:听证申请")
+
     def test_shared_answer_role_resolution_does_not_treat_quota_clause_in_procedure_section_as_step(
         self,
     ) -> None:

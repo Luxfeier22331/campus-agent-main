@@ -356,6 +356,51 @@ def _looks_like_time_intro_or_category(text: str) -> bool:
     return assignment.value == "time_constraint"
 
 
+def _looks_like_time_constraint_leaf(text: str) -> bool:
+    compact = _compact(text).rstrip("。；;，,")
+    if not compact:
+        return False
+    if _looks_like_time_intro_or_category(text):
+        return False
+    if _looks_like_negative_deadline_consequence(compact):
+        return False
+    if not _has_time_constraint_window(compact):
+        return False
+    if any(
+        marker in compact
+        for marker in (
+            "提出书面申诉",
+            "提出申诉",
+            "提交书面听证申请",
+            "提交听证申请",
+            "提出听证申请",
+            "申请听证",
+        )
+    ):
+        return True
+    if not any(marker in compact for marker in ("提出", "提交", "递交", "作出", "告知")):
+        return False
+    return any(marker in compact for marker in ("申请", "申诉", "听证", "决定", "通知"))
+
+
+def _has_time_constraint_window(compact_text: str) -> bool:
+    if any(marker in compact_text for marker in ("期限内", "规定期限内")):
+        return True
+    return (
+        re.search(
+            r"(?:\d+|[一二三四五六七八九十百零两〇]+)(?:个)?(?:工作日|日|天|周|月|年)内",
+            compact_text,
+        )
+        is not None
+    )
+
+
+def _looks_like_negative_deadline_consequence(compact_text: str) -> bool:
+    if not any(marker in compact_text for marker in ("视为放弃", "不再受理")):
+        return False
+    return any(marker in compact_text for marker in ("未提出", "不提出", "超过期限", "逾期"))
+
+
 def _is_procedure_step_answer_role(*, text: str, context: str) -> bool:
     from .regulation_semantic_registry_actions import resolve_regulation_procedure_action
     from .regulation_semantic_registry_intro import resolve_regulation_group_intro_kind

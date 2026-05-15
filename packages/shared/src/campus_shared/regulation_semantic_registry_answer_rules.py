@@ -73,7 +73,7 @@ REGULATION_CONDITION_SUBJECT_KEYWORD_RULES: tuple[RegulationSemanticKeywordRule,
     ),
     RegulationSemanticKeywordRule(
         value="deadline",
-        markers=("截止", "期限", "公示", "不少于", "每周", "时间"),
+        markers=("截止", "期限", "时限", "公示", "不少于", "每周", "时间"),
         provenance="keyword:时间期限",
     ),
     RegulationSemanticKeywordRule(

@@ -21,7 +21,13 @@ REGULATION_CONDITION_SUBJECT_DEFINITIONS: dict[str, RegulationConditionSubjectDe
     "application_procedure": RegulationConditionSubjectDefinition(
         subject_id="application_procedure",
         description="办理、申请、审核、公示、补办等程序性步骤或流程条件。",
-        expected_answer_roles=("procedure_step", "eligibility_intro"),
+        expected_answer_roles=(
+            "procedure_step",
+            "material_requirement",
+            "time_constraint",
+            "eligibility_condition",
+            "eligibility_intro",
+        ),
         query_focus_terms=("申请", "办理", "流程", "程序"),
     ),
     "rank_threshold": RegulationConditionSubjectDefinition(
@@ -77,6 +83,7 @@ REGULATION_CONDITION_SUBJECT_DEFINITIONS: dict[str, RegulationConditionSubjectDe
             "eligibility_condition",
             "eligibility_intro",
             "material_requirement",
+            "supporting_detail",
             "table_fact",
         ),
         query_focus_terms=("材料", "证明", "提交"),
@@ -178,7 +185,13 @@ REGULATION_CONDITION_SUBJECT_DEFINITIONS: dict[str, RegulationConditionSubjectDe
     "student_card_or_identity_credential": RegulationConditionSubjectDefinition(
         subject_id="student_card_or_identity_credential",
         description="学生证、证件挂失、补办、身份凭证相关规则。",
-        expected_answer_roles=("procedure_step", "eligibility_condition", "exclusion_rule"),
+        expected_answer_roles=(
+            "procedure_step",
+            "material_requirement",
+            "time_constraint",
+            "eligibility_condition",
+            "exclusion_rule",
+        ),
         query_focus_terms=("学生证", "挂失", "补办"),
     ),
     "dormitory_or_accommodation": RegulationConditionSubjectDefinition(

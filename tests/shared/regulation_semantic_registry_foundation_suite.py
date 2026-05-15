@@ -156,12 +156,14 @@ class RegulationSemanticRegistryFoundationSuite:
 
         self.assertEqual(procedure.action_id, "submit_materials")
         self.assertTrue(procedure.description)
-        self.assertEqual(procedure.expected_answer_roles, ("procedure_step",))
+        self.assertIn("procedure_step", procedure.expected_answer_roles)
+        self.assertIn("time_constraint", procedure.expected_answer_roles)
         self.assertTrue(procedure.release_blocking)
 
         self.assertEqual(actor.actor_id, "student")
         self.assertTrue(actor.description)
-        self.assertEqual(actor.expected_answer_roles, ("procedure_step",))
+        self.assertIn("procedure_step", actor.expected_answer_roles)
+        self.assertIn("time_constraint", actor.expected_answer_roles)
         self.assertTrue(actor.release_blocking)
 
         self.assertEqual(subject.subject_id, "application_procedure")

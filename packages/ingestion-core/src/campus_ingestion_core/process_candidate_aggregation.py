@@ -52,14 +52,15 @@ def build_collection_semantic_metadata(
         "clause_no": semantics.clause_no,
         "section_kind": semantics.section_kind,
     }
-    if _shared_text(release_metadata.get("answer_role")) == "procedure_step":
+    if _shared_text(release_metadata.get("answer_role")) in {
+        "material_requirement",
+        "procedure_step",
+        "time_constraint",
+    }:
         semantic_metadata.update(
-            {
-                "content_role": "procedure",
-                "semantic_role": "procedure_step",
-                "claim_type": "procedure",
-                "is_answer_bearing": True,
-            }
+            _answer_role_semantic_metadata(
+                _shared_text(release_metadata.get("answer_role"))
+            )
         )
     return {
         **semantic_metadata,
@@ -218,6 +219,32 @@ def infer_answer_role_from_handbook_semantics(semantics) -> str:
     if semantics.content_role == "table_fact":
         return "table_fact"
     return ""
+
+
+def _answer_role_semantic_metadata(answer_role: str) -> dict[str, object]:
+    if answer_role == "material_requirement":
+        return {
+            "content_role": "requirement",
+            "semantic_role": "condition",
+            "claim_type": "condition",
+            "is_answer_bearing": True,
+        }
+    if answer_role == "procedure_step":
+        return {
+            "content_role": "procedure",
+            "semantic_role": "procedure_step",
+            "claim_type": "procedure",
+            "is_answer_bearing": True,
+        }
+    if answer_role == "time_constraint":
+        return {
+            "content_role": "deadline",
+            "semantic_role": "time_constraint",
+            "claim_type": "time_constraint",
+            "polarity": "positive",
+            "is_answer_bearing": True,
+        }
+    return {}
 
 
 def _should_prefer_parser_answer_role(*, semantics, parser_answer_role: str) -> bool:

@@ -185,6 +185,19 @@ ANSWER_READY_INTERNAL_ATTRIBUTE_FIELDS = (
     "procedure_next_actor",
 )
 
+ANSWER_READY_PROCEDURAL_TIME_ACTION_MARKERS = (
+    "提出书面申诉",
+    "提出申诉",
+    "提交书面听证申请",
+    "提交听证申请",
+    "提出听证申请",
+    "申请听证",
+    "到学院(系)挂失",
+    "到学院（系）挂失",
+    "办理补办手续",
+    "集中补办时间",
+)
+
 
 @dataclass(frozen=True, slots=True)
 class AnswerReadyEvidenceValidationResult:

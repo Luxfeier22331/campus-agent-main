@@ -128,6 +128,31 @@ def resolve_regulation_procedure_action(
             value="apply",
             provenance="keyword:个人申请",
         )
+    if any(
+        marker in compact
+        for marker in (
+            "提交书面听证申请",
+            "提交听证申请",
+            "提出听证申请",
+            "申请听证",
+        )
+    ):
+        return RegulationSemanticAssignment(
+            value="apply",
+            provenance="keyword:听证申请",
+        )
+    if any(marker in compact for marker in ("到学院(系)挂失", "到学院（系）挂失")):
+        return RegulationSemanticAssignment(
+            value="report_loss",
+            provenance="keyword:学生证挂失",
+        )
+    if "学生证" in compact and any(
+        marker in compact for marker in ("办理补办手续", "集中补办时间", "补办学生证")
+    ):
+        return RegulationSemanticAssignment(
+            value="reissue",
+            provenance="keyword:学生证补办",
+        )
     if actor in {"office", "student_affairs_office", "academic_affairs_office"} and any(
         marker in compact for marker in ("调解委员会调解", "申请调解", "进行调解", "调解不成")
     ):

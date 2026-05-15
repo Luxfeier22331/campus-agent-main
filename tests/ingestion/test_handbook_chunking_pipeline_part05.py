@@ -6,6 +6,7 @@ from tests.ingestion.handbook_chunking_pipeline_support import (
     _institutional_registry_record,
     _registry_record_for_document,
     _structured_row,
+    build_answer_ready_contract_metadata,
     build_hermetic_handbook_v3_chunk_profile,
     build_indexable_chunks_from_jsonl,
     evaluate_answer_ready_contract_metadata,
@@ -336,6 +337,33 @@ class HandbookChunkingPipelinePart05Test(unittest.TestCase):
                 collection=record.collection,
                 metadata=procedure_chunk.metadata,
                 anchor=procedure_chunk.anchor,
+            ).status,
+            "passed",
+        )
+
+    def test_directed_written_application_step_contract_has_applicant_actor(self) -> None:
+        contract = build_answer_ready_contract_metadata(
+            text=(
+                "向校医院提出书面申请,经批准后方可报销休学期间医药费。"
+                "休学一年以上者不再享受公费医疗。"
+            ),
+            metadata={
+                "answer_role": "procedure_step",
+                "provision_label": "9.",
+                "parent_unit_id": "policy-page-medical",
+            },
+            root_unit_id="policy-page-medical",
+        )
+
+        self.assertEqual(contract["procedure_actor"], "applicant")
+        self.assertEqual(contract["procedure_action"], "apply")
+        self.assertEqual(contract["condition_subject"], "application_procedure")
+        self.assertEqual(contract["condition_group_id"], "policy-page-medical:application_procedure")
+        self.assertEqual(
+            evaluate_answer_ready_contract_metadata(
+                corpus="regulations",
+                collection="student_rules",
+                metadata={**contract, "answer_role": "procedure_step"},
             ).status,
             "passed",
         )

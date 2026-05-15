@@ -12,57 +12,57 @@ REGULATION_PROCEDURE_ACTION_DEFINITIONS: dict[str, RegulationProcedureActionDefi
     "apply": RegulationProcedureActionDefinition(
         action_id="apply",
         description="发起申请或提交办理请求。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "submit_materials": RegulationProcedureActionDefinition(
         action_id="submit_materials",
         description="提交申请表、证明或其他材料。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "college_review": RegulationProcedureActionDefinition(
         action_id="college_review",
         description="学院、院系或基层单位审核。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "office_review": RegulationProcedureActionDefinition(
         action_id="office_review",
         description="学校职能部门复核、审批或受理。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "publish_notice": RegulationProcedureActionDefinition(
         action_id="publish_notice",
         description="公示、公告、结果发布。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "appeal": RegulationProcedureActionDefinition(
         action_id="appeal",
         description="申诉、复核、提出异议、听证陈述或听证流程步骤。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "report_loss": RegulationProcedureActionDefinition(
         action_id="report_loss",
         description="挂失、报告遗失或停用证件。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "reissue": RegulationProcedureActionDefinition(
         action_id="reissue",
         description="补办、补发、换发证件或材料。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "disburse": RegulationProcedureActionDefinition(
         action_id="disburse",
         description="发放、拨付奖励、资助或其他经费。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "review": RegulationProcedureActionDefinition(
         action_id="review",
         description="尚未细分为学院或学校部门审核的泛化审核动作。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "process": RegulationProcedureActionDefinition(
         action_id="process",
         description="受理、办理、协调、处理、答复等泛化办理动作。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
 }
 
@@ -70,37 +70,37 @@ REGULATION_PROCEDURE_ACTOR_DEFINITIONS: dict[str, RegulationProcedureActorDefini
     "applicant": RegulationProcedureActorDefinition(
         actor_id="applicant",
         description="申请人、申请者等发起办理请求的主体。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "student": RegulationProcedureActorDefinition(
         actor_id="student",
         description="学生本人或学生群体作为流程执行主体。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "instructor": RegulationProcedureActorDefinition(
         actor_id="instructor",
         description="指导教师、任课教师等教学主体作为流程执行者。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "college": RegulationProcedureActorDefinition(
         actor_id="college",
         description="学院、院系、培养单位、分委员会等校内基层组织。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "academic_affairs_office": RegulationProcedureActorDefinition(
         actor_id="academic_affairs_office",
         description="教务处等教学管理职能部门。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "student_affairs_office": RegulationProcedureActorDefinition(
         actor_id="student_affairs_office",
         description="学生处等学生事务职能部门。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
     "office": RegulationProcedureActorDefinition(
         actor_id="office",
         description="学校或未进一步细分的校级职能部门。",
-        expected_answer_roles=("procedure_step",),
+        expected_answer_roles=("procedure_step", "time_constraint"),
     ),
 }
 

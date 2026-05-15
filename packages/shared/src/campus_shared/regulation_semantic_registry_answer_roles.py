@@ -21,6 +21,7 @@ from .regulation_semantic_registry_predicates import (
     _looks_like_non_action_assessment_heading,
     _looks_like_procedure_intro_or_category,
     _looks_like_time_intro_or_category,
+    _looks_like_time_constraint_leaf,
 )
 from .regulation_semantic_registry_procedure_rules import (
     REGULATION_NON_PROCEDURE_REVIEW_STATUS_MARKERS,
@@ -122,6 +123,11 @@ def resolve_regulation_answer_role(
             provenance=f"explicit_role_hint:{role_hint}",
         )
 
+    if _looks_like_time_constraint_leaf(text):
+        return RegulationSemanticAssignment(
+            value="time_constraint",
+            provenance="matched_time_constraint_leaf",
+        )
     if any(marker in text_only for marker in REGULATION_ANSWER_ROLE_EXCLUSION_MARKERS):
         return RegulationSemanticAssignment(
             value="exclusion_rule",
