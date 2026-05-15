@@ -66,14 +66,28 @@ function parseErrorMessage(payload: unknown, defaultMessage: string) {
 	return defaultMessage;
 }
 
+async function parseJsonResponse(response: Response, invalidJsonMessage: string): Promise<unknown> {
+	const contentType = response.headers.get("content-type") ?? "";
+	if (!contentType.includes("application/json")) {
+		throw new Error("Vendor compat fetch returned a non-JSON response.");
+	}
+	try {
+		return await response.json();
+	} catch (error) {
+		throw new Error(invalidJsonMessage, { cause: error });
+	}
+}
+
 export const fetcher = async <T>(url: string): Promise<T> => {
 	const response = await fetch(url, {
 		credentials: "same-origin",
 	});
 
-	const payload = await response.json().catch(() => undefined);
-
 	if (!response.ok) {
+		const payload = await parseJsonResponse(
+			response,
+			"Vendor compat fetcher returned invalid JSON error payload.",
+		);
 		const errorCode = parseErrorCode(payload);
 		if (errorCode) {
 			throw new ChatbotError(
@@ -85,41 +99,45 @@ export const fetcher = async <T>(url: string): Promise<T> => {
 		throw new Error(parseErrorMessage(payload, response.statusText || "Request failed."));
 	}
 
-	return payload as T;
+	return (await parseJsonResponse(response, "Vendor compat fetcher returned invalid JSON.")) as T;
 };
 
 export async function fetchWithErrorHandlers(input: RequestInfo | URL, init?: RequestInit) {
+	let response: Response;
 	try {
-		const response = await fetch(input, {
+		response = await fetch(input, {
 			credentials: "same-origin",
 			...init,
-		});
-		const payload = await response.json().catch(() => undefined);
-
-		if (!response.ok) {
-			const errorCode = parseErrorCode(payload);
-			if (errorCode) {
-				throw new ChatbotError(
-					errorCode,
-					parseErrorMessage(payload, response.statusText || "Request failed."),
-				);
-			}
-
-			throw new Error(parseErrorMessage(payload, response.statusText || "Request failed."));
-		}
-
-		return new Response(JSON.stringify(payload), {
-			headers: response.headers,
-			status: response.status,
-			statusText: response.statusText,
 		});
 	} catch (error) {
 		if (typeof navigator !== "undefined" && !navigator.onLine) {
 			throw new ChatbotError("offline:chat");
 		}
-
 		throw error;
 	}
+
+	if (!response.ok) {
+		const payload = await parseJsonResponse(
+			response,
+			"Vendor compat fetch returned invalid JSON error payload.",
+		);
+		const errorCode = parseErrorCode(payload);
+		if (errorCode) {
+			throw new ChatbotError(
+				errorCode,
+				parseErrorMessage(payload, response.statusText || "Request failed."),
+			);
+		}
+
+		throw new Error(parseErrorMessage(payload, response.statusText || "Request failed."));
+	}
+	const payload = await parseJsonResponse(response, "Vendor compat fetch returned invalid JSON.");
+
+	return new Response(JSON.stringify(payload), {
+		headers: response.headers,
+		status: response.status,
+		statusText: response.statusText,
+	});
 }
 
 export function getDocumentTimestampByIndex(documents: Document[], index: number) {

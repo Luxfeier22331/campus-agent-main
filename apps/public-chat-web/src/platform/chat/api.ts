@@ -43,6 +43,18 @@ function parseErrorMessage(payload: unknown, statusText: string): string {
 	return statusText || "请求失败。";
 }
 
+function isJsonContentType(contentType: string): boolean {
+	return contentType.toLowerCase().includes("application/json");
+}
+
+async function readRequiredJson(response: Response, invalidMessage: string): Promise<unknown> {
+	try {
+		return await response.json();
+	} catch {
+		throw new Error(invalidMessage);
+	}
+}
+
 export type ChatRequestStreamEventName =
 	| "request.accepted"
 	| "execution.queued"
@@ -84,9 +96,12 @@ async function requestJson<T>(input: {
 	});
 
 	const contentType = response.headers.get("content-type") ?? "";
-	const payload = contentType.includes("application/json")
-		? await response.json().catch(() => undefined)
-		: await response.text().catch(() => undefined);
+	const payload =
+		response.status === 204
+			? undefined
+			: isJsonContentType(contentType)
+				? await readRequiredJson(response, "App API returned invalid JSON.")
+				: undefined;
 
 	if (response.status === 401) {
 		throw new UnauthorizedError(parseErrorMessage(payload, response.statusText));
@@ -94,6 +109,10 @@ async function requestJson<T>(input: {
 
 	if (!response.ok) {
 		throw new Error(parseErrorMessage(payload, response.statusText));
+	}
+
+	if (response.status !== 204 && !isJsonContentType(contentType)) {
+		throw new Error("App API returned a non-JSON response.");
 	}
 
 	return payload as T;
@@ -316,15 +335,17 @@ export async function* submitChatRequestStream(input: {
 	});
 
 	if (response.status === 401) {
-		const payload = await response.json().catch(() => undefined);
+		const payload = isJsonContentType(response.headers.get("content-type") ?? "")
+			? await readRequiredJson(response, "App API returned invalid JSON error payload.")
+			: undefined;
 		throw new UnauthorizedError(parseErrorMessage(payload, response.statusText));
 	}
 
 	if (!response.ok) {
 		const contentType = response.headers.get("content-type") ?? "";
-		const payload = contentType.includes("application/json")
-			? await response.json().catch(() => undefined)
-			: await response.text().catch(() => undefined);
+		const payload = isJsonContentType(contentType)
+			? await readRequiredJson(response, "App API returned invalid JSON error payload.")
+			: await response.text();
 		throw new Error(parseErrorMessage(payload, response.statusText));
 	}
 

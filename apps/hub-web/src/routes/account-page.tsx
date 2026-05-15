@@ -13,14 +13,8 @@ import { useCallback, useEffect, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { signOutHubAccount } from "../platform/auth/client";
+import { type AccountSessionState, loadAccountSession } from "./account-session";
 import { PageDescription, PageTitle, ShellSection } from "./route-layout";
-
-type AccountSessionState =
-	| "loading"
-	| "network_error"
-	| "ready"
-	| "service_unavailable"
-	| "unauthenticated";
 
 export function AccountPage() {
 	const [sessionState, setSessionState] = useState<AccountSessionState>("loading");
@@ -29,31 +23,9 @@ export function AccountPage() {
 
 	const loadSession = useCallback(async () => {
 		setSessionState("loading");
-		try {
-			const response = await fetch("/api/me", {
-				credentials: "include",
-				headers: { accept: "application/json" },
-			});
-			if (response.status === 401) {
-				setEmail(null);
-				setSessionState("unauthenticated");
-				return;
-			}
-			if (!response.ok) {
-				setEmail(null);
-				setSessionState("service_unavailable");
-				return;
-			}
-			const payload = (await response.json().catch(() => null)) as {
-				principal?: { email?: string | null };
-			} | null;
-			const nextEmail = payload?.principal?.email?.trim();
-			setEmail(nextEmail || null);
-			setSessionState(nextEmail ? "ready" : "unauthenticated");
-		} catch {
-			setEmail(null);
-			setSessionState("network_error");
-		}
+		const nextSession = await loadAccountSession();
+		setEmail(nextSession.email);
+		setSessionState(nextSession.state);
 	}, []);
 
 	useEffect(() => {
