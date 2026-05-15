@@ -1,11 +1,9 @@
 from __future__ import annotations
 
 import unittest
-
 from dataclasses import replace
 
 from campus_contracts import AgentRequest, EvidenceBundle, KnowledgeScope, RagRequestPayload
-from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 from campus_rag_agent.rag_sdk_models import RagSdkEvidenceAnchor, RagSdkRunRequest, RagSdkRunResult
 from campus_rag_agent.rag_sdk_output import (
     RagSdkAnswerOutput,
@@ -13,8 +11,12 @@ from campus_rag_agent.rag_sdk_output import (
     RagSdkClaimSupport,
 )
 from campus_rag_agent.service import delegate_to_rag_agent
+from campus_retrieval_core import RetrievalPlan, RetrievalPlanBudget, RetrievalScope, RetrievalStep
+from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
+from campus_retrieval_core.models import RetrievalSelector
 
 from tests.agent.rag_agent_test_support import _make_handbook_source
+from tests.agent.rag_agent_test_support_evidence import _make_program_semester_source
 
 
 class RagAgentSdkServiceTest(unittest.TestCase):
@@ -64,6 +66,65 @@ class RagAgentSdkServiceTest(unittest.TestCase):
         self.assertEqual(captured.evidence.anchors[0].source_id, source.doc_id)
         self.assertEqual(response.result.diagnostics.prompt_runtime_state, "rag_sdk_completed")
         self.assertEqual(response.result.diagnostics.grounding_verdict, "grounded")
+
+    def test_sdk_runner_receives_canonical_curriculum_query_for_semester_lookup(self) -> None:
+        captured: RagSdkRunRequest | None = None
+        evidence = EvidenceBundle(
+            query_text="法学民族实验班培养方案里第四学期有什么课",
+            corpus="curriculum",
+            collection="program_semester_facts",
+            sources=(
+                _make_program_semester_source(
+                    source_document_id="curriculum:法学（民族实验班）本科人才培养方案",
+                    semester_label="第四学期",
+                    snippet="第四学期有侵权责任法、公司法、翻译学导论。",
+                    score=0.95,
+                ),
+            ),
+        )
+        source = evidence.sources[0]
+
+        def runner(request: RagSdkRunRequest) -> RagSdkRunResult:
+            nonlocal captured
+            captured = request
+            anchor = RagSdkEvidenceAnchor(
+                source_id=source.doc_id,
+                chunk_id=source.chunk_id,
+                excerpt=source.snippet,
+                span_ref="row-0001:0-17",
+            )
+            return RagSdkRunResult(
+                output=RagSdkAnswerOutput(
+                    answer_text="根据培养方案相关内容，第四学期有侵权责任法、公司法、翻译学导论。",
+                    answer_kind="short_answer",
+                    semantic_outcome="grounded_answer",
+                    confidence="medium",
+                    cited_source_ids=(source.doc_id,),
+                    claims=(
+                        RagSdkClaim(
+                            claim_id="claim-1",
+                            text="第四学期有侵权责任法、公司法、翻译学导论。",
+                        ),
+                    ),
+                    claim_supports=(RagSdkClaimSupport(claim_id="claim-1", anchors=(anchor,)),),
+                    evidence_anchors=(anchor,),
+                ),
+                trace_projection={"schema_version": "rag-sdk-trace-projection-v1"},
+            )
+
+        response = delegate_to_rag_agent(
+            _curriculum_request(),
+            retriever=lambda *args, **kwargs: evidence,
+            rag_sdk_runner=runner,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIsNotNone(captured)
+        assert captured is not None
+        self.assertEqual(captured.user_goal, evidence.query_text)
+        self.assertEqual(captured.query_intent.normalized_query, evidence.query_text)
+        self.assertEqual(captured.evidence.query_text, evidence.query_text)
+        self.assertIn("第四学期有侵权责任法", response.answer_text)
 
     def test_sdk_runner_returns_answer_with_sanitized_trace_projection(self) -> None:
         captured: RagSdkRunRequest | None = None
@@ -253,7 +314,9 @@ class RagAgentSdkServiceTest(unittest.TestCase):
         self.assertEqual(response.status, "error")
         self.assertEqual(response.error.code, "rag_sdk_runtime_unavailable")
         self.assertEqual(response.result.diagnostics.no_answer_reason, "")
-        self.assertEqual(response.result.diagnostics.fail_close_reason, "rag_sdk_runtime_unavailable")
+        self.assertEqual(
+            response.result.diagnostics.fail_close_reason, "rag_sdk_runtime_unavailable"
+        )
         self.assertEqual(response.result.diagnostics.semantic_outcome, "runtime_error")
 
 
@@ -264,6 +327,35 @@ def _request() -> AgentRequest:
         payload=RagRequestPayload(
             scope=KnowledgeScope(corpus="regulations", collection="student_rules")
         ),
+    )
+
+
+def _curriculum_request() -> AgentRequest:
+    return AgentRequest(
+        target="rag-agent",
+        user_goal="法学民族班培养方案里大二下有什么课",
+        payload=RagRequestPayload(
+            scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+        ),
+    )
+
+
+def _retrieval_plan() -> RetrievalPlan:
+    scope = RetrievalScope(corpus="regulations", collection="student_rules")
+    return RetrievalPlan(
+        plan_id="regulations:student_rules:single-step",
+        query_mode="current",
+        admitted_scopes=(scope,),
+        steps=(
+            RetrievalStep(
+                step_id="indexed-lookup",
+                step_type="indexed_lookup",
+                scope=scope,
+                query_text="公费医疗报销需要什么材料",
+                selector=RetrievalSelector(),
+            ),
+        ),
+        budget=RetrievalPlanBudget(max_steps=1, max_replans=0),
     )
 
 

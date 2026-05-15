@@ -337,7 +337,7 @@ def _default_grounded_runner_for_evidence(evidence: EvidenceBundle):
             if key in source_lookup
         )
         selected_evidence = EvidenceBundle(
-            query_text=request.user_goal or evidence.query_text,
+            query_text=request.evidence.query_text,
             corpus=evidence.corpus,
             collection=evidence.collection,
             sources=requested_sources,

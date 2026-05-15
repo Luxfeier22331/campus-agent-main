@@ -78,15 +78,6 @@ def _build_empty_evidence(scope, user_goal: str) -> EvidenceBundle:
     )
 
 
-def _with_query_text(evidence: EvidenceBundle, query_text: str) -> EvidenceBundle:
-    return EvidenceBundle(
-        query_text=query_text,
-        corpus=evidence.corpus,
-        collection=evidence.collection,
-        sources=evidence.sources,
-    )
-
-
 def _execute_retrieval_request_with_callable_retriever(
     retriever: Callable[..., object],
     retrieval_request: RetrievalRequest,

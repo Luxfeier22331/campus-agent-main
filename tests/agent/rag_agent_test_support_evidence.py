@@ -262,6 +262,8 @@ def _resolved_curriculum_diagnostics_from_response(
         )
         kwargs.setdefault("claim_supports", result.diagnostics.claim_supports)
         kwargs.setdefault("claim_evidence_graph", result.diagnostics.claim_evidence_graph)
+        kwargs.setdefault("prompt_runtime_state", result.diagnostics.prompt_runtime_state)
+        kwargs.setdefault("prompt_runtime_detail", result.diagnostics.prompt_runtime_detail)
     if (
         response.status == "completed"
         and "semantic_outcome" not in kwargs

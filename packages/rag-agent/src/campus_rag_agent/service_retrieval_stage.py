@@ -46,7 +46,6 @@ def execute_rag_retrieval_stage(
     request: AgentRequest,
     effective_scope: KnowledgeScope,
     user_goal: str,
-    effective_user_goal: str,
     personalization_hint: PersonalizationHint,
     intent_frame: RagIntentFrame,
     prompt_executor: RagPromptExecutor | None,
@@ -67,12 +66,8 @@ def execute_rag_retrieval_stage(
     try:
         retrieval_result = execute_rag_retrieval_context(
             request=request,
-            effective_scope=effective_scope,
-            user_goal=user_goal,
-            effective_user_goal=effective_user_goal,
             personalization_hint=personalization_hint,
             retriever=retriever,
-            retrieval_context=retrieval_context,
             retrieval_plan=retrieval_plan,
             retrieval_observation_sink=retrieval_observation_sink,
             include_retrieval_observation_query_text=include_retrieval_observation_query_text,

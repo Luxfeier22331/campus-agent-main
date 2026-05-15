@@ -44,6 +44,7 @@ from .workflow_projection_grounding import (
 Retriever = Callable[..., object]
 RetrievalObservationSink = Callable[[dict[str, object]], None]
 
+
 def delegate_to_rag_agent(
     request: AgentRequest,
     *,
@@ -139,7 +140,6 @@ def _build_rag_agent_response(
         request=request,
         effective_scope=effective_scope,
         user_goal=user_goal,
-        effective_user_goal=effective_user_goal,
         personalization_hint=personalization_hint,
         intent_frame=intent_frame,
         prompt_executor=prompt_executor,
@@ -216,9 +216,11 @@ def _build_rag_agent_response(
         curriculum_plan=curriculum_plan,
         curriculum_course_plan=curriculum_course_plan,
         retrieval_execution_result=retrieval_execution_result,
-        remote_content_block_response_builder=lambda supporting_evidence: build_remote_content_suspicion_no_answer_response(
-            outcome_context,
-            supporting_evidence=supporting_evidence,
+        remote_content_block_response_builder=lambda supporting_evidence: (
+            build_remote_content_suspicion_no_answer_response(
+                outcome_context,
+                supporting_evidence=supporting_evidence,
+            )
         ),
     )
     if evidence_selection_stage.response is not None:

@@ -91,20 +91,16 @@ class RagAgentCurriculumResolutionInitialTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("民族实验班", response.follow_up_question)
-        self.assertEqual(response.result.evidence, evidence)
+        self.assertEqual(response.result.evidence.query_text, evidence.query_text)
+        self.assertEqual(response.result.evidence.corpus, evidence.corpus)
+        self.assertEqual(response.result.evidence.collection, evidence.collection)
+        self.assertEqual(response.result.evidence.sources, ())
         self.assertIsNotNone(response.result.diagnostics)
         self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "ambiguous")
         self.assertEqual(
-            response.result.diagnostics.retrieval_adequacy_reason, "multi_candidate_title"
+            response.result.diagnostics.retrieval_adequacy_reason, "curriculum_program_conflict"
         )
-        self.assertEqual(
-            response.result.diagnostics.retrieved_title_summary,
-            (
-                "法学（民族实验班）本科人才培养方案",
-                "信息与计算科学（民族实验班）本科人才培养方案",
-                "计算机科学与技术（民族实验班）本科人才培养方案",
-            ),
-        )
+        self.assertEqual(response.result.diagnostics.retrieved_title_summary, ())
 
     def test_curriculum_semester_course_query_normalizes_alias_and_avoids_cross_doc_contamination(
         self,

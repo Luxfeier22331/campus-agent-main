@@ -51,7 +51,6 @@ from .institutional_rules_query_planning import (
 )
 from .service_common import (
     _execute_retrieval_request_with_callable_retriever,
-    _with_query_text,
 )
 from .service_curriculum import _resolve_curriculum_course_fact_target_document_ids
 from .service_scope_curriculum import (
@@ -517,12 +516,8 @@ def _build_specific_policy_focused_retrieval_plan(
 def execute_rag_retrieval_context(
     *,
     request: AgentRequest,
-    effective_scope: KnowledgeScope,
-    user_goal: str,
-    effective_user_goal: str,
     personalization_hint,
     retriever: Retriever,
-    retrieval_context: RagRetrievalContext,
     retrieval_plan: RetrievalPlan,
     retrieval_observation_sink: RetrievalObservationSink | None = None,
     include_retrieval_observation_query_text: bool = False,
@@ -545,33 +540,8 @@ def execute_rag_retrieval_context(
         include_observation_query_text=include_retrieval_observation_query_text,
     )
     evidence = execution_result.merged_evidence
-    evidence = _with_query_text(
-        evidence,
-        _answer_selection_query_text(
-            effective_scope=effective_scope,
-            effective_user_goal=effective_user_goal,
-            user_goal=user_goal,
-            retrieval_context=retrieval_context,
-        ),
-    )
     apply_remote_content_suspicion_labels(evidence)
     return RagRetrievalResult(evidence=evidence, execution_result=execution_result)
-
-
-def _answer_selection_query_text(
-    *,
-    effective_scope: KnowledgeScope,
-    effective_user_goal: str,
-    user_goal: str,
-    retrieval_context: RagRetrievalContext,
-) -> str:
-    if effective_scope.corpus == "curriculum" and effective_scope.collection == "curriculum_plan":
-        return effective_user_goal
-    return (
-        retrieval_context.focused_retrieval_goal.strip()
-        or retrieval_context.retrieval_goal.strip()
-        or user_goal
-    )
 
 
 def _semantic_hint_from_retrieval_intent(

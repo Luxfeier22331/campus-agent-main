@@ -61,6 +61,23 @@ def build_required_rag_sdk_response(
         evidence=supporting_evidence,
         supporting_sources=answer_draft.supporting_sources,
     )
+    answer_query = answer_selected_evidence.query_text.strip()
+    if not answer_query:
+        return _rag_sdk_runtime_error_response(
+            request=request,
+            resolved_scope=resolved_scope,
+            evidence=answer_selected_evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            error_code="rag_sdk_runtime_failed",
+            detail="rag_sdk_answer_query_missing",
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
+        )
     if runner is _RAG_SDK_RUNNER_NOT_PROVIDED or runner is None:
         return _rag_sdk_runtime_error_response(
             request=request,
@@ -78,9 +95,9 @@ def build_required_rag_sdk_response(
             projection_context_summaries=projection_context_summaries,
         )
     request_projection = RagSdkRunRequest(
-        user_goal=user_goal,
+        user_goal=answer_query,
         query_intent=build_rag_query_intent(
-            user_goal=user_goal,
+            user_goal=answer_query,
             retrieval_plan=retrieval_plan,
             intent_frame=intent_frame,
             retrieval_intent=retrieval_intent,
