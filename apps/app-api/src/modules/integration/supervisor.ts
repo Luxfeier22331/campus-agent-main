@@ -9,7 +9,6 @@ import { toSupervisorRequestBody } from "./supervisor-payload";
 import { parseSupervisorExecutionResponsePayload } from "./supervisor-response";
 import {
 	createSupervisorRequestHeaders,
-	mapStatusCodeToErrorCode,
 	SupervisorTransportError,
 } from "./supervisor-transport";
 import type {
@@ -139,38 +138,14 @@ export function createSupervisorExecutionClient(
 				});
 			}
 
-			let parsed: Record<string, unknown> | null = null;
-			try {
-				parsed = (await response.json()) as Record<string, unknown>;
-			} catch {
-				if (response.status === 200) {
-					throw new SupervisorTransportError({
-						code: "supervisor_invalid_response",
-						message: "Supervisor returned an invalid JSON response.",
-						retryable: true,
-						status: 502,
-					});
-				}
-			}
+			const parsed = await parseSupervisorJsonResponse(response);
 
 			if (response.status !== 200) {
-				const errorBody =
-					parsed && typeof parsed.error === "object" && parsed.error ? parsed.error : null;
+				const errorEnvelope = parseSupervisorErrorEnvelope(parsed, response.status);
 				throw new SupervisorTransportError({
-					code:
-						errorBody && typeof (errorBody as { code?: unknown }).code === "string"
-							? ((errorBody as { code: string }).code ?? mapStatusCodeToErrorCode(response.status))
-							: mapStatusCodeToErrorCode(response.status),
-					message:
-						errorBody && typeof (errorBody as { message?: unknown }).message === "string"
-							? (((errorBody as { message: string }).message as string) ??
-								"Supervisor execution request failed.")
-							: "Supervisor execution request failed.",
-					retryable:
-						errorBody && typeof (errorBody as { retryable?: unknown }).retryable === "boolean"
-							? (((errorBody as { retryable: boolean }).retryable as boolean) ??
-								response.status >= 500)
-							: response.status >= 500,
+					code: errorEnvelope.code,
+					message: errorEnvelope.message,
+					retryable: errorEnvelope.retryable,
 					status: response.status,
 				});
 			}
@@ -275,31 +250,62 @@ export function createSupervisorExecutionClient(
 				return response;
 			}
 
-			let parsed: Record<string, unknown> | null = null;
-			try {
-				parsed = (await response.json()) as Record<string, unknown>;
-			} catch {
-				parsed = null;
-			}
-			const errorBody =
-				parsed && typeof parsed.error === "object" && parsed.error ? parsed.error : null;
+			const parsed = await parseSupervisorJsonResponse(response);
+			const errorEnvelope = parseSupervisorErrorEnvelope(parsed, response.status);
 			throw new SupervisorTransportError({
-				code:
-					errorBody && typeof (errorBody as { code?: unknown }).code === "string"
-						? ((errorBody as { code: string }).code ?? mapStatusCodeToErrorCode(response.status))
-						: mapStatusCodeToErrorCode(response.status),
-				message:
-					errorBody && typeof (errorBody as { message?: unknown }).message === "string"
-						? (((errorBody as { message: string }).message as string) ??
-							"Supervisor execution stream failed.")
-						: "Supervisor execution stream failed.",
-				retryable:
-					errorBody && typeof (errorBody as { retryable?: unknown }).retryable === "boolean"
-						? (((errorBody as { retryable: boolean }).retryable as boolean) ??
-							response.status >= 500)
-						: response.status >= 500,
+				code: errorEnvelope.code,
+				message: errorEnvelope.message,
+				retryable: errorEnvelope.retryable,
 				status: response.status,
 			});
 		},
+	};
+}
+
+async function parseSupervisorJsonResponse(response: Response): Promise<Record<string, unknown>> {
+	try {
+		return (await response.json()) as Record<string, unknown>;
+	} catch {
+		throw new SupervisorTransportError({
+			code: "supervisor_invalid_response",
+			message: "Supervisor returned an invalid JSON response.",
+			retryable: true,
+			status: response.status === 200 ? 502 : response.status,
+		});
+	}
+}
+
+function parseSupervisorErrorEnvelope(
+	parsed: Record<string, unknown>,
+	status: number,
+): { code: string; message: string; retryable: boolean } {
+	const error = parsed.error;
+	if (!error || typeof error !== "object" || Array.isArray(error)) {
+		throw new SupervisorTransportError({
+			code: "supervisor_invalid_error_envelope",
+			message: "Supervisor returned an invalid error envelope.",
+			retryable: false,
+			status,
+		});
+	}
+	const record = error as Record<string, unknown>;
+	if (
+		typeof record.code !== "string" ||
+		record.code.trim() === "" ||
+		typeof record.message !== "string" ||
+		record.message.trim() === "" ||
+		typeof record.retryable !== "boolean"
+	) {
+		throw new SupervisorTransportError({
+			code: "supervisor_invalid_error_envelope",
+			message: "Supervisor returned an invalid error envelope.",
+			retryable: false,
+			status,
+		});
+	}
+	return {
+		code: record.code,
+		message: record.message,
+		retryable: record.retryable,
 	};
 }

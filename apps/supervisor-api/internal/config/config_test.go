@@ -328,6 +328,42 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	}
 }
 
+func TestLoadFromEnvIgnoresLegacyLLMPromptRuntimeAliases(t *testing.T) {
+	t.Setenv("PROMPT_RUNTIME_API_KEY", "")
+	t.Setenv("PROMPT_RUNTIME_BASE_URL", "")
+	t.Setenv("LLM_API_KEY", "legacy-key")
+	t.Setenv("LLM_BASE_URL", "https://legacy.example/v1")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+
+	if cfg.PromptRuntimeAPIKey != "" {
+		t.Fatalf("prompt runtime api key = %q, want empty", cfg.PromptRuntimeAPIKey)
+	}
+	if cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" {
+		t.Fatalf(
+			"prompt runtime base url = %q, want official default",
+			cfg.PromptRuntimeBaseURL,
+		)
+	}
+}
+
+func TestLoadFromEnvDoesNotTreatAgentRuntimeProviderAsPromptRuntimeProvider(t *testing.T) {
+	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
+	t.Setenv("AGENT_RUNTIME_PROVIDER", "agent-os")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+
+	if cfg.PromptRuntimeProvider != "" {
+		t.Fatalf("prompt runtime provider = %q, want empty", cfg.PromptRuntimeProvider)
+	}
+}
+
 func TestLoadFromEnvRejectsWildcardOpenCapabilities(t *testing.T) {
 	for _, value := range []string{"*", "all", "campus_services,all"} {
 		t.Run(value, func(t *testing.T) {

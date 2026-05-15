@@ -284,7 +284,7 @@ export function buildFinalizedWrite(input: {
 					: input.response.status === "cancelled"
 						? "execution_cancelled"
 						: "internal_error");
-		retryable = input.response.error?.retryable ?? input.response.status === "error";
+		retryable = input.response.error?.retryable ?? false;
 		outboxEventType = `request.${input.response.status}`;
 		result = {
 			kind: "error",

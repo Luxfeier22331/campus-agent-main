@@ -139,7 +139,7 @@ export interface SupervisorExecutionResponse {
 	error: {
 		code: string;
 		message: string;
-		retryable?: boolean;
+		retryable: boolean;
 	} | null;
 	followUpQuestion: string;
 	observability?: SupervisorExecutionObservability | null;

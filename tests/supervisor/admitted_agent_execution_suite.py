@@ -207,6 +207,58 @@ class AdmittedAgentExecutionSuite(unittest.TestCase):
         self.assertEqual(response.error.code, "agents_sdk_runtime_failed")
         self.assertEqual(registry.validate_calls, 0)
 
+    def test_execute_marks_unknown_sdk_runtime_exception_non_retryable(self) -> None:
+        class _FailingRuntime:
+            def run_structured_tool(self, *args, **kwargs):
+                del args, kwargs
+                raise RuntimeError("provider contract drift")
+
+        registry = default_tool_spec_registry()
+        executor = AdmittedAgentExecutor(
+            settings=ApiSettings(agents_sdk_runtime_enabled=True),
+            runtime=_FailingRuntime(),
+            tool_execution_session=build_default_tool_execution_session(
+                campus_services_query_service=FakeCampusServicesQueryService(),
+                notice_query_service=_FakeNoticeQueryService(),
+                tool_registry=registry,
+            ),
+            tool_registry=registry,
+        )
+
+        response = executor.execute(
+            AgentRequest(
+                target="campus-services-agent",
+                user_goal="校园卡丢了怎么办",
+                payload=ServiceGuideLookupPayload(
+                    service_query="校园卡丢了怎么办",
+                    guide_focus="full_guide",
+                ),
+                allowed_tools=("service_guide_lookup",),
+                actor=ActorContext(user_id="student-001"),
+                context=ContextProjection(
+                    actor=ActorContext(user_id="student-001"),
+                    authorization=AuthorizationProjection(
+                        principal_id="principal-001",
+                        entitlement_groups=("students",),
+                    ),
+                ),
+                workflow_context=WorkflowAgentContext(
+                    target="campus-services-agent",
+                    workflow_run_ref="workflow:req-sdk-runtime-failed",
+                    step_id="handoff:campus-services-agent:service_guide_lookup",
+                    agent_id="campus-services-agent",
+                ),
+            )
+        )
+
+        self.assertEqual(response.status, "error")
+        self.assertIsNotNone(response.error)
+        assert response.error is not None
+        self.assertFalse(response.error.retryable)
+        self.assertIsNotNone(response.agent_observability)
+        assert response.agent_observability is not None
+        self.assertEqual(response.agent_observability.failure_class, "sdk_runner_failed")
+
 
 def _executor() -> AdmittedAgentExecutor:
     registry = default_tool_spec_registry()

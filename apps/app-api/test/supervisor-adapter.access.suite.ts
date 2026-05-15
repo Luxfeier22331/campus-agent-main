@@ -83,6 +83,28 @@ export function registerSupervisorAdapterAccessSuite(ctx: SupervisorAdapterSuite
 		);
 	});
 
+	it("raises supervisor_invalid_response when readiness payload is not valid json", async () => {
+		const fetchImplementation = vi.fn().mockResolvedValue(
+			new Response("not-json", {
+				headers: { "content-type": "application/json" },
+				status: 200,
+			}),
+		);
+
+		await expect(
+			probeSupervisorApiReady(
+				{
+					SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+				},
+				{ fetchImplementation },
+			),
+		).rejects.toMatchObject({
+			code: "supervisor_invalid_response",
+			retryable: true,
+			status: 502,
+		});
+	});
+
 	it("reports campus services structured runtime blockers from supervisor readiness", async () => {
 		const fetchImplementation = vi.fn().mockResolvedValue(
 			new Response(

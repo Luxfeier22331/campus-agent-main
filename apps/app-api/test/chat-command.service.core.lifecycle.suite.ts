@@ -113,6 +113,66 @@ export function registerChatCommandServiceCoreLifecycleSuite(): void {
 			},
 		});
 	});
+	it("finalizes invalid supervisor stream terminal errors without defaulting missing fields", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const telemetry = createTelemetryMock();
+		const supervisor: SupervisorExecutionClient = {
+			execute: vi.fn(),
+			executeStream: vi.fn().mockResolvedValue(
+				new Response(
+					'event: execution.failed\ndata: {"request_id":"req_0001","trace_id":"trace_0001","occurred_at":"2026-03-28T08:00:02.000Z","error":{}}\n\n',
+					{
+						headers: {
+							"content-type": "text/event-stream; charset=utf-8",
+						},
+						status: 200,
+					},
+				),
+			),
+		};
+		const service = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-03-28T08:00:00.000Z"),
+			conversationStore,
+			store,
+			supervisor,
+			telemetry,
+		});
+		if (!service.submitStream) {
+			throw new Error("Expected chat command stream support.");
+		}
+
+		const events: Array<{ event: string; data: { answer?: unknown; error?: unknown } }> = [];
+		for await (const event of service.submitStream({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "图书馆开放到几点？",
+			},
+			principal: createPrincipal(),
+			surface: "public_chat_web",
+		})) {
+			events.push(event);
+		}
+
+		expect(events.map((event) => event.event)).toEqual(["request.accepted", "request.failed"]);
+		expect(events.at(-1)?.data.error).toMatchObject({
+			code: "supervisor_invalid_response",
+			retryable: true,
+		});
+		expect(finalWrites[0]).toMatchObject({
+			requestExecution: {
+				errorCode: "supervisor_invalid_response",
+				status: "error",
+			},
+		});
+		expect(telemetry.recordRequestTransportError).toHaveBeenCalledWith(
+			expect.objectContaining({
+				errorCode: "supervisor_invalid_response",
+				retryable: true,
+			}),
+		);
+	});
 	it("leaves omitted requestedCapability unset so supervisor can infer the entrance intent", async () => {
 		const { store, acceptedWrites, finalWrites } = createCommandStore();
 		const { store: conversationStore } = createConversationStore();

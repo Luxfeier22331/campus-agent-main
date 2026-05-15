@@ -12,10 +12,11 @@ import (
 func TestFinalizeAgentBridgeResponseBuildsSupervisorEnvelope(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":      "rag-agent",
-			"status":      "completed",
-			"answer_text": "图书馆开放到 22:00。",
-			"confidence":  "high",
+			"target":             "rag-agent",
+			"status":             "completed",
+			"answer_text":        "图书馆开放到 22:00。",
+			"follow_up_question": "",
+			"confidence":         "high",
 			"result": map[string]any{
 				"evidence": map[string]any{
 					"sources": []any{
@@ -117,10 +118,11 @@ func TestTerminalSupervisorResponseIncludesCanonicalNullableFields(t *testing.T)
 func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":      "rag-agent",
-			"status":      "completed",
-			"answer_text": "图书馆开放到 22:00。",
-			"confidence":  "high",
+			"target":             "rag-agent",
+			"status":             "completed",
+			"answer_text":        "图书馆开放到 22:00。",
+			"follow_up_question": "",
+			"confidence":         "high",
 			"result": map[string]any{
 				"evidence": map[string]any{
 					"sources": []any{map[string]any{"doc_id": "handbook:library-hours"}},
@@ -184,10 +186,11 @@ func TestFinalizeAgentBridgeResponseRoundTripsThroughCanonicalWorkflowTraceWire(
 func TestFinalizeAgentBridgeResponseProjectsWorkflowTraceSummary(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":      "campus-services-agent",
-			"status":      "completed",
-			"answer_text": "当前班车正常运行。",
-			"confidence":  "high",
+			"target":             "campus-services-agent",
+			"status":             "completed",
+			"answer_text":        "当前班车正常运行。",
+			"follow_up_question": "",
+			"confidence":         "high",
 			"result": map[string]any{
 				"outcome":             "resolved_current",
 				"related_notice_refs": []any{"notice:muc_internal_portal:353903"},
@@ -333,10 +336,11 @@ func TestWorkflowSummarySourceIDsUsesExplicitSafeDetails(t *testing.T) {
 func TestFinalizeAgentBridgeResponseRejectsDelegateBranchWithoutHandoff(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":      "campus-services-agent",
-			"status":      "completed",
-			"answer_text": "当前班车正常运行。",
-			"confidence":  "high",
+			"target":             "campus-services-agent",
+			"status":             "completed",
+			"answer_text":        "当前班车正常运行。",
+			"follow_up_question": "",
+			"confidence":         "high",
 		},
 		"trace-finalizer-missing-handoff",
 		supervisorFinalizerContext{
@@ -358,10 +362,11 @@ func TestFinalizeAgentBridgeResponseRejectsDelegateBranchWithoutHandoff(t *testi
 func TestFinalizeAgentBridgeResponseRejectsSelectedTargetMismatch(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":      "notice-agent",
-			"status":      "completed",
-			"answer_text": "通知详情。",
-			"confidence":  "high",
+			"target":             "notice-agent",
+			"status":             "completed",
+			"answer_text":        "通知详情。",
+			"follow_up_question": "",
+			"confidence":         "high",
 		},
 		"trace-finalizer-target-mismatch",
 		supervisorFinalizerContext{
@@ -390,10 +395,11 @@ func TestFinalizeAgentBridgeResponseRejectsSelectedTargetMismatch(t *testing.T) 
 func TestFinalizeAgentBridgeResponseProjectsActualToolCallsAndVersions(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":      "campus-services-agent",
-			"status":      "completed",
-			"answer_text": "校园卡服务当前正常。",
-			"confidence":  "high",
+			"target":             "campus-services-agent",
+			"status":             "completed",
+			"answer_text":        "校园卡服务当前正常。",
+			"follow_up_question": "",
+			"confidence":         "high",
 			"result": map[string]any{
 				"outcome":             "resolved_current",
 				"related_notice_refs": []any{"notice:muc_internal_portal:353903"},

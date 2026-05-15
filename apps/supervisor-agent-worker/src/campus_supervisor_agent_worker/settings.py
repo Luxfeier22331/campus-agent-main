@@ -180,22 +180,16 @@ class ApiSettings:
             agent_prompt_model=(
                 os.getenv("AGENT_PROMPT_MODEL", "").strip() or prompt_runtime_model
             ),
-            prompt_runtime_provider=os.getenv(
-                "PROMPT_RUNTIME_PROVIDER",
-                os.getenv("AGENT_RUNTIME_PROVIDER", ""),
-            ),
+            prompt_runtime_provider=os.getenv("PROMPT_RUNTIME_PROVIDER", ""),
             prompt_runtime_transport=os.getenv(
                 "PROMPT_RUNTIME_TRANSPORT",
                 "responses",
             ).strip()
             or "responses",
-            prompt_runtime_api_key=os.getenv(
-                "PROMPT_RUNTIME_API_KEY",
-                os.getenv("LLM_API_KEY", ""),
-            ).strip(),
+            prompt_runtime_api_key=os.getenv("PROMPT_RUNTIME_API_KEY", "").strip(),
             prompt_runtime_base_url=os.getenv(
                 "PROMPT_RUNTIME_BASE_URL",
-                os.getenv("LLM_BASE_URL", DEFAULT_PROMPT_RUNTIME_BASE_URL),
+                DEFAULT_PROMPT_RUNTIME_BASE_URL,
             ).strip()
             or DEFAULT_PROMPT_RUNTIME_BASE_URL,
             prompt_runtime_reasoning_effort=(os.getenv("PROMPT_RUNTIME_REASONING_EFFORT") or None),

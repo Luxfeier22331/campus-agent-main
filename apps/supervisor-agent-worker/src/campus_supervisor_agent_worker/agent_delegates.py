@@ -211,7 +211,7 @@ def _build_notice_query_service(
 def _build_openai_agents_runtime(settings: ApiSettings) -> OpenAIAgentsNativeRuntime | None:
     if not settings.agents_sdk_runtime_enabled:
         return None
-    provider = settings.prompt_runtime_provider or settings.runtime_provider
+    provider = settings.prompt_runtime_provider
     if not provider:
         raise _runtime_config_error("openai_agents_runtime", "provider_not_configured")
     if not settings.prompt_runtime_api_key:
@@ -251,7 +251,7 @@ def _build_rag_openai_runtime(
 ):
     if not settings.agents_sdk_runtime_enabled:
         return None
-    provider = settings.prompt_runtime_provider or settings.runtime_provider
+    provider = settings.prompt_runtime_provider
     model_name = _resolve_rag_agents_sdk_model_name(settings)
     if not provider:
         raise _runtime_config_error("rag_openai_runtime", "provider_not_configured")

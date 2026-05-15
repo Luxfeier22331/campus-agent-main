@@ -263,7 +263,7 @@ class AdmittedAgentExecutor:
                 agent_request,
                 "sdk_runner_failed",
                 f"OpenAI Agents native runtime failed: {exc}",
-                retryable=True,
+                retryable=False,
                 latency_ms=elapsed_agents_sdk_latency_ms(started_ns),
                 runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
                 tool_execution_count=len(tool_execution_records),

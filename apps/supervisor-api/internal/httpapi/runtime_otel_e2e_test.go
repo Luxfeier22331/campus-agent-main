@@ -57,7 +57,9 @@ func TestRuntimeOtelOnlineSmokeExportsSanitizedTraceToCollector(t *testing.T) {
 			Body: json.RawMessage(`{
 				"selected_target":"rag-agent",
 				"status":"completed",
-				"answer_text":"ok"
+				"answer_text":"ok",
+				"follow_up_question":"",
+				"confidence":"high"
 			}`),
 		},
 	})

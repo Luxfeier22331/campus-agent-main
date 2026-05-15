@@ -23,7 +23,9 @@ func TestAnswerDelegatesProjectedPayloadAndInjectsTraceID(t *testing.T) {
 			Body: json.RawMessage(`{
 				"selected_target":"rag-agent",
 				"status":"completed",
-				"answer_text":"ok"
+				"answer_text":"ok",
+				"follow_up_question":"",
+				"confidence":"high"
 			}`),
 		},
 	}
@@ -84,7 +86,9 @@ func TestAnswerPropagatesTraceHeadersToBridge(t *testing.T) {
 			Body: json.RawMessage(`{
 				"selected_target":"rag-agent",
 				"status":"completed",
-				"answer_text":"ok"
+				"answer_text":"ok",
+				"follow_up_question":"",
+				"confidence":"high"
 			}`),
 		},
 	}
@@ -177,6 +181,7 @@ func TestAnswerFinalizesAgentBridgeResponseInGo(t *testing.T) {
 				"target":"rag-agent",
 				"status":"completed",
 				"answer_text":"Go finalized this agent response.",
+				"follow_up_question":"",
 				"confidence":"high",
 				"result":{
 					"evidence":{
@@ -424,7 +429,9 @@ func TestAnswerRetriesTransientBridgeUnavailableAndRecordsRunState(t *testing.T)
 				Body: json.RawMessage(`{
 					"selected_target":"rag-agent",
 					"status":"completed",
-					"answer_text":"recovered"
+					"answer_text":"recovered",
+					"follow_up_question":"",
+					"confidence":"high"
 				}`),
 			}, nil
 		},

@@ -605,7 +605,7 @@ describe("app-api worker foundation", () => {
 		expect(requestProjector.drain).not.toHaveBeenCalled();
 	});
 
-	it("falls back to a local async drain when executionCtx.waitUntil is unavailable", async () => {
+	it("fails closed when request projection drain cannot be scheduled through waitUntil", async () => {
 		const requestProjector = {
 			drain: vi.fn().mockResolvedValue({ failed: 0, processed: 0 }),
 			drainRequest: vi.fn().mockResolvedValue({ failed: 0, processed: 1 }),
@@ -649,9 +649,9 @@ describe("app-api worker foundation", () => {
 			}),
 		);
 
-		expect(response.status).toBe(200);
+		expect(response.status).toBe(503);
 		await Promise.resolve();
-		expect(requestProjector.drainRequest).toHaveBeenCalledWith("req_fallback_01HQ");
+		expect(requestProjector.drainRequest).not.toHaveBeenCalled();
 		expect(requestProjector.drain).not.toHaveBeenCalled();
 	});
 });

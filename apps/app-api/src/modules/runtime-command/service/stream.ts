@@ -34,18 +34,26 @@ function getString(
 	return typeof value === "string" && value.trim() ? value : null;
 }
 
-function getError(value: unknown): { code: string; message: string; retryable?: boolean } {
+function getError(value: unknown): { code: string; message: string; retryable: boolean } {
 	const record = getRecord(value);
+	if (!record) {
+		throw new SupervisorLifecycleContractError("terminal error payload must be an object");
+	}
+	const code = getString(record, "code");
+	if (!code) {
+		throw new SupervisorLifecycleContractError("terminal error missing code");
+	}
+	const message = getString(record, "message");
+	if (!message) {
+		throw new SupervisorLifecycleContractError("terminal error missing message");
+	}
+	if (typeof record.retryable !== "boolean") {
+		throw new SupervisorLifecycleContractError("terminal error missing retryable");
+	}
 	return {
-		code:
-			typeof record?.code === "string" && record.code.trim()
-				? record.code
-				: "supervisor_invalid_response",
-		message:
-			typeof record?.message === "string" && record.message.trim()
-				? record.message
-				: "Supervisor stream returned an invalid terminal error.",
-		retryable: typeof record?.retryable === "boolean" ? record.retryable : true,
+		code,
+		message,
+		retryable: record.retryable,
 	};
 }
 
@@ -72,7 +80,7 @@ function parseSseBlock(block: string): ParsedSseEvent | null {
 	try {
 		data = JSON.parse(rawData);
 	} catch {
-		data = rawData;
+		throw new SupervisorLifecycleContractError("SSE event data must be JSON");
 	}
 
 	return { data, event };
@@ -239,7 +247,7 @@ export function parseSupervisorTerminalResponse(input: {
 export function supervisorStreamErrorResponse(input: {
 	code: string;
 	message: string;
-	retryable?: boolean;
+	retryable: boolean;
 	status?: "error" | "cancelled";
 	traceId: string;
 }): SupervisorExecutionResponse {
@@ -248,7 +256,7 @@ export function supervisorStreamErrorResponse(input: {
 		error: {
 			code: input.code,
 			message: input.message,
-			retryable: input.retryable ?? true,
+			retryable: input.retryable,
 		},
 		followUpQuestion: "",
 		result: null,

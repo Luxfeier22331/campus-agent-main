@@ -96,22 +96,21 @@ func finalizeAgentBridgeResponse(
 	if err != nil {
 		return nil, errInvalidAgentResponse
 	}
-	confidence, err := optionalAgentResponseString(agentResponse, "confidence")
+	confidence, err := requiredAgentResponseString(agentResponse, "confidence")
 	if err != nil {
 		return nil, errInvalidAgentResponse
 	}
-	confidence = defaultString(confidence, "low")
 	if !allowedAgentTarget(target) || !allowedDelegateStatus(status) || !allowedConfidence(confidence) {
 		return nil, errInvalidAgentResponse
 	}
 	if !validFinalizerHandoffInvariant(target, context) {
 		return nil, errInvalidAgentResponse
 	}
-	answerText, err := optionalAgentResponseString(agentResponse, "answer_text")
+	answerText, err := requiredAgentResponseString(agentResponse, "answer_text")
 	if err != nil {
 		return nil, errInvalidAgentResponse
 	}
-	followUpQuestion, err := optionalAgentResponseString(agentResponse, "follow_up_question")
+	followUpQuestion, err := requiredAgentResponseString(agentResponse, "follow_up_question")
 	if err != nil {
 		return nil, errInvalidAgentResponse
 	}
@@ -121,6 +120,9 @@ func finalizeAgentBridgeResponse(
 	}
 	errorBody, err := optionalAgentResponseObject(agentResponse, "error")
 	if err != nil || hasForbiddenWorkflowTraceKey(errorBody) {
+		return nil, errInvalidAgentResponse
+	}
+	if !validAgentResponseErrorBody(errorBody) {
 		return nil, errInvalidAgentResponse
 	}
 	agentObservability, err := optionalAgentResponseObject(agentResponse, "agent_observability")
@@ -166,6 +168,18 @@ func optionalAgentResponseString(agentResponse map[string]any, field string) (st
 	return strings.TrimSpace(text), nil
 }
 
+func requiredAgentResponseString(agentResponse map[string]any, field string) (string, error) {
+	value, exists := agentResponse[field]
+	if !exists || value == nil {
+		return "", errInvalidAgentResponse
+	}
+	text, ok := value.(string)
+	if !ok {
+		return "", errInvalidAgentResponse
+	}
+	return strings.TrimSpace(text), nil
+}
+
 func optionalAgentResponseObject(agentResponse map[string]any, field string) (map[string]any, error) {
 	value, exists := agentResponse[field]
 	if !exists || value == nil {
@@ -176,6 +190,22 @@ func optionalAgentResponseObject(agentResponse map[string]any, field string) (ma
 		return nil, errInvalidAgentResponse
 	}
 	return object, nil
+}
+
+func validAgentResponseErrorBody(errorBody map[string]any) bool {
+	if errorBody == nil {
+		return true
+	}
+	code, ok := errorBody["code"].(string)
+	if !ok || strings.TrimSpace(code) == "" {
+		return false
+	}
+	message, ok := errorBody["message"].(string)
+	if !ok || strings.TrimSpace(message) == "" {
+		return false
+	}
+	_, ok = errorBody["retryable"].(bool)
+	return ok
 }
 
 func buildWorkflowTraceSummary(

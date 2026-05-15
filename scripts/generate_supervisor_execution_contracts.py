@@ -312,7 +312,7 @@ def _generate_ts(contract: dict[str, Any]) -> str:
         "\tfollow_up_question: string;\n"
         "\tconfidence: ConfidenceLevel;\n"
         "\tresult: SafeRecord | null;\n"
-        "\terror: { code: string; message: string; retryable?: boolean } | null;\n"
+        "\terror: { code: string; message: string; retryable: boolean } | null;\n"
         "\tobservability?: SafeRecord | null;\n"
         "\tworkflow_trace_summary?: SupervisorExecutionWorkflowTraceSummaryWire | null;\n"
         "\ttrace_id: string;\n"

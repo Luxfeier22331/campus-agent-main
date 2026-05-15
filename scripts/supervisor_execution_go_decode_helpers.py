@@ -239,11 +239,14 @@ func (wire SupervisorResponseWire) Validate() error {
 \t\treturn fmt.Errorf("trace_id is required")
 \t}
 \tif wire.Error != nil {
-\t\tif _, ok := wire.Error["code"].(string); !ok {
+\t\tif code, ok := wire.Error["code"].(string); !ok || code == "" {
 \t\t\treturn fmt.Errorf("error.code is required")
 \t\t}
-\t\tif _, ok := wire.Error["message"].(string); !ok {
+\t\tif message, ok := wire.Error["message"].(string); !ok || message == "" {
 \t\t\treturn fmt.Errorf("error.message is required")
+\t\t}
+\t\tif _, ok := wire.Error["retryable"].(bool); !ok {
+\t\t\treturn fmt.Errorf("error.retryable is required")
 \t\t}
 \t}
 \tif wire.WorkflowTraceSummary != nil {

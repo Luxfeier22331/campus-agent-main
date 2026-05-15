@@ -172,22 +172,84 @@ func serviceGuideSectionContents(raw any) string {
 }
 
 func serviceGuideAnswerContents(result map[string]any) string {
-	if sections := serviceGuideSectionContents(result["guide_sections"]); sections != "" {
-		return sections
+	switch stringValue(result["guide_focus"]) {
+	case "procedure":
+		return serviceGuideProcedureGroupContents(result["procedure_groups"])
+	case "required_materials":
+		return serviceGuideMaterialContents(result["required_materials"])
+	case "entry":
+		return serviceGuideEntryContents(result["entry_refs"])
+	case "office_hours":
+		return serviceGuideHoursContents(result["office_hours"])
+	case "contact":
+		return serviceGuideContactContents(result["contact_refs"])
+	case "full_guide":
+		return serviceGuideFullGuideContents(result)
+	default:
+		return ""
+	}
+}
+
+func serviceGuideFullGuideContents(result map[string]any) string {
+	parts := []string{}
+	if procedures := serviceGuideProcedureGroupContents(result["procedure_groups"]); procedures != "" {
+		parts = append(parts, procedures)
 	}
 	if materials := serviceGuideMaterialContents(result["required_materials"]); materials != "" {
-		return materials
+		parts = append(parts, materials)
 	}
 	if entries := serviceGuideEntryContents(result["entry_refs"]); entries != "" {
-		return entries
+		parts = append(parts, entries)
 	}
 	if hours := serviceGuideHoursContents(result["office_hours"]); hours != "" {
-		return hours
+		parts = append(parts, hours)
 	}
 	if contacts := serviceGuideContactContents(result["contact_refs"]); contacts != "" {
-		return contacts
+		parts = append(parts, contacts)
 	}
-	return strings.Join(stringSliceValue(result["eligibility_notes"]), "、")
+	if eligibility := strings.Join(stringSliceValue(result["eligibility_notes"]), "、"); eligibility != "" {
+		parts = append(parts, eligibility)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func serviceGuideProcedureGroupContents(raw any) string {
+	items, ok := raw.([]any)
+	if !ok {
+		return ""
+	}
+	groups := make([]string, 0, len(items))
+	for _, item := range items {
+		group, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		stepsRaw, ok := group["steps"].([]any)
+		if !ok {
+			continue
+		}
+		steps := make([]string, 0, len(stepsRaw))
+		for _, stepItem := range stepsRaw {
+			step, ok := stepItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			content := stringValue(step["content"])
+			if content != "" {
+				steps = append(steps, content)
+			}
+		}
+		if len(steps) == 0 {
+			continue
+		}
+		title := stringValue(group["title"])
+		if title != "" {
+			groups = append(groups, title+"：\n"+strings.Join(steps, "\n"))
+			continue
+		}
+		groups = append(groups, strings.Join(steps, "\n"))
+	}
+	return strings.Join(groups, "\n")
 }
 
 func academicCalendarAnswerText(result map[string]any) string {

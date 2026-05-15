@@ -51,7 +51,7 @@ def build_prompt_runtime_assets(
     PromptHTTPPoolRuntime,
     ProviderBackedRagPromptExecutor | None,
 ]:
-    provider = settings.prompt_runtime_provider or settings.runtime_provider
+    provider = settings.prompt_runtime_provider
     http_settings = PromptRuntimeHTTPSettings(
         connect_timeout_seconds=settings.prompt_runtime_connect_timeout_seconds,
         read_timeout_seconds=settings.prompt_runtime_read_timeout_seconds,

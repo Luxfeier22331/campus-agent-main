@@ -234,10 +234,10 @@ func LoadFromEnv() (Config, error) {
 		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
 		StructuredQueryTimeoutMS:          values.StructuredQueryTimeoutMS,
 		StructuredProjectionDatabaseURL:   readStructuredProjectionDatabaseURL(),
-		PromptRuntimeProvider:             readFirstString("PROMPT_RUNTIME_PROVIDER", "AGENT_RUNTIME_PROVIDER"),
+		PromptRuntimeProvider:             readString("PROMPT_RUNTIME_PROVIDER", ""),
 		SupervisorPromptModel:             readPromptModel("SUPERVISOR_PROMPT_MODEL"),
 		AgentPromptModel:                  readPromptModel("AGENT_PROMPT_MODEL"),
-		PromptRuntimeAPIKey:               readFirstString("PROMPT_RUNTIME_API_KEY", "LLM_API_KEY"),
+		PromptRuntimeAPIKey:               readString("PROMPT_RUNTIME_API_KEY", ""),
 		PromptRuntimeTransport:            defaultString(strings.TrimSpace(values.PromptRuntimeTransport), "responses"),
 		PromptRuntimeBaseURL:              promptRuntimeBaseURL(values),
 		PromptStrictStructuredOutputs:     promptStrictStructuredOutputs,
@@ -327,7 +327,7 @@ func promptRuntimeBaseURL(values envValues) string {
 	if baseURL := strings.TrimSpace(values.PromptRuntimeBaseURL); baseURL != "" {
 		return baseURL
 	}
-	return readString("LLM_BASE_URL", "https://api.openai.com/v1")
+	return "https://api.openai.com/v1"
 }
 
 func defaultString(value string, defaultValue string) string {

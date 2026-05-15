@@ -244,7 +244,7 @@ export interface SupervisorExecutionResponseWire {
 	follow_up_question: string;
 	confidence: ConfidenceLevel;
 	result: SafeRecord | null;
-	error: { code: string; message: string; retryable?: boolean } | null;
+	error: { code: string; message: string; retryable: boolean } | null;
 	observability?: SafeRecord | null;
 	workflow_trace_summary?: SupervisorExecutionWorkflowTraceSummaryWire | null;
 	trace_id: string;

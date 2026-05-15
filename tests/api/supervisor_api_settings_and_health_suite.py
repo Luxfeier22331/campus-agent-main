@@ -20,8 +20,8 @@ from campus_contracts import (
     WorkflowAgentContext,
 )
 from campus_notice_agent.query_service import NoticeGetQuery
-from campus_supervisor_agent_worker.agent_dispatch import dispatch_agent_request
 from campus_supervisor_agent_worker.agent_delegates import _build_agent_delegates
+from campus_supervisor_agent_worker.agent_dispatch import dispatch_agent_request
 from campus_supervisor_agent_worker.app import create_bridge_app
 from campus_supervisor_agent_worker.settings import ApiSettings
 
@@ -47,12 +47,12 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(ready.status_code, 503)
         self.assertEqual(ready.json_body["status"], "degraded")
         self.assertEqual(ready.json_body["runtime_provider"], "mock-runtime")
-        self.assertEqual(ready.json_body["prompt_runtime"]["provider"], "mock-runtime")
+        self.assertEqual(ready.json_body["prompt_runtime"]["provider"], "")
         self.assertEqual(ready.json_body["prompt_runtime"]["supervisor_model"], "gpt-supervisor")
         self.assertEqual(ready.json_body["prompt_runtime"]["agent_model"], "gpt-agent")
         self.assertEqual(
             ready.json_body["prompt_runtime"]["admission_reason"],
-            "api_key_not_configured",
+            "provider_not_configured",
         )
         self.assertIn("prompt_http_pool", ready.json_body)
         agents_sdk = ready.json_body["agents_sdk_runtime"]
@@ -408,6 +408,32 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertEqual(settings.prompt_runtime_model, "gpt-shared")
         self.assertEqual(settings.supervisor_prompt_model, "gpt-shared")
         self.assertEqual(settings.agent_prompt_model, "gpt-shared")
+
+    def test_api_settings_from_env_ignores_legacy_llm_prompt_runtime_aliases(self) -> None:
+        env = {
+            "PROMPT_RUNTIME_MODEL": "gpt-shared",
+            "LLM_API_KEY": "legacy-key",
+            "LLM_BASE_URL": "https://legacy.example/v1",
+        }
+
+        with patch.dict(os.environ, env, clear=True):
+            settings = ApiSettings.from_env()
+
+        self.assertEqual(settings.prompt_runtime_api_key, "")
+        self.assertEqual(settings.prompt_runtime_base_url, "https://api.openai.com/v1")
+
+    def test_api_settings_from_env_does_not_promote_agent_runtime_provider_to_prompt_runtime(
+        self,
+    ) -> None:
+        env = {
+            "AGENT_RUNTIME_PROVIDER": "agent-os",
+        }
+
+        with patch.dict(os.environ, env, clear=True):
+            settings = ApiSettings.from_env()
+
+        self.assertEqual(settings.runtime_provider, "agent-os")
+        self.assertEqual(settings.prompt_runtime_provider, "")
 
     def test_api_settings_from_env_rejects_invalid_prompt_http_pool_numbers(self) -> None:
         invalid_envs = (

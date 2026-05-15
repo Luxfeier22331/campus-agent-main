@@ -189,7 +189,7 @@ def _agents_sdk_runtime_status(
 ) -> dict[str, object]:
     return agents_sdk_runtime_status(
         enabled=settings.agents_sdk_runtime_enabled,
-        prompt_runtime_provider=settings.prompt_runtime_provider or settings.runtime_provider,
+        prompt_runtime_provider=settings.prompt_runtime_provider,
         prompt_runtime_admitted=prompt_runtime_admitted,
         prompt_runtime_api_key_configured=bool(settings.prompt_runtime_api_key.strip()),
         agent_model=settings.agent_prompt_model,

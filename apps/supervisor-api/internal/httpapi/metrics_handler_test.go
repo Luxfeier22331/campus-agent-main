@@ -39,7 +39,9 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 					return bridge.ExecuteResponse{
 						StatusCode: http.StatusOK,
 						Kind:       "agent_response",
-						Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
+						Body: json.RawMessage(
+							`{"selected_target":"rag-agent","status":"completed","answer_text":"ok","follow_up_question":"","confidence":"high"}`,
+						),
 					}, nil
 				}
 				return bridge.ExecuteResponse{}, context.DeadlineExceeded

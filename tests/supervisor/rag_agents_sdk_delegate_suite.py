@@ -115,6 +115,34 @@ class RagAgentsSdkDelegateTest(unittest.TestCase):
                 )
             )
 
+    def test_openai_agents_runtime_builder_does_not_use_agent_runtime_provider_as_prompt_provider(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(AgentRuntimeBuildError, "provider_not_configured"):
+            _build_openai_agents_runtime(
+                ApiSettings(
+                    runtime_provider="agent-os",
+                    prompt_runtime_provider="",
+                    prompt_runtime_api_key="test-key",
+                    agent_prompt_model="gpt-agent",
+                    agents_sdk_runtime_enabled=True,
+                )
+            )
+
+    def test_rag_openai_runtime_builder_does_not_use_agent_runtime_provider_as_prompt_provider(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(AgentRuntimeBuildError, "provider_not_configured"):
+            _build_rag_openai_runtime(
+                ApiSettings(
+                    runtime_provider="agent-os",
+                    prompt_runtime_provider="",
+                    prompt_runtime_api_key="test-key",
+                    agent_prompt_model="gpt-agent",
+                    agents_sdk_runtime_enabled=True,
+                )
+            )
+
 
 def _request() -> AgentRequest:
     return AgentRequest(

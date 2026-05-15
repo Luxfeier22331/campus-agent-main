@@ -92,10 +92,11 @@ func TestTerminalSupervisorResponseClassifiesClarificationAndFailCloseBranches(t
 func TestFinalizeAgentBridgeResponseProjectsSafeRagToolArguments(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":      "rag-agent",
-			"status":      "completed",
-			"answer_text": "图书馆开放到 22:00。",
-			"confidence":  "high",
+			"target":             "rag-agent",
+			"status":             "completed",
+			"answer_text":        "图书馆开放到 22:00。",
+			"follow_up_question": "",
+			"confidence":         "high",
 			"result": map[string]any{
 				"evidence": map[string]any{
 					"sources": []any{map[string]any{"doc_id": "handbook:library-hours"}},
@@ -171,10 +172,11 @@ func TestWorkflowHandoffSummaryProjectsNilAllowedToolsAsEmptyArray(t *testing.T)
 func TestFinalizeAgentBridgeResponseRejectsRawAgentObservabilityKeys(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":      "campus-services-agent",
-			"status":      "completed",
-			"answer_text": "unexpected",
-			"confidence":  "high",
+			"target":             "campus-services-agent",
+			"status":             "completed",
+			"answer_text":        "unexpected",
+			"follow_up_question": "",
+			"confidence":         "high",
 			"agent_observability": map[string]any{
 				"safe_details": map[string]any{
 					"providerRawResponse": "forbidden",
@@ -193,10 +195,11 @@ func TestFinalizeAgentBridgeResponseRejectsRawAgentObservabilityKeys(t *testing.
 func TestFinalizeAgentBridgeResponseRejectsRawRagSdkResultDiagnostics(t *testing.T) {
 	_, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":      "rag-agent",
-			"status":      "completed",
-			"answer_text": "本科生可申请国家奖学金。",
-			"confidence":  "medium",
+			"target":             "rag-agent",
+			"status":             "completed",
+			"answer_text":        "本科生可申请国家奖学金。",
+			"follow_up_question": "",
+			"confidence":         "medium",
 			"result": map[string]any{
 				"diagnostics": map[string]any{
 					"prompt_runtime_state": "rag_sdk_completed",
@@ -265,10 +268,11 @@ func TestFinalizeAgentBridgeResponseRejectsUnsupportedTarget(t *testing.T) {
 func TestFinalizeAgentBridgeResponseDoesNotInferSelectedToolFromStructuredResult(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":      "campus-services-agent",
-			"status":      "completed",
-			"answer_text": "当前班车正常运行。",
-			"confidence":  "high",
+			"target":             "campus-services-agent",
+			"status":             "completed",
+			"answer_text":        "当前班车正常运行。",
+			"follow_up_question": "",
+			"confidence":         "high",
 			"result": map[string]any{
 				"subject_query": "丰台校区通勤班车在哪里上车",
 				"outcome":       "resolved_current",
@@ -328,16 +332,30 @@ func TestFinalizeAgentBridgeResponseRejectsUnsupportedConfidence(t *testing.T) {
 func TestFinalizeAgentBridgeResponseRejectsMalformedScalarFields(t *testing.T) {
 	for name, body := range map[string]map[string]any{
 		"non_string_confidence": {
-			"target":      "rag-agent",
-			"status":      "completed",
-			"answer_text": "unexpected",
-			"confidence":  true,
+			"target":             "rag-agent",
+			"status":             "completed",
+			"answer_text":        "unexpected",
+			"follow_up_question": "",
+			"confidence":         true,
+		},
+		"missing_confidence": {
+			"target":             "rag-agent",
+			"status":             "completed",
+			"answer_text":        "unexpected",
+			"follow_up_question": "",
 		},
 		"non_string_answer_text": {
-			"target":      "rag-agent",
-			"status":      "completed",
-			"answer_text": 123,
-			"confidence":  "high",
+			"target":             "rag-agent",
+			"status":             "completed",
+			"answer_text":        123,
+			"follow_up_question": "",
+			"confidence":         "high",
+		},
+		"missing_answer_text": {
+			"target":             "rag-agent",
+			"status":             "completed",
+			"follow_up_question": "",
+			"confidence":         "high",
 		},
 		"non_string_follow_up_question": {
 			"target":             "rag-agent",
@@ -346,19 +364,38 @@ func TestFinalizeAgentBridgeResponseRejectsMalformedScalarFields(t *testing.T) {
 			"follow_up_question": []any{"which campus"},
 			"confidence":         "low",
 		},
-		"non_object_result": {
+		"missing_follow_up_question": {
 			"target":      "rag-agent",
-			"status":      "completed",
-			"answer_text": "unexpected",
-			"confidence":  "high",
-			"result":      []any{"not", "object"},
-		},
-		"non_object_error": {
-			"target":      "rag-agent",
-			"status":      "error",
+			"status":      "needs_clarification",
 			"answer_text": "",
 			"confidence":  "low",
-			"error":       "failed",
+		},
+		"non_object_result": {
+			"target":             "rag-agent",
+			"status":             "completed",
+			"answer_text":        "unexpected",
+			"follow_up_question": "",
+			"confidence":         "high",
+			"result":             []any{"not", "object"},
+		},
+		"non_object_error": {
+			"target":             "rag-agent",
+			"status":             "error",
+			"answer_text":        "",
+			"follow_up_question": "",
+			"confidence":         "low",
+			"error":              "failed",
+		},
+		"error_missing_retryable": {
+			"target":             "rag-agent",
+			"status":             "error",
+			"answer_text":        "",
+			"follow_up_question": "",
+			"confidence":         "low",
+			"error": map[string]any{
+				"code":    "agent_failed",
+				"message": "agent failed",
+			},
 		},
 	} {
 		t.Run(name, func(t *testing.T) {

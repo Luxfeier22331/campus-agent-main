@@ -108,4 +108,55 @@ describe("official web handoff publisher", () => {
 			}),
 		);
 	});
+
+	it("fails closed when the handoff receiver returns a non-JSON error payload", async () => {
+		const publisher = createOfficialWebHandoffPublisher(
+			{
+				APP_API_OFFICIAL_WEB_HANDOFF_TOKEN: "handoff-secret",
+				APP_API_OFFICIAL_WEB_HANDOFF_URL: "https://ingestion.internal/api/official-web/handoffs",
+			},
+			{
+				fetchImplementation: vi.fn().mockResolvedValue(
+					new Response("<html>bad gateway</html>", {
+						headers: {
+							"content-type": "text/html; charset=utf-8",
+						},
+						status: 502,
+					}),
+				),
+			},
+		);
+
+		await expect(publisher.publish(createHandoffPayload())).rejects.toMatchObject({
+			code: "official_web_handoff_invalid_response",
+			status: 502,
+		});
+	});
+
+	it("fails closed when the handoff receiver error payload misses typed fields", async () => {
+		const publisher = createOfficialWebHandoffPublisher(
+			{
+				APP_API_OFFICIAL_WEB_HANDOFF_TOKEN: "handoff-secret",
+				APP_API_OFFICIAL_WEB_HANDOFF_URL: "https://ingestion.internal/api/official-web/handoffs",
+			},
+			{
+				fetchImplementation: vi.fn().mockResolvedValue(
+					new Response(
+						JSON.stringify({
+							error: {
+								message: "run source is missing",
+							},
+						}),
+						{ status: 409 },
+					),
+				),
+			},
+		);
+
+		await expect(publisher.publish(createHandoffPayload())).rejects.toMatchObject({
+			code: "official_web_handoff_invalid_error_envelope",
+			retryable: false,
+			status: 409,
+		});
+	});
 });

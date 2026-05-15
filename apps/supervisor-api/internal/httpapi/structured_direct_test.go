@@ -11,7 +11,8 @@ func TestStructuredAnswerTextUsesServiceGuideRequiredMaterials(t *testing.T) {
 	answerText := structuredAnswerText(
 		structuredquery.ToolServiceGuideLookup,
 		map[string]any{
-			"outcome": "resolved_current",
+			"outcome":     "resolved_current",
+			"guide_focus": "required_materials",
 			"resolved_service": map[string]any{
 				"display_name": "公费医疗报销办理指南",
 			},
@@ -30,11 +31,36 @@ func TestStructuredAnswerTextUsesServiceGuideRequiredMaterials(t *testing.T) {
 	}
 }
 
+func TestStructuredAnswerTextDoesNotUseServiceGuideMaterialsForProcedureFocus(t *testing.T) {
+	answerText := structuredAnswerText(
+		structuredquery.ToolServiceGuideLookup,
+		map[string]any{
+			"outcome":     "resolved_current",
+			"guide_focus": "procedure",
+			"resolved_service": map[string]any{
+				"display_name": "公费医疗报销办理指南",
+			},
+			"required_materials": []any{
+				map[string]any{"name": "急诊证明", "required": true},
+			},
+		},
+		"completed",
+	)
+
+	if strings.Contains(answerText, "急诊证明") {
+		t.Fatalf("answer_text = %q, must not fallback to materials for procedure focus", answerText)
+	}
+	if answerText != "公费医疗报销办理指南" {
+		t.Fatalf("answer_text = %q, want service title only", answerText)
+	}
+}
+
 func TestStructuredAnswerTextUsesServiceGuideContactRefs(t *testing.T) {
 	answerText := structuredAnswerText(
 		structuredquery.ToolServiceGuideLookup,
 		map[string]any{
-			"outcome": "resolved_current",
+			"outcome":     "resolved_current",
+			"guide_focus": "contact",
 			"resolved_service": map[string]any{
 				"display_name": "公费医疗报销办理指南",
 			},

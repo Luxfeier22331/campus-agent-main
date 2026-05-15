@@ -168,7 +168,7 @@ func TestAnswerStreamDelegatesOpenedStructuredRuntimeToAgentsSdkAdmittedBridge(t
 			return bridge.ExecuteResponse{
 				StatusCode: http.StatusOK,
 				Kind:       "agent_response",
-				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"两校区通勤班车下一班 06:50 发车。","agent_observability":{"selected_tool":"transport_schedule_lookup","tool_attempted":true,"tool_outcome":"sdk_completed","result_outcome":"resolved_current","source_ref_count":1,"safe_details":{"agent_execution_projection":{"schema_version":"agent-execution-projection-v1","projection_owner":"campus-services-agent","selected_tool":"transport_schedule_lookup","payload_kind":"transport_schedule_lookup","tool_selection_reason":"agents_sdk_adapter"},"result_guardrail":{"schema_version":"agent-result-guardrail-v1","outcome":"source_backed","source_ref_count":1,"access_decision":"allowed"}}}}`),
+				Body:       json.RawMessage(`{"selected_target":"campus-services-agent","status":"completed","answer_text":"两校区通勤班车下一班 06:50 发车。","follow_up_question":"","confidence":"high","agent_observability":{"selected_tool":"transport_schedule_lookup","tool_attempted":true,"tool_outcome":"sdk_completed","result_outcome":"resolved_current","source_ref_count":1,"safe_details":{"agent_execution_projection":{"schema_version":"agent-execution-projection-v1","projection_owner":"campus-services-agent","selected_tool":"transport_schedule_lookup","payload_kind":"transport_schedule_lookup","tool_selection_reason":"agents_sdk_adapter"},"result_guardrail":{"schema_version":"agent-result-guardrail-v1","outcome":"source_backed","source_ref_count":1,"access_decision":"allowed"}}}}`),
 			}, nil
 		},
 	})
@@ -221,7 +221,9 @@ func TestAnswerStreamEmitsLifecycleEvents(t *testing.T) {
 		response: bridge.ExecuteResponse{
 			StatusCode: http.StatusOK,
 			Kind:       "agent_response",
-			Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
+			Body: json.RawMessage(
+				`{"selected_target":"rag-agent","status":"completed","answer_text":"ok","follow_up_question":"","confidence":"high"}`,
+			),
 		},
 	})
 	request := newTestRequest(

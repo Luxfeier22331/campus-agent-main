@@ -9,10 +9,11 @@ import (
 func TestFinalizeAgentBridgeResponseDoesNotInferNoticeGetAsSelectedTool(t *testing.T) {
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":      "notice-agent",
-			"status":      "completed",
-			"answer_text": "已找到官方通知链接，请以原文为准。",
-			"confidence":  "high",
+			"target":             "notice-agent",
+			"status":             "completed",
+			"answer_text":        "已找到官方通知链接，请以原文为准。",
+			"follow_up_question": "",
+			"confidence":         "high",
 			"result": map[string]any{
 				"notice_id":    "notice:muc-spring-break-2026",
 				"title":        "2026年春假安排通知",
@@ -134,10 +135,11 @@ func TestFinalizeAgentBridgeResponseUsesRecordedNoticeMultiStepWorkflowRun(t *te
 	}
 	response, err := finalizeAgentBridgeResponse(
 		map[string]any{
-			"target":      "rag-agent",
-			"status":      "completed",
-			"answer_text": "这条通知可按学生手册相关规定理解。",
-			"confidence":  "high",
+			"target":             "rag-agent",
+			"status":             "completed",
+			"answer_text":        "这条通知可按学生手册相关规定理解。",
+			"follow_up_question": "",
+			"confidence":         "high",
 			"result": map[string]any{
 				"evidence": map[string]any{
 					"sources": []any{map[string]any{"doc_id": "handbook:rule-001"}},

@@ -120,10 +120,23 @@ export async function probeSupervisorApiReady(
 		});
 	}
 
-	const payload = (await response.json().catch(() => null)) as SupervisorReadyzRecord | null;
+	const payload = await parseSupervisorReadyzPayload(response);
 	return {
 		campusServicesProductPath: buildCampusServicesProductPathPreflight(payload),
 	};
+}
+
+async function parseSupervisorReadyzPayload(response: Response): Promise<SupervisorReadyzRecord> {
+	try {
+		return (await response.json()) as SupervisorReadyzRecord;
+	} catch {
+		throw new SupervisorTransportError({
+			code: "supervisor_invalid_response",
+			message: "Supervisor readiness probe returned an invalid JSON response.",
+			retryable: true,
+			status: 502,
+		});
+	}
 }
 
 function buildCampusServicesProductPathPreflight(

@@ -22,7 +22,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 	error: {
 		code: string;
 		message: string;
-		retryable?: boolean;
+		retryable: boolean;
 	};
 	followUpQuestion: string;
 	result: null;
@@ -51,7 +51,7 @@ export function toHandledErrorTransportOutcome(error: unknown): {
 		error: {
 			code: "internal_error",
 			message: error instanceof Error ? error.message : "Unexpected execution failure.",
-			retryable: true,
+			retryable: false,
 		},
 		followUpQuestion: "",
 		result: null,

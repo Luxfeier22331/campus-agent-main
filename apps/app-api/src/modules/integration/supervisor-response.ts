@@ -118,11 +118,19 @@ function assertSupervisorExecutionResponseWire(
 	}
 	if (record.error) {
 		const error = getRecord(record.error);
-		if (!(error && typeof error.code === "string" && typeof error.message === "string")) {
-			throw new SupervisorResponseContractError("error.code and error.message are required");
-		}
-		if ("retryable" in error && typeof error.retryable !== "boolean") {
-			throw new SupervisorResponseContractError("error.retryable must be boolean when present");
+		if (
+			!(
+				error &&
+				typeof error.code === "string" &&
+				error.code.trim() &&
+				typeof error.message === "string" &&
+				error.message.trim() &&
+				typeof error.retryable === "boolean"
+			)
+		) {
+			throw new SupervisorResponseContractError(
+				"error.code, error.message, and error.retryable are required",
+			);
 		}
 	}
 	if (
@@ -429,18 +437,9 @@ export function parseSupervisorExecutionResponsePayload(
 		error:
 			parsed.error && typeof parsed.error === "object"
 				? {
-						code:
-							typeof (parsed.error as { code?: unknown }).code === "string"
-								? ((parsed.error as { code: string }).code as string)
-								: "unknown_error",
-						message:
-							typeof (parsed.error as { message?: unknown }).message === "string"
-								? ((parsed.error as { message: string }).message as string)
-								: "Supervisor returned an unknown error.",
-						retryable:
-							typeof (parsed.error as { retryable?: unknown }).retryable === "boolean"
-								? ((parsed.error as { retryable: boolean }).retryable as boolean)
-								: undefined,
+						code: (parsed.error as { code: string }).code,
+						message: (parsed.error as { message: string }).message,
+						retryable: (parsed.error as { retryable: boolean }).retryable,
 					}
 				: null,
 		followUpQuestion: parsed.follow_up_question,

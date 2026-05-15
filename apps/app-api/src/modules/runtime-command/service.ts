@@ -518,7 +518,7 @@ export function buildChatCommandService(
 				response: handled,
 				transportError: {
 					code: handled.error.code,
-					retryable: handled.error.retryable ?? true,
+					retryable: handled.error.retryable,
 				},
 			};
 		}
@@ -577,7 +577,7 @@ export function buildChatCommandService(
 					executionResponse: handled,
 					transportError: {
 						code: handled.error.code,
-						retryable: handled.error.retryable ?? true,
+						retryable: handled.error.retryable,
 					},
 				});
 				yield toTerminalChatStreamEvent({
@@ -599,7 +599,7 @@ export function buildChatCommandService(
 					executionResponse: handled,
 					transportError: {
 						code: handled.error.code,
-						retryable: handled.error.retryable ?? true,
+						retryable: handled.error.retryable,
 					},
 				});
 				yield toTerminalChatStreamEvent({
@@ -610,37 +610,61 @@ export function buildChatCommandService(
 			}
 
 			let sawTerminal = false;
-			for await (const upstreamEvent of parseSupervisorSse(upstreamResponse)) {
-				const lifecycleEvent = mapSupervisorLifecycleEvent({
-					data: upstreamEvent.data,
-					event: upstreamEvent.event,
-					now,
-				});
-				if (lifecycleEvent) {
-					yield lifecycleEvent;
-					continue;
-				}
+			try {
+				for await (const upstreamEvent of parseSupervisorSse(upstreamResponse)) {
+					const lifecycleEvent = mapSupervisorLifecycleEvent({
+						data: upstreamEvent.data,
+						event: upstreamEvent.event,
+						now,
+					});
+					if (lifecycleEvent) {
+						yield lifecycleEvent;
+						continue;
+					}
 
-				const terminal = parseSupervisorTerminalResponse({
-					data: upstreamEvent.data,
-					event: upstreamEvent.event,
-					now,
-				});
-				if (!terminal) {
-					continue;
-				}
+					const terminal = parseSupervisorTerminalResponse({
+						data: upstreamEvent.data,
+						event: upstreamEvent.event,
+						now,
+					});
+					if (!terminal) {
+						continue;
+					}
 
-				sawTerminal = true;
+					sawTerminal = true;
+					const finalized = await finalizeAcceptedCommand({
+						context,
+						executionResponse: terminal.response,
+					});
+					yield toTerminalChatStreamEvent({
+						occurredAt: terminal.occurredAt,
+						response: finalized,
+						sourceEvent: terminal.sourceEvent,
+					});
+					break;
+				}
+			} catch (error) {
 				const finalized = await finalizeAcceptedCommand({
 					context,
-					executionResponse: terminal.response,
+					executionResponse: supervisorStreamErrorResponse({
+						code: "supervisor_invalid_response",
+						message:
+							error instanceof Error
+								? error.message
+								: "Supervisor lifecycle stream violated the execution contract.",
+						retryable: true,
+						traceId: context.traceId,
+					}),
+					transportError: {
+						code: "supervisor_invalid_response",
+						retryable: true,
+					},
 				});
 				yield toTerminalChatStreamEvent({
-					occurredAt: terminal.occurredAt,
+					occurredAt: now().toISOString(),
 					response: finalized,
-					sourceEvent: terminal.sourceEvent,
 				});
-				break;
+				return;
 			}
 
 			if (!sawTerminal) {

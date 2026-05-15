@@ -35,6 +35,7 @@ func TestAnswerExecutesRecordedMultiStepWorkflow(t *testing.T) {
 						"target":"notice-agent",
 						"status":"completed",
 						"answer_text":"已读取通知。",
+						"follow_up_question":"",
 						"confidence":"high",
 						"result":{
 							"outcome":"resolved_current",
@@ -338,6 +339,7 @@ func TestAnswerFailsClosedWhenMultiStepArtifactsAreIncomplete(t *testing.T) {
 						"target":"notice-agent",
 						"status":"completed",
 						"answer_text":"已读取通知。",
+						"follow_up_question":"",
 						"confidence":"high",
 						"result":{
 							"title":"烟雾测试通知",
@@ -355,6 +357,7 @@ func TestAnswerFailsClosedWhenMultiStepArtifactsAreIncomplete(t *testing.T) {
 						"target":"rag-agent",
 						"status":"completed",
 						"answer_text":"这是一个没有 artifact 的错误成功响应。",
+						"follow_up_question":"",
 						"confidence":"medium",
 						"result":{
 							"outcome":"resolved_current"
@@ -442,13 +445,15 @@ func TestAnswerSurfacesMultiStepBridgeStepErrorBeforeArtifactCompleteness(t *tes
 					"target":"campus-services-agent",
 					"status":"error",
 					"answer_text":"结构化查询运行失败。",
+					"follow_up_question":"",
 					"confidence":"low",
 					"result":{
 						"outcome":"agents_sdk_runtime_failed"
 					},
 					"error":{
 						"code":"agents_sdk_runtime_failed",
-						"message":"Agents SDK runner did not produce required output artifacts: schedule_baseline"
+						"message":"Agents SDK runner did not produce required output artifacts: schedule_baseline",
+						"retryable":false
 					},
 					"agent_observability":{
 						"selected_tool":"transport_schedule_lookup",
@@ -524,6 +529,7 @@ func TestTransportScheduleProjectionSummaryUsesStructuredResultNotAgentAnswerTex
 			"target":"campus-services-agent",
 			"status":"completed",
 			"answer_text":"[transport_schedule_temporal_lookup] Mock Agents SDK completed transport_schedule_lookup for campus-services-agent: {\"raw\":\"must not enter projection summary\"}",
+			"follow_up_question":"",
 			"confidence":"medium",
 			"result":{
 				"outcome":"resolved_current",

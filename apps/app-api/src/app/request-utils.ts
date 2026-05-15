@@ -105,9 +105,16 @@ export async function readJsonRequestBody(request: Request): Promise<Record<stri
 		});
 	})) as unknown;
 
-	return payload && typeof payload === "object" && !Array.isArray(payload)
-		? (payload as Record<string, unknown>)
-		: {};
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+		throw new AppApiRouteError({
+			code: "invalid_json_body",
+			message: "JSON body must be an object.",
+			retryable: false,
+			status: 400,
+		});
+	}
+
+	return payload as Record<string, unknown>;
 }
 
 export function resolveWaitUntil(
@@ -115,7 +122,13 @@ export function resolveWaitUntil(
 ): ((promise: Promise<unknown>) => void) | undefined {
 	try {
 		return context?.executionCtx?.waitUntil.bind(context.executionCtx);
-	} catch {
-		return;
+	} catch (error) {
+		if (
+			error instanceof Error &&
+			error.message === "This context has no ExecutionContext"
+		) {
+			return;
+		}
+		throw error;
 	}
 }

@@ -100,8 +100,7 @@ def parse_agent_payload_by_kind(payload_kind: str, payload: dict[str, object]) -
                 payload.get("campus_scope"), field_name="campus_scope"
             )
             or "",
-            audience=parse_optional_string(payload.get("audience"), field_name="audience")
-            or "unknown",
+            audience=require_string(payload.get("audience"), field_name="audience"),
             result_limit=parse_optional_int(payload.get("result_limit")),
         )
     if payload_kind == "contact_directory_lookup":
@@ -115,8 +114,7 @@ def parse_agent_payload_by_kind(payload_kind: str, payload: dict[str, object]) -
                 payload.get("campus_scope"), field_name="campus_scope"
             )
             or "",
-            audience=parse_optional_string(payload.get("audience"), field_name="audience")
-            or "unknown",
+            audience=require_string(payload.get("audience"), field_name="audience"),
             result_limit=parse_optional_int(payload.get("result_limit")),
         )
     if payload_kind == "campus_notice_discover":
