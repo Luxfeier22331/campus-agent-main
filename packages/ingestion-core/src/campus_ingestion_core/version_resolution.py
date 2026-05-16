@@ -162,9 +162,7 @@ def _resolve_track_records(
     if not records:
         return "", ()
     discovered_revision_track = records[0].revision_track
-    return discovered_revision_track, registry.list_versions(
-        document_id, discovered_revision_track
-    )
+    return discovered_revision_track, registry.list_versions(document_id, discovered_revision_track)
 
 
 def _resolve_current_record(

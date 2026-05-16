@@ -11,7 +11,9 @@ from campus_contracts import (
 from campus_rag_agent.query_planning import plan_curriculum_course_query
 from campus_rag_agent.semantic_replan import build_semantic_replan_steps
 from campus_rag_agent.service_diagnostics_payload import _build_rag_result_diagnostics
-from campus_rag_agent.service_planner_stage import execute_rag_planner_stage as _execute_rag_planner_stage
+from campus_rag_agent.service_planner_stage import (
+    execute_rag_planner_stage as _execute_rag_planner_stage,
+)
 from campus_retrieval_core import (
     RetrievalExecutionResult,
     RetrievalPlan,

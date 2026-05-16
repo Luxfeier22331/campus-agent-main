@@ -236,11 +236,15 @@ class BackendQdrantPolicyFocusRankingTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(tuple(source.chunk_id for source in selected), ("appeal-written-deadline",))
+        self.assertEqual(
+            tuple(source.chunk_id for source in selected), ("appeal-written-deadline",)
+        )
 
     def test_applicability_lookup_maps_to_audience_scope_subject(self) -> None:
         self.assertEqual(
-            infer_query_condition_subject("中央民族大学毕业生就业奖励办法适用于2019届及以后毕业生吗"),
+            infer_query_condition_subject(
+                "中央民族大学毕业生就业奖励办法适用于2019届及以后毕业生吗"
+            ),
             "audience_scope",
         )
 

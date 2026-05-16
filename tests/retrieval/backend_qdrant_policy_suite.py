@@ -680,7 +680,10 @@ class BackendQdrantPolicyTest(unittest.TestCase):
             sources=sources,
         )
 
-        self.assertEqual(tuple(source.chunk_id for source in retained), ("teaching-units:chunk-0002", "teaching-units:chunk-0003"))
+        self.assertEqual(
+            tuple(source.chunk_id for source in retained),
+            ("teaching-units:chunk-0002", "teaching-units:chunk-0003"),
+        )
 
     def test_apply_document_diversity_policy_applies_to_stable_reference_scope(self) -> None:
         profile = _make_runtime_profile(

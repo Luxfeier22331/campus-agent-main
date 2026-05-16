@@ -46,18 +46,10 @@ class RagAgentOfficialWebPeopleAndNewsTest(unittest.TestCase):
                         user_goal=user_goal,
                         payload=RagRequestPayload(scope=INVENTORY_SCOPE),
                     ),
-                    retriever=lambda *args, **kwargs: _make_official_web_evidence(
-                        query_text=user_goal,
-                        sources=(
-                            _make_official_web_source(
-                                doc_id=f"official_web:muc_public:article_detail:{title}",
-                                title=title,
-                                snippet=f"标题：{title}\n{snippet}",
-                                score=0.9,
-                                chunk_id_suffix=title,
-                                content_role="primary_content",
-                            ),
-                        ),
+                    retriever=_official_web_case_retriever(
+                        user_goal=user_goal,
+                        title=title,
+                        snippet=snippet,
                     ),
                 )
 
@@ -90,18 +82,10 @@ class RagAgentOfficialWebPeopleAndNewsTest(unittest.TestCase):
                         user_goal=user_goal,
                         payload=RagRequestPayload(scope=INVENTORY_SCOPE),
                     ),
-                    retriever=lambda *args, **kwargs: _make_official_web_evidence(
-                        query_text=user_goal,
-                        sources=(
-                            _make_official_web_source(
-                                doc_id=f"official_web:muc_public:article_detail:{title}",
-                                title=title,
-                                snippet=f"标题：{title}\n{snippet}",
-                                score=0.9,
-                                chunk_id_suffix=title,
-                                content_role="primary_content",
-                            ),
-                        ),
+                    retriever=_official_web_case_retriever(
+                        user_goal=user_goal,
+                        title=title,
+                        snippet=snippet,
                     ),
                 )
 
@@ -160,3 +144,22 @@ class RagAgentOfficialWebPeopleAndNewsTest(unittest.TestCase):
         )
 
         self.assertEqual(rows, ())
+
+
+def _official_web_case_retriever(*, user_goal: str, title: str, snippet: str):
+    def retrieve(*args, **kwargs):
+        return _make_official_web_evidence(
+            query_text=user_goal,
+            sources=(
+                _make_official_web_source(
+                    doc_id=f"official_web:muc_public:article_detail:{title}",
+                    title=title,
+                    snippet=f"标题：{title}\n{snippet}",
+                    score=0.9,
+                    chunk_id_suffix=title,
+                    content_role="primary_content",
+                ),
+            ),
+        )
+
+    return retrieve

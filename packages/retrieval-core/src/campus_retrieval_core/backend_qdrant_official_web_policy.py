@@ -139,9 +139,8 @@ def _apply_document_diversity_policy(
                 query_text=query_text,
                 sources=title_targeting_sources,
             )
-        if (
-            not keep_directory_reference_entries
-            and any(term in normalized_query for term in _OFFICIAL_WEB_STABLE_REFERENCE_QUERY_TERMS)
+        if not keep_directory_reference_entries and any(
+            term in normalized_query for term in _OFFICIAL_WEB_STABLE_REFERENCE_QUERY_TERMS
         ):
             return representative_title_sources[:1]
         title_target_doc_ids = {source.doc_id for source in representative_title_sources}
@@ -190,8 +189,7 @@ def _should_keep_official_web_directory_reference_entries(
     if "哪些" not in normalized_query and "有哪些" not in normalized_query:
         return False
     return any(
-        source.content_role == "directory_reference"
-        and source.content_kind == "directory_entry"
+        source.content_role == "directory_reference" and source.content_kind == "directory_entry"
         for source in sources
     )
 
@@ -250,12 +248,14 @@ def _official_web_representative_source_sort_key(
             for term in ("二维码", "扫码", "扫描", "预约", "报名", "图书馆积分")
         ):
             notice_bonus -= 40
-    if "教学和科研单位" in normalized_query:
-        if any(term in normalized_snippet for term in ("学院", "学部", "研究院")):
-            fact_bonus += 220
-    if "收费" in normalized_query or "学费" in normalized_query:
-        if any(term in normalized_snippet for term in ("收费", "学费", "住宿费", "公示")):
-            fact_bonus += 220
+    if "教学和科研单位" in normalized_query and any(
+        term in normalized_snippet for term in ("学院", "学部", "研究院")
+    ):
+        fact_bonus += 220
+    if ("收费" in normalized_query or "学费" in normalized_query) and any(
+        term in normalized_snippet for term in ("收费", "学费", "住宿费", "公示")
+    ):
+        fact_bonus += 220
     if any(term in normalized_query for term in _OFFICIAL_WEB_STABLE_REFERENCE_QUERY_TERMS):
         if any(
             term in source.snippet for term in ("是一所", "是党和国家", "创建的一所", "特色鲜明")

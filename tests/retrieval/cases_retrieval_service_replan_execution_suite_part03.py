@@ -143,9 +143,7 @@ class RetrievalServiceReplanExecutionTestPart03(unittest.TestCase):
                     step_id="indexed-lookup",
                     step_type="indexed_lookup",
                     scope=RetrievalScope(corpus="regulations", collection="student_rules"),
-                    query_text=(
-                        "中央民族大学学生听证实施办法 听证申请 10日内 书面听证申请"
-                    ),
+                    query_text=("中央民族大学学生听证实施办法 听证申请 10日内 书面听证申请"),
                     semantic_hint=RetrievalSemanticHint(
                         intent_kind="procedure_steps",
                         answer_kind="procedure_steps",

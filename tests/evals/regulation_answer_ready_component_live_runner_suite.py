@@ -344,9 +344,7 @@ class RegulationAnswerReadyComponentLiveRunnerSuite(unittest.TestCase):
                 KnowledgeScope(corpus="regulations", collection="institutional_rules"),
             )
             if retrieval_observation_sink is not None:
-                retrieval_observation_sink(
-                    {"contract_missing": False, "contract_issue_reason": ""}
-                )
+                retrieval_observation_sink({"contract_missing": False, "contract_issue_reason": ""})
             query = request.user_goal
             if "流程" in query:
                 evidence = (institutional_source,)

@@ -20,8 +20,8 @@ from .regulation_semantic_registry_predicates import (
     _looks_like_material_requirement_item,
     _looks_like_non_action_assessment_heading,
     _looks_like_procedure_intro_or_category,
-    _looks_like_time_intro_or_category,
     _looks_like_time_constraint_leaf,
+    _looks_like_time_intro_or_category,
 )
 from .regulation_semantic_registry_procedure_rules import (
     REGULATION_NON_PROCEDURE_REVIEW_STATUS_MARKERS,

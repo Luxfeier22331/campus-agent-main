@@ -110,9 +110,7 @@ def _match_explicit_documents(
         return ()
     documents = _explicit_document_candidates_for_query(normalized_query)
     for query_key in query_keys:
-        exact_matches = tuple(
-            document for document in documents if document.title_key == query_key
-        )
+        exact_matches = tuple(document for document in documents if document.title_key == query_key)
         if exact_matches:
             return exact_matches
     matches = tuple(

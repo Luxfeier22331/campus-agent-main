@@ -36,7 +36,8 @@ def _extract_material_requirement_claims(clause: str) -> tuple[ExtractedClaim, .
     if _is_missing_information_clause(clause):
         return ()
     if any(token in clause for token in ("审核", "审批", "备案", "挂失", "办理")) and not any(
-        token in clause for token in ("材料", "申请表", "书面申请", "证明", "证件", "原件", "复印件")
+        token in clause
+        for token in ("材料", "申请表", "书面申请", "证明", "证件", "原件", "复印件")
     ):
         return ()
     claims: list[ExtractedClaim] = []

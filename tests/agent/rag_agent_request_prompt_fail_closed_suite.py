@@ -47,6 +47,7 @@ class RagAgentRequestPromptFailClosedTest(unittest.TestCase):
                 ),
             ),
         )
+
         class FakePromptExecutor:
             def compose_answer(
                 self, packet: object
@@ -114,6 +115,7 @@ class RagAgentRequestPromptFailClosedTest(unittest.TestCase):
                 ),
             ),
         )
+
         class FakePromptExecutor:
             def compose_answer(
                 self, packet: object

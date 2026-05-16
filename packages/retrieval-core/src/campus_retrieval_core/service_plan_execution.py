@@ -242,7 +242,6 @@ def build_execution_result(
 
 
 __all__ = [
-    "ExecutableLiveLookupFn",
     "ExecutableRerankFn",
     "ExecutableRetrievalRequestFn",
     "ReplanStepCallback",

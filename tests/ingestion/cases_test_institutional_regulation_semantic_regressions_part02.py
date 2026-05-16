@@ -420,14 +420,12 @@ class InstitutionalRegulationSemanticRegressionsTestPart02(
     ) -> None:
         chunks = self._build_chunks(
             document_id=(
-                "institutional_regulation:muc:"
-                "中央民族大学毕业生就业奖励办法:f16e569519f7"
+                "institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7"
             ),
             rows=(
                 self._row(
                     document_id=(
-                        "institutional_regulation:muc:"
-                        "中央民族大学毕业生就业奖励办法:f16e569519f7"
+                        "institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7"
                     ),
                     root_unit_id=(
                         "institutional_regulation:muc:"

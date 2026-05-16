@@ -189,8 +189,7 @@ class RagAgentConditionOverviewSynthesisTest(unittest.TestCase):
 
         self.assertTrue(
             draft.answer_text.startswith(
-                "制度原文没有使用“学时”，而是按“节”统计；"
-                "一学期累计旷课16节以下即进入违纪处理分档"
+                "制度原文没有使用“学时”，而是按“节”统计；一学期累计旷课16节以下即进入违纪处理分档"
             )
         )
         self.assertLess(
@@ -278,8 +277,7 @@ class RagAgentConditionOverviewSynthesisTest(unittest.TestCase):
 
         self.assertTrue(
             draft.answer_text.startswith(
-                "制度原文没有使用“学时”，而是按“节”统计；"
-                "一学期累计旷课16节以下即进入违纪处理分档"
+                "制度原文没有使用“学时”，而是按“节”统计；一学期累计旷课16节以下即进入违纪处理分档"
             )
         )
         self.assertIn("依据学生违纪处分实施办法 第三十三条", draft.answer_text)
@@ -352,8 +350,7 @@ class RagAgentConditionOverviewSynthesisTest(unittest.TestCase):
                 doc_id="policy:professional-scholarship",
                 title=title,
                 snippet=(
-                    "专业一等奖学金从班内综合测评排名前10%以内评选,"
-                    "按应参评学生人数的5%评定。"
+                    "专业一等奖学金从班内综合测评排名前10%以内评选,按应参评学生人数的5%评定。"
                 ),
                 score=0.95,
                 chunk="professional-scholarship-quota-condition",
@@ -725,7 +722,9 @@ class RagAgentConditionOverviewSynthesisTest(unittest.TestCase):
 
         self.assertTrue(draft.answer_text.startswith("被处分后申请解除处分的等待期"))
         self.assertEqual(len(draft.supporting_sources), 1)
-        self.assertTrue(draft.supporting_sources[0].chunk_id.endswith(":discipline-relief-duration"))
+        self.assertTrue(
+            draft.supporting_sources[0].chunk_id.endswith(":discipline-relief-duration")
+        )
         self.assertEqual(len(draft.supporting_contexts), 1)
         self.assertIn("6个月", draft.answer_text)
         self.assertIn("12个月", draft.answer_text)

@@ -127,8 +127,7 @@ class HandbookChunkingPipelinePart07Test(unittest.TestCase):
                     unit_type="article_body",
                     root_unit_id="article-hearing-application",
                     clean_text=(
-                        "学生要求听证的,应在收到拟处分或处理告知书后10日内"
-                        "提交书面听证申请。"
+                        "学生要求听证的,应在收到拟处分或处理告知书后10日内提交书面听证申请。"
                     ),
                     anchor={
                         "section_path": ["第二章 听证申请"],
@@ -222,9 +221,7 @@ class HandbookChunkingPipelinePart07Test(unittest.TestCase):
             "passed",
         )
 
-        consequence = chunks_by_text[
-            "学生在申诉期内未提出申诉的视为放弃申诉,学校不再受理。"
-        ]
+        consequence = chunks_by_text["学生在申诉期内未提出申诉的视为放弃申诉,学校不再受理。"]
         self.assertEqual(consequence["answer_role"], "exclusion_rule")
         self.assertEqual(consequence["polarity"], "negative")
         self.assertEqual(consequence["condition_polarity"], "negative")

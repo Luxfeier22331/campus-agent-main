@@ -78,10 +78,7 @@ def _resolve_consumer_projection(
         if consumer_family in skipped_consumer_families:
             continue
         target_corpus, target_collection = _target_from_consumer_match(match)
-        selected_write_target = (
-            _require_optional_text(match.get("selectedWriteTarget"))
-            or ""
-        )
+        selected_write_target = _require_optional_text(match.get("selectedWriteTarget")) or ""
         candidate_pages.append(
             _build_consumer_candidate_page(
                 blocks=blocks,
@@ -90,8 +87,7 @@ def _resolve_consumer_projection(
                 materialization_policy=materialization_policy,
                 matched_evidence=_string_list(match.get("matchedEvidence"))
                 or _target_lineage_matched_evidence(match),
-                review_policy=_require_optional_text(match.get("reviewPolicy"))
-                or "",
+                review_policy=_require_optional_text(match.get("reviewPolicy")) or "",
                 selected_write_target=selected_write_target,
                 target_lineage=match,
                 target_collection=target_collection,
@@ -122,8 +118,7 @@ def _is_non_answer_bearing_source_pack_preview_seed(
     if source_pack_id is None or source_pack_entry_id is None or not matches:
         return False
     return all(
-        _require_optional_text(match.get("worksetReason"))
-        == "source_pack_preview_seed"
+        _require_optional_text(match.get("worksetReason")) == "source_pack_preview_seed"
         for match in matches
         if isinstance(match, dict)
     )
@@ -309,10 +304,7 @@ def _build_email_service_candidate_page(
         "normalizedCanonicalUrl",
     )
     raw_version_id = _require_text(policy_manifest.get("rawVersionId"), "rawVersionId")
-    selected_write_target = (
-        _require_optional_text(target_lineage.get("selectedWriteTarget"))
-        or ""
-    )
+    selected_write_target = _require_optional_text(target_lineage.get("selectedWriteTarget")) or ""
     policy_lines = _main_content_lines(policy_blocks)
     entry_lines = _combined_main_content_lines(entry_contexts)
     material_lines = _combined_main_content_lines(material_contexts)
@@ -436,10 +428,7 @@ def _build_information_disclosure_service_candidate_page(
         "normalizedCanonicalUrl",
     )
     raw_version_id = _require_text(procedure_manifest.get("rawVersionId"), "rawVersionId")
-    selected_write_target = (
-        _require_optional_text(target_lineage.get("selectedWriteTarget"))
-        or ""
-    )
+    selected_write_target = _require_optional_text(target_lineage.get("selectedWriteTarget")) or ""
     procedure_lines = _main_content_lines(procedure_blocks)
     material_lines = _combined_main_content_lines(material_contexts)
     contact_blocks = _combined_candidate_blocks(

@@ -736,9 +736,8 @@ def build_official_web_release_task_store_from_env(
             f"{OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_ENV_KEY} or "
             f"{OFFICIAL_WEB_RELEASE_TASK_DATABASE_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
         )
-    if (
-        source.get(OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_ENV_KEY)
-        or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
+    if source.get(OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_ENV_KEY) or source.get(
+        SHARED_POSTGRES_OPERATOR_ENV_KEY
     ):
         database_url = build_operator_postgres_connection_url(database_url)
     return PostgresOfficialWebReleaseTaskStore(database_url, table_name=table_name)

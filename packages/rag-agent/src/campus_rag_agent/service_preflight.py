@@ -19,8 +19,7 @@ from .service_preflight_responses import (
     build_pre_retrieval_clarification_response,
     build_pre_retrieval_no_answer_response,
 )
-from .service_response_text import _build_curriculum_unsupported_response
-from .service_response_text import _build_no_answer_response
+from .service_response_text import _build_curriculum_unsupported_response, _build_no_answer_response
 from .service_scope_plans import _has_resolved_query_plan
 
 

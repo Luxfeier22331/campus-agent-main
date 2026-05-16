@@ -50,7 +50,9 @@ def _require_structured_query_runtime(
     runtime_name: str,
 ) -> None:
     if not settings.internal_query_base_url:
-        raise QueryServiceRuntimeError(f"{runtime_name} misconfigured: query_base_url_not_configured")
+        raise QueryServiceRuntimeError(
+            f"{runtime_name} misconfigured: query_base_url_not_configured"
+        )
     if not settings.internal_query_shared_secret:
         raise QueryServiceRuntimeError(
             f"{runtime_name} misconfigured: query_shared_secret_not_configured"

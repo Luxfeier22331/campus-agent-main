@@ -313,10 +313,7 @@ def source_conflicts_with_query_polarity(
         source_has_negative_polarity(source)
         or source_answer_role in _NEGATIVE_SOURCE_ROLES
         or source_claim_type == "cannot_do"
-        or (
-            not explicit_positive_contract
-            and _contains_negative_source_cue(source.snippet)
-        )
+        or (not explicit_positive_contract and _contains_negative_source_cue(source.snippet))
     )
 
 
@@ -379,7 +376,8 @@ def source_has_negative_polarity(source: EvidenceSource) -> bool:
     attributes = evidence_attributes_for_source(source)
     if (
         attributes.polarity == "positive"
-        and attributes.answer_role in _POSITIVE_SOURCE_ROLES | {"material_requirement", "time_constraint"}
+        and attributes.answer_role
+        in _POSITIVE_SOURCE_ROLES | {"material_requirement", "time_constraint"}
         and attributes.claim_type != "cannot_do"
     ):
         return False

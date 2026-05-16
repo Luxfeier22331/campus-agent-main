@@ -29,13 +29,11 @@ class CollectedNoticeMediaLifecycleTest(unittest.TestCase):
         self,
     ) -> None:
         for value in ("", "ready", "succeeded", "stored", "processed", "admitted"):
-            with self.subTest(value=value):
-                with self.assertRaisesRegex(ValueError, "unsupported value"):
-                    normalize_media_lifecycle_status(value)
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "unsupported value"):
+                normalize_media_lifecycle_status(value)
         for value in ("review", "low_confidence", "ocr_low_confidence", "failed"):
-            with self.subTest(value=value):
-                with self.assertRaisesRegex(ValueError, "unsupported value"):
-                    normalize_media_lifecycle_status(value)
+            with self.subTest(value=value), self.assertRaisesRegex(ValueError, "unsupported value"):
+                normalize_media_lifecycle_status(value)
 
 
 if __name__ == "__main__":

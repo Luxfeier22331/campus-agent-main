@@ -61,12 +61,11 @@ def _supporting_context_structural_labels(source: EvidenceSource) -> tuple[str, 
         return ()
     if source.content_role != "table_fact":
         return ()
-    labels = tuple(
+    return tuple(
         label
         for label in (_normalize_snippet(item) for item in source.structural_path[1:])
         if label and label not in {"课程设置和修读建议", "课程清单如下"}
     )
-    return labels
 
 
 __all__ = ["_render_supporting_contexts"]

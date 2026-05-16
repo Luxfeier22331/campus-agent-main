@@ -202,9 +202,7 @@ class RetrievalServiceTypedStepExecutionTest(unittest.TestCase):
             RetrievalPlan(
                 plan_id="regulations:student_rules:semantic-hint-request",
                 query_mode="current",
-                admitted_scopes=(
-                    RetrievalScope(corpus="regulations", collection="student_rules"),
-                ),
+                admitted_scopes=(RetrievalScope(corpus="regulations", collection="student_rules"),),
                 budget=RetrievalPlanBudget(max_steps=1, max_replans=0),
                 steps=(
                     RetrievalStep(

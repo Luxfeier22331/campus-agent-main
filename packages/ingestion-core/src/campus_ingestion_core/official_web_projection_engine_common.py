@@ -172,20 +172,16 @@ def _page_lineage_fields(
 ) -> dict[str, object]:
     return {
         "sourcePackId": _require_optional_text(
-            manifest.get("sourcePackId")
-            or raw_page.get("sourcePackId")
+            manifest.get("sourcePackId") or raw_page.get("sourcePackId")
         ),
         "sourcePackEntryId": _require_optional_text(
-            manifest.get("sourcePackEntryId")
-            or raw_page.get("sourcePackEntryId")
+            manifest.get("sourcePackEntryId") or raw_page.get("sourcePackEntryId")
         ),
         "compositionGroup": _require_optional_text(
-            manifest.get("compositionGroup")
-            or raw_page.get("compositionGroup")
+            manifest.get("compositionGroup") or raw_page.get("compositionGroup")
         ),
         "compositionRole": _require_optional_text(
-            manifest.get("compositionRole")
-            or raw_page.get("compositionRole")
+            manifest.get("compositionRole") or raw_page.get("compositionRole")
         ),
     }
 
@@ -242,9 +238,7 @@ def _target_lineage_issues(
 
     for target_match in target_matches:
         consumer_family = _require_optional_text(target_match.get("consumerFamily"))
-        materialization_policy = _require_optional_text(
-            target_match.get("materializationPolicy")
-        )
+        materialization_policy = _require_optional_text(target_match.get("materializationPolicy"))
         if consumer_family not in _TARGET_CONSUMER_FAMILIES:
             issues.append(
                 {

@@ -59,7 +59,9 @@ def _compose_generic_answer(
                 fragments=summary_fragments,
             )
             summary = "，同时".join(fragment for fragment in summary_fragments if fragment)
-            summary_context_label = _summary_context_label(evidence=evidence, sources=supporting_sources)
+            summary_context_label = _summary_context_label(
+                evidence=evidence, sources=supporting_sources
+            )
             direct_subject = _summary_direct_subject(evidence.query_text)
             if direct_subject:
                 if summary_context_label:
@@ -67,9 +69,7 @@ def _compose_generic_answer(
                 return f"{direct_subject}：{summary}。"
             if summary_context_label and _normalize_snippet(
                 summary_context_label
-            ) not in _normalize_snippet(
-                summary
-            ):
+            ) not in _normalize_snippet(summary):
                 return f"{answer_prefix}，《{summary_context_label}》明确：{summary}。"
             if topic_label and topic_label not in _normalize_snippet(summary):
                 return f"{answer_prefix}，关于{topic_label}：{summary}。"
@@ -153,8 +153,7 @@ def _summary_sentence_clauses(sentence: str) -> tuple[str, ...]:
     return tuple(
         clause
         for clause in (
-            _normalize_snippet(item).strip("。；;，, ")
-            for item in re.split(r"[，,；;]", sentence)
+            _normalize_snippet(item).strip("。；;，, ") for item in re.split(r"[，,；;]", sentence)
         )
         if clause
     )

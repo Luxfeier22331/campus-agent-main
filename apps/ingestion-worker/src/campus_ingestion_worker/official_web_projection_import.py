@@ -158,12 +158,8 @@ def import_projection_output(
                 additional_processed_object_keys=tuple(
                     key
                     for key in (
-                        _optional_text(
-                            page.get("pageManifestObjectKey")
-                        ),
-                        _optional_text(
-                            page.get("contentBlocksObjectKey")
-                        ),
+                        _optional_text(page.get("pageManifestObjectKey")),
+                        _optional_text(page.get("contentBlocksObjectKey")),
                     )
                     if key is not None
                 ),

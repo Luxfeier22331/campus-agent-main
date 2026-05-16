@@ -390,8 +390,7 @@ def _attachment_projection_plans_from_parent(
         notice_id = str(parent.get("notice_id") or "").strip()
         suffix = f" for notice {notice_id}" if notice_id else ""
         raise ValueError(f"attachment_projection_plans is required{suffix}")
-    plans = tuple(dict(item) for item in parent.get("attachment_projection_plans") or ())
-    return plans
+    return tuple(dict(item) for item in parent.get("attachment_projection_plans") or ())
 
 
 def _inventory_from_entries(

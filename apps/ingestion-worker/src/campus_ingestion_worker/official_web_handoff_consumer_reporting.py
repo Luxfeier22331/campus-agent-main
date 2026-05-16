@@ -421,16 +421,14 @@ def _build_consumer_candidate_review_entry(
         required_fields=review_fields,
         typed_candidate=typed_candidate,
     )
-    ready_for_selected_write = (
-        _ready_for_selected_write(
-            admission_action=admission_action,
-            field_status=field_status,
-            required_fields=blocking_review_fields,
-            review_verdict=review_verdict,
-            quality_gate=quality_gate,
-            typed_candidate=typed_candidate,
-            typed_candidate_schema_version=typed_candidate_schema_version,
-        )
+    ready_for_selected_write = _ready_for_selected_write(
+        admission_action=admission_action,
+        field_status=field_status,
+        required_fields=blocking_review_fields,
+        review_verdict=review_verdict,
+        quality_gate=quality_gate,
+        typed_candidate=typed_candidate,
+        typed_candidate_schema_version=typed_candidate_schema_version,
     )
     effective_admission_action = (
         "selected_write_ready" if ready_for_selected_write else admission_action

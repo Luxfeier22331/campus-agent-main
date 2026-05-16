@@ -10,7 +10,6 @@ from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
     AuthenticatedNoticeSourceTruthInventoryEntry,
 )
 from campus_ingestion_core.internal_notice_consumption_notice_heuristics import (
-    _looks_like_attachment_form_template_notice_title,
     _looks_like_attachment_form_template_plan,
     _looks_like_stable_contact_update_notice,
     _notice_title_compact,
@@ -352,7 +351,6 @@ def _build_attachment_form_template_entries(
     inventory_entry: AuthenticatedNoticeSourceTruthInventoryEntry,
 ) -> tuple[NoticeConsumptionProjectionEntry, ...]:
     parent_snapshot = dict(inventory_entry.parent_snapshot or {})
-    notice_title = str(parent_snapshot.get("notice_title") or inventory_entry.document_id)
     plans = tuple(
         dict(plan)
         for plan in parent_snapshot.get("attachment_projection_plans") or ()

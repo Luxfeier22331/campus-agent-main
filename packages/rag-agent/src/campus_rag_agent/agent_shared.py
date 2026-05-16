@@ -3,7 +3,6 @@ from __future__ import annotations
 import re
 
 from campus_contracts import EvidenceBundle, EvidenceSource
-from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_collection
 from campus_retrieval_core.evidence_ranking import query_targets_source_title
 
 _WHITESPACE_RE = re.compile(r"\s+")

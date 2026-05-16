@@ -390,9 +390,9 @@ def _evaluate_case(
             source_answer_roles
         ):
             failures.append("expected_answer_roles")
-        if case.expected_condition_subjects and not set(
-            case.expected_condition_subjects
-        ).issubset(source_condition_subjects):
+        if case.expected_condition_subjects and not set(case.expected_condition_subjects).issubset(
+            source_condition_subjects
+        ):
             failures.append("expected_condition_subjects")
         if case.expected_document_ids and not any(
             source.canonical_url and source.latest_url for source in sources

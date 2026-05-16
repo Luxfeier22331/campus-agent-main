@@ -4,6 +4,8 @@ from __future__ import annotations
 from dataclasses import replace
 
 from campus_rag_agent.agent_answer_shape import AnswerShape
+from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
+
 from tests.agent.rag_agent_test_support import (
     EvidenceBundle,
     RagAgent,
@@ -12,8 +14,6 @@ from tests.agent.rag_agent_test_support import (
     _make_program_semester_source,
     _select_answer_support_rows,
 )
-
-from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 
 
 def _answer_ready_anchor(**metadata: object) -> dict[str, object]:

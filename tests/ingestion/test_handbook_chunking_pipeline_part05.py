@@ -358,7 +358,9 @@ class HandbookChunkingPipelinePart05Test(unittest.TestCase):
         self.assertEqual(contract["procedure_actor"], "applicant")
         self.assertEqual(contract["procedure_action"], "apply")
         self.assertEqual(contract["condition_subject"], "application_procedure")
-        self.assertEqual(contract["condition_group_id"], "policy-page-medical:application_procedure")
+        self.assertEqual(
+            contract["condition_group_id"], "policy-page-medical:application_procedure"
+        )
         self.assertEqual(
             evaluate_answer_ready_contract_metadata(
                 corpus="regulations",

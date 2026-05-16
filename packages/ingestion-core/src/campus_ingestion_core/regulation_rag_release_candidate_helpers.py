@@ -170,9 +170,8 @@ def _resolve_candidate_store_database_url(
 ) -> str:
     if prefer_operator:
         operator_url = (
-            (source.get(DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY) or "").strip()
-            or (source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY) or "").strip()
-        )
+            source.get(DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY) or ""
+        ).strip() or (source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY) or "").strip()
         if not operator_url:
             raise ValueError(
                 f"{DEFAULT_REGULATION_RAG_RELEASE_CANDIDATE_OPERATOR_ENV_KEY} or "

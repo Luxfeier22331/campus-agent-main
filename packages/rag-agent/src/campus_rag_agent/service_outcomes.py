@@ -20,6 +20,7 @@ from campus_rag_agent.retrieval_adequacy import (
     insufficient_retrieval_adequacy,
 )
 
+from .remote_content_hardening import build_remote_content_suspicion_summary
 from .service_clarification import (
     _build_clarification_question,
     _retrieval_ambiguity_reason,
@@ -41,7 +42,6 @@ from .service_response_text import (
     _resolved_policy_title,
     _should_fail_closed_resolved_policy_clause,
 )
-from .remote_content_hardening import build_remote_content_suspicion_summary
 
 
 @dataclass(frozen=True, slots=True)

@@ -142,8 +142,10 @@ def build_rag_stage_diagnostic_case(
             "presentation_kind": (
                 diagnostics.answer_presentation_kind or answer_draft.presentation_kind
             ),
-            "presentation_path": diagnostics.answer_presentation_path or answer_draft.presentation_path,
-            "diagnostic_reason": diagnostics.answer_diagnostic_reason or answer_draft.diagnostic_reason,
+            "presentation_path": diagnostics.answer_presentation_path
+            or answer_draft.presentation_path,
+            "diagnostic_reason": diagnostics.answer_diagnostic_reason
+            or answer_draft.diagnostic_reason,
             "failure_class": (
                 "synthesis_contract_failed"
                 if diagnostics.prompt_runtime_state

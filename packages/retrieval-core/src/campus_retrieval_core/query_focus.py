@@ -116,9 +116,7 @@ def build_focus_groups(query_text: str) -> tuple[tuple[str, ...], ...]:
             groups.append(("竞赛", "比赛"))
         elif focus_term == "旷课":
             groups.append(("旷课", "缺勤", "考勤"))
-        elif focus_term == "学时":
-            groups.append(("学时", "课时", "节"))
-        elif focus_term == "节":
+        elif focus_term == "学时" or focus_term == "节":
             groups.append(("学时", "课时", "节"))
         elif focus_term == "解除处分":
             groups.append(("解除处分", "处分解除", "解除纪律处分"))

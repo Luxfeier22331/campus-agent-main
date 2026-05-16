@@ -19,9 +19,9 @@ from .regulation_chunking_answer_ready_grouping import _build_answer_ready_regul
 from .regulation_chunking_list_helpers import _build_regulation_list_segments
 from .regulation_chunking_piece_conversion import _segments_to_pieces
 from .regulation_chunking_shared import (
-    _RegulationSegment,
     _TEXTUAL_REGULATION_UNIT_TYPES,
     _contextualize_short_subject_value,
+    _RegulationSegment,
     _section_path,
     _structured_unit_chunk_input,
     _without_overlap,

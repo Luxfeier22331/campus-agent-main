@@ -22,6 +22,8 @@ _FENCED_JSON_PATTERN = re.compile(
     r"```json\s*(?P<body>\{.*?\})\s*```",
     re.DOTALL | re.IGNORECASE,
 )
+
+
 def extract_result_payload(message: str | None) -> dict[str, object] | None:
     if not message:
         return None

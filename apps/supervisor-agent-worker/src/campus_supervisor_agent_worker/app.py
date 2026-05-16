@@ -3,12 +3,13 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from campus_supervisor_agent_worker.agent_delegates import bind_agent_handler
+from campus_contracts import AgentResponse, ErrorInfo
+
 from campus_supervisor_agent_worker.agent_delegates import (
     AgentRuntimeBuildError,
     QueryServiceRuntimeError,
+    bind_agent_handler,
 )
-from campus_contracts import AgentResponse, ErrorInfo
 from campus_supervisor_agent_worker.agent_dispatch import dispatch_agent_request
 from campus_supervisor_agent_worker.agent_runtime import (
     AgentWorkerRuntime,

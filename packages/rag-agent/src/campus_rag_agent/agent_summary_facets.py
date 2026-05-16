@@ -102,10 +102,7 @@ def general_summary_preferred_term_score(
     if not normalized:
         return 0
     return sum(
-        4
-        for facet in facets
-        for term in facet.preferred_terms
-        if term and term in normalized
+        4 for facet in facets for term in facet.preferred_terms if term and term in normalized
     )
 
 
@@ -140,7 +137,9 @@ def general_summary_off_nominal_penalty(*, query_text: str, text: str) -> int:
     if not normalized_text:
         return 0
     has_off_nominal_context = any(cue in normalized_text for cue in _OFF_NOMINAL_CONTEXT_CUES)
-    has_generic_behavior_context = "维护国家利益" in normalized_text or "学校声誉" in normalized_text
+    has_generic_behavior_context = (
+        "维护国家利益" in normalized_text or "学校声誉" in normalized_text
+    )
     if not has_off_nominal_context and not has_generic_behavior_context:
         return 0
     normalized_query = _normalize_snippet(query_text)

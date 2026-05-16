@@ -350,9 +350,7 @@ def _unavailable_metric_failures(
 ) -> list[dict[str, str]]:
     failures: list[dict[str, str]] = []
     metric_diagnostics = (
-        dict(projection.metadata.get("metric_diagnostics") or {})
-        if projection is not None
-        else {}
+        dict(projection.metadata.get("metric_diagnostics") or {}) if projection is not None else {}
     )
     for metric_name in metric_names:
         score = scores.get(metric_name)
@@ -423,7 +421,9 @@ def _metric_unavailable_message(
     rationale = str(diagnostic.get("rationale") or "").strip()
     metadata = dict(diagnostic.get("metadata") or {})
     judge_error = str(metadata.get("judge_error") or "").strip()
-    failure_reasons = tuple(str(item) for item in metadata.get("failure_reasons") or () if str(item))
+    failure_reasons = tuple(
+        str(item) for item in metadata.get("failure_reasons") or () if str(item)
+    )
     details = tuple(item for item in (rationale, judge_error, ", ".join(failure_reasons)) if item)
     if not details:
         return base

@@ -79,9 +79,7 @@ def _extract_title_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
         return tuple(
             claim
             for claim in claims
-            if not (
-                claim.claim_text.endswith("申请表") or claim.claim_text.endswith("报名表")
-            )
+            if not (claim.claim_text.endswith("申请表") or claim.claim_text.endswith("报名表"))
         )
     return claims
 

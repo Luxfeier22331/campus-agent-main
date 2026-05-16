@@ -126,9 +126,7 @@ class RagAgentProcedureSelectionTest(unittest.TestCase):
     def test_procedure_answer_uses_adjacent_material_time_and_report_loss_rows(self) -> None:
         answer = RagAgent().build_answer(
             EvidenceBundle(
-                query_text=(
-                    "中央民族大学本科(预科)学生证管理办法 学生证 挂失 补办 流程 步骤"
-                ),
+                query_text=("中央民族大学本科(预科)学生证管理办法 学生证 挂失 补办 流程 步骤"),
                 corpus="regulations",
                 collection="student_rules",
                 sources=(
@@ -218,8 +216,12 @@ class RagAgentProcedureSelectionTest(unittest.TestCase):
         self.assertNotIn("注册手续", answer.answer_text)
         self.assertNotIn("未按期办理注册手续", answer.answer_text)
         self.assertLess(answer.answer_text.index("挂失"), answer.answer_text.index("书面申请"))
-        self.assertLess(answer.answer_text.index("挂失"), answer.answer_text.index("学生处办理补办手续"))
-        self.assertLess(answer.answer_text.index("书面申请"), answer.answer_text.index("每周四下午"))
+        self.assertLess(
+            answer.answer_text.index("挂失"), answer.answer_text.index("学生处办理补办手续")
+        )
+        self.assertLess(
+            answer.answer_text.index("书面申请"), answer.answer_text.index("每周四下午")
+        )
         self.assertEqual(
             tuple(source.chunk_id.rsplit(":", 1)[-1] for source in answer.supporting_sources),
             (

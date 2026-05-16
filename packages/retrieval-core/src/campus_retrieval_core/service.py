@@ -7,8 +7,7 @@ from campus_contracts import AuthorizedRetrievalFilter, PersonalizationHint
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 
 from campus_retrieval_core.backend_qdrant import QdrantRetrievalBackend, RetrievalBackendError
-from campus_retrieval_core.models import RetrievalRequest
-from campus_retrieval_core.models import RetrievalSemanticHint
+from campus_retrieval_core.models import RetrievalRequest, RetrievalSemanticHint
 from campus_retrieval_core.service_observations import (
     build_jsonl_retrieval_observation_sink,
     build_retrieval_observation_event_sink,

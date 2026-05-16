@@ -3,9 +3,9 @@ from __future__ import annotations
 from dataclasses import replace
 
 from campus_contracts import (
+    AgentRequest,
     AgentResponse,
     ErrorInfo,
-    AgentRequest,
     EvidenceBundle,
     KnowledgeScope,
     RagResultDiagnostics,

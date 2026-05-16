@@ -381,7 +381,9 @@ class CloseoutPromotionCoordinator:
             segments=("promotions", str(promotion["promotion_id"])),
         )
 
-    def _latest_promotion(self, run_id: str, *, current_promotion: dict[str, Any]) -> dict[str, Any]:
+    def _latest_promotion(
+        self, run_id: str, *, current_promotion: dict[str, Any]
+    ) -> dict[str, Any]:
         run = self.closeout_store.get_run(run_id)
         if run is None or not run.promotion:
             return dict(current_promotion)

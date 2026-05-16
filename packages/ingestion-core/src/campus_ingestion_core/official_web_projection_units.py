@@ -734,8 +734,7 @@ def _build_official_web_table_semantics(
     if table_semantics is None:
         location = f"{normalized_canonical_url}#{row_id}" if row_id else normalized_canonical_url
         raise ValueError(
-            "official_web table block must expose evidence-grade tableCells semantics: "
-            f"{location}"
+            f"official_web table block must expose evidence-grade tableCells semantics: {location}"
         )
     return table_semantics
 

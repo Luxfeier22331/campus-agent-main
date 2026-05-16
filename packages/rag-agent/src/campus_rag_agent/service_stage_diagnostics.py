@@ -22,7 +22,9 @@ def build_rag_stage_activity_summaries(
     answer_presentation_path: str = "",
     answer_diagnostic_reason: str = "",
 ) -> tuple[RagStageActivitySummary, ...]:
-    plan_id = retrieval_execution_result.plan.plan_id if retrieval_execution_result is not None else ""
+    plan_id = (
+        retrieval_execution_result.plan.plan_id if retrieval_execution_result is not None else ""
+    )
     query_mode = (
         retrieval_execution_result.plan.query_mode if retrieval_execution_result is not None else ""
     )
@@ -129,6 +131,8 @@ def build_rag_stage_activity_summaries(
             diagnostic_ms=0,
         ),
     )
+
+
 def _resolve_diagnostic_reason(
     *,
     retrieval_adequacy: RetrievalAdequacyAssessment | None,

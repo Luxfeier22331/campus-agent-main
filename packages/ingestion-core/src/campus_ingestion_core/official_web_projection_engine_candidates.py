@@ -379,8 +379,7 @@ def _is_source_pack_preview_regulation_manifest(manifest: dict[str, object]) -> 
     if not target_matches:
         return False
     return all(
-        _require_optional_text(match.get("worksetReason"))
-        == "source_pack_preview_seed"
+        _require_optional_text(match.get("worksetReason")) == "source_pack_preview_seed"
         and _require_optional_text(match.get("selectedWriteTarget"))
         in {"regulations/institutional_rules", "regulations/student_rules"}
         for match in target_matches

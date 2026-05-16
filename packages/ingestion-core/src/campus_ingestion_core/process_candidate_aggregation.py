@@ -58,9 +58,7 @@ def build_collection_semantic_metadata(
         "time_constraint",
     }:
         semantic_metadata.update(
-            _answer_role_semantic_metadata(
-                _shared_text(release_metadata.get("answer_role"))
-            )
+            _answer_role_semantic_metadata(_shared_text(release_metadata.get("answer_role")))
         )
     return {
         **semantic_metadata,

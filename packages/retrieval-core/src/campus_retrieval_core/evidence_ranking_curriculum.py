@@ -161,7 +161,9 @@ def _query_asks_total_credits(query_text: str) -> bool:
 
 def _source_has_total_credit_fact(source: EvidenceSource) -> bool:
     return _text_has_total_credit_fact(
-        " ".join(part for part in (*source.structural_path, source.detail_label, source.snippet) if part)
+        " ".join(
+            part for part in (*source.structural_path, source.detail_label, source.snippet) if part
+        )
     )
 
 
@@ -176,13 +178,19 @@ def _text_has_total_credit_fact(text: str) -> bool:
     return bool(re.search(r"(?:合计|共计(?:获得)?|总计)\s*[0-9]{1,3}(?:\.\d+)?\s*学分", normalized))
 
 
-def _curriculum_total_credit_fact_sort_key(feature: SourceRankingFeatures) -> tuple[int, int, int, int, float]:
+def _curriculum_total_credit_fact_sort_key(
+    feature: SourceRankingFeatures,
+) -> tuple[int, int, int, int, float]:
     source = feature.source
     normalized = normalize_text(
-        " ".join(part for part in (*source.structural_path, source.detail_label, source.snippet) if part)
+        " ".join(
+            part for part in (*source.structural_path, source.detail_label, source.snippet) if part
+        )
     )
     return (
-        2 if re.search(r"(?:共计(?:获得)?|合计|总计)\s*[0-9]{1,3}(?:\.\d+)?\s*学分", normalized) else 0,
+        2
+        if re.search(r"(?:共计(?:获得)?|合计|总计)\s*[0-9]{1,3}(?:\.\d+)?\s*学分", normalized)
+        else 0,
         1 if "总学分" in normalized else 0,
         1 if source.content_kind == "section_text" else 0,
         feature.content_support_count,
