@@ -378,7 +378,8 @@ class RagAgentOfficialWebReferenceTest(unittest.TestCase):
             "收费项目、计费单位、收费标准、收费范围/对象、批准机关及文号", draft.answer_text
         )
         self.assertIn("收费公示", draft.answer_text)
-        self.assertIn("学费、住宿费", draft.answer_text)
+        self.assertNotIn("覆盖", draft.answer_text)
+        self.assertNotIn("等项目", draft.answer_text)
         self.assertNotIn("自费来华留学生硕士生文科类专业学费 | 元/生.学年", draft.answer_text)
 
     def test_official_web_stable_reference_no_answer_marks_scope_class_in_scope(

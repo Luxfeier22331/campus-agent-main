@@ -35,6 +35,9 @@ class RagAgentCurriculumSemesterAnsweringTest(unittest.TestCase):
                     is_current=False,
                     snippet="民族学本科人才培养方案 / 五、学制 两年。",
                     score=0.83,
+                    content_kind="section_text",
+                    content_role="section_text",
+                    is_answer_bearing=True,
                 ),
                 EvidenceSource(
                     doc_id="curriculum:民族学本科人才培养方案",
@@ -49,6 +52,8 @@ class RagAgentCurriculumSemesterAnsweringTest(unittest.TestCase):
                     is_current=False,
                     snippet="民族学本科人才培养方案 / 八、教学进程计划表。",
                     score=0.79,
+                    content_kind="section_text",
+                    content_role="section_text",
                 ),
             ),
         )
@@ -535,7 +540,9 @@ class RagAgentCurriculumSemesterAnsweringTest(unittest.TestCase):
 
         draft = RagAgent().build_answer(evidence)
 
-        self.assertIn("《法学（民族实验班）本科人才培养方案》大二下（第四学期）有", draft.answer_text)
+        self.assertIn(
+            "《法学（民族实验班）本科人才培养方案》大二下（第四学期）有", draft.answer_text
+        )
         self.assertIn("合同法", draft.answer_text)
         self.assertIn("侵权责任法", draft.answer_text)
 
@@ -613,7 +620,10 @@ class RagAgentCurriculumSemesterAnsweringTest(unittest.TestCase):
             query_text="法学民族班培养方案里大二下有什么课",
         )
 
-        self.assertIn("《法学（民族实验班）本科人才培养方案》大二下（第四学期）有", draft.answer_text)
+        self.assertNotIn("根据培养方案相关内容", draft.answer_text)
+        self.assertIn(
+            "《法学（民族实验班）本科人才培养方案》大二下（第四学期）有", draft.answer_text
+        )
         self.assertIn("中华民族共同体概论", draft.answer_text)
         self.assertIn("大学英语(四)", draft.answer_text)
         self.assertIn("合同法", draft.answer_text)

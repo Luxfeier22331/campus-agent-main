@@ -3,6 +3,7 @@ from __future__ import annotations
 import re
 
 from campus_contracts import EvidenceBundle, EvidenceSource
+from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 
 from .agent_answering_generic import _compose_generic_answer
 from .agent_selection_query import _CJK_SEGMENT_RE, _PROCEDURE_QUERY_HINTS
@@ -45,6 +46,13 @@ def _compose_procedure_answer(
     query_text: str = "",
 ) -> str:
     answer_query_text = query_text.strip() or evidence.query_text
+    typed_steps_answer = _compose_typed_procedure_steps_answer(
+        evidence=evidence,
+        selected_rows=selected_rows,
+        query_text=answer_query_text,
+    )
+    if typed_steps_answer:
+        return typed_steps_answer
     procedure_parts = _build_procedure_answer_parts(selected_rows)
     if not procedure_parts:
         return _compose_generic_answer(evidence=evidence, selected_rows=selected_rows)
@@ -58,9 +66,9 @@ def _compose_procedure_answer(
         )
     step_fragments: list[str] = []
     for index, fragment in enumerate(core_steps):
-        if len(core_steps) == 1:
-            step_fragments.append(fragment)
-        elif index == 0 and fragment.startswith(("可以", "应", "须", "需", "必须")):
+        if len(core_steps) == 1 or (
+            index == 0 and fragment.startswith(("可以", "应", "须", "需", "必须"))
+        ):
             step_fragments.append(fragment)
         elif index == 0:
             step_fragments.append(f"先{fragment}")
@@ -74,6 +82,47 @@ def _compose_procedure_answer(
         return _compose_generic_answer(evidence=evidence, selected_rows=selected_rows)
 
     return f"{_answer_prefix(evidence)}，{_procedure_intro(answer_query_text)}{'；'.join(step_fragments)}"
+
+
+def _compose_typed_procedure_steps_answer(
+    *,
+    evidence: EvidenceBundle,
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+    query_text: str,
+) -> str:
+    typed_rows = tuple(
+        (source, statements)
+        for source, statements in selected_rows
+        if evidence_attributes_for_source(source).procedure.step_index is not None
+    )
+    if len(typed_rows) < 2:
+        return ""
+    rendered_steps: list[str] = []
+    for source, statements in sorted(
+        typed_rows,
+        key=lambda row: evidence_attributes_for_source(row[0]).procedure.step_index or 0,
+    ):
+        statement = next(
+            (
+                _normalize_typed_procedure_statement(item)
+                for item in statements
+                if _normalize_typed_procedure_statement(item)
+            ),
+            "",
+        )
+        if not statement:
+            continue
+        step_index = evidence_attributes_for_source(source).procedure.step_index
+        rendered_steps.append(f"{step_index}. {statement}")
+    if not rendered_steps:
+        return ""
+    return f"{_answer_prefix(evidence)}，{_procedure_intro(query_text)}{'；'.join(rendered_steps)}"
+
+
+def _normalize_typed_procedure_statement(statement: str) -> str:
+    normalized = _strip_procedure_metadata_prefix(statement)
+    normalized = re.sub(r"^[0-9]+[、.．]\s*", "", normalized)
+    return _normalize_snippet(normalized).strip("；，。 ")
 
 
 def _build_procedure_answer_parts(
@@ -285,6 +334,12 @@ def _procedure_intro(query_text: str) -> str:
         return "可按以下步骤处理："
     if "学生证" in subject and any(token in subject for token in ("丢", "遗失", "损坏")):
         return "学生证遗失后可按以下步骤处理："
+    if flow_match := re.search(
+        r"(?P<subject>[^，,。?？]{1,24})的流程(?:是什么|有哪些|如何|怎么)?", subject
+    ):
+        flow_subject = _normalize_snippet(flow_match.group("subject")).strip(" ，,。?？")
+        if flow_subject:
+            return f"{flow_subject}流程："
     for hint in sorted(_PROCEDURE_QUERY_HINTS, key=len, reverse=True):
         subject = subject.replace(hint, "")
     subject = subject.replace("丢了", "丢失").replace("遗失了", "遗失")

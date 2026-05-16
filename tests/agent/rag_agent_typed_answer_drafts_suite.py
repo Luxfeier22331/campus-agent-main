@@ -256,8 +256,7 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
             doc_id="handbook:degree-supplement",
             title=title,
             snippet=(
-                f"{title} 文号：民大校发[2013]218号 本补充规定经校学位评定委员会"
-                "审议通过公布执行。"
+                f"{title} 文号：民大校发[2013]218号 本补充规定经校学位评定委员会审议通过公布执行。"
             ),
             score=0.88,
             chunk_id_suffix="degree-supplement-answer-ready",
@@ -467,16 +466,16 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
         self,
     ) -> None:
         sources = tuple(
-                _make_curriculum_plan_source(
-                    doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
-                    chunk_id=f"curriculum:economics:chunk-00{index}",
-                    source_title="经济学拔尖人才创新班人才培养方案",
-                    snippet=snippet,
-                    score=0.9 - index / 100,
-                    content_kind="table_unit",
-                    content_role="table_fact",
-                    is_answer_bearing=True,
-                )
+            _make_curriculum_plan_source(
+                doc_id="curriculum:经济学拔尖人才创新班人才培养方案",
+                chunk_id=f"curriculum:economics:chunk-00{index}",
+                source_title="经济学拔尖人才创新班人才培养方案",
+                snippet=snippet,
+                score=0.9 - index / 100,
+                content_kind="table_unit",
+                content_role="table_fact",
+                is_answer_bearing=True,
+            )
             for index, snippet in enumerate(
                 (
                     "通识教育 类别 | 课程号 | 课程名称",
@@ -711,6 +710,62 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
         self.assertEqual(draft.typed_draft.kind, "eligibility_judgment")
         self.assertEqual(draft.typed_draft.judgment.condition_subject, "rank_threshold")
         self.assertEqual(draft.typed_draft.judgment.source_id, source.doc_id)
+        self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")
+
+    def test_judgment_answer_leads_with_direct_applicability_conclusion(self) -> None:
+        source = _make_handbook_source(
+            doc_id="institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7",
+            title="中央民族大学毕业生就业奖励办法",
+            snippet=(
+                "第十八条 本办法自公布之日起实施，适用于2019届及以后毕业的学生。"
+                "原《中央民族大学关于鼓励应届毕业生到西部到基层就业的奖励办法"
+                "（修订）》（民大校发〔2012〕126号）同时废止。"
+            ),
+            score=0.91,
+            chunk_id_suffix="graduate-employment-reward-audience-scope",
+            detail_label="第十八条",
+            content_role="eligibility",
+            is_answer_bearing=True,
+        )
+        source = replace(
+            source,
+            collection="institutional_rules",
+            anchor=_answer_ready_anchor(
+                answer_role="eligibility_condition",
+                condition_subject="audience_scope",
+                condition_group_id=(
+                    "institutional_regulation:muc:中央民族大学毕业生就业奖励办法:"
+                    "f16e569519f7:article-18:audience_scope"
+                ),
+                condition_polarity="positive",
+                article_no="第十八条",
+            ),
+        )
+
+        draft = RagAgent().build_answer(
+            EvidenceBundle(
+                query_text="中央民族大学毕业生就业奖励办法适用于2019届及以后毕业生吗",
+                corpus="regulations",
+                collection="institutional_rules",
+                sources=(source,),
+            ),
+            retrieval_intent=_retrieval_intent(
+                kind="eligibility_judgment",
+                answer_kind="eligibility_judgment",
+                collection="institutional_rules",
+                document_ids=(source.doc_id,),
+                condition_subject="audience_scope",
+            ),
+        )
+
+        self.assertTrue(
+            draft.answer_text.startswith("是，适用于2019届及以后毕业的学生"),
+            draft.answer_text,
+        )
+        self.assertIn("中央民族大学毕业生就业奖励办法", draft.answer_text)
+        self.assertIn("第十八条", draft.answer_text)
+        self.assertNotIn("同时废止", draft.answer_text)
+        self.assertEqual(draft.typed_draft.kind, "eligibility_judgment")
         self.assertEqual(validate_typed_answer_draft(draft.typed_draft).verdict, "valid")
 
     def test_condition_table_answer_requires_supported_rows(self) -> None:
@@ -1011,6 +1066,7 @@ class RagAgentTypedAnswerDraftTest(unittest.TestCase):
         self.assertEqual(draft.typed_draft.kind, "procedure_steps")
         self.assertEqual(result.verdict, "valid")
         self.assertEqual(result.claim_supports[0].claim_type, "procedure_step")
+        self.assertIn("如对处分决定不服", draft.answer_text)
         self.assertIn("10日内", draft.answer_text)
         self.assertIn("书面申诉", draft.answer_text)
 

@@ -128,9 +128,7 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
             retrieval_intent=plan_curriculum_query(evidence.query_text).retrieval_intent,
         )
 
-        self.assertIn(f"《{title}》", draft.answer_text)
-        self.assertIn("一共8学分", draft.answer_text)
-        self.assertIn("总学分为8学分", draft.answer_text)
+        self.assertEqual(draft.answer_text, f"《{title}》一共8学分。")
         self.assertNotIn("深化公共外语教学改革", draft.answer_text)
         self.assertNotIn("根据培养方案相关内容", draft.answer_text)
 
@@ -165,9 +163,7 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
             retrieval_intent=plan_curriculum_query(evidence.query_text).retrieval_intent,
         )
 
-        self.assertIn(f"《{title}》", draft.answer_text)
-        self.assertIn("一共8学分", draft.answer_text)
-        self.assertIn("总学分为8学分", draft.answer_text)
+        self.assertEqual(draft.answer_text, f"《{title}》一共8学分。")
         self.assertEqual(draft.supporting_sources[0].chunk_id, f"curriculum:{title}:chunk-0005")
 
     def test_curriculum_course_teaching_plan_total_credit_query_selects_live_credit_requirement_chunk(
@@ -232,10 +228,7 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
                     doc_id=f"curriculum:{title}",
                     chunk_id=f"curriculum:{title}:chunk-0002",
                     source_title="中央民族大学通识课程 “大学英语”课程教学计划",
-                    snippet=(
-                        "一、教学目标\n"
-                        "1. 全面增强学生英语语言综合应用能力,提高综合素养。"
-                    ),
+                    snippet=("一、教学目标\n1. 全面增强学生英语语言综合应用能力,提高综合素养。"),
                     score=0.030,
                     structural_path=(title, "一、教学目标"),
                     content_kind="section_text",
@@ -265,7 +258,7 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
 
         self.assertIn(f"《{title}》", draft.answer_text)
         self.assertIn("一共8学分", draft.answer_text)
-        self.assertIn("总学分为8学分", draft.answer_text)
+        self.assertNotIn("总学分为8学分", draft.answer_text)
         self.assertEqual(draft.supporting_sources[0].chunk_id, f"curriculum:{title}:chunk-0006")
 
     def test_curriculum_total_credit_query_fail_closes_without_total_credit_fact(
@@ -365,7 +358,12 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
                         "1034030015 | 经济学说史 | 3 | 54 | / | 3"
                     ),
                     score=0.93,
-                    structural_path=(title, "五、课程设置和修读建议", "(二)专业教育", "1.专业核心课程"),
+                    structural_path=(
+                        title,
+                        "五、课程设置和修读建议",
+                        "(二)专业教育",
+                        "1.专业核心课程",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                     is_answer_bearing=True,
@@ -384,7 +382,12 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
                         "1034030016 | 中国近现代经济史 | 2 | 36 | / | 4"
                     ),
                     score=0.92,
-                    structural_path=(title, "五、课程设置和修读建议", "(二)专业教育", "2.专业选修课程"),
+                    structural_path=(
+                        title,
+                        "五、课程设置和修读建议",
+                        "(二)专业教育",
+                        "2.专业选修课程",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                     is_answer_bearing=True,
@@ -401,7 +404,12 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
                         "1034030125 | 政治经济学 | 4 | 72 | 9 | 1"
                     ),
                     score=0.91,
-                    structural_path=(title, "五、课程设置和修读建议", "(一) 大类培养", "2.学科基础教育"),
+                    structural_path=(
+                        title,
+                        "五、课程设置和修读建议",
+                        "(一) 大类培养",
+                        "2.学科基础教育",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                     is_answer_bearing=True,
@@ -419,7 +427,12 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
                         "综合素养课 | — | 人文素养类 | 2 | 36 | / | 2-7"
                     ),
                     score=0.9,
-                    structural_path=(title, "五、课程设置和修读建议", "(一) 大类培养", "1. 通识教育"),
+                    structural_path=(
+                        title,
+                        "五、课程设置和修读建议",
+                        "(一) 大类培养",
+                        "1. 通识教育",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                     is_answer_bearing=True,
@@ -442,6 +455,104 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
         self.assertTrue(any("专业核心课程" in item for item in draft.supporting_contexts))
         self.assertTrue(any("专业选修课程" in item for item in draft.supporting_contexts))
         self.assertNotIn("课程号 | 课程名称", draft.answer_text)
+
+    def test_curriculum_course_settings_answer_excludes_individual_course_rows(
+        self,
+    ) -> None:
+        title = "财政学本科人才培养方案"
+        evidence = EvidenceBundle(
+            query_text="财政学本科人才培养方案课程设置怎么安排",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0013",
+                    source_title=title,
+                    snippet=(
+                        "五、课程设置和修读建议\n"
+                        "(二)专业教育\n"
+                        "1.专业核心课程\n"
+                        "财政学专业必修的专业核心课程30学分。\n"
+                        "课程清单如下:\n"
+                        "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                        "1037030001 | 财政学 | 3 | 54 | / | 3"
+                    ),
+                    score=0.93,
+                    structural_path=(
+                        title,
+                        "五、课程设置和修读建议",
+                        "(二)专业教育",
+                        "1.专业核心课程",
+                    ),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0014",
+                    source_title=title,
+                    snippet=(
+                        "五、课程设置和修读建议\n"
+                        "(二)专业教育\n"
+                        "2.专业选修课程\n"
+                        "财政学专业选修课程至少任选7门课程,完成14学分。\n"
+                        "课程清单如下:\n"
+                        "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                        "1037030002 | 地方财政学(双语) | 2 | 36 | / | 4\n"
+                        "1037030003 | 中国财政史 | 2 | 36 | / | 4\n"
+                        "1037030004 | 国家治理财政学专题 | 2 | 36 | / | 6"
+                    ),
+                    score=0.92,
+                    structural_path=(
+                        title,
+                        "五、课程设置和修读建议",
+                        "(二)专业教育",
+                        "2.专业选修课程",
+                    ),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+                _make_curriculum_plan_source(
+                    doc_id=f"curriculum:{title}",
+                    chunk_id=f"curriculum:{title}:chunk-0012",
+                    source_title=title,
+                    snippet=(
+                        "五、课程设置和修读建议\n"
+                        "(一) 大类培养\n"
+                        "2.学科基础教育\n"
+                        "课程号 | 课程名称 | 学分 | 学时 | 实践学时 | 修读学期\n"
+                        "1037030005 | 政治经济学 | 4 | 72 | / | 1"
+                    ),
+                    score=0.91,
+                    structural_path=(
+                        title,
+                        "五、课程设置和修读建议",
+                        "(一) 大类培养",
+                        "2.学科基础教育",
+                    ),
+                    content_kind="table_unit",
+                    content_role="table_fact",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn(f"《{title}》", draft.answer_text)
+        self.assertIn("课程设置按以下模块安排", draft.answer_text)
+        self.assertIn("学科基础教育", draft.answer_text)
+        self.assertIn("专业核心课程", draft.answer_text)
+        self.assertIn("专业选修课程", draft.answer_text)
+        self.assertIn("专业核心课程30学分", draft.answer_text)
+        self.assertIn("专业选修课程至少任选7门课程,完成14学分", draft.answer_text)
+        self.assertNotIn("财政学，3学分，修读学期3", draft.answer_text)
+        self.assertNotIn("地方财政学(双语)，2学分，修读学期4", draft.answer_text)
+        self.assertNotIn("中国财政史，2学分，修读学期4", draft.answer_text)
+        self.assertNotIn("国家治理财政学专题，2学分，修读学期6", draft.answer_text)
 
     def test_curriculum_course_settings_answer_uses_only_selected_statement_facts(
         self,
@@ -470,7 +581,12 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
                         "1034030159 | 经济学经典原著选读 | 2 | 36 | 6 | 3"
                     ),
                     score=0.91,
-                    structural_path=(title, "五、课程设置和修读建议", "(一) 大类培养", "2.学科基础教育"),
+                    structural_path=(
+                        title,
+                        "五、课程设置和修读建议",
+                        "(一) 大类培养",
+                        "2.学科基础教育",
+                    ),
                     content_kind="table_unit",
                     content_role="table_fact",
                     is_answer_bearing=True,
@@ -481,8 +597,9 @@ class RagAgentAnswerQualityRegressionTestPart02(unittest.TestCase):
         draft = RagAgent().build_answer(evidence)
 
         supporting_text = " ".join(draft.supporting_contexts)
-        self.assertIn("经济学经典原著选读", draft.answer_text)
         self.assertIn("经济学经典原著选读", supporting_text)
+        self.assertIn("学科基础教育", draft.answer_text)
+        self.assertNotIn("经济学经典原著选读，2学分，修读学期3", draft.answer_text)
         self.assertNotIn("政治经济学，4学分，修读学期1", draft.answer_text)
         self.assertNotIn("国际经济学，3学分，修读学期3", draft.answer_text)
         self.assertNotIn("金融学，3学分，修读学期3", draft.answer_text)

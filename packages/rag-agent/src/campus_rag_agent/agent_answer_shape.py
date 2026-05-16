@@ -25,7 +25,17 @@ class AnswerShape(StrEnum):
 _FACT_QUERY_HINTS = ("学制", "几年", "总学分", "多少", "什么时候", "几点")
 _TITLE_LOOKUP_HINTS = ("想看", "查询", "查看", "培养方案", "规定", "办法")
 _DETAIL_QUERY_HINTS = ("怎么要求", "如何要求", "什么要求", "哪条", "哪一条", "第几条")
-_JUDGMENT_QUERY_HINTS = ("能不能", "是否可以", "可不可以", "还能", "可以吗", "符合吗")
+_JUDGMENT_QUERY_HINTS = (
+    "能不能",
+    "能否",
+    "是否",
+    "是否可以",
+    "可不可以",
+    "还能",
+    "可以吗",
+    "适用于",
+    "符合吗",
+)
 _MANAGEMENT_SUMMARY_HINTS = ("怎么管理", "如何管理", "管理规定", "怎么处理", "如何处理")
 
 _RETRIEVAL_INTENT_TO_ANSWER_SHAPE = {

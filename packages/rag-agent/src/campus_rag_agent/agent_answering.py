@@ -9,6 +9,8 @@ from campus_ingestion_core.corpus_profiles import is_official_web_stable_referen
 from .agent_answer_shape import AnswerShape
 from .agent_answer_text_cleanup import finalize_answer_text
 from .agent_answering_generic import _compose_generic_answer
+from .agent_answering_judgment import compose_judgment_clause_answer
+from .agent_answering_materials import compose_material_requirement_answer
 from .agent_answering_procedure import _compose_procedure_answer
 from .agent_answering_support import _render_supporting_contexts
 from .agent_condition_duration import (
@@ -153,7 +155,8 @@ def _compose_direct_answer(
         return _compose_document_identity_answer(evidence=evidence, selected_rows=selected_rows)
     if expected_answer_kind == "procedure_steps" or (
         mode == "procedure"
-        and answer_shape not in {
+        and answer_shape
+        not in {
             AnswerShape.CONDITION_OVERVIEW,
             AnswerShape.FACT_LOOKUP,
             AnswerShape.JUDGMENT_CLAUSE,
@@ -214,6 +217,13 @@ def _compose_direct_answer(
         )
         if detail_clause_answer:
             return DirectAnswerResult(answer_text=finalize_answer_text(detail_clause_answer))
+    if answer_shape == AnswerShape.JUDGMENT_CLAUSE:
+        judgment_clause_answer = compose_judgment_clause_answer(
+            evidence=evidence,
+            query_text=answer_query_text,
+            selected_rows=selected_rows,
+        )
+        return DirectAnswerResult(answer_text=finalize_answer_text(judgment_clause_answer))
     if answer_shape == AnswerShape.CONDITION_OVERVIEW:
         condition_table_answer = _compose_condition_table_answer(
             evidence=evidence,
@@ -285,14 +295,9 @@ def _compose_focused_detail_clause_answer(
     if len(focused_parts) < len(focus_labels):
         return ""
     context_label = _detail_context_label(source=source)
-    focused_topic = "和".join(focus_labels)
-    subject_label = _detail_query_subject_label(evidence.query_text)
     if context_label:
-        source_tail = f"依据{context_label}。"
-        if subject_label:
-            return f"{subject_label}对{focused_topic}的要求是：{'；'.join(focused_parts)}。{source_tail}"
-        return f"{context_label}对{focused_topic}的要求是：{'；'.join(focused_parts)}。"
-    return f"{_answer_prefix(evidence)}，对{focused_topic}的要求是：{'；'.join(focused_parts)}。"
+        return f"{context_label}规定：{'；'.join(focused_parts)}。"
+    return f"{_answer_prefix(evidence)}，{'；'.join(focused_parts)}。"
 
 
 def _compose_condition_table_answer(
@@ -307,6 +312,7 @@ def _compose_condition_table_answer(
         if not statement:
             continue
         statement = statement.rstrip("。；; ")
+        statement = _normalize_condition_answer_statement(statement)
         context_label = _condition_row_context_label(source)
         rows.append(
             _ConditionAnswerRow(
@@ -338,6 +344,18 @@ def _compose_condition_table_answer(
         rows=tuple(rows),
     ):
         return hearing_body
+    elif material_body := compose_material_requirement_answer(
+        query_text=answer_query_text,
+        rows=tuple((row.statement, row.context_label) for row in rows),
+    ):
+        return material_body
+    elif single_source_title := _single_condition_source_title(tuple(rows)):
+        if subject_label := _single_source_condition_subject_label(answer_query_text):
+            rendered_statements = _render_single_source_subject_condition_rows(tuple(rows))
+            body = f"{subject_label}：{rendered_statements}。依据《{single_source_title}》。"
+        else:
+            rendered_statements = "；".join(row.statement for row in rows)
+            body = f"依据{single_source_title}：{rendered_statements}"
     elif single_context_label := _single_condition_context_label(tuple(rows)):
         rendered_statements = "；".join(row.statement for row in rows)
         body = f"依据{single_context_label}：{rendered_statements}"
@@ -354,11 +372,55 @@ def _render_condition_answer_row(row: _ConditionAnswerRow) -> str:
     return row.statement
 
 
+def _normalize_condition_answer_statement(statement: str) -> str:
+    normalized = _normalize_snippet(statement).rstrip("。；; ")
+    if not normalized:
+        return ""
+    scope_match = re.fullmatch(
+        r"(?P<scope>[^，,。；;]{0,24})只允许使用(?P<allowed>[^，,。；;]+)"
+        r"[，,](?P<restricted>其他[^。；;]+)",
+        normalized,
+    )
+    if scope_match is None:
+        return normalized
+    scope = scope_match.group("scope").strip()
+    allowed = scope_match.group("allowed").strip(" ，,")
+    restricted = scope_match.group("restricted").strip(" ，,")
+    if not allowed or not restricted:
+        return normalized
+    if scope:
+        return f"{scope}允许使用的范围包括：{allowed}；{restricted}"
+    return f"允许使用的范围包括：{allowed}；{restricted}"
+
+
+def _render_single_source_subject_condition_rows(rows: tuple[_ConditionAnswerRow, ...]) -> str:
+    return "。".join(row.statement.rstrip("。；; ") for row in rows if row.statement)
+
+
 def _single_condition_context_label(rows: tuple[_ConditionAnswerRow, ...]) -> str:
     context_labels = {row.context_label for row in rows if row.context_label}
     if len(context_labels) != 1:
         return ""
     return next(iter(context_labels))
+
+
+def _single_condition_source_title(rows: tuple[_ConditionAnswerRow, ...]) -> str:
+    titles = {_lead_source_title((row.source,)) for row in rows}
+    titles.discard("")
+    if len(titles) != 1:
+        return ""
+    return next(iter(titles))
+
+
+def _single_source_condition_subject_label(query_text: str) -> str:
+    normalized_query = _normalize_snippet(query_text)
+    if not normalized_query:
+        return ""
+    if "宿舍照明" in normalized_query:
+        return "宿舍照明安排"
+    if "电器" in normalized_query and "管理" in normalized_query:
+        return "电器使用管理"
+    return ""
 
 
 def _single_source_threshold_condition_body(
@@ -383,10 +445,7 @@ def _single_source_threshold_condition_body(
             f"{threshold_entry}即进入违纪处理分档。完整分档："
             f"{rendered_statements}。依据{single_context_label}。"
         )
-    return (
-        f"{threshold_label}的阈值或分档如下："
-        f"{rendered_statements}。依据{single_context_label}。"
-    )
+    return f"{threshold_label}的阈值或分档如下：{rendered_statements}。依据{single_context_label}。"
 
 
 def _query_asks_threshold_lookup(query_text: str) -> bool:
@@ -405,9 +464,7 @@ def _duration_condition_body(
 ) -> str:
     if not _query_asks_duration_lookup(query_text):
         return ""
-    duration_rows = tuple(
-        row for row in rows if _extract_duration_condition_parts(row.statement)
-    )
+    duration_rows = tuple(row for row in rows if _extract_duration_condition_parts(row.statement))
     if not duration_rows:
         return ""
     duration_parts = tuple(
@@ -453,9 +510,14 @@ def _hearing_application_deadline_body(
     deadline_fragment = _extract_hearing_deadline_fragment(statement)
     if not right_fragment or not deadline_fragment:
         return ""
+    application_deadline = deadline_fragment
+    if application_deadline.startswith("如有听证要求"):
+        application_deadline = application_deadline.removeprefix("如有听证要求").strip(" ，,")
+    if application_deadline.startswith("应"):
+        application_deadline = application_deadline.removeprefix("应")
     return (
-        "申请听证的时间要求："
-        f"{deadline_fragment}；可申请前提：{right_fragment}。"
+        "申请听证的时间要求：拟被处分或者处理的学生可以"
+        f"{application_deadline}；可申请前提：{right_fragment}。"
     )
 
 
@@ -645,15 +707,14 @@ def _extract_detail_focus_part(statement: str, label: str) -> str:
     if label in {"论文", "著作"}:
         fragment = _extract_paper_book_clause(normalized, label=label)
         if fragment:
-            prefix = "论文要求" if label == "论文" else "著作要求"
-            return f"{prefix}：{fragment}"
+            return fragment
     if label == "论文":
         fragment = _extract_between(
             normalized,
             left=("以第一作者发表的论文", "第一作者发表的论文", "发表的论文", "论文"),
             right=("以第一、二作者", "以第一、二作者出版", "著作", "专著", "发明专利", "体育竞赛"),
         )
-        return f"论文要求：{fragment}" if fragment else ""
+        return fragment if fragment else ""
     if label == "著作":
         fragment = _extract_between(
             normalized,
@@ -666,7 +727,7 @@ def _extract_detail_focus_part(statement: str, label: str) -> str:
             ),
             right=("发明专利", "体育竞赛", "获得"),
         )
-        return f"著作要求：{fragment}" if fragment else ""
+        return fragment if fragment else ""
     if label == "专利":
         fragment = _extract_between(
             normalized,

@@ -53,20 +53,11 @@ def build_required_rag_sdk_response(
     projection_context_summaries=(),
     retrieval_intent: RetrievalIntent | None = None,
 ) -> AgentResponse:
-    answer_draft = RagAgent().build_answer(
-        supporting_evidence,
-        retrieval_intent=retrieval_intent,
-    )
-    answer_selected_evidence = _answer_selected_evidence(
-        evidence=supporting_evidence,
-        supporting_sources=answer_draft.supporting_sources,
-    )
-    answer_query = answer_selected_evidence.query_text.strip()
-    if not answer_query:
+    if retrieval_intent is None:
         return _rag_sdk_runtime_error_response(
             request=request,
             resolved_scope=resolved_scope,
-            evidence=answer_selected_evidence,
+            evidence=supporting_evidence,
             retrieved_evidence=retrieved_evidence,
             retrieval_execution_result=retrieval_execution_result,
             handbook_plan=handbook_plan,
@@ -78,6 +69,38 @@ def build_required_rag_sdk_response(
             planner_information_needs=planner_information_needs,
             projection_context_summaries=projection_context_summaries,
         )
+    answer_query = retrieval_intent.normalized_query.strip()
+    if not answer_query:
+        return _rag_sdk_runtime_error_response(
+            request=request,
+            resolved_scope=resolved_scope,
+            evidence=supporting_evidence,
+            retrieved_evidence=retrieved_evidence,
+            retrieval_execution_result=retrieval_execution_result,
+            handbook_plan=handbook_plan,
+            curriculum_plan=curriculum_plan,
+            curriculum_course_plan=curriculum_course_plan,
+            curriculum_program_family_plan=curriculum_program_family_plan,
+            error_code="rag_sdk_runtime_failed",
+            detail="rag_sdk_answer_query_missing",
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
+        )
+    answer_evidence = EvidenceBundle(
+        query_text=answer_query,
+        corpus=supporting_evidence.corpus,
+        collection=supporting_evidence.collection,
+        sources=supporting_evidence.sources,
+    )
+    answer_draft = RagAgent().build_answer(
+        answer_evidence,
+        retrieval_intent=retrieval_intent,
+    )
+    answer_selected_evidence = _answer_selected_evidence(
+        evidence=answer_evidence,
+        supporting_sources=answer_draft.supporting_sources,
+        query_text=answer_query,
+    )
     if runner is _RAG_SDK_RUNNER_NOT_PROVIDED or runner is None:
         return _rag_sdk_runtime_error_response(
             request=request,
@@ -327,11 +350,12 @@ def _answer_selected_evidence(
     *,
     evidence: EvidenceBundle,
     supporting_sources: tuple[EvidenceSource, ...],
+    query_text: str,
 ) -> EvidenceBundle:
     if not supporting_sources:
         raise ValueError("answer synthesis requires answer-selected supporting sources")
     return EvidenceBundle(
-        query_text=evidence.query_text,
+        query_text=query_text.strip(),
         corpus=evidence.corpus,
         collection=evidence.collection,
         sources=supporting_sources,

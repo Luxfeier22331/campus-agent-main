@@ -45,6 +45,49 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
         self.assertIn("根据校级制度相关规定", draft.answer_text)
         self.assertNotIn("学生手册", draft.answer_text)
 
+    def test_audience_scope_judgment_uses_applicability_fragment_not_terminal_tail(
+        self,
+    ) -> None:
+        source = replace(
+            _make_policy_source(
+                doc_id="institutional_regulation:muc:employment-reward",
+                title="中央民族大学毕业生就业奖励办法",
+                snippet=(
+                    "第十八条 本办法自公布之日起实施，适用于2019届及以后毕业的学生。"
+                    "原《中央民族大学关于鼓励应届毕业生到西部到基层就业的奖励办法（修订）》"
+                    "（民大校发〔2012〕126号）同时废止。"
+                ),
+                score=0.96,
+                chunk="employment-reward-article-18",
+                detail_label="第十八条",
+                collection="institutional_rules",
+            ),
+            anchor=_answer_ready_anchor(
+                answer_role="eligibility_condition",
+                semantic_role="condition",
+                claim_type="eligibility_condition",
+                condition_subject="audience_scope",
+                condition_group_subject="audience_scope",
+                condition_group_id="institutional:employment-reward:article-18:audience_scope",
+                condition_polarity="positive",
+                condition_subject_taxonomy_version="condition_subject.v1",
+                condition_subject_provenance="suite-fixture",
+                article_no="第十八条",
+            ),
+        )
+        evidence = EvidenceBundle(
+            query_text="中央民族大学毕业生就业奖励办法适用于2019届及以后毕业生吗",
+            corpus="regulations",
+            collection="institutional_rules",
+            sources=(source,),
+        )
+
+        draft = RagAgent().build_answer(evidence)
+
+        self.assertIn("适用于2019届及以后毕业的学生", draft.answer_text)
+        self.assertIn("《中央民族大学毕业生就业奖励办法》第十八条", draft.answer_text)
+        self.assertNotIn("同时废止", draft.answer_text)
+
     def test_institutional_category_discovery_prefers_category_overview_listing(self) -> None:
         category_source = replace(
             _make_policy_source(
@@ -373,6 +416,10 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
 
         self.assertIn("收到拟处分或处理告知书后10日内", draft.answer_text)
         self.assertIn("书面听证申请", draft.answer_text)
+        self.assertIn(
+            "拟被处分或者处理的学生可以在收到拟处分或处理告知书后10日内提交书面听证申请",
+            draft.answer_text,
+        )
         self.assertIn("有要求听证的权利", draft.answer_text)
         self.assertIn("申请听证", draft.answer_text)
         self.assertLess(
@@ -898,7 +945,9 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
 
         draft = RagAgent().build_answer(evidence, retrieval_intent=retrieval_intent)
 
-        self.assertEqual(tuple(source.doc_id for source in draft.supporting_sources), member_doc_ids)
+        self.assertEqual(
+            tuple(source.doc_id for source in draft.supporting_sources), member_doc_ids
+        )
         self.assertIn("国家励志奖学金", draft.answer_text)
         self.assertIn("专项奖学金", draft.answer_text)
         self.assertNotIn(
@@ -991,7 +1040,9 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
 
         draft = RagAgent().build_answer(evidence, retrieval_intent=retrieval_intent)
 
-        self.assertEqual(tuple(source.doc_id for source in draft.supporting_sources), member_doc_ids)
+        self.assertEqual(
+            tuple(source.doc_id for source in draft.supporting_sources), member_doc_ids
+        )
         self.assertIn("学习成绩优异", draft.answer_text)
         self.assertIn("家庭经济困难", draft.answer_text)
         self.assertNotIn("国家奖学金须具备以下基本条件", draft.answer_text)
@@ -1217,8 +1268,7 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
                         doc_id="handbook:social",
                         title="中央民族大学社会奖助学金管理办法",
                         snippet=(
-                            "第六条 本人申请及班级民主评议推荐。"
-                            "根据中央民族大学奖助学金的申请条件"
+                            "第六条 本人申请及班级民主评议推荐。根据中央民族大学奖助学金的申请条件"
                         ),
                         score=0.95,
                         chunk="social-application-review-live",
@@ -1344,7 +1394,9 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
 
         draft = RagAgent().build_answer(evidence, retrieval_intent=retrieval_intent)
 
-        self.assertNotIn("《中央民族大学本科学生国家励志奖学金评审办法》 第八条明确", draft.answer_text)
+        self.assertNotIn(
+            "《中央民族大学本科学生国家励志奖学金评审办法》 第八条明确", draft.answer_text
+        )
         self.assertIn("中央民族大学本科学生国家励志奖学金评审办法 第八条", draft.answer_text)
         self.assertIn("中央民族大学本科学生国家奖学金评审办法 第八条", draft.answer_text)
 
@@ -1803,15 +1855,16 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
 
         draft = RagAgent().build_answer(evidence)
 
-        self.assertTrue(draft.answer_text.startswith("国家奖学金第九条对论文和著作的要求是"))
-        self.assertIn("第九条对论文和著作的要求", draft.answer_text)
-        self.assertIn("论文要求", draft.answer_text)
-        self.assertIn("著作要求", draft.answer_text)
-        self.assertIn("论文要求：以第一作者发表的论文", draft.answer_text)
-        self.assertIn("著作要求：以第一、二作者出版学术专著", draft.answer_text)
-        self.assertNotIn("著作要求：以第一作者发表的论文", draft.answer_text)
+        self.assertEqual(
+            draft.answer_text,
+            (
+                f"《{title}》第九条规定：以第一作者发表的论文被SCI、EI、ISTP、"
+                "SSCI全文收录；以第一、二作者出版学术专著(须通过专家鉴定)。"
+            ),
+        )
+        self.assertNotIn("论文要求", draft.answer_text)
+        self.assertNotIn("著作要求", draft.answer_text)
         self.assertNotIn("根据学生手册相关规定", draft.answer_text)
-        self.assertIn(f"依据《{title}》第九条", draft.answer_text)
         self.assertIn("第一作者", draft.answer_text)
         self.assertIn("第一、二作者", draft.answer_text)
         self.assertIn("第九条", draft.answer_text)
@@ -1864,17 +1917,31 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
                     chunk="national-top-ten",
                     detail_label="第九条",
                 ),
-                _make_policy_source(
-                    doc_id="handbook:national",
-                    title=title,
-                    snippet=(
-                        "第九条 学习成绩排名或综合测评排名超出前10%,但均位于前30%,"
-                        "且单科成绩不低于80分,平均成绩不低于85分,必须在某一方面表现特别优秀"
-                        "且可提供相应证明材料。"
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title=title,
+                        snippet=(
+                            "第九条 学习成绩排名或综合测评排名超出前10%,但均位于前30%,"
+                            "且单科成绩不低于80分,平均成绩不低于85分,必须在某一方面表现特别优秀"
+                            "且可提供相应证明材料。"
+                        ),
+                        score=0.94,
+                        chunk="national-rank-exception",
+                        detail_label="第九条",
                     ),
-                    score=0.94,
-                    chunk="national-rank-exception",
-                    detail_label="第九条",
+                    anchor=_answer_ready_anchor(
+                        answer_role="exception_rule",
+                        semantic_role="condition",
+                        claim_type="eligibility_condition",
+                        condition_subject="rank_threshold",
+                        condition_group_subject="rank_threshold",
+                        condition_group_id="handbook:national:article-9:rank_threshold",
+                        condition_polarity="positive",
+                        condition_subject_taxonomy_version="condition_subject.v1",
+                        condition_subject_provenance="suite-fixture",
+                        article_no="第九条",
+                    ),
                 ),
                 _make_policy_source(
                     doc_id="handbook:national",
@@ -1909,16 +1976,30 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
             corpus="regulations",
             collection="student_rules",
             sources=(
-                _make_policy_source(
-                    doc_id="handbook:national",
-                    title=title,
-                    snippet=(
-                        "在学术研究上取得显著成绩,以第一作者发表的论文被SCI、EI、ISTP、SSCI全文收录,"
-                        "以第一、二作者出版学术专著(须通过专家鉴定)。"
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title=title,
+                        snippet=(
+                            "在学术研究上取得显著成绩,以第一作者发表的论文被SCI、EI、ISTP、SSCI全文收录,"
+                            "以第一、二作者出版学术专著(须通过专家鉴定)。"
+                        ),
+                        score=0.95,
+                        chunk="national-paper-condition",
+                        detail_label="第九条",
                     ),
-                    score=0.95,
-                    chunk="national-paper-condition",
-                    detail_label="第九条",
+                    anchor=_answer_ready_anchor(
+                        answer_role="example_evidence",
+                        semantic_role="condition",
+                        claim_type="eligibility_condition",
+                        condition_subject="paper_or_publication",
+                        condition_group_subject="paper_or_publication",
+                        condition_group_id="handbook:national:article-9:paper_or_publication",
+                        condition_polarity="positive",
+                        condition_subject_taxonomy_version="condition_subject.v1",
+                        condition_subject_provenance="suite-fixture",
+                        article_no="第九条",
+                    ),
                 ),
                 _make_policy_source(
                     doc_id="handbook:national",
@@ -1952,22 +2033,36 @@ class RagAgentAnswerQualityRegressionTestPart01(unittest.TestCase):
             corpus="regulations",
             collection="student_rules",
             sources=(
-                _make_policy_source(
-                    doc_id="handbook:national",
-                    title=title,
-                    snippet=(
-                        "第九条 参评本科学生国家奖学金还须具备以下条件之一:\n"
-                        "(二)学习成绩排名或综合测评排名超出前10%,但均位于前30%,且单科成绩不低于80分,"
-                        "平均成绩不低于85分,必须在道德风尚、学术研究、学科竞赛、创新发明、社会实践、"
-                        "社会工作、体育竞赛、文艺比赛等某一方面表现特别优秀且可提供相应的证明材料。"
-                        "具体表现如下:\n"
-                        "1. 在社会主义精神文明建设中表现突出。\n"
-                        "2. 在学术研究上取得显著成绩,以第一作者发表的论文被SCI、EI全文收录。\n"
-                        "5. 在体育竞赛中取得显著成绩,为国家争得荣誉。"
+                replace(
+                    _make_policy_source(
+                        doc_id="handbook:national",
+                        title=title,
+                        snippet=(
+                            "第九条 参评本科学生国家奖学金还须具备以下条件之一:\n"
+                            "(二)学习成绩排名或综合测评排名超出前10%,但均位于前30%,且单科成绩不低于80分,"
+                            "平均成绩不低于85分,必须在道德风尚、学术研究、学科竞赛、创新发明、社会实践、"
+                            "社会工作、体育竞赛、文艺比赛等某一方面表现特别优秀且可提供相应的证明材料。"
+                            "具体表现如下:\n"
+                            "1. 在社会主义精神文明建设中表现突出。\n"
+                            "2. 在学术研究上取得显著成绩,以第一作者发表的论文被SCI、EI全文收录。\n"
+                            "5. 在体育竞赛中取得显著成绩,为国家争得荣誉。"
+                        ),
+                        score=0.95,
+                        chunk="national-rank-exception-tail",
+                        detail_label="第九条",
                     ),
-                    score=0.95,
-                    chunk="national-rank-exception-tail",
-                    detail_label="第九条",
+                    anchor=_answer_ready_anchor(
+                        answer_role="exception_rule",
+                        semantic_role="condition",
+                        claim_type="eligibility_condition",
+                        condition_subject="rank_threshold",
+                        condition_group_subject="rank_threshold",
+                        condition_group_id="handbook:national:article-9:rank_threshold",
+                        condition_polarity="positive",
+                        condition_subject_taxonomy_version="condition_subject.v1",
+                        condition_subject_provenance="suite-fixture",
+                        article_no="第九条",
+                    ),
                 ),
             ),
         )

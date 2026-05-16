@@ -60,6 +60,57 @@ class RagAgentRetrievalIntentPlanningTest(unittest.TestCase):
             ("exception_rule", "eligibility_condition"),
         )
 
+    def test_exact_policy_title_with_article_suffix_keeps_target_document(self) -> None:
+        plan = plan_student_handbook_query("普通高等学校学生管理规定 第二十四条")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(
+            plan.target_document_ids,
+            ("handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",),
+        )
+        self.assertEqual(plan.retrieval_intent.kind, "specific_clause_lookup")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "specific_clause")
+        self.assertEqual(plan.retrieval_intent.target.article_nos, ("24",))
+        self.assertIn("procedure_step", plan.retrieval_intent.expected.evidence_roles)
+        self.assertEqual(plan.retrieval_intent.clarification_reason, "")
+
+    def test_author_order_polluted_national_scholarship_query_is_judgment_intent(self) -> None:
+        plan = plan_student_handbook_query(
+            "民大评国奖不看第一作者单位吧，第一作者不是本校也能拿第二作者的分吧？"
+        )
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(
+            plan.target_document_ids,
+            ("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
+        )
+        self.assertEqual(plan.retrieval_intent.kind, "eligibility_judgment")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "eligibility_judgment")
+        self.assertEqual(plan.retrieval_intent.target.condition_subject, "paper_or_publication")
+        self.assertIn("第一作者", plan.focused_query_text)
+        self.assertIn("第一、二作者", plan.focused_query_text)
+
+    def test_sparse_dormitory_fixed_phrases_resolve_to_condition_intents(self) -> None:
+        lighting_plan = plan_student_handbook_query("宿舍照明")
+        appliance_plan = plan_student_handbook_query("电器使用管理")
+
+        self.assertEqual(lighting_plan.status, "resolved")
+        self.assertEqual(
+            lighting_plan.target_document_ids,
+            ("handbook:2ec80263a9e7b11379281349196ceb96afa44c3b",),
+        )
+        self.assertEqual(lighting_plan.retrieval_intent.kind, "condition_table")
+        self.assertEqual(lighting_plan.retrieval_intent.target.condition_subject, "deadline")
+
+        self.assertEqual(appliance_plan.status, "resolved")
+        self.assertEqual(
+            appliance_plan.target_document_ids,
+            ("handbook:a633b4ce84d8d92e1d98f97c57491ec24e8be834",),
+        )
+        self.assertEqual(appliance_plan.retrieval_intent.kind, "condition_table")
+        self.assertEqual(appliance_plan.retrieval_intent.target.condition_subject, "")
+        self.assertIn("exclusion_rule", appliance_plan.retrieval_intent.expected.evidence_roles)
+
     def test_exact_policy_title_with_selection_terms_stays_document_identity_intent(self) -> None:
         for query in (
             "中央民族大学十佳大学生评选办法",
@@ -170,7 +221,9 @@ class RagAgentRetrievalIntentPlanningTest(unittest.TestCase):
         plan = plan_student_handbook_query("学生什么时候可以申请听证")
 
         self.assertEqual(plan.status, "resolved")
-        self.assertEqual(plan.resolved_policy_document_id, "handbook:1b7c532ecdbc8afe1820d2c55dfba911d891e37a")
+        self.assertEqual(
+            plan.resolved_policy_document_id, "handbook:1b7c532ecdbc8afe1820d2c55dfba911d891e37a"
+        )
         self.assertEqual(plan.retrieval_intent.kind, "condition_table")
         self.assertEqual(plan.retrieval_intent.expected.answer_kind, "condition_table")
         self.assertEqual(plan.retrieval_intent.target.condition_subject, "deadline")
@@ -473,10 +526,7 @@ class RagAgentRetrievalIntentPlanningTest(unittest.TestCase):
         self.assertEqual(plan.mode, "title_targeted")
         self.assertEqual(
             plan.target_document_ids,
-            (
-                "institutional_regulation:muc:"
-                "中央民族大学研究生-三助-工作管理办法:49319e7c44d3",
-            ),
+            ("institutional_regulation:muc:中央民族大学研究生-三助-工作管理办法:49319e7c44d3",),
         )
         self.assertEqual(plan.retrieval_intent.kind, "policy_object_lookup")
         self.assertEqual(plan.retrieval_intent.target.document_ids, plan.target_document_ids)

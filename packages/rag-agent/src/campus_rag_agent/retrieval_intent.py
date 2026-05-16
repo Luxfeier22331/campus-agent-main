@@ -531,7 +531,12 @@ def retrieval_intent_for_curriculum_plan(plan) -> RetrievalIntent:
             normalized_query=plan.rewritten_query_text,
             expected=RetrievalIntentExpectation(
                 answer_kind="curriculum_fact",
-                evidence_roles=("course_fact", "semester_course_list", "table_fact", "section_text"),
+                evidence_roles=(
+                    "course_fact",
+                    "semester_course_list",
+                    "table_fact",
+                    "section_text",
+                ),
                 coverage_policy="single_document_focus",
                 selection_policy="answer_role_first",
                 replan_policy="focus_gap_replan",
@@ -628,6 +633,8 @@ def _specific_policy_intent_kind(plan) -> str:
         return "policy_object_lookup"
     if plan.focus_article_nos or plan.focus_clause_nos or plan.focus_detail_labels:
         return "specific_clause_lookup"
+    if _looks_like_fixed_condition_table_query(query):
+        return "condition_table"
     if plan.query_condition_subject in {
         "discipline_relief_condition",
         "discipline_relief_exclusion",
@@ -686,6 +693,7 @@ _CONDITION_TABLE_DOMINANT_SUBJECTS = frozenset(
         "deadline",
         "discipline_relief_condition",
         "discipline_relief_exclusion",
+        "dormitory_or_accommodation",
         "material_requirement",
         "paper_or_publication",
         "rank_threshold",
@@ -733,7 +741,18 @@ def _specific_policy_expectation(plan) -> RetrievalIntentExpectation:
             answer_kind="condition_table",
             evidence_roles=_condition_subject_expected_roles(
                 plan.query_condition_subject,
-                default_roles=("eligibility", "requirement", "condition"),
+                default_roles=(
+                    "eligibility_condition",
+                    "exception_rule",
+                    "exclusion_rule",
+                    "material_requirement",
+                    "time_constraint",
+                    "table_fact",
+                    "supporting_detail",
+                    "eligibility",
+                    "requirement",
+                    "condition",
+                ),
             ),
             coverage_policy="condition_subject_alignment",
             selection_policy="answer_role_first",
@@ -749,7 +768,18 @@ def _specific_policy_expectation(plan) -> RetrievalIntentExpectation:
         )
     return RetrievalIntentExpectation(
         answer_kind="specific_clause",
-        evidence_roles=("primary_content", "eligibility", "requirement"),
+        evidence_roles=(
+            "primary_content",
+            "procedure_step",
+            "eligibility_condition",
+            "exception_rule",
+            "exclusion_rule",
+            "material_requirement",
+            "time_constraint",
+            "supporting_detail",
+            "eligibility",
+            "requirement",
+        ),
         coverage_policy="single_document_focus",
         selection_policy="focused_clause_first",
         replan_policy="focus_gap_replan",
@@ -757,7 +787,6 @@ def _specific_policy_expectation(plan) -> RetrievalIntentExpectation:
 
 
 def _institutional_specific_policy_intent_kind(plan) -> str:
-    query = f"{plan.normalized_query} {plan.focused_query_text}"
     if plan.target_document_titles and not plan.target_document_ids:
         return "policy_object_lookup"
     if plan.target_document_titles and _institutional_title_only_query(plan):
@@ -798,7 +827,11 @@ def _looks_like_judgment_query(query_text: str) -> bool:
         token in query_text
         for token in (
             "能不能",
+            "能拿",
+            "能得",
+            "能评",
             "能否",
+            "不看",
             "可以吗",
             "可不可以",
             "还能",
@@ -811,6 +844,18 @@ def _looks_like_judgment_query(query_text: str) -> bool:
 
 def _looks_like_condition_query(query_text: str) -> bool:
     return any(token in query_text for token in ("条件", "要求", "资格", "参评", "评选"))
+
+
+def _looks_like_fixed_condition_table_query(query_text: str) -> bool:
+    compact_query = _compact_text(query_text)
+    return any(
+        token in compact_query
+        for token in (
+            "电器使用管理",
+            "宿舍电器管理",
+            "加强学生宿舍电器使用管理",
+        )
+    )
 
 
 def _looks_like_discipline_relief_operation_query(query_text: str) -> bool:

@@ -172,6 +172,9 @@ _PAPER_PUBLICATION_CONTEXT_CUES = (
     "专利",
     "科研",
     "学术研究",
+    "第一作者",
+    "第二作者",
+    "作者单位",
 )
 _ATTENDANCE_DISCIPLINE_DOC_ID = "handbook:9350d885657d7409e524e73666b828b826f07191"
 _ATTENDANCE_MANAGEMENT_DOC_ID = "handbook:e53d05ae90e91f1c45843c50c3a777f774a88afc"
@@ -370,6 +373,13 @@ def _match_policy_objects(normalized_query: str) -> tuple[HandbookPolicyObject, 
     )
     if exact_matches:
         return exact_matches
+    title_containment_matches = tuple(
+        policy_object
+        for policy_object in _load_query_planning_config().policy_objects
+        if _compact_text(policy_object.title) in compact_query
+    )
+    if title_containment_matches:
+        return title_containment_matches
     matches: list[HandbookPolicyObject] = []
     for policy_object in _load_query_planning_config().policy_objects:
         if any(term in compact_query for term in _match_terms(policy_object)):
@@ -728,6 +738,8 @@ def _query_condition_subject(
     category_display_name: str,
 ) -> str:
     compact_query = _compact_text(normalized_query)
+    if "宿舍照明" in compact_query:
+        return "deadline"
     if _looks_like_hearing_application_deadline_query(compact_query):
         return "deadline"
     if _looks_like_discipline_relief_operation_query(compact_query):
@@ -775,9 +787,7 @@ def _augment_focus_terms(
     if "学时" in compact_query and "学时" not in terms:
         terms.append("学时")
     if "旷课" in compact_query:
-        definition = REGULATION_CONDITION_SUBJECT_DEFINITIONS.get(
-            "attendance_absence_threshold"
-        )
+        definition = REGULATION_CONDITION_SUBJECT_DEFINITIONS.get("attendance_absence_threshold")
         if definition is not None:
             for equivalents in definition.query_focus_equivalents:
                 if "学时" not in equivalents:
@@ -836,6 +846,10 @@ def _paper_publication_focus_terms(
         focus_terms.append("发表")
     if "著作" in compact_query and "出版" not in focus_terms:
         focus_terms.append("出版")
+    if "第一作者" in compact_query and "第一作者" not in focus_terms:
+        focus_terms.append("第一作者")
+    if "第二作者" in compact_query and "第一、二作者" not in focus_terms:
+        focus_terms.append("第一、二作者")
     if "专利" in compact_query and "发明" not in focus_terms:
         focus_terms.append("发明")
     return tuple(focus_terms)
@@ -876,7 +890,9 @@ def _looks_like_discipline_relief_operation_query(compact_query: str) -> bool:
 
 
 def _looks_like_appeal_after_discipline_query(compact_query: str) -> bool:
-    return _has_any_compact_cue(compact_query, ("处分决定", "处理决定", "处分")) and _has_any_compact_cue(
+    return _has_any_compact_cue(
+        compact_query, ("处分决定", "处理决定", "处分")
+    ) and _has_any_compact_cue(
         compact_query,
         ("申诉", "不服"),
     )
@@ -900,7 +916,10 @@ def _looks_like_rank_threshold_query(compact_query: str) -> bool:
 def _looks_like_paper_publication_condition_query(compact_query: str) -> bool:
     if not _has_any_compact_cue(compact_query, _PAPER_PUBLICATION_CONTEXT_CUES):
         return False
-    return _has_any_compact_cue(compact_query, ("条件", "要求", "算", "能不能", "能否", "可以"))
+    return _has_any_compact_cue(
+        compact_query,
+        ("条件", "要求", "算", "能不能", "能否", "可以", "能拿", "能得", "能评", "不看"),
+    )
 
 
 def _query_action_type(

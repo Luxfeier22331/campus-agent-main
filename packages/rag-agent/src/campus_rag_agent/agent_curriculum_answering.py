@@ -95,10 +95,7 @@ def _compose_curriculum_semester_course_list_answer(
 
     lead_title = _lead_source_title(tuple(source for source, _ in selected_rows))
     title_prefix = f"《{lead_title}》" if lead_title else ""
-    return (
-        f"{_answer_prefix(evidence)}，{title_prefix}{semester_answer_label}有"
-        f"{'、'.join(course_titles)}。"
-    )
+    return f"{title_prefix}{semester_answer_label}有{'、'.join(course_titles)}。"
 
 
 def _compose_curriculum_lookup_answer(
@@ -292,9 +289,7 @@ def _extract_curriculum_course_setting_facts(
                 continue
             seen.add(key)
             facts.append(fact)
-    narrative_facts = tuple(fact for fact in facts if "|" not in fact and "学分" in fact)
-    course_facts = tuple(fact for fact in facts if fact not in narrative_facts)
-    return tuple((*narrative_facts, *course_facts)[:6])
+    return tuple(facts[:6])
 
 
 def _course_setting_facts_from_source(
@@ -307,6 +302,11 @@ def _course_setting_facts_from_source(
     ignored_lines = _curriculum_ignored_source_lines(source)
     for raw_line in candidate_lines:
         line = _normalize_snippet(raw_line)
+        if _is_curriculum_course_row(source, line):
+            fact = _normalize_course_setting_fact(line)
+            if fact:
+                facts.append(fact)
+            continue
         if not _is_curriculum_course_setting_fact_line(
             source=source,
             line=line,
@@ -331,7 +331,7 @@ def _is_curriculum_course_setting_fact_line(
     if _normalize_course_setting_category_label(line) and not has_fact_signal:
         return False
     if _is_curriculum_table_heading(source, line) or _is_curriculum_course_row(source, line):
-        return _is_curriculum_course_row(source, line)
+        return False
     return has_fact_signal
 
 
@@ -444,7 +444,7 @@ def _curriculum_total_credits_sentence(
     normalized_query: str,
 ) -> str:
     if any(cue in normalized_query for cue in ("一共", "共", "总共", "总计", "合计")):
-        return _curriculum_fact_sentence(lead_title, f"一共{credits},总学分为{credits}")
+        return _curriculum_fact_sentence(lead_title, f"一共{credits}")
     return _curriculum_fact_sentence(lead_title, f"总学分为{credits}")
 
 

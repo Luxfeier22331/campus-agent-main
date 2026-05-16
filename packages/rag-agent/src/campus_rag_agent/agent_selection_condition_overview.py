@@ -88,9 +88,7 @@ def order_condition_overview_sources_for_policy_coverage(
         )
     )
     member_doc_ids = (
-        retrieval_intent.target.category_member_document_ids
-        if retrieval_intent is not None
-        else ()
+        retrieval_intent.target.category_member_document_ids if retrieval_intent is not None else ()
     )
     if member_doc_ids:
         member_sources = tuple(
@@ -232,11 +230,55 @@ def _is_off_target_condition_fact_statement(
         return True
     if any(cue in normalized for cue in ("颁发荣誉证书", "颁发证书", "获得者颁发")):
         return True
+    if _is_off_target_material_requirement_statement(
+        normalized,
+        retrieval_intent=retrieval_intent,
+    ):
+        return True
     return _is_review_action_statement_without_condition_predicate(
         normalized,
         source=source,
         retrieval_intent=retrieval_intent,
     )
+
+
+def _is_off_target_material_requirement_statement(
+    statement: str,
+    *,
+    retrieval_intent: RetrievalIntent | None,
+) -> bool:
+    if (
+        retrieval_intent is None
+        or retrieval_intent.expected.answer_kind != "condition_table"
+        or retrieval_intent.target.condition_subject != "material_requirement"
+    ):
+        return False
+    compact = "".join(statement.split())
+    if not compact:
+        return True
+    archive_management_cues = (
+        "负责保管",
+        "归档",
+        "存档",
+        "档案管理",
+        "装入本人档案",
+        "装入档案",
+        "材料装入",
+        "文书材料",
+    )
+    if not any(cue in compact for cue in archive_management_cues):
+        return False
+    application_material_cues = (
+        "提交",
+        "提供",
+        "填写",
+        "附",
+        "申请表",
+        "书面申请",
+        "证明材料",
+        "成绩单",
+    )
+    return not any(cue in compact for cue in application_material_cues)
 
 
 def _is_review_action_statement_without_condition_predicate(
@@ -349,9 +391,7 @@ def select_condition_overview_member_rows(
     max_sources: int,
 ) -> tuple[tuple[EvidenceSource, tuple[str, ...]], ...] | None:
     member_doc_ids = (
-        retrieval_intent.target.category_member_document_ids
-        if retrieval_intent is not None
-        else ()
+        retrieval_intent.target.category_member_document_ids if retrieval_intent is not None else ()
     )
     if not member_doc_ids or max_sources <= 0:
         return None
@@ -406,9 +446,8 @@ def _select_condition_overview_row_for_doc(
             member_key = _member_condition_statement_key(source=source, statement=statement)
             if member_key in seen_statement_keys:
                 continue
-            if (
-                semantic_key in seen_statement_keys
-                and not _is_policy_specific_intro_statement(statement)
+            if semantic_key in seen_statement_keys and not _is_policy_specific_intro_statement(
+                statement
             ):
                 continue
             candidates.append(
@@ -534,6 +573,10 @@ def condition_overview_quantified_row_statements(
     if attributes.answer_role not in retrieval_intent.expected.evidence_roles:
         return ()
     statements = _extract_source_statements(source)
+    if condition_subject == "deadline" and attributes.answer_role == "time_constraint":
+        return tuple(
+            statement for statement in statements if _is_time_schedule_statement(statement)
+        )
     threshold_rows = tuple(
         statement for statement in statements if _is_quantified_condition_statement(statement)
     )
@@ -547,6 +590,13 @@ def condition_overview_quantified_row_statements(
             condition_subject=condition_subject,
         )
     )
+
+
+def _is_time_schedule_statement(statement: str) -> bool:
+    normalized = _normalize_snippet(statement)
+    if not normalized:
+        return False
+    return any(cue in normalized for cue in ("亮灯时间", "熄灯时间", "不统一熄灯"))
 
 
 def _is_quantified_condition_statement(statement: str) -> bool:

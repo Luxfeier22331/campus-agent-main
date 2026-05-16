@@ -11,6 +11,7 @@ from campus_rag_agent.rag_sdk_output import (
     RagSdkClaimSupport,
 )
 from campus_rag_agent.service import delegate_to_rag_agent
+from campus_rag_agent.service_answer_synthesis import build_required_rag_sdk_response
 from campus_retrieval_core import RetrievalPlan, RetrievalPlanBudget, RetrievalScope, RetrievalStep
 from campus_retrieval_core.evidence_attributes import INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY
 from campus_retrieval_core.models import RetrievalSelector
@@ -125,6 +126,44 @@ class RagAgentSdkServiceTest(unittest.TestCase):
         self.assertEqual(captured.query_intent.normalized_query, evidence.query_text)
         self.assertEqual(captured.evidence.query_text, evidence.query_text)
         self.assertIn("第四学期有侵权责任法", response.answer_text)
+
+    def test_sdk_fails_closed_when_retrieval_intent_is_missing(self) -> None:
+        request = _request()
+        evidence = _evidence()
+        runner_calls = 0
+
+        def runner(_request: RagSdkRunRequest) -> RagSdkRunResult:
+            nonlocal runner_calls
+            runner_calls += 1
+            raise AssertionError("rag sdk runner must not be called without retrieval intent")
+
+        response = build_required_rag_sdk_response(
+            request=request,
+            resolved_scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+            user_goal=request.user_goal,
+            supporting_evidence=evidence,
+            retrieved_evidence=evidence,
+            retrieval_plan=_retrieval_plan(),
+            retrieval_execution_result=None,
+            handbook_plan=None,
+            curriculum_plan=None,
+            curriculum_course_plan=None,
+            curriculum_program_family_plan=None,
+            confidence="medium",
+            intent_frame=None,
+            runner=runner,
+            retrieval_intent=None,
+        )
+
+        self.assertEqual(response.status, "error")
+        assert response.error is not None
+        self.assertEqual(response.error.code, "rag_sdk_runtime_failed")
+        self.assertEqual(response.error.message, "rag_sdk_answer_query_missing")
+        self.assertEqual(response.result.diagnostics.fail_close_reason, "rag_sdk_runtime_failed")
+        self.assertEqual(
+            response.result.diagnostics.prompt_runtime_detail, "rag_sdk_answer_query_missing"
+        )
+        self.assertEqual(runner_calls, 0)
 
     def test_sdk_runner_returns_answer_with_sanitized_trace_projection(self) -> None:
         captured: RagSdkRunRequest | None = None

@@ -86,7 +86,7 @@ def _build_fee_table_overview_fragments(
     covered_items = _fee_table_charge_items(statements)
     if not covered_items:
         return (f"收费公示表列明{_FEE_TABLE_DISPLAY_COLUMNS}",)
-    return (f"收费公示表列明{_FEE_TABLE_DISPLAY_COLUMNS}，覆盖{'、'.join(covered_items)}等项目",)
+    return (f"收费公示表列明{_FEE_TABLE_DISPLAY_COLUMNS}，表中列有{'、'.join(covered_items)}项目",)
 
 
 def _looks_like_fee_table_header(statement: str) -> bool:
