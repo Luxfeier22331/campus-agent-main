@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
+from dataclasses import replace
 
 from campus_contracts import EvidenceBundle, EvidenceSource
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
@@ -60,9 +61,7 @@ def should_use_answer_role_row_lookup(request: RetrievalRequest) -> bool:
         return False
     if not request.target_document_ids:
         return False
-    return bool(
-        role for role in semantic_hint.expected_answer_roles if role != "eligibility_intro"
-    )
+    return bool(role for role in semantic_hint.expected_answer_roles if role != "eligibility_intro")
 
 
 def retrieve_answer_role_rows(
@@ -105,9 +104,54 @@ def _scroll_answer_role_records(
     qdrant_collection_name: str,
     deadline: _RetrievalDeadline,
 ) -> tuple[qdrant_models.Record, ...]:
+    candidate_limit = _answer_role_row_candidate_limit(request=request, profile=profile)
+    document_ids = tuple(dict.fromkeys(request.target_document_ids))
+    if _should_scroll_condition_subject_records_by_document(
+        request=request, document_ids=document_ids
+    ):
+        per_document_limit = _per_document_candidate_limit(
+            candidate_limit=candidate_limit,
+            document_count=len(document_ids),
+        )
+        records: list[qdrant_models.Record] = []
+        for document_id in document_ids:
+            if deadline.is_expired():
+                raise TimeoutError("qdrant read deadline exceeded")
+            records.extend(
+                _scroll_answer_role_records_for_request(
+                    backend,
+                    request=replace(request, target_document_ids=(document_id,)),
+                    profile=profile,
+                    qdrant_collection_name=qdrant_collection_name,
+                    deadline=deadline,
+                    candidate_limit=per_document_limit,
+                )
+            )
+            if len(records) >= candidate_limit:
+                break
+        return tuple(records[:candidate_limit])
+    return _scroll_answer_role_records_for_request(
+        backend,
+        request=request,
+        profile=profile,
+        qdrant_collection_name=qdrant_collection_name,
+        deadline=deadline,
+        candidate_limit=candidate_limit,
+    )
+
+
+def _scroll_answer_role_records_for_request(
+    backend: object,
+    *,
+    request: RetrievalRequest,
+    profile: CollectionRuntimeProfile,
+    qdrant_collection_name: str,
+    deadline: _RetrievalDeadline,
+    candidate_limit: int,
+) -> tuple[qdrant_models.Record, ...]:
     records: list[qdrant_models.Record] = []
     offset: int | str | None = None
-    candidate_limit = _answer_role_row_candidate_limit(request=request, profile=profile)
+    qdrant_filter = _build_qdrant_filter(request, profile=profile)
     while len(records) < candidate_limit:
         if deadline.is_expired():
             raise TimeoutError("qdrant read deadline exceeded")
@@ -115,7 +159,7 @@ def _scroll_answer_role_records(
         batch, offset = _retry_qdrant_read(
             lambda remaining=remaining, offset=offset: backend.qdrant_client.scroll(
                 collection_name=qdrant_collection_name,
-                scroll_filter=_build_qdrant_filter(request, profile=profile),
+                scroll_filter=qdrant_filter,
                 limit=remaining,
                 offset=offset,
                 with_payload=True,
@@ -130,6 +174,27 @@ def _scroll_answer_role_records(
         if offset is None:
             break
     return tuple(records[:candidate_limit])
+
+
+def _should_scroll_condition_subject_records_by_document(
+    *,
+    request: RetrievalRequest,
+    document_ids: tuple[str, ...],
+) -> bool:
+    semantic_hint = request.semantic_hint
+    if semantic_hint is None:
+        return False
+    return (
+        len(document_ids) > 1
+        and semantic_hint.coverage_policy == "condition_subject_alignment"
+        and bool(semantic_hint.condition_subject)
+    )
+
+
+def _per_document_candidate_limit(*, candidate_limit: int, document_count: int) -> int:
+    if document_count <= 0:
+        raise ValueError("document_count must be greater than zero")
+    return max(1, (candidate_limit + document_count - 1) // document_count)
 
 
 def _answer_role_row_candidate_limit(
@@ -158,7 +223,9 @@ def _rank_answer_role_sources(
     sources: Sequence[EvidenceSource],
 ) -> tuple[EvidenceSource, ...]:
     admitted_sources = tuple(
-        source for source in sources if _answer_role_priority(request, _source_answer_role(source)) >= 0
+        source
+        for source in sources
+        if _answer_role_priority(request, _source_answer_role(source)) >= 0
     )
     return tuple(
         sorted(

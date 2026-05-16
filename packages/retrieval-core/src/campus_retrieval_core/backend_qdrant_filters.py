@@ -138,10 +138,15 @@ def _build_qdrant_filter(
             )
         )
     if request.target_document_ids:
+        document_ids = list(request.target_document_ids)
         must.append(
             qdrant_models.FieldCondition(
                 key="document_id",
-                match=qdrant_models.MatchAny(any=list(request.target_document_ids)),
+                match=(
+                    qdrant_models.MatchValue(value=document_ids[0])
+                    if len(document_ids) == 1
+                    else qdrant_models.MatchAny(any=document_ids)
+                ),
             )
         )
     if request.target_version_ids:

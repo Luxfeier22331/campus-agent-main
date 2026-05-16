@@ -615,7 +615,9 @@ class BackendQdrantHotPathTest(unittest.TestCase):
 
         self.assertEqual(qdrant_client.query_points_calls, 0)
         self.assertTrue(qdrant_client.scroll_calls)
-        self.assertEqual([source.chunk_id for source in result.sources], ["professional-core-condition"])
+        self.assertEqual(
+            [source.chunk_id for source in result.sources], ["professional-core-condition"]
+        )
 
 
 def _condition_table_payload(
