@@ -13,6 +13,7 @@
 	"coverage_scenarios": {
 		"program_title": ["ethnology-plan-title"],
 		"program_variant_disambiguation": ["history-strong-base-title"],
+		"program_fixed_phrase": ["minority-language-strong-base-fixed-phrase"],
 		"academic_years": ["ethnology-second-degree-academic-years"],
 		"credit_total": ["ethnology-total-credits"],
 		"course_table": ["economics-course-settings-table"],

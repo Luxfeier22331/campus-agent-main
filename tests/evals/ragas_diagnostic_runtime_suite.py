@@ -371,6 +371,67 @@ class RagasDiagnosticRuntimeSuite(unittest.TestCase):
         self.assertEqual(case["scores"], {})
         self.assertEqual(case["retrieved_context_count"], 0)
 
+    def test_no_answer_hybrid_case_passes_as_expected_empty_without_scoring(
+        self,
+    ) -> None:
+        title = "中央民族大学本科学生国家奖学金评审办法"
+        scorer_calls = 0
+
+        class FakeBackend:
+            def retrieve(self, request):
+                source = _answer_ready_regulation_source(
+                    doc_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                    chunk_id="national-paper-book",
+                    source_title=title,
+                    snippet=(
+                        f"{title} / 第三章 评选条件 / 第九条\n"
+                        "2. 在学术研究上取得显著成绩,以第一作者发表的论文被SCI、EI、"
+                        "ISTP、SSCI全文收录,以第一、二作者出版学术专著。"
+                    ),
+                    detail_label="第九条",
+                    content_role="eligibility",
+                    answer_role="eligibility_condition",
+                    semantic_role="eligibility_condition",
+                    condition_subject="generic_condition",
+                )
+                source = replace(source, article_no="第九条", clause_no="2.")
+                return EvidenceBundle(
+                    corpus=request.corpus,
+                    collection=request.collection,
+                    query_text=f"{title} {request.query_text}",
+                    sources=(source,),
+                )
+
+        def scorer_that_must_not_run(projection):
+            nonlocal scorer_calls
+            scorer_calls += 1
+            return {"faithfulness": 0.0}
+
+        report = run_ragas_diagnostic(
+            backend=FakeBackend(),
+            scorer=scorer_that_must_not_run,
+            sample_limit_per_surface=1,
+            metric_names=("faithfulness",),
+            case_ids=("policy-alias-national-scholarship-author-affiliation",),
+        )
+
+        self.assertTrue(report["passed"])
+        self.assertEqual(scorer_calls, 0)
+        case = report["cases"][0]
+        self.assertEqual(case["status"], "completed")
+        self.assertEqual(case["answer_text"], "")
+        self.assertEqual(case["scores"], {})
+        self.assertEqual(case["retrieved_context_count"], 0)
+        self.assertEqual(
+            case["diagnostic_reason"],
+            "expected_empty_result:unsupported_by_evidence",
+        )
+        self.assertEqual(
+            case["raw_retrieved_doc_ids"],
+            ["handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"],
+        )
+        self.assertEqual(case["selected_support_doc_ids"], [])
+
     def test_authz_denied_qrels_case_passes_when_retrieval_has_no_supporting_evidence(
         self,
     ) -> None:

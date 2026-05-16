@@ -77,6 +77,11 @@
 			],
 			"scenario_denominator_classes": {
 				"program_title": ["exact_title_or_policy_name", "citation_backlink"],
+				"program_fixed_phrase": [
+					"exact_title_or_policy_name",
+					"entity_alias_or_abbreviation",
+					"hard_negative"
+				],
 				"program_variant_disambiguation": [
 					"exact_title_or_policy_name",
 					"entity_alias_or_abbreviation",

@@ -440,7 +440,11 @@ def _case_metric_overrides(
             "institutional_policy_title",
         }:
             return _identity_grounding_metric_overrides()
+        if scenario_id == "effective_date":
+            return {"answer_relevancy": False}
         if scenario_id == "program_title":
+            return _identity_grounding_metric_overrides()
+        if scenario_id == "program_fixed_phrase":
             return _identity_grounding_metric_overrides()
     return {}
 
@@ -518,7 +522,7 @@ def _case_is_curriculum_title_lookup(
         return False
     if any(cue in query for cue in _QRELS_QUERY_ASK_CUES):
         return False
-    return query.endswith(("培养方案", "课程教学计划", "实施方案"))
+    return query.endswith(("培养方案", "教学计划", "实施方案"))
 
 
 def _identity_grounding_metric_overrides() -> dict[str, bool]:

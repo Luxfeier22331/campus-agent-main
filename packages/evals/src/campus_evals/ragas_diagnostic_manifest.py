@@ -3,7 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 from typing import Any
 
-from campus_evals.benchmark import RetrievalQrelsCase, load_retrieval_qrels_dataset
+from campus_evals.benchmark import (
+    RetrievalQrelsCase,
+    load_retrieval_hybrid_query_dataset,
+    load_retrieval_qrels_dataset,
+)
 from campus_evals.ragas_diagnostic_constants import (
     DEFAULT_RAGAS_DIAGNOSTIC_METRIC_NAMES,
     DEFAULT_RAGAS_DIAGNOSTIC_SAMPLE_LIMIT_PER_SURFACE,
@@ -12,6 +16,7 @@ from campus_evals.ragas_diagnostic_constants import (
 from campus_evals.ragas_diagnostic_fixtures import (
     PREFERRED_RAGAS_DIAGNOSTIC_CASE_IDS,
     RAGAS_DIAGNOSTIC_CASE_METRIC_OVERRIDES,
+    SURFACE_HYBRID_QUERY_FIXTURES,
     SURFACE_QRELS_FIXTURES,
 )
 
@@ -48,7 +53,10 @@ def build_ragas_diagnostic_sample_manifest(
             surface_key=surface_key,
             coverage_scenarios=getattr(dataset, "coverage_scenarios", {}) or {},
         )
-        empty_result_reasons = _empty_result_reasons(dataset)
+        empty_result_reasons = _empty_result_reasons(
+            qrels_dataset=dataset,
+            hybrid_dataset=_load_hybrid_dataset(root=root, surface_key=surface_key),
+        )
         cases.extend(
             _manifest_case(
                 surface_key=surface_key,
@@ -116,10 +124,14 @@ def _manifest_case(
     }
 
 
-def _empty_result_reasons(dataset: Any) -> dict[str, str]:
-    coverage_scenarios = getattr(dataset, "coverage_scenarios", {}) or {}
+def _empty_result_reasons(
+    qrels_dataset: Any,
+    *,
+    hybrid_dataset: Any | None = None,
+) -> dict[str, str]:
+    coverage_scenarios = getattr(qrels_dataset, "coverage_scenarios", {}) or {}
     if not isinstance(coverage_scenarios, dict):
-        return {}
+        coverage_scenarios = {}
     reasons: dict[str, str] = {}
     for scenario_id, reason in (
         ("no_hit", "no_hit"),
@@ -132,6 +144,13 @@ def _empty_result_reasons(dataset: Any) -> dict[str, str]:
             normalized_case_id = str(case_id).strip()
             if normalized_case_id:
                 reasons[normalized_case_id] = reason
+    if hybrid_dataset is not None:
+        for case in getattr(hybrid_dataset, "cases", ()) or ():
+            if getattr(case, "expected_status", "") != "no_answer":
+                continue
+            case_id = str(getattr(case, "case_id", "")).strip()
+            if case_id:
+                reasons.setdefault(case_id, "unsupported_by_evidence")
     return reasons
 
 
@@ -145,6 +164,15 @@ def _load_case(*, root: Path, surface_key: str, case_id: str) -> RetrievalQrelsC
 
 def _qrels_path(*, root: Path, surface_key: str) -> Path:
     return root / "packages" / "evals" / "fixtures" / SURFACE_QRELS_FIXTURES[surface_key]
+
+
+def _load_hybrid_dataset(*, root: Path, surface_key: str) -> Any | None:
+    fixture_name = SURFACE_HYBRID_QUERY_FIXTURES.get(surface_key)
+    if not fixture_name:
+        return None
+    return load_retrieval_hybrid_query_dataset(
+        root / "packages" / "evals" / "fixtures" / fixture_name
+    )
 
 
 __all__ = [

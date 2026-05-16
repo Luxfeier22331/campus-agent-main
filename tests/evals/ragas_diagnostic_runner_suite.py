@@ -64,6 +64,100 @@ class RagasDiagnosticRunnerSuite(unittest.TestCase):
             "研究生助教助研助管工作应该依据哪份管理办法？",
         )
 
+    def test_curriculum_deterministic_fact_cases_disable_answer_relevancy(self) -> None:
+        manifest = build_ragas_diagnostic_sample_manifest(
+            case_ids=(
+                "general-english-total-credits",
+                "law-ethnic-class-fourth-semester-courses",
+            ),
+        )
+
+        cases_by_id = {case["case_id"]: case for case in manifest["cases"]}
+
+        for case_id in (
+            "general-english-total-credits",
+            "law-ethnic-class-fourth-semester-courses",
+        ):
+            with self.subTest(case_id=case_id):
+                self.assertFalse(
+                    cases_by_id[case_id]["supplemental_metric_overrides"].get(
+                        "answer_relevancy",
+                        True,
+                    )
+                )
+                self.assertNotEqual(
+                    cases_by_id[case_id]["supplemental_metric_overrides"].get("faithfulness"),
+                    False,
+                )
+
+    def test_article_number_clause_cases_disable_answer_relevancy(self) -> None:
+        manifest = build_ragas_diagnostic_sample_manifest(
+            case_ids=(
+                "policy-alias-national-scholarship-article-nine",
+                "policy-alias-national-scholarship-author-affiliation",
+                "article-number-student-status",
+                "fixed-phrase-dormitory-lighting",
+                "fixed-phrase-electrical-appliance",
+                "fixed-phrase-medical-reimbursement",
+                "semantic-student-hearing-rights",
+            ),
+        )
+
+        cases_by_id = {case["case_id"]: case for case in manifest["cases"]}
+
+        for case_id in (
+            "policy-alias-national-scholarship-article-nine",
+            "policy-alias-national-scholarship-author-affiliation",
+            "article-number-student-status",
+            "fixed-phrase-dormitory-lighting",
+            "fixed-phrase-electrical-appliance",
+            "fixed-phrase-medical-reimbursement",
+            "semantic-student-hearing-rights",
+        ):
+            with self.subTest(case_id=case_id):
+                case = cases_by_id[case_id]
+                self.assertFalse(
+                    case["supplemental_metric_overrides"].get("answer_relevancy", True)
+                )
+                if case_id == "fixed-phrase-medical-reimbursement":
+                    self.assertFalse(
+                        case["supplemental_metric_overrides"].get("faithfulness", True)
+                    )
+                    self.assertTrue(
+                        case["supplemental_metric_overrides"].get("identity_grounding", False)
+                    )
+                else:
+                    self.assertNotEqual(
+                        case["supplemental_metric_overrides"].get("faithfulness"),
+                        False,
+                    )
+
+    def test_effective_date_judgment_cases_disable_answer_relevancy(self) -> None:
+        manifest = build_ragas_diagnostic_sample_manifest(
+            case_ids=("institutional-graduate-employment-reward-effective-scope",),
+        )
+
+        case = manifest["cases"][0]
+
+        self.assertFalse(case["supplemental_metric_overrides"].get("answer_relevancy", True))
+        self.assertNotEqual(case["supplemental_metric_overrides"].get("faithfulness"), False)
+        self.assertFalse(case["supplemental_metric_overrides"].get("identity_grounding", False))
+
+    def test_no_answer_hybrid_status_marks_ragas_case_as_expected_empty_result(
+        self,
+    ) -> None:
+        manifest = build_ragas_diagnostic_sample_manifest(
+            case_ids=("policy-alias-national-scholarship-author-affiliation",),
+        )
+
+        case = manifest["cases"][0]
+        self.assertEqual(
+            case["expected_empty_result_reason"],
+            "unsupported_by_evidence",
+        )
+        self.assertFalse(case["expected_no_hit"])
+        self.assertFalse(case["supplemental_metric_overrides"].get("answer_relevancy", True))
+
     def test_run_ragas_diagnostic_passes_restricted_institutional_authorization_to_backend(
         self,
     ) -> None:

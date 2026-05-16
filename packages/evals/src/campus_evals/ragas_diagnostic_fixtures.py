@@ -7,6 +7,10 @@ SURFACE_QRELS_FIXTURES = {
     "official_web/stable_reference": "official_web_stable_reference_retrieval_qrels.json",
 }
 
+SURFACE_HYBRID_QUERY_FIXTURES = {
+    "regulations/student_rules": "student_handbook_hybrid_queries.json",
+}
+
 PREFERRED_RAGAS_DIAGNOSTIC_CASE_IDS = {
     "regulations/student_rules": (
         "policy-title-scholarship",
@@ -61,9 +65,22 @@ PREFERRED_RAGAS_DIAGNOSTIC_CASE_IDS = {
 
 RAGAS_DIAGNOSTIC_CASE_METRIC_OVERRIDES = {
     "policy-title-scholarship": {"answer_relevancy": False},
+    "policy-alias-national-scholarship-article-nine": {"answer_relevancy": False},
+    "policy-alias-national-scholarship-author-affiliation": {"answer_relevancy": False},
+    "article-number-student-status": {"answer_relevancy": False},
+    "semantic-student-hearing-rights": {"answer_relevancy": False},
+    "fixed-phrase-dormitory-lighting": {"answer_relevancy": False},
+    "fixed-phrase-electrical-appliance": {"answer_relevancy": False},
+    "fixed-phrase-medical-reimbursement": {
+        "answer_relevancy": False,
+        "faithfulness": False,
+        "identity_grounding": True,
+    },
     "institutional-three-assists": {"answer_relevancy": False},
     "institutional-title-exact-81401d3a02d6": {"answer_relevancy": False},
     "ethnology-plan-title": {"answer_relevancy": False},
+    "general-english-total-credits": {"answer_relevancy": False},
+    "law-ethnic-class-fourth-semester-courses": {"answer_relevancy": False},
     "stable-reference-school-profile": {"answer_relevancy": False},
     "stable-reference-teaching-research-units": {"answer_relevancy": False},
     "stable-reference-fee-disclosure": {"answer_relevancy": False},
@@ -71,5 +88,7 @@ RAGAS_DIAGNOSTIC_CASE_METRIC_OVERRIDES = {
 
 __all__ = [
     "PREFERRED_RAGAS_DIAGNOSTIC_CASE_IDS",
+    "RAGAS_DIAGNOSTIC_CASE_METRIC_OVERRIDES",
+    "SURFACE_HYBRID_QUERY_FIXTURES",
     "SURFACE_QRELS_FIXTURES",
 ]

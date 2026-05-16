@@ -131,6 +131,44 @@ class RetrievalQrelsCoverageTest(unittest.TestCase):
         self.assertFalse(case.supplemental_metric_overrides.get("faithfulness", True))
         self.assertTrue(case.supplemental_metric_overrides.get("identity_grounding", False))
 
+    def test_curriculum_teaching_plan_title_cases_use_document_identity_grounding_metric(
+        self,
+    ) -> None:
+        from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
+
+        dataset = load_retrieval_qrels_dataset(
+            Path("packages/evals/fixtures/curriculum_plan_retrieval_qrels.json")
+        )
+
+        case = next(
+            case
+            for case in dataset.cases
+            if case.case_id == "curriculum-title-general-ideological-political"
+        )
+
+        self.assertFalse(case.supplemental_metric_overrides.get("answer_relevancy", True))
+        self.assertFalse(case.supplemental_metric_overrides.get("faithfulness", True))
+        self.assertTrue(case.supplemental_metric_overrides.get("identity_grounding", False))
+
+    def test_curriculum_fixed_phrase_document_identity_cases_use_identity_grounding_metric(
+        self,
+    ) -> None:
+        from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
+
+        dataset = load_retrieval_qrels_dataset(
+            Path("packages/evals/fixtures/curriculum_plan_retrieval_qrels.json")
+        )
+
+        case = next(
+            case
+            for case in dataset.cases
+            if case.case_id == "minority-language-strong-base-fixed-phrase"
+        )
+
+        self.assertFalse(case.supplemental_metric_overrides.get("answer_relevancy", True))
+        self.assertFalse(case.supplemental_metric_overrides.get("faithfulness", True))
+        self.assertTrue(case.supplemental_metric_overrides.get("identity_grounding", False))
+
     def test_curriculum_document_view_cases_disable_faithfulness_metric(self) -> None:
         from campus_evals.benchmark_fixtures import load_retrieval_qrels_dataset
 

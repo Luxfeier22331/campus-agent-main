@@ -71,6 +71,34 @@ def _build_projection_with_breakdown(
         if retrieval_intent is not None
         else infer_answer_shape(evidence=bundle)
     )
+    if expected_empty_result:
+        answer_ms = _elapsed_ms(answer_started_at)
+        answer_reference_sources = _answer_reference_sources_for_case(
+            case,
+            retrieval_intent=retrieval_intent,
+        )
+        projection = _expected_empty_result_projection(
+            case=case,
+            bundle=bundle,
+            retrieval_intent=retrieval_intent,
+            answer_shape=answer_shape,
+            reference=_reference_for_sources(answer_reference_sources),
+            answer_reference_sources=answer_reference_sources,
+        )
+        _validate_projection_contract(
+            case=case,
+            expected_empty_result=expected_empty_result,
+            response=projection.response,
+            context_ids=projection.retrieved_context_ids,
+            retrieval_intent=retrieval_intent,
+        )
+        return (
+            projection,
+            {
+                "retrieval_ms": retrieval_ms,
+                "answer_ms": answer_ms,
+            },
+        )
     draft = RagAgent().build_answer(
         bundle,
         query_text=case.query,
@@ -145,6 +173,51 @@ def _build_projection_with_breakdown(
         {
             "retrieval_ms": retrieval_ms,
             "answer_ms": answer_ms,
+        },
+    )
+
+
+def _expected_empty_result_projection(
+    *,
+    case: RetrievalQrelsCase,
+    bundle,
+    retrieval_intent: RetrievalIntent | None,
+    answer_shape,
+    reference: str,
+    answer_reference_sources,
+) -> RagasProjection:
+    return RagasProjection(
+        case_id=case.case_id,
+        user_input=case.query,
+        response="",
+        retrieved_contexts=(),
+        reference=reference,
+        retrieved_context_ids=(),
+        reference_context_ids=tuple(source.doc_id for source in answer_reference_sources),
+        reference_contexts=tuple(
+            source.rationale for source in answer_reference_sources if source.rationale
+        ),
+        metadata={
+            "corpus": case.scope.corpus,
+            "collection": case.scope.collection,
+            "answer_query_text": case.query,
+            "retrieval_query_text": bundle.query_text,
+            "answer_shape": answer_shape.value,
+            "presentation_kind": "expected_empty_result",
+            "presentation_path": "expected_empty_result",
+            "diagnostic_reason": "expected_empty_result",
+            "retrieval_intent_kind": (
+                retrieval_intent.kind if retrieval_intent is not None else ""
+            ),
+            "retrieval_answer_kind": (
+                retrieval_intent.expected.answer_kind if retrieval_intent is not None else ""
+            ),
+            "expected_doc_ids": [source.doc_id for source in case.expected_sources],
+            "answer_reference_doc_ids": [source.doc_id for source in answer_reference_sources],
+            "retrieved_doc_ids": [source.doc_id for source in bundle.sources],
+            "retrieved_chunk_ids": [source.chunk_id for source in bundle.sources],
+            "supporting_doc_ids": [],
+            "supporting_chunk_ids": [],
         },
     )
 
