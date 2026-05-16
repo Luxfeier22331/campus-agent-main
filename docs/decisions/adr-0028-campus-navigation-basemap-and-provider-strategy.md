@@ -68,8 +68,8 @@ Accepted on 2026-04-05.
 
 - 校内路径规划默认走自有图谱
 - 周边关键地点只接入对当前产品有价值的受控连接边
-- provider route response 只能作为 coverage 外 secondary candidate，不反向升级为 canonical campus route
-  truth
+- provider route response 只能作为 coverage 外 secondary candidate，不反向升级为
+  canonical campus route truth
 
 ### 决策 3：不把高德作为默认基础依赖
 

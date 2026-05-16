@@ -2,7 +2,7 @@
 workstream: rag-agent-answer-contract-hardening
 status: completed
 created: 2026-05-10
-updated: 2026-05-11
+updated: 2026-05-16
 ---
 
 # Project State
@@ -10,9 +10,9 @@ updated: 2026-05-11
 ## Current Position
 **Status:** completed
 **Current Phase:** complete
-**Last Activity:** 2026-05-11
-**Last Activity Description:** Phase 2 and Phase 3 implementation landed; short-answer composers,
-presentation diagnostics, tests, and workstream closeout docs are now complete.
+**Last Activity:** 2026-05-16
+**Last Activity Description:** Post-closeout RAGAS synthesis loop fixed student-rules condition
+table/material citation rendering regressions and reran a 7-case RAGAS closeout batch.
 
 ## Progress
 **Phases Complete:** 4
@@ -30,6 +30,27 @@ presentation diagnostics, tests, and workstream closeout docs are now complete.
 - focused regression coverage for the frozen title / brief cases
 
 ## Verification
+
+Post-closeout RAGAS regression verification passed on 2026-05-16:
+
+```bash
+uv run --all-packages python -m campus_evals.ragas_diagnostic_runner \
+  --output-dir .tmp/evals/ragas-loop-20260516-student-synthesis-closeout \
+  --case-workers 1 \
+  --case-id fixed-phrase-electrical-appliance \
+  --case-id fixed-phrase-dormitory-lighting \
+  --case-id policy-alias-national-scholarship-article-nine \
+  --case-id structured-disciplinary-relief-materials \
+  --case-id semantic-disciplinary-relief \
+  --case-id semantic-student-appeal-after-discipline \
+  --case-id semantic-student-hearing-rights
+```
+
+Result: 7/7 completed, failure attribution passed for all cases; faithfulness, context precision,
+and context recall all had mean/min/max `1.0 / 1.0 / 1.0`. The remaining
+`semantic-student-appeal-after-discipline` answer relevancy score was `0.8263632114011665` with
+faithfulness/context precision/context recall all `1.0` and failure attribution `passed`; it is
+recorded as a non-blocking RAGAS answer-relevancy observation, not a code defect.
 
 Focused verification passed on 2026-05-11:
 

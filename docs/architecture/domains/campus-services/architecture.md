@@ -190,7 +190,8 @@ workflow。
   `campus_services/releases/transport_schedule/{release_id}/...`
 - ingestion worker 发布 release 时同时写入 PostgreSQL release catalog、
   `structured_projection_current` current pointer 与 transport typed read model
-- Docker runtime 读取 PostgreSQL current release + typed read model；文件 projection path 已下线
+- Docker runtime 读取 PostgreSQL current release + typed read model；文件 projection
+  path 已下线
 - Go `apps/supervisor-api` 不直接读对象存储、不持有对象存储凭据
 
 这条数据面补全仍不打开产品主路径；它只是满足 backing query implementation 的前置条件。

@@ -306,8 +306,9 @@ uv run --all-packages python -m campus_ingestion_worker.scope_alias \
 - `stable_reference` retrieval/live-gate baseline 现在使用独立的 split
   manifest、retrieval qrels 与 `--official-web-scope stable_reference`
   deterministic live profile，不再复用 mixed `muc_public_pages` live gate
-- `fresh_news` 当前已有独立 split manifest 与 retrieval qrels seed baseline；但它不再作为
-  `official_web_live_benchmark` 的 live answer gate scope 或 eval-release dispatch profile。
+- `fresh_news` 当前已有独立 split manifest 与 retrieval qrels seed baseline；但它
+  不再作为 `official_web_live_benchmark` 的 live answer gate scope 或 eval-release
+  dispatch profile。
   runtime truth 仍保持 `offline_preparation`，不得把本地 seed 验证写成 query-open 结论
 
 ## 输出形态

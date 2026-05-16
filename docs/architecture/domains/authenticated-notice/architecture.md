@@ -157,8 +157,9 @@ center 或 owner-specific downstream admission。
 
 - 内部通知系统的稳定资源身份首先由 notice identity 决定
 - list/detail API、正文 HTML、链接观测与附件关系都应围绕同一条 notice 归并
-- `notice_browser_url` / `portal_print_url` 只作为可浏览详情入口 metadata；它们不替代
-  `source_notice_link`、`campusnotice://...` canonical URI、raw asset id 或 document id
+- `notice_browser_url` / `portal_print_url` 只作为可浏览详情入口 metadata；它们
+  不替代 `source_notice_link`、`campusnotice://...` canonical URI、raw asset id
+  或 document id
 
 ## Object-Native Collector To Worker Handoff
 
@@ -211,8 +212,8 @@ required object roles：
     stale object ref 推断 bytes 可用
 
 worker `--run-id` import 必须通过 Python-owned ledger resolver 读取上述字段。resolver
-不读取 TypeScript 私有类型，不从 run ledger 的 local path recovery field 推断对象位置，也不假设 collector 与
-worker 共享 volume。
+不读取 TypeScript 私有类型，不从 run ledger 的 local path recovery field
+推断对象位置，也不假设 collector 与 worker 共享 volume。
 
 explicit object-ref import 允许作为等价主链路输入，但必须提供 `source_bucket`、
 bundle / manifest object refs 以及 hash/size verification input。local bundle /
