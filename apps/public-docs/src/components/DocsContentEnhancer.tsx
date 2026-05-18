@@ -104,11 +104,11 @@ export function buildMobileTableRowTitle(
 	if (preferredColumn >= 0 && isUsefulMobileTableTitle(preferredValue)) {
 		return preferredValue;
 	}
-	const fallbackValue = row.slice(0, 4).map(normalizeText).find(isUsefulMobileTableTitle);
-	return fallbackValue ?? `第 ${rowIndex + 1} 行`;
+	const firstUsefulValue = row.slice(0, 4).map(normalizeText).find(isUsefulMobileTableTitle);
+	return firstUsefulValue ?? `第 ${rowIndex + 1} 行`;
 }
 
-function resolveFallbackTableHeader(headers: string[], columnIndex: number): string {
+function resolveGeneratedTableHeader(headers: string[], columnIndex: number): string {
 	const previousHeader = normalizeText(headers[columnIndex - 1]);
 	if (/备注|说明|要求|建议/.test(previousHeader)) {
 		return "补充说明";
@@ -125,7 +125,7 @@ export function buildMobileTableRowPairs(headers: string[], row: string[]): Mobi
 		if (!(value || rawHeader)) {
 			continue;
 		}
-		const header = rawHeader || resolveFallbackTableHeader(headers, columnIndex);
+		const header = rawHeader || resolveGeneratedTableHeader(headers, columnIndex);
 		const pairKey = `${header}\u0000${value}`;
 		if (seenPairs.has(pairKey)) {
 			continue;

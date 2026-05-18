@@ -48,9 +48,9 @@ export function normalizeCurriculumHeadingLevel(
 	return Math.max(2, Math.min(rawLevel, lastHeadingLevel + 1));
 }
 
-function parseCurriculumHeadingLevel(value: unknown, fallback: number): number {
-	const parsed = Number.parseInt(String(value ?? fallback), 10);
-	return Number.isFinite(parsed) ? parsed : fallback;
+function parseCurriculumHeadingLevel(value: unknown, defaultValue: number): number {
+	const parsed = Number.parseInt(String(value ?? defaultValue), 10);
+	return Number.isFinite(parsed) ? parsed : defaultValue;
 }
 
 export function inferCurriculumStructuralLabelLevel(

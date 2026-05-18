@@ -24,7 +24,7 @@ interface CommonSuggestion {
 	highlightInfoList: HighlightInfo[];
 }
 
-export type LocalSearchFallbackSuggestion =
+export type StaticSearchSuggestion =
 	| (CommonSuggestion & { type: "title" })
 	| (CommonSuggestion & { type: "header" })
 	| (CommonSuggestion & { type: "content"; statement: string });
@@ -76,8 +76,8 @@ function createContentStatement(
 }
 
 function pushIfRoom(
-	results: LocalSearchFallbackSuggestion[],
-	suggestion: LocalSearchFallbackSuggestion,
+	results: StaticSearchSuggestion[],
+	suggestion: StaticSearchSuggestion,
 	limit: number,
 ): boolean {
 	if (results.length >= limit) {
@@ -87,17 +87,17 @@ function pushIfRoom(
 	return results.length < limit;
 }
 
-export function buildLocalSearchFallbackResults(
+export function buildStaticSearchSuggestions(
 	rawQuery: string,
 	pages: SearchIndexPage[],
 	limit = DEFAULT_LIMIT,
-): LocalSearchFallbackSuggestion[] {
+): StaticSearchSuggestion[] {
 	const query = normalizeSearchText(rawQuery);
 	if (!query) {
 		return [];
 	}
 
-	const results: LocalSearchFallbackSuggestion[] = [];
+	const results: StaticSearchSuggestion[] = [];
 	const highlightLength = getByteLength(query);
 
 	for (const page of pages) {

@@ -1,5 +1,10 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+	buildRegulationConsumptionByDocumentId,
+	type RegulationNavGroup,
+	resolveRegulationGroupMeta,
+} from "./regulation-consumption";
 import {
 	buildCourseMapDocEmbedForRoute,
 	syncCurriculumCourseMapArtifacts,
@@ -13,7 +18,6 @@ import {
 import { loadPublicDocsEnv } from "./sync-real-docs/env";
 import {
 	buildHandbookDocKey,
-	buildHandbookIndex,
 	cleanHandbookMarkdown,
 	loadHandbookDocs,
 } from "./sync-real-docs/handbook";
@@ -21,8 +25,8 @@ import { syncHandbookFlowGraphArtifacts } from "./sync-real-docs/handbook-flow-g
 import { groupHandbookDocs } from "./sync-real-docs/ia";
 import { buildHomePage } from "./sync-real-docs/pages";
 import {
+	buildPublicRegulationMarkdown,
 	discoverPublicRegulationDocs,
-	syncPublicRegulationDocs,
 } from "./sync-real-docs/regulations";
 import {
 	type CurriculumDoc,
@@ -30,6 +34,7 @@ import {
 	formatJsonContent,
 	type HandbookDoc,
 	type HandbookFlowGraphDoc,
+	type PublicRegulationDoc,
 	removeLegacySectionDirs,
 	removeStaleGeneratedFiles,
 	writeText,
@@ -42,52 +47,55 @@ type SidebarMetaEntry =
 	| { type: "dir"; name: string; label: string; collapsed?: boolean; collapsible?: boolean }
 	| { type: "section-header"; label: string };
 
-const GROUPED_DOC_ROUTE_DEPTH_FROM_DOCS_ROOT = 2;
+const GROUPED_DOC_ROUTE_DEPTH_FROM_DOCS_ROOT = 3;
 
-export async function syncRealDocs(): Promise<void> {
-	loadPublicDocsEnv();
-	const client = createS3ObjectStore();
+export async function syncRealDocs(
+	input: { client?: ObjectStoreClient; docsRoot?: string } = {},
+): Promise<void> {
+	if (!input.client) {
+		loadPublicDocsEnv();
+	}
+	const client = input.client ?? createS3ObjectStore();
+	const docsRoot = resolve(input.docsRoot ?? DOCS_ROOT);
+	const canonicalDocsRoot = resolve(docsRoot, "docs");
 	const handbookDocs = loadHandbookDocs();
 	const curriculumDocs = await discoverCurriculumDocs(client);
 	const publicRegulationDocs = await discoverPublicRegulationDocs(client);
 
-	removeLegacySectionDirs(DOCS_ROOT);
+	removeLegacySectionDirs(docsRoot);
+	for (const legacyDir of ["student-handbook", "curriculum-plan", "campus-regulations"]) {
+		rmSync(resolve(docsRoot, legacyDir), { force: true, recursive: true });
+	}
+
 	writeText(
-		resolve(DOCS_ROOT, "_meta.json"),
+		resolve(docsRoot, "_meta.json"),
 		formatJsonContent(
 			buildTopLevelMetaEntries({ includePublicRegulations: publicRegulationDocs.length > 0 }),
 		),
 	);
 	writeText(
-		resolve(DOCS_ROOT, "index.md"),
+		resolve(docsRoot, "index.md"),
 		buildHomePage({ includePublicRegulations: publicRegulationDocs.length > 0 }),
 	);
-	await syncHandbookDocs(client, handbookDocs);
-	await syncCurriculumDocs(client, curriculumDocs);
-	await syncPublicRegulationDocs({
+
+	await syncCanonicalDocsRoot({
 		client,
-		docsRoot: DOCS_ROOT,
-		regulationDocs: publicRegulationDocs,
+		curriculumDocs,
+		docsRoot,
+		handbookDocs,
+		canonicalDocsRoot,
+		publicRegulationDocs,
 	});
 }
 
 export function buildTopLevelMetaEntries(input: {
 	includePublicRegulations: boolean;
 }): SidebarMetaEntry[] {
-	const entries: SidebarMetaEntry[] = [
+	void input;
+	return [
 		{ type: "file", name: "index", label: "文档首页" },
-		{ type: "dir", name: "student-handbook", label: "学生手册", collapsed: true },
-		{ type: "dir", name: "curriculum-plan", label: "培养方案", collapsed: true },
+		{ type: "dir", name: "docs", label: "公开文档", collapsed: false },
 	];
-	if (input.includePublicRegulations) {
-		entries.push({
-			type: "dir",
-			name: "campus-regulations",
-			label: "校内规章",
-			collapsed: true,
-		});
-	}
-	return entries;
 }
 
 export function buildHandbookMetaEntries(input: {
@@ -99,7 +107,14 @@ export function buildHandbookMetaEntries(input: {
 		if (group.docs.length === 0) {
 			continue;
 		}
-		entries.push({ type: "dir", name: group.id, label: group.label, collapsed: true });
+		entries.push({ type: "section-header", label: group.label });
+		for (const doc of group.docs) {
+			entries.push({
+				type: "file",
+				name: doc.slug,
+				label: doc.title,
+			});
+		}
 	}
 	return entries;
 }
@@ -110,7 +125,14 @@ export function buildCurriculumMetaEntries(curriculumDocs: CurriculumDoc[]): Sid
 		if (group.docs.length === 0) {
 			continue;
 		}
-		entries.push({ type: "dir", name: group.id, label: group.label, collapsed: true });
+		entries.push({ type: "section-header", label: group.label });
+		for (const doc of group.docs) {
+			entries.push({
+				type: "file",
+				name: doc.slug,
+				label: doc.title,
+			});
+		}
 	}
 	return entries;
 }
@@ -125,126 +147,378 @@ export function buildGroupMetaEntries<TDoc extends { slug: string; title: string
 	}));
 }
 
-async function syncHandbookDocs(
-	client: ObjectStoreClient,
-	handbookDocs: HandbookDoc[],
-): Promise<void> {
-	const targetDir = resolve(DOCS_ROOT, "student-handbook");
-	mkdirSync(targetDir, { recursive: true });
-	const workflowsDir = resolve(targetDir, "workflows");
-	mkdirSync(workflowsDir, { recursive: true });
+async function syncCanonicalDocsRoot(input: {
+	client: ObjectStoreClient;
+	curriculumDocs: CurriculumDoc[];
+	docsRoot: string;
+	handbookDocs: HandbookDoc[];
+	canonicalDocsRoot: string;
+	publicRegulationDocs: PublicRegulationDoc[];
+}): Promise<void> {
+	mkdirSync(input.canonicalDocsRoot, { recursive: true });
+	writeText(resolve(input.canonicalDocsRoot, "_meta.json"), formatJsonContent(buildDocsMeta()));
+	writeText(
+		resolve(input.canonicalDocsRoot, "index.md"),
+		buildDocsIndex({
+			curriculumCount: input.curriculumDocs.length,
+			handbookCount: input.handbookDocs.length,
+			publicRegulationCount: input.publicRegulationDocs.length,
+		}),
+	);
+	await syncRegulationsCanonicalDocs(input);
+	await syncCurriculumCanonicalDocs(input);
+	removeStaleGeneratedFiles(
+		input.canonicalDocsRoot,
+		new Set(["_meta.json", "index.md", "regulations", "curriculum"]),
+	);
+}
+
+function buildDocsMeta(): SidebarMetaEntry[] {
+	return [
+		{ type: "file", name: "index", label: "全部文档" },
+		{ type: "dir", name: "regulations", label: "规章制度", collapsed: false },
+		{ type: "dir", name: "curriculum", label: "培养方案", collapsed: false },
+	];
+}
+
+function buildDocsIndex(input: {
+	curriculumCount: number;
+	handbookCount: number;
+	publicRegulationCount: number;
+}): string {
+	const regulationCount = input.handbookCount + input.publicRegulationCount;
+	const totalCount = regulationCount + input.curriculumCount;
+	return [
+		"---",
+		'title: "公开文档总览"',
+		"footer: false",
+		'documentKind: "home"',
+		'readerLayout: "landing"',
+		'readerMeasure: "standard"',
+		'readerOutline: "none"',
+		"outline: false",
+		"---",
+		"",
+		"# 公开文档总览",
+		"",
+		`当前公开发布 ${totalCount} 篇文档。请选择文档目录中的集合继续阅读。`,
+		"",
+		`- [规章制度](./regulations/)：${regulationCount} 篇文档`,
+		`- [培养方案](./curriculum/)：${input.curriculumCount} 篇文档`,
+		"",
+	].join("\n");
+}
+
+async function syncRegulationsCanonicalDocs(input: {
+	client: ObjectStoreClient;
+	docsRoot: string;
+	handbookDocs: HandbookDoc[];
+	canonicalDocsRoot: string;
+	publicRegulationDocs: PublicRegulationDoc[];
+}): Promise<void> {
+	const regulationsDir = resolve(input.canonicalDocsRoot, "regulations");
+	const studentRulesDir = resolve(regulationsDir, "student_rules");
+	const institutionalRulesDir = resolve(regulationsDir, "institutional_rules");
+
+	writeText(resolve(regulationsDir, "_meta.json"), formatJsonContent(buildRegulationsCorpusMeta()));
+	writeText(
+		resolve(regulationsDir, "index.md"),
+		buildRegulationsCorpusIndex({
+			studentRulesCount: input.handbookDocs.length,
+			institutionalRulesCount: input.publicRegulationDocs.length,
+		}),
+	);
+
+	await syncStudentRulesCanonicalDocs({
+		client: input.client,
+		docsRoot: input.docsRoot,
+		handbookDocs: input.handbookDocs,
+		targetDir: studentRulesDir,
+	});
+	await syncInstitutionalRulesCanonicalDocs({
+		client: input.client,
+		regulationDocs: input.publicRegulationDocs,
+		targetDir: institutionalRulesDir,
+	});
+
+	removeStaleGeneratedFiles(
+		regulationsDir,
+		new Set(["_meta.json", "index.md", "student_rules", "institutional_rules"]),
+	);
+}
+
+function buildRegulationsCorpusMeta(): SidebarMetaEntry[] {
+	return [
+		{ type: "file", name: "index", label: "规章制度" },
+		{ type: "dir", name: "student_rules", label: "学生手册", collapsed: true },
+		{ type: "dir", name: "institutional_rules", label: "校内规章", collapsed: true },
+	];
+}
+
+function buildRegulationsCorpusIndex(input: {
+	studentRulesCount: number;
+	institutionalRulesCount: number;
+}): string {
+	const totalCount = input.studentRulesCount + input.institutionalRulesCount;
+	return [
+		"---",
+		'title: "规章制度"',
+		"footer: false",
+		'documentKind: "collectionLanding"',
+		'readerLayout: "landing"',
+		'readerMeasure: "standard"',
+		'readerOutline: "none"',
+		"outline: false",
+		"---",
+		"",
+		"# 规章制度",
+		"",
+		`当前公开发布 ${totalCount} 篇文档。`,
+		"",
+		`- [学生手册](./student_rules/)：${input.studentRulesCount} 篇文档`,
+		`- [校内规章](./institutional_rules/)：${input.institutionalRulesCount} 篇文档`,
+		"",
+	].join("\n");
+}
+
+async function syncStudentRulesCanonicalDocs(input: {
+	client: ObjectStoreClient;
+	docsRoot: string;
+	handbookDocs: HandbookDoc[];
+	targetDir: string;
+}): Promise<void> {
 	const flowGraphDocs = await syncHandbookFlowGraphArtifacts({
-		client,
-		docsRoot: DOCS_ROOT,
+		client: input.client,
+		docsRoot: input.docsRoot,
 		routeDepthFromDocsRoot: GROUPED_DOC_ROUTE_DEPTH_FROM_DOCS_ROOT,
-		targetDir: workflowsDir,
+		targetDir: input.targetDir,
 	});
-	const groups = groupHandbookDocs({ flowGraphDocs, handbookDocs });
+	const groups = groupHandbookDocs({ flowGraphDocs, handbookDocs: input.handbookDocs });
 	writeText(
-		resolve(targetDir, "_meta.json"),
-		formatJsonContent(buildHandbookMetaEntries({ flowGraphDocs, handbookDocs })),
+		resolve(input.targetDir, "_meta.json"),
+		formatJsonContent(
+			buildHandbookMetaEntries({ flowGraphDocs, handbookDocs: input.handbookDocs }),
+		),
 	);
-	writeText(resolve(targetDir, "index.md"), buildHandbookIndex());
+	writeText(resolve(input.targetDir, "index.md"), buildStudentRulesIndex(groups));
 
-	for (const group of groups) {
-		if (group.docs.length === 0) {
-			continue;
-		}
-		const groupDir = resolve(targetDir, group.id);
-		mkdirSync(groupDir, { recursive: true });
-		writeText(
-			resolve(groupDir, "_meta.json"),
-			formatJsonContent(buildGroupMetaEntries(group.docs)),
+	for (const doc of input.handbookDocs) {
+		const markdown = cleanHandbookMarkdown(
+			await input.client.readTextObject({ key: buildHandbookDocKey(doc) }),
 		);
-		for (const doc of group.docs) {
-			if (!isHandbookDoc(doc)) {
-				continue;
+		writeText(resolve(input.targetDir, `${doc.slug}.md`), markdown);
+	}
+
+	removeStaleGeneratedFiles(
+		input.targetDir,
+		new Set([
+			"_meta.json",
+			"index.md",
+			...input.handbookDocs.map((doc) => `${doc.slug}.md`),
+			...flowGraphDocs.map((doc) => doc.filename),
+		]),
+	);
+}
+
+async function syncInstitutionalRulesCanonicalDocs(input: {
+	client: ObjectStoreClient;
+	regulationDocs: PublicRegulationDoc[];
+	targetDir: string;
+}): Promise<void> {
+	writeText(
+		resolve(input.targetDir, "_meta.json"),
+		formatJsonContent(buildInstitutionalRulesMeta(input.regulationDocs)),
+	);
+	writeText(
+		resolve(input.targetDir, "index.md"),
+		buildInstitutionalRulesIndex(input.regulationDocs),
+	);
+
+	for (const doc of input.regulationDocs) {
+		const jsonlText = await input.client.readTextObject({ key: doc.key });
+		writeText(
+			resolve(input.targetDir, `${doc.slug}.mdx`),
+			buildPublicRegulationMarkdown({ doc, jsonlText }),
+		);
+	}
+
+	removeStaleGeneratedFiles(
+		input.targetDir,
+		new Set(["_meta.json", "index.md", ...input.regulationDocs.map((doc) => `${doc.slug}.mdx`)]),
+	);
+}
+
+function buildInstitutionalRulesMeta(regulationDocs: PublicRegulationDoc[]): SidebarMetaEntry[] {
+	const grouped = groupInstitutionalRulesDocs(regulationDocs);
+	return [
+		{ type: "file", name: "index", label: "校内规章" },
+		...grouped.flatMap((group) => [
+			{ type: "section-header" as const, label: group.displayName },
+			...group.docs.map((doc) => ({
+				type: "file" as const,
+				name: doc.slug,
+				label: doc.title,
+			})),
+		]),
+	];
+}
+
+function buildInstitutionalRulesIndex(regulationDocs: PublicRegulationDoc[]): string {
+	const groups = groupInstitutionalRulesDocs(regulationDocs);
+	return [
+		"---",
+		'title: "校内规章"',
+		"footer: false",
+		'documentKind: "collectionLanding"',
+		'readerLayout: "landing"',
+		'readerMeasure: "standard"',
+		'readerOutline: "none"',
+		"outline: false",
+		"---",
+		"",
+		"# 校内规章",
+		"",
+		`当前公开发布 ${regulationDocs.length} 篇文档。`,
+		"",
+		...groups.flatMap((group) => [
+			`## ${group.displayName}`,
+			"",
+			...group.docs.map((doc) => `- [${doc.title}](./${doc.slug})`),
+			"",
+		]),
+	].join("\n");
+}
+
+function buildStudentRulesIndex(
+	groups: Array<{ docs: Array<HandbookDoc | HandbookFlowGraphDoc>; id: string; label: string }>,
+): string {
+	return [
+		"---",
+		'title: "学生手册"',
+		"description: 中央民族大学学生手册公开阅读目录。",
+		"footer: false",
+		'documentKind: "collectionLanding"',
+		'readerLayout: "landing"',
+		'readerMeasure: "standard"',
+		'readerOutline: "none"',
+		"outline: false",
+		"---",
+		"",
+		"这里汇总学生在校学习、生活、资助、纪律、住宿和医疗等常用制度文件。",
+		"",
+		"你可以从文档目录按文件进入，也可以使用顶部搜索直接查询“转专业”“奖学金”“违纪处分”“公费医疗”等关键词。",
+		"",
+		...groups.flatMap((group) => {
+			if (group.docs.length === 0) {
+				return [];
 			}
-			const markdown = cleanHandbookMarkdown(
-				await client.readTextObject({ key: buildHandbookDocKey(doc) }),
-			);
-			writeText(resolve(groupDir, `${doc.slug}.md`), markdown);
-		}
-		removeStaleGeneratedFiles(
-			groupDir,
-			new Set([
-				"_meta.json",
-				...group.docs.map((doc) => ("filename" in doc ? doc.filename : `${doc.slug}.md`)),
-			]),
-		);
-	}
-	removeStaleGeneratedFiles(
-		targetDir,
-		new Set([
-			"_meta.json",
-			"index.md",
-			...groups.filter((group) => group.docs.length > 0).map((group) => group.id),
-		]),
-	);
+			return [
+				`## ${group.label}`,
+				"",
+				...group.docs.map((doc) => `- [${doc.title}](./${doc.slug})`),
+				"",
+			];
+		}),
+	].join("\n");
 }
 
-async function syncCurriculumDocs(
-	client: ObjectStoreClient,
-	curriculumDocs: CurriculumDoc[],
-): Promise<void> {
-	const targetDir = resolve(DOCS_ROOT, "curriculum-plan");
-	mkdirSync(targetDir, { recursive: true });
+function groupInstitutionalRulesDocs(
+	regulationDocs: PublicRegulationDoc[],
+): Array<{ displayName: string; docs: PublicRegulationDoc[]; groupId: RegulationNavGroup }> {
+	const grouped = new Map<RegulationNavGroup, PublicRegulationDoc[]>();
+	const byDocumentId = buildRegulationConsumptionByDocumentId();
+	for (const doc of regulationDocs) {
+		const groupId = byDocumentId.get(doc.documentId)?.docs_nav_group ?? doc.docsNavGroup;
+		grouped.set(groupId, [...(grouped.get(groupId) ?? []), doc]);
+	}
+	return (["student", "public_service", "staff_governance"] as const)
+		.map((groupId) => ({
+			displayName: resolveRegulationGroupMeta(groupId).displayName,
+			docs: (grouped.get(groupId) ?? []).sort((left, right) =>
+				left.title.localeCompare(right.title, "zh-CN"),
+			),
+			groupId,
+		}))
+		.filter((group) => group.docs.length > 0);
+}
+
+async function syncCurriculumCanonicalDocs(input: {
+	client: ObjectStoreClient;
+	curriculumDocs: CurriculumDoc[];
+	docsRoot: string;
+	canonicalDocsRoot: string;
+}): Promise<void> {
+	const curriculumDir = resolve(input.canonicalDocsRoot, "curriculum");
+	const collectionDir = resolve(curriculumDir, "curriculum_plan");
 	const courseMapEmbeds = await syncCurriculumCourseMapArtifacts({
-		client,
-		curriculumDocs,
-		docsRoot: DOCS_ROOT,
+		client: input.client,
+		curriculumDocs: input.curriculumDocs,
+		docsRoot: input.docsRoot,
 	});
-	const groups = groupCurriculumDocs(curriculumDocs);
+
+	writeText(resolve(curriculumDir, "_meta.json"), formatJsonContent(buildCurriculumCorpusMeta()));
 	writeText(
-		resolve(targetDir, "_meta.json"),
-		formatJsonContent(buildCurriculumMetaEntries(curriculumDocs)),
+		resolve(curriculumDir, "index.md"),
+		buildCurriculumCorpusIndex(input.curriculumDocs.length),
 	);
-	writeText(resolve(targetDir, "index.md"), buildCurriculumPlanIndex(curriculumDocs));
-	for (const group of groups) {
-		if (group.docs.length === 0) {
-			continue;
-		}
-		const groupDir = resolve(targetDir, group.id);
-		mkdirSync(groupDir, { recursive: true });
-		writeText(
-			resolve(groupDir, "_meta.json"),
-			formatJsonContent(buildGroupMetaEntries(group.docs)),
-		);
-		for (const doc of group.docs) {
-			const jsonlText = await client.readTextObject({ key: doc.key });
-			const courseMapEmbed = courseMapEmbeds.get(doc.slug);
-			const markdown = buildCurriculumMarkdown({
-				courseMapEmbed: courseMapEmbed
-					? buildCourseMapDocEmbedForRoute({
-							dataImportName: courseMapEmbed.dataImportName,
-							routeDepthFromDocsRoot: GROUPED_DOC_ROUTE_DEPTH_FROM_DOCS_ROOT,
-							slug: doc.slug,
-						})
-					: undefined,
-				jsonlText,
-				objectKey: doc.key,
-				slug: doc.slug,
-				title: doc.title,
-			});
-			writeText(resolve(groupDir, `${doc.slug}.mdx`), markdown);
-		}
-		removeStaleGeneratedFiles(
-			groupDir,
-			new Set(["_meta.json", ...group.docs.map((doc) => `${doc.slug}.mdx`)]),
-		);
+	writeText(
+		resolve(collectionDir, "_meta.json"),
+		formatJsonContent(buildCurriculumMetaEntries(input.curriculumDocs)),
+	);
+	writeText(resolve(collectionDir, "index.md"), buildCurriculumPlanIndex(input.curriculumDocs));
+
+	for (const doc of input.curriculumDocs) {
+		const jsonlText = await input.client.readTextObject({ key: doc.key });
+		const courseMapEmbed = courseMapEmbeds.get(doc.slug);
+		const markdown = buildCurriculumMarkdown({
+			courseMapEmbed: courseMapEmbed
+				? buildCourseMapDocEmbedForRoute({
+						dataImportName: courseMapEmbed.dataImportName,
+						routeDepthFromDocsRoot: GROUPED_DOC_ROUTE_DEPTH_FROM_DOCS_ROOT,
+						slug: doc.slug,
+					})
+				: undefined,
+			jsonlText,
+			objectKey: doc.key,
+			slug: doc.slug,
+			title: doc.title,
+		});
+		writeText(resolve(collectionDir, `${doc.slug}.mdx`), markdown);
 	}
+
 	removeStaleGeneratedFiles(
-		targetDir,
-		new Set([
-			"_meta.json",
-			"index.md",
-			...groups.filter((group) => group.docs.length > 0).map((group) => group.id),
-		]),
+		collectionDir,
+		new Set(["_meta.json", "index.md", ...input.curriculumDocs.map((doc) => `${doc.slug}.mdx`)]),
 	);
+	removeStaleGeneratedFiles(curriculumDir, new Set(["_meta.json", "index.md", "curriculum_plan"]));
 }
 
-function isHandbookDoc(doc: HandbookDoc | HandbookFlowGraphDoc): doc is HandbookDoc {
-	return !("filename" in doc);
+function buildCurriculumCorpusMeta(): SidebarMetaEntry[] {
+	return [
+		{ type: "file", name: "index", label: "培养方案" },
+		{ type: "dir", name: "curriculum_plan", label: "培养方案", collapsed: true },
+	];
+}
+
+function buildCurriculumCorpusIndex(curriculumCount: number): string {
+	return [
+		"---",
+		'title: "培养方案"',
+		"footer: false",
+		'documentKind: "collectionLanding"',
+		'readerLayout: "landing"',
+		'readerMeasure: "standard"',
+		'readerOutline: "none"',
+		"outline: false",
+		"---",
+		"",
+		"# 培养方案",
+		"",
+		`当前公开发布 ${curriculumCount} 篇文档。`,
+		"",
+		`- [培养方案](./curriculum_plan/)：${curriculumCount} 篇文档`,
+		"",
+	].join("\n");
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {

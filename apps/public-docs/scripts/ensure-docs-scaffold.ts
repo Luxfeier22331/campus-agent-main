@@ -1,4 +1,4 @@
-import { existsSync, mkdirSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 import { fileURLToPath } from "node:url";
 import { formatJsonContent } from "./sync-real-docs/shared";
@@ -6,6 +6,7 @@ import { formatJsonContent } from "./sync-real-docs/shared";
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const APP_ROOT = resolve(scriptDir, "..");
 const DOCS_ROOT = resolve(APP_ROOT, "docs");
+const CANONICAL_FAVICON_PATH = resolve(APP_ROOT, "../../configs/branding/web-public/favicon.ico");
 
 interface ScaffoldCollection {
 	corpus: string;
@@ -34,6 +35,7 @@ const SCAFFOLD_COLLECTIONS: readonly ScaffoldCollection[] = [
 
 export function ensurePublicDocsScaffold(input: { docsRoot?: string } = {}): void {
 	const docsRoot = input.docsRoot ?? DOCS_ROOT;
+	syncStaticAsset(resolve(docsRoot, "public/favicon.ico"), CANONICAL_FAVICON_PATH);
 	writeFileIfMissing(resolve(docsRoot, "_meta.json"), formatJsonContent(buildRootMeta()));
 	writeFileIfMissing(resolve(docsRoot, "index.md"), buildHomePage());
 	const publicDocsRoot = resolve(docsRoot, "docs");
@@ -61,6 +63,21 @@ function writeFileIfMissing(path: string, content: string): void {
 	}
 	mkdirSync(dirname(path), { recursive: true });
 	writeFileSync(path, content, "utf-8");
+}
+
+function syncStaticAsset(targetPath: string, sourcePath: string): void {
+	if (!existsSync(sourcePath)) {
+		throw new Error(`required public-docs scaffold asset is missing: ${sourcePath}`);
+	}
+	if (existsSync(targetPath)) {
+		const current = readFileSync(targetPath);
+		const next = readFileSync(sourcePath);
+		if (current.equals(next)) {
+			return;
+		}
+	}
+	mkdirSync(dirname(targetPath), { recursive: true });
+	copyFileSync(sourcePath, targetPath);
 }
 
 function buildRootMeta(): unknown[] {

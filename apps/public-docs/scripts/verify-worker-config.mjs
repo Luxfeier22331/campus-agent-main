@@ -26,9 +26,25 @@ const requiredSnippets = [
 	'not_found_handling = "404-page"',
 ];
 
+const localSmokeConfig = readFileSync(resolve(root, "wrangler.local-smoke.toml"), "utf8");
+const requiredLocalSmokeSnippets = [
+	'name = "public-docs"',
+	'APP_API_BASE_URL = "https://app-api.internal"',
+	'PUBLIC_DOCS_HOSTNAME = "127.0.0.1:27114"',
+	"[secrets]",
+	"required = []",
+];
+
 for (const snippet of requiredSnippets) {
 	if (!config.includes(snippet)) {
 		console.error(`Missing required public-docs worker config snippet: ${snippet}`);
+		process.exit(1);
+	}
+}
+
+for (const snippet of requiredLocalSmokeSnippets) {
+	if (!localSmokeConfig.includes(snippet)) {
+		console.error(`Missing required public-docs local-smoke config snippet: ${snippet}`);
 		process.exit(1);
 	}
 }

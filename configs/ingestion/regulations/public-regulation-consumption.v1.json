@@ -1,0 +1,305 @@
+{
+	"schema_version": "public_regulation_consumption_manifest.v1",
+	"docs_category": "campus_regulations",
+	"nav_groups": [
+		{
+			"group_id": "student",
+			"display_name": "学生规章",
+			"slug": "student"
+		},
+		{
+			"group_id": "public_service",
+			"display_name": "校园服务制度",
+			"slug": "public-service"
+		},
+		{
+			"group_id": "staff_governance",
+			"display_name": "教职工与校级治理",
+			"slug": "staff-governance"
+		}
+	],
+	"institutional_rules_policy": {
+		"default_nav_group": "public_service",
+		"scope_signal_terms": [
+			"校园网",
+			"统一身份认证",
+			"信息门户",
+			"信息系统",
+			"二级网站",
+			"电子邮件",
+			"邮箱",
+			"一卡通",
+			"校园卡",
+			"办公自动化",
+			"oa",
+			"网络安全",
+			"教代会",
+			"工会",
+			"学术委员会",
+			"岗位聘用",
+			"职称评审",
+			"教职工考核",
+			"劳动人事争议",
+			"十三五规划"
+		],
+		"public_service_terms": [
+			"校园网",
+			"统一身份认证",
+			"密码",
+			"信息门户",
+			"信息系统",
+			"电子邮件",
+			"邮箱",
+			"一卡通",
+			"校园卡",
+			"办公自动化",
+			"oa",
+			"二级网站",
+			"网站建设",
+			"网络安全"
+		],
+		"staff_governance_terms": [
+			"教代会",
+			"工会",
+			"学术委员会",
+			"岗位聘用",
+			"岗位设置",
+			"职称评审",
+			"教职工考核",
+			"劳动人事争议",
+			"十三五规划"
+		]
+	},
+	"documents": [
+		{
+			"document_id": "official_web_regulation:0a420e3fe367027c",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学信息公开实施细则",
+			"source_url": "https://xxgk.muc.edu.cn/info/1005/1107.htm",
+			"audience_segment": "public_service",
+			"docs_nav_group": "public_service",
+			"rag_default_exposure": "include",
+			"title_aliases": ["信息公开实施细则", "学校信息公开实施细则"]
+		},
+		{
+			"document_id": "official_web_regulation:b23aa5f14642eb92",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学校园网接入管理办法",
+			"source_url": "https://met.muc.edu.cn/info/1024/1083.htm",
+			"audience_segment": "public_service",
+			"docs_nav_group": "public_service",
+			"rag_default_exposure": "include",
+			"title_aliases": ["校园网接入管理办法"]
+		},
+		{
+			"document_id": "official_web_regulation:5defea25436a134e",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学校园网用户账号管理办法",
+			"source_url": "https://met.muc.edu.cn/info/1024/1084.htm",
+			"audience_segment": "public_service",
+			"docs_nav_group": "public_service",
+			"rag_default_exposure": "include",
+			"title_aliases": ["校园网用户账号管理办法"]
+		},
+		{
+			"document_id": "official_web_regulation:b1c19829dcb2f9c9",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学信息系统管理办法",
+			"source_url": "https://met.muc.edu.cn/info/1024/1085.htm",
+			"audience_segment": "public_service",
+			"docs_nav_group": "public_service",
+			"rag_default_exposure": "include",
+			"title_aliases": ["信息系统管理办法"]
+		},
+		{
+			"document_id": "official_web_regulation:e350a6f1f7c0fdb2",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "校园一卡通管理规定",
+			"source_url": "https://met.muc.edu.cn/info/1024/1086.htm",
+			"audience_segment": "public_service",
+			"docs_nav_group": "public_service",
+			"rag_default_exposure": "include",
+			"title_aliases": ["一卡通管理规定", "校园卡管理规定"]
+		},
+		{
+			"document_id": "official_web_regulation:7c62688242b9f47b",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学信息门户运行管理办法（试行）",
+			"source_url": "https://met.muc.edu.cn/info/1024/1088.htm",
+			"audience_segment": "public_service",
+			"docs_nav_group": "public_service",
+			"rag_default_exposure": "include",
+			"title_aliases": ["信息门户运行管理办法", "门户运行管理办法"]
+		},
+		{
+			"document_id": "official_web_regulation:91431d30da51d124",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学办公自动化系统管理规定（试行）",
+			"source_url": "https://met.muc.edu.cn/info/1024/1089.htm",
+			"audience_segment": "public_service",
+			"docs_nav_group": "public_service",
+			"rag_default_exposure": "include",
+			"title_aliases": ["办公自动化系统管理规定", "OA系统管理规定"]
+		},
+		{
+			"document_id": "official_web_regulation:b082a6b801811a1e",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学电子邮件管理办法",
+			"source_url": "https://met.muc.edu.cn/info/1024/1090.htm",
+			"audience_segment": "public_service",
+			"docs_nav_group": "public_service",
+			"rag_default_exposure": "include",
+			"title_aliases": ["电子邮件管理办法", "邮箱管理办法"]
+		},
+		{
+			"document_id": "official_web_regulation:ce565b348ca6ee31",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学二级网站建设与运行管理办法",
+			"source_url": "https://met.muc.edu.cn/info/1024/1091.htm",
+			"audience_segment": "public_service",
+			"docs_nav_group": "public_service",
+			"rag_default_exposure": "include",
+			"title_aliases": ["二级网站建设与运行管理办法", "二级网站管理办法"]
+		},
+		{
+			"document_id": "official_web_regulation:bffa1b7b85e9842f",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学网络与信息安全管理办法",
+			"source_url": "https://met.muc.edu.cn/info/1024/1188.htm",
+			"audience_segment": "public_service",
+			"docs_nav_group": "public_service",
+			"rag_default_exposure": "include",
+			"title_aliases": ["网络与信息安全管理办法", "信息安全管理办法"]
+		},
+		{
+			"document_id": "official_web_regulation:36a69a7f1aed5608",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学教职工代表大会暨工会代表大会工作规程",
+			"source_url": "https://xxgk.muc.edu.cn/info/1198/4051.htm",
+			"audience_segment": "staff_governance",
+			"docs_nav_group": "staff_governance",
+			"rag_default_exposure": "gated",
+			"title_aliases": ["教代会工作规程", "工会代表大会工作规程"]
+		},
+		{
+			"document_id": "official_web_regulation:252e764624d17af1",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学学术委员会章程",
+			"source_url": "https://xxgk.muc.edu.cn/info/1198/4101.htm",
+			"audience_segment": "staff_governance",
+			"docs_nav_group": "staff_governance",
+			"rag_default_exposure": "gated",
+			"title_aliases": ["学术委员会章程"]
+		},
+		{
+			"document_id": "official_web_regulation:12ce0e9b47598c5d",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学事业发展“十三五”规划",
+			"source_url": "https://xxgk.muc.edu.cn/info/1198/6451.htm",
+			"audience_segment": "staff_governance",
+			"docs_nav_group": "staff_governance",
+			"rag_default_exposure": "gated",
+			"title_aliases": ["十三五规划", "事业发展十三五规划"]
+		},
+		{
+			"document_id": "official_web_regulation:2e01ea25ef8e65a0",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学劳动人事争议调解委员会工作实施细则",
+			"source_url": "https://xxgk.muc.edu.cn/info/1290/5641.htm",
+			"audience_segment": "staff_governance",
+			"docs_nav_group": "staff_governance",
+			"rag_default_exposure": "gated",
+			"title_aliases": ["劳动人事争议调解委员会工作实施细则"]
+		},
+		{
+			"document_id": "official_web_regulation:de10f64c02d1be9b",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学岗位设置与聘用管理暂行办法",
+			"source_url": "https://xxgk.muc.edu.cn/info/1290/5651.htm",
+			"audience_segment": "staff_governance",
+			"docs_nav_group": "staff_governance",
+			"rag_default_exposure": "gated",
+			"title_aliases": ["岗位设置与聘用管理暂行办法", "岗位聘用办法"]
+		},
+		{
+			"document_id": "official_web_regulation:a97544cf7e637399",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学职称评审组织条例",
+			"source_url": "https://xxgk.muc.edu.cn/info/1290/5731.htm",
+			"audience_segment": "staff_governance",
+			"docs_nav_group": "staff_governance",
+			"rag_default_exposure": "gated",
+			"title_aliases": ["职称评审组织条例", "职称评审条例"]
+		},
+		{
+			"document_id": "official_web_regulation:b36c29284c2b8bef",
+			"canonical_scope": "regulations/institutional_rules",
+			"title": "中央民族大学教职工考核办法（试行）",
+			"source_url": "https://xxgk.muc.edu.cn/info/1290/5761.htm",
+			"audience_segment": "staff_governance",
+			"docs_nav_group": "staff_governance",
+			"rag_default_exposure": "gated",
+			"title_aliases": ["教职工考核办法", "教职工考核办法试行"]
+		},
+		{
+			"document_id": "official_web_regulation:78f9b21015613c54",
+			"canonical_scope": "regulations/student_rules",
+			"title": "成人高等教育学籍管理",
+			"source_url": "https://xxgk.muc.edu.cn/info/1247/4871.htm",
+			"audience_segment": "student",
+			"docs_nav_group": "student",
+			"rag_default_exposure": "include",
+			"title_aliases": ["成人高等教育学籍管理"]
+		},
+		{
+			"document_id": "official_web_regulation:06c385a9ba53b260",
+			"canonical_scope": "regulations/student_rules",
+			"title": "中央民族大学成人高等学历教育学生学籍管理规定",
+			"source_url": "https://xxgk.muc.edu.cn/info/1247/4891.htm",
+			"audience_segment": "student",
+			"docs_nav_group": "student",
+			"rag_default_exposure": "include",
+			"title_aliases": ["成人高等学历教育学生学籍管理规定"]
+		},
+		{
+			"document_id": "official_web_regulation:fbc2a4ce72f4bc47",
+			"canonical_scope": "regulations/student_rules",
+			"title": "中央民族大学外国留学生本科生 学籍管理规定",
+			"source_url": "https://xxgk.muc.edu.cn/info/1247/4901.htm",
+			"audience_segment": "student",
+			"docs_nav_group": "student",
+			"rag_default_exposure": "include",
+			"title_aliases": ["外国留学生本科生学籍管理规定"]
+		},
+		{
+			"document_id": "official_web_regulation:e4a8804f56032cab",
+			"canonical_scope": "regulations/student_rules",
+			"title": "本科生转专业实施细则",
+			"source_url": "https://xxgk.muc.edu.cn/info/1247/4911.htm",
+			"audience_segment": "student",
+			"docs_nav_group": "student",
+			"rag_default_exposure": "include",
+			"title_aliases": ["转专业实施细则", "本科生转专业细则"]
+		},
+		{
+			"document_id": "official_web_regulation:e7f07bb5b397d772",
+			"canonical_scope": "regulations/student_rules",
+			"title": "中央民族大学 优秀毕业研究生评选办法",
+			"source_url": "https://xxgk.muc.edu.cn/info/1265/5311.htm",
+			"audience_segment": "student",
+			"docs_nav_group": "student",
+			"rag_default_exposure": "include",
+			"title_aliases": ["优秀毕业研究生评选办法"]
+		},
+		{
+			"document_id": "official_web_regulation:e0f2bc4afa91a6a1",
+			"canonical_scope": "regulations/student_rules",
+			"title": "中央民族大学研究生宝钢优秀学生奖评选实施办法（试行）",
+			"source_url": "https://xxgk.muc.edu.cn/info/1265/5321.htm",
+			"audience_segment": "student",
+			"docs_nav_group": "student",
+			"rag_default_exposure": "include",
+			"title_aliases": ["研究生宝钢优秀学生奖评选实施办法", "宝钢优秀学生奖评选实施办法"]
+		}
+	]
+}

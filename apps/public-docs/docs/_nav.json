@@ -4,13 +4,8 @@
 		"link": "/"
 	},
 	{
-		"text": "学生手册",
-		"link": "/student-handbook/",
-		"activeMatch": "/student-handbook/"
-	},
-	{
-		"text": "培养方案",
-		"link": "/curriculum-plan/",
-		"activeMatch": "/curriculum-plan/"
+		"text": "公开文档",
+		"link": "/docs/",
+		"activeMatch": "/docs/"
 	}
 ]

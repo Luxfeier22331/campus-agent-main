@@ -12,8 +12,8 @@ export interface Env {
 
 const DOCS_API_PREFIX = "/api/docs/";
 const GATED_DOCS_PREFIX = "/_gated-docs/";
-const COLLECTION_FALLBACK_PATH = "/collection-fallback.html";
-const READER_FALLBACK_PATH = "/reader-fallback.html";
+const COLLECTION_BOOTSTRAP_PATH = "/collection-bootstrap.html";
+const READER_BOOTSTRAP_PATH = "/reader-bootstrap.html";
 const FORWARDED_HEADERS = [
 	"accept",
 	"content-type",
@@ -23,9 +23,18 @@ const FORWARDED_HEADERS = [
 	"x-trace-id",
 ] as const;
 
+const PUBLIC_DOCS_SECURITY_HEADERS = {
+	"content-security-policy":
+		"default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; img-src 'self' data: blob:; font-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self' 'unsafe-inline'; connect-src 'self'; worker-src 'self' blob:",
+	"permissions-policy": "camera=(), microphone=(), geolocation=(), payment=(), usb=()",
+	"referrer-policy": "strict-origin-when-cross-origin",
+	"x-content-type-options": "nosniff",
+} as const;
+
 const JSON_HEADERS = {
 	"cache-control": "no-store",
 	"content-type": "application/json; charset=utf-8",
+	...PUBLIC_DOCS_SECURITY_HEADERS,
 } as const;
 
 const worker = {
@@ -129,7 +138,7 @@ async function serveReadiness(env: Env): Promise<Response> {
 			error: {
 				code: "dependency_not_ready",
 				details: {
-					appApiRuntime: appApiRuntimeError,
+					docsControlPlane: appApiRuntimeError,
 				},
 				message: "Runtime configuration is incomplete.",
 			},
@@ -141,7 +150,7 @@ async function serveReadiness(env: Env): Promise<Response> {
 		app_api_base_url: env.APP_API_BASE_URL || "",
 		dependencies: {
 			appApiBinding: "configured",
-			appApiRuntime: "ready",
+			docsControlPlane: "ready",
 			assets: "configured",
 		},
 		public_hostname: env.PUBLIC_DOCS_HOSTNAME || "",
@@ -156,22 +165,22 @@ async function probeAppApiRuntime(env: Env): Promise<string | null> {
 
 	try {
 		const response = await env.APP_API.fetch(
-			new Request(new URL("/readyz", env.APP_API_BASE_URL).toString(), {
+			new Request(new URL("/api/docs/readyz", env.APP_API_BASE_URL).toString(), {
 				method: "GET",
 			}),
 		);
 		if (response.status !== 200) {
-			return `app-api readyz returned ${response.status}`;
+			return `docs control-plane readyz returned ${response.status}`;
 		}
 
 		const payload = (await response.json().catch(() => null)) as { status?: unknown } | null;
 		if (payload?.status !== "ready") {
-			return "app-api readyz returned an invalid payload";
+			return "docs control-plane readyz returned an invalid payload";
 		}
 
 		return null;
 	} catch (error) {
-		return error instanceof Error ? error.message : "app-api readyz probe failed";
+		return error instanceof Error ? error.message : "docs control-plane readyz probe failed";
 	}
 }
 
@@ -246,14 +255,14 @@ async function serveStaticDocs(request: Request, env: Env): Promise<Response> {
 	const response = await env.ASSETS.fetch(request);
 	const pathname = new URL(request.url).pathname;
 	if (response.status === 404 && isDocsCollectionRoute(pathname)) {
-		const fallbackUrl = new URL(COLLECTION_FALLBACK_PATH, request.url);
-		const fallbackResponse = await env.ASSETS.fetch(new Request(fallbackUrl.toString(), request));
-		return withNoStore(fallbackResponse);
+		const bootstrapUrl = new URL(COLLECTION_BOOTSTRAP_PATH, request.url);
+		const bootstrapResponse = await env.ASSETS.fetch(new Request(bootstrapUrl.toString(), request));
+		return withNoStore(bootstrapResponse);
 	}
 	if (response.status === 404 && isDocsReaderRoute(pathname)) {
-		const fallbackUrl = new URL(READER_FALLBACK_PATH, request.url);
-		const fallbackResponse = await env.ASSETS.fetch(new Request(fallbackUrl.toString(), request));
-		return withNoStore(fallbackResponse);
+		const bootstrapUrl = new URL(READER_BOOTSTRAP_PATH, request.url);
+		const bootstrapResponse = await env.ASSETS.fetch(new Request(bootstrapUrl.toString(), request));
+		return withNoStore(bootstrapResponse);
 	}
 
 	const contentType = response.headers.get("content-type") ?? "";
@@ -382,6 +391,7 @@ function isDocsCollectionRoute(pathname: string): boolean {
 function withNoStore(response: Response, options?: { varyAuth?: boolean }): Response {
 	const headers = new Headers(response.headers);
 	headers.set("cache-control", "no-store");
+	applyPublicDocsSecurityHeaders(headers);
 	if (options?.varyAuth) {
 		addVary(headers, "Cookie, Authorization");
 	}
@@ -391,6 +401,13 @@ function withNoStore(response: Response, options?: { varyAuth?: boolean }): Resp
 		status: response.status,
 		statusText: response.statusText,
 	});
+}
+
+function applyPublicDocsSecurityHeaders(headers: Headers): Headers {
+	for (const [headerName, headerValue] of Object.entries(PUBLIC_DOCS_SECURITY_HEADERS)) {
+		headers.set(headerName, headerValue);
+	}
+	return headers;
 }
 
 function addVary(headers: Headers, value: string): void {

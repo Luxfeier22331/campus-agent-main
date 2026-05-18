@@ -26,7 +26,7 @@ type CollectionState =
 	| { status: "not_found" }
 	| { navigation: DocsNavigationResponse; status: "ready" };
 
-export default function GatedCollectionFallback() {
+export default function GatedCollectionBootstrap() {
 	const [state, setState] = useState<CollectionState>({ status: "loading" });
 
 	useEffect(() => {
@@ -67,11 +67,11 @@ export default function GatedCollectionFallback() {
 	}, []);
 
 	if (state.status === "loading") {
-		return <div className="reader-fallback-status">正在读取文档目录...</div>;
+		return <div className="reader-bootstrap-status">正在读取文档目录...</div>;
 	}
 	if (state.status === "not_found") {
 		return (
-			<div className="reader-fallback-status">
+			<div className="reader-bootstrap-status">
 				<h1>未找到或无权访问该文档目录</h1>
 				<p>请确认你已使用具备访问权限的校园身份登录。</p>
 			</div>
@@ -80,7 +80,7 @@ export default function GatedCollectionFallback() {
 
 	const { collection, nodes } = state.navigation;
 	return (
-		<article className="reader-fallback-article gated-collection-fallback">
+		<article className="reader-bootstrap-article gated-collection-bootstrap">
 			<header className="document-meta-panel">
 				<p className="document-meta-summary">
 					<span>{collection.displayName}</span>

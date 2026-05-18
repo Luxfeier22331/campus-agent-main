@@ -543,4 +543,93 @@ describe("published reader docs sync", () => {
 			readFileSync(join(docsRoot, "docs/regulations/scoped_rules/index.md"), "utf8"),
 		).toContain("当前公开发布 1 篇文档，归属「规章制度」。");
 	});
+
+	it("groups institutional rules in published reader outputs by consumption audience", async () => {
+		const docsRoot = createDocsRoot();
+		const manifest = {
+			entries: [
+				{
+					collection: "institutional_rules",
+					corpus: "regulations",
+					deliveryMode: "public_static_asset",
+					docId: "official_web_regulation:b23aa5f14642eb92",
+					documentSlug: "campus-network-access",
+					isCurrent: true,
+					sourceObjects: {
+						reader: "reader-assets/public-service/reader.json",
+					},
+					targetObjects: {},
+					title: "中央民族大学校园网接入管理办法",
+					versionId: "ver_public_service",
+					versionSlug: "current",
+				},
+				{
+					collection: "institutional_rules",
+					corpus: "regulations",
+					deliveryMode: "public_static_asset",
+					docId: "official_web_regulation:252e764624d17af1",
+					documentSlug: "academic-committee-charter",
+					isCurrent: true,
+					sourceObjects: {
+						reader: "reader-assets/staff-governance/reader.json",
+					},
+					targetObjects: {},
+					title: "中央民族大学学术委员会章程",
+					versionId: "ver_staff_governance",
+					versionSlug: "current",
+				},
+			],
+		};
+		const objectStore = new FakeObjectStore(
+			new Map([
+				["manifest.json", JSON.stringify(manifest)],
+				[
+					"reader-assets/public-service/reader.json",
+					JSON.stringify({
+						document: {
+							collection: "institutional_rules",
+							corpus: "regulations",
+							documentSlug: "campus-network-access",
+							title: "中央民族大学校园网接入管理办法",
+						},
+						sections: [],
+					}),
+				],
+				[
+					"reader-assets/staff-governance/reader.json",
+					JSON.stringify({
+						document: {
+							collection: "institutional_rules",
+							corpus: "regulations",
+							documentSlug: "academic-committee-charter",
+							title: "中央民族大学学术委员会章程",
+						},
+						sections: [],
+					}),
+				],
+			]),
+		);
+
+		await syncPublishedReaderDocs({
+			client: objectStore,
+			docsRoot,
+			manifestObjectKey: "manifest.json",
+		});
+
+		const collectionMeta = readFileSync(
+			join(docsRoot, "docs/regulations/institutional_rules/_meta.json"),
+			"utf8",
+		);
+		const collectionIndex = readFileSync(
+			join(docsRoot, "docs/regulations/institutional_rules/index.md"),
+			"utf8",
+		);
+		expect(collectionMeta).toContain('"type": "section-header"');
+		expect(collectionMeta).toContain("校园服务制度");
+		expect(collectionMeta).toContain("教职工与校级治理");
+		expect(collectionIndex).toContain("## 校园服务制度");
+		expect(collectionIndex).toContain("## 教职工与校级治理");
+		expect(collectionIndex).toContain("[中央民族大学校园网接入管理办法](./campus-network-access)");
+		expect(collectionIndex).toContain("[中央民族大学学术委员会章程](./academic-committee-charter)");
+	});
 });
