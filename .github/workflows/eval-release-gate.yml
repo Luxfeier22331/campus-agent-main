@@ -11,7 +11,6 @@ on:
           - handbook
           - curriculum
           - official-web-stable-reference
-          - official-web-fresh-news
           - service-guide-lookup
           - contact-directory-lookup
           - campus-services-product-path
@@ -166,7 +165,7 @@ jobs:
           fi
           case_results_publishable=false
           case "${{ inputs.profile }}" in
-            handbook|curriculum|official-web-stable-reference|official-web-fresh-news)
+            handbook|curriculum|official-web-stable-reference)
               case_results_publishable=true
               ;;
           esac

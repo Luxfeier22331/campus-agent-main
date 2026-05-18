@@ -7,21 +7,22 @@ This app is the forward canonical public browser surface in front of shared
 
 Current runtime composition:
 
-- route ownership lives in `src/routes/` and `src/login/`
-- the visible auth family shell is composed through repo-owned Better Auth
-  adapters and campus copy in `src/login/`
+- chat route ownership lives in `src/routes/`
+- `/login`, `/register`, `/forgot-password`, and `/reset-password` are bounded
+  compatibility redirects/shims to `apps/hub-web` account routes
 - `/chat` and `/chat/:conversationId` render the vendored chat runtime through
   `src/platform/chat/app-shell.tsx`
 - vendored UI/runtime source-of-truth lives in `vendor/vercel-ai-chatbot/`
 - repo-owned platform seams live in `src/platform/`
 - exact import-compat ownership lives in `src/platform/vendor-compat/`
-- `src/styles.css` only serves the boot fallback; the active chat shell comes
+- `src/styles.css` only serves the boot placeholder; the active chat shell comes
   from the vendored runtime
 
 It owns:
 
 - public chat UI
-- browser-side login and chat routes
+- browser-side chat routes
+- compatibility redirects from legacy chat-local auth URLs to hub account routes
 - same-site `/api/*` proxy seam into `apps/app-api`
 - minimal health/readiness contract
 
@@ -58,18 +59,8 @@ Current chat contract assumptions:
 
 UI behavior:
 
-- `/login` renders the vendored sign-in shell against shared Better Auth
-  endpoints, keeps campus-specific product copy, and routes password recovery
-  into `/forgot-password`
-- `/register` renders the vendored register shell against shared Better Auth
-  endpoints and keeps the campus-email helper copy inside the same auth family
-  shell
-- `/login`, `/register`, and `/forgot-password` require a Turnstile challenge
-  before their same-site Better Auth submission is sent
-- `/forgot-password` stays enumeration-safe and only confirms that a reset link
-  will be sent if the account is eligible
-- `/reset-password` finishes the same-site recovery flow without adding a second
-  captcha step
+- `/login`, `/register`, `/forgot-password`, and `/reset-password` redirect to
+  hub account routes and preserve a sanitized `return_to`
 - `/chat` is the first-turn chat surface and conversation history view
 - `/chat/:conversationId` continues an existing owned conversation
 - the left rail uses paginated history from `GET /api/history`
@@ -93,8 +84,8 @@ Environment:
 
 - `PUBLIC_CHAT_APP_NAME`
 - `PUBLIC_CHAT_HOSTNAME`
-- `AUTH_TURNSTILE_SITE_KEY`
 - `APP_API_BASE_URL`
+- `HUB_WEB_BASE_URL`
 
 The Worker also requires an internal `APP_API` service binding at runtime.
 
@@ -105,14 +96,14 @@ Readiness expectations:
 - `GET /readyz` forwards the app-api `preflight.campusServicesProductPath`
   diagnostic block when it is present, so public/chat campus-services opening
   checks can distinguish capability-gate, projection, and read-model blockers
-- public chat shell routes such as `/login` and `/chat` also stay fail-closed
+- public chat shell routes such as `/chat` stay fail-closed
   when the `APP_API` bridge is missing, so a bad deploy does not expose a broken
   SPA
 - `pnpm deploy` now fails before publish if the generated Worker deploy config
   loses the required `APP_API` service binding
 - proxied same-site `/api/*` responses are forced to `Cache-Control: no-store`
-- missing `AUTH_TURNSTILE_SITE_KEY` does not take Worker readiness down, but it
-  leaves the public auth family unable to complete its captcha-gated submit path
+- auth challenge runtime config is no longer owned by public-chat; hub owns the
+  account shell and Turnstile widget posture
 
 Observability:
 
@@ -123,7 +114,8 @@ Observability:
 - proxied `/api/auth/*` requests also preserve browser `Origin` and `Referer` so
   shared Better Auth origin / CSRF checks stay effective; other `/api/*` routes
   keep the narrower header allowlist
-- Sentry stays fail-open when `SENTRY_DSN` is unset
+- Sentry is optional runtime-shell telemetry; when `SENTRY_DSN` is unset it is
+  disabled and does not change chat request admission
 - raw cookies, raw prompt/answer text, and other auth material are not intended
   to enter the sink
 
@@ -151,7 +143,7 @@ Local dev notes:
   frontend-only iteration, but it is not the canonical browser smoke path for
   the `APP_API` service binding.
 - `pnpm dev:live-smoke` is the canonical local browser smoke entry. It boots
-  `public-chat-web` on `<http://127.0.0.1:5173`> and brings up `apps/app-api` as
+  `public-chat-web` on `<http://127.0.0.1:27011`> and brings up `apps/app-api` as
   a Cloudflare Vite auxiliary Worker from
   `../app-api/wrangler.local-smoke.toml`, so same-site `/api/*` requests resolve
   through the real Worker service binding instead of depending on two separate
@@ -161,5 +153,5 @@ Local dev notes:
   after a pull or schema change. The local `chat.*` bootstrap migrations are not
   covered by `db:reconcile-shared-drift`; if they lag, `POST /api/chat/requests`
   can fail even when the chat shell itself is healthy.
-- local auth smoke should use Cloudflare Turnstile testing sitekeys; staging
-  must use the real sitekey admitted for `campus-chat-staging.ayafeed.com`
+- legacy chat-local auth UI smoke exists only for compatibility regression
+  tests; hub owns current account-shell smoke and staging Turnstile posture

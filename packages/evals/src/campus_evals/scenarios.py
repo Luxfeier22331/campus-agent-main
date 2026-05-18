@@ -15,7 +15,7 @@ from campus_evals.scenarios_handbook import (
     handbook_smoke_cases,
 )
 from campus_evals.scenarios_official_web import (
-    official_web_fresh_news_release_gate_cases,
+    official_web_fresh_news_seed_validation_cases,
     official_web_release_gate_cases,
     official_web_stable_reference_release_gate_cases,
 )
@@ -35,8 +35,8 @@ __all__ = (
     "handbook_regression_locked_cases",
     "handbook_release_gate_cases",
     "handbook_smoke_cases",
-    "official_web_fresh_news_release_gate_cases",
     "official_web_fresh_news_scope",
+    "official_web_fresh_news_seed_validation_cases",
     "official_web_release_gate_cases",
     "official_web_stable_reference_release_gate_cases",
     "official_web_stable_reference_scope",

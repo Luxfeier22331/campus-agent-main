@@ -91,6 +91,7 @@ class PostgresNoticeIngestQueueStoreTest(unittest.TestCase):
             "max_attempts integer not null",
             "leased_by text",
             "lease_expires_at timestamptz",
+            "next_retry_after timestamptz",
             "last_error_code text",
             "last_error_message text",
             "created_at timestamptz not null",
@@ -140,8 +141,51 @@ class PostgresNoticeIngestQueueStoreTest(unittest.TestCase):
         self.assertIn("for update skip locked", lease_query)
         self.assertIn("status = 'queued'", lease_query)
         self.assertIn("status = 'leased'", lease_query)
+        self.assertIn("status = 'failed_retryable'", lease_query)
+        self.assertIn("next_retry_after <= now()", lease_query)
         self.assertIn("lease_expires_at < now()", lease_query)
         self.assertIn("order by priority asc, created_at asc, job_id asc", lease_query)
+
+    def test_postgres_lease_next_can_filter_by_run_id(self) -> None:
+        job = _job("muc_internal_portal:355512", content_hash="sha256-a", priority=50)
+        cursor = _RecordingCursor([_record_row(job, status="leased", leased_by="worker-a")])
+        store = object.__new__(PostgresNoticeIngestQueueStore)
+        store.database_url = "postgresql://example.test/db"
+        store.table_name = DEFAULT_NOTICE_INGEST_QUEUE_TABLE
+
+        with patch(
+            "campus_ingestion_core.collected_notice_ingest_queue_postgres._postgres_connection",
+            return_value=_FakeConnectionContextManager(cursor),
+        ):
+            leased = store.lease_next(
+                worker_id="worker-a",
+                lease_seconds=300,
+                run_id="run-001",
+            )
+
+        self.assertEqual(leased.job_id, job.job_id)
+        lease_query, params = cursor.execute_calls[0]
+        self.assertIn("and run_id = %s", lease_query)
+        self.assertIn("run-001", params)
+
+    def test_postgres_release_returns_owned_lease_to_queued(self) -> None:
+        job = _job("muc_internal_portal:355512", content_hash="sha256-a", priority=50)
+        cursor = _RecordingCursor([_record_row(job, status="queued")])
+        store = object.__new__(PostgresNoticeIngestQueueStore)
+        store.database_url = "postgresql://example.test/db"
+        store.table_name = DEFAULT_NOTICE_INGEST_QUEUE_TABLE
+
+        with patch(
+            "campus_ingestion_core.collected_notice_ingest_queue_postgres._postgres_connection",
+            return_value=_FakeConnectionContextManager(cursor),
+        ):
+            released = store.release(job.job_id, worker_id="worker-a")
+
+        self.assertEqual(released.status, "queued")
+        release_query = cursor.execute_calls[0][0].lower()
+        self.assertIn("status = 'queued'", release_query)
+        self.assertIn("leased_by = null", release_query)
+        self.assertIn("and leased_by = %s", release_query)
 
 
 def _job(source_identity: str, *, content_hash: str, priority: int) -> object:
@@ -191,6 +235,7 @@ def _record_row(job: object, *, status: str, leased_by: str | None = None) -> tu
         0,
         3,
         leased_by,
+        None,
         None,
         None,
         None,

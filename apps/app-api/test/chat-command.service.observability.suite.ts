@@ -96,7 +96,7 @@ export function registerChatCommandServiceObservabilitySuite(): void {
 		});
 	});
 
-	it("renders campus-services guardrail text for clarification, fail-close, and no-action statuses", async () => {
+	it("passes through campus-services public guardrail text for clarification, fail-close, and no-action statuses", async () => {
 		const clarificationStore = createCommandStore();
 		const noAnswerStore = createCommandStore();
 		const approvalStore = createCommandStore();
@@ -108,7 +108,7 @@ export function registerChatCommandServiceObservabilitySuite(): void {
 			store: clarificationStore.store,
 			supervisor: {
 				execute: vi.fn().mockResolvedValue({
-					answerText: "projection_internal_state route_variant_ambiguous",
+					answerText: "请说明班车方向。当前可查询：丰台至海淀通勤班车、海淀至丰台通勤班车。",
 					error: null,
 					followUpQuestion: "",
 					result: {
@@ -135,7 +135,7 @@ export function registerChatCommandServiceObservabilitySuite(): void {
 			store: noAnswerStore.store,
 			supervisor: {
 				execute: vi.fn().mockResolvedValue({
-					answerText: "release_id=contact_directory_projection_v2",
+					answerText: "为避免误导，当前来源信息存在冲突，暂时无法确认招生办联系方式。",
 					error: null,
 					followUpQuestion: "",
 					result: {
@@ -159,7 +159,8 @@ export function registerChatCommandServiceObservabilitySuite(): void {
 			store: approvalStore.store,
 			supervisor: {
 				execute: vi.fn().mockResolvedValue({
-					answerText: "",
+					answerText:
+						"不能代你预约、提交、打电话或发邮件；如需继续，请先进入对应官方入口完成人工确认。",
 					error: null,
 					followUpQuestion: "",
 					result: {
@@ -185,7 +186,7 @@ export function registerChatCommandServiceObservabilitySuite(): void {
 					answerText: "",
 					error: {
 						code: "request_rejected",
-						message: "request was rejected by supervisor policy",
+						message: "不能代你预约、提交、打电话或发邮件；当前请求已被策略拒绝。",
 						retryable: false,
 					},
 					followUpQuestion: "",
@@ -783,7 +784,6 @@ export function registerChatCommandServiceObservabilitySuite(): void {
 				status: "approval_required",
 			}),
 		);
-
 		expect(rejected.answer.result).toEqual({
 			errorCode: "request_rejected",
 			kind: "error",

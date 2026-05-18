@@ -5,10 +5,10 @@ import { captcha } from "better-auth/plugins";
 import { decodeBase64UrlBytes, encodeBase64UrlBytes } from "../../base64url";
 import {
 	type AppApiEnvironment,
+	type AppAuthConfig,
 	type Env,
 	isDeployedEnvironment,
-	readAppApiConfig,
-	readPublicChatOrigin,
+	readAppAuthConfig,
 	resolveEnvironment,
 } from "../../config";
 import { createRuntimeDatabase, probeBetterAuthDatabase } from "../../db/runtime";
@@ -38,12 +38,13 @@ function shouldCacheAppAuth(env: Env): boolean {
 
 export interface BetterAuthConfigInput {
 	appName: string;
+	authShellOrigin: string;
 	authResetEmailFrom: string;
 	authResetEmailReplyTo?: string;
 	authTurnstileSecretKey: string;
 	betterAuthSecret: string;
 	environment: AppApiEnvironment;
-	publicChatOrigin: string;
+	publicChatOrigin?: string;
 	resendApiKey: string;
 	resendFetch?: typeof fetch;
 	endUserEmailDomainAllowlist: string[];
@@ -53,6 +54,7 @@ export interface BetterAuthConfigInput {
 
 export interface CreateAppAuthInput {
 	database?: Awaited<ReturnType<typeof createRuntimeDatabase>>;
+	config?: AppAuthConfig;
 }
 
 export interface EndUserEmailAdmissionPolicy {
@@ -174,16 +176,22 @@ export function enforceEndUserEmailAdmission(input: {
 }
 
 export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
-	const appOrigin = new URL(input.publicChatOrigin).origin;
+	const appOrigin = new URL(input.authShellOrigin).origin;
+	const publicChatOrigin = input.publicChatOrigin
+		? new URL(input.publicChatOrigin).origin
+		: appOrigin;
+	const trustedOrigins =
+		appOrigin === publicChatOrigin ? [appOrigin] : [appOrigin, publicChatOrigin];
 	const endUserEmailAdmissionPolicy = buildEndUserEmailAdmissionPolicy({
 		endUserEmailAllowlist: input.endUserEmailAllowlist,
 		endUserEmailDomainAllowlist: input.endUserEmailDomainAllowlist,
 	});
 	const authResetMailConfig = {
+		authShellOrigin: appOrigin,
 		authResetEmailFrom: input.authResetEmailFrom,
 		authResetEmailReplyTo: input.authResetEmailReplyTo,
 		fetchImplementation: input.resendFetch,
-		publicChatOrigin: appOrigin,
+		publicChatOrigin,
 		resendApiKey: input.resendApiKey,
 	};
 
@@ -191,7 +199,7 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 		appName: input.appName,
 		baseURL: appOrigin,
 		basePath: "/api/auth",
-		trustedOrigins: [appOrigin],
+		trustedOrigins,
 		secret: input.betterAuthSecret,
 		emailAndPassword: {
 			autoSignIn: true,
@@ -260,7 +268,7 @@ export function buildBetterAuthConfig(input: BetterAuthConfigInput) {
 					const redirectTo = extractAuthResetRedirect(ctx.body);
 					if (redirectTo) {
 						resolvePasswordResetRedirectTarget({
-							publicChatOrigin: appOrigin,
+							authShellOrigin: appOrigin,
 							redirectTo,
 						});
 					}
@@ -359,7 +367,7 @@ export async function verifyAppPassword(input: {
 }
 
 export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
-	const config = readAppApiConfig(env);
+	const config = input.config ?? readAppAuthConfig(env);
 	const database = input.database ?? (await createRuntimeDatabase(env, { consistency: "fresh" }));
 
 	return betterAuth(
@@ -368,9 +376,10 @@ export async function createAppAuth(env: Env, input: CreateAppAuthInput = {}) {
 			authResetEmailFrom: config.authResetEmailFrom,
 			authResetEmailReplyTo: config.authResetEmailReplyTo,
 			authTurnstileSecretKey: config.authTurnstileSecretKey,
+			authShellOrigin: config.authShellOrigin,
 			betterAuthSecret: config.betterAuthSecret,
 			environment: config.environment,
-			publicChatOrigin: config.publicChatOrigin ?? readPublicChatOrigin(env),
+			publicChatOrigin: config.publicChatOrigin,
 			resendApiKey: config.resendApiKey,
 			endUserEmailAllowlist: config.endUserEmailAllowlist,
 			endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,

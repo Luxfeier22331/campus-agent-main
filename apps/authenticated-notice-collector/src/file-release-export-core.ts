@@ -10,18 +10,14 @@ import {
 	fetchFileReleaseExplainDepartments,
 	fetchFileReleasePage,
 	fetchFileReleaseTypes,
+	isAttachmentDownloadTerminalUnavailableError,
 } from "./api";
 import {
 	type AuthenticatedNoticeArtifactStore,
 	createAuthenticatedNoticeArtifactStoreFromEnv,
 	type StoredArtifactRef,
 } from "./artifact-store";
-import {
-	buildCollectorRunLeaseKey,
-	createPostgresCollectorRunLeaseStore,
-	type DisposableCollectorRunLeaseStore,
-	withCollectorRunLease,
-} from "./collector-run-lease";
+import { buildCollectorRunLeaseKey } from "./collector-run-lease";
 import {
 	buildCollectorFileReleaseRunLedgerRecord,
 	buildCollectorRunFailedLedgerRecord,
@@ -29,15 +25,8 @@ import {
 	buildCollectorRunStartedLedgerRecord,
 	type CollectorRunLedgerRecord,
 	type CollectorRunLedgerStore,
-	createPostgresCollectorRunLedgerStore,
-	type DisposableCollectorRunLedgerStore,
 } from "./collector-run-ledger";
-import {
-	type CollectorConfig,
-	ensureRuntimeDirs,
-	loadCollectorEnv,
-	resolveCollectorConfig,
-} from "./config";
+import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config";
 import {
 	AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
 	buildExportManifest,
@@ -61,6 +50,12 @@ import {
 	safeBasename,
 	toTimestampLabel,
 } from "./file-release-export-helpers";
+import {
+	buildCollectorRunLeaseStoreForMain,
+	buildCollectorRunLedgerStoreForMain,
+	runWithOptionalCollectorLease,
+	sanitizeObjectKeySegment,
+} from "./file-release-export-runtime";
 import { createApiContextFromStorageState } from "./portal";
 import { formatSafeErrorMessage } from "./safe-error";
 import type {
@@ -667,8 +662,8 @@ async function materializeReleasedFiles(input: {
 			const contentSha256 = createHash("sha256").update(result.body).digest("hex");
 			const resolvedFilename = resolveFileReleaseFilename({
 				contentDisposition: result.contentDisposition,
-				fallbackFilename: record.file_release.upfilename,
-				fallbackUrl: candidateUrl,
+				sourceFilename: record.file_release.upfilename,
+				sourceUrl: candidateUrl,
 			});
 			const resolvedContentType =
 				resolveReleasedFileContentType({
@@ -714,14 +709,30 @@ async function materializeReleasedFiles(input: {
 			});
 		} catch (error) {
 			const message = error instanceof Error ? error.message : String(error);
-			bundleRecords.push({
-				...record,
-				released_file: {
-					...record.released_file,
-					last_error: message,
-					updated_at: input.observedAt,
-				},
-			});
+			if (isAttachmentDownloadTerminalUnavailableError(error)) {
+				bundleRecords.push({
+					...record,
+					released_file: {
+						...record.released_file,
+						provenance_status: "terminal_unavailable",
+						ingest_status: "terminal_unavailable",
+						terminal_reason: error.terminalReason,
+						last_http_status: error.lastHttpStatus,
+						last_error_class: "terminal_unavailable",
+						last_error: `terminal_unavailable:${error.terminalReason}`,
+						updated_at: input.observedAt,
+					},
+				});
+				continue;
+			}
+			throw new Error(
+				[
+					"file_release_materialization_failed",
+					`file_release=${record.file_release_id}`,
+					message,
+				].join(":"),
+				{ cause: error },
+			);
 		}
 	}
 
@@ -795,42 +806,4 @@ export async function main(): Promise<void> {
 		await collectorRunLedgerStore?.dispose();
 		await collectorRunLeaseStore?.dispose();
 	}
-}
-
-function sanitizeObjectKeySegment(value: string): string {
-	const normalized = value.trim().replace(/[^0-9A-Za-z_.=-]+/g, "_");
-	return normalized || "unknown";
-}
-
-function buildCollectorRunLedgerStoreForMain(
-	config: CollectorConfig,
-): DisposableCollectorRunLedgerStore | undefined {
-	if (config.collectorRunLedgerDisabled || config.collectorRunLedgerDatabaseUrl === null) {
-		return;
-	}
-	return createPostgresCollectorRunLedgerStore({
-		databaseUrl: config.collectorRunLedgerDatabaseUrl,
-	});
-}
-
-function buildCollectorRunLeaseStoreForMain(
-	config: CollectorConfig,
-): DisposableCollectorRunLeaseStore | undefined {
-	if (config.collectorRunLeaseDisabled || config.collectorRunLeaseDatabaseUrl === null) {
-		return;
-	}
-	return createPostgresCollectorRunLeaseStore({
-		databaseUrl: config.collectorRunLeaseDatabaseUrl,
-	});
-}
-
-async function runWithOptionalCollectorLease<T>(
-	store: DisposableCollectorRunLeaseStore | undefined,
-	input: Parameters<typeof withCollectorRunLease>[1],
-	operation: () => Promise<T>,
-): Promise<T> {
-	if (!store) {
-		return await operation();
-	}
-	return await withCollectorRunLease(store, input, operation);
 }

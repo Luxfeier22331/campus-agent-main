@@ -124,14 +124,14 @@ def build_adjudication(
             winner="candidate",
             provider=str(candidate_summary["provider"]),
             reason_codes=[_unusable_reason("baseline", baseline_summary)],
-            manual_review_required=False,
+            machine_review_required=False,
         )
     if baseline_usable and not candidate_usable:
         return _winner_payload(
             winner="baseline",
             provider=str(baseline_summary["provider"]),
             reason_codes=[_unusable_reason("candidate", candidate_summary)],
-            manual_review_required=False,
+            machine_review_required=False,
         )
     if not candidate_usable and not baseline_usable:
         return _winner_payload(
@@ -141,14 +141,14 @@ def build_adjudication(
                 _unusable_reason("candidate", candidate_summary),
                 _unusable_reason("baseline", baseline_summary),
             ],
-            manual_review_required=True,
+            machine_review_required=True,
         )
     if candidate_summary["plain_text_sha256"] == baseline_summary["plain_text_sha256"]:
         return _winner_payload(
             winner="tie",
             provider=None,
             reason_codes=["equivalent_plain_text"],
-            manual_review_required=False,
+            machine_review_required=False,
         )
 
     reason_codes = ["length_delta_not_decisive"]
@@ -164,7 +164,7 @@ def build_adjudication(
             winner="candidate",
             provider=str(candidate_summary["provider"]),
             reason_codes=reason_codes,
-            manual_review_required=False,
+            machine_review_required=False,
         )
     if _has_clear_structure_advantage(
         preferred_summary=baseline_summary, other_summary=candidate_summary
@@ -174,15 +174,15 @@ def build_adjudication(
             winner="baseline",
             provider=str(baseline_summary["provider"]),
             reason_codes=reason_codes,
-            manual_review_required=False,
+            machine_review_required=False,
         )
 
     reason_codes.append("no_clear_winner")
     return _winner_payload(
-        winner="manual_review",
+        winner="machine_review_required",
         provider=None,
         reason_codes=reason_codes,
-        manual_review_required=True,
+        machine_review_required=True,
     )
 
 
@@ -240,13 +240,13 @@ def _winner_payload(
     winner: str,
     provider: str | None,
     reason_codes: list[str],
-    manual_review_required: bool,
+    machine_review_required: bool,
 ) -> dict[str, Any]:
     return {
         "winner": winner,
         "winner_provider": provider,
         "reason_codes": reason_codes,
-        "manual_review_required": manual_review_required,
+        "machine_review_required": machine_review_required,
     }
 
 

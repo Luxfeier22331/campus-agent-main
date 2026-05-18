@@ -1,9 +1,10 @@
 const RESEND_EMAILS_API_URL = "https://api.resend.com/emails";
-const PASSWORD_RESET_ROUTE_PATH = "/reset-password";
+const PASSWORD_RESET_ROUTE_PATH = "/account/reset-password";
 const PASSWORD_RESET_SUBJECT = "Reset your Campus Agent password";
 const PASSWORD_CHANGED_SUBJECT = "Your Campus Agent password was changed";
 
 export interface AuthResetMailConfig {
+	authShellOrigin: string;
 	authResetEmailFrom: string;
 	authResetEmailReplyTo?: string;
 	fetchImplementation?: typeof fetch;
@@ -17,7 +18,7 @@ export interface AuthUserLike {
 }
 
 export interface PasswordResetRedirectInput {
-	publicChatOrigin: string;
+	authShellOrigin: string;
 	redirectTo: string;
 }
 
@@ -54,7 +55,7 @@ function formatRecipientName(user: AuthUserLike): string {
 }
 
 export function resolvePasswordResetRedirectTarget(input: PasswordResetRedirectInput): string {
-	const origin = new URL(input.publicChatOrigin).origin;
+	const origin = new URL(input.authShellOrigin).origin;
 	const target = new URL(input.redirectTo, origin);
 
 	if (
@@ -64,7 +65,7 @@ export function resolvePasswordResetRedirectTarget(input: PasswordResetRedirectI
 		target.hash
 	) {
 		throw new Error(
-			"Password reset redirect must point to /reset-password on the public chat origin.",
+			"Password reset redirect must point to /account/reset-password on the auth shell origin.",
 		);
 	}
 
@@ -72,11 +73,12 @@ export function resolvePasswordResetRedirectTarget(input: PasswordResetRedirectI
 }
 
 export function buildCanonicalPasswordResetUrl(input: {
+	authShellOrigin: string;
 	publicChatOrigin: string;
 	token: string;
 }): string {
 	const callbackURL = resolvePasswordResetRedirectTarget({
-		publicChatOrigin: input.publicChatOrigin,
+		authShellOrigin: input.authShellOrigin,
 		redirectTo: PASSWORD_RESET_ROUTE_PATH,
 	});
 	const resetUrl = new URL(
@@ -95,6 +97,7 @@ function buildPasswordResetEmailPayload(
 	const recipientName = formatRecipientName(input.user);
 	const resetUrl = buildCanonicalPasswordResetUrl({
 		publicChatOrigin: config.publicChatOrigin,
+		authShellOrigin: config.authShellOrigin,
 		token: input.token,
 	});
 

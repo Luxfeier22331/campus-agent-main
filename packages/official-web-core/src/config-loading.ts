@@ -1,6 +1,17 @@
-import type { OfficialWebConfigBundle, OfficialWebDiscoveryMethod } from "./config-models.ts";
+import type {
+	OfficialWebConfigBundle,
+	OfficialWebConsumerFamily,
+	OfficialWebConsumerMaterializationPolicy,
+	OfficialWebDiscoveryMethod,
+	OfficialWebTargetRetentionPolicy,
+} from "./config-models.ts";
 import {
 	asArray,
+	asConsumerEnforcementMode,
+	asConsumerFamily,
+	asConsumerMaterializationPolicy,
+	asConsumerRejectedPolicy,
+	asConsumerRequiredEvidence,
 	asCredentialsMode,
 	asDiscoveryMethod,
 	asDynamicShellDiscoveryPolicy,
@@ -13,8 +24,18 @@ import {
 	asPublicKind,
 	asRecord,
 	asRunIntent,
+	asSourcePackCapturePolicy,
+	asSourcePackContentFamily,
+	asSourcePackExpectedFact,
+	asSourcePackExtractionGate,
+	asSourcePackOwnerSurface,
+	asSourcePackRefreshPosture,
+	asSourcePackReleaseTarget,
+	asSourcePackSourceKind,
+	asSourcePackTargetWorksetExpansion,
 	asString,
 	asStringArray,
+	asTargetRetentionPolicy,
 	readJson,
 } from "./config-parsing.ts";
 import { resolveOfficialWebConfigPaths } from "./config-paths.ts";
@@ -22,7 +43,7 @@ import { validateOfficialWebConfig } from "./config-validation.ts";
 
 export function loadOfficialWebConfig(
 	siteId: string,
-	options: { repoRoot?: string; configRoot?: string } = {},
+	options: { repoRoot?: string; configRoot?: string; sourcePackId?: string } = {},
 ): OfficialWebConfigBundle {
 	const paths = resolveOfficialWebConfigPaths(siteId, options);
 	const sitePayload = readJson(paths.sitePath);
@@ -31,6 +52,10 @@ export function loadOfficialWebConfig(
 	const crawlPolicyPayload = readJson(paths.crawlPolicyPath);
 	const credentialsSchemaPayload = readJson(paths.credentialsSchemaPath);
 	const projectionDeclarationsPayload = readJson(paths.projectionDeclarationsPath);
+	const consumerDenominatorPayload = readJson(paths.consumerDenominatorPath);
+	const targetSourceMapPayload = readJson(paths.targetSourceMapPath);
+	const targetInventoryPayload = readJson(paths.targetInventoryPath);
+	const sourcePackManifestPayload = readJson(paths.sourcePackManifestPath);
 	const schedulerPolicyPayload = readJson(paths.schedulerPolicyPath);
 	const qcPolicyPayload = readJson(paths.qcPolicyPath);
 
@@ -158,6 +183,56 @@ export function loadOfficialWebConfig(
 				action: asProjectionAction(item.action),
 			})),
 		},
+		consumerDenominator: {
+			schemaVersion: asString(consumerDenominatorPayload.schema_version),
+			siteId: asString(consumerDenominatorPayload.site_id),
+			denominatorVersion: asString(consumerDenominatorPayload.denominator_version),
+			enforcementMode: asConsumerEnforcementMode(consumerDenominatorPayload.enforcement_mode),
+			defaultRejectedPolicy: asConsumerRejectedPolicy(
+				consumerDenominatorPayload.default_rejected_policy,
+			),
+			consumerFamilies: asArray(consumerDenominatorPayload.consumer_families).map((item) => ({
+				consumerFamily: asConsumerFamily(item.consumer_family),
+				ownerSurface: asString(item.owner_surface),
+				ownerAgentOrRuntime: asString(item.owner_agent_or_runtime),
+				materializationPolicy: asConsumerMaterializationPolicy(item.materialization_policy),
+				pageFamilies: asStringArray(item.page_families).map(asProjectionPageFamily),
+				titleKeywords: asStringArray(item.title_keywords),
+				pathPatterns: asStringArray(item.path_patterns),
+				requiredEvidence: asStringArray(item.required_evidence).map(asConsumerRequiredEvidence),
+				optionalEvidence: asStringArray(item.optional_evidence).map(asConsumerRequiredEvidence),
+				minimumMatchedEvidenceCount:
+					item.minimum_matched_evidence_count == null
+						? 1
+						: asPositiveInt(
+								item.minimum_matched_evidence_count,
+								"consumer_denominator.minimum_matched_evidence_count",
+							),
+				requiresKeywordOrPathMatch: Boolean(item.requires_keyword_or_path_match),
+				negativePatterns: asStringArray(item.negative_patterns),
+				selectedWriteTarget: asString(item.selected_write_target),
+				reviewPolicy: asString(item.review_policy),
+			})),
+			reportingCounters: asStringArray(consumerDenominatorPayload.reporting_counters),
+		},
+		targetSourceMap: {
+			schemaVersion: asString(targetSourceMapPayload.schema_version),
+			siteId: asString(targetSourceMapPayload.site_id),
+			mapVersion: asString(targetSourceMapPayload.map_version),
+			targets: asArray(targetSourceMapPayload.targets).map(loadTargetSourceMapTarget),
+		},
+		targetInventory: {
+			schemaVersion: asString(targetInventoryPayload.schema_version),
+			siteId: asString(targetInventoryPayload.site_id),
+			inventoryVersion: asString(targetInventoryPayload.inventory_version),
+			entries: asArray(targetInventoryPayload.entries).map(loadTargetInventoryEntry),
+		},
+		sourcePackManifest: {
+			schemaVersion: asString(sourcePackManifestPayload.schema_version),
+			siteId: asString(sourcePackManifestPayload.site_id),
+			sourcePackId: asString(sourcePackManifestPayload.source_pack_id),
+			entries: asArray(sourcePackManifestPayload.entries).map(loadSourcePackManifestEntry),
+		},
 		schedulerPolicy: {
 			schemaVersion: asString(schedulerPolicyPayload.schema_version),
 			siteId: asString(schedulerPolicyPayload.site_id),
@@ -194,4 +269,130 @@ export function loadOfficialWebConfig(
 
 	validateOfficialWebConfig(bundle);
 	return bundle;
+}
+
+function loadTargetInventoryEntry(item: Record<string, unknown>) {
+	return {
+		admissionTargetId: asPathSegment(
+			item.admission_target_id,
+			"target_inventory.admission_target_id",
+		),
+		consumerFamily: asConsumerFamily(item.consumer_family),
+		inventoryId: asPathSegment(item.inventory_id, "target_inventory.inventory_id"),
+		inventoryOnly: Boolean(item.inventory_only),
+		materializationPolicy: asConsumerMaterializationPolicy(item.materialization_policy),
+		notes: asString(item.notes),
+		ownerAgentOrRuntime: asString(item.owner_agent_or_runtime),
+		ownerSurface: asString(item.owner_surface),
+		previewStatus: asString(item.preview_status),
+		releaseBlockers: asStringArray(item.release_blockers),
+		requiredEvidence: asStringArray(item.required_evidence).map(asConsumerRequiredEvidence),
+		optionalEvidence: asStringArray(item.optional_evidence).map(asConsumerRequiredEvidence),
+		requiredFields: asStringArray(item.required_fields),
+		optionalFields: asStringArray(item.optional_fields),
+		selectedWriteTarget: asString(item.selected_write_target),
+		sourceHosts: asStringArray(item.source_hosts).map((host) => host.toLowerCase()),
+		sourceUrls: asStringArray(item.source_urls),
+		targetLabel: asString(item.target_label),
+	};
+}
+
+function loadTargetSourceMapTarget(item: Record<string, unknown>) {
+	const consumerFamily = asConsumerFamily(item.consumer_family);
+	const materializationPolicy = asConsumerMaterializationPolicy(
+		item.materialization_policy ?? defaultMaterializationPolicyForConsumerFamily(consumerFamily),
+	);
+	const retentionPolicy = asTargetRetentionPolicy(
+		item.retention_policy ?? defaultRetentionPolicyForMaterialization(materializationPolicy),
+	);
+
+	return {
+		targetId: asPathSegment(item.target_id, "target_source_map.target_id"),
+		consumerFamily,
+		ownerSurface: asString(item.owner_surface),
+		selectedWriteTarget: asString(item.selected_write_target),
+		sourceHosts: asStringArray(item.source_hosts).map((host) => host.toLowerCase()),
+		urlHints:
+			item.url_hints == null ? asStringArray(item.url_patterns) : asStringArray(item.url_hints),
+		titleHints:
+			item.title_hints == null
+				? asStringArray(item.title_keywords)
+				: asStringArray(item.title_hints),
+		requiredEvidence: asStringArray(item.required_evidence).map(asConsumerRequiredEvidence),
+		optionalEvidence: asStringArray(item.optional_evidence).map(asConsumerRequiredEvidence),
+		retentionPolicy,
+		reviewPolicy: asString(
+			item.review_policy ?? defaultReviewPolicyForConsumerFamily(consumerFamily),
+		),
+		materializationPolicy,
+		inventoryOnly:
+			item.inventory_only == null
+				? materializationPolicy === "inventory_only"
+				: Boolean(item.inventory_only),
+		notes: asString(item.notes),
+	};
+}
+
+function loadSourcePackManifestEntry(item: Record<string, unknown>) {
+	return {
+		entryId: asPathSegment(item.entry_id, "source_pack.entry_id"),
+		url: asString(item.url),
+		contentFamily: asSourcePackContentFamily(item.content_family),
+		sourceKind: asSourcePackSourceKind(item.source_kind),
+		answerBearing: Boolean(item.answer_bearing),
+		demandIds: asStringArray(item.demand_ids),
+		ownerSurfaces: asStringArray(item.owner_surfaces).map(asSourcePackOwnerSurface),
+		releaseTargets: asStringArray(item.release_targets).map(asSourcePackReleaseTarget),
+		expectedFacts: asStringArray(item.expected_facts).map(asSourcePackExpectedFact),
+		compositionGroup: item.composition_group == null ? null : asString(item.composition_group),
+		compositionRole: item.composition_role == null ? null : asString(item.composition_role),
+		capturePolicy: asSourcePackCapturePolicy(item.capture_policy),
+		refreshPosture: asSourcePackRefreshPosture(item.refresh_posture),
+		extractionGate: asSourcePackExtractionGate(item.extraction_gate),
+		targetWorksetExpansion:
+			item.target_workset_expansion == null
+				? null
+				: asSourcePackTargetWorksetExpansion(item.target_workset_expansion),
+		evalQuestions: asStringArray(item.eval_questions),
+	};
+}
+
+function defaultMaterializationPolicyForConsumerFamily(
+	consumerFamily: OfficialWebConsumerFamily,
+): OfficialWebConsumerMaterializationPolicy {
+	if (consumerFamily === "stable_reference_candidate") {
+		return "release_gate_required";
+	}
+	if (
+		consumerFamily === "regulation_candidate" ||
+		consumerFamily === "student_regulation_candidate"
+	) {
+		return "release_gate_required";
+	}
+	if (consumerFamily === "notice_news_candidate") {
+		return "inventory_only";
+	}
+	return "candidate_only";
+}
+
+function defaultReviewPolicyForConsumerFamily(consumerFamily: OfficialWebConsumerFamily): string {
+	if (consumerFamily === "stable_reference_candidate") {
+		return "release_gate_required";
+	}
+	if (
+		consumerFamily === "regulation_candidate" ||
+		consumerFamily === "student_regulation_candidate"
+	) {
+		return "release_gate_required";
+	}
+	if (consumerFamily === "notice_news_candidate") {
+		return "inventory_only";
+	}
+	return "selected_write_requires_review";
+}
+
+function defaultRetentionPolicyForMaterialization(
+	materializationPolicy: OfficialWebConsumerMaterializationPolicy,
+): OfficialWebTargetRetentionPolicy {
+	return materializationPolicy === "inventory_only" ? "inventory_only" : "retain_source_truth";
 }

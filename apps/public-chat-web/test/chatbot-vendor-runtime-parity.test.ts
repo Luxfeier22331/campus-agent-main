@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import packageManifestRaw from "../package.json?raw";
 import workerSource from "../src/index.ts?raw";
-import authTurnstileSource from "../src/platform/auth/turnstile.tsx?raw";
 import appShellSource from "../src/platform/chat/app-shell.tsx?raw";
 import compatModelsSource from "../src/platform/vendor-compat/lib/ai/models.ts?raw";
 import compatConstantsSource from "../src/platform/vendor-compat/lib/constants.ts?raw";
@@ -78,10 +77,16 @@ describe("chatbot vendor runtime parity", () => {
 		expect(appShellSource).toContain("@platform/chat/runtime");
 	});
 
+	it("removes public-chat-owned auth runtime injection from the worker shell", () => {
+		expect(workerSource).not.toContain("__PUBLIC_CHAT_AUTH_CONFIG__");
+		expect(workerSource).not.toContain("resolveTurnstileRuntimeConfig");
+	});
+
 	it("declares a canonical live-smoke dev path that boots app-api as an auxiliary worker", () => {
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("PUBLIC_CHAT_LIVE_SMOKE=1");
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--host 127.0.0.1");
-		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--port 5173");
+		expect(packageManifest.scripts?.dev).toContain("--port 27011");
+		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--port 27011");
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--strictPort");
 		expect(viteConfigSource).toContain("PUBLIC_CHAT_LIVE_SMOKE");
 		expect(viteConfigSource).toContain("liveSmokePublicChatConfigPath");
@@ -92,12 +97,7 @@ describe("chatbot vendor runtime parity", () => {
 		expect(liveSmokeWranglerConfig).toContain("[secrets]");
 		expect(liveSmokeWranglerConfig).toContain("required = []");
 		expect(liveSmokeWranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
-		expect(liveSmokeWranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "127.0.0.1:5173"');
-		expect(liveSmokeWranglerConfig).toContain(
-			'AUTH_TURNSTILE_SITE_KEY = "1x00000000000000000000AA"',
-		);
-		expect(liveSmokeWranglerConfig).toContain('AUTH_TURNSTILE_APPEARANCE = "interaction-only"');
-		expect(liveSmokeWranglerConfig).toContain('AUTH_TURNSTILE_EXECUTION = "render"');
+		expect(liveSmokeWranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "127.0.0.1:27011"');
 		expect(liveSmokeWranglerConfig).not.toContain("SENTRY_DSN");
 	});
 
@@ -105,8 +105,10 @@ describe("chatbot vendor runtime parity", () => {
 		expect(viteConfigSource).toContain("process.loadEnvFile");
 		expect(viteConfigSource).toContain("../app-api/.env");
 		expect(viteConfigSource).toContain("liveSmokeSupervisorApiBaseUrl");
+		expect(viteConfigSource).toContain("liveSmokeSupervisorApiTimeoutMs");
 		expect(viteConfigSource).toContain("process.env.SUPERVISOR_API_BASE_URL");
-		expect(viteConfigSource).toContain("http://127.0.0.1:18080");
+		expect(viteConfigSource).toContain("SUPERVISOR_API_TIMEOUT_MS");
+		expect(viteConfigSource).toContain("http://127.0.0.1:27051");
 	});
 
 	it("keeps runtime vendor imports on donor specifiers and resolves them through exact compat seams", () => {
@@ -247,8 +249,7 @@ describe("chatbot vendor runtime parity", () => {
 	});
 
 	it("keeps hidden auth controls addressable while gating prompt attachments closed by default", () => {
-		expect(authTurnstileSource).toContain('id="captchaToken"');
-		expect(authTurnstileSource).toContain('name="captchaToken"');
+		expect(workerSource).not.toContain("captchaToken");
 		expect(vendorMultimodalInputSource).not.toContain('id="chat-attachment-input"');
 		expect(vendorMultimodalInputSource).not.toContain('name="attachments"');
 		expect(vendorMultimodalInputSource).toContain("attachmentsEnabled={false}");

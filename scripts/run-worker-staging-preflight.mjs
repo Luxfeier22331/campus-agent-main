@@ -63,16 +63,11 @@ async function probeSupervisorApiForStagingAppApi() {
 	baseUrl.hash = "";
 
 	const healthUrl = new URL("/healthz", baseUrl);
-	const readyUrl = new URL("/readyz", baseUrl);
 
 	try {
 		await probeUrl({
 			label: `STAGING_SUPERVISOR_API_BASE_URL health probe (${healthUrl.toString()})`,
 			url: healthUrl,
-		});
-		await probeUrl({
-			label: `STAGING_SUPERVISOR_API_BASE_URL readiness probe (${readyUrl.toString()})`,
-			url: readyUrl,
 		});
 	} catch (error) {
 		if (error instanceof Error) {
@@ -95,7 +90,7 @@ function parseArgs(argv) {
 
 	if (!appPath) {
 		fail(
-			"Usage: node scripts/run-worker-staging-preflight.mjs --app <apps/app-api|apps/public-chat-web|apps/protected-panel-web>",
+			"Usage: node scripts/run-worker-staging-preflight.mjs --app <apps/app-api|apps/hub-web|apps/public-chat-web|apps/protected-panel-web>",
 		);
 	}
 
@@ -124,6 +119,27 @@ const APP_PREFLIGHTS = {
 			["pnpm", ["--dir", "apps/app-api", "db:bootstrap:staging"]],
 			["pnpm", ["--dir", "apps/app-api", "db:migrate:staging"]],
 			["pnpm", ["--dir", "apps/app-api", "db:reconcile-shared-drift:staging", "--", "--json"]],
+		],
+	},
+	"apps/hub-web": {
+		doctorSurface: "worker-staging-hub-web",
+		commands: [
+			[
+				"uv",
+				[
+					"run",
+					"--all-packages",
+					"python",
+					"-m",
+					"scripts.check_worker_secret_presence",
+					"--app",
+					"apps/hub-web",
+					"--env",
+					"staging",
+				],
+			],
+			["pnpm", ["--dir", "apps/hub-web", "build:staging"]],
+			["pnpm", ["--dir", "apps/hub-web", "deploy:verify-config:staging"]],
 		],
 	},
 	"apps/public-chat-web": {

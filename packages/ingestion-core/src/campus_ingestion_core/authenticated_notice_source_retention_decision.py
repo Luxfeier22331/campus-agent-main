@@ -5,6 +5,10 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from typing import Any
 
+from campus_ingestion_core.authenticated_notice_attachment_bytes import (
+    has_collected_attachment_bytes,
+)
+
 
 @dataclass(frozen=True, slots=True)
 class AuthenticatedNoticeAttachmentSourceRetentionDecision:
@@ -89,17 +93,21 @@ def _build_attachment_decision(
         )
     if notice_capture_route == "candidate_service_fact":
         if attachment_ref_id in missing_fact_attachment_refs:
-            has_collected_bytes = _has_collected_attachment_bytes(attachment_ref)
+            has_collected_bytes = has_collected_attachment_bytes(attachment_ref)
+            state, reason_codes = _required_fetch_state_and_reasons(
+                attachment_ref=attachment_ref,
+                has_collected_bytes=has_collected_bytes,
+                uploaded_state="uploaded_quarantine",
+                base_reason_codes=("service_fact_missing_required_fact",),
+            )
             return AuthenticatedNoticeAttachmentSourceRetentionDecision(
                 attachment_ref_id=attachment_ref_id,
                 attachment_capture_policy="fetch_to_quarantine",
-                attachment_capture_state=(
-                    "uploaded_quarantine" if has_collected_bytes else "not_attempted"
-                ),
+                attachment_capture_state=state,
                 retention_class="quarantine_candidate",
                 byte_fetch_required=not has_collected_bytes,
                 required_source_object=False,
-                reason_codes=("service_fact_missing_required_fact",),
+                reason_codes=reason_codes,
             )
         return _metadata_only_attachment_decision(
             attachment_ref_id=attachment_ref_id,
@@ -107,17 +115,21 @@ def _build_attachment_decision(
         )
     if notice_capture_route == "candidate_document_owner":
         if attachment_ref_id in source_truth_required_attachment_refs:
-            has_collected_bytes = _has_collected_attachment_bytes(attachment_ref)
+            has_collected_bytes = has_collected_attachment_bytes(attachment_ref)
+            state, reason_codes = _required_fetch_state_and_reasons(
+                attachment_ref=attachment_ref,
+                has_collected_bytes=has_collected_bytes,
+                uploaded_state="uploaded_required",
+                base_reason_codes=("source_truth_required_attachment",),
+            )
             return AuthenticatedNoticeAttachmentSourceRetentionDecision(
                 attachment_ref_id=attachment_ref_id,
                 attachment_capture_policy="fetch_required_for_source_truth",
-                attachment_capture_state="uploaded_required"
-                if has_collected_bytes
-                else "not_attempted",
+                attachment_capture_state=state,
                 retention_class="permanent_source_truth",
                 byte_fetch_required=not has_collected_bytes,
                 required_source_object=True,
-                reason_codes=("source_truth_required_attachment",),
+                reason_codes=reason_codes,
             )
         return _metadata_only_attachment_decision(
             attachment_ref_id=attachment_ref_id,
@@ -125,23 +137,41 @@ def _build_attachment_decision(
         )
     if notice_capture_route == "candidate_requires_attachment_routing":
         if attachment_ref_id in missing_fact_attachment_refs:
-            has_collected_bytes = _has_collected_attachment_bytes(attachment_ref)
+            has_collected_bytes = has_collected_attachment_bytes(attachment_ref)
+            state, reason_codes = _required_fetch_state_and_reasons(
+                attachment_ref=attachment_ref,
+                has_collected_bytes=has_collected_bytes,
+                uploaded_state="uploaded_quarantine",
+                base_reason_codes=("attachment_routing_required",),
+            )
             return AuthenticatedNoticeAttachmentSourceRetentionDecision(
                 attachment_ref_id=attachment_ref_id,
                 attachment_capture_policy="fetch_to_quarantine",
-                attachment_capture_state=(
-                    "uploaded_quarantine" if has_collected_bytes else "not_attempted"
-                ),
+                attachment_capture_state=state,
                 retention_class="quarantine_candidate",
                 byte_fetch_required=not has_collected_bytes,
                 required_source_object=False,
-                reason_codes=("attachment_routing_required",),
+                reason_codes=reason_codes,
             )
         return _metadata_only_attachment_decision(
             attachment_ref_id=attachment_ref_id,
             reason_codes=("attachment_routing_not_admitted",),
         )
     raise ValueError(f"Unsupported notice_capture_route: {notice_capture_route}")
+
+
+def _required_fetch_state_and_reasons(
+    *,
+    attachment_ref: Mapping[str, Any],
+    has_collected_bytes: bool,
+    uploaded_state: str,
+    base_reason_codes: tuple[str, ...],
+) -> tuple[str, tuple[str, ...]]:
+    if has_collected_bytes:
+        return uploaded_state, base_reason_codes
+    if _optional_text(attachment_ref.get("last_error_class")) == "transient_failed":
+        return "transient_failed", (*base_reason_codes, "transient_failed")
+    return "not_attempted", base_reason_codes
 
 
 def _metadata_only_attachment_decision(
@@ -165,21 +195,6 @@ def _require_attachment_ref_id(attachment_ref: Mapping[str, object]) -> str:
     if not isinstance(attachment_ref_id, str) or not attachment_ref_id:
         raise ValueError("attachment_ref must include a non-empty attachment_ref_id")
     return attachment_ref_id
-
-
-def _has_collected_attachment_bytes(attachment_ref: Mapping[str, Any]) -> bool:
-    object_key = _optional_text(attachment_ref.get("object_key"))
-    content_sha256 = _optional_text(
-        attachment_ref.get("content_sha256") or attachment_ref.get("sha256")
-    )
-    storage_provider = _optional_text(attachment_ref.get("storage_provider"))
-    ingest_status = _optional_text(attachment_ref.get("ingest_status"))
-    return (
-        object_key is not None
-        and content_sha256 is not None
-        and storage_provider not in {None, "reference_only"}
-        and ingest_status in {"downloaded", "uploaded"}
-    )
 
 
 def _optional_text(value: object) -> str | None:

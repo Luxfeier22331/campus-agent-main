@@ -1,12 +1,5 @@
 {
-	"threshold": 800,
 	"admitted": {
-		"apps/app-api/src/modules/runtime-command/service/normalize.ts": {
-			"max_lines": 1717
-		},
-		"apps/app-api/test/chat-command.service.core.structured.suite.ts": {
-			"max_lines": 946
-		},
 		"apps/app-api/test/chat-command.service.observability.suite.ts": {
 			"max_lines": 813
 		},
@@ -16,23 +9,14 @@
 		"apps/authenticated-notice-collector/src/file-release-export-core.ts": {
 			"max_lines": 836
 		},
-		"apps/authenticated-notice-collector/test/file-release-export.test.ts": {
-			"max_lines": 825
-		},
 		"apps/ingestion-worker/src/campus_ingestion_worker/build_transport_schedule_projection.py": {
 			"max_lines": 878
 		},
 		"apps/ingestion-worker/src/campus_ingestion_worker/official_web_university_collection.py": {
 			"max_lines": 1188
 		},
-		"apps/ingestion-worker/src/campus_ingestion_worker/on_demand_batch_runner.py": {
-			"max_lines": 820
-		},
 		"apps/public-chat-web/test/worker.test.ts": {
 			"max_lines": 1799
-		},
-		"apps/supervisor-api/internal/structuredquery/notice_test.go": {
-			"max_lines": 808
 		},
 		"apps/supervisor-api/internal/structuredquery/runtime_test.go": {
 			"max_lines": 893
@@ -40,17 +24,8 @@
 		"apps/wechat-official-account-collector/src/capture.ts": {
 			"max_lines": 803
 		},
-		"packages/contracts/src/campus_contracts/models_tools.py": {
-			"max_lines": 893
-		},
-		"packages/evals/src/campus_evals/intent_scenarios.py": {
-			"max_lines": 817
-		},
 		"packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_file_release_import.py": {
 			"max_lines": 1085
-		},
-		"packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_import.py": {
-			"max_lines": 1223
 		},
 		"packages/ingestion-core/src/campus_ingestion_core/authenticated_notice_source_projections_engine.py": {
 			"max_lines": 903
@@ -67,9 +42,6 @@
 		"packages/ingestion-core/src/campus_ingestion_core/raw_ingestion_online_ocr.py": {
 			"max_lines": 826
 		},
-		"packages/ingestion-core/src/campus_ingestion_core/structured_projection_postgres.py": {
-			"max_lines": 1028
-		},
 		"packages/ingestion-core/src/campus_ingestion_core/transport_schedule_projection.py": {
 			"max_lines": 808
 		},
@@ -85,9 +57,6 @@
 		"scripts/doctor_env.py": {
 			"max_lines": 895
 		},
-		"tests/agent/test_campus_services_agent.py": {
-			"max_lines": 1041
-		},
 		"tests/ingestion/authenticated_notice_import_export_suite.py": {
 			"max_lines": 1037
 		},
@@ -100,9 +69,6 @@
 		"tests/ingestion/test_build_transport_schedule_projection_worker.py": {
 			"max_lines": 1058
 		},
-		"tests/ingestion/test_internal_notice_multimodal_processing.py": {
-			"max_lines": 826
-		},
 		"tests/ingestion/test_internal_notice_schedule_image_ocr.py": {
 			"max_lines": 1054
 		},
@@ -112,5 +78,6 @@
 		"tests/ingestion/test_wechat_public_notice_projection.py": {
 			"max_lines": 872
 		}
-	}
+	},
+	"threshold": 800
 }

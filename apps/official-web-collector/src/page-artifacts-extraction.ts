@@ -38,6 +38,7 @@ import {
 	normalizePageTitle,
 	normalizeText,
 	resolveAnchorTargetUrl,
+	resolveOptionalUrl,
 } from "./page-artifacts-helpers.ts";
 import type { ExtractedBlockCandidate } from "./page-artifacts-types.ts";
 
@@ -66,6 +67,7 @@ export function extractBlockCandidates(input: {
 		"body dt",
 		"body table",
 		"body a",
+		"body img",
 	].join(", ");
 	const elements = $(selector).toArray() as HtmlDomNode[];
 	const headingPath: string[] = [];
@@ -84,7 +86,8 @@ export function extractBlockCandidates(input: {
 		}
 
 		const textRaw = extractElementText($, element);
-		if (textRaw == null && tagName !== "table") {
+		const imageTarget = tagName === "img" ? resolveImageTargetUrl($, element, input.baseUrl) : null;
+		if (textRaw == null && tagName !== "table" && imageTarget == null) {
 			continue;
 		}
 
@@ -155,7 +158,7 @@ export function extractBlockCandidates(input: {
 			textRaw,
 			textNormalized,
 			htmlFragment: tagName === "title" ? null : extractElementHtmlFragment($, element),
-			linkTarget: tagName === "a" ? resolveAnchorTargetUrl($, element, input.baseUrl) : null,
+			linkTarget: tagName === "a" ? resolveAnchorTargetUrl($, element, input.baseUrl) : imageTarget,
 			linkText: tagName === "a" ? textNormalized : null,
 			tableHtml: tagName === "table" ? normalizeOptionalString($.html(element)) : null,
 			tableCells: tagName === "table" ? extractTableCells($, element) : null,
@@ -172,12 +175,32 @@ export function extractBlockCandidates(input: {
 					? isInBoilerplateRegion
 						? "boilerplate_region_ancestor"
 						: "navigation_or_footer_ancestor"
-					: "fallback_block_selector",
+					: "generic_block_selector",
 			parentHeadingHint,
 		});
 	}
 
 	return candidates;
+}
+
+function resolveImageTargetUrl(
+	$: HtmlDomApi,
+	element: HtmlDomNode,
+	baseUrl: string,
+): string | null {
+	const source = normalizeOptionalString(
+		String(
+			$(element).attr("src") ??
+				$(element).attr("data-src") ??
+				$(element).attr("orisrc") ??
+				$(element).attr("vurl") ??
+				"",
+		),
+	);
+	if (source == null) {
+		return null;
+	}
+	return resolveOptionalUrl(source, baseUrl);
 }
 
 export function extractDiscoveredLinks(input: {

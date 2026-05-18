@@ -21,7 +21,7 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(wranglerConfig).toContain("custom_domain = true");
 		expect(wranglerConfig).toContain("[env.local.vars]");
 		expect(wranglerConfig).toContain('PANEL_RUNTIME_API_BASE_URL = "https://app-api.internal"');
-		expect(wranglerConfig).toContain('ACCESS_TEAM_DOMAIN = "http://127.0.0.1:9798"');
+		expect(wranglerConfig).toContain('ACCESS_TEAM_DOMAIN = "http://127.0.0.1:27062"');
 		expect(wranglerConfig).toContain('ACCESS_POLICY_AUD = "panel-local-smoke"');
 		expect(wranglerConfig).toContain("[[env.local.services]]");
 		expect(wranglerConfig).toContain('environment = "local"');
@@ -55,7 +55,8 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain(
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
-		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--port 5174");
+		expect(packageManifest.scripts?.dev).toContain("--port 27021");
+		expect(packageManifest.scripts?.["dev:live-smoke"]).toContain("--port 27021");
 		expect(packageManifest.scripts?.["dev:live-smoke"]).not.toContain("CLOUDFLARE_ENV=local");
 		expect(packageManifest.scripts?.preview).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.["test:worker"]).toContain(
@@ -76,7 +77,7 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(viteConfigSource).toContain("../app-api/wrangler.local-smoke.toml");
 		expect(viteConfigSource).toContain("liveSmokeSupervisorApiBaseUrl");
 		expect(viteConfigSource).toContain("process.env.SUPERVISOR_API_BASE_URL");
-		expect(viteConfigSource).toContain("http://127.0.0.1:18080");
+		expect(viteConfigSource).toContain("http://127.0.0.1:27051");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
 		expect(packageManifest.scripts?.["deploy:staging"]).toContain("deploy-staging.mjs");
@@ -88,6 +89,8 @@ export function registerWorkerRuntimeConfigSuite() {
 			"check_worker_secret_presence.py",
 		);
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
+		expect(deployStagingSource).toContain("loadRepoEnvFile");
+		expect(deployStagingSource).toContain('loadRepoEnvFile(import.meta.url, "../../..")');
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);
@@ -109,12 +112,15 @@ export function registerWorkerRuntimeConfigSuite() {
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
 			"ROUTE:campus-panel-staging.ayafeed.com",
 		);
+		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
+			"verify-worker-deploy-config.mjs",
+		);
 	});
 
 	it("provides an access-compatible local issuer for authenticated live smoke", () => {
 		expect(wranglerLocalSmokeConfig).toContain("[secrets]");
 		expect(wranglerLocalSmokeConfig).toContain('required = ["PANEL_APP_API_SHARED_SECRET"]');
-		expect(wranglerLocalSmokeConfig).toContain('ACCESS_TEAM_DOMAIN = "http://127.0.0.1:9798"');
+		expect(wranglerLocalSmokeConfig).toContain('ACCESS_TEAM_DOMAIN = "http://127.0.0.1:27062"');
 		expect(wranglerLocalSmokeConfig).toContain('ACCESS_POLICY_AUD = "panel-local-smoke"');
 		expect(localAccessSmokeServerSource).toContain("generateKeyPair");
 		expect(localAccessSmokeServerSource).toContain("SignJWT");

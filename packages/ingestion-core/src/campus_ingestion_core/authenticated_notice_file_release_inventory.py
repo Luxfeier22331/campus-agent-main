@@ -13,14 +13,7 @@ from campus_ingestion_core.postgres_runtime import (
     normalize_postgres_connection_url,
 )
 from campus_ingestion_core.registry import (
-    DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
-    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
-    RAW_ASSET_REGISTRY_ENV_KEY,
-    RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY,
-    RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _coerce_json_payload,
     _ensure_table_schema,
@@ -37,9 +30,6 @@ DEFAULT_FILE_RELEASE_INVENTORY_TABLE = (
 DEFAULT_FILE_RELEASE_INVENTORY_ENV_KEY = "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_DATABASE_URL"
 DEFAULT_FILE_RELEASE_INVENTORY_OPERATOR_ENV_KEY = (
     "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_OPERATOR_DATABASE_URL"
-)
-DEFAULT_FILE_RELEASE_INVENTORY_MANAGEMENT_ENV_KEY = (
-    "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_MANAGEMENT_DATABASE_URL"
 )
 DEFAULT_FILE_RELEASE_INVENTORY_SCAN_PAGE_SIZE = 256
 DEFAULT_FILE_RELEASE_INVENTORY_CORPUS = "campus_notices"
@@ -500,25 +490,13 @@ def build_authenticated_notice_file_release_inventory_store_from_env(
     if prefer_operator:
         operator_database_url = (
             source.get(DEFAULT_FILE_RELEASE_INVENTORY_OPERATOR_ENV_KEY)
-            or source.get(DEFAULT_FILE_RELEASE_INVENTORY_MANAGEMENT_ENV_KEY)
-            or source.get(RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY)
-            or source.get(RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY)
-            or source.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY)
-            or source.get(DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY)
             or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-            or source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
             or ""
         ).strip()
         if not operator_database_url:
             raise ValueError(
                 f"{DEFAULT_FILE_RELEASE_INVENTORY_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_FILE_RELEASE_INVENTORY_MANAGEMENT_ENV_KEY} or "
-                f"{RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY} or "
-                f"{RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY} or "
-                f"{DOCUMENT_REGISTRY_OPERATOR_ENV_KEY} or "
-                f"{DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or "
-                f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} is required when "
+                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when "
                 "prefer_operator=True"
             )
         return PostgresAuthenticatedNoticeFileReleaseInventoryStore(
@@ -526,15 +504,12 @@ def build_authenticated_notice_file_release_inventory_store_from_env(
         )
     database_url = (
         source.get(DEFAULT_FILE_RELEASE_INVENTORY_ENV_KEY)
-        or source.get(RAW_ASSET_REGISTRY_ENV_KEY)
-        or source.get(DOCUMENT_REGISTRY_ENV_KEY)
         or source.get(SHARED_POSTGRES_ENV_KEY)
         or ""
     ).strip()
     if not database_url:
         raise ValueError(
-            f"{DEFAULT_FILE_RELEASE_INVENTORY_ENV_KEY} or {RAW_ASSET_REGISTRY_ENV_KEY} or "
-            f"{DOCUMENT_REGISTRY_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
+            f"{DEFAULT_FILE_RELEASE_INVENTORY_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required"
         )
     return PostgresAuthenticatedNoticeFileReleaseInventoryStore(database_url=database_url)
 
@@ -549,7 +524,6 @@ __all__ = [
     "DEFAULT_FILE_RELEASE_INVENTORY_COLLECTION",
     "DEFAULT_FILE_RELEASE_INVENTORY_CORPUS",
     "DEFAULT_FILE_RELEASE_INVENTORY_ENV_KEY",
-    "DEFAULT_FILE_RELEASE_INVENTORY_MANAGEMENT_ENV_KEY",
     "DEFAULT_FILE_RELEASE_INVENTORY_OPERATOR_ENV_KEY",
     "DEFAULT_FILE_RELEASE_INVENTORY_SCAN_PAGE_SIZE",
     "DEFAULT_FILE_RELEASE_INVENTORY_SCHEMA",

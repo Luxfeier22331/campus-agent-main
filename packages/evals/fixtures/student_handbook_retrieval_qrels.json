@@ -10,6 +10,56 @@
 		"sparse_language": "none",
 		"fusion": "rrf"
 	},
+	"coverage_scenarios": {
+		"policy_title_exact_match": [
+			"policy-title-scholarship",
+			"policy-title-credit-system",
+			"policy-title-undergraduate-status-management",
+			"policy-title-degree-supplement",
+			"policy-title-recommend-postgraduate-exemption",
+			"policy-title-athlete-postgraduate-exemption",
+			"policy-title-major-adjustment",
+			"policy-title-exam-violation",
+			"policy-title-muc-student-management",
+			"policy-title-student-code",
+			"policy-title-campus-order",
+			"policy-title-comprehensive-quality-assessment",
+			"policy-title-disciplinary-sanction",
+			"policy-title-preparatory-student-management",
+			"policy-title-classroom-conduct",
+			"policy-title-volunteer-service",
+			"policy-title-top-ten-students",
+			"policy-title-special-scholarship",
+			"policy-title-advanced-class-collective",
+			"policy-title-outstanding-graduate",
+			"policy-title-weekly-monthly-student-report",
+			"policy-title-ethnic-unity-advanced-selection",
+			"policy-title-temporary-hardship-subsidy",
+			"policy-title-national-grant",
+			"policy-title-tuition-loan-compensation",
+			"policy-title-student-aid-management",
+			"policy-title-funded-student-public-service"
+		],
+		"article_number_exact_match": ["article-number-degree-procedure"],
+		"semantic_service_process": [
+			"semantic-student-card-reissue",
+			"semantic-study-abroad-management",
+			"semantic-innovation-education-credit",
+			"semantic-student-appeal-after-discipline",
+			"semantic-student-hearing-rights",
+			"semantic-student-safety-education",
+			"semantic-financial-hardship-identification",
+			"semantic-work-study-management"
+		],
+		"hard_negative": [
+			"policy-title-national-encouragement-scholarship",
+			"policy-title-recommend-postgraduate-exemption",
+			"policy-title-athlete-postgraduate-exemption",
+			"policy-title-muc-student-management"
+		],
+		"no_hit": ["no-hit-impossible-query", "no-hit-nonexistent-visa"],
+		"version_locked": ["policy-title-medical"]
+	},
 	"cases": [
 		{
 			"case_id": "article-number-degree-procedure",
@@ -70,7 +120,7 @@
 			"expected_sources": [
 				{
 					"doc_id": "handbook:b85de1cb327a26dc63488e247403ae3126d524be",
-					"version_id": "v1:6400733add49dabae20b1303fba6418339e029dc",
+					"version_id": "v1:d466a8a4ab3ae720661034186c60f35c2868a595",
 					"grade": 2,
 					"rationale": "公费医疗制度标题 exact-match。"
 				}
@@ -185,11 +235,6 @@
 					"doc_id": "handbook:742d4831bfb443b99323041e263fac2fd9aafcf6",
 					"grade": 2,
 					"rationale": "学位授予规定是主相关制度。"
-				},
-				{
-					"doc_id": "handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
-					"grade": 1,
-					"rationale": "普通学生管理规定属于可接受相关制度。"
 				}
 			],
 			"notes": "dense semantic 问法。"
@@ -199,6 +244,11 @@
 			"split": "smoke",
 			"query": "申请奖学金需要满足什么条件",
 			"expected_sources": [
+				{
+					"doc_id": "handbook:a531a3c85de862c737d0576e957bf59598822c54",
+					"grade": 2,
+					"rationale": "专项奖学金评定办法包含参评专项奖学金的基本条件，是奖学金条件泛化问法的可答题主相关制度之一。"
+				},
 				{
 					"doc_id": "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
 					"grade": 2,
@@ -224,7 +274,7 @@
 			"expected_sources": [
 				{
 					"doc_id": "handbook:e90f9707387f9e232ea88ce1c7f5328242e52389",
-					"version_id": "v1:f9c1621665f50ffbf0c02cf79cb5452bfd938d2e",
+					"version_id": "v1:0112cd95d8ea0d34ca34383acd533b95ed9e4467",
 					"grade": 2,
 					"rationale": "学生证管理办法是主相关制度。"
 				}
@@ -257,11 +307,19 @@
 			"query": "旷课多少学时会按违纪处理",
 			"expected_sources": [
 				{
-					"doc_id": "handbook:e53d05ae90e91f1c45843c50c3a777f774a88afc",
+					"doc_id": "handbook:9350d885657d7409e524e73666b828b826f07191",
 					"grade": 2,
-					"rationale": "旷课处理阈值问题应回到学生考勤管理办法。"
+					"rationale": "学生违纪处分实施办法第三十三条给出旷课处分分档阈值，是该短事实问法的直接答题依据。"
+				},
+				{
+					"doc_id": "handbook:e53d05ae90e91f1c45843c50c3a777f774a88afc",
+					"grade": 1,
+					"rationale": "学生考勤管理办法第十五至十七条提供旷课处分链路背景；具体分档阈值以学生违纪处分实施办法第三十三条为直接答案依据。"
 				}
 			],
+			"supplemental_metric_overrides": {
+				"answer_relevancy": false
+			},
 			"notes": "短事实 retrieval 样本。"
 		},
 		{
@@ -283,6 +341,589 @@
 				}
 			],
 			"notes": "list-like / structured evidence 样本。"
+		},
+		{
+			"case_id": "policy-title-credit-system",
+			"split": "smoke",
+			"query": "中央民族大学本科学分制实施办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:aafad3e5b2a6e60decaf15f8258401e1dcd398d9",
+					"grade": 2,
+					"rationale": "本科学分制制度标题 exact-match。"
+				}
+			],
+			"notes": "本科培养制度标题命中。"
+		},
+		{
+			"case_id": "policy-title-undergraduate-status-management",
+			"split": "smoke",
+			"query": "中央民族大学本科学生学籍管理办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:d5f01ceb2da8c830f904dbc049c8aca41fedf485",
+					"grade": 2,
+					"rationale": "本科学生学籍管理制度标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:69eef0f78d250946924e6a02187fafdb88852c23",
+					"grade": 1,
+					"rationale": "中央民族大学学生管理规定主题相邻，但不应压过本科学生学籍管理办法。"
+				}
+			],
+			"notes": "学籍管理与校内学生管理泛制度区分。"
+		},
+		{
+			"case_id": "policy-title-degree-supplement",
+			"split": "regression_locked",
+			"query": "中央民族大学全日制本科学生学士学位授予补充规定",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:b4ec9c595995411079c1aaf19a5847c522a92433",
+					"grade": 2,
+					"rationale": "学士学位授予补充规定标题 exact-match。"
+				}
+			],
+			"notes": "学位授予主规定与补充规定区分。"
+		},
+		{
+			"case_id": "policy-title-recommend-postgraduate-exemption",
+			"split": "regression_locked",
+			"query": "中央民族大学推荐应届本科毕业生免试攻读硕士学位研究生管理办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:4b943c3cb67ec0e3c578781fb0c62c1763fd73b9",
+					"grade": 2,
+					"rationale": "普通应届本科毕业生推免制度标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:ceb42210e2431730ef5b1e376b800250fd9eb1fb",
+					"grade": 1,
+					"rationale": "高水平运动员推免制度主题相邻，但不应压过普通应届本科毕业生推免制度。"
+				}
+			],
+			"notes": "普通推免与高水平运动员推免 hard-negative。"
+		},
+		{
+			"case_id": "policy-title-athlete-postgraduate-exemption",
+			"split": "regression_locked",
+			"query": "中央民族大学推荐应届优秀高水平运动员免试攻读硕士学位研究生管理办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:ceb42210e2431730ef5b1e376b800250fd9eb1fb",
+					"grade": 2,
+					"rationale": "高水平运动员推免制度标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:4b943c3cb67ec0e3c578781fb0c62c1763fd73b9",
+					"grade": 1,
+					"rationale": "普通应届本科毕业生推免制度主题相邻，但不应压过高水平运动员推免制度。"
+				}
+			],
+			"notes": "高水平运动员推免与普通推免 hard-negative。"
+		},
+		{
+			"case_id": "policy-title-major-adjustment",
+			"split": "smoke",
+			"query": "中央民族大学本科生专业调整实施办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:4ff7b434006008d28b5ba6e6b5df4482527b9e3d",
+					"grade": 2,
+					"rationale": "本科生专业调整制度标题 exact-match。"
+				}
+			],
+			"notes": "转专业制度标题命中。"
+		},
+		{
+			"case_id": "semantic-study-abroad-management",
+			"split": "smoke",
+			"query": "本科生出国境外留学期间学籍和成绩怎么管理",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:3639f2e52b3a3e4c11aa553e6837486f563137c8",
+					"grade": 2,
+					"rationale": "境外留学期间管理问题应回到本科生境外留学管理办法。"
+				}
+			],
+			"notes": "dense semantic 问法。"
+		},
+		{
+			"case_id": "semantic-innovation-education-credit",
+			"split": "smoke",
+			"query": "本科创新教育项目和创新学分按哪个办法执行",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:02a96d9625b2d15bec9411e8633b6c6533be4b6e",
+					"grade": 2,
+					"rationale": "创新教育项目与创新学分问题应回到本科创新教育实施办法。"
+				}
+			],
+			"notes": "创新教育与学分制 hard-negative。"
+		},
+		{
+			"case_id": "policy-title-exam-violation",
+			"split": "regression_locked",
+			"query": "中央民族大学学生考试违规认定与处理办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:4a106f850321154f454ec7c57150ec20775420e2",
+					"grade": 2,
+					"rationale": "考试违规认定与处理制度标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:9350d885657d7409e524e73666b828b826f07191",
+					"grade": 1,
+					"rationale": "学生违纪处分实施办法主题相邻，但考试违规问法应优先命中考试违规制度。"
+				}
+			],
+			"notes": "考试违规与违纪处分 hard-negative。"
+		},
+		{
+			"case_id": "semantic-student-appeal-after-discipline",
+			"split": "regression_locked",
+			"query": "学生对处分决定不服应该按什么程序申诉",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:1e404fb7e280b32c46f09280590255c57e6bd72d",
+					"grade": 2,
+					"rationale": "处分后申诉程序问题应回到学生申诉管理办法。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:9350d885657d7409e524e73666b828b826f07191",
+					"grade": 1,
+					"rationale": "学生违纪处分实施办法主题相邻，但不应压过申诉管理办法。"
+				}
+			],
+			"notes": "处分申诉与处分实施 hard-negative。"
+		},
+		{
+			"case_id": "semantic-student-hearing-rights",
+			"split": "regression_locked",
+			"query": "学生什么时候可以申请听证",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:1b7c532ecdbc8afe1820d2c55dfba911d891e37a",
+					"grade": 2,
+					"rationale": "听证申请与程序问题应回到学生听证实施办法。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:1e404fb7e280b32c46f09280590255c57e6bd72d",
+					"grade": 1,
+					"rationale": "学生申诉管理办法主题相邻，但听证问法应优先命中听证实施办法。"
+				}
+			],
+			"notes": "听证与申诉制度区分。"
+		},
+		{
+			"case_id": "policy-title-muc-student-management",
+			"split": "regression_locked",
+			"query": "中央民族大学学生管理规定",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:69eef0f78d250946924e6a02187fafdb88852c23",
+					"grade": 2,
+					"rationale": "校内学生管理规定标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:d0a1db59ed9a8b00c4349200916edae208d876f6",
+					"grade": 1,
+					"rationale": "普通高等学校学生管理规定主题相邻，但中央民族大学标题问法应命中校内学生管理规定。"
+				}
+			],
+			"notes": "校内学生管理规定与上位普通高校学生管理规定区分。"
+		},
+		{
+			"case_id": "policy-title-student-code",
+			"split": "smoke",
+			"query": "高等学校学生行为准则",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:1a45ef1bc4be11e74514b0bf6e3365ada8a07bbd",
+					"grade": 2,
+					"rationale": "学生行为准则制度标题 exact-match。"
+				}
+			],
+			"notes": "上位学生行为规范标题命中。"
+		},
+		{
+			"case_id": "policy-title-campus-order",
+			"split": "smoke",
+			"query": "高等学校校园秩序管理若干规定",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:6d77f946c626910853345180b95700217078b1a1",
+					"grade": 2,
+					"rationale": "校园秩序管理规定标题 exact-match。"
+				}
+			],
+			"notes": "上位校园秩序制度标题命中。"
+		},
+		{
+			"case_id": "semantic-student-safety-education",
+			"split": "smoke",
+			"query": "学生安全教育和事故管理按哪个规定执行",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:53a0861781aba2462c1db5dba0059babe2341f3b",
+					"grade": 2,
+					"rationale": "学生安全教育与管理问题应回到普通高等学校学生安全教育及管理暂行规定。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:6d77f946c626910853345180b95700217078b1a1",
+					"grade": 1,
+					"rationale": "校园秩序管理规定主题相邻，但安全教育问法应优先命中安全教育及管理规定。"
+				}
+			],
+			"notes": "安全教育与校园秩序制度区分。"
+		},
+		{
+			"case_id": "policy-title-comprehensive-quality-assessment",
+			"split": "regression_locked",
+			"query": "中央民族大学本科学生综合素质测评办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:651a8dbf99f52b997bc74ae8fd6cd287887f74a7",
+					"grade": 2,
+					"rationale": "综合素质测评办法标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+					"grade": 1,
+					"rationale": "国家奖学金评审办法与综测结果可能相关，但标题问法应命中综合素质测评办法。"
+				}
+			],
+			"notes": "综测制度与奖学金制度区分。"
+		},
+		{
+			"case_id": "policy-title-disciplinary-sanction",
+			"split": "regression_locked",
+			"query": "中央民族大学学生违纪处分实施办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:9350d885657d7409e524e73666b828b826f07191",
+					"grade": 2,
+					"rationale": "学生违纪处分实施办法标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:6f147355748d2d2f181c310f8d1e0da908f2f1a8",
+					"grade": 1,
+					"rationale": "解除处分制度主题相邻，但违纪处分标题问法应命中处分实施办法。"
+				}
+			],
+			"notes": "处分实施与解除处分制度区分。"
+		},
+		{
+			"case_id": "policy-title-preparatory-student-management",
+			"split": "smoke",
+			"query": "中央民族大学本科预科生管理办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:28cf18e59743f39a4d99ff338a172587cc63b719",
+					"grade": 2,
+					"rationale": "本科预科生管理办法标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:69eef0f78d250946924e6a02187fafdb88852c23",
+					"grade": 1,
+					"rationale": "校内学生管理规定主题相邻，但预科生标题问法应命中预科生管理办法。"
+				}
+			],
+			"notes": "预科生管理与一般学生管理制度区分。"
+		},
+		{
+			"case_id": "policy-title-classroom-conduct",
+			"split": "smoke",
+			"query": "中央民族大学学生课堂行为规范及课堂秩序管理办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:3c479e28e3a6b022eb7b25b42a70a842d74e8db5",
+					"grade": 2,
+					"rationale": "课堂行为规范及课堂秩序管理办法标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:e53d05ae90e91f1c45843c50c3a777f774a88afc",
+					"grade": 1,
+					"rationale": "学生考勤管理办法主题相邻，但课堂行为标题问法应命中课堂行为规范制度。"
+				}
+			],
+			"notes": "课堂行为与考勤管理制度区分。"
+		},
+		{
+			"case_id": "policy-title-volunteer-service",
+			"split": "smoke",
+			"query": "中央民族大学学生志愿服务管理办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:14e8bc3a69143b2437f5851d61a5aa4cdbb12f77",
+					"grade": 2,
+					"rationale": "学生志愿服务管理办法标题 exact-match。"
+				}
+			],
+			"notes": "志愿服务制度标题命中。"
+		},
+		{
+			"case_id": "policy-title-top-ten-students",
+			"split": "smoke",
+			"query": "中央民族大学十佳大学生评选办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:19834c3c8bad8c34b09ec89ccb5d518c27d08152",
+					"grade": 2,
+					"rationale": "十佳大学生评选办法标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:0f8b6739e24d38d9d2d274f1566623f019c79747",
+					"grade": 1,
+					"rationale": "优秀本科毕业生评选办法同属评优主题，但不应压过十佳大学生评选办法。"
+				}
+			],
+			"notes": "评优类相邻制度区分。"
+		},
+		{
+			"case_id": "policy-title-special-scholarship",
+			"split": "smoke",
+			"query": "中央民族大学本科学生专项奖学金评定办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:a531a3c85de862c737d0576e957bf59598822c54",
+					"grade": 2,
+					"rationale": "专项奖学金评定办法标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:60c8b33801e2e59e6db2210719592a6252e3516d",
+					"grade": 1,
+					"rationale": "专业奖学金评定办法同属奖学金主题，但不应压过专项奖学金制度。"
+				}
+			],
+			"notes": "奖学金相邻制度区分。"
+		},
+		{
+			"case_id": "policy-title-advanced-class-collective",
+			"split": "smoke",
+			"query": "中央民族大学本科学生先进班集体评选办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:cdb4a7a2b3018e3fed142256ccea9cfa9376621b",
+					"grade": 2,
+					"rationale": "先进班集体评选办法标题 exact-match。"
+				}
+			],
+			"notes": "先进班集体评选制度标题命中。"
+		},
+		{
+			"case_id": "policy-title-outstanding-graduate",
+			"split": "smoke",
+			"query": "中央民族大学优秀本科毕业生评选办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:0f8b6739e24d38d9d2d274f1566623f019c79747",
+					"grade": 2,
+					"rationale": "优秀本科毕业生评选办法标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:19834c3c8bad8c34b09ec89ccb5d518c27d08152",
+					"grade": 1,
+					"rationale": "十佳大学生评选办法同属评优主题，但不应压过优秀本科毕业生评选办法。"
+				}
+			],
+			"notes": "优秀毕业生与十佳大学生评选制度区分。"
+		},
+		{
+			"case_id": "semantic-financial-hardship-identification",
+			"split": "smoke",
+			"query": "家庭经济困难学生认定按哪个办法办理",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:585570389475fa202a2f86e96ebb1f962fae55f8",
+					"grade": 2,
+					"rationale": "家庭经济困难学生认定问题应回到本科生家庭经济困难学生认定管理办法。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:8371280fde48b4c568850475814538a6aff13976",
+					"grade": 1,
+					"rationale": "临时困难补助制度主题相邻，但认定问法应优先命中困难学生认定管理办法。"
+				}
+			],
+			"notes": "困难认定与临时困难补助制度区分。"
+		},
+		{
+			"case_id": "semantic-work-study-management",
+			"split": "smoke",
+			"query": "本科生勤工助学岗位管理和申请按哪个办法执行",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:5585e19eb4afad9af061ef9334ce167aa2e4fe59",
+					"grade": 2,
+					"rationale": "勤工助学岗位管理与申请问题应回到本(预)科学生勤工助学管理办法。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:21766ac8f07d1488942e544fa55843ebd40d764b",
+					"grade": 1,
+					"rationale": "学生资助管理工作暂行办法主题相邻，但勤工助学问法应优先命中勤工助学管理办法。"
+				}
+			],
+			"notes": "勤工助学与资助管理泛制度区分。"
+		},
+		{
+			"case_id": "policy-title-weekly-monthly-student-report",
+			"split": "smoke",
+			"query": "中央民族大学学院(系)学生基本情况周查月报制度",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:aac178f947dda7a40382a7404d4173e03a2e8f78",
+					"grade": 2,
+					"rationale": "学院(系)学生基本情况周查月报制度标题 exact-match。"
+				}
+			],
+			"notes": "周查月报制度标题命中。"
+		},
+		{
+			"case_id": "policy-title-ethnic-unity-advanced-selection",
+			"split": "smoke",
+			"query": "中央民族大学评选学生民族团结进步先进集体和先进个人实施办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:297963ad42b5d998d005deb50ce5f5d3ce92756c",
+					"grade": 2,
+					"rationale": "民族团结进步先进集体和先进个人实施办法标题 exact-match。"
+				}
+			],
+			"notes": "民族团结进步先进评选制度标题命中。"
+		},
+		{
+			"case_id": "policy-title-temporary-hardship-subsidy",
+			"split": "smoke",
+			"query": "中央民族大学家庭经济困难学生临时困难补助管理办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:8371280fde48b4c568850475814538a6aff13976",
+					"grade": 2,
+					"rationale": "临时困难补助管理办法标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:585570389475fa202a2f86e96ebb1f962fae55f8",
+					"grade": 1,
+					"rationale": "家庭经济困难学生认定管理办法主题相邻，但补助标题问法应命中临时困难补助制度。"
+				}
+			],
+			"notes": "困难认定与临时困难补助制度区分。"
+		},
+		{
+			"case_id": "policy-title-national-grant",
+			"split": "smoke",
+			"query": "中央民族大学本科生国家助学金评审办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:571a5df6b6bd0fb133b0e7849f577d4a22d7a53e",
+					"grade": 2,
+					"rationale": "本科生国家助学金评审办法标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:1f17ba6234c15963648b3d74656d78621cad77a7",
+					"grade": 1,
+					"rationale": "国家励志奖学金评审办法主题相邻，但助学金标题问法不应被奖学金制度压过。"
+				}
+			],
+			"notes": "助学金与奖学金制度区分。"
+		},
+		{
+			"case_id": "policy-title-tuition-loan-compensation",
+			"split": "smoke",
+			"query": "中央民族大学毕业生学费和国家助学贷款代偿暂行实施办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:118402352ee67220ade47707c815cdc2ca5df46e",
+					"grade": 2,
+					"rationale": "毕业生学费和国家助学贷款代偿暂行实施办法标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:ce5617b516e144a9602087cd19c1413c46e9c0ff",
+					"grade": 1,
+					"rationale": "助学贷款管理暂行办法主题相邻，但代偿标题问法应命中代偿实施办法。"
+				}
+			],
+			"notes": "助学贷款代偿与助学贷款管理制度区分。"
+		},
+		{
+			"case_id": "policy-title-student-aid-management",
+			"split": "smoke",
+			"query": "中央民族大学学生资助管理工作暂行办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:21766ac8f07d1488942e544fa55843ebd40d764b",
+					"grade": 2,
+					"rationale": "学生资助管理工作暂行办法标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:5585e19eb4afad9af061ef9334ce167aa2e4fe59",
+					"grade": 1,
+					"rationale": "勤工助学管理办法属于资助相关制度，但资助管理标题问法应命中资助管理工作暂行办法。"
+				}
+			],
+			"notes": "资助管理泛制度与勤工助学制度区分。"
+		},
+		{
+			"case_id": "policy-title-funded-student-public-service",
+			"split": "smoke",
+			"query": "中央民族大学本科受资助学生参与公益服务活动实施办法",
+			"expected_sources": [
+				{
+					"doc_id": "handbook:f6d5ef171b88ec35057fa23f6d05e4e54ecdf811",
+					"grade": 2,
+					"rationale": "本科受资助学生参与公益服务活动实施办法标题 exact-match。"
+				}
+			],
+			"forbidden_sources": [
+				{
+					"doc_id": "handbook:14e8bc3a69143b2437f5851d61a5aa4cdbb12f77",
+					"grade": 1,
+					"rationale": "学生志愿服务管理办法主题相邻，但受资助学生公益服务标题问法应命中专项实施办法。"
+				}
+			],
+			"notes": "受资助学生公益服务与一般志愿服务制度区分。"
 		},
 		{
 			"case_id": "no-hit-impossible-query",

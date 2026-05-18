@@ -19,6 +19,10 @@ from campus_evals.benchmark_models import (
     RetrievalQrelsDataset,
     RetrievalRunCase,
 )
+from campus_evals.retrieval_qrels_policy import (
+    default_query_enabled_retrieval_qrels_paths,
+    validate_default_query_enabled_qrels_coverage,
+)
 
 RETRIEVAL_TUNING_REPORT_SCHEMA_VERSION = "retrieval-tuning-report-v1"
 RETRIEVAL_TUNING_CANDIDATE_RUN_SCHEMA_VERSION = "retrieval-tuning-candidate-run-v1"
@@ -32,12 +36,6 @@ TUNABLE_RETRIEVAL_PROFILE_FIELDS = (
     "no_hit_min_top_score",
     "no_hit_min_score_gap",
 )
-_DEFAULT_QUERY_ENABLED_QRELS_FIXTURE_NAMES = {
-    "regulations/student_rules": "student_handbook_retrieval_qrels.json",
-    "regulations/institutional_rules": "institutional_rules_retrieval_qrels.json",
-    "curriculum/curriculum_plan": "curriculum_plan_retrieval_qrels.json",
-    "official_web/stable_reference": "official_web_stable_reference_retrieval_qrels.json",
-}
 
 
 @dataclass(frozen=True, slots=True)
@@ -98,17 +96,6 @@ def load_retrieval_tuning_candidate_run(path: str | Path) -> RetrievalTuningCand
         run=_load_run_payload(run_payload),
         source_path=str(source_path),
     )
-
-
-def default_query_enabled_retrieval_qrels_paths(
-    *, repo_root: str | Path | None = None
-) -> dict[str, Path]:
-    root = Path(repo_root) if repo_root is not None else Path(__file__).resolve().parents[4]
-    fixture_root = root / "packages" / "evals" / "fixtures"
-    return {
-        scope_key: fixture_root / fixture_name
-        for scope_key, fixture_name in _DEFAULT_QUERY_ENABLED_QRELS_FIXTURE_NAMES.items()
-    }
 
 
 def build_retrieval_tuning_report(
@@ -449,4 +436,5 @@ __all__ = [
     "load_retrieval_tuning_candidate_run",
     "render_retrieval_tuning_report_text",
     "retrieval_tuning_report_to_dict",
+    "validate_default_query_enabled_qrels_coverage",
 ]

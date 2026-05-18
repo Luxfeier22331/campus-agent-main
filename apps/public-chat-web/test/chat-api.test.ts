@@ -70,6 +70,32 @@ describe("public chat app-api client", () => {
 		);
 	});
 
+	it("rejects invalid JSON success payloads from app-api", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response("{", {
+				headers: {
+					"content-type": "application/json; charset=utf-8",
+				},
+				status: 200,
+			}),
+		);
+
+		await expect(getSessionPrincipal()).rejects.toThrow("App API returned invalid JSON.");
+	});
+
+	it("rejects non-JSON success payloads from app-api routes that require JSON", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response("ok", {
+				headers: {
+					"content-type": "text/plain",
+				},
+				status: 200,
+			}),
+		);
+
+		await expect(getSessionPrincipal()).rejects.toThrow("App API returned a non-JSON response.");
+	});
+
 	it("submits a lifecycle stream request and yields product SSE events", async () => {
 		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
 			new Response(
@@ -120,6 +146,24 @@ describe("public chat app-api client", () => {
 				method: "POST",
 			}),
 		);
+	});
+
+	it("rejects invalid JSON stream error payloads from app-api", async () => {
+		vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			new Response("{", {
+				headers: {
+					"content-type": "application/json; charset=utf-8",
+				},
+				status: 503,
+				statusText: "Service Unavailable",
+			}),
+		);
+
+		const iterator = submitChatRequestStream({
+			prompt: "图书馆开放到几点？",
+		})[Symbol.asyncIterator]();
+
+		await expect(iterator.next()).rejects.toThrow("App API returned invalid JSON error payload.");
 	});
 
 	it("maps chat app-api routes and unauthorized responses consistently", async () => {

@@ -23,6 +23,7 @@ class RagAgentOfficialWebGuardrailsTest(unittest.TestCase):
     ) -> None:
         evidence = _make_official_web_evidence(
             query_text="中央民族大学学校简介",
+            collection="stable_reference",
             sources=(
                 _make_official_web_source(
                     doc_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
@@ -31,6 +32,7 @@ class RagAgentOfficialWebGuardrailsTest(unittest.TestCase):
                     score=0.03175403,
                     chunk_id_suffix="school-profile",
                     content_role="primary_content",
+                    collection="stable_reference",
                 ),
             ),
         )
@@ -40,7 +42,7 @@ class RagAgentOfficialWebGuardrailsTest(unittest.TestCase):
                 target="rag-agent",
                 user_goal="中央民族大学学校简介",
                 payload=RagRequestPayload(
-                    scope=KnowledgeScope(corpus="official_web", collection="muc_public_pages")
+                    scope=KnowledgeScope(corpus="official_web", collection="stable_reference")
                 ),
             ),
             retriever=lambda *args, **kwargs: evidence,
@@ -78,11 +80,11 @@ class RagAgentOfficialWebGuardrailsTest(unittest.TestCase):
             retriever=lambda *args, **kwargs: evidence,
         )
 
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(response.confidence, "medium")
+        self.assertEqual(response.status, "no_answer")
+        self.assertEqual(response.confidence, "low")
         self.assertNotIn("学生手册", response.answer_text)
-        self.assertIn("讲座", response.answer_text)
-        self.assertIn("讲座时间", response.answer_text)
+        self.assertIn("非默认官网页面库存范围", response.answer_text)
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_scope")
         self.assertNotIn("二维码", response.answer_text)
         self.assertNotIn("预约讲座信息", response.answer_text)
 
@@ -106,7 +108,7 @@ class RagAgentOfficialWebGuardrailsTest(unittest.TestCase):
         self.assertEqual(response.confidence, "low")
         self.assertIn("官网页面", response.answer_text)
         self.assertNotIn("学生手册", response.answer_text)
-        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_scope")
 
     def test_official_web_freshness_sensitive_query_uses_scope_specific_fail_close_copy(
         self,
@@ -128,13 +130,12 @@ class RagAgentOfficialWebGuardrailsTest(unittest.TestCase):
 
         self.assertEqual(response.status, "no_answer")
         self.assertEqual(response.confidence, "low")
-        self.assertIn("今天", response.answer_text)
-        self.assertIn("最新", response.answer_text)
+        self.assertIn("非默认官网页面库存范围", response.answer_text)
         self.assertIn("官网页面", response.answer_text)
         self.assertNotIn("学生手册", response.answer_text)
-        self.assertEqual(response.result.diagnostics.no_answer_reason, "freshness_fail_close")
-        self.assertEqual(response.result.diagnostics.semantic_outcome, "freshness_fail_close")
-        self.assertTrue(response.result.diagnostics.freshness_fail_closed)
+        self.assertEqual(response.result.diagnostics.no_answer_reason, "scope_not_query_enabled")
+        self.assertEqual(response.result.diagnostics.semantic_outcome, "unsupported_scope")
+        self.assertFalse(response.result.diagnostics.freshness_fail_closed)
 
     def test_official_web_stable_reference_no_evidence_uses_scope_specific_no_answer_copy(
         self,

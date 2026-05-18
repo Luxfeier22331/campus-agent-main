@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-23
-updated: 2026-04-27
+updated: 2026-05-01
 ---
 # Campus Services Runtime Architecture
 
@@ -46,6 +46,9 @@ app-api -> supervisor-api -> supervisor-agent-worker -> campus-services-agent
 - internal query service 只读 projection / normalized truth
 - `campus-services-agent` 不在 query time 回扫 raw source bundle、notice HTML 或通用 chunk
 - `navigation-agent` 可消费 point refs，但不拥有 timetable truth 或 service-status truth
+- 在长期 multi-agent workflow 中，`campus-services-agent` 可以产出 bounded service /
+  schedule facts 供 `notice-agent`、`navigation-agent` 或 `rag-agent` 消费，但不得把 raw
+  read model rows、raw notice text 或 unbounded source evidence 直接传给下游 agent
 
 ## Capability Boundary
 
@@ -60,6 +63,11 @@ app-api -> supervisor-api -> supervisor-agent-worker -> campus-services-agent
   - 只读，不提交申请、不预约、不代办、不创建工单、不修改任何业务状态
 - `contact_directory_lookup`
   - 回答部门电话、邮箱、办公地点、联系人与联系渠道
+- `academic_calendar_lookup`
+  - 回答第几教学周、学期日期窗口、节假日安排与补课/调休上课安排等校历事实
+  - 只读 `calendar/academic_calendar` projection / typed read model；runtime
+    owner 是 `campus-services-agent`，data-plane owner 仍是
+    `calendar/academic_calendar`
 
 later-wave 已冻结方向包括：
 
@@ -86,6 +94,9 @@ later-wave 已冻结方向包括：
 - `campus-services-agent`
   - 拥有 campus-services family 内的 tool selection、service-specific clarification、
     structured answer shaping 与 fail-close policy
+  - 在 manager-style multi-agent workflow 中产出 `ScheduleBaseline`、
+    `ServiceGuideFacts`、`ServiceStatusFacts`、`ContactFacts` 等 bounded step output
+    projection
 - thin tool adapter
   - 只负责 typed request/response glue，不拥有业务语义
 - internal query service
@@ -111,19 +122,23 @@ later-wave 已冻结方向包括：
   - handbook 电话页必须通过 `regulations/student_rules` declared projection fan-out 进入
     `campus_services/contact_directory` document artifacts，并由 ingestion/replay
     run 生成 structured contact projection；不得用单点脚本绕过 handbook ingestion/replay
-  - 当前 Go structured query runtime 与 Python thin adapter 已落地，产品 opening gate 仍保持
-    closed；是否开放以 release gate + E2E verdict 为准
+  - 当前 Go structured query runtime 与 Python SDK executor seam 已落地，runtime profile
+    为 `structured_query_serving`；正式 product rollout 仍以 release gate、`/readyz`
+    preflight 与 E2E evidence 为准
 - `service_guide_lookup`
   - 只读 `campus_services/service_guide` guide-oriented projection
+  - procedure 类事实以 `procedure_groups` 为 canonical truth；
+    `guide_sections.procedure` 只保留兼容摘要，不承担 query-time 反解析职责
   - 长期 runtime 通过 PostgreSQL `structured_projection_current` current pointer 与
     `service_guide_read_model` typed read model 读取当前 release
-  - 文件 projection path runtime fallback 已下线；本地 fixture / smoke / bootstrap
+  - 文件 projection path runtime 已下线；本地 fixture / smoke / bootstrap
     也必须走 PostgreSQL release catalog 与 typed read model
   - handbook flow page、official-web 办事说明页与 future service entry page 只作为
     provenance 上游
   - handbook-derived first tracked source truth 已覆盖宿舍流程、公费医疗、学生证补办、
-    学生申诉、临时困难补助、国家助学贷款与勤工助学岗位聘用；这些仍只是 offline
-    projection backing，不打开产品主路径
+    学生申诉、临时困难补助、国家助学贷款与勤工助学岗位聘用；这些只作为
+    `service_guide_lookup` 的 structured projection backing，不打开 generic retrieval
+    默认 query scope 或事务型 product path
   - 只允许返回办理说明、材料、入口、适用人群、服务时间、联系方式与 source refs；
     不返回可执行 transaction payload，不生成 submission / booking / work-order handoff
 - `service_catalog`
@@ -135,6 +150,9 @@ later-wave 已冻结方向包括：
 固定约束：
 
 - projection query 只读取 semantic-owner truth，不读 query-disabled retrieval alias
+- `structured_query_serving` 只表示 admitted structured tool 可以消费 current
+  projection/read model；它不等于 generic retrieval query-serving，也不绕过
+  product opening gate
 - `current/latest/effective` 等 temporal semantics 必须是 code-owned routing/query truth
 - alias ambiguity -> clarification
 - currentness 不可证、projection 缺关键字段或 source 冲突 -> fail-close / unavailable
@@ -165,15 +183,15 @@ workflow。
 
 - 第一版只消费 `authenticated_notice_portal` notice source truth
 - `configs/ingestion/campus_services/transport_schedule/` 是 collection runtime
-  owner，serving stage 保持 `offline_preparation`
+  owner，serving stage 保持 `structured_query_serving`
 - projection builder 离线生成 `campus_services_projection_bundle.v1`
 - 周期性班次在 builder 侧展开 90 天服务日；Go runtime 不解析 recurrence
 - versioned/current projection artifact 落在
   `campus_services/releases/transport_schedule/{release_id}/...`
 - ingestion worker 发布 release 时同时写入 PostgreSQL release catalog、
   `structured_projection_current` current pointer 与 transport typed read model
-- Docker runtime 读取 PostgreSQL current release + typed read model；文件
-  projection path fallback 已下线
+- Docker runtime 读取 PostgreSQL current release + typed read model；文件 projection
+  path 已下线
 - Go `apps/supervisor-api` 不直接读对象存储、不持有对象存储凭据
 
 这条数据面补全仍不打开产品主路径；它只是满足 backing query implementation 的前置条件。
@@ -181,12 +199,16 @@ workflow。
 ## Relation To Retrieval And Notice
 
 - `campus-services-agent` 不并回 `rag-agent`
-- `campus_services/*` 即使仍处于 `offline_preparation`，也不意味着未来 runtime seam
-  应该回退成 generic retrieval
+- `campus_services/*` 即使不进入 generic retrieval 默认 query scope，也不意味着 runtime
+  seam 应该回退成 generic retrieval
 - structured campus services runtime 与 `official_web` / authenticated notice
   source-channel retrieval 可以并存，但不能互相冒充
 - 如果某个问题需要 canonical notice 正文或公告发现，应明确切到 `notice-agent`
 - 如果某个问题只需要地点引用或路线展示，应明确切到 `navigation-agent`
+- 如果某个问题同时需要稳定班次基底与近期临时通知，应由 supervisor workflow plan 显式串联
+  `campus-services-agent` 与 `notice-agent`，再把 bounded `ScheduleBaseline` /
+  `NoticeChangeSet` 交给 finalizer 或 `rag-agent` grounding step；不得让任一 agent 在
+  query time 回扫对方的 raw source
 
 ## Opening Gate
 

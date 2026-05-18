@@ -283,18 +283,29 @@ class InternalNoticeConsumptionAdmissionTest(unittest.TestCase):
             ),
         )
 
-    def test_builder_uses_dedicated_database_url_before_projection_fallback(self) -> None:
+    def test_builder_uses_dedicated_database_url_before_shared_postgres(self) -> None:
         with patch(
             "campus_ingestion_core.internal_notice_consumption_admission.PostgresInternalNoticeConsumptionAdmissionStore"
         ) as store_cls:
             build_internal_notice_consumption_admission_store_from_env(
                 {
                     "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL": "postgresql://admission/db",
-                    "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL": "postgresql://projection/db",
+                    "CAMPUS_SHARED_POSTGRES_URL": "postgresql://shared/db",
                 }
             )
 
         store_cls.assert_called_once_with(database_url="postgresql://admission/db")
+
+    def test_builder_rejects_projection_url_without_admission_or_shared_url(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_internal_notice_consumption_admission_store_from_env(
+                {
+                    "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL": "postgresql://projection/db",
+                }
+            )
 
 
 class _CapturingAdmissionStore:

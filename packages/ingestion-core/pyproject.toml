@@ -6,6 +6,7 @@ readme = "README.md"
 requires-python = ">=3.12"
 dependencies = [
   "campus-contracts",
+  "campus-shared",
   "boto3>=1.35.0",
   "httpx[socks]>=0.28.1",
   "llama-index-core>=0.14.18",
@@ -26,6 +27,7 @@ package = true
 
 [tool.uv.sources]
 campus-contracts = { workspace = true }
+campus-shared = { workspace = true }
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/campus_ingestion_core"]

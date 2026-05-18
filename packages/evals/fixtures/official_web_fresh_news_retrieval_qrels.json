@@ -8,7 +8,8 @@
 		"sparse_model": "qdrant/bm25",
 		"sparse_tokenizer": "multilingual",
 		"sparse_language": "none",
-		"fusion": "rrf"
+		"fusion": "rrf",
+		"scope_posture": "offline_seed_validation_only"
 	},
 	"cases": [
 		{

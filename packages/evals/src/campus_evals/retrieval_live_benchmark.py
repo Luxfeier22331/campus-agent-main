@@ -12,7 +12,11 @@ from unittest.mock import patch
 import campus_retrieval_core.backend_qdrant as backend_qdrant_module
 from campus_contracts import AuthorizedRetrievalFilter
 from campus_rag_agent.handbook_query_planning import plan_student_handbook_query
+from campus_rag_agent.institutional_rules_query_planning import plan_institutional_rules_query
+from campus_rag_agent.query_planning import plan_curriculum_query
+from campus_rag_agent.retrieval_intent import RetrievalIntent
 from campus_retrieval_core import RetrievalRequest, build_retrieval_backend
+from campus_retrieval_core.models import RetrievalSemanticHint
 from campus_shared import load_repo_env
 
 from campus_evals.benchmark import (
@@ -152,24 +156,136 @@ def _build_retrieval_request(*, case: RetrievalQrelsCase, default_top_k: int) ->
     overrides = dict(case.request_overrides)
     query_text = case.query
     target_document_ids = _coerce_tuple(overrides.get("target_document_ids"))
+    handbook_plan = None
+    institutional_rules_plan = None
+    curriculum_plan = None
+    retrieval_intent = None
     if (
         case.scope.corpus == "regulations"
         and case.scope.collection == "student_rules"
         and not target_document_ids
     ):
         handbook_plan = plan_student_handbook_query(case.query)
+        retrieval_intent = handbook_plan.retrieval_intent
         if handbook_plan.status == "resolved":
-            query_text = handbook_plan.rewritten_query_text
+            query_text = handbook_plan.focused_query_text or handbook_plan.rewritten_query_text
             target_document_ids = handbook_plan.target_document_ids
+    if (
+        case.scope.corpus == "regulations"
+        and case.scope.collection == "institutional_rules"
+        and not target_document_ids
+    ):
+        institutional_rules_plan = plan_institutional_rules_query(case.query)
+        retrieval_intent = institutional_rules_plan.retrieval_intent
+        query_text = (
+            institutional_rules_plan.focused_query_text
+            or institutional_rules_plan.rewritten_query_text
+        )
+        target_document_ids = institutional_rules_plan.target_document_ids
+    if (
+        case.scope.corpus == "curriculum"
+        and case.scope.collection == "curriculum_plan"
+        and not target_document_ids
+    ):
+        curriculum_plan = plan_curriculum_query(case.query)
+        retrieval_intent = curriculum_plan.retrieval_intent
+        if curriculum_plan.status == "resolved":
+            query_text = curriculum_plan.rewritten_query_text
+            target_document_ids = curriculum_plan.target_document_ids
     return RetrievalRequest(
         query_text=query_text,
         corpus=case.scope.corpus,
         collection=case.scope.collection,
         authorized_filter=_build_authorized_filter(overrides),
         target_document_ids=target_document_ids,
-        preferred_document_ids=_coerce_tuple(overrides.get("preferred_document_ids")),
+        preferred_document_ids=_coerce_tuple(overrides.get("preferred_document_ids"))
+        or _handbook_plan_preferred_document_ids(handbook_plan)
+        or _planning_tuple(curriculum_plan, "preferred_document_ids"),
+        focus_detail_labels=_coerce_tuple(overrides.get("focus_detail_labels"))
+        or _planning_tuple(handbook_plan, "focus_detail_labels")
+        or _planning_tuple(institutional_rules_plan, "focus_detail_labels"),
+        focus_article_nos=_coerce_tuple(overrides.get("focus_article_nos"))
+        or _planning_tuple(handbook_plan, "focus_article_nos")
+        or _planning_tuple(institutional_rules_plan, "focus_article_nos"),
+        focus_clause_nos=_coerce_tuple(overrides.get("focus_clause_nos"))
+        or _planning_tuple(handbook_plan, "focus_clause_nos")
+        or _planning_tuple(institutional_rules_plan, "focus_clause_nos"),
+        focus_terms=_coerce_tuple(overrides.get("focus_terms"))
+        or _planning_tuple(handbook_plan, "focus_terms")
+        or _planning_tuple(institutional_rules_plan, "focus_terms"),
+        semantic_hint=_semantic_hint_from_retrieval_intent(retrieval_intent),
         top_k=_coerce_top_k(overrides.get("top_k"), default=default_top_k),
     )
+
+
+def _planning_tuple(plan: object | None, field_name: str) -> tuple[str, ...]:
+    if plan is None:
+        return ()
+    if getattr(plan, "status", "resolved") != "resolved":
+        return ()
+    value = getattr(plan, field_name, ())
+    return tuple(item for item in value if isinstance(item, str) and item.strip())
+
+
+def _handbook_plan_tuple(handbook_plan: object | None, field_name: str) -> tuple[str, ...]:
+    return _planning_tuple(handbook_plan, field_name)
+
+
+def _handbook_plan_preferred_document_ids(handbook_plan: object | None) -> tuple[str, ...]:
+    if handbook_plan is None or getattr(handbook_plan, "status", "") != "resolved":
+        return ()
+    explicit = _handbook_plan_tuple(handbook_plan, "preferred_document_ids")
+    if explicit:
+        return explicit
+    if _handbook_plan_tuple(handbook_plan, "target_document_ids"):
+        return ()
+    return _handbook_plan_tuple(handbook_plan, "category_member_document_ids")
+
+
+def _semantic_hint_from_retrieval_intent(
+    retrieval_intent: RetrievalIntent | None,
+) -> RetrievalSemanticHint | None:
+    if retrieval_intent is None:
+        return None
+    return RetrievalSemanticHint(
+        intent_kind=retrieval_intent.kind,
+        answer_kind=retrieval_intent.expected.answer_kind,
+        need_kinds=_need_kinds_from_retrieval_intent(retrieval_intent),
+        coverage_policy=retrieval_intent.expected.coverage_policy,
+        selection_policy=retrieval_intent.expected.selection_policy,
+        rerank_policy=retrieval_intent.expected.rerank_policy,
+        replan_policy=retrieval_intent.expected.replan_policy,
+        expected_answer_roles=retrieval_intent.expected.evidence_roles,
+        condition_subject=retrieval_intent.target.condition_subject,
+        category_id=retrieval_intent.target.category_id,
+        critical_terms=retrieval_intent.critical_terms,
+    )
+
+
+def _need_kinds_from_retrieval_intent(retrieval_intent: RetrievalIntent) -> tuple[str, ...]:
+    if retrieval_intent.kind == "policy_list":
+        return ("policy_list",)
+    if retrieval_intent.kind == "condition_table":
+        return ("condition_table",)
+    if retrieval_intent.kind == "eligibility_judgment":
+        return ("eligibility_judgment",)
+    if retrieval_intent.kind == "procedure_steps":
+        return ("procedure_steps",)
+    if retrieval_intent.kind == "specific_clause_lookup":
+        return ("specific_clause",)
+    if retrieval_intent.kind == "policy_object_lookup":
+        return ("policy_object",)
+    if retrieval_intent.kind == "curriculum_document_lookup":
+        return ("curriculum_document",)
+    if retrieval_intent.kind == "curriculum_fact_lookup":
+        return ("curriculum_fact",)
+    if retrieval_intent.kind == "official_reference_lookup":
+        return ("official_reference",)
+    if retrieval_intent.kind == "clarification_required":
+        return ("clarification",)
+    if retrieval_intent.kind == "unsupported":
+        return ("unsupported",)
+    return ("general_fact",)
 
 
 def _build_authorized_filter(overrides: dict[str, object]) -> AuthorizedRetrievalFilter | None:

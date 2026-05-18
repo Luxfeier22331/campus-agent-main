@@ -60,13 +60,14 @@ export async function convergeSharedDbForAppApiIntegration(input: {
 		input.contextLabel,
 	);
 	const managementConnectionString =
-		process.env.APP_API_MANAGEMENT_DATABASE_URL?.trim() || runtimeConnectionString;
+		process.env.APP_API_OPERATOR_DATABASE_URL?.trim() || runtimeConnectionString;
 
 	await bootstrapSharedProductDatabase({
 		APP_API_DATABASE_SSLMODE: resolveDatabaseSslMode(),
-		APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
+		APP_API_OPERATOR_DATABASE_URL: managementConnectionString,
 		BETTER_AUTH_SECRET:
 			process.env.BETTER_AUTH_SECRET?.trim() || "dev-secret-dev-secret-dev-secret",
+		AUTH_SHELL_ORIGIN: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://hub.muc.wiki",
 		PUBLIC_CHAT_WEB_ORIGIN:
 			process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://chat.example.com",
 	});
@@ -75,14 +76,14 @@ export async function convergeSharedDbForAppApiIntegration(input: {
 		apply: true,
 		env: {
 			...process.env,
-			APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
+			APP_API_OPERATOR_DATABASE_URL: managementConnectionString,
 		},
 	});
 	await runSharedDatabaseAdoption({
 		apply: true,
 		env: {
 			...process.env,
-			APP_API_MANAGEMENT_DATABASE_URL: managementConnectionString,
+			APP_API_OPERATOR_DATABASE_URL: managementConnectionString,
 		},
 	});
 
@@ -104,6 +105,10 @@ export function buildSharedDbIntegrationEnv(input: {
 		APP_API_DB: {
 			connectionString: input.runtimeConnectionString,
 		},
+		APP_API_DB_FRESH: {
+			connectionString: input.runtimeConnectionString,
+		},
+		AUTH_SHELL_ORIGIN: process.env.AUTH_SHELL_ORIGIN?.trim() || "https://hub.muc.wiki",
 		AUTH_RESET_EMAIL_FROM:
 			process.env.AUTH_RESET_EMAIL_FROM?.trim() || "Campus Agent <auth@example.com>",
 		AUTH_TURNSTILE_SECRET_KEY:
@@ -112,7 +117,7 @@ export function buildSharedDbIntegrationEnv(input: {
 			process.env.APP_API_INTERNAL_SHARED_SECRET?.trim() || "shared-db-integration-secret",
 		APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST:
 			process.env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?.trim() || "muc.edu.cn",
-		APP_API_MANAGEMENT_DATABASE_URL: input.managementConnectionString,
+		APP_API_OPERATOR_DATABASE_URL: input.managementConnectionString,
 		APP_API_OPERATOR_EMAIL_ALLOWLIST:
 			process.env.APP_API_OPERATOR_EMAIL_ALLOWLIST?.trim() || "ops@example.com",
 		BETTER_AUTH_SECRET:

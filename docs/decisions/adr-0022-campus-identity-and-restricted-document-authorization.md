@@ -201,7 +201,7 @@ updated: 2026-04-26
 - `ingestion-core` / registry / Qdrant payload 需要完成 `visibility_* +
   entitlement_*` 主写入
 - `retrieval-core` 需要在 restricted document 路径上只依赖 projection，并最终删除 legacy ACL
-  carrier fallback
+  carrier path
 - public chat、panel、service 与 operator surface 需要补齐 allow/deny matrix 与泄露防护测试
 
 明确不做：

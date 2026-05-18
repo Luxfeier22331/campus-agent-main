@@ -12,6 +12,32 @@ const repoRoot = resolve(testDir, "../../..");
 const stagingBuildScript = resolve(repoRoot, "scripts/run-worker-staging-build.mjs");
 
 describe("worker staging build wrapper", () => {
+	it("allows staging builds that do not need runtime secret placeholders", () => {
+		const workDir = mkdtempSync(join(tmpdir(), "worker-staging-build-"));
+		const childSource = `
+			const { mkdirSync, writeFileSync } = require("node:fs");
+			const { join } = require("node:path");
+			const workerDist = join(process.cwd(), "dist", "hub_web");
+			mkdirSync(workerDist, { recursive: true });
+			writeFileSync(join(workerDist, "index.js"), 'export default {};\\n');
+		`;
+
+		const result = spawnSync(
+			process.execPath,
+			[stagingBuildScript, "--", process.execPath, "-e", childSource],
+			{
+				cwd: workDir,
+				encoding: "utf8",
+				env: {
+					...process.env,
+				},
+			},
+		);
+
+		expect(result.stderr).not.toContain("Usage:");
+		expect(result.status).toBe(0);
+	});
+
 	it("removes generated dist .dev.vars files before scanning build output", () => {
 		const workDir = mkdtempSync(join(tmpdir(), "worker-staging-build-"));
 		const childSource = `

@@ -51,7 +51,6 @@ repo root `.env` 的 canonical runtime key 固定为：
 同时允许一个只服务于 offline operator / migration / DBA 路径的 companion key：
 
 - `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
-- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`（legacy alias）
 
 这表示：
 
@@ -70,8 +69,6 @@ repo root `.env` 的 canonical runtime key 固定为：
 - `CAMPUS_SHARED_POSTGRES_URL` 在 Supabase-backed runtime 下默认指向 `session pooler`
 - `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` 是 canonical operator lane，当前默认指向 IPv4
   可达的 session pooler `:5432`
-- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 只保留 legacy 兼容语义，当前应与 operator lane
-  保持同值
 - runtime 主链路不在 `direct connection` 与 `session pooler` 之间做自动切换
 - 长驻 Python / Node runtime 必须使用 application-side pooling，而不是每次数据库操作新建连接
 
@@ -94,8 +91,7 @@ repo root `.env` 的 canonical runtime key 固定为：
 ## Env Ownership Rules
 
 - repo root `.env` / `.env.example` 持有 `CAMPUS_SHARED_POSTGRES_URL` 与 canonical
-  `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`；legacy
-  `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 只作兼容别名
+  `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
 - app-local env 只持有当前 app runtime 直接消费的 database URL，例如：
   - `apps/app-api/.env` ->
     `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` /
@@ -125,8 +121,7 @@ repo root `.env` 的 canonical runtime key 固定为：
 - `packages/ingestion-core` 不接管 `app-api` 的 Drizzle migration journal；registry
   table 仍由自身代码路径负责 schema ensure。需要 full current-scope replay / chunk-prep /
   release 这类 offline operator 操作时，显式消费
-  `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`；legacy
-  `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 仅作兼容别名
+  `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
 
 ## Journal Ownership
 

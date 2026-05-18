@@ -2,7 +2,7 @@
 doc_type: index
 status: completed
 created: 2026-04-30
-updated: 2026-04-30
+updated: 2026-05-01
 ---
 
 <!-- markdownlint-disable MD013 -->
@@ -17,15 +17,18 @@ provenance、成本控制与 retrieval acceptance gate。
 ## Current Status
 
 - status: `completed`
-- current phase: `Phase 8` completed
+- current phase: `Phase 9` completed
 - active implementation: none
 - current posture: 基础链路已经存在；chunk preparation / release manifest / dense+sparse
   hybrid retrieval / metadata filter 已具备，query-enabled truth 已与 runtime profile /
   policy 收敛；registry-scope release 已支持 alias publish 前 deterministic retrieval
   acceptance gate；sparse/hybrid release provenance 已补齐；chunker/tokenizer preparation
   provenance 已补齐；retrieval runtime drift guard 已落地；embedding cache / cost counters
-  已落地；eval-driven retrieval tuning runner 与默认 query-enabled qrels denominator 已落地；
-  acceptance docs/runbook closeout 已完成。
+  已落地；eval-driven retrieval tuning runner、默认 query-enabled qrels denominator、qrels
+  coverage gate、chunk quality audit helper 与 monitoring backlog intake 已落地；post-review
+  closeout 已把 chunk quality helper 升级为 query-serving release blocking gate，runtime drift
+  guard 升级为多点一致性校验，query embedding cache key 升级为 provider/model/dimension/profile
+  identity，qrels coverage 升级为 scenario denominator，monitoring intake 升级为 JSONL CLI。
   runtime drift guard 必须在
   release/point payload provenance 补齐后执行，不能校验尚未落盘的字段。
 
@@ -46,6 +49,8 @@ provenance、成本控制与 retrieval acceptance gate。
 - Phase 6: `./phases/phase-06-embedding-cache-and-cost-control/PLAN.md`
 - Phase 7: `./phases/phase-07-eval-driven-retrieval-tuning/PLAN.md`
 - Phase 8: `./phases/phase-08-acceptance-docs-and-closeout/PLAN.md`
+- Phase 9: post-review release-quality closeout, tracked in `./ROADMAP.md` and
+  `./STATE.md`
 
 ## Boundary Notes
 

@@ -1,7 +1,6 @@
 import { toast } from "sonner";
 import { Artifact } from "@/components/chat/create-artifact";
-import { DiffView } from "@/components/chat/diffview";
-import { DocumentSkeleton } from "@/components/chat/document-skeleton";
+import type { ArtifactContentProps } from "@/components/chat/create-artifact";
 import {
   ClockRewind,
   CopyIcon,
@@ -10,7 +9,6 @@ import {
   RedoIcon,
   UndoIcon,
 } from "@/components/chat/icons";
-import { Editor } from "@/components/chat/text-editor";
 import type { Suggestion } from "@/lib/db/schema";
 import type { SuggestionRecord } from "@/lib/types";
 import { getSuggestions } from "../actions";
@@ -18,6 +16,9 @@ import { getSuggestions } from "../actions";
 type TextArtifactMetadata = {
   suggestions: Suggestion[];
 };
+
+export type TextArtifactContentProps =
+  ArtifactContentProps<TextArtifactMetadata>;
 
 function normalizeSuggestion(
   suggestion: Suggestion | SuggestionRecord,
@@ -73,52 +74,7 @@ export const textArtifact = new Artifact<"text", TextArtifactMetadata>({
       });
     }
   },
-  content: ({
-    mode,
-    status,
-    content,
-    isCurrentVersion,
-    currentVersionIndex,
-    onSaveContent,
-    getDocumentContentById,
-    isLoading,
-    metadata,
-  }) => {
-    if (isLoading) {
-      return <DocumentSkeleton artifactKind="text" />;
-    }
-
-    if (mode === "diff") {
-      const selectedContent = getDocumentContentById(currentVersionIndex);
-      const prevContent =
-        currentVersionIndex > 0
-          ? getDocumentContentById(currentVersionIndex - 1)
-          : selectedContent;
-
-      return (
-        <div className="flex flex-row px-4 py-8 md:px-16 md:py-12 lg:px-20">
-          <DiffView newContent={selectedContent} oldContent={prevContent} />
-        </div>
-      );
-    }
-
-    return (
-      <div className="flex flex-row px-4 py-8 md:px-16 md:py-12 lg:px-20">
-        <Editor
-          content={content}
-          currentVersionIndex={currentVersionIndex}
-          isCurrentVersion={isCurrentVersion}
-          onSaveContent={onSaveContent}
-          status={status}
-          suggestions={isCurrentVersion && metadata ? metadata.suggestions : []}
-        />
-
-        {metadata?.suggestions && metadata.suggestions.length > 0 ? (
-          <div className="h-dvh w-12 shrink-0 md:hidden" />
-        ) : null}
-      </div>
-    );
-  },
+  content: () => null,
   actions: [
     {
       icon: <ClockRewind size={18} />,

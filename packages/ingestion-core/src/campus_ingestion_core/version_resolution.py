@@ -161,8 +161,8 @@ def _resolve_track_records(
     records = registry.list_versions(document_id)
     if not records:
         return "", ()
-    fallback_revision_track = records[0].revision_track
-    return fallback_revision_track, registry.list_versions(document_id, fallback_revision_track)
+    discovered_revision_track = records[0].revision_track
+    return discovered_revision_track, registry.list_versions(document_id, discovered_revision_track)
 
 
 def _resolve_current_record(

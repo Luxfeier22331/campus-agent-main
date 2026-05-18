@@ -3,7 +3,9 @@
 import equal from "fast-deep-equal";
 import {
   type MouseEvent,
+  lazy,
   memo,
+  Suspense,
   useCallback,
   useEffect,
   useMemo,
@@ -14,7 +16,6 @@ import { useArtifact } from "@/hooks/use-artifact";
 import type { Document } from "@/lib/db/schema";
 import { cn, fetcher } from "@/lib/utils";
 import type { ArtifactKind, UIArtifact } from "./artifact";
-import { CodeEditor } from "./code-editor";
 import { InlineDocumentSkeleton } from "./document-skeleton";
 import {
   CodeIcon,
@@ -23,9 +24,26 @@ import {
   ImageIcon,
   LoaderIcon,
 } from "./icons";
-import { ImageEditor } from "./image-editor";
-import { SpreadsheetEditor } from "./sheet-editor";
-import { Editor } from "./text-editor";
+
+const LazyTextPreviewEditor = lazy(async () => {
+  const module = await import("./text-editor");
+  return { default: module.Editor };
+});
+
+const LazyCodePreviewEditor = lazy(async () => {
+  const module = await import("./code-editor");
+  return { default: module.CodeEditor };
+});
+
+const LazySpreadsheetPreviewEditor = lazy(async () => {
+  const module = await import("./sheet-editor");
+  return { default: module.SpreadsheetEditor };
+});
+
+const LazyImagePreviewEditor = lazy(async () => {
+  const module = await import("./image-editor");
+  return { default: module.ImageEditor };
+});
 
 type DocumentToolOutput = {
   id: string;
@@ -276,28 +294,42 @@ const DocumentContent = ({ document }: { document: Document }) => {
   return (
     <div className={cn(containerClassName, "relative")}>
       {document.kind === "text" ? (
-        <Editor {...commonProps} onSaveContent={handleSaveContent} />
+        <Suspense fallback={<PreviewEditorFallback artifactKind="text" />}>
+          <LazyTextPreviewEditor
+            {...commonProps}
+            onSaveContent={handleSaveContent}
+          />
+        </Suspense>
       ) : document.kind === "code" ? (
         <div className="relative flex w-full flex-1">
           <div className="absolute inset-0">
-            <CodeEditor {...commonProps} onSaveContent={handleSaveContent} />
+            <Suspense fallback={<PreviewEditorFallback artifactKind="code" />}>
+              <LazyCodePreviewEditor
+                {...commonProps}
+                onSaveContent={handleSaveContent}
+              />
+            </Suspense>
           </div>
         </div>
       ) : document.kind === "sheet" ? (
         <div className="relative flex size-full flex-1 p-4">
           <div className="absolute inset-0">
-            <SpreadsheetEditor {...commonProps} />
+            <Suspense fallback={<PreviewEditorFallback artifactKind="sheet" />}>
+              <LazySpreadsheetPreviewEditor {...commonProps} />
+            </Suspense>
           </div>
         </div>
       ) : document.kind === "image" ? (
-        <ImageEditor
-          content={document.content ?? ""}
-          currentVersionIndex={0}
-          isCurrentVersion={true}
-          isInline={true}
-          status={artifact.status}
-          title={document.title}
-        />
+        <Suspense fallback={<PreviewEditorFallback artifactKind="image" />}>
+          <LazyImagePreviewEditor
+            content={document.content ?? ""}
+            currentVersionIndex={0}
+            isCurrentVersion={true}
+            isInline={true}
+            status={artifact.status}
+            title={document.title}
+          />
+        </Suspense>
       ) : null}
       <div className="pointer-events-none absolute inset-x-0 bottom-0 h-16 bg-gradient-to-t from-muted to-transparent dark:from-muted" />
       {document.kind === "code" && (
@@ -305,4 +337,15 @@ const DocumentContent = ({ document }: { document: Document }) => {
       )}
     </div>
   );
+};
+
+const PreviewEditorFallback = ({
+  artifactKind,
+}: {
+  artifactKind: ArtifactKind;
+}) => {
+  if (artifactKind === "image") {
+    return <div className="h-[257px] w-full animate-pulse bg-muted-foreground/10" />;
+  }
+  return <InlineDocumentSkeleton />;
 };

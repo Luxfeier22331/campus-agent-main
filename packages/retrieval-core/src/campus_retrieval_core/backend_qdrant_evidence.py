@@ -17,15 +17,27 @@ from campus_retrieval_core.backend_qdrant_source_metadata import (
     _optional_bool,
     _optional_text,
     _record_to_text_node,
+    _resolve_action_type,
+    _resolve_article_no,
+    _resolve_audience_scope,
     _resolve_canonical_source_id,
     _resolve_canonical_source_title,
+    _resolve_claim_type,
+    _resolve_clause_no,
     _resolve_content_kind,
     _resolve_content_role,
     _resolve_detail_label,
     _resolve_is_answer_bearing,
+    _resolve_polarity,
+    _resolve_section_kind,
+    _resolve_semantic_role,
     _resolve_source_title,
     _resolve_source_unit_key,
     _resolve_source_unit_kind,
+)
+from campus_retrieval_core.evidence_attributes import (
+    INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY,
+    build_internal_evidence_attribute_payload,
 )
 
 DEFAULT_LATEST_REVISION_TRACKS = ("current-effective", "editorial", "source-faithful")
@@ -81,6 +93,12 @@ def build_evidence_sources(
             if is_current is None:
                 is_current = record.is_current
         source_title = _resolve_source_title(metadata, document_id=document_id, anchor=anchor)
+        internal_evidence_attributes = build_internal_evidence_attribute_payload(metadata)
+        if internal_evidence_attributes:
+            anchor = {
+                **anchor,
+                INTERNAL_EVIDENCE_ATTRIBUTES_ANCHOR_KEY: internal_evidence_attributes,
+            }
         sources.append(
             EvidenceSource(
                 doc_id=document_id,
@@ -110,6 +128,14 @@ def build_evidence_sources(
                     anchor=anchor,
                 ),
                 detail_label=_resolve_detail_label(metadata, anchor=anchor),
+                semantic_role=_resolve_semantic_role(metadata),
+                polarity=_resolve_polarity(metadata),
+                action_type=_resolve_action_type(metadata),
+                claim_type=_resolve_claim_type(metadata),
+                audience_scope=_resolve_audience_scope(metadata),
+                article_no=_resolve_article_no(metadata, anchor=anchor),
+                clause_no=_resolve_clause_no(metadata, anchor=anchor),
+                section_kind=_resolve_section_kind(metadata),
                 is_answer_bearing=_resolve_is_answer_bearing(
                     metadata,
                     collection=collection,

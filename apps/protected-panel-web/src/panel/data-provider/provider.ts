@@ -21,10 +21,23 @@ import {
 	type RequestProjectionRecord,
 } from "../types";
 import {
+	getAuthenticatedNoticeProcessingDetail,
+	getAuthenticatedNoticeProcessingList,
+} from "./authenticated-notice-processing";
+import {
+	getAuthenticatedNoticeRunProcessingDetail,
+	getAuthenticatedNoticeRunProcessingList,
+} from "./authenticated-notice-run-processing";
+import {
+	getOfficialWebReleaseTaskDetail,
+	getOfficialWebReleaseTaskList,
 	getOfficialWebRunDetail,
 	getOfficialWebRunList,
 	getOfficialWebSiteDetail,
 	getOfficialWebSiteList,
+	getOfficialWebTargetInventoryList,
+	getOfficialWebTargetJobDetail,
+	getOfficialWebTargetJobList,
 } from "./official-web";
 import {
 	getOperatorAuditEvent,
@@ -65,8 +78,29 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 		if (resource === "officialWebRuns") {
 			return (await getOfficialWebRunList(params)) as unknown as GetListResult<RecordType>;
 		}
+		if (resource === "officialWebTargetJobs") {
+			return (await getOfficialWebTargetJobList(params)) as unknown as GetListResult<RecordType>;
+		}
+		if (resource === "officialWebTargetInventory") {
+			return (await getOfficialWebTargetInventoryList(
+				params,
+			)) as unknown as GetListResult<RecordType>;
+		}
+		if (resource === "officialWebReleaseTasks") {
+			return (await getOfficialWebReleaseTaskList(params)) as unknown as GetListResult<RecordType>;
+		}
 		if (resource === "officialWebSites") {
 			return (await getOfficialWebSiteList(params.signal)) as unknown as GetListResult<RecordType>;
+		}
+		if (resource === "authenticatedNoticeProcessing") {
+			return (await getAuthenticatedNoticeProcessingList(
+				params,
+			)) as unknown as GetListResult<RecordType>;
+		}
+		if (resource === "authenticatedNoticeRunProcessing") {
+			return (await getAuthenticatedNoticeRunProcessingList(
+				params,
+			)) as unknown as GetListResult<RecordType>;
 		}
 
 		unsupportedMethod(resource, "getList");
@@ -95,10 +129,56 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 				data: items,
 			} as unknown as GetManyResult<RecordType>;
 		}
+		if (resource === "officialWebTargetJobs") {
+			const items = await Promise.all(
+				params.ids.map((id) =>
+					getOfficialWebTargetJobDetail(id, params.signal).then((result) => result.data),
+				),
+			);
+
+			return {
+				data: items,
+			} as unknown as GetManyResult<RecordType>;
+		}
+		if (resource === "officialWebReleaseTasks") {
+			const items = await Promise.all(
+				params.ids.map((id) =>
+					getOfficialWebReleaseTaskDetail(id, params.signal).then((result) => result.data),
+				),
+			);
+
+			return {
+				data: items,
+			} as unknown as GetManyResult<RecordType>;
+		}
 		if (resource === "officialWebSites") {
 			const items = await Promise.all(
 				params.ids.map((id) =>
 					getOfficialWebSiteDetail(id, params.signal).then((result) => result.data),
+				),
+			);
+
+			return {
+				data: items,
+			} as unknown as GetManyResult<RecordType>;
+		}
+		if (resource === "authenticatedNoticeProcessing") {
+			const items = await Promise.all(
+				params.ids.map((id) =>
+					getAuthenticatedNoticeProcessingDetail(id, params.signal).then((result) => result.data),
+				),
+			);
+
+			return {
+				data: items,
+			} as unknown as GetManyResult<RecordType>;
+		}
+		if (resource === "authenticatedNoticeRunProcessing") {
+			const items = await Promise.all(
+				params.ids.map((id) =>
+					getAuthenticatedNoticeRunProcessingDetail(id, params.signal).then(
+						(result) => result.data,
+					),
 				),
 			);
 
@@ -128,8 +208,32 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 				params.signal,
 			)) as unknown as GetOneResult<RecordType>;
 		}
+		if (resource === "officialWebTargetJobs") {
+			return (await getOfficialWebTargetJobDetail(
+				params.id,
+				params.signal,
+			)) as unknown as GetOneResult<RecordType>;
+		}
+		if (resource === "officialWebReleaseTasks") {
+			return (await getOfficialWebReleaseTaskDetail(
+				params.id,
+				params.signal,
+			)) as unknown as GetOneResult<RecordType>;
+		}
 		if (resource === "officialWebSites") {
 			return (await getOfficialWebSiteDetail(
+				params.id,
+				params.signal,
+			)) as unknown as GetOneResult<RecordType>;
+		}
+		if (resource === "authenticatedNoticeProcessing") {
+			return (await getAuthenticatedNoticeProcessingDetail(
+				params.id,
+				params.signal,
+			)) as unknown as GetOneResult<RecordType>;
+		}
+		if (resource === "authenticatedNoticeRunProcessing") {
+			return (await getAuthenticatedNoticeRunProcessingDetail(
 				params.id,
 				params.signal,
 			)) as unknown as GetOneResult<RecordType>;

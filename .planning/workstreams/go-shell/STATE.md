@@ -767,8 +767,8 @@ updated: 2026-04-27
 - `campus-services-agent` now has `CampusServicesHTTPQueryService` as the
   Python thin adapter for the Go internal query seam
 - `supervisor-api` injects the campus-services query service only when
-  `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` and
-  `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` are configured
+  `SUPERVISOR_INTERNAL_QUERY_BASE_URL` and
+  `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` are configured
 - product routing remains gate-closed; this implementation does not by itself
   open `campus_services` serving
 
@@ -811,8 +811,8 @@ updated: 2026-04-27
 - Python notice-agent no longer defaults to env-built PG/S3 read-model runtime;
   direct Python PG/S3 notice query code was removed from the active package
 - `supervisor-api` injects notice HTTP query service when
-  `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` and
-  `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` are configured
+  `SUPERVISOR_INTERNAL_QUERY_BASE_URL` and
+  `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` are configured
 - product routing remains gate-closed; this implementation does not by itself
   open `notice` serving
 

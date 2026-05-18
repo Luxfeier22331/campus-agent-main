@@ -8,19 +8,30 @@ from pathlib import Path
 from typing import Protocol
 
 from campus_contracts import AuthorizedRetrievalFilter, EvidenceBundle
+from campus_retrieval_core.backend_qdrant_curriculum_rescue import rescue_curriculum_title_sources
 from campus_retrieval_core.backend_qdrant_evidence import build_evidence_sources
 from campus_retrieval_core.backend_qdrant_filters import _build_qdrant_filter
+from campus_retrieval_core.backend_qdrant_policies import (
+    _apply_no_hit_policy,
+    _apply_official_web_low_signal_policy,
+    finalize_retrieval_sources,
+)
 from campus_retrieval_core.backend_qdrant_query import (
     _build_dense_query_text,
     _build_hybrid_prefetch,
     _build_rrf_query,
 )
+from campus_retrieval_core.evidence_attributes import evidence_attributes_for_source
 from campus_retrieval_core.models import RetrievalRequest
 from campus_retrieval_core.settings import RetrievalSettings
 from qdrant_client import QdrantClient
 
 from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile
 from campus_ingestion_core.embed import EmbeddingSettings, build_embedding_model
+from campus_ingestion_core.index_release_chunk_quality import (
+    ReleaseQualityGateResult,
+    evaluate_release_chunk_quality,
+)
 from campus_ingestion_core.sparse import (
     SparseEmbeddingModel,
     SparseEmbeddingSettings,
@@ -38,6 +49,8 @@ class ReleaseRetrievalAcceptanceCase:
     expected_document_ids: tuple[str, ...] = field(default_factory=tuple)
     expected_version_ids: tuple[str, ...] = field(default_factory=tuple)
     expected_chunk_ids: tuple[str, ...] = field(default_factory=tuple)
+    expected_answer_roles: tuple[str, ...] = field(default_factory=tuple)
+    expected_condition_subjects: tuple[str, ...] = field(default_factory=tuple)
     forbidden_document_ids: tuple[str, ...] = field(default_factory=tuple)
     expected_no_hit: bool = False
     target_document_ids: tuple[str, ...] = field(default_factory=tuple)
@@ -52,6 +65,8 @@ class ReleaseRetrievalAcceptanceCase:
             "expected_document_ids",
             "expected_version_ids",
             "expected_chunk_ids",
+            "expected_answer_roles",
+            "expected_condition_subjects",
             "forbidden_document_ids",
             "target_document_ids",
             "target_version_ids",
@@ -183,16 +198,45 @@ class QdrantPhysicalCollectionAcceptanceExecutor:
                 build_qdrant_filter_fn=_build_qdrant_filter,
             ),
             query=_build_rrf_query(self.runtime_profile),
-            limit=max(top_k, self.runtime_profile.retrieval_top_k),
+            limit=max(
+                top_k,
+                self.runtime_profile.retrieval_top_k,
+                self.runtime_profile.document_support_limit,
+            ),
             with_payload=True,
             with_vectors=False,
             timeout=_qdrant_http_timeout_seconds(self.settings.qdrant_timeout_seconds),
+        )
+        raw_sources = build_evidence_sources(self, response.points or ())
+        rescued_sources = rescue_curriculum_title_sources(
+            self,
+            request=request,
+            profile=self.runtime_profile,
+            qdrant_collection_name=physical_collection_name,
+            sources=raw_sources,
+            timeout_seconds=_qdrant_http_timeout_seconds(self.settings.qdrant_timeout_seconds),
+        )
+        sources = _apply_no_hit_policy(
+            profile=self.runtime_profile,
+            query_text=request.query_text,
+            sources=rescued_sources,
+        )
+        sources = _apply_official_web_low_signal_policy(
+            profile=self.runtime_profile,
+            query_text=request.query_text,
+            sources=sources,
+        )
+        sources = finalize_retrieval_sources(
+            profile=self.runtime_profile,
+            query_text=request.query_text,
+            sources=sources,
+            preferred_document_ids=request.preferred_document_ids,
         )
         return EvidenceBundle(
             query_text=query,
             corpus=corpus,
             collection=collection,
-            sources=build_evidence_sources(self, response.points or ())[:top_k],
+            sources=sources[:top_k],
         )
 
 
@@ -290,6 +334,8 @@ def _coerce_case(raw_case: dict[str, object]) -> ReleaseRetrievalAcceptanceCase:
         expected_document_ids=_tuple_field(raw_case.get("expected_document_ids")),
         expected_version_ids=_tuple_field(raw_case.get("expected_version_ids")),
         expected_chunk_ids=_tuple_field(raw_case.get("expected_chunk_ids")),
+        expected_answer_roles=_tuple_field(raw_case.get("expected_answer_roles")),
+        expected_condition_subjects=_tuple_field(raw_case.get("expected_condition_subjects")),
         forbidden_document_ids=_tuple_field(raw_case.get("forbidden_document_ids")),
         expected_no_hit=bool(raw_case.get("expected_no_hit") or False),
         target_document_ids=_tuple_field(raw_case.get("target_document_ids")),
@@ -314,6 +360,16 @@ def _evaluate_case(
     source_document_ids = {source.doc_id for source in sources}
     source_version_ids = {source.version_id for source in sources}
     source_chunk_ids = {source.chunk_id for source in sources}
+    source_answer_roles = {
+        evidence_attributes_for_source(source).answer_role
+        for source in sources
+        if evidence_attributes_for_source(source).answer_role
+    }
+    source_condition_subjects = {
+        evidence_attributes_for_source(source).condition_subject
+        for source in sources
+        if evidence_attributes_for_source(source).condition_subject
+    }
     failures: list[str] = []
 
     if case.expected_no_hit:
@@ -330,6 +386,14 @@ def _evaluate_case(
             failures.append("expected_version_ids")
         if case.expected_chunk_ids and not set(case.expected_chunk_ids).issubset(source_chunk_ids):
             failures.append("expected_chunk_ids")
+        if case.expected_answer_roles and not set(case.expected_answer_roles).issubset(
+            source_answer_roles
+        ):
+            failures.append("expected_answer_roles")
+        if case.expected_condition_subjects and not set(case.expected_condition_subjects).issubset(
+            source_condition_subjects
+        ):
+            failures.append("expected_condition_subjects")
         if case.expected_document_ids and not any(
             source.canonical_url and source.latest_url for source in sources
         ):
@@ -348,6 +412,8 @@ def _evaluate_case(
         "hit_document_ids": sorted(source_document_ids),
         "hit_version_ids": sorted(source_version_ids),
         "hit_chunk_ids": sorted(source_chunk_ids),
+        "hit_answer_roles": sorted(source_answer_roles),
+        "hit_condition_subjects": sorted(source_condition_subjects),
         "forbidden_hits": forbidden_hits,
     }
 
@@ -368,12 +434,21 @@ def _qdrant_http_timeout_seconds(value: float | int | None) -> int | None:
     return max(math.ceil(float(value)), 1)
 
 
+def _coerce_int(value: object) -> int | None:
+    try:
+        return int(value)
+    except (TypeError, ValueError):
+        return None
+
+
 __all__ = [
     "QdrantPhysicalCollectionAcceptanceExecutor",
+    "ReleaseQualityGateResult",
     "ReleaseRetrievalAcceptanceCase",
     "ReleaseRetrievalAcceptanceExecutor",
     "ReleaseRetrievalAcceptanceResult",
     "build_release_retrieval_acceptance_executor",
+    "evaluate_release_chunk_quality",
     "load_release_retrieval_acceptance_cases",
     "run_release_retrieval_acceptance",
 ]

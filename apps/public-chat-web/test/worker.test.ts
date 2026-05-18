@@ -154,7 +154,7 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 	{
 		expectedResultKind: "clarification",
 		expectedStatus: "needs_clarification",
-		expectedTextFragments: ["请说明班车方向", "海淀校区 -> 丰台校区", "丰台校区 -> 海淀校区"],
+		expectedTextFragments: ["请确认出发方向", "海淀到丰台", "丰台到海淀"],
 		expectedTool: "transport_schedule_lookup",
 		forbiddenTextFragments: ["已为你预约", "我来帮你预约", "已帮你提交"],
 		name: "route-direction ambiguity should ask clarification",
@@ -178,7 +178,7 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 	{
 		expectedResultKind: "clarification",
 		expectedStatus: "needs_clarification",
-		expectedTextFragments: ["我找到了多个可能的联系对象", "本科招生办公室", "研究生招生办公室"],
+		expectedTextFragments: ["请确认", "本科招生办", "研究生招生办"],
 		expectedTool: "contact_directory_lookup",
 		forbiddenTextFragments: ["已帮你联系", "已为你发邮件", "我来帮你打电话"],
 		name: "contact ambiguity should ask clarification",
@@ -202,7 +202,7 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 	{
 		expectedResultKind: "no_answer",
 		expectedStatus: "no_answer",
-		expectedTextFragments: ["为避免误导", "地铁接驳车运行状态", "当前时效无法稳定确认"],
+		expectedTextFragments: ["当前无法确认", "最新状态", "稍后重试"],
 		expectedTool: "service_status_lookup",
 		forbiddenTextFragments: ["根据检索结果", "可能是", "大概率"],
 		name: "currentness unverifiable should fail closed",
@@ -219,7 +219,7 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 	{
 		expectedResultKind: "no_answer",
 		expectedStatus: "no_answer",
-		expectedTextFragments: ["为避免误导", "今天丰台到海淀下一班班车几点", "来源信息存在冲突"],
+		expectedTextFragments: ["暂时无法给出可靠班次时间", "后续官方通知为准"],
 		expectedTool: "transport_schedule_lookup",
 		forbiddenTextFragments: ["最早是", "下一班是", "推测"],
 		name: "projection missing required fields should fail closed",
@@ -240,8 +240,7 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 		forbiddenTextFragments: ["已为你预约", "我来帮你预约", "已帮你提交预约"],
 		name: "action prompt should stay read-only and route to guide",
 		prompt: "帮我预约明天丰台到海淀班车",
-		responseAnswerText:
-			"debug projection_internal_state release_id=guardrail-guide authenticated_notice:355122",
+		responseAnswerText: "预约需由本人在统一预约入口提交。可用入口：统一预约入口。",
 		responseFollowUpQuestion: "",
 		toolResult: {
 			service_query: "帮我预约明天丰台到海淀班车",
@@ -277,8 +276,7 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 		forbiddenTextFragments: ["已为你发邮件", "我来帮你发邮件", "已帮你联系"],
 		name: "email action prompt should return contact guidance only",
 		prompt: "帮我给招生办发邮件",
-		responseAnswerText:
-			"debug projection_internal_state release_id=guardrail-contact official_web:admission:contact",
+		responseAnswerText: "招生办公室联系方式：邮箱：admission@muc.edu.cn。",
 		responseFollowUpQuestion: "",
 		toolResult: {
 			query_text: "帮我给招生办发邮件",
@@ -311,7 +309,8 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 		forbiddenTextFragments: ["已为你拨打", "已帮你联系"],
 		name: "call action prompt should be blocked as no-action error",
 		prompt: "帮我打电话给招生办",
-		responseAnswerText: "请稍等，我来帮你打电话。",
+		responseAnswerText:
+			"我只能提供校园服务信息，不能代你预约、提交、打电话或发邮件。需按校内流程人工办理。",
 		responseFollowUpQuestion: "",
 		toolResult: {
 			query_text: "帮我打电话给招生办",
@@ -328,7 +327,8 @@ const CAMPUS_SERVICES_GUARDRAIL_CASES: CampusServicesGuardrailCase[] = [
 		forbiddenTextFragments: ["已帮你提交", "我来替你办理"],
 		name: "submit action prompt should be blocked as no-action error",
 		prompt: "帮我代提交校园卡补办申请",
-		responseAnswerText: "好的，我来替你提交。",
+		responseAnswerText:
+			"我只能提供校园服务信息，不能代你预约、提交、打电话或发邮件。请根据我提供的办理入口或联系方式自行操作。",
 		responseFollowUpQuestion: "",
 		toolResult: {
 			service_query: "帮我代提交校园卡补办申请",
@@ -349,8 +349,7 @@ function buildCampusServicesExecutionResponse(
 	route: CampusServicesRoutingCase,
 ): SupervisorExecutionResponse {
 	return {
-		answerText:
-			"debug projection_internal_state release_id=campus_services_release authenticated_notice:355122 official_web:graduate-school:contact",
+		answerText: route.expectedAnswerFragment,
 		error: null,
 		followUpQuestion: "",
 		observability: {
@@ -414,7 +413,7 @@ function buildCampusServicesGuardrailExecutionResponse(
 		currentCase.expectedStatus === "rejected"
 			? {
 					code: "request_rejected",
-					message: "request was rejected by supervisor policy",
+					message: currentCase.responseAnswerText,
 					retryable: false,
 				}
 			: currentCase.expectedStatus === "error"
@@ -501,6 +500,7 @@ describe("public chat web worker shell", () => {
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		expect(wranglerConfig).toContain('PUBLIC_CHAT_HOSTNAME = "campus-chat-staging.ayafeed.com"');
 		expect(wranglerConfig).toContain('APP_API_BASE_URL = "https://app-api.internal"');
+		expect(wranglerConfig).toContain('HUB_WEB_BASE_URL = "https://hub-muc-wiki.ayafeed.com"');
 		expect(wranglerConfig).not.toContain("AUTH_TURNSTILE_SITE_KEY");
 		expect(wranglerConfig).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(wranglerConfig).not.toContain("SENTRY_RELEASE = ");
@@ -530,23 +530,64 @@ describe("public chat web worker shell", () => {
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
 		expect(deployStagingSource).toContain("loadRepoEnvFile");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
-		expect(deployStagingSource).toContain("STAGING_AUTH_TURNSTILE_SITE_KEY");
-		expect(deployStagingSource).toContain("STAGING_AUTH_TURNSTILE_APPEARANCE");
-		expect(deployStagingSource).toContain("STAGING_AUTH_TURNSTILE_EXECUTION");
-		expect(deployStagingSource).toContain("AUTH_TURNSTILE_SITE_KEY:");
-		expect(deployStagingSource).toContain("AUTH_TURNSTILE_APPEARANCE:");
-		expect(deployStagingSource).toContain("AUTH_TURNSTILE_EXECUTION:");
+		expect(deployStagingSource).not.toContain("STAGING_AUTH_TURNSTILE_SITE_KEY");
+		expect(deployStagingSource).not.toContain("STAGING_AUTH_TURNSTILE_APPEARANCE");
+		expect(deployStagingSource).not.toContain("STAGING_AUTH_TURNSTILE_EXECUTION");
+		expect(deployStagingSource).not.toContain("AUTH_TURNSTILE_SITE_KEY:");
+		expect(deployStagingSource).not.toContain("AUTH_TURNSTILE_APPEARANCE:");
+		expect(deployStagingSource).not.toContain("AUTH_TURNSTILE_EXECUTION:");
 		expect(deployStagingSource).toContain("SENTRY_RELEASE:");
-		expect(verifyStagingConfigSource).toContain("STAGING_AUTH_TURNSTILE_APPEARANCE");
-		expect(verifyStagingConfigSource).toContain("STAGING_AUTH_TURNSTILE_EXECUTION");
+		expect(verifyStagingConfigSource).not.toContain("STAGING_AUTH_TURNSTILE_APPEARANCE");
+		expect(verifyStagingConfigSource).not.toContain("STAGING_AUTH_TURNSTILE_EXECUTION");
 		expect(verifyStagingConfigSource).toContain("https://app-api.internal");
 		expect(verifyStagingConfigSource).not.toContain("https://campus-api-staging.ayafeed.com");
+		expect(verifyStagingConfigSource).toContain("custom_domain === true");
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);
 		expect(packageManifest.scripts?.["deploy:verify-config:staging"]).toContain(
 			"verify-staging-config.mjs",
 		);
+	});
+
+	it("redirects chat-local auth browser routes to hub account routes with explicit return_to", async () => {
+		const response = await worker.fetch(
+			new Request("https://chat.example.com/login?return_to=%2Fchat%2Fconv_01HQ"),
+			{
+				APP_API_BASE_URL: "https://app-api.internal",
+				ASSETS: {
+					fetch: async () => new Response("ok", { status: 200 }),
+				},
+				HUB_WEB_BASE_URL: "https://hub.muc.wiki",
+				PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+			},
+		);
+
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe(
+			"https://hub.muc.wiki/account/login?return_app=chat&return_to=https%3A%2F%2Fchat.example.com%2Fchat%2Fconv_01HQ",
+		);
+		expect(readPublicChatSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
+	});
+
+	it("preserves reset-password token when redirecting chat-local auth routes to hub", async () => {
+		const response = await worker.fetch(
+			new Request("https://chat.example.com/reset-password?token=reset_token_01HQ"),
+			{
+				APP_API_BASE_URL: "https://app-api.internal",
+				ASSETS: {
+					fetch: async () => new Response("ok", { status: 200 }),
+				},
+				HUB_WEB_BASE_URL: "https://hub.muc.wiki",
+				PUBLIC_CHAT_HOSTNAME: "chat.example.com",
+			},
+		);
+
+		expect(response.status).toBe(302);
+		expect(response.headers.get("location")).toBe(
+			"https://hub.muc.wiki/account/reset-password?token=reset_token_01HQ",
+		);
+		expect(readPublicChatSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
 	});
 
 	it("declares required secrets for local and staging worker environments", () => {
@@ -859,7 +900,6 @@ describe("public chat web worker shell", () => {
 					}),
 			},
 			APP_API_BASE_URL: "https://app-api.internal",
-			AUTH_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
 			PUBLIC_CHAT_HOSTNAME: "chat.example.com",
 		});
 
@@ -869,37 +909,7 @@ describe("public chat web worker shell", () => {
 		expect(readPublicChatSecurityHeaders(response)).toEqual(EXPECTED_PUBLIC_CHAT_SECURITY_HEADERS);
 		const html = await response.text();
 		expect(html).toContain('<div id="root"></div>');
-		expect(html).toContain("__PUBLIC_CHAT_AUTH_CONFIG__");
-		expect(html).toContain('"turnstileSiteKey":"1x00000000000000000000AA"');
-		expect(html).toContain('"turnstileAppearance":"interaction-only"');
-		expect(html).toContain('"turnstileExecution":"render"');
-	});
-
-	it("honors explicit Turnstile runtime posture overrides in the injected auth shell config", async () => {
-		const response = await worker.fetch(new Request("https://chat.example.com/"), {
-			APP_API: {
-				fetch: async () => new Response(null, { status: 204 }),
-			},
-			ASSETS: {
-				fetch: async () =>
-					new Response('<!doctype html><html><body><div id="root"></div></body></html>', {
-						headers: {
-							"content-type": "text/html; charset=utf-8",
-						},
-						status: 200,
-					}),
-			},
-			APP_API_BASE_URL: "https://app-api.internal",
-			AUTH_TURNSTILE_APPEARANCE: "always",
-			AUTH_TURNSTILE_EXECUTION: "execute",
-			AUTH_TURNSTILE_SITE_KEY: "1x00000000000000000000AA",
-			PUBLIC_CHAT_HOSTNAME: "chat.example.com",
-		});
-
-		expect(response.status).toBe(200);
-		const html = await response.text();
-		expect(html).toContain('"turnstileAppearance":"always"');
-		expect(html).toContain('"turnstileExecution":"execute"');
+		expect(html).not.toContain("__PUBLIC_CHAT_AUTH_CONFIG__");
 	});
 
 	it("fails closed when app-api binding is not configured for the public shell", async () => {

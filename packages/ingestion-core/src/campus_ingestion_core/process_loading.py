@@ -23,6 +23,7 @@ from campus_ingestion_core.curriculum_chunk_units import (
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process_shared import StructuredUnit
+from campus_ingestion_core.regulation_chunking import build_regulation_unit_pieces
 
 _OFFICIAL_WEB_SKIPPED_CONTENT_ROLES = frozenset(
     {"source_attribution", "boilerplate", "media_caption"}
@@ -185,6 +186,24 @@ def build_default_unit_pieces(unit: StructuredUnit, chunk_profile: ChunkProfile)
             metadata=unit.metadata,
         ),
         chunk_profile=chunk_profile,
+    )
+
+
+def build_student_rules_unit_pieces(unit: StructuredUnit, chunk_profile: ChunkProfile):
+    return build_regulation_unit_pieces(
+        unit,
+        chunk_profile,
+        require_regulation_body_role=False,
+        answer_ready_roles=True,
+    )
+
+
+def build_institutional_rules_unit_pieces(unit: StructuredUnit, chunk_profile: ChunkProfile):
+    return build_regulation_unit_pieces(
+        unit,
+        chunk_profile,
+        require_regulation_body_role=True,
+        answer_ready_roles=True,
     )
 
 
@@ -404,11 +423,10 @@ def resolve_scoped_rule_unit_chunk_profile(
 
 
 def resolve_structured_text(raw: dict[str, object]) -> str:
-    for field_name in ("clean_text", "raw_text", "text"):
-        value = raw.get(field_name)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    raise ValueError("structured unit must contain clean_text, raw_text, or text")
+    value = raw.get("clean_text")
+    if isinstance(value, str) and value.strip():
+        return value.strip()
+    raise ValueError("structured unit must contain clean_text")
 
 
 def normalize_optional_text(value: object) -> str | None:
@@ -518,6 +536,8 @@ __all__ = [
     "build_generic_runtime_chunk_profile",
     "build_handbook_chunk_profile",
     "build_official_web_runtime_chunk_profile",
+    "build_regulation_unit_pieces",
+    "build_student_rules_unit_pieces",
     "derive_internal_notice_document_title",
     "is_curriculum_course_map_section_unit",
     "load_curriculum_runtime_structured_units",

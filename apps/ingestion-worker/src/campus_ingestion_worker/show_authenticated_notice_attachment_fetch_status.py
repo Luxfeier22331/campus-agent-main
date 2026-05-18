@@ -8,15 +8,11 @@ from collections.abc import Sequence
 from dataclasses import asdict
 
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
-    DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
     DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
     AuthenticatedNoticeAttachmentFetchStatusRecord,
     build_authenticated_notice_attachment_fetch_status_store_from_env,
 )
-from campus_ingestion_core.registry import (
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
-    SHARED_POSTGRES_OPERATOR_ENV_KEY,
-)
+from campus_ingestion_core.registry import SHARED_POSTGRES_OPERATOR_ENV_KEY
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
@@ -69,9 +65,7 @@ def _has_operator_database_url(env: dict[str, str]) -> bool:
         env.get(key)
         for key in (
             DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
-            DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
             SHARED_POSTGRES_OPERATOR_ENV_KEY,
-            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
         )
     )
 

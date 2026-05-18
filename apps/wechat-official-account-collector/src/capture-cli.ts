@@ -194,12 +194,12 @@ function required(value: unknown, field: string): string {
 	return normalized;
 }
 
-function parsePositiveInt(value: unknown, fallback: number): number {
+function parsePositiveInt(value: unknown, defaultValue: number): number {
 	if (typeof value !== "string" || !value.trim()) {
-		return fallback;
+		return defaultValue;
 	}
 	const parsed = Number.parseInt(value, 10);
-	return Number.isInteger(parsed) && parsed > 0 ? parsed : fallback;
+	return Number.isInteger(parsed) && parsed > 0 ? parsed : defaultValue;
 }
 
 function redactTerminalError(

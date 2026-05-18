@@ -5,11 +5,32 @@ from collections import Counter
 from collections.abc import Sequence
 from dataclasses import asdict, dataclass
 from datetime import UTC, datetime
+from itertools import pairwise
 from pathlib import Path
 from typing import Any, Protocol
 
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
+from campus_ingestion_core.regulation_chunk_quality import (
+    adjacent_chunks_have_meaningful_overlap,
+    chunk_has_coarse_provision_label,
+    contains_form_tail_marker,
+    contains_html_tag,
+    contains_publication_imprint,
+    header_dominance_is_blocking_quality_gap,
+    header_duplicates_display_text,
+    is_regulation_body_role,
+    is_regulation_title_role,
+    looks_like_structural_heading,
+    page_anchor_is_fabricated,
+    section_path_contains_body_like_item,
+    section_path_contains_body_text,
+    section_path_depth_exceeds,
+    section_path_has_long_segment,
+    source_notice_release_time_is_generated_at,
+    title_text_is_duplicated,
+    token_guardrail_indicates_coarse_unit,
+)
 from campus_ingestion_core.settings import DEFAULT_BUCKET_DERIVED
 
 _TARGET_SCOPE = ("regulations", "scoped_rules")
@@ -34,6 +55,8 @@ _FRONT_MATTER_LEAK_MARKERS = (
     "source_attachment_ref_id:",
 )
 _SHORT_BODY_TOKEN_THRESHOLD = 40
+_MAX_SECTION_PATH_DEPTH = 3
+_MAX_SECTION_PATH_SEGMENT_CHARS = 60
 
 
 class ScopedRuleChunkPrepObjectStore(Protocol):
@@ -60,6 +83,22 @@ class ScopedRuleChunkPrepDocumentReport:
     wrapper_notice_leak_chunk_count: int
     front_matter_leak_chunk_count: int
     short_body_chunk_count: int
+    heading_only_body_chunk_count: int
+    section_path_body_text_chunk_count: int
+    html_tag_chunk_count: int
+    form_tail_marker_chunk_count: int
+    body_like_section_path_chunk_count: int
+    deep_section_path_chunk_count: int
+    long_section_path_segment_chunk_count: int
+    publication_imprint_chunk_count: int
+    header_body_duplicate_chunk_count: int
+    title_duplicate_chunk_count: int
+    header_dominant_chunk_count: int
+    fabricated_page_anchor_chunk_count: int
+    coarse_token_guardrail_chunk_count: int
+    coarse_provision_label_chunk_count: int
+    adjacent_body_overlap_chunk_count: int
+    generated_at_release_time_count: int
     passed: bool
     issues: tuple[str, ...]
     document_units_path: str
@@ -106,6 +145,22 @@ class ScopedRuleChunkPrepValidationReport:
     wrapper_notice_leak_chunk_count: int
     front_matter_leak_chunk_count: int
     short_body_chunk_count: int
+    heading_only_body_chunk_count: int
+    section_path_body_text_chunk_count: int
+    html_tag_chunk_count: int
+    form_tail_marker_chunk_count: int
+    body_like_section_path_chunk_count: int
+    deep_section_path_chunk_count: int
+    long_section_path_segment_chunk_count: int
+    publication_imprint_chunk_count: int
+    header_body_duplicate_chunk_count: int
+    title_duplicate_chunk_count: int
+    header_dominant_chunk_count: int
+    fabricated_page_anchor_chunk_count: int
+    coarse_token_guardrail_chunk_count: int
+    coarse_provision_label_chunk_count: int
+    adjacent_body_overlap_chunk_count: int
+    generated_at_release_time_count: int
     failed_document_ids: tuple[str, ...]
 
 
@@ -211,6 +266,22 @@ def build_scoped_rule_chunk_prep_validation_report(
     wrapper_notice_leak_chunk_count = 0
     front_matter_leak_chunk_count = 0
     short_body_chunk_count = 0
+    heading_only_body_chunk_count = 0
+    section_path_body_text_chunk_count = 0
+    html_tag_chunk_count = 0
+    form_tail_marker_chunk_count = 0
+    body_like_section_path_chunk_count = 0
+    deep_section_path_chunk_count = 0
+    long_section_path_segment_chunk_count = 0
+    publication_imprint_chunk_count = 0
+    header_body_duplicate_chunk_count = 0
+    title_duplicate_chunk_count = 0
+    header_dominant_chunk_count = 0
+    fabricated_page_anchor_chunk_count = 0
+    coarse_token_guardrail_chunk_count = 0
+    coarse_provision_label_chunk_count = 0
+    adjacent_body_overlap_chunk_count = 0
+    generated_at_release_time_count = 0
 
     for item in prepared_documents:
         unit_type_counts.update(item.report.unit_type_counts)
@@ -226,6 +297,22 @@ def build_scoped_rule_chunk_prep_validation_report(
         wrapper_notice_leak_chunk_count += item.report.wrapper_notice_leak_chunk_count
         front_matter_leak_chunk_count += item.report.front_matter_leak_chunk_count
         short_body_chunk_count += item.report.short_body_chunk_count
+        heading_only_body_chunk_count += item.report.heading_only_body_chunk_count
+        section_path_body_text_chunk_count += item.report.section_path_body_text_chunk_count
+        html_tag_chunk_count += item.report.html_tag_chunk_count
+        form_tail_marker_chunk_count += item.report.form_tail_marker_chunk_count
+        body_like_section_path_chunk_count += item.report.body_like_section_path_chunk_count
+        deep_section_path_chunk_count += item.report.deep_section_path_chunk_count
+        long_section_path_segment_chunk_count += item.report.long_section_path_segment_chunk_count
+        publication_imprint_chunk_count += item.report.publication_imprint_chunk_count
+        header_body_duplicate_chunk_count += item.report.header_body_duplicate_chunk_count
+        title_duplicate_chunk_count += item.report.title_duplicate_chunk_count
+        header_dominant_chunk_count += item.report.header_dominant_chunk_count
+        fabricated_page_anchor_chunk_count += item.report.fabricated_page_anchor_chunk_count
+        coarse_token_guardrail_chunk_count += item.report.coarse_token_guardrail_chunk_count
+        coarse_provision_label_chunk_count += item.report.coarse_provision_label_chunk_count
+        adjacent_body_overlap_chunk_count += item.report.adjacent_body_overlap_chunk_count
+        generated_at_release_time_count += item.report.generated_at_release_time_count
 
     return ScopedRuleChunkPrepValidationReport(
         schema_version=_SCHEMA_VERSION,
@@ -244,6 +331,22 @@ def build_scoped_rule_chunk_prep_validation_report(
         wrapper_notice_leak_chunk_count=wrapper_notice_leak_chunk_count,
         front_matter_leak_chunk_count=front_matter_leak_chunk_count,
         short_body_chunk_count=short_body_chunk_count,
+        heading_only_body_chunk_count=heading_only_body_chunk_count,
+        section_path_body_text_chunk_count=section_path_body_text_chunk_count,
+        html_tag_chunk_count=html_tag_chunk_count,
+        form_tail_marker_chunk_count=form_tail_marker_chunk_count,
+        body_like_section_path_chunk_count=body_like_section_path_chunk_count,
+        deep_section_path_chunk_count=deep_section_path_chunk_count,
+        long_section_path_segment_chunk_count=long_section_path_segment_chunk_count,
+        publication_imprint_chunk_count=publication_imprint_chunk_count,
+        header_body_duplicate_chunk_count=header_body_duplicate_chunk_count,
+        title_duplicate_chunk_count=title_duplicate_chunk_count,
+        header_dominant_chunk_count=header_dominant_chunk_count,
+        fabricated_page_anchor_chunk_count=fabricated_page_anchor_chunk_count,
+        coarse_token_guardrail_chunk_count=coarse_token_guardrail_chunk_count,
+        coarse_provision_label_chunk_count=coarse_provision_label_chunk_count,
+        adjacent_body_overlap_chunk_count=adjacent_body_overlap_chunk_count,
+        generated_at_release_time_count=generated_at_release_time_count,
         failed_document_ids=tuple(sorted(failed_document_ids)),
     )
 
@@ -393,8 +496,110 @@ def _build_document_report(
     short_body_chunk_count = sum(
         1
         for chunk in chunks
-        if str(chunk.metadata.get("content_role") or "").strip() != "scoped_rule_title"
+        if not is_regulation_title_role(chunk.metadata.get("content_role"))
         and int(chunk.metadata.get("final_token_count") or 0) < _SHORT_BODY_TOKEN_THRESHOLD
+    )
+    heading_only_body_chunk_count = sum(
+        1
+        for chunk in chunks
+        if is_regulation_body_role(chunk.metadata.get("content_role"))
+        and looks_like_structural_heading(str(chunk.metadata.get("display_text") or ""))
+    )
+    section_path_body_text_chunk_count = sum(
+        1
+        for chunk in chunks
+        if is_regulation_body_role(chunk.metadata.get("content_role"))
+        and section_path_contains_body_text(
+            section_path=_resolve_chunk_section_path(chunk),
+            display_text=str(chunk.metadata.get("display_text") or ""),
+        )
+    )
+    html_tag_chunk_count = sum(1 for chunk in chunks if contains_html_tag(chunk.text))
+    form_tail_marker_chunk_count = sum(
+        1 for chunk in chunks if contains_form_tail_marker(chunk.text)
+    )
+    body_like_section_path_chunk_count = sum(
+        1
+        for chunk in chunks
+        if is_regulation_body_role(chunk.metadata.get("content_role"))
+        and section_path_contains_body_like_item(_resolve_chunk_section_path(chunk))
+    )
+    deep_section_path_chunk_count = sum(
+        1
+        for chunk in chunks
+        if is_regulation_body_role(chunk.metadata.get("content_role"))
+        and section_path_depth_exceeds(
+            _resolve_chunk_section_path(chunk),
+            max_depth=_MAX_SECTION_PATH_DEPTH,
+        )
+    )
+    long_section_path_segment_chunk_count = sum(
+        1
+        for chunk in chunks
+        if is_regulation_body_role(chunk.metadata.get("content_role"))
+        and section_path_has_long_segment(
+            _resolve_chunk_section_path(chunk),
+            max_chars=_MAX_SECTION_PATH_SEGMENT_CHARS,
+        )
+    )
+    publication_imprint_chunk_count = sum(
+        1 for chunk in chunks if contains_publication_imprint(chunk.text)
+    )
+    header_body_duplicate_chunk_count = sum(
+        1
+        for chunk in chunks
+        if is_regulation_body_role(chunk.metadata.get("content_role"))
+        and header_duplicates_display_text(
+            chunk_text=chunk.text,
+            display_text=str(chunk.metadata.get("display_text") or ""),
+        )
+    )
+    title_duplicate_chunk_count = sum(
+        1
+        for chunk in chunks
+        if is_regulation_title_role(chunk.metadata.get("content_role"))
+        and title_text_is_duplicated(
+            chunk_text=chunk.text,
+            display_text=str(chunk.metadata.get("display_text") or ""),
+        )
+    )
+    header_dominant_chunk_count = sum(
+        1
+        for chunk in chunks
+        if header_dominance_is_blocking_quality_gap(
+            metadata=chunk.metadata,
+            threshold=0.75,
+        )
+    )
+    fabricated_page_anchor_chunk_count = sum(
+        1 for chunk in chunks if page_anchor_is_fabricated(chunk.anchor, chunk.metadata)
+    )
+    coarse_token_guardrail_chunk_count = sum(
+        1
+        for chunk in chunks
+        if is_regulation_body_role(chunk.metadata.get("content_role"))
+        and token_guardrail_indicates_coarse_unit(chunk.metadata)
+    )
+    coarse_provision_label_chunk_count = sum(
+        1
+        for chunk in chunks
+        if is_regulation_body_role(chunk.metadata.get("content_role"))
+        and chunk_has_coarse_provision_label(chunk.metadata)
+    )
+    body_chunks = [
+        chunk for chunk in chunks if is_regulation_body_role(chunk.metadata.get("content_role"))
+    ]
+    adjacent_body_overlap_chunk_count = sum(
+        1
+        for left, right in pairwise(body_chunks)
+        if adjacent_chunks_have_meaningful_overlap(left.metadata, right.metadata)
+    )
+    generated_at_release_time_count = (
+        1
+        if source_notice_release_time_is_generated_at(
+            first_metadata.get("source_notice_release_time")
+        )
+        else 0
     )
     issues: list[str] = []
     if not chunks:
@@ -413,6 +618,38 @@ def _build_document_report(
         issues.append("wrapper_notice_leak")
     if front_matter_leak_chunk_count:
         issues.append("front_matter_leak")
+    if heading_only_body_chunk_count:
+        issues.append("heading_only_body_chunk")
+    if section_path_body_text_chunk_count:
+        issues.append("section_path_body_text")
+    if html_tag_chunk_count:
+        issues.append("html_tag_residue")
+    if form_tail_marker_chunk_count:
+        issues.append("form_tail_marker_residue")
+    if body_like_section_path_chunk_count:
+        issues.append("body_like_section_path")
+    if deep_section_path_chunk_count:
+        issues.append("deep_section_path")
+    if long_section_path_segment_chunk_count:
+        issues.append("long_section_path_segment")
+    if publication_imprint_chunk_count:
+        issues.append("publication_imprint_residue")
+    if header_body_duplicate_chunk_count:
+        issues.append("header_body_duplicate")
+    if title_duplicate_chunk_count:
+        issues.append("title_duplicate")
+    if header_dominant_chunk_count:
+        issues.append("header_dominant")
+    if fabricated_page_anchor_chunk_count:
+        issues.append("fabricated_page_anchor")
+    if coarse_token_guardrail_chunk_count:
+        issues.append("coarse_token_guardrail")
+    if coarse_provision_label_chunk_count:
+        issues.append("coarse_provision_label")
+    if adjacent_body_overlap_chunk_count:
+        issues.append("adjacent_body_overlap")
+    if generated_at_release_time_count:
+        issues.append("generated_at_release_time")
     passed = not any(
         issue
         in {
@@ -424,6 +661,22 @@ def _build_document_report(
             "missing_school_unit_name",
             "wrapper_notice_leak",
             "front_matter_leak",
+            "heading_only_body_chunk",
+            "section_path_body_text",
+            "html_tag_residue",
+            "form_tail_marker_residue",
+            "body_like_section_path",
+            "deep_section_path",
+            "long_section_path_segment",
+            "publication_imprint_residue",
+            "header_body_duplicate",
+            "title_duplicate",
+            "header_dominant",
+            "fabricated_page_anchor",
+            "coarse_token_guardrail",
+            "coarse_provision_label",
+            "adjacent_body_overlap",
+            "generated_at_release_time",
         }
         for issue in issues
     )
@@ -446,6 +699,22 @@ def _build_document_report(
         wrapper_notice_leak_chunk_count=wrapper_notice_leak_chunk_count,
         front_matter_leak_chunk_count=front_matter_leak_chunk_count,
         short_body_chunk_count=short_body_chunk_count,
+        heading_only_body_chunk_count=heading_only_body_chunk_count,
+        section_path_body_text_chunk_count=section_path_body_text_chunk_count,
+        html_tag_chunk_count=html_tag_chunk_count,
+        form_tail_marker_chunk_count=form_tail_marker_chunk_count,
+        body_like_section_path_chunk_count=body_like_section_path_chunk_count,
+        deep_section_path_chunk_count=deep_section_path_chunk_count,
+        long_section_path_segment_chunk_count=long_section_path_segment_chunk_count,
+        publication_imprint_chunk_count=publication_imprint_chunk_count,
+        header_body_duplicate_chunk_count=header_body_duplicate_chunk_count,
+        title_duplicate_chunk_count=title_duplicate_chunk_count,
+        header_dominant_chunk_count=header_dominant_chunk_count,
+        fabricated_page_anchor_chunk_count=fabricated_page_anchor_chunk_count,
+        coarse_token_guardrail_chunk_count=coarse_token_guardrail_chunk_count,
+        coarse_provision_label_chunk_count=coarse_provision_label_chunk_count,
+        adjacent_body_overlap_chunk_count=adjacent_body_overlap_chunk_count,
+        generated_at_release_time_count=generated_at_release_time_count,
         passed=passed,
         issues=tuple(issues),
         document_units_path=str(document_units_path.relative_to(relative_root)),
@@ -481,6 +750,16 @@ def _resolve_title(rows: Sequence[dict[str, Any]]) -> str:
 def _contains_marker(text: str, markers: Sequence[str]) -> bool:
     normalized = text.strip()
     return any(marker in normalized for marker in markers)
+
+
+def _resolve_chunk_section_path(chunk: IndexableChunk) -> tuple[object, ...]:
+    anchor_path = chunk.anchor.get("section_path")
+    if isinstance(anchor_path, list):
+        return tuple(anchor_path)
+    metadata_path = chunk.metadata.get("section_path")
+    if isinstance(metadata_path, list):
+        return tuple(metadata_path)
+    return ()
 
 
 def _is_missing_metadata_field(value: object) -> bool:

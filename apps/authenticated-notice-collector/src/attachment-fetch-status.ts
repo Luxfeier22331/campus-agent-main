@@ -10,10 +10,12 @@ export interface AttachmentFetchStatusLookupInput {
 
 export interface TerminalUnavailableAttachmentFetchStatus {
 	fetchStatus: "terminal_unavailable";
-	terminalReason: string;
+	terminalReason: TerminalUnavailableAttachmentReason;
 	lastHttpStatus: number | null;
 	lastError: string | null;
 }
+
+export type TerminalUnavailableAttachmentReason = "http_404" | "http_410" | "portal_file_missing";
 
 export interface AuthenticatedNoticeAttachmentFetchStatusStore {
 	getTerminalUnavailable(
@@ -62,7 +64,7 @@ export function createPostgresAttachmentFetchStatusStore(input: {
 			if (!record || typeof record !== "object") {
 				return null;
 			}
-			const terminalReason = normalizeOptionalText(record.terminal_reason);
+			const terminalReason = normalizeTerminalReason(record.terminal_reason);
 			if (!terminalReason) {
 				return null;
 			}
@@ -100,6 +102,18 @@ function normalizeOptionalText(value: unknown): string | null {
 	}
 	const text = String(value).trim();
 	return text || null;
+}
+
+function normalizeTerminalReason(value: unknown): TerminalUnavailableAttachmentReason | null {
+	const normalized = normalizeOptionalText(value);
+	if (
+		normalized === "http_404" ||
+		normalized === "http_410" ||
+		normalized === "portal_file_missing"
+	) {
+		return normalized;
+	}
+	return null;
 }
 
 function normalizeOptionalNumber(value: unknown): number | null {

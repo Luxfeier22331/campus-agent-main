@@ -47,6 +47,8 @@ func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Reque
 		Telemetry: observability.TelemetrySnapshot{
 			Enabled:            telemetryStatus.Enabled,
 			ExporterConfigured: telemetryStatus.ExporterConfigured,
+			MetricsEnabled:     telemetryStatus.MetricsEnabled,
+			MetricsConfigured:  telemetryStatus.MetricsExporterConfigured,
 			ExportedCount:      telemetryStatus.ExportedCount,
 			DroppedCount:       telemetryStatus.DroppedCount,
 			FailedCount:        telemetryStatus.FailedCount,
@@ -54,19 +56,11 @@ func (s *Server) handleMetrics(response http.ResponseWriter, request *http.Reque
 			LastError:          telemetryStatus.LastError,
 		},
 		ExecutionAudit: observability.ExecutionAuditSnapshot{
-			BatchSize:         executionAuditStatus.BatchSize,
-			Configured:        executionAuditStatus.Configured,
-			DroppedCount:      executionAuditStatus.DroppedCount,
-			EmittedCount:      executionAuditStatus.EmittedCount,
-			Enabled:           executionAuditStatus.Enabled,
-			FailedCount:       executionAuditStatus.FailedCount,
-			LastError:         executionAuditStatus.LastError,
-			QueueDepth:        executionAuditStatus.QueueDepth,
-			RetriedCount:      executionAuditStatus.RetriedCount,
-			SpooledCount:      executionAuditStatus.SpooledCount,
-			SpoolDrainedCount: executionAuditStatus.SpoolDrainedCount,
-			SpoolDroppedCount: executionAuditStatus.SpoolDroppedCount,
-			SpoolEnabled:      executionAuditStatus.SpoolEnabled,
+			Configured:   executionAuditStatus.Configured,
+			EmittedCount: executionAuditStatus.EmittedCount,
+			Enabled:      executionAuditStatus.Enabled,
+			FailedCount:  executionAuditStatus.FailedCount,
+			LastError:    executionAuditStatus.LastError,
 		},
 	}))
 }

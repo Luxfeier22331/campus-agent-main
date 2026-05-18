@@ -8,6 +8,8 @@ build/
 .env.*
 !.env.example
 !.env.local-minimal.example
+env/commands/*.env
+env/commands/historical/*.env
 .dev.vars
 .dev.vars.*
 !.dev.vars.example
@@ -63,6 +65,8 @@ tmp-*.webp
 # Local runtime and scratch artifacts
 apps/authenticated-notice-collector/runtime/
 artifacts/
+!apps/public-chat-web/vendor/vercel-ai-chatbot/artifacts/
+!apps/public-chat-web/vendor/vercel-ai-chatbot/artifacts/**
 tmp/
 docs-*.png
 rspress-*.png

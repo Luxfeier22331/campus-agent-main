@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-11
-updated: 2026-04-28
+updated: 2026-05-01
 ---
 # Internal Notice Regulation Promotion Runbook
 
@@ -66,6 +66,9 @@ operator 目标：
 
 - 先确认 `promote_candidate / hold_in_internal_notice /
   requires_multimodal_processing / no_adoption` 分布
+- 对 regulation admission preview，`historical_annual_cycle_rule_hold` 与
+  `historical_time_window_rule_hold` 都是 stop condition，不得继续 formal
+  import
 - 再确认 candidate 真的是独立 regulation owner body
 
 固定 operator 规则：
@@ -73,6 +76,42 @@ operator 目标：
 - title-signal 高于 body citation / body heading
 - section heading 不得被当成 regulation title 证据
 - 当前 materialization 只对已接受 candidate 执行，不对未审 current scope 全量推进
+
+## Step 1A: Batch Admission Audit For Collected Notices
+
+当 selected cohort 来自 collected notice bundle，必须先用 batch audit 固化每条 notice
+的 admission 结果，再决定是否进入 target materialization：
+
+```bash
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.audit_collected_notice_regulation_admission_batch \
+  --selection-json /tmp/selection.json \
+  --bundle-json /tmp/notices-bundle.json \
+  --output-dir /tmp/collected-notice-regulation-admission-audit \
+  --generated-at 2026-05-01T00:00:00+08:00 \
+  --expect 186977:historical_annual_cycle_rule_hold:search_only \
+  --expect 191176:historical_time_window_rule_hold:search_only
+```
+
+可选参数：
+
+- `--allow-missing` 只允许在 audit 输入 bundle 不完整、且 operator 明确接受 coverage
+  缺口时使用；默认 missing selected notice 是 fail-closed
+- `--expect <notice_id>:<regulation_admission_class>:<consumption_class>` 用于锁定已知
+  样本预期
+
+输出：
+
+- `summary.json`
+- `admission-manifest.json`
+- `coverage.json`
+
+固定 operator 规则：
+
+- `historical_annual_cycle_rule_hold` 与 `historical_time_window_rule_hold`
+  固定是 search-only，不进入 `regulations/*`
+- expectation mismatch 必须 fail closed，不允许继续 formal import
+- audit summary 是 admission evidence，不是 target materialization，也不写入 source truth
 
 ## Step 2: Optional Targeted Source Projection Rebuild
 
@@ -157,6 +196,13 @@ uv run --package campus-ingestion-worker python -m \
 当前固定行为：
 
 - 只消费 `promote_candidate`
+- `policy_regulation` 只是 source triage signal，不是 target promotion
+  eligibility
+- 明显历史年度周期规则或已过期时间窗口规则必须 hold in
+  `campus_notices/internal_notice`，例如
+  `药学院2021年硕博连读博士研究生招生实施细则` 与
+  `生命与环境科学学院关于2021年暑假期间实验室安全管理规定` 应保留为
+  notice-level query，不发布到 `regulations/scoped_rules`
 - target `document_id` 不从 `notice_id` 派生
 - duplicate candidate 合并为一个 canonical target document
 - target scope 使用 scope refresh
@@ -195,6 +241,9 @@ operator 规则：
 - `--object-store-root` 不得直接指向长期 source snapshot 输出根
 - local-only dry-run 必须使用隔离 target 输出目录
 - admission manifest 使用 `target_surface=regulations/*`
+- dry-run 必须证明 selected notice 通过 applicability gate；如果输出
+  `historical_annual_cycle_rule_hold` 或 `historical_time_window_rule_hold`，该
+  notice 不得继续进入 formal import
 - generated target records 可以同时覆盖 `regulations/institutional_rules` 与
   `regulations/scoped_rules`
 - 输出 document reader assets 只作为 dry-run artifact，不表示 public docs deploy、
@@ -271,6 +320,62 @@ pnpm --dir apps/app-api docs:import-read-model
 
 这一步只开放 document storage / document reader control plane，不开放
 RAG release 或 regulation query-serving collection。
+
+## Step 6A: Exact Target-Side Residue Cleanup
+
+当历史误流程已经把 held notice 写入 regulation target side，必须用 exact target identity
+清理残留；不得清理 source truth、`campus_notices/internal_notice`、`.planning/quick` 或无关
+target rows/objects/points。
+
+dry-run 默认只备份与审计：
+
+```bash
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.cleanup_internal_notice_regulation_target_residue \
+  --notice-id 186977 \
+  --title 药学院2021年硕博连读博士研究生招生实施细则 \
+  --collection scoped_rules \
+  --document-id \
+    institutional_regulation:muc:药学院2021年硕博连读博士研究生招生实施细则:b398c5cfe7e3 \
+  --version-id sha256:<target-version> \
+  --target-key \
+    regulations/documents/scoped_rules/<exact-target-key>/canonical.md \
+  --qdrant-collection scoped_rules__r20260501 \
+  --target-surface regulations/scoped_rules \
+  --output-dir /tmp/notice-186977-target-residue-cleanup
+```
+
+确认 `postgres-row-backup.json`、object backups 与 dry-run manifest 后，才允许追加
+`--apply`：
+
+```bash
+uv run --package campus-ingestion-worker python -m \
+  campus_ingestion_worker.cleanup_internal_notice_regulation_target_residue \
+  --notice-id 186977 \
+  --title 药学院2021年硕博连读博士研究生招生实施细则 \
+  --collection scoped_rules \
+  --document-id \
+    institutional_regulation:muc:药学院2021年硕博连读博士研究生招生实施细则:b398c5cfe7e3 \
+  --version-id sha256:<target-version> \
+  --target-key \
+    regulations/documents/scoped_rules/<exact-target-key>/canonical.md \
+  --qdrant-collection scoped_rules__r20260501 \
+  --target-surface regulations/scoped_rules \
+  --output-dir /tmp/notice-186977-target-residue-cleanup \
+  --apply
+```
+
+固定要求：
+
+- Postgres delete 只按 `collection/document_id/version_id` exact match
+- object store delete 只删显式 `--target-key`
+- Qdrant delete 只删 `document_id/version_id` 粗筛后匹配
+  `source_notice_ids|notice_id` 与 `target_surface` 的 points
+- cleanup manifest 必须记录
+  `postgres_exact_remaining`、`object_store_exact_keys_remaining` 与
+  `qdrant_residue_count`
+- app-api / protected panel 只显示 compact audit/cleanup counts 和 run ids，不暴露
+  bucket、object key、backup path 或 raw operations path
 
 ## Step 7: Repo-Local Materialization Snapshot Mode
 

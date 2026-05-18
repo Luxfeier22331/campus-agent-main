@@ -97,6 +97,7 @@
 			"schema_version": "workflow-plan-v1",
 			"plan_id": "plan:single_handoff:rag-agent:rag_request",
 			"workflow_mode": "single_handoff",
+			"allowed_agents": ["rag-agent"],
 			"steps": [
 				{
 					"step_id": "handoff:rag-agent:rag_request",
@@ -156,6 +157,15 @@
 							"policy_projection_version": "phase1-authorization-projection-v1"
 						}
 					}
+				},
+				"workflow_context": {
+					"schema_version": "workflow-agent-context-v1",
+					"visibility": "agent_private",
+					"workflow_run_ref": "workflow:req-contract-001",
+					"step_id": "handoff:rag-agent:rag_request",
+					"agent_id": "rag-agent",
+					"expected_output_artifacts": ["evidence_bundle", "grounding_verdict"],
+					"projection_refs": []
 				},
 				"payload": {
 					"kind": "rag_request",

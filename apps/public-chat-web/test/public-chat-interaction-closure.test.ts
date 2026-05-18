@@ -1,8 +1,5 @@
 import { describe, expect, it, vi } from "vitest";
-import recoveryFormSource from "../src/login/recovery-form.tsx?raw";
-import turnstileSource from "../src/platform/auth/turnstile.tsx?raw";
 import activeChatSource from "../src/platform/chat/use-active-chat.tsx?raw";
-import authFormSource from "../src/platform/vendor-compat/components/chat/auth-form.tsx?raw";
 import promptInputSource from "../vendor/vercel-ai-chatbot/components/ai-elements/prompt-input.tsx?raw";
 import appSidebarSource from "../vendor/vercel-ai-chatbot/components/chat/app-sidebar.tsx?raw";
 import messageSource from "../vendor/vercel-ai-chatbot/components/chat/message.tsx?raw";
@@ -125,12 +122,10 @@ describe("public chat interaction closure", () => {
 		expect(activeChatSource).not.toContain("const previousMessages = messages;");
 	});
 
-	it("resets stale Turnstile tokens before a fresh manual submit", () => {
-		expect(turnstileSource).toContain("resetToken");
-		expect(turnstileSource).toContain("challengeRequestId");
-		expect(turnstileSource).toContain("window.turnstile.reset");
-		expect(authFormSource).toContain("resetToken");
-		expect(recoveryFormSource).toContain("resetToken");
+	it("kicks unauthorized users to the login compatibility route with a full document redirect", () => {
+		expect(activeChatSource).toContain("redirectToLoginCompat");
+		expect(activeChatSource).toContain("window.location.assign");
+		expect(activeChatSource).toContain('buildPublicChatAuthCompatPath("login"');
 	});
 
 	it("keeps donor vote closed while exposing app-api answer feedback controls", () => {

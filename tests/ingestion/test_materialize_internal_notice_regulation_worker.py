@@ -28,6 +28,8 @@ class MaterializeInternalNoticeRegulationWorkerCliTest(unittest.TestCase):
             ),
             raw_asset_id="asset:internal-notice-regulation-promotion",
             raw_version_id="sha256:test-promotion-run",
+            rag_release_candidate_created_count=1,
+            rag_release_candidate_ids=("candidate-001",),
         )
 
         with (
@@ -64,6 +66,8 @@ class MaterializeInternalNoticeRegulationWorkerCliTest(unittest.TestCase):
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["promotion_candidate_count"], 2)
         self.assertEqual(payload["raw_asset_id"], "asset:internal-notice-regulation-promotion")
+        self.assertEqual(payload["rag_release_candidate_created_count"], 1)
+        self.assertEqual(payload["rag_release_candidate_ids"], ["candidate-001"])
 
 
 if __name__ == "__main__":

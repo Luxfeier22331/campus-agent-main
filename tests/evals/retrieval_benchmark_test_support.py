@@ -86,6 +86,13 @@ INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH = (
     / "fixtures"
     / "institutional_rules_retrieval_qrels.json"
 )
+INSTITUTIONAL_RULES_GOLDEN_QRELS_FIXTURE_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "evals"
+    / "fixtures"
+    / "institutional_rules_golden_retrieval_qrels.v1.json"
+)
 OFFICIAL_WEB_FRESH_NEWS_QRELS_FIXTURE_PATH = (
     Path(__file__).resolve().parents[2]
     / "packages"
@@ -181,6 +188,7 @@ __all__ = (
     "FIXTURE_PATH",
     "HANDBOOK_MANIFEST_PATH",
     "HYBRID_FIXTURE_PATH",
+    "INSTITUTIONAL_RULES_GOLDEN_QRELS_FIXTURE_PATH",
     "INSTITUTIONAL_RULES_QRELS_FIXTURE_PATH",
     "INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH",
     "OFFICIAL_WEB_FRESH_NEWS_MANIFEST_PATH",

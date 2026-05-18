@@ -17,8 +17,6 @@ export type {
 	ChatPlacePointGeometry,
 	ChatSessionSlot,
 	ChatSourceAction,
-	ChatSourceCard,
-	ChatSourceCardsStructuredPart,
 	ChatSourceItem,
 	ChatSourceItemsStructuredPart,
 	ChatSourceKind,

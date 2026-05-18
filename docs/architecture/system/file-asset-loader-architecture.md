@@ -139,7 +139,7 @@ canonical 处理方式固定为：
 当前 accepted backend posture：
 
 - `MinerU` 是复杂 PDF 主候选 lane
-- `Paddle` 是 PDF salvage / fallback lane，不是 PDF 默认总主路由
+- `Paddle` 是 PDF salvage / secondary lane，不是 PDF 默认总主路由
 
 ### Image
 

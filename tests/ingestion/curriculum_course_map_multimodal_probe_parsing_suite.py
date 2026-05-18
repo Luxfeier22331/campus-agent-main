@@ -73,6 +73,83 @@ class CurriculumCourseMapMultimodalProbeParsingTest(unittest.TestCase):
 
         self.assertTrue(_is_retryable_probe_exception(exc))
 
+    def test_multimodal_request_rejects_legacy_llm_api_key_alias(self) -> None:
+        async def record_attempt(_attempt: object) -> None:
+            return None
+
+        async def run_request() -> None:
+            async with httpx.AsyncClient(
+                base_url="https://example.invalid",
+                transport=httpx.MockTransport(lambda _request: httpx.Response(200, json={})),
+            ) as http_client:
+                await _probe_module._request_structured_multimodal_payload_async(
+                    transport="responses",
+                    source={
+                        "LLM_API_KEY": "legacy-key",
+                        "PROMPT_RUNTIME_MODEL": "gpt-test",
+                    },
+                    path_label="detector",
+                    schema={},
+                    system_prompt="system",
+                    user_content=[],
+                    rendered_sample=_rendered_sample(),
+                    http_client=http_client,
+                    max_request_attempts=1,
+                    on_attempt=record_attempt,
+                    run_index=1,
+                    map_index=None,
+                )
+
+        with self.assertRaisesRegex(ValueError, "PROMPT_RUNTIME_API_KEY is required"):
+            asyncio.run(run_request())
+
+    def test_probe_runtime_base_url_rejects_legacy_llm_base_url_alias(self) -> None:
+        self.assertEqual(
+            _resolve_base_url({"LLM_BASE_URL": "https://legacy.example/v1"}),
+            "https://api.openai.com/v1",
+        )
+
+    def test_projection_extractor_runtime_rejects_legacy_llm_base_url_alias(self) -> None:
+        from campus_ingestion_core.handbook_service_navigation_projection_support import (
+            _resolve_projection_extractor_runtime,
+        )
+
+        runtime = _resolve_projection_extractor_runtime(
+            {"LLM_BASE_URL": "https://legacy.example/v1", "PROMPT_RUNTIME_MODEL": "gpt-test"}
+        )
+
+        self.assertEqual(runtime["base_url"], "https://api.openai.com/v1")
+
+    def test_request_uses_explicit_prompt_runtime_api_key(self) -> None:
+        async def record_attempt(_attempt: object) -> None:
+            return None
+
+        async def run_request() -> None:
+            async with httpx.AsyncClient(
+                base_url="https://example.invalid",
+                transport=httpx.MockTransport(lambda _request: httpx.Response(200, json={})),
+            ) as http_client:
+                with self.assertRaisesRegex(ValueError, "parsed payload must be a JSON object"):
+                    await _probe_module._request_structured_multimodal_payload_async(
+                        transport="responses",
+                        source={
+                            "PROMPT_RUNTIME_API_KEY": "test-key",
+                            "PROMPT_RUNTIME_MODEL": "gpt-test",
+                        },
+                        path_label="detector",
+                        schema={},
+                        system_prompt="system",
+                        user_content=[],
+                        rendered_sample=_rendered_sample(),
+                        http_client=http_client,
+                        max_request_attempts=1,
+                        on_attempt=record_attempt,
+                        run_index=1,
+                        map_index=None,
+                    )
+
+            asyncio.run(run_request())
+
     def test_extract_chat_completions_output_parsed_reads_string_message(self) -> None:
         payload = {
             "choices": [
@@ -281,3 +358,19 @@ class CurriculumCourseMapMultimodalProbeParsingTest(unittest.TestCase):
             "ambiguous duplicate-label edge source endpoint",
             " ".join(finding.manual_review_notes),
         )
+
+
+def _rendered_sample() -> CurriculumCourseMapRenderedSample:
+    return CurriculumCourseMapRenderedSample(
+        sample_id="course-map-p001",
+        page_number=1,
+        document_id="curriculum:test",
+        document_title="测试培养方案",
+        row_id="row-1",
+        parent_heading_hint="课程结构图",
+        provider_bbox=(0.0, 0.0, 100.0, 100.0),
+        provider_canvas=(100.0, 100.0),
+        pdf_bbox=(0.0, 0.0, 100.0, 100.0),
+        full_page_png=b"full",
+        crop_png=b"crop",
+    )

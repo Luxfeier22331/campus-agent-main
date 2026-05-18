@@ -239,6 +239,102 @@ class CurriculumChunkingRuntimeProjectionTest(unittest.TestCase):
         self.assertIn("五、课程设置和修读建议", target_chunk.text)
         self.assertIn("(二)专业教育", target_chunk.text)
 
+    def test_runtime_v2_preserves_table_segment_metadata_when_absorbing_heading_context(
+        self,
+    ) -> None:
+        record = _make_curriculum_record()
+        table_cells = [
+            {"row": 1, "col": 1, "text": "一级指标", "is_header": True},
+            {"row": 1, "col": 2, "text": "二级指标", "is_header": True},
+            {"row": 1, "col": 3, "text": "三级指标", "is_header": True},
+        ]
+        for row_index in range(2, 12):
+            table_cells.extend(
+                [
+                    {
+                        "row": row_index,
+                        "col": 1,
+                        "text": f"知识目标 {row_index - 1}",
+                    },
+                    {
+                        "row": row_index,
+                        "col": 2,
+                        "text": f"{row_index - 1}-1 学科基础知识",
+                    },
+                    {
+                        "row": row_index,
+                        "col": 3,
+                        "text": (
+                            "掌握公共管理学科知识体系和分析方法，能够结合管理实践理解复杂公共问题。"
+                            f"指标序号 {row_index - 1}。"
+                        ),
+                    },
+                ]
+            )
+        structured_payload = "\n".join(
+            [
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0315-block-0010",
+                        "row_id": "page-0315-block-0010",
+                        "row_type": "heading",
+                        "heading_level": 2,
+                        "clean_text": "二、毕业要求",
+                        "page_start": 315,
+                        "page_end": 315,
+                    },
+                    ensure_ascii=False,
+                ),
+                json.dumps(
+                    {
+                        "doc_id": record.document_id,
+                        "version_id": record.version_id,
+                        "chunk_id": "page-0315-block-0011",
+                        "row_id": "page-0315-block-0011",
+                        "row_type": "table",
+                        "clean_text": "<table></table>",
+                        "html": "<table></table>",
+                        "table_cells": table_cells,
+                        "page_start": 315,
+                        "page_end": 316,
+                        "continuation_group_id": "page-0315-block-0011",
+                    },
+                    ensure_ascii=False,
+                ),
+            ]
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=96,
+                max_chunk_size=128,
+                chunk_overlap=16,
+                min_chunk_size=24,
+                chunk_policy_version="curriculum_plan_semantic_v1",
+                cleaning_policy_version="curriculum_plan_cleaning_v1",
+            ),
+        )
+
+        target_chunk = next(
+            chunk
+            for chunk in chunks
+            if chunk.metadata["unit_type"] == "table_unit"
+            and chunk.metadata.get("aggregation_mode")
+            == "adjacent_curriculum_section_table_context"
+            and "一级指标 | 二级指标 | 三级指标" in chunk.text
+        )
+
+        self.assertEqual(target_chunk.metadata["segment_index"], 1)
+        self.assertGreater(target_chunk.metadata["member_segment_lineage"][-1]["segment_total"], 1)
+        self.assertEqual(
+            target_chunk.metadata["segment_total"],
+            target_chunk.metadata["member_segment_lineage"][-1]["segment_total"],
+        )
+
     def test_runtime_v2_does_not_bleed_previous_section_into_degree_section_for_historical_curriculum(
         self,
     ) -> None:

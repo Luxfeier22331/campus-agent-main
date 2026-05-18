@@ -17,6 +17,7 @@ class EvalOperationsGovernanceTest(unittest.TestCase):
         self.assertTrue(EVAL_OPERATIONS_PROFILE_POLICY_PATH.exists())
         self.assertEqual(policy.schema_version, 1)
         self.assertIn("public_chat_product_path", policy.profiles)
+        self.assertNotIn("official_web_fresh_news", policy.profiles)
         profile = policy.profiles["public_chat_product_path"]
         self.assertGreater(profile.budget.max_cases_per_run, 0)
         self.assertGreater(profile.runtime_timeout_seconds, 0)

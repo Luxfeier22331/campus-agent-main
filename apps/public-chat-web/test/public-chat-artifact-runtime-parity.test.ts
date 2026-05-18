@@ -22,16 +22,18 @@ describe("public chat artifact runtime parity", () => {
 		expect(dataStreamHandlerSource).not.toContain("normalizeSuggestion");
 	});
 
-	it("keeps inline document preview on donor direct editor imports", () => {
-		expect(documentPreviewSource).toContain('import { CodeEditor } from "./code-editor"');
-		expect(documentPreviewSource).toContain('import { ImageEditor } from "./image-editor"');
-		expect(documentPreviewSource).toContain('import { SpreadsheetEditor } from "./sheet-editor"');
-		expect(documentPreviewSource).toContain('import { Editor } from "./text-editor"');
-		expect(documentPreviewSource).not.toContain("LazyCodeEditor");
-		expect(documentPreviewSource).not.toContain("LazyImageEditor");
-		expect(documentPreviewSource).not.toContain("LazySpreadsheetEditor");
-		expect(documentPreviewSource).not.toContain("LazyTextEditor");
-		expect(documentPreviewSource).not.toContain("<Suspense");
+	it("keeps inline document preview on donor editors while loading heavy editor runtimes lazily", () => {
+		expect(documentPreviewSource).not.toContain('import { CodeEditor } from "./code-editor"');
+		expect(documentPreviewSource).not.toContain('import { ImageEditor } from "./image-editor"');
+		expect(documentPreviewSource).not.toContain(
+			'import { SpreadsheetEditor } from "./sheet-editor"',
+		);
+		expect(documentPreviewSource).not.toContain('import { Editor } from "./text-editor"');
+		expect(documentPreviewSource).toContain("LazyCodePreviewEditor");
+		expect(documentPreviewSource).toContain("LazyImagePreviewEditor");
+		expect(documentPreviewSource).toContain("LazySpreadsheetPreviewEditor");
+		expect(documentPreviewSource).toContain("LazyTextPreviewEditor");
+		expect(documentPreviewSource).toContain("<Suspense");
 	});
 
 	it("keeps the text editor on donor static runtime imports", () => {

@@ -89,6 +89,7 @@ type RuntimeHandoff struct {
 	Payload                map[string]any
 	AllowedTools           []string
 	RequiredProjectionKind string
+	ExpectedArtifacts      []string
 }
 
 type actorContext struct {
@@ -138,9 +139,10 @@ type sessionSlot struct {
 }
 
 type selectedNoticeRef struct {
-	NoticeID     string
-	SourceFamily string
-	Title        string
+	NoticeID      string
+	SourceFamily  string
+	Title         string
+	TargetSurface string
 }
 
 type contextProjection struct {
@@ -419,6 +421,9 @@ func validateCapabilityEnvelope(
 		return nil
 	}
 	if hasRequestedScope {
+		if requestedCapability == "campus_services" {
+			return nil
+		}
 		if requestedCapability == "place_lookup" {
 			return fmt.Errorf("requested_scope is not allowed for place_lookup requests")
 		}

@@ -69,6 +69,8 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
             )
 
         self.assertEqual(report["errors"], [])
+        self.assertEqual(report["selected_notice_ids"], [])
+        self.assertNotIn("selected_notices", report)
         entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
         self.assertEqual(len(entries), 1)
         entry = entries[0]
@@ -282,6 +284,11 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
 
         self.assertEqual(first_report["errors"], [])
         self.assertEqual(selected_report["errors"], [])
+        self.assertEqual(selected_report["selected_notice_ids"], ["355120"])
+        self.assertEqual(
+            selected_report["selected_notices"],
+            [{"notice_id": "355120", "title": "第二条历史通知"}],
+        )
         self.assertEqual(
             tuple(
                 entry.notice_id
@@ -453,6 +460,71 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
             notice_ids=("355119",),
         )
         self.assertIn(NOTICE_PRIMARY_ROLE_NOTICE_WINDOW, {entry.primary_role for entry in entries})
+
+    def test_import_authenticated_notice_export_reports_ready_typed_materialization_candidates(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            consumer_manifest_path = root / "consumer-admission-manifest.json"
+            bundle = _sample_notice_bundle_with_id(
+                355867,
+                title="关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
+                content=(
+                    "<h1>关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知</h1>"
+                    "<p>根据学校近期相关安排，现将4月27日-5月5日期间两校区班车及地铁接驳车运营安排通知如下。</p>"
+                    "<p>一、4月27日两校区班车安排。</p>"
+                    "<p>二、4月28日-5月5日两校区班车及地铁接驳车安排。</p>"
+                ),
+            )
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+            _write_consumer_manifest(
+                consumer_manifest_path,
+                bundle_records=bundle,
+                selection_path=str(bundle_path),
+            )
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+            projection_store = InMemoryNoticeConsumptionProjectionStore()
+            env = {
+                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                "OBJECT_STORE_SECRET_KEY": "minioadmin",
+            }
+
+            report = import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    consumer_admission_manifest_path=consumer_manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
+                    mode="admit_and_materialize",
+                ),
+                env=env,
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+                consumption_projection_store=projection_store,
+            )
+
+        self.assertEqual(report["typed_materialization_candidate_count"], 1)
+        self.assertEqual(
+            report["typed_materialization_candidate_kind_counts"],
+            {"transport_schedule": 1},
+        )
 
     def test_import_authenticated_notice_export_does_not_expand_projection_scope_to_manifest(
         self,
@@ -891,104 +963,6 @@ class AuthenticatedNoticeImportExportTest(unittest.TestCase):
         self.assertEqual(entry.multimodal_processing_required_count, 1)
         self.assertEqual(entry.ocr_required_count, 0)
         self.assertTrue(entry.has_spatial_attachment)
-
-    def test_import_authenticated_notice_export_requires_attachment_blob_root_for_blob_store_reference_batches(
-        self,
-    ) -> None:
-        attachment_bytes = b"fake-inline-image-bytes-for-routing"
-        bundle = _sample_inline_image_notice_bundle(attachment_bytes=attachment_bytes)
-
-        with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            bundle_path = root / "notices-bundle.json"
-            manifest_path = root / "export-manifest.json"
-            _write_json(bundle_path, bundle)
-            _write_json(manifest_path, _sample_normalized_blob_store_manifest())
-
-            object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(
-                backing_path=root / "registry" / "documents.json"
-            )
-            raw_asset_registry = InMemoryRawAssetRegistry(
-                backing_path=root / "registry" / "raw-assets.json"
-            )
-            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
-            env = {
-                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
-                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
-                "OBJECT_STORE_SECRET_KEY": "minioadmin",
-            }
-
-            with self.assertRaisesRegex(
-                ValueError,
-                "attachment_blob_root",
-            ):
-                import_authenticated_notice_export(
-                    request=AuthenticatedNoticeImportRequest(
-                        bundle_path=bundle_path,
-                        export_manifest_path=manifest_path,
-                        site_id="muc_internal_portal",
-                        source_home_url="https://portal.example.edu/home",
-                        allow_local_fixture_import=True,
-                        mode="admit_and_materialize",
-                    ),
-                    env=env,
-                    object_store=object_store,
-                    document_registry=document_registry,
-                    raw_asset_registry=raw_asset_registry,
-                    source_truth_inventory_store=inventory_store,
-                )
-
-    def test_import_authenticated_notice_export_allows_blob_store_reference_manifest_for_body_only_batches(
-        self,
-    ) -> None:
-        bundle = _sample_notice_bundle()
-        bundle[0]["links"] = []
-        bundle[0]["notice_attachments"] = []
-        bundle[0]["attachments"] = []
-
-        with TemporaryDirectory() as temp_dir:
-            root = Path(temp_dir)
-            bundle_path = root / "notices-bundle.json"
-            manifest_path = root / "export-manifest.json"
-            _write_json(bundle_path, bundle)
-            _write_json(manifest_path, _sample_normalized_blob_store_manifest())
-
-            object_store = _FakeObjectStore()
-            document_registry = InMemoryDocumentRegistry(
-                backing_path=root / "registry" / "documents.json"
-            )
-            raw_asset_registry = InMemoryRawAssetRegistry(
-                backing_path=root / "registry" / "raw-assets.json"
-            )
-            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
-            env = {
-                "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
-                "OBJECT_STORE_ACCESS_KEY": "minioadmin",
-                "OBJECT_STORE_SECRET_KEY": "minioadmin",
-            }
-
-            report = import_authenticated_notice_export(
-                request=AuthenticatedNoticeImportRequest(
-                    bundle_path=bundle_path,
-                    export_manifest_path=manifest_path,
-                    site_id="muc_internal_portal",
-                    source_home_url="https://portal.example.edu/home",
-                    allow_local_fixture_import=True,
-                    mode="admit_and_materialize",
-                ),
-                env=env,
-                object_store=object_store,
-                document_registry=document_registry,
-                raw_asset_registry=raw_asset_registry,
-                source_truth_inventory_store=inventory_store,
-            )
-
-        self.assertEqual(report["errors"], [])
-        self.assertNotIn("attachment_object_backfill", report)
-        entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
-        self.assertEqual(len(entries), 1)
-        self.assertEqual(entries[0].attachment_document_count, 0)
 
 
 def _write_consumer_manifest(

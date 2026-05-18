@@ -266,6 +266,7 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                 "rewritten_query": "",
                 "clarification_reason": "",
                 "no_answer_reason": "",
+                "fail_close_reason": "",
                 "semantic_outcome": "",
                 "retrieval_adequacy_verdict": "",
                 "retrieval_adequacy_reason": "",
@@ -306,8 +307,17 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                 "partial_answer": True,
                 "prompt_runtime_state": "",
                 "prompt_runtime_detail": "",
+                "answer_presentation_kind": "",
+                "answer_presentation_path": "",
+                "answer_diagnostic_reason": "",
                 "retrieval_plan_summary": None,
+                "stage_activities": (),
                 "retrieved_sources": (),
+                "planner_information_needs": (),
+                "projection_context_summaries": (),
+                "entity_resolution_summary": None,
+                "replan_decision_summary": None,
+                "claim_evidence_graph": (),
                 "prompt_trace": None,
             },
         )
@@ -331,6 +341,9 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
         self.assertIn("freshness_fail_closed", field_names)
         self.assertIn("prompt_runtime_state", field_names)
         self.assertIn("prompt_runtime_detail", field_names)
+        self.assertIn("answer_presentation_kind", field_names)
+        self.assertIn("answer_presentation_path", field_names)
+        self.assertIn("answer_diagnostic_reason", field_names)
         self.assertIn("remote_content_suspicion_summary", field_names)
         self.assertIn("source_trust_summary", field_names)
 
@@ -379,6 +392,43 @@ class ContractModelsRequestAndRetrievalSuite(unittest.TestCase):
                 source_title="法学（民族实验班）本科人才培养方案",
                 source_trust_tier="T0-derived",
             )
+
+    def test_evidence_source_serializes_semantic_selection_metadata_fields(self) -> None:
+        source = EvidenceSource(
+            doc_id="handbook:demerit-relief",
+            revision_track="source-faithful",
+            version_id="v1:demerit-relief",
+            chunk_id="handbook:demerit-relief:chunk-0003",
+            anchor={"section_path": ["解除处分"], "article_label": "第三条"},
+            canonical_url="https://campus.example/handbook/demerit-relief",
+            latest_url="https://campus.example/handbook/demerit-relief",
+            source_channel="pdf_ocr",
+            collection="student_rules",
+            is_current=True,
+            snippet="学生受处分满考察期后，可以申请解除纪律处分。",
+            score=0.91,
+            source_title="中央民族大学解除学生纪律处分实施办法",
+            content_role="procedure",
+            is_answer_bearing=True,
+            semantic_role="procedure_step",
+            polarity="positive",
+            action_type="lift_discipline",
+            claim_type="procedure",
+            audience_scope="all_students",
+            article_no="第三条",
+            clause_no="",
+            section_kind="body",
+        )
+
+        payload = asdict(source)
+
+        self.assertEqual(payload["semantic_role"], "procedure_step")
+        self.assertEqual(payload["polarity"], "positive")
+        self.assertEqual(payload["action_type"], "lift_discipline")
+        self.assertEqual(payload["claim_type"], "procedure")
+        self.assertEqual(payload["audience_scope"], "all_students")
+        self.assertEqual(payload["article_no"], "第三条")
+        self.assertEqual(payload["section_kind"], "body")
 
     def test_evidence_source_rejects_unknown_remote_content_suspicion_label(self) -> None:
         with self.assertRaises(ValueError):

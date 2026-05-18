@@ -7,76 +7,9 @@ import (
 	"io"
 	"net/http"
 	"strconv"
-	"time"
 )
 
-func (e *Emitter) run(ctx context.Context) {
-	defer e.wg.Done()
-	e.drainSpool(ctx)
-	ticker := time.NewTicker(e.flushEvery)
-	defer ticker.Stop()
-	batch := make([]Event, 0, e.batchSize)
-	flush := func() {
-		if len(batch) == 0 {
-			return
-		}
-		events := append([]Event(nil), batch...)
-		batch = batch[:0]
-		e.postBatch(events)
-	}
-	for {
-		select {
-		case <-ctx.Done():
-			flush()
-			return
-		case event, ok := <-e.queue:
-			if !ok {
-				flush()
-				return
-			}
-			batch = append(batch, event)
-			if len(batch) >= e.batchSize {
-				flush()
-			}
-		case <-ticker.C:
-			flush()
-		}
-	}
-}
-
-func (e *Emitter) postBatch(events []Event) {
-	if len(events) == 0 {
-		return
-	}
-	if err := e.postBatchWithRetry(events); err != nil {
-		e.recordFailure(err)
-		if e.spoolDir != "" {
-			e.spoolBatch(events)
-		}
-	}
-}
-
-func (e *Emitter) postBatchWithRetry(events []Event) error {
-	var lastErr error
-	attempts := e.retryAttempts
-	if attempts <= 0 {
-		attempts = 1
-	}
-	for attempt := 1; attempt <= attempts; attempt++ {
-		if attempt > 1 {
-			e.recordRetry()
-			time.Sleep(e.retryBase * time.Duration(attempt-1))
-		}
-		if err := e.postBatchOnce(events); err != nil {
-			lastErr = err
-			continue
-		}
-		return nil
-	}
-	return lastErr
-}
-
-func (e *Emitter) postBatchOnce(events []Event) error {
+func (e *Emitter) postBatchOnce(ctx context.Context, events []Event) error {
 	payloads := make([]map[string]any, 0, len(events))
 	for _, event := range events {
 		payloads = append(payloads, eventPayload(event))
@@ -88,9 +21,9 @@ func (e *Emitter) postBatchOnce(events []Event) error {
 		return err
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), e.timeout)
+	requestCtx, cancel := context.WithTimeout(ctx, e.timeout)
 	defer cancel()
-	request, err := http.NewRequestWithContext(ctx, http.MethodPost, e.endpoint, bytes.NewReader(body))
+	request, err := http.NewRequestWithContext(requestCtx, http.MethodPost, e.endpoint, bytes.NewReader(body))
 	if err != nil {
 		return err
 	}

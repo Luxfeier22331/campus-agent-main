@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-26
+updated: 2026-05-02
 ---
 # Data Plane Architecture
 
@@ -117,6 +117,65 @@ live evidence record -> query-time candidate`
 - 若后续要把 live evidence 升格为 canonical content，必须重新回到 source-truth /
   document-materialization 路径，而不是把 query-time record 原地改写成 canonical truth
 
+## Regulation Canonical Cleaning Boundary
+
+对 authenticated-notice 派生的 regulation target，清洗固定属于 ingestion data plane 的
+canonical materialization 阶段，而不是 document site publish、chunk preparation 或 RAG
+release 阶段。
+
+固定规则：
+
+- source truth / owner text 保留原始可追溯语义；清洗后的正式消费产物是 target
+  canonical markdown 与 document-units
+- materialization 必须在写入 registry 前完成 wrapper removal、page artifact removal、
+  OCR soft-wrap repair 与中文可读性标点归一，并产出 normalization quality/provenance
+- document-units metadata 必须携带 `normalizer_version`、`cleaning_policy_version`、
+  `document_units_schema_version` 与 `normalization_quality`
+- 非 `passed` 的 normalization quality 不得写入 selected target materialization；需要回到
+  manual review / owner recovery / cleaner hardening
+- 下游 reader publish 与 RAG release 只能消费 registry 指向的 canonical artifacts /
+  document-units，不允许在下游重新修正文
+
+历史 regulation notice 的修复同样必须回到 canonical materialization：已采集但早于当前
+cleaner 的 Phase 9 / Phase 11 selected cohort 不能由 chunk/RAG/document-site 层临时清洗；
+应通过 selected canonical backfill 从 admission/source owner text 重新生成 canonical
+markdown 与 document-units，再进入 reader publish 或 RAG release。backfill 本身只更新
+canonical artifacts / registry truth，不打开 query serving、RAG release alias 或 public
+citation。
+
+历史 regulation denominator 扩面时，校级/院级边界必须在 data plane 中显式保留：
+`regulations/institutional_rules` 是唯一可在后续显式 gate 中进入 document-site/RAG
+consumption 的 regulation target；`regulations/scoped_rules` 只允许生成
+canonical/document-units/chunk-only audit evidence，不进入 document-site read-model、RAG
+release candidate、embedding/index 或 serving alias。
+
+## Offline Release Task Boundary
+
+对于 `official_web` 这类需要从 preview / candidate 推进到 current read model 的 source channel，
+release task state machine 固定属于 ingestion data plane。
+
+固定规则：
+
+- `packages/ingestion-core` 定义 release task contract、claim / lease / retry /
+  dead-letter / publish 状态语义，以及 operator-safe projection snapshot builder
+- `apps/ingestion-worker` 执行 release task，读取对象存储 source-truth bundle，产出 canonical
+  projection 或 document/index release，并在状态变化后上报 redacted projection snapshot
+- `apps/app-api` 不拥有 release task admission、executor read、executor callback
+  或 selected-write task 状态；它只暴露已经入库的 operator projections、
+  collector command ingress，以及 stable-reference operator approve/reject command
+  ledger；它可以接收 ingestion worker 的 operator-safe release task projection
+  snapshot，用于 panel 只读展示
+- Panel 只能消费 app-api/operator projection 或未来 ingestion 投影，不直接调用
+  release task mutation route
+
+`calendar/academic_calendar` 是同一类 ingestion-owned structured projection：官方网页 one-time
+source-pack 可以提供校历网页/图片 source evidence，但运行时 `academic_calendar_lookup` 只读取
+人工/OCR 校验后的 current structured records，不回源抓网页、不读 raw image，也不打开 RAG
+query-serving alias。该 projection 的 read-model record 必须显式区分
+`teaching_week`、`named_event`、`term_window` 与 `class_day_override`；
+命名事件区间内部使用 start-inclusive / end-exclusive，同时保留面向用户的
+display start/end 日期与 source title/url。
+
 ## Derived Collection Rebuild
 
 当某个 collection 的上游已经不是 raw/source-truth，而是另一条 canonical document scope 的
@@ -148,6 +207,46 @@ artifacts 派生一条 product-delivery 子链：
 
 reader asset package / object key / deploy sync 细节统一看
 `docs/contracts/document-reader-publish-contract.md`。
+
+## RAG Release Candidate Lane
+
+对已 admission 的 retrieval-backed canonical scope，repo 级 data plane 允许从 canonical
+document artifacts 派生一条独立 RAG release 子链：
+
+`canonical document artifacts -> document-units -> chunks -> embedding/index ->
+retrieval acceptance -> serving alias publish`
+
+固定规则：
+
+- RAG release lane 属于 chunk/index/retrieval serving truth，不改变 source-truth 或
+  document registry truth
+- canonical document materialization 只能产生 `rag_release_candidate`；candidate 不是
+  query-serving alias，也不表示 runtime 已可检索
+- `rag_release_candidate` 持久 store 是 ingestion data-plane owned operator store；
+  production materialization 只有在显式注入 store 或配置 candidate store Postgres URL 时
+  才入队，避免无 operator store 的本地/fixture replay 被隐式升级为发布流程
+- reader publish lane 与 RAG release lane 可以共享 canonical document provenance，但必须保留
+  独立 status、artifact、manifest 与 verification truth
+- periodic worker 可以批量处理 pending candidates；worker 只能读取 canonical document
+  artifacts / document-units 与 release profile，不回扫 raw/source bucket
+- 对 regulation scope，worker 必须校验 canonical cleaning provenance；缺失当前
+  `normalizer_version`、runtime `cleaning_policy_version` 或 `normalization_quality=passed`
+  时 fail closed，不进入 index / alias publish
+- incremental update 必须基于 document identity、version/hash、visibility/authz carrier
+  与 runtime profile identity 判定 unchanged / changed / withdrawn / deleted
+- changed candidate 生成新 release 或新 point set；withdrawn / deleted candidate 必须产生
+  cleanup tombstone 或 explicit delete plan，不允许让 stale chunks 继续被 current alias 命中
+- no-longer-current historical / search-only candidate 如果不是 withdrawn / deleted，不得
+  伪装成 current alias delete；它必须进入 non-serving terminal status，例如
+  `held_search_only`
+- serving alias publish 必须在 deterministic retrieval acceptance 后执行；acceptance
+  失败只能留下 failed candidate / repair backlog，不能切换 current pointer
+- 对 regulation-family query-enabled target alias，release proof只说明“发布产物满足 target
+  lane 约束”；runtime 仍必须继续阻止 legacy old-index primary fallback 进入 target serving path。
+  old-index compatibility 若仍需保留，只能作为单独命名的 compatibility lane 存在，不得与 target
+  alias 混用 completion truth
+
+这条 lane 的目标是让“文档站已发布”和“RAG 已可检索”保持可观测分离。
 
 ## Layer Ownership
 
@@ -191,6 +290,8 @@ reader asset package / object key / deploy sync 细节统一看
 
 - raw asset registry 持有原始来源身份、版本与存储定位
 - document registry 持有逻辑文档版本、hash、status 与 serving关联
+- RAG release candidate 记录 document identity/version/hash、target collection、
+  runtime profile、candidate reason 与 required cleanup disposition
 - serving alias 指向当前 query-serving physical collection
 - index release 通过 versioned physical collection + release manifest 追溯
 - query-enabled alias publish 必须先通过 deterministic retrieval acceptance；release
@@ -263,6 +364,8 @@ registry / control-plane database 与对象存储长期分层。
 当前 data plane 已支撑以下 canonical scope：
 
 - `regulations/student_rules`
+- `regulations/institutional_rules`
+- `regulations/scoped_rules`
 - `curriculum/curriculum_plan`
 - `curriculum/course_facts`
 - `curriculum/program_family_facts`

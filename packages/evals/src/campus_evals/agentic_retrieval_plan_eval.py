@@ -20,6 +20,9 @@ class AgenticRetrievalPlanExpected:
     fail_close_reason: str
     supporting_evidence_ids: tuple[str, ...]
     final_answer_status: str
+    planner_quality: str
+    replan_reason: str
+    claim_graph_verdicts: tuple[str, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,6 +30,7 @@ class AgenticRetrievalPlanCase:
     case_id: str
     user_goal: str
     split: str
+    coverage_dimensions: tuple[str, ...]
     expected: AgenticRetrievalPlanExpected
 
 
@@ -47,6 +51,9 @@ class AgenticRetrievalPlanObservation:
     fail_close_reason: str = ""
     supporting_evidence_ids: tuple[str, ...] = ()
     final_answer_status: str = ""
+    planner_quality: str = ""
+    replan_reason: str = ""
+    claim_graph_verdicts: tuple[str, ...] = ()
 
     def __post_init__(self) -> None:
         reject_forbidden_workflow_trace_keys(asdict(self), "agentic_retrieval_plan_observation")
@@ -143,7 +150,7 @@ def _evaluate_case(
     expected = case.expected
     failures: list[tuple[str, str]] = []
     if observation.decomposition != expected.decomposition:
-        failures.append(("plan_error", "decomposition mismatch"))
+        failures.append(("decomposition_error", "decomposition mismatch"))
     if observation.step_plan != expected.step_plan:
         failures.append(("plan_error", "step_plan mismatch"))
     if observation.freshness_branch != expected.freshness_branch:
@@ -155,8 +162,14 @@ def _evaluate_case(
         failures.append(("live_branch_fail_close_error", "live branch outcome mismatch"))
     if observation.supporting_evidence_ids != expected.supporting_evidence_ids:
         failures.append(("evidence_error", "supporting evidence mismatch"))
+    if observation.planner_quality != expected.planner_quality:
+        failures.append(("planner_quality_error", "planner_quality mismatch"))
     if observation.final_answer_status != expected.final_answer_status:
         failures.append(("final_answer_error", "final answer status mismatch"))
+    if observation.replan_reason != expected.replan_reason:
+        failures.append(("replan_error", "replan reason mismatch"))
+    if observation.claim_graph_verdicts != expected.claim_graph_verdicts:
+        failures.append(("claim_graph_error", "claim graph verdict mismatch"))
 
     failure_classes = _unique_failure_classes(failures)
     return AgenticRetrievalPlanResult(
@@ -182,6 +195,10 @@ def _parse_case(payload: object) -> AgenticRetrievalPlanCase:
         case_id=_required_string(item.get("case_id"), "case_id"),
         user_goal=_required_string(item.get("user_goal"), "user_goal"),
         split=_required_string(item.get("split"), "split"),
+        coverage_dimensions=_string_tuple(
+            item.get("coverage_dimensions"),
+            "case.coverage_dimensions",
+        ),
         expected=AgenticRetrievalPlanExpected(
             decomposition=_string_tuple(expected.get("decomposition"), "expected.decomposition"),
             step_plan=_string_tuple(expected.get("step_plan"), "expected.step_plan"),
@@ -201,6 +218,18 @@ def _parse_case(payload: object) -> AgenticRetrievalPlanCase:
             final_answer_status=_required_string(
                 expected.get("final_answer_status"),
                 "expected.final_answer_status",
+            ),
+            planner_quality=_required_string(
+                expected.get("planner_quality"),
+                "expected.planner_quality",
+            ),
+            replan_reason=_required_string(
+                expected.get("replan_reason"),
+                "expected.replan_reason",
+            ),
+            claim_graph_verdicts=_string_tuple(
+                expected.get("claim_graph_verdicts"),
+                "expected.claim_graph_verdicts",
             ),
         ),
     )

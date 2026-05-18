@@ -5,9 +5,17 @@ import type {
 	OfficialWebFailureRecord,
 	OfficialWebHostSummaryRecord,
 	OfficialWebPageObservationRecord,
+	OfficialWebPageTargetMatch,
 	OfficialWebUrlResultRecord,
 } from "./official-web-core.ts";
 import type { CollectedPageArtifact } from "./page-artifacts.ts";
+
+export interface CollectorSourcePackLineageOverride {
+	compositionGroup: string | null;
+	compositionRole: string | null;
+	sourcePackEntryId: string;
+	sourcePackId: string;
+}
 
 export interface CollectorRequestUserData {
 	discoveryMethod:
@@ -23,6 +31,8 @@ export interface CollectorRequestUserData {
 	discoveredFromUrl: string | null;
 	depth: number;
 	knownPage?: OfficialWebPlannerPageCandidate;
+	knownPages?: OfficialWebPlannerPageCandidate[];
+	inheritedTargetLineages?: OfficialWebPageTargetMatch[];
 }
 
 export interface CollectorAggregatedResults {
@@ -35,6 +45,7 @@ export interface CollectorAggregatedResults {
 }
 
 export interface CollectorProgressCounts {
+	[key: string]: number;
 	urlsDiscovered: number;
 	urlsFetched: number;
 	pagesNormalized: number;

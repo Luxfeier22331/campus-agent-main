@@ -13,7 +13,7 @@ from campus_contracts import (
     ServiceStatusLookupResult,
     TemporalQuery,
 )
-from campus_supervisor_agent_worker.agent_dispatch import dispatch_agent_request
+from campus_supervisor_agent_worker.agent_dispatch import ToolAdmissionError, dispatch_agent_request
 
 
 def _make_rag_completed_response() -> AgentResponse:
@@ -135,7 +135,7 @@ class AgentHandoffTest(unittest.TestCase):
         self.assertEqual(response.status, "completed")
         self.assertEqual(response.result.observed_status, "open")
 
-    def test_dispatch_agent_request_delegates_go_preplanned_tool_policy(self) -> None:
+    def test_dispatch_agent_request_rejects_go_preplanned_tool_policy_mismatch(self) -> None:
         request = AgentRequest(
             target="notice-agent",
             user_goal="帮我找校历通知",
@@ -147,18 +147,18 @@ class AgentHandoffTest(unittest.TestCase):
         )
         captured_requests: list[AgentRequest] = []
 
-        response = dispatch_agent_request(
-            request,
-            agent_delegates={
-                "notice-agent": lambda inner_request: (
-                    captured_requests.append(inner_request)
-                    or AgentResponse(
-                        target="notice-agent",
-                        status="completed",
+        with self.assertRaises(ToolAdmissionError):
+            dispatch_agent_request(
+                request,
+                agent_delegates={
+                    "notice-agent": lambda inner_request: (
+                        captured_requests.append(inner_request)
+                        or AgentResponse(
+                            target="notice-agent",
+                            status="completed",
+                        )
                     )
-                )
-            },
-        )
+                },
+            )
 
-        self.assertEqual(response.status, "completed")
-        self.assertEqual(captured_requests, [request])
+        self.assertEqual(captured_requests, [])

@@ -4,6 +4,17 @@ import re
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
+from campus_shared.regulation_semantic_registry import resolve_regulation_action_type
+
+from campus_ingestion_core.regulation_semantics import (
+    infer_negative_semantic_role,
+    infer_regulation_body_content_role,
+    load_default_regulation_semantics_registry,
+    looks_like_condition_claim_text,
+    looks_like_explicit_applicability_clause,
+    normalize_regulation_semantic_text,
+)
+
 _APPENDIX_PREFIXES = ("附件", "附表", "附录")
 _FORM_KEYWORDS = ("申请表", "审批表", "登记表", "备案表", "信息表")
 _FORM_FIELD_KEYWORDS = (
@@ -19,56 +30,13 @@ _FORM_FIELD_KEYWORDS = (
     "认定结果",
 )
 _FORM_CHECKBOX_MARKERS = ("☐", "□", "■", "✓", "√")
-_NAVIGATION_KEYWORDS = ("流程", "程序", "步骤", "办理路径", "办理方式")
-_TIME_RULE_KEYWORDS = (
-    "时间安排",
-    "作息时间",
-    "开放时间",
-    "办理时间",
-    "受理时间",
-    "时间要求",
-    "时间",
-)
-_DEADLINE_KEYWORDS = ("截止", "时限", "期限", "截至", "逾期")
-_ELIGIBILITY_KEYWORDS = ("申请条件", "资格条件", "资格", "条件", "对象")
-_PROCEDURE_KEYWORDS = (
-    "程序",
-    "流程",
-    "步骤",
-    "申请",
-    "审核",
-    "审批",
-    "办理",
-    "补办",
-    "挂失",
-    "提交",
-    "报送",
-    "复核",
-)
-_TERMINAL_PROVISION_KEYWORDS = (
-    "负责解释",
-    "负责施行",
-    "自发布之日起实施",
-    "自发布之日起施行",
-    "自印发之日起实施",
-    "自印发之日起施行",
-    "自公布之日起实施",
-    "自公布之日起施行",
-    "自发布之日起执行",
-    "同时废止",
-)
-_SCOPE_RULE_RE = re.compile(
-    r"^(?:本(?:办法|规定|细则|制度|通知|规则)|该(?:办法|规定|细则|制度|通知|规则)).{0,24}(?:适用于|适用范围)"
-)
-_DEFINITION_RE = re.compile(r"^(?:本(?:办法|规定|细则|制度|通知|规则)所称|本条所称)")
 _DATE_EFFECTIVE_RE = re.compile(
     r"^(?:本(?:办法|规定|细则|制度|通知|规则)|该(?:办法|规定|细则|制度|通知|规则)).{0,24}自\d{4}年\d{1,2}月\d{1,2}日起(?:开始)?(?:实施|施行|执行)"
 )
-_CLOCK_TIME_RE = re.compile(r"\d{1,2}[:：]\d{2}")
-_DATE_TIME_RE = re.compile(r"\d{4}年\d{1,2}月\d{1,2}日")
 _NESTED_NUMBERED_LINE_RE = re.compile(
     r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])"
 )
+_EXPLICIT_REGULATION_BODY_CONTENT_ROLES = frozenset({"regulation_body", "scoped_rule_body"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -77,6 +45,14 @@ class HandbookSemanticMetadata:
     content_role: str
     detail_label: str
     is_answer_bearing: bool
+    semantic_role: str = ""
+    polarity: str = ""
+    action_type: str = ""
+    claim_type: str = ""
+    audience_scope: str = ""
+    article_no: str = ""
+    clause_no: str = ""
+    section_kind: str = ""
 
 
 def derive_handbook_semantic_metadata(
@@ -107,6 +83,25 @@ def derive_handbook_semantic_metadata(
         metadata=resolved_metadata,
         text=text,
     )
+    semantic_role = _resolve_semantic_role(
+        content_role=content_role,
+        detail_label=detail_label,
+        anchor=resolved_anchor,
+        metadata=resolved_metadata,
+        text=text,
+    )
+    polarity = _resolve_polarity(metadata=resolved_metadata, text=text, semantic_role=semantic_role)
+    action_type = _resolve_action_type(
+        anchor=resolved_anchor, metadata=resolved_metadata, text=text
+    )
+    claim_type = _resolve_claim_type(
+        content_role=content_role,
+        semantic_role=semantic_role,
+        polarity=polarity,
+        anchor=resolved_anchor,
+        metadata=resolved_metadata,
+        text=text,
+    )
     return HandbookSemanticMetadata(
         content_kind=content_kind,
         content_role=content_role,
@@ -115,6 +110,23 @@ def derive_handbook_semantic_metadata(
             content_kind=content_kind,
             content_role=content_role,
             detail_label=detail_label,
+            metadata=resolved_metadata,
+        ),
+        semantic_role=semantic_role,
+        polarity=polarity,
+        action_type=action_type,
+        claim_type=claim_type,
+        audience_scope=_resolve_audience_scope(
+            anchor=resolved_anchor,
+            metadata=resolved_metadata,
+            text=text,
+        ),
+        article_no=_resolve_article_no(anchor=resolved_anchor, metadata=resolved_metadata),
+        clause_no=_resolve_clause_no(anchor=resolved_anchor, metadata=resolved_metadata),
+        section_kind=_resolve_section_kind(
+            content_kind=content_kind,
+            content_role=content_role,
+            anchor=resolved_anchor,
             metadata=resolved_metadata,
         ),
     )
@@ -133,6 +145,8 @@ def _resolve_content_kind(
         return explicit_kind
     if _looks_like_form(metadata=metadata, text=text, detail_label=detail_label):
         return "form"
+    if _looks_like_structural_heading(anchor=anchor, text=text):
+        return "navigation"
     if _looks_like_navigation(
         anchor=anchor, metadata=metadata, text=text, detail_label=detail_label
     ):
@@ -154,7 +168,7 @@ def _resolve_content_role(
     text: str,
 ) -> str:
     explicit_role = _text(metadata.get("content_role"))
-    if explicit_role:
+    if explicit_role and explicit_role not in _EXPLICIT_REGULATION_BODY_CONTENT_ROLES:
         return explicit_role
     if content_kind == "navigation":
         return "navigation"
@@ -162,22 +176,19 @@ def _resolve_content_role(
         return "appendix"
     if content_kind == "table_unit":
         return "table_fact"
+    if _is_amount_or_quota_fact(text):
+        return "table_fact"
+    shared_body_role = infer_regulation_body_content_role(
+        detail_label=detail_label,
+        section_leaf=_section_leaf(anchor),
+        text=text,
+    )
+    if shared_body_role:
+        return shared_body_role
     if _is_closing_provision(detail_label=detail_label, anchor=anchor, text=text):
         return "closing_provision"
-    if _is_scope_rule(text):
-        return "scope_rule"
-    if _is_deadline_rule(detail_label=detail_label, anchor=anchor, text=text):
-        return "deadline"
-    if _is_time_rule(detail_label=detail_label, anchor=anchor, text=text):
-        return "time_rule"
-    if _is_eligibility_rule(detail_label=detail_label, anchor=anchor, text=text):
-        return "eligibility"
-    if _is_definition_rule(detail_label=detail_label, text=text):
-        return "definition"
-    if _is_procedure_rule(detail_label=detail_label, anchor=anchor, text=text):
-        return "procedure"
-    if _is_requirement_rule(text):
-        return "requirement"
+    if explicit_role in _EXPLICIT_REGULATION_BODY_CONTENT_ROLES:
+        return explicit_role
     return ""
 
 
@@ -208,6 +219,186 @@ def _resolve_is_answer_bearing(
     return bool(detail_label)
 
 
+def _resolve_semantic_role(
+    *,
+    content_role: str,
+    detail_label: str,
+    anchor: Mapping[str, object],
+    metadata: Mapping[str, object],
+    text: str,
+) -> str:
+    explicit_role = _text(metadata.get("semantic_role"))
+    if explicit_role:
+        return explicit_role
+    normalized = _semantic_search_space(detail_label=detail_label, anchor=anchor, text=text)
+    negative_role = infer_negative_semantic_role(normalized)
+    if negative_role:
+        return negative_role
+    if content_role == "procedure":
+        return "procedure_step"
+    if content_role in {"eligibility", "requirement"}:
+        return "condition"
+    if content_role in {"deadline", "time_rule"}:
+        return "time_constraint"
+    if content_role == "definition":
+        return "definition"
+    return ""
+
+
+def _resolve_polarity(
+    *,
+    metadata: Mapping[str, object],
+    text: str,
+    semantic_role: str,
+) -> str:
+    registry = load_default_regulation_semantics_registry()
+    explicit_polarity = _text(metadata.get("polarity"))
+    if explicit_polarity:
+        return explicit_polarity
+    normalized = normalize_regulation_semantic_text(text)
+    if semantic_role in {"exception", "prohibition", "exclusion"}:
+        return "negative"
+    if any(keyword in normalized for keyword in registry.negative_polarity_keywords):
+        return "negative"
+    if normalized:
+        return "positive"
+    return ""
+
+
+def _resolve_action_type(
+    *,
+    anchor: Mapping[str, object],
+    metadata: Mapping[str, object],
+    text: str,
+) -> str:
+    assignment = resolve_regulation_action_type(
+        text=text,
+        section_path=_section_path(anchor),
+        document_title=_text(metadata.get("title")),
+        explicit_action_type=_text(metadata.get("action_type")),
+    )
+    return assignment.value
+
+
+def _resolve_claim_type(
+    *,
+    content_role: str,
+    semantic_role: str,
+    polarity: str,
+    anchor: Mapping[str, object],
+    metadata: Mapping[str, object],
+    text: str,
+) -> str:
+    registry = load_default_regulation_semantics_registry()
+    explicit_claim_type = _text(metadata.get("claim_type"))
+    if explicit_claim_type:
+        return explicit_claim_type
+    if polarity == "negative":
+        return "cannot_do"
+    if content_role == "procedure" or semantic_role == "procedure_step":
+        return "procedure"
+    if content_role == "requirement":
+        normalized = _semantic_search_space(detail_label="", anchor=anchor, text=text)
+        if any(keyword in normalized for keyword in registry.material_markers):
+            return "material_requirement"
+        return "condition"
+    if content_role == "eligibility" or semantic_role == "condition":
+        return "condition"
+    if content_role in {"deadline", "time_rule"}:
+        return "time_constraint"
+    if content_role == "definition":
+        return "definition"
+    if content_role == "table_fact":
+        if _is_amount_or_quota_fact(text):
+            return "amount_or_quota"
+        return "table_fact"
+    normalized = normalize_regulation_semantic_text(text)
+    if looks_like_condition_claim_text(normalized):
+        return "condition"
+    return ""
+
+
+def _is_amount_or_quota_fact(text: str) -> bool:
+    normalized = normalize_regulation_semantic_text(text)
+    if not normalized:
+        return False
+    return (
+        "标准" in normalized
+        and "元" in normalized
+        and any(keyword in normalized for keyword in ("金额", "奖金", "奖励", "名额", "比例"))
+    )
+
+
+def _resolve_audience_scope(
+    *,
+    anchor: Mapping[str, object],
+    metadata: Mapping[str, object],
+    text: str,
+) -> str:
+    registry = load_default_regulation_semantics_registry()
+    explicit_scope = _text(metadata.get("audience_scope"))
+    if explicit_scope:
+        return explicit_scope
+    normalized = _semantic_search_space(detail_label="", anchor=anchor, text=text)
+    matched_scopes: list[str] = []
+    for scope, keywords in registry.audience_scope_keywords.items():
+        if any(keyword in normalized for keyword in keywords):
+            matched_scopes.append(scope)
+    if not matched_scopes:
+        return ""
+    if "undergraduate" in matched_scopes:
+        return "undergraduate"
+    if "graduate" in matched_scopes:
+        return "graduate"
+    return matched_scopes[0]
+
+
+def _resolve_article_no(
+    *,
+    anchor: Mapping[str, object],
+    metadata: Mapping[str, object],
+) -> str:
+    return (
+        _text(metadata.get("article_no"))
+        or _text(anchor.get("article_no"))
+        or _text(anchor.get("article_label"))
+    )
+
+
+def _resolve_clause_no(
+    *,
+    anchor: Mapping[str, object],
+    metadata: Mapping[str, object],
+) -> str:
+    return (
+        _text(metadata.get("clause_no"))
+        or _text(anchor.get("clause_no"))
+        or _text(anchor.get("provision_label"))
+    )
+
+
+def _resolve_section_kind(
+    *,
+    content_kind: str,
+    content_role: str,
+    anchor: Mapping[str, object],
+    metadata: Mapping[str, object],
+) -> str:
+    explicit_kind = _text(metadata.get("section_kind"))
+    if explicit_kind:
+        return explicit_kind
+    section_leaf = _section_leaf(anchor)
+    if content_role == "closing_provision" or section_leaf == "附则":
+        return "closing"
+    if content_kind == "appendix" or content_role == "appendix":
+        return "appendix"
+    if content_kind == "navigation" or content_role == "navigation":
+        return "navigation"
+    if content_kind:
+        return "body"
+    return ""
+
+
 def _resolve_detail_label(
     *,
     unit_type: str,
@@ -236,67 +427,6 @@ def _is_closing_provision(*, detail_label: str, anchor: Mapping[str, object], te
     if not lines:
         return False
     return all(_is_terminal_provision_line(line) for line in lines)
-
-
-def _is_scope_rule(text: str) -> bool:
-    normalized = _normalize_text(text)
-    if not normalized:
-        return False
-    return bool(_SCOPE_RULE_RE.match(normalized) or normalized.startswith("适用于"))
-
-
-def _is_time_rule(*, detail_label: str, anchor: Mapping[str, object], text: str) -> bool:
-    scope = " ".join(
-        part for part in (detail_label, _section_leaf(anchor), _normalize_text(text)) if part
-    )
-    if any(keyword in scope for keyword in _TIME_RULE_KEYWORDS):
-        return True
-    if _CLOCK_TIME_RE.search(text):
-        return True
-    return bool(_DATE_TIME_RE.search(text) and "实施" not in text and "施行" not in text)
-
-
-def _is_deadline_rule(*, detail_label: str, anchor: Mapping[str, object], text: str) -> bool:
-    scope = " ".join(
-        part for part in (detail_label, _section_leaf(anchor), _normalize_text(text)) if part
-    )
-    if any(keyword in scope for keyword in _DEADLINE_KEYWORDS):
-        return True
-    normalized = _normalize_text(text)
-    return "前完成" in normalized or "不得逾期" in normalized
-
-
-def _is_eligibility_rule(*, detail_label: str, anchor: Mapping[str, object], text: str) -> bool:
-    scope = " ".join(part for part in (detail_label, _section_leaf(anchor)) if part)
-    if any(keyword in scope for keyword in _ELIGIBILITY_KEYWORDS):
-        return True
-    normalized = _normalize_text(text)
-    return normalized.startswith(("凡符合", "符合"))
-
-
-def _is_definition_rule(*, detail_label: str, text: str) -> bool:
-    if any(token in detail_label for token in ("释义", "定义")):
-        return True
-    return bool(_DEFINITION_RE.match(_normalize_text(text)))
-
-
-def _is_procedure_rule(*, detail_label: str, anchor: Mapping[str, object], text: str) -> bool:
-    scope = " ".join(part for part in (detail_label, _section_leaf(anchor)) if part)
-    if any(keyword in scope for keyword in _PROCEDURE_KEYWORDS):
-        return True
-    lines = _meaningful_lines(text)
-    if sum(1 for line in lines if _NESTED_NUMBERED_LINE_RE.match(line)) >= 2:
-        return True
-    normalized = _normalize_text(text)
-    procedure_hits = sum(1 for keyword in _PROCEDURE_KEYWORDS if keyword in normalized)
-    return procedure_hits >= 2
-
-
-def _is_requirement_rule(text: str) -> bool:
-    normalized = _normalize_text(text)
-    if not normalized:
-        return False
-    return any(marker in normalized for marker in ("应当", "应及时", "必须", "不得", "严禁", "须"))
 
 
 def _looks_like_appendix(
@@ -340,11 +470,12 @@ def _looks_like_navigation(
     text: str,
     detail_label: str,
 ) -> bool:
+    registry = load_default_regulation_semantics_registry()
     del metadata
     scope = " ".join(
         part for part in (detail_label, _section_leaf(anchor), _first_meaningful_line(text)) if part
     )
-    if any(keyword in scope for keyword in _NAVIGATION_KEYWORDS):
+    if any(keyword in scope for keyword in registry.navigation_keywords):
         lines = _meaningful_lines(text)
         if sum(1 for line in lines if _NESTED_NUMBERED_LINE_RE.match(line)) >= 2:
             return True
@@ -353,11 +484,27 @@ def _looks_like_navigation(
     return False
 
 
+def _looks_like_structural_heading(*, anchor: Mapping[str, object], text: str) -> bool:
+    lines = _meaningful_lines(text)
+    if len(lines) != 1:
+        return False
+    section_leaf = _normalize_text(_section_leaf(anchor))
+    if not section_leaf:
+        return False
+    normalized_text = _normalize_text(lines[0])
+    if not normalized_text:
+        return False
+    return normalized_text == section_leaf
+
+
 def _is_terminal_provision_line(line: str) -> bool:
+    registry = load_default_regulation_semantics_registry()
     normalized = _strip_leading_label(_normalize_text(line))
     if not normalized:
         return False
-    if any(keyword in normalized for keyword in _TERMINAL_PROVISION_KEYWORDS):
+    if looks_like_explicit_applicability_clause(normalized):
+        return False
+    if any(keyword in normalized for keyword in registry.terminal_provision_markers):
         return True
     return bool(_DATE_EFFECTIVE_RE.match(normalized))
 
@@ -373,12 +520,30 @@ def _section_leaf(anchor: Mapping[str, object]) -> str:
     return ""
 
 
+def _section_path(anchor: Mapping[str, object]) -> tuple[str, ...]:
+    section_path = anchor.get("section_path")
+    if not isinstance(section_path, Sequence) or isinstance(section_path, (str, bytes)):
+        return ()
+    return tuple(_text(item) for item in section_path if _text(item))
+
+
 def _meaningful_lines(text: str) -> tuple[str, ...]:
     return tuple(line.strip() for line in text.splitlines() if line.strip())
 
 
 def _first_meaningful_line(text: str) -> str:
     return next(iter(_meaningful_lines(text)), "")
+
+
+def _semantic_search_space(
+    *,
+    detail_label: str,
+    anchor: Mapping[str, object],
+    text: str,
+) -> str:
+    return " ".join(
+        part for part in (detail_label, _section_leaf(anchor), _normalize_text(text)) if part
+    )
 
 
 def _normalize_sequence(value: object) -> list[str]:

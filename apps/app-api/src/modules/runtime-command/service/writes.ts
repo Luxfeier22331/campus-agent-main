@@ -23,7 +23,6 @@ import {
 	normalizeChatResponseStructuredParts,
 	previewText,
 	sanitizePublicAssistantText,
-	synthesizeCampusServicesAssistantText,
 } from "./normalize";
 import type { ChatCommandResponse, ChatCommandResult } from "./types";
 
@@ -229,12 +228,6 @@ export function buildFinalizedWrite(input: {
 		requestedScope: input.requestedScope,
 		response: normalizedSupervisorResponse,
 	});
-	const synthesizedCampusServicesText = synthesizeCampusServicesAssistantText({
-		result: input.response.result,
-		selectedTarget: input.response.selectedTarget,
-		status: input.response.status,
-	});
-
 	let assistantKind: ChatMessage["kind"];
 	let assistantText: string;
 	let errorCode: string | null = null;
@@ -245,8 +238,7 @@ export function buildFinalizedWrite(input: {
 
 	if (input.response.status === "needs_clarification") {
 		assistantKind = "clarification";
-		assistantText =
-			synthesizedCampusServicesText || input.response.followUpQuestion || input.response.answerText;
+		assistantText = input.response.followUpQuestion || input.response.answerText;
 		outboxEventType = "request.needs_clarification";
 		result = {
 			kind: "clarification",
@@ -257,7 +249,7 @@ export function buildFinalizedWrite(input: {
 		status = "needs_clarification";
 	} else if (input.response.status === "no_answer") {
 		assistantKind = "no_answer";
-		assistantText = synthesizedCampusServicesText || input.response.answerText;
+		assistantText = input.response.answerText;
 		outboxEventType = "request.no_answer";
 		result = {
 			kind: "no_answer",
@@ -274,7 +266,6 @@ export function buildFinalizedWrite(input: {
 	) {
 		assistantKind = "error";
 		assistantText =
-			synthesizedCampusServicesText ||
 			input.response.error?.message ||
 			input.response.answerText ||
 			(input.response.status === "approval_required"
@@ -293,7 +284,7 @@ export function buildFinalizedWrite(input: {
 					: input.response.status === "cancelled"
 						? "execution_cancelled"
 						: "internal_error");
-		retryable = input.response.error?.retryable ?? input.response.status === "error";
+		retryable = input.response.error?.retryable ?? false;
 		outboxEventType = `request.${input.response.status}`;
 		result = {
 			kind: "error",
@@ -306,7 +297,7 @@ export function buildFinalizedWrite(input: {
 		status = input.response.status;
 	} else {
 		assistantKind = "answer";
-		assistantText = synthesizedCampusServicesText ?? input.response.answerText;
+		assistantText = input.response.answerText;
 		outboxEventType = "request.completed";
 		result = {
 			kind: "answer",

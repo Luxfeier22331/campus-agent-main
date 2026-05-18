@@ -3,22 +3,31 @@ from __future__ import annotations
 import argparse
 import json
 import shutil
-import subprocess
-import time
 from collections import Counter
 from collections.abc import Mapping, Sequence
-from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
+from campus_ingestion_worker.official_web_university_collection_runtime import (
+    CommandRunResult as _CommandRunResult,
+)
+from campus_ingestion_worker.official_web_university_collection_runtime import (
+    run_command as _run_command,
+)
+from campus_ingestion_worker.official_web_university_collection_runtime import (
+    run_pipeline_step as _run_pipeline_step,
+)
+
+CommandRunResult = _CommandRunResult
 
 UNIVERSITY_COLLECTION_PREFLIGHT_SCHEMA_VERSION = "official_web_university_collection_preflight.v1"
 UNIVERSITY_COLLECTION_RUN_SCHEMA_VERSION = "official_web_university_collection_run.v1"
 UNIVERSITY_COLLECTION_COMPARE_SCHEMA_VERSION = "official_web_university_collection_compare.v1"
 UNIVERSITY_COLLECTION_ALERT_SCHEMA_VERSION = "official_web_university_collection_alert_summary.v1"
-UNIVERSITY_LANE_PREFIX = "university-core-"
+LEGACY_UNIVERSITY_LANE_PREFIX = "university-core-"
+CURRENT_UNIVERSITY_LANE_IDS = frozenset(("consumer-candidate-hot", "consumer-stable-baseline"))
 UNIVERSITY_ALLOWED_HOST_GROUPS = frozenset({"university_core", "university_support"})
 UNIVERSITY_REQUIRED_PAGE_FAMILIES = frozenset(
     {
@@ -34,15 +43,6 @@ UNIVERSITY_REQUIRED_PAGE_FAMILIES = frozenset(
         "generic_content_page",
     }
 )
-
-
-@dataclass(frozen=True, slots=True)
-class CommandRunResult:
-    command: tuple[str, ...]
-    exit_code: int
-    stdout: str
-    stderr: str
-    elapsed_seconds: float
 
 
 def _utc_now_iso() -> str:
@@ -85,26 +85,11 @@ def _non_empty_text(value: object, *, field: str) -> str:
     return text
 
 
-def _json_or_none(stdout: str) -> dict[str, Any] | None:
-    stripped = stdout.strip()
-    if not stripped:
-        return None
-    try:
-        payload = json.loads(stripped)
-        return payload if isinstance(payload, dict) else None
-    except json.JSONDecodeError:
-        pass
-    for index in range(len(stripped) - 1, -1, -1):
-        if stripped[index] != "{":
-            continue
-        candidate = stripped[index:]
-        try:
-            payload = json.loads(candidate)
-        except json.JSONDecodeError:
-            continue
-        if isinstance(payload, dict):
-            return payload
-    return None
+def _is_university_collection_lane(lane_id: object) -> bool:
+    normalized = _normalize_text(lane_id)
+    return normalized in CURRENT_UNIVERSITY_LANE_IDS or normalized.startswith(
+        LEGACY_UNIVERSITY_LANE_PREFIX
+    )
 
 
 def _default_report_dir(repo_root: Path) -> Path:
@@ -286,8 +271,13 @@ def run_official_web_university_collection_preflight(
         else:
             checks.append(_failed("lane_enabled", f"lane {lane_id} is disabled"))
 
-        if lane_id.startswith(UNIVERSITY_LANE_PREFIX):
-            checks.append(_passed("lane_is_university_lane", f"lane {lane_id} is university lane"))
+        if _is_university_collection_lane(lane_id):
+            checks.append(
+                _passed(
+                    "lane_is_university_lane",
+                    f"lane {lane_id} is accepted as university collection lane",
+                )
+            )
         else:
             checks.append(
                 _failed(
@@ -389,54 +379,6 @@ def run_official_web_university_collection_preflight(
     }
 
 
-def _run_command(
-    command: Sequence[str],
-    *,
-    cwd: Path,
-) -> CommandRunResult:
-    started = time.monotonic()
-    completed = subprocess.run(
-        tuple(command),
-        cwd=str(cwd),
-        capture_output=True,
-        text=True,
-        check=False,
-    )
-    elapsed_seconds = round(time.monotonic() - started, 3)
-    return CommandRunResult(
-        command=tuple(command),
-        exit_code=completed.returncode,
-        stdout=completed.stdout,
-        stderr=completed.stderr,
-        elapsed_seconds=elapsed_seconds,
-    )
-
-
-def _build_step_report(
-    *,
-    name: str,
-    result: CommandRunResult,
-    parsed_json: dict[str, Any] | None,
-    status_override: str | None = None,
-    failure_reason: str | None = None,
-) -> dict[str, Any]:
-    status = status_override or ("succeeded" if result.exit_code == 0 else "failed")
-    payload: dict[str, Any] = {
-        "name": name,
-        "status": status,
-        "exit_code": result.exit_code,
-        "elapsed_seconds": result.elapsed_seconds,
-        "command": list(result.command),
-        "stdout_tail": result.stdout[-2000:],
-        "stderr_tail": result.stderr[-2000:],
-    }
-    if parsed_json is not None:
-        payload["output_json"] = parsed_json
-    if failure_reason:
-        payload["failure_reason"] = failure_reason
-    return payload
-
-
 def _write_json(path: Path, payload: object) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
@@ -449,29 +391,6 @@ def _step_json(step_reports: list[dict[str, Any]], name: str) -> dict[str, Any] 
             if isinstance(output, dict):
                 return output
     return None
-
-
-def _run_pipeline_step(
-    *,
-    step_name: str,
-    command: Sequence[str],
-    cwd: Path,
-    require_json: bool,
-    command_runner: Any,
-) -> dict[str, Any]:
-    result = command_runner(command, cwd=cwd)
-    parsed_json = _json_or_none(result.stdout)
-    if result.exit_code != 0:
-        return _build_step_report(name=step_name, result=result, parsed_json=parsed_json)
-    if require_json and parsed_json is None:
-        return _build_step_report(
-            name=step_name,
-            result=result,
-            parsed_json=None,
-            status_override="failed",
-            failure_reason="expected JSON output",
-        )
-    return _build_step_report(name=step_name, result=result, parsed_json=parsed_json)
 
 
 def run_official_web_university_collection_lane(

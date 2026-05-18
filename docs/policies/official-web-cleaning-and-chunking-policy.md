@@ -342,9 +342,9 @@ official-web chunk context 的最低目标是：让 chunk 脱离原页面后仍�
 - `retain_inventory_only`
   - `访问学者`
   - `干部人事`
+  - `学术名流`
 - `current_scope_follow_up_candidate`
-  - 当前为空；`学术名流` 已在 biography/entity 压缩与 same-doc support 收口后升格进入
-    `release_gate_required`
+  - 当前为空
 - `future_fresh_news_surface`
   - 当前 `8` 条 news 页面，包括 `中央民族大学与北京丰台人才集团共建就业实习实践基地` 这类已用于 cross-host regression
     的新闻页

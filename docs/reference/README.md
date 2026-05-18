@@ -21,6 +21,7 @@ updated: 2026-04-24
 - `eval-gold-truth-model.md`
 - `eval-benchmark-artifact-contract.md`
 - `golden-dataset-case-matrix.md`
+- `runtime-otel-telemetry-taxonomy.md`
 - `student-handbook-eval-metrics.md`
 - `curriculum-plan-eval-metrics.md`
 

@@ -126,7 +126,12 @@ class S3ObjectStoreAdmin:
         self._client.delete_object(Bucket=bucket, Key=key)
 
     def delete_prefix(
-        self, *, bucket: str, prefix: str, exclude_keys: tuple[str, ...] = ()
+        self,
+        *,
+        bucket: str,
+        prefix: str,
+        exclude_keys: tuple[str, ...] = (),
+        include_path_segment_suffix: str | None = None,
     ) -> None:
         excluded = set(exclude_keys)
         continuation_token: str | None = None
@@ -139,6 +144,10 @@ class S3ObjectStoreAdmin:
                 {"Key": item["Key"]}
                 for item in response.get("Contents") or ()
                 if item["Key"] not in excluded
+                and _matches_path_segment_suffix(
+                    str(item["Key"]),
+                    include_path_segment_suffix,
+                )
             ]
             for start in range(0, len(keys), 1000):
                 batch = keys[start : start + 1000]
@@ -227,6 +236,12 @@ class QdrantCollectionAdmin:
 
     def reset_index_binding(self, binding: QdrantIndexBinding) -> tuple[str, ...]:
         return reset_index_binding(qdrant_client=self._client, binding=binding)
+
+
+def _matches_path_segment_suffix(key: str, suffix: str | None) -> bool:
+    if suffix is None:
+        return True
+    return any(segment.endswith(suffix) for segment in key.split("/"))
 
 
 def _build_rebuild_trace_recorder(source: dict[str, str]) -> _RebuildTraceRecorder | None:

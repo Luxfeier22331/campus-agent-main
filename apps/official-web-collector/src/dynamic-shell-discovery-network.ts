@@ -34,8 +34,8 @@ export async function captureDynamicShellNetwork(input: {
 	});
 	let matchedResponseUrl: string | null = null;
 	let matchedSelector: string | null = null;
-	let usedNetworkIdleFallback = false;
-	let usedFixedDelayFallback = false;
+	let usedNetworkIdleWait = false;
+	let usedFixedDelayWait = false;
 
 	page.on(
 		"response",
@@ -81,15 +81,15 @@ export async function captureDynamicShellNetwork(input: {
 			selectorWaitPromise,
 		]);
 		if (matchedResponseUrl == null && matchedSelector == null) {
-			usedNetworkIdleFallback = true;
+			usedNetworkIdleWait = true;
 			try {
 				await page.waitForLoadState("networkidle", {
 					timeout: Math.max(250, Math.min(5_000, input.policy.waitAfterLoadMs)),
 				});
 			} catch {
-				// Some shell pages never reach a quiet network state. Fall back to fixed wait.
+				// Some shell pages never reach a quiet network state. Continue with fixed wait.
 			}
-			usedFixedDelayFallback = true;
+			usedFixedDelayWait = true;
 			await page.waitForTimeout(input.policy.waitAfterLoadMs);
 		} else {
 			try {
@@ -97,7 +97,7 @@ export async function captureDynamicShellNetwork(input: {
 					timeout: input.policy.networkObservationTimeoutMs,
 				});
 			} catch {
-				usedFixedDelayFallback = true;
+				usedFixedDelayWait = true;
 				await page.waitForTimeout(input.policy.waitAfterLoadMs);
 			}
 		}
@@ -114,8 +114,8 @@ export async function captureDynamicShellNetwork(input: {
 			networkObservationTimeoutMs: input.policy.networkObservationTimeoutMs,
 			matchedResponseUrl,
 			matchedSelector,
-			usedNetworkIdleFallback,
-			usedFixedDelayFallback,
+			usedNetworkIdleWait,
+			usedFixedDelayWait,
 		},
 	};
 }

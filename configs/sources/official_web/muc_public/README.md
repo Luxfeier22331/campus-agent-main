@@ -16,9 +16,19 @@ site.
 - `credentials.schema.json`: anonymous public crawl posture for v1
 - `projection-declarations.json`: first-wave source-truth fan-out for the
   currently declared page families
-- `projection-routing.json`: downstream scope override truth for the first
-  corpus split bootstrap; unmatched pages still fall back to the declaration
-  target scope
+- `projection-routing.json`: legacy downstream scope override config; current
+  repo truth keeps it empty, and target-first source-pack / release-gate
+  admission owns query-enabled scope promotion
+- `consumer-denominator.json`: downstream consumer denominator for deciding
+  which fetched pages are retained as source-truth candidates during recovery
+- `target-source-map.json`: target-first admitted downstream surfaces,
+  including split public regulation routing for `regulations/institutional_rules`
+  and `regulations/student_rules`
+- `target-inventory.json`: operator-facing inventory truth for admitted
+  target-first pages
+- `source-packs/`: repo-tracked one-time source-pack manifests; current default
+  remains `tool-driven-first-slice.v1`, and expansion batches use explicit
+  alternate source-pack ids instead of reopening broad crawl
 
 Repo-level workflow split:
 
@@ -35,8 +45,9 @@ Host rollout split:
 
 - `university_core`: school-level entry surfaces. Current first-pass set is
   `www.muc.edu.cn`, `news.muc.edu.cn`, and `xxgk.muc.edu.cn`.
-- `university_support`: school-level support surfaces kept behind the daily
-  baseline lane. Current set is `lib.muc.edu.cn` and `xiaoyou.muc.edu.cn`.
+- `university_support`: school-level support surfaces kept behind target-first
+  consumer lanes. Current set is `lib.muc.edu.cn`, `met.muc.edu.cn`, and
+  `xiaoyou.muc.edu.cn`.
 - `college`: college or institute-owned hosts. These are enabled source hosts
   but should be validated one host at a time before widening recurring lanes.
 - `topic`: topic or campaign hosts. These are also one-host-at-a-time rollout
@@ -46,10 +57,12 @@ Host rollout split:
 
 Current scheduler lanes:
 
-- `university-core-hot`: enabled `hot` lane for `university_core` homepage,
-  news, and information disclosure surfaces.
-- `university-core-baseline`: enabled daily `baseline` lane for the school-level
-  core/support surfaces.
+- `consumer-candidate-hot`: enabled bounded `hot` lane for contact, service
+  guide, and stable-reference candidates on university-level surfaces,
+  including target-first information-technology service pages.
+- `consumer-stable-baseline`: enabled daily `baseline` lane for school-level
+  core/support consumer candidates. Broad news crawl is not part of default
+  recovery.
 - `college-single-host-baseline`: disabled lane template for operator-triggered
   one-college validation; pass exactly one explicit `--host`.
 - `topic-single-host-baseline`: disabled lane template for operator-triggered
@@ -59,6 +72,29 @@ Current scheduler lanes:
 
 The split is a source-layer crawl control mechanism only. It does not open
 `fresh_news`, `news_archive`, or any college-specific query-serving surface.
+
+Consumer-denominator recovery is stricter than host admission:
+
+- fetched pages without downstream consumer evidence are rejected from retained
+  source-truth in `retain_matching_only` mode
+- listing pages are discovery by default, not answer-bearing evidence
+- contact/service candidates require extracted fact evidence before selected
+  write
+- notice/news candidates remain `inventory_only` until a separate runtime
+  opening admits them
+- public regulation candidates are split conservatively:
+  - `regulation_candidate` -> `regulations/institutional_rules`
+  - `student_regulation_candidate` -> `regulations/student_rules`
+
+Current public regulation collection posture:
+
+- `tool-driven-first-slice.v1` remains the repo-tracked first batch and current
+  default source-pack manifest
+- larger student/public regulation expansion should use an explicit alternate
+  manifest id, not mutate collector scope back into host-wide crawl
+- student-work listing pages such as `xsgz/jwgl.htm`, `xsgz/xszz.htm`,
+  `xsgz/xwsy.htm`, and `xsgz/jlycf/1.htm` are admitted only as one-time
+  `same_host_manual_requeue` discovery rows
 
 Current v1 declarations stay inside the existing quality-improvement scope:
 
@@ -78,16 +114,16 @@ both the stable regression gate and any expansion batch. If a new batch surfaces
 a family outside this declaration set, fix the declaration or batch scope before
 treating it as validated.
 
-`projection-routing.json` is the repo-tracked document-level routing truth
-layered on top of `projection-declarations.json`:
+`projection-routing.json` is a legacy document-level routing layer on top of
+`projection-declarations.json`, but the current repo-tracked file intentionally
+keeps `routes` empty:
 
 - declarations still own the baseline `page_family -> action / document_kind /
   default target scope`
-- routing only overrides the downstream target scope for explicitly matched
-  subsets
-- current routing now splits:
-  - stable-reference subset -> `official_web/stable_reference`
-  - current fresh-news seed set -> `official_web/fresh_news`
+- routing must not independently open `official_web/stable_reference`,
+  `official_web/fresh_news`, or `official_web/news_archive`
+- query-enabled official-web scope admission must come from explicit
+  target-inventory / source-pack / release-gate lineage
 - everything else, including `retain_inventory_only`, stays on the mixed
   `official_web/muc_public_pages` bridge until a later phase moves it explicitly
 

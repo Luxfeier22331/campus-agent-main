@@ -65,10 +65,11 @@ canonical chain。
 - `CAMPUS_SHARED_POSTGRES_URL` 的长期语义是 runtime-ready shared DSN
 - canonical operator env 命名使用 `*_OPERATOR_*`，并统一指向 IPv4 可达的 session pooler
   `:5432`
-- 现存 `*_MANAGEMENT_*` env 名称只保留为兼容别名，不再代表 repo-level direct/default posture
+- 现存 `*_MANAGEMENT_*` env 名称不再作为 runtime env path，也不代表 repo-level
+  direct/default posture
 - 在当前 IPv4-only 姿态下，它应指向 session pooler，而不是 `db.<project-ref>.supabase.co`
-- 未来如果重新开放 explicit `direct/IPv6` lane，应通过新的显式 capability / 决策收口，而不是继续复用默认
-  operator env
+- 未来如果重新开放 explicit `direct/IPv6` lane，应通过新的显式 capability /
+  决策收口，而不是继续复用默认 operator env
 
 ## 决策 4：所有长驻 runtime 必须使用 application-side pooling
 
@@ -101,7 +102,7 @@ canonical chain。
   pooler -> application-side pooling`
 - 对象存储继续保持独立长期语义，不与 Supabase database/runtime 决策混写
 - 后续 Python ingestion 性能改造的主方向明确为连接池化与热路径收敛，而不是引入 IPv6 判断、双 DSN 切换或
-  transaction-mode fallback
+  transaction-mode alternate path
 
 ## Vendor References
 

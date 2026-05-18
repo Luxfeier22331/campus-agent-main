@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-05
-updated: 2026-04-23
+updated: 2026-05-01
 ---
 # Navigation And Wayfinding Architecture
 
@@ -38,6 +38,11 @@ updated: 2026-04-23
 
 `web surface -> app-api -> supervisor-api -> supervisor-agent-worker -> navigation-agent
 -> spatial truth / provider adapters -> supervisor response`
+
+在长期 multi-agent workflow 中，`navigation-agent` 也可以作为 bounded spatial
+specialist 被调用，向其它 domain agent 或 Go finalizer 提供 `PlaceContext`、
+`StopContext`、route summary 或 accessibility warning projection。它不因此拥有
+timetable truth、service-status truth、notice truth 或 retrieval evidence truth。
 
 ## Product Goal
 
@@ -112,8 +117,10 @@ updated: 2026-04-23
 - route planning inside the capability boundary
 - ambiguity handling and clarification
 - navigation answer shaping
-- provider fallback orchestration inside the agent boundary
+- provider candidate orchestration inside the agent boundary
 - transport pickup/dropoff point ref 的消费与路线侧整合
+- manager-style workflow 中的 bounded `PlaceContext` / `StopContext` step output
+  projection
 
 长期不负责：
 
@@ -122,6 +129,8 @@ updated: 2026-04-23
 - product-facing HTTP transport
 - commuter bus / metro shuttle 的 timetable truth
 - service-status truth，例如图书馆/澡堂/窗口当前开放状态
+- notice temporal override truth
+- retrieval answer-bearing evidence selection
 
 ### `apps/app-api`
 
@@ -137,7 +146,7 @@ updated: 2026-04-23
 
 - route card / map / waypoint presentation
 - location permission UX
-- place selection and manual fallback input
+- place selection and manual disambiguation input
 - full-map interaction view 或独立 navigation shell
 
 它们不拥有：
@@ -243,7 +252,7 @@ updated: 2026-04-23
 
 - browser geolocation 是 input source，不是 canonical truth
 - map / geocode / route provider 是 adapter，不是 campus truth owner
-- provider geocode、POI search、fallback route 可以参与 agent 内部执行
+- provider geocode、POI search、secondary route candidates 可以参与 agent 内部执行
 - provider-specific IDs、SDK types、payload shapes 不进入 `packages/contracts`
 
 针对“学校 + 周边关键地点”的底图、自建范围与 provider 成本 posture，见

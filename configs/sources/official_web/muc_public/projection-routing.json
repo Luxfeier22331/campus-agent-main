@@ -1,40 +1,6 @@
 {
 	"schema_version": "official_web_projection_routing.v1",
 	"site_id": "muc_public",
-	"routing_policy_version": "muc_public_projection_routing_v1",
-	"routes": [
-		{
-			"route_id": "stable-reference-bootstrap",
-			"target_corpus": "official_web",
-			"target_collection": "stable_reference",
-			"page_families": ["article_detail", "directory_page", "generic_content_page"],
-			"title_allowlist": [
-				"学校简介",
-				"学校概况",
-				"现任领导",
-				"基金会简介",
-				"校友会简介",
-				"本科培养",
-				"博士后",
-				"研究生培养",
-				"学术名流"
-			]
-		},
-		{
-			"route_id": "fresh-news-seed-handoff",
-			"target_corpus": "official_web",
-			"target_collection": "fresh_news",
-			"page_families": ["article_detail"],
-			"title_allowlist": [
-				"西北四所高校图书馆同仁到我校丰台校区图书馆考察调研",
-				"中央民族大学党委举办树立和践行正确政绩观学习教育读书班",
-				"中央民族大学与北京丰台人才集团共建就业实习实践基地",
-				"校领导拜会北京市委组织部领导交流高质量就业工作",
-				"中央民族大学唐鑫团队在红外高光谱成像系统研究获重大突破",
-				"外国语学院学子在2026中国大学生演讲与辩论锦标赛中喜获佳绩",
-				"中央民族大学举办中国历史研究院2025年度重大招标项目开题论证会",
-				"《学习时报》孔新峰：政德何以重要"
-			]
-		}
-	]
+	"routing_policy_version": "muc_public_projection_routing_v2",
+	"routes": []
 }

@@ -51,6 +51,7 @@ def build_collected_notice_regulation_materialization_preview_from_paths(
     *,
     admission_manifest_path: Path,
     object_store: RegulationMaterializationObjectStoreReader,
+    phase_id: str = PHASE_06_R3_ID,
     generated_by: str = (
         "campus_ingestion_worker.preview_collected_notice_regulation_materialization"
     ),
@@ -58,6 +59,7 @@ def build_collected_notice_regulation_materialization_preview_from_paths(
     return build_collected_notice_regulation_materialization_preview(
         admission_manifest=_load_json_object(admission_manifest_path),
         object_store=object_store,
+        phase_id=phase_id,
         generated_by=generated_by,
         evidence_refs={"admission_manifest": str(admission_manifest_path)},
     )
@@ -68,6 +70,7 @@ def build_collected_notice_regulation_materialization_preview(
     admission_manifest: Mapping[str, Any],
     object_store: RegulationMaterializationObjectStoreReader,
     generated_at: str | None = None,
+    phase_id: str = PHASE_06_R3_ID,
     generated_by: str = (
         "campus_ingestion_worker.preview_collected_notice_regulation_materialization"
     ),
@@ -100,23 +103,27 @@ def build_collected_notice_regulation_materialization_preview(
     duplicate_report = _duplicate_report(
         generated_at=timestamp,
         generated_by=generated_by,
+        phase_id=phase_id,
         grouped=grouped,
     )
     quality_report = _normalization_quality_report(
         generated_at=timestamp,
         generated_by=generated_by,
+        phase_id=phase_id,
         documents_by_collection=documents_by_collection,
         evidence_refs=dict(evidence_refs or {}),
     )
     before_after_report = _before_after_report(
         generated_at=timestamp,
         generated_by=generated_by,
+        phase_id=phase_id,
         documents_by_collection=documents_by_collection,
         evidence_refs=dict(evidence_refs or {}),
     )
     consistency_report = _consistency_report(
         generated_at=timestamp,
         generated_by=generated_by,
+        phase_id=phase_id,
         admitted_entries=admitted_entries,
         skipped_not_admitted=skipped_not_admitted,
         documents_by_collection=documents_by_collection,
@@ -129,6 +136,7 @@ def build_collected_notice_regulation_materialization_preview(
             documents=documents_by_collection[INSTITUTIONAL_TARGET_COLLECTION],
             generated_at=timestamp,
             generated_by=generated_by,
+            phase_id=phase_id,
             evidence_refs=dict(evidence_refs or {}),
         ),
         scoped_rules_materialization=_target_report(
@@ -136,6 +144,7 @@ def build_collected_notice_regulation_materialization_preview(
             documents=documents_by_collection[SCOPED_TARGET_COLLECTION],
             generated_at=timestamp,
             generated_by=generated_by,
+            phase_id=phase_id,
             evidence_refs=dict(evidence_refs or {}),
         ),
         duplicate_provenance_aggregation_report=duplicate_report,
@@ -143,6 +152,7 @@ def build_collected_notice_regulation_materialization_preview(
         source_to_target_trace=_source_to_target_trace(
             generated_at=timestamp,
             generated_by=generated_by,
+            phase_id=phase_id,
             documents_by_collection=documents_by_collection,
         ),
         normalization_quality_report=quality_report,
@@ -176,6 +186,7 @@ def _target_report(
     documents: Sequence[Mapping[str, Any]],
     generated_at: str,
     generated_by: str,
+    phase_id: str,
     evidence_refs: Mapping[str, str],
 ) -> dict[str, Any]:
     return {
@@ -187,7 +198,7 @@ def _target_report(
         "current_promotion_enabled": False,
         "release_publish_enabled": False,
         "query_serving_enabled": False,
-        "phase": PHASE_06_R3_ID,
+        "phase": phase_id,
         "target": "regulation",
         "target_surface": f"regulations/{target_collection}",
         "target_collection": target_collection,
@@ -222,6 +233,7 @@ def _build_preview_document(
     target_document_id = _target_document_id(primary)
     source_notice_ids = sorted({str(entry.get("source_notice_id") or "") for entry in entries})
     source_document_ids = sorted({str(entry.get("source_document_id") or "") for entry in entries})
+    source_notice_release_time = _source_notice_release_time(entries)
     return {
         "schema_version": "collected_notice_regulation_target_document_preview.v1",
         "generated_at": generated_at,
@@ -266,6 +278,7 @@ def _build_preview_document(
             "changed": _canonical_markdown(title=title, body=legacy_body) != canonical_markdown,
         },
         "source_notice_ids": source_notice_ids,
+        "source_notice_release_time": source_notice_release_time,
         "source_document_ids": source_document_ids,
         "source_urls": sorted(
             {str(entry.get("source_url") or "") for entry in entries if entry.get("source_url")}
@@ -287,10 +300,20 @@ def _build_preview_document(
     }
 
 
+def _source_notice_release_time(entries: Sequence[Mapping[str, Any]]) -> str:
+    for entry in entries:
+        for field_name in ("source_notice_release_time", "notice_release_time", "published_at"):
+            value = str(entry.get(field_name) or "").strip()
+            if value:
+                return value
+    return "unknown"
+
+
 def _duplicate_report(
     *,
     generated_at: str,
     generated_by: str,
+    phase_id: str,
     grouped: Mapping[str, Sequence[Sequence[Mapping[str, Any]]]],
 ) -> dict[str, Any]:
     groups: list[dict[str, Any]] = []
@@ -319,7 +342,7 @@ def _duplicate_report(
         "generated_by": generated_by,
         "mode": "dry_run",
         "write_enabled": False,
-        "phase": PHASE_06_R3_ID,
+        "phase": phase_id,
         "target": "regulation",
         "duplicate_group_count": len(groups),
         "groups": groups,
@@ -330,6 +353,7 @@ def _consistency_report(
     *,
     generated_at: str,
     generated_by: str,
+    phase_id: str,
     admitted_entries: Sequence[Mapping[str, Any]],
     skipped_not_admitted: Sequence[Mapping[str, Any]],
     documents_by_collection: Mapping[str, Sequence[Mapping[str, Any]]],
@@ -366,7 +390,7 @@ def _consistency_report(
         "generated_by": generated_by,
         "mode": "dry_run",
         "write_enabled": False,
-        "phase": PHASE_06_R3_ID,
+        "phase": phase_id,
         "target": "regulation",
         "verdict": verdict,
         "failure_reason_codes": failures,
@@ -401,6 +425,7 @@ def _normalization_quality_report(
     *,
     generated_at: str,
     generated_by: str,
+    phase_id: str,
     documents_by_collection: Mapping[str, Sequence[Mapping[str, Any]]],
     evidence_refs: Mapping[str, str],
 ) -> dict[str, Any]:
@@ -418,7 +443,7 @@ def _normalization_quality_report(
         "generated_by": generated_by,
         "mode": "dry_run",
         "write_enabled": False,
-        "phase": PHASE_06_R3_ID,
+        "phase": phase_id,
         "target": "regulation",
         "verdict": verdict,
         "document_count": len(rows),
@@ -433,6 +458,7 @@ def _before_after_report(
     *,
     generated_at: str,
     generated_by: str,
+    phase_id: str,
     documents_by_collection: Mapping[str, Sequence[Mapping[str, Any]]],
     evidence_refs: Mapping[str, str],
 ) -> dict[str, Any]:
@@ -453,7 +479,7 @@ def _before_after_report(
         "generated_by": generated_by,
         "mode": "dry_run",
         "write_enabled": False,
-        "phase": PHASE_06_R3_ID,
+        "phase": phase_id,
         "target": "regulation",
         "document_count": len(rows),
         "changed_document_count": sum(1 for row in rows if row.get("changed")),
@@ -466,6 +492,7 @@ def _source_to_target_trace(
     *,
     generated_at: str,
     generated_by: str,
+    phase_id: str,
     documents_by_collection: Mapping[str, Sequence[Mapping[str, Any]]],
 ) -> dict[str, Any]:
     entries: list[dict[str, Any]] = []
@@ -489,7 +516,7 @@ def _source_to_target_trace(
         "generated_by": generated_by,
         "mode": "dry_run",
         "write_enabled": False,
-        "phase": PHASE_06_R3_ID,
+        "phase": phase_id,
         "target": "regulation",
         "entry_count": len(entries),
         "entries": sorted(
@@ -635,6 +662,13 @@ def _normalization_quality_document(
         "chapter_count": normalization.chapter_count,
         "article_count": normalization.article_count,
         "page_artifact_count": normalization.page_artifact_count,
+        "layout_artifact_count": normalization.layout_artifact_count,
+        "html_tag_removed_count": normalization.html_tag_removed_count,
+        "publication_imprint_removed_count": normalization.publication_imprint_removed_count,
+        "soft_wrap_repair_count": normalization.soft_wrap_repair_count,
+        "soft_wrap_residue_count": normalization.soft_wrap_residue_count,
+        "readability_normalization_count": normalization.readability_normalization_count,
+        "normalizer_version": normalization.normalizer_version,
         "unit_count": unit_count,
         "quality_verdict": normalization.quality_verdict,
         "reason_codes": list(normalization.reason_codes),

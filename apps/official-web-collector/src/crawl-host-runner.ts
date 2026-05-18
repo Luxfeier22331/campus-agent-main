@@ -4,8 +4,9 @@ import type { OfficialWebPlannerPageCandidate } from "./control-plane.ts";
 import type {
 	CollectorAggregatedResults,
 	CollectorProgressCounts,
+	CollectorSourcePackLineageOverride,
 } from "./crawl-internal-types.ts";
-import { summarizeProgressCounts } from "./crawl-progress.ts";
+import { buildTargetWorksetProgressCounts, summarizeProgressCounts } from "./crawl-progress.ts";
 import { crawlSingleHost } from "./crawl-single-host.ts";
 import type {
 	OfficialWebDynamicShellDiscoverer,
@@ -34,6 +35,8 @@ export interface CrawlHostsWithCrawleeInput {
 			repairPages: number;
 			selectedHosts: number;
 			staticPages: number;
+			targetJobs: number;
+			worksetRows: number;
 		};
 	};
 	plan: OfficialWebCrawlPlan;
@@ -42,6 +45,8 @@ export interface CrawlHostsWithCrawleeInput {
 	maxPagesPerHost: number;
 	maxTotalPages: number;
 	dynamicShellDiscoverer?: OfficialWebDynamicShellDiscoverer;
+	disableConditionalHeaders?: boolean;
+	sourcePackLineageOverrides?: Record<string, CollectorSourcePackLineageOverride>;
 	reportProgress?: (counts: CollectorProgressCounts) => Promise<void>;
 }
 
@@ -49,9 +54,12 @@ export async function crawlHostsWithCrawlee(
 	input: CrawlHostsWithCrawleeInput,
 ): Promise<CollectorAggregatedResults> {
 	const hostFilter = new Set((input.hostFilter ?? []).map((item) => item.toLowerCase()));
-	const selectedHosts = input.plan.enabledHosts.filter(
-		(item) => hostFilter.size === 0 || hostFilter.has(item.host.toLowerCase()),
-	);
+	const worksetHosts = new Set(input.dynamicPlan.duePages.map((page) => page.host.toLowerCase()));
+	const selectedHosts = input.plan.enabledHosts.filter((item) => {
+		const host = item.host.toLowerCase();
+		return worksetHosts.has(host) && (hostFilter.size === 0 || hostFilter.has(host));
+	});
+	const targetWorksetProgressCounts = buildTargetWorksetProgressCounts(input.dynamicPlan.duePages);
 
 	const hostSummaries: OfficialWebHostSummaryRecord[] = [];
 	const pageObservations: OfficialWebPageObservationRecord[] = [];
@@ -84,12 +92,13 @@ export async function crawlHostsWithCrawlee(
 				}),
 			);
 			if (input.reportProgress) {
-				await input.reportProgress(
-					summarizeProgressCounts(
+				await input.reportProgress({
+					...summarizeProgressCounts(
 						{ hostSummaries, pageObservations, urlResults, failures, pages },
 						0,
 					),
-				);
+					...targetWorksetProgressCounts,
+				});
 			}
 			continue;
 		}
@@ -106,6 +115,8 @@ export async function crawlHostsWithCrawlee(
 				remainingTotalPages,
 			),
 			dynamicShellDiscoverer: input.dynamicShellDiscoverer,
+			disableConditionalHeaders: input.disableConditionalHeaders,
+			sourcePackLineageOverrides: input.sourcePackLineageOverrides,
 		});
 		hostSummaries.push(...hostResult.hostSummaries);
 		pageObservations.push(...(hostResult.pageObservations ?? []));
@@ -116,12 +127,13 @@ export async function crawlHostsWithCrawlee(
 		remainingTotalPages -= hostResult.urlResults.length;
 
 		if (input.reportProgress) {
-			await input.reportProgress(
-				summarizeProgressCounts(
+			await input.reportProgress({
+				...summarizeProgressCounts(
 					{ hostSummaries, pageObservations, urlResults, failures, pages },
 					0,
 				),
-			);
+				...targetWorksetProgressCounts,
+			});
 		}
 	}
 

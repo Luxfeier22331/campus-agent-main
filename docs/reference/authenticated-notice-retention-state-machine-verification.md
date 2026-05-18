@@ -159,7 +159,7 @@ updated: 2026-04-30
 
 抽样分层：
 
-- classifier service-status 候选：13 条全量覆盖；人工验证后 2 条降级为仅搜索。
+- classifier service-status 候选：13 条全量覆盖；人工验证后 2 条收敛为仅搜索。
 - regulation / file-release owner：7 条。
 - `notice_level_query + process` 高风险旧策略桶：7 条。
 - `notice_level_query + metadata_only + attachments` 负样本：3 条。
@@ -382,7 +382,7 @@ source。因此它们固定走 document owner path。
 
 ### Batch 2 结论
 
-- classifier service-status 桶中的 `355085` 与 `355570` 人工验证后降级为
+- classifier service-status 桶中的 `355085` 与 `355570` 人工验证后收敛为
   `notice_level_query_only`，不进入 service-status downstream。
 - 30 条中只有 3 条需要附件 quarantine：
   - `355867` 的 3 张班车/接驳车安排图片。

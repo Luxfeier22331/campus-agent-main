@@ -2,6 +2,33 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from campus_contracts.models_notice import (
+    CampusNoticeChangeSetLookupPayload as CampusNoticeChangeSetLookupPayload,
+)
+from campus_contracts.models_notice import (
+    CampusNoticeChangeSetLookupResult as CampusNoticeChangeSetLookupResult,
+)
+from campus_contracts.models_notice import (
+    CampusNoticeDiscoverPayload as CampusNoticeDiscoverPayload,
+)
+from campus_contracts.models_notice import (
+    CampusNoticeDiscoverResult as CampusNoticeDiscoverResult,
+)
+from campus_contracts.models_notice import (
+    CampusNoticeGetPayload as CampusNoticeGetPayload,
+)
+from campus_contracts.models_notice import (
+    CampusNoticeGetResult as CampusNoticeGetResult,
+)
+from campus_contracts.models_notice import (
+    NoticeCard as NoticeCard,
+)
+from campus_contracts.models_notice import (
+    NoticeContextProjection as NoticeContextProjection,
+)
+from campus_contracts.models_notice import (
+    NoticeDisplayPolicy as NoticeDisplayPolicy,
+)
 from campus_contracts.models_shared import (
     ContactDirectoryChannelType,
     ContactDirectoryClarificationReason,
@@ -9,41 +36,69 @@ from campus_contracts.models_shared import (
     ContactDirectoryFocus,
     CoordinateReferenceSystem,
     HistoricalDowngradeReason,
-    NoticeSourceFamily,
-    NoticeTargetSurface,
     PlaceEntityType,
     ServiceGuideAudience,
     ServiceGuideClarificationReason,
     ServiceGuideFocus,
     ServiceStatusValue,
-    TemporalQueryMode,
     ToolBusinessOutcome,
     ToolFailCloseReason,
-    TransportDaypart,
-    TransportScheduleClarificationReason,
-    TransportScheduleIntent,
-    TransportServiceDateMode,
-    TransportServiceStatusValue,
     _validate_contact_directory_channel_type,
     _validate_contact_directory_clarification_reason,
     _validate_contact_directory_entity_type,
     _validate_contact_directory_focus,
     _validate_historical_downgrade_reason,
-    _validate_notice_source_family,
-    _validate_notice_target_surface,
     _validate_service_guide_audience,
     _validate_service_guide_clarification_reason,
     _validate_service_guide_focus,
     _validate_service_status_value,
-    _validate_temporal_query_mode,
     _validate_tool_business_outcome,
     _validate_tool_fail_close_reason,
-    _validate_transport_daypart,
-    _validate_transport_schedule_clarification_reason,
-    _validate_transport_schedule_intent,
-    _validate_transport_service_date_mode,
-    _validate_transport_service_status_value,
 )
+from campus_contracts.models_temporal import TemporalQuery
+from campus_contracts.models_tools_academic_calendar import (
+    AcademicCalendarLookupPayload as AcademicCalendarLookupPayload,
+)
+from campus_contracts.models_tools_academic_calendar import (
+    AcademicCalendarLookupResult as AcademicCalendarLookupResult,
+)
+from campus_contracts.models_tools_academic_calendar import (
+    AcademicCalendarRelatedContext as AcademicCalendarRelatedContext,
+)
+from campus_contracts.models_tools_transport import (
+    ScheduledDeparture as ScheduledDeparture,
+)
+from campus_contracts.models_tools_transport import (
+    TransportOperationalNotice as TransportOperationalNotice,
+)
+from campus_contracts.models_tools_transport import (
+    TransportRouteCandidate as TransportRouteCandidate,
+)
+from campus_contracts.models_tools_transport import (
+    TransportRouteRef as TransportRouteRef,
+)
+from campus_contracts.models_tools_transport import (
+    TransportRouteSelector as TransportRouteSelector,
+)
+from campus_contracts.models_tools_transport import (
+    TransportScheduleLookupPayload as TransportScheduleLookupPayload,
+)
+from campus_contracts.models_tools_transport import (
+    TransportScheduleLookupResult as TransportScheduleLookupResult,
+)
+from campus_contracts.models_tools_transport import (
+    TransportScheduleSnapshotRef as TransportScheduleSnapshotRef,
+)
+from campus_contracts.models_tools_transport import (
+    TransportServiceTimeQuery as TransportServiceTimeQuery,
+)
+from campus_contracts.models_tools_transport import (
+    TransportServiceWindow as TransportServiceWindow,
+)
+from campus_contracts.models_tools_transport import (
+    TransportStopRef as TransportStopRef,
+)
+from campus_contracts.schema_metadata import schema_metadata
 
 
 @dataclass(frozen=True, slots=True)
@@ -125,42 +180,43 @@ class PlaceLookupResult:
 
 
 @dataclass(frozen=True, slots=True)
-class TemporalQuery:
-    mode: TemporalQueryMode = "current"
-    as_of: str = ""
-    year_hint: str = ""
-
-    def __post_init__(self) -> None:
-        _validate_temporal_query_mode(self.mode)
-        normalized_as_of = self.as_of.strip()
-        normalized_year_hint = self.year_hint.strip()
-        if normalized_as_of != self.as_of:
-            object.__setattr__(self, "as_of", normalized_as_of)
-        if normalized_year_hint != self.year_hint:
-            object.__setattr__(self, "year_hint", normalized_year_hint)
-        if self.mode == "as_of":
-            if not normalized_as_of:
-                raise ValueError("as_of is required when temporal mode is as_of")
-        elif normalized_as_of:
-            raise ValueError("as_of is only allowed when temporal mode is as_of")
-        if self.mode == "current_year":
-            if not normalized_year_hint:
-                raise ValueError("year_hint is required when temporal mode is current_year")
-        elif normalized_year_hint:
-            raise ValueError("year_hint is only allowed when temporal mode is current_year")
-
-
-@dataclass(frozen=True, slots=True)
 class ContactDirectoryEntitySelector:
-    contact_id: str = ""
-    department_query: str = ""
-    office_query: str = ""
-    service_query: str = ""
-    person_query: str = ""
-    role_query: str = ""
-    purpose_query: str = ""
-    contact_group_query: str = ""
-    location_query: str = ""
+    contact_id: str = field(
+        default="",
+        metadata=schema_metadata(description="Known contact id if already resolved."),
+    )
+    department_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Department name fragment."),
+    )
+    office_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Office name fragment."),
+    )
+    service_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Service or task the contact should support."),
+    )
+    person_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Person name fragment."),
+    )
+    role_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Role name fragment."),
+    )
+    purpose_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Reason for contacting."),
+    )
+    contact_group_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Contact group fragment."),
+    )
+    location_query: str = field(
+        default="",
+        metadata=schema_metadata(description="Location fragment."),
+    )
 
     def __post_init__(self) -> None:
         if self.contact_id and not self.contact_id.strip():
@@ -250,13 +306,37 @@ class ContactDirectoryCandidate:
 
 @dataclass(frozen=True, slots=True)
 class ContactDirectoryLookupPayload:
-    query_text: str
-    contact_focus: ContactDirectoryFocus | str
-    entity_selector: ContactDirectoryEntitySelector | None = None
-    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
-    campus_scope: str = ""
-    audience: ServiceGuideAudience | str = "unknown"
-    result_limit: int | None = None
+    query_text: str = field(
+        metadata=schema_metadata(description="Original contact directory question.")
+    )
+    contact_focus: ContactDirectoryFocus | str = field(
+        metadata=schema_metadata(description="Requested contact information focus.")
+    )
+    entity_selector: ContactDirectoryEntitySelector | None = field(
+        default=None,
+        metadata=schema_metadata(
+            description="Optional selector for the contact entity to resolve."
+        ),
+    )
+    temporal_query: TemporalQuery = field(
+        default_factory=TemporalQuery,
+        metadata=schema_metadata(description="Optional temporal query constraint."),
+    )
+    campus_scope: str = field(
+        default="",
+        metadata=schema_metadata(description="Optional campus scope such as haidian or fengtai."),
+    )
+    audience: ServiceGuideAudience | str = field(
+        default="unknown",
+        metadata=schema_metadata(description="Audience for the contact."),
+    )
+    result_limit: int | None = field(
+        default=None,
+        metadata=schema_metadata(
+            description="Optional positive maximum result count.",
+            minimum=1,
+        ),
+    )
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():
@@ -285,6 +365,7 @@ class ContactDirectoryLookupResult:
         default="", compare=False
     )
     fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
+    field_status: dict[str, str] = field(default_factory=dict, compare=False)
 
     def __post_init__(self) -> None:
         if not self.query_text.strip():
@@ -317,35 +398,18 @@ class ContactDirectoryLookupResult:
 
 
 @dataclass(frozen=True, slots=True)
-class NoticeCard:
-    notice_id: str
-    title: str
-    source_family: NoticeSourceFamily | str
-    source_url: str
-    canonical_url: str = ""
-    target_surface: NoticeTargetSurface | str = ""
-    summary: str = ""
-    published_at: str = ""
-    effective_at: str = ""
-    is_current: bool = False
-
-    def __post_init__(self) -> None:
-        if not self.notice_id.strip():
-            raise ValueError("notice_id must not be empty")
-        if not self.title.strip():
-            raise ValueError("title must not be empty")
-        _validate_notice_source_family(self.source_family)
-        if not self.source_url.strip():
-            raise ValueError("source_url must not be empty")
-        if self.target_surface:
-            _validate_notice_target_surface(self.target_surface)
-
-
-@dataclass(frozen=True, slots=True)
 class ServiceStatusLookupPayload:
-    subject_query: str
-    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
-    campus_scope: str = ""
+    subject_query: str = field(
+        metadata=schema_metadata(description="Campus service, facility, or operation to check.")
+    )
+    temporal_query: TemporalQuery = field(
+        default_factory=TemporalQuery,
+        metadata=schema_metadata(description="Optional temporal query constraint."),
+    )
+    campus_scope: str = field(
+        default="",
+        metadata=schema_metadata(description="Optional campus scope such as haidian or fengtai."),
+    )
 
     def __post_init__(self) -> None:
         if not self.subject_query.strip():
@@ -408,12 +472,15 @@ class ServiceGuideServiceRef:
 
 @dataclass(frozen=True, slots=True)
 class ServiceGuideSection:
+    section_id: str
     section_type: ServiceGuideFocus | str
     title: str
     content: str
     source_refs: tuple[str, ...] = field(default_factory=tuple)
 
     def __post_init__(self) -> None:
+        if not self.section_id.strip():
+            raise ValueError("section_id must not be empty")
         if self.section_type == "full_guide":
             raise ValueError("section_type must be a concrete service guide section")
         _validate_service_guide_focus(self.section_type)
@@ -502,13 +569,66 @@ class ServiceGuideCandidate:
 
 
 @dataclass(frozen=True, slots=True)
+class ServiceGuideProcedureStep:
+    step_id: str
+    content: str
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.step_id.strip():
+            raise ValueError("step_id must not be empty")
+        if not self.content.strip():
+            raise ValueError("content must not be empty")
+        if not self.source_refs:
+            raise ValueError("source_refs must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
+class ServiceGuideProcedureGroup:
+    group_id: str
+    title: str
+    focus_tags: tuple[str, ...] = field(default_factory=tuple)
+    steps: tuple[ServiceGuideProcedureStep, ...] = field(default_factory=tuple)
+    source_refs: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if not self.group_id.strip():
+            raise ValueError("group_id must not be empty")
+        if not self.title.strip():
+            raise ValueError("title must not be empty")
+        if not self.steps:
+            raise ValueError("steps must not be empty")
+        if not self.source_refs:
+            raise ValueError("source_refs must not be empty")
+
+
+@dataclass(frozen=True, slots=True)
 class ServiceGuideLookupPayload:
-    service_query: str
-    guide_focus: ServiceGuideFocus | str
-    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
-    campus_scope: str = ""
-    audience: ServiceGuideAudience | str = "unknown"
-    result_limit: int | None = None
+    service_query: str = field(
+        metadata=schema_metadata(description="Campus service or process to explain.")
+    )
+    guide_focus: ServiceGuideFocus | str = field(
+        metadata=schema_metadata(description="Requested service guide section.")
+    )
+    temporal_query: TemporalQuery = field(
+        default_factory=TemporalQuery,
+        metadata=schema_metadata(description="Optional temporal query constraint."),
+    )
+    campus_scope: str = field(
+        default="",
+        metadata=schema_metadata(description="Optional campus scope such as haidian or fengtai."),
+    )
+    audience: ServiceGuideAudience | str = field(
+        default="unknown",
+        metadata=schema_metadata(description="Audience for the guide."),
+    )
+    result_limit: int | None = field(
+        default=None,
+        metadata=schema_metadata(
+            description="Optional positive maximum result count.",
+            minimum=1,
+        ),
+    )
 
     def __post_init__(self) -> None:
         if not self.service_query.strip():
@@ -526,6 +646,7 @@ class ServiceGuideLookupResult:
     outcome: ToolBusinessOutcome
     resolved_service: ServiceGuideServiceRef | None = None
     guide_sections: tuple[ServiceGuideSection, ...] = field(default_factory=tuple)
+    procedure_groups: tuple[ServiceGuideProcedureGroup, ...] = field(default_factory=tuple)
     required_materials: tuple[ServiceGuideMaterial, ...] = field(default_factory=tuple)
     entry_refs: tuple[ServiceGuideEntryRef, ...] = field(default_factory=tuple)
     office_hours: tuple[ServiceGuideOfficeHours, ...] = field(default_factory=tuple)
@@ -539,6 +660,10 @@ class ServiceGuideLookupResult:
     clarification_reason: ServiceGuideClarificationReason | str = field(default="", compare=False)
     fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
     matched_service_category: str = ""
+    selected_section_ids: tuple[str, ...] = field(default_factory=tuple)
+    omitted_section_ids: tuple[str, ...] = field(default_factory=tuple)
+    omitted_section_reasons: dict[str, str] = field(default_factory=dict, compare=False)
+    field_status: dict[str, str] = field(default_factory=dict, compare=False)
 
     def __post_init__(self) -> None:
         if not self.service_query.strip():
@@ -561,333 +686,4 @@ class ServiceGuideLookupResult:
         if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
             raise ValueError(
                 "fail_close_reason must not be empty for fail-closed service guide results"
-            )
-
-
-@dataclass(frozen=True, slots=True)
-class TransportStopRef:
-    stop_id: str
-    display_name: str
-
-    def __post_init__(self) -> None:
-        if not self.stop_id.strip():
-            raise ValueError("stop_id must not be empty")
-        if not self.display_name.strip():
-            raise ValueError("display_name must not be empty")
-
-
-@dataclass(frozen=True, slots=True)
-class TransportRouteSelector:
-    route_id: str = ""
-    service_family: str = ""
-    route_variant_query: str = ""
-    origin_campus: str = ""
-    destination_campus: str = ""
-    origin_stop_query: str = ""
-    destination_stop_query: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class TransportServiceTimeQuery:
-    date_mode: TransportServiceDateMode | str = "today"
-    service_date: str = ""
-    daypart: TransportDaypart | str = "all_day"
-    departure_not_before: str = ""
-    departure_not_after: str = ""
-
-    def __post_init__(self) -> None:
-        _validate_transport_service_date_mode(self.date_mode)
-        _validate_transport_daypart(self.daypart)
-        normalized_service_date = self.service_date.strip()
-        normalized_departure_not_before = self.departure_not_before.strip()
-        normalized_departure_not_after = self.departure_not_after.strip()
-        if normalized_service_date != self.service_date:
-            object.__setattr__(self, "service_date", normalized_service_date)
-        if normalized_departure_not_before != self.departure_not_before:
-            object.__setattr__(self, "departure_not_before", normalized_departure_not_before)
-        if normalized_departure_not_after != self.departure_not_after:
-            object.__setattr__(self, "departure_not_after", normalized_departure_not_after)
-        if self.date_mode == "date":
-            if not normalized_service_date:
-                raise ValueError("service_date is required when date_mode is date")
-        elif normalized_service_date:
-            raise ValueError("service_date is only allowed when date_mode is date")
-        if (
-            normalized_departure_not_before
-            and normalized_departure_not_after
-            and normalized_departure_not_before > normalized_departure_not_after
-        ):
-            raise ValueError("departure_not_before must not be later than departure_not_after")
-
-
-@dataclass(frozen=True, slots=True)
-class TransportRouteRef:
-    route_id: str
-    display_name: str
-    service_family: str
-
-    def __post_init__(self) -> None:
-        if not self.route_id.strip():
-            raise ValueError("route_id must not be empty")
-        if not self.display_name.strip():
-            raise ValueError("display_name must not be empty")
-        if not self.service_family.strip():
-            raise ValueError("service_family must not be empty")
-
-
-@dataclass(frozen=True, slots=True)
-class ScheduledDeparture:
-    departure_at: str
-    arrival_at: str = ""
-    origin_stop_ref: TransportStopRef | None = None
-    destination_stop_ref: TransportStopRef | None = None
-
-    def __post_init__(self) -> None:
-        if not self.departure_at.strip():
-            raise ValueError("departure_at must not be empty")
-
-
-@dataclass(frozen=True, slots=True)
-class TransportServiceWindow:
-    first_departure_at: str = ""
-    last_departure_at: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class TransportScheduleSnapshotRef:
-    snapshot_id: str
-    published_at: str
-    effective_from: str = ""
-    effective_until: str = ""
-    source_ref: str = ""
-
-    def __post_init__(self) -> None:
-        if not self.snapshot_id.strip():
-            raise ValueError("snapshot_id must not be empty")
-        if not self.published_at.strip():
-            raise ValueError("published_at must not be empty")
-        if not self.source_ref.strip():
-            raise ValueError("source_ref must not be empty")
-
-
-@dataclass(frozen=True, slots=True)
-class TransportRouteCandidate:
-    route: TransportRouteRef
-    clarification_hint: str = ""
-
-
-@dataclass(frozen=True, slots=True)
-class TransportOperationalNotice:
-    notice_id: str
-    source_ref: str
-    notice_kind: str
-    route_ids: tuple[str, ...] = field(default_factory=tuple)
-    effective_from: str = ""
-    effective_until: str = ""
-    operational_comment: str = ""
-
-    def __post_init__(self) -> None:
-        if not self.notice_id.strip():
-            raise ValueError("notice_id must not be empty")
-        if not self.source_ref.strip():
-            raise ValueError("source_ref must not be empty")
-        if not self.notice_kind.strip():
-            raise ValueError("notice_kind must not be empty")
-
-
-@dataclass(frozen=True, slots=True)
-class TransportScheduleLookupPayload:
-    query_text: str
-    intent: TransportScheduleIntent | str
-    route_selector: TransportRouteSelector | None = None
-    snapshot_query: TemporalQuery = field(default_factory=TemporalQuery)
-    service_time_query: TransportServiceTimeQuery | None = None
-    result_limit: int | None = None
-
-    def __post_init__(self) -> None:
-        if not self.query_text.strip():
-            raise ValueError("query_text must not be empty")
-        _validate_transport_schedule_intent(self.intent)
-        if self.result_limit is not None and self.result_limit <= 0:
-            raise ValueError("result_limit must be positive")
-        if self.intent == "schedule_snapshot_metadata" and self.service_time_query is not None:
-            raise ValueError(
-                "service_time_query is not allowed for schedule_snapshot_metadata intent"
-            )
-
-
-@dataclass(frozen=True, slots=True)
-class TransportScheduleLookupResult:
-    query_text: str
-    intent: TransportScheduleIntent | str
-    outcome: ToolBusinessOutcome
-    resolved_route: TransportRouteRef | None = None
-    service_status: TransportServiceStatusValue | str = field(default="", compare=False)
-    queried_time_anchor: str = ""
-    requested_service_date: str = ""
-    selected_departure: ScheduledDeparture | None = None
-    departure_options: tuple[ScheduledDeparture, ...] = field(default_factory=tuple)
-    service_window: TransportServiceWindow | None = None
-    schedule_snapshot: TransportScheduleSnapshotRef | None = None
-    timetable_entries: tuple[ScheduledDeparture, ...] = field(default_factory=tuple)
-    candidate_routes: tuple[TransportRouteCandidate, ...] = field(default_factory=tuple)
-    clarification_reason: TransportScheduleClarificationReason | str = field(
-        default="", compare=False
-    )
-    stop_refs: tuple[TransportStopRef, ...] = field(default_factory=tuple)
-    related_notice_refs: tuple[str, ...] = field(default_factory=tuple)
-    operational_notices: tuple[TransportOperationalNotice, ...] = field(default_factory=tuple)
-    historical_downgrade_reason: HistoricalDowngradeReason | str = field(default="", compare=False)
-    fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
-
-    def __post_init__(self) -> None:
-        if not self.query_text.strip():
-            raise ValueError("query_text must not be empty")
-        _validate_transport_schedule_intent(self.intent)
-        _validate_tool_business_outcome(self.outcome)
-        if self.service_status:
-            _validate_transport_service_status_value(self.service_status)
-        if self.clarification_reason:
-            _validate_transport_schedule_clarification_reason(self.clarification_reason)
-        if self.historical_downgrade_reason:
-            _validate_historical_downgrade_reason(self.historical_downgrade_reason)
-        if self.fail_close_reason:
-            _validate_tool_fail_close_reason(self.fail_close_reason)
-        if (
-            self.outcome == "resolved_current"
-            and self.intent != "schedule_snapshot_metadata"
-            and self.resolved_route is None
-        ):
-            raise ValueError("resolved_route must not be empty for resolved transport schedule")
-        if self.outcome == "clarification_required" and not self.clarification_reason:
-            raise ValueError(
-                "clarification_reason must not be empty for clarification-required transport schedule results"
-            )
-        if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
-            raise ValueError(
-                "fail_close_reason must not be empty for fail-closed transport schedule results"
-            )
-        if self.selected_departure is not None and (
-            self.departure_options or self.timetable_entries or self.service_window is not None
-        ):
-            raise ValueError(
-                "selected_departure must not be combined with departure_options, timetable_entries, or service_window"
-            )
-        if self.outcome == "temporarily_unverifiable" and (
-            self.selected_departure is not None
-            or self.departure_options
-            or self.timetable_entries
-            or self.service_window is not None
-        ):
-            raise ValueError(
-                "fail-closed transport schedule results must not carry resolved schedule payload fields"
-            )
-
-
-@dataclass(frozen=True, slots=True)
-class CampusNoticeDiscoverPayload:
-    query_text: str
-    temporal_query: TemporalQuery = field(default_factory=TemporalQuery)
-    source_families: tuple[NoticeSourceFamily | str, ...] = field(default_factory=tuple)
-    target_surfaces: tuple[NoticeTargetSurface | str, ...] = field(default_factory=tuple)
-    max_results: int = 5
-
-    def __post_init__(self) -> None:
-        if not self.query_text.strip():
-            raise ValueError("query_text must not be empty")
-        for source_family in self.source_families:
-            _validate_notice_source_family(source_family)
-        for target_surface in self.target_surfaces:
-            _validate_notice_target_surface(target_surface)
-        if self.max_results <= 0:
-            raise ValueError("max_results must be positive")
-
-
-@dataclass(frozen=True, slots=True)
-class CampusNoticeDiscoverResult:
-    query_text: str
-    outcome: ToolBusinessOutcome
-    source_families: tuple[NoticeSourceFamily | str, ...] = field(
-        default_factory=tuple, compare=False
-    )
-    notice_cards: tuple[NoticeCard, ...] = field(default_factory=tuple)
-    queried_time_anchor: str = ""
-    historical_downgrade_reason: HistoricalDowngradeReason | str = field(default="", compare=False)
-    fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
-
-    def __post_init__(self) -> None:
-        if not self.query_text.strip():
-            raise ValueError("query_text must not be empty")
-        _validate_tool_business_outcome(self.outcome)
-        for source_family in self.source_families:
-            _validate_notice_source_family(source_family)
-        if self.historical_downgrade_reason:
-            _validate_historical_downgrade_reason(self.historical_downgrade_reason)
-        if self.fail_close_reason:
-            _validate_tool_fail_close_reason(self.fail_close_reason)
-        if (
-            self.outcome in {"resolved_current", "resolved_historical_reference"}
-            and not self.notice_cards
-        ):
-            raise ValueError("notice_cards must not be empty for resolved notice discovery results")
-        if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
-            raise ValueError(
-                "fail_close_reason must not be empty for fail-closed notice discovery results"
-            )
-
-
-@dataclass(frozen=True, slots=True)
-class CampusNoticeGetPayload:
-    notice_id: str
-    source_family: NoticeSourceFamily | str = field(default="", compare=False)
-
-    def __post_init__(self) -> None:
-        if not self.notice_id.strip():
-            raise ValueError("notice_id must not be empty")
-        if self.source_family:
-            _validate_notice_source_family(self.source_family)
-
-
-@dataclass(frozen=True, slots=True)
-class CampusNoticeGetResult:
-    notice_id: str
-    outcome: ToolBusinessOutcome
-    title: str = ""
-    source_family: NoticeSourceFamily | str = field(default="", compare=False)
-    source_url: str = ""
-    canonical_url: str = ""
-    normalized_body: str = ""
-    reference_only: bool = False
-    target_surface: NoticeTargetSurface | str = field(default="", compare=False)
-    published_at: str = ""
-    effective_at: str = ""
-    attachment_refs: tuple[str, ...] = field(default_factory=tuple)
-    provenance_refs: tuple[str, ...] = field(default_factory=tuple)
-    historical_downgrade_reason: HistoricalDowngradeReason | str = field(default="", compare=False)
-    fail_close_reason: ToolFailCloseReason | str = field(default="", compare=False)
-
-    def __post_init__(self) -> None:
-        if not self.notice_id.strip():
-            raise ValueError("notice_id must not be empty")
-        _validate_tool_business_outcome(self.outcome)
-        if self.source_family:
-            _validate_notice_source_family(self.source_family)
-        if self.target_surface:
-            _validate_notice_target_surface(self.target_surface)
-        if self.historical_downgrade_reason:
-            _validate_historical_downgrade_reason(self.historical_downgrade_reason)
-        if self.fail_close_reason:
-            _validate_tool_fail_close_reason(self.fail_close_reason)
-        if self.outcome in {"resolved_current", "resolved_historical_reference"}:
-            if not self.title.strip():
-                raise ValueError("title must not be empty for resolved notice results")
-            if not self.source_family:
-                raise ValueError("source_family must not be empty for resolved notice results")
-            if not self.source_url.strip():
-                raise ValueError("source_url must not be empty for resolved notice results")
-            if not self.reference_only and not self.normalized_body.strip():
-                raise ValueError("normalized_body must not be empty for resolved notice results")
-        if self.outcome == "temporarily_unverifiable" and not self.fail_close_reason:
-            raise ValueError(
-                "fail_close_reason must not be empty for fail-closed notice get results"
             )

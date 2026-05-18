@@ -24,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--notice-id", action="append", dest="notice_ids", default=[])
     parser.add_argument("--selection-path")
     parser.add_argument("--allow-unattempted-pending", action="store_true")
-    parser.add_argument("--check-chat-endpoint", action="store_true")
+    parser.add_argument("--check-multimodal-runtime", action="store_true")
     return parser
 
 
@@ -43,7 +43,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         source_collection=args.collection,
         notice_ids=selection.notice_ids,
         allow_unattempted_pending=args.allow_unattempted_pending,
-        check_chat_endpoint=args.check_chat_endpoint,
+        check_multimodal_runtime=args.check_multimodal_runtime,
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2, sort_keys=True))
 

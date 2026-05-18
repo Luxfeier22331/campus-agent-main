@@ -18,7 +18,9 @@ type WorkflowRunStore interface {
 	Get(context.Context, string) (WorkflowRun, error)
 	AppendHandoff(context.Context, string, HandoffStep) (WorkflowRun, error)
 	AppendStep(context.Context, string, WorkflowStep) (WorkflowRun, error)
+	AppendAgentInvocation(context.Context, string, AgentInvocation) (WorkflowRun, error)
 	AppendStepOutputProjection(context.Context, string, StepOutputProjection) (WorkflowRun, error)
+	AppendToolCallSummary(context.Context, string, ToolCallSummary) (WorkflowRun, error)
 	Complete(context.Context, string, WorkflowState) (WorkflowRun, error)
 }
 
@@ -100,6 +102,25 @@ func (s *InMemoryWorkflowRunStore) AppendStep(
 	return cloneWorkflowRun(run), nil
 }
 
+func (s *InMemoryWorkflowRunStore) AppendAgentInvocation(
+	_ context.Context,
+	runID string,
+	invocation AgentInvocation,
+) (WorkflowRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run, exists := s.runs[runID]
+	if !exists {
+		return WorkflowRun{}, fmt.Errorf("%w: %s", ErrWorkflowRunNotFound, runID)
+	}
+	run.AgentInvocations = append(run.AgentInvocations, cloneAgentInvocation(invocation))
+	if err := validateWorkflowRun(run); err != nil {
+		return WorkflowRun{}, err
+	}
+	s.runs[runID] = cloneWorkflowRun(run)
+	return cloneWorkflowRun(run), nil
+}
+
 func (s *InMemoryWorkflowRunStore) AppendStepOutputProjection(
 	_ context.Context,
 	runID string,
@@ -112,6 +133,25 @@ func (s *InMemoryWorkflowRunStore) AppendStepOutputProjection(
 		return WorkflowRun{}, fmt.Errorf("%w: %s", ErrWorkflowRunNotFound, runID)
 	}
 	run.ContextProjections = append(run.ContextProjections, CloneStepOutputProjection(projection))
+	if err := validateWorkflowRun(run); err != nil {
+		return WorkflowRun{}, err
+	}
+	s.runs[runID] = cloneWorkflowRun(run)
+	return cloneWorkflowRun(run), nil
+}
+
+func (s *InMemoryWorkflowRunStore) AppendToolCallSummary(
+	_ context.Context,
+	runID string,
+	summary ToolCallSummary,
+) (WorkflowRun, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	run, exists := s.runs[runID]
+	if !exists {
+		return WorkflowRun{}, fmt.Errorf("%w: %s", ErrWorkflowRunNotFound, runID)
+	}
+	run.ToolCallSummaries = append(run.ToolCallSummaries, cloneToolCallSummary(summary))
 	if err := validateWorkflowRun(run); err != nil {
 		return WorkflowRun{}, err
 	}
@@ -160,6 +200,17 @@ func validateWorkflowRun(run WorkflowRun) error {
 			ErrInvalidWorkflowRun,
 		)
 	}
+	for _, invocation := range run.AgentInvocations {
+		if invocation.InvocationID == "" {
+			return fmt.Errorf("%w: agent invocation_id is required", ErrInvalidWorkflowRun)
+		}
+		if invocation.AgentID == "" {
+			return fmt.Errorf("%w: agent agent_id is required", ErrInvalidWorkflowRun)
+		}
+		if invocation.Status == "" {
+			return fmt.Errorf("%w: agent status is required", ErrInvalidWorkflowRun)
+		}
+	}
 	return nil
 }
 
@@ -170,6 +221,10 @@ func cloneWorkflowRun(run WorkflowRun) WorkflowRun {
 		clone.HandoffChain = append(clone.HandoffChain, cloneHandoffStep(handoff))
 	}
 	clone.Steps = append([]WorkflowStep{}, run.Steps...)
+	clone.AgentInvocations = make([]AgentInvocation, 0, len(run.AgentInvocations))
+	for _, invocation := range run.AgentInvocations {
+		clone.AgentInvocations = append(clone.AgentInvocations, cloneAgentInvocation(invocation))
+	}
 	clone.ContextProjections = make([]StepOutputProjection, 0, len(run.ContextProjections))
 	for _, projection := range run.ContextProjections {
 		clone.ContextProjections = append(
@@ -177,11 +232,32 @@ func cloneWorkflowRun(run WorkflowRun) WorkflowRun {
 			CloneStepOutputProjection(projection),
 		)
 	}
+	clone.ToolCallSummaries = make([]ToolCallSummary, 0, len(run.ToolCallSummaries))
+	for _, summary := range run.ToolCallSummaries {
+		clone.ToolCallSummaries = append(clone.ToolCallSummaries, cloneToolCallSummary(summary))
+	}
 	return clone
 }
 
 func cloneHandoffStep(handoff HandoffStep) HandoffStep {
 	clone := handoff
 	clone.AllowedTools = append([]string{}, handoff.AllowedTools...)
+	return clone
+}
+
+func cloneAgentInvocation(invocation AgentInvocation) AgentInvocation {
+	clone := invocation
+	clone.AllowedTools = append([]string{}, invocation.AllowedTools...)
+	clone.UsedTools = append([]string{}, invocation.UsedTools...)
+	clone.ProjectionIDs = append([]string{}, invocation.ProjectionIDs...)
+	return clone
+}
+
+func cloneToolCallSummary(summary ToolCallSummary) ToolCallSummary {
+	clone := summary
+	clone.ArgumentSummary = cloneAnyMap(summary.ArgumentSummary)
+	clone.SourceIDs = append([]string{}, summary.SourceIDs...)
+	clone.SafeDetails = cloneAnyMap(summary.SafeDetails)
+	clone.ProviderToolCallProjection = cloneAnyMap(summary.ProviderToolCallProjection)
 	return clone
 }

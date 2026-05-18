@@ -56,6 +56,7 @@ RUN chmod +x /app/apps/ingestion-worker/docker-entrypoint.sh \
   /app/scripts/run-ingestion-worker-batch.sh \
   /app/scripts/run-internal-notice-multimodal-drain.sh \
   /app/scripts/run-official-web-handoffs.sh \
+  /app/scripts/run-official-web-release-tasks.sh \
   /app/scripts/run-authenticated-notice-closeout.sh \
   /app/scripts/run-wechat-public-notices.sh
 

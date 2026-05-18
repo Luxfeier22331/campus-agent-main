@@ -1,3 +1,4 @@
+import { buildPublicChatAuthCompatPath } from "@platform/auth/hub-redirect";
 import { ChatbotShellRuntimeProvider, useChatbotShellRuntime } from "@platform/chat/runtime";
 import {
 	createRootRoute,
@@ -6,12 +7,9 @@ import {
 	Navigate,
 	Outlet,
 	RouterProvider,
+	useLocation,
 } from "@tanstack/react-router";
-import { lazy, Suspense } from "react";
-import { ForgotPasswordPage } from "../login/forgot-password-page";
-import { LoginPage } from "../login/page";
-import { RegisterPage } from "../login/register-page";
-import { ResetPasswordPage } from "../login/reset-password-page";
+import { lazy, Suspense, useEffect } from "react";
 
 const ChatAppShell = lazy(async () => {
 	const module = await import("@platform/chat/app-shell");
@@ -25,18 +23,18 @@ function RootRouteComponent() {
 	return <Outlet />;
 }
 
-function ChatRouteBootstrapFallback() {
+function ChatRouteBootstrapPlaceholder() {
 	return (
-		<div className="chat-route-fallback bg-sidebar" role="status">
-			<div aria-hidden="true" className="chat-boot-fallback__spinner" />
+		<div className="chat-route-placeholder bg-sidebar" role="status">
+			<div aria-hidden="true" className="chat-boot-placeholder__spinner" />
 			<span>正在载入校园助理...</span>
 		</div>
 	);
 }
 
-function ChatRouteErrorFallback(props: { onRetry: () => Promise<void> }) {
+function ChatRouteErrorPlaceholder(props: { onRetry: () => Promise<void> }) {
 	return (
-		<div className="chat-route-fallback bg-sidebar px-6">
+		<div className="chat-route-placeholder bg-sidebar px-6">
 			<section className="w-full max-w-sm rounded-2xl border border-border/50 bg-background p-5 text-center shadow-sm">
 				<h1 className="text-base font-semibold text-foreground">服务连接暂时不可用</h1>
 				<p className="mt-2 text-[13px] leading-relaxed text-muted-foreground">
@@ -58,21 +56,23 @@ function ChatRouteErrorFallback(props: { onRetry: () => Promise<void> }) {
 
 function AuthenticatedChatRouteGuard() {
 	const { refreshSession, session } = useChatbotShellRuntime();
+	const location = useLocation();
+	const returnTo = `${location.pathname}${location.search}${location.hash}`;
 
 	if (session.kind === "loading") {
-		return <ChatRouteBootstrapFallback />;
+		return <ChatRouteBootstrapPlaceholder />;
 	}
 
 	if (session.kind === "unauthenticated") {
-		return <Navigate replace to="/login" />;
+		return <FullDocumentRedirect href={buildPublicChatAuthCompatPath("login", { returnTo })} />;
 	}
 
 	if (session.kind === "error") {
-		return <ChatRouteErrorFallback onRetry={refreshSession} />;
+		return <ChatRouteErrorPlaceholder onRetry={refreshSession} />;
 	}
 
 	if (!session.principal.canChat) {
-		return <Navigate replace to="/login" />;
+		return <FullDocumentRedirect href={buildPublicChatAuthCompatPath("login", { returnTo })} />;
 	}
 
 	return <Outlet />;
@@ -88,10 +88,26 @@ function AuthenticatedChatRoute() {
 
 function ChatRoutePage() {
 	return (
-		<Suspense fallback={<ChatRouteBootstrapFallback />}>
+		<Suspense fallback={<ChatRouteBootstrapPlaceholder />}>
 			<ChatAppShell />
 		</Suspense>
 	);
+}
+
+function FullDocumentRedirect(props: { href: string }) {
+	useEffect(() => {
+		window.location.replace(props.href);
+	}, [props.href]);
+
+	return <ChatRouteBootstrapPlaceholder />;
+}
+
+function CompatAuthRoute() {
+	useEffect(() => {
+		window.location.replace(window.location.href);
+	}, []);
+
+	return <ChatRouteBootstrapPlaceholder />;
 }
 
 const rootRoute = createRootRoute({
@@ -106,25 +122,25 @@ const indexRoute = createRoute({
 });
 
 const loginRoute = createRoute({
-	component: LoginPage,
+	component: CompatAuthRoute,
 	getParentRoute: () => rootRoute,
 	path: "/login",
 });
 
 const registerRoute = createRoute({
-	component: RegisterPage,
+	component: CompatAuthRoute,
 	getParentRoute: () => rootRoute,
 	path: "/register",
 });
 
 const forgotPasswordRoute = createRoute({
-	component: ForgotPasswordPage,
+	component: CompatAuthRoute,
 	getParentRoute: () => rootRoute,
 	path: "/forgot-password",
 });
 
 const resetPasswordRoute = createRoute({
-	component: ResetPasswordPage,
+	component: CompatAuthRoute,
 	getParentRoute: () => rootRoute,
 	path: "/reset-password",
 });

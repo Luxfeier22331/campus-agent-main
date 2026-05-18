@@ -39,7 +39,9 @@ func TestMetricsEndpointReportsCountersForSuccessSaturationAndTimeout(t *testing
 					return bridge.ExecuteResponse{
 						StatusCode: http.StatusOK,
 						Kind:       "agent_response",
-						Body:       json.RawMessage(`{"selected_target":"rag-agent","status":"completed","answer_text":"ok"}`),
+						Body: json.RawMessage(
+							`{"selected_target":"rag-agent","status":"completed","answer_text":"ok","follow_up_question":"","confidence":"high"}`,
+						),
 					}, nil
 				}
 				return bridge.ExecuteResponse{}, context.DeadlineExceeded
@@ -132,6 +134,17 @@ func TestMetricsEndpointRequiresBearerTokenWhenConfigured(t *testing.T) {
 	}
 }
 
+func TestMetricsEndpointRequiresBearerTokenOutsideLocalProfile(t *testing.T) {
+	server := NewServer(config.Config{
+		MaxConcurrentAnswers: 8,
+		RuntimeProfile:       "staging",
+	}, nil)
+
+	response := httptest.NewRecorder()
+	server.ServeHTTP(response, newTestRequest(http.MethodGet, "/metrics", nil))
+	assertError(t, response, http.StatusUnauthorized, "unauthorized")
+}
+
 func TestMetricsUsesStableRouteLabelForUnknownPaths(t *testing.T) {
 	server := NewServer(config.Config{MaxConcurrentAnswers: 8}, nil)
 
@@ -175,5 +188,31 @@ func TestMetricsUsesServiceGuideRouteLabel(t *testing.T) {
 	}
 	if strings.Contains(body, `campus_supervisor_api_requests_total{route="/__unknown__",outcome="unauthorized"`) {
 		t.Fatalf("metrics body should not put service-guide under unknown route:\n%s", body)
+	}
+}
+
+func TestMetricsUsesAcademicCalendarRouteLabel(t *testing.T) {
+	server := NewServer(config.Config{MaxConcurrentAnswers: 8}, nil)
+
+	academicCalendar := httptest.NewRecorder()
+	server.ServeHTTP(
+		academicCalendar,
+		newTestRequest(
+			http.MethodPost,
+			"/internal/query/calendar/academic-calendar",
+			strings.NewReader(`{}`),
+		),
+	)
+	assertError(t, academicCalendar, http.StatusUnauthorized, "unauthorized")
+
+	metrics := httptest.NewRecorder()
+	server.ServeHTTP(metrics, newTestRequest(http.MethodGet, "/metrics", nil))
+	body := metrics.Body.String()
+	expected := `campus_supervisor_api_requests_total{route="/internal/query/calendar/academic-calendar",outcome="unauthorized",status_class="4xx"} 1`
+	if !strings.Contains(body, expected) {
+		t.Fatalf("metrics body missing academic-calendar route label:\n%s", body)
+	}
+	if strings.Contains(body, `campus_supervisor_api_requests_total{route="/__unknown__",outcome="unauthorized"`) {
+		t.Fatalf("metrics body should not put academic-calendar under unknown route:\n%s", body)
 	}
 }

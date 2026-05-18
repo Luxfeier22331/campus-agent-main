@@ -7,9 +7,7 @@ from pathlib import Path
 from scripts.env_sync import parse_env_file, resolve_source_env_path
 
 SOURCE_REQUIRED_KEYS = (
-    "SENTRY_DSN_API",
-    "SENTRY_DSN_CHAT",
-    "SENTRY_DSN_PANEL",
+    "SENTRY_DSN",
     "AXIOM_ENDPOINT",
     "AXIOM_DATASET",
     "AXIOM_TOKEN",
@@ -26,7 +24,7 @@ OBSERVABILITY_TARGET_REQUIREMENTS = {
             "AXIOM_TOKEN",
         ),
         "source_mapping": {
-            "SENTRY_DSN": "SENTRY_DSN_API",
+            "SENTRY_DSN": "SENTRY_DSN",
             "AXIOM_ENDPOINT": "AXIOM_ENDPOINT",
             "AXIOM_DATASET": "AXIOM_DATASET",
             "AXIOM_TOKEN": "AXIOM_TOKEN",
@@ -39,7 +37,7 @@ OBSERVABILITY_TARGET_REQUIREMENTS = {
             "SENTRY_RELEASE",
         ),
         "source_mapping": {
-            "SENTRY_DSN": "SENTRY_DSN_CHAT",
+            "SENTRY_DSN": "SENTRY_DSN",
         },
     },
     "apps/protected-panel-web/.dev.vars": {
@@ -49,7 +47,17 @@ OBSERVABILITY_TARGET_REQUIREMENTS = {
             "SENTRY_RELEASE",
         ),
         "source_mapping": {
-            "SENTRY_DSN": "SENTRY_DSN_PANEL",
+            "SENTRY_DSN": "SENTRY_DSN",
+        },
+    },
+    "apps/hub-web/.dev.vars": {
+        "required_keys": (
+            "SENTRY_DSN",
+            "SENTRY_ENVIRONMENT",
+            "SENTRY_RELEASE",
+        ),
+        "source_mapping": {
+            "SENTRY_DSN": "SENTRY_DSN",
         },
     },
 }

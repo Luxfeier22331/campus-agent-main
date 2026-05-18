@@ -93,9 +93,22 @@ class ApiSettings:
     prompt_strict_structured_outputs: bool = True
     bridge_worker_threads: int = 8
     bridge_request_body_limit_bytes: int = DEFAULT_BRIDGE_REQUEST_BODY_LIMIT_BYTES
-    structured_query_base_url: str = ""
-    structured_query_shared_secret: str = ""
+    internal_query_base_url: str = ""
+    internal_query_shared_secret: str = ""
     structured_query_timeout_seconds: float = 1.0
+    agents_sdk_runtime_enabled: bool = True
+    retrieval_observation_jsonl_path: str = ""
+    retrieval_runtime_event_jsonl_path: str = ""
+    retrieval_observation_include_query_text: bool = False
+    otel_enabled: bool = False
+    otel_service_name: str = "campus-supervisor-agent-worker"
+    otel_allowed_attributes_version: str = "supervisor-agent-worker-otel-attrs-v1"
+    otel_export_timeout_seconds: float = 1.0
+    otel_export_interval_seconds: float = 5.0
+    otel_exporter_otlp_headers: str = ""
+    otel_exporter_otlp_traces_endpoint: str = ""
+    otel_exporter_otlp_metrics_endpoint: str = ""
+    otel_exporter_otlp_logs_endpoint: str = ""
     cancel_flag_ttl_seconds: float = 900.0
 
     def __post_init__(self) -> None:
@@ -146,6 +159,11 @@ class ApiSettings:
             "structured_query_timeout_seconds",
             self.structured_query_timeout_seconds,
         )
+        _require_positive_float("otel_export_timeout_seconds", self.otel_export_timeout_seconds)
+        _require_positive_float(
+            "otel_export_interval_seconds",
+            self.otel_export_interval_seconds,
+        )
         _require_positive_float("cancel_flag_ttl_seconds", self.cancel_flag_ttl_seconds)
 
     @classmethod
@@ -162,22 +180,16 @@ class ApiSettings:
             agent_prompt_model=(
                 os.getenv("AGENT_PROMPT_MODEL", "").strip() or prompt_runtime_model
             ),
-            prompt_runtime_provider=os.getenv(
-                "PROMPT_RUNTIME_PROVIDER",
-                os.getenv("AGENT_RUNTIME_PROVIDER", ""),
-            ),
+            prompt_runtime_provider=os.getenv("PROMPT_RUNTIME_PROVIDER", ""),
             prompt_runtime_transport=os.getenv(
                 "PROMPT_RUNTIME_TRANSPORT",
                 "responses",
             ).strip()
             or "responses",
-            prompt_runtime_api_key=os.getenv(
-                "PROMPT_RUNTIME_API_KEY",
-                os.getenv("LLM_API_KEY", ""),
-            ).strip(),
+            prompt_runtime_api_key=os.getenv("PROMPT_RUNTIME_API_KEY", "").strip(),
             prompt_runtime_base_url=os.getenv(
                 "PROMPT_RUNTIME_BASE_URL",
-                os.getenv("LLM_BASE_URL", DEFAULT_PROMPT_RUNTIME_BASE_URL),
+                DEFAULT_PROMPT_RUNTIME_BASE_URL,
             ).strip()
             or DEFAULT_PROMPT_RUNTIME_BASE_URL,
             prompt_runtime_reasoning_effort=(os.getenv("PROMPT_RUNTIME_REASONING_EFFORT") or None),
@@ -222,18 +234,72 @@ class ApiSettings:
                 "SUPERVISOR_AGENT_WORKER_REQUEST_BODY_LIMIT_BYTES",
                 default=DEFAULT_BRIDGE_REQUEST_BODY_LIMIT_BYTES,
             ),
-            structured_query_base_url=os.getenv(
-                "SUPERVISOR_STRUCTURED_QUERY_BASE_URL",
+            internal_query_base_url=os.getenv(
+                "SUPERVISOR_INTERNAL_QUERY_BASE_URL",
                 "",
             ).strip(),
-            structured_query_shared_secret=os.getenv(
-                "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",
+            internal_query_shared_secret=os.getenv(
+                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
                 "",
             ).strip(),
             structured_query_timeout_seconds=_read_float(
                 "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",
                 default=1.0,
             ),
+            agents_sdk_runtime_enabled=_read_bool(
+                "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED",
+                default=True,
+            ),
+            retrieval_observation_jsonl_path=os.getenv(
+                "SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH",
+                "",
+            ).strip(),
+            retrieval_runtime_event_jsonl_path=os.getenv(
+                "SUPERVISOR_RETRIEVAL_RUNTIME_EVENT_JSONL_PATH",
+                "",
+            ).strip(),
+            retrieval_observation_include_query_text=_read_bool(
+                "SUPERVISOR_RETRIEVAL_OBSERVATION_INCLUDE_QUERY_TEXT",
+                default=False,
+            ),
+            otel_enabled=_read_bool(
+                "SUPERVISOR_AGENT_WORKER_OTEL_ENABLED",
+                default=False,
+            ),
+            otel_service_name=os.getenv(
+                "SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME",
+                "campus-supervisor-agent-worker",
+            ).strip()
+            or "campus-supervisor-agent-worker",
+            otel_allowed_attributes_version=os.getenv(
+                "SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION",
+                "supervisor-agent-worker-otel-attrs-v1",
+            ).strip()
+            or "supervisor-agent-worker-otel-attrs-v1",
+            otel_export_timeout_seconds=_read_positive_float(
+                "SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_TIMEOUT_SECONDS",
+                default=1.0,
+            ),
+            otel_export_interval_seconds=_read_positive_float(
+                "SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_INTERVAL_SECONDS",
+                default=5.0,
+            ),
+            otel_exporter_otlp_headers=os.getenv(
+                "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_HEADERS",
+                "",
+            ).strip(),
+            otel_exporter_otlp_traces_endpoint=os.getenv(
+                "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT",
+                "",
+            ).strip(),
+            otel_exporter_otlp_metrics_endpoint=os.getenv(
+                "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT",
+                "",
+            ).strip(),
+            otel_exporter_otlp_logs_endpoint=os.getenv(
+                "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT",
+                "",
+            ).strip(),
             cancel_flag_ttl_seconds=_read_positive_float(
                 "SUPERVISOR_AGENT_WORKER_CANCEL_FLAG_TTL_SECONDS",
                 default=900.0,

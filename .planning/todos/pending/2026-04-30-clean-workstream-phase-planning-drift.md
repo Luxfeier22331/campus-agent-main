@@ -21,8 +21,8 @@ files:
 Repo-wide workstream review on 2026-04-30 found planning hygiene drift that should not be
 mixed into `canonical-retrieval-release-hardening` execution:
 
-- `document-site-and-canonical-reader` remains in `Active` registry even though local Phase 1-7
-  implementation is complete.
+- `document-site-and-canonical-reader` active/completed drift was resolved on 2026-05-05:
+  the workstream is now registered as Completed with a reopen rule and completion audit.
 - `official-web-collection-restart-closeout` has pending roadmap phases but no native phase
   directories.
 - `authenticated-notice-fetch-admission-operator-wiring` Phase 2 has evidence / summary but no
@@ -38,8 +38,8 @@ not block canonical retrieval release hardening.
 
 Handle this as a separate planning hygiene pass:
 
-1. Move `document-site-and-canonical-reader` to Completed or explicitly document why it remains
-   Active.
+1. [done 2026-05-05] Move `document-site-and-canonical-reader` to Completed or explicitly
+   document why it remains Active.
 2. Add native phase directories or a roadmap-only status note for
    `official-web-collection-restart-closeout`.
 3. Add a Phase 2 `PLAN.md` for `authenticated-notice-fetch-admission-operator-wiring`, or document

@@ -103,21 +103,18 @@ func TestCancelEndpointPropagatesCooperativeCancelToPythonBridge(t *testing.T) {
 	}))
 	defer auditServer.Close()
 	server := NewServer(config.Config{
-		AuthMode:                       "bearer",
-		BearerToken:                    "secret-token",
-		WorkerSharedSecret:             "worker-secret",
-		DefaultActorID:                 "runtime-bearer-user",
-		RequestBodyLimitBytes:          1_048_576,
-		MaxConcurrentAnswers:           1,
-		QueueCapacity:                  1,
-		BridgeCancelTimeoutMS:          500,
-		ExecutionAuditEnabled:          true,
-		ExecutionAuditURL:              auditServer.URL,
-		ExecutionAuditSharedSecret:     "audit-secret",
-		ExecutionAuditBatchSize:        1,
-		ExecutionAuditQueueCapacity:    4,
-		ExecutionAuditTimeoutMS:        500,
-		ExecutionAuditRetryMaxAttempts: 1,
+		AuthMode:                   "bearer",
+		BearerToken:                "secret-token",
+		WorkerSharedSecret:         "worker-secret",
+		DefaultActorID:             "runtime-bearer-user",
+		RequestBodyLimitBytes:      1_048_576,
+		MaxConcurrentAnswers:       1,
+		QueueCapacity:              1,
+		BridgeCancelTimeoutMS:      500,
+		ExecutionAuditEnabled:      true,
+		ExecutionAuditURL:          auditServer.URL,
+		ExecutionAuditSharedSecret: "audit-secret",
+		ExecutionAuditTimeoutMS:    500,
 	}, &fakeBridge{
 		configured: true,
 		executeFn: func(ctx context.Context, request bridge.Request) (bridge.ExecuteResponse, error) {

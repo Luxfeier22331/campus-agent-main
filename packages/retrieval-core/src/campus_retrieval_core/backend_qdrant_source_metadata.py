@@ -9,9 +9,7 @@ from llama_index.core.schema import TextNode
 def _record_to_text_node(point_id: object, payload: dict[str, object]) -> TextNode | None:
     node_content = payload.get("_node_content")
     if isinstance(node_content, str):
-        parsed = TextNode.model_validate_json(node_content)
-        if parsed.metadata:
-            return parsed
+        return TextNode.model_validate_json(node_content)
 
     text = _coerce_text_payload(payload)
     if not text:
@@ -23,6 +21,13 @@ def _record_to_text_node(point_id: object, payload: dict[str, object]) -> TextNo
     )
 
 
+def effective_payload_metadata(point_id: object, payload: dict[str, object]) -> dict[str, object]:
+    node = _record_to_text_node(point_id, payload)
+    if node is None:
+        return dict(payload)
+    return dict(node.metadata)
+
+
 def _coerce_text_payload(payload: dict[str, object]) -> str:
     for key in ("text", "display_text", "snippet"):
         value = payload.get(key)
@@ -32,20 +37,15 @@ def _coerce_text_payload(payload: dict[str, object]) -> str:
 
 
 def _coerce_dict(value: object) -> dict[str, object]:
-    return dict(value) if isinstance(value, dict) else {}
+    if not isinstance(value, dict):
+        return {}
+    return {str(key): item for key, item in value.items()}
 
 
 def _coerce_structural_path(value: object) -> tuple[str, ...]:
-    if not isinstance(value, list):
+    if not isinstance(value, (list, tuple)):
         return ()
-    normalized: list[str] = []
-    for item in value:
-        if not isinstance(item, str):
-            continue
-        text = item.strip()
-        if text:
-            normalized.append(text)
-    return tuple(normalized)
+    return tuple(item.strip() for item in value if isinstance(item, str) and item.strip())
 
 
 def _resolve_source_title(
@@ -118,6 +118,56 @@ def _resolve_detail_label(
         if value is not None:
             return value
     return ""
+
+
+def _resolve_semantic_role(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("semantic_role")) or ""
+
+
+def _resolve_polarity(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("polarity")) or ""
+
+
+def _resolve_action_type(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("action_type")) or ""
+
+
+def _resolve_claim_type(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("claim_type")) or ""
+
+
+def _resolve_audience_scope(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("audience_scope")) or ""
+
+
+def _resolve_article_no(
+    metadata: dict[str, object],
+    *,
+    anchor: dict[str, object],
+) -> str:
+    return (
+        _optional_text(metadata.get("article_no"))
+        or _optional_text(anchor.get("article_no"))
+        or _optional_text(anchor.get("article_label"))
+        or ""
+    )
+
+
+def _resolve_clause_no(
+    metadata: dict[str, object],
+    *,
+    anchor: dict[str, object],
+) -> str:
+    return (
+        _optional_text(metadata.get("clause_no"))
+        or _optional_text(anchor.get("clause_no"))
+        or _optional_text(anchor.get("provision_label"))
+        or ""
+    )
+
+
+def _resolve_section_kind(metadata: dict[str, object]) -> str:
+    return _optional_text(metadata.get("section_kind")) or ""
 
 
 def _resolve_canonical_source_id(metadata: dict[str, object]) -> str:

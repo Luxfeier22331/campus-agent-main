@@ -386,6 +386,7 @@ consumer admission manifest 决定。
 
 `retention_class` 第一版允许：
 
+- `permanent_source_truth`
 - `metadata_only`
 - `quarantine_candidate`
 - `admitted_source_bytes`
@@ -406,11 +407,22 @@ consumer admission manifest 决定。
 - `metadata_only` attachment ref 必须保留 source relation、filename / anchor_text、
   source URL、origin scope、MIME/type 和 byte size 等可观测 metadata；`object_key`、
   `content_sha256` 与 `byte_size` 可以为空或只保留已知值，`required_source_object=false`。
+- `metadata_only` 的 canonical tuple 是
+  `attachment_capture_state=metadata_recorded`、`retention_class=metadata_only`、
+  `byte_fetch_required=false`、`required_source_object=false`；不得生成 fetch request
+  或 media extraction candidate。
 - `fetch_to_quarantine` 允许写入 `object_key`、`content_sha256` 与 `byte_size`，但必须同时写入
   `retention_class=quarantine_candidate` 和 `retention_expires_at`；未 promotion 前不得被视为
   下游 owner source bytes。该 policy 表示 bytes 需要进入 quarantine processing，不等同于
   collector 必须重新 fetch；如果 collector 已经捕获并上传该 ref，状态必须写为
   `uploaded_quarantine`，`byte_fetch_required=false`。
+- `fetch_to_quarantine` 如果尚无有效 object-backed bytes，必须保持
+  `byte_fetch_required=true` 并进入 fetch request manifest；如果 candidate inventory 已暴露
+  `source_capture_repair`，也必须存在对应 fetch request 或 operator action。
+- retryable download / upload failure 不得只写 legacy `last_error`。collector 必须写
+  `last_error_class=transient_failed`；source retention 必须保留
+  `attachment_capture_state=transient_failed`、`byte_fetch_required=true`，并继续进入 fetch
+  request / repair 闭环。
 - quarantine cleanup 不得只按 `retention_expires_at` 删除 object-backed bytes；如果
   media extraction candidate inventory 中存在 `target_blocking=true` 且引用同一
   `source_object_ref` 的未终态 candidate，则必须阻塞删除。仅当所有阻塞 candidate 已进入
@@ -418,13 +430,101 @@ consumer admission manifest 决定。
   cleanup。
 - `fetch_required_for_source_truth` 与 `fetch_required_for_admitted_owner` 必须具备
   `object_key`、`content_sha256`、`byte_size` 与 `required_source_object=true`，否则 source
-  import / downstream materialization 必须 fail closed。
+  import / downstream materialization 必须 fail closed。缺 bytes 时只能处于三种状态之一：
+  `byte_fetch_required=true` 并进入 fetch request、typed terminal/skip，或
+  state-machine audit high finding；不得静默 pending。
 - `skip_unsupported`、`skip_too_large` 与 `terminal_unavailable` 是 typed terminal
   outcome；必须记录 `skip_reason` 或 `terminal_reason`，不能靠无限重试或 silent
   missing 表达。
+- `skip_unsupported` 与 `skip_too_large` attachment ref 必须满足
+  `attachment_capture_state=terminal_missing`、`retention_class=metadata_only`、
+  `byte_fetch_required=false`、`required_source_object=false`，且携带 `skip_reason`；不得生成
+  fetch request 或 media extraction candidate。
+- `terminal_unavailable` attachment ref 必须满足
+  `attachment_capture_policy=terminal_unavailable`、`attachment_capture_state=terminal_missing`、
+  `retention_class=metadata_only`、`byte_fetch_required=false`、
+  `required_source_object=false`，且不得生成 fetch request 或 media extraction candidate。
+- collector 新写入的 terminal handoff 必须携带 typed fields：
+  `provenance_status=terminal_unavailable`、`ingest_status=terminal_unavailable`、
+  `terminal_reason` 与可选 `last_http_status`；`last_error` 只保留 legacy/debug 语义。
 - `attachment_promotion_state=promoted` 必须携带 `promotion_owner` 与
   `promotion_decision_id`，用于证明 bytes 是由哪个 target materializer 或 admission
   decision 接收，而不是 collector 默认永久保留。
+
+media extraction candidate inventory 与 closeout result manifest 的 media lifecycle
+只允许使用以下 contract-facing 状态：
+
+- `pending`
+- `completed`
+- `skipped`
+- `manual_review`
+- `failed_retryable`
+- `failed_terminal`
+
+约束：
+
+- `pending`、`manual_review` 与 `failed_retryable` 是非终态；如果 candidate
+  `target_blocking=true`，这些状态必须继续阻塞 quarantine cleanup 与 target admission。
+  其中 `pending` / `failed_retryable` 对应 target admission 的 `needs_multimodal`，
+  `manual_review` 对应 target admission 的 `manual_review`，不得伪装成可自动 OCR 的
+  pending work。
+- `completed`、`skipped` 与 `failed_terminal` 是终态；它们可以解除对应 candidate 的
+  `target_blocking`。
+- collector / OCR / preview 的非 contract 状态只能在明确的边界被规范化，例如 `ready` /
+  `succeeded` 归一为 `completed`，`low_confidence` / `review` 归一为
+  `manual_review`。candidate inventory、closeout result manifest 与 fact-state 主链路不得继续接受
+  legacy `failed`；如历史数据存在该状态，必须先进入 audit / repair lane 并显式迁移为
+  `failed_retryable` 或 `failed_terminal`。
+- target admission 不得只因为 unit 级 `media_text_status=pending` 或
+  `multimodal_status=pending` 就进入 `needs_multimodal`；必须存在明确的
+  media extraction candidate，且该 candidate 对目标事实 `target_blocking=true`。
+- 如果高价值 target unit 的 attachment policy 要求 quarantine/required bytes，但当前 ref
+  仍没有 object-backed bytes，candidate inventory 必须产出
+  `processing_family=source_capture_repair`、`reason_codes` 包含
+  `source_capture_pending` 和 `missing_collected_attachment_bytes`，
+  并标记为非 target-blocking gap。
+- Phase 4 reimport preview 可以继续报告 unit 级 `needs_multimodal_units` 作为 media
+  extraction candidate 生成输入，但其 write manifest 中的 generic consumer admission
+  candidate 不得直接把 unit 级 pending 转成下游 `needs_multimodal`；typed downstream
+  replay 必须重新消费 fact-state / candidate inventory 后再判定。
+- media extraction candidate 只能由显式 source retention / downstream admission policy
+  产生。第一版允许 `fetch_to_quarantine`、`fetch_required_for_source_truth` 与
+  `fetch_required_for_admitted_owner`；缺少 `attachment_capture_policy` 的历史
+  attachment ref 不得靠 `attachment_refs` fallback 自动进入处理。
+- media extraction candidate 必须绑定具体 `media_ref_id` / `attachment_ref_id`。audit
+  对 `metadata_only`、typed terminal/skip 与 candidate source object 的校验必须按 attachment
+  ref 执行，不得把 unit 级 candidate 套到所有 attachment ref。
+- stale object ref 不等于 bytes 可用。只有同时具备 `object_key`、`content_sha256` /
+  `sha256`、非 `reference_only` 的 `storage_provider`，以及 `downloaded` 或 `uploaded`
+  `ingest_status` 时，attachment bytes 才能被视为已采集。
+- candidate `source_object_ref` 必须与其 `media_ref_id` 指向的 attachment object-backed
+  bytes 匹配；bucket/key 不匹配、attachment 缺有效 bytes、或 candidate 缺 media ref 都必须
+  fail closed。
+- media extraction attempt ledger 是 candidate execution 的规范化状态投影，schema
+  为 `notice_media_extraction_attempt_ledger.v1`。它必须记录 `candidate_id`、
+  `unit_id`、`media_ref_id`、`processing_family`、`attempt_number`、contract-facing
+  `status`、retry policy、`retry_budget_remaining`、`next_retry_after`、
+  `source_object_ref`、`source_object_hash` 与 output ref 计划。
+- `notice_media_closeout_target_admission_state_machine_audit.v1` 是 media closeout
+  后半段的 fail-closed gate。strict gate 必须同时读取 attempt ledger、closeout
+  candidate inventory、target admission manifest、cleanup dry-run report 与 source-object
+  verification report；缺任一输入都必须产生 high finding。它还必须对 orphan
+  attempt、attempt/candidate source ref 或 hash 不一致、retry budget 缺失、completed
+  output refs 缺失、completed closeout 缺失或错配 attempt provenance、非终态 target
+  blocker 被 admission ready、target manifest 漏 unit 或 target/source 不一致、cleanup
+  未按 bucket/key identity 保护或选中 active quarantine bytes、candidate source object
+  未按 bucket/key/hash/size/storage provider 验证等情况产生 medium/high finding。对象验证
+  口径遵循 S3-compatible object integrity practice：不能只信 object key；必须具备可核对的
+  checksum/hash 与 object size。
+- `notice_media_source_object_verification_report.v1` 是 source-object live verification
+  report。每行必须包含 bucket、object key、status、storage provider、reference-only
+  posture、expected/observed hash、expected/observed size、`check_method` 与
+  `live_checked_at`。production strict gate 只接受 `head_checksum` 或 `get_hash`；`get_hash`
+  是 HEAD 无可用 checksum 时的受控校验方法，不改变 fail-closed gate。
+- direct closeout promotion 与 on-demand closeout promotion 都必须消费通过的
+  `notice_media_closeout_target_admission_state_machine_audit.v1`；destructive quarantine
+  cleanup 必须消费同一 audit，并通过 `input_hashes.candidate_inventory_sha256` 证明 cleanup
+  使用的是被 audit 覆盖的 candidate inventory。
 
 ## Collection Extension Fields
 

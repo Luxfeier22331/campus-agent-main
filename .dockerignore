@@ -16,7 +16,16 @@
 !configs/ingestion/
 !configs/ingestion/**
 !configs/runtime/
+!configs/runtime/agents.v2.json
+!configs/runtime/intent-policy.v1.json
 !configs/runtime/query-serving-scopes.v1.json
+!configs/runtime/tools.v2.json
+!configs/runtime/workflow-artifacts.v1.json
+!tests/
+!tests/fixtures/
+!tests/fixtures/service_guide_vpn_grouped_procedure_result.json
+!tests/fixtures/supervisor_execution_contract/
+!tests/fixtures/supervisor_execution_contract/**
 !packages/campus-services-agent/
 !packages/campus-services-agent/**
 !packages/contracts/

@@ -11,7 +11,7 @@ worker = importlib.import_module("campus_ingestion_worker.publish_document_reade
 
 
 class PublishDocumentReaderAssetsWorkerTests(unittest.TestCase):
-    def test_select_records_respects_runtime_profile_serving_revision_tracks(self) -> None:
+    def test_select_records_excludes_scoped_rules_from_default_docs_site_publish(self) -> None:
         registry = InMemoryDocumentRegistry(
             (
                 _record(
@@ -39,7 +39,7 @@ class PublishDocumentReaderAssetsWorkerTests(unittest.TestCase):
 
         self.assertEqual(
             [record.document_id for record in records],
-            ["institutional:current", "scoped:current"],
+            ["institutional:current"],
         )
 
 

@@ -1,9 +1,11 @@
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
 	crawlRuns,
+	officialWebTargetJobs,
+	officialWebTargetPageAttempts,
 	pageFreshness,
 	pageObservations,
 	runArtifacts,
@@ -146,6 +148,16 @@ export interface PersistedOfficialWebPageObservation {
 	runId: string;
 	runIntent: OfficialWebRunIntent;
 	siteId: string;
+	targetCandidateId: string | null;
+	targetDeclarationVersion: string | null;
+	targetId: string | null;
+	targetJobId: string | null;
+	targetMatches?: Array<{
+		targetCandidateId: string | null;
+		targetDeclarationVersion: string;
+		targetId: string;
+		targetJobId: string;
+	}>;
 	freshness: {
 		lastChangedAt: string | null;
 		lastNotModifiedAt: string | null;
@@ -244,6 +256,18 @@ function toStoredOfficialWebRun(row: typeof crawlRuns.$inferSelect): StoredOffic
 		terminalPayloadSha256: row.terminalPayloadSha256 ?? null,
 		triggerType: row.triggerType,
 	};
+}
+
+function toTargetAttemptStatus(
+	fetchDisposition: OfficialWebFetchDisposition,
+): "completed" | "deleted" | "fetch_failed" {
+	if (fetchDisposition === "deleted") {
+		return "deleted";
+	}
+	if (fetchDisposition === "fetch_failed") {
+		return "fetch_failed";
+	}
+	return "completed";
 }
 
 function toStoredPageFreshnessState(
@@ -509,6 +533,69 @@ export function createPgOfficialWebCommandStore(
 									updatedAt: writeTimestamp,
 								},
 							});
+					}
+
+					const targetAttempts = input.observations.filter(
+						(observation) =>
+							(observation.targetMatches?.length ?? 0) > 0 ||
+							(observation.targetJobId &&
+								observation.targetId &&
+								observation.targetDeclarationVersion) != null,
+					);
+					if (targetAttempts.length > 0) {
+						const materializedAttempts = targetAttempts.flatMap((observation) => {
+							const matches =
+								observation.targetMatches && observation.targetMatches.length > 0
+									? observation.targetMatches
+									: observation.targetJobId &&
+											observation.targetId &&
+											observation.targetDeclarationVersion
+										? [
+												{
+													targetCandidateId: observation.targetCandidateId,
+													targetDeclarationVersion: observation.targetDeclarationVersion,
+													targetId: observation.targetId,
+													targetJobId: observation.targetJobId,
+												},
+											]
+										: [];
+							return matches.map((match) => ({
+								attemptId: `owattempt_${observation.observationId}_${match.targetJobId}`,
+								attemptStatus: toTargetAttemptStatus(observation.fetchDisposition),
+								attemptedAt: new Date(observation.observedAt),
+								candidateId: match.targetCandidateId,
+								completedAt: new Date(observation.observedAt),
+								createdAt: writeTimestamp,
+								httpStatus: observation.httpStatus,
+								jobId: match.targetJobId,
+								normalizedCanonicalUrl: observation.normalizedCanonicalUrl,
+								runId: observation.runId,
+								siteId: observation.siteId,
+								targetId: match.targetId,
+								updatedAt: writeTimestamp,
+								artifactObjectKey: null,
+							}));
+						});
+						await tx.insert(officialWebTargetPageAttempts).values(materializedAttempts);
+
+						const attemptCountsByJob = new Map<string, number>();
+						for (const attempt of materializedAttempts) {
+							attemptCountsByJob.set(
+								attempt.jobId,
+								(attemptCountsByJob.get(attempt.jobId) ?? 0) + 1,
+							);
+						}
+						for (const [jobId, attemptCount] of attemptCountsByJob) {
+							await tx
+								.update(officialWebTargetJobs)
+								.set({
+									attemptCount: sql`${officialWebTargetJobs.attemptCount} + ${attemptCount}`,
+									latestRunId: input.run.runId,
+									status: "active",
+									updatedAt: writeTimestamp,
+								})
+								.where(eq(officialWebTargetJobs.jobId, jobId));
+						}
 					}
 				}
 

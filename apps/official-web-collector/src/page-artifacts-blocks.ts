@@ -31,13 +31,13 @@ export function buildCollectedContentBlocks(input: {
 		baseUrl: input.baseUrl,
 		siteDisplayName: input.siteDisplayName,
 	});
-	const recoveredBlocks = initialExtractedBlocks.some((item) => item.isMainContent)
-		? []
-		: extractRecoveryBlockCandidates({
+	const recoveredBlocks = needsVisibleContentRecovery(initialExtractedBlocks)
+		? extractRecoveryBlockCandidates({
 				html: input.html,
 				baseUrl: input.baseUrl,
 				siteDisplayName: input.siteDisplayName,
-			});
+			})
+		: [];
 	const extractedBlocks = mergeExtractedBlockCandidates(initialExtractedBlocks, recoveredBlocks);
 	const normalizedMainContent = extractedBlocks
 		.filter(
@@ -95,6 +95,22 @@ export function buildCollectedContentBlocks(input: {
 		rawAssetId,
 		rawVersionId,
 	};
+}
+
+function needsVisibleContentRecovery(blocks: ExtractedBlockCandidate[]): boolean {
+	const mainBlocks = blocks.filter((item) => item.isMainContent);
+	if (mainBlocks.length === 0) {
+		return true;
+	}
+
+	const mainTextLength = mainBlocks.reduce(
+		(total, item) => total + (item.textNormalized?.length ?? 0),
+		0,
+	);
+	const bodyLikeMainBlockCount = mainBlocks.filter((item) =>
+		["paragraph", "list_item", "table"].includes(item.blockRole),
+	).length;
+	return mainTextLength <= 120 && bodyLikeMainBlockCount <= 1;
 }
 
 function mergeExtractedBlockCandidates(

@@ -183,6 +183,48 @@
       "when": 1777447811734,
       "tag": "0025_workflow_trace_observability",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1777609031199,
+      "tag": "0026_official_web_run_admission_decisions",
+      "breakpoints": true
+    },
+    {
+      "idx": 27,
+      "version": "7",
+      "when": 1777609227403,
+      "tag": "0027_authenticated_notice_processing_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1777616437808,
+      "tag": "0028_goofy_sumo",
+      "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1777650831776,
+      "tag": "0029_official_web_target_release_gates",
+      "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1777661400000,
+      "tag": "0030_authenticated_notice_run_processing_projection",
+      "breakpoints": true
+    },
+    {
+      "idx": 31,
+      "version": "7",
+      "when": 1777684395917,
+      "tag": "0031_magical_screwball",
+      "breakpoints": true
     }
   ]
 }

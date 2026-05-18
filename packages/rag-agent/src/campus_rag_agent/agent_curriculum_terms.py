@@ -37,6 +37,21 @@ def _curriculum_semester_labels(query_text: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys(interpretation.semester_labels))
 
 
+def _curriculum_semester_answer_label(query_text: str) -> str:
+    interpretation = interpret_curriculum_query(query_text)
+    if interpretation.intent_kind != "course_list" or len(interpretation.semester_labels) != 1:
+        return ""
+    canonical_label = interpretation.semester_labels[0]
+    alias_labels = tuple(
+        source
+        for source, target in interpretation.semester_alias_labels
+        if target == canonical_label
+    )
+    if alias_labels:
+        return f"{alias_labels[0]}（{canonical_label}）"
+    return canonical_label
+
+
 def _curriculum_target_semesters(query_text: str) -> tuple[str, ...]:
     semester_labels = _curriculum_semester_labels(query_text)
     if not semester_labels:
@@ -58,6 +73,7 @@ __all__ = [
     "_CURRICULUM_COURSE_LIST_QUERY_HINTS",
     "_CURRICULUM_EMPTY_TABLE_CELLS",
     "_CURRICULUM_SEMESTER_NUMERIC_LABELS",
+    "_curriculum_semester_answer_label",
     "_curriculum_semester_labels",
     "_curriculum_target_semesters",
     "_is_curriculum_course_list_query",

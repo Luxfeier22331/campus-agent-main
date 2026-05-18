@@ -7,6 +7,7 @@ from tests.agent.rag_agent_test_support import (
     AuthorizedRetrievalFilter,
     ContextProjection,
     EvidenceBundle,
+    EvidenceSource,
     KnowledgeScope,
     PersonalizationHint,
     ProfileMemoryItem,
@@ -15,7 +16,6 @@ from tests.agent.rag_agent_test_support import (
     RagClarifyPromptOutput,
     RagPromptExecutionResult,
     RagRequestPayload,
-    RagResultPayload,
     ResolvedVersionQuery,
     ResolvedVersionSelection,
     SessionSlot,
@@ -54,17 +54,24 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("具体", response.follow_up_question)
+        self.assertEqual(response.answer_text, response.follow_up_question)
         self.assertEqual(response.confidence, "low")
         self.assertEqual(
-            response.result,
-            RagResultPayload(
-                evidence=EvidenceBundle(
-                    query_text="这个规定怎么办理？",
-                    corpus="regulations",
-                    collection="student_rules",
-                )
+            response.result.evidence,
+            EvidenceBundle(
+                query_text="这个规定怎么办理？",
+                corpus="regulations",
+                collection="student_rules",
             ),
         )
+        self.assertEqual(response.result.diagnostics.resolved_scope_corpus, "regulations")
+        self.assertEqual(response.result.diagnostics.resolved_scope_collection, "student_rules")
+        self.assertEqual(
+            response.result.diagnostics.clarification_reason,
+            "policy_object_missing",
+        )
+        self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "ambiguous")
+        self.assertTrue(response.result.diagnostics.stage_activities)
         self.assertFalse(retriever_called)
 
     def test_referential_question_uses_injected_prompt_executor_for_clarification(self) -> None:
@@ -91,6 +98,7 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertEqual(response.follow_up_question, "你具体想问哪一项制度？")
+        self.assertEqual(response.answer_text, "你具体想问哪一项制度？")
         self.assertEqual(response.result.diagnostics.prompt_trace.prompt_id, "rag_clarify_v1")
 
     def test_generic_scholarship_question_maps_to_needs_clarification_without_retrieval(
@@ -116,16 +124,29 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("奖学金", response.follow_up_question)
+        self.assertEqual(response.answer_text, response.follow_up_question)
         self.assertFalse(retriever_called)
-        self.assertEqual(
-            response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="regulations",
-                collection="student_rules",
-                retrieval_adequacy_verdict="ambiguous",
-                retrieval_adequacy_reason="policy_object_missing",
-            ),
+        diagnostics = response.result.diagnostics
+        expected = _resolved_scope_diagnostics(
+            corpus="regulations",
+            collection="student_rules",
+            retrieval_adequacy_verdict="ambiguous",
+            retrieval_adequacy_reason="policy_object_missing",
         )
+        self.assertEqual(diagnostics.resolved_scope_corpus, expected.resolved_scope_corpus)
+        self.assertEqual(
+            diagnostics.resolved_scope_collection,
+            expected.resolved_scope_collection,
+        )
+        self.assertEqual(
+            diagnostics.retrieval_adequacy_verdict,
+            expected.retrieval_adequacy_verdict,
+        )
+        self.assertEqual(
+            diagnostics.retrieval_adequacy_reason,
+            expected.retrieval_adequacy_reason,
+        )
+        self.assertTrue(diagnostics.stage_activities)
 
     def test_handbook_missing_policy_object_with_prompt_executor_skips_clarify_prompt(self) -> None:
         retriever_called = False
@@ -157,14 +178,27 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertFalse(retriever_called)
-        self.assertEqual(
-            response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="regulations",
-                collection="student_rules",
-                clarification_reason="policy_object_missing",
-            ),
+        diagnostics = response.result.diagnostics
+        expected = _resolved_scope_diagnostics(
+            corpus="regulations",
+            collection="student_rules",
+            clarification_reason="policy_object_missing",
         )
+        self.assertEqual(diagnostics.resolved_scope_corpus, expected.resolved_scope_corpus)
+        self.assertEqual(
+            diagnostics.resolved_scope_collection,
+            expected.resolved_scope_collection,
+        )
+        self.assertEqual(diagnostics.clarification_reason, expected.clarification_reason)
+        self.assertEqual(
+            diagnostics.retrieval_adequacy_verdict,
+            expected.retrieval_adequacy_verdict,
+        )
+        self.assertEqual(
+            diagnostics.retrieval_adequacy_reason,
+            expected.retrieval_adequacy_reason,
+        )
+        self.assertTrue(diagnostics.stage_activities)
 
     def test_contextual_clarification_mentions_recent_goal_when_available(self) -> None:
         response = delegate_to_rag_agent(
@@ -377,21 +411,58 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("奖学金", response.follow_up_question)
         self.assertFalse(retriever_called)
-        self.assertEqual(
-            response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="regulations",
-                collection="student_rules",
-                clarification_reason="policy_object_conflict",
-            ),
+        diagnostics = response.result.diagnostics
+        expected = _resolved_scope_diagnostics(
+            corpus="regulations",
+            collection="student_rules",
+            clarification_reason="policy_object_conflict",
         )
+        self.assertEqual(diagnostics.resolved_scope_corpus, expected.resolved_scope_corpus)
+        self.assertEqual(
+            diagnostics.resolved_scope_collection,
+            expected.resolved_scope_collection,
+        )
+        self.assertEqual(diagnostics.clarification_reason, expected.clarification_reason)
+        self.assertEqual(
+            diagnostics.retrieval_adequacy_verdict,
+            expected.retrieval_adequacy_verdict,
+        )
+        self.assertEqual(
+            diagnostics.retrieval_adequacy_reason,
+            expected.retrieval_adequacy_reason,
+        )
+        self.assertTrue(diagnostics.stage_activities)
 
     def test_resolved_historical_version_query_passes_version_filters_to_retriever(self) -> None:
         captured_kwargs: dict[str, object] = {}
-        expected_evidence = _make_evidence(
-            query_text="国奖",
-            scores=(0.82,),
-            doc_ids=("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
+        expected_evidence = EvidenceBundle(
+            query_text="国奖第九条怎么要求论文和著作？",
+            corpus="regulations",
+            collection="student_rules",
+            sources=(
+                EvidenceSource(
+                    doc_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                    revision_track="source-faithful",
+                    version_id="v1:national-scholarship",
+                    chunk_id=(
+                        "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15:"
+                        "source-faithful:v1:national-scholarship:chunk-0001"
+                    ),
+                    anchor={"page_start": 1, "page_end": 1},
+                    canonical_url="https://campus.example/handbook/national-scholarship",
+                    latest_url="https://campus.example/handbook/national-scholarship",
+                    source_channel="pdf_ocr",
+                    collection="student_rules",
+                    is_current=False,
+                    snippet="第九条 在前10%的基础上，应当提交论文、著作证明材料。",
+                    score=0.92,
+                    source_title="中央民族大学本科学生国家奖学金评审办法",
+                    structural_path=("中央民族大学本科学生国家奖学金评审办法",),
+                    detail_label="第九条",
+                    content_role="requirement",
+                    is_answer_bearing=True,
+                ),
+            ),
         )
 
         def fake_retriever(query: str, **kwargs: object) -> EvidenceBundle:
@@ -421,7 +492,7 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
             response = delegate_to_rag_agent(
                 AgentRequest(
                     target="rag-agent",
-                    user_goal="国奖怎么办",
+                    user_goal="国奖第九条怎么要求论文和著作？",
                     payload=RagRequestPayload(
                         scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
                         version_query=VersionQuery(mode="historical"),
@@ -431,7 +502,9 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
             )
 
         self.assertEqual(response.status, "completed")
-        self.assertIn("国家奖学金", captured_kwargs["query"])
+        self.assertIn("第九条", captured_kwargs["query"])
+        self.assertIn("论文", captured_kwargs["query"])
+        self.assertIn("著作", captured_kwargs["query"])
         self.assertEqual(
             captured_kwargs["target_document_ids"],
             ("handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",),
@@ -441,6 +514,9 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
             ("v1:national-scholarship",),
         )
         self.assertEqual(captured_kwargs["target_revision_track"], "source-faithful")
+        self.assertEqual(captured_kwargs["focus_detail_labels"], ("第九条",))
+        self.assertEqual(captured_kwargs["focus_article_nos"], ("9",))
+        self.assertEqual(captured_kwargs["focus_terms"], ("论文", "著作"))
 
     def test_unresolved_historical_version_query_fails_closed_before_retrieval(self) -> None:
         retriever_called = False
@@ -613,6 +689,63 @@ class RagAgentClarificationVersioningTest(unittest.TestCase):
         self.assertIn("新版", response.answer_text)
         self.assertIn("变化点", response.answer_text)
         self.assertEqual(response.result.diagnostics.semantic_outcome, "compare_grounded_answer")
+
+    def test_compare_answer_preserves_version_side_evidence_provenance(self) -> None:
+        with (
+            patch(
+                "campus_rag_agent.service_retrieval.build_document_registry_from_env",
+                return_value=object(),
+            ),
+            patch(
+                "campus_rag_agent.service_retrieval.resolve_version_query",
+                return_value=ResolvedVersionQuery(
+                    mode="compare",
+                    status="resolved",
+                    primary_selection=ResolvedVersionSelection(
+                        document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                        revision_track="source-faithful",
+                        version_id="v1:national-scholarship",
+                        anchor="previous",
+                    ),
+                    comparison_selection=ResolvedVersionSelection(
+                        document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                        revision_track="source-faithful",
+                        version_id="v2:national-scholarship",
+                        anchor="current",
+                    ),
+                ),
+            ),
+        ):
+            response = delegate_to_rag_agent(
+                AgentRequest(
+                    target="rag-agent",
+                    user_goal="国奖第九条旧版和新版有什么变化？",
+                    payload=RagRequestPayload(
+                        scope=KnowledgeScope(corpus="regulations", collection="student_rules"),
+                        version_query=VersionQuery(mode="compare"),
+                    ),
+                ),
+                retriever=lambda *args, **kwargs: _make_versioned_handbook_evidence(
+                    query_text="国奖第九条旧版和新版有什么变化？",
+                    document_id="handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15",
+                    primary_version_id="v1:national-scholarship",
+                    primary_snippet="第九条 旧版只认可上一学年的论文与著作。",
+                    comparison_version_id="v2:national-scholarship",
+                    comparison_snippet="第九条 新版明确论文与著作须与奖学金评审年度相关。",
+                ),
+            )
+
+        self.assertEqual(response.status, "completed")
+        side_by_version = {
+            source.version_id: source.anchor["retrieval_version_side"]
+            for source in response.result.evidence.sources
+        }
+        self.assertEqual(side_by_version["v1:national-scholarship"], "primary")
+        self.assertEqual(side_by_version["v2:national-scholarship"], "comparison")
+        graph = response.result.diagnostics.claim_evidence_graph
+        self.assertTrue(graph)
+        observed_sides = set().union(*(entry.support_version_sides for entry in graph))
+        self.assertEqual(observed_sides, {"primary", "comparison"})
 
     def test_compare_answer_fails_closed_when_one_side_support_is_missing(self) -> None:
         with (

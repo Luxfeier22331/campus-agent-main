@@ -34,7 +34,10 @@ def plan_curriculum_query(
 ) -> CurriculumQueryPlan:
     interpretation = interpret_curriculum_query(query_text)
     normalized_query = interpretation.normalized_query_text
-    matched_documents = _match_explicit_documents(normalized_query)
+    matched_documents = _match_explicit_documents(
+        normalized_query,
+        title_fragment=interpretation.program_query_fragment,
+    )
     unsupported_lookup_plan = _resolve_unsupported_curriculum_lookup(
         interpretation=interpretation,
         normalized_query=normalized_query,
@@ -42,6 +45,11 @@ def plan_curriculum_query(
     )
     if unsupported_lookup_plan is not None:
         return unsupported_lookup_plan
+    specific_family_document_plan = _resolve_specific_family_document_alias(
+        normalized_query=normalized_query,
+    )
+    if specific_family_document_plan is not None:
+        return replace(specific_family_document_plan, intent_kind=interpretation.intent_kind)
     if len(matched_documents) == 1:
         target_document = matched_documents[0]
         return CurriculumQueryPlan(
@@ -83,14 +91,39 @@ def plan_curriculum_query(
     )
 
 
-def _match_explicit_documents(normalized_query: str) -> tuple[CurriculumDocument, ...]:
-    query_key = _compact_title_key(normalized_query)
-    if not query_key:
+def _match_explicit_documents(
+    normalized_query: str,
+    *,
+    title_fragment: str = "",
+) -> tuple[CurriculumDocument, ...]:
+    query_keys = tuple(
+        dict.fromkeys(
+            key
+            for key in (
+                _compact_title_key(title_fragment),
+                _compact_title_key(normalized_query),
+            )
+            if key
+        )
+    )
+    if not query_keys:
         return ()
+    documents = _explicit_document_candidates_for_query(normalized_query)
+    for query_key in query_keys:
+        exact_matches = tuple(document for document in documents if document.title_key == query_key)
+        if exact_matches:
+            return exact_matches
     matches = tuple(
-        document
-        for document in _load_curriculum_documents()
-        if document.title_key and document.title_key in query_key
+        dict.fromkeys(
+            document
+            for query_key in query_keys
+            for document in documents
+            if document.title_key
+            and _title_key_matches_query(
+                title_key=document.title_key,
+                query_key=query_key,
+            )
+        )
     )
     if len(matches) < 2:
         return matches
@@ -105,6 +138,40 @@ def _match_explicit_documents(normalized_query: str) -> tuple[CurriculumDocument
     if maximal_matches:
         return maximal_matches
     return matches
+
+
+def _explicit_document_candidates_for_query(
+    normalized_query: str,
+) -> tuple[CurriculumDocument, ...]:
+    documents = _load_curriculum_documents()
+    if "课程教学计划" not in normalized_query:
+        return documents
+    course_teaching_plan_documents = tuple(
+        document for document in documents if "课程教学计划" in document.title
+    )
+    if course_teaching_plan_documents:
+        return course_teaching_plan_documents
+    return documents
+
+
+def _title_key_matches_query(*, title_key: str, query_key: str) -> bool:
+    if title_key in query_key:
+        return True
+    return bool(
+        query_key
+        and query_key in title_key
+        and _is_ordered_compact_subsequence(needle=query_key, haystack=title_key)
+    )
+
+
+def _is_ordered_compact_subsequence(*, needle: str, haystack: str) -> bool:
+    if not needle:
+        return False
+    position = 0
+    for char in haystack:
+        if position < len(needle) and needle[position] == char:
+            position += 1
+    return position == len(needle)
 
 
 def _resolve_family_alias(
@@ -146,6 +213,36 @@ def _resolve_family_alias(
             clarification_candidates=clarification_candidates,
             used_soft_preference=bool(preferred_document_ids),
             candidate_title_summary=clarification_candidates,
+        )
+    return None
+
+
+def _resolve_specific_family_document_alias(
+    *,
+    normalized_query: str,
+) -> CurriculumQueryPlan | None:
+    for family_alias in _load_query_planning_config().family_aliases:
+        family_markers = (family_alias.alias, *family_alias.candidate_terms)
+        if not any(marker and marker in normalized_query for marker in family_markers):
+            continue
+        target_document_ids = _query_scoped_family_document_ids(
+            family_alias=family_alias,
+            normalized_query=normalized_query,
+        )
+        if len(target_document_ids) != 1:
+            continue
+        target_document = _document_by_id(target_document_ids[0])
+        if target_document is None:
+            continue
+        return CurriculumQueryPlan(
+            status="resolved",
+            rewritten_query_text=_prepend_title_if_missing(
+                normalized_query=normalized_query,
+                title=target_document.title,
+            ),
+            target_document_ids=(target_document.document_id,),
+            resolved_document_title=target_document.title,
+            candidate_title_summary=(target_document.title,),
         )
     return None
 
@@ -213,6 +310,31 @@ def _major_scoped_candidates(
             continue
         return tuple(document_ids)
     return ()
+
+
+def _query_scoped_family_document_ids(
+    *,
+    family_alias: CurriculumFamilyAliasConfig,
+    normalized_query: str,
+) -> tuple[str, ...]:
+    matched_candidates: list[tuple[int, tuple[str, ...]]] = []
+    normalized_query_text = _normalize_text(normalized_query)
+    for major_key, document_ids in family_alias.major_candidates.items():
+        normalized_major = _normalize_text(major_key)
+        if not normalized_major or normalized_major not in normalized_query_text:
+            continue
+        matched_candidates.append((len(normalized_major), tuple(document_ids)))
+    if not matched_candidates:
+        return ()
+    max_major_length = max(length for length, _ in matched_candidates)
+    scoped_document_ids: list[str] = []
+    for length, document_ids in matched_candidates:
+        if length != max_major_length:
+            continue
+        for document_id in document_ids:
+            if document_id not in scoped_document_ids:
+                scoped_document_ids.append(document_id)
+    return tuple(scoped_document_ids)
 
 
 def _family_candidate_titles(family_alias: CurriculumFamilyAliasConfig) -> tuple[str, ...]:

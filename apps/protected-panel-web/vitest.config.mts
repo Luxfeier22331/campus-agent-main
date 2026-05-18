@@ -11,6 +11,11 @@ export default defineConfig({
 		}),
 	],
 	test: {
+		// The Workers pool is stable here only when files execute sequentially.
+		// Parallel startup can leave the Cloudflare test bridge stuck before the
+		// worker suite begins executing assertions.
+		fileParallelism: false,
+		maxWorkers: 1,
 		include: ["test/worker.test.ts"],
 	},
 });

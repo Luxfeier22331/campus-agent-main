@@ -57,6 +57,8 @@ class ScopeAliasWorkerCliTest(unittest.TestCase):
             action="unpublish",
             previous_physical_collection_name="muc_public_pages__r20260402_152206",
             current_physical_collection_name=None,
+            action_reason="unadmitted_release_containment",
+            expected_current_physical_collection_name="muc_public_pages__r20260402_152206",
         )
         with (
             patch("campus_ingestion_worker.scope_alias.load_worker_env"),
@@ -73,10 +75,22 @@ class ScopeAliasWorkerCliTest(unittest.TestCase):
                     "--collection",
                     "muc_public_pages",
                     "--unpublish",
+                    "--expected-current-physical-collection-name",
+                    "muc_public_pages__r20260402_152206",
+                    "--action-reason",
+                    "unadmitted_release_containment",
                 ]
             )
 
         self.assertIsNone(set_scope_release_alias.call_args.kwargs["physical_collection_name"])
+        self.assertEqual(
+            set_scope_release_alias.call_args.kwargs["expected_current_physical_collection_name"],
+            "muc_public_pages__r20260402_152206",
+        )
+        self.assertEqual(
+            set_scope_release_alias.call_args.kwargs["action_reason"],
+            "unadmitted_release_containment",
+        )
         payload = json.loads(stdout.getvalue())
         self.assertEqual(payload["action"], "unpublish")
 

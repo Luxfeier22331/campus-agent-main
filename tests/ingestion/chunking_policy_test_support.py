@@ -49,6 +49,7 @@ from campus_ingestion_core.chunking_token_windows import (
     tokenize_text,
 )
 from campus_ingestion_core.chunking_tokenizers import (
+    TiktokenTokenCounter,
     _load_hf_tokenizer,
     normalize_embedding_model_name as normalize_embedding_model_name_from_tokenizers_module,
 )

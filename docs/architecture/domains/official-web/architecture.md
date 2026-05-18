@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-19
+updated: 2026-05-04
 ---
 # Official Web Architecture
 
@@ -32,15 +32,18 @@ updated: 2026-04-19
 
 `external scheduler -> official-web collector -> object storage + app-api
 official_web control plane -> app-api ledger/outbox/read model ->
-ingestion-worker -> document/chunk/index`
+ingestion-worker -> release task state machine -> document/chunk/index /
+structured projection -> app-api operator-safe projection -> protected panel`
 
 关键边界：
 
 - collector 负责 crawl / fetch / normalize / upload / report
 - `apps/app-api` 负责 admission、crawl-run ledger、artifact refs、operator query 与
-  ingestion handoff
-- `apps/ingestion-worker` 继续只是 offline executor
+  ingestion handoff；它还接收 ingestion worker 上报的 redacted release task projection
+- `apps/ingestion-worker` 是 offline executor，负责 release task claim /
+  lease / retry / materialize / index / publish
 - protected panel 通过 `apps/app-api` 消费 `official_web` operator surfaces
+  与 release task projection read model
 - collector 写入 source bucket 的对象同时包含 page-level
   `capture/`、`provider/`、`source-truth/` artifacts；如后续 materialize source-side
   projection artifact，则继续写入同一 source prefix 下的
@@ -52,9 +55,120 @@ ingestion-worker -> document/chunk/index`
 - `official_web` 是一级 `source_channel`，不是某个 collection 私有脚本
 - crawl scope 的长期规则留在 policy 文档
 - page-level source-truth schema 留在 contract 文档
+- recovery 阶段默认使用 repo-tracked consumer denominator 决定 retained
+  source-truth；host/page allowlist 只说明“可以抓”，不等于“应该进入下游消费”
 - downstream serving / retrieval 继续只消费 document / chunk / registry truth
 - downloaded file-like assets 不属于 page-level source-truth parser 的长期 owner；如果
   downstream 要消费它们，必须进入 shared file asset loader contract
+
+## Consumer-Denominator Recovery
+
+official-web recovery 的当前默认形态是 consumer-driven collection。
+
+配置入口：
+
+- `configs/sources/official_web/muc_public/consumer-denominator.json`
+- `configs/sources/official_web/muc_public/target-source-map.json`
+
+允许的 retained consumer families：
+
+- `contact_directory_candidate`：只进入 contact directory selected-write candidate；
+  需要 review 或 deterministic extraction 后才可写 current read model
+- `service_guide_candidate`：只进入 service guide selected-write candidate；需要
+  review 或 deterministic extraction 后才可写 current read model
+- `academic_calendar_candidate`：只进入 `calendar/academic_calendar` 结构化投影
+  selected-write / curated release lane；官方网页与校历图片只保留 source evidence，必须经
+  人工/OCR 校验后的结构化 records 才可写 current read model
+- `stable_reference_candidate`：只进入 `official_web/stable_reference` release gate
+- `regulation_candidate`：只进入 `regulations/institutional_rules` release gate；
+  不再把校级规章候选页混入 `official_web/stable_reference`
+- `student_regulation_candidate`：只进入 `regulations/student_rules` release gate；
+  用于信息公开学生工作栏目下的公开学生规章，不再把这类学生向规则硬塞进
+  `regulations/institutional_rules`
+- `notice_news_candidate`：只保留 inventory-only evidence；不得打开
+  `fresh_news`、`news_archive` 或 notice/news runtime
+
+边界：
+
+- collector 只能附加 consumer match metadata 和 retained/rejected counters，不直接写
+  downstream read model
+- ingestion staging 负责 replay、candidate review report、selected-write dry-run
+  admission 与 no-promotion proof；contact/service 的 current read model 写入必须再经过
+  ingestion-owned release task state machine 与 ingestion-worker selected-write executor；
+  app-api 只暴露已入库 projection、release task operator-safe projection 与 stable-reference
+  operator release gate command ledger
+- selected-write preview 与 release-task operator summary 固定采用双轨语义：
+  task-scope bundle / `recordCount` / `taskScopeDisplayNames` 只表示本次 admitted target
+  将写入的记录；full bundle / `fullRecordCount` / `fullImpactDisplayNames` 表示 merge 进当前
+  projection 后的全量 current 影响面。这个语义由 ingestion worker 产出，app-api 与 panel 只消费
+  redacted projection，不自行重算
+- selected write 必须有 source refs、matched evidence、review verdict 或等价的
+  deterministic extraction evidence，并且只能写显式 `selected_write_target` 对应的
+  structured projection
+- listing pages 默认只作 discovery；除非自身命中 stable/contact/service denominator，否则不作为
+  answer-bearing source-truth
+- target-first official-web source pack 可以声明小范围、多页 composition（例如
+  `information_disclosure`、`email_service`），但组合后的 candidate 仍必须由单一 admitted
+  target 驱动，且所有字段都必须可回链到明确 source page；不得借 composition 恢复 broad crawl
+  或生成 query-time fetch 依赖
+- 对带 composition 的 `service_guide_candidate`，必须显式声明 group-specific role contract：
+  恰好一个 primary role 页面负责主 guide candidate，其余可选 role 仅能来自该 group 允许的页面类型；
+  missing / duplicate / unknown role 必须在 candidate extraction 阶段 fail close，不得退回单页
+  candidate 发布
+- 对 `service_guide_candidate`，official-web extraction 必须直接产出 canonical grouped
+  procedure fields（如 `procedure_groups`），不得把多模式流程只压平成一段 procedure 文本后期再
+  由 runtime 反解析
+
+### Target Source Map
+
+`target-source-map.json` 是 consumer-driven collection 的定点采集地图。
+
+它负责把下游会消费的 target 显式映射到：
+
+- `consumer_family`
+- `owner_surface`
+- `selected_write_target`
+- `source_hosts`
+- `url_hints` / `title_hints`
+- `required_evidence`
+- `optional_evidence`
+- `retention_policy`
+- `review_policy`
+- `materialization_policy`
+- `inventory_only`
+
+边界：
+
+- target source map 是采集准入与运营评审提示，不是 current read model
+- 它必须与 `consumer-denominator.json` 的 family / owner / selected-write target 保持一致
+- `required_evidence` 表示 selected-write release-blocking denominator；
+  `optional_evidence` 表示允许以 `source_not_provided` 暴露给 operator 的 source-backed
+  optional denominator
+- `hosts.json` / `seeds.json` 是 source capability registry；target source map 才是
+  target-first collection declaration
+- 不在 target source map 中的 broad crawl 证据不得自动进入 projection drain、handoff 或
+  selected-write
+- news / notice 类 target 当前保持 inventory-only，不打开 `fresh_news` 或 `news_archive`
+- 服务信息扩面必须继续以具体 URL 为单位 admission；当前已 admission 的 support host
+  包括 `met.muc.edu.cn`，但只用于信息化服务指南/联系方式等 target-first 页面，不代表恢复
+  host-wide broad crawl。
+
+### Legacy Broad Crawl Cleanup
+
+旧契约下产生的 broad official-web crawl 不做物理硬删除。
+
+清理形态固定为：
+
+- collector 默认执行必须 fail closed：没有 `app-api` target workset admission 时，不得从
+  `enabled hosts` 或 `hostFilter` 自行推导 collection scope
+- `hostFilter` 只允许缩小已准入 target workset；它不是 target admission
+- 不再允许显式 legacy/debug collector run；没有 `app-api` target workset admission 时必须
+  fail closed
+- `apps/app-api` 不再为 `official_web` 维护独立 run cleanup admission ledger
+- projection drain 直接推进 admitted run 的 operator projection 与 ingestion handoff，
+  不再读取 `legacy_contract_excluded` 之类的历史 cleanup decision
+- 本地 `.tmp` / collector `.tmp` 证据目录可以删除；PG source ledger 与对象存储 source-truth 不因
+  cleanup CLI 自动删除
 
 ## Policy And Contract Split
 
@@ -63,10 +177,8 @@ ingestion-worker -> document/chunk/index`
   contract：`docs/data/official-web-source-truth-schema.md`
 - repo-level data-plane contract：`docs/architecture/system/data-plane-architecture.md`
 - shared file asset loader：`docs/architecture/system/file-asset-loader-architecture.md`
-- serving split / news retrieval strategy：`docs/architecture/official-web-servin
-  g-and-news-retrieval-strategy.md`
-- freshness / incremental crawling strategy：`docs/architecture/official-web-fres
-  hness-and-incremental-crawling.md`
+- serving split / news retrieval strategy：`docs/architecture/domains/official-web/serving-and-news-retrieval-strategy.md`
+- freshness / incremental crawling strategy：`docs/architecture/domains/official-web/freshness-and-incremental-crawling.md`
 
 ## Control-Plane Ownership
 
@@ -79,11 +191,13 @@ ingestion-worker -> document/chunk/index`
 - artifact refs
 - operator list / detail query
 - ingestion handoff dispatch
+- release task operator-safe projection ingest/read
 
 它不负责：
 
 - collector 内部 frontier / parser 代码结构
 - downstream document splitting / chunking 逻辑
+- release task claim、lease、retry、dead-letter、publish 或 selected-write task mutation
 
 ## Operator Surface
 

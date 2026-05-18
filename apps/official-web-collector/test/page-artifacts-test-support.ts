@@ -250,6 +250,29 @@ export const SAMPLE_NEWS_PORTAL_AGGREGATE_PAGE_HTML = `
 </html>
 `.trim();
 
+export const SAMPLE_INFORMATION_DISCLOSURE_REGULATION_PAGE_HTML = `
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <title>中央民族大学信息公开实施细则 - 中央民族大学信息公开</title>
+  </head>
+  <body>
+    <main>
+      <h1>中央民族大学信息公开实施细则</h1>
+      <p>
+        第一条 为进一步推进依法治校，完善民主管理和民主监督的工作机制，保障学校师生员工和公民、
+        法人和其他组织依法获取学校信息，结合学校实际，制定本实施细则。
+      </p>
+      <p>
+        第二条 学校信息公开坚持依法公开、及时准确、便民服务和促进学校事业发展的原则。信息公开
+        办公室设在学校办公室，联系电话：010-68933186，电子邮箱：xxgk@muc.edu.cn。
+      </p>
+    </main>
+  </body>
+</html>
+`.trim();
+
 export const SAMPLE_MOBILE_LINK_STRUCTURAL_SHELL_PAGE_HTML = `
 <!doctype html>
 <html lang="zh-CN">

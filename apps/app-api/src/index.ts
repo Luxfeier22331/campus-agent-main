@@ -3,6 +3,7 @@ import * as Sentry from "@sentry/cloudflare";
 
 import { type AppDependencies, createApp } from "./app";
 import { type Env, isDeployedEnvironment, resolveAppName, resolveEnvironment } from "./config";
+import { AppApiRouteError } from "./http";
 import { createOfficialWebHandoffPublisher } from "./modules/integration";
 import {
 	buildOfficialWebProjectionProjector,
@@ -138,6 +139,15 @@ export function createWorkerRuntime(
 			requestId: string;
 			waitUntil?: ((promise: Promise<unknown>) => void) | undefined;
 		}) => {
+			if (!input.waitUntil) {
+				throw new AppApiRouteError({
+					code: "request_projection_scheduler_unavailable",
+					message: "Request projection drain requires executionCtx.waitUntil.",
+					retryable: true,
+					status: 503,
+				});
+			}
+
 			const runDrain = Promise.resolve().then(async () => {
 				try {
 					const result = await Sentry.startSpan(
@@ -180,12 +190,7 @@ export function createWorkerRuntime(
 				}
 			});
 
-			if (input.waitUntil) {
-				input.waitUntil(runDrain);
-				return;
-			}
-
-			void runDrain;
+			input.waitUntil(runDrain);
 		});
 	const app = createApp(env, {
 		...dependencies,

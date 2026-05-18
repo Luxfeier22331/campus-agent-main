@@ -305,9 +305,16 @@ def _validate_flow_graph(
         raise ValueError(
             f"flow graph page mapping mismatch: expected {expected_pages}, got {actual_pages}"
         )
+    if flow_graph.global_manual_review_required:
+        raise ValueError("flow graph manual review state is not supported")
     has_body_bearing_steps = False
     for page_finding in flow_graph.page_findings:
         for flow in page_finding.flows:
+            if flow.manual_review_notes:
+                raise ValueError(
+                    "flow graph manual review notes are not supported: "
+                    f"page {page_finding.source_page} flow {flow.flow_heading!r}"
+                )
             step_ids = {step.step_id for step in flow.steps}
             if flow.steps:
                 has_body_bearing_steps = True
@@ -356,13 +363,9 @@ def _extract_service_navigation_flow_graph(
     source_page_start: int,
     source_page_end: int,
 ) -> ServiceNavigationFlowGraph:
-    api_key = (source.get("PROMPT_RUNTIME_API_KEY") or source.get("LLM_API_KEY") or "").strip()
+    api_key = (source.get("PROMPT_RUNTIME_API_KEY") or "").strip()
     model_name = (source.get("PROMPT_RUNTIME_MODEL") or "").strip()
-    base_url = (
-        source.get("PROMPT_RUNTIME_BASE_URL")
-        or source.get("LLM_BASE_URL")
-        or DEFAULT_PROMPT_RUNTIME_BASE_URL
-    ).strip()
+    base_url = (source.get("PROMPT_RUNTIME_BASE_URL") or DEFAULT_PROMPT_RUNTIME_BASE_URL).strip()
     reasoning_effort = (source.get("PROMPT_RUNTIME_REASONING_EFFORT") or "").strip()
     max_output_tokens = (source.get("PROMPT_RUNTIME_MAX_OUTPUT_TOKENS") or "").strip()
     if not api_key:

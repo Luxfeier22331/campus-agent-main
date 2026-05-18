@@ -15,18 +15,15 @@ function fail(message) {
 	process.exit(1);
 }
 
-const operatorDatabaseUrl =
-	process.env.STAGING_APP_API_OPERATOR_DATABASE_URL?.trim() ||
-	process.env.STAGING_APP_API_MANAGEMENT_DATABASE_URL?.trim();
+const operatorDatabaseUrl = process.env.STAGING_APP_API_OPERATOR_DATABASE_URL?.trim();
 if (!operatorDatabaseUrl) {
-	fail(
-		"STAGING_APP_API_OPERATOR_DATABASE_URL is required. Legacy STAGING_APP_API_MANAGEMENT_DATABASE_URL is accepted as a compatibility alias for staging shared Postgres operator access.",
-	);
+	fail("STAGING_APP_API_OPERATOR_DATABASE_URL is required.");
 }
 
 process.env.APP_API_OPERATOR_DATABASE_URL = operatorDatabaseUrl;
-process.env.APP_API_MANAGEMENT_DATABASE_URL = operatorDatabaseUrl;
 process.env.APP_API_ENVIRONMENT = "staging";
+process.env.AUTH_SHELL_ORIGIN =
+	process.env.AUTH_SHELL_ORIGIN?.trim() || "https://hub-muc-wiki.ayafeed.com";
 process.env.PUBLIC_CHAT_WEB_ORIGIN =
 	process.env.PUBLIC_CHAT_WEB_ORIGIN?.trim() || "https://campus-chat-staging.ayafeed.com";
 

@@ -29,6 +29,7 @@ _NUMERIC_ITEM_RE = re.compile(r"^(?P<label>[0-9]+[.、])")
 class _RegulationBlockStructure:
     row_type: str
     section_path: tuple[str, ...]
+    article_label: str | None
     provision_label: str | None
     next_top_level_path: tuple[str, ...]
     next_nested_path: tuple[str, ...]
@@ -428,6 +429,9 @@ def serialize_internal_notice_regulation_projection_rows(
                     "title": title,
                     "detail_label": "正文",
                     "section_path": list(structure.section_path),
+                    "article_label": structure.article_label,
+                    "provision_label": structure.provision_label,
+                    "is_answer_bearing": structure.row_type != "heading",
                     "content_role": "regulation_body",
                 },
                 source_url=source_url,
@@ -439,6 +443,7 @@ def serialize_internal_notice_regulation_projection_rows(
                 page_end=page_end,
                 anchor=_build_anchor(
                     section_path=structure.section_path,
+                    article_label=structure.article_label,
                     provision_label=structure.provision_label,
                     page_start=page_start,
                     page_end=page_end,
@@ -542,6 +547,7 @@ def _resolve_regulation_block_structure(
             return _RegulationBlockStructure(
                 row_type="heading",
                 section_path=path,
+                article_label=None,
                 provision_label=None,
                 next_top_level_path=path,
                 next_nested_path=(),
@@ -552,14 +558,28 @@ def _resolve_regulation_block_structure(
         return _RegulationBlockStructure(
             row_type="heading",
             section_path=path,
+            article_label=None,
             provision_label=None,
             next_top_level_path=current_top_level_path,
             next_nested_path=path,
         )
 
     normalized = _strip_heading(text)
+    article_match = _ARTICLE_LABEL_RE.match(normalized)
+    if article_match is not None:
+        article_label = article_match.group("label").strip()
+        article_body = normalized[article_match.end() :].strip()
+        inherited_path = current_nested_path or current_top_level_path
+        return _RegulationBlockStructure(
+            row_type="paragraph" if article_body else "heading",
+            section_path=inherited_path,
+            article_label=article_label,
+            provision_label=None,
+            next_top_level_path=current_top_level_path,
+            next_nested_path=current_nested_path,
+        )
+
     for pattern, level in (
-        (_ARTICLE_LABEL_RE, "top"),
         (_TOP_LEVEL_HEADING_RE, "top"),
         (_SUBSECTION_HEADING_RE, "nested"),
     ):
@@ -572,6 +592,7 @@ def _resolve_regulation_block_structure(
             return _RegulationBlockStructure(
                 row_type="heading",
                 section_path=path,
+                article_label=None,
                 provision_label=None,
                 next_top_level_path=path,
                 next_nested_path=(),
@@ -580,6 +601,7 @@ def _resolve_regulation_block_structure(
         return _RegulationBlockStructure(
             row_type="heading",
             section_path=path,
+            article_label=None,
             provision_label=None,
             next_top_level_path=current_top_level_path,
             next_nested_path=path,
@@ -591,6 +613,7 @@ def _resolve_regulation_block_structure(
         return _RegulationBlockStructure(
             row_type=default_row_type,
             section_path=inherited_path,
+            article_label=None,
             provision_label=numeric_item.group("label").strip(),
             next_top_level_path=current_top_level_path,
             next_nested_path=current_nested_path,
@@ -600,6 +623,7 @@ def _resolve_regulation_block_structure(
     return _RegulationBlockStructure(
         row_type=default_row_type,
         section_path=inherited_path,
+        article_label=None,
         provision_label=None,
         next_top_level_path=current_top_level_path,
         next_nested_path=current_nested_path,
@@ -609,6 +633,7 @@ def _resolve_regulation_block_structure(
 def _build_anchor(
     *,
     section_path: Sequence[str] = (),
+    article_label: str | None = None,
     provision_label: str | None = None,
     page_start: int | None,
     page_end: int | None,
@@ -617,6 +642,8 @@ def _build_anchor(
     normalized_section_path = [item.strip() for item in section_path if item.strip()]
     if normalized_section_path:
         anchor["section_path"] = normalized_section_path
+    if article_label is not None and article_label.strip():
+        anchor["article_label"] = article_label.strip()
     if provision_label is not None and provision_label.strip():
         anchor["provision_label"] = provision_label.strip()
     if page_start is not None:

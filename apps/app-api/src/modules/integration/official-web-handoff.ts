@@ -31,6 +31,14 @@ interface OfficialWebHandoffPublisherInput {
 	fetchImplementation?: typeof fetch;
 }
 
+interface OfficialWebHandoffErrorEnvelope {
+	error?: {
+		code?: string;
+		message?: string;
+		retryable?: boolean;
+	};
+}
+
 function readHandoffRuntimeConfig(
 	env: Pick<
 		Env,
@@ -138,36 +146,14 @@ export function createOfficialWebHandoffPublisher(
 				});
 			}
 
-			let parsed: Record<string, unknown> | null = null;
-			try {
-				parsed = (await response.json()) as Record<string, unknown>;
-			} catch {
-				if (response.status >= 200 && response.status < 300) {
-					throw new OfficialWebHandoffTransportError({
-						code: "official_web_handoff_invalid_response",
-						message: "Official web handoff receiver returned an invalid JSON response.",
-						retryable: true,
-						status: 502,
-					});
-				}
-			}
+			const parsed = await parseOfficialWebHandoffJsonResponse(response);
 
 			if (response.status < 200 || response.status >= 300) {
-				const errorBody =
-					parsed && typeof parsed.error === "object" && parsed.error ? parsed.error : null;
+				const errorEnvelope = parseOfficialWebHandoffErrorEnvelope(parsed, response.status);
 				throw new OfficialWebHandoffTransportError({
-					code:
-						errorBody && typeof (errorBody as { code?: unknown }).code === "string"
-							? ((errorBody as { code: string }).code as string)
-							: "official_web_handoff_unavailable",
-					message:
-						errorBody && typeof (errorBody as { message?: unknown }).message === "string"
-							? ((errorBody as { message: string }).message as string)
-							: "Official web handoff request failed.",
-					retryable:
-						errorBody && typeof (errorBody as { retryable?: unknown }).retryable === "boolean"
-							? ((errorBody as { retryable: boolean }).retryable as boolean)
-							: response.status >= 500,
+					code: errorEnvelope.code,
+					message: errorEnvelope.message,
+					retryable: errorEnvelope.retryable,
 					status: response.status,
 				});
 			}
@@ -186,5 +172,47 @@ export function createOfficialWebHandoffPublisher(
 				dispatchRef,
 			};
 		},
+	};
+}
+
+async function parseOfficialWebHandoffJsonResponse(
+	response: Response,
+): Promise<Record<string, unknown>> {
+	try {
+		return (await response.json()) as Record<string, unknown>;
+	} catch {
+		throw new OfficialWebHandoffTransportError({
+			code: "official_web_handoff_invalid_response",
+			message: "Official web handoff receiver returned an invalid JSON response.",
+			retryable: response.status >= 500,
+			status: response.status >= 200 && response.status < 300 ? 502 : response.status,
+		});
+	}
+}
+
+function parseOfficialWebHandoffErrorEnvelope(
+	parsed: OfficialWebHandoffErrorEnvelope,
+	status: number,
+): { code: string; message: string; retryable: boolean } {
+	const error = parsed.error;
+	if (
+		!error ||
+		typeof error.code !== "string" ||
+		error.code.trim() === "" ||
+		typeof error.message !== "string" ||
+		error.message.trim() === "" ||
+		typeof error.retryable !== "boolean"
+	) {
+		throw new OfficialWebHandoffTransportError({
+			code: "official_web_handoff_invalid_error_envelope",
+			message: "Official web handoff receiver returned an invalid error envelope.",
+			retryable: false,
+			status,
+		});
+	}
+	return {
+		code: error.code,
+		message: error.message,
+		retryable: error.retryable,
 	};
 }

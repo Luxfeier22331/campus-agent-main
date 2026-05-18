@@ -6,14 +6,10 @@ import os
 from collections.abc import Sequence
 
 from campus_ingestion_core.collected_notice_ingest_queue_postgres import (
-    DEFAULT_NOTICE_INGEST_QUEUE_MANAGEMENT_ENV_KEY,
     DEFAULT_NOTICE_INGEST_QUEUE_OPERATOR_ENV_KEY,
     build_notice_ingest_queue_store_from_env,
 )
-from campus_ingestion_core.registry import (
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
-    SHARED_POSTGRES_OPERATOR_ENV_KEY,
-)
+from campus_ingestion_core.registry import SHARED_POSTGRES_OPERATOR_ENV_KEY
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
@@ -40,6 +36,7 @@ def main(argv: Sequence[str] | None = None) -> None:
         "queue": "notice_ingest",
         "write_enabled": False,
         "status_counts": store.list_status_counts(),
+        "operator_summary": store.operator_summary(),
     }
     if args.json:
         print(json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True))
@@ -60,8 +57,31 @@ def _format_text_summary(payload: dict[str, object]) -> str:
         "failed_retryable",
         "failed_terminal",
         "dead_letter",
+        "manual_review",
+        "blocked",
+        "cancelled",
     ):
         lines.append(f"{status}={int(counts.get(status, 0))}")
+    summary = dict(payload["operator_summary"])
+    lines.extend(
+        (
+            f"oldest_pending_age_seconds={int(summary.get('oldest_pending_age_seconds') or 0)}",
+            f"retry_due_count={int(summary.get('retry_due_count') or 0)}",
+            f"expired_lease_count={int(summary.get('expired_lease_count') or 0)}",
+            "manual_review_reason_counts="
+            + json.dumps(
+                summary.get("manual_review_reason_counts") or {},
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+            "dead_letter_reason_counts="
+            + json.dumps(
+                summary.get("dead_letter_reason_counts") or {},
+                ensure_ascii=False,
+                sort_keys=True,
+            ),
+        )
+    )
     return "\n".join(lines)
 
 
@@ -70,9 +90,7 @@ def _has_operator_database_url(env: dict[str, str]) -> bool:
         env.get(key)
         for key in (
             DEFAULT_NOTICE_INGEST_QUEUE_OPERATOR_ENV_KEY,
-            DEFAULT_NOTICE_INGEST_QUEUE_MANAGEMENT_ENV_KEY,
             SHARED_POSTGRES_OPERATOR_ENV_KEY,
-            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
         )
     )
 

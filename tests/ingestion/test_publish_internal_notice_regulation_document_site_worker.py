@@ -116,13 +116,17 @@ class PublishInternalNoticeRegulationDocumentSiteWorkerTest(unittest.TestCase):
             self.assertEqual(report["selected_notice_ids"], ["187233"])
             self.assertEqual(report["source_truth_import"]["write_enabled"], True)
             self.assertEqual(report["materialized_document_count"], 1)
-            self.assertEqual(report["reader_document_count"], 2)
+            self.assertEqual(report["reader_document_count"], 1)
             self.assertEqual(
                 report["target_scope_snapshot_document_counts"],
                 {
                     "regulations/institutional_rules": 1,
                     "regulations/scoped_rules": 1,
                 },
+            )
+            self.assertEqual(
+                report["reader_publish_scope_document_counts"],
+                {"regulations/institutional_rules": 1},
             )
             self.assertEqual(
                 report["docs_read_model_scope_write_mode"],
@@ -135,7 +139,7 @@ class PublishInternalNoticeRegulationDocumentSiteWorkerTest(unittest.TestCase):
             docs_manifest_path = Path(report["docs_read_model_manifest_path"])
             self.assertTrue(docs_manifest_path.exists())
             docs_manifest = json.loads(docs_manifest_path.read_text(encoding="utf-8"))
-            self.assertEqual(len(docs_manifest["documents"]), 2)
+            self.assertEqual(len(docs_manifest["documents"]), 1)
             collections_by_scope = {
                 f"{collection['corpus']}/{collection['collection']}": collection
                 for collection in docs_manifest["collections"]
@@ -144,10 +148,7 @@ class PublishInternalNoticeRegulationDocumentSiteWorkerTest(unittest.TestCase):
                 collections_by_scope["regulations/institutional_rules"]["displayName"],
                 "校级规章",
             )
-            self.assertEqual(
-                collections_by_scope["regulations/scoped_rules"]["displayName"],
-                "专项规章",
-            )
+            self.assertNotIn("regulations/scoped_rules", collections_by_scope)
             documents_by_title = {
                 document["title"]: document for document in docs_manifest["documents"]
             }
@@ -159,7 +160,7 @@ class PublishInternalNoticeRegulationDocumentSiteWorkerTest(unittest.TestCase):
                 documents_by_title["中央民族大学采购工作管理办法"]["canonicalUrl"],
                 "/docs/regulations/institutional_rules/中央民族大学采购工作管理办法",
             )
-            self.assertIn("既有服务管理细则", documents_by_title)
+            self.assertNotIn("既有服务管理细则", documents_by_title)
             versions_by_doc_id = {
                 version["docId"]: version for version in docs_manifest["documentVersions"]
             }

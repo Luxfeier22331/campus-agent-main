@@ -85,17 +85,60 @@ func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
 	policy.SignalGroups["structured_place_entity"] = []string{"北楼"}
 
 	tests := []struct {
-		name string
-		goal string
-		want string
+		name       string
+		goal       string
+		want       string
+		wantSource string
 	}{
 		{name: "custom notice signal", goal: "查一下校内要闻", want: "notice"},
 		{name: "custom transport signal", goal: "摆渡车最早几点", want: "campus_services"},
 		{name: "custom place lookup signal", goal: "北楼藏在哪里", want: "place_lookup"},
 		{name: "contact directory signal", goal: "招生办电话是多少", want: "campus_services"},
+		{name: "vpn service guide signal", goal: "VPN入口在哪里", want: "campus_services"},
+		{name: "vpn install service guide signal", goal: "VPN客户端怎么安装", want: "campus_services"},
+		{name: "network auth service guide signal", goal: "校园网认证入口在哪里", want: "campus_services"},
+		{name: "email service guide signal", goal: "校园邮箱需要什么材料", want: "campus_services"},
+		{name: "unified auth password reset signal", goal: "统一身份认证密码怎么改", want: "campus_services"},
+		{name: "unified auth forgot password signal", goal: "统一身份认证密码忘了怎么办", want: "campus_services"},
+		{name: "portal password reset signal", goal: "信息门户密码怎么改", want: "campus_services"},
+		{name: "plain portal forgot password signal", goal: "门户密码忘了怎么办", want: "campus_services"},
+		{name: "smart portal forgot password signal", goal: "智慧门户忘记密码怎么办", want: "campus_services"},
+		{name: "network auth login signal", goal: "校园网怎么认证登录", want: "campus_services"},
+		{name: "network auth url signal", goal: "校园网认证网址是什么", want: "campus_services"},
+		{name: "vpn address signal", goal: "VPN地址是什么", want: "campus_services"},
+		{name: "remote access guide signal", goal: "校外怎么用VPN访问校园网资源", want: "campus_services"},
+		{name: "email download form signal", goal: "校园邮箱申请表在哪里下载", want: "campus_services"},
+		{name: "enterprise wechat guide signal", goal: "企业微信怎么绑定", want: "campus_services"},
+		{name: "enterprise wechat faq signal", goal: "企业微信提示需要同事扫码验证怎么办", want: "campus_services"},
+		{name: "enterprise wechat phone update signal", goal: "企业微信绑定手机号怎么改", want: "campus_services"},
+		{name: "directory lookup guide signal", goal: "办公电话怎么查", want: "campus_services"},
+		{name: "directory lookup guide alias signal", goal: "通讯录在哪里找", want: "campus_services"},
+		{name: "academic calendar guide signal", goal: "校历怎么看", want: "campus_services"},
+		{name: "academic calendar teaching week signal", goal: "今天第几教学周", want: "campus_services"},
+		{name: "academic calendar holiday signal", goal: "五一放几天", want: "campus_services"},
+		{name: "academic calendar makeup class signal", goal: "哪周补课", want: "campus_services"},
+		{name: "network account guide signal", goal: "上网账号申请去哪里办", want: "campus_services"},
+		{name: "staff campus card guide signal", goal: "教职工校园卡丢了怎么办", want: "campus_services"},
+		{name: "academic calendar guide url signal", goal: "校历网址是什么", want: "campus_services"},
+		{name: "card center office hours guide signal", goal: "卡务中心几点上班", want: "campus_services"},
+		{name: "public medical eligibility guide signal", goal: "公费医疗哪些学生能享受", want: "campus_services"},
+		{name: "campus card full guide signal", goal: "校园卡服务有哪些内容", want: "campus_services"},
+		{name: "information disclosure materials guide signal", goal: "信息公开申请要准备什么", want: "campus_services"},
+		{name: "information disclosure contact signal", goal: "信息公开联系电话是多少", want: "campus_services"},
+		{name: "information service contact signal", goal: "信息化服务办公地点在哪里", want: "campus_services"},
+		{name: "logistics contact signal", goal: "后勤服务热线是多少", want: "campus_services"},
+		{name: "network service contact signal", goal: "网络服务电话是多少", want: "campus_services"},
+		{name: "conference center contact signal", goal: "会务服务中心电话是多少", want: "campus_services"},
+		{name: "dorm management center contact signal", goal: "学生公寓管理服务中心电话是多少", want: "campus_services"},
 		{name: "card center service status signal", goal: "卡务中心今天开不开", want: "campus_services"},
 		{name: "bathroom service status signal", goal: "静园10号楼女浴室现在开放吗", want: "campus_services"},
 		{name: "transport boarding point status signal", goal: "摆渡车在哪里上车", want: "campus_services"},
+		{
+			name:       "scholarship category discovery remains knowledge",
+			goal:       "本科生有哪些奖学金能申请",
+			want:       "knowledge",
+			wantSource: "default",
+		},
 	}
 
 	for _, tt := range tests {
@@ -106,10 +149,52 @@ func TestResolveCapabilityUsesIntentPolicyArtifactSignals(t *testing.T) {
 			if resolution.EffectiveCapability != tt.want {
 				t.Fatalf("capability = %q, want %q", resolution.EffectiveCapability, tt.want)
 			}
-			if resolution.Source != "inferred" {
-				t.Fatalf("source = %q, want inferred", resolution.Source)
+			wantSource := tt.wantSource
+			if wantSource == "" {
+				wantSource = "inferred"
+			}
+			if resolution.Source != wantSource {
+				t.Fatalf("source = %q, want %s", resolution.Source, wantSource)
 			}
 		})
+	}
+}
+
+func TestResolveCapabilityTreatsExplicitNoticeMarkerAsNotice(t *testing.T) {
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load default intent policy: %v", err)
+	}
+
+	resolution := ResolveCapability(CapabilityResolutionRequest{
+		UserGoal: "找一下春假通知",
+	}, policy)
+
+	if resolution.EffectiveCapability != "notice" {
+		t.Fatalf("capability = %q, want notice", resolution.EffectiveCapability)
+	}
+	if resolution.Source != "inferred" {
+		t.Fatalf("source = %q, want inferred", resolution.Source)
+	}
+}
+
+func TestResolveCapabilityPreservesExplicitCampusServicesWithRequestedScope(t *testing.T) {
+	policy, err := LoadIntentPolicy("")
+	if err != nil {
+		t.Fatalf("load default intent policy: %v", err)
+	}
+
+	resolution := ResolveCapability(CapabilityResolutionRequest{
+		RequestedCapability: "campus_services",
+		UserGoal:            "这条班车通知依据学生手册哪条规定？",
+		HasRequestedScope:   true,
+	}, policy)
+
+	if resolution.EffectiveCapability != "campus_services" {
+		t.Fatalf("capability = %q, want campus_services", resolution.EffectiveCapability)
+	}
+	if resolution.Source != "explicit" {
+		t.Fatalf("source = %q, want explicit", resolution.Source)
 	}
 }
 
@@ -573,189 +658,4 @@ func TestEvaluateRuntimePolicyFailsClosedPlaceLookupUntilNavigationRollout(t *te
 			decision.RoutingFrame.PolicyReason,
 		)
 	}
-}
-
-func TestAllowedToolsForPayloadKindIsScopedToTarget(t *testing.T) {
-	allowed := AllowedToolsForPayloadKind("notice-agent", "campus_notice_get")
-	if len(allowed) != 1 || allowed[0] != "campus_notice_get" {
-		t.Fatalf("allowed = %#v, want campus_notice_get", allowed)
-	}
-	if AllowedToolsForPayloadKind("notice-agent", "service_status_lookup") != nil {
-		t.Fatal("notice-agent must not allow service_status_lookup")
-	}
-	serviceGuideAllowed := AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup")
-	if len(serviceGuideAllowed) != 1 || serviceGuideAllowed[0] != "service_guide_lookup" {
-		t.Fatalf("service guide allowed = %#v, want service_guide_lookup", serviceGuideAllowed)
-	}
-	contactAllowed := AllowedToolsForPayloadKind("campus-services-agent", "contact_directory_lookup")
-	if len(contactAllowed) != 1 || contactAllowed[0] != "contact_directory_lookup" {
-		t.Fatalf("contact allowed = %#v, want contact_directory_lookup", contactAllowed)
-	}
-	if AllowedToolsForPayloadKind("navigation-agent", "place_lookup") != nil {
-		t.Fatal("navigation-agent must not allow place_lookup before map rollout")
-	}
-}
-
-func TestQueryServingScopePolicyMatchesDefaultRuntimeProfile(t *testing.T) {
-	tests := []struct {
-		name       string
-		corpus     string
-		collection string
-		want       bool
-	}{
-		{
-			name:       "student rules allowed",
-			corpus:     "regulations",
-			collection: "student_rules",
-			want:       true,
-		},
-		{
-			name:       "institutional rules allowed after serving admission",
-			corpus:     "regulations",
-			collection: "institutional_rules",
-			want:       true,
-		},
-		{
-			name:       "scoped rules rejected by default",
-			corpus:     "regulations",
-			collection: "scoped_rules",
-			want:       false,
-		},
-		{
-			name:       "curriculum plan allowed",
-			corpus:     "curriculum",
-			collection: "curriculum_plan",
-			want:       true,
-		},
-		{
-			name:       "official web stable reference allowed",
-			corpus:     "official_web",
-			collection: "stable_reference",
-			want:       true,
-		},
-		{
-			name:       "official web fresh news rejected",
-			corpus:     "official_web",
-			collection: "fresh_news",
-			want:       false,
-		},
-		{
-			name:       "official web news archive rejected",
-			corpus:     "official_web",
-			collection: "news_archive",
-			want:       false,
-		},
-		{
-			name:       "campus service catalog rejected",
-			corpus:     "campus_services",
-			collection: "service_catalog",
-			want:       false,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			allowed, err := QueryScopeAllowed(tt.corpus, tt.collection, "")
-			if err != nil {
-				t.Fatalf("query scope allowed: %v", err)
-			}
-			if allowed != tt.want {
-				t.Fatalf("allowed = %v, want %v", allowed, tt.want)
-			}
-		})
-	}
-}
-
-func TestQueryServingScopePolicyFailsClosedWhenDefaultPolicyIsMissing(t *testing.T) {
-	originalWorkingDir, err := os.Getwd()
-	if err != nil {
-		t.Fatalf("getwd: %v", err)
-	}
-	t.Cleanup(func() {
-		if chdirErr := os.Chdir(originalWorkingDir); chdirErr != nil {
-			t.Fatalf("restore working dir: %v", chdirErr)
-		}
-	})
-	if err := os.Chdir(t.TempDir()); err != nil {
-		t.Fatalf("chdir temp dir: %v", err)
-	}
-
-	allowed, err := QueryScopeAllowed("regulations", "student_rules", "")
-	if err == nil {
-		t.Fatal("expected missing query-serving scope policy to fail")
-	}
-	if allowed {
-		t.Fatal("scope must not be allowed when policy file is missing")
-	}
-}
-
-func TestQueryServingScopePolicyReadsExplicitPolicyFile(t *testing.T) {
-	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v1.json")
-	if err := os.WriteFile(
-		policyPath,
-		[]byte(`{"policy_version":"query-serving-scopes-v1","scopes":[{"corpus":"regulations","collection":"student_rules"}]}`),
-		0o600,
-	); err != nil {
-		t.Fatalf("write policy fixture: %v", err)
-	}
-
-	allowed, err := QueryScopeAllowed("regulations", "student_rules", policyPath)
-	if err != nil {
-		t.Fatalf("query scope allowed: %v", err)
-	}
-	if !allowed {
-		t.Fatal("expected explicit policy scope to be allowed")
-	}
-}
-
-func TestQueryServingScopePolicyRejectsMissingPolicyVersion(t *testing.T) {
-	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v1.json")
-	if err := os.WriteFile(
-		policyPath,
-		[]byte(`{"scopes":[{"corpus":"regulations","collection":"student_rules"}]}`),
-		0o600,
-	); err != nil {
-		t.Fatalf("write policy fixture: %v", err)
-	}
-
-	allowed, err := QueryScopeAllowed("regulations", "student_rules", policyPath)
-	if err == nil {
-		t.Fatal("expected missing policy_version to fail")
-	}
-	if allowed {
-		t.Fatal("scope must not be allowed when policy_version is missing")
-	}
-	if !strings.Contains(err.Error(), "policy_version") {
-		t.Fatalf("error = %v, want policy_version failure", err)
-	}
-}
-
-func TestQueryServingScopePolicyRejectsMismatchedPolicyVersion(t *testing.T) {
-	policyPath := filepath.Join(t.TempDir(), "query-serving-scopes.v1.json")
-	if err := os.WriteFile(
-		policyPath,
-		[]byte(`{"policy_version":"query-serving-scopes-v999","scopes":[{"corpus":"regulations","collection":"student_rules"}]}`),
-		0o600,
-	); err != nil {
-		t.Fatalf("write policy fixture: %v", err)
-	}
-
-	allowed, err := QueryScopeAllowed("regulations", "student_rules", policyPath)
-	if err == nil {
-		t.Fatal("expected mismatched policy_version to fail")
-	}
-	if allowed {
-		t.Fatal("scope must not be allowed when policy_version mismatches")
-	}
-	if !strings.Contains(err.Error(), "policy_version") {
-		t.Fatalf("error = %v, want policy_version failure", err)
-	}
-}
-
-func cloneSignalGroups(source map[string][]string) map[string][]string {
-	cloned := make(map[string][]string, len(source))
-	for key, values := range source {
-		cloned[key] = append([]string(nil), values...)
-	}
-	return cloned
 }

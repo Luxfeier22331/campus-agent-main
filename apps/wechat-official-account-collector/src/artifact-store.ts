@@ -19,11 +19,9 @@ export interface WeChatOfficialAccountArtifactStore {
 }
 
 export interface WeChatOfficialAccountObjectStoreEnvironment {
-	OBJECT_STORE_ACCESS_KEY?: string;
 	OBJECT_STORE_BUCKET_SOURCE?: string;
 	OBJECT_STORE_ENDPOINT?: string;
 	OBJECT_STORE_REGION?: string;
-	OBJECT_STORE_SECRET_KEY?: string;
 	OBJECT_STORE_SOURCE_ACCESS_KEY?: string;
 	OBJECT_STORE_SOURCE_SECRET_KEY?: string;
 }
@@ -64,10 +62,8 @@ export function createWeChatOfficialAccountArtifactStoreFromEnv(
 	env: WeChatOfficialAccountObjectStoreEnvironment = process.env,
 ): WeChatOfficialAccountArtifactStore | undefined {
 	const endpoint = env.OBJECT_STORE_ENDPOINT?.trim();
-	const accessKey =
-		env.OBJECT_STORE_SOURCE_ACCESS_KEY?.trim() || env.OBJECT_STORE_ACCESS_KEY?.trim();
-	const secretKey =
-		env.OBJECT_STORE_SOURCE_SECRET_KEY?.trim() || env.OBJECT_STORE_SECRET_KEY?.trim();
+	const accessKey = env.OBJECT_STORE_SOURCE_ACCESS_KEY?.trim();
+	const secretKey = env.OBJECT_STORE_SOURCE_SECRET_KEY?.trim();
 	const configuredCount = [endpoint, accessKey, secretKey].filter(Boolean).length;
 
 	if (configuredCount === 0) {
@@ -75,7 +71,7 @@ export function createWeChatOfficialAccountArtifactStoreFromEnv(
 	}
 	if (!(endpoint && accessKey && secretKey)) {
 		throw new Error(
-			"OBJECT_STORE_ENDPOINT plus a complete source-bucket credential pair are required. Use OBJECT_STORE_SOURCE_ACCESS_KEY/OBJECT_STORE_SOURCE_SECRET_KEY or shared OBJECT_STORE_ACCESS_KEY/OBJECT_STORE_SECRET_KEY.",
+			"OBJECT_STORE_ENDPOINT plus OBJECT_STORE_SOURCE_ACCESS_KEY/OBJECT_STORE_SOURCE_SECRET_KEY are required.",
 		);
 	}
 

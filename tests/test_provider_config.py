@@ -9,7 +9,7 @@ from campus_shared.provider_config import (
 
 
 class ProviderConfigTest(unittest.TestCase):
-    def test_prefers_eval_over_shared_keys(self) -> None:
+    def test_reads_explicit_eval_scoped_provider_keys(self) -> None:
         env = {
             "LLM_API_KEY": "shared-llm",
             "EMBEDDING_API_KEY": "shared-embed",
@@ -22,18 +22,18 @@ class ProviderConfigTest(unittest.TestCase):
         self.assertEqual(resolved.llm_api_key, "eval-llm")
         self.assertEqual(resolved.embedding_api_key, "eval-embed")
 
-    def test_falls_back_to_shared_keys_when_eval_missing(self) -> None:
+    def test_rejects_legacy_shared_keys_when_eval_scoped_keys_are_missing(self) -> None:
         env = {"LLM_API_KEY": "shared-llm", "EMBEDDING_API_KEY": "shared-embed"}
 
-        resolved = resolve_provider_config("ragas", env=env)
+        with self.assertRaises(ProviderConfigResolutionError) as cm:
+            resolve_provider_config("ragas", env=env)
 
-        self.assertEqual(resolved.llm_api_key, "shared-llm")
-        self.assertEqual(resolved.embedding_api_key, "shared-embed")
+        self.assertEqual(cm.exception.checked_keys, ("EVAL_LLM_API_KEY",))
 
     def test_missing_embedding_key_reports_surface_and_checked_keys_without_leaking_secrets(
         self,
     ) -> None:
-        env = {"LLM_API_KEY": "shared-llm"}
+        env = {"EVAL_LLM_API_KEY": "eval-llm"}
 
         with self.assertRaises(ProviderConfigResolutionError) as cm:
             resolve_provider_config("ragas", env=env)
@@ -42,8 +42,8 @@ class ProviderConfigTest(unittest.TestCase):
         self.assertEqual(error.surface_name, "ragas")
         self.assertEqual(
             error.checked_keys,
-            ("EVAL_EMBEDDING_API_KEY", "EMBEDDING_API_KEY"),
+            ("EVAL_EMBEDDING_API_KEY",),
         )
         self.assertIn("ragas", str(error))
-        self.assertIn("EMBEDDING_API_KEY", str(error))
-        self.assertNotIn("shared-llm", str(error))
+        self.assertIn("EVAL_EMBEDDING_API_KEY", str(error))
+        self.assertNotIn("eval-llm", str(error))

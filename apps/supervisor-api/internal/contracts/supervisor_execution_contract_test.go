@@ -1,6 +1,7 @@
 package contracts
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"testing"
@@ -78,6 +79,29 @@ func TestDecodeSupervisorResponseWireJSONRejectsNonCanonicalFixtures(t *testing.
 				t.Fatal("expected invalid response fixture to be rejected")
 			}
 		})
+	}
+}
+
+func TestDecodeSupervisorResponseWireJSONRejectsErrorWithoutRetryable(t *testing.T) {
+	payload := map[string]any{
+		"selected_target":        nil,
+		"status":                 "error",
+		"answer_text":            "",
+		"follow_up_question":     "",
+		"confidence":             "low",
+		"result":                 nil,
+		"error":                  map[string]any{"code": "bridge_failed", "message": "bridge failed"},
+		"observability":          map[string]any{},
+		"workflow_trace_summary": nil,
+		"trace_id":               "trace-missing-retryable",
+	}
+	body, err := json.Marshal(payload)
+	if err != nil {
+		t.Fatalf("marshal payload: %v", err)
+	}
+
+	if _, err := DecodeSupervisorResponseWireJSON(body); err == nil {
+		t.Fatal("expected supervisor response error without retryable to be rejected")
 	}
 }
 

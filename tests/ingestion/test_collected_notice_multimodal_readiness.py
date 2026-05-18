@@ -75,6 +75,9 @@ def _attachment(
     filename: str,
     mime_type: str,
     role: str = "attachment",
+    attachment_capture_policy: str = "fetch_to_quarantine",
+    attachment_capture_state: str = "uploaded_quarantine",
+    retention_class: str = "quarantine_candidate",
 ) -> dict[str, object]:
     return {
         "attachment_ref_id": attachment_ref_id,
@@ -91,6 +94,12 @@ def _attachment(
         "byte_size": 1234,
         "storage_provider": "object_store",
         "ingest_status": "uploaded",
+        "attachment_capture_policy": attachment_capture_policy,
+        "attachment_capture_state": attachment_capture_state,
+        "retention_class": retention_class,
+        "byte_fetch_required": False,
+        "required_source_object": attachment_capture_policy
+        in {"fetch_required_for_source_truth", "fetch_required_for_admitted_owner"},
     }
 
 
@@ -254,6 +263,86 @@ class CollectedNoticeMultimodalReadinessTests(unittest.TestCase):
         self.assertEqual(preview.candidate_inventory["candidate_count"], 0)
         self.assertEqual(preview.ocr_batch_manifest["pending_attempt_count"], 0)
 
+    def test_attachment_without_source_retention_policy_is_not_a_media_candidate(self) -> None:
+        attachment = _attachment(
+            attachment_ref_id="attachment-0001",
+            filename="班车安排.png",
+            mime_type="image/png",
+            role="inline_image",
+        )
+        for field in (
+            "attachment_capture_policy",
+            "attachment_capture_state",
+            "retention_class",
+            "byte_fetch_required",
+            "required_source_object",
+        ):
+            attachment.pop(field, None)
+        unit = _unit(
+            notice_id="355867",
+            title="关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
+            attachments=[attachment],
+            reason_codes=["image_attachment_pending_text_extraction"],
+            targets=["transport_schedule"],
+        )
+
+        preview = build_collected_notice_multimodal_readiness_preview(
+            invalid_defer_multimodal_report={
+                "needs_multimodal_units": [{"unit_id": unit["unit_id"]}]
+            },
+            searchable_notice_preview={"units": [unit]},
+            generated_at="2026-04-29T00:00:00+00:00",
+        )
+
+        self.assertEqual(preview.candidate_inventory["candidate_count"], 0)
+        self.assertEqual(preview.ocr_batch_manifest["pending_attempt_count"], 0)
+
+    def test_fetch_to_quarantine_attachment_without_collected_bytes_emits_source_capture_gap(
+        self,
+    ) -> None:
+        attachment = {
+            **_attachment(
+                attachment_ref_id="attachment-0001",
+                filename="班车安排.png",
+                mime_type="image/png",
+                role="inline_image",
+            ),
+            "object_key": None,
+            "content_sha256": None,
+            "storage_provider": "reference_only",
+            "ingest_status": "reference_only",
+            "attachment_capture_policy": "fetch_to_quarantine",
+            "attachment_capture_state": "not_attempted",
+            "byte_fetch_required": True,
+            "retention_class": "quarantine_candidate",
+        }
+        unit = _unit(
+            notice_id="355867",
+            title="关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
+            attachments=[attachment],
+            reason_codes=["image_attachment_pending_text_extraction"],
+            targets=["transport_schedule"],
+        )
+
+        preview = build_collected_notice_multimodal_readiness_preview(
+            invalid_defer_multimodal_report={
+                "needs_multimodal_units": [{"unit_id": unit["unit_id"]}]
+            },
+            searchable_notice_preview={"units": [unit]},
+            generated_at="2026-04-29T00:00:00+00:00",
+        )
+
+        self.assertEqual(preview.candidate_inventory["candidate_count"], 1)
+        candidate = preview.candidate_inventory["candidates"][0]
+        self.assertEqual(candidate["processing_family"], "source_capture_repair")
+        self.assertEqual(candidate["status"], "failed_retryable")
+        self.assertEqual(candidate["policy_action"], "fail")
+        self.assertFalse(candidate["target_blocking"])
+        self.assertEqual(candidate["attachment_ref"]["attachment_ref_id"], "attachment-0001")
+        self.assertIn("source_capture_pending", candidate["reason_codes"])
+        self.assertIn("missing_collected_attachment_bytes", candidate["reason_codes"])
+        self.assertEqual(preview.ocr_batch_manifest["pending_attempt_count"], 0)
+
     def test_marks_low_value_posters_skipped_and_missing_media_as_failed_gap(self) -> None:
         low_value = _unit(
             notice_id="354276",
@@ -298,12 +387,90 @@ class CollectedNoticeMultimodalReadinessTests(unittest.TestCase):
             by_notice["354276"]["skip_reason"],
             "low_value_ephemeral_event_poster",
         )
-        self.assertEqual(by_notice["354304"]["status"], "failed")
+        self.assertEqual(by_notice["354304"]["status"], "failed_retryable")
         self.assertEqual(by_notice["354304"]["processing_family"], "source_capture_repair")
         self.assertIn("missing_processable_media", by_notice["354304"]["reason_codes"])
         self.assertEqual(preview.ocr_batch_manifest["pending_attempt_count"], 0)
         self.assertEqual(preview.gap_report["missing_processable_media_count"], 1)
         self.assertEqual(preview.gap_report["high_value_skip_violation_count"], 0)
+
+    def test_selects_manual_review_and_failed_retryable_units_for_replay(self) -> None:
+        manual_review = _unit(
+            notice_id="355867",
+            title="关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
+            attachments=[
+                _attachment(
+                    attachment_ref_id="attachment-0001",
+                    filename="班车安排.png",
+                    mime_type="image/png",
+                    role="inline_image",
+                )
+            ],
+            reason_codes=["image_attachment_pending_text_extraction"],
+            targets=["transport_schedule"],
+        )
+        manual_review["media_text_status"] = "manual_review"
+        manual_review["multimodal_status"] = "completed"
+        retryable = _unit(
+            notice_id="355868",
+            title="关于临时调整校园服务开放时间的通知",
+            attachments=[
+                _attachment(
+                    attachment_ref_id="attachment-0002",
+                    filename="开放时间.png",
+                    mime_type="image/png",
+                    role="inline_image",
+                )
+            ],
+            reason_codes=["image_attachment_pending_text_extraction"],
+            targets=["service_status"],
+        )
+        retryable["media_text_status"] = "failed_retryable"
+        retryable["multimodal_status"] = "completed"
+
+        preview = build_collected_notice_multimodal_readiness_preview(
+            invalid_defer_multimodal_report={"needs_multimodal_units": []},
+            searchable_notice_preview={"units": [manual_review, retryable]},
+            generated_at="2026-04-29T00:00:00+00:00",
+        )
+
+        self.assertEqual(preview.candidate_inventory["unit_count"], 2)
+        self.assertEqual(preview.candidate_inventory["candidate_count"], 2)
+        self.assertEqual(
+            {row["source_notice_id"] for row in preview.candidate_inventory["candidates"]},
+            {"355867", "355868"},
+        )
+
+    def test_internal_notice_image_uses_ocr_path_not_multimodal_fallback(self) -> None:
+        unit = _unit(
+            notice_id="355868",
+            title="关于临时调整校园服务开放时间的通知",
+            attachments=[
+                _attachment(
+                    attachment_ref_id="attachment-0002",
+                    filename="开放时间.png",
+                    mime_type="image/png",
+                    role="inline_image",
+                )
+            ],
+            reason_codes=["image_attachment_pending_text_extraction"],
+            targets=["service_status"],
+        )
+
+        preview = build_collected_notice_multimodal_readiness_preview(
+            invalid_defer_multimodal_report={
+                "needs_multimodal_units": [{"unit_id": unit["unit_id"]}]
+            },
+            searchable_notice_preview={"units": [unit]},
+            generated_at="2026-04-29T00:00:00+00:00",
+        )
+
+        candidate = preview.candidate_inventory["candidates"][0]
+        self.assertEqual(candidate["processing_family"], "image_ocr_text_extraction")
+        self.assertNotIn(
+            "ingestion_projection.internal_notice_multimodal_attempt",
+            preview.state_mapping_report["source_attempt_tables"],
+        )
 
     def test_weak_regulation_hint_does_not_make_regular_notice_high_priority(self) -> None:
         unit = _unit(
@@ -315,6 +482,9 @@ class CollectedNoticeMultimodalReadinessTests(unittest.TestCase):
                     filename="操作指引.png",
                     mime_type="image/png",
                     role="inline_image",
+                    attachment_capture_policy="metadata_only",
+                    attachment_capture_state="metadata_recorded",
+                    retention_class="metadata_only",
                 )
             ],
             reason_codes=["image_attachment_pending_text_extraction"],
@@ -338,10 +508,8 @@ class CollectedNoticeMultimodalReadinessTests(unittest.TestCase):
             generated_at="2026-04-29T00:00:00+00:00",
         )
 
-        candidate = preview.candidate_inventory["candidates"][0]
-        self.assertEqual(candidate["priority"], "normal")
-        self.assertEqual(candidate["target_hints"], ["regulation"])
-        self.assertEqual(candidate["classification"]["primary_route"], "no_adoption")
+        self.assertEqual(preview.candidate_inventory["candidate_count"], 0)
+        self.assertEqual(preview.ocr_batch_manifest["pending_attempt_count"], 0)
 
     def test_outputs_mapping_attempt_plan_and_searchable_merge_preview(self) -> None:
         unit = _unit(
@@ -371,10 +539,6 @@ class CollectedNoticeMultimodalReadinessTests(unittest.TestCase):
         self.assertEqual(mapping["schema_version"], "notice_multimodal_state_mapping.v1")
         self.assertIn(
             "ingestion_projection.internal_notice_schedule_image_ocr_attempt",
-            mapping["source_attempt_tables"],
-        )
-        self.assertIn(
-            "ingestion_projection.internal_notice_multimodal_attempt",
             mapping["source_attempt_tables"],
         )
         self.assertIn(

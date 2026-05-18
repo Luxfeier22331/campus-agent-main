@@ -290,7 +290,7 @@ export function classifyPageFamily(input: {
 				reason:
 					directoryHint || input.pageSignals.contactLikeMainBlockCount >= 2
 						? "directory_table_signal"
-						: "directory_site_table_fallback",
+						: "directory_site_table_signal",
 			};
 		}
 		return {
@@ -303,7 +303,8 @@ export function classifyPageFamily(input: {
 	if (
 		input.pageSignals.contactLikeMainBlockCount >= 2 &&
 		input.pageSignals.mainContentBlockCount <= 5 &&
-		input.pageSignals.mainParagraphCount <= 2
+		input.pageSignals.mainParagraphCount <= 2 &&
+		input.pageSignals.mainContentCharacterCount <= 240
 	) {
 		if (directoryHint || input.hostPolicy.publicKind === "directory_site") {
 			return {
@@ -363,7 +364,7 @@ export function classifyPageFamily(input: {
 		return {
 			pageFamily: "directory_page",
 			confidence: directoryHint ? 0.8 : 0.72,
-			reason: directoryHint ? "directory_site_keyword_signal" : "directory_site_fallback",
+			reason: directoryHint ? "directory_site_keyword_signal" : "directory_site_structure_signal",
 		};
 	}
 
@@ -371,14 +372,14 @@ export function classifyPageFamily(input: {
 		return {
 			pageFamily: "listing_page",
 			confidence: 0.74,
-			reason: "dense_main_link_fallback",
+			reason: "dense_main_link_listing_signal",
 		};
 	}
 
 	return {
 		pageFamily: "generic_content_page",
 		confidence: 0.65,
-		reason: "generic_content_fallback",
+		reason: "generic_content_signal",
 	};
 }
 

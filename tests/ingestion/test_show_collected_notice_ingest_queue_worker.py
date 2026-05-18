@@ -19,6 +19,17 @@ class _FakeStore:
             "failed_retryable": 0,
             "failed_terminal": 1,
             "dead_letter": 1,
+            "manual_review": 2,
+            "blocked": 1,
+            "cancelled": 1,
+        }
+
+    def operator_summary(self) -> dict[str, object]:
+        return {
+            "oldest_pending_age_seconds": 3600,
+            "retry_due_count": 4,
+            "manual_review_reason_counts": {"media_gate_requires_manual_review": 2},
+            "dead_letter_reason_counts": {"source_object_unavailable": 1},
         }
 
 
@@ -43,6 +54,12 @@ class ShowCollectedNoticeIngestQueueWorkerTest(unittest.TestCase):
         self.assertFalse(payload["write_enabled"])
         self.assertEqual(payload["status_counts"]["queued"], 2)
         self.assertEqual(payload["status_counts"]["dead_letter"], 1)
+        self.assertEqual(payload["status_counts"]["manual_review"], 2)
+        self.assertEqual(payload["operator_summary"]["retry_due_count"], 4)
+        self.assertEqual(
+            payload["operator_summary"]["manual_review_reason_counts"],
+            {"media_gate_requires_manual_review": 2},
+        )
 
 
 if __name__ == "__main__":

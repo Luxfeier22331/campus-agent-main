@@ -395,11 +395,11 @@ def _load_ocr_items(
     }
     items: list[dict[str, Any]] = []
     for manifest_path in sorted(Path(ocr_output_dir).glob("**/manifest.json")):
-        evidence = _evidence_from_payload(_read_json_object(manifest_path))
+        evidence = _evidence_from_payload(_load_json_object(manifest_path))
         if (evidence.notice_id, evidence.image_index) not in expected:
             continue
         result = _provider_result_from_payload(
-            _read_json_object(manifest_path.parent / "ocr-result.json")
+            _load_json_object(manifest_path.parent / "ocr-result.json")
         )
         items.append({"evidence": evidence, "result": result})
     return tuple(items)
@@ -429,8 +429,8 @@ def _evidence_from_payload(payload: Mapping[str, Any]) -> ScheduleImageOcrEviden
 
 def _provider_result_from_payload(payload: Mapping[str, Any]) -> ScheduleImageOcrProviderResult:
     return ScheduleImageOcrProviderResult(
-        provider=_text(payload.get("provider")) or "unknown",
-        model=_text(payload.get("model")) or "unknown",
+        provider=_required_text(payload, "provider", label="schedule OCR result"),
+        model=_required_text(payload, "model", label="schedule OCR result"),
         confidence=_confidence(_text(payload.get("confidence"))),
         extracted_text=_text(payload.get("extracted_text")),
         tables=_tables(payload.get("tables")),
@@ -766,10 +766,6 @@ def _mapping_rows(value: object) -> tuple[Mapping[str, Any], ...]:
 
 
 def _load_json_object(path: Path) -> dict[str, Any]:
-    return _read_json_object(Path(path))
-
-
-def _read_json_object(path: Path) -> dict[str, Any]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"expected JSON object: {path}")
@@ -780,10 +776,15 @@ def _text(value: object) -> str:
     return str(value or "").strip()
 
 
-def _required_text(payload: Mapping[str, Any], key: str) -> str:
+def _required_text(
+    payload: Mapping[str, Any],
+    key: str,
+    *,
+    label: str = "schedule image OCR payload",
+) -> str:
     value = _text(payload.get(key))
     if not value:
-        raise ValueError(f"schedule image OCR payload missing required field: {key}")
+        raise ValueError(f"{label} missing {key}")
     return value
 
 

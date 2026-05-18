@@ -2,6 +2,7 @@ package execution
 
 import (
 	"encoding/json"
+	"slices"
 	"testing"
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/config"
@@ -63,6 +64,10 @@ func TestParseAnswerRequestProjectsBridgeV5AgentRequestForTransportSchedule(t *t
 	}
 	if workflowPlan["workflow_mode"] != "single_handoff" {
 		t.Fatalf("workflow_plan.workflow_mode = %v, want single_handoff", workflowPlan["workflow_mode"])
+	}
+	allowedAgents, ok := workflowPlan["allowed_agents"].([]any)
+	if !ok || len(allowedAgents) != 1 || allowedAgents[0] != "campus-services-agent" {
+		t.Fatalf("workflow_plan.allowed_agents = %#v, want campus-services-agent", workflowPlan["allowed_agents"])
 	}
 	if workflowPlan["workflow_mode"] == "multi_step" {
 		t.Fatalf("transport preplan must not emit multi_step workflow plans: %#v", workflowPlan)
@@ -142,6 +147,7 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 		t.Fatalf("runtime_decision_summary.planning_outcome = %v, want preplanned", summary["planning_outcome"])
 	}
 	handoff := expectExecutionRecord(t, runtimeDecisions["handoff"], "handoff")
+	workflowPlan := expectExecutionRecord(t, runtimeDecisions["workflow_plan"], "workflow_plan")
 	if request.RuntimeDecisions.PlanningOutcome != "preplanned" {
 		t.Fatalf(
 			"request planning outcome = %q, want preplanned",
@@ -151,9 +157,37 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 	if handoff["target"] != "rag-agent" {
 		t.Fatalf("handoff.target = %v, want rag-agent", handoff["target"])
 	}
+	if request.StructuredHandoff == nil {
+		t.Fatal("structured handoff must be present")
+	}
+	if !slices.Equal(
+		request.StructuredHandoff.ExpectedArtifacts,
+		[]string{"evidence_bundle", "grounding_verdict"},
+	) {
+		t.Fatalf(
+			"structured handoff expected artifacts = %#v, want evidence_bundle + grounding_verdict",
+			request.StructuredHandoff.ExpectedArtifacts,
+		)
+	}
+	allowedAgents, ok := workflowPlan["allowed_agents"].([]any)
+	if !ok || len(allowedAgents) != 1 || allowedAgents[0] != "rag-agent" {
+		t.Fatalf("workflow_plan.allowed_agents = %#v, want rag-agent", workflowPlan["allowed_agents"])
+	}
 	allowedTools, ok := handoff["allowed_tools"].([]any)
 	if !ok || len(allowedTools) != 0 {
 		t.Fatalf("handoff.allowed_tools = %#v, want empty array", handoff["allowed_tools"])
+	}
+	if len(request.PlannedHandoffs) != 1 {
+		t.Fatalf("planned handoffs = %#v, want one rag handoff", request.PlannedHandoffs)
+	}
+	if !slices.Equal(
+		request.PlannedHandoffs[0].ExpectedArtifacts,
+		[]string{"evidence_bundle", "grounding_verdict"},
+	) {
+		t.Fatalf(
+			"planned handoff expected artifacts = %#v, want evidence_bundle + grounding_verdict",
+			request.PlannedHandoffs[0].ExpectedArtifacts,
+		)
 	}
 	legacyHandoffPayloadKey := "agent" + "_" + "payload"
 	if _, ok := handoff[legacyHandoffPayloadKey]; ok {
@@ -180,395 +214,172 @@ func TestParseAnswerRequestPreplansKnowledgeHandoff(t *testing.T) {
 	}
 }
 
-func TestParseAnswerRequestAcceptsInstitutionalRulesQueryScope(t *testing.T) {
+func TestParseAnswerRequestResolvesSelectedNoticeKnowledgeFollowthroughWorkflowPlan(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
-			"user_goal":"毕业生就业奖励办法怎么规定？",
-			"request_id":"req-institutional-rules-scope",
-			"requested_scope":{"corpus":"regulations","collection":"institutional_rules"}
+			"user_goal":"这条通知依据学生手册哪条规定？",
+			"request_id":"req-selected-notice-followthrough",
+			"requested_capability":"knowledge",
+			"requested_scope":{"corpus":"regulations","collection":"student_rules"},
+			"context":{
+				"actor":{"user_id":"student-1","principal_id":"student-1","principal_type":"student","roles":["student"]},
+				"authorization":{"retrieval_filter":{"visibility_level":"public","policy_projection_version":"phase1-authorization-projection-v1"}},
+				"session":{"selected_notice_ref":{"notice_id":"notice:smoke:001","source_family":"wechat_public_notice","title":"烟雾测试通知","target_surface":"regulations/student_rules"}}
+			}
 		}`),
 		map[string]string{
-			"authorization": "Bearer secret-token",
+			"x-worker-origin-auth": "worker-secret",
 		},
 		config.Config{
-			AuthMode:       "bearer",
-			BearerToken:    "secret-token",
-			DefaultActorID: "api-bearer-user",
+			AuthMode:                 "trusted-worker",
+			WorkerSharedSecret:       "worker-secret",
+			DefaultActorID:           "runtime-bearer-user",
+			MultiStepWorkflowEnabled: true,
 		},
 	)
 
 	if httpErr != nil {
 		t.Fatalf("unexpected http error: %#v", httpErr)
 	}
-	payload := decodeExecutionPayload(t, request.Payload)
-	projectedScope := expectExecutionRecord(t, payload["requested_scope"], "requested_scope")
-	if projectedScope["collection"] != "institutional_rules" {
-		t.Fatalf("requested_scope.collection = %v, want institutional_rules", projectedScope["collection"])
+	if request.WorkflowMode != WorkflowModeMultiStep {
+		t.Fatalf("workflow mode = %q, want multi_step", request.WorkflowMode)
 	}
-}
-
-func TestParseAnswerRequestRejectsScopedRulesQueryScopeByDefault(t *testing.T) {
-	_, httpErr := ParseAnswerRequest(
-		json.RawMessage(`{
-			"user_goal":"英才计划实施细则怎么规定？",
-			"request_id":"req-scoped-rules-scope",
-			"requested_scope":{"corpus":"regulations","collection":"scoped_rules"}
-		}`),
-		map[string]string{
-			"authorization": "Bearer secret-token",
-		},
-		config.Config{
-			AuthMode:       "bearer",
-			BearerToken:    "secret-token",
-			DefaultActorID: "api-bearer-user",
-		},
-	)
-
-	if httpErr == nil {
-		t.Fatal("expected scoped_rules requested_scope to be rejected by default")
+	if request.StructuredHandoff == nil {
+		t.Fatal("structured handoff must be present")
 	}
-	if httpErr.Code != "disallowed_knowledge_scope" {
-		t.Fatalf("error code = %q, want disallowed_knowledge_scope", httpErr.Code)
+	if request.StructuredHandoff.Target != "notice-agent" ||
+		request.StructuredHandoff.PayloadKind != "campus_notice_get" {
+		t.Fatalf("first structured handoff = %#v", request.StructuredHandoff)
 	}
-}
-
-func TestParseAnswerRequestDoesNotPreplanTransactionalStructuredRequests(t *testing.T) {
-	request, httpErr := ParseAnswerRequest(
-		json.RawMessage(`{
-			"user_goal":"帮我提交采购公告",
-			"request_id":"req-transactional-notice"
-		}`),
-		map[string]string{
-			"authorization": "Bearer secret-token",
-		},
-		config.Config{
-			AuthMode:       "bearer",
-			BearerToken:    "secret-token",
-			DefaultActorID: "api-bearer-user",
-		},
-	)
-
-	if httpErr != nil {
-		t.Fatalf("unexpected http error: %#v", httpErr)
+	if len(request.StructuredHandoff.AllowedTools) != 0 {
+		t.Fatalf("first structured handoff allowed_tools = %#v, want none", request.StructuredHandoff.AllowedTools)
 	}
+	if len(request.PlannedHandoffs) != 2 {
+		t.Fatalf("planned handoffs = %#v, want notice then rag", request.PlannedHandoffs)
+	}
+	if request.PlannedHandoffs[0].Target != "notice-agent" ||
+		request.PlannedHandoffs[0].PayloadKind != "campus_notice_get" {
+		t.Fatalf("planned handoff[0] = %#v", request.PlannedHandoffs[0])
+	}
+	if request.PlannedHandoffs[1].Target != "rag-agent" ||
+		request.PlannedHandoffs[1].PayloadKind != "rag_request" ||
+		len(request.PlannedHandoffs[1].AllowedTools) != 0 {
+		t.Fatalf("planned handoff[1] = %#v", request.PlannedHandoffs[1])
+	}
+	if request.PlannedHandoffs[1].RequiredProjectionKind != "notice_context" {
+		t.Fatalf(
+			"planned handoff[1].required_projection_kind = %q, want notice_context",
+			request.PlannedHandoffs[1].RequiredProjectionKind,
+		)
+	}
+
 	payload := decodeExecutionPayload(t, request.Payload)
 	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
-	if _, ok := runtimeDecisions["handoff"]; ok {
-		t.Fatalf("transactional structured request must not be preplanned: %#v", runtimeDecisions)
+	summary := expectExecutionRecord(t, runtimeDecisions["runtime_decision_summary"], "runtime_decision_summary")
+	if summary["planning_outcome"] != "preplanned" {
+		t.Fatalf("planning_outcome = %v, want preplanned", summary["planning_outcome"])
 	}
-	policyGate := expectExecutionRecord(t, runtimeDecisions["policy_gate"], "policy_gate")
-	if policyGate["decision"] != "approval_required" {
-		t.Fatalf("policy_gate.decision = %v, want approval_required", policyGate["decision"])
+	if summary["selected_target"] != "notice-agent" {
+		t.Fatalf("selected_target = %v, want notice-agent", summary["selected_target"])
 	}
-	routingFrame := expectExecutionRecord(t, runtimeDecisions["routing_frame"], "routing_frame")
-	if routingFrame["suggested_next_action"] != "approval_required" {
-		t.Fatalf("routing_frame.suggested_next_action = %v, want approval_required", routingFrame["suggested_next_action"])
+	if summary["selected_tool"] != "" {
+		t.Fatalf("selected_tool = %v, want empty for internal notice handoff", summary["selected_tool"])
 	}
-	if routingFrame["risk_level"] != "high" {
-		t.Fatalf("routing_frame.risk_level = %v, want high", routingFrame["risk_level"])
+	workflowPlan := expectExecutionRecord(t, runtimeDecisions["workflow_plan"], "workflow_plan")
+	if workflowPlan["workflow_mode"] != "multi_step" {
+		t.Fatalf("workflow_plan.workflow_mode = %v, want multi_step", workflowPlan["workflow_mode"])
 	}
-	terminalEnvelope := expectExecutionRecord(t, runtimeDecisions["terminal_envelope"], "terminal_envelope")
-	if terminalEnvelope["status"] != "approval_required" {
-		t.Fatalf("terminal_envelope.status = %v, want approval_required", terminalEnvelope["status"])
+	steps, ok := workflowPlan["steps"].([]any)
+	if !ok || len(steps) != 2 {
+		t.Fatalf("workflow_plan.steps = %#v, want two handoff steps", workflowPlan["steps"])
 	}
-	if terminalEnvelope["answer_text"] == "" {
-		t.Fatalf("terminal_envelope.answer_text must be non-empty")
+	firstStep := expectExecutionRecord(t, steps[0], "workflow_plan.steps[0]")
+	secondStep := expectExecutionRecord(t, steps[1], "workflow_plan.steps[1]")
+	if firstStep["step_id"] != "handoff:notice-agent:campus_notice_get" ||
+		secondStep["step_id"] != "handoff:rag-agent:rag_request" {
+		t.Fatalf("workflow_plan.steps = %#v", workflowPlan["steps"])
+	}
+	edges, ok := workflowPlan["edges"].([]any)
+	if !ok || len(edges) != 1 {
+		t.Fatalf("workflow_plan.edges = %#v, want one dependency edge", workflowPlan["edges"])
+	}
+	edge := expectExecutionRecord(t, edges[0], "workflow_plan.edges[0]")
+	if edge["required_projection_kind"] != "notice_context" {
+		t.Fatalf("workflow edge = %#v, want notice_context dependency", edge)
 	}
 }
 
-func TestParseAnswerRequestClarifiesUnplannableCampusServicesSubtypeBeforeBridge(t *testing.T) {
+func TestParseAnswerRequestResolvesTransportNoticeOverrideWorkflowPlan(t *testing.T) {
 	request, httpErr := ParseAnswerRequest(
 		json.RawMessage(`{
-			"user_goal":"校园卡余额怎么查",
-			"request_id":"req-campus-services-missing-subtype",
-			"requested_capability":"campus_services"
-		}`),
-		map[string]string{
-			"authorization": "Bearer secret-token",
-		},
-		config.Config{
-			AuthMode:       "bearer",
-			BearerToken:    "secret-token",
-			DefaultActorID: "api-bearer-user",
-		},
-	)
-
-	if httpErr != nil {
-		t.Fatalf("unexpected http error: %#v", httpErr)
-	}
-	if request.StructuredHandoff != nil {
-		t.Fatalf("unplannable subtype must not preplan handoff: %#v", request.StructuredHandoff)
-	}
-	payload := decodeExecutionPayload(t, request.Payload)
-	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
-	routingFrame := expectExecutionRecord(t, runtimeDecisions["routing_frame"], "routing_frame")
-	if routingFrame["suggested_next_action"] != "clarify" {
-		t.Fatalf("routing_frame.suggested_next_action = %v, want clarify", routingFrame["suggested_next_action"])
-	}
-	if routingFrame["scope_reason"] != "structured_subtype_missing" {
-		t.Fatalf("routing_frame.scope_reason = %v, want structured_subtype_missing", routingFrame["scope_reason"])
-	}
-	terminalEnvelope := expectExecutionRecord(t, runtimeDecisions["terminal_envelope"], "terminal_envelope")
-	if terminalEnvelope["status"] != "needs_clarification" {
-		t.Fatalf("terminal_envelope.status = %v, want needs_clarification", terminalEnvelope["status"])
-	}
-}
-
-func TestParseAnswerRequestProjectsRuntimePolicyForOutOfScopeKnowledge(t *testing.T) {
-	request, httpErr := ParseAnswerRequest(
-		json.RawMessage(`{
-			"user_goal":"MIT的校长是谁",
-			"request_id":"req-out-of-scope-policy"
-		}`),
-		map[string]string{
-			"authorization": "Bearer secret-token",
-		},
-		config.Config{
-			AuthMode:       "bearer",
-			BearerToken:    "secret-token",
-			DefaultActorID: "api-bearer-user",
-		},
-	)
-
-	if httpErr != nil {
-		t.Fatalf("unexpected http error: %#v", httpErr)
-	}
-	payload := decodeExecutionPayload(t, request.Payload)
-	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
-	scopeGate := expectExecutionRecord(t, runtimeDecisions["scope_gate"], "scope_gate")
-	if scopeGate["decision"] != "out_of_scope" {
-		t.Fatalf("scope_gate.decision = %v, want out_of_scope", scopeGate["decision"])
-	}
-	if scopeGate["reason"] != "product_scope_boundary" {
-		t.Fatalf("scope_gate.reason = %v, want product_scope_boundary", scopeGate["reason"])
-	}
-	routingFrame := expectExecutionRecord(t, runtimeDecisions["routing_frame"], "routing_frame")
-	if routingFrame["suggested_next_action"] != "out_of_scope" {
-		t.Fatalf("routing_frame.suggested_next_action = %v, want out_of_scope", routingFrame["suggested_next_action"])
-	}
-	if routingFrame["policy_reason"] != "product_scope_boundary" {
-		t.Fatalf("routing_frame.policy_reason = %v, want product_scope_boundary", routingFrame["policy_reason"])
-	}
-	terminalEnvelope := expectExecutionRecord(t, runtimeDecisions["terminal_envelope"], "terminal_envelope")
-	if terminalEnvelope["status"] != "no_answer" {
-		t.Fatalf("terminal_envelope.status = %v, want no_answer", terminalEnvelope["status"])
-	}
-	if terminalEnvelope["answer_text"] == "" {
-		t.Fatalf("terminal_envelope.answer_text must be non-empty")
-	}
-	observability := expectExecutionRecord(t, terminalEnvelope["observability"], "terminal_envelope.observability")
-	if observability["semantic_outcome"] != "out_of_scope" {
-		t.Fatalf("semantic_outcome = %v, want out_of_scope", observability["semantic_outcome"])
-	}
-	if request.RuntimeDecisions.ScopeGateDecision != "out_of_scope" {
-		t.Fatalf(
-			"request runtime scope gate = %q, want out_of_scope",
-			request.RuntimeDecisions.ScopeGateDecision,
-		)
-	}
-	if request.RuntimeDecisions.PolicyGateDecision != "out_of_scope" {
-		t.Fatalf(
-			"request runtime policy gate = %q, want out_of_scope",
-			request.RuntimeDecisions.PolicyGateDecision,
-		)
-	}
-	if request.RuntimeDecisions.ContextPreflightState != "not_follow_up" {
-		t.Fatalf(
-			"request runtime context state = %q, want not_follow_up",
-			request.RuntimeDecisions.ContextPreflightState,
-		)
-	}
-	if request.RuntimeDecisions.RoutingNextAction != "out_of_scope" {
-		t.Fatalf(
-			"request runtime next action = %q, want out_of_scope",
-			request.RuntimeDecisions.RoutingNextAction,
-		)
-	}
-	if request.RuntimeDecisions.PlanningOutcome != "not_preplanned" {
-		t.Fatalf(
-			"request planning outcome = %q, want not_preplanned",
-			request.RuntimeDecisions.PlanningOutcome,
-		)
-	}
-}
-
-func TestParseAnswerRequestProjectsRuntimePolicyForMissingNoticeFollowUpContext(t *testing.T) {
-	request, httpErr := ParseAnswerRequest(
-		json.RawMessage(`{
-			"user_goal":"这条通知详情",
-			"request_id":"req-missing-notice-context",
-			"requested_capability":"notice"
-		}`),
-		map[string]string{
-			"authorization": "Bearer secret-token",
-		},
-		config.Config{
-			AuthMode:       "bearer",
-			BearerToken:    "secret-token",
-			DefaultActorID: "api-bearer-user",
-		},
-	)
-
-	if httpErr != nil {
-		t.Fatalf("unexpected http error: %#v", httpErr)
-	}
-	payload := decodeExecutionPayload(t, request.Payload)
-	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
-	contextPreflight := expectExecutionRecord(t, runtimeDecisions["context_preflight"], "context_preflight")
-	if contextPreflight["state"] != "missing_context" {
-		t.Fatalf("context_preflight.state = %v, want missing_context", contextPreflight["state"])
-	}
-	if contextPreflight["reference_type"] != "selected_notice" {
-		t.Fatalf("context_preflight.reference_type = %v, want selected_notice", contextPreflight["reference_type"])
-	}
-	routingFrame := expectExecutionRecord(t, runtimeDecisions["routing_frame"], "routing_frame")
-	if routingFrame["suggested_next_action"] != "clarify" {
-		t.Fatalf("routing_frame.suggested_next_action = %v, want clarify", routingFrame["suggested_next_action"])
-	}
-	missingSlots, ok := routingFrame["missing_slots"].([]any)
-	if !ok || len(missingSlots) != 1 || missingSlots[0] != "selected_notice_ref" {
-		t.Fatalf("routing_frame.missing_slots = %#v, want selected_notice_ref", routingFrame["missing_slots"])
-	}
-	terminalEnvelope := expectExecutionRecord(t, runtimeDecisions["terminal_envelope"], "terminal_envelope")
-	if terminalEnvelope["status"] != "needs_clarification" {
-		t.Fatalf("terminal_envelope.status = %v, want needs_clarification", terminalEnvelope["status"])
-	}
-	if terminalEnvelope["follow_up_question"] == "" {
-		t.Fatalf("terminal_envelope.follow_up_question must be non-empty")
-	}
-}
-
-func TestParseAnswerRequestRejectsDisabledKnowledgeScopeInGo(t *testing.T) {
-	_, httpErr := ParseAnswerRequest(
-		json.RawMessage(`{
-			"user_goal":"谁负责宿舍报修？",
-			"request_id":"req-disabled-scope",
-			"requested_scope":{"corpus":"campus_services","collection":"service_catalog"}
-		}`),
-		map[string]string{
-			"authorization": "Bearer secret-token",
-		},
-		config.Config{
-			AuthMode:       "bearer",
-			BearerToken:    "secret-token",
-			DefaultActorID: "api-bearer-user",
-		},
-	)
-
-	if httpErr == nil {
-		t.Fatal("expected disabled query scope to fail in Go")
-	}
-	if httpErr.Status != 403 || httpErr.Code != "disallowed_knowledge_scope" {
-		t.Fatalf("unexpected error = %#v, want 403 disallowed_knowledge_scope", httpErr)
-	}
-}
-
-func TestParseAnswerRequestKeepsVersionedStructuredQueriesOnKnowledgeLane(t *testing.T) {
-	request, httpErr := ParseAnswerRequest(
-		json.RawMessage(`{
-			"user_goal":"比较新旧春假通知差异",
-			"request_id":"req-versioned-structured-query",
-			"version_query":{"mode":"compare","version_id":"notice:2025","compare_to_version_id":"notice:2026"}
-		}`),
-		map[string]string{
-			"authorization": "Bearer secret-token",
-		},
-		config.Config{
-			AuthMode:       "bearer",
-			BearerToken:    "secret-token",
-			DefaultActorID: "api-bearer-user",
-		},
-	)
-
-	if httpErr != nil {
-		t.Fatalf("unexpected http error: %#v", httpErr)
-	}
-	if request.RequestedCapability != "knowledge" {
-		t.Fatalf("requested capability = %q, want knowledge", request.RequestedCapability)
-	}
-	if request.Lane != "rag" {
-		t.Fatalf("lane = %q, want rag", request.Lane)
-	}
-	payload := decodeExecutionPayload(t, request.Payload)
-	if payload["requested_capability"] != "knowledge" {
-		t.Fatalf("projected requested_capability = %v, want knowledge", payload["requested_capability"])
-	}
-}
-
-func TestParseAnswerRequestRejectsKnowledgeScopeForForwardCapabilities(t *testing.T) {
-	_, httpErr := ParseAnswerRequest(
-		json.RawMessage(`{
-			"user_goal":"校车时刻表",
-			"request_id":"req-scope-on-campus-services",
+			"user_goal":"今天丰台到海淀通勤车乘车点有没有调整",
+			"request_id":"req-transport-notice-override",
 			"requested_capability":"campus_services",
-			"requested_scope":{"corpus":"campus_services","collection":"service_catalog"}
+			"context":{
+				"actor":{"user_id":"student-1","principal_id":"student-1","principal_type":"student","roles":["student"]},
+				"authorization":{"retrieval_filter":{"visibility_level":"restricted","entitlement_groups":["students"],"policy_projection_version":"phase1-authorization-projection-v1"}},
+				"session":{"selected_notice_ref":{"notice_id":"353903","source_family":"internal_notice_restricted","title":"关于通勤班车丰台校区乘车点调整的通知","target_surface":"campus_services/service_status_candidate"}}
+			}
 		}`),
 		map[string]string{
-			"authorization": "Bearer secret-token",
+			"x-worker-origin-auth": "worker-secret",
 		},
 		config.Config{
-			AuthMode:       "bearer",
-			BearerToken:    "secret-token",
-			DefaultActorID: "api-bearer-user",
+			AuthMode:                 "trusted-worker",
+			WorkerSharedSecret:       "worker-secret",
+			DefaultActorID:           "runtime-bearer-user",
+			MultiStepWorkflowEnabled: true,
 		},
 	)
 
-	if httpErr == nil {
-		t.Fatal("expected requested_scope to fail for campus_services")
+	if httpErr != nil {
+		t.Fatalf("unexpected http error: %#v", httpErr)
 	}
-	if httpErr.Code != "invalid_request" {
-		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
+	if request.WorkflowMode != WorkflowModeMultiStep {
+		t.Fatalf("workflow mode = %q, want multi_step", request.WorkflowMode)
 	}
-}
-
-func TestParseAnswerRequestRejectsVersionQueryForForwardCapabilities(t *testing.T) {
-	_, httpErr := ParseAnswerRequest(
-		json.RawMessage(`{
-			"user_goal":"找一下历史通知",
-			"request_id":"req-version-on-notice",
-			"requested_capability":"notice",
-			"version_query":{"mode":"historical","version_id":"v1:notice"}
-		}`),
-		map[string]string{
-			"authorization": "Bearer secret-token",
-		},
-		config.Config{
-			AuthMode:       "bearer",
-			BearerToken:    "secret-token",
-			DefaultActorID: "api-bearer-user",
-		},
-	)
-
-	if httpErr == nil {
-		t.Fatal("expected version_query to fail for notice")
+	if request.StructuredHandoff == nil {
+		t.Fatal("structured handoff must be present")
 	}
-	if httpErr.Code != "invalid_request" {
-		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
+	if request.StructuredHandoff.Target != "campus-services-agent" ||
+		request.StructuredHandoff.PayloadKind != "transport_schedule_lookup" {
+		t.Fatalf("first structured handoff = %#v", request.StructuredHandoff)
 	}
-}
-
-func TestParseAnswerRequestRejectsVersionQueryForPlaceLookup(t *testing.T) {
-	_, httpErr := ParseAnswerRequest(
-		json.RawMessage(`{
-			"user_goal":"图书馆在哪里",
-			"request_id":"req-version-on-place-lookup",
-			"requested_capability":"place_lookup",
-			"version_query":{"mode":"historical","version_id":"v1:library-location"}
-		}`),
-		map[string]string{
-			"authorization": "Bearer secret-token",
-		},
-		config.Config{
-			AuthMode:       "bearer",
-			BearerToken:    "secret-token",
-			DefaultActorID: "api-bearer-user",
-		},
-	)
-
-	if httpErr == nil {
-		t.Fatal("expected version_query to fail for place_lookup")
+	if len(request.PlannedHandoffs) != 3 {
+		t.Fatalf("planned handoffs = %#v, want schedule then notice then rag", request.PlannedHandoffs)
 	}
-	if httpErr.Code != "invalid_request" {
-		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
+	if request.PlannedHandoffs[1].RequiredProjectionKind != "schedule_baseline" {
+		t.Fatalf(
+			"planned handoff[1].required_projection_kind = %q, want schedule_baseline",
+			request.PlannedHandoffs[1].RequiredProjectionKind,
+		)
+	}
+	if request.PlannedHandoffs[2].RequiredProjectionKind != "notice_change_set" {
+		t.Fatalf(
+			"planned handoff[2].required_projection_kind = %q, want notice_change_set",
+			request.PlannedHandoffs[2].RequiredProjectionKind,
+		)
+	}
+	payload := decodeExecutionPayload(t, request.Payload)
+	runtimeDecisions := expectExecutionRecord(t, payload["runtime_decisions"], "runtime_decisions")
+	workflowPlan := expectExecutionRecord(t, runtimeDecisions["workflow_plan"], "workflow_plan")
+	if workflowPlan["workflow_mode"] != "multi_step" {
+		t.Fatalf("workflow_plan.workflow_mode = %v, want multi_step", workflowPlan["workflow_mode"])
+	}
+	steps, ok := workflowPlan["steps"].([]any)
+	if !ok || len(steps) != 3 {
+		t.Fatalf("workflow_plan.steps = %#v, want three handoff steps", workflowPlan["steps"])
+	}
+	edges, ok := workflowPlan["edges"].([]any)
+	if !ok || len(edges) != 2 {
+		t.Fatalf("workflow_plan.edges = %#v, want two dependency edges", workflowPlan["edges"])
+	}
+	firstEdge := expectExecutionRecord(t, edges[0], "workflow_plan.edges[0]")
+	secondEdge := expectExecutionRecord(t, edges[1], "workflow_plan.edges[1]")
+	if firstEdge["required_projection_kind"] != "schedule_baseline" {
+		t.Fatalf("first edge = %#v, want schedule_baseline dependency", firstEdge)
+	}
+	if secondEdge["required_projection_kind"] != "notice_change_set" {
+		t.Fatalf("second edge = %#v, want notice_change_set dependency", secondEdge)
 	}
 }

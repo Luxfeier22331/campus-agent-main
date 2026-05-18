@@ -1,3 +1,5 @@
+from campus_contracts import ServiceGuideLookupPayload
+
 from .supervisor_api_bridge_support import *
 
 
@@ -201,6 +203,82 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
         self.assertEqual(response.json_body["error"]["code"], "invalid_request")
         self.assertIn("handoff", response.json_body["error"]["message"])
 
+    def test_bridge_answer_rejects_delegate_handoff_without_go_workflow_plan(self) -> None:
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+            )
+        )
+        body = _bridge_v6_payload_with_handoff(
+            user_goal="宿舍入住怎么办理",
+            request_id="req-missing-workflow-plan",
+            trace_id="trace-missing-workflow-plan",
+            effective_capability="campus_services",
+            lane="campus_services",
+            handoff_target="campus-services-agent",
+            payload_kind="service_guide_lookup",
+            allowed_tools=["service_guide_lookup"],
+            payload={
+                "service_query": "宿舍入住怎么办理",
+                "guide_focus": "procedure",
+                "audience": "student",
+            },
+        )
+        runtime_decisions = body["runtime_decisions"]
+        assert isinstance(runtime_decisions, dict)
+        runtime_decisions.pop("workflow_plan", None)
+
+        response = app.handle(
+            "POST",
+            "/internal/bridge/supervisor/answer",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+            json_body=body,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("workflow_plan", response.json_body["error"]["message"])
+
+    def test_bridge_answer_rejects_workflow_plan_selected_step_drift(self) -> None:
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+            )
+        )
+        body = _bridge_v6_payload_with_handoff(
+            user_goal="宿舍入住怎么办理",
+            request_id="req-workflow-plan-drift",
+            trace_id="trace-workflow-plan-drift",
+            effective_capability="campus_services",
+            lane="campus_services",
+            handoff_target="campus-services-agent",
+            payload_kind="service_guide_lookup",
+            allowed_tools=["service_guide_lookup"],
+            payload={
+                "service_query": "宿舍入住怎么办理",
+                "guide_focus": "procedure",
+                "audience": "student",
+            },
+        )
+        runtime_decisions = body["runtime_decisions"]
+        assert isinstance(runtime_decisions, dict)
+        workflow_plan = runtime_decisions["workflow_plan"]
+        assert isinstance(workflow_plan, dict)
+        steps = workflow_plan["steps"]
+        assert isinstance(steps, list)
+        steps[0]["allowed_tools"] = ["transport_schedule_lookup"]
+
+        response = app.handle(
+            "POST",
+            "/internal/bridge/supervisor/answer",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+            json_body=body,
+        )
+
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.json_body["error"]["code"], "invalid_request")
+        self.assertIn("tool_not_admitted", response.json_body["error"]["message"])
+
     def test_bridge_answer_rejects_terminal_frame_without_delegate_handoff(self) -> None:
         app = create_bridge_app(
             settings=ApiSettings(
@@ -284,3 +362,55 @@ class SupervisorApiBridgeHandoffTest(SupervisorApiBridgeBaseTest):
                 ),
             ),
         )
+
+    def test_bridge_parser_parses_go_preplanned_service_guide_handoff(self) -> None:
+        body = _bridge_v6_payload_with_handoff(
+            user_goal="宿舍入住怎么办理",
+            request_id="req-go-preplanned-service-guide",
+            trace_id="trace-go-preplanned-service-guide",
+            effective_capability="campus_services",
+            lane="campus_services",
+            handoff_target="campus-services-agent",
+            payload_kind="service_guide_lookup",
+            allowed_tools=["service_guide_lookup"],
+            payload={
+                "service_query": "宿舍入住怎么办理",
+                "guide_focus": "procedure",
+                "temporal_query": {"mode": "current"},
+                "audience": "unknown",
+            },
+        )
+
+        envelope = parse_bridge_supervisor_envelope(body)
+
+        self.assertIsNotNone(envelope.agent_request)
+        assert envelope.agent_request is not None
+        self.assertEqual(envelope.agent_request.target, "campus-services-agent")
+        self.assertEqual(envelope.agent_request.allowed_tools, ("service_guide_lookup",))
+        self.assertEqual(
+            envelope.agent_request.payload,
+            ServiceGuideLookupPayload(
+                service_query="宿舍入住怎么办理",
+                guide_focus="procedure",
+            ),
+        )
+
+    def test_bridge_parser_rejects_service_guide_handoff_without_audience(self) -> None:
+        body = _bridge_v6_payload_with_handoff(
+            user_goal="宿舍入住怎么办理",
+            request_id="req-go-preplanned-service-guide-missing-audience",
+            trace_id="trace-go-preplanned-service-guide-missing-audience",
+            effective_capability="campus_services",
+            lane="campus_services",
+            handoff_target="campus-services-agent",
+            payload_kind="service_guide_lookup",
+            allowed_tools=["service_guide_lookup"],
+            payload={
+                "service_query": "宿舍入住怎么办理",
+                "guide_focus": "procedure",
+                "temporal_query": {"mode": "current"},
+            },
+        )
+
+        with self.assertRaisesRegex(ValueError, "audience must be a non-empty string"):
+            parse_bridge_supervisor_envelope(body)

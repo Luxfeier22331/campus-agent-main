@@ -14,7 +14,7 @@ Current runtime truth:
 - serving surface: `fresh_news`
 - query enabled: `false`
 - freshness-sensitive queries supported: `false`
-- live-search fallback allowed: `false`
+- live-search expansion allowed: `false`
 - split manifest required: `true`
 - required metadata fields: `published_at`, `crawled_at`, `last_seen_at`,
   `host`, `page_family`, `section`, `news_kind`
@@ -36,8 +36,9 @@ Boundary notes:
 - even after import/release exists, this surface is not allowed to answer `今天 /
   最新 / 最近` style asks until a separate freshness gate is proven
 - the current handoff input remains the `future_fresh_news_surface` subset in
-  `official_web/muc_public_pages`, and `projection-routing.json` now routes that
-  fixed seed set into `official_web/fresh_news`
+  `official_web/muc_public_pages`; admitting it into `official_web/fresh_news`
+  requires an explicit source-pack / release-gate path and is not driven by
+  broad projection routing
 - declaring this profile and baseline does not mean the collection is already
   query-ready
 - listing pages remain discovery/freshness-trigger/navigation-only hints; they

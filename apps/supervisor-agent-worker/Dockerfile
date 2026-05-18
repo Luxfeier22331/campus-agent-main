@@ -5,6 +5,7 @@ ENV UV_LINK_MODE=copy
 
 COPY apps/supervisor-agent-worker ./apps/supervisor-agent-worker
 COPY configs/ingestion ./configs/ingestion
+COPY configs/runtime ./configs/runtime
 COPY packages/campus-services-agent ./packages/campus-services-agent
 COPY packages/contracts ./packages/contracts
 COPY packages/ingestion-core ./packages/ingestion-core
@@ -48,11 +49,11 @@ WORKDIR /app
 ENV PATH="/app/.venv/bin:$PATH"
 ENV PYTHONPATH="/app/apps/supervisor-agent-worker/src:/app/packages/campus-services-agent/src:/app/packages/contracts/src:/app/packages/ingestion-core/src:/app/packages/navigation-agent/src:/app/packages/notice-agent/src:/app/packages/rag-agent/src:/app/packages/retrieval-core/src:/app/packages/shared/src"
 ENV SUPERVISOR_AGENT_WORKER_HOST=0.0.0.0
-ENV SUPERVISOR_AGENT_WORKER_PORT=18081
+ENV SUPERVISOR_AGENT_WORKER_PORT=27052
 ENV SUPERVISOR_AGENT_WORKER_REQUEST_BODY_LIMIT_BYTES=1048576
 
 COPY --from=build /app /app
 
-EXPOSE 18081
+EXPOSE 27052
 
 ENTRYPOINT ["campus-supervisor-agent-worker-dev"]

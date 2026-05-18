@@ -1,6 +1,25 @@
 from __future__ import annotations
 
+import importlib
+
 from tests.ingestion.registry_models_test_support import *
+
+CASE_MODULES = (
+    "tests.ingestion.registry_models_env_and_postgres_suite",
+    "tests.ingestion.registry_models_env_and_postgres_tail_suite",
+)
+
+
+def load_tests(
+    loader: unittest.TestLoader, tests: unittest.TestSuite, pattern: str | None
+) -> unittest.TestSuite:
+    suite = unittest.TestSuite()
+    for module_name in CASE_MODULES:
+        if module_name == __name__:
+            suite.addTests(loader.loadTestsFromTestCase(RegistryModelsEnvAndPostgresSuite))
+            continue
+        suite.addTests(loader.loadTestsFromModule(importlib.import_module(module_name)))
+    return suite
 
 
 class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
@@ -15,7 +34,7 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://registry.example/postgres")
 
-    def test_build_document_registry_from_env_falls_back_to_shared_postgres_url(self) -> None:
+    def test_build_document_registry_from_env_uses_shared_postgres_url(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresDocumentRegistry") as registry_cls:
             instance = registry_cls.return_value
 
@@ -77,17 +96,6 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
                 }
             )
 
-    def test_build_raw_asset_registry_from_env_uses_database_url(self) -> None:
-        with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
-            instance = registry_cls.return_value
-
-            registry = build_raw_asset_registry_from_env(
-                {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
-            )
-
-            self.assertIs(registry, instance)
-            registry_cls.assert_called_once_with("postgresql://registry.example/postgres")
-
     def test_build_raw_asset_registry_from_env_prefers_dedicated_database_url(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
             instance = registry_cls.return_value
@@ -102,7 +110,7 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://raw-registry.example/postgres")
 
-    def test_build_raw_asset_registry_from_env_falls_back_to_shared_postgres_url(self) -> None:
+    def test_build_raw_asset_registry_from_env_uses_shared_postgres_url(self) -> None:
         with patch("campus_ingestion_core.registry.PostgresRawAssetRegistry") as registry_cls:
             instance = registry_cls.return_value
 
@@ -112,6 +120,17 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
 
             self.assertIs(registry, instance)
             registry_cls.assert_called_once_with("postgresql://shared.example/postgres")
+
+    def test_build_raw_asset_registry_from_env_rejects_document_registry_url_without_raw_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "RAW_ASSET_REGISTRY_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_raw_asset_registry_from_env(
+                {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
+            )
 
     def test_build_raw_asset_registry_from_env_prefers_operator_database_url_when_requested(
         self,
@@ -142,6 +161,22 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
             build_raw_asset_registry_from_env(
                 {
                     "RAW_ASSET_REGISTRY_DATABASE_URL": "postgresql://runtime.example/postgres",
+                },
+                prefer_operator=True,
+            )
+
+    def test_build_raw_asset_registry_from_env_rejects_document_registry_operator_url_without_raw_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL or CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_raw_asset_registry_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://registry-operator.example/postgres"
+                    )
                 },
                 prefer_operator=True,
             )
@@ -230,6 +265,34 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
                 prefer_operator=True,
             )
 
+    def test_build_closeout_store_from_env_rejects_document_registry_url_without_closeout_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "AUTHENTICATED_NOTICE_CLOSEOUT_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_authenticated_notice_closeout_store_from_env(
+                {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
+            )
+
+    def test_build_closeout_store_from_env_rejects_document_registry_operator_url_without_closeout_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "AUTHENTICATED_NOTICE_CLOSEOUT_OPERATOR_DATABASE_URL or "
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_authenticated_notice_closeout_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://registry-operator.example/postgres"
+                    )
+                },
+                prefer_operator=True,
+            )
+
     def test_build_source_truth_inventory_store_from_env_prefers_operator_database_url_when_requested(
         self,
     ) -> None:
@@ -268,18 +331,147 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
                 prefer_operator=True,
             )
 
+    def test_build_source_truth_inventory_store_from_env_rejects_registry_urls_without_inventory_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_authenticated_notice_source_truth_inventory_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://document-registry.example/postgres",
+                    "RAW_ASSET_REGISTRY_DATABASE_URL": "postgresql://raw-registry.example/postgres",
+                }
+            )
+
+    def test_build_source_truth_inventory_store_from_env_rejects_registry_operator_urls_without_inventory_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "AUTHENTICATED_NOTICE_SOURCE_TRUTH_INVENTORY_OPERATOR_DATABASE_URL or "
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_authenticated_notice_source_truth_inventory_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://document-registry-operator.example/postgres"
+                    ),
+                    "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://raw-registry-operator.example/postgres"
+                    ),
+                },
+                prefer_operator=True,
+            )
+
     def test_build_file_release_inventory_store_from_env_prefers_operator_database_url_when_requested(
         self,
     ) -> None:
         with patch(
             "campus_ingestion_core.authenticated_notice_file_release_inventory.PostgresAuthenticatedNoticeFileReleaseInventoryStore"
         ) as store_cls:
-            instance = store_cls.return_value
-
             store = build_authenticated_notice_file_release_inventory_store_from_env(
                 {
                     "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_DATABASE_URL": "postgresql://runtime.example/postgres",
                     "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_OPERATOR_DATABASE_URL": "postgresql://operator.example/postgres",
+                },
+                prefer_operator=True,
+            )
+
+        self.assertIs(store, store_cls.return_value)
+        store_cls.assert_called_once_with(
+            database_url=(
+                "postgresql://operator.example/postgres?__campus_connection_mode=operator_session"
+            )
+        )
+
+    def test_build_file_release_inventory_store_from_env_rejects_registry_urls_without_inventory_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_authenticated_notice_file_release_inventory_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://document-registry.example/postgres",
+                    "RAW_ASSET_REGISTRY_DATABASE_URL": "postgresql://raw-registry.example/postgres",
+                }
+            )
+
+    def test_build_file_release_inventory_store_from_env_rejects_registry_operator_urls_without_inventory_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "AUTHENTICATED_NOTICE_FILE_RELEASE_INVENTORY_OPERATOR_DATABASE_URL or "
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_authenticated_notice_file_release_inventory_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://document-registry-operator.example/postgres"
+                    ),
+                    "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://raw-registry-operator.example/postgres"
+                    ),
+                },
+                prefer_operator=True,
+            )
+
+    def test_build_notice_consumption_projection_store_from_env_rejects_document_registry_url_without_projection_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_notice_consumption_projection_store_from_env(
+                {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
+            )
+
+    def test_build_notice_consumption_projection_store_from_env_rejects_document_registry_operator_url_without_projection_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL or "
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_notice_consumption_projection_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://registry-operator.example/postgres"
+                    )
+                },
+                prefer_operator=True,
+            )
+
+    def test_build_internal_notice_read_model_store_from_env_rejects_document_registry_url_without_read_model_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_READ_MODEL_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_internal_notice_read_model_store_from_env(
+                {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
+            )
+
+    def test_build_internal_notice_read_model_store_from_env_rejects_document_registry_operator_url_without_read_model_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_READ_MODEL_OPERATOR_DATABASE_URL or "
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_internal_notice_read_model_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://registry-operator.example/postgres"
+                    )
                 },
                 prefer_operator=True,
             )
@@ -548,239 +740,3 @@ class RegistryModelsEnvAndPostgresSuite(unittest.TestCase):
         self.assertEqual(record.visibility_scope, "main")
         self.assertEqual(record.visibility_level, "restricted")
         self.assertEqual(record.policy_projection_version, DEFAULT_POLICY_PROJECTION_VERSION)
-
-    def test_postgres_raw_asset_registry_list_by_scope_paginates_large_scope_reads(self) -> None:
-        first = replace(
-            _handbook_raw_asset_record(),
-            raw_asset_id="asset:001",
-            raw_version_id="sha256:001",
-        )
-        second = replace(
-            _handbook_raw_asset_record(),
-            raw_asset_id="asset:002",
-            raw_version_id="sha256:002",
-            content_hash="raw-002",
-            object_key="official_pdf/student-handbook/undated/sha256/raw-002/capture/student-handbook.pdf",
-        )
-        page_rows = (
-            ((json.dumps(asdict(first), ensure_ascii=False),),),
-            ((json.dumps(asdict(second), ensure_ascii=False),),),
-            (),
-        )
-        fetchall_calls: list[tuple[str, tuple[object, ...]]] = []
-
-        def _fetchall(query: str, params: tuple[object, ...]) -> tuple[tuple[object, ...], ...]:
-            fetchall_calls.append((query, params))
-            return page_rows[len(fetchall_calls) - 1]
-
-        with patch.object(PostgresRawAssetRegistry, "_ensure_schema", return_value=None):
-            registry = PostgresRawAssetRegistry("postgresql://registry.example/postgres")
-
-        with (
-            patch("campus_ingestion_core.registry.DEFAULT_RAW_ASSET_REGISTRY_SCAN_PAGE_SIZE", 1),
-            patch.object(registry, "_fetchall", side_effect=_fetchall),
-        ):
-            records = registry.list_by_scope("regulations", "student_rules")
-
-        self.assertEqual(records, (first, second))
-        self.assertEqual(len(fetchall_calls), 3)
-        self.assertIn("limit %s", fetchall_calls[0][0].lower())
-        self.assertEqual(fetchall_calls[0][1], ("regulations", "student_rules", 1))
-        self.assertIn("(raw_asset_id, raw_version_id) > (%s, %s)", fetchall_calls[1][0])
-        self.assertEqual(
-            fetchall_calls[1][1],
-            (
-                "regulations",
-                "student_rules",
-                first.raw_asset_id,
-                first.raw_version_id,
-                1,
-            ),
-        )
-
-    def test_postgres_document_registry_replace_scope_uses_bulk_recordset_insert(self) -> None:
-        class _RecordingCursor:
-            def __init__(self) -> None:
-                self.execute_calls: list[tuple[str, tuple[object, ...] | None]] = []
-                self.executemany_calls: list[tuple[str, tuple[tuple[object, ...], ...]]] = []
-
-            def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
-                self.execute_calls.append((sql, params))
-
-            def executemany(self, sql: str, params_seq) -> None:
-                self.executemany_calls.append((sql, tuple(params_seq)))
-
-        class _CursorContext:
-            def __init__(self, cursor: _RecordingCursor) -> None:
-                self.cursor = cursor
-
-            def __enter__(self) -> _RecordingCursor:
-                return self.cursor
-
-            def __exit__(self, exc_type, exc, tb) -> bool:
-                return False
-
-        class _ConnectionContext:
-            def __init__(self, cursor: _RecordingCursor) -> None:
-                self._cursor = cursor
-
-            def __enter__(self) -> _ConnectionContext:
-                return self
-
-            def __exit__(self, exc_type, exc, tb) -> bool:
-                return False
-
-            def cursor(self) -> _CursorContext:
-                return _CursorContext(self._cursor)
-
-        with patch.object(PostgresDocumentRegistry, "_ensure_schema", return_value=None):
-            registry = PostgresDocumentRegistry("postgresql://registry.example/postgres")
-        cursor = _RecordingCursor()
-        handbook_record = _handbook_document_record(
-            version_id="v2:test-001",
-            content_hash="sha256:test-002",
-            ingestion_timestamp="2026-03-23T10:00:00+00:00",
-        )
-        curriculum_record = _curriculum_document_record()
-
-        with patch(
-            "campus_ingestion_core.registry._postgres_connection",
-            return_value=_ConnectionContext(cursor),
-        ):
-            registry.replace_scope(
-                "regulations",
-                "student_rules",
-                (handbook_record, curriculum_record),
-            )
-
-        self.assertEqual(cursor.executemany_calls, [])
-        self.assertTrue(any("jsonb_to_recordset" in sql for sql, _params in cursor.execute_calls))
-
-    def test_postgres_raw_asset_registry_upsert_many_uses_bulk_recordset_insert(self) -> None:
-        class _RecordingCursor:
-            def __init__(self) -> None:
-                self.execute_calls: list[tuple[str, tuple[object, ...] | None]] = []
-                self.executemany_calls: list[tuple[str, tuple[tuple[object, ...], ...]]] = []
-
-            def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
-                self.execute_calls.append((sql, params))
-
-            def executemany(self, sql: str, params_seq) -> None:
-                self.executemany_calls.append((sql, tuple(params_seq)))
-
-        class _CursorContext:
-            def __init__(self, cursor: _RecordingCursor) -> None:
-                self.cursor = cursor
-
-            def __enter__(self) -> _RecordingCursor:
-                return self.cursor
-
-            def __exit__(self, exc_type, exc, tb) -> bool:
-                return False
-
-        class _ConnectionContext:
-            def __init__(self, cursor: _RecordingCursor) -> None:
-                self._cursor = cursor
-
-            def __enter__(self) -> _ConnectionContext:
-                return self
-
-            def __exit__(self, exc_type, exc, tb) -> bool:
-                return False
-
-            def cursor(self) -> _CursorContext:
-                return _CursorContext(self._cursor)
-
-        with patch.object(PostgresRawAssetRegistry, "_ensure_schema", return_value=None):
-            registry = PostgresRawAssetRegistry("postgresql://registry.example/postgres")
-        cursor = _RecordingCursor()
-        first = replace(
-            _handbook_raw_asset_record(),
-            raw_asset_id="asset:001",
-            raw_version_id="sha256:001",
-        )
-        second = replace(
-            _curriculum_raw_asset_record(),
-            raw_asset_id="asset:002",
-            raw_version_id="sha256:002",
-        )
-
-        with patch(
-            "campus_ingestion_core.registry._postgres_connection",
-            return_value=_ConnectionContext(cursor),
-        ):
-            registry.upsert_many((first, second))
-
-        self.assertEqual(cursor.executemany_calls, [])
-        self.assertTrue(any("jsonb_to_recordset" in sql for sql, _params in cursor.execute_calls))
-
-    def test_ensure_table_schema_serializes_schema_bootstrap_with_advisory_lock(self) -> None:
-        class _RecordingCursor:
-            def __init__(self) -> None:
-                self.calls: list[tuple[str, tuple[object, ...] | None]] = []
-
-            def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
-                self.calls.append((sql.strip(), params))
-
-        cursor = _RecordingCursor()
-
-        _ensure_table_schema(cursor, table_name="ingestion_closeout.closeout_runs")
-
-        self.assertEqual(
-            cursor.calls,
-            [
-                (
-                    "select pg_advisory_lock(%s, hashtext(%s))",
-                    (174901, "ingestion_closeout"),
-                ),
-                ('create schema if not exists "ingestion_closeout"', None),
-                (
-                    "select pg_advisory_unlock(%s, hashtext(%s))",
-                    (174901, "ingestion_closeout"),
-                ),
-            ],
-        )
-
-    def test_ensure_table_schema_releases_advisory_lock_after_create_failure(self) -> None:
-        class _FailingCursor:
-            def __init__(self) -> None:
-                self.calls: list[tuple[str, tuple[object, ...] | None]] = []
-
-            def execute(self, sql: str, params: tuple[object, ...] | None = None) -> None:
-                self.calls.append((sql.strip(), params))
-                if sql.strip().startswith("create schema if not exists"):
-                    raise RuntimeError("bootstrap failed")
-
-        cursor = _FailingCursor()
-
-        with self.assertRaisesRegex(RuntimeError, "bootstrap failed"):
-            _ensure_table_schema(cursor, table_name="ingestion_closeout.closeout_runs")
-
-        self.assertEqual(
-            cursor.calls,
-            [
-                (
-                    "select pg_advisory_lock(%s, hashtext(%s))",
-                    (174901, "ingestion_closeout"),
-                ),
-                ('create schema if not exists "ingestion_closeout"', None),
-                (
-                    "select pg_advisory_unlock(%s, hashtext(%s))",
-                    (174901, "ingestion_closeout"),
-                ),
-            ],
-        )
-
-    def test_registry_builders_require_database_url(self) -> None:
-        with self.assertRaisesRegex(
-            ValueError, "DOCUMENT_REGISTRY_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL"
-        ):
-            build_document_registry_from_env({})
-        with self.assertRaisesRegex(
-            ValueError,
-            (
-                "RAW_ASSET_REGISTRY_DATABASE_URL or DOCUMENT_REGISTRY_DATABASE_URL or "
-                "CAMPUS_SHARED_POSTGRES_URL"
-            ),
-        ):
-            build_raw_asset_registry_from_env({})

@@ -17,7 +17,7 @@ func (s *Server) handleDirectStructuredAnswer(
 	startedAt time.Time,
 ) bool {
 	handoff := executionRequest.StructuredHandoff
-	if handoff == nil || !isStructuredPayloadKind(handoff.PayloadKind) {
+	if !s.shouldExecuteDirectStructuredHandoff(handoff) {
 		return false
 	}
 
@@ -89,7 +89,7 @@ func (s *Server) handleDirectStructuredAnswer(
 		finalizerContextFromExecutionRequest(executionRequest, "direct"),
 	)
 	setOutcome(response, "supervisor_response")
-	s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 		Name:                "answer.completed",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
@@ -98,7 +98,11 @@ func (s *Server) handleDirectStructuredAnswer(
 		Outcome:             "supervisor_response",
 		StatusCode:          http.StatusOK,
 		Duration:            time.Since(startedAt),
-	}, executionRequest))
+	}, executionRequest)); err != nil {
+		complete(lifecycle.StateFailed)
+		s.writeTelemetryFailure(response, executionRequest.RequestID, executionRequest.TraceID)
+		return true
+	}
 	writeJSON(response, http.StatusOK, supervisorResponse)
 	return true
 }
@@ -110,7 +114,7 @@ func (s *Server) handleDirectStructuredAnswerStream(
 	startedAt time.Time,
 ) bool {
 	handoff := executionRequest.StructuredHandoff
-	if handoff == nil || !isStructuredPayloadKind(handoff.PayloadKind) {
+	if !s.shouldExecuteDirectStructuredHandoff(handoff) {
 		return false
 	}
 
@@ -185,7 +189,7 @@ func (s *Server) handleDirectStructuredAnswerStream(
 		finalizerContextFromExecutionRequest(executionRequest, "direct"),
 	)
 	setOutcome(response, "supervisor_response")
-	s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 		Name:                "answer_stream.completed",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
@@ -194,7 +198,18 @@ func (s *Server) handleDirectStructuredAnswerStream(
 		Outcome:             "supervisor_response",
 		StatusCode:          http.StatusOK,
 		Duration:            time.Since(startedAt),
-	}, executionRequest))
+	}, executionRequest)); err != nil {
+		complete(lifecycle.StateFailed)
+		emitStructuredRuntimeStreamFailure(
+			response,
+			executionRequest,
+			http.StatusServiceUnavailable,
+			"telemetry_delivery_failed",
+			"Supervisor telemetry delivery failed.",
+			true,
+		)
+		return true
+	}
 	emitSSE(response, "execution.completed", streamPayload{
 		RequestID:  executionRequest.RequestID,
 		TraceID:    executionRequest.TraceID,

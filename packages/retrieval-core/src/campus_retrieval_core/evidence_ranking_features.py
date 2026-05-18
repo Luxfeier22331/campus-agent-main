@@ -5,6 +5,12 @@ from dataclasses import dataclass, replace
 
 from campus_contracts import EvidenceSource
 
+from .evidence_attributes import (
+    EvidenceAttributes,
+    EvidenceContractDiagnostics,
+    evidence_attributes_for_source,
+    evidence_contract_diagnostics_for_source,
+)
 from .evidence_ranking_text import (
     focused_query_key,
     match_key,
@@ -15,6 +21,8 @@ from .evidence_ranking_text import (
     title_compactness,
     title_match_priority,
 )
+from .evidence_semantics import infer_evidence_query_intent, semantic_alignment_score
+from .query_focus import source_focus_match_score
 
 _NEGATIVE_CONTENT_ROLES = frozenset(
     {
@@ -61,6 +69,9 @@ _CONTENT_KIND_PRIORITY = {
 @dataclass(frozen=True, slots=True)
 class SourceRankingFeatures:
     source: EvidenceSource
+    evidence_attributes: EvidenceAttributes
+    contract_diagnostics: EvidenceContractDiagnostics
+    focus_match_score: int
     title_match_priority: int
     title_overlap_count: int
     title_compactness: int
@@ -69,11 +80,14 @@ class SourceRankingFeatures:
     answer_bearing_bonus: int
     content_role_priority: int
     content_kind_priority: int
+    query_intent_strength: int
+    semantic_alignment_score: int
 
 
 @dataclass(frozen=True, slots=True)
 class DocumentRankingFeatures:
     doc_id: str
+    focus_match_score: int
     title_match_priority: int
     title_overlap_count: int
     title_compactness: int
@@ -82,6 +96,7 @@ class DocumentRankingFeatures:
     answer_bearing_count: int
     content_role_priority: int
     content_kind_priority: int
+    semantic_alignment_score: int
     best_score: float
 
 
@@ -105,8 +120,14 @@ def build_ranking_features(
         ),
         default=0,
     )
+    query_intent = infer_evidence_query_intent(query_text)
+    attributes = evidence_attributes_for_source(source)
+    contract_diagnostics = evidence_contract_diagnostics_for_source(source)
     return SourceRankingFeatures(
         source=source,
+        evidence_attributes=attributes,
+        contract_diagnostics=contract_diagnostics,
+        focus_match_score=source_focus_match_score(query_text=query_text, source=source),
         title_match_priority=title_match_priority(query_key=query_key, title_keys=title_keys),
         title_overlap_count=title_overlap_count,
         title_compactness=title_compactness(query_key=query_key, title_keys=title_keys),
@@ -123,10 +144,23 @@ def build_ranking_features(
         answer_bearing_bonus=1 if source.is_answer_bearing else 0,
         content_role_priority=_CONTENT_ROLE_PRIORITY.get(source.content_role, 0),
         content_kind_priority=_CONTENT_KIND_PRIORITY.get(source.content_kind, 0),
+        query_intent_strength=1 if query_intent.is_strong else 0,
+        semantic_alignment_score=semantic_alignment_score(query_text=query_text, source=source),
     )
 
 
 def is_primary_support_candidate(feature: SourceRankingFeatures) -> bool:
+    if feature.evidence_attributes.answer_role in {
+        "category_overview",
+        "eligibility_condition",
+        "example_evidence",
+        "exception_rule",
+        "exclusion_rule",
+        "procedure_step",
+        "supporting_detail",
+        "table_fact",
+    }:
+        return True
     if feature.content_role_priority > 0:
         return True
     if feature.detail_support_count > 0 or feature.content_support_count > 0:
@@ -153,6 +187,7 @@ def build_document_ranking_features(
     return tuple(
         DocumentRankingFeatures(
             doc_id=doc_id,
+            focus_match_score=max(item.focus_match_score for item in doc_features),
             title_match_priority=max(item.title_match_priority for item in doc_features),
             title_overlap_count=max(item.title_overlap_count for item in doc_features),
             title_compactness=max(item.title_compactness for item in doc_features),
@@ -161,6 +196,7 @@ def build_document_ranking_features(
             answer_bearing_count=sum(item.answer_bearing_bonus for item in doc_features),
             content_role_priority=max(item.content_role_priority for item in doc_features),
             content_kind_priority=max(item.content_kind_priority for item in doc_features),
+            semantic_alignment_score=max(item.semantic_alignment_score for item in doc_features),
             best_score=max(item.source.score for item in doc_features),
         )
         for doc_id, doc_features in documents.items()
@@ -177,8 +213,12 @@ def query_targets_document(
 
 def source_sort_key(
     feature: SourceRankingFeatures,
-) -> tuple[int, int, int, int, int, int, int, float]:
+) -> tuple[int, int, int, int, int, int, int, int, int, int, int, int, float]:
     return (
+        feature.focus_match_score,
+        feature.query_intent_strength,
+        feature.semantic_alignment_score if feature.query_intent_strength else 0,
+        0 if feature.contract_diagnostics.contract_missing and feature.query_intent_strength else 1,
         feature.title_match_priority,
         feature.title_overlap_count,
         feature.title_compactness,
@@ -193,8 +233,10 @@ def source_sort_key(
 
 def document_sort_key(
     feature: DocumentRankingFeatures,
-) -> tuple[int, int, int, int, int, int, int, float]:
+) -> tuple[int, int, int, int, int, int, int, int, float]:
     return (
+        feature.focus_match_score,
+        feature.semantic_alignment_score,
         feature.title_match_priority,
         feature.title_overlap_count,
         feature.title_compactness,

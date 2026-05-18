@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-29
+updated: 2026-05-07
 ---
 # Operator Observability Architecture
 
@@ -129,7 +129,7 @@ events 只能按以下路径进入 panel：
 - `app-api` 继续是 audit projection owner；`supervisor-api` 不写 Postgres、不提供
   operator query backend
 - `app-api` execution audit ingest 成功后必须调度 request-scoped projector drain；
-  scheduled drain 只是兜底，避免 operator 在 panel 中等待下一轮 cron
+  scheduled drain 只承担周期性一致性检查，不承担 answer path 的补救语义
 - ingest payload 只允许 `request_id`、`trace_id`、lane、decision、failure kind、
   duration、queue wait、bridge duration、HTTP status、retryable 等 safe fields
 - payload 禁止 raw prompt、raw answer、raw transcript、auth material、retrieval
@@ -139,10 +139,9 @@ events 只能按以下路径进入 panel：
 - `app-api` 可以按 optional deep-link template 把 request trace / issue backlink 写入
   `operator.trace_backlink_projection`；这是 app-owned projection write，不是 panel
   route-time sink query
-- Go `supervisor-api` 的 execution audit writer 可以批量发送、失败重试并写本地 spool；
-  `/readyz` / `/metrics` 必须暴露 emitted、dropped、failed、retried、spooled、
-  spool-drained、spool-dropped 与 batch size，便于 operator 区分“runtime 事件已产生”和
-  “projection ingest 暂时不可达”
+- Go `supervisor-api` 的 execution audit writer 开启后必须同步发送每个 safe audit
+  event；sink 不可用时 answer path fail closed。`/readyz` / `/metrics` 必须暴露
+  enabled、configured、emitted、failed 与 last error，便于 operator 诊断投递状态。
 
 ## Read-Model Families
 
@@ -189,6 +188,11 @@ runtime-internal package import 拼装它们。
   `request_id` join `runtime.request_observability_fact`，生成 feedback coverage、
   helpful / unhelpful rate、no-answer unhelpful overlap，以及 `negative_feedback`
   eval candidate intake；它不是 panel-owned truth，也不反向改变 runtime routing
+- admitted `multi_step` 的 workflow trace summary 现已保留 bounded final answer artifact
+  usage 摘要：
+  `answer_artifact_projection_ids` 与 `answer_artifact_kinds` 进入 operator / eval
+  可见的 safe summary seam，用于证明最终答复依赖了哪些 repo-owned projection，而不是暴露
+  raw artifact payload
 
 当前尚未全部落成 merged truth 的，是更完整的 `Safety/Authz`、`Cost`、`Audit` operator
 product surface；这属于 rollout 进度问题，不是 ownership 未定。
@@ -300,6 +304,41 @@ truth 已开放。
 这些 summary 必须继续是 observability-safe typed projection，不得把 raw prompt、 raw snippet
 dump 或 raw vendor payload 直接暴露给 panel。
 
+## Governed Multi-Agent Workflow Monitoring Extension
+
+长期 multi-agent workflow 至少还要补以下 operator-facing summary truth：
+
+- `workflow_plan_summary`
+  - workflow mode、planner version、selected step sequence、allowed agents /
+    allowed tools、budget posture 与 terminal policy
+- `agent_step_summary`
+  - 每个 step 的 agent family、step input projection kind、step output projection kind、
+    latency、status、business outcome 与 fail-close reason
+- `cross_agent_context_summary`
+  - context projection id、source step、target step、projection kind、content hash、
+    visibility posture 与 safety summary
+- `handoff_ownership_summary`
+  - 本次是 manager-style bounded specialist call，还是 specialist handoff ownership
+    transfer；如果是 handoff，必须记录 handoff target 与 filtered context posture
+- `guardrail_summary`
+  - input / tool / output guardrail outcome、human review interruption 或
+    blocked reason
+
+固定约束：
+
+- operator surface 可以展示 agent sequence 与 projection summary，但不得展示 raw provider
+  response、完整上游 prompt、raw source HTML、raw OCR dump 或 unrestricted evidence payload
+- repo-owned `workflow_trace_summary` 仍是 canonical projection；OpenAI Agents SDK
+  tracing 或其他外部 trace 只能作为 debug / grader input
+- Python worker SDK-native readiness 必须使用稳定 fail-close reasons，例如
+  `dependency_missing`、`provider_config_missing`、`provider_key_missing`、`model_missing`、
+  `sdk_tool_missing`、`tool_not_admitted`、`plan_not_admitted`、`sdk_timeout` 与
+  `sdk_guardrail_failed`；这些 reason 只能表达 degraded/fail-close，不得暗示存在
+  alternate runtime path
+- 对 `single_handoff` 不能包装成 `multi_step`；对 direct structured runtime 不能伪造 agent
+  collaboration trace
+- 需要区分“multi-agent 规划正确但某个 step 证据不足”和“顶层 routing / workflow plan 错误”
+
 ## Plan-Level And Step-Level Metrics
 
 长期 planner/executor 至少要按两层监控：
@@ -385,7 +424,7 @@ admission 到产品主路径时，`request-scoped observability fact` 至少要�
 - 这次请求进了哪个 structured runtime family
 - 返回的是 current answer、historical reference、canonical body，还是 deterministic
   fail-close / unavailable
-- 历史降级发生的原因是什么
+- 显式历史参考或 fail-close 的原因是什么
 - notice 结果来自 public `official_web` 还是 restricted `internal_notice` source
   family
 
@@ -532,6 +571,28 @@ link；panel 不直接向 Axiom 发查询请求。
 
 redaction、sampling、字段裁剪与 sink fan-out 优先放在这条 seam，而不是把厂商逻辑复制到每个 runtime
 boundary。
+
+runtime OTel 接入口径、事件 taxonomy、attribute allowlist、forbidden fields 与 runtime
+ownership matrix 固定在
+`docs/reference/runtime-otel-telemetry-taxonomy.md`。该 reference 的核心约束是：OTel SDK
+只进入 `apps/*` runtime / adapter / deployment 层；`retrieval-core`、`rag-agent`、
+`ingestion-core` 与 `contracts` 保持 vendor-neutral，不直接依赖 Sentry、Axiom、Collector
+或 OpenTelemetry SDK。
+
+当前 runtime bridge 已收口为：
+
+- `apps/supervisor-api` 是 online trace owner，负责 request admission、bridge
+  attempt 与 finalization 的 sanitized OTLP trace signal
+- `apps/supervisor-api` 在启用 OTel 后对 configured product answer paths 采用
+  fail-close 语义；telemetry 交付失败返回 `telemetry_delivery_failed`，sampling 丢弃仍只作为
+  显式采样计数
+- `apps/supervisor-agent-worker` 负责把 `retrieval.runtime_observation` 映射成 sanitized
+  runtime event sink
+- `apps/ingestion-worker` 负责 offline run-level started/completed/failed telemetry
+- `infra/otel/` 提供 repo-owned local debug Collector config 与 staging Sentry/Axiom
+  fan-out template
+- `docs/runbooks/runtime-otel-collector-pipeline.md` 提供 local debug、staging env、
+  closeout smoke 与 drop diagnosis 操作口径
 
 ## Cost Model
 

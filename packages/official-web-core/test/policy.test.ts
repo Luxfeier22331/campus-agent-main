@@ -13,6 +13,11 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 			crawlPolicyPath: "/tmp/campus_public/crawl-policy.json",
 			credentialsSchemaPath: "/tmp/campus_public/credentials.schema.json",
 			projectionDeclarationsPath: "/tmp/campus_public/projection-declarations.json",
+			consumerDenominatorPath: "/tmp/campus_public/consumer-denominator.json",
+			targetSourceMapPath: "/tmp/campus_public/target-source-map.json",
+			targetInventoryPath: "/tmp/campus_public/target-inventory.json",
+			sourcePackId: "tool-driven-first-slice.v1",
+			sourcePackManifestPath: "/tmp/campus_public/source-packs/tool-driven-first-slice.v1.json",
 			schedulerPolicyPath: "/tmp/campus_public/scheduler-policy.json",
 			qcPolicyPath: "/tmp/campus_public/qc-policy.json",
 		},
@@ -105,6 +110,12 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 			seedSetVersion: "campus_public_seeds_v1",
 			seeds: [],
 		},
+		sourcePackManifest: {
+			schemaVersion: "official_web_source_pack_manifest.v1",
+			siteId: "campus_public",
+			sourcePackId: "tool-driven-first-slice.v1",
+			entries: [],
+		},
 		crawlPolicy: {
 			schemaVersion: "official_web_crawl_policy.v1",
 			siteId: "campus_public",
@@ -145,6 +156,181 @@ function buildBundle(): officialWebCore.OfficialWebConfigBundle {
 			siteId: "campus_public",
 			projectionPolicyVersion: "campus_public_projection_v1",
 			declarations: [],
+		},
+		consumerDenominator: {
+			schemaVersion: "official_web_consumer_denominator.v1",
+			siteId: "campus_public",
+			denominatorVersion: "campus_public_consumer_denominator_v1",
+			enforcementMode: "retain_matching_only",
+			defaultRejectedPolicy: "reject",
+			consumerFamilies: [
+				{
+					consumerFamily: "contact_directory_candidate",
+					ownerSurface: "contact_directory_lookup",
+					ownerAgentOrRuntime: "campus-services-agent",
+					materializationPolicy: "candidate_only",
+					pageFamilies: [
+						"article_detail",
+						"directory_page",
+						"contact_widget_page",
+						"generic_content_page",
+					],
+					titleKeywords: ["联系", "联系我们", "联系方式"],
+					pathPatterns: ["contact", "lianxi"],
+					requiredEvidence: ["phone", "email", "location", "office_hours"],
+					optionalEvidence: [],
+					minimumMatchedEvidenceCount: 2,
+					requiresKeywordOrPathMatch: true,
+					negativePatterns: ["采购", "招标", "中标", "通知", "公告"],
+					selectedWriteTarget: "campus_services/contact_directory",
+					reviewPolicy: "selected_write_requires_review",
+				},
+				{
+					consumerFamily: "service_guide_candidate",
+					ownerSurface: "service_guide_lookup",
+					ownerAgentOrRuntime: "campus-services-agent",
+					materializationPolicy: "candidate_only",
+					pageFamilies: ["article_detail", "directory_page", "generic_content_page"],
+					titleKeywords: ["办理", "申请", "指南", "服务"],
+					pathPatterns: ["service", "guide", "apply"],
+					requiredEvidence: [
+						"service_process",
+						"service_entry",
+						"service_material",
+						"phone",
+						"location",
+						"office_hours",
+					],
+					optionalEvidence: [],
+					minimumMatchedEvidenceCount: 2,
+					requiresKeywordOrPathMatch: true,
+					negativePatterns: ["采购", "招标", "中标", "通知", "公告"],
+					selectedWriteTarget: "campus_services/service_guide",
+					reviewPolicy: "selected_write_requires_review",
+				},
+				{
+					consumerFamily: "stable_reference_candidate",
+					ownerSurface: "official_web/stable_reference",
+					ownerAgentOrRuntime: "rag-agent",
+					materializationPolicy: "release_gate_required",
+					pageFamilies: ["article_detail", "directory_page", "generic_content_page"],
+					titleKeywords: ["学校简介", "学校概况", "现任领导", "机构设置"],
+					pathPatterns: ["about", "intro", "leader"],
+					requiredEvidence: ["stable_reference"],
+					optionalEvidence: [],
+					minimumMatchedEvidenceCount: 1,
+					requiresKeywordOrPathMatch: false,
+					negativePatterns: ["新闻", "通知", "公告"],
+					selectedWriteTarget: "official_web/stable_reference",
+					reviewPolicy: "release_gate_required",
+				},
+				{
+					consumerFamily: "regulation_candidate",
+					ownerSurface: "regulations/institutional_rules",
+					ownerAgentOrRuntime: "rag-agent",
+					materializationPolicy: "release_gate_required",
+					pageFamilies: ["article_detail", "generic_content_page"],
+					titleKeywords: ["办法", "规定", "细则", "制度"],
+					pathPatterns: ["gzzd", "rule", "policy"],
+					requiredEvidence: ["regulation_text"],
+					optionalEvidence: [],
+					minimumMatchedEvidenceCount: 1,
+					requiresKeywordOrPathMatch: false,
+					negativePatterns: ["新闻", "通知", "公告"],
+					selectedWriteTarget: "regulations/institutional_rules",
+					reviewPolicy: "release_gate_required",
+				},
+				{
+					consumerFamily: "notice_news_candidate",
+					ownerSurface: "future_notice_runtime",
+					ownerAgentOrRuntime: "notice-agent",
+					materializationPolicy: "inventory_only",
+					pageFamilies: ["article_detail"],
+					titleKeywords: ["新闻", "通知", "公告", "讲座", "活动"],
+					pathPatterns: ["news", "info"],
+					requiredEvidence: ["notice_news"],
+					optionalEvidence: [],
+					minimumMatchedEvidenceCount: 1,
+					requiresKeywordOrPathMatch: false,
+					negativePatterns: [],
+					selectedWriteTarget: "",
+					reviewPolicy: "inventory_only",
+				},
+			],
+			reportingCounters: [
+				"fetched_pages",
+				"retained_source_truth_pages",
+				"discovery_only_pages",
+				"rejected_pages",
+				"consumer_family_counts",
+				"rejected_reason_counts",
+			],
+		},
+		targetSourceMap: {
+			schemaVersion: "official_web_target_source_map.v2",
+			siteId: "campus_public",
+			mapVersion: "campus_public_target_source_map_v2",
+			targets: [
+				{
+					targetId: "contact-directory",
+					consumerFamily: "contact_directory_candidate",
+					ownerSurface: "contact_directory_lookup",
+					selectedWriteTarget: "campus_services/contact_directory",
+					sourceHosts: ["www.example.edu"],
+					urlHints: ["contact"],
+					titleHints: ["联系"],
+					requiredEvidence: ["phone", "email", "location", "office_hours"],
+					optionalEvidence: [],
+					retentionPolicy: "retain_source_truth",
+					reviewPolicy: "selected_write_requires_review",
+					materializationPolicy: "candidate_only",
+					inventoryOnly: false,
+					notes: "test target",
+				},
+				{
+					targetId: "institutional-rules",
+					consumerFamily: "regulation_candidate",
+					ownerSurface: "regulations/institutional_rules",
+					selectedWriteTarget: "regulations/institutional_rules",
+					sourceHosts: ["www.example.edu"],
+					urlHints: ["rule"],
+					titleHints: ["办法"],
+					requiredEvidence: ["regulation_text"],
+					optionalEvidence: [],
+					retentionPolicy: "retain_source_truth",
+					reviewPolicy: "release_gate_required",
+					materializationPolicy: "release_gate_required",
+					inventoryOnly: false,
+					notes: "rules target",
+				},
+			],
+		},
+		targetInventory: {
+			schemaVersion: "official_web_target_inventory.v1",
+			siteId: "campus_public",
+			inventoryVersion: "campus_public_target_inventory_v1",
+			entries: [
+				{
+					admissionTargetId: "contact-directory",
+					consumerFamily: "contact_directory_candidate",
+					inventoryId: "contact-directory-homepage",
+					inventoryOnly: false,
+					materializationPolicy: "candidate_only",
+					notes: "test inventory target",
+					ownerAgentOrRuntime: "campus-services-agent",
+					ownerSurface: "contact_directory_lookup",
+					previewStatus: "candidate",
+					releaseBlockers: ["no_preview_evidence"],
+					requiredEvidence: ["phone", "email", "location", "office_hours"],
+					optionalEvidence: [],
+					requiredFields: ["phone", "email", "location", "office_hours", "source_url"],
+					optionalFields: [],
+					selectedWriteTarget: "campus_services/contact_directory",
+					sourceHosts: ["www.example.edu"],
+					sourceUrls: ["https://www.example.edu/contact"],
+					targetLabel: "Contact directory homepage",
+				},
+			],
 		},
 		schedulerPolicy: {
 			schemaVersion: "official_web_scheduler_policy.v1",
@@ -482,5 +668,82 @@ describe("official-web-core policy", () => {
 		expect(failure.schemaVersion).toBe("official_web_failure.v1");
 		expect(failure.phase).toBe("fetch");
 		expect(failure.reason).toBe("timeout");
+	});
+
+	it("rejects inventory-only target declarations with selected-write output", () => {
+		const bundle = officialWebCore.loadOfficialWebConfig("muc_public");
+		const noticeTarget = bundle.targetSourceMap.targets.find(
+			(target) => target.consumerFamily === "notice_news_candidate",
+		);
+		if (!noticeTarget) {
+			throw new Error("notice target is required");
+		}
+		noticeTarget.selectedWriteTarget = "official_web/public_notice";
+
+		expect(() => officialWebCore.validateOfficialWebConfig(bundle)).toThrowError(
+			/selectedWriteTarget/u,
+		);
+	});
+
+	it("rejects target declarations with owner or host drift", () => {
+		const ownerDriftBundle = officialWebCore.loadOfficialWebConfig("muc_public");
+		const ownerTarget = ownerDriftBundle.targetSourceMap.targets[0];
+		if (!ownerTarget) {
+			throw new Error("owner drift target is required");
+		}
+		ownerDriftBundle.targetSourceMap.targets[0] = {
+			...ownerTarget,
+			ownerSurface: "unknown_owner_surface",
+		};
+
+		expect(() => officialWebCore.validateOfficialWebConfig(ownerDriftBundle)).toThrowError(
+			/ownerSurface/u,
+		);
+
+		const hostDriftBundle = officialWebCore.loadOfficialWebConfig("muc_public");
+		const hostTarget = hostDriftBundle.targetSourceMap.targets[0];
+		if (!hostTarget) {
+			throw new Error("host drift target is required");
+		}
+		hostDriftBundle.targetSourceMap.targets[0] = {
+			...hostTarget,
+			sourceHosts: ["unknown.muc.edu.cn"],
+		};
+
+		expect(() => officialWebCore.validateOfficialWebConfig(hostDriftBundle)).toThrowError(
+			/references unavailable host/u,
+		);
+	});
+
+	it("rejects target-source-map required evidence drift from consumer denominator", () => {
+		const bundle = officialWebCore.loadOfficialWebConfig("muc_public");
+		const contactTarget = bundle.targetSourceMap.targets.find(
+			(target) => target.targetId === "campus-services-contact-directory",
+		);
+		if (!contactTarget) {
+			throw new Error("contact target is required");
+		}
+		contactTarget.requiredEvidence = ["phone", "location"];
+		contactTarget.optionalEvidence = ["email", "office_hours"];
+
+		expect(() => officialWebCore.validateOfficialWebConfig(bundle)).toThrowError(
+			/requiredEvidence must match consumer denominator/u,
+		);
+	});
+
+	it("rejects target inventory required evidence drift from admission target", () => {
+		const bundle = officialWebCore.loadOfficialWebConfig("muc_public");
+		const contactEntry = bundle.targetInventory.entries.find(
+			(entry) => entry.inventoryId === "muc-main-homepage-contact",
+		);
+		if (!contactEntry) {
+			throw new Error("contact inventory entry is required");
+		}
+		contactEntry.requiredEvidence = ["phone", "location"];
+		contactEntry.optionalEvidence = ["email", "office_hours"];
+
+		expect(() => officialWebCore.validateOfficialWebConfig(bundle)).toThrowError(
+			/requiredEvidence must be allowed by admission target/u,
+		);
 	});
 });

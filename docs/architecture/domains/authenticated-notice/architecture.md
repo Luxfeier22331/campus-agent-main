@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-03
-updated: 2026-04-30
+updated: 2026-05-02
 ---
 # Authenticated Notice Source Architecture
 
@@ -157,8 +157,9 @@ center 或 owner-specific downstream admission。
 
 - 内部通知系统的稳定资源身份首先由 notice identity 决定
 - list/detail API、正文 HTML、链接观测与附件关系都应围绕同一条 notice 归并
-- `notice_browser_url` / `portal_print_url` 只作为可浏览详情入口 metadata；它们不替代
-  `source_notice_link`、`campusnotice://...` fallback、raw asset id 或 document id
+- `notice_browser_url` / `portal_print_url` 只作为可浏览详情入口 metadata；它们
+  不替代 `source_notice_link`、`campusnotice://...` canonical URI、raw asset id
+  或 document id
 
 ## Object-Native Collector To Worker Handoff
 
@@ -205,10 +206,14 @@ required object roles：
   - `file_release` 进入 `authenticated_documents/file_release_source` 前必须存在、可
     `HEAD`、hash/size 匹配
   - `reference_only` file_release 只能停在 capture evidence，不得导入 document holding
+  - 历史 preview artifact 如果已经携带 bucket / object-key / hash / size 但遗漏
+    `storage_provider` / `ingest_status`，只能在 `file_release` released source-byte
+    边界归一化为 `object_store` / `uploaded`；普通 notice attachment 不得用
+    stale object ref 推断 bytes 可用
 
 worker `--run-id` import 必须通过 Python-owned ledger resolver 读取上述字段。resolver
-不读取 TypeScript 私有类型，不从 run ledger 的 local path fallback，也不假设 collector 与
-worker 共享 volume。
+不读取 TypeScript 私有类型，不从 run ledger 的 local path recovery field
+推断对象位置，也不假设 collector 与 worker 共享 volume。
 
 explicit object-ref import 允许作为等价主链路输入，但必须提供 `source_bucket`、
 bundle / manifest object refs 以及 hash/size verification input。local bundle /
@@ -249,9 +254,16 @@ projection、查询 read model 与 notice tool runtime 是四个不同语义：
   answerability、target surface 与 consumption status
 - notice read model：notice tool 查询使用的 PG 查询视图 / 索引，不重新分类、不拥有
   source truth
-- notice query runtime：执行 `campus_notice_discover` / `campus_notice_get`，只读取
-  projection/read-model 与 canonical body，不承担留档；当前 repo 仅落成 package-level
-  backing query service，不等于打开 panel/chatbot serving
+- notice query runtime：执行 `campus_notice_discover` / internal selected notice
+  resolve（`payload_kind=campus_notice_get`），只读取 projection/read-model、
+  selected card、bounded context 与 display policy，不承担留档，也不作为默认正文读取器；
+  当前 repo 仅落成 package-level backing query service，不等于打开 panel/chatbot serving
+
+在长期 supervisor-led multi-agent workflow 中，`notice-agent` 的 query-time 输出必须先收敛为
+bounded notice projection，例如 `CanonicalNoticeContext`、`NoticeCardSet` 或
+`NoticeChangeSet`。这些 projection 可以作为 `rag-agent` grounding、`campus-services-agent`
+schedule/status reconciliation 或 Go finalizer 的输入，但不得携带 raw source bundle、
+raw portal HTML、未裁剪附件 OCR dump 或 provider raw trace。
 
 notice-family taxonomy review 是 source-channel/operator 侧的只读抽样工作：
 
@@ -272,7 +284,7 @@ notice-family taxonomy review 是 source-channel/operator 侧的只读抽样工�
   `notice_level_query`；把设施、教室、自习室、交通/班车、IT 平台、图书馆开放/关闭等可用性/开放时间变化归入
   `service_status_candidate`；把内部行政、人事/员工内部事项、研究宣传征稿、党团治理生活、一般文化宣传和校园新闻归入
   `defer`，且默认跳过低价值视觉处理
-- fallback `other` 在缺少动作、服务、宣传或高价值证据时直接关闭为
+- 未命中规则的 `other` 在缺少动作、服务、宣传或高价值证据时直接关闭为
   `no_adoption`，默认 `machine_processing_policy=skip`；需要视觉/附件理解的
   高价值通知进入 `pending_multimodal_processing`，不形成延后人工处理状态
 - 它不代表 consumer admission，不写 projection/read model，也不打开 query-serving
@@ -315,6 +327,11 @@ read-model 与 runtime execution。notice-level 查询候选使用
 `campus_services/special_service_candidate`，并由
 `campus_services/service_guide` 生成只读 `service_guide_lookup` 记录。后者不得生成预约、
 提交或签到 transaction payload。
+
+当交通或服务类问题需要同时读取 baseline 与近期通知时，长期由 supervisor workflow plan
+显式串联 `campus-services-agent` 与 `notice-agent`。`notice-agent` 只提供当前通知变更事实和
+source-linked notice context；班次基底、服务状态基底与 temporal reconciliation 不得通过
+query-time raw notice scan 临时推断。
 
 ## Collector Runtime Ownership
 
@@ -390,12 +407,17 @@ policy，不能反向驱动整条 notice 进入 OCR、附件保留或 downstream
    - 在 notice route 已确定后，对每个 attachment ref 单独决定是否只保留 metadata、
      quarantine bytes、要求 source-truth bytes，或跳过。
 3. byte availability / fetch request
-   - collector 默认只捕获页面可见 inline visual fact carriers；普通附件不因“附件存在”
-     而默认下载。
+   - collector 默认不下载普通附件或 inline visual bytes；它只记录 relation truth、URL 与可观测
+     metadata。
+   - 页面可见 inline visual fact carrier 只有在显式 selected smoke / proof 开关或 ingest
+     生成的 fetch request/admission 下才允许抓取；普通 live collect 不得靠 collector
+     default 扩张 source bytes。
    - 如果 policy 要求 quarantine/required bytes 且 ref 已有 object key，则复用已有 bytes，不生成
      fetch request。
    - 如果 policy 要求 quarantine/required bytes 且 ref 仍是 reference-only，才生成
      collector fetch request。
+   - `terminal_unavailable`、`terminal_missing`、`terminal_reason` 或
+     `last_error_class=terminal_unavailable` 的 ref 不得再次进入 fetch request。
 4. source-truth import
    - 写入 notice manifest、content blocks 与 attachment refs；metadata-only attachment
      relation 也是 source truth。
@@ -482,14 +504,59 @@ source objects 分开：
   `admitted_source_bytes` 的附件 bytes，才计入 required source object verification。
 - `metadata_only`、`skip_unsupported`、`skip_too_large` 与 `terminal_unavailable` 不得因为缺少
   `object_key` 而导致 source-truth import 失败。
+- `terminal_unavailable` 必须是 typed handoff：collector/source-truth 需要保留
+  `provenance_status=terminal_unavailable`、`ingest_status=terminal_unavailable`、
+  `terminal_reason` 与可选 `last_http_status`；`last_error=terminal_unavailable:*`
+  只能作为 legacy compatibility signal，不能作为新链路唯一状态。
 - `fetch_to_quarantine` 的 bytes 可以有 object key，但在未 admission 前只能按 quarantine
   lifecycle 管理；是否缺失不应阻断 notice source-truth 本身。已有 object-backed bytes 必须
   进入 `uploaded_quarantine`，下游 OCR/materializer 直接消费 object key；只有
   reference-only 且 policy 仍要求 bytes 时才进入 fetch manifest。
+- collector retryable failure 必须写 typed outcome `last_error_class=transient_failed`；
+  source retention 继续保留 `attachment_capture_state=transient_failed` 与
+  `byte_fetch_required=true`，不能退回 silent `reference_only` 或只靠 `last_error` 表达。
+- `fetch_required_for_source_truth` 与 `fetch_required_for_admitted_owner` 如果缺少有效
+  object-backed bytes，必须显式进入 fetch manifest、typed terminal/skip，或 state-machine
+  audit high finding；不得只靠 `source_capture_repair` 或 unit-level pending 暗示后续会处理。
+- fetch request manifest 必须反查 canonical source-truth attachment ref；request
+  行自身缺少 terminal/metadata 字段不能绕过 source-truth 中的 `metadata_only`、
+  `terminal_unavailable` 或 skip 状态。
+- state-machine audit 的 candidate 校验必须按 `media_ref_id` / `attachment_ref_id`
+  绑定到具体 attachment ref：metadata-only ref 不因同一 unit 的其他附件 candidate 失败；
+  target candidate 的 `source_object_ref` 必须匹配其 attachment 的有效 object-backed bytes。
 - quarantine cleanup 必须以 media extraction candidate inventory 作为保护输入；凡是被
   `target_blocking=true` candidate 的 `source_object_ref` 引用、且 candidate 尚未进入
   `completed`、`skipped` 或 `failed_terminal` 的 object-backed quarantine bytes，即使
   `retention_expires_at` 已过期也不得删除。
+- destructive quarantine cleanup 还必须消费通过的 strict media closeout audit，且 audit
+  中的 candidate inventory hash 必须匹配本次 cleanup 输入；只传 candidate inventory 或只传
+  cleanup dry-run report 不能执行删除。
+- target admission 必须由 fact-state / candidate inventory 驱动；unit 级
+  `media_text_status=pending` 或 `multimodal_status=pending` 只能作为 preview 汇总与候选输入，
+  不能直接生成下游 `needs_multimodal`。`manual_review` 是人工复核状态，不得回落为自动 OCR
+  pending work。
+- media extraction candidate 进入执行前必须投影成统一 attempt ledger。target-blocking
+  非终态 candidate 必须有 `candidate_id`、`media_ref_id`、`attempt_number`、
+  `status`、`source_object_ref`、retry policy、retry budget 与 output ref 计划；
+  `failed_retryable` 必须携带剩余 retry budget 与 `next_retry_after`，retry budget 耗尽后
+  只能进入 `failed_terminal` 或 `manual_review`。
+- media closeout / target admission audit 是 fail-closed gate，必须同时读取 candidate
+  inventory、attempt ledger、closeout inventory、target admission manifest、cleanup
+  dry-run report 与 source-object verification report；缺任一输入都不能通过 strict gate。
+  `completed` candidate 必须有 output refs 且记录并匹配 completed attempt provenance；
+  attempt 必须属于 candidate inventory，并与 candidate 的 media ref、source object
+  bucket/key/hash 一致。非终态 target-blocking candidate 不得被 target admission 标记
+  ready；target admission manifest 必须与 candidate target/source 一致。quarantine
+  cleanup 不得选中 active blocking bytes，且 cleanup dry-run 必须按 bucket/key identity
+  显式保护 active blocking bytes。source-object verification 必须来自 live object-store
+  check，至少记录 `check_method=head_checksum` 或 `check_method=get_hash` 与
+  `live_checked_at`，并按 bucket/key/hash/size/storage provider 校验；不得只按 object key
+  或离线 artifact 通过。需要 promotion 时，worker batch path 与 direct promotion CLI
+  都必须先消费通过的 strict media gate。
+- 高价值 target unit 如果存在 attachment refs 但没有可处理 object-backed bytes，candidate
+  inventory 必须暴露 `source_capture_repair` / `source_capture_pending` gap，而不是静默无候选或直接进入
+  OCR/multimodal pending。该 gap 必须由 fetch request、operator action 或 audit high finding
+  闭环，不能作为下游 admission 的隐式 pending 状态。
 
 ## Bootstrap Import Ownership
 
@@ -842,6 +909,40 @@ canonical upstream provenance 保留。
   `requires_multimodal_processing` 或 fail-closed no-adoption reason
 - 不得把这类 parent notice body 直接 promote 成 regulation 正文
 
+## Regulation RAG Release Status Boundary
+
+authenticated notice source channel 只拥有 regulation promotion 的 upstream
+provenance 与 operator-safe downstream projection，不拥有 RAG serving alias truth。
+
+固定规则：
+
+- semantic owner 解析通过后，`regulations/*` materialization 可以生成 canonical target
+  document 与 `rag_release_candidate`
+- production 入队依赖显式 candidate store：materialization 只有在注入
+  `rag_release_candidate` store 或配置 operator Postgres candidate store URL 时才写入
+  release lane；本地 fixture replay 可以注入 in-memory store 观察行为，但不把 replay
+  自动提升为发布 truth
+- `rag_release_candidate` 只表示 regulation target document 有待 RAG release lane
+  处理；它不是 RAG 已可检索，也不是 document site 已发布
+- document site reader publish、RAG chunk/index release 与 retrieval serving alias
+  publish 必须保持独立状态；不能用任何一个状态反推另一个状态
+- 历史、年度、窗口期或 scoped-only 规则可以保留 reader/search-only status，但不得因此自动进入
+  current query-serving alias
+- authenticated notice operator projection 可以展示 compact downstream status，但只能
+  来自 sanitized release/candidate/audit summary，不暴露 raw notice body、OCR
+  payload、object key、release operations path 或 backend-native index payload
+
+面向 panel 的 regulation downstream status 至少应能区分：
+
+- `documentSiteStatus`
+- `ragPreparationStatus`
+- `ragIndexStatus`
+- `ragServingStatus`
+- `ragVerificationStatus`
+
+这些字段回答的是“该 notice 派生 regulation 的下游推进状态”，不是 source-truth 是否存在、
+collector 是否成功或用户是否有权限查看原始 notice。
+
 消费层固定不使用 `multimodal_processing_required` 作为 consumption status：
 
 - source-truth attachment classification 的 `multimodal_processing_required` 只说明
@@ -887,6 +988,15 @@ canonical upstream provenance 保留。
 - downstream `regulations/institutional_rules` 与 `regulations/scoped_rules`
   materializer 只读 configured projection truth；未配置 projection store 时 fail
   closed，不得回退到 source-truth inventory 或空内存 projection
+- downstream regulation materialization、document reader publish 与 RAG release
+  admission 必须分离。materializer 只能生成 canonical document 与 RAG candidate；
+  query-enabled `regulations/institutional_rules` 进入 RAG 前还必须生成
+  `regulation_rag_release_admission.v1`，证明当前 canonical 清洗、reader current
+  version、chunk profile、qrels/eval 与 authz deny case 已完成并与 exact document
+  identity/version/hash 匹配。
+- 对 `regulations/scoped_rules`，当前 runtime profile 保持 `query_enabled_by_default=false`；
+  candidate 只能进入 `not_query_enabled` / `held_search_only` 等 non-serving 状态，不能借
+  regulation admission manifest 打开 query-serving。
 - owner/source relation 不完整的条目写入 `semantic_owner=authority_pending`，由
   processing gap audit 暴露，不伪装成 ready target
 - 不属于当前 admitted lane 的硬性 no-adoption reason 写入
@@ -938,8 +1048,8 @@ attachment extraction lane 固定按类型分流，不做多套 fallback：
   主链路；只保留 relation truth，并显式记录 `review_reason`
 - `ocr_required`：走 shared OCR lane，并始终先归一化成 repo-owned canonical provider
   payload；对 `internal_notice`，规章制度 / 手册类 `pdf` 默认也进入这条 lane。provider 选择以 shared
-  file-asset routing 为准：文档型 `pdf` / complex document image 默认 `MinerU primary ->
-  Paddle fallback`，generic image 保持 Paddle 优先。native PDF extraction 最多只作为
+  file-asset routing 为准：文档型 `pdf` / complex document image 默认 MinerU primary，
+  Paddle 只作为显式 secondary lane，generic image 保持 Paddle 优先。native PDF extraction 最多只作为
   diagnostics / probe，不是 canonical 主链路。对 `state=done` 但 provider result
   持续不可读的情况，只有在 attachment 已经确认属于有效 OCR candidate，且已结合 notice 正文上下文排除错误分流后，才视为
   provider contract breach
@@ -1025,24 +1135,67 @@ query-serving。
 - live-historical reconcile report 在 coverage 基础上额外暴露 body-declared
   attachment owner-expectation mismatch，避免把“正文写了附件但 payload 未返回附件实体/ref”
   静默写成“无附件”
+- attachment fetch-status row 的正常非下载态必须显式写为 `reference_only`；只有真实重试中的失败才写
+  `transient_failed`，稳定 404 / 410 等不可用结果写 `terminal_unavailable`
 - reference-only explanation report 区分 terminal portal misses、object-backed inline
   images 与真正 action-required gaps
-- visual reference audit report 只用于发现真实 portal 样本中的图片引用形态，并为后续 selected export
-  smoke 提供候选，不替代 collector bundle、manifest 或 import smoke summary
+- state-machine audit 是 source-truth projection、fetch manifest 与 candidate
+  inventory 写入下游之前的 fail-closed gate；它必须拒绝 terminal ref 重新 fetch、
+  terminal ref 生成候选、required object 状态不一致，以及缺 bytes 的高价值
+  target 被静默吞掉。
+- visual reference audit report 只用于发现真实 portal 样本中的图片引用形态，并为后续
+  selected export smoke 提供候选，不替代 collector bundle、manifest 或 import
+  smoke summary
 - bounded operator status 只聚合 source-truth inventory、fetch-status coverage、reference-only
   explanation、unsupported binary count、multimodal count 与 latest collector run ledger
 
 这些 worker CLI 属于 source-channel operations truth，不是对象存储浏览器、审批系统或产品
 panel。
 
-如果后续需要 product/API scheduler、heartbeat、operator read model 与 ingestion handoff，长期规则固定为：
+当前已经单独打开的 protected-panel 可见面覆盖两类 authenticated notice operator-safe
+projection：
+
+`apps/ingestion-worker -> apps/app-api -> apps/protected-panel-web`
+
+固定边界：
+
+- ingestion worker 只上报 sanitized notice-level processing snapshot 与 run-level processing
+  snapshot，不把 queue/source-handoff/object store/operations 目录暴露给 panel
+- `apps/app-api` 拥有 `operator.authenticated_notice_processing_projection` 与
+  `operator.authenticated_notice_processing_event_projection`，用于回答单个 notice 的
+  collect/enqueue/consume/downstream/tool readiness 状态
+- `apps/app-api` 拥有 `operator.authenticated_notice_run_processing_projection` 与
+  `operator.authenticated_notice_run_processing_event_projection`，用于回答 collector
+  run / replay batch / queue run 的整体处理状态
+- protected panel 只读取 app-api projection，不直接读取 ingestion queue、object-store、
+  operations 目录或 raw logs
+- 这些 projection 只解释处理状态；它们不是 collector scheduler、heartbeat truth、
+  retry/cancel/re-enqueue action surface，也不改变 source-truth 或 downstream
+  release truth
+- run-level projection 必须与 per-notice projection 保持分离；collector run
+  `source_truth_only` 的导入规模来自 sanitized import summary，例如
+  `notice_count` / `attachment_fetch_status_record_count`，而不是把整批 run 伪装成单个
+  notice processing record
+- regulation audit / cleanup 可以通过 timeline payload 暴露 compact evidence，例如
+  `auditRunId`、`cleanupRunId`、`cleanupDisposition`、
+  `postgresExactRemaining`、`objectStoreExactKeysRemaining` 与
+  `qdrantResidueCount`；不得暴露 bucket、object key、backup path、operations path 或
+  raw source/provider payload
+- regulation RAG release lane 可以通过 timeline payload 暴露 compact downstream
+  status，例如 `documentSiteStatus`、`ragPreparationStatus`、`ragIndexStatus`、
+  `ragServingStatus` 与
+  `ragVerificationStatus`；不得把 backend-native vector payload、raw chunk text、
+  release object key 或 retrieval trace dump 暴露给 panel
+
+如果后续需要 product/API scheduler、collector heartbeat 或写操作型 ingestion handoff，长期规则固定为：
 
 - 必须新增 dedicated authenticated notice control-plane domain
 - 不复用现有 `official_web` command/query surfaces
 - 不把产品级 collector control plane 混回 `apps/ingestion-worker`
 
-这是一条前向约束；当前 repo-owned closeout 只落成 bounded worker CLI 与 manifest /
-ledger truth。
+这是一条前向约束；当前 repo-owned closeout 的 source-channel control truth 仍是 bounded
+worker CLI 与 manifest / ledger truth，processing operator projection 只是 app-api owned
+read-only visibility seam。
 
 ## Async Staged Closeout
 

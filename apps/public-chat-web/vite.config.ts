@@ -3,11 +3,13 @@ import { cloudflare } from "@cloudflare/vite-plugin";
 import tailwindcss from "@tailwindcss/vite";
 import react from "@vitejs/plugin-react";
 import { defineConfig, type Plugin } from "vite";
+import { resolvePublicChatManualChunk } from "./config/build-chunks";
 
 const liveSmokeAppApiEnvPath = path.resolve(__dirname, "../app-api/.env");
 const liveSmokeAppApiConfigPath = path.resolve(__dirname, "../app-api/wrangler.local-smoke.toml");
 const liveSmokePublicChatConfigPath = path.resolve(__dirname, "wrangler.local-smoke.toml");
-const liveSmokeSupervisorApiBaseUrl = "http://127.0.0.1:18080";
+const liveSmokeSupervisorApiBaseUrl = "http://127.0.0.1:27051";
+const liveSmokeSupervisorApiTimeoutMs = process.env.SUPERVISOR_API_TIMEOUT_MS?.trim();
 const useLiveSmokeAuxiliaryWorker = process.env.PUBLIC_CHAT_LIVE_SMOKE === "1";
 
 if (useLiveSmokeAuxiliaryWorker) {
@@ -19,6 +21,9 @@ if (useLiveSmokeAuxiliaryWorker) {
 		}
 	}
 	process.env.SUPERVISOR_API_BASE_URL = liveSmokeSupervisorApiBaseUrl;
+	if (liveSmokeSupervisorApiTimeoutMs) {
+		process.env.SUPERVISOR_API_TIMEOUT_MS = liveSmokeSupervisorApiTimeoutMs;
+	}
 }
 
 function normalizeImporter(importer: string | undefined) {
@@ -60,6 +65,13 @@ function createVendorCompatResolver(): Plugin {
 }
 
 export default defineConfig({
+	build: {
+		rollupOptions: {
+			output: {
+				manualChunks: resolvePublicChatManualChunk,
+			},
+		},
+	},
 	define: {
 		"process.env.CI_PLAYWRIGHT": JSON.stringify(process.env.CI_PLAYWRIGHT ?? ""),
 		"process.env.NEXT_PUBLIC_BASE_PATH": JSON.stringify(""),
@@ -69,20 +81,31 @@ export default defineConfig({
 			process.env.PLAYWRIGHT_TEST_BASE_URL ?? "",
 		),
 	},
+	publicDir: path.resolve(__dirname, "../../configs/branding/web-public"),
 	plugins: [
 		createVendorCompatResolver(),
 		tailwindcss(),
 		react(),
 		cloudflare({
+			inspectorPort: false,
 			...(useLiveSmokeAuxiliaryWorker
 				? {
 						configPath: liveSmokePublicChatConfigPath,
 						auxiliaryWorkers: [
 							{
 								configPath: liveSmokeAppApiConfigPath,
+								config: (config) => ({
+									vars: {
+										...(config.vars ?? {}),
+										...(liveSmokeSupervisorApiTimeoutMs
+											? {
+													SUPERVISOR_API_TIMEOUT_MS: liveSmokeSupervisorApiTimeoutMs,
+												}
+											: {}),
+									},
+								}),
 							},
 						],
-						inspectorPort: false,
 					}
 				: {}),
 		}),
@@ -126,10 +149,6 @@ export default defineConfig({
 				replacement: path.resolve(__dirname, "src/platform/vendor-compat/next/navigation.ts"),
 			},
 			{
-				find: /^next\/form$/,
-				replacement: path.resolve(__dirname, "src/platform/vendor-compat/next/form.tsx"),
-			},
-			{
 				find: /^next\/image$/,
 				replacement: path.resolve(__dirname, "src/platform/vendor-compat/next/image.tsx"),
 			},
@@ -150,10 +169,6 @@ export default defineConfig({
 				replacement: path.resolve(__dirname, "src/platform/vendor-compat/app/chat-actions.ts"),
 			},
 			{
-				find: /^@\/app\/\(auth\)\/layout$/,
-				replacement: path.resolve(__dirname, "src/platform/vendor-compat/app/auth-layout.tsx"),
-			},
-			{
 				find: /^@\/hooks\/use-active-chat$/,
 				replacement: path.resolve(__dirname, "src/platform/vendor-compat/hooks/use-active-chat.ts"),
 			},
@@ -162,13 +177,6 @@ export default defineConfig({
 				replacement: path.resolve(
 					__dirname,
 					"src/platform/vendor-compat/hooks/use-chat-visibility.ts",
-				),
-			},
-			{
-				find: /^@\/components\/chat\/auth-form$/,
-				replacement: path.resolve(
-					__dirname,
-					"src/platform/vendor-compat/components/chat/auth-form.tsx",
 				),
 			},
 			{

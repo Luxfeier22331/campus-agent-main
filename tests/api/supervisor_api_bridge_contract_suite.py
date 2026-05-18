@@ -266,6 +266,7 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
                     "notice_id": "notice:internal:355119",
                     "source_family": "internal_notice_restricted",
                     "title": "奖学金评定通知",
+                    "target_surface": "regulations/institutional_rules",
                 },
                 "turn_count": 2,
             },
@@ -302,6 +303,7 @@ class SupervisorApiBridgeContractTest(SupervisorApiBridgeBaseTest):
         self.assertEqual(selected_notice_ref.notice_id, "notice:internal:355119")
         self.assertEqual(selected_notice_ref.source_family, "internal_notice_restricted")
         self.assertEqual(selected_notice_ref.title, "奖学金评定通知")
+        self.assertEqual(selected_notice_ref.target_surface, "regulations/institutional_rules")
 
     def test_bridge_answer_rejects_unsupported_nested_agent_payload_fields(self) -> None:
         captured_requests = []

@@ -236,7 +236,7 @@ def _batch_manifest(
             "name": "regulation-owner-text-recovery-mini-batch",
             "version": "v1",
             "required_regulation_admission_class": "needs_multimodal",
-            "required_candidate_status": "pending",
+            "required_candidate_status": "pending_or_failed_retryable",
             "required_target_hint": "regulation",
             "source_surfaces": sorted(source_surfaces),
             "media_kinds": sorted(media_kinds),
@@ -313,6 +313,13 @@ def _attempt_plan_entry(attempt: Mapping[str, Any]) -> dict[str, Any]:
     entry = attempt["entry"]
     candidate = attempt["candidate"]
     normalized_output_refs = dict(candidate.get("normalized_output_refs") or {})
+    candidate_status = str(candidate.get("status") or "")
+    state = "retry_planned" if candidate_status == "failed_retryable" else "planned"
+    action = (
+        "retry_regulation_owner_text"
+        if candidate_status == "failed_retryable"
+        else "recover_regulation_owner_text"
+    )
     return {
         "attempt_id": f"{candidate.get('candidate_id')}:owner-text:attempt:1",
         "candidate_id": candidate.get("candidate_id"),
@@ -328,8 +335,8 @@ def _attempt_plan_entry(attempt: Mapping[str, Any]) -> dict[str, Any]:
         "media_kind": candidate.get("media_kind"),
         "processing_family": candidate.get("processing_family"),
         "priority": candidate.get("priority"),
-        "state": "planned",
-        "action": "recover_regulation_owner_text",
+        "state": state,
+        "action": action,
         "attempt_number": 1,
         "provider": "pending_runtime_config",
         "model": "pending_runtime_config",
@@ -455,8 +462,11 @@ def _candidate_gap_reasons(
     media_kind_set: frozenset[str],
 ) -> tuple[str, ...]:
     reasons: list[str] = []
-    if str(candidate.get("status") or "") != "pending":
-        reasons.append("candidate_not_pending")
+    status = str(candidate.get("status") or "")
+    if status == "manual_review":
+        reasons.append("candidate_requires_machine_review")
+    elif status not in {"pending", "failed_retryable"}:
+        reasons.append("candidate_not_active_recoverable")
     if str(candidate.get("media_kind") or "") not in media_kind_set:
         reasons.append("unsupported_media_kind")
     source_ref = candidate.get("source_object_ref")

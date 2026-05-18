@@ -19,7 +19,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("host.docker.internal", script)
         self.assertIn("read -r -d '' env_key", script)
         self.assertIn('"SUPERVISOR_AGENT_WORKER_BASE_URL"', script)
-        self.assertIn('"http://supervisor-agent-worker:18081"', script)
+        self.assertIn('"http://supervisor-agent-worker:27052"', script)
         self.assertNotIn("eval ", script)
         self.assertIn("SUPERVISOR_RUNTIME_COMPOSE_PARALLEL_LIMIT", script)
         self.assertIn('COMPOSE_PARALLEL_LIMIT="${compose_parallel_limit}"', script)
@@ -51,11 +51,32 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             dockerfile,
         )
         self.assertIn(
+            "COPY configs/runtime/agents.v2.json /src/configs/runtime/agents.v2.json",
+            dockerfile,
+        )
+        self.assertIn(
+            "COPY configs/runtime/tools.v2.json /src/configs/runtime/tools.v2.json",
+            dockerfile,
+        )
+        self.assertIn(
             "COPY configs/runtime/intent-policy.v1.json /etc/campus-agent/intent-policy.v1.json",
             dockerfile,
         )
         self.assertIn(
+            "COPY configs/runtime/agents.v2.json /etc/campus-agent/agents.v2.json",
+            dockerfile,
+        )
+        self.assertIn(
+            "COPY tests/fixtures/service_guide_vpn_grouped_procedure_result.json "
+            "/src/tests/fixtures/service_guide_vpn_grouped_procedure_result.json",
+            dockerfile,
+        )
+        self.assertIn(
             "SUPERVISOR_API_INTENT_POLICY_PATH=/etc/campus-agent/intent-policy.v1.json",
+            dockerfile,
+        )
+        self.assertIn(
+            "SUPERVISOR_API_AGENT_SPEC_PATH=/etc/campus-agent/agents.v2.json",
             dockerfile,
         )
 
@@ -74,6 +95,34 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn('"SUPERVISOR_API_DOCKER_GOSUMDB"', script)
         self.assertNotIn("GOSUMDB=off", script)
 
+    def test_local_runtime_compose_includes_otel_collector_service_and_runtime_wiring(self) -> None:
+        compose_path = ROOT / "infra/local/docker-compose.supervisor-runtime.yml"
+        compose = compose_path.read_text(encoding="utf-8")
+
+        self.assertIn("otel-collector:", compose)
+        self.assertIn("otel/opentelemetry-collector-contrib", compose)
+        self.assertIn("collector-staging-template.yaml", compose)
+        self.assertIn("OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT", compose)
+        self.assertIn("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", compose)
+        self.assertIn("OTEL_COLLECTOR_AXIOM_EVENTS_DATASET", compose)
+        self.assertIn("OTEL_COLLECTOR_AXIOM_METRICS_DATASET", compose)
+        self.assertIn(
+            "SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT: http://otel-collector:4318/v1/traces",
+            compose,
+        )
+        self.assertIn(
+            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_TRACES_ENDPOINT: http://otel-collector:4318/v1/traces",
+            compose,
+        )
+        self.assertIn(
+            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT: http://otel-collector:4318/v1/metrics",
+            compose,
+        )
+        self.assertIn(
+            "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_LOGS_ENDPOINT: http://otel-collector:4318/v1/logs",
+            compose,
+        )
+
     def test_local_runtime_wires_structured_query_from_go_api_to_core_worker(self) -> None:
         compose_path = ROOT / "infra/local/docker-compose.supervisor-runtime.yml"
         script_path = ROOT / "infra/local/start-supervisor-runtime.sh"
@@ -81,8 +130,8 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         compose = compose_path.read_text(encoding="utf-8")
         script = script_path.read_text(encoding="utf-8")
 
-        self.assertIn("SUPERVISOR_STRUCTURED_QUERY_BASE_URL: http://supervisor-api:8000", compose)
-        self.assertIn("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET", compose)
+        self.assertIn("SUPERVISOR_INTERNAL_QUERY_BASE_URL: http://supervisor-api:8000", compose)
+        self.assertIn("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET", compose)
         self.assertIn("CAMPUS_SHARED_POSTGRES_URL", compose)
         service_status_url_key = "SERVICE_STATUS" + "_READ_MODEL_DATABASE_URL"
         transport_url_key = "TRANSPORT_SCHEDULE" + "_READ_MODEL_DATABASE_URL"
@@ -100,7 +149,7 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertNotIn(structured_schema_key, compose)
         self.assertIn("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", compose)
         self.assertIn("OBJECT_STORE_ENDPOINT", compose)
-        self.assertIn('"SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"', script)
+        self.assertIn('"SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"', script)
         self.assertNotIn(f'"{service_status_url_key}"', script)
         self.assertNotIn(f'"{transport_url_key}"', script)
         self.assertNotIn(f'"{service_guide_url_key}"', script)
@@ -137,6 +186,20 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
 
         self.assertIn("uv sync --project /app --all-packages --no-dev", dockerfile)
         self.assertNotIn("--package campus-supervisor-agent-worker --no-dev", dockerfile)
+
+    def test_supervisor_agent_worker_docker_workspace_excludes_retired_calendar_agent(self) -> None:
+        dockerfile_path = ROOT / "apps/supervisor-agent-worker/Dockerfile"
+        dockerfile = dockerfile_path.read_text(encoding="utf-8")
+
+        self.assertNotIn("COPY packages/calendar-agent ./packages/calendar-agent", dockerfile)
+        self.assertNotIn('"packages/calendar-agent"', dockerfile)
+        self.assertNotIn("/app/packages/calendar-agent/src", dockerfile)
+
+    def test_supervisor_agent_worker_docker_workspace_includes_runtime_specs(self) -> None:
+        dockerfile_path = ROOT / "apps/supervisor-agent-worker/Dockerfile"
+        dockerfile = dockerfile_path.read_text(encoding="utf-8")
+
+        self.assertIn("COPY configs/runtime ./configs/runtime", dockerfile)
 
     def test_local_runtime_smoke_script_exercises_mock_runtime_readiness_and_terminal_gate(
         self,

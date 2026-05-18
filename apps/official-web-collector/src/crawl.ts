@@ -1,4 +1,4 @@
-import { mkdirSync } from "node:fs";
+import { mkdirSync, readFileSync } from "node:fs";
 import { fileURLToPath } from "node:url";
 
 import { Configuration } from "crawlee";
@@ -20,6 +20,7 @@ import {
 export type { ResolvedCollectorCrawlMainInput } from "./crawl-cli.ts";
 export { resolveCollectorCrawlMainInput } from "./crawl-cli.ts";
 
+import { applyOfficialWebConsumerDenominator } from "./consumer-denominator.ts";
 import type {
 	OfficialWebControlPlaneClient,
 	OfficialWebTerminalStatus,
@@ -37,9 +38,11 @@ import { type CrawlHostsWithCrawleeInput, crawlHostsWithCrawlee } from "./crawl-
 import type {
 	CollectorAggregatedResults,
 	CollectorProgressCounts,
+	CollectorSourcePackLineageOverride,
 } from "./crawl-internal-types.ts";
 import { buildPageObservations } from "./crawl-observations.ts";
 import {
+	buildTargetWorksetProgressCounts,
 	countUniqueRawAssets,
 	emptyProgressCounts,
 	sameProgressCounts,
@@ -66,11 +69,15 @@ export interface CrawlSiteOptions {
 	collectorVersion?: string;
 	outputDir?: string;
 	hostFilter?: string[];
+	targetCandidateIds?: string[];
 	maxPagesPerHost?: number;
 	maxTotalPages?: number;
 	artifactStore?: OfficialWebArtifactStore;
+	localArtifactsOnly?: boolean;
 	controlPlaneClient?: OfficialWebControlPlaneClient;
+	sourcePackLineagePath?: string;
 	dynamicShellDiscoverer?: OfficialWebDynamicShellDiscoverer;
+	disableConditionalHeaders?: boolean;
 	crawlHosts?: (input: CrawlHostsWithCrawleeInput) => Promise<CollectorAggregatedResults>;
 }
 
@@ -87,6 +94,7 @@ export interface CrawlSiteResult {
 	pages: CollectedPageArtifact[];
 	dynamicShellDiscoveryAudits: OfficialWebDynamicShellDiscoveryAudit[];
 	uploadedArtifacts: OfficialWebRunArtifactRef[];
+	executionMode: "target-workset";
 }
 
 export async function crawlSite(
@@ -97,6 +105,15 @@ export async function crawlSite(
 		repoRoot: options.repoRoot,
 		configRoot: options.configRoot,
 	});
+	assertCollectorRunAdmission({
+		hasControlPlaneAdmission: options.controlPlaneClient != null,
+		hasHostFilter: (options.hostFilter?.length ?? 0) > 0,
+	});
+	const controlPlaneClient = options.controlPlaneClient;
+	if (!controlPlaneClient) {
+		throw new Error("official-web collector requires app-api target workset admission");
+	}
+	const executionMode = "target-workset" as const;
 	let plan = buildCollectorPlan(siteId, {
 		repoRoot: options.repoRoot,
 		configRoot: options.configRoot,
@@ -110,60 +127,47 @@ export async function crawlSite(
 		options.maxPagesPerHost ??
 		Math.max(1, ...selectedHosts.map((plannedHost) => plannedHost.maxPagesPerRun));
 	const maxTotalPages = options.maxTotalPages ?? plan.runLimits.maxTotalPagesPerRun;
+	const sourcePackLineageOverrides = loadSourcePackLineageOverrides(options.sourcePackLineagePath);
 
-	if (options.controlPlaneClient) {
-		const started = await options.controlPlaneClient.startRun({
-			siteId: plan.siteId,
-			schedulerRunKey: options.schedulerRunKey ?? options.crawlRunId ?? plan.crawlRunId,
-			runIntent: plan.runIntent,
-			triggerType: options.triggerType ?? "manual",
-			collectorVersion,
-			configVersion: bundle.site.configVersion,
-			crawlPolicyVersion: bundle.site.crawlPolicyVersion,
-			hostSet: selectedHosts.map((item) => item.host),
-			seedSet: plan.seeds.map((item) => item.url),
-			startedAt,
-			traceId: options.traceId,
+	const started = await controlPlaneClient.startRun({
+		siteId: plan.siteId,
+		schedulerRunKey: options.schedulerRunKey ?? options.crawlRunId ?? plan.crawlRunId,
+		runIntent: plan.runIntent,
+		triggerType: options.triggerType ?? "manual",
+		collectorVersion,
+		configVersion: bundle.site.configVersion,
+		crawlPolicyVersion: bundle.site.crawlPolicyVersion,
+		hostSet: selectedHosts.map((item) => item.host),
+		seedSet: plan.seeds.map((item) => item.url),
+		startedAt,
+		traceId: options.traceId,
+	});
+	if (started.run.runId !== plan.crawlRunId) {
+		plan = buildCollectorPlan(siteId, {
+			repoRoot: options.repoRoot,
+			configRoot: options.configRoot,
+			crawlRunId: started.run.runId,
+			runIntent: options.runIntent,
 		});
-		if (started.run.runId !== plan.crawlRunId) {
-			plan = buildCollectorPlan(siteId, {
-				repoRoot: options.repoRoot,
-				configRoot: options.configRoot,
-				crawlRunId: started.run.runId,
-				runIntent: options.runIntent,
-			});
-			selectedHosts = buildSelectedHosts(plan, options.hostFilter);
-		}
+		selectedHosts = buildSelectedHosts(plan, options.hostFilter);
 	}
 
-	const dynamicPlan = options.controlPlaneClient
-		? await options.controlPlaneClient.resolvePlan({
-				hostFilter: selectedHosts.map((item) => item.host),
-				maxPagesPerHost,
-				maxTotalPages,
-				now: new Date().toISOString(),
-				runIntent: plan.runIntent,
-				siteId: plan.siteId,
-				traceId: options.traceId,
-			})
-		: {
-				plan: {
-					duePages: [],
-					hostFilter: selectedHosts.map((item) => item.host),
-					maxPagesPerHost,
-					maxTotalPages,
-					resolvedAt: new Date().toISOString(),
-					runIntent: plan.runIntent,
-					siteId: plan.siteId,
-					summary: {
-						duePages: 0,
-						listingPages: 0,
-						repairPages: 0,
-						selectedHosts: 0,
-						staticPages: 0,
-					},
-				},
-			};
+	const dynamicPlan = await controlPlaneClient.resolvePlan({
+		hostFilter: selectedHosts.map((item) => item.host),
+		maxPagesPerHost,
+		maxTotalPages,
+		now: new Date().toISOString(),
+		runIntent: plan.runIntent,
+		siteId: plan.siteId,
+		targetCandidateIds: options.targetCandidateIds ?? [],
+		traceId: options.traceId,
+	});
+
+	const executionHostFilter = resolveExecutionHostFilter({
+		dynamicPlan: dynamicPlan.plan,
+	});
+	selectedHosts = buildSelectedHosts(plan, executionHostFilter);
+	const targetWorksetProgressCounts = buildTargetWorksetProgressCounts(dynamicPlan.plan.duePages);
 
 	const outputDir = options.outputDir ?? defaultCollectorOutputDir(plan.siteId, plan.crawlRunId);
 	mkdirSync(outputDir, { recursive: true });
@@ -177,12 +181,9 @@ export async function crawlSite(
 	let latestPages: CollectedPageArtifact[] = [];
 	const reportProgress = async (counts: CollectorProgressCounts): Promise<void> => {
 		latestProgress = counts;
-		if (!options.controlPlaneClient) {
-			return;
-		}
 
 		heartbeatSequence += 1;
-		await options.controlPlaneClient.sendHeartbeat({
+		await controlPlaneClient.sendHeartbeat({
 			runId: plan.crawlRunId,
 			sequence: heartbeatSequence,
 			observedAt: new Date().toISOString(),
@@ -199,10 +200,12 @@ export async function crawlSite(
 						dynamicPlan: dynamicPlan.plan,
 						plan,
 						config,
-						hostFilter: selectedHosts.map((item) => item.host),
+						hostFilter: executionHostFilter,
 						maxPagesPerHost,
 						maxTotalPages,
 						dynamicShellDiscoverer: options.dynamicShellDiscoverer,
+						disableConditionalHeaders: options.disableConditionalHeaders,
+						sourcePackLineageOverrides,
 						reportProgress,
 					})
 				: await options.crawlHosts({
@@ -210,26 +213,39 @@ export async function crawlSite(
 						dynamicPlan: dynamicPlan.plan,
 						plan,
 						config,
-						hostFilter: selectedHosts.map((item) => item.host),
+						hostFilter: executionHostFilter,
 						maxPagesPerHost,
 						maxTotalPages,
 						dynamicShellDiscoverer: options.dynamicShellDiscoverer,
+						disableConditionalHeaders: options.disableConditionalHeaders,
+						sourcePackLineageOverrides,
 						reportProgress,
 					});
 		const dedupedPages = dedupeCollectedPages(aggregatedResults.pages);
+		const consumerGate = applyOfficialWebConsumerDenominator({
+			consumerDenominator: bundle.consumerDenominator,
+			pages: dedupedPages,
+		});
+		const retainedObservationUrls = new Set(
+			consumerGate.retainedPages.map((page) => page.pageManifest.normalizedCanonicalUrl),
+		);
 		const dedupedPageObservations = dedupePageObservations(
 			(aggregatedResults.pageObservations?.length ?? 0) > 0
-				? (aggregatedResults.pageObservations ?? [])
+				? (aggregatedResults.pageObservations ?? []).filter((observation) =>
+						observation.disposition === "fetched"
+							? retainedObservationUrls.has(observation.normalizedCanonicalUrl)
+							: true,
+					)
 				: buildPageObservations({
 						siteId: plan.siteId,
 						crawlRunId: plan.crawlRunId,
 						runIntent: plan.runIntent,
-						pages: dedupedPages,
+						pages: consumerGate.retainedPages,
 					}),
 		);
 		const normalizedResults: CollectorAggregatedResults = {
 			...aggregatedResults,
-			pages: dedupedPages,
+			pages: consumerGate.retainedPages,
 			pageObservations: dedupedPageObservations,
 		};
 		latestPages = normalizedResults.pages;
@@ -257,12 +273,16 @@ export async function crawlSite(
 				failures: normalizedResults.failures.length,
 				hostsPlanned: selectedHosts.length,
 				hostsCompleted: normalizedResults.hostSummaries.length,
+				consumerDenominator: consumerGate.summary,
 			},
 		});
 		const sourceTruthBundle = buildRunSourceTruthBundle(
 			plan.siteId,
 			plan.crawlRunId,
 			normalizedResults.pages,
+			{
+				collectionMode: executionMode,
+			},
 		);
 		const qualityAudit = buildCollectorQualityAudit({
 			siteId: plan.siteId,
@@ -286,7 +306,7 @@ export async function crawlSite(
 		});
 		const uploadResult =
 			options.artifactStore == null
-				? { uploadedArtifacts: [], artifactUploadCount: 0 }
+				? resolveLocalArtifactOnlyUploadResult(options)
 				: await uploadCollectorArtifacts({
 						siteId: plan.siteId,
 						crawlRunId: plan.crawlRunId,
@@ -295,37 +315,32 @@ export async function crawlSite(
 						pages: normalizedResults.pages,
 					});
 		const previousProgress = latestProgress;
-		const finalProgress = summarizeProgressCounts(
-			normalizedResults,
-			uploadResult.artifactUploadCount,
-		);
+		const finalProgress = {
+			...summarizeProgressCounts(normalizedResults, uploadResult.artifactUploadCount),
+			...targetWorksetProgressCounts,
+		};
 		latestProgress = finalProgress;
 
-		if (
-			options.controlPlaneClient &&
-			(heartbeatSequence === 0 || !sameProgressCounts(previousProgress, finalProgress))
-		) {
+		if (heartbeatSequence === 0 || !sameProgressCounts(previousProgress, finalProgress)) {
 			await reportProgress(finalProgress);
 		}
 
-		if (options.controlPlaneClient) {
-			await options.controlPlaneClient.finalizeRun({
-				runId: plan.crawlRunId,
-				terminalStatus: crawlStatus,
-				finishedAt,
-				pageObservations,
-				summary: {
-					urlsDiscovered: normalizedResults.urlResults.length,
-					urlsFetched: normalizedResults.urlResults.filter((item) => item.outcome === "fetched")
-						.length,
-					pagesNormalized: normalizedResults.pages.length,
-					rawAssetsObserved: countUniqueRawAssets(normalizedResults.pages),
-					failureCount: normalizedResults.failures.length,
-				},
-				artifacts: uploadResult.uploadedArtifacts,
-				traceId: options.traceId,
-			});
-		}
+		await controlPlaneClient.finalizeRun({
+			runId: plan.crawlRunId,
+			terminalStatus: crawlStatus,
+			finishedAt,
+			pageObservations,
+			summary: {
+				urlsDiscovered: normalizedResults.urlResults.length,
+				urlsFetched: normalizedResults.urlResults.filter((item) => item.outcome === "fetched")
+					.length,
+				pagesNormalized: normalizedResults.pages.length,
+				rawAssetsObserved: countUniqueRawAssets(normalizedResults.pages),
+				failureCount: normalizedResults.failures.length,
+			},
+			artifacts: uploadResult.uploadedArtifacts,
+			traceId: options.traceId,
+		});
 
 		return {
 			outputDir,
@@ -340,31 +355,86 @@ export async function crawlSite(
 			pages: normalizedResults.pages,
 			dynamicShellDiscoveryAudits: normalizedResults.dynamicShellDiscoveryAudits ?? [],
 			uploadedArtifacts: uploadResult.uploadedArtifacts,
+			executionMode,
 		};
 	} catch (error) {
-		if (options.controlPlaneClient) {
-			try {
-				await options.controlPlaneClient.finalizeRun({
-					runId: plan.crawlRunId,
-					terminalStatus: "failed",
-					finishedAt: new Date().toISOString(),
-					pageObservations: [],
-					summary: {
-						urlsDiscovered: latestProgress.urlsDiscovered,
-						urlsFetched: latestProgress.urlsFetched,
-						pagesNormalized: latestProgress.pagesNormalized,
-						rawAssetsObserved: countUniqueRawAssets(latestPages),
-						failureCount: Math.max(latestProgress.failures, 1),
-					},
-					artifacts: [],
-					traceId: options.traceId,
-				});
-			} catch {
-				// Preserve the original crawl failure and avoid masking it with finalize noise.
-			}
+		try {
+			await controlPlaneClient.finalizeRun({
+				runId: plan.crawlRunId,
+				terminalStatus: "failed",
+				finishedAt: new Date().toISOString(),
+				pageObservations: [],
+				summary: {
+					urlsDiscovered: latestProgress.urlsDiscovered,
+					urlsFetched: latestProgress.urlsFetched,
+					pagesNormalized: latestProgress.pagesNormalized,
+					rawAssetsObserved: countUniqueRawAssets(latestPages),
+					failureCount: Math.max(latestProgress.failures, 1),
+				},
+				artifacts: [],
+				traceId: options.traceId,
+			});
+		} catch {
+			// Preserve the original crawl failure and avoid masking it with finalize noise.
 		}
 		throw error;
 	}
+}
+
+function loadSourcePackLineageOverrides(
+	path: string | undefined,
+): Record<string, CollectorSourcePackLineageOverride> | undefined {
+	if (!path) {
+		return;
+	}
+	const payload = JSON.parse(readFileSync(path, "utf-8"));
+	if (!payload || typeof payload !== "object" || Array.isArray(payload)) {
+		throw new Error("source-pack lineage override payload must be an object");
+	}
+	return payload as Record<string, CollectorSourcePackLineageOverride>;
+}
+
+function resolveExecutionHostFilter(input: {
+	dynamicPlan: {
+		duePages: Array<{ host?: string; normalizedCanonicalUrl: string }>;
+	};
+}): string[] {
+	return [
+		...new Set(
+			input.dynamicPlan.duePages
+				.map((page) => {
+					const host = page.host || new URL(page.normalizedCanonicalUrl).hostname;
+					return host.trim().toLowerCase();
+				})
+				.filter(Boolean),
+		),
+	].sort();
+}
+
+function resolveLocalArtifactOnlyUploadResult(options: CrawlSiteOptions): {
+	uploadedArtifacts: OfficialWebRunArtifactRef[];
+	artifactUploadCount: number;
+} {
+	if (options.localArtifactsOnly === true) {
+		return { uploadedArtifacts: [], artifactUploadCount: 0 };
+	}
+	throw new Error(
+		"official-web collector requires artifactStore unless localArtifactsOnly is true",
+	);
+}
+
+function assertCollectorRunAdmission(input: {
+	hasControlPlaneAdmission: boolean;
+	hasHostFilter: boolean;
+}): void {
+	if (input.hasControlPlaneAdmission) {
+		return;
+	}
+
+	const hostFilterNote = input.hasHostFilter ? " hostFilter cannot create target scope." : "";
+	throw new Error(
+		`official-web collector requires app-api target workset admission.${hostFilterNote}`,
+	);
 }
 
 export function crawlMain(argv: string[] = process.argv.slice(2)): Promise<void> {

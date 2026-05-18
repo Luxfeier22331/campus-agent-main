@@ -2,7 +2,7 @@
 
 ## What This Is
 
-`campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是一次性做全量校园知识问答，而是在新架构下把 `supervisor -> rag-agent -> retrieval` 主路径稳定成立，并让 serving surface 由 runtime profile 显式控制。当前 query-enabled surface 是 `regulations/student_rules`、`regulations/institutional_rules`、`curriculum/curriculum_plan` 与 `official_web/stable_reference`；`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled；`campus_services` 仍保持 offline preparation。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
+`campus-agent` 是一个面向学生、教职工和潜在考生的 multi-agent 校园问答助理仓库，长期形态是以 `supervisor` 作为唯一入口、`agent` 作为能力边界的 supervisor-led orchestration system。当前 v1 的重点不是一次性做全量校园知识问答，而是在新架构下把 `supervisor -> rag-agent -> retrieval` 主路径稳定成立，并让 serving surface 由 runtime profile 显式控制。当前 query-enabled surface 是 `regulations/student_rules`、`regulations/institutional_rules`、`curriculum/curriculum_plan` 与 `official_web/stable_reference`；`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled；`campus_services` 已有 structured-query serving tools，但不进入 generic retrieval 默认 query scope。旧仓库 `../campusRAG` 只作为迁移参考，不再作为继续扩展的主实现。
 
 ## Planning File Contract
 
@@ -23,14 +23,18 @@
 
 - 当前 serving surface 由 collection runtime profile 控制，不再由早期 `phase-1` 路由文案单独定义
 - 当前 query-enabled scope 是 `regulations/student_rules`、`regulations/institutional_rules`、`curriculum/curriculum_plan` 与 `official_web/stable_reference`；`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled
+- 2026-05-01 本轮“目前打开内容”验证按当前执行范围显式排除 `official_web/*`，只覆盖 `regulations/student_rules`、`regulations/institutional_rules` 与 `curriculum/curriculum_plan`；验证结果为 qrels/manifest `41 tests OK`、agent/supervisor/contract `180 tests OK`、retrieval-core 非 official-web 路径 `138 tests OK`、scoped profile/qrels coverage `coverage_issues=0`。误跑的 `official_web` freshness/live-assisted suite 失败不计入本轮验收范围，也不改变 official-web planning truth。
 - `student_rules` 与 `curriculum_plan` 的 source OCR runtime profile 当前都已切到 `mineru_api + vlm + mineru-vlm-adapted-v2`；覆盖历史 Paddle 派生 canonical truth 的 cutover 现由独立 `handbook-curriculum-mineru-cutover` workstream 收口
-- `campus_services/*` 仍为 `offline_preparation`
+- `campus_services/service_status`、`campus_services/service_guide`、`campus_services/contact_directory`、`campus_services/transport_schedule` 与 `calendar/academic_calendar` 当前为 `structured_query_serving`：仅通过 admitted structured tools 消费 current projection/read model，不进入 generic retrieval 默认 query scope；`campus_services/service_catalog` 仍为 `offline_preparation`
 - 当前分支模型固定为：`develop` 承担长期集成，`main` 承担稳定发布，`main` 上的改动只通过 PR 进入
 - retrieval 读取 serving alias；离线索引发布写入 versioned physical collection，并以 release manifest 保留追溯信息
 - planning 执行面当前按原生 workstream-first 多线推进；repo 级总览固定收口到 `.planning/WORKSTREAMS.md`，单条线的当前真相固定收口到 `.planning/workstreams/<slug>/`
 - repo 级默认 agent execution 入口现已提升为 `scripts.workstream_harness`：底层继续复用 `workstream_claim` lease/heartbeat substrate，但默认终态已收口为 `completed / blocked / failed_needs_repair` 的 harness contract；runtime ledger 只写入 gitignored `.planning/runtime/harness/`
 - shared `apps/app-api` Worker backend、`apps/public-chat-web`、`apps/protected-panel-web` 已在当前工作树落地
-- 正式 `apps/public-docs` docs shell 已在当前工作树落地；当前仍由 `document-site-and-canonical-reader` workstream 继续收口 published reader assets、same-site docs control-plane 与 shell consumption truth
+- 正式 `apps/public-docs` docs shell 已在当前工作树落地；`document-site-and-canonical-reader`
+  workstream 已在 2026-05-05 completed，published reader assets、same-site docs
+  control-plane、restricted / historical reader handoff 与 chat `source_items`
+  browser contract 已收口
 - `public-chat-web` 当前 public auth family 已覆盖 `/login`、`/register`、`/forgot-password`、`/reset-password`；`protected-panel-web` 的 `/login` 继续只代表 Cloudflare Access reentry
 - panel `Requests` 已接上 `apps/app-api` 的 runtime-owned request projection APIs；不得绕回 audit log、telemetry sink、consumer chat tables 或 `apps/supervisor-api`
 - `official_web` control plane 已在 shared `apps/app-api` 落地，collector admission、crawl-run ledger、operator query 与 ingestion handoff 继续收口在同一 Worker backend；`apps/ingestion-worker` 继续只是 offline executor
@@ -51,6 +55,7 @@
 - `official_web/muc_public_pages` 的旧 serving alias 已在 2026-04-05 主动撤下；mixed bridge 继续保留为 replay/QC/regression truth，但不再维持一个误导性的 published alias
 - `official_web/fresh_news` 当前也已补齐 repo-tracked split manifest、retrieval qrels 与 deterministic live-gate seed baseline；2026-04-05 本地 `8` 文档 seed import/release 生成 `official_web_fresh_news__r20260404_222909`，retrieval `8/8 hit@1`、live gate `8/8 pass`，但 runtime truth 仍保持 `offline_preparation`
 - Phase 1003 已把 `official_web/fresh_news` / `official_web/news_archive` 的 repo-level opening policy、runtime-profile contract 与独立 worktree opening checklist 冻结为长期真相；后续真实 opening execution / acceptance 已下调到 backlog `999.4`，当前不再作为 adjacent lane 或 active implementation lane
+- `official-web-tool-driven-source-pack` 已在 2026-05-03 完成需求侧 handoff：首期官网 one-time source pack 的 accepted demand、source collection cases、`information_disclosure` offline composition、excluded/deferred posture 与 eval expectations 已冻结到 `.planning/workstreams/official-web-tool-driven-source-pack/EXECUTION-HANDOFF.md`；manifest、capture、replay、release preview 与 eval 执行不在该 workstream 继续推进，继续归 `official-web-source-pack-collection-execution` 与后续 ingestion release lane
 - `campus_notices/internal_notice` 已在 local Postgres + local MinIO + cloud Qdrant 路径上完成 current-scope replay -> verified preparation -> single promote -> unpublished release：`promotion_id=promotion-0001`、`release_id=r20260411_090101`、physical collection `internal_notice__r20260411_090101`、`document_count=21`、`point_count=213`、`validation_status=passed`，且 serving alias `internal_notice` 仍未发布；runtime truth 继续保持 `restricted + offline_preparation`
 - authenticated-notice 的后续工作当前收口为两条前向线加三条已完成 closeout：`notice-consumption-layer` 已完成 implementation closeout，repo 现有 `source_notice -> derived consumption unit` persisted projection、显式 rebuild/status worker、import rebuild seam、regulation/scoped ready gate、non-regulation coverage 与 operator read-model truth；已捕获 corpus 的 bounded regulation/scoped downstream consumption 继续由独立 workstream 负责 target-side hardening；`file_release owner recovery` 的 auth-window readiness closeout 已完成，`351119` 已被显式排除，未来 target-specific recovery 必须先 admission 新的 non-excluded target 才能 reopen；`live portal / authenticated control-plane` 已完成本轮 repo-owned closeout，collector run admission、run ledger/artifact refs、live-historical reconcile 与 bounded operator status 均已落地。对 `355222` 比选公告与 `355325` 中选结果公示这类 procurement notice，当前已进入 `procurement_notice` notice category / projection truth；`service_status_override` 与 `attachment_form_template` 也只作为 held projection truth，不打开 campus-services runtime、document center、query-serving 或 panel surface
 - 当前 worktree 已完成 Wave E place-finding foundation 的 repo-internal 资产，并进一步由 Go
@@ -129,11 +134,15 @@
 ### Active
 
 - [ ] Phase 1000 `Curriculum 结构化证据契约与 Semester Facts 修复` 已完成 closeout；curriculum 线当前不再是 active implementation lane，若后续触碰旧 planning/docs，只允许把 historical artifact pointer 收敛到 `.tmp/evals/curriculum-plan-live-gate-accept-phase1000`
-- [x] authenticated-notice regulation downstream consumption 已完成 Phase 10 serving
-  admission：`regulations/institutional_rules` 进入默认 query-serving，
+- [x] authenticated-notice regulation downstream consumption 已完成 Phase 11 manual-review
+  selected materialization：Phase 10 已让 `regulations/institutional_rules` 进入默认 query-serving，
   `regulations/scoped_rules` 发布 retrieval-ready alias 但仍不在默认 query allowlist；
-  public-chat citation 继续关闭。auth-dependent `file_release owner recovery`
-  仍由独立 workstream 管理，不混入本线。
+  Phase 11 又将 `481` / `619` 两条 resolved manual-review rows 写入 target
+  materialization；Phase 12/13 已补齐 canonical cleaning hardening 与历史 selected
+  regulation backfill 入口，使 Phase 9/11 cohort 可先重建 current canonical artifacts，再进入
+  独立 RAG release lane；新 target 尚未进入 RAG release / serving admission；
+  public-chat citation 继续关闭。auth-dependent `file_release owner recovery` 仍由独立
+  workstream 管理，不混入本线。
 - [ ] staging@ayafeed.com 的项目隔离一级子域部署基线已经成立；`campus-api-staging`、`campus-chat-staging`、`campus-panel-staging` 当前 truth 稳定，后续 release hardening 已收口为 Phase 1002 `Worker 部署与发布硬化收口`
 - [ ] `shared product surfaces acceptance / hardening` 已在 `Phase I` closeout 之后继续 reopen 到 `Phase J` Turnstile posture productization：固定方向是 always-on verification、Cloudflare-managed adaptive interactive challenge only on elevated risk，以及 local / staging / prod runtime posture seam；`Phase K` 的 mature auth shell local cutover 已完成，但 workstream 当前仍只剩 `Phase J` 真实 staging 浏览器 closeout blocker；它继续只覆盖 shared backend、public chat 与 protected panel，不改 panel Access model
 - [ ] `official_web/fresh_news` / `official_web/news_archive` 的 repo-level runtime opening criteria 已在 Phase 1003 冻结；后续 opening execution / acceptance 已下调到 backlog `999.4`，当前只保留 `stable_reference` 与 default-off news contract，不在 active implementation lane
@@ -158,7 +167,7 @@
 ## Constraints
 
 - **Architecture**: `supervisor` 必须是唯一入口协调层，`agent` 作为稳定能力边界存在，不能退回成旧 `campusRAG` 的扁平 tool 模式 — 这是仓库长期架构和当前 supervisor 设计的核心前提
-- **Scope**: serving surface 由 runtime profile 显式控制；当前开放 `student_rules` 与 `curriculum_plan`，`campus_services` 保持 `offline_preparation` — 避免再次把运行策略写死在 supervisor、API shell 或 worker 默认值里
+- **Scope**: serving surface 由 runtime profile 显式控制；当前默认 query-enabled surface 是 `regulations/student_rules`、`regulations/institutional_rules`、`curriculum/curriculum_plan` 与 `official_web/stable_reference`，`regulations/scoped_rules` 已 retrieval-ready 但不默认 query-enabled，`campus_services` 保持 `offline_preparation` — 避免再次把运行策略写死在 supervisor、API shell 或 worker 默认值里
 - **Contracts**: handoff 必须通过 `packages/contracts` 中的 schema 完成，不让 AgentOS / retrieval / infra 类型渗透进共享 contract — 这是未来可替换 agent / retrieval 的基础
 - **Runtime Boundary**: runtime、transport、deterministic routing/policy gate、audit projection、default agent delegate registry 与 public response finalization 留在 `apps/`；private injected-delegate dispatch helper 也已内联到 `apps/supervisor-agent-worker` — 避免 standalone core package 冒充长期 supervisor truth
 - **Product Identity**: product-layer auth/session/principal mapping 固定留在 `apps/app-api`；`apps/supervisor-api` 只做 internal execution caller admission，并消费显式 `actor` — 避免 execution engine 重新长出产品身份语义

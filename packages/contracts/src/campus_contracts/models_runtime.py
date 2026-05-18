@@ -35,6 +35,10 @@ from campus_contracts.models_shared import (
     SupervisorStatus,
 )
 from campus_contracts.models_tools import (
+    AcademicCalendarLookupPayload,
+    AcademicCalendarLookupResult,
+    CampusNoticeChangeSetLookupPayload,
+    CampusNoticeChangeSetLookupResult,
     CampusNoticeDiscoverPayload,
     CampusNoticeDiscoverResult,
     CampusNoticeGetPayload,
@@ -75,6 +79,13 @@ _FORBIDDEN_WORKFLOW_TRACE_VALUE_TOKENS = (
     "token=",
 )
 _JWT_VALUE_RE = re.compile(r"\beyJ[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\.[A-Za-z0-9_-]{10,}\b")
+_REQUIRED_WORKFLOW_PROJECTION_REF_FIELDS = (
+    "projection_id",
+    "source_step_id",
+    "projection_kind",
+    "content_hash",
+    "safety",
+)
 
 
 def _normalize_workflow_trace_key_token(value: str) -> str:
@@ -110,6 +121,24 @@ def _reject_raw_workflow_trace_value(value: str, field_name: str) -> None:
         raise ValueError(f"{field_name} contains forbidden raw workflow trace value")
 
 
+def _validate_workflow_projection_refs(projection_refs: tuple[dict[str, Any], ...]) -> None:
+    for index, projection_ref in enumerate(projection_refs):
+        if not isinstance(projection_ref, dict):
+            raise ValueError(f"workflow_context.projection_refs[{index}] must be an object")
+        for field_name in _REQUIRED_WORKFLOW_PROJECTION_REF_FIELDS:
+            value = projection_ref.get(field_name)
+            if field_name == "safety":
+                if not isinstance(value, dict) or not value:
+                    raise ValueError(
+                        f"workflow_context.projection_refs[{index}].{field_name} is required"
+                    )
+                continue
+            if not str(value or "").strip():
+                raise ValueError(
+                    f"workflow_context.projection_refs[{index}].{field_name} is required"
+                )
+
+
 @dataclass(frozen=True, slots=True)
 class RagResultPayload:
     evidence: EvidenceBundle
@@ -142,9 +171,12 @@ class WorkflowTraceSummary:
     workflow_mode: str = ""
     handoff: dict[str, Any] = field(default_factory=dict)
     handoff_chain: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    agent_invocations: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     selected_target: str = ""
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
     context_projections: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+    answer_artifact_projection_ids: tuple[str, ...] = field(default_factory=tuple)
+    answer_artifact_kinds: tuple[str, ...] = field(default_factory=tuple)
     tool_argument_summary: dict[str, Any] = field(default_factory=dict)
     trace_steps: tuple[dict[str, Any], ...] = field(default_factory=tuple)
     tool_call_summaries: tuple[dict[str, Any], ...] = field(default_factory=tuple)
@@ -159,6 +191,7 @@ class WorkflowTraceSummary:
             ("context_resolution", self.context_resolution),
             ("handoff", self.handoff),
             ("context_projections", self.context_projections),
+            ("agent_invocations", self.agent_invocations),
             ("tool_argument_summary", self.tool_argument_summary),
             ("trace_steps", self.trace_steps),
             ("tool_call_summaries", self.tool_call_summaries),
@@ -167,6 +200,69 @@ class WorkflowTraceSummary:
             ("policy_artifact_versions", self.policy_artifact_versions),
         ):
             _reject_raw_workflow_trace_keys(payload, field_name)
+        for field_name, values in (
+            ("answer_artifact_projection_ids", self.answer_artifact_projection_ids),
+            ("answer_artifact_kinds", self.answer_artifact_kinds),
+        ):
+            for index, value in enumerate(values):
+                if not str(value or "").strip():
+                    raise ValueError(f"{field_name}[{index}] must be a non-empty string")
+
+
+@dataclass(frozen=True, slots=True)
+class WorkflowAgentContext:
+    schema_version: str = "workflow-agent-context-v1"
+    visibility: str = "agent_private"
+    workflow_run_ref: str = ""
+    step_id: str = ""
+    agent_id: str = ""
+    target: str = ""
+    required_projection_kind: str = ""
+    expected_output_artifacts: tuple[str, ...] = field(default_factory=tuple)
+    projection_refs: tuple[dict[str, Any], ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        if self.schema_version != "workflow-agent-context-v1":
+            raise ValueError("workflow_context.schema_version must be workflow-agent-context-v1")
+        if self.visibility != "agent_private":
+            raise ValueError("workflow_context.visibility must be agent_private")
+        workflow_used = bool(
+            self.workflow_run_ref.strip()
+            or self.step_id.strip()
+            or self.agent_id.strip()
+            or self.target.strip()
+            or self.required_projection_kind.strip()
+            or self.projection_refs
+        )
+        if workflow_used:
+            if not self.workflow_run_ref.strip():
+                raise ValueError("workflow_context.workflow_run_ref is required")
+            if not self.step_id.strip():
+                raise ValueError("workflow_context.step_id is required")
+            if self.agent_id not in ALLOWED_AGENT_TARGETS:
+                raise ValueError("workflow_context.agent_id is required")
+        if self.required_projection_kind and not any(
+            str(item.get("projection_kind") or "").strip() == self.required_projection_kind
+            for item in self.projection_refs
+        ):
+            raise ValueError("workflow_context required projection is missing")
+        normalized_expected_output_artifacts: list[str] = []
+        for index, artifact_kind in enumerate(self.expected_output_artifacts):
+            normalized = str(artifact_kind or "").strip()
+            if not normalized:
+                raise ValueError(
+                    "workflow_context.expected_output_artifacts"
+                    f"[{index}] must be a non-empty string"
+                )
+            normalized_expected_output_artifacts.append(normalized)
+        if tuple(normalized_expected_output_artifacts) != self.expected_output_artifacts:
+            object.__setattr__(
+                self,
+                "expected_output_artifacts",
+                tuple(normalized_expected_output_artifacts),
+            )
+        _reject_raw_workflow_trace_keys(self.projection_refs, "workflow_context.projection_refs")
+        _validate_workflow_projection_refs(self.projection_refs)
 
 
 @dataclass(frozen=True, slots=True)
@@ -286,10 +382,12 @@ class AgentRequest:
     payload: (
         RagRequestPayload
         | PlaceLookupPayload
+        | AcademicCalendarLookupPayload
         | ServiceGuideLookupPayload
         | ServiceStatusLookupPayload
         | TransportScheduleLookupPayload
         | ContactDirectoryLookupPayload
+        | CampusNoticeChangeSetLookupPayload
         | CampusNoticeDiscoverPayload
         | CampusNoticeGetPayload
     )
@@ -300,6 +398,7 @@ class AgentRequest:
     trace: TraceContext = field(default_factory=TraceContext)
     actor: ActorContext = field(default_factory=ActorContext)
     context: ContextProjection = field(default_factory=ContextProjection)
+    workflow_context: WorkflowAgentContext = field(default_factory=WorkflowAgentContext)
 
     def __post_init__(self) -> None:
         if self.target not in ALLOWED_AGENT_TARGETS:
@@ -325,10 +424,12 @@ class AgentResponse:
     result: (
         RagResultPayload
         | PlaceLookupResult
+        | AcademicCalendarLookupResult
         | ServiceGuideLookupResult
         | ServiceStatusLookupResult
         | TransportScheduleLookupResult
         | ContactDirectoryLookupResult
+        | CampusNoticeChangeSetLookupResult
         | CampusNoticeDiscoverResult
         | CampusNoticeGetResult
         | None
@@ -355,10 +456,12 @@ class SupervisorResponse:
     result: (
         RagResultPayload
         | PlaceLookupResult
+        | AcademicCalendarLookupResult
         | ServiceGuideLookupResult
         | ServiceStatusLookupResult
         | TransportScheduleLookupResult
         | ContactDirectoryLookupResult
+        | CampusNoticeChangeSetLookupResult
         | CampusNoticeDiscoverResult
         | CampusNoticeGetResult
         | None

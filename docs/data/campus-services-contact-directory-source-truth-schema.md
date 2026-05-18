@@ -31,11 +31,12 @@ collection。handbook 电话页应先生成 normalized contact projection，再�
 `contact_directory_lookup` 或 service guide contact refs 消费；不得在 query time
 回扫 raw handbook table、公告 HTML 或 generic retrieval chunk。
 
-当前阶段固定为 offline data-plane：
+当前阶段固定为 structured-query serving data-plane：
 
-- collection runtime profile 仍是 `offline_preparation`
+- collection runtime profile 是 `structured_query_serving`
 - `query_enabled=false`
-- 不打开 `contact_directory_lookup`
+- 只打开 `contact_directory_lookup` typed structured runtime，不进入 generic
+  retrieval 默认 query scope
 - 不把 `service_guide_lookup` 改造成纯电话查询入口
 
 ## Input Source Truth

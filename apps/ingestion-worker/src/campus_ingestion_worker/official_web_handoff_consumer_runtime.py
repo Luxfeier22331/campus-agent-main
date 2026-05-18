@@ -5,6 +5,7 @@ from pathlib import Path
 
 from campus_ingestion_core import (
     DEFAULT_BUCKET_DERIVED,
+    ObjectStoreBucketSettings,
     ObjectStoreSettings,
     audit_official_web_projection_chunking,
     build_document_registry_from_env,
@@ -14,7 +15,12 @@ from campus_ingestion_core import (
     validate_official_web_projection_output,
 )
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
+from campus_ingestion_core.official_web_release_task_admission import (
+    admit_selected_write_release_tasks_from_review,
+)
+from campus_ingestion_core.official_web_release_task_store import OfficialWebReleaseTaskStore
 from campus_ingestion_core.registry import DocumentRegistry, RawAssetRegistry
+from campus_ingestion_core.source_handoff_store import SourceHandoffStore
 
 from campus_ingestion_worker.official_web_handoff_consumer_io import (
     as_error_dict,
@@ -44,14 +50,24 @@ from campus_ingestion_worker.official_web_handoff_consumer_models import (
     OfficialWebHandoffConsumerSettings,
     OfficialWebSourceObjectStore,
 )
+from campus_ingestion_worker.official_web_handoff_consumer_persistence import (
+    persist_projection_output,
+)
 from campus_ingestion_worker.official_web_handoff_consumer_reporting import (
+    build_consumer_candidate_review_report,
     build_promotion_blocked_message,
     build_promotion_report,
     build_stage_quality_report,
     build_status_reporter_from_env,
     report_execution_status,
 )
-from campus_ingestion_worker.official_web_projection_import import import_projection_output
+from campus_ingestion_worker.official_web_source_handoff_adapter import (
+    OfficialWebCanonicalExecutionContext,
+    complete_official_web_canonical_execution,
+    fail_official_web_canonical_execution,
+    mark_official_web_canonical_step_passed,
+    prepare_official_web_canonical_execution,
+)
 
 
 def consume_official_web_handoffs(
@@ -66,7 +82,10 @@ def consume_official_web_handoffs(
     limit: int = 20,
     force: bool = False,
     promote_import: bool | None = None,
+    consumer_review_manifest_path: Path | None = None,
     status_reporter: OfficialWebExecutionStatusReporter | None = None,
+    source_handoff_store: SourceHandoffStore | None = None,
+    release_task_store: OfficialWebReleaseTaskStore | None = None,
 ) -> OfficialWebHandoffConsumeBatchReport:
     runtime_settings = resolve_runtime_settings(settings=settings, promote_import=promote_import)
     runtime_object_store = object_store or S3ObjectStoreAdmin(ObjectStoreSettings.from_env())
@@ -95,7 +114,10 @@ def consume_official_web_handoffs(
             raw_asset_registry=runtime_raw_asset_registry,
             declarations_path=declarations_path,
             force=force,
+            consumer_review_manifest_path=consumer_review_manifest_path,
             status_reporter=runtime_status_reporter,
+            source_handoff_store=source_handoff_store,
+            release_task_store=release_task_store,
         )
         for record_path in record_paths
     ]
@@ -126,7 +148,10 @@ def consume_handoff_record(
     raw_asset_registry: RawAssetRegistry | None = None,
     declarations_path: Path | None = None,
     force: bool = False,
+    consumer_review_manifest_path: Path | None = None,
     status_reporter: OfficialWebExecutionStatusReporter | None = None,
+    source_handoff_store: SourceHandoffStore | None = None,
+    release_task_store: OfficialWebReleaseTaskStore | None = None,
 ) -> OfficialWebHandoffConsumeResult:
     record = read_json(record_path)
     event_id = require_text(record.get("eventId"), "eventId")
@@ -192,13 +217,28 @@ def consume_handoff_record(
         "import": None,
         "error": None,
     }
+    canonical_context: OfficialWebCanonicalExecutionContext | None = None
 
     try:
+        if source_handoff_store is not None:
+            canonical_context = prepare_official_web_canonical_execution(
+                payload=payload,
+                settings=settings,
+                object_store=object_store,
+                source_handoff_store=source_handoff_store,
+            )
+            record.update(
+                {
+                    "sourceHandoffId": canonical_context.handoff_id,
+                    "ingestionExecutionId": canonical_context.execution_id,
+                }
+            )
+            write_json(record_path, record)
         report_execution_status(
             reporter=status_reporter,
             run_id=run_id,
             payload={
-                "executionRef": event_id,
+                "executionRef": _execution_ref(event_id, canonical_context),
                 "status": "running",
                 "updatedAt": utcnow(),
             },
@@ -222,13 +262,28 @@ def consume_handoff_record(
             object_store=object_store,
             bucket=settings.source_bucket,
         )
+        _mark_canonical_step_passed(
+            source_handoff_store=source_handoff_store,
+            context=canonical_context,
+            step_name="materialize_replay_input",
+        )
         replay_report = replay_official_web_source_truth_local(
             output_dir=execution_paths["replay_input_dir"],
             projection_output_dir=execution_paths["projection_output_dir"],
             declarations_path=declarations_path,
         )
+        _mark_canonical_step_passed(
+            source_handoff_store=source_handoff_store,
+            context=canonical_context,
+            step_name="source_truth_import",
+        )
         validation_report = validate_official_web_projection_output(
             execution_paths["projection_output_dir"],
+        )
+        _mark_canonical_step_passed(
+            source_handoff_store=source_handoff_store,
+            context=canonical_context,
+            step_name="projection_validation",
         )
         execution_report["replay"] = asdict(replay_report)
         execution_report["validation"] = asdict(validation_report)
@@ -243,6 +298,11 @@ def consume_handoff_record(
         chunk_audit_report = audit_official_web_projection_chunking(
             execution_paths["projection_output_dir"],
         )
+        _mark_canonical_step_passed(
+            source_handoff_store=source_handoff_store,
+            context=canonical_context,
+            step_name="chunk_audit",
+        )
         coverage_report = build_stage_quality_report(
             settings=settings,
             payload=payload,
@@ -250,12 +310,26 @@ def consume_handoff_record(
             replay_report=asdict(replay_report),
             chunk_audit_report=asdict(chunk_audit_report),
         )
+        consumer_candidate_review_report = build_consumer_candidate_review_report(
+            replay_report=asdict(replay_report),
+            consumer_review_manifest=read_json(consumer_review_manifest_path)
+            if consumer_review_manifest_path is not None
+            else None,
+            target_inventory_manifest=_read_target_inventory_manifest_if_present(site_id),
+        )
         promotion_report = build_promotion_report(
             promote_import=settings.promote_import,
             coverage_report=coverage_report,
         )
         execution_report["chunkAudit"] = asdict(chunk_audit_report)
         execution_report["coverage"] = coverage_report
+        execution_report["consumerCandidateReview"] = consumer_candidate_review_report
+        execution_report["releaseTasks"] = _admit_selected_write_release_tasks(
+            release_task_store=release_task_store,
+            review_report=consumer_candidate_review_report,
+            run_id=run_id,
+            source_object_keys=[bundle_key],
+        )
         execution_report["promotion"] = promotion_report
         if not settings.promote_import or not promotion_report["eligible"]:
             staged_error = None
@@ -264,14 +338,22 @@ def consume_handoff_record(
                     "code": "promotion_blocked",
                     "message": build_promotion_blocked_message(promotion_report["blockedChecks"]),
                 }
+            if source_handoff_store is not None and canonical_context is not None:
+                complete_official_web_canonical_execution(
+                    source_handoff_store=source_handoff_store,
+                    context=canonical_context,
+                    result_kind="staged",
+                )
             report_execution_status(
                 reporter=status_reporter,
                 run_id=run_id,
                 payload={
                     "errorCode": staged_error["code"] if staged_error is not None else None,
                     "errorMessage": staged_error["message"] if staged_error is not None else None,
-                    "executionRef": event_id,
+                    "executionRef": _execution_ref(event_id, canonical_context),
                     "status": "staged",
+                    "targetFieldReviews": consumer_candidate_review_report.get("targetFieldReviews")
+                    or [],
                     "updatedAt": utcnow(),
                 },
             )
@@ -308,7 +390,7 @@ def consume_handoff_record(
             or build_raw_asset_registry_from_env(prefer_operator=True),
             object_store_settings=resolve_persist_object_store_settings(
                 source_bucket=settings.source_bucket,
-                require_env=(
+                require_full_object_store_settings=(
                     derived_object_store is None
                     or document_registry is None
                     or raw_asset_registry is None
@@ -316,12 +398,25 @@ def consume_handoff_record(
             ),
         )
         execution_report["import"] = asdict(import_report)
+        _mark_canonical_step_passed(
+            source_handoff_store=source_handoff_store,
+            context=canonical_context,
+            step_name="downstream_materialization",
+        )
+        if source_handoff_store is not None and canonical_context is not None:
+            complete_official_web_canonical_execution(
+                source_handoff_store=source_handoff_store,
+                context=canonical_context,
+                result_kind="promoted",
+            )
         report_execution_status(
             reporter=status_reporter,
             run_id=run_id,
             payload={
-                "executionRef": event_id,
+                "executionRef": _execution_ref(event_id, canonical_context),
                 "status": "promoted",
+                "targetFieldReviews": consumer_candidate_review_report.get("targetFieldReviews")
+                or [],
                 "updatedAt": utcnow(),
             },
         )
@@ -347,13 +442,19 @@ def consume_handoff_record(
         )
     except Exception as exc:
         error_payload = normalize_error(exc)
+        if source_handoff_store is not None and canonical_context is not None:
+            fail_official_web_canonical_execution(
+                source_handoff_store=source_handoff_store,
+                context=canonical_context,
+                error_payload=error_payload,
+            )
         report_execution_status(
             reporter=status_reporter,
             run_id=run_id,
             payload={
                 "errorCode": error_payload.get("code"),
                 "errorMessage": error_payload.get("message"),
-                "executionRef": event_id,
+                "executionRef": _execution_ref(event_id, canonical_context),
                 "status": "failed",
                 "updatedAt": utcnow(),
             },
@@ -380,6 +481,58 @@ def consume_handoff_record(
             replay_input_dir=str(execution_paths["replay_input_dir"]),
             error=error_payload,
         )
+
+
+def _execution_ref(
+    event_id: str,
+    canonical_context: OfficialWebCanonicalExecutionContext | None,
+) -> str:
+    if canonical_context is None:
+        return event_id
+    return canonical_context.execution_id
+
+
+def _admit_selected_write_release_tasks(
+    *,
+    release_task_store: OfficialWebReleaseTaskStore | None,
+    review_report: dict[str, object],
+    run_id: str,
+    source_object_keys: list[str],
+) -> dict[str, object]:
+    if release_task_store is None:
+        return {
+            "admittedCount": 0,
+            "enabled": False,
+            "reason": "release_task_store_not_configured",
+            "taskIds": [],
+        }
+    admitted = admit_selected_write_release_tasks_from_review(
+        release_task_store=release_task_store,
+        review_report=review_report,
+        run_id=run_id,
+        source_object_keys=source_object_keys,
+    )
+    return {
+        "admittedCount": len(admitted),
+        "enabled": True,
+        "reason": "selected_write_admitted" if admitted else "no_selected_write_ready_records",
+        "taskIds": [task.task_id for task in admitted],
+    }
+
+
+def _mark_canonical_step_passed(
+    *,
+    source_handoff_store: SourceHandoffStore | None,
+    context: OfficialWebCanonicalExecutionContext | None,
+    step_name: str,
+) -> None:
+    if source_handoff_store is None or context is None:
+        return
+    mark_official_web_canonical_step_passed(
+        source_handoff_store=source_handoff_store,
+        context=context,
+        step_name=step_name,
+    )
 
 
 def resolve_record_paths(
@@ -424,10 +577,8 @@ def download_source_truth_bundle(
         missing_code="missing_source_truth_bundle",
         invalid_code="invalid_source_truth_bundle",
     )
-    site_id = require_text(payload.get("siteId") or payload.get("site_id"), "siteId")
-    crawl_run_id = require_text(
-        payload.get("crawlRunId") or payload.get("crawl_run_id"), "crawlRunId"
-    )
+    site_id = require_text(payload.get("siteId"), "siteId")
+    crawl_run_id = require_text(payload.get("crawlRunId"), "crawlRunId")
     if site_id != expected_site_id:
         raise OfficialWebHandoffConsumeError(
             code="invalid_source_truth_bundle",
@@ -463,21 +614,14 @@ def materialize_replay_input(
         )
     for page in pages:
         page_payload = require_object(page, "pages[]")
-        raw_asset_id = require_text(
-            page_payload.get("rawAssetId") or page_payload.get("raw_asset_id"), "rawAssetId"
-        )
-        raw_version_id = require_text(
-            page_payload.get("rawVersionId") or page_payload.get("raw_version_id"),
-            "rawVersionId",
-        )
+        raw_asset_id = require_text(page_payload.get("rawAssetId"), "rawAssetId")
+        raw_version_id = require_text(page_payload.get("rawVersionId"), "rawVersionId")
         manifest_key = require_text(
-            page_payload.get("pageManifestObjectKey")
-            or page_payload.get("page_manifest_object_key"),
+            page_payload.get("pageManifestObjectKey"),
             "pageManifestObjectKey",
         )
         blocks_key = require_text(
-            page_payload.get("contentBlocksObjectKey")
-            or page_payload.get("content_blocks_object_key"),
+            page_payload.get("contentBlocksObjectKey"),
             "contentBlocksObjectKey",
         )
         manifest_bytes = download_bytes(
@@ -519,35 +663,11 @@ def resolve_source_truth_bundle_key(payload: dict[str, object]) -> str:
     )
 
 
-def persist_projection_output(
-    *,
-    work_dir: Path,
-    projection_output_dir: Path,
-    replay_input_dir: Path,
-    bundle_payload: dict[str, object],
-    source_object_store: OfficialWebSourceObjectStore,
-    derived_object_store: OfficialWebDerivedObjectStore,
-    document_registry: DocumentRegistry,
-    raw_asset_registry: RawAssetRegistry,
-    object_store_settings: ObjectStoreSettings,
-):
-    if not isinstance(bundle_payload.get("pages"), list):
-        raise OfficialWebHandoffConsumeError(
-            code="invalid_source_truth_bundle",
-            message="bundle pages must be an array.",
-        )
-    return import_projection_output(
-        work_dir=work_dir,
-        projection_output_dir=projection_output_dir,
-        replay_input_dir=replay_input_dir,
-        source_object_store=source_object_store,
-        derived_object_store=derived_object_store,
-        document_registry=document_registry,
-        raw_asset_registry=raw_asset_registry,
-        object_store_settings=object_store_settings,
-        scope_refresh=("official_web", "muc_public_pages"),
-        require_promotable=True,
-    )
+def _read_target_inventory_manifest_if_present(site_id: str) -> dict[str, object] | None:
+    path = Path("configs") / "sources" / "official_web" / site_id / "target-inventory.json"
+    if not path.exists():
+        return None
+    return read_json(path)
 
 
 def resolve_derived_object_store(
@@ -561,23 +681,14 @@ def resolve_derived_object_store(
 def resolve_persist_object_store_settings(
     *,
     source_bucket: str,
-    require_env: bool,
-) -> ObjectStoreSettings:
-    if require_env:
-        return ObjectStoreSettings.from_env()
-
-    try:
-        env_settings = ObjectStoreSettings.from_env()
-    except ValueError:
-        return ObjectStoreSettings(
-            endpoint="http://localhost",
-            access_key="official-web-placeholder",
-            secret_key="official-web-placeholder",
+    require_full_object_store_settings: bool,
+) -> ObjectStoreBucketSettings:
+    if not require_full_object_store_settings:
+        return ObjectStoreBucketSettings(
             bucket_source=source_bucket,
             bucket_derived=DEFAULT_BUCKET_DERIVED,
-            secure=False,
         )
-
+    env_settings = ObjectStoreSettings.from_env()
     return ObjectStoreSettings(
         endpoint=env_settings.endpoint,
         access_key=env_settings.access_key,

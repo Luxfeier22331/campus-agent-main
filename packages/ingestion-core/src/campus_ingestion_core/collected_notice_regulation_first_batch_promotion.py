@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from collections import Counter
@@ -17,6 +18,23 @@ from campus_ingestion_core.collected_notice_regulation_first_batch_documents imp
 )
 from campus_ingestion_core.collected_notice_regulation_first_batch_evidence import (
     write_phase09_evidence_files,
+)
+from campus_ingestion_core.collected_notice_regulation_first_batch_helpers import (
+    _blocked_counts,
+    _document_source_refs,
+    _flatten_stats_ids,
+    _index_candidates_by_notice,
+    _load_json_object,
+    _mapping_rows,
+    _materialized_source_notice_ids,
+    _normalize_notice_ids,
+    _owner_text_refs,
+    _read_embedding_model_name,
+    _required_text,
+    _selection_entries,
+    _selection_notice_ids,
+    _selection_target_document_ids,
+    _unique_object_refs,
 )
 from campus_ingestion_core.collected_notice_regulation_first_batch_provenance import (
     PROVENANCE_HARDENING_SCHEMA_VERSION,
@@ -71,6 +89,7 @@ def build_first_batch_regulation_selection_from_paths(
     scoped_materialization_path: Path,
     selected_notice_ids: Sequence[str] = DEFAULT_FIRST_BATCH_SELECTED_NOTICE_IDS,
     generated_at: str | None = None,
+    phase_id: str = PHASE_09_ID,
 ) -> dict[str, Any]:
     return build_first_batch_regulation_selection(
         candidate_audit=_load_json_object(candidate_audit_path),
@@ -79,6 +98,7 @@ def build_first_batch_regulation_selection_from_paths(
         scoped_materialization=_load_json_object(scoped_materialization_path),
         selected_notice_ids=selected_notice_ids,
         generated_at=generated_at,
+        phase_id=phase_id,
         evidence_refs={
             "candidate_audit": str(candidate_audit_path),
             "consistency_report": str(consistency_report_path),
@@ -96,6 +116,7 @@ def build_first_batch_regulation_selection(
     scoped_materialization: Mapping[str, Any],
     selected_notice_ids: Sequence[str] = DEFAULT_FIRST_BATCH_SELECTED_NOTICE_IDS,
     generated_at: str | None = None,
+    phase_id: str = PHASE_09_ID,
     evidence_refs: Mapping[str, str] | None = None,
 ) -> dict[str, Any]:
     timestamp = generated_at or utc_now()
@@ -127,7 +148,7 @@ def build_first_batch_regulation_selection(
     return {
         "schema_version": FIRST_BATCH_SELECTION_SCHEMA_VERSION,
         "generated_at": timestamp,
-        "phase": PHASE_09_ID,
+        "phase": phase_id,
         "mode": "admission_preflight",
         "write_enabled": False,
         "target": "regulation",
@@ -154,13 +175,14 @@ def build_admission_preflight_report(
     *,
     selection: Mapping[str, Any],
     generated_at: str | None = None,
+    phase_id: str | None = None,
 ) -> dict[str, Any]:
     entries = _selection_entries(selection)
     selected_ids = tuple(str(entry["source_notice_id"]) for entry in entries)
     return {
         "schema_version": ADMISSION_PREFLIGHT_SCHEMA_VERSION,
         "generated_at": generated_at or utc_now(),
-        "phase": PHASE_09_ID,
+        "phase": phase_id or str(selection.get("phase") or PHASE_09_ID),
         "mode": "admission_preflight",
         "target": "regulation",
         "verdict": "passed",
@@ -192,8 +214,12 @@ def materialize_first_batch_regulation_selection(
     execute: bool,
     env: Mapping[str, str],
     generated_at: str | None = None,
+    phase_id: str | None = None,
+    import_source: str = "collected_notice_regulation_first_batch_promotion",
+    parser_version: str = _TARGET_PARSER_VERSION,
 ) -> dict[str, Any]:
     timestamp = generated_at or utc_now()
+    report_phase_id = phase_id or str(selection.get("phase") or PHASE_09_ID)
     materialization_by_collection = _assert_materialization_reports_closed(
         institutional_materialization=institutional_materialization,
         scoped_materialization=scoped_materialization,
@@ -206,6 +232,8 @@ def materialize_first_batch_regulation_selection(
         selection=selection,
         documents_by_collection=materialization_by_collection,
     )
+    if execute:
+        _assert_selected_documents_quality(selected_documents)
     readable_ref_count = _assert_source_refs_readable(
         documents=selected_documents,
         object_store=object_store,
@@ -221,7 +249,7 @@ def materialize_first_batch_regulation_selection(
         return {
             "schema_version": MATERIALIZATION_EXECUTE_SCHEMA_VERSION,
             "generated_at": timestamp,
-            "phase": PHASE_09_ID,
+            "phase": report_phase_id,
             "mode": "dry_run",
             "write_enabled": False,
             "target": "regulation",
@@ -242,7 +270,11 @@ def materialize_first_batch_regulation_selection(
     stats_by_collection: dict[str, dict[str, Any]] = {}
     for collection in TARGET_COLLECTIONS:
         documents = [
-            build_document_import_input(document)
+            build_document_import_input(
+                document,
+                promotion_phase_id=report_phase_id,
+                import_source=import_source,
+            )
             for document in selected_documents
             if str(document.get("target_collection") or "") == collection
         ]
@@ -254,7 +286,7 @@ def materialize_first_batch_regulation_selection(
             raw_asset_registry=raw_asset_registry,
             writer=object_store,
             object_store=settings,
-            parser_version=_TARGET_PARSER_VERSION,
+            parser_version=parser_version,
             embedding_model=_read_embedding_model_name(env),
             cleaning_policy_version=runtime_profile.cleaning_policy_version,
             default_visibility_scope=None,
@@ -276,7 +308,7 @@ def materialize_first_batch_regulation_selection(
     return {
         "schema_version": MATERIALIZATION_EXECUTE_SCHEMA_VERSION,
         "generated_at": timestamp,
-        "phase": PHASE_09_ID,
+        "phase": report_phase_id,
         "mode": "execute",
         "write_enabled": True,
         "target": "regulation",
@@ -287,22 +319,101 @@ def materialize_first_batch_regulation_selection(
         "created_document_ids": created_ids,
         "updated_document_ids": updated_ids,
         "skipped_document_ids": skipped_ids,
+        "materialized_documents": _materialized_document_reports(
+            documents=selected_documents,
+            registry=registry,
+            object_store=object_store,
+            bucket_derived=settings.bucket_derived,
+        ),
         "stats_by_collection": stats_by_collection,
         "target_scope_preflight_document_counts": preflight_counts,
         "target_scope_postflight_document_counts": postflight_counts,
         "source_to_target_trace": build_source_to_target_trace(
             selection=selection,
             generated_at=timestamp,
+            phase_id=report_phase_id,
         ),
         "query_serving_opened": False,
         "rag_release_opened": False,
     }
 
 
+def _assert_selected_documents_quality(documents: Sequence[Mapping[str, Any]]) -> None:
+    failures: list[str] = []
+    for document in documents:
+        quality = document.get("normalization_quality")
+        verdict = str(quality.get("quality_verdict") if isinstance(quality, Mapping) else "")
+        if verdict != "passed":
+            failures.append(
+                f"{document.get('target_document_id')} normalization quality must be passed "
+                f"(got {verdict or 'missing'})"
+            )
+    if failures:
+        raise ValueError("; ".join(failures))
+
+
+def _materialized_document_reports(
+    *,
+    documents: Sequence[Mapping[str, Any]],
+    registry: DocumentRegistry,
+    object_store: FirstBatchPromotionObjectStore,
+    bucket_derived: str,
+) -> list[dict[str, Any]]:
+    reports: list[dict[str, Any]] = []
+    for document in documents:
+        target_document_id = str(document.get("target_document_id") or "")
+        record = registry.current_version(
+            target_document_id,
+            preferred_revision_tracks=("current-effective",),
+        )
+        if record is None:
+            continue
+        canonical_key = record.canonical_markdown_object_key
+        document_units_key = record.document_units_object_key
+        canonical_bytes = (
+            object_store.get_bytes(bucket=bucket_derived, key=canonical_key)
+            if canonical_key
+            else b""
+        )
+        document_units_bytes = (
+            object_store.get_bytes(bucket=bucket_derived, key=document_units_key)
+            if document_units_key
+            else b""
+        )
+        quality = document.get("normalization_quality")
+        reports.append(
+            {
+                "target_document_id": record.document_id,
+                "target_collection": record.collection,
+                "version_id": record.version_id,
+                "content_hash": record.content_hash,
+                "cleaning_policy_version": record.cleaning_policy_version,
+                "normalizer_version": _normalizer_version(quality),
+                "normalization_quality": dict(quality) if isinstance(quality, Mapping) else {},
+                "canonical_markdown_object_key": canonical_key,
+                "canonical_markdown_sha256": hashlib.sha256(canonical_bytes).hexdigest()
+                if canonical_bytes
+                else "",
+                "document_units_object_key": document_units_key,
+                "document_units_sha256": hashlib.sha256(document_units_bytes).hexdigest()
+                if document_units_bytes
+                else "",
+            }
+        )
+    return reports
+
+
+def _normalizer_version(quality: object) -> str:
+    if not isinstance(quality, Mapping):
+        return ""
+    return str(quality.get("normalizer_version") or "")
+
+
 def build_source_to_target_trace(
     *,
     selection: Mapping[str, Any],
     generated_at: str | None = None,
+    phase_id: str | None = None,
 ) -> dict[str, Any]:
     entries = [
         {
@@ -318,7 +429,7 @@ def build_source_to_target_trace(
     return {
         "schema_version": SOURCE_TRACE_SCHEMA_VERSION,
         "generated_at": generated_at or utc_now(),
-        "phase": PHASE_09_ID,
+        "phase": phase_id or str(selection.get("phase") or PHASE_09_ID),
         "mode": "execute_trace",
         "write_enabled": False,
         "target": "regulation",
@@ -327,11 +438,15 @@ def build_source_to_target_trace(
     }
 
 
-def build_serving_closed_assertion(*, generated_at: str | None = None) -> dict[str, Any]:
+def build_serving_closed_assertion(
+    *,
+    generated_at: str | None = None,
+    phase_id: str = PHASE_09_ID,
+) -> dict[str, Any]:
     return {
         "schema_version": SERVING_CLOSED_SCHEMA_VERSION,
         "generated_at": generated_at or utc_now(),
-        "phase": PHASE_09_ID,
+        "phase": phase_id,
         "query_serving_opened": False,
         "rag_release_opened": False,
         "qdrant_alias_opened": False,
@@ -624,121 +739,6 @@ def _collect_ids_from_text(
         notice_ids.add(match.group(1))
     if "file-release:" in value or "notice:" in value:
         document_ids.add(value)
-
-
-def _document_source_refs(document: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    refs: list[Mapping[str, Any]] = []
-    refs.extend(ref for ref in _mapping_rows(document.get("source_object_refs")))
-    refs.extend(_owner_text_refs(document))
-    return refs
-
-
-def _owner_text_refs(document: Mapping[str, Any]) -> list[Mapping[str, Any]]:
-    recovery = document.get("owner_text_recovery")
-    if not isinstance(recovery, Mapping):
-        return []
-    written_refs = recovery.get("written_refs")
-    if not isinstance(written_refs, Mapping):
-        return []
-    return [dict(ref) for ref in written_refs.values() if isinstance(ref, Mapping)]
-
-
-def _unique_object_refs(refs: Sequence[Mapping[str, Any]]) -> tuple[Mapping[str, Any], ...]:
-    by_key: dict[tuple[str, str], Mapping[str, Any]] = {}
-    for ref in refs:
-        bucket = str(ref.get("bucket") or "").strip()
-        key = str(ref.get("key") or "").strip()
-        if bucket and key:
-            by_key[(bucket, key)] = ref
-    return tuple(by_key[key] for key in sorted(by_key))
-
-
-def _materialized_source_notice_ids(
-    documents_by_collection: Mapping[str, Sequence[Mapping[str, Any]]],
-) -> tuple[str, ...]:
-    return _normalize_notice_ids(
-        str(source_notice_id)
-        for documents in documents_by_collection.values()
-        for document in documents
-        for source_notice_id in document.get("source_notice_ids") or ()
-    )
-
-
-def _selection_notice_ids(selection: Mapping[str, Any]) -> tuple[str, ...]:
-    return tuple(str(entry["source_notice_id"]) for entry in _selection_entries(selection))
-
-
-def _selection_target_document_ids(selection: Mapping[str, Any]) -> tuple[str, ...]:
-    return tuple(str(entry["target_document_id"]) for entry in _selection_entries(selection))
-
-
-def _selection_entries(selection: Mapping[str, Any]) -> tuple[Mapping[str, Any], ...]:
-    return tuple(_mapping_rows(selection.get("entries")))
-
-
-def _index_candidates_by_notice(candidate_audit: Mapping[str, Any]) -> dict[str, Mapping[str, Any]]:
-    rows = tuple(_mapping_rows(candidate_audit.get("candidates")))
-    indexed = {
-        str(row.get("source_notice_id") or "").strip(): row
-        for row in rows
-        if str(row.get("source_notice_id") or "").strip()
-    }
-    if len(indexed) != len(rows):
-        raise ValueError("candidate audit contains duplicate or missing source_notice_id")
-    return indexed
-
-
-def _blocked_counts(candidate_audit: Mapping[str, Any]) -> dict[str, int]:
-    counts = Counter(
-        str(row.get("regulation_admission_class") or row.get("consumption_class") or "")
-        for row in _mapping_rows(candidate_audit.get("candidates"))
-    )
-    return {
-        key: counts.get(key, 0)
-        for key in ("manual_review", "needs_multimodal")
-        if counts.get(key, 0)
-    }
-
-
-def _mapping_rows(value: object) -> list[Mapping[str, Any]]:
-    if not isinstance(value, Sequence) or isinstance(value, (str, bytes)):
-        return []
-    return [item for item in value if isinstance(item, Mapping)]
-
-
-def _normalize_notice_ids(values: Sequence[str] | Any) -> tuple[str, ...]:
-    return tuple(sorted({str(value).strip() for value in values if str(value).strip()}))
-
-
-def _flatten_stats_ids(stats_by_collection: Mapping[str, Mapping[str, Any]], key: str) -> list[str]:
-    return sorted(
-        {
-            str(item)
-            for stats in stats_by_collection.values()
-            for item in list(stats.get(key) or ())
-            if str(item)
-        }
-    )
-
-
-def _required_text(value: object, field_name: str) -> str:
-    if not isinstance(value, str) or not value.strip():
-        raise ValueError(f"{field_name} is required")
-    return value.strip()
-
-
-def _read_embedding_model_name(env: Mapping[str, str]) -> str:
-    return (
-        str(env.get("EMBEDDING_MODEL") or env.get("INGESTION_EMBEDDING_MODEL") or "").strip()
-        or "Qwen3-Embedding-4B"
-    )
-
-
-def _load_json_object(path: Path) -> dict[str, Any]:
-    payload = json.loads(Path(path).read_text(encoding="utf-8"))
-    if not isinstance(payload, Mapping):
-        raise ValueError(f"{path} must contain a JSON object")
-    return dict(payload)
 
 
 __all__ = [

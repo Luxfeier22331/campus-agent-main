@@ -38,6 +38,18 @@ class SmokeStructuredProjectionPostgresWorkerTest(unittest.TestCase):
                 "transport_schedule",
                 "service_guide",
                 "contact_directory",
+                "academic_calendar",
+            ],
+        )
+        corpora = [call["corpus"] for call in publisher.publish_calls]
+        self.assertEqual(
+            corpora,
+            [
+                "campus_services",
+                "campus_services",
+                "campus_services",
+                "campus_services",
+                "calendar",
             ],
         )
         contact_call = publisher.publish_calls[3]
@@ -54,6 +66,52 @@ class SmokeStructuredProjectionPostgresWorkerTest(unittest.TestCase):
             payload["releases"]["contact_directory"]["counts"]["contact_records"],
             1,
         )
+        self.assertEqual(
+            payload["releases"]["academic_calendar"]["counts"]["academic_calendar_records"],
+            1,
+        )
+        transport_call = publisher.publish_calls[1]
+        transport_bundle = transport_call["bundle"]
+        assert isinstance(transport_bundle, dict)
+        self.assertEqual(len(transport_bundle["transport_routes"]), 2)
+        self.assertEqual(len(transport_bundle["scheduled_departures"]), 2)
+        self.assertEqual(len(transport_bundle["transport_operational_notices"]), 1)
+        self.assertEqual(
+            transport_bundle["transport_operational_notices"][0]["notice_id"],
+            "353903",
+        )
+
+    def test_main_can_limit_seed_to_selected_collections_and_closes_pools(self) -> None:
+        publisher = _RecordingPublisher()
+
+        with (
+            patch.object(worker, "load_worker_env"),
+            patch.object(
+                worker,
+                "build_structured_projection_publisher_from_env",
+                return_value=publisher,
+            ) as build_publisher,
+            patch.object(worker, "close_persistent_postgres_pools") as close_pools,
+            redirect_stdout(io.StringIO()),
+        ):
+            worker.main(
+                (
+                    "--release-id",
+                    "supervisor-runtime-process-smoke",
+                    "--generated-at",
+                    "2026-04-24T20:30:00+08:00",
+                    "--collection",
+                    "transport_schedule",
+                )
+            )
+
+        collections = [call["collection"] for call in publisher.publish_calls]
+        self.assertEqual(collections, ["transport_schedule"])
+        self.assertEqual(
+            build_publisher.call_args.kwargs["bootstrap_collections"],
+            ("transport_schedule",),
+        )
+        close_pools.assert_called_once_with()
 
 
 class _RecordingPublisher:
@@ -76,6 +134,7 @@ class _RecordingPublisher:
             "scheduled_departures": len(bundle.get("scheduled_departures", [])),
             "service_guide_records": len(bundle.get("service_guide_records", [])),
             "contact_records": len(bundle.get("contact_records", [])),
+            "academic_calendar_records": len(bundle.get("academic_calendar_records", [])),
         }
         return SimpleNamespace(release_id=release_id, counts=counts)
 

@@ -75,7 +75,7 @@ def transport_baseline_policy(
             else _overlay_kind(
                 service_date_ranges=service_date_ranges,
                 policy_text=policy_text,
-                fallback="manual_review",
+                unresolved_kind="unresolved_machine_review",
             )
         )
         ocr_priority = "defer_until_baseline" if requires_schedule_image_ocr else "search_only"
@@ -95,7 +95,7 @@ def transport_baseline_policy(
         overlay_kind = _overlay_kind(
             service_date_ranges=bounded_service_date_ranges,
             policy_text=policy_text,
-            fallback="temporary_overlay",
+            unresolved_kind="temporary_overlay",
         )
         ocr_priority = (
             "execute_now"
@@ -120,7 +120,7 @@ def transport_baseline_policy(
         overlay_kind = _overlay_kind(
             service_date_ranges=bounded_service_date_ranges,
             policy_text=policy_text,
-            fallback="temporary_overlay",
+            unresolved_kind="temporary_overlay",
         )
         ocr_priority = (
             "execute_now"
@@ -132,9 +132,9 @@ def transport_baseline_policy(
             baseline_reason_codes.append("schedule_image_requires_ocr")
     else:
         temporal_relation = "post_baseline" if release_date else "unknown"
-        overlay_kind = "manual_review"
-        ocr_priority = "manual_review" if requires_schedule_image_ocr else "search_only"
-        baseline_reason_codes.append("manual_review_required")
+        overlay_kind = "unresolved_machine_review"
+        ocr_priority = "machine_review_required" if requires_schedule_image_ocr else "search_only"
+        baseline_reason_codes.append("machine_review_required")
         if requires_schedule_image_ocr:
             baseline_reason_codes.append("schedule_image_requires_ocr")
 
@@ -165,7 +165,7 @@ def requires_schedule_image_ocr(
     )
     if any(
         row.get("media_role") == MEDIA_ROLE_SCHEDULE_TABLE_CARRIER
-        and row.get("media_state") in {"ocr_pending", "failed_retryable"}
+        and row.get("media_state") in {"pending", "manual_review", "failed_retryable"}
         for row in media_states
     ):
         return True
@@ -226,7 +226,7 @@ def _overlay_kind(
     *,
     service_date_ranges: tuple[tuple[str, str], ...],
     policy_text: str,
-    fallback: str,
+    unresolved_kind: str,
 ) -> str:
     if service_date_ranges:
         if any(keyword in policy_text for keyword in ("停运", "暂停", "停止", "不运行")):
@@ -234,7 +234,7 @@ def _overlay_kind(
         return "temporary_overlay"
     if _looks_like_baseline_delta(policy_text):
         return "baseline_delta_candidate"
-    return fallback
+    return unresolved_kind
 
 
 def _looks_like_baseline_delta(policy_text: str) -> bool:

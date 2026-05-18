@@ -7,6 +7,11 @@ export {
 } from "./docs";
 export {
 	crawlRuns,
+	officialWebTargetArtifactVerificationSummaries,
+	officialWebTargetJobCandidates,
+	officialWebTargetJobs,
+	officialWebTargetPageAttempts,
+	officialWebTargetReleaseGates,
 	pageFreshness,
 	pageObservations,
 	runArtifacts,
@@ -14,7 +19,13 @@ export {
 	runOutbox,
 } from "./official-web";
 export {
+	authenticatedNoticeProcessingEventProjection,
+	authenticatedNoticeProcessingProjection,
+	authenticatedNoticeRunProcessingEventProjection,
+	authenticatedNoticeRunProcessingProjection,
 	metricRollup,
+	officialWebReleaseTaskEventProjection,
+	officialWebReleaseTaskProjection,
 	officialWebRunProjection,
 	officialWebSiteProjection,
 	qualityBadcaseProjection,
@@ -40,6 +51,11 @@ import {
 } from "./docs";
 import {
 	crawlRuns,
+	officialWebTargetArtifactVerificationSummaries,
+	officialWebTargetJobCandidates,
+	officialWebTargetJobs,
+	officialWebTargetPageAttempts,
+	officialWebTargetReleaseGates,
 	pageFreshness,
 	pageObservations,
 	runArtifacts,
@@ -47,7 +63,13 @@ import {
 	runOutbox,
 } from "./official-web";
 import {
+	authenticatedNoticeProcessingEventProjection,
+	authenticatedNoticeProcessingProjection,
+	authenticatedNoticeRunProcessingEventProjection,
+	authenticatedNoticeRunProcessingProjection,
 	metricRollup,
+	officialWebReleaseTaskEventProjection,
+	officialWebReleaseTaskProjection,
 	officialWebRunProjection,
 	officialWebSiteProjection,
 	qualityBadcaseProjection,
@@ -66,6 +88,11 @@ import {
 
 export const appApiOwnedSchema = {
 	crawlRuns,
+	officialWebTargetJobs,
+	officialWebTargetJobCandidates,
+	officialWebTargetPageAttempts,
+	officialWebTargetArtifactVerificationSummaries,
+	officialWebTargetReleaseGates,
 	pageObservations,
 	pageFreshness,
 	runHeartbeats,
@@ -89,6 +116,12 @@ export const appApiOwnedSchema = {
 	traceBacklinkProjection,
 	officialWebRunProjection,
 	officialWebSiteProjection,
+	officialWebReleaseTaskProjection,
+	officialWebReleaseTaskEventProjection,
+	authenticatedNoticeProcessingProjection,
+	authenticatedNoticeProcessingEventProjection,
+	authenticatedNoticeRunProcessingProjection,
+	authenticatedNoticeRunProcessingEventProjection,
 	wechatOfficialAccountCaptureRuns,
 	wechatOfficialAccountRunHeartbeats,
 	wechatOfficialAccountRunArtifacts,

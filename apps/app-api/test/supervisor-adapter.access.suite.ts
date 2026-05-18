@@ -65,6 +65,7 @@ export function registerSupervisorAdapterAccessSuite(ctx: SupervisorAdapterSuite
 				SUPERVISOR_API_ACCESS_CLIENT_ID: "access-client-id",
 				SUPERVISOR_API_ACCESS_CLIENT_SECRET: "access-client-secret",
 				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
 			},
 			{ fetchImplementation },
 		);
@@ -75,10 +76,33 @@ export function registerSupervisorAdapterAccessSuite(ctx: SupervisorAdapterSuite
 				headers: {
 					"CF-Access-Client-Id": "access-client-id",
 					"CF-Access-Client-Secret": "access-client-secret",
+					"x-worker-origin-auth": "shared-secret",
 				},
 				method: "GET",
 			}),
 		);
+	});
+
+	it("raises supervisor_invalid_response when readiness payload is not valid json", async () => {
+		const fetchImplementation = vi.fn().mockResolvedValue(
+			new Response("not-json", {
+				headers: { "content-type": "application/json" },
+				status: 200,
+			}),
+		);
+
+		await expect(
+			probeSupervisorApiReady(
+				{
+					SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+				},
+				{ fetchImplementation },
+			),
+		).rejects.toMatchObject({
+			code: "supervisor_invalid_response",
+			retryable: true,
+			status: 502,
+		});
 	});
 
 	it("reports campus services structured runtime blockers from supervisor readiness", async () => {

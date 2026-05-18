@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { and, asc, desc, eq, inArray, isNull, lte, or } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, lte, or, sql } from "drizzle-orm";
 
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
@@ -7,6 +7,7 @@ import {
 	crawlRuns,
 	officialWebRunProjection,
 	officialWebSiteProjection,
+	officialWebTargetArtifactVerificationSummaries,
 	runArtifacts,
 	runOutbox,
 } from "../../db/schema";
@@ -300,6 +301,43 @@ export function createPgOfficialWebProjectionStore(
 				.returning({ runId: crawlRuns.runId });
 
 			return rows.length > 0;
+		},
+
+		async upsertTargetArtifactVerificationSummaries(records) {
+			if (records.length === 0) {
+				return;
+			}
+			const db = await getDb();
+			await db
+				.insert(officialWebTargetArtifactVerificationSummaries)
+				.values(
+					records.map((record) => ({
+						canonicalVerification: record.canonicalVerification,
+						createdAt: new Date(record.updatedAt),
+						jobId: record.jobId,
+						objectVerificationId: record.objectVerificationId,
+						runId: record.runId,
+						sourceHandoffId: record.sourceHandoffId,
+						status: record.status,
+						summaryId: record.summaryId,
+						summaryJson: record.summary,
+						updatedAt: new Date(record.updatedAt),
+					})),
+				)
+				.onConflictDoUpdate({
+					set: {
+						canonicalVerification: sql`excluded.canonical_verification`,
+						objectVerificationId: sql`excluded.object_verification_id`,
+						sourceHandoffId: sql`excluded.source_handoff_id`,
+						status: sql`excluded.status`,
+						summaryJson: sql`excluded.summary_json`,
+						updatedAt: sql`excluded.updated_at`,
+					},
+					target: [
+						officialWebTargetArtifactVerificationSummaries.jobId,
+						officialWebTargetArtifactVerificationSummaries.runId,
+					],
+				});
 		},
 
 		async upsertRunProjection(projection) {

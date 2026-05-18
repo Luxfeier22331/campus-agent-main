@@ -59,23 +59,28 @@ func (s *Server) handleAnswer(response http.ResponseWriter, request *http.Reques
 		s.writeTerminalError(response, *runResult.Terminal)
 		return
 	}
-	writeOutcome := s.writeBridgeResponse(
-		response,
+	preparedResponse := s.prepareBridgeResponse(
 		runResult.BridgeResponse,
 		executionRequest,
 		runResult.BridgeRunState,
 		runResult.WorkflowRun,
 	)
-	s.recordBridgeWriteOutcome(
+	if terminal := s.recordBridgeWriteOutcome(
 		runResult.RequestContext,
 		executionRequest,
 		startedAt,
 		runResult.BridgeDuration,
 		runResult.QueueWait,
 		executionModeAnswer,
-		writeOutcome,
-	)
-	runResult.Complete(writeOutcome.State)
+		preparedResponse.Outcome,
+	); terminal != nil {
+		runResult.Complete(terminal.State)
+		setOutcome(response, terminal.Outcome)
+		s.writeTerminalError(response, *terminal)
+		return
+	}
+	writePreparedBridgeResponse(response, preparedResponse)
+	runResult.Complete(preparedResponse.Outcome.State)
 }
 
 func (s *Server) handleAnswerStream(response http.ResponseWriter, request *http.Request) {
@@ -163,7 +168,7 @@ func (s *Server) handleAnswerStream(response http.ResponseWriter, request *http.
 		payload.TraceID = executionRequest.TraceID
 	}
 	setOutcome(response, outcome.Outcome)
-	s.recordBridgeWriteOutcome(
+	if terminal := s.recordBridgeWriteOutcome(
 		runResult.RequestContext,
 		executionRequest,
 		startedAt,
@@ -171,7 +176,26 @@ func (s *Server) handleAnswerStream(response http.ResponseWriter, request *http.
 		runResult.QueueWait,
 		executionModeAnswerStream,
 		outcome,
-	)
+	); terminal != nil {
+		runResult.Complete(terminal.State)
+		setOutcome(response, terminal.Outcome)
+		emitSSE(response, terminalStreamEventName(terminal.State), streamPayload{
+			RequestID:  executionRequest.RequestID,
+			TraceID:    executionRequest.TraceID,
+			EventType:  terminalStreamEventName(terminal.State),
+			Status:     streamStatusForLifecycle(terminal.State),
+			Outcome:    terminal.Code,
+			HTTPStatus: terminal.StatusCode,
+			Retryable:  terminal.Retryable,
+			Error: &errorInfo{
+				Code:      terminal.Code,
+				Message:   terminal.Message,
+				Retryable: terminal.Retryable,
+			},
+			OccurredAt: time.Now().UTC().Format(time.RFC3339Nano),
+		})
+		return
+	}
 	runResult.Complete(outcome.State)
 	emitSSE(response, terminalStreamEventName(outcome.State), payload)
 }
@@ -294,7 +318,7 @@ func (s *Server) rejectClosedStructuredRuntime(
 		"closed",
 	)
 	setOutcome(response, "structured_runtime_closed")
-	s.telemetry.Emit(ctx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(ctx, runtimeTelemetryEvent(telemetry.Event{
 		Name:                "answer.admission_rejected",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
@@ -305,8 +329,11 @@ func (s *Server) rejectClosedStructuredRuntime(
 		FailureCode:         "structured_runtime_closed",
 		StatusCode:          http.StatusServiceUnavailable,
 		Duration:            duration,
-	}, executionRequest))
-	s.emitExecutionAudit(ctx, runtimeAuditEvent(executionaudit.Event{
+	}, executionRequest)); err != nil {
+		s.writeTelemetryFailure(response, executionRequest.RequestID, executionRequest.TraceID)
+		return true
+	}
+	if err := s.emitExecutionAudit(ctx, runtimeAuditEvent(executionaudit.Event{
 		Decision:            "structured_runtime_closed",
 		Duration:            duration,
 		EventType:           "execution.admission_rejected",
@@ -317,7 +344,10 @@ func (s *Server) rejectClosedStructuredRuntime(
 		RequestedCapability: executionRequest.RequestedCapability,
 		Retryable:           false,
 		TraceID:             executionRequest.TraceID,
-	}, executionRequest))
+	}, executionRequest)); err != nil {
+		s.writeExecutionAuditFailure(response, executionRequest.RequestID, executionRequest.TraceID)
+		return true
+	}
 	writeRuntimeFailure(
 		response,
 		http.StatusServiceUnavailable,
@@ -354,7 +384,7 @@ func (s *Server) rejectClosedStructuredRuntimeStream(
 		"closed",
 	)
 	setOutcome(response, "structured_runtime_closed")
-	s.telemetry.Emit(ctx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(ctx, runtimeTelemetryEvent(telemetry.Event{
 		Name:                "answer_stream.admission_rejected",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
@@ -365,8 +395,18 @@ func (s *Server) rejectClosedStructuredRuntimeStream(
 		FailureCode:         "structured_runtime_closed",
 		StatusCode:          http.StatusServiceUnavailable,
 		Duration:            duration,
-	}, executionRequest))
-	s.emitExecutionAudit(ctx, runtimeAuditEvent(executionaudit.Event{
+	}, executionRequest)); err != nil {
+		emitStructuredRuntimeStreamFailure(
+			response,
+			executionRequest,
+			http.StatusServiceUnavailable,
+			"telemetry_delivery_failed",
+			"Supervisor telemetry delivery failed.",
+			true,
+		)
+		return true
+	}
+	if err := s.emitExecutionAudit(ctx, runtimeAuditEvent(executionaudit.Event{
 		Decision:            "structured_runtime_closed",
 		Duration:            duration,
 		EventType:           "execution.admission_rejected",
@@ -377,7 +417,17 @@ func (s *Server) rejectClosedStructuredRuntimeStream(
 		RequestedCapability: executionRequest.RequestedCapability,
 		Retryable:           false,
 		TraceID:             executionRequest.TraceID,
-	}, executionRequest))
+	}, executionRequest)); err != nil {
+		emitStructuredRuntimeStreamFailure(
+			response,
+			executionRequest,
+			http.StatusServiceUnavailable,
+			"execution_audit_delivery_failed",
+			"Supervisor execution audit delivery failed.",
+			true,
+		)
+		return true
+	}
 	emitSSE(response, "execution.failed", streamPayload{
 		RequestID:  executionRequest.RequestID,
 		TraceID:    executionRequest.TraceID,
@@ -406,7 +456,7 @@ func (s *Server) rejectBridgeNotConfigured(
 		return false
 	}
 	setOutcome(response, "bridge_not_configured")
-	s.telemetry.Emit(ctx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(ctx, runtimeTelemetryEvent(telemetry.Event{
 		Name:                string(executionModeAnswer) + ".failed",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
@@ -416,8 +466,11 @@ func (s *Server) rejectBridgeNotConfigured(
 		FailureCode:         "bridge_not_configured",
 		StatusCode:          http.StatusServiceUnavailable,
 		Duration:            time.Since(startedAt),
-	}, executionRequest))
-	s.emitExecutionAudit(ctx, runtimeAuditEvent(executionaudit.Event{
+	}, executionRequest)); err != nil {
+		s.writeTelemetryFailure(response, executionRequest.RequestID, executionRequest.TraceID)
+		return true
+	}
+	if err := s.emitExecutionAudit(ctx, runtimeAuditEvent(executionaudit.Event{
 		Duration:            time.Since(startedAt),
 		EventType:           "execution.bridge_failed",
 		FailureKind:         "bridge_not_configured",
@@ -427,7 +480,10 @@ func (s *Server) rejectBridgeNotConfigured(
 		RequestedCapability: executionRequest.RequestedCapability,
 		Retryable:           true,
 		TraceID:             executionRequest.TraceID,
-	}, executionRequest))
+	}, executionRequest)); err != nil {
+		s.writeExecutionAuditFailure(response, executionRequest.RequestID, executionRequest.TraceID)
+		return true
+	}
 	writeError(
 		response,
 		http.StatusServiceUnavailable,
@@ -448,7 +504,7 @@ func (s *Server) rejectBridgeNotConfiguredStream(
 		return false
 	}
 	setOutcome(response, "bridge_not_configured")
-	s.telemetry.Emit(ctx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(ctx, runtimeTelemetryEvent(telemetry.Event{
 		Name:                string(executionModeAnswerStream) + ".failed",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
@@ -458,8 +514,18 @@ func (s *Server) rejectBridgeNotConfiguredStream(
 		FailureCode:         "bridge_not_configured",
 		StatusCode:          http.StatusServiceUnavailable,
 		Duration:            time.Since(startedAt),
-	}, executionRequest))
-	s.emitExecutionAudit(ctx, runtimeAuditEvent(executionaudit.Event{
+	}, executionRequest)); err != nil {
+		emitStructuredRuntimeStreamFailure(
+			response,
+			executionRequest,
+			http.StatusServiceUnavailable,
+			"telemetry_delivery_failed",
+			"Supervisor telemetry delivery failed.",
+			true,
+		)
+		return true
+	}
+	if err := s.emitExecutionAudit(ctx, runtimeAuditEvent(executionaudit.Event{
 		Duration:            time.Since(startedAt),
 		EventType:           "execution.bridge_failed",
 		FailureKind:         "bridge_not_configured",
@@ -469,7 +535,17 @@ func (s *Server) rejectBridgeNotConfiguredStream(
 		RequestedCapability: executionRequest.RequestedCapability,
 		Retryable:           true,
 		TraceID:             executionRequest.TraceID,
-	}, executionRequest))
+	}, executionRequest)); err != nil {
+		emitStructuredRuntimeStreamFailure(
+			response,
+			executionRequest,
+			http.StatusServiceUnavailable,
+			"execution_audit_delivery_failed",
+			"Supervisor execution audit delivery failed.",
+			true,
+		)
+		return true
+	}
 	emitSSE(response, "execution.failed", streamPayload{
 		RequestID:  executionRequest.RequestID,
 		TraceID:    executionRequest.TraceID,

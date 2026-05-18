@@ -6,9 +6,11 @@ from pathlib import Path
 from tempfile import TemporaryDirectory
 
 from campus_ingestion_core.internal_notice_scoped_rule_chunk_prep import (
+    _build_document_report,
     prepare_scoped_rule_chunks,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
+from campus_ingestion_core.process_shared import IndexableChunk
 
 
 class _FakeObjectStore:
@@ -184,7 +186,120 @@ def _row(
     }
 
 
+def _chunk(
+    *,
+    record: DocumentRegistryRecord,
+    order: int,
+    content_role: str,
+    display_text: str,
+    text: str | None = None,
+    provision_label: str | None = None,
+) -> IndexableChunk:
+    anchor: dict[str, object] = {"section_path": ["三、申请条件"]}
+    if provision_label:
+        anchor["provision_label"] = provision_label
+    return IndexableChunk(
+        document_id=record.document_id,
+        revision_track=record.revision_track,
+        version_id=record.version_id,
+        chunk_id=f"{record.document_id}:{record.version_id}:chunk-{order:04d}",
+        chunk_order=order,
+        corpus=record.corpus,
+        collection=record.collection,
+        source_uri=record.source_uri,
+        canonical_url=record.source_uri,
+        latest_url=record.source_uri,
+        source_chunk_id=None,
+        status=record.status,
+        anchor=anchor,
+        text=text or f"标题：历史专项规则\n章节：三、申请条件\n{display_text}",
+        source_channel=record.source_channel,
+        is_current=record.is_current,
+        parser_version=record.parser_version,
+        embedding_model=record.embedding_model,
+        entitlement_groups=record.entitlement_groups,
+        visibility_scope=record.visibility_scope,
+        visibility_level=record.visibility_level,
+        metadata={
+            "content_role": content_role,
+            "title": "历史专项规则",
+            "document_nature": "time_bound_operational_rule",
+            "promotion_source_collection": "campus_notices/internal_notice",
+            "regulation_title_normalized": "历史专项规则",
+            "source_notice_ids": ["351907"],
+            "source_notice_release_time": "2026-04-01 12:00",
+            "display_text": display_text,
+            "contextualized_text": content_role != "scoped_rule_title",
+            "final_token_count": 80,
+            **({"provision_label": provision_label} if provision_label else {}),
+        },
+    )
+
+
 class ScopedRuleChunkPrepTest(unittest.TestCase):
+    def test_document_report_flags_adjacent_overlap_and_coarse_provision_label(
+        self,
+    ) -> None:
+        record = _record(
+            document_id="institutional_regulation:muc:历史专项规则:chunk-quality",
+            version_id="sha256:scoped:chunk-quality",
+            units_key="regulations/documents/scoped_rules/chunk-quality/document-units.jsonl",
+        )
+        unit_rows = [
+            {
+                "metadata": {
+                    "title": "历史专项规则",
+                    "document_nature": "time_bound_operational_rule",
+                    "source_notice_ids": ["351907"],
+                    "source_notice_release_time": "2026-04-01 12:00",
+                    "promotion_source_collection": "campus_notices/internal_notice",
+                    "regulation_title_normalized": "历史专项规则",
+                }
+            }
+        ]
+        chunks = (
+            _chunk(
+                record=record,
+                order=1,
+                content_role="scoped_rule_title",
+                display_text="历史专项规则",
+                text="历史专项规则",
+            ),
+            _chunk(
+                record=record,
+                order=2,
+                content_role="scoped_rule_body",
+                display_text=(
+                    "1. 第一项要求。\n2. 第二项要求。\n3. 以排名前3发明人获得至少1项授权专利。"
+                ),
+                provision_label="1.",
+            ),
+            _chunk(
+                record=record,
+                order=3,
+                content_role="scoped_rule_body",
+                display_text=("3. 以排名前3发明人获得至少1项授权专利。\n4. 其他科研成果。"),
+                provision_label="3.",
+            ),
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            report = _build_document_report(
+                record=record,
+                title="历史专项规则",
+                unit_rows=unit_rows,
+                chunks=chunks,
+                relative_root=Path(temp_dir),
+                document_units_path=Path(temp_dir) / "document-units.jsonl",
+                chunk_catalog_path=Path(temp_dir) / "chunks.jsonl",
+            )
+
+        self.assertFalse(report.passed)
+        self.assertEqual(report.adjacent_body_overlap_chunk_count, 1)
+        self.assertEqual(report.coarse_provision_label_chunk_count, 2)
+        self.assertIn("adjacent_body_overlap", report.issues)
+        self.assertIn("coarse_provision_label", report.issues)
+
     def test_prepare_scoped_rule_chunks_ignores_source_notice_records(self) -> None:
         source_notice = _source_notice_record(notice_id="187233")
 
@@ -418,6 +533,93 @@ class ScopedRuleChunkPrepTest(unittest.TestCase):
                 validation["failed_document_ids"],
                 [annual_record.document_id],
             )
+
+    def test_prepare_scoped_rule_chunks_blocks_generated_at_release_time(self) -> None:
+        scoped_record = _record(
+            document_id="institutional_regulation:muc:历史专项规则:generated-at-release-time",
+            version_id="sha256:scoped:generated-at-release-time",
+            units_key="regulations/documents/scoped_rules/generated-at/document-units.jsonl",
+        )
+        object_store = _FakeObjectStore(
+            objects={
+                (
+                    "campus-rag-derived",
+                    scoped_record.document_units_object_key or "",
+                ): _scoped_rule_rows(
+                    document_id=scoped_record.document_id,
+                    version_id=scoped_record.version_id,
+                    title="历史专项规则",
+                    document_nature="time_bound_operational_rule",
+                    source_notice_ids=("351907",),
+                    source_notice_release_time="2026-05-02T00:00:00+00:00",
+                    cycle_year="2026",
+                    school_unit_name="新闻与传播学院",
+                    body_blocks=(
+                        "## 第一条",
+                        "为规范历史专项规则处理流程，制定本规则。",
+                    ),
+                )
+            }
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            report = prepare_scoped_rule_chunks(
+                records=(scoped_record,),
+                object_store=object_store,
+                output_dir=Path(temp_dir),
+            )
+
+            self.assertFalse(report.passed)
+            validation = json.loads(
+                Path(report.validation_summary_path).read_text(encoding="utf-8")
+            )
+            self.assertFalse(validation["passed"])
+            self.assertEqual(validation["generated_at_release_time_count"], 1)
+            self.assertEqual(validation["failed_document_ids"], [scoped_record.document_id])
+
+    def test_prepare_scoped_rule_chunks_blocks_html_and_body_like_section_path(self) -> None:
+        scoped_record = _record(
+            document_id="institutional_regulation:muc:历史专项规则:html-section-path",
+            version_id="sha256:scoped:html-section-path",
+            units_key="regulations/documents/scoped_rules/html-section-path/document-units.jsonl",
+        )
+        object_store = _FakeObjectStore(
+            objects={
+                (
+                    "campus-rag-derived",
+                    scoped_record.document_units_object_key or "",
+                ): _scoped_rule_rows(
+                    document_id=scoped_record.document_id,
+                    version_id=scoped_record.version_id,
+                    title="历史专项规则",
+                    document_nature="time_bound_operational_rule",
+                    source_notice_ids=("351907",),
+                    source_notice_release_time="2026-04-01 12:00",
+                    cycle_year="2026",
+                    school_unit_name="新闻与传播学院",
+                    body_blocks=(
+                        "## （一）应遵守学校纪律要求；",
+                        "申请者应按要求提交材料。<table><tr><td>材料</td></tr></table>",
+                    ),
+                )
+            }
+        )
+
+        with TemporaryDirectory() as temp_dir:
+            report = prepare_scoped_rule_chunks(
+                records=(scoped_record,),
+                object_store=object_store,
+                output_dir=Path(temp_dir),
+            )
+
+            self.assertFalse(report.passed)
+            validation = json.loads(
+                Path(report.validation_summary_path).read_text(encoding="utf-8")
+            )
+            self.assertFalse(validation["passed"])
+            self.assertEqual(validation.get("html_tag_chunk_count"), 1)
+            self.assertGreaterEqual(validation.get("body_like_section_path_chunk_count"), 1)
+            self.assertEqual(validation["failed_document_ids"], [scoped_record.document_id])
 
 
 if __name__ == "__main__":

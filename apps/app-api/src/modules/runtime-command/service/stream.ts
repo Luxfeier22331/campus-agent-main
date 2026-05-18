@@ -13,33 +13,44 @@ interface ParsedSseEvent {
 	event: string;
 }
 
+class SupervisorLifecycleContractError extends Error {
+	constructor(message: string) {
+		super(`supervisor lifecycle contract violation: ${message}`);
+		this.name = "SupervisorLifecycleContractError";
+	}
+}
+
 function getRecord(value: unknown): Record<string, unknown> | null {
 	return value && typeof value === "object" && !Array.isArray(value)
 		? (value as Record<string, unknown>)
 		: null;
 }
 
-function getString(
-	record: Record<string, unknown>,
-	snakeKey: string,
-	camelKey: string,
-): string | null {
-	const value = snakeKey in record ? record[snakeKey] : record[camelKey];
+function getString(record: Record<string, unknown>, snakeKey: string): string | null {
+	const value = record[snakeKey];
 	return typeof value === "string" && value.trim() ? value : null;
 }
 
-function getError(value: unknown): { code: string; message: string; retryable?: boolean } {
+function getError(value: unknown): { code: string; message: string; retryable: boolean } {
 	const record = getRecord(value);
+	if (!record) {
+		throw new SupervisorLifecycleContractError("terminal error payload must be an object");
+	}
+	const code = getString(record, "code");
+	if (!code) {
+		throw new SupervisorLifecycleContractError("terminal error missing code");
+	}
+	const message = getString(record, "message");
+	if (!message) {
+		throw new SupervisorLifecycleContractError("terminal error missing message");
+	}
+	if (typeof record.retryable !== "boolean") {
+		throw new SupervisorLifecycleContractError("terminal error missing retryable");
+	}
 	return {
-		code:
-			typeof record?.code === "string" && record.code.trim()
-				? record.code
-				: "supervisor_invalid_response",
-		message:
-			typeof record?.message === "string" && record.message.trim()
-				? record.message
-				: "Supervisor stream returned an invalid terminal error.",
-		retryable: typeof record?.retryable === "boolean" ? record.retryable : true,
+		code,
+		message,
+		retryable: record.retryable,
 	};
 }
 
@@ -66,7 +77,7 @@ function parseSseBlock(block: string): ParsedSseEvent | null {
 	try {
 		data = JSON.parse(rawData);
 	} catch {
-		data = rawData;
+		throw new SupervisorLifecycleContractError("SSE event data must be JSON");
 	}
 
 	return { data, event };
@@ -115,8 +126,6 @@ export async function* parseSupervisorSse(response: Response): AsyncIterable<Par
 export function mapSupervisorLifecycleEvent(input: {
 	data: unknown;
 	event: string;
-	fallbackRequestId: string;
-	fallbackTraceId: string;
 	now: () => Date;
 }): ChatCommandStreamEvent | null {
 	if (input.event !== "execution.queued" && input.event !== "execution.running") {
@@ -124,21 +133,23 @@ export function mapSupervisorLifecycleEvent(input: {
 	}
 
 	const record = getRecord(input.data);
-	const requestId = record
-		? (getString(record, "request_id", "requestId") ?? input.fallbackRequestId)
-		: input.fallbackRequestId;
-	const traceId = record
-		? (getString(record, "trace_id", "traceId") ?? input.fallbackTraceId)
-		: input.fallbackTraceId;
-	const occurredAt = record
-		? (getString(record, "occurred_at", "occurredAt") ?? input.now().toISOString())
-		: input.now().toISOString();
+	if (!record) {
+		throw new SupervisorLifecycleContractError("lifecycle event payload must be an object");
+	}
+	const requestId = getString(record, "request_id");
+	if (!requestId) {
+		throw new SupervisorLifecycleContractError("lifecycle event missing request_id");
+	}
+	const traceId = getString(record, "trace_id");
+	if (!traceId) {
+		throw new SupervisorLifecycleContractError("lifecycle event missing trace_id");
+	}
+	const occurredAt = getString(record, "occurred_at");
+	if (!occurredAt) {
+		throw new SupervisorLifecycleContractError("lifecycle event missing occurred_at");
+	}
 	const status =
-		input.event === "execution.queued"
-			? "queued"
-			: record
-				? (getString(record, "status", "status") ?? "running")
-				: "running";
+		input.event === "execution.queued" ? "queued" : (getString(record, "status") ?? "running");
 
 	return {
 		data: {
@@ -154,8 +165,6 @@ export function mapSupervisorLifecycleEvent(input: {
 export function parseSupervisorTerminalResponse(input: {
 	data: unknown;
 	event: string;
-	fallbackRequestId: string;
-	fallbackTraceId: string;
 	now: () => Date;
 }): {
 	occurredAt: string;
@@ -173,15 +182,21 @@ export function parseSupervisorTerminalResponse(input: {
 	}
 
 	const record = getRecord(input.data);
-	const requestId = record
-		? (getString(record, "request_id", "requestId") ?? input.fallbackRequestId)
-		: input.fallbackRequestId;
-	const traceId = record
-		? (getString(record, "trace_id", "traceId") ?? input.fallbackTraceId)
-		: input.fallbackTraceId;
-	const occurredAt = record
-		? (getString(record, "occurred_at", "occurredAt") ?? input.now().toISOString())
-		: input.now().toISOString();
+	if (!record) {
+		throw new SupervisorLifecycleContractError("terminal event payload must be an object");
+	}
+	const requestId = getString(record, "request_id");
+	if (!requestId) {
+		throw new SupervisorLifecycleContractError("terminal event missing request_id");
+	}
+	const traceId = getString(record, "trace_id");
+	if (!traceId) {
+		throw new SupervisorLifecycleContractError("terminal event missing trace_id");
+	}
+	const occurredAt = getString(record, "occurred_at");
+	if (!occurredAt) {
+		throw new SupervisorLifecycleContractError("terminal event missing occurred_at");
+	}
 
 	if (input.event === "execution.completed") {
 		const responseRecord = getRecord(record?.response);
@@ -204,7 +219,7 @@ export function parseSupervisorTerminalResponse(input: {
 		return {
 			occurredAt,
 			requestId,
-			response: parseSupervisorExecutionResponsePayload(responseRecord, traceId),
+			response: parseSupervisorExecutionResponsePayload(responseRecord),
 			sourceEvent: input.event,
 			traceId,
 		};
@@ -227,7 +242,7 @@ export function parseSupervisorTerminalResponse(input: {
 export function supervisorStreamErrorResponse(input: {
 	code: string;
 	message: string;
-	retryable?: boolean;
+	retryable: boolean;
 	status?: "error" | "cancelled";
 	traceId: string;
 }): SupervisorExecutionResponse {
@@ -236,7 +251,7 @@ export function supervisorStreamErrorResponse(input: {
 		error: {
 			code: input.code,
 			message: input.message,
-			retryable: input.retryable ?? true,
+			retryable: input.retryable,
 		},
 		followUpQuestion: "",
 		result: null,

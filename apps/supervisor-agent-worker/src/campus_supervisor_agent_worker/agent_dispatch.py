@@ -10,6 +10,17 @@ from campus_contracts import (
     ErrorInfo,
 )
 
+from campus_supervisor_agent_worker.agent_spec_registry import (
+    AgentSpecRegistry,
+    default_agent_spec_registry,
+)
+from campus_supervisor_agent_worker.tool_spec_registry import (
+    ToolSpecAdmission,
+    ToolSpecRegistry,
+    ToolSpecRegistryError,
+    default_tool_spec_registry,
+)
+
 AgentDelegate = Callable[[AgentRequest], AgentResponse]
 CancellationChecker = Callable[[], bool]
 
@@ -41,17 +52,42 @@ class MissingAgentDelegateError(AgentDispatchError):
     http_status_code = 500
 
 
+class ToolAdmissionError(AgentDispatchError):
+    error_code = "invalid_tool_admission"
+    http_status_code = 400
+
+
+class AgentSpecAdmissionError(AgentDispatchError):
+    error_code = "invalid_agent_admission"
+    http_status_code = 400
+
+
+@dataclass(frozen=True, slots=True)
+class AdmissionAwareAgentDelegate:
+    handler: Callable[[AgentRequest, ToolSpecAdmission], AgentResponse]
+
+
 @dataclass(slots=True)
 class AgentDispatcher:
-    agent_delegates: dict[AgentTarget, AgentDelegate] = field(default_factory=dict)
+    agent_delegates: dict[AgentTarget, AgentDelegate | AdmissionAwareAgentDelegate] = field(
+        default_factory=dict
+    )
     cancellation_checker: CancellationChecker | None = None
+    agent_registry: AgentSpecRegistry | None = None
+    tool_registry: ToolSpecRegistry | None = None
 
     def dispatch(self, request: AgentRequest) -> AgentResponse:
+        tool_registry = self._tool_registry()
+        _validate_agent_spec_admission(request, self._agent_registry())
+        tool_admission = _validate_tool_admission(request, tool_registry)
         delegate = self.agent_delegates.get(request.target)
         if delegate is None:
             raise MissingAgentDelegateError(f"missing delegate for agent target: {request.target}")
         self._raise_if_cancelled()
-        response = delegate(request)
+        if isinstance(delegate, AdmissionAwareAgentDelegate):
+            response = delegate.handler(request, tool_admission)
+        else:
+            response = delegate(request)
         self._raise_if_cancelled()
         return response
 
@@ -59,25 +95,63 @@ class AgentDispatcher:
         if self.cancellation_checker is not None and self.cancellation_checker():
             raise ExecutionCancelledError("Execution was cancelled.")
 
+    def _tool_registry(self) -> ToolSpecRegistry:
+        if self.tool_registry is not None:
+            return self.tool_registry
+        return default_tool_spec_registry()
+
+    def _agent_registry(self) -> AgentSpecRegistry:
+        if self.agent_registry is not None:
+            return self.agent_registry
+        return default_agent_spec_registry()
+
+
+def _validate_agent_spec_admission(
+    request: AgentRequest,
+    agent_registry: AgentSpecRegistry,
+) -> None:
+    agent = agent_registry.agent_by_id(request.target)
+    if agent is None:
+        raise AgentSpecAdmissionError(f"unknown AgentSpec target: {request.target}")
+    if not agent.active or agent.opening_gate != "open":
+        raise AgentSpecAdmissionError(
+            f"AgentSpec target is not open for dispatch: {request.target}"
+        )
+
+
+def _validate_tool_admission(
+    request: AgentRequest,
+    registry: ToolSpecRegistry,
+) -> ToolSpecAdmission:
+    try:
+        return registry.validate_allowed_tools_for_request(request)
+    except ToolSpecRegistryError as exc:
+        raise ToolAdmissionError(str(exc)) from exc
+
 
 def dispatch_agent_request(
     request: AgentRequest,
     *,
-    agent_delegates: dict[AgentTarget, AgentDelegate] | None = None,
+    agent_delegates: dict[AgentTarget, AgentDelegate | AdmissionAwareAgentDelegate] | None = None,
     cancellation_checker: CancellationChecker | None = None,
+    tool_registry: ToolSpecRegistry | None = None,
 ) -> AgentResponse:
     dispatcher = AgentDispatcher(
         agent_delegates=dict(agent_delegates or {}),
         cancellation_checker=cancellation_checker,
+        tool_registry=tool_registry,
     )
     return dispatcher.dispatch(request)
 
 
 __all__ = [
+    "AdmissionAwareAgentDelegate",
     "AgentDelegate",
     "AgentDispatchError",
     "AgentDispatcher",
+    "AgentSpecAdmissionError",
     "ExecutionCancelledError",
     "MissingAgentDelegateError",
+    "ToolAdmissionError",
     "dispatch_agent_request",
 ]

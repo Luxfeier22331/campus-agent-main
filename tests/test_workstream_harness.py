@@ -104,7 +104,7 @@ class WorkstreamHarnessResultTest(unittest.TestCase):
         errors = validate_result_payload(payload, tracked_changes=True)
         self.assertTrue(any("skipped" in error for error in errors))
 
-    def test_normalizes_legacy_success_result_and_verification_array(self) -> None:
+    def test_rejects_legacy_success_result_and_verification_array(self) -> None:
         payload = {
             "schema_version": RESULT_SCHEMA_VERSION,
             "result": "success",
@@ -127,19 +127,12 @@ class WorkstreamHarnessResultTest(unittest.TestCase):
         }
 
         normalized, notes = normalize_result_payload(payload)
+        errors = validate_result_payload(normalized, tracked_changes=True)
 
-        self.assertEqual(normalized["result"], "completed")
-        self.assertEqual(
-            normalized["verification"],
-            {
-                "status": "passed",
-                "commands": ["pnpm web:lint", "pnpm web:test"],
-                "notes": (
-                    "pnpm web:lint => passed: Checked 670 files in 4s. No fixes applied.\n"
-                    "pnpm web:test => passed: All tests passed."
-                ),
-            },
-        )
+        self.assertEqual(normalized["result"], "success")
+        self.assertEqual(normalized["verification"], payload["verification"])
+        self.assertTrue(any("result 必须" in error for error in errors))
+        self.assertTrue(any("verification 必须" in error for error in errors))
         self.assertEqual(
             set(normalized.keys()),
             {
@@ -151,9 +144,9 @@ class WorkstreamHarnessResultTest(unittest.TestCase):
                 "next_action",
             },
         )
-        self.assertTrue(any("result" in note for note in notes))
+        self.assertEqual(notes, [])
 
-    def test_normalizes_legacy_verification_object_keys(self) -> None:
+    def test_rejects_legacy_verification_object_keys(self) -> None:
         payload = {
             "schema_version": RESULT_SCHEMA_VERSION,
             "result": "completed",
@@ -168,18 +161,11 @@ class WorkstreamHarnessResultTest(unittest.TestCase):
         }
 
         normalized, notes = normalize_result_payload(payload)
+        errors = validate_result_payload(normalized, tracked_changes=True)
 
-        self.assertEqual(
-            normalized["verification"],
-            {
-                "status": "passed",
-                "commands": ["pnpm web:lint"],
-                "notes": "lint passed",
-            },
-        )
-        self.assertTrue(any("verification.result" in note for note in notes))
-        self.assertTrue(any("verification.command" in note for note in notes))
-        self.assertTrue(any("verification.details" in note for note in notes))
+        self.assertEqual(normalized["verification"], payload["verification"])
+        self.assertTrue(any("verification.status 不合法" in error for error in errors))
+        self.assertEqual(notes, [])
 
 
 class WorkstreamHarnessHookTest(unittest.TestCase):
@@ -352,16 +338,16 @@ class WorkstreamHarnessHookTest(unittest.TestCase):
             repo_root = Path(temp_dir) / "campus-agent"
             slug = "repo-wide-agent-harness-rollout"
             _seed_repo(repo_root, slug)
-            run_id = "run-fallback"
+            run_id = "run-missing-result"
             create_run_record(
                 repo_root,
                 run_id=run_id,
                 workstream=slug,
                 operator_id="alice",
-                session_key="session-fallback",
+                session_key="session-missing-result",
                 mode="shell",
                 command=["codex"],
-                claim_id="claim-fallback",
+                claim_id="claim-missing-result",
             )
 
             message = json.dumps(
@@ -421,11 +407,11 @@ class WorkstreamHarnessHookTest(unittest.TestCase):
                 {
                     "schema_version": RESULT_SCHEMA_VERSION,
                     "result": "completed",
-                    "summary": "fallback",
+                    "summary": "artifact should take precedence",
                     "verification": {
                         "status": "not_applicable",
                         "commands": [],
-                        "notes": "fallback",
+                        "notes": "artifact should take precedence",
                     },
                     "blocker": None,
                     "next_action": "none",

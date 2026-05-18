@@ -28,6 +28,12 @@
 			"reason": "Library public site linked from the official homepage."
 		},
 		{
+			"seed_id": "met-home",
+			"url": "https://met.muc.edu.cn/",
+			"host": "met.muc.edu.cn",
+			"reason": "Information technology service public site with explicit student service guides."
+		},
+		{
 			"seed_id": "xiaoyou-home",
 			"url": "https://xiaoyou.muc.edu.cn/",
 			"host": "xiaoyou.muc.edu.cn",

@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0018
 status: accepted
 created: 2026-03-29
-updated: 2026-03-29
+updated: 2026-05-02
 ---
 # ADR-0018 App API Official Web Control-Plane Ownership
 
@@ -44,6 +44,12 @@ ingestion handoff ownership
   - artifact reference registration
   - outbox / queue handoff
   - operator-facing list / detail runtime APIs
+  - `official_web/stable_reference` target release gate 的 operator approve/reject
+    command ledger
+- 它不负责：
+  - release task claim / lease / retry / dead-letter / publish 状态机
+  - ingestion executor read / callback route
+  - contact/service selected-write admission、task truth 或 intervention mutation
 
 原因：
 
@@ -93,6 +99,10 @@ ingestion handoff ownership
 - `apps/ingestion-worker` 继续只负责消费 app-owned handoff，并执行 raw-asset
   registration、projection、document/chunk/index 相关工作
 - 它不直接暴露 collector-facing control-plane admission surface
+- `packages/ingestion-core` / `apps/ingestion-worker` 拥有 official-web release task
+  state machine，包括 claim、lease、retry、dead-letter、materialize、publish 与失败状态
+- contact/service selected-write 的 machine admission 与 task 推进属于 ingestion data
+  plane，不属于 `apps/app-api`
 
 原因：
 
@@ -109,6 +119,8 @@ ingestion handoff ownership
   - `Run Detail`
   - `Failures` / `Artifacts` 详情区块
 - 不默认引入对象存储控制台、队列控制台、Qdrant 控制台或 generic jobs console
+- panel 不调用 release task mutation route；selected-write / release 进度只能通过
+  `apps/app-api` 暴露的 operator-safe projection 或 ingestion 投影后的 read model 展示
 
 原因：
 
@@ -129,6 +141,25 @@ ingestion handoff ownership
 - 不让 collector 直接调用 `apps/ingestion-worker`
 - 不让 panel 直读对象存储、队列、日志、Qdrant 或数据库
 - 不把 `apps/app-api` 扩成 crawl executor 或 ingestion orchestrator
+- 不把 selected-write / release task claim、retry、publish 状态放进 `apps/app-api`
+
+## 2026-05-02 边界修订：Release Task Ownership
+
+本 ADR 的 “app-api owns official-web control plane” 不包括 offline release task 状态机。
+
+固定边界：
+
+- `apps/app-api` 可以记录 operator command ledger 与 operator-safe projection
+- `apps/app-api` 可以接收 ingestion worker 上报的 redacted release task projection
+  snapshot，并把它作为 operator read model 暴露给 panel
+- `apps/app-api` 不提供 selected-write admission/task routes，也不提供 release
+  executor read/callback routes
+- `official_web.target_release_gates` 只表达 stable-reference 的 approve/reject
+  ledger，不表达 executor running/materialized/indexed/published/failed 进度
+- `packages/ingestion-core` 定义 release task contract 与状态推进
+- `apps/ingestion-worker` 执行 release task，并把结果写入 canonical projection /
+  document/index release path，同时上报 operator-safe projection snapshot
+- `apps/protected-panel-web` 只消费投影，不直接干预 release task
 
 实施说明：
 

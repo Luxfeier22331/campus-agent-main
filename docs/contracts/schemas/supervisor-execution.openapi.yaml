@@ -8,7 +8,7 @@ x-campus-contract:
   response_contract: agent_response
   runtime_decisions_schema_version: supervisor-runtime-decisions-v1
   runtime_decision_summary_schema_version: runtime-decision-summary-v1
-  workflow_trace_summary_version: workflow-trace-summary-v3
+  workflow_trace_summary_version: workflow-trace-summary-v4
   versioning_policy:
     bridge_version: incompatible bridge envelope changes must bump bridge_version
     response_contract: AgentResponse wire contract changes must bump response_contract
@@ -98,6 +98,12 @@ components:
       type: string
       enum:
         - notice_context
+        - notice_change_set
+        - schedule_baseline
+        - service_guide_facts
+        - place_context
+        - evidence_bundle
+        - grounding_verdict
     ProjectionSafetySummary:
       type: object
       additionalProperties: false
@@ -177,6 +183,79 @@ components:
           type: string
         safety:
           $ref: "#/components/schemas/ProjectionSafetySummary"
+    WorkflowAgentContext:
+      type: object
+      additionalProperties: false
+      required:
+        - schema_version
+        - visibility
+        - workflow_run_ref
+        - step_id
+        - agent_id
+        - expected_output_artifacts
+        - projection_refs
+      properties:
+        schema_version:
+          const: workflow-agent-context-v1
+        visibility:
+          const: agent_private
+        workflow_run_ref:
+          type: string
+        step_id:
+          type: string
+        agent_id:
+          $ref: "#/components/schemas/AgentTarget"
+        target:
+          $ref: "#/components/schemas/AgentTarget"
+        required_projection_kind:
+          $ref: "#/components/schemas/StepOutputProjectionKind"
+        expected_output_artifacts:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepOutputProjectionKind"
+        projection_refs:
+          type: array
+          items:
+            $ref: "#/components/schemas/WorkflowContextProjection"
+    AgentInvocation:
+      type: object
+      additionalProperties: false
+      required:
+        - invocation_id
+        - workflow_run_ref
+        - step_id
+        - agent_id
+        - status
+        - allowed_tools
+        - used_tools
+        - projection_ids
+      properties:
+        invocation_id:
+          type: string
+        parent_invocation_id:
+          type: string
+        workflow_run_ref:
+          type: string
+        step_id:
+          type: string
+        agent_id:
+          $ref: "#/components/schemas/AgentTarget"
+        status:
+          type: string
+        allowed_tools:
+          type: array
+          items:
+            type: string
+        used_tools:
+          type: array
+          items:
+            type: string
+        projection_ids:
+          type: array
+          items:
+            type: string
+        fail_close_reason:
+          type: string
     WorkflowPlanStep:
       type: object
       additionalProperties: false
@@ -221,6 +300,7 @@ components:
         - schema_version
         - plan_id
         - workflow_mode
+        - allowed_agents
         - steps
         - edges
         - terminal_policy
@@ -233,6 +313,10 @@ components:
           type: string
         workflow_mode:
           $ref: "#/components/schemas/WorkflowMode"
+        allowed_agents:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentTarget"
         steps:
           type: array
           items:
@@ -438,6 +522,8 @@ components:
           $ref: "#/components/schemas/ActorContext"
         context:
           $ref: "#/components/schemas/SafeObject"
+        workflow_context:
+          $ref: "#/components/schemas/WorkflowAgentContext"
         payload:
           type: object
           additionalProperties: false
@@ -542,9 +628,12 @@ components:
         - workflow_mode
         - handoff
         - handoff_chain
+        - agent_invocations
         - selected_target
         - selected_tools
         - context_projections
+        - answer_artifact_projection_ids
+        - answer_artifact_kinds
         - tool_argument_summary
         - guardrail_outcomes
         - fail_close_reason
@@ -567,6 +656,10 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/SafeObject"
+        agent_invocations:
+          type: array
+          items:
+            $ref: "#/components/schemas/AgentInvocation"
         selected_target:
           oneOf:
             - $ref: "#/components/schemas/AgentTarget"
@@ -580,6 +673,14 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/WorkflowContextProjection"
+        answer_artifact_projection_ids:
+          type: array
+          items:
+            type: string
+        answer_artifact_kinds:
+          type: array
+          items:
+            $ref: "#/components/schemas/StepOutputProjectionKind"
         tool_argument_summary:
           $ref: "#/components/schemas/SafeObject"
         trace_steps:

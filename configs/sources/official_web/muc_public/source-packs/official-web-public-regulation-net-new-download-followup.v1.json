@@ -1,0 +1,41 @@
+{
+	"schema_version": "official_web_source_pack_manifest.v1",
+	"site_id": "muc_public",
+	"source_pack_id": "official-web-public-regulation-net-new-download-followup.v1",
+	"entries": [
+		{
+			"entry_id": "owsp-net-new-degree-award-rules-download-5381",
+			"url": "https://xxgk.muc.edu.cn/info/1269/5381.htm",
+			"content_family": "institutional_policy_reference",
+			"source_kind": "download_reference_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-net-new-student-download-followup"],
+			"owner_surfaces": ["regulations/student_rules"],
+			"release_targets": ["regulations/student_rules"],
+			"expected_facts": ["regulation_text"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["中央民族大学学位授予工作细则的正文附件在哪里？"]
+		},
+		{
+			"entry_id": "owsp-net-new-discipline-relief-download-5211",
+			"url": "https://xxgk.muc.edu.cn/info/1265/5211.htm",
+			"content_family": "institutional_policy_reference",
+			"source_kind": "download_reference_page",
+			"answer_bearing": true,
+			"demand_ids": ["owsp-net-new-student-download-followup"],
+			"owner_surfaces": ["regulations/student_rules"],
+			"release_targets": ["regulations/student_rules"],
+			"expected_facts": ["regulation_text"],
+			"composition_group": null,
+			"composition_role": null,
+			"capture_policy": "one_time",
+			"refresh_posture": "manifest_refresh_only",
+			"extraction_gate": "deterministic_source_backed",
+			"eval_questions": ["违纪学生申请撤销处分的暂行规定正文附件在哪里？"]
+		}
+	]
+}

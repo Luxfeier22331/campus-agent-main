@@ -16,12 +16,16 @@ from campus_ingestion_core.scope_catalog import (
     list_collection_scopes,
 )
 
-ALLOWED_SERVING_STAGES = ("query_serving", "offline_preparation")
+ALLOWED_SERVING_STAGES = (
+    "query_serving",
+    "structured_query_serving",
+    "offline_preparation",
+)
 ALLOWED_SERVING_SURFACES = ("mixed", "stable_reference", "fresh_news", "news_archive")
-OFFICIAL_WEB_STABLE_REFERENCE_LIKE_COLLECTIONS = frozenset({"muc_public_pages", "stable_reference"})
-OFFICIAL_WEB_STABLE_REFERENCE_LIKE_SURFACES = frozenset({"mixed", "stable_reference"})
+OFFICIAL_WEB_STABLE_REFERENCE_LIKE_COLLECTIONS = frozenset({"stable_reference"})
+OFFICIAL_WEB_STABLE_REFERENCE_LIKE_SURFACES = frozenset({"stable_reference"})
 ALLOWED_ARTIFACT_MODES = ("normalized", "source_truth_only")
-ALLOWED_LISTING_PAGE_ROLES = ("discovery_only", "navigation_fallback", "primary_evidence")
+ALLOWED_LISTING_PAGE_ROLES = ("discovery_only", "navigation_hint", "primary_evidence")
 ALLOWED_SOURCE_OCR_IMAGE_ROUTING_STRATEGIES = ("default", "mineru_primary")
 DEFAULT_DENSE_PREFETCH_LIMIT = 20
 DEFAULT_SPARSE_PREFETCH_LIMIT = 20
@@ -50,15 +54,15 @@ class CollectionRuntimeProfile:
     chunk_profile_version: str
     retrieval_enabled: bool
     query_enabled_by_default: bool
+    structured_query_enabled: bool = False
+    structured_query_tools: tuple[str, ...] = ()
     source_ocr_provider: str | None = None
     source_ocr_model: str | None = None
     source_parser_version: str | None = None
-    source_ocr_fallback_enabled: bool = False
     source_ocr_image_routing_strategy: str | None = None
     serving_surface: str | None = None
     supports_freshness_sensitive_queries: bool = False
     freshness_max_age_hours: int | None = None
-    live_search_fallback_allowed: bool = False
     retrieval_top_k: int = 3
     current_only: bool = False
     serving_revision_tracks: tuple[str, ...] = ()
@@ -73,6 +77,10 @@ class CollectionRuntimeProfile:
     rrf_k: int = DEFAULT_RRF_K
     rrf_dense_weight: float = DEFAULT_RRF_DENSE_WEIGHT
     rrf_sparse_weight: float = DEFAULT_RRF_SPARSE_WEIGHT
+    reranker_enabled_by_default: bool = False
+    reranker_top_n: int | None = None
+    reranker_profile_version: str | None = None
+    reranker_adoption_evidence_id: str | None = None
     document_support_limit: int = DEFAULT_DOCUMENT_SUPPORT_LIMIT
     document_support_strategy: str = DEFAULT_DOCUMENT_SUPPORT_STRATEGY
     embedding_query_instruction: str = DEFAULT_EMBEDDING_QUERY_INSTRUCTION
@@ -91,6 +99,13 @@ class CollectionRuntimeProfile:
             raise ValueError("collection is required")
         if self.serving_stage not in ALLOWED_SERVING_STAGES:
             raise ValueError(f"unsupported serving_stage: {self.serving_stage}")
+        if self.serving_stage == "structured_query_serving":
+            if self.retrieval_enabled:
+                raise ValueError("structured_query_serving requires retrieval_enabled=false")
+            if self.query_enabled_by_default:
+                raise ValueError("structured_query_serving requires query_enabled_by_default=false")
+            if not self.structured_query_enabled:
+                raise ValueError("structured_query_serving requires structured_query_enabled=true")
         if (
             self.serving_surface is not None
             and self.serving_surface not in ALLOWED_SERVING_SURFACES
@@ -126,6 +141,17 @@ class CollectionRuntimeProfile:
             raise ValueError("rrf_dense_weight must be greater than zero")
         if self.rrf_sparse_weight <= 0:
             raise ValueError("rrf_sparse_weight must be greater than zero")
+        if self.reranker_top_n is not None and self.reranker_top_n <= 0:
+            raise ValueError("reranker_top_n must be greater than zero")
+        if self.reranker_enabled_by_default:
+            if self.reranker_top_n is None:
+                raise ValueError("reranker_top_n is required when reranker is enabled")
+            if not (self.reranker_profile_version or "").strip():
+                raise ValueError("reranker_profile_version is required when reranker is enabled")
+            if not (self.reranker_adoption_evidence_id or "").strip():
+                raise ValueError(
+                    "reranker_adoption_evidence_id is required when reranker is enabled"
+                )
         if self.document_support_limit <= 0:
             raise ValueError("document_support_limit must be greater than zero")
         if self.document_support_strategy not in ALLOWED_DOCUMENT_SUPPORT_STRATEGIES:
@@ -154,6 +180,13 @@ class CollectionRuntimeProfile:
             raise ValueError("no_hit_min_score_gap must be between zero and one")
         if not self.embedding_query_instruction.strip():
             raise ValueError("embedding_query_instruction is required")
+        if self.structured_query_enabled and not self.structured_query_tools:
+            raise ValueError(
+                "structured_query_tools must not be empty when structured_query_enabled is true"
+            )
+        for tool_name in self.structured_query_tools:
+            if not tool_name.strip():
+                raise ValueError("structured_query_tools must not contain empty values")
 
 
 @dataclass(frozen=True, slots=True)
@@ -233,17 +266,19 @@ def load_runtime_profile(
         source_ocr_provider=_optional_text(payload.get("source_ocr_provider")),
         source_ocr_model=_optional_text(payload.get("source_ocr_model")),
         source_parser_version=_optional_text(payload.get("source_parser_version")),
-        source_ocr_fallback_enabled=bool(payload.get("source_ocr_fallback_enabled", False)),
         source_ocr_image_routing_strategy=_optional_text(
             payload.get("source_ocr_image_routing_strategy")
         ),
         retrieval_enabled=bool(payload.get("retrieval_enabled")),
         query_enabled_by_default=bool(payload.get("query_enabled_by_default")),
+        structured_query_enabled=bool(payload.get("structured_query_enabled", False)),
+        structured_query_tools=tuple(
+            str(item) for item in list(payload.get("structured_query_tools") or [])
+        ),
         supports_freshness_sensitive_queries=bool(
             payload.get("supports_freshness_sensitive_queries", False)
         ),
         freshness_max_age_hours=_optional_int(payload.get("freshness_max_age_hours")),
-        live_search_fallback_allowed=bool(payload.get("live_search_fallback_allowed", False)),
         retrieval_top_k=int(payload.get("retrieval_top_k") or 3),
         current_only=bool(payload.get("current_only", False)),
         serving_revision_tracks=tuple(
@@ -270,6 +305,10 @@ def load_runtime_profile(
         rrf_k=int(payload.get("rrf_k") or DEFAULT_RRF_K),
         rrf_dense_weight=float(payload.get("rrf_dense_weight") or DEFAULT_RRF_DENSE_WEIGHT),
         rrf_sparse_weight=float(payload.get("rrf_sparse_weight") or DEFAULT_RRF_SPARSE_WEIGHT),
+        reranker_enabled_by_default=bool(payload.get("reranker_enabled_by_default", False)),
+        reranker_top_n=_optional_int(payload.get("reranker_top_n")),
+        reranker_profile_version=_optional_text(payload.get("reranker_profile_version")),
+        reranker_adoption_evidence_id=_optional_text(payload.get("reranker_adoption_evidence_id")),
         document_support_limit=int(
             payload.get("document_support_limit") or DEFAULT_DOCUMENT_SUPPORT_LIMIT
         ),

@@ -1,0 +1,48 @@
+{
+	"schema_version": 1,
+	"updated_at": "2026-05-01",
+	"cases": [
+		{
+			"case_id": "provider-notice-discover-should-call",
+			"user_goal": "找春假通知",
+			"allowed_tools": ["campus_notice_discover"],
+			"expected_tool": "campus_notice_discover",
+			"expected_outcome": "function_call_selected"
+		},
+		{
+			"case_id": "provider-notice-discover-no-call",
+			"user_goal": "找春假通知",
+			"allowed_tools": ["campus_notice_discover"],
+			"expected_tool": "",
+			"expected_outcome": "no_function_call"
+		},
+		{
+			"case_id": "provider-notice-discover-wrong-tool",
+			"user_goal": "找春假通知",
+			"allowed_tools": ["campus_notice_discover"],
+			"expected_tool": "service_status_lookup",
+			"expected_outcome": "wrong_tool_call"
+		},
+		{
+			"case_id": "provider-notice-discover-bad-args",
+			"user_goal": "找春假通知",
+			"allowed_tools": ["campus_notice_discover"],
+			"expected_tool": "campus_notice_discover",
+			"expected_outcome": "invalid_arguments"
+		},
+		{
+			"case_id": "provider-notice-discover-result-projection",
+			"user_goal": "找春假通知并给出来源",
+			"allowed_tools": ["campus_notice_discover"],
+			"expected_tool": "campus_notice_discover",
+			"expected_outcome": "tool_result_projected"
+		},
+		{
+			"case_id": "provider-notice-get-internal-tool-closed",
+			"user_goal": "读取这条通知",
+			"allowed_tools": ["campus_notice_discover"],
+			"expected_tool": "campus_notice_get",
+			"expected_outcome": "internal_tool_closed"
+		}
+	]
+}

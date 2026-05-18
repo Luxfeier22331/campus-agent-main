@@ -2,7 +2,7 @@
 doc_type: index
 status: completed
 created: 2026-04-28
-updated: 2026-04-28
+updated: 2026-05-01
 ---
 # Workstream: Notice-Derived Regulation Consumption Quality Gate
 
@@ -27,6 +27,42 @@ eligibility、target materialization gate 与文档站/RAG 消费前质量验收
 - runtime claim: 使用 `uv run --all-packages python -m scripts.workstream_claim
   claim status notice-derived-regulation-consumption-quality-gate` 查看；tracked planning
   文档不保存 claim lease
+
+## Post-Closeout Evidence
+
+2026-05-01 bounded reopen evidence:
+
+- notice `186977` (`药学院2021年硕博连读博士研究生招生实施细则`)
+  current admission result: `historical_annual_cycle_rule_hold` /
+  `search_only`
+- notice `191176` (`生命与环境科学学院关于2021年暑假期间实验室安全管理规定`)
+  current admission result: `historical_time_window_rule_hold` / `search_only`
+- current control samples `354006` and `353963` remain
+  `scoped_rules_candidate` / `downstream_admitted`
+- held historical rules have fact readiness `not_applicable` /
+  `search_only`
+- real target-side cleanup for `186977` deleted exactly one
+  `ingestion_registry.document_registry_records` row and exactly four
+  `campus-rag-derived` target objects after backup
+- source truth, `campus_notices/internal_notice`, `.planning/quick`, docs tables,
+  operator projection and Qdrant payloads were not deleted
+- post-cleanup residue audit result:
+  `postgres_exact_remaining=0`, `object_store_exact_keys_remaining=0`,
+  `object_store_title_key_matches=[]`
+- bounded reopen added durable operation entries:
+  `campus_ingestion_worker.audit_collected_notice_regulation_admission_batch` and
+  `campus_ingestion_worker.cleanup_internal_notice_regulation_target_residue`
+- target residue cleanup now covers exact Postgres target rows, explicitly selected derived
+  object keys and exact Qdrant points, with operator projection fields limited to compact
+  audit/cleanup evidence
+
+Local evidence paths:
+
+`.planning/workstreams/notice-derived-regulation-consumption-quality-gate/evidence/post-closeout-186977-historical-annual-cycle-hold/`
+
+`.tmp/run14-policy-regulation-batch-post-time-window-hold/summary.json`
+
+`.tmp/notice-186977-real-env-cleanup/cleanup-manifest.json`
 
 ## Why This Workstream Exists
 

@@ -11,6 +11,7 @@ const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
 	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
 	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
@@ -46,6 +47,69 @@ function createCampusPrincipal(): ResolvedAppPrincipal {
 }
 
 describe("docs routes", () => {
+	it("returns docs control-plane readiness without depending on supervisor readiness", async () => {
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(null),
+			getAppAuth: vi.fn().mockResolvedValue({}) as never,
+			docsReadinessProbe: vi.fn().mockResolvedValue({
+				dependencies: {
+					auth: "ready",
+					database: "ready",
+					docsReadModel: "ready",
+				},
+				failed: {},
+			}),
+		});
+
+		const response = await app.fetch(new Request("https://app-api.internal/api/docs/readyz"));
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			status: "ready",
+			dependencies: {
+				auth: "ready",
+				database: "ready",
+				docsReadModel: "ready",
+			},
+		});
+	});
+
+	it("fails docs control-plane readiness closed when docs dependencies are unavailable", async () => {
+		const app = createApp(env, {
+			getPrincipal: vi.fn().mockResolvedValue(null),
+			docsReadinessProbe: vi.fn().mockResolvedValue({
+				dependencies: {
+					auth: "not_ready",
+					database: "ready",
+					docsReadModel: "not_ready",
+				},
+				failed: {
+					auth: "better-auth session runtime failed probe",
+					docsReadModel: "docs read-model probe returned no collections",
+				},
+			}),
+		});
+
+		const response = await app.fetch(new Request("https://app-api.internal/api/docs/readyz"));
+
+		expect(response.status).toBe(503);
+		await expect(response.json()).resolves.toEqual({
+			error: {
+				code: "dependency_not_ready",
+				message: "Document reader control plane is not ready.",
+				retryable: true,
+				traceId: null,
+				requestId: null,
+				details: {
+					failed: {
+						auth: "better-auth session runtime failed probe",
+						docsReadModel: "docs read-model probe returned no collections",
+					},
+				},
+			},
+		});
+	});
+
 	it("returns collection navigation for anonymous or authenticated readers", async () => {
 		const principal = createCampusPrincipal();
 		const service: DocsService = {

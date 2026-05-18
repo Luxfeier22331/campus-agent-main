@@ -284,8 +284,8 @@ def _build_program_semester_projections(
             continue
         if not any("课程名称" in cell for cells in table_rows for cell in cells):
             continue
-        row_page_start = _row_page_start(row, fallback=source_document.page_start)
-        row_page_end = _row_page_end(row, fallback=source_document.page_end)
+        row_page_start = _row_page_start(row, default_value=source_document.page_start)
+        row_page_end = _row_page_end(row, default_value=source_document.page_end)
         semester_matches = _extract_semester_course_titles(table_rows)
         for semester_label, course_titles in semester_matches.items():
             if not course_titles:
@@ -364,7 +364,7 @@ def _extract_table_rows(row: Mapping[str, object]) -> tuple[tuple[str, ...], ...
     return build_position_preserving_table_rows(
         html=html,
         table_cells=row.get("table_cells"),
-        fallback_text=text,
+        pipe_delimited_text=text,
     )
 
 
@@ -435,8 +435,8 @@ def _row_within_document(
     row: Mapping[str, object],
     source_document: SplitManifestDocument,
 ) -> bool:
-    page_start = _row_page_start(row, fallback=0)
-    page_end = _row_page_end(row, fallback=page_start)
+    page_start = _row_page_start(row, default_value=0)
+    page_end = _row_page_end(row, default_value=page_start)
     return page_start >= source_document.page_start and page_end <= source_document.page_end
 
 
@@ -444,22 +444,22 @@ def _row_text(row: Mapping[str, object]) -> str:
     return str(row.get("clean_text") or row.get("text_normalized") or "").strip()
 
 
-def _row_page_start(row: Mapping[str, object], *, fallback: int) -> int:
+def _row_page_start(row: Mapping[str, object], *, default_value: int) -> int:
     value = row.get("page_start")
     if isinstance(value, int) and value > 0:
         return value
     if isinstance(value, str) and value.isdigit():
         return int(value)
-    return fallback
+    return default_value
 
 
-def _row_page_end(row: Mapping[str, object], *, fallback: int) -> int:
+def _row_page_end(row: Mapping[str, object], *, default_value: int) -> int:
     value = row.get("page_end")
     if isinstance(value, int) and value > 0:
         return value
     if isinstance(value, str) and value.isdigit():
         return int(value)
-    return fallback
+    return default_value
 
 
 def _build_version_id(

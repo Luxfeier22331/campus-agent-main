@@ -22,6 +22,7 @@ const env: Env = {
 	APP_API_ENVIRONMENT: "staging",
 	APP_API_STAGING_SMOKE_AUTH_SECRET: "staging-smoke-secret",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 	PUBLIC_CHAT_WEB_ORIGIN: "https://campus-chat-staging.ayafeed.com",
 	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
 	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
@@ -80,8 +81,8 @@ describe("POST /api/internal/staging-smoke/auth/session", () => {
 			request: expect.any(Request),
 		});
 		const request = signInEmail.mock.calls[0]?.[0]?.request;
-		expect(request.url).toBe("https://campus-chat-staging.ayafeed.com/api/auth/sign-in/email");
-		expect(request.headers.get("origin")).toBe("https://campus-chat-staging.ayafeed.com");
+		expect(request.url).toBe("https://hub.muc.wiki/api/auth/sign-in/email");
+		expect(request.headers.get("origin")).toBe("https://hub.muc.wiki");
 	});
 
 	it("fails closed outside staging", async () => {

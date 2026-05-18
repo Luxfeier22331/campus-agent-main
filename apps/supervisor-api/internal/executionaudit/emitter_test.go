@@ -8,8 +8,6 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/httptest"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -20,17 +18,19 @@ import (
 func TestEmitterDisabledNoops(t *testing.T) {
 	emitter := NewEmitter(context.Background(), config.Config{}, nil)
 
-	emitter.Emit(context.Background(), Event{
+	if err := emitter.Emit(context.Background(), Event{
 		EventType: "execution.bridge_failed",
 		RequestID: "req-001",
 		TraceID:   "trace-001",
-	})
+	}); err != nil {
+		t.Fatalf("disabled emitter returned error: %v", err)
+	}
 
 	status := emitter.Status()
 	if status.Enabled {
 		t.Fatal("enabled = true, want false")
 	}
-	if status.EmittedCount != 0 || status.DroppedCount != 0 || status.FailedCount != 0 {
+	if status.EmittedCount != 0 || status.FailedCount != 0 {
 		t.Fatalf("unexpected disabled status: %#v", status)
 	}
 }
@@ -53,7 +53,55 @@ func TestEmitterStatusRedactsDeliveryErrorDetails(t *testing.T) {
 	}
 }
 
-func TestEmitterBatchesEventsBeforePosting(t *testing.T) {
+func TestEmitterEmitFailsWhenDeliveryFails(t *testing.T) {
+	auditServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
+		response.WriteHeader(http.StatusBadGateway)
+	}))
+	defer auditServer.Close()
+
+	emitter := NewEmitter(context.Background(), config.Config{
+		ExecutionAuditEnabled:      true,
+		ExecutionAuditSharedSecret: "audit-secret",
+		ExecutionAuditTimeoutMS:    500,
+		ExecutionAuditURL:          auditServer.URL,
+	}, nil)
+
+	err := emitter.Emit(context.Background(), Event{
+		EventType: "execution.bridge_failed",
+		RequestID: "req-audit-failed",
+		TraceID:   "trace-audit-failed",
+	})
+
+	if err == nil {
+		t.Fatal("expected audit delivery failure to return an error")
+	}
+	status := emitter.Status()
+	if status.EmittedCount != 0 || status.FailedCount != 1 {
+		t.Fatalf("unexpected status after failed delivery: %#v", status)
+	}
+}
+
+func TestEmitterEmitFailsWhenEnabledButUnconfigured(t *testing.T) {
+	emitter := NewEmitter(context.Background(), config.Config{
+		ExecutionAuditEnabled: true,
+	}, nil)
+
+	err := emitter.Emit(context.Background(), Event{
+		EventType: "execution.bridge_failed",
+		RequestID: "req-audit-unconfigured",
+		TraceID:   "trace-audit-unconfigured",
+	})
+
+	if err == nil {
+		t.Fatal("expected unconfigured enabled audit emitter to return an error")
+	}
+	status := emitter.Status()
+	if status.Enabled != true || status.Configured != false || status.FailedCount != 1 {
+		t.Fatalf("unexpected unconfigured status: %#v", status)
+	}
+}
+
+func TestEmitterPostsEachEventSynchronously(t *testing.T) {
 	received := make(chan map[string]any, 1)
 	auditServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
 		var body map[string]any
@@ -66,132 +114,28 @@ func TestEmitterBatchesEventsBeforePosting(t *testing.T) {
 	defer auditServer.Close()
 
 	emitter := NewEmitter(context.Background(), config.Config{
-		ExecutionAuditBatchSize:        2,
-		ExecutionAuditEnabled:          true,
-		ExecutionAuditFlushMS:          10_000,
-		ExecutionAuditQueueCapacity:    4,
-		ExecutionAuditRetryBaseMS:      1,
-		ExecutionAuditRetryMaxAttempts: 1,
-		ExecutionAuditSharedSecret:     "audit-secret",
-		ExecutionAuditTimeoutMS:        500,
-		ExecutionAuditURL:              auditServer.URL,
+		ExecutionAuditEnabled:      true,
+		ExecutionAuditSharedSecret: "audit-secret",
+		ExecutionAuditTimeoutMS:    500,
+		ExecutionAuditURL:          auditServer.URL,
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	defer func() {
-		_ = emitter.Shutdown(context.Background())
-	}()
 
-	emitter.Emit(context.Background(), Event{EventType: "execution.cancelled", RequestID: "req-001", TraceID: "trace-001"})
-	emitter.Emit(context.Background(), Event{EventType: "execution.bridge_failed", RequestID: "req-002", TraceID: "trace-002"})
+	if err := emitter.Emit(context.Background(), Event{EventType: "execution.cancelled", RequestID: "req-001", TraceID: "trace-001"}); err != nil {
+		t.Fatalf("Emit returned error: %v", err)
+	}
 
 	select {
 	case body := <-received:
 		events, ok := body["events"].([]any)
-		if !ok || len(events) != 2 {
-			t.Fatalf("events = %#v, want two events", body["events"])
+		if !ok || len(events) != 1 {
+			t.Fatalf("events = %#v, want one event", body["events"])
 		}
 	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for batched audit events")
+		t.Fatal("timed out waiting for audit event")
 	}
 	status := emitter.Status()
-	if status.BatchSize != 2 {
-		t.Fatalf("batch size = %d, want 2", status.BatchSize)
-	}
-}
-
-func TestEmitterRetriesFailedBatchBeforeSuccess(t *testing.T) {
-	attempts := 0
-	received := make(chan struct{}, 1)
-	auditServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		attempts++
-		if attempts == 1 {
-			response.WriteHeader(http.StatusBadGateway)
-			return
-		}
-		received <- struct{}{}
-		response.WriteHeader(http.StatusOK)
-	}))
-	defer auditServer.Close()
-
-	emitter := NewEmitter(context.Background(), config.Config{
-		ExecutionAuditBatchSize:        1,
-		ExecutionAuditEnabled:          true,
-		ExecutionAuditFlushMS:          10_000,
-		ExecutionAuditQueueCapacity:    4,
-		ExecutionAuditRetryBaseMS:      1,
-		ExecutionAuditRetryMaxAttempts: 2,
-		ExecutionAuditSharedSecret:     "audit-secret",
-		ExecutionAuditTimeoutMS:        500,
-		ExecutionAuditURL:              auditServer.URL,
-	}, nil)
-	defer func() {
-		_ = emitter.Shutdown(context.Background())
-	}()
-
-	emitter.Emit(context.Background(), Event{EventType: "execution.timed_out", RequestID: "req-retry", TraceID: "trace-retry"})
-
-	select {
-	case <-received:
-	case <-time.After(time.Second):
-		t.Fatal("timed out waiting for retried audit delivery")
-	}
-	status := emitter.Status()
-	if status.RetriedCount != 1 {
-		t.Fatalf("retried count = %d, want 1", status.RetriedCount)
-	}
-}
-
-func TestEmitterSpoolsFailedBatchAfterRetryExhaustion(t *testing.T) {
-	spoolDir := t.TempDir()
-	auditServer := httptest.NewServer(http.HandlerFunc(func(response http.ResponseWriter, request *http.Request) {
-		response.WriteHeader(http.StatusBadGateway)
-	}))
-	defer auditServer.Close()
-
-	emitter := NewEmitter(context.Background(), config.Config{
-		ExecutionAuditBatchSize:        1,
-		ExecutionAuditEnabled:          true,
-		ExecutionAuditFlushMS:          10_000,
-		ExecutionAuditQueueCapacity:    4,
-		ExecutionAuditRetryBaseMS:      1,
-		ExecutionAuditRetryMaxAttempts: 1,
-		ExecutionAuditSharedSecret:     "audit-secret",
-		ExecutionAuditSpoolDir:         spoolDir,
-		ExecutionAuditSpoolMaxBytes:    4096,
-		ExecutionAuditTimeoutMS:        500,
-		ExecutionAuditURL:              auditServer.URL,
-	}, nil)
-	defer func() {
-		_ = emitter.Shutdown(context.Background())
-	}()
-
-	emitter.Emit(context.Background(), Event{EventType: "execution.bridge_failed", RequestID: "req-spool", TraceID: "trace-spool"})
-
-	deadline := time.After(time.Second)
-	for {
-		status := emitter.Status()
-		if status.SpooledCount == 1 {
-			break
-		}
-		select {
-		case <-deadline:
-			t.Fatalf("timed out waiting for spool status: %#v", status)
-		default:
-			time.Sleep(10 * time.Millisecond)
-		}
-	}
-	matches, err := filepath.Glob(filepath.Join(spoolDir, "*.jsonl"))
-	if err != nil {
-		t.Fatalf("glob spool dir: %v", err)
-	}
-	if len(matches) == 0 {
-		t.Fatal("expected a spool jsonl file")
-	}
-	raw, err := os.ReadFile(matches[0])
-	if err != nil {
-		t.Fatalf("read spool file: %v", err)
-	}
-	if !strings.Contains(string(raw), "req-spool") {
-		t.Fatalf("spool file missing request id: %s", string(raw))
+	if status.EmittedCount != 1 {
+		t.Fatalf("emitted count = %d, want 1", status.EmittedCount)
 	}
 }
 
@@ -229,18 +173,13 @@ func TestEmitterPostsSafeExecutionAuditEvent(t *testing.T) {
 	defer auditServer.Close()
 
 	emitter := NewEmitter(context.Background(), config.Config{
-		ExecutionAuditBatchSize:     1,
-		ExecutionAuditEnabled:       true,
-		ExecutionAuditQueueCapacity: 4,
-		ExecutionAuditSharedSecret:  "audit-secret",
-		ExecutionAuditTimeoutMS:     500,
-		ExecutionAuditURL:           auditServer.URL,
+		ExecutionAuditEnabled:      true,
+		ExecutionAuditSharedSecret: "audit-secret",
+		ExecutionAuditTimeoutMS:    500,
+		ExecutionAuditURL:          auditServer.URL,
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
-	defer func() {
-		_ = emitter.Shutdown(context.Background())
-	}()
 
-	emitter.Emit(context.Background(), Event{
+	if err := emitter.Emit(context.Background(), Event{
 		BridgeDuration:        35 * time.Second,
 		ContextPreflightState: "not_follow_up",
 		Decision:              "queue_full",
@@ -261,7 +200,9 @@ func TestEmitterPostsSafeExecutionAuditEvent(t *testing.T) {
 		TerminalOutcome:       "no_answer",
 		FailCloseReason:       "product_scope_boundary",
 		TraceID:               "trace-001",
-	})
+	}); err != nil {
+		t.Fatalf("Emit returned error: %v", err)
+	}
 
 	select {
 	case body := <-received:

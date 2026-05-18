@@ -13,6 +13,7 @@ const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
 	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
 	SUPERVISOR_API_SHARED_SECRET: "shared-secret",
@@ -232,6 +233,36 @@ describe("POST /api/chat/requests", () => {
 				traceId: expect.stringMatching(/^trace_[0-9a-f]{32}$/),
 			},
 		});
+	});
+
+	it("fails closed when JSON request body is not an object", async () => {
+		const service: ChatCommandService = {
+			submit: vi.fn(),
+		};
+		const app = createApp(env, {
+			chatCommandService: service,
+			getPrincipal: vi.fn().mockResolvedValue(createCampusPrincipal()),
+		});
+
+		const response = await app.fetch(
+			new Request("https://app-api.internal/api/chat/requests", {
+				body: JSON.stringify([]),
+				headers: {
+					"content-type": "application/json",
+				},
+				method: "POST",
+			}),
+		);
+
+		expect(response.status).toBe(400);
+		await expect(response.json()).resolves.toMatchObject({
+			error: {
+				code: "invalid_json_body",
+				message: "JSON body must be an object.",
+				retryable: false,
+			},
+		});
+		expect(service.submit).not.toHaveBeenCalled();
 	});
 
 	it("backfills correlation headers and envelope fields for service-level validation failures", async () => {

@@ -1,8 +1,8 @@
 ---
 doc_type: roadmap
-status: active
+status: completed
 created: 2026-04-22
-updated: 2026-04-29
+updated: 2026-05-10
 ---
 
 # Roadmap: Eval
@@ -18,7 +18,18 @@ admission / review / denominator / artifact 规则进入 eval。
 regression intake、public chat 产品路径、campus-services / notice tool eval、多模态/OCR 质量、
 restricted/authz/privacy、agentic retrieval plan 与 eval operations governance。Phase 6 已在
 Phase 5A scaffold 基础上独立完成；Phase 8-13 已完成 deterministic eval seams；`Phase 5B`
-仍等待 domain 数据补全。当前没有独立编号的 Phase 14；总数 14 来自 Phase 5A/5B 拆分。
+current-corpus golden expansion 已按当前已入库文档收口。认证态 source 补采不再作为 eval
+blocker，而是登记到 backlog seed，待 source/domain workstream 恢复后再晋升对应 accepted truth。
+当前没有独立编号的 Phase 14；总数 14 来自 Phase 5A/5B 拆分。
+
+2026-05-04 RAG-only eval 收口后，当前 RAG 消费面固定为 `regulations/student_rules`、
+`regulations/institutional_rules`、`curriculum/curriculum_plan` 与
+`official_web/stable_reference`；`official_web/fresh_news` 不进入 RAG eval denominator。
+`institutional_rules` 已通过 `institutional-rules-release-baseline` 作为 domain-specific
+baseline 接入 coverage/audit。当前 report 区分 `minimum_gate_passed`、`maturity_passed`、
+answer-quality contract 与 known-gap contract。current-corpus 已标记为可审计补全；缺失
+canonical 文档的 query 继续留在 `known_gap`，不能进入 accepted qrels / answer truth，直到后续
+source/backlog workstream 提供 canonical source。
 
 ## Phases
 
@@ -27,7 +38,7 @@ Phase 5A scaffold 基础上独立完成；Phase 8-13 已完成 deterministic eva
 - [x] **Phase 3: Publish And Backflow Integration** — 固定 quality grade publish、trace/request correlation、operator-safe backflow contract 与 non-owner boundary，避免 grader/sink payload 反向成为 app truth。
 - [x] **Phase 4: CI And Release Gate Automation** — 为 repo shared eval lane 建立持续化 automation、release evidence expectations 与 failure-handling policy，结束“只有本地手动 accept 才能完成 closeout”的状态。
 - [x] **Phase 5A: Case Governance Scaffold** — 不等待完整语料，先冻结 case lifecycle、denominator registry scaffold、workflow trace artifact model、candidate intake manifest、review decision 与 drift/admission discipline。
-- [ ] **Phase 5B: Golden Dataset Expansion And Domain Case Governance** — 在采集内容补全后，正式扩编 accepted case、retrieval qrels、workflow/status case、deterministic answer truth 与 synthetic candidate promotion，明确 domain truth owner、regression_locked / release_gate / exploratory 边界与 drift handling。
+- [x] **Phase 5B: Golden Dataset Expansion And Domain Case Governance** — current-corpus 层已补齐 accepted case、retrieval qrels、workflow/status case、deterministic answer truth 与 known-gap/no-hit contract；authenticated canonical source 缺口已移交 backlog seed，后续补采完成后再由 source/domain workstream 晋升缺失 canonical 文档相关 truth。
 - [x] **Phase 6: Workflow Trace Runtime Gate And Artifact Adoption** — 将 Go direct branch、Python delegate、structured tools、guardrail 与 fail-close terminal outcome 都投影进 repo-owned workflow trace artifact，并形成 deterministic release gate。
 - [x] **Phase 7: Observed Regression Intake And Review Workflow** — 打通 operator badcase、negative feedback、incident backfill 到 eval-owned pending review / dedupe / admission / accepted case 的闭环。
 - [x] **Phase 8: Public Chat Product Path E2E Eval** — 覆盖 `public-chat-web -> app-api -> supervisor-api -> structured runtime / agent -> response -> operator backflow` 的真实产品路径 acceptance。

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import unittest
+from unittest.mock import patch
 
 from botocore.config import Config
 from campus_ingestion_core.object_store import (
@@ -289,6 +290,53 @@ class ObjectStoreConfigTest(unittest.TestCase):
         self.assertEqual(derived_config["aws_secret_access_key"], "derived-sk")
         self.assertEqual(fallback_config["aws_access_key_id"], "shared-ak")
         self.assertEqual(fallback_config["aws_secret_access_key"], "shared-sk")
+
+    def test_bucket_aware_client_supports_bucket_management_calls(self) -> None:
+        settings = ObjectStoreSettings.from_env(
+            {
+                "OBJECT_STORE_ENDPOINT": "https://s3.cstcloud.cn",
+                "OBJECT_STORE_SOURCE_ACCESS_KEY": "source-ak",
+                "OBJECT_STORE_SOURCE_SECRET_KEY": "source-sk",
+                "OBJECT_STORE_DERIVED_ACCESS_KEY": "derived-ak",
+                "OBJECT_STORE_DERIVED_SECRET_KEY": "derived-sk",
+            }
+        )
+        factory = S3ObjectStoreClientFactory(settings)
+        calls: list[tuple[str, str, str]] = []
+
+        class _FakeClient:
+            def __init__(self, bucket: str) -> None:
+                self.bucket = bucket
+
+            def head_bucket(self, **kwargs: object) -> dict[str, object]:
+                calls.append(("head_bucket", self.bucket, str(kwargs["Bucket"])))
+                return {"ok": True}
+
+            def create_bucket(self, **kwargs: object) -> dict[str, object]:
+                calls.append(("create_bucket", self.bucket, str(kwargs["Bucket"])))
+                return {"ok": True}
+
+        def _fake_create_base_client(*, bucket: str):
+            return _FakeClient(bucket)
+
+        with patch.object(
+            S3ObjectStoreClientFactory,
+            "_create_base_client",
+            autospec=True,
+            side_effect=lambda _self, *, bucket: _fake_create_base_client(bucket=bucket),
+        ):
+            client = factory.create()
+
+            client.head_bucket(Bucket=settings.bucket_source)
+            client.create_bucket(Bucket=settings.bucket_derived)
+
+        self.assertEqual(
+            calls,
+            [
+                ("head_bucket", settings.bucket_source, settings.bucket_source),
+                ("create_bucket", settings.bucket_derived, settings.bucket_derived),
+            ],
+        )
 
 
 if __name__ == "__main__":

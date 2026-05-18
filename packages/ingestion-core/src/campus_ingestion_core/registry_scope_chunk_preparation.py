@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-import hashlib
 import json
 import os
 from collections.abc import Mapping, Sequence
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
-from typing import Any, Literal, Protocol
+from typing import Literal
 
 from campus_ingestion_core.authenticated_notice_closeout_staged_documents import (
     load_verified_closeout_run_document_record_pairs,
@@ -18,9 +17,19 @@ from campus_ingestion_core.authenticated_notice_closeout_store import (
 from campus_ingestion_core.corpus_profiles import load_chunk_profile, load_runtime_profile
 from campus_ingestion_core.index_release import IndexReleaseValidationResult, validate_scope_release
 from campus_ingestion_core.models import DocumentRegistryRecord
-from campus_ingestion_core.object_store import build_operations_artifact_key
 from campus_ingestion_core.process import IndexableChunk, build_indexable_chunks_from_jsonl
 from campus_ingestion_core.registry import DocumentRegistry, build_document_registry_from_env
+from campus_ingestion_core.registry_scope_chunk_preparation_helpers import (
+    _assert_current_cleaning_provenance,
+    _build_preparation_artifact_key,
+    _hash_document_units_bytes,
+    _hash_values,
+    _record_key,
+)
+from campus_ingestion_core.registry_scope_chunk_preparation_models import (
+    REGISTRY_SCOPE_CHUNK_PREPARATION_OPERATION,
+    RegistryScopePreparationObjectStore,
+)
 from campus_ingestion_core.registry_scope_chunk_provenance import (
     hash_bytes,
     hash_chunk_fingerprint,
@@ -35,7 +44,6 @@ from campus_ingestion_core.registry_scope_common import (
 )
 from campus_ingestion_core.settings import ObjectStoreSettings
 
-REGISTRY_SCOPE_CHUNK_PREPARATION_OPERATION = "registry-scope-chunk-preparation"
 MANDATORY_PREPARATION_SCOPES = frozenset(
     {
         ("campus_notices", "internal_notice"),
@@ -43,19 +51,6 @@ MANDATORY_PREPARATION_SCOPES = frozenset(
         ("regulations", "scoped_rules"),
     }
 )
-
-
-class RegistryScopePreparationObjectStore(Protocol):
-    def get_bytes(self, *, bucket: str, key: str) -> bytes: ...
-
-    def put_bytes(
-        self,
-        *,
-        bucket: str,
-        key: str,
-        data: bytes,
-        content_type: str,
-    ) -> None: ...
 
 
 @dataclass(frozen=True, slots=True)
@@ -145,6 +140,8 @@ def prepare_registry_scope_chunks(
     registry: DocumentRegistry | None = None,
     object_store: RegistryScopePreparationObjectStore | None = None,
     closeout_store: CloseoutStore | None = None,
+    official_web_min_release_documents: int | None = None,
+    require_current_cleaning_provenance: bool = False,
 ) -> RegistryScopeChunkPreparationReport:
     source = dict(env if env is not None else os.environ)
     runtime_profile = load_runtime_profile(corpus, collection)
@@ -185,6 +182,12 @@ def prepare_registry_scope_chunks(
             document_units_sha256_by_record_key[_record_key(record)] = hash_bytes(
                 document_units_bytes
             )
+            if require_current_cleaning_provenance:
+                _assert_current_cleaning_provenance(
+                    record=record,
+                    runtime_cleaning_policy_version=runtime_profile.cleaning_policy_version,
+                    document_units_bytes=document_units_bytes,
+                )
             document_chunks = build_indexable_chunks_from_jsonl(
                 record=record,
                 structured_jsonl_bytes=document_units_bytes,
@@ -206,6 +209,7 @@ def prepare_registry_scope_chunks(
         collection=collection,
         chunks=tuple(chunks),
         documents_without_chunks=tuple(documents_without_chunks),
+        official_web_min_release_documents=official_web_min_release_documents,
     )
     prepared_at = datetime.now(UTC).isoformat()
     manifest = build_chunk_preparation_manifest(
@@ -633,6 +637,7 @@ def _validate_prepared_scope(
     collection: str,
     chunks: Sequence[IndexableChunk],
     documents_without_chunks: Sequence[str],
+    official_web_min_release_documents: int | None = None,
 ) -> IndexReleaseValidationResult:
     if not chunks:
         return IndexReleaseValidationResult(
@@ -643,7 +648,12 @@ def _validate_prepared_scope(
                 "documents_without_chunks_count": len(documents_without_chunks),
             },
         )
-    base_validation = validate_scope_release(corpus=corpus, collection=collection, chunks=chunks)
+    base_validation = validate_scope_release(
+        corpus=corpus,
+        collection=collection,
+        chunks=chunks,
+        official_web_min_release_documents=official_web_min_release_documents,
+    )
     token_counts = [int(chunk.metadata.get("final_token_count") or 0) for chunk in chunks]
     invalid_token_count_chunks = [
         chunk.chunk_id for chunk in chunks if int(chunk.metadata.get("final_token_count") or 0) <= 0
@@ -739,45 +749,6 @@ def _build_chunk_preparation_report(
         chunk_count=manifest.chunk_count,
         prepared_at=manifest.prepared_at,
     )
-
-
-def _build_preparation_artifact_key(
-    *,
-    corpus: str,
-    collection: str,
-    preparation_run_id: str,
-    filename: str,
-) -> str:
-    return build_operations_artifact_key(
-        corpus=corpus,
-        operation=REGISTRY_SCOPE_CHUNK_PREPARATION_OPERATION,
-        run_id=preparation_run_id,
-        filename=filename,
-        segments=(collection,),
-    )
-
-
-def _record_key(record: DocumentRegistryRecord) -> tuple[str, str, str]:
-    return (record.document_id, record.revision_track, record.version_id)
-
-
-def _hash_values(values: Sequence[str] | Any) -> str:
-    digest = hashlib.sha256()
-    for value in sorted(str(item) for item in values):
-        digest.update(value.encode("utf-8"))
-        digest.update(b"\n")
-    return digest.hexdigest()
-
-
-def _hash_document_units_bytes(
-    *,
-    object_store: RegistryScopePreparationObjectStore,
-    bucket: str,
-    record: DocumentRegistryRecord,
-) -> str:
-    if not record.document_units_object_key:
-        return ""
-    return hash_bytes(object_store.get_bytes(bucket=bucket, key=record.document_units_object_key))
 
 
 __all__ = [

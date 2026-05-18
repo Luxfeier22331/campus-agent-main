@@ -26,6 +26,11 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Remove the runtime serving alias without deleting physical collections.",
     )
+    parser.add_argument(
+        "--expected-current-physical-collection-name",
+        help="Fail closed unless the alias currently points at this physical collection.",
+    )
+    parser.add_argument("--action-reason", default="")
     return parser
 
 
@@ -36,6 +41,8 @@ def main(argv: Sequence[str] | None = None) -> None:
         corpus=args.corpus,
         collection=args.collection,
         physical_collection_name=args.physical_collection_name,
+        expected_current_physical_collection_name=args.expected_current_physical_collection_name,
+        action_reason=args.action_reason,
     )
     print(json.dumps(asdict(report), ensure_ascii=False, indent=2))
 

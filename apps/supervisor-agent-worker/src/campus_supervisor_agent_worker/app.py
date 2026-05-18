@@ -3,16 +3,28 @@ from __future__ import annotations
 from collections.abc import Mapping
 from dataclasses import dataclass
 
-from campus_supervisor_agent_worker.agent_delegates import bind_agent_handler
+from campus_contracts import AgentResponse, ErrorInfo
+
+from campus_supervisor_agent_worker.agent_delegates import (
+    AgentRuntimeBuildError,
+    QueryServiceRuntimeError,
+    bind_agent_handler,
+)
 from campus_supervisor_agent_worker.agent_dispatch import dispatch_agent_request
 from campus_supervisor_agent_worker.agent_runtime import (
     AgentWorkerRuntime,
     PromptHTTPPoolRuntime,
     build_prompt_runtime_assets,
 )
+from campus_supervisor_agent_worker.agents_sdk_runtime_policy import (
+    agents_sdk_runtime_status,
+)
 from campus_supervisor_agent_worker.api import build_bridge_routes
 from campus_supervisor_agent_worker.cancel_flags import CancelFlagStore
 from campus_supervisor_agent_worker.http_types import HttpResponse, HttpRoute
+from campus_supervisor_agent_worker.retrieval_observation_bridge import (
+    build_runtime_event_emitter_status,
+)
 from campus_supervisor_agent_worker.settings import ApiSettings
 
 
@@ -24,6 +36,7 @@ class SupervisorAgentWorkerApp:
     prompt_http_pool: PromptHTTPPoolRuntime
     cancel_flags: CancelFlagStore
     settings: ApiSettings
+    runtime_assembly_status: dict[str, object]
 
     def handle(
         self,
@@ -47,7 +60,21 @@ class SupervisorAgentWorkerApp:
             "prompt_http_pool": self.prompt_http_pool.status(
                 admitted=self.runtime.prompt_runtime.admitted
             ),
-            "worker_runtime": {"role": "semantic_worker", "cancel_flag_store": "available"},
+            "agents_sdk_runtime": _agents_sdk_runtime_status(
+                settings=self.settings,
+                prompt_runtime_admitted=self.runtime.prompt_runtime.admitted,
+            ),
+            "worker_runtime": {
+                "role": "semantic_worker",
+                "cancel_flag_store": "available",
+                "runtime_assembly": dict(self.runtime_assembly_status),
+                "runtime_event_emitter": build_runtime_event_emitter_status(
+                    otel_enabled=self.settings.otel_enabled,
+                    traces_endpoint=self.settings.otel_exporter_otlp_traces_endpoint,
+                    metrics_endpoint=self.settings.otel_exporter_otlp_metrics_endpoint,
+                    logs_endpoint=self.settings.otel_exporter_otlp_logs_endpoint,
+                ),
+            },
         }
 
     def close(self) -> None:
@@ -77,19 +104,66 @@ def _create_runtime_app(
         rag_prompt_executor,
     ) = build_prompt_runtime_assets(runtime_settings)
     cancel_flags = CancelFlagStore()
-    bound_agent_handler = bind_agent_handler(
-        runtime_settings,
-        agent_handler=agent_handler,
-        rag_prompt_executor=rag_prompt_executor,
-        cancel_flags=cancel_flags,
-    )
+    runtime_assembly_status: dict[str, object] = {
+        "healthy": True,
+        "failure_class": "",
+        "failure_detail": "",
+    }
+    try:
+        bound_agent_handler = bind_agent_handler(
+            runtime_settings,
+            agent_handler=agent_handler,
+            rag_prompt_executor=rag_prompt_executor,
+            cancel_flags=cancel_flags,
+            prompt_http_client=prompt_http_pool.client,
+        )
+    except (AgentRuntimeBuildError, QueryServiceRuntimeError) as exc:
+        failure_class = exc.__class__.__name__
+        failure_detail = str(exc)
+        runtime_assembly_status = {
+            "healthy": False,
+            "failure_class": failure_class,
+            "failure_detail": failure_detail,
+        }
+
+        def _runtime_unavailable_handler(
+            _request,
+            runtime_agent_request,
+            *,
+            _failure_detail: str = failure_detail,
+        ):
+            return AgentResponse(
+                target=runtime_agent_request.target,
+                status="error",
+                confidence="low",
+                error=ErrorInfo(
+                    code="worker_runtime_unavailable",
+                    message=_failure_detail,
+                ),
+            )
+
+        bound_agent_handler = _runtime_unavailable_handler
     routes = build_bridge_routes(
         runtime_settings,
         agent_handler=bound_agent_handler,
         prompt_runtime=prompt_runtime,
         runtime_status_provider=lambda: {
             "prompt_http_pool": prompt_http_pool.status(admitted=prompt_runtime.admitted),
-            "worker_runtime": {"role": "semantic_worker", "cancel_flag_store": "available"},
+            "agents_sdk_runtime": _agents_sdk_runtime_status(
+                settings=runtime_settings,
+                prompt_runtime_admitted=prompt_runtime.admitted,
+            ),
+            "worker_runtime": {
+                "role": "semantic_worker",
+                "cancel_flag_store": "available",
+                "runtime_assembly": dict(runtime_assembly_status),
+                "runtime_event_emitter": build_runtime_event_emitter_status(
+                    otel_enabled=runtime_settings.otel_enabled,
+                    traces_endpoint=runtime_settings.otel_exporter_otlp_traces_endpoint,
+                    metrics_endpoint=runtime_settings.otel_exporter_otlp_metrics_endpoint,
+                    logs_endpoint=runtime_settings.otel_exporter_otlp_logs_endpoint,
+                ),
+            },
         },
         cancel_flags=cancel_flags,
     )
@@ -105,4 +179,19 @@ def _create_runtime_app(
         prompt_http_pool=prompt_http_pool,
         cancel_flags=cancel_flags,
         settings=runtime_settings,
+        runtime_assembly_status=runtime_assembly_status,
+    )
+
+
+def _agents_sdk_runtime_status(
+    *,
+    settings: ApiSettings,
+    prompt_runtime_admitted: bool,
+) -> dict[str, object]:
+    return agents_sdk_runtime_status(
+        enabled=settings.agents_sdk_runtime_enabled,
+        prompt_runtime_provider=settings.prompt_runtime_provider,
+        prompt_runtime_admitted=prompt_runtime_admitted,
+        prompt_runtime_api_key_configured=bool(settings.prompt_runtime_api_key.strip()),
+        agent_model=settings.agent_prompt_model,
     )

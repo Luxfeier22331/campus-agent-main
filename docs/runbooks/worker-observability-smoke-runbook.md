@@ -13,6 +13,7 @@ updated: 2026-04-14
 - `apps/app-api`
 - `apps/public-chat-web`
 - `apps/protected-panel-web`
+- `apps/hub-web`
 
 它回答的是：
 
@@ -57,8 +58,9 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 - `overall_ready = true`
 - `apps/app-api/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、`SENTRY_RELEASE
   `、`AXIOM_ENDPOINT`、`AXIOM_DATASET`、`AXIOM_TOKEN`
-- `apps/public-chat-web/.dev.vars` 与 `apps/protected-panel-web/.dev.vars` 已包含各自
-  `SENTRY_*`
+- `apps/public-chat-web/.dev.vars`、`apps/protected-panel-web/.dev.vars` 与
+  `apps/hub-web/.dev.vars` 已包含 `SENTRY_DSN`、`SENTRY_ENVIRONMENT`、`SENTRY_RELEASE`
+- root `.env` 使用共享 `SENTRY_DSN`，不是 per-surface `SENTRY_DSN_*`
 
 如果未通过，可先执行：
 
@@ -80,6 +82,7 @@ pnpm --dir apps/public-chat-web test:worker -- --reporter=verbose -t \
 pnpm --dir apps/protected-panel-web test:worker -- --reporter=verbose -t \
   "smokes request queries through protected-panel-web into app-api with \
   internal caller admission"
+pnpm --dir apps/hub-web test:worker -- --reporter=verbose
 ```
 
 这一步只证明 Worker shell、proxy seam、internal bridge 和 `no-store` 行为正常；它不证明第三方 sink
@@ -171,6 +174,7 @@ env UV_CACHE_DIR=/tmp/uv-cache uv run --all-packages python -m \
 - `public-chat-web` 与 `app-api` 都能在 `Sentry` 中看到同一条 trace 上的相邻事件
 - `app-api` 事件标签至少包含 `surface=app_api`
 - `public-chat-web` 事件标签至少包含 `surface=public-chat-web`
+- 四个 Worker 默认共享同一个 Sentry project；通过 `environment` 与 `surface` 过滤事件
 
 ### 2. `protected-panel-web -> app-api`
 

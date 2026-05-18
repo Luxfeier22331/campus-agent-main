@@ -31,7 +31,8 @@ describe("app-api shared product bootstrap contracts", () => {
 			"drain-official-web-projection.ts",
 		);
 		expect(packageJson.scripts["official-web:drain-projection"]).toContain("tsx");
-		expect(packageJson.scripts.test).toBe("pnpm run test:node");
+		expect(packageJson.scripts.test).toContain("run-node-tests.mjs");
+		expect(existsSync(join(appRoot, "scripts/run-node-tests.mjs"))).toBe(true);
 		expect(packageJson.scripts["test:all"]).toContain("vitest.config.mts");
 		expect(packageJson.scripts["test:node"]).toContain("vitest.node.config.mts");
 		expect(packageJson.scripts["test:worker"]).toContain("vitest.worker.config.mts");

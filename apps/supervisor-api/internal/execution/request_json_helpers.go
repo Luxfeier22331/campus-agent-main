@@ -67,9 +67,9 @@ func parseStringArray(raw json.RawMessage, fieldName string) ([]string, error) {
 	return normalized, nil
 }
 
-func parseOptionalBool(raw json.RawMessage, fallback bool) (bool, error) {
+func parseOptionalBool(raw json.RawMessage, defaultValue bool) (bool, error) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return fallback, nil
+		return defaultValue, nil
 	}
 	var value bool
 	if err := json.Unmarshal(raw, &value); err != nil {
@@ -78,9 +78,9 @@ func parseOptionalBool(raw json.RawMessage, fallback bool) (bool, error) {
 	return value, nil
 }
 
-func parseOptionalInt(raw json.RawMessage, fallback int) (int, error) {
+func parseOptionalInt(raw json.RawMessage, defaultValue int) (int, error) {
 	if len(raw) == 0 || string(raw) == "null" {
-		return fallback, nil
+		return defaultValue, nil
 	}
 	var value int
 	if err := json.Unmarshal(raw, &value); err != nil {

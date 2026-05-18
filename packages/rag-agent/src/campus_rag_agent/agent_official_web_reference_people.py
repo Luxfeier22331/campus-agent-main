@@ -4,7 +4,6 @@ import re
 
 from campus_contracts import EvidenceSource
 
-from .agent_official_web_terms import _OFFICIAL_WEB_SCHOLAR_DOMAIN_HINTS
 from .agent_shared import _normalize_snippet
 
 
@@ -17,59 +16,6 @@ def _official_web_section_path(source: EvidenceSource) -> tuple[str, ...]:
     return tuple(
         _normalize_snippet(str(item)) for item in raw_section_path if _normalize_snippet(str(item))
     )
-
-
-def _extract_official_web_scholar_name(
-    source: EvidenceSource,
-    statements: tuple[str, ...],
-) -> str:
-    title = _normalize_snippet(source.source_title)
-    section_path = _official_web_section_path(source)
-    if section_path:
-        leaf = section_path[-1]
-        if leaf and leaf != title:
-            return leaf
-    for item in reversed(source.structural_path):
-        candidate = _normalize_snippet(item)
-        if candidate and candidate != title:
-            return candidate
-    for statement in statements:
-        name = _extract_leading_person_name(statement)
-        if name:
-            return name
-    return ""
-
-
-def _extract_official_web_scholar_domains(statements: tuple[str, ...]) -> tuple[str, ...]:
-    combined = _normalize_snippet(" ".join(statements))
-    if not combined:
-        return ()
-    domains: list[str] = []
-    for label, tokens in _OFFICIAL_WEB_SCHOLAR_DOMAIN_HINTS:
-        if any(token in combined for token in tokens):
-            domains.append(label)
-    return tuple(domains)
-
-
-def _build_official_web_scholar_reference_fragments(
-    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
-) -> tuple[str, ...]:
-    names: list[str] = []
-    domains: list[str] = []
-    for source, statements in selected_rows:
-        name = _extract_official_web_scholar_name(source, statements)
-        if name and name not in names:
-            names.append(name)
-        for domain in _extract_official_web_scholar_domains(statements):
-            if domain not in domains:
-                domains.append(domain)
-
-    fragments: list[str] = []
-    if names:
-        fragments.append(f"“学术名流”页列有{'、'.join(names[:3])}等代表学者")
-    if domains:
-        fragments.append(f"涵盖{'、'.join(domains[:3])}等方向")
-    return tuple(fragment for fragment in fragments if fragment)
 
 
 def _extract_leading_person_name(text: str) -> str:
@@ -123,11 +69,8 @@ def _build_official_web_roster_fragments(
 
 __all__ = [
     "_build_official_web_roster_fragments",
-    "_build_official_web_scholar_reference_fragments",
     "_extract_leading_person_name",
     "_extract_official_web_roster_entry",
-    "_extract_official_web_scholar_domains",
-    "_extract_official_web_scholar_name",
     "_official_web_section_path",
     "_simplify_official_web_school_role",
 ]

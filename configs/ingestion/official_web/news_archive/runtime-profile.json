@@ -11,7 +11,6 @@
 	"query_enabled_by_default": false,
 	"supports_freshness_sensitive_queries": false,
 	"freshness_max_age_hours": null,
-	"live_search_fallback_allowed": false,
 	"required_metadata_fields": [
 		"published_at",
 		"crawled_at",

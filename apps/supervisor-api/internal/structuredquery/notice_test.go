@@ -2,10 +2,120 @@ package structuredquery
 
 import (
 	"context"
-	"errors"
-	"strings"
 	"testing"
 )
+
+func TestLookupCampusNoticeChangeSetReturnsTransportOperationalOverride(t *testing.T) {
+	store := &fakeNoticeReadModelStore{
+		searchRows: []noticeReadModelRecord{
+			{
+				SourceFamily:            "internal_notice_restricted",
+				SourceNoticeID:          "353903",
+				Title:                   "关于通勤班车丰台校区乘车点调整的通知",
+				VisibilityLevel:         "restricted",
+				EntitlementGroups:       []string{"students"},
+				PolicyProjectionVersion: "phase1-authorization-projection-v1",
+				SourceURL:               "https://portal.example.edu/notices/353903",
+				PublishedAt:             "2026-01-01T08:00:00+08:00",
+				TargetSurface:           "campus_services/service_status_candidate",
+				BodyExcerpt:             "通勤班车丰台校区乘车点调整至南门外停车区。",
+			},
+		},
+	}
+	runtime := NewRuntime(Options{
+		NoticeReadModelStore: store,
+		TransportScheduleReadModelStore: &fakeTransportScheduleReadModelStore{
+			bundle: mustProjectionBundle(t, transportProjectionFixtureWithOperationalNotice()),
+		},
+		TrustedTimeRFC3339: "2026-01-02T09:00:00+08:00",
+	})
+
+	response := runtime.LookupCampusNoticeChangeSet(context.Background(), []byte(`{
+		"payload":{
+			"query_text":"丰台到海淀通勤车今天乘车点有没有变",
+			"route_labels":["丰台到海淀通勤车"],
+			"service_date":"2026-01-02"
+		},
+		"access_context":{
+			"authorization":{
+				"principal_id":"principal-001",
+				"entitlement_groups":["students"],
+				"retrieval_filter":{
+					"entitlement_groups":["students"],
+					"visibility_level":"restricted"
+				}
+			}
+		}
+	}`))
+
+	result, ok := response.Body.(noticeChangeSetLookupResult)
+	if !ok {
+		t.Fatalf("body = %T, want noticeChangeSetLookupResult", response.Body)
+	}
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if result.ChangeSet == nil {
+		t.Fatal("change_set = nil, want bounded change set")
+	}
+	if result.ChangeSet.ChangeKind != "stop_or_boarding_point_change" {
+		t.Fatalf("change_kind = %q", result.ChangeSet.ChangeKind)
+	}
+	if len(result.ChangeSet.Facts) != 1 {
+		t.Fatalf("facts = %#v, want one fact", result.ChangeSet.Facts)
+	}
+	if result.ChangeSet.Facts[0].SourceNoticeID != "353903" {
+		t.Fatalf("source_notice_id = %q", result.ChangeSet.Facts[0].SourceNoticeID)
+	}
+	if result.ChangeSet.SourceRefs[0].SourceURL != "https://portal.example.edu/notices/353903" {
+		t.Fatalf("source_url = %q", result.ChangeSet.SourceRefs[0].SourceURL)
+	}
+	if store.searchCount != 0 {
+		t.Fatalf("searchCount = %d, want no full-text notice search after operational notice IDs resolve", store.searchCount)
+	}
+	if store.idLookupCount != 1 {
+		t.Fatalf("idLookupCount = %d, want one selected notice ID lookup", store.idLookupCount)
+	}
+	if !equalStrings(store.idLookupNoticeIDs, []string{"353903"}) {
+		t.Fatalf("idLookupNoticeIDs = %#v, want 353903", store.idLookupNoticeIDs)
+	}
+}
+
+func TestLookupCampusNoticeChangeSetFailsClosedWhenBaselineMissing(t *testing.T) {
+	runtime := NewRuntime(Options{
+		NoticeReadModelStore: &fakeNoticeReadModelStore{},
+		TransportScheduleReadModelStore: &fakeTransportScheduleReadModelStore{
+			bundle: projectionBundle{},
+		},
+		TrustedTimeRFC3339: "2026-01-02T09:00:00+08:00",
+	})
+
+	response := runtime.LookupCampusNoticeChangeSet(context.Background(), []byte(`{
+		"payload":{
+			"query_text":"今天班车是否有临时通知",
+			"route_labels":["丰台到海淀通勤车"],
+			"service_date":"2026-01-02"
+		},
+		"access_context":{
+			"authorization":{
+				"principal_id":"principal-001",
+				"entitlement_groups":["students"],
+				"retrieval_filter":{
+					"entitlement_groups":["students"],
+					"visibility_level":"restricted"
+				}
+			}
+		}
+	}`))
+
+	result := response.Body.(noticeChangeSetLookupResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "source_truth_unavailable" {
+		t.Fatalf("fail_close_reason = %q, want source_truth_unavailable", result.FailCloseReason)
+	}
+}
 
 func TestLookupCampusNoticeDiscoverReadsRestrictedNoticeReadModel(t *testing.T) {
 	store := &fakeNoticeReadModelStore{
@@ -78,8 +188,8 @@ func TestLookupCampusNoticeDiscoverReadsRestrictedNoticeReadModel(t *testing.T) 
 	if result.NoticeCards[0].PrimaryRole != "notice_window" {
 		t.Fatalf("primary_role = %q", result.NoticeCards[0].PrimaryRole)
 	}
-	if result.NoticeCards[0].CanonicalURL != result.NoticeCards[0].SourceURL {
-		t.Fatalf("canonical_url = %q, want source_url fallback", result.NoticeCards[0].CanonicalURL)
+	if result.NoticeCards[0].CanonicalURL != "" {
+		t.Fatalf("canonical_url = %q, want empty when read model has no canonical_url", result.NoticeCards[0].CanonicalURL)
 	}
 	if store.searchQueryText != "家具采购" {
 		t.Fatalf("search query = %q, want 家具采购", store.searchQueryText)
@@ -338,7 +448,7 @@ func TestLookupCampusNoticeDiscoverClampsMaxResults(t *testing.T) {
 	}
 }
 
-func TestLookupCampusNoticeGetReadsCanonicalBody(t *testing.T) {
+func TestLookupCampusNoticeGetReturnsSourceCardWithoutCanonicalBody(t *testing.T) {
 	store := &fakeNoticeReadModelStore{
 		getRow: &noticeReadModelRecord{
 			SourceFamily:               "internal_notice_restricted",
@@ -354,6 +464,7 @@ func TestLookupCampusNoticeGetReadsCanonicalBody(t *testing.T) {
 			TargetSurface:              "notice_level_query",
 			PrimaryRole:                "notice_window",
 			CanonicalMarkdownObjectKey: "campus_notices/documents/internal_notice/355222/canonical.md",
+			BodyExcerpt:                "家具采购项目摘要。",
 			AttachmentRefs:             []string{"attachment:355222:1"},
 			ProvenanceRefs:             []string{"notice:muc_internal_portal:355222"},
 		},
@@ -395,8 +506,16 @@ func TestLookupCampusNoticeGetReadsCanonicalBody(t *testing.T) {
 	if result.Outcome != "resolved_current" {
 		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
 	}
-	if result.NormalizedBody != "# 采购公告\n\n供应商应按要求投标。" {
-		t.Fatalf("normalized_body = %q", result.NormalizedBody)
+	if result.NormalizedBody != "" {
+		t.Fatalf("normalized_body = %q, want empty", result.NormalizedBody)
+	}
+	if result.BodyExcerpt != "家具采购项目摘要。" {
+		t.Fatalf("body_excerpt = %q", result.BodyExcerpt)
+	}
+	if result.DisplayPolicy.PublicSurface != "card_only" ||
+		!result.DisplayPolicy.FullBodyForbidden ||
+		result.DisplayPolicy.BodyAccess != "none" {
+		t.Fatalf("display_policy = %#v, want public card-only policy", result.DisplayPolicy)
 	}
 	if len(result.AttachmentRefs) != 1 || result.AttachmentRefs[0] != "attachment:355222:1" {
 		t.Fatalf("attachment_refs = %#v", result.AttachmentRefs)
@@ -407,8 +526,8 @@ func TestLookupCampusNoticeGetReadsCanonicalBody(t *testing.T) {
 	if result.PrimaryRole != "notice_window" {
 		t.Fatalf("primary_role = %q", result.PrimaryRole)
 	}
-	if bodyStore.readCount != 1 {
-		t.Fatalf("body read count = %d, want 1", bodyStore.readCount)
+	if bodyStore.readCount != 0 {
+		t.Fatalf("body read count = %d, want 0 for card-first notice get", bodyStore.readCount)
 	}
 }
 
@@ -456,353 +575,4 @@ func TestLookupCampusNoticeGetFiltersByTargetSurface(t *testing.T) {
 	if got, want := store.getTargetSurfaces, []string{"notice_level_query"}; !equalStrings(got, want) {
 		t.Fatalf("target_surfaces = %#v, want %#v", got, want)
 	}
-}
-
-func TestReadNoticeBodyLimitedRejectsOversizedBody(t *testing.T) {
-	_, err := readNoticeBodyLimited(strings.NewReader("0123456789abcdef"), 8)
-	if !errors.Is(err, errNoticeBodyTooLarge) {
-		t.Fatalf("err = %v, want errNoticeBodyTooLarge", err)
-	}
-}
-
-func TestLookupCampusNoticeDiscoverFailsClosedWithoutRestrictedAuthorization(t *testing.T) {
-	store := &fakeNoticeReadModelStore{
-		searchRows: []noticeReadModelRecord{{SourceNoticeID: "355222"}},
-	}
-	runtime := NewRuntime(Options{
-		NoticeReadModelStore: store,
-		NoticeBodyStore:      &fakeNoticeBodyStore{},
-		TrustedTimeRFC3339:   "2026-04-24T10:30:00+08:00",
-	})
-
-	response := runtime.LookupCampusNoticeDiscover(context.Background(), []byte(`{
-		"payload":{
-			"query_text":"家具采购",
-			"source_families":["internal_notice_restricted"]
-		},
-		"access_context":{
-			"authorization":{"principal_id":"principal-001"}
-		}
-	}`))
-
-	result, ok := response.Body.(noticeDiscoverResult)
-	if !ok {
-		t.Fatalf("body = %T, want noticeDiscoverResult", response.Body)
-	}
-	if result.Outcome != "temporarily_unverifiable" {
-		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
-	}
-	if result.FailCloseReason != "source_family_unavailable" {
-		t.Fatalf("fail_close_reason = %q", result.FailCloseReason)
-	}
-	if store.searchCount != 0 {
-		t.Fatalf("search count = %d, want 0", store.searchCount)
-	}
-}
-
-func TestLookupCampusNoticeDiscoverAdmitsWechatPublicNoticeSourceFamily(t *testing.T) {
-	store := &fakeNoticeReadModelStore{
-		searchRows: []noticeReadModelRecord{
-			{
-				SourceFamily:   "wechat_public_notice",
-				SourceNoticeID: "wechat:article:001",
-				Title:          "校园活动通知",
-				SourceURL:      "https://mp.weixin.qq.com/s/example",
-				PublishedAt:    "2026-04-24T08:00:00+08:00",
-				TargetSurface:  "notice_level_query",
-			},
-		},
-	}
-	runtime := NewRuntime(Options{
-		NoticeReadModelStore: store,
-		TrustedTimeRFC3339:   "2026-04-24T10:30:00+08:00",
-	})
-
-	response := runtime.LookupCampusNoticeDiscover(context.Background(), []byte(`{
-		"payload":{
-			"query_text":"校园活动",
-			"source_families":["wechat_public_notice"]
-		},
-		"access_context":{
-			"authorization":{
-				"principal_id":"principal-001",
-				"entitlement_groups":["students"],
-				"retrieval_filter":{
-					"entitlement_groups":["students"],
-					"visibility_level":"restricted"
-				}
-			}
-		}
-	}`))
-
-	result, ok := response.Body.(noticeDiscoverResult)
-	if !ok {
-		t.Fatalf("body = %T, want noticeDiscoverResult", response.Body)
-	}
-	if result.Outcome != "resolved_current" {
-		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
-	}
-	if len(result.NoticeCards) != 1 {
-		t.Fatalf("notice_cards = %#v", result.NoticeCards)
-	}
-	if result.NoticeCards[0].SourceFamily != "wechat_public_notice" {
-		t.Fatalf("source_family = %q, want wechat_public_notice", result.NoticeCards[0].SourceFamily)
-	}
-	if store.searchCount != 1 {
-		t.Fatalf("search count = %d, want 1", store.searchCount)
-	}
-}
-
-func TestLookupCampusNoticeGetReturnsReferenceOnlyWhenPublicBodyUnavailable(t *testing.T) {
-	store := &fakeNoticeReadModelStore{
-		getRow: &noticeReadModelRecord{
-			SourceFamily:   "wechat_public_notice",
-			SourceNoticeID: "wechat:article:001",
-			Title:          "校园活动通知",
-			SourceURL:      "https://mp.weixin.qq.com/s/example",
-			CanonicalURL:   "https://mp.weixin.qq.com/s/example",
-			PublishedAt:    "2026-04-24T08:00:00+08:00",
-			TargetSurface:  "notice_level_query",
-		},
-	}
-	runtime := NewRuntime(Options{
-		NoticeReadModelStore: store,
-	})
-
-	response := runtime.LookupCampusNoticeGet(context.Background(), []byte(`{
-		"payload":{
-			"notice_id":"wechat:article:001",
-			"source_family":"wechat_public_notice"
-		},
-		"access_context":{
-			"authorization":{
-				"principal_id":"principal-001",
-				"entitlement_groups":["students"]
-			}
-		}
-	}`))
-
-	if response.StatusCode != 200 {
-		t.Fatalf("status = %d, want 200", response.StatusCode)
-	}
-	result, ok := response.Body.(noticeGetResult)
-	if !ok {
-		t.Fatalf("body = %T, want noticeGetResult", response.Body)
-	}
-	if result.Outcome != "resolved_current" {
-		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
-	}
-	if !result.ReferenceOnly {
-		t.Fatal("reference_only = false, want true")
-	}
-	if result.NormalizedBody != "" {
-		t.Fatalf("normalized_body = %q, want empty", result.NormalizedBody)
-	}
-}
-
-func TestLookupCampusNoticeGetFailsClosedWithoutRestrictedAuthorization(t *testing.T) {
-	store := &fakeNoticeReadModelStore{
-		getRow: &noticeReadModelRecord{
-			SourceFamily:   "internal_notice_restricted",
-			SourceNoticeID: "355222",
-			Title:          "中央民族大学丰台校区家具采购项目比选公告",
-			SourceURL:      "https://portal.example.edu/notices/355222",
-		},
-	}
-	runtime := NewRuntime(Options{
-		NoticeReadModelStore: store,
-	})
-
-	response := runtime.LookupCampusNoticeGet(context.Background(), []byte(`{
-		"payload":{
-			"notice_id":"355222",
-			"source_family":"internal_notice_restricted"
-		},
-		"access_context":{
-			"authorization":{
-				"principal_id":"principal-001"
-			}
-		}
-	}`))
-
-	result, ok := response.Body.(noticeGetResult)
-	if !ok {
-		t.Fatalf("body = %T, want noticeGetResult", response.Body)
-	}
-	if result.Outcome != "temporarily_unverifiable" {
-		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
-	}
-	if result.FailCloseReason != "source_family_unavailable" {
-		t.Fatalf("fail_close_reason = %q, want source_family_unavailable", result.FailCloseReason)
-	}
-	if store.getCount != 0 {
-		t.Fatalf("get count = %d, want 0", store.getCount)
-	}
-}
-
-func TestLookupCampusNoticeGetFailsClosedForUnknownSourceFamily(t *testing.T) {
-	store := &fakeNoticeReadModelStore{
-		getRow: &noticeReadModelRecord{
-			SourceFamily:   "unknown_family",
-			SourceNoticeID: "355222",
-			Title:          "中央民族大学丰台校区家具采购项目比选公告",
-			SourceURL:      "https://portal.example.edu/notices/355222",
-		},
-	}
-	runtime := NewRuntime(Options{
-		NoticeReadModelStore: store,
-	})
-
-	response := runtime.LookupCampusNoticeGet(context.Background(), []byte(`{
-		"payload":{
-			"notice_id":"355222",
-			"source_family":"unknown_family"
-		},
-		"access_context":{
-			"authorization":{
-				"principal_id":"principal-001",
-				"entitlement_groups":["students"]
-			}
-		}
-	}`))
-
-	result, ok := response.Body.(noticeGetResult)
-	if !ok {
-		t.Fatalf("body = %T, want noticeGetResult", response.Body)
-	}
-	if result.Outcome != "temporarily_unverifiable" {
-		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
-	}
-	if result.FailCloseReason != "source_family_unavailable" {
-		t.Fatalf("fail_close_reason = %q, want source_family_unavailable", result.FailCloseReason)
-	}
-	if store.getCount != 0 {
-		t.Fatalf("get count = %d, want 0", store.getCount)
-	}
-}
-
-func TestNewRuntimeConfiguresNoticeStoresFromOptions(t *testing.T) {
-	runtime := NewRuntime(Options{
-		NoticeReadModelDatabaseURL:     "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
-		NoticeReadModelTable:           "ingestion_projection.internal_notice_read_model",
-		NoticeObjectStoreEndpoint:      "http://minio:9000",
-		NoticeObjectStoreAccessKey:     "access",
-		NoticeObjectStoreSecretKey:     "secret",
-		NoticeObjectStoreRegion:        "us-east-1",
-		NoticeObjectStoreBucketDerived: "campus-rag-derived",
-	})
-
-	status := runtime.Status(context.Background())
-	if !status.NoticeReadModelConfigured {
-		t.Fatal("notice read model should be configured")
-	}
-	if !status.NoticeBodyStoreConfigured {
-		t.Fatal("notice body store should be configured")
-	}
-}
-
-func TestNewRuntimeConfiguresServiceGuideReadModelStoreFromOptions(t *testing.T) {
-	runtime := NewRuntime(Options{
-		StructuredProjectionDatabaseURL: "postgresql://postgres:postgres@127.0.0.1:1/campus_agent",
-	})
-
-	status := runtime.Status(context.Background())
-	if !status.ServiceGuideReadModelConfigured {
-		t.Fatal("service guide read model should be configured")
-	}
-}
-
-func TestServiceGuidePostgresOptionsDefaultsToSmallLocalPool(t *testing.T) {
-	config, err := serviceGuidePostgresPoolConfig(ServiceGuidePostgresOptions{
-		DatabaseURL: "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
-	})
-	if err != nil {
-		t.Fatalf("pool config error: %v", err)
-	}
-	if config.MinConns != 0 {
-		t.Fatalf("MinConns = %d, want 0", config.MinConns)
-	}
-	if config.MaxConns != 2 {
-		t.Fatalf("MaxConns = %d, want 2", config.MaxConns)
-	}
-}
-
-func TestNoticePostgresOptionsDefaultsToSmallLocalPool(t *testing.T) {
-	config, err := noticePostgresPoolConfig(NoticePostgresOptions{
-		DatabaseURL: "postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
-		TableName:   "ingestion_projection.internal_notice_read_model",
-	})
-	if err != nil {
-		t.Fatalf("pool config error: %v", err)
-	}
-	if config.MinConns != 0 {
-		t.Fatalf("MinConns = %d, want 0", config.MinConns)
-	}
-	if config.MaxConns != 2 {
-		t.Fatalf("MaxConns = %d, want 2", config.MaxConns)
-	}
-}
-
-type fakeNoticeReadModelStore struct {
-	searchRows           []noticeReadModelRecord
-	getRow               *noticeReadModelRecord
-	searchCount          int
-	getCount             int
-	searchQueryText      string
-	searchMaxResults     int
-	searchTargetSurfaces []string
-	searchAuthorization  noticeReadModelAuthorizationFilter
-	getTargetSurfaces    []string
-	getAuthorization     noticeReadModelAuthorizationFilter
-}
-
-func (s *fakeNoticeReadModelStore) SearchNotices(
-	ctx context.Context,
-	criteria noticeSearchCriteria,
-) ([]noticeReadModelRecord, error) {
-	s.searchCount++
-	s.searchQueryText = criteria.QueryText
-	s.searchTargetSurfaces = append([]string(nil), criteria.TargetSurfaces...)
-	s.searchMaxResults = criteria.MaxResults
-	s.searchAuthorization = criteria.Authorization
-	return append([]noticeReadModelRecord(nil), s.searchRows...), nil
-}
-
-func (s *fakeNoticeReadModelStore) GetNoticeByID(
-	ctx context.Context,
-	criteria noticeGetCriteria,
-) (noticeReadModelRecord, bool, error) {
-	s.getCount++
-	s.getTargetSurfaces = append([]string(nil), criteria.TargetSurfaces...)
-	s.getAuthorization = criteria.Authorization
-	if s.getRow == nil {
-		return noticeReadModelRecord{}, false, nil
-	}
-	return *s.getRow, true, nil
-}
-
-type fakeNoticeBodyStore struct {
-	bodies    map[string]string
-	readCount int
-}
-
-func (s *fakeNoticeBodyStore) GetNoticeBody(ctx context.Context, objectKey string) (string, error) {
-	s.readCount++
-	body, ok := s.bodies[objectKey]
-	if !ok {
-		return "", errNoticeBodyUnavailable
-	}
-	return body, nil
-}
-
-func equalStrings(left []string, right []string) bool {
-	if len(left) != len(right) {
-		return false
-	}
-	for index := range left {
-		if left[index] != right[index] {
-			return false
-		}
-	}
-	return true
 }

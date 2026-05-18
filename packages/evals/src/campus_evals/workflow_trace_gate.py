@@ -12,11 +12,13 @@ from campus_evals.models import (
     WorkflowTraceSummary,
     reject_forbidden_workflow_trace_keys,
 )
+from campus_evals.workflow_trace_gate_projection import (
+    _trace_projection_completeness,
+)
 
 WORKFLOW_TRACE_GATE_CASES_PATH = (
     Path(__file__).resolve().parents[2] / "fixtures" / "workflow_trace_gate_cases.v1.json"
 )
-SUPPORTED_WORKFLOW_MODES = frozenset(("terminal", "direct_runtime", "single_handoff", "multi_step"))
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,12 +27,14 @@ class WorkflowTraceExpectation:
     selected_target: str
     workflow_mode: str = ""
     selected_tools: tuple[str, ...] = field(default_factory=tuple)
+    expected_answer_artifact_kinds: tuple[str, ...] = field(default_factory=tuple)
     handoff: dict[str, object] = field(default_factory=dict)
     handoff_chain: tuple[dict[str, object], ...] = field(default_factory=tuple)
     tool_argument_summary: dict[str, object] = field(default_factory=dict)
     tool_call_summaries: tuple[dict[str, object], ...] = field(default_factory=tuple)
     expected_tool_order: tuple[str, ...] = field(default_factory=tuple)
     expected_tool_result_statuses: dict[str, object] = field(default_factory=dict)
+    expected_context_projection_kinds: tuple[str, ...] = field(default_factory=tuple)
     expected_source_ids: tuple[str, ...] = field(default_factory=tuple)
     fail_close_provenance: dict[str, object] = field(default_factory=dict)
     guardrail_outcomes: dict[str, object] = field(default_factory=dict)
@@ -120,7 +124,7 @@ def evaluate_workflow_trace_case(
             expectation.guardrail_outcomes,
         ),
         fail_close_correctness=_fail_close_result(summary, expectation),
-        trace_projection_completeness=_trace_projection_completeness(summary),
+        trace_projection_completeness=_trace_projection_completeness(summary, expectation),
         tool_order_correctness=_tool_order_result(summary, expectation),
         tool_result_status_correctness=_tool_result_status_result(summary, expectation),
         fail_close_provenance=_mapping_contains(
@@ -253,6 +257,9 @@ def _workflow_trace_case(payload: object) -> WorkflowTraceCase:
             workflow_mode=str(expectation.get("workflow_mode") or ""),
             selected_target=str(expectation.get("selected_target") or ""),
             selected_tools=tuple(str(tool) for tool in expectation.get("selected_tools") or ()),
+            expected_answer_artifact_kinds=tuple(
+                str(kind) for kind in expectation.get("expected_answer_artifact_kinds") or ()
+            ),
             handoff=dict(expectation.get("handoff") or {}),
             handoff_chain=tuple(dict(item) for item in expectation.get("handoff_chain") or ()),
             tool_argument_summary=dict(expectation.get("tool_argument_summary") or {}),
@@ -264,6 +271,9 @@ def _workflow_trace_case(payload: object) -> WorkflowTraceCase:
             ),
             expected_tool_result_statuses=dict(
                 expectation.get("expected_tool_result_statuses") or {}
+            ),
+            expected_context_projection_kinds=tuple(
+                str(kind) for kind in expectation.get("expected_context_projection_kinds") or ()
             ),
             expected_source_ids=tuple(
                 str(source_id) for source_id in expectation.get("expected_source_ids") or ()
@@ -295,6 +305,17 @@ def _workflow_trace_summary_from_payload(payload: object) -> WorkflowTraceSummar
     selected_tools = _list_value(record, "selected_tools", "selectedTools")
     handoff_chain = _list_value(record, "handoff_chain", "handoffChain")
     context_projections = _list_value(record, "context_projections", "contextProjections")
+    agent_invocations = _list_value(record, "agent_invocations", "agentInvocations")
+    answer_artifact_projection_ids = _list_value(
+        record,
+        "answer_artifact_projection_ids",
+        "answerArtifactProjectionIds",
+    )
+    answer_artifact_kinds = _list_value(
+        record,
+        "answer_artifact_kinds",
+        "answerArtifactKinds",
+    )
     return WorkflowTraceSummary(
         routing_frame=_dict_value(record, "routing_frame", "routingFrame"),
         context_resolution=_dict_value(record, "context_resolution", "contextResolution"),
@@ -307,10 +328,17 @@ def _workflow_trace_summary_from_payload(payload: object) -> WorkflowTraceSummar
         workflow_mode=_string_value(record, "workflow_mode", "workflowMode"),
         handoff=_dict_value(record, "handoff"),
         handoff_chain=tuple(dict(item) for item in handoff_chain if isinstance(item, dict)),
+        agent_invocations=tuple(dict(item) for item in agent_invocations if isinstance(item, dict)),
         selected_target=_string_value(record, "selected_target", "selectedTarget"),
         selected_tools=tuple(str(item) for item in selected_tools if str(item).strip()),
         context_projections=tuple(
             dict(item) for item in context_projections if isinstance(item, dict)
+        ),
+        answer_artifact_projection_ids=tuple(
+            str(item) for item in answer_artifact_projection_ids if str(item).strip()
+        ),
+        answer_artifact_kinds=tuple(
+            str(item) for item in answer_artifact_kinds if str(item).strip()
         ),
         tool_argument_summary=_dict_value(
             record,
@@ -521,77 +549,3 @@ def _observed_source_ids(summary: WorkflowTraceSummary) -> set[str]:
         if source_id:
             source_ids.add(str(source_id))
     return source_ids
-
-
-def _trace_projection_completeness(summary: WorkflowTraceSummary) -> DimensionResult:
-    missing = []
-    if not summary.direct_vs_delegate_branch:
-        missing.append("direct_vs_delegate_branch")
-    if not summary.workflow_mode:
-        missing.append("workflow_mode")
-    elif summary.workflow_mode not in SUPPORTED_WORKFLOW_MODES:
-        missing.append("workflow_mode.supported")
-    if not summary.selected_target:
-        missing.append("selected_target")
-    if summary.workflow_mode == "terminal" and summary.selected_target != "none":
-        missing.append("selected_target.none_sentinel")
-    if summary.workflow_mode == "single_handoff" and not summary.handoff_chain:
-        missing.append("handoff_chain")
-    if summary.workflow_mode == "multi_step" and len(summary.handoff_chain) < 2:
-        missing.append("handoff_chain.multi_step")
-    if summary.workflow_mode == "multi_step" and not summary.context_projections:
-        missing.append("context_projections.multi_step")
-    if (
-        not summary.selected_tools
-        and not summary.fail_close_reason
-        and summary.direct_vs_delegate_branch != "clarification"
-        and summary.workflow_mode != "terminal"
-    ):
-        missing.append("selected_tools")
-    if summary.selected_tools and not summary.tool_call_summaries:
-        missing.append("tool_call_summaries")
-    if not summary.planning_outcome:
-        missing.append("planning_outcome")
-    if not summary.trace_steps:
-        missing.append("trace_steps")
-    elif _trace_steps_lack_timeline_fields(summary.trace_steps):
-        missing.append("trace_steps.timeline_fields")
-    return DimensionResult(
-        passed=not missing,
-        reason="" if not missing else "missing workflow trace fields: " + ", ".join(missing),
-    )
-
-
-def _trace_steps_lack_timeline_fields(trace_steps: tuple[dict[str, object], ...]) -> bool:
-    for step in trace_steps:
-        if not isinstance(step, dict):
-            return True
-        step_id = _trace_step_string(step, "step_id", "stepId")
-        span_kind = _trace_step_string(step, "span_kind", "spanKind")
-        if not step_id or not span_kind:
-            return True
-        if not _trace_step_has_key(step, "parent_step_id", "parentStepId"):
-            return True
-        if not (
-            _trace_step_string(step, "outcome")
-            or _trace_step_string(step, "result_status", "resultStatus", "status")
-        ):
-            return True
-        if span_kind == "tool_call" or step_id == "tool_call":
-            if not _trace_step_string(step, "result_status", "resultStatus", "status"):
-                return True
-            if not _trace_step_has_key(step, "retry_count", "retryCount"):
-                return True
-    return False
-
-
-def _trace_step_string(step: dict[str, object], *keys: str) -> str:
-    for key in keys:
-        value = step.get(key)
-        if isinstance(value, str) and value.strip():
-            return value.strip()
-    return ""
-
-
-def _trace_step_has_key(step: dict[str, object], *keys: str) -> bool:
-    return any(key in step for key in keys)

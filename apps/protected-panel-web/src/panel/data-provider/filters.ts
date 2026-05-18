@@ -63,6 +63,72 @@ export function appendOfficialWebRunFilters(
 	}
 }
 
+export function appendOfficialWebTargetJobFilters(
+	query: URLSearchParams,
+	filter: GetListParams["filter"],
+) {
+	appendOptionalQueryParam(query, "siteId", filter?.siteId);
+	appendOptionalQueryParam(query, "status", filter?.status);
+	appendOptionalQueryParam(query, "targetId", filter?.targetId);
+}
+
+export function appendOfficialWebTargetInventoryFilters(
+	query: URLSearchParams,
+	filter: GetListParams["filter"],
+) {
+	appendOptionalQueryParam(query, "consumerFamily", filter?.consumerFamily);
+	appendOptionalQueryParam(query, "ownerSurface", filter?.ownerSurface);
+	appendOptionalQueryParam(query, "reviewState", filter?.reviewState);
+	appendOptionalQueryParam(query, "siteId", filter?.siteId);
+}
+
+export function appendOfficialWebReleaseTaskFilters(
+	query: URLSearchParams,
+	filter: GetListParams["filter"],
+) {
+	appendOptionalQueryParam(query, "inventoryId", filter?.inventoryId);
+	appendOptionalQueryParam(query, "jobId", filter?.jobId);
+	appendOptionalQueryParam(query, "q", filter?.q);
+	appendOptionalQueryParam(query, "runId", filter?.runId);
+	appendOptionalQueryParam(query, "selectedWriteTarget", filter?.selectedWriteTarget);
+	appendOptionalQueryParam(query, "status", filter?.status);
+	appendOptionalQueryParam(query, "taskType", filter?.taskType);
+	appendOptionalQueryParam(query, "updatedAfter", filter?.updatedAfter);
+	appendOptionalQueryParam(query, "updatedBefore", filter?.updatedBefore);
+}
+
+export function appendAuthenticatedNoticeProcessingFilters(
+	query: URLSearchParams,
+	filter: GetListParams["filter"],
+) {
+	appendOptionalQueryParam(query, "noticeId", filter?.noticeId);
+	appendOptionalQueryParam(query, "q", filter?.q);
+	appendOptionalQueryParam(query, "status", filter?.status);
+	appendOptionalQueryParam(query, "targetSurface", filter?.targetSurface);
+	appendOptionalQueryParam(query, "candidateKind", filter?.candidateKind);
+	appendOptionalQueryParam(query, "queueStatus", filter?.queueStatus);
+	appendOptionalQueryParam(query, "runId", filter?.runId);
+	appendOptionalQueryParam(query, "replayBatchId", filter?.replayBatchId);
+	appendOptionalQueryParam(query, "updatedAfter", filter?.updatedAfter);
+	appendOptionalQueryParam(query, "updatedBefore", filter?.updatedBefore);
+}
+
+export function appendAuthenticatedNoticeRunProcessingFilters(
+	query: URLSearchParams,
+	filter: GetListParams["filter"],
+) {
+	appendOptionalQueryParam(query, "collectorRunToken", filter?.collectorRunToken);
+	appendOptionalQueryParam(query, "q", filter?.q);
+	appendOptionalQueryParam(query, "status", filter?.status);
+	appendOptionalQueryParam(query, "queueStatus", filter?.queueStatus);
+	appendOptionalQueryParam(query, "replayBatchId", filter?.replayBatchId);
+	appendOptionalQueryParam(query, "runId", filter?.runId);
+	appendOptionalQueryParam(query, "siteId", filter?.siteId);
+	appendOptionalQueryParam(query, "sourceSurface", filter?.sourceSurface);
+	appendOptionalQueryParam(query, "updatedAfter", filter?.updatedAfter);
+	appendOptionalQueryParam(query, "updatedBefore", filter?.updatedBefore);
+}
+
 export function appendOptionalQueryParam(query: URLSearchParams, key: string, value: unknown) {
 	const normalized = normalizeFilterValue(value);
 	if (normalized) {

@@ -85,7 +85,7 @@ candidate review manifest，不能直接写入 golden truth。
 用途：
 
 - retrieval/context soft metric 的 canonical truth
-- 当前优先 `reference_context_ids`，`reference_contexts` 只作 text fallback
+- 当前优先 `reference_context_ids`，`reference_contexts` 只作显式文本参考
 
 当前实现说明：
 
@@ -155,7 +155,7 @@ denominator expectation、sanitized observation shape 与 deterministic verdict�
 
 `GoldenCase.reference_contexts`
 
-- fallback context truth when stable IDs are not available
+- explicit text context truth when stable IDs are not available
 
 `GoldenCase.supplemental_metric_overrides`
 

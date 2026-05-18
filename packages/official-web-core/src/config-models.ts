@@ -23,6 +23,99 @@ export const ALLOWED_DISCOVERY_METHODS = [
 ] as const;
 export const OFFICIAL_WEB_RUN_INTENTS = ["baseline", "hot", "repair"] as const;
 export const OFFICIAL_WEB_PROJECTION_ACTIONS = ["emit_document", "manual_review"] as const;
+export const OFFICIAL_WEB_CONSUMER_FAMILIES = [
+	"contact_directory_candidate",
+	"service_guide_candidate",
+	"academic_calendar_candidate",
+	"stable_reference_candidate",
+	"regulation_candidate",
+	"student_regulation_candidate",
+	"notice_news_candidate",
+] as const;
+export const OFFICIAL_WEB_CONSUMER_MATERIALIZATION_POLICIES = [
+	"candidate_only",
+	"release_gate_required",
+	"inventory_only",
+] as const;
+export const OFFICIAL_WEB_TARGET_RETENTION_POLICIES = [
+	"retain_source_truth",
+	"inventory_only",
+] as const;
+export const OFFICIAL_WEB_CONSUMER_REQUIRED_EVIDENCE = [
+	"phone",
+	"email",
+	"location",
+	"office_hours",
+	"service_process",
+	"service_entry",
+	"service_material",
+	"calendar_arrangement",
+	"stable_reference",
+	"regulation_text",
+	"notice_news",
+] as const;
+export const OFFICIAL_WEB_CONSUMER_REJECTED_POLICIES = ["reject"] as const;
+export const OFFICIAL_WEB_CONSUMER_ENFORCEMENT_MODES = [
+	"audit_only",
+	"retain_matching_only",
+] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_CONTENT_FAMILIES = [
+	"campus_service_guide",
+	"service_contact_directory",
+	"academic_calendar_reference",
+	"institutional_policy_reference",
+	"university_core_reference",
+	"public_fee_reference",
+	"service_material_reference",
+	"public_notice_news",
+] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_SOURCE_KINDS = [
+	"html_page",
+	"html_table_page",
+	"download_reference_page",
+	"dynamic_shell_excluded",
+	"file_asset_reference_only",
+] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_CAPTURE_POLICIES = ["one_time"] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_REFRESH_POSTURES = ["manifest_refresh_only"] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_EXTRACTION_GATES = ["deterministic_source_backed"] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_TARGET_WORKSET_EXPANSIONS = [
+	"same_host_manual_requeue",
+] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_OWNER_SURFACES = [
+	"service_guide_lookup",
+	"contact_directory_lookup",
+	"academic_calendar_lookup",
+	"official_web/stable_reference",
+	"future_notice_runtime",
+	"regulations/institutional_rules",
+	"regulations/student_rules",
+	"regulations/scoped_rules",
+] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_RELEASE_TARGETS = [
+	"campus_services/service_guide",
+	"campus_services/contact_directory",
+	"calendar/academic_calendar",
+	"official_web/stable_reference",
+	"official_web/fresh_news",
+	"official_web/news_archive",
+	"regulations/institutional_rules",
+	"regulations/student_rules",
+	"regulations/scoped_rules",
+] as const;
+export const OFFICIAL_WEB_SOURCE_PACK_EXPECTED_FACTS = [
+	"service_process",
+	"service_entry",
+	"service_material",
+	"calendar_arrangement",
+	"phone",
+	"email",
+	"location",
+	"office_hours",
+	"stable_reference",
+	"regulation_text",
+	"notice_news",
+] as const;
 export const OFFICIAL_WEB_DECLARABLE_PAGE_FAMILIES = [
 	"article_detail",
 	"listing_page",
@@ -46,8 +139,37 @@ export type OfficialWebCredentialsMode = (typeof ALLOWED_CREDENTIALS_MODES)[numb
 export type OfficialWebDiscoveryMethod = (typeof ALLOWED_DISCOVERY_METHODS)[number];
 export type OfficialWebRunIntent = (typeof OFFICIAL_WEB_RUN_INTENTS)[number];
 export type OfficialWebProjectionAction = (typeof OFFICIAL_WEB_PROJECTION_ACTIONS)[number];
+export type OfficialWebConsumerFamily = (typeof OFFICIAL_WEB_CONSUMER_FAMILIES)[number];
+export type OfficialWebConsumerMaterializationPolicy =
+	(typeof OFFICIAL_WEB_CONSUMER_MATERIALIZATION_POLICIES)[number];
+export type OfficialWebTargetRetentionPolicy =
+	(typeof OFFICIAL_WEB_TARGET_RETENTION_POLICIES)[number];
+export type OfficialWebConsumerRequiredEvidence =
+	(typeof OFFICIAL_WEB_CONSUMER_REQUIRED_EVIDENCE)[number];
+export type OfficialWebConsumerRejectedPolicy =
+	(typeof OFFICIAL_WEB_CONSUMER_REJECTED_POLICIES)[number];
+export type OfficialWebConsumerEnforcementMode =
+	(typeof OFFICIAL_WEB_CONSUMER_ENFORCEMENT_MODES)[number];
 export type OfficialWebDeclarablePageFamily =
 	(typeof OFFICIAL_WEB_DECLARABLE_PAGE_FAMILIES)[number];
+export type OfficialWebSourcePackContentFamily =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_CONTENT_FAMILIES)[number];
+export type OfficialWebSourcePackSourceKind =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_SOURCE_KINDS)[number];
+export type OfficialWebSourcePackCapturePolicy =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_CAPTURE_POLICIES)[number];
+export type OfficialWebSourcePackRefreshPosture =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_REFRESH_POSTURES)[number];
+export type OfficialWebSourcePackExtractionGate =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_EXTRACTION_GATES)[number];
+export type OfficialWebSourcePackTargetWorksetExpansion =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_TARGET_WORKSET_EXPANSIONS)[number];
+export type OfficialWebSourcePackOwnerSurface =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_OWNER_SURFACES)[number];
+export type OfficialWebSourcePackReleaseTarget =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_RELEASE_TARGETS)[number];
+export type OfficialWebSourcePackExpectedFact =
+	(typeof OFFICIAL_WEB_SOURCE_PACK_EXPECTED_FACTS)[number];
 
 export interface OfficialWebSiteConfig {
 	schemaVersion: string;
@@ -178,6 +300,111 @@ export interface OfficialWebProjectionDeclarations {
 	declarations: OfficialWebProjectionDeclaration[];
 }
 
+export interface OfficialWebConsumerFamilyRule {
+	consumerFamily: OfficialWebConsumerFamily;
+	ownerSurface: string;
+	ownerAgentOrRuntime: string;
+	materializationPolicy: OfficialWebConsumerMaterializationPolicy;
+	pageFamilies: OfficialWebDeclarablePageFamily[];
+	titleKeywords: string[];
+	pathPatterns: string[];
+	requiredEvidence: OfficialWebConsumerRequiredEvidence[];
+	optionalEvidence: OfficialWebConsumerRequiredEvidence[];
+	minimumMatchedEvidenceCount: number;
+	requiresKeywordOrPathMatch: boolean;
+	negativePatterns: string[];
+	selectedWriteTarget: string;
+	reviewPolicy: string;
+}
+
+export interface OfficialWebConsumerDenominator {
+	schemaVersion: string;
+	siteId: string;
+	denominatorVersion: string;
+	enforcementMode: OfficialWebConsumerEnforcementMode;
+	defaultRejectedPolicy: OfficialWebConsumerRejectedPolicy;
+	consumerFamilies: OfficialWebConsumerFamilyRule[];
+	reportingCounters: string[];
+}
+
+export interface OfficialWebTargetSourceMapTarget {
+	targetId: string;
+	consumerFamily: OfficialWebConsumerFamily;
+	ownerSurface: string;
+	selectedWriteTarget: string;
+	sourceHosts: string[];
+	urlHints: string[];
+	titleHints: string[];
+	requiredEvidence: OfficialWebConsumerRequiredEvidence[];
+	optionalEvidence: OfficialWebConsumerRequiredEvidence[];
+	retentionPolicy: OfficialWebTargetRetentionPolicy;
+	reviewPolicy: string;
+	materializationPolicy: OfficialWebConsumerMaterializationPolicy;
+	inventoryOnly: boolean;
+	notes: string;
+}
+
+export interface OfficialWebTargetSourceMap {
+	schemaVersion: string;
+	siteId: string;
+	mapVersion: string;
+	targets: OfficialWebTargetSourceMapTarget[];
+}
+
+export interface OfficialWebTargetInventoryEntry {
+	admissionTargetId: string;
+	consumerFamily: OfficialWebConsumerFamily;
+	inventoryId: string;
+	inventoryOnly: boolean;
+	materializationPolicy: OfficialWebConsumerMaterializationPolicy;
+	notes: string;
+	ownerAgentOrRuntime: string;
+	ownerSurface: string;
+	previewStatus: string;
+	releaseBlockers: string[];
+	requiredEvidence: OfficialWebConsumerRequiredEvidence[];
+	optionalEvidence: OfficialWebConsumerRequiredEvidence[];
+	requiredFields: string[];
+	optionalFields: string[];
+	selectedWriteTarget: string;
+	sourceHosts: string[];
+	sourceUrls: string[];
+	targetLabel: string;
+}
+
+export interface OfficialWebTargetInventory {
+	entries: OfficialWebTargetInventoryEntry[];
+	inventoryVersion: string;
+	schemaVersion: string;
+	siteId: string;
+}
+
+export interface OfficialWebSourcePackManifestEntry {
+	entryId: string;
+	url: string;
+	contentFamily: OfficialWebSourcePackContentFamily;
+	sourceKind: OfficialWebSourcePackSourceKind;
+	answerBearing: boolean;
+	demandIds: string[];
+	ownerSurfaces: OfficialWebSourcePackOwnerSurface[];
+	releaseTargets: OfficialWebSourcePackReleaseTarget[];
+	expectedFacts: OfficialWebSourcePackExpectedFact[];
+	compositionGroup: string | null;
+	compositionRole: string | null;
+	capturePolicy: OfficialWebSourcePackCapturePolicy;
+	refreshPosture: OfficialWebSourcePackRefreshPosture;
+	extractionGate: OfficialWebSourcePackExtractionGate;
+	targetWorksetExpansion: OfficialWebSourcePackTargetWorksetExpansion | null;
+	evalQuestions: string[];
+}
+
+export interface OfficialWebSourcePackManifest {
+	entries: OfficialWebSourcePackManifestEntry[];
+	schemaVersion: string;
+	siteId: string;
+	sourcePackId: string;
+}
+
 export interface OfficialWebQcHostOverride {
 	host: string;
 	allowedReviewIssueCodes: string[];
@@ -221,6 +448,11 @@ export interface OfficialWebConfigPaths {
 	crawlPolicyPath: string;
 	credentialsSchemaPath: string;
 	projectionDeclarationsPath: string;
+	consumerDenominatorPath: string;
+	targetSourceMapPath: string;
+	targetInventoryPath: string;
+	sourcePackId: string;
+	sourcePackManifestPath: string;
 	schedulerPolicyPath: string;
 	qcPolicyPath: string;
 }
@@ -233,6 +465,10 @@ export interface OfficialWebConfigBundle {
 	crawlPolicy: OfficialWebCrawlPolicy;
 	credentialsSchema: OfficialWebCredentialsSchema;
 	projectionDeclarations: OfficialWebProjectionDeclarations;
+	consumerDenominator: OfficialWebConsumerDenominator;
+	targetSourceMap: OfficialWebTargetSourceMap;
+	targetInventory: OfficialWebTargetInventory;
+	sourcePackManifest: OfficialWebSourcePackManifest;
 	schedulerPolicy: OfficialWebSchedulerPolicy;
 	qcPolicy: OfficialWebQcPolicy;
 }

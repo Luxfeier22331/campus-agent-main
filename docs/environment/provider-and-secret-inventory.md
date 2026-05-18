@@ -43,8 +43,8 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 - Provider / system: OpenAI-compatible LLM provider
   作用: supervisor / agent 在线回答，eval 默认 judge/ragas LLM
-  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY` `AGNO_SUPERVISOR_MODEL`
-  `AGNO_SPECIALIST_MODEL`
+  主要 env keys: `LLM_BASE_URL` `LLM_API_KEY` `SUPERVISOR_PROMPT_MODEL`
+  `AGENT_PROMPT_MODEL`
   放置位置: root `.env`
   何时必需: 真实 query path、live eval
   获取方式: 在所选供应商控制台创建项目级 API key；如果直接用 OpenAI，按 Projects / API keys 流程创建
@@ -74,17 +74,19 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   放置位置: root `.env`；再 fan out 到 `apps/app-api/.env`
   何时必需: app-api、本地 eval ingress、registry/operator 路径
   获取方式: 如果用 Supabase，operator/runtime 默认都取 session pooler `:5432`；legacy
-  `*_MANAGEMENT_*` 只保留兼容别名；如果本地开发，走 Docker Postgres 恢复入口
+  `*_MANAGEMENT_*` 不再作为 runtime env path；如果本地开发，走 Docker Postgres 恢复入口
 
 - Provider / system: S3-compatible object storage
   作用: raw source、source truth、derived artifacts
   主要 env keys: `OBJECT_STORE_ENDPOINT` `OBJECT_STORE_ACCESS_KEY`
-  `OBJECT_STORE_SECRET_KEY` `OBJECT_STORE_BUCKET_SOURCE`
-  `OBJECT_STORE_BUCKET_DERIVED`
+  `OBJECT_STORE_SECRET_KEY` `OBJECT_STORE_SOURCE_ACCESS_KEY`
+  `OBJECT_STORE_SOURCE_SECRET_KEY` `OBJECT_STORE_DERIVED_ACCESS_KEY`
+  `OBJECT_STORE_DERIVED_SECRET_KEY` `OBJECT_STORE_BUCKET_SOURCE` `OBJECT_STORE_BUCKET_DERIVED`
   放置位置: root `.env`
   何时必需: ingestion / replay / rebuild
   获取方式: 本地开发默认用 Docker MinIO；云端可用任何 S3-compatible provider，创建 bucket 与 access
-  key 即可
+  key 即可。ingestion 支持 shared credential mode 或 source+derived bucket-scoped credential
+  mode；source-only collector 与 derived-only online runtime 使用更窄的 bucket-scoped key。
 
 - Provider / system: OCR service
   作用: canonical raw ingestion / replay，lane-level compare
@@ -111,7 +113,7 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
   主要 env keys: `FEEDWE_EMAIL` `FEEDWE_PASSWORD` `FEEDWE_BASE_URL`
   `WECHAT_OFFICIAL_ACCOUNT_APP_API_BASE_URL`
   `WECHAT_OFFICIAL_ACCOUNT_SERVICE_TOKEN`
-  放置位置: root `.env` 或 command-scoped env；生产调度使用 deploy-side secret store
+  放置位置: `apps/wechat-official-account-collector/.env` 或 deploy-side secret store
   何时必需: 只有运行 FeedWe capture / provider contract verification 时需要
   获取方式: 从 operator-managed credential store 获取登录邮箱/密码；不得提交到 repo
 
@@ -223,8 +225,8 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 - 一个可达的 `base_url`
 - 一把 API key
 - 至少两个可用模型名：
-  - `AGNO_SUPERVISOR_MODEL`
-  - `AGNO_SPECIALIST_MODEL`
+  - `SUPERVISOR_PROMPT_MODEL`
+  - `AGENT_PROMPT_MODEL`
 
 默认放置位置：
 
@@ -234,8 +236,8 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 - `LLM_BASE_URL`
 - `LLM_API_KEY`
-- `AGNO_SUPERVISOR_MODEL`
-- `AGNO_SPECIALIST_MODEL`
+- `SUPERVISOR_PROMPT_MODEL`
+- `AGENT_PROMPT_MODEL`
 - 可选 eval override：`EVAL_LLM_BASE_URL` `EVAL_LLM_API_KEY` `EVAL_LLM_TRANSPORT`
   `EVAL_RAGAS_MODEL` `EVAL_JUDGE_MODEL`
 
@@ -351,21 +353,18 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 
 - `CAMPUS_SHARED_POSTGRES_URL`
 - `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
-- `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`（legacy alias）
 - `DOCUMENT_REGISTRY_DATABASE_URL`
 - `RAW_ASSET_REGISTRY_DATABASE_URL`
 - `apps/app-api/.env`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH`
   - `APP_API_OPERATOR_DATABASE_URL`
-  - `APP_API_MANAGEMENT_DATABASE_URL`（legacy alias）
 
 如果使用 Supabase：
 
 1. 打开项目 **Connect** 面板。
 1. 复制 session pooler DSN 作为 `CAMPUS_SHARED_POSTGRES_URL`。
 1. 复制 session pooler `:5432` DSN 作为 `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`。
-1. 如需兼容旧脚本，可把同一个值同时写入 `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`。
 
 外部参考：
 
@@ -381,8 +380,7 @@ s/provider-secret-governance.md](../runbooks/provider-secret-governance.md) 为�
 说明：
 
 - 本地 Docker Postgres 是 `local dev / test path`，不是 deployed runtime truth
-- `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` 给 repo-owned operator 路径；legacy
-  `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 仅作兼容别名，不再承诺 direct posture
+- `CAMPUS_SHARED_POSTGRES_OPERATOR_URL` 给 repo-owned operator 路径
 
 ## 5. S3-compatible object storage
 
@@ -429,17 +427,18 @@ Worker gated reader 交付：
 
 凭据姿态：
 
-- 默认优先使用一套 shared `OBJECT_STORE_ACCESS_KEY` / `OBJECT_STORE_SECRET_KEY` 访问两只
-  bucket
-- 如果 provider / control plane 只能为不同 bucket 发不同凭据，repo 现在也接受 bucket-scoped
-  credential pairs：
-  - `OBJECT_STORE_SOURCE_ACCESS_KEY` / `OBJECT_STORE_SOURCE_SECRET_KEY`
-  - `OBJECT_STORE_DERIVED_ACCESS_KEY` / `OBJECT_STORE_DERIVED_SECRET_KEY`
+- ingestion / replay / rebuild 支持两种正式模式：shared credential mode 使用一套
+  `OBJECT_STORE_ACCESS_KEY` / `OBJECT_STORE_SECRET_KEY` 访问 source 与 derived 两只
+  bucket；bucket-scoped credential mode 分别配置 `OBJECT_STORE_SOURCE_ACCESS_KEY` /
+  `OBJECT_STORE_SOURCE_SECRET_KEY` 与 `OBJECT_STORE_DERIVED_ACCESS_KEY` /
+  `OBJECT_STORE_DERIVED_SECRET_KEY`
 - source-only collector（例如
   `official-web-collector`、`authenticated-notice-collector`）可以只配置
   `OBJECT_STORE_SOURCE_*`
-- ingestion / replay / rebuild 默认同时触达 source 与 derived，两只 bucket 都必须有可用凭据；可以是
-  shared pair，也可以是 source+derived 两组分桶凭据
+- derived-only online runtime（例如 supervisor notice canonical body reads）只配置
+  `OBJECT_STORE_DERIVED_*`
+- ingestion / replay / rebuild 默认同时触达 source 与 derived，两只 bucket 都必须有可用凭据；
+  shared mode 和 bucket-scoped mode 都是当前 accepted runtime contract，不是 fallback。
 - `OBJECT_STORE_REGION` 在当前 repo 里是 SDK/signing 参数；如果 provider 没有公开 region
   概念，保持默认 `us-east-1` 即可，除非该 provider 文档明确要求其他值
 
@@ -578,8 +577,7 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 默认放置位置：
 
-- root `.env`
-- command-scoped env
+- `apps/wechat-official-account-collector/.env`
 - production scheduler / deploy-side secret store
 
 相关键：
@@ -737,14 +735,12 @@ OCR 只属于 ingestion / replay / compare，不属于在线 query serving。
 
 root convenience keys：
 
-- `SENTRY_DSN_API`
-- `SENTRY_DSN_CHAT`
-- `SENTRY_DSN_PANEL`
+- `SENTRY_DSN`
 - `SENTRY_API_TOKEN`
 
 获取方式：
 
-1. 在 Sentry 为每个运行面创建独立 project。
+1. 当前仓库默认使用一个共享 Sentry project，例如 `campus-agent-workers`。
 1. 从项目的 **Client Keys (DSN)** 页面复制 DSN。
 1. 如果需要 repo-local API lookup、artifact 查询或 smoke 脚本访问 API，再创建 auth token。
 
@@ -757,7 +753,9 @@ root convenience keys：
 说明：
 
 - `SENTRY_API_TOKEN` 不是 Worker runtime secret，不应同步到 `.dev.vars`
-- 一个前端、一个后端通常应分不同 Sentry project / DSN；Sentry 官方也建议多组件拆 project
+- 默认用 `SENTRY_ENVIRONMENT` 区分 `staging` / `production`
+- 默认用 `surface` tag 区分 `app-api`、`public-chat-web`、`protected-panel-web`、`hub-web`
+- 只有当告警归属、事件噪声、数据策略或 issue regression 已经实质冲突时，才拆分为多个 Sentry project
 
 ## 9. Axiom
 
@@ -793,8 +791,9 @@ root convenience keys：
 说明：
 
 - `AXIOM_ENDPOINT` 应写成类似 `<https://us-east-1.aws.edge.axiom.co`>
-- `AXIOM_DATASET` 应按 service / env 维度命名，不要做 kitchen-sink dataset；这与 Axiom 官方
-  dataset best practice 一致
+- `AXIOM_DATASET` 当前按 environment 命名，例如 `campus-agent-runtime-staging`；
+  service 与 signal 维度通过 `service.name`、`signal_type`、`event_type` 等低基数字段区分
+- 只有事件量、权限、保留期、字段数量或查询污染成为真实问题时，才进一步拆分 dataset
 - 当前 `.dev.vars.example` 已明确要求使用 ingest API token，不要把 PAT 当成长期 ingest token
 
 ## 10. Cloudflare Workers / Wrangler
@@ -944,12 +943,17 @@ root convenience keys：
 - [../../.env.example](../../.env.example)
 - [../../apps/app-api/.env.example](../../apps/app-api/.env.example)
 - [../../apps/app-api/.dev.vars.example](../../apps/app-api/.dev.vars.example)
+- [../../apps/hub-web/.dev.vars.example](../../apps/hub-web/.dev.vars.example)
 - [../../apps/public-chat-web/.dev.vars.example](../../apps/public-chat-web/.dev
   .vars.example)
 - [../../apps/protected-panel-web/.dev.vars.example](../../apps/protected-panel-
   web/.dev.vars.example)
+- [../../apps/authenticated-notice-collector/.env.example](../../apps/authenticat
+  ed-notice-collector/.env.example)
 - [../../apps/official-web-collector/.env.example](../../apps/official-web-colle
   ctor/.env.example)
+- [../../apps/wechat-official-account-collector/.env.example](../../apps/wechat-
+  official-account-collector/.env.example)
 - [../runbooks/provider-secret-governance.md](../runbooks/provider-secret-govern
   ance.md)
 - [../runbooks/local-postgres-dev-recovery-runbook.md](../runbooks/local-postgre

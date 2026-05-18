@@ -86,6 +86,34 @@ class AdmitScheduleImageOcrResultsWorkerTest(unittest.TestCase):
         self.assertEqual(report["materialized_document_ids"], [document_id])
         self.assertEqual(len(registry.list_versions(document_id)), 1)
 
+    def test_rejects_ocr_result_without_provider_or_model(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            _write_schedule_ocr_fixture(root)
+            result_path = root / "355867" / "image-1" / "ocr-result.json"
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+            payload.pop("provider")
+            payload.pop("model")
+            _write_json(result_path, payload)
+
+            with (
+                patch(
+                    "campus_ingestion_worker.admit_schedule_image_ocr_results."
+                    "_assert_consumer_gate_allows"
+                ),
+                self.assertRaisesRegex(ValueError, "schedule OCR result missing provider"),
+            ):
+                admit_schedule_image_ocr_results(
+                    ocr_output_dir=root,
+                    notice_ids=("355867",),
+                    consumer_admission_manifest_path=root / "admission.json",
+                    run_id="schedule-ocr-test",
+                    generated_at="2026-04-28T08:56:20+08:00",
+                    source_bucket="campus-rag-source",
+                    derived_bucket="campus-rag-derived",
+                    mode="plan",
+                )
+
     def test_attachment_lineage_parser_accepts_schedule_ocr_subtype(self) -> None:
         self.assertEqual(
             parse_notice_attachment_document_id(

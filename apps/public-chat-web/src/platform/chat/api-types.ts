@@ -103,11 +103,6 @@ export interface ChatPlaceCardStructuredPart {
 	type: "place_card";
 }
 
-export interface ChatSourceCardsStructuredPart {
-	sourceCards: SourceCardPayload[];
-	type: "source_cards";
-}
-
 export interface ChatSourceItemsStructuredPart {
 	sourceItems: SourceItemPayload[];
 	type: "source_items";
@@ -125,7 +120,6 @@ export interface ChatCampusServiceTraceCardsStructuredPart {
 
 export type ChatStructuredPart =
 	| ChatPlaceCardStructuredPart
-	| ChatSourceCardsStructuredPart
 	| ChatSourceItemsStructuredPart
 	| ChatCampusServiceTraceCardsStructuredPart;
 

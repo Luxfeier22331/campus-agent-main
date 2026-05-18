@@ -81,6 +81,31 @@ class CollectedNoticeScheduleImageOcrMiniBatchTests(unittest.TestCase):
         )
         self.assertEqual(closeout["results"][0]["candidate_id"], "notice-mm:a")
         self.assertEqual(closeout["results"][0]["status"], "completed")
+        self.assertEqual(closeout["results"][0]["attempt_id"], "notice-mm:a:attempt:1")
+        self.assertEqual(closeout["results"][0]["attempt_number"], 1)
+
+    def test_post_run_preview_rejects_ocr_result_without_provider_or_model(self) -> None:
+        with TemporaryDirectory() as tmpdir:
+            root = Path(tmpdir)
+            _write_ocr_output(root / "355867" / "image-1", notice_id="355867")
+            result_path = root / "355867" / "image-1" / "ocr-result.json"
+            payload = json.loads(result_path.read_text(encoding="utf-8"))
+            payload["provider"] = ""
+            payload["model"] = ""
+            result_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+            manifest = build_schedule_image_ocr_mini_batch_manifest(
+                consumer_admission_manifest=_consumer_manifest(),
+                multimodal_candidate_inventory=_candidate_inventory(),
+                generated_at="2026-04-29T12:00:00+08:00",
+            )
+
+            with self.assertRaisesRegex(ValueError, "schedule OCR result missing provider"):
+                build_schedule_image_ocr_mini_batch_post_run_preview(
+                    searchable_notice_preview={"units": [_searchable_unit()]},
+                    execution_manifest=manifest["execution_manifest"],
+                    ocr_output_dir=root,
+                    generated_at="2026-04-29T12:30:00+08:00",
+                )
 
 
 def _consumer_manifest() -> dict[str, object]:
@@ -113,10 +138,10 @@ def _consumer_manifest() -> dict[str, object]:
             },
             {
                 "source_notice_id": "355900",
-                "title": "manual review",
+                "title": "machine review",
                 "consumption_class": "needs_multimodal",
-                "ocr_priority": "manual_review",
-                "overlay_kind": "manual_review",
+                "ocr_priority": "machine_review_required",
+                "overlay_kind": "unresolved_machine_review",
             },
         ]
     }

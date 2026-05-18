@@ -14,7 +14,7 @@ const (
 	ResponseContract                    = "agent_response"
 	RuntimeDecisionsSchemaVersion       = "supervisor-runtime-decisions-v1"
 	RuntimeDecisionSummarySchemaVersion = "runtime-decision-summary-v1"
-	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v3"
+	WorkflowTraceSummaryVersion         = "workflow-trace-summary-v4"
 )
 
 type AgentTarget string
@@ -73,6 +73,18 @@ const (
 	WorkflowModeMultiStep     WorkflowMode = "multi_step"
 )
 
+type StepOutputProjectionKind string
+
+const (
+	StepOutputProjectionKindNoticeContext     StepOutputProjectionKind = "notice_context"
+	StepOutputProjectionKindNoticeChangeSet   StepOutputProjectionKind = "notice_change_set"
+	StepOutputProjectionKindScheduleBaseline  StepOutputProjectionKind = "schedule_baseline"
+	StepOutputProjectionKindServiceGuideFacts StepOutputProjectionKind = "service_guide_facts"
+	StepOutputProjectionKindPlaceContext      StepOutputProjectionKind = "place_context"
+	StepOutputProjectionKindEvidenceBundle    StepOutputProjectionKind = "evidence_bundle"
+	StepOutputProjectionKindGroundingVerdict  StepOutputProjectionKind = "grounding_verdict"
+)
+
 type RuntimeDecisionSummaryWire struct {
 	SchemaVersion          string         `json:"schema_version"`
 	ScopeGateDecision      string         `json:"scope_gate_decision,omitempty"`
@@ -123,20 +135,46 @@ type StepOutputProjectionWire struct {
 type WorkflowContextProjectionWire struct {
 	ProjectionID   string                      `json:"projection_id"`
 	SourceStepID   string                      `json:"source_step_id"`
-	ProjectionKind string                      `json:"projection_kind"`
+	ProjectionKind StepOutputProjectionKind    `json:"projection_kind"`
 	ContentHash    string                      `json:"content_hash"`
 	Safety         ProjectionSafetySummaryWire `json:"safety"`
+}
+
+type WorkflowAgentContextWire struct {
+	SchemaVersion           string                          `json:"schema_version"`
+	Visibility              string                          `json:"visibility"`
+	WorkflowRunRef          string                          `json:"workflow_run_ref"`
+	StepID                  string                          `json:"step_id"`
+	AgentID                 AgentTarget                     `json:"agent_id"`
+	Target                  AgentTarget                     `json:"target,omitempty"`
+	RequiredProjectionKind  StepOutputProjectionKind        `json:"required_projection_kind,omitempty"`
+	ExpectedOutputArtifacts []StepOutputProjectionKind      `json:"expected_output_artifacts"`
+	ProjectionRefs          []WorkflowContextProjectionWire `json:"projection_refs"`
 }
 
 type WorkflowPlanWire struct {
 	SchemaVersion       string                 `json:"schema_version"`
 	PlanID              string                 `json:"plan_id"`
 	WorkflowMode        WorkflowMode           `json:"workflow_mode"`
+	AllowedAgents       []AgentTarget          `json:"allowed_agents"`
 	Steps               []WorkflowPlanStepWire `json:"steps"`
 	Edges               []WorkflowPlanEdgeWire `json:"edges"`
 	TerminalPolicy      map[string]any         `json:"terminal_policy"`
 	ResumePolicy        map[string]any         `json:"resume_policy"`
 	SemanticRetryPolicy map[string]any         `json:"semantic_retry_policy"`
+}
+
+type AgentInvocationWire struct {
+	InvocationID       string      `json:"invocation_id"`
+	ParentInvocationID string      `json:"parent_invocation_id,omitempty"`
+	WorkflowRunRef     string      `json:"workflow_run_ref"`
+	StepID             string      `json:"step_id"`
+	AgentID            AgentTarget `json:"agent_id"`
+	Status             string      `json:"status"`
+	AllowedTools       []string    `json:"allowed_tools"`
+	UsedTools          []string    `json:"used_tools"`
+	ProjectionIDs      []string    `json:"projection_ids"`
+	FailCloseReason    string      `json:"fail_close_reason,omitempty"`
 }
 
 type RuntimeDecisionsWire struct {
@@ -172,24 +210,41 @@ type BridgeV6RequestWire struct {
 	RuntimeDecisions    RuntimeDecisionsWire `json:"runtime_decisions"`
 }
 
+type AgentRequestWire struct {
+	Target           AgentTarget               `json:"target"`
+	UserGoal         string                    `json:"user_goal"`
+	ConversationID   string                    `json:"conversation_id,omitempty"`
+	RequestID        string                    `json:"request_id,omitempty"`
+	SafetyIdentifier *string                   `json:"safety_identifier,omitempty"`
+	Trace            map[string]any            `json:"trace,omitempty"`
+	Actor            map[string]any            `json:"actor,omitempty"`
+	Context          map[string]any            `json:"context,omitempty"`
+	WorkflowContext  *WorkflowAgentContextWire `json:"workflow_context,omitempty"`
+	Payload          map[string]any            `json:"payload"`
+	AllowedTools     []string                  `json:"allowed_tools"`
+}
+
 type WorkflowTraceSummaryWire struct {
-	RoutingFrame           map[string]any                  `json:"routing_frame"`
-	ContextResolution      map[string]any                  `json:"context_resolution"`
-	PlanningOutcome        string                          `json:"planning_outcome"`
-	DirectVsDelegateBranch string                          `json:"direct_vs_delegate_branch"`
-	WorkflowMode           WorkflowMode                    `json:"workflow_mode"`
-	Handoff                map[string]any                  `json:"handoff"`
-	HandoffChain           []map[string]any                `json:"handoff_chain"`
-	SelectedTarget         *string                         `json:"selected_target"`
-	SelectedTools          []string                        `json:"selected_tools"`
-	ContextProjections     []WorkflowContextProjectionWire `json:"context_projections"`
-	ToolArgumentSummary    map[string]any                  `json:"tool_argument_summary"`
-	TraceSteps             []map[string]any                `json:"trace_steps,omitempty"`
-	ToolCallSummaries      []map[string]any                `json:"tool_call_summaries,omitempty"`
-	GuardrailOutcomes      map[string]any                  `json:"guardrail_outcomes"`
-	FailCloseReason        string                          `json:"fail_close_reason"`
-	RuntimeVersions        map[string]any                  `json:"runtime_versions"`
-	PolicyArtifactVersions map[string]any                  `json:"policy_artifact_versions"`
+	RoutingFrame                map[string]any                  `json:"routing_frame"`
+	ContextResolution           map[string]any                  `json:"context_resolution"`
+	PlanningOutcome             string                          `json:"planning_outcome"`
+	DirectVsDelegateBranch      string                          `json:"direct_vs_delegate_branch"`
+	WorkflowMode                WorkflowMode                    `json:"workflow_mode"`
+	Handoff                     map[string]any                  `json:"handoff"`
+	HandoffChain                []map[string]any                `json:"handoff_chain"`
+	AgentInvocations            []AgentInvocationWire           `json:"agent_invocations"`
+	SelectedTarget              *string                         `json:"selected_target"`
+	SelectedTools               []string                        `json:"selected_tools"`
+	ContextProjections          []WorkflowContextProjectionWire `json:"context_projections"`
+	AnswerArtifactProjectionIDs []string                        `json:"answer_artifact_projection_ids"`
+	AnswerArtifactKinds         []StepOutputProjectionKind      `json:"answer_artifact_kinds"`
+	ToolArgumentSummary         map[string]any                  `json:"tool_argument_summary"`
+	TraceSteps                  []map[string]any                `json:"trace_steps,omitempty"`
+	ToolCallSummaries           []map[string]any                `json:"tool_call_summaries,omitempty"`
+	GuardrailOutcomes           map[string]any                  `json:"guardrail_outcomes"`
+	FailCloseReason             string                          `json:"fail_close_reason"`
+	RuntimeVersions             map[string]any                  `json:"runtime_versions"`
+	PolicyArtifactVersions      map[string]any                  `json:"policy_artifact_versions"`
 }
 
 type SupervisorResponseWire struct {
@@ -324,6 +379,9 @@ func (wire WorkflowPlanWire) Validate() error {
 	if !wire.WorkflowMode.Valid() {
 		return fmt.Errorf("workflow_mode is invalid")
 	}
+	if wire.AllowedAgents == nil {
+		return fmt.Errorf("allowed_agents is required")
+	}
 	if wire.Steps == nil {
 		return fmt.Errorf("steps is required")
 	}
@@ -402,7 +460,7 @@ func (wire WorkflowTraceSummaryWire) Validate() error {
 		if projection.SourceStepID == "" {
 			return fmt.Errorf("context_projections[%d].source_step_id is required", index)
 		}
-		if projection.ProjectionKind != "notice_context" {
+		if !projection.ProjectionKind.Valid() {
 			return fmt.Errorf("context_projections[%d].projection_kind is invalid", index)
 		}
 		if projection.ContentHash == "" {
@@ -438,11 +496,14 @@ func (wire SupervisorResponseWire) Validate() error {
 		return fmt.Errorf("trace_id is required")
 	}
 	if wire.Error != nil {
-		if _, ok := wire.Error["code"].(string); !ok {
+		if code, ok := wire.Error["code"].(string); !ok || code == "" {
 			return fmt.Errorf("error.code is required")
 		}
-		if _, ok := wire.Error["message"].(string); !ok {
+		if message, ok := wire.Error["message"].(string); !ok || message == "" {
 			return fmt.Errorf("error.message is required")
+		}
+		if _, ok := wire.Error["retryable"].(bool); !ok {
+			return fmt.Errorf("error.retryable is required")
 		}
 	}
 	if wire.WorkflowTraceSummary != nil {
@@ -501,6 +562,20 @@ func (value SupervisorStatus) Valid() bool {
 func (value WorkflowMode) Valid() bool {
 	switch value {
 	case WorkflowModeTerminal, WorkflowModeDirectRuntime, WorkflowModeSingleHandoff, WorkflowModeMultiStep:
+		return true
+	default:
+		return false
+	}
+}
+
+func (value StepOutputProjectionKind) Valid() bool {
+	switch value {
+	case StepOutputProjectionKindNoticeContext,
+		StepOutputProjectionKindScheduleBaseline,
+		StepOutputProjectionKindServiceGuideFacts,
+		StepOutputProjectionKindPlaceContext,
+		StepOutputProjectionKindEvidenceBundle,
+		StepOutputProjectionKindGroundingVerdict:
 		return true
 	default:
 		return false

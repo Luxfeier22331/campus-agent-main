@@ -34,7 +34,7 @@ class RestoreSharedPostgresDevTest(unittest.TestCase):
                 "\n".join(
                     [
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:postgres@127.0.0.1:5432/campus_agent",
-                        "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://direct.example/campus_agent",
+                        "CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgres://operator.example/campus_agent",
                     ]
                 )
                 + "\n",
@@ -69,7 +69,7 @@ class RestoreSharedPostgresDevTest(unittest.TestCase):
                 "\n".join(
                     [
                         "CAMPUS_SHARED_POSTGRES_URL=postgres://pooler.example/campus_agent",
-                        "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://direct.example/campus_agent",
+                        "CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgres://operator.example/campus_agent",
                     ]
                 )
                 + "\n"
@@ -79,7 +79,7 @@ class RestoreSharedPostgresDevTest(unittest.TestCase):
                     [
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=postgres://pooler.example/campus_agent",
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=postgres://pooler.example/campus_agent",
-                        "APP_API_MANAGEMENT_DATABASE_URL=postgres://direct.example/campus_agent",
+                        "APP_API_OPERATOR_DATABASE_URL=postgres://operator.example/campus_agent",
                     ]
                 )
                 + "\n"
@@ -99,7 +99,7 @@ class RestoreSharedPostgresDevTest(unittest.TestCase):
                 root_env,
             )
             self.assertIn(
-                "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://direct.example/campus_agent\n",
+                "CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgres://operator.example/campus_agent\n",
                 root_env,
             )
             self.assertIn(
@@ -107,7 +107,7 @@ class RestoreSharedPostgresDevTest(unittest.TestCase):
                 root_env,
             )
             self.assertIn(
-                "DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL=postgres://direct.example/campus_agent\n",
+                "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL=postgres://operator.example/campus_agent\n",
                 root_env,
             )
             app_env = (repo_root / "apps" / "app-api" / ".env").read_text(encoding="utf-8")
@@ -122,9 +122,10 @@ class RestoreSharedPostgresDevTest(unittest.TestCase):
                 app_env,
             )
             self.assertIn(
-                "APP_API_MANAGEMENT_DATABASE_URL=postgres://direct.example/campus_agent\n",
+                "APP_API_OPERATOR_DATABASE_URL=postgres://operator.example/campus_agent\n",
                 app_env,
             )
+            self.assertNotIn("APP_API_MANAGEMENT_DATABASE_URL=", app_env)
             dev_vars = (repo_root / "apps" / "app-api" / ".dev.vars").read_text(encoding="utf-8")
             self.assertIn("APP_API_DATABASE_SSLMODE=prefer\n", dev_vars)
 
@@ -141,7 +142,7 @@ class RestoreSharedPostgresDevTest(unittest.TestCase):
                     [
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=",
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=",
-                        "APP_API_MANAGEMENT_DATABASE_URL=",
+                        "APP_API_OPERATOR_DATABASE_URL=",
                         "KEEP_ME=1",
                     ]
                 )
@@ -163,7 +164,7 @@ class RestoreSharedPostgresDevTest(unittest.TestCase):
                 "\n".join(
                     [
                         "CAMPUS_SHARED_POSTGRES_URL=postgres://pooler.example/campus_agent",
-                        "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://direct.example/campus_agent",
+                        "CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgres://operator.example/campus_agent",
                     ]
                 )
                 + "\n",
@@ -182,7 +183,7 @@ class RestoreSharedPostgresDevTest(unittest.TestCase):
                 root_env,
             )
             self.assertIn(
-                "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://direct.example/campus_agent\n",
+                "CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgres://operator.example/campus_agent\n",
                 root_env,
             )
             app_env = (repo_root / "apps" / "app-api" / ".env").read_text(encoding="utf-8")
@@ -197,9 +198,10 @@ class RestoreSharedPostgresDevTest(unittest.TestCase):
                 app_env,
             )
             self.assertIn(
-                "APP_API_MANAGEMENT_DATABASE_URL=postgres://direct.example/campus_agent\n",
+                "APP_API_OPERATOR_DATABASE_URL=postgres://operator.example/campus_agent\n",
                 app_env,
             )
+            self.assertNotIn("APP_API_MANAGEMENT_DATABASE_URL=", app_env)
             dev_vars = (repo_root / "apps" / "app-api" / ".dev.vars").read_text(encoding="utf-8")
             self.assertIn("APP_API_DATABASE_SSLMODE=prefer\n", dev_vars)
             self.assertIn("APP_API_INTERNAL_SHARED_SECRET=test-secret\n", dev_vars)
@@ -217,7 +219,7 @@ class RestoreSharedPostgresDevTest(unittest.TestCase):
                     [
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=",
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=",
-                        "APP_API_MANAGEMENT_DATABASE_URL=",
+                        "APP_API_OPERATOR_DATABASE_URL=",
                     ]
                 )
                 + "\n",
@@ -232,7 +234,7 @@ class RestoreSharedPostgresDevTest(unittest.TestCase):
                 "\n".join(
                     [
                         "CAMPUS_SHARED_POSTGRES_URL=postgres://pooler.example/campus_agent",
-                        "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://direct.example/campus_agent",
+                        "CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgres://operator.example/campus_agent",
                     ]
                 )
                 + "\n",

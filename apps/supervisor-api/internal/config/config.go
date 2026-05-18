@@ -13,6 +13,7 @@ type Config struct {
 	AppName                           string
 	Host                              string
 	Port                              int
+	RuntimeProfile                    string
 	AuthMode                          string
 	BearerToken                       string
 	WorkerSharedSecret                string
@@ -38,28 +39,24 @@ type Config struct {
 	LaneBudgets                       map[string]LaneBudget
 	OTelEnabled                       bool
 	OTelEndpoint                      string
+	OTelMetricsEnabled                bool
+	OTelMetricsEndpoint               string
 	OTelHeaders                       string
 	OTelServiceName                   string
 	OTelExportTimeoutMS               int
+	OTelExportIntervalMS              int
 	OTelSampleRatio                   float64
 	OTelAllowedAttributesVersion      string
 	ExecutionAuditEnabled             bool
 	ExecutionAuditURL                 string
 	ExecutionAuditSharedSecret        string
 	ExecutionAuditTimeoutMS           int
-	ExecutionAuditQueueCapacity       int
-	ExecutionAuditBatchSize           int
-	ExecutionAuditFlushMS             int
-	ExecutionAuditRetryMaxAttempts    int
-	ExecutionAuditRetryBaseMS         int
-	ExecutionAuditSpoolDir            string
-	ExecutionAuditSpoolMaxBytes       int
 	OpenCapabilities                  []string
 	MultiStepWorkflowEnabled          bool
 	WorkflowRunDatabaseURL            string
 	WorkflowRunAutoMigrate            bool
 	QueryServingScopesPath            string
-	StructuredQuerySharedSecret       string
+	InternalQuerySharedSecret         string
 	StructuredQueryTrustedTimeRFC3339 string
 	StructuredQueryTimeoutMS          int
 	StructuredProjectionDatabaseURL   string
@@ -90,6 +87,7 @@ type envValues struct {
 	AppName                           string  `env:"CAMPUS_AGENT_APP_NAME" envDefault:"campus-agent"`
 	Host                              string  `env:"CAMPUS_AGENT_HTTP_HOST" envDefault:"127.0.0.1"`
 	Port                              int     `env:"CAMPUS_AGENT_HTTP_PORT" envDefault:"8000"`
+	RuntimeProfile                    string  `env:"SUPERVISOR_API_RUNTIME_PROFILE" envDefault:"local"`
 	AuthMode                          string  `env:"API_AUTH_MODE" envDefault:"bearer"`
 	BearerToken                       string  `env:"API_BEARER_TOKEN"`
 	WorkerSharedSecret                string  `env:"API_WORKER_SHARED_SECRET"`
@@ -112,24 +110,19 @@ type envValues struct {
 	MetricsBearerToken                string  `env:"SUPERVISOR_API_METRICS_BEARER_TOKEN"`
 	IntentPolicyPath                  string  `env:"SUPERVISOR_API_INTENT_POLICY_PATH"`
 	OTelEndpoint                      string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT"`
+	OTelMetricsEndpoint               string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT"`
 	OTelHeaders                       string  `env:"SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS"`
 	OTelServiceName                   string  `env:"SUPERVISOR_API_OTEL_SERVICE_NAME" envDefault:"campus-supervisor-api"`
 	OTelExportTimeoutMS               int     `env:"SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS" envDefault:"1000"`
+	OTelExportIntervalMS              int     `env:"SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS" envDefault:"15000"`
 	OTelSampleRatio                   float64 `env:"SUPERVISOR_API_OTEL_SAMPLE_RATIO" envDefault:"1.0"`
 	OTelAllowedAttributesVersion      string  `env:"SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION" envDefault:"supervisor-api-otel-attrs-v1"`
 	ExecutionAuditURL                 string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_URL"`
 	ExecutionAuditSharedSecret        string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET"`
 	ExecutionAuditTimeoutMS           int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS" envDefault:"500"`
-	ExecutionAuditQueueCapacity       int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY" envDefault:"128"`
-	ExecutionAuditBatchSize           int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE" envDefault:"10"`
-	ExecutionAuditFlushMS             int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_FLUSH_MS" envDefault:"1000"`
-	ExecutionAuditRetryMaxAttempts    int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_MAX_ATTEMPTS" envDefault:"3"`
-	ExecutionAuditRetryBaseMS         int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS" envDefault:"100"`
-	ExecutionAuditSpoolDir            string  `env:"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR"`
-	ExecutionAuditSpoolMaxBytes       int     `env:"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES" envDefault:"10485760"`
 	WorkflowRunDatabaseURL            string  `env:"SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL"`
 	QueryServingScopesPath            string  `env:"SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH"`
-	StructuredQuerySharedSecret       string  `env:"SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET"`
+	InternalQuerySharedSecret         string  `env:"SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"`
 	StructuredQueryTrustedTimeRFC3339 string  `env:"SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"`
 	StructuredQueryTimeoutMS          int     `env:"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS" envDefault:"1000"`
 	PromptRuntimeTransport            string  `env:"PROMPT_RUNTIME_TRANSPORT" envDefault:"responses"`
@@ -151,6 +144,10 @@ func LoadFromEnv() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
+	otelMetricsEnabled, err := readBoolStrict("SUPERVISOR_API_OTEL_METRICS_ENABLED", false)
+	if err != nil {
+		return Config{}, err
+	}
 	executionAuditEnabled, err := readBoolStrict("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED", false)
 	if err != nil {
 		return Config{}, err
@@ -162,7 +159,11 @@ func LoadFromEnv() (Config, error) {
 	if err != nil {
 		return Config{}, err
 	}
-	if err := validateEnvValues(values); err != nil {
+	runtimeProfile, err := normalizeRuntimeProfile(values.RuntimeProfile)
+	if err != nil {
+		return Config{}, err
+	}
+	if err := validateEnvValues(values, runtimeProfile); err != nil {
 		return Config{}, err
 	}
 	laneBudgets, err := readLaneBudgetsStrict(values.MaxConcurrentAnswers, values.QueueCapacity, values.QueueTimeoutMS)
@@ -186,6 +187,7 @@ func LoadFromEnv() (Config, error) {
 		AppName:                           defaultString(strings.TrimSpace(values.AppName), "campus-agent"),
 		Host:                              defaultString(strings.TrimSpace(values.Host), "127.0.0.1"),
 		Port:                              values.Port,
+		RuntimeProfile:                    runtimeProfile,
 		AuthMode:                          defaultString(strings.TrimSpace(values.AuthMode), "bearer"),
 		BearerToken:                       strings.TrimSpace(values.BearerToken),
 		WorkerSharedSecret:                strings.TrimSpace(values.WorkerSharedSecret),
@@ -211,43 +213,39 @@ func LoadFromEnv() (Config, error) {
 		LaneBudgets:                       laneBudgets,
 		OTelEnabled:                       otelEnabled,
 		OTelEndpoint:                      strings.TrimSpace(values.OTelEndpoint),
+		OTelMetricsEnabled:                otelMetricsEnabled,
+		OTelMetricsEndpoint:               strings.TrimSpace(values.OTelMetricsEndpoint),
 		OTelHeaders:                       strings.TrimSpace(values.OTelHeaders),
 		OTelServiceName:                   defaultString(strings.TrimSpace(values.OTelServiceName), "campus-supervisor-api"),
 		OTelExportTimeoutMS:               values.OTelExportTimeoutMS,
+		OTelExportIntervalMS:              values.OTelExportIntervalMS,
 		OTelSampleRatio:                   values.OTelSampleRatio,
 		OTelAllowedAttributesVersion:      defaultString(strings.TrimSpace(values.OTelAllowedAttributesVersion), "supervisor-api-otel-attrs-v1"),
 		ExecutionAuditEnabled:             executionAuditEnabled,
 		ExecutionAuditURL:                 strings.TrimSpace(values.ExecutionAuditURL),
 		ExecutionAuditSharedSecret:        strings.TrimSpace(values.ExecutionAuditSharedSecret),
 		ExecutionAuditTimeoutMS:           values.ExecutionAuditTimeoutMS,
-		ExecutionAuditQueueCapacity:       values.ExecutionAuditQueueCapacity,
-		ExecutionAuditBatchSize:           values.ExecutionAuditBatchSize,
-		ExecutionAuditFlushMS:             values.ExecutionAuditFlushMS,
-		ExecutionAuditRetryMaxAttempts:    values.ExecutionAuditRetryMaxAttempts,
-		ExecutionAuditRetryBaseMS:         values.ExecutionAuditRetryBaseMS,
-		ExecutionAuditSpoolDir:            strings.TrimSpace(values.ExecutionAuditSpoolDir),
-		ExecutionAuditSpoolMaxBytes:       values.ExecutionAuditSpoolMaxBytes,
 		OpenCapabilities:                  openCapabilities,
 		MultiStepWorkflowEnabled:          multiStepWorkflowEnabled,
 		WorkflowRunDatabaseURL:            readWorkflowRunDatabaseURL(values),
 		WorkflowRunAutoMigrate:            workflowRunAutoMigrate,
 		QueryServingScopesPath:            strings.TrimSpace(values.QueryServingScopesPath),
-		StructuredQuerySharedSecret:       strings.TrimSpace(values.StructuredQuerySharedSecret),
+		InternalQuerySharedSecret:         strings.TrimSpace(values.InternalQuerySharedSecret),
 		StructuredQueryTrustedTimeRFC3339: strings.TrimSpace(values.StructuredQueryTrustedTimeRFC3339),
 		StructuredQueryTimeoutMS:          values.StructuredQueryTimeoutMS,
 		StructuredProjectionDatabaseURL:   readStructuredProjectionDatabaseURL(),
-		PromptRuntimeProvider:             readFirstString("PROMPT_RUNTIME_PROVIDER", "AGENT_RUNTIME_PROVIDER"),
+		PromptRuntimeProvider:             readString("PROMPT_RUNTIME_PROVIDER", ""),
 		SupervisorPromptModel:             readPromptModel("SUPERVISOR_PROMPT_MODEL"),
 		AgentPromptModel:                  readPromptModel("AGENT_PROMPT_MODEL"),
-		PromptRuntimeAPIKey:               readFirstString("PROMPT_RUNTIME_API_KEY", "LLM_API_KEY"),
+		PromptRuntimeAPIKey:               readString("PROMPT_RUNTIME_API_KEY", ""),
 		PromptRuntimeTransport:            defaultString(strings.TrimSpace(values.PromptRuntimeTransport), "responses"),
 		PromptRuntimeBaseURL:              promptRuntimeBaseURL(values),
 		PromptStrictStructuredOutputs:     promptStrictStructuredOutputs,
 		NoticeReadModelDatabaseURL:        readNoticeReadModelDatabaseURL(),
 		NoticeReadModelTable:              defaultString(strings.TrimSpace(values.NoticeReadModelTable), "ingestion_projection.internal_notice_read_model"),
 		NoticeObjectStoreEndpoint:         strings.TrimSpace(values.NoticeObjectStoreEndpoint),
-		NoticeObjectStoreAccessKey:        readFirstString("OBJECT_STORE_DERIVED_ACCESS_KEY", "OBJECT_STORE_ACCESS_KEY"),
-		NoticeObjectStoreSecretKey:        readFirstString("OBJECT_STORE_DERIVED_SECRET_KEY", "OBJECT_STORE_SECRET_KEY"),
+		NoticeObjectStoreAccessKey:        readString("OBJECT_STORE_DERIVED_ACCESS_KEY", ""),
+		NoticeObjectStoreSecretKey:        readString("OBJECT_STORE_DERIVED_SECRET_KEY", ""),
 		NoticeObjectStoreRegion:           defaultString(strings.TrimSpace(values.NoticeObjectStoreRegion), "us-east-1"),
 		NoticeObjectStoreBucketDerived:    defaultString(strings.TrimSpace(values.NoticeObjectStoreBucketDerived), "campus-rag-derived"),
 		NoticeObjectStoreBodyLimitBytes:   values.NoticeObjectStoreBodyLimitBytes,
@@ -262,7 +260,7 @@ func parseEnvValues() (envValues, error) {
 	return values, nil
 }
 
-func validateEnvValues(values envValues) error {
+func validateEnvValues(values envValues, runtimeProfile string) error {
 	checks := []struct {
 		name  string
 		value int
@@ -279,13 +277,8 @@ func validateEnvValues(values envValues) error {
 		{"SUPERVISOR_API_BRIDGE_RETRY_BASE_MS", values.BridgeRetryBaseMS},
 		{"SUPERVISOR_API_SHUTDOWN_GRACE_MS", values.ShutdownGraceMS},
 		{"SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS", values.OTelExportTimeoutMS},
+		{"SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS", values.OTelExportIntervalMS},
 		{"SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", values.ExecutionAuditTimeoutMS},
-		{"SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY", values.ExecutionAuditQueueCapacity},
-		{"SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE", values.ExecutionAuditBatchSize},
-		{"SUPERVISOR_API_EXECUTION_AUDIT_FLUSH_MS", values.ExecutionAuditFlushMS},
-		{"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_MAX_ATTEMPTS", values.ExecutionAuditRetryMaxAttempts},
-		{"SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS", values.ExecutionAuditRetryBaseMS},
-		{"SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES", values.ExecutionAuditSpoolMaxBytes},
 		{"SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS", values.StructuredQueryTimeoutMS},
 	}
 	for _, check := range checks {
@@ -308,27 +301,46 @@ func validateEnvValues(values envValues) error {
 	if values.OTelSampleRatio < 0 || values.OTelSampleRatio > 1 {
 		return fmt.Errorf("SUPERVISOR_API_OTEL_SAMPLE_RATIO must be a number between 0 and 1")
 	}
+	if runtimeProfile != "local" && strings.TrimSpace(values.MetricsBearerToken) == "" {
+		return fmt.Errorf(
+			"SUPERVISOR_API_METRICS_BEARER_TOKEN is required when SUPERVISOR_API_RUNTIME_PROFILE=%s",
+			runtimeProfile,
+		)
+	}
 	return nil
+}
+
+func normalizeRuntimeProfile(value string) (string, error) {
+	profile := strings.ToLower(strings.TrimSpace(value))
+	if profile == "" {
+		profile = "local"
+	}
+	switch profile {
+	case "local", "staging", "production":
+		return profile, nil
+	default:
+		return "", fmt.Errorf("SUPERVISOR_API_RUNTIME_PROFILE contains unsupported profile %q", value)
+	}
 }
 
 func promptRuntimeBaseURL(values envValues) string {
 	if baseURL := strings.TrimSpace(values.PromptRuntimeBaseURL); baseURL != "" {
 		return baseURL
 	}
-	return readString("LLM_BASE_URL", "https://api.openai.com/v1")
+	return "https://api.openai.com/v1"
 }
 
-func defaultString(value string, fallback string) string {
+func defaultString(value string, defaultValue string) string {
 	if value == "" {
-		return fallback
+		return defaultValue
 	}
 	return value
 }
 
-func readString(name string, fallback string) string {
+func readString(name string, defaultValue string) string {
 	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
-		return fallback
+		return defaultValue
 	}
 	return value
 }
@@ -378,10 +390,10 @@ func normalizePostgresDatabaseURL(databaseURL string) string {
 	return databaseURL
 }
 
-func readPositiveIntStrict(name string, fallback int) (int, error) {
+func readPositiveIntStrict(name string, defaultValue int) (int, error) {
 	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
-		return fallback, nil
+		return defaultValue, nil
 	}
 
 	parsed, err := strconv.Atoi(value)
@@ -391,10 +403,10 @@ func readPositiveIntStrict(name string, fallback int) (int, error) {
 	return parsed, nil
 }
 
-func readNonNegativeIntStrict(name string, fallback int) (int, error) {
+func readNonNegativeIntStrict(name string, defaultValue int) (int, error) {
 	value := strings.TrimSpace(os.Getenv(name))
 	if value == "" {
-		return fallback, nil
+		return defaultValue, nil
 	}
 
 	parsed, err := strconv.Atoi(value)
@@ -404,10 +416,10 @@ func readNonNegativeIntStrict(name string, fallback int) (int, error) {
 	return parsed, nil
 }
 
-func readBoolStrict(name string, fallback bool) (bool, error) {
+func readBoolStrict(name string, defaultValue bool) (bool, error) {
 	value := strings.ToLower(strings.TrimSpace(os.Getenv(name)))
 	if value == "" {
-		return fallback, nil
+		return defaultValue, nil
 	}
 	return parseBoolStrict(name, value)
 }

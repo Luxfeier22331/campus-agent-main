@@ -1,3 +1,4 @@
+import path from "node:path";
 import { cloudflareTest } from "@cloudflare/vitest-pool-workers";
 import { defineConfig } from "vitest/config";
 
@@ -10,6 +11,14 @@ export default defineConfig({
 			},
 		}),
 	],
+	resolve: {
+		alias: [
+			{
+				find: /^@\/lib\/errors$/,
+				replacement: path.resolve(__dirname, "vendor/vercel-ai-chatbot/lib/errors.ts"),
+			},
+		],
+	},
 	test: {
 		// The Workers pool is stable here only when files execute sequentially.
 		// Parallel file startup can exhaust the Miniflare/WebSocket bridge and

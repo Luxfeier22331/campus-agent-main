@@ -6,7 +6,6 @@ from tempfile import TemporaryDirectory
 
 from scripts.env_sync import (
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     resolve_source_env_path,
 )
@@ -43,10 +42,6 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
                             f"{SHARED_POSTGRES_OPERATOR_ENV_KEY}="
                             "postgres://operator.example/campus_agent"
                         ),
-                        (
-                            f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY}="
-                            "postgres://direct.example/campus_agent"
-                        ),
                     ]
                 )
                 + "\n",
@@ -61,7 +56,6 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=",
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=",
                         "APP_API_OPERATOR_DATABASE_URL=",
-                        "APP_API_MANAGEMENT_DATABASE_URL=",
                     ]
                 )
                 + "\n",
@@ -86,10 +80,7 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
                 "APP_API_OPERATOR_DATABASE_URL=postgres://operator.example/campus_agent\n",
                 env_text,
             )
-            self.assertIn(
-                "APP_API_MANAGEMENT_DATABASE_URL=postgres://operator.example/campus_agent\n",
-                env_text,
-            )
+            self.assertNotIn("APP_API_MANAGEMENT_DATABASE_URL=", env_text)
 
     def test_sync_app_api_local_db_env_updates_existing_env_without_clobbering_other_keys(
         self,
@@ -106,10 +97,6 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
                         (
                             f"{SHARED_POSTGRES_OPERATOR_ENV_KEY}="
                             "postgres://operator.new.example/campus_agent"
-                        ),
-                        (
-                            f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY}="
-                            "postgres://direct.new.example/campus_agent"
                         ),
                     ]
                 )
@@ -147,13 +134,10 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
                 "APP_API_OPERATOR_DATABASE_URL=postgres://operator.new.example/campus_agent\n",
                 env_text,
             )
-            self.assertIn(
-                "APP_API_MANAGEMENT_DATABASE_URL=postgres://operator.new.example/campus_agent\n",
-                env_text,
-            )
+            self.assertNotIn("APP_API_MANAGEMENT_DATABASE_URL=", env_text)
             self.assertIn("KEEP_ME=1\n", env_text)
 
-    def test_sync_app_api_local_db_env_falls_back_to_runtime_url_when_operator_url_is_absent(
+    def test_sync_app_api_local_db_env_requires_operator_url(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -165,17 +149,11 @@ class SyncAppApiLocalDbEnvTest(unittest.TestCase):
             )
             (repo_root / "apps" / "app-api").mkdir(parents=True)
 
-            target_path = sync_app_api_local_db_env(repo_root=repo_root)
-
-            env_text = target_path.read_text(encoding="utf-8")
-            self.assertIn(
-                "APP_API_OPERATOR_DATABASE_URL=postgres://pooler.example/campus_agent\n",
-                env_text,
-            )
-            self.assertIn(
-                "APP_API_MANAGEMENT_DATABASE_URL=postgres://pooler.example/campus_agent\n",
-                env_text,
-            )
+            with self.assertRaisesRegex(
+                ValueError,
+                f"Missing required env value in source env: {SHARED_POSTGRES_OPERATOR_ENV_KEY}",
+            ):
+                sync_app_api_local_db_env(repo_root=repo_root)
 
 
 if __name__ == "__main__":

@@ -22,6 +22,10 @@ type NoticeReadModelStore interface {
 		ctx context.Context,
 		criteria noticeSearchCriteria,
 	) ([]noticeReadModelRecord, error)
+	GetNoticesByIDs(
+		ctx context.Context,
+		criteria noticeIDsCriteria,
+	) ([]noticeReadModelRecord, error)
 	GetNoticeByID(
 		ctx context.Context,
 		criteria noticeGetCriteria,
@@ -66,11 +70,27 @@ type noticeGetRequest struct {
 	TargetSurfaces []string `json:"target_surfaces"`
 }
 
+type noticeChangeSetLookupRequest struct {
+	QueryText       string   `json:"query_text"`
+	RouteLabels     []string `json:"route_labels"`
+	DirectionLabels []string `json:"direction_labels"`
+	StopLabels      []string `json:"stop_labels"`
+	ServiceDate     string   `json:"service_date"`
+	QueryTimeAnchor string   `json:"query_time_anchor"`
+}
+
 type noticeSearchCriteria struct {
 	SourceFamilies []string
 	QueryText      string
 	TargetSurfaces []string
 	MaxResults     int
+	Authorization  noticeReadModelAuthorizationFilter
+}
+
+type noticeIDsCriteria struct {
+	NoticeIDs      []string
+	SourceFamilies []string
+	TargetSurfaces []string
 	Authorization  noticeReadModelAuthorizationFilter
 }
 
@@ -105,47 +125,133 @@ type noticeReadModelRecord struct {
 	ProvenanceRefs             []string `json:"provenance_refs"`
 }
 
+type noticeDisplayPolicy struct {
+	PublicSurface     string `json:"public_surface"`
+	FullBodyForbidden bool   `json:"full_body_forbidden"`
+	BodyAccess        string `json:"body_access"`
+}
+
 type noticeCard struct {
-	NoticeID      string `json:"notice_id"`
-	Title         string `json:"title"`
-	SourceFamily  string `json:"source_family"`
-	SourceURL     string `json:"source_url"`
-	CanonicalURL  string `json:"canonical_url,omitempty"`
-	PublishedAt   string `json:"published_at,omitempty"`
-	EffectiveAt   string `json:"effective_at,omitempty"`
-	TargetSurface string `json:"target_surface,omitempty"`
-	PrimaryRole   string `json:"primary_role,omitempty"`
-	BodyExcerpt   string `json:"body_excerpt,omitempty"`
-	IsCurrent     bool   `json:"is_current"`
+	NoticeID      string              `json:"notice_id"`
+	Title         string              `json:"title"`
+	SourceFamily  string              `json:"source_family"`
+	SourceURL     string              `json:"source_url"`
+	CanonicalURL  string              `json:"canonical_url,omitempty"`
+	PublishedAt   string              `json:"published_at,omitempty"`
+	EffectiveAt   string              `json:"effective_at,omitempty"`
+	TargetSurface string              `json:"target_surface,omitempty"`
+	PrimaryRole   string              `json:"primary_role,omitempty"`
+	BodyExcerpt   string              `json:"body_excerpt,omitempty"`
+	IsCurrent     bool                `json:"is_current"`
+	DisplayPolicy noticeDisplayPolicy `json:"display_policy"`
 }
 
 type noticeDiscoverResult struct {
-	QueryText                 string       `json:"query_text"`
-	Outcome                   string       `json:"outcome"`
-	SourceFamilies            []string     `json:"source_families,omitempty"`
-	NoticeCards               []noticeCard `json:"notice_cards,omitempty"`
-	QueriedTimeAnchor         string       `json:"queried_time_anchor,omitempty"`
-	HistoricalDowngradeReason string       `json:"historical_downgrade_reason,omitempty"`
-	FailCloseReason           string       `json:"fail_close_reason,omitempty"`
+	QueryText         string       `json:"query_text"`
+	Outcome           string       `json:"outcome"`
+	SourceFamilies    []string     `json:"source_families,omitempty"`
+	NoticeCards       []noticeCard `json:"notice_cards,omitempty"`
+	QueriedTimeAnchor string       `json:"queried_time_anchor,omitempty"`
+	FailCloseReason   string       `json:"fail_close_reason,omitempty"`
 }
 
 type noticeGetResult struct {
-	NoticeID                  string   `json:"notice_id"`
-	Outcome                   string   `json:"outcome"`
-	Title                     string   `json:"title,omitempty"`
-	SourceFamily              string   `json:"source_family,omitempty"`
-	SourceURL                 string   `json:"source_url,omitempty"`
-	CanonicalURL              string   `json:"canonical_url,omitempty"`
-	NormalizedBody            string   `json:"normalized_body,omitempty"`
-	ReferenceOnly             bool     `json:"reference_only,omitempty"`
-	PublishedAt               string   `json:"published_at,omitempty"`
-	EffectiveAt               string   `json:"effective_at,omitempty"`
-	TargetSurface             string   `json:"target_surface,omitempty"`
-	PrimaryRole               string   `json:"primary_role,omitempty"`
-	AttachmentRefs            []string `json:"attachment_refs,omitempty"`
-	ProvenanceRefs            []string `json:"provenance_refs,omitempty"`
-	HistoricalDowngradeReason string   `json:"historical_downgrade_reason,omitempty"`
-	FailCloseReason           string   `json:"fail_close_reason,omitempty"`
+	NoticeID        string              `json:"notice_id"`
+	Outcome         string              `json:"outcome"`
+	Title           string              `json:"title,omitempty"`
+	SourceFamily    string              `json:"source_family,omitempty"`
+	SourceURL       string              `json:"source_url,omitempty"`
+	CanonicalURL    string              `json:"canonical_url,omitempty"`
+	NormalizedBody  string              `json:"normalized_body,omitempty"`
+	ReferenceOnly   bool                `json:"reference_only,omitempty"`
+	DisplayPolicy   noticeDisplayPolicy `json:"display_policy"`
+	BodyExcerpt     string              `json:"body_excerpt,omitempty"`
+	BoundedSummary  string              `json:"bounded_summary,omitempty"`
+	ExtractedFacts  []string            `json:"extracted_facts,omitempty"`
+	PublishedAt     string              `json:"published_at,omitempty"`
+	EffectiveAt     string              `json:"effective_at,omitempty"`
+	TargetSurface   string              `json:"target_surface,omitempty"`
+	PrimaryRole     string              `json:"primary_role,omitempty"`
+	AttachmentRefs  []string            `json:"attachment_refs,omitempty"`
+	ProvenanceRefs  []string            `json:"provenance_refs,omitempty"`
+	FailCloseReason string              `json:"fail_close_reason,omitempty"`
+}
+
+type noticeChangeSetQueryScope struct {
+	Campus          string   `json:"campus,omitempty"`
+	ServiceKind     string   `json:"service_kind"`
+	RouteLabels     []string `json:"route_labels,omitempty"`
+	DirectionLabels []string `json:"direction_labels,omitempty"`
+	StopLabels      []string `json:"stop_labels,omitempty"`
+	QueryTimeAnchor string   `json:"query_time_anchor,omitempty"`
+	ServiceDate     string   `json:"service_date,omitempty"`
+}
+
+type noticeChangeSetEffectiveWindow struct {
+	StartsAt           string   `json:"starts_at,omitempty"`
+	EndsAt             string   `json:"ends_at,omitempty"`
+	DateSet            []string `json:"date_set,omitempty"`
+	Timezone           string   `json:"timezone"`
+	CurrentAtQueryTime bool     `json:"current_at_query_time"`
+}
+
+type noticeChangeSetSourceRef struct {
+	SourceRefID string `json:"source_ref_id"`
+	NoticeID    string `json:"notice_id"`
+	Title       string `json:"title"`
+	SourceURL   string `json:"source_url"`
+	PublishedAt string `json:"published_at"`
+	Excerpt     string `json:"excerpt,omitempty"`
+}
+
+type noticeChangeSetFact struct {
+	FactID         string            `json:"fact_id"`
+	FactKind       string            `json:"fact_kind"`
+	ChangeText     string            `json:"change_text"`
+	SourceNoticeID string            `json:"source_notice_id"`
+	SourceRefID    string            `json:"source_ref_id"`
+	RouteLabel     string            `json:"route_label,omitempty"`
+	DirectionLabel string            `json:"direction_label,omitempty"`
+	ServiceWindow  map[string]string `json:"service_window,omitempty"`
+	Confidence     string            `json:"confidence"`
+}
+
+type noticeChangeSetConflict struct {
+	ConflictID   string   `json:"conflict_id"`
+	Reason       string   `json:"reason"`
+	SourceRefIDs []string `json:"source_ref_ids"`
+	Summary      string   `json:"summary,omitempty"`
+}
+
+type noticeChangeSetSafetySummary struct {
+	RawPayloadAbsent bool     `json:"raw_payload_absent"`
+	PayloadKeyNames  []string `json:"payload_key_names,omitempty"`
+	Redacted         bool     `json:"redacted"`
+	Notes            []string `json:"notes,omitempty"`
+}
+
+type noticeChangeSet struct {
+	SchemaVersion   string                         `json:"schema_version"`
+	ChangeSetID     string                         `json:"change_set_id"`
+	TargetFamily    string                         `json:"target_family"`
+	QueryScope      noticeChangeSetQueryScope      `json:"query_scope"`
+	EffectiveWindow noticeChangeSetEffectiveWindow `json:"effective_window"`
+	ChangeKind      string                         `json:"change_kind"`
+	AnswerEligible  bool                           `json:"answer_eligible"`
+	AdmissionState  string                         `json:"admission_state"`
+	ContentHash     string                         `json:"content_hash"`
+	Facts           []noticeChangeSetFact          `json:"facts,omitempty"`
+	SourceRefs      []noticeChangeSetSourceRef     `json:"source_refs,omitempty"`
+	Conflicts       []noticeChangeSetConflict      `json:"conflicts,omitempty"`
+	SafetySummary   noticeChangeSetSafetySummary   `json:"safety_summary"`
+	FailCloseReason []string                       `json:"fail_close_reasons,omitempty"`
+}
+
+type noticeChangeSetLookupResult struct {
+	QueryText       string           `json:"query_text"`
+	Outcome         string           `json:"outcome"`
+	ChangeSet       *noticeChangeSet `json:"change_set,omitempty"`
+	FailCloseReason string           `json:"fail_close_reason,omitempty"`
 }
 
 func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte) Response {
@@ -223,6 +329,7 @@ func (r *Runtime) LookupCampusNoticeDiscover(ctx context.Context, rawBody []byte
 			PrimaryRole:   row.PrimaryRole,
 			BodyExcerpt:   row.BodyExcerpt,
 			IsCurrent:     true,
+			DisplayPolicy: noticePublicCardDisplayPolicy(),
 		})
 	}
 	body := noticeDiscoverResult{
@@ -263,9 +370,6 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 	if r.noticeReadModelStore == nil {
 		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_truth_unavailable")
 	}
-	if sourceFamily == internalNoticeRestrictedSourceFamily && r.noticeBodyStore == nil {
-		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_truth_unavailable")
-	}
 	if err := ctx.Err(); err != nil {
 		return failClosedNoticeGet(request.NoticeID, sourceFamily, "source_truth_unavailable")
 	}
@@ -284,9 +388,10 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 	}
 	if !ok {
 		body := noticeGetResult{
-			NoticeID:     request.NoticeID,
-			Outcome:      "not_found",
-			SourceFamily: sourceFamily,
+			NoticeID:      request.NoticeID,
+			Outcome:       "not_found",
+			SourceFamily:  sourceFamily,
+			DisplayPolicy: noticePublicCardDisplayPolicy(),
 		}
 		return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 	}
@@ -312,35 +417,6 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 	if sourceURL == "" {
 		return failClosedNoticeGet(request.NoticeID, resolvedSourceFamily, "source_truth_unavailable")
 	}
-	objectKey := strings.TrimSpace(row.CanonicalMarkdownObjectKey)
-	if objectKey == "" {
-		if isPublicNoticeSourceFamily(resolvedSourceFamily) {
-			body := noticeGetResult{
-				NoticeID:       resolvedNoticeID,
-				Outcome:        "resolved_current",
-				Title:          title,
-				SourceFamily:   resolvedSourceFamily,
-				SourceURL:      sourceURL,
-				CanonicalURL:   noticeCanonicalURL(row),
-				ReferenceOnly:  true,
-				PublishedAt:    row.PublishedAt,
-				EffectiveAt:    row.EffectiveAt,
-				TargetSurface:  row.TargetSurface,
-				PrimaryRole:    row.PrimaryRole,
-				AttachmentRefs: append([]string(nil), row.AttachmentRefs...),
-				ProvenanceRefs: append([]string(nil), row.ProvenanceRefs...),
-			}
-			return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
-		}
-		return failClosedNoticeGet(request.NoticeID, row.SourceFamily, "source_truth_unavailable")
-	}
-	if r.noticeBodyStore == nil {
-		return failClosedNoticeGet(request.NoticeID, resolvedSourceFamily, "source_truth_unavailable")
-	}
-	bodyText, err := r.noticeBodyStore.GetNoticeBody(ctx, objectKey)
-	if err != nil || strings.TrimSpace(bodyText) == "" {
-		return failClosedNoticeGet(request.NoticeID, resolvedSourceFamily, "source_truth_unavailable")
-	}
 	body := noticeGetResult{
 		NoticeID:       resolvedNoticeID,
 		Outcome:        "resolved_current",
@@ -348,7 +424,9 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 		SourceFamily:   resolvedSourceFamily,
 		SourceURL:      sourceURL,
 		CanonicalURL:   noticeCanonicalURL(row),
-		NormalizedBody: bodyText,
+		ReferenceOnly:  true,
+		DisplayPolicy:  noticePublicCardDisplayPolicy(),
+		BodyExcerpt:    strings.TrimSpace(row.BodyExcerpt),
 		PublishedAt:    row.PublishedAt,
 		EffectiveAt:    row.EffectiveAt,
 		TargetSurface:  row.TargetSurface,
@@ -359,278 +437,85 @@ func (r *Runtime) LookupCampusNoticeGet(ctx context.Context, rawBody []byte) Res
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 }
 
-func decodeNoticeEnvelope(rawBody []byte) (noticeQueryEnvelope, error) {
-	var envelope noticeQueryEnvelope
-	if err := json.Unmarshal(rawBody, &envelope); err != nil {
-		return noticeQueryEnvelope{}, err
+func (r *Runtime) LookupCampusNoticeChangeSet(ctx context.Context, rawBody []byte) Response {
+	envelope, err := decodeNoticeEnvelope(rawBody)
+	if err != nil {
+		return invalidRequest("Campus notice change-set request body must be a JSON object.")
 	}
-	if len(envelope.Payload) == 0 {
-		return noticeQueryEnvelope{}, errors.New("payload is required")
+	var request noticeChangeSetLookupRequest
+	if err := json.Unmarshal(envelope.Payload, &request); err != nil {
+		return invalidRequest("Campus notice change-set payload must be a JSON object.")
 	}
-	return envelope, nil
-}
-
-func normalizeNoticeDiscoverRequest(request *noticeDiscoverRequest) {
 	request.QueryText = strings.TrimSpace(request.QueryText)
-	for index, value := range request.SourceFamilies {
-		request.SourceFamilies[index] = strings.TrimSpace(value)
+	request.ServiceDate = strings.TrimSpace(request.ServiceDate)
+	request.QueryTimeAnchor = strings.TrimSpace(request.QueryTimeAnchor)
+	request.RouteLabels = normalizeTransportScopeStrings(request.RouteLabels)
+	request.DirectionLabels = normalizeTransportScopeStrings(request.DirectionLabels)
+	request.StopLabels = normalizeTransportScopeStrings(request.StopLabels)
+	if request.QueryText == "" {
+		return invalidRequest("query_text is required.")
 	}
-	request.TargetSurfaces = normalizeNoticeTargetSurfaces(request.TargetSurfaces)
-}
-
-func normalizeNoticeTargetSurfaces(values []string) []string {
-	normalized := make([]string, 0, len(values))
-	seen := map[string]bool{}
-	for _, value := range values {
-		item := strings.TrimSpace(value)
-		if item == "" || seen[item] {
+	if request.ServiceDate == "" {
+		return Response{
+			StatusCode: 200,
+			Outcome:    "clarification_required",
+			Body: noticeChangeSetLookupResult{
+				QueryText: request.QueryText,
+				Outcome:   "clarification_required",
+			},
+		}
+	}
+	if r.noticeReadModelStore == nil || r.transportScheduleReadModelStore == nil {
+		return failClosedNoticeChangeSet(request.QueryText, "source_truth_unavailable")
+	}
+	authorizationFilter := noticeAuthorizationFilterForAccessContext(envelope.AccessContext)
+	bundle, err := r.loadTransportScheduleBundle(ctx)
+	if err != nil || len(bundle.TransportScheduleSnapshots) == 0 {
+		return failClosedNoticeChangeSet(request.QueryText, "source_truth_unavailable")
+	}
+	for _, route := range bundle.TransportRoutes {
+		if !transportRouteMatchesChangeSetQuery(route, request) {
 			continue
 		}
-		seen[item] = true
-		normalized = append(normalized, item)
-	}
-	return normalized
-}
-
-func hasInternalNoticeAccess(accessContext noticeAccessContext) bool {
-	authorization := accessContext.Authorization
-	if !hasNoticePrincipal(accessContext) {
-		return false
-	}
-	if strings.TrimSpace(authorization.RetrievalFilter.VisibilityLevel) != "restricted" {
-		return false
-	}
-	for _, value := range authorization.EntitlementGroups {
-		if strings.TrimSpace(value) != "" {
-			return true
-		}
-	}
-	for _, value := range authorization.RetrievalFilter.EntitlementGroups {
-		if strings.TrimSpace(value) != "" {
-			return true
-		}
-	}
-	return false
-}
-
-func hasNoticePrincipal(accessContext noticeAccessContext) bool {
-	return strings.TrimSpace(accessContext.Authorization.PrincipalID) != ""
-}
-
-func noticeAuthorizationFilterForAccessContext(
-	accessContext noticeAccessContext,
-) noticeReadModelAuthorizationFilter {
-	authorization := accessContext.Authorization
-	groups := normalizeNoticeEntitlementGroups(authorization.RetrievalFilter.EntitlementGroups)
-	if len(groups) == 0 {
-		groups = normalizeNoticeEntitlementGroups(authorization.EntitlementGroups)
-	}
-	return noticeReadModelAuthorizationFilter{
-		VisibilityLevel:   strings.TrimSpace(authorization.RetrievalFilter.VisibilityLevel),
-		EntitlementGroups: groups,
-	}
-}
-
-func normalizeNoticeEntitlementGroups(values []string) []string {
-	normalized := []string{}
-	seen := map[string]bool{}
-	for _, value := range values {
-		item := strings.TrimSpace(value)
-		if item == "" || seen[item] {
+		operationalNotices := matchingTransportOperationalNotices(
+			bundle.TransportOperationalNotices,
+			route,
+			request.ServiceDate,
+		)
+		if len(operationalNotices) == 0 {
 			continue
 		}
-		seen[item] = true
-		normalized = append(normalized, item)
-	}
-	return normalized
-}
-
-func noticeReadModelRowsAuthorized(
-	rows []noticeReadModelRecord,
-	filter noticeReadModelAuthorizationFilter,
-) bool {
-	for _, row := range rows {
-		if !noticeReadModelRowAuthorized(row, filter) {
-			return false
+		noticeIDs := transportOperationalNoticeIDs(operationalNotices)
+		rows, err := r.noticeReadModelStore.GetNoticesByIDs(
+			ctx,
+			noticeIDsCriteria{
+				NoticeIDs:      noticeIDs,
+				SourceFamilies: []string{internalNoticeRestrictedSourceFamily},
+				TargetSurfaces: []string{"campus_services/service_status_candidate"},
+				Authorization:  authorizationFilter,
+			},
+		)
+		if err != nil || !noticeReadModelRowsAuthorized(rows, authorizationFilter) {
+			return failClosedNoticeChangeSet(request.QueryText, "source_truth_unavailable")
+		}
+		if len(rows) == 0 {
+			return failClosedNoticeChangeSet(request.QueryText, "source_truth_unavailable")
+		}
+		changeSet := buildTransportNoticeChangeSet(
+			request,
+			route,
+			operationalNotices,
+			rows,
+		)
+		return Response{
+			StatusCode: 200,
+			Outcome:    "resolved_current",
+			Body: noticeChangeSetLookupResult{
+				QueryText: request.QueryText,
+				Outcome:   "resolved_current",
+				ChangeSet: &changeSet,
+			},
 		}
 	}
-	return true
-}
-
-func noticeReadModelRowsHaveMinimumCardFields(rows []noticeReadModelRecord) bool {
-	for _, row := range rows {
-		if strings.TrimSpace(row.SourceNoticeID) == "" {
-			return false
-		}
-		if strings.TrimSpace(row.SourceFamily) == "" {
-			return false
-		}
-		if strings.TrimSpace(row.Title) == "" {
-			return false
-		}
-		if strings.TrimSpace(row.SourceURL) == "" {
-			return false
-		}
-		if strings.TrimSpace(row.TargetSurface) == "" {
-			return false
-		}
-	}
-	return true
-}
-
-func noticeReadModelRowAuthorized(
-	row noticeReadModelRecord,
-	filter noticeReadModelAuthorizationFilter,
-) bool {
-	sourceFamily := strings.TrimSpace(row.SourceFamily)
-	if sourceFamily == "" {
-		sourceFamily = internalNoticeRestrictedSourceFamily
-	}
-	if isPublicNoticeSourceFamily(sourceFamily) {
-		visibilityLevel := strings.TrimSpace(row.VisibilityLevel)
-		return visibilityLevel == "" || visibilityLevel == "public"
-	}
-	if sourceFamily != internalNoticeRestrictedSourceFamily {
-		return false
-	}
-	if strings.TrimSpace(filter.VisibilityLevel) != "restricted" {
-		return false
-	}
-	if strings.TrimSpace(row.VisibilityLevel) != "restricted" {
-		return false
-	}
-	if strings.TrimSpace(row.PolicyProjectionVersion) == "" {
-		return false
-	}
-	return noticeEntitlementGroupsOverlap(row.EntitlementGroups, filter.EntitlementGroups)
-}
-
-func noticeCanonicalURL(row noticeReadModelRecord) string {
-	canonicalURL := strings.TrimSpace(row.CanonicalURL)
-	if canonicalURL != "" {
-		return canonicalURL
-	}
-	return strings.TrimSpace(row.SourceURL)
-}
-
-func noticeEntitlementGroupsOverlap(left []string, right []string) bool {
-	rightSet := map[string]bool{}
-	for _, value := range right {
-		item := strings.TrimSpace(value)
-		if item != "" {
-			rightSet[item] = true
-		}
-	}
-	if len(rightSet) == 0 {
-		return false
-	}
-	for _, value := range left {
-		if rightSet[strings.TrimSpace(value)] {
-			return true
-		}
-	}
-	return false
-}
-
-func admittedNoticeSourceFamilies(accessContext noticeAccessContext) []string {
-	if !hasNoticePrincipal(accessContext) {
-		return nil
-	}
-	admitted := []string{
-		officialWebPublicNoticeSourceFamily,
-		wechatPublicNoticeSourceFamily,
-	}
-	if hasInternalNoticeAccess(accessContext) {
-		admitted = append(admitted, internalNoticeRestrictedSourceFamily)
-	}
-	return admitted
-}
-
-func resolveNoticeSourceFamilies(requested []string, admitted []string) ([]string, bool) {
-	admittedSet := map[string]bool{}
-	for _, family := range admitted {
-		if isKnownNoticeSourceFamily(family) {
-			admittedSet[family] = true
-		}
-	}
-	if len(admittedSet) == 0 {
-		return nil, false
-	}
-	if len(requested) == 0 {
-		resolved := make([]string, 0, len(admittedSet))
-		for _, family := range admitted {
-			if admittedSet[family] {
-				resolved = append(resolved, family)
-				delete(admittedSet, family)
-			}
-		}
-		return resolved, false
-	}
-	invalid := false
-	resolved := make([]string, 0, len(requested))
-	seen := map[string]bool{}
-	for _, value := range requested {
-		family := strings.TrimSpace(value)
-		if family == "" {
-			continue
-		}
-		if !isKnownNoticeSourceFamily(family) {
-			invalid = true
-			continue
-		}
-		if !admittedSet[family] || seen[family] {
-			continue
-		}
-		seen[family] = true
-		resolved = append(resolved, family)
-	}
-	return resolved, invalid
-}
-
-func isNoticeSourceFamilyAdmitted(sourceFamily string, accessContext noticeAccessContext) bool {
-	for _, admitted := range admittedNoticeSourceFamilies(accessContext) {
-		if admitted == sourceFamily {
-			return true
-		}
-	}
-	return false
-}
-
-func isKnownNoticeSourceFamily(sourceFamily string) bool {
-	switch strings.TrimSpace(sourceFamily) {
-	case internalNoticeRestrictedSourceFamily, officialWebPublicNoticeSourceFamily, wechatPublicNoticeSourceFamily:
-		return true
-	default:
-		return false
-	}
-}
-
-func isPublicNoticeSourceFamily(sourceFamily string) bool {
-	switch strings.TrimSpace(sourceFamily) {
-	case officialWebPublicNoticeSourceFamily, wechatPublicNoticeSourceFamily:
-		return true
-	default:
-		return false
-	}
-}
-
-func failClosedNoticeDiscover(queryText string, sourceFamilies []string, timeAnchor string, reason string) Response {
-	body := noticeDiscoverResult{
-		QueryText:         queryText,
-		Outcome:           "temporarily_unverifiable",
-		SourceFamilies:    sourceFamilies,
-		QueriedTimeAnchor: timeAnchor,
-		FailCloseReason:   reason,
-	}
-	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
-}
-
-func failClosedNoticeGet(noticeID string, sourceFamily string, reason string) Response {
-	body := noticeGetResult{
-		NoticeID:        noticeID,
-		Outcome:         "temporarily_unverifiable",
-		SourceFamily:    sourceFamily,
-		FailCloseReason: reason,
-	}
-	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+	return failClosedNoticeChangeSet(request.QueryText, "source_truth_unavailable")
 }

@@ -4,7 +4,6 @@ from pathlib import Path
 
 SHARED_POSTGRES_ENV_KEY = "CAMPUS_SHARED_POSTGRES_URL"
 SHARED_POSTGRES_OPERATOR_ENV_KEY = "CAMPUS_SHARED_POSTGRES_OPERATOR_URL"
-SHARED_POSTGRES_MANAGEMENT_ENV_KEY = "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL"
 
 
 def resolve_source_env_path(repo_root: Path) -> Path:
@@ -24,8 +23,14 @@ def parse_env_file(path: Path) -> dict[str, str]:
     return values
 
 
-def replace_or_append_env_values(existing_text: str, assignments: dict[str, str]) -> str:
+def replace_or_append_env_values(
+    existing_text: str,
+    assignments: dict[str, str],
+    *,
+    drop_keys: tuple[str, ...] = (),
+) -> str:
     pending = dict(assignments)
+    blocked = set(drop_keys)
     output_lines: list[str] = []
 
     for raw_line in existing_text.splitlines():
@@ -35,6 +40,8 @@ def replace_or_append_env_values(existing_text: str, assignments: dict[str, str]
 
         key, _ = raw_line.split("=", 1)
         normalized_key = key.strip()
+        if normalized_key in blocked:
+            continue
         if normalized_key in pending:
             output_lines.append(f"{normalized_key}={pending.pop(normalized_key)}")
         else:

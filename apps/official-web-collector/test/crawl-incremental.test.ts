@@ -19,11 +19,18 @@ function buildKnownPage(
 ): OfficialWebPlannerPageCandidate {
 	return {
 		cadenceClass: "detail_recent",
+		consumerFamily: "contact_directory_candidate",
 		contentType: "text/html",
 		discoveredFromUrl: "https://www.example.edu/news/",
 		discoveryMethod: "navigation",
 		etag: '"etag-v1"',
+		fetchProfile: "target_candidate_fetch",
 		host: "www.example.edu",
+		hostPolicy: {
+			host: "www.example.edu",
+			sourceHost: "www.example.edu",
+		},
+		inventoryOnly: false,
 		lastChangeReason: "content_changed",
 		lastChangedAt: "2026-03-31T08:00:00.000Z",
 		lastFetchDisposition: "fetched",
@@ -33,13 +40,22 @@ function buildKnownPage(
 		lastSeenAt: "2026-03-31T08:00:00.000Z",
 		lastSuccessfulRunId: "owrun_previous",
 		mainContentHash: "main-v1",
+		materializationPolicy: "candidate_only",
 		nextEligibleFetchAt: "2026-04-01T08:00:00.000Z",
 		normalizedCanonicalUrl: "https://www.example.edu/",
 		pageFamily: "directory_page",
 		pageTitleNormalized: "Campus public",
 		priorityScore: 10,
 		responseBodyHash: "body-v1",
+		retentionPolicy: "retain_source_truth",
+		reviewPolicy: "selected_write_requires_review",
+		selectedWriteTarget: "campus_services/contact_directory",
 		siteId: "campus_public",
+		targetCandidateId: "owcand_test",
+		targetDeclarationVersion: "test_target_source_map_v2",
+		targetId: "campus-services-contact-directory",
+		targetJobId: "owtarget_test",
+		worksetReason: "target_candidate_due",
 		...overrides,
 	};
 }
@@ -215,6 +231,8 @@ describe("official-web-collector incremental crawl", () => {
 						repairPages: 0,
 						selectedHosts: 1,
 						staticPages: 1,
+						targetJobs: 1,
+						worksetRows: 1,
 					},
 				},
 			}));
@@ -244,6 +262,7 @@ describe("official-web-collector incremental crawl", () => {
 				configRoot,
 				outputDir,
 				crawlRunId: "owrun_incremental_etag",
+				localArtifactsOnly: true,
 				controlPlaneClient,
 				maxPagesPerHost: 1,
 				maxTotalPages: 1,
@@ -339,6 +358,8 @@ describe("official-web-collector incremental crawl", () => {
 						repairPages: 0,
 						selectedHosts: 1,
 						staticPages: 1,
+						targetJobs: 1,
+						worksetRows: 1,
 					},
 				},
 			}),
@@ -357,6 +378,7 @@ describe("official-web-collector incremental crawl", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_incremental_304_without_body",
+			localArtifactsOnly: true,
 			controlPlaneClient,
 			maxPagesPerHost: 1,
 			maxTotalPages: 1,
@@ -371,6 +393,101 @@ describe("official-web-collector incremental crawl", () => {
 			mainContentHash: "main-v1",
 			responseBodyHash: "body-v1",
 		});
+	});
+
+	it("preserves non-empty known-page titles for deleted target-workset observations", async () => {
+		stubRobotsAllowFetch();
+		let finalizeInput: Parameters<OfficialWebControlPlaneClient["finalizeRun"]>[0] | undefined;
+		mockCrawlee(() => ({
+			statusCode: 404,
+			contentType: "text/html",
+			headers: {},
+		}));
+
+		const controlPlaneClient: OfficialWebControlPlaneClient = {
+			startRun: async () => ({
+				run: {
+					runId: "owrun_deleted_title_fallback",
+					siteId: "campus_public",
+					startedAt: "2026-04-01T08:20:00.000Z",
+					status: "accepted",
+				},
+			}),
+			sendHeartbeat: async () => ({
+				run: {
+					runId: "owrun_deleted_title_fallback",
+					status: "accepted",
+				},
+			}),
+			resolvePlan: async () => ({
+				plan: {
+					duePages: [
+						buildKnownPage({
+							discoveryMethod: "manual_requeue",
+							lastFetchDisposition: "never_fetched",
+							normalizedCanonicalUrl: "https://www.example.edu/calendar-guide",
+							pageFamily: "target_candidate",
+							pageTitleNormalized: "校历查看方式",
+							targetCandidateId: "owcand_calendar",
+							targetId: "campus-services-service-guide",
+							targetJobId: "owtarget_calendar",
+						}),
+					],
+					hostFilter: ["www.example.edu"],
+					maxPagesPerHost: 1,
+					maxTotalPages: 1,
+					resolvedAt: "2026-04-01T08:20:00.000Z",
+					runIntent: "hot",
+					siteId: "campus_public",
+					summary: {
+						duePages: 1,
+						listingPages: 0,
+						repairPages: 0,
+						selectedHosts: 1,
+						staticPages: 1,
+						targetJobs: 1,
+						worksetRows: 1,
+					},
+				},
+			}),
+			finalizeRun: async (input) => {
+				finalizeInput = input;
+				return {
+					run: {
+						runId: "owrun_deleted_title_fallback",
+						status: "completed",
+						finishedAt: "2026-04-01T08:20:01.000Z",
+					},
+				};
+			},
+		};
+
+		const { configRoot, outputDir } = writeTestConfigRoot();
+		const { crawlSite } = await import("../src/index");
+		const result = await crawlSite("campus_public", {
+			configRoot,
+			outputDir,
+			crawlRunId: "owrun_deleted_title_fallback",
+			localArtifactsOnly: true,
+			controlPlaneClient,
+			maxPagesPerHost: 1,
+			maxTotalPages: 1,
+		});
+
+		expect(result.urlResults[0]).toMatchObject({
+			httpStatus: 404,
+			outcome: "deleted",
+		});
+		expect(result.pageObservations[0]).toMatchObject({
+			disposition: "deleted",
+			pageTitleNormalized: "校历查看方式",
+		});
+		expect(finalizeInput?.pageObservations).toEqual([
+			expect.objectContaining({
+				disposition: "deleted",
+				pageTitleNormalized: "校历查看方式",
+			}),
+		]);
 	});
 
 	it("falls back to If-Modified-Since when ETag is unavailable", async () => {
@@ -419,6 +536,8 @@ describe("official-web-collector incremental crawl", () => {
 						repairPages: 0,
 						selectedHosts: 1,
 						staticPages: 1,
+						targetJobs: 1,
+						worksetRows: 1,
 					},
 				},
 			}),
@@ -437,6 +556,7 @@ describe("official-web-collector incremental crawl", () => {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_incremental_last_modified",
+			localArtifactsOnly: true,
 			controlPlaneClient,
 			maxPagesPerHost: 1,
 			maxTotalPages: 1,

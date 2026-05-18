@@ -15,7 +15,6 @@ class SupervisorApiExecutionAuditRuntimeTest(unittest.TestCase):
             "SUPERVISOR_API_EXECUTION_AUDIT_URL",
             "SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET",
             "SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS",
-            "SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY",
         ):
             self.assertIn(key, compose)
 

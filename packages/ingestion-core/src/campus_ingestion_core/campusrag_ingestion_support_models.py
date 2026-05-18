@@ -139,6 +139,41 @@ class S3ObjectStoreWriter:
         response = self._client.get_object(Bucket=bucket, Key=key)
         return response["Body"].read()
 
+    def delete_prefix(
+        self,
+        *,
+        bucket: str,
+        prefix: str,
+        exclude_keys: tuple[str, ...] = (),
+        include_path_segment_suffix: str | None = None,
+    ) -> None:
+        excluded = set(exclude_keys)
+        continuation_token: str | None = None
+        while True:
+            request: dict[str, object] = {"Bucket": bucket, "Prefix": prefix}
+            if continuation_token is not None:
+                request["ContinuationToken"] = continuation_token
+            response = self._client.list_objects_v2(**request)
+            keys = [
+                {"Key": item["Key"]}
+                for item in response.get("Contents") or ()
+                if item["Key"] not in excluded
+                and _matches_path_segment_suffix(
+                    str(item["Key"]),
+                    include_path_segment_suffix,
+                )
+            ]
+            for start in range(0, len(keys), 1000):
+                batch = keys[start : start + 1000]
+                if batch:
+                    self._client.delete_objects(
+                        Bucket=bucket,
+                        Delete={"Objects": batch, "Quiet": True},
+                    )
+            if not response.get("IsTruncated"):
+                break
+            continuation_token = response.get("NextContinuationToken")
+
     def _one_shot_client_for_zero_byte_payload(self):
         # Local MinIO can stall on the next reused connection after a zero-byte put_object.
         # Isolating empty writes to a throwaway client keeps the shared client pool healthy.
@@ -184,3 +219,9 @@ def _is_retryable_put_exception(exc: BaseException) -> bool:
         if isinstance(error, dict) and error.get("Code") in _RETRYABLE_PUT_ERROR_CODES:
             return True
     return exc.__class__.__name__ in _RETRYABLE_PUT_EXCEPTION_NAMES
+
+
+def _matches_path_segment_suffix(key: str, suffix: str | None) -> bool:
+    if suffix is None:
+        return True
+    return any(segment.endswith(suffix) for segment in key.split("/"))

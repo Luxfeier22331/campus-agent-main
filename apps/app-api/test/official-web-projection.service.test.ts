@@ -143,6 +143,7 @@ describe("official web projection projector", () => {
 			abandoned: 0,
 			failed: 0,
 			processed: 1,
+			skipped: 0,
 		});
 		expect(handoffPublisher.publish).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -193,6 +194,76 @@ describe("official web projection projector", () => {
 		);
 	});
 
+	it("preserves deleted page changes without raw asset identity in terminal handoff payloads", async () => {
+		const store: OfficialWebProjectionProjectorStore = {
+			listPendingEvents: vi.fn().mockResolvedValue([
+				createPendingEvent({
+					eventId: "owevt_completed_deleted_01HQ",
+					payload: {
+						pageChangeSummary: {
+							changedPages: 0,
+							deletedPages: 1,
+							failedFetchPages: 0,
+							newPages: 0,
+							notModifiedPages: 0,
+						},
+						pageChanges: [
+							{
+								changeStatus: "deleted",
+								normalizedCanonicalUrl: "https://www.muc.edu.cn/service/deleted",
+								observedAt: "2026-03-29T08:17:32.000Z",
+								pageFamily: "article_detail",
+								rawAssetId: null,
+								rawVersionId: null,
+							},
+						],
+					},
+				}),
+			]),
+			markEventFailed: vi.fn(),
+			markEventProcessed: vi.fn(),
+			markTimedOutRunsAsAbandoned: vi.fn().mockResolvedValue(0),
+			updateRunDispatchStatus: vi.fn(),
+			updateRunExecutionStatus: vi.fn().mockResolvedValue(true),
+			upsertRunProjection: vi.fn(),
+			upsertSiteProjection: vi.fn(),
+			getRunProjectionSource: vi.fn().mockResolvedValue(createRunSource()),
+			getSiteProjectionSource: vi.fn().mockResolvedValue(createSiteSource()),
+		};
+		const handoffPublisher = {
+			publish: vi.fn().mockResolvedValue({
+				dispatchRef: "dispatch_deleted_01HQ",
+			}),
+		};
+		const projector = buildOfficialWebProjectionProjector({
+			handoffPublisher,
+			now: () => new Date("2026-03-29T08:17:33.000Z"),
+			store,
+		});
+
+		const result = await projector.drain();
+
+		expect(result).toEqual({
+			abandoned: 0,
+			failed: 0,
+			processed: 1,
+			skipped: 0,
+		});
+		expect(handoffPublisher.publish).toHaveBeenCalledWith(
+			expect.objectContaining({
+				eventId: "owevt_completed_deleted_01HQ",
+				pageChanges: [
+					expect.objectContaining({
+						changeStatus: "deleted",
+						normalizedCanonicalUrl: "https://www.muc.edu.cn/service/deleted",
+						rawAssetId: null,
+						rawVersionId: null,
+					}),
+				],
+			}),
+		);
+	});
+
 	it("materializes accepted run and site projections and marks events processed", async () => {
 		const store: OfficialWebProjectionProjectorStore = {
 			listPendingEvents: vi
@@ -233,6 +304,7 @@ describe("official web projection projector", () => {
 			abandoned: 0,
 			failed: 0,
 			processed: 1,
+			skipped: 0,
 		});
 		expect(store.upsertRunProjection).toHaveBeenCalledWith(
 			expect.objectContaining({
@@ -277,6 +349,7 @@ describe("official web projection projector", () => {
 			abandoned: 0,
 			failed: 1,
 			processed: 0,
+			skipped: 0,
 		});
 		expect(store.markEventFailed).toHaveBeenCalledWith({
 			attemptCount: 1,
@@ -316,6 +389,7 @@ describe("official web projection projector", () => {
 			abandoned: 0,
 			failed: 1,
 			processed: 0,
+			skipped: 0,
 		});
 		expect(store.markEventFailed).toHaveBeenCalledWith({
 			attemptCount: 5,
@@ -359,6 +433,7 @@ describe("official web projection projector", () => {
 			abandoned: 0,
 			failed: 1,
 			processed: 0,
+			skipped: 0,
 		});
 		expect(store.updateRunDispatchStatus).toHaveBeenCalledWith({
 			dispatchRef: null,
@@ -413,6 +488,7 @@ describe("official web projection projector", () => {
 			abandoned: 2,
 			failed: 0,
 			processed: 0,
+			skipped: 0,
 		});
 		expect(store.markTimedOutRunsAsAbandoned).toHaveBeenCalledWith({
 			heartbeatTimeoutSeconds: 180,

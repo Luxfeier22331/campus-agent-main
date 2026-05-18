@@ -3,14 +3,22 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from campus_contracts import EvidenceSource
+from campus_ingestion_core.corpus_profiles import is_official_web_stable_reference_like_collection
 
 from campus_retrieval_core.curriculum_query_resolution import (
     filter_curriculum_query_sources,
     interpret_curriculum_query,
     query_targets_curriculum_source_title,
 )
+from campus_retrieval_core.query_focus import (
+    query_has_focus_constraints,
+    select_sources_covering_query_focus,
+)
 
-from .evidence_ranking_curriculum import select_curriculum_lookup_support_sources
+from .evidence_ranking_curriculum import (
+    select_curriculum_fact_support_sources,
+    select_curriculum_lookup_support_sources,
+)
 from .evidence_ranking_features import (
     build_document_ranking_features,
     build_ranking_features,
@@ -119,6 +127,18 @@ def select_supporting_evidence_sources(
     if not ranked_features:
         return ()
 
+    if query_has_focus_constraints(query_text):
+        focus_aligned_sources = select_sources_covering_query_focus(
+            query_text=query_text,
+            sources=tuple(feature.source for feature in ranked_features),
+        )
+        if focus_aligned_sources:
+            ranked_features = tuple(
+                feature for feature in ranked_features if feature.source in focus_aligned_sources
+            )
+        else:
+            return ()
+
     ranked_documents = tuple(
         sorted(
             build_document_ranking_features(ranked_features),
@@ -144,6 +164,14 @@ def select_supporting_evidence_sources(
     )
     if curriculum_lookup_selected:
         return curriculum_lookup_selected
+    curriculum_fact_selected = select_curriculum_fact_support_sources(
+        query_text=query_text,
+        ranked_features=ranked_features,
+        locked_doc_id=locked_doc_id,
+        max_sources=max_sources,
+    )
+    if curriculum_fact_selected:
+        return curriculum_fact_selected
 
     primary: list[EvidenceSource] = []
     secondary: list[EvidenceSource] = []
@@ -175,21 +203,17 @@ def select_supporting_evidence_sources(
     selected = (*primary, *secondary, *same_doc_secondary)[:max_sources]
     if selected:
         return selected
-
-    fallback_source = next(
-        (
-            feature.source
-            for feature in ranked_features
-            if not locked_doc_id or feature.source.doc_id == locked_doc_id
-        ),
-        ranked_features[0].source,
-    )
-    return (fallback_source,)
+    return ()
 
 
 def query_targets_source_title(*, query_text: str, source: EvidenceSource) -> bool:
     if query_targets_curriculum_source_title(query_text=query_text, source=source):
         return True
+    if (
+        source.source_channel == "official_web"
+        and not is_official_web_stable_reference_like_collection(source.collection)
+    ):
+        return False
     normalized_query = normalize_text(query_text)
     query_key = match_key(normalized_query)
     if not query_key:

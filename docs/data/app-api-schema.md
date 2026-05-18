@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-04-29
+updated: 2026-05-01
 ---
 # App API Schema
 
@@ -18,6 +18,8 @@ updated: 2026-04-29
 - 产品层 HTTP contract：`docs/contracts/app-api-http.md`
 - request lifecycle：`docs/contracts/app-api-request-lifecycle.md`
 - `official_web` control-plane schema：`docs/data/app-api-official-web-schema.md`
+- authenticated notice processing operator
+  contract：`docs/contracts/app-api-authenticated-notice-processing-http.md`
 
 这份文档不冻结：
 
@@ -52,7 +54,8 @@ updated: 2026-04-29
 
 - `official_web` control-plane 引入的额外逻辑分域单独冻结在
   `docs/data/app-api-official-web-schema.md`
-- 本文继续只覆盖当前 browser-facing app surfaces 与 request projection 基线
+- 本文继续只覆盖当前 browser-facing app surfaces、request projection 基线与 app-api
+  owned operator projections；source-channel 专用 schema 另见各 domain data contract
 
 ## Global Rules
 
@@ -826,6 +829,214 @@ updated: 2026-04-29
 - 不保存 raw JWT、raw cookie、raw prompt、raw answer、raw retrieval payload 或 vendor
   sink blob
 
+## `operator.authenticated_notice_processing_projection`
+
+用途：
+
+- protected panel `通知处理` 的 canonical read model
+- authenticated notice queue / downstream materialization 的 operator-safe status
+  projection
+
+最小列：
+
+- `processing_id`
+- `notice_key`
+- `source_channel`
+- `source_surface`
+- `site_id`
+- `notice_id`
+- `title`
+- `run_id` nullable
+- `job_id` nullable
+- `replay_batch_id` nullable
+- `enqueue_source` nullable
+- `queue_status`
+- `lifecycle_status`
+- `latest_stage`
+- `target_surface` nullable
+- `candidate_kind` nullable
+- `materialization_status` nullable
+- `release_id` nullable
+- `current`
+- `tool_ready`
+- `read_model_counts_json`
+- `child_task_summary_json`
+- `timeline_json`
+- `downstream_json` nullable
+- `last_error_code` nullable
+- `last_error_message` nullable
+- `attempt_count`
+- `last_observed_at`
+- `source_updated_at` nullable
+- `projected_at`
+- `producer_version`
+- `redaction_version`
+
+最小索引：
+
+- `(notice_id, projected_at)`
+- `(notice_key, projected_at)`
+- `(lifecycle_status, projected_at)`
+- `(target_surface, candidate_kind, projected_at)`
+- `(run_id, projected_at)`
+
+规则：
+
+- `processing_id` 是 snapshot 幂等键，不是 queue row 的替代主键
+- 这张表只服务 app-api operator list/detail；不改变 source-truth、queue、release 或
+  downstream read-model truth
+- detail effective record 排序固定优先 `tool_ready=true`、`current=true`、
+  `projected_at desc`
+- `read_model_counts_json` 只能保存 operator-safe aggregate counts，例如
+  `scheduledDepartures`、`rejectedSources`、`snapshots` 与 `currentSnapshots`
+- `timeline_json` 与 `downstream_json` 只能保存 sanitized summaries；不得保存 raw
+  notice body、HTML、OCR text/table、attachment bytes、object-store key、local path、
+  credential 或 raw stack trace
+- `timeline_json.payload` 允许保存 compact operator evidence，例如
+  `reasonCode`、`regulationAdmissionClass`、`promotionDisposition`、
+  `applicabilityStatus`、`targetCollection`、`auditRunId`、`cleanupRunId`、
+  `cleanupDisposition`、`postgresExactRemaining`、
+  `objectStoreExactKeysRemaining` 与 `qdrantResidueCount`
+- `timeline_json.payload` 禁止保存 bucket、object key、backup path、artifact path、raw
+  operations path 或任何可反向定位 source/derived object 的字段
+- first release 是 read-only projection；retry、cancel、re-enqueue 不是这张表或 panel
+  surface 的职责
+
+## `operator.authenticated_notice_processing_event_projection`
+
+用途：
+
+- authenticated notice processing detail timeline 的 idempotent event projection
+- 后续 freshness / reconciliation diagnostics 的 operator-safe event source
+
+最小列：
+
+- `event_id`
+- `processing_id`
+- `notice_key`
+- `notice_id`
+- `run_id` nullable
+- `job_id` nullable
+- `stage`
+- `status`
+- `occurred_at`
+- `summary`
+- `payload_json`
+- `projected_at`
+
+最小索引：
+
+- `(processing_id, occurred_at)`
+- `(notice_id, occurred_at)`
+
+规则：
+
+- `event_id` 可由 upstream event id 传入；缺省时由 snapshot identity、stage、status、
+  occurred time 与 ordinal 派生
+- `payload_json` 只允许 compact reason code、count、typed status 或 audit/cleanup run
+  id，不允许 raw logs、source file path、object-store locator、backup path 或
+  OCR/provider payload
+- event projection 只解释 operator timeline，不作为 ingestion retry / cancellation
+  command source
+
+## `operator.authenticated_notice_run_processing_projection`
+
+用途：
+
+- protected panel `通知 run 处理` 的 canonical read model
+- authenticated notice collector run / replay batch / queue run 的 operator-safe
+  status projection
+
+最小列：
+
+- `run_processing_id`
+- `run_key`
+- `source_channel`
+- `source_surface`
+- `site_id`
+- `collector_run_token`
+- `run_id`
+- `replay_batch_id` nullable
+- `enqueue_source` nullable
+- `lifecycle_status`
+- `latest_stage`
+- `latest_queue_status`
+- `queue_job_count`
+- `queue_status_counts_json`
+- `attempt_count`
+- `source_truth_json`
+- `child_task_summary_json`
+- `downstream_json`
+- `job_summaries_json`
+- `timeline_json`
+- `last_error_code` nullable
+- `last_error_message` nullable
+- `first_observed_at`
+- `last_observed_at`
+- `projected_at`
+- `producer_version`
+- `redaction_version`
+
+最小索引：
+
+- `(collector_run_token, projected_at)`
+- `(run_id, projected_at)`
+- `(site_id, lifecycle_status, projected_at)`
+- `(latest_queue_status, projected_at)`
+
+规则：
+
+- `run_processing_id` 是 run snapshot 幂等键，不是 queue row 的替代主键
+- 这张表只服务 app-api operator list/detail；不改变 source-truth、queue、release 或
+  downstream read-model truth
+- run-level projection 只回答 collector run / replay batch / queue run 的整体状态，不承载
+  单个 notice 的 effective processing 详情
+- `source_truth_json` 可保存 `selectedNoticeCount`、`importedNoticeCount`、
+  `attachmentFetchStatusRecordCount`、`rawUploadedCount`、`rawReusedCount` 与少量 title/id
+  samples；不得保存 raw source object refs
+- `downstream_json` 可保存 candidate kind、target surface、materialized release
+  count 与 status summary；source-truth-only run 可显示 `skipped_source_truth_only`
+- `job_summaries_json` 只保存 job id、run id、queue status、attempt count、selected/imported
+  count、updated timestamp 与 normalized error 信息
+- first release 是 read-only projection；retry、cancel、re-enqueue 不是这张表或 panel
+  surface 的职责
+
+## `operator.authenticated_notice_run_processing_event_projection`
+
+用途：
+
+- authenticated notice run-processing detail timeline 的 idempotent event projection
+- 后续 run-level freshness / reconciliation diagnostics 的 operator-safe event source
+
+最小列：
+
+- `event_id`
+- `run_processing_id`
+- `run_key`
+- `collector_run_token`
+- `run_id`
+- `job_id` nullable
+- `stage`
+- `status`
+- `occurred_at`
+- `summary`
+- `payload_json`
+- `projected_at`
+
+最小索引：
+
+- `(run_processing_id, occurred_at)`
+- `(collector_run_token, occurred_at)`
+
+规则：
+
+- `event_id` 可由 upstream event id 传入；缺省时由 run snapshot identity、stage、status、
+  occurred time 与 ordinal 派生
+- `payload_json` 只允许 compact reason code、count 与 typed status，不允许 raw logs、
+  source file path、object-store locator、backup path、OCR/provider payload 或 raw stack
+- event projection 只解释 run-level operator timeline，不作为 ingestion retry /
+  cancellation command source
+
 ## `operator.metric_rollup`
 
 用途：
@@ -1033,6 +1244,10 @@ updated: 2026-04-29
 - `operator.quality_badcase_projection`
 - `operator.quality_grade_projection`
 - `operator.trace_backlink_projection`
+- `operator.authenticated_notice_processing_projection`
+- `operator.authenticated_notice_processing_event_projection`
+- `operator.authenticated_notice_run_processing_projection`
+- `operator.authenticated_notice_run_processing_event_projection`
 
 只服务：
 
@@ -1042,6 +1257,8 @@ updated: 2026-04-29
 - panel quality badcase queue
 - panel sampled grade summary
 - panel-safe trace / issue deep links
+- panel authenticated notice processing status / timeline
+- panel authenticated notice run processing status / timeline
 - pagination / filtering / detail view
 
 不服务：

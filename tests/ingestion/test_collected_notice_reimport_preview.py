@@ -9,6 +9,9 @@ from campus_ingestion_core.collected_notice_reimport_preview import (
     build_collected_notice_reimport_preview,
     select_collected_notice_reimport_run_refs,
 )
+from campus_ingestion_core.collected_notice_reimport_preview_source_refs import (
+    _file_release_required_attachment_ref,
+)
 
 from tests.ingestion.authenticated_notice_import_test_support import (
     _sample_export_manifest,
@@ -200,6 +203,50 @@ def _transport_schedule_image_bundle_without_body_times() -> list[dict[str, obje
 
 
 class CollectedNoticeReimportPreviewTests(unittest.TestCase):
+    def test_file_release_uploaded_required_ref_does_not_require_byte_fetch(self) -> None:
+        attachment_ref = _file_release_required_attachment_ref(
+            file_release_id="646",
+            released_file_ref={
+                "source_url": "https://portal.example.edu/files/646",
+                "final_url": "https://portal.example.edu/files/646",
+                "original_filename": "管理办法.pdf",
+                "mime_type": "application/pdf",
+                "byte_size": 1234,
+                "object_key": "authenticated_notice_portal/file-release/646/source.pdf",
+                "content_sha256": "a" * 64,
+                "bucket": "campus-rag-source",
+                "storage_provider": "object_store",
+                "ingest_status": "uploaded",
+            },
+        )
+
+        self.assertEqual(attachment_ref["attachment_capture_state"], "uploaded_required")
+        self.assertFalse(attachment_ref["byte_fetch_required"])
+        self.assertEqual(attachment_ref["required_source_object"], True)
+
+    def test_file_release_ref_infers_object_store_for_legacy_object_backed_source(
+        self,
+    ) -> None:
+        attachment_ref = _file_release_required_attachment_ref(
+            file_release_id="477",
+            released_file_ref={
+                "source_url": "https://portal.example.edu/files/477",
+                "final_url": "https://portal.example.edu/files/477",
+                "original_filename": "制度汇编.pdf",
+                "mime_type": "application/pdf",
+                "byte_size": 2048,
+                "object_key": "authenticated_notice_portal/file-release/477/source.pdf",
+                "content_sha256": "b" * 64,
+                "bucket": "campus-rag-source",
+            },
+        )
+
+        self.assertEqual(attachment_ref["storage_provider"], "object_store")
+        self.assertEqual(attachment_ref["ingest_status"], "uploaded")
+        self.assertEqual(attachment_ref["attachment_capture_state"], "uploaded_required")
+        self.assertFalse(attachment_ref["byte_fetch_required"])
+        self.assertEqual(attachment_ref["required_source_object"], True)
+
     def test_preview_builds_searchable_unit_for_valid_notice_without_writes(self) -> None:
         object_store = _ReadOnlyObjectStore()
         bucket = "campus-rag-source"
@@ -449,6 +496,13 @@ class CollectedNoticeReimportPreviewTests(unittest.TestCase):
 
         self.assertEqual(preview.invalid_defer_multimodal_report["invalid_capture_count"], 1)
         self.assertEqual(preview.invalid_defer_multimodal_report["needs_multimodal_count"], 1)
+        self.assertEqual(preview.reimport_plan["planned_blocks"], [])
+        self.assertEqual(
+            preview.reimport_plan["write_manifest_candidate"]["consumer_admission_candidates"][0][
+                "consumption_class"
+            ],
+            "search_only",
+        )
         unit = preview.searchable_notice_preview["units"][0]
         self.assertEqual(unit["source_notice_id"], "355867")
         self.assertEqual(unit["multimodal_status"], "pending")

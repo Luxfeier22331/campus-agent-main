@@ -114,13 +114,13 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "LLM_API_KEY=shared-llm-secret",
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
                         "SUPERVISOR_API_QUEUE_CAPACITY=24",
                         "SUPERVISOR_API_QUEUE_TIMEOUT_MS=3000",
                         "SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD=5",
                         "SUPERVISOR_API_OTEL_SAMPLE_RATIO=1",
-                        "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret",
+                        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                         "INTERNAL_NOTICE_READ_MODEL_TABLE=ingestion_projection.internal_notice_read_model",
                         "SUPERVISOR_API_TRANSPORT_WORKER_THREADS=8",
                     ]
@@ -155,8 +155,8 @@ class DoctorEnvTest(unittest.TestCase):
                 "SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD",
             )
             self.assertEqual(
-                optional["structured_query_shared_secret"]["resolved_key"],
-                "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",
+                optional["internal_query_shared_secret"]["resolved_key"],
+                "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
             )
             self.assertTrue(status["conditions"]["execution_audit_contract"]["ready"])
             self.assertFalse(status["conditions"]["execution_audit_contract"]["required"])
@@ -164,6 +164,10 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertFalse(status["conditions"]["structured_runtime_contract"]["required"])
             self.assertTrue(status["conditions"]["notice_runtime_contract"]["ready"])
             self.assertFalse(status["conditions"]["notice_runtime_contract"]["required"])
+            self.assertTrue(status["conditions"]["otel_axiom_collector_endpoint_contract"]["ready"])
+            self.assertFalse(
+                status["conditions"]["otel_axiom_collector_endpoint_contract"]["required"]
+            )
 
     def test_collect_env_doctor_status_supervisor_api_requires_bridge_contract(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -202,7 +206,7 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "LLM_API_KEY=shared-llm-secret",
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
                         "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=true",
                     ]
@@ -234,7 +238,7 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "LLM_API_KEY=shared-llm-secret",
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
                         "SUPERVISOR_API_OPEN_CAPABILITIES=campus_services",
                     ]
@@ -252,7 +256,7 @@ class DoctorEnvTest(unittest.TestCase):
             condition = status["conditions"]["structured_runtime_contract"]
             self.assertTrue(condition["required"])
             self.assertFalse(condition["ready"])
-            self.assertIn("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET", condition["error"])
+            self.assertIn("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET", condition["error"])
             self.assertIn("CAMPUS_SHARED_POSTGRES_URL", condition["error"])
 
     def test_collect_env_doctor_status_supervisor_api_enforces_notice_runtime_when_opened(
@@ -266,10 +270,10 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "LLM_API_KEY=shared-llm-secret",
                         "PROMPT_RUNTIME_MODEL=gpt-5.4",
-                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
                         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
                         "SUPERVISOR_API_OPEN_CAPABILITIES=notice",
-                        "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret",
+                        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET=query-secret",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://shared.example/postgres",
                     ]
                 )
@@ -288,6 +292,69 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertFalse(condition["ready"])
             self.assertIn("OBJECT_STORE_ENDPOINT", condition["error"])
 
+    def test_collect_env_doctor_status_supervisor_api_rejects_axiom_collector_signal_path(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "LLM_API_KEY=shared-llm-secret",
+                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
+                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://us-east-1.aws.edge.axiom.co/v1/traces",
+                    ]
+                )
+                + "\n",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root,
+                    surface="supervisor-api",
+                )
+
+            self.assertFalse(status["overall_ready"])
+            condition = status["conditions"]["otel_axiom_collector_endpoint_contract"]
+            self.assertTrue(condition["required"])
+            self.assertFalse(condition["ready"])
+            self.assertIn("https://us-east-1.aws.edge.axiom.co", condition["error"])
+
+    def test_collect_env_doctor_status_supervisor_api_rejects_axiom_collector_endpoint_drift(
+        self,
+    ) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            _write(
+                repo_root / ".env",
+                "\n".join(
+                    [
+                        "LLM_API_KEY=shared-llm-secret",
+                        "PROMPT_RUNTIME_MODEL=gpt-5.4",
+                        "SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052",
+                        "SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret",
+                        "AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co",
+                        "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=https://api.axiom.co",
+                    ]
+                )
+                + "\n",
+            )
+
+            with patch.dict(os.environ, {}, clear=True):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root,
+                    surface="supervisor-api",
+                )
+
+            self.assertFalse(status["overall_ready"])
+            condition = status["conditions"]["otel_axiom_collector_endpoint_contract"]
+            self.assertTrue(condition["required"])
+            self.assertFalse(condition["ready"])
+            self.assertIn("must match AXIOM_ENDPOINT", condition["error"])
+
     def test_collect_env_doctor_status_reports_query_surface_with_app_local_files(self) -> None:
         with TemporaryDirectory() as temp_dir:
             repo_root = Path(temp_dir) / "campus-agent"
@@ -300,8 +367,8 @@ class DoctorEnvTest(unittest.TestCase):
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
                         "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://session.example/postgres",
-                        "AGNO_SUPERVISOR_MODEL=gpt-5.4",
-                        "AGNO_SPECIALIST_MODEL=gpt-5.4-mini",
+                        "SUPERVISOR_PROMPT_MODEL=gpt-5.4",
+                        "AGENT_PROMPT_MODEL=gpt-5.4-mini",
                     ]
                 )
                 + "\n",
@@ -312,7 +379,6 @@ class DoctorEnvTest(unittest.TestCase):
                     [
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=postgresql://app-api-local/postgres",
                         "APP_API_OPERATOR_DATABASE_URL=postgresql://app-api-operator/postgres",
-                        "APP_API_MANAGEMENT_DATABASE_URL=postgresql://app-api-operator/postgres",
                     ]
                 )
                 + "\n",
@@ -322,6 +388,7 @@ class DoctorEnvTest(unittest.TestCase):
                 "\n".join(
                     [
                         "BETTER_AUTH_SECRET=dev-secret-dev-secret-dev-secret",
+                        "AUTH_SHELL_ORIGIN=https://hub.example.com",
                         "PUBLIC_CHAT_WEB_ORIGIN=https://chat.example.com",
                         "SUPERVISOR_API_BASE_URL=https://supervisor.internal",
                         "SUPERVISOR_API_SHARED_SECRET=shared-secret",
@@ -376,8 +443,8 @@ class DoctorEnvTest(unittest.TestCase):
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
                         "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:repo-secret@repo.example/postgres",
-                        "AGNO_SUPERVISOR_MODEL=gpt-5.4",
-                        "AGNO_SPECIALIST_MODEL=gpt-5.4-mini",
+                        "SUPERVISOR_PROMPT_MODEL=gpt-5.4",
+                        "AGENT_PROMPT_MODEL=gpt-5.4-mini",
                     ]
                 )
                 + "\n",
@@ -392,8 +459,8 @@ class DoctorEnvTest(unittest.TestCase):
                     "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     "QDRANT_URL": "https://qdrant.example.com",
                     "CAMPUS_SHARED_POSTGRES_URL": shell_url,
-                    "AGNO_SUPERVISOR_MODEL": "gpt-5.4",
-                    "AGNO_SPECIALIST_MODEL": "gpt-5.4-mini",
+                    "SUPERVISOR_PROMPT_MODEL": "gpt-5.4",
+                    "AGENT_PROMPT_MODEL": "gpt-5.4-mini",
                 },
                 clear=True,
             ):
@@ -420,8 +487,8 @@ class DoctorEnvTest(unittest.TestCase):
                         "EMBEDDING_MODEL=Qwen3-Embedding-4B",
                         "QDRANT_URL=https://qdrant.example.com",
                         "CAMPUS_SHARED_POSTGRES_URL=postgresql://postgres:pg-secret@127.0.0.1:5432/campus_agent",
-                        "AGNO_SUPERVISOR_MODEL=gpt-5.4",
-                        "AGNO_SPECIALIST_MODEL=gpt-5.4-mini",
+                        "SUPERVISOR_PROMPT_MODEL=gpt-5.4",
+                        "AGENT_PROMPT_MODEL=gpt-5.4-mini",
                     ]
                 )
                 + "\n",
@@ -482,11 +549,15 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(status["overall_ready"])
             self.assertTrue(status["providers"]["embedding"]["present"])
             self.assertTrue(status["settings"]["required"]["registry_database_url"]["present"])
-            self.assertTrue(
-                status["settings"]["required"]["legacy_office_conversion_base_url"]["present"]
+            self.assertEqual(
+                status["settings"]["required"]["object_store_credentials"]["resolved_key"],
+                "shared:OBJECT_STORE_ACCESS_KEY+OBJECT_STORE_SECRET_KEY",
             )
             self.assertTrue(
-                status["settings"]["required"]["legacy_office_conversion_internal_shared_secret"][
+                status["settings"]["optional"]["legacy_office_conversion_base_url"]["present"]
+            )
+            self.assertTrue(
+                status["settings"]["optional"]["legacy_office_conversion_internal_shared_secret"][
                     "present"
                 ]
             )
@@ -527,7 +598,7 @@ class DoctorEnvTest(unittest.TestCase):
             self.assertTrue(status["settings"]["required"]["admission_database_url"]["present"])
             self.assertTrue(status["settings"]["required"]["attempt_database_url"]["present"])
 
-    def test_collect_env_doctor_status_reports_ingestion_surface_missing_legacy_office_service_contract(
+    def test_collect_env_doctor_status_reports_ingestion_surface_without_legacy_office_service_contract(
         self,
     ) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -554,12 +625,12 @@ class DoctorEnvTest(unittest.TestCase):
             with patch.dict(os.environ, {}, clear=True):
                 status = collect_env_doctor_status(repo_root=repo_root, surface="ingestion")
 
-            self.assertFalse(status["overall_ready"])
+            self.assertTrue(status["overall_ready"])
             self.assertFalse(
-                status["settings"]["required"]["legacy_office_conversion_base_url"]["present"]
+                status["settings"]["optional"]["legacy_office_conversion_base_url"]["present"]
             )
             self.assertFalse(
-                status["settings"]["required"]["legacy_office_conversion_internal_shared_secret"][
+                status["settings"]["optional"]["legacy_office_conversion_internal_shared_secret"][
                     "present"
                 ]
             )
@@ -594,7 +665,16 @@ class DoctorEnvTest(unittest.TestCase):
                 status = collect_env_doctor_status(repo_root=repo_root, surface="ingestion")
 
             self.assertTrue(status["overall_ready"])
-            self.assertTrue(status["settings"]["required"]["object_store_credentials"]["present"])
+            object_store_credentials = status["settings"]["required"]["object_store_credentials"]
+            self.assertTrue(object_store_credentials["present"])
+            self.assertEqual(
+                object_store_credentials["resolved_key"],
+                (
+                    "bucket_scoped:"
+                    "OBJECT_STORE_SOURCE_ACCESS_KEY+OBJECT_STORE_SOURCE_SECRET_KEY;"
+                    "OBJECT_STORE_DERIVED_ACCESS_KEY+OBJECT_STORE_DERIVED_SECRET_KEY"
+                ),
+            )
 
     def test_collect_env_doctor_status_reports_worker_staging_shell_requirements(self) -> None:
         with TemporaryDirectory() as temp_dir:
@@ -655,6 +735,28 @@ class DoctorEnvTest(unittest.TestCase):
 
             self.assertTrue(status["overall_ready"])
             self.assertEqual(status["settings"]["required"], {})
+            self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
+
+    def test_collect_env_doctor_status_reports_hub_worker_staging_requirements(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            repo_root = Path(temp_dir) / "campus-agent"
+            repo_root.mkdir(parents=True)
+
+            with patch.dict(
+                os.environ,
+                {
+                    "STAGING_HUB_AUTH_TURNSTILE_SITE_KEY": "0x4AAAAAAAstagingWidget",
+                },
+                clear=True,
+            ):
+                status = collect_env_doctor_status(
+                    repo_root=repo_root, surface="worker-staging-hub-web"
+                )
+
+            self.assertTrue(status["overall_ready"])
+            self.assertTrue(
+                status["settings"]["required"]["staging_hub_auth_turnstile_site_key"]["present"]
+            )
             self.assertFalse(status["settings"]["optional"]["staging_sentry_release"]["present"])
 
     def test_collect_env_doctor_status_reports_panel_worker_staging_requirements(self) -> None:

@@ -104,6 +104,142 @@ export function registerSupervisorAdapterErrorsSuite(ctx: SupervisorAdapterSuite
 			status: 502,
 		});
 	});
+	it("raises supervisor_invalid_response when upstream error body is not valid json", async () => {
+		const client = createSupervisorExecutionClient(
+			{
+				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			},
+			{
+				fetchImplementation: vi.fn().mockResolvedValue(
+					new Response("<html>bad gateway</html>", {
+						headers: {
+							"content-type": "text/html; charset=utf-8",
+						},
+						status: 502,
+					}),
+				),
+			},
+		);
+
+		await expect(
+			client.execute({
+				actor: createActor(),
+				context: createContext(),
+				conversationId: "conv_01HQ",
+				requestId: "req_01HQ",
+				traceId: "trace_01HQ",
+				userGoal: "图书馆开放到几点？",
+			}),
+		).rejects.toMatchObject({
+			code: "supervisor_invalid_response",
+			retryable: true,
+			status: 502,
+		});
+	});
+	it("raises supervisor_invalid_error_envelope when upstream error body misses typed fields", async () => {
+		const client = createSupervisorExecutionClient(
+			{
+				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			},
+			{
+				fetchImplementation: vi.fn().mockResolvedValue(
+					new Response(
+						JSON.stringify({
+							error: {
+								message: "request rejected",
+							},
+						}),
+						{ status: 403 },
+					),
+				),
+			},
+		);
+
+		await expect(
+			client.execute({
+				actor: createActor(),
+				context: createContext(),
+				conversationId: "conv_01HQ",
+				requestId: "req_01HQ",
+				traceId: "trace_01HQ",
+				userGoal: "图书馆开放到几点？",
+			}),
+		).rejects.toMatchObject({
+			code: "supervisor_invalid_error_envelope",
+			retryable: false,
+			status: 403,
+		});
+	});
+	it("raises supervisor_invalid_response when stream upstream error body is not valid json", async () => {
+		const client = createSupervisorExecutionClient(
+			{
+				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			},
+			{
+				fetchImplementation: vi.fn().mockResolvedValue(
+					new Response("<html>bad gateway</html>", {
+						headers: {
+							"content-type": "text/html; charset=utf-8",
+						},
+						status: 502,
+					}),
+				),
+			},
+		);
+
+		await expect(
+			client.executeStream?.({
+				actor: createActor(),
+				context: createContext(),
+				conversationId: "conv_stream_01HQ",
+				requestId: "req_stream_01HQ",
+				traceId: "trace_stream_01HQ",
+				userGoal: "给我流式生命周期",
+			}),
+		).rejects.toMatchObject({
+			code: "supervisor_invalid_response",
+			retryable: true,
+			status: 502,
+		});
+	});
+	it("raises supervisor_invalid_error_envelope when stream upstream error body misses typed fields", async () => {
+		const client = createSupervisorExecutionClient(
+			{
+				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			},
+			{
+				fetchImplementation: vi.fn().mockResolvedValue(
+					new Response(
+						JSON.stringify({
+							error: {
+								code: "forbidden",
+							},
+						}),
+						{ status: 403 },
+					),
+				),
+			},
+		);
+
+		await expect(
+			client.executeStream?.({
+				actor: createActor(),
+				context: createContext(),
+				conversationId: "conv_stream_01HQ",
+				requestId: "req_stream_01HQ",
+				traceId: "trace_stream_01HQ",
+				userGoal: "给我流式生命周期",
+			}),
+		).rejects.toMatchObject({
+			code: "supervisor_invalid_error_envelope",
+			retryable: false,
+			status: 403,
+		});
+	});
 	it("raises supervisor_invalid_response when the upstream body violates canonical wire shape", async () => {
 		const client = createSupervisorExecutionClient(
 			{

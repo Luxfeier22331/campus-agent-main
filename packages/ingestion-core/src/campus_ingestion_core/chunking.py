@@ -168,6 +168,8 @@ class SemanticChunkPiece:
     segment_total: int = 1
     split_reason: str | None = None
     boundary_rule: str | None = None
+    anchor: dict[str, object] = field(default_factory=dict)
+    metadata: dict[str, object] = field(default_factory=dict)
 
 
 class ChunkingStrategy(Protocol):

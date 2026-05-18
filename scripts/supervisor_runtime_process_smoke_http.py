@@ -31,11 +31,12 @@ def wait_for_json_status(
     *,
     expected_statuses: set[int],
     timeout_seconds: float,
+    headers: dict[str, str] | None = None,
 ) -> tuple[int, object]:
     deadline = time.monotonic() + timeout_seconds
     last_response: tuple[int, object] = (0, {})
     while time.monotonic() < deadline:
-        last_response = _request_json(url)
+        last_response = _request_json(url, headers=headers)
         if last_response[0] in expected_statuses:
             return last_response
         time.sleep(0.5)
@@ -82,9 +83,10 @@ def _request_status(url: str, *, headers: dict[str, str] | None = None) -> int:
         return 0
 
 
-def _request_json(url: str) -> tuple[int, object]:
+def _request_json(url: str, *, headers: dict[str, str] | None = None) -> tuple[int, object]:
     try:
-        with urllib.request.urlopen(url, timeout=3) as response:
+        request = urllib.request.Request(url, headers=headers or {})
+        with urllib.request.urlopen(request, timeout=3) as response:
             return int(response.status), json.loads(response.read().decode("utf-8") or "{}")
     except urllib.error.HTTPError as exc:
         return int(exc.code), json.loads(exc.read().decode("utf-8") or "{}")

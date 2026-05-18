@@ -148,6 +148,9 @@ def _handoff_fields_for_capability(
     version_query: dict[str, object],
 ) -> dict[str, object]:
     if effective_capability == "campus_services":
+        target = "campus-services-agent"
+        payload_kind = "transport_schedule_lookup"
+        allowed_tools = ["transport_schedule_lookup"]
         return {
             "runtime_decision_summary": {
                 "schema_version": "runtime-decision-summary-v1",
@@ -159,26 +162,34 @@ def _handoff_fields_for_capability(
             },
             "handoff": {
                 "planning_outcome": "preplanned",
-                "target": "campus-services-agent",
-                "allowed_tools": ["transport_schedule_lookup"],
+                "target": target,
+                "allowed_tools": allowed_tools,
                 "agent_request": _agent_request_payload(
-                    target="campus-services-agent",
+                    target=target,
                     user_goal=user_goal,
                     request_id=request_id,
                     conversation_id=conversation_id,
                     trace_id=trace_id,
                     context=context,
-                    payload_kind="transport_schedule_lookup",
+                    payload_kind=payload_kind,
                     payload={
                         "query_text": user_goal,
                         "intent": "timetable",
                         "snapshot_query": {"mode": "current"},
                     },
-                    allowed_tools=["transport_schedule_lookup"],
+                    allowed_tools=allowed_tools,
                 ),
             },
+            "workflow_plan": _workflow_plan_payload(
+                target=target,
+                payload_kind=payload_kind,
+                allowed_tools=allowed_tools,
+            ),
         }
     if effective_capability == "notice":
+        target = "notice-agent"
+        payload_kind = "campus_notice_discover"
+        allowed_tools = ["campus_notice_discover"]
         return {
             "runtime_decision_summary": {
                 "schema_version": "runtime-decision-summary-v1",
@@ -190,24 +201,32 @@ def _handoff_fields_for_capability(
             },
             "handoff": {
                 "planning_outcome": "preplanned",
-                "target": "notice-agent",
-                "allowed_tools": ["campus_notice_discover"],
+                "target": target,
+                "allowed_tools": allowed_tools,
                 "agent_request": _agent_request_payload(
-                    target="notice-agent",
+                    target=target,
                     user_goal=user_goal,
                     request_id=request_id,
                     conversation_id=conversation_id,
                     trace_id=trace_id,
                     context=context,
-                    payload_kind="campus_notice_discover",
+                    payload_kind=payload_kind,
                     payload={
                         "query_text": user_goal,
                         "temporal_query": {"mode": "current"},
                     },
-                    allowed_tools=["campus_notice_discover"],
+                    allowed_tools=allowed_tools,
                 ),
             },
+            "workflow_plan": _workflow_plan_payload(
+                target=target,
+                payload_kind=payload_kind,
+                allowed_tools=allowed_tools,
+            ),
         }
+    target = "rag-agent"
+    payload_kind = "rag_request"
+    allowed_tools: list[str] = []
     return {
         "runtime_decision_summary": {
             "schema_version": "runtime-decision-summary-v1",
@@ -219,23 +238,28 @@ def _handoff_fields_for_capability(
         },
         "handoff": {
             "planning_outcome": "preplanned",
-            "target": "rag-agent",
-            "allowed_tools": [],
+            "target": target,
+            "allowed_tools": allowed_tools,
             "agent_request": _agent_request_payload(
-                target="rag-agent",
+                target=target,
                 user_goal=user_goal,
                 request_id=request_id,
                 conversation_id=conversation_id,
                 trace_id=trace_id,
                 context=context,
-                payload_kind="rag_request",
+                payload_kind=payload_kind,
                 payload={
                     "scope": None,
                     "version_query": version_query,
                 },
-                allowed_tools=[],
+                allowed_tools=allowed_tools,
             ),
         },
+        "workflow_plan": _workflow_plan_payload(
+            target=target,
+            payload_kind=payload_kind,
+            allowed_tools=allowed_tools,
+        ),
     }
 
 
@@ -276,6 +300,11 @@ def _agent_request_payload(
             "payload": payload,
         },
         "allowed_tools": allowed_tools,
+        "workflow_context": _workflow_context_payload(
+            target=target,
+            payload_kind=payload_kind,
+            request_id=request_id,
+        ),
     }
 
 
@@ -379,8 +408,75 @@ def _bridge_v6_payload_with_handoff(
                 context=context,
             ),
         },
+        "workflow_plan": _workflow_plan_payload(
+            target=handoff_target,
+            payload_kind=payload_kind,
+            allowed_tools=allowed_tools,
+        ),
     }
     return body
+
+
+def _workflow_context_payload(
+    *,
+    target: str,
+    payload_kind: str,
+    request_id: str,
+) -> dict[str, object]:
+    return {
+        "schema_version": "workflow-agent-context-v1",
+        "visibility": "agent_private",
+        "workflow_run_ref": f"workflow:{request_id}",
+        "step_id": f"handoff:{target}:{payload_kind}",
+        "agent_id": target,
+        "target": target,
+        "required_projection_kind": "",
+        "expected_output_artifacts": _expected_artifacts_for_handoff(
+            target=target,
+            payload_kind=payload_kind,
+        ),
+        "projection_refs": [],
+    }
+
+
+def _workflow_plan_payload(
+    *,
+    target: str,
+    payload_kind: str,
+    allowed_tools: list[str],
+) -> dict[str, object]:
+    return {
+        "schema_version": "workflow-plan-v1",
+        "plan_id": f"plan:single_handoff:{target}:{payload_kind}",
+        "workflow_mode": "single_handoff",
+        "allowed_agents": [target],
+        "steps": [
+            {
+                "step_id": f"handoff:{target}:{payload_kind}",
+                "step_kind": "handoff",
+                "target": target,
+                "payload_kind": payload_kind,
+                "allowed_tools": allowed_tools,
+                "selected_tool": allowed_tools[0] if len(allowed_tools) == 1 else "",
+            }
+        ],
+        "edges": [],
+        "terminal_policy": {"fail_close_on_invalid_plan": True},
+        "resume_policy": {"resume_supported": False},
+        "semantic_retry_policy": {"max_replans": 0},
+    }
+
+
+def _expected_artifacts_for_handoff(*, target: str, payload_kind: str) -> list[str]:
+    if target == "notice-agent" and payload_kind == "campus_notice_get":
+        return ["notice_context"]
+    if target == "notice-agent" and payload_kind == "campus_notice_change_set_lookup":
+        return ["notice_change_set"]
+    if target == "campus-services-agent" and payload_kind == "transport_schedule_lookup":
+        return ["schedule_baseline"]
+    if target == "rag-agent" and payload_kind == "rag_request":
+        return ["evidence_bundle", "grounding_verdict"]
+    return []
 
 
 class SupervisorApiBridgeBaseTest(unittest.TestCase):

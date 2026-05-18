@@ -52,6 +52,7 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
         self.assertEqual(interpretation.program_query_fragment, "法学民族实验班培养方案")
         self.assertEqual(interpretation.program_compact_key, "法学民族实验班")
         self.assertEqual(interpretation.semester_labels, ("第四学期",))
+        self.assertEqual(interpretation.semester_alias_labels, (("大二下", "第四学期"),))
         self.assertEqual(interpretation.intent_kind, "course_list")
 
     def test_interpret_curriculum_query_marks_course_map_as_structured_lookup(self) -> None:
@@ -65,6 +66,29 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
         )
         self.assertEqual(interpretation.intent_kind, "curriculum_lookup")
         self.assertEqual(interpretation.curriculum_lookup_target, "course_map")
+
+    def test_interpret_curriculum_query_extracts_implementation_plan_title(self) -> None:
+        interpretation = interpret_curriculum_query("中央民族大学大学生社会实践环节实施方案")
+
+        self.assertEqual(
+            interpretation.program_query_fragment,
+            "中央民族大学大学生社会实践环节实施方案",
+        )
+        self.assertEqual(
+            interpretation.program_compact_key,
+            "中央民族大学大学生社会实践环节实施",
+        )
+
+    def test_interpret_curriculum_query_marks_course_teaching_plan_title_as_document_lookup(
+        self,
+    ) -> None:
+        interpretation = interpret_curriculum_query("中央民族大学通识课程中华文化课程教学计划")
+
+        self.assertEqual(
+            interpretation.program_query_fragment,
+            "中央民族大学通识课程中华文化课程教学计划",
+        )
+        self.assertEqual(interpretation.intent_kind, "generic")
 
     def test_interpret_curriculum_query_marks_course_settings_and_study_advice_as_structured_lookup(
         self,
@@ -213,6 +237,38 @@ class CurriculumQueryResolutionTest(unittest.TestCase):
 
         self.assertTrue(scope_applied)
         self.assertEqual(tuple(source.chunk_id for source in scoped_sources), ("law-1",))
+
+    def test_filter_curriculum_query_sources_uses_family_alias_major_candidates(self) -> None:
+        scoped_sources, scope_applied = filter_curriculum_query_sources(
+            query_text="中国少数民族语言文学强基计划本科人才培养方案",
+            sources=(
+                _source(
+                    doc_id="curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                    chunk_id="strong-base-overview",
+                    snippet="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案 一、培养目标。",
+                    score=0.91,
+                    source_title="中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                    structural_path=(
+                        "中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",
+                        "一、培养目标",
+                    ),
+                ),
+                _source(
+                    doc_id="curriculum:中国少数民族语言文学本科人才培养方案",
+                    chunk_id="ordinary-overview",
+                    snippet="中国少数民族语言文学本科人才培养方案 一、培养目标。",
+                    score=0.89,
+                    source_title="中国少数民族语言文学本科人才培养方案",
+                    structural_path=("中国少数民族语言文学本科人才培养方案", "一、培养目标"),
+                ),
+            ),
+        )
+
+        self.assertTrue(scope_applied)
+        self.assertEqual(
+            tuple(source.doc_id for source in scoped_sources),
+            ("curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",),
+        )
 
 
 if __name__ == "__main__":

@@ -4,6 +4,10 @@ from campus_contracts import (
     ClaimSupport,
     EvidenceBundle,
     KnowledgeScope,
+    RagEntityResolutionSummary,
+    RagPlannerInformationNeed,
+    RagProjectionContextSummary,
+    RagReplanDecisionSummary,
     RagResultDiagnostics,
     RagResultPayload,
     RemoteContentSuspicionSummary,
@@ -11,6 +15,11 @@ from campus_contracts import (
 )
 from campus_retrieval_core import RetrievalExecutionResult
 
+from campus_rag_agent.agentic_depth_diagnostics import (
+    build_claim_evidence_graph,
+    build_projection_context_summaries,
+    build_replan_decision_summary,
+)
 from campus_rag_agent.grounding_validation import build_source_trust_summary
 from campus_rag_agent.query_planning import (
     CurriculumCourseQueryPlan,
@@ -23,7 +32,7 @@ from campus_rag_agent.remote_content_hardening import (
 )
 from campus_rag_agent.retrieval_adequacy import RetrievalAdequacyAssessment
 
-from .service_common import _source_label
+from .service_common import _is_official_web_query_enabled_profile, _source_label
 from .service_diagnostics_adequacy import (
     _retrieval_adequacy_reason,
     _retrieval_adequacy_verdict,
@@ -33,6 +42,7 @@ from .service_diagnostics_curriculum import (
     _resolve_curriculum_diagnostics_follow_up,
 )
 from .service_diagnostics_retrieval import _build_retrieval_plan_summary
+from .service_stage_diagnostics import build_rag_stage_activity_summaries
 
 
 def _build_rag_result_payload(
@@ -43,7 +53,9 @@ def _build_rag_result_payload(
     curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
+    request_id: str = "",
     no_answer_reason: str = "",
+    fail_close_reason: str = "",
     allow_session_follow_up: bool = False,
     semantic_outcome: str = "",
     retrieval_adequacy: RetrievalAdequacyAssessment | None = None,
@@ -56,8 +68,14 @@ def _build_rag_result_payload(
     source_trust_summary: SourceTrustSummary | None = None,
     prompt_runtime_state: str = "",
     prompt_runtime_detail: str = "",
+    answer_presentation_kind: str = "",
+    answer_presentation_path: str = "",
+    answer_diagnostic_reason: str = "",
     retrieved_evidence: EvidenceBundle | None = None,
     retrieval_execution_result: RetrievalExecutionResult | None = None,
+    planner_information_needs: tuple[RagPlannerInformationNeed, ...] = (),
+    projection_context_summaries: tuple[RagProjectionContextSummary, ...] = (),
+    replan_decision_summary: RagReplanDecisionSummary | None = None,
 ) -> RagResultPayload:
     diagnostics = _build_rag_result_diagnostics(
         evidence=evidence,
@@ -66,7 +84,9 @@ def _build_rag_result_payload(
         curriculum_plan=curriculum_plan,
         curriculum_course_plan=curriculum_course_plan,
         curriculum_program_family_plan=curriculum_program_family_plan,
+        request_id=request_id,
         no_answer_reason=no_answer_reason,
+        fail_close_reason=fail_close_reason,
         allow_session_follow_up=allow_session_follow_up,
         semantic_outcome=semantic_outcome,
         retrieval_adequacy=retrieval_adequacy,
@@ -79,8 +99,14 @@ def _build_rag_result_payload(
         source_trust_summary=source_trust_summary,
         prompt_runtime_state=prompt_runtime_state,
         prompt_runtime_detail=prompt_runtime_detail,
+        answer_presentation_kind=answer_presentation_kind,
+        answer_presentation_path=answer_presentation_path,
+        answer_diagnostic_reason=answer_diagnostic_reason,
         retrieved_evidence=retrieved_evidence,
         retrieval_execution_result=retrieval_execution_result,
+        planner_information_needs=planner_information_needs,
+        projection_context_summaries=projection_context_summaries,
+        replan_decision_summary=replan_decision_summary,
     )
     return RagResultPayload(
         evidence=evidence,
@@ -96,7 +122,9 @@ def _build_rag_result_diagnostics(
     curriculum_plan: CurriculumQueryPlan | None = None,
     curriculum_course_plan: CurriculumCourseQueryPlan | None = None,
     curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None = None,
+    request_id: str = "",
     no_answer_reason: str = "",
+    fail_close_reason: str = "",
     allow_session_follow_up: bool = False,
     semantic_outcome: str = "",
     retrieval_adequacy: RetrievalAdequacyAssessment | None = None,
@@ -109,11 +137,18 @@ def _build_rag_result_diagnostics(
     source_trust_summary: SourceTrustSummary | None = None,
     prompt_runtime_state: str = "",
     prompt_runtime_detail: str = "",
+    answer_presentation_kind: str = "",
+    answer_presentation_path: str = "",
+    answer_diagnostic_reason: str = "",
     retrieved_evidence: EvidenceBundle | None = None,
     retrieval_execution_result: RetrievalExecutionResult | None = None,
+    planner_information_needs: tuple[RagPlannerInformationNeed, ...] = (),
+    projection_context_summaries: tuple[RagProjectionContextSummary, ...] = (),
+    replan_decision_summary: RagReplanDecisionSummary | None = None,
 ) -> RagResultDiagnostics | None:
-    raw_retrieved_sources = (
-        tuple(retrieved_evidence.sources) if retrieved_evidence is not None else ()
+    raw_retrieved_sources = _resolve_retrieved_sources(
+        retrieved_evidence=retrieved_evidence,
+        retrieval_execution_result=retrieval_execution_result,
     )
     preserve_retrieved_sources = bool(raw_retrieved_sources)
     if (
@@ -145,6 +180,47 @@ def _build_rag_result_diagnostics(
             remote_content_suspicion_summary=effective_remote_content_suspicion_summary,
             source_trust_summary=effective_source_trust_summary,
             retrieval_plan_summary=_build_retrieval_plan_summary(retrieval_execution_result),
+            planner_information_needs=planner_information_needs,
+            projection_context_summaries=projection_context_summaries,
+            entity_resolution_summary=_build_entity_resolution_summary(
+                retrieval_collection=(
+                    retrieval_execution_result.plan.admitted_scopes[0].collection
+                    if retrieval_execution_result is not None
+                    and retrieval_execution_result.plan.admitted_scopes
+                    else (
+                        resolved_scope.collection
+                        if resolved_scope is not None
+                        else evidence.collection
+                    )
+                ),
+                handbook_plan=handbook_plan,
+                curriculum_course_plan=curriculum_course_plan,
+                curriculum_program_family_plan=curriculum_program_family_plan,
+            ),
+            replan_decision_summary=(
+                replan_decision_summary
+                if replan_decision_summary is not None
+                else build_replan_decision_summary(retrieval_execution_result)
+            ),
+            claim_evidence_graph=build_claim_evidence_graph(
+                evidence=evidence,
+                claim_supports=claim_supports,
+            ),
+            stage_activities=build_rag_stage_activity_summaries(
+                request_id=request_id,
+                evidence=evidence,
+                retrieved_evidence=retrieved_evidence,
+                retrieval_execution_result=retrieval_execution_result,
+                retrieval_adequacy=retrieval_adequacy,
+                semantic_outcome=semantic_outcome,
+                no_answer_reason=no_answer_reason,
+                fail_close_reason=fail_close_reason,
+                grounding_verdict=grounding_verdict,
+                prompt_runtime_state=prompt_runtime_state,
+                answer_presentation_kind=answer_presentation_kind,
+                answer_presentation_path=answer_presentation_path,
+                answer_diagnostic_reason=answer_diagnostic_reason,
+            ),
             **kwargs,
         )
 
@@ -154,6 +230,7 @@ def _build_rag_result_diagnostics(
         if resolved_scope is not None
         else "",
         "no_answer_reason": no_answer_reason,
+        "fail_close_reason": fail_close_reason,
         "semantic_outcome": semantic_outcome,
         "retrieval_adequacy_verdict": _retrieval_adequacy_verdict(retrieval_adequacy),
         "retrieval_adequacy_reason": _retrieval_adequacy_reason(retrieval_adequacy),
@@ -163,8 +240,14 @@ def _build_rag_result_diagnostics(
         "freshness_fail_closed": freshness_fail_closed,
         "prompt_runtime_state": prompt_runtime_state,
         "prompt_runtime_detail": prompt_runtime_detail,
+        "answer_presentation_kind": answer_presentation_kind,
+        "answer_presentation_path": answer_presentation_path,
+        "answer_diagnostic_reason": answer_diagnostic_reason,
         "unsupported_fields": unsupported_fields,
     }
+    scope_class = _diagnostic_scope_class(resolved_scope=resolved_scope)
+    if scope_class:
+        base_fields["scope_class"] = scope_class
 
     if (
         handbook_plan is None
@@ -201,13 +284,22 @@ def _build_rag_result_diagnostics(
             partial_answer=curriculum_course_plan.partial_answer,
         )
     if handbook_plan is not None and handbook_plan.status != "pass_through":
+        if handbook_plan.task_kind == "category_discovery":
+            return _diagnostics(
+                **base_fields,
+                resolved_policy_document_id=handbook_plan.category_id,
+                resolved_policy_title=handbook_plan.category_display_name,
+                rewritten_query=handbook_plan.rewritten_query_text,
+                retrieved_title_summary=_summarize_retrieved_titles(evidence),
+                candidate_title_summary=handbook_plan.category_member_document_ids,
+                resolution_mode=handbook_plan.task_kind,
+                resolved_entity_type="policy_category",
+            )
         return _diagnostics(
             **base_fields,
             resolved_policy_document_id=handbook_plan.resolved_policy_document_id,
             resolved_policy_title=handbook_plan.resolved_policy_title,
-            rewritten_query=(
-                handbook_plan.rewritten_query_text if handbook_plan.status == "resolved" else ""
-            ),
+            rewritten_query=_handbook_diagnostics_query(handbook_plan),
             clarification_reason=handbook_plan.clarification_reason,
             retrieved_title_summary=_summarize_retrieved_titles(evidence),
         )
@@ -272,8 +364,133 @@ def _summarize_retrieved_titles(evidence: EvidenceBundle) -> tuple[str, ...]:
     return tuple(titles)
 
 
+def _diagnostic_scope_class(*, resolved_scope: KnowledgeScope | None) -> str:
+    if resolved_scope is None:
+        return ""
+    if resolved_scope.corpus != "official_web":
+        return ""
+    from campus_ingestion_core import load_runtime_profile
+
+    profile = load_runtime_profile(resolved_scope.corpus, resolved_scope.collection)
+    if _is_official_web_query_enabled_profile(profile):
+        return "in_scope"
+    return ""
+
+
+def _handbook_diagnostics_query(handbook_plan: HandbookQueryPlan) -> str:
+    if handbook_plan.status != "resolved":
+        return ""
+    return handbook_plan.focused_query_text or handbook_plan.rewritten_query_text
+
+
+def _resolve_retrieved_sources(
+    *,
+    retrieved_evidence: EvidenceBundle | None,
+    retrieval_execution_result: RetrievalExecutionResult | None,
+) -> tuple:
+    if retrieval_execution_result is None:
+        return tuple(retrieved_evidence.sources) if retrieved_evidence is not None else ()
+    ordered_sources = {}
+    for step_result in retrieval_execution_result.step_results:
+        for source in step_result.references:
+            dedupe_key = source.chunk_id or repr(source)
+            ordered_sources.setdefault(dedupe_key, source)
+    if ordered_sources:
+        return tuple(ordered_sources.values())
+    return tuple(retrieved_evidence.sources) if retrieved_evidence is not None else ()
+
+
+def build_projection_context_summaries_from_request(
+    request,
+) -> tuple[RagProjectionContextSummary, ...]:
+    workflow_context = getattr(request, "workflow_context", None)
+    if workflow_context is None:
+        return ()
+    return build_projection_context_summaries(workflow_context.projection_refs)
+
+
+def _build_entity_resolution_summary(
+    *,
+    retrieval_collection: str,
+    handbook_plan: HandbookQueryPlan | None,
+    curriculum_course_plan: CurriculumCourseQueryPlan | None,
+    curriculum_program_family_plan: CurriculumProgramFamilyQueryPlan | None,
+) -> RagEntityResolutionSummary | None:
+    if curriculum_course_plan is not None:
+        if curriculum_course_plan.entity_type == "course":
+            return RagEntityResolutionSummary(
+                resolution_status="resolved",
+                entity_type="course",
+                canonical_id=curriculum_course_plan.canonical_course_id,
+                canonical_title=curriculum_course_plan.canonical_course_title,
+                target_collection=retrieval_collection,
+                resolution_source="canonical_alias_governance",
+                confidence=0.95,
+            )
+        return RagEntityResolutionSummary(
+            resolution_status="resolved",
+            entity_type="course_family",
+            canonical_id=curriculum_course_plan.canonical_course_family_id,
+            canonical_title=curriculum_course_plan.canonical_course_family_title,
+            target_collection=retrieval_collection,
+            resolution_source="canonical_alias_governance",
+            confidence=0.95,
+        )
+    if curriculum_program_family_plan is not None:
+        status = (
+            "resolved"
+            if curriculum_program_family_plan.resolution_mode == "resolved_family"
+            else "ambiguous"
+        )
+        return RagEntityResolutionSummary(
+            resolution_status=status,
+            entity_type="program_family",
+            canonical_id=curriculum_program_family_plan.canonical_program_family_id,
+            canonical_title=curriculum_program_family_plan.canonical_program_family_title,
+            target_collection=retrieval_collection,
+            resolution_source="program_family_alias_governance",
+            confidence=0.95 if status == "resolved" else 0.0,
+            ambiguity_reason=curriculum_program_family_plan.clarification_reason,
+        )
+    if (
+        handbook_plan is not None
+        and handbook_plan.status == "resolved"
+        and handbook_plan.task_kind == "category_discovery"
+    ):
+        return RagEntityResolutionSummary(
+            resolution_status="resolved",
+            entity_type="policy_category",
+            canonical_id=handbook_plan.category_id,
+            canonical_title=handbook_plan.category_display_name,
+            target_collection=retrieval_collection,
+            resolution_source="policy_category_registry",
+            confidence=0.9,
+        )
+    if handbook_plan is not None and handbook_plan.status == "resolved":
+        return RagEntityResolutionSummary(
+            resolution_status="resolved",
+            entity_type="policy_document",
+            canonical_id=handbook_plan.resolved_policy_document_id,
+            canonical_title=handbook_plan.resolved_policy_title,
+            target_collection=retrieval_collection,
+            resolution_source="policy_object_alias_governance",
+            confidence=0.95,
+        )
+    if handbook_plan is not None and handbook_plan.status == "needs_clarification":
+        return RagEntityResolutionSummary(
+            resolution_status="ambiguous",
+            entity_type="policy_document",
+            target_collection=retrieval_collection,
+            resolution_source="policy_object_alias_governance",
+            ambiguity_reason=handbook_plan.clarification_reason,
+        )
+    return None
+
+
 __all__ = [
+    "_build_entity_resolution_summary",
     "_build_rag_result_diagnostics",
     "_build_rag_result_payload",
     "_summarize_retrieved_titles",
+    "build_projection_context_summaries_from_request",
 ]

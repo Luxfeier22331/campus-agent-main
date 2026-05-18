@@ -86,8 +86,20 @@ _EXPORTS: dict[str, tuple[str, str]] = {
         "campus_ingestion_worker.audit_official_web_projection_chunking",
         "audit_official_web_projection_chunking",
     ),
+    "audit_regulation_rag_release_manifests_main": (
+        "campus_ingestion_worker.audit_regulation_rag_release_manifests",
+        "main",
+    ),
     "audit_official_web_projection_chunking_main": (
         "campus_ingestion_worker.audit_official_web_projection_chunking",
+        "main",
+    ),
+    "audit_official_web_regulation_quality": (
+        "campus_ingestion_worker.audit_official_web_regulation_quality",
+        "audit_official_web_regulation_batch_quality",
+    ),
+    "audit_official_web_regulation_quality_main": (
+        "campus_ingestion_worker.audit_official_web_regulation_quality",
         "main",
     ),
     "backfill_historical_handoff_record": (
@@ -170,6 +182,14 @@ _EXPORTS: dict[str, tuple[str, str]] = {
     "rebuild_local_data": ("campus_ingestion_worker.rebuild_local_data", "rebuild_local_data"),
     "register_raw_asset": ("campus_ingestion_worker.register_raw_asset", "register_raw_asset"),
     "release_index_main": ("campus_ingestion_worker.release_index", "main"),
+    "release_official_web_target": (
+        "campus_ingestion_worker.release_official_web_target",
+        "release_official_web_target",
+    ),
+    "release_official_web_target_main": (
+        "campus_ingestion_worker.release_official_web_target",
+        "main",
+    ),
     "release_registry_scope_main": ("campus_ingestion_worker.release_registry_scope", "main"),
     "validate_student_handbook_chunking": (
         "campus_ingestion_worker.validate_student_handbook_chunking",

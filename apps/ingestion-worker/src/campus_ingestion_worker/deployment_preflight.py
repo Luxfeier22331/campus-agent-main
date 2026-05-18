@@ -26,6 +26,7 @@ PREFLIGHT_SCHEMA_VERSION = "campus_ingestion_worker_deployment_preflight.v1"
 SUPPORTED_BATCH_KINDS = (
     "internal-notice-multimodal-drain",
     "official-web-handoffs",
+    "official-web-release-tasks",
     "authenticated-notice-closeout",
     "wechat-public-notices",
     "wechat-public-notice-multimodal-drain",
@@ -33,7 +34,6 @@ SUPPORTED_BATCH_KINDS = (
 
 SHARED_POSTGRES_KEY = "CAMPUS_SHARED_POSTGRES_URL"
 OPERATOR_POSTGRES_KEY = "CAMPUS_SHARED_POSTGRES_OPERATOR_URL"
-LEGACY_OPERATOR_POSTGRES_KEY = "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL"
 
 
 def run_deployment_preflight(
@@ -155,7 +155,7 @@ def _check_postgres_config(env: Mapping[str, str]) -> dict[str, Any]:
     if not shared_url:
         missing.append(SHARED_POSTGRES_KEY)
     if not operator_url:
-        missing.append(f"{OPERATOR_POSTGRES_KEY} or legacy {LEGACY_OPERATOR_POSTGRES_KEY}")
+        missing.append(OPERATOR_POSTGRES_KEY)
     if missing:
         return _failed("postgres_config", "Missing required Postgres env: " + ", ".join(missing))
 
@@ -169,9 +169,7 @@ def _check_postgres_config(env: Mapping[str, str]) -> dict[str, Any]:
         "Postgres env is syntactically valid for shared runtime and operator access.",
         details={
             "shared_key": SHARED_POSTGRES_KEY,
-            "operator_key": OPERATOR_POSTGRES_KEY
-            if _env_text(env, OPERATOR_POSTGRES_KEY)
-            else LEGACY_OPERATOR_POSTGRES_KEY,
+            "operator_key": OPERATOR_POSTGRES_KEY,
         },
     )
 
@@ -218,6 +216,17 @@ def _check_batch_specific_dirs(
                 ),
             )
         )
+    if "official-web-release-tasks" in batch_kinds:
+        checks.append(
+            _check_writable_dir(
+                name="official_web_release_task_work_dir_writable",
+                path=Path(
+                    _env_text(env, "INGESTION_ON_DEMAND_OFFICIAL_WEB_RELEASE_TASK_WORK_DIR")
+                    or _env_text(env, "INGESTION_WORKER_OFFICIAL_WEB_RELEASE_TASK_WORK_DIR")
+                    or "./var/official-web-release-tasks"
+                ),
+            )
+        )
     return checks
 
 
@@ -249,24 +258,15 @@ def _check_batch_specific_env(
                 )
             )
     if "wechat-public-notice-multimodal-drain" in batch_kinds:
-        api_key = (
-            _env_text(env, "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY")
-            or _env_text(env, "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY")
-            or _env_text(env, "PROMPT_RUNTIME_API_KEY")
-            or _env_text(env, "LLM_API_KEY")
-        )
-        model = (
-            _env_text(env, "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL")
-            or _env_text(env, "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL")
-            or _env_text(env, "PROMPT_RUNTIME_MODEL")
-        )
+        api_key = _env_text(env, "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY")
+        model = _env_text(env, "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL")
         if not api_key or not model:
             checks.append(
                 _failed(
                     "wechat_public_notice_multimodal_runtime",
                     "Missing WeChat multimodal OCR runtime env: "
-                    "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY/WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL "
-                    "or admitted fallback envs.",
+                    "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY and "
+                    "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL.",
                 )
             )
         else:
@@ -275,8 +275,31 @@ def _check_batch_specific_env(
                     "wechat_public_notice_multimodal_runtime",
                     "WeChat multimodal OCR runtime env is configured.",
                     details={
-                        "api_key_env": "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY or fallback",
-                        "model_env": "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL or fallback",
+                        "api_key_env": "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY",
+                        "model_env": "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL",
+                    },
+                )
+            )
+    if "official-web-release-tasks" in batch_kinds:
+        base_url = _env_text(env, "INGESTION_WORKER_APP_API_BASE_URL")
+        shared_secret = _env_text(env, "INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET")
+        if not (base_url and shared_secret):
+            checks.append(
+                _failed(
+                    "official_web_release_task_projection_callback",
+                    "Missing required official web release task projection callback env: "
+                    "INGESTION_WORKER_APP_API_BASE_URL and "
+                    "INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET.",
+                )
+            )
+        else:
+            checks.append(
+                _passed(
+                    "official_web_release_task_projection_callback",
+                    "Official web release task projection callback env is configured.",
+                    details={
+                        "base_url_env": "INGESTION_WORKER_APP_API_BASE_URL",
+                        "shared_secret_env": ("INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET"),
                     },
                 )
             )
@@ -322,7 +345,7 @@ def _check_live_object_store(env: Mapping[str, str]) -> dict[str, Any]:
 
 
 def _operator_postgres_url(env: Mapping[str, str]) -> str:
-    return _env_text(env, OPERATOR_POSTGRES_KEY) or _env_text(env, LEGACY_OPERATOR_POSTGRES_KEY)
+    return _env_text(env, OPERATOR_POSTGRES_KEY)
 
 
 def _env_text(env: Mapping[str, str], key: str) -> str:

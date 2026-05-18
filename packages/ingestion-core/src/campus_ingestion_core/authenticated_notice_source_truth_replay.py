@@ -386,36 +386,11 @@ def _load_parent_source_truth_from_snapshot(
 def _attachment_projection_plans_from_parent(
     parent: Mapping[str, Any],
 ) -> tuple[dict[str, Any], ...]:
-    plans = tuple(dict(item) for item in parent.get("attachment_projection_plans") or ())
-    if plans:
-        return plans
-    fallback: list[dict[str, Any]] = []
-    for item in tuple(parent.get("expected_attachment_documents") or ()):
-        payload = dict(item)
-        classification = str(payload.get("classification") or "")
-        materialization_policy = str(payload.get("materialization_policy") or "")
-        if not materialization_policy:
-            if classification == "ocr_required":
-                materialization_policy = (
-                    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_CONDITIONAL_ON_EXTRACTED_TEXT
-                )
-            elif classification == "multimodal_processing_required":
-                materialization_policy = (
-                    AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_MULTIMODAL_PROCESSING
-                )
-            else:
-                materialization_policy = AUTHENTICATED_NOTICE_ATTACHMENT_POLICY_REQUIRED_DOCUMENT
-        plan = {
-            "attachment_ref_id": str(payload["attachment_ref_id"]),
-            "classification": classification,
-            "document_id": str(payload["document_id"]),
-            "materialization_policy": materialization_policy,
-        }
-        review_reason = str(payload.get("review_reason") or "").strip()
-        if review_reason:
-            plan["review_reason"] = review_reason
-        fallback.append(plan)
-    return tuple(fallback)
+    if "attachment_projection_plans" not in parent:
+        notice_id = str(parent.get("notice_id") or "").strip()
+        suffix = f" for notice {notice_id}" if notice_id else ""
+        raise ValueError(f"attachment_projection_plans is required{suffix}")
+    return tuple(dict(item) for item in parent.get("attachment_projection_plans") or ())
 
 
 def _inventory_from_entries(

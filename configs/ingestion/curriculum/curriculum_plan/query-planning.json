@@ -11,7 +11,7 @@
 	"family_aliases": [
 		{
 			"alias": "基地班",
-			"candidate_terms": ["强基计划"],
+			"candidate_terms": ["强基计划", "强基"],
 			"major_candidates": {
 				"历史学": ["curriculum:历史学（强基计划）本科人才培养方案"],
 				"哲学": ["curriculum:哲学（强基计划）本科人才培养方案"],

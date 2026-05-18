@@ -26,6 +26,7 @@ export function buildOfficialWebCrawlPlan(
 	options: {
 		repoRoot?: string;
 		configRoot?: string;
+		sourcePackId?: string;
 		now?: Date;
 		crawlRunId?: string;
 		runIntent?: OfficialWebRunIntent;
@@ -79,6 +80,7 @@ export function buildOfficialWebSchedulerPlan(
 	options: {
 		repoRoot?: string;
 		configRoot?: string;
+		sourcePackId?: string;
 		now?: Date;
 	} = {},
 ): OfficialWebSchedulerPlan {

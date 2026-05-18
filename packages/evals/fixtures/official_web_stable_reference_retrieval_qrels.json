@@ -10,6 +10,12 @@
 		"sparse_language": "none",
 		"fusion": "rrf"
 	},
+	"coverage_scenarios": {
+		"school_profile": ["stable-reference-school-profile"],
+		"organization_units": ["stable-reference-teaching-research-units"],
+		"fee_reference": ["stable-reference-fee-disclosure"],
+		"no_hit": ["stable-reference-no-hit-fictional-service"]
+	},
 	"cases": [
 		{
 			"case_id": "stable-reference-school-profile",
@@ -18,156 +24,47 @@
 			"expected_sources": [
 				{
 					"doc_id": "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
-					"version_id": "owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
+					"version_id": "owdocver:239b3237c2259702ed1fe2955afe869303e943f6",
 					"grade": 2,
-					"rationale": "学校简介 query 应命中 stable_reference 的学校简介页面。"
-				}
-			],
-			"forbidden_sources": [
-				{
-					"doc_id": "official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
-					"version_id": "owdocver:f7ee81c9f937fe14f493a81e4e5b5b815f2995e6",
-					"grade": 1,
-					"rationale": "标题已明确指向学校简介时，不应再把学校概况作为并列 retrieval truth。"
+					"rationale": "学校简介 query 应命中 target-inventory/source-pack 准入的学校简介页面。"
 				}
 			],
 			"notes": "stable_reference 学校简介页命中回归。"
 		},
 		{
-			"case_id": "stable-reference-school-overview",
+			"case_id": "stable-reference-teaching-research-units",
 			"split": "smoke",
-			"query": "中央民族大学学校概况",
+			"query": "中央民族大学教学和科研单位有哪些",
 			"expected_sources": [
 				{
-					"doc_id": "official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
-					"version_id": "owdocver:f7ee81c9f937fe14f493a81e4e5b5b815f2995e6",
+					"doc_id": "official_web:muc_public:directory_page:b8993ee7004c02e028bc5f6bb166e26ac4eb5afc",
+					"version_id": "owdocver:043d9feb870de5219c0ff7de6bd065f9adc8b4c0",
 					"grade": 2,
-					"rationale": "学校概况 query 应命中 stable_reference 的学校概况页面。"
+					"rationale": "教学和科研单位 query 应命中 target-inventory/source-pack 准入的单位列表页面。"
 				}
 			],
-			"forbidden_sources": [
-				{
-					"doc_id": "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
-					"version_id": "owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
-					"grade": 1,
-					"rationale": "学校概况 query 不应被学校简介页面替代。"
-				}
-			],
-			"notes": "stable_reference 学校概况页区分回归。"
+			"notes": "stable_reference 教学和科研单位列表命中回归。"
 		},
 		{
-			"case_id": "stable-reference-current-leadership",
+			"case_id": "stable-reference-fee-disclosure",
 			"split": "smoke",
-			"query": "中央民族大学现任领导",
+			"query": "中央民族大学大学教育收费公示表",
 			"expected_sources": [
 				{
-					"doc_id": "official_web:muc_public:article_detail:43fdab9acbf0e68e67fddba209463e97d0b2fe4e",
-					"version_id": "owdocver:14935f44e582597fdebffe3e8f2bcc9921e2fd06",
+					"doc_id": "official_web:muc_public:directory_page:9d7917bb1eb39649f02c6285c51280d811790cae",
+					"version_id": "owdocver:493b69ab0ae0b4ec0173a18801ef809b4c694f1b",
 					"grade": 2,
-					"rationale": "现任领导 query 应命中 stable_reference 的现任领导页面。"
+					"rationale": "收费公示 query 应命中 target-inventory/source-pack 准入的教育收费公示表。"
 				}
 			],
-			"notes": "stable_reference 领导页命中回归。"
+			"notes": "stable_reference 收费公示表命中回归。"
 		},
 		{
-			"case_id": "stable-reference-alumni-association-profile",
-			"split": "smoke",
-			"query": "中央民族大学校友会简介",
-			"expected_sources": [
-				{
-					"doc_id": "official_web:muc_public:article_detail:3f735e1c08be05c5426948f7ea737d3d422c6e02",
-					"version_id": "owdocver:4377c56414af31a83481c8a63deb5aa51e0baa50",
-					"grade": 2,
-					"rationale": "校友会简介 query 应命中 stable_reference 的校友会页面。"
-				}
-			],
-			"forbidden_sources": [
-				{
-					"doc_id": "official_web:muc_public:article_detail:3342689d05d43819a48bbcf7564f013f217ffe46",
-					"version_id": "owdocver:b804aee18c6ba82af29a8f0dca36ac0e92f550aa",
-					"grade": 1,
-					"rationale": "校友会简介 query 不应误召回基金会简介。"
-				}
-			],
-			"notes": "stable_reference 相邻组织简介区分回归。"
-		},
-		{
-			"case_id": "stable-reference-foundation-profile",
-			"split": "smoke",
-			"query": "中央民族大学基金会简介",
-			"expected_sources": [
-				{
-					"doc_id": "official_web:muc_public:article_detail:3342689d05d43819a48bbcf7564f013f217ffe46",
-					"version_id": "owdocver:b804aee18c6ba82af29a8f0dca36ac0e92f550aa",
-					"grade": 2,
-					"rationale": "基金会简介 query 应命中 stable_reference 的基金会页面。"
-				}
-			],
-			"forbidden_sources": [
-				{
-					"doc_id": "official_web:muc_public:article_detail:3f735e1c08be05c5426948f7ea737d3d422c6e02",
-					"version_id": "owdocver:4377c56414af31a83481c8a63deb5aa51e0baa50",
-					"grade": 1,
-					"rationale": "基金会简介 query 不应误召回校友会简介。"
-				}
-			],
-			"notes": "stable_reference 相邻组织简介区分回归。"
-		},
-		{
-			"case_id": "stable-reference-undergraduate-education",
-			"split": "smoke",
-			"query": "中央民族大学本科培养",
-			"expected_sources": [
-				{
-					"doc_id": "official_web:muc_public:article_detail:dfd33d034080e7df93a707edef7f555a95d78b13",
-					"version_id": "owdocver:0d26c91eeefd72d7cfbb5f194d077108d35a1f02",
-					"grade": 2,
-					"rationale": "本科培养 query 应命中 stable_reference 的本科培养页面。"
-				}
-			],
-			"notes": "stable_reference 本科培养页命中回归。"
-		},
-		{
-			"case_id": "stable-reference-graduate-education",
-			"split": "smoke",
-			"query": "中央民族大学研究生培养",
-			"expected_sources": [
-				{
-					"doc_id": "official_web:muc_public:article_detail:d043e2b8d29c0023c945a9c5909cb09b1f68d0ca",
-					"version_id": "owdocver:2009a50d7181bf21a7ee5f4521ce0eb1149dc0b0",
-					"grade": 2,
-					"rationale": "研究生培养 query 应命中 stable_reference 的研究生培养页面。"
-				}
-			],
-			"notes": "stable_reference 研究生培养页命中回归。"
-		},
-		{
-			"case_id": "stable-reference-postdoctoral-program",
-			"split": "smoke",
-			"query": "中央民族大学博士后",
-			"expected_sources": [
-				{
-					"doc_id": "official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916",
-					"version_id": "owdocver:522c255c713a682644556a362c4547689d0d1754",
-					"grade": 2,
-					"rationale": "博士后 query 应命中 stable_reference 的博士后页面。"
-				}
-			],
-			"notes": "stable_reference 博士后页命中回归。"
-		},
-		{
-			"case_id": "stable-reference-scholars",
-			"split": "smoke",
-			"query": "中央民族大学学术名流",
-			"expected_sources": [
-				{
-					"doc_id": "official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2",
-					"version_id": "owdocver:80a060b7e821f9a3ca8a57d3c674f9045157b981",
-					"grade": 2,
-					"rationale": "学术名流 query 应命中 stable_reference 的学术名流页面。"
-				}
-			],
-			"notes": "stable_reference 学术名流页命中回归。"
+			"case_id": "stable-reference-no-hit-fictional-service",
+			"split": "regression_locked",
+			"query": "中央民族大学火星校区宇宙签证办理处",
+			"expected_sources": [],
+			"notes": "不存在的稳定官网服务问句应保持 no-hit，不能由学校简介或机构页面误召回。"
 		}
 	]
 }

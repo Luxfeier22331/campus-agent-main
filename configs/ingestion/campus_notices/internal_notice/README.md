@@ -66,9 +66,9 @@ Current collection posture is:
 - source OCR uses `source_ocr_provider=mineru_api`,
   `source_ocr_model=vlm`, and
   `source_ocr_image_routing_strategy=mineru_primary`
-- `source_ocr_fallback_enabled=true`; Paddle async OCR remains the fallback
-  provider when a MinerU image/attachment attempt fails and Paddle credentials
-  are configured
+- MinerU OCR is the canonical provider for this collection; provider failures
+  fail closed and must be handled by explicit machine review/adjudication paths,
+  not by implicit Paddle recovery
 - `serving_stage=offline_preparation`
 - `retrieval_enabled=false`
 - `query_enabled_by_default=false`
@@ -129,7 +129,7 @@ Current routing taxonomy groups include:
   competition, recruitment, staff/internal admin, research publicity calls,
   governance/party life, internal governance events, general cultural publicity,
   cultural publicity activities, and campus news/publicity
-- fallback `other` with no actionable signal closes as terminal `no_adoption`
+- `other` with no actionable signal closes as terminal `no_adoption`
   with `machine_processing_policy=skip`; deterministic high-confidence clusters
   are promoted into explicit routes, while clearly unconsumable terminal titles
   such as obituaries also close as `no_adoption`. Bare "通知/公告/通告" titles

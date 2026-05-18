@@ -316,6 +316,31 @@ func TestParseAnswerRequestMapsForwardCapabilitiesToExecutionLanes(t *testing.T)
 	}
 }
 
+func TestParseAnswerRequestRejectsRetiredAcademicCalendarCapability(t *testing.T) {
+	_, httpErr := ParseAnswerRequest(
+		json.RawMessage(`{
+			"user_goal":"今天第几教学周",
+			"request_id":"req-retired-academic-calendar",
+			"requested_capability":"academic_calendar"
+		}`),
+		map[string]string{
+			"authorization": "Bearer secret-token",
+		},
+		config.Config{
+			AuthMode:       "bearer",
+			BearerToken:    "secret-token",
+			DefaultActorID: "api-bearer-user",
+		},
+	)
+
+	if httpErr == nil {
+		t.Fatal("expected retired academic_calendar capability to fail closed")
+	}
+	if httpErr.Code != "invalid_request" {
+		t.Fatalf("error code = %q, want invalid_request", httpErr.Code)
+	}
+}
+
 func TestParseAnswerRequestInfersEffectiveCapabilityForUnscopedCurrentRequests(t *testing.T) {
 	tests := []struct {
 		name           string
@@ -344,6 +369,12 @@ func TestParseAnswerRequestInfersEffectiveCapabilityForUnscopedCurrentRequests(t
 		{
 			name:           "public medical contact service guide",
 			userGoal:       "公费医疗报销联系电话是多少",
+			wantCapability: "campus_services",
+			wantLane:       "campus_services",
+		},
+		{
+			name:           "academic calendar teaching week",
+			userGoal:       "今天第几教学周",
 			wantCapability: "campus_services",
 			wantLane:       "campus_services",
 		},

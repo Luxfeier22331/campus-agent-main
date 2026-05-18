@@ -114,16 +114,14 @@ uv run --package campus-ingestion-worker python -m \
 - root `.env`
   - `CAMPUS_SHARED_POSTGRES_URL`
   - `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
-  - `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL`（legacy alias）
   - `DOCUMENT_REGISTRY_DATABASE_URL`
-  - `DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL`
+  - `DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL`
   - `RAW_ASSET_REGISTRY_DATABASE_URL`
-  - `RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL`
+  - `RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL`
 - `apps/app-api/.env`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH`
   - `APP_API_OPERATOR_DATABASE_URL`
-  - `APP_API_MANAGEMENT_DATABASE_URL`（legacy alias）
 - `apps/app-api/.dev.vars`
   - `APP_API_DATABASE_SSLMODE=disable`
 
@@ -270,7 +268,7 @@ uv run --package campus-ingestion-worker python -m \
 
 - root `.env` source 必须是真正的 shared/cloud Postgres env，不能仍指向 `127.0.0.1:5432`
 - 如果缺少 app-api 独立 backup，会从 shared root env 重新同步 `apps/app-api/.env`
-- 如果缺少 `.dev.vars` backup，`APP_API_DATABASE_SSLMODE` fallback 为 `prefer`
+- 如果缺少 `.dev.vars` backup，`APP_API_DATABASE_SSLMODE` 必须来自显式参数或脚本默认值
 
 ## 可选覆写
 

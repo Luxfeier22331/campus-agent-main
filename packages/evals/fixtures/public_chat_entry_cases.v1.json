@@ -11,6 +11,130 @@
 				"answer_text_present": true,
 				"source_url_present": true,
 				"cards_present": true
+			},
+			"expected_answer_contract": {
+				"must_contain": ["补卡", "校园卡"],
+				"must_not_contain": ["当前没有找到"]
+			}
+		},
+		{
+			"case_id": "public-entry-academic-calendar-guide-entry",
+			"user_goal": "校历在哪里看",
+			"split": "release_gate",
+			"expected_terminal_outcome": "completed",
+			"expected_response_contract": {
+				"answer_text_present": true,
+				"source_url_present": true,
+				"cards_present": false
+			},
+			"expected_answer_contract": {
+				"must_contain": ["入口", "https://www.muc.edu.cn/ggfw/mdxl.htm"],
+				"must_not_contain": ["当前没有找到", "当前还不能稳定确认这项办理指南"]
+			}
+		},
+		{
+			"case_id": "public-entry-public-medical-materials",
+			"user_goal": "公费医疗报销需要什么材料",
+			"split": "release_gate",
+			"expected_terminal_outcome": "completed",
+			"expected_response_contract": {
+				"answer_text_present": true,
+				"source_url_present": true,
+				"cards_present": false
+			},
+			"expected_answer_contract": {
+				"must_contain": ["急诊证明", "住院收据"],
+				"must_not_contain": ["当前没有找到", "联系电话"]
+			}
+		},
+		{
+			"case_id": "public-entry-vpn-login-entry",
+			"user_goal": "VPN 去哪里登录",
+			"split": "release_gate",
+			"expected_terminal_outcome": "completed",
+			"expected_response_contract": {
+				"answer_text_present": true,
+				"source_url_present": true,
+				"cards_present": false
+			},
+			"expected_answer_contract": {
+				"must_contain": ["https://vpn.muc.edu.cn"],
+				"must_not_contain": ["当前没有找到", "所需材料"]
+			}
+		},
+		{
+			"case_id": "public-entry-academic-calendar-date-week",
+			"user_goal": "2026-05-07 是第几教学周",
+			"split": "release_gate",
+			"expected_terminal_outcome": "completed",
+			"expected_response_contract": {
+				"answer_text_present": true,
+				"source_url_present": true,
+				"cards_present": false
+			},
+			"expected_answer_contract": {
+				"must_contain": ["第10教学周"],
+				"must_not_contain": ["当前没有找到", "口语说法", "官方表述"]
+			}
+		},
+		{
+			"case_id": "public-entry-academic-calendar-named-event",
+			"user_goal": "劳动节放假怎么安排",
+			"split": "release_gate",
+			"expected_terminal_outcome": "completed",
+			"expected_response_contract": {
+				"answer_text_present": true,
+				"source_url_present": true,
+				"cards_present": false
+			},
+			"expected_answer_contract": {
+				"must_contain": [
+					"劳动节假期是5 月 1 日到 5 月 5 日，共 5 天",
+					"如果你说的“春假”是指这段校内连续不上课时间",
+					"4 月 27 日到 5 月 5 日"
+				],
+				"must_not_contain": ["口语说法", "官方表述", "大家常说"]
+			}
+		},
+		{
+			"case_id": "public-entry-academic-calendar-spring-break-colloquial",
+			"user_goal": "今年春假是什么时候",
+			"split": "release_gate",
+			"expected_terminal_outcome": "completed",
+			"expected_response_contract": {
+				"answer_text_present": true,
+				"source_url_present": true,
+				"cards_present": false
+			},
+			"expected_answer_contract": {
+				"must_contain": ["如果你说的“春假”是指这段校内连续不上课时间", "4 月 27 日到 5 月 5 日"],
+				"must_not_contain": ["口语说法", "官方表述", "大家常说"]
+			}
+		},
+		{
+			"case_id": "public-entry-academic-calendar-notice-rest-day-override",
+			"user_goal": "2026-05-09 上课吗",
+			"split": "release_gate",
+			"expected_terminal_outcome": "completed",
+			"expected_response_contract": {
+				"answer_text_present": true,
+				"source_url_present": true,
+				"cards_present": false
+			},
+			"expected_answer_contract": {
+				"must_contain": ["5 月 9 日", "不上课"],
+				"must_not_contain": ["按正常教学安排执行"]
+			}
+		},
+		{
+			"case_id": "public-entry-notice-spring-break-original",
+			"user_goal": "找春假通知原文",
+			"split": "release_gate",
+			"expected_terminal_outcome": "completed",
+			"expected_response_contract": {
+				"answer_text_present": true,
+				"source_url_present": true,
+				"cards_present": true
 			}
 		},
 		{

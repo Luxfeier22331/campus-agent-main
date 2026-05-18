@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-27
+updated: 2026-05-07
 ---
 # 当前架构
 
@@ -28,6 +28,10 @@ updated: 2026-04-27
 
 当前接受的主拓扑固定为：
 
+`browser -> hub-web -> app launcher / account shell`
+
+`hub-web same-site allowlisted /api/* -> app-api`
+
 `browser -> public-chat-web -> app-api -> supervisor-api -> supervisor-agent-worker
 private bridge -> agent`
 
@@ -40,11 +44,16 @@ model`
 
 `collector -> app-api official_web control plane -> ingestion-worker`
 
+`ingestion-worker -> ingestion-core release task -> source truth / projection /
+document/index release`
+
 关键约束：
 
 - browser 不直打 `apps/supervisor-api`
+- hub 是 product entry surface，不是第二个 product backend、generic app-api proxy
+  或 MediaWiki proxy
 - panel 不绕过 `apps/app-api`
-- public chat / docs / panel 到 `apps/app-api` 的 Worker-to-Worker 调用走 `APP_API`
+- hub / public chat / docs / panel 到 `apps/app-api` 的 Worker-to-Worker 调用走 `APP_API`
   Service Binding；`https://app-api.internal` 是内部 Request construction origin
 - `apps/app-api` 是唯一 product-layer auth/session/principal owner
 - `campus-api-staging.ayafeed.com` 如存在，只表示 app-api staging machine / ops
@@ -59,6 +68,9 @@ model`
 - Python bridge 返回 private `AgentResponse`；public `SupervisorResponse`
   finalization 与 response observability projection 由 Go `apps/supervisor-api` 执行
 - online query path 与 offline data plane 持续分层
+- `apps/app-api` 不拥有 official-web selected-write / release task state machine；
+  claim、lease、retry、dead-letter、materialize、publish 与失败状态属于
+  `packages/ingestion-core` / `apps/ingestion-worker`
 - 本文列出的当前 browser surfaces 只描述当前 merged truth，不定义长期“哪个入口应作为产品首页”
 
 ## 当前 Serving Surface
@@ -86,7 +98,11 @@ model`
 - `curriculum/program_semester_facts` agent-internal retrieval surface；用于
   single-program + single-semester
   课程事实检索，`retrieval_enabled=true`，`query_enabled_by_default=false`
-- `campus_services/*` 当前仍保持 `offline_preparation`
+- `campus_services/service_status`、`campus_services/service_guide`、
+  `campus_services/contact_directory`、`campus_services/transport_schedule` 与
+  `calendar/academic_calendar` 当前保持 `structured_query_serving`：只通过 admitted
+  structured tools 消费 current projection/read model，不进入 generic retrieval 默认
+  query scope；`campus_services/service_catalog` 仍保持 `offline_preparation`
 
 当前非 serving capture-only scope：
 
@@ -96,14 +112,31 @@ model`
 
 ## 当前 App 边界
 
+### `apps/hub-web`
+
+- public-facing Worker web surface for `hub.muc.wiki`
+- 拥有 `/` app launcher shell、launcher route registry 与 `/account` account shell
+- 通过 allowlisted same-site seam 与 Worker `APP_API` Service Binding 调用 `apps/app-api`
+  的 `/api/me` 与必要 auth endpoints
+- sibling app entries 只能表现为 registry 中的 `app_link` / `planned` / `external`
+  target，不创建 `/chat`、`/docs`、`/panel`、`/map`、`/services` 或 `/notices`
+  这类 fake internal browser route shell
+- 不开放 generic `/api/*` proxy；未知 browser path fail-closed
+- `muc-wiki` 只是指向 `https://muc.wiki` 的 MUC Wiki 主站 external card；`/wiki`
+  不是 internal hub slug
+- 不代理、镜像、迁移或重新服务 MediaWiki 页面内容、上传媒体或账号
+- 不拥有 auth/session/principal truth；canonical identity 仍属于 `apps/app-api`
+
 ### `apps/public-chat-web`
 
 - public-facing Worker web surface
-- 正式拥有 public auth family route
-  shell：`/login`、`/register`、`/forgot-password`、`/reset-password`
+- 当前保留 `/login`、`/register`、`/forgot-password`、`/reset-password`
+  作为 bounded compatibility redirects/shims 到 hub account routes
 - 只负责 browser route shell 与 chat UI
-- auth family 通过 same-site seam 将 Turnstile verification transport 到
-  `apps/app-api`
+- 不再拥有 public auth/account shell、captcha widget 或 password-reset form runtime
+- browser auth handoff 固定为
+  `public-chat-web compat route -> hub-web /account/* -> same-site /api/auth/*`
+  -> `app-api`
 - 通过 same-site/internal seam 与 Worker `APP_API` Service Binding 调用 `apps/app-api`
 
 ### `apps/public-docs`
@@ -122,6 +155,8 @@ model`
 - protected Worker web surface
 - 只负责 operator-facing panel UI
 - 通过 Worker `APP_API` Service Binding 消费 `apps/app-api` runtime-owned query surfaces
+- 当前已接入 `Requests`、`Official Web` 与 authenticated notice processing 的 app-owned
+  operator-safe read-only surfaces
 
 ### `apps/app-api`
 
@@ -132,6 +167,12 @@ model`
 - 拥有 Better Auth email/password、password reset 与 Turnstile-backed auth admission
   hardening
 - 承接 `official_web` control plane
+- 对 `official_web`，只拥有 collector command ingress、crawl-run ledger、operator
+  projection/query 与 stable-reference release gate approve/reject ledger；不拥有
+  selected-write admission/task truth 或 release executor callback surface
+- 承接 authenticated notice processing 的 operator-safe projection ingest 与 list/detail
+  query；不暴露 raw notice content、OCR payload、附件字节、对象存储路径或 queue mutation
+  action
 - 当前代码侧以 route exposure inventory 固定每个 route 的 caller class 与 admission rule
 
 ### `apps/supervisor-api`
@@ -151,8 +192,13 @@ model`
   落入 bridge contract；当前 runtime 默认只发出 `single_handoff` plan。受控开启
   `SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED=true` 且 workflow run store ready 后，
   可执行首条真实 `multi_step` path：selected notice context + knowledge follow-through
-  触发 `notice-agent campus_notice_get -> rag-agent retrieval.query`，并将 notice step
-  输出以 bounded internal workflow context projection 传给 RAG step
+  触发 notice-agent internal selected notice resolve
+  (`payload_kind=campus_notice_get`) -> `rag-agent retrieval.query`，并将 notice
+  step 输出以 bounded internal workflow context projection 传给 RAG step。该 path 现已
+  改为 planner 输出 internal `CapabilityPlan`，再由 artifact-registry resolver 编译
+  `WorkflowPlan`；planner 不再手写 notice -> rag 固定 step shell。Go finalizer 同时在
+  `workflow_trace_summary` 中记录 `answer_artifact_projection_ids` 与
+  `answer_artifact_kinds`，用于证明最终答复使用了哪些 bounded artifact
 - 拥有 deterministic runtime policy；当前实现位于
   `apps/supervisor-api/internal/runtimepolicy`，负责 product scope gate、
   approval / reject gate、context follow-up preflight、query-enabled scope
@@ -163,6 +209,9 @@ model`
 - 拥有 non-delegate terminal envelope 与 runtime decision summary；non-stream /
   lifecycle SSE answer path 会直接在 Go 中返回 terminal supervisor-style response；
   metrics、OTel 与 execution audit 使用同一组低基数 runtime policy labels
+- 拥有 online runtime OTel trace owner 责任：`supervisor-api` 接收 trace context，
+  发出 sanitized OTLP trace signal 到 Collector seam，并在 Collector/exporter 不可用时保持
+  answer path fail-safe
 - 拥有 private bridge `AgentResponse -> SupervisorResponse` finalization 与
   response-level observability projection
 - 对已打开的 `campus_services` / `notice` deterministic structured payload，
@@ -180,11 +229,30 @@ model`
 - 只返回 `AgentResponse` 给 Go bridge；不再组装 public `SupervisorResponse`
 - 不再暴露 public `/api/v1/answer`；execution transport、admission、queue、
   metrics 与 published `transport_runtime` 由 `apps/supervisor-api` 拥有
+- 对 delegate request，bridge v6 parser 要求
+  `runtime_decisions.workflow_plan` 与
+  `runtime_decisions.handoff.agent_request.workflow_context` 同时存在，并校验二者的
+  step、target、payload kind、allowed tools、projection kind 与 expected artifacts
+  一致；Python 不再在 query time 发明 cross-agent route order
+- 当前 provider-facing semantic runtime 已收口到 OpenAI Agents SDK native substrate：
+  structured domain-agent execution 通过 ToolSpec 派生的 SDK `FunctionTool`，RAG
+  answer synthesis 通过 `OpenAIAgentsRagRuntime`；SDK 不接管 Go admission、
+  WorkflowPlan、ToolSpec、budget、policy 或 finalization
+- SDK dependency、provider、model 或 API key 缺失时，worker readiness 以稳定原因降级并
+  fail closed；不启用 non-SDK answer fallback
+- 拥有 worker-side retrieval runtime observation bridge，把
+  `retrieval.runtime_observation` 投影成 sanitized runtime event sink；不把 raw
+  query / snippet / document body 写入 telemetry
 
 ### `apps/ingestion-worker`
 
 - offline ingestion/data-plane executor
 - 承接 source-truth / projection / chunk / index write path
+- 拥有 official-web release task runtime；从 ingestion-owned task payload 推进
+  selected-write / stable-reference release，不通过 app-api executor route 回写状态
+- 拥有 ingestion run-level telemetry adapter，输出 canonicalize / chunk / embedding /
+  index release / publish / audit 的 sanitized started/completed/failed run event；
+  export failure 不让 ingestion job 失败
 
 ### `apps/official-web-collector`
 
@@ -198,6 +266,12 @@ model`
   planning、clarification、grounded answer synthesis
 - `packages/navigation-agent` 已接受的 navigation capability boundary；当前 package /
   contract truth 存在，但产品主路径对 `place_lookup` 仍保持 fail-close，直到地图产品正式上线
+- `packages/campus-services-agent` 是 campus services structured runtime
+  boundary；当前同时承接 `service_status_lookup`、`service_guide_lookup`、
+  `transport_schedule_lookup`、`contact_directory_lookup` 与
+  `academic_calendar_lookup`。其中 `academic_calendar_lookup` 只消费
+  `calendar/academic_calendar` projection-backed read model，支持教学周、
+  命名校历事件区间、学期窗口与补课/调休上课事实，不负责校历查看入口说明
 - `packages/retrieval-core` retrieval abstraction、metadata pre-filter、evidence
   shaping
 - `packages/ingestion-core` ingestion/data-plane consumption logic

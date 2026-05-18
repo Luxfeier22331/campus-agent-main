@@ -27,10 +27,16 @@ AgentToolName = Literal[
     "service_guide_lookup",
     "transport_schedule_lookup",
     "contact_directory_lookup",
+    "academic_calendar_lookup",
     "campus_notice_discover",
-    "campus_notice_get",
+    "campus_notice_change_set_lookup",
 ]
-RequestedCapability = Literal["knowledge", "place_lookup", "campus_services", "notice"]
+RequestedCapability = Literal[
+    "knowledge",
+    "place_lookup",
+    "campus_services",
+    "notice",
+]
 SupervisorStatus = Literal[
     "completed",
     "needs_clarification",
@@ -47,6 +53,22 @@ PlaceEntityType = Literal["building", "service_point", "office", "gate", "stop"]
 CoordinateReferenceSystem = Literal["EPSG:4326"]
 TemporalQueryMode = Literal["current", "latest", "effective", "as_of", "current_year"]
 VersionQueryMode = Literal["current", "historical", "as_of", "compare"]
+AcademicCalendarQueryKind = Literal[
+    "date_week",
+    "named_event_range",
+    "day_status",
+    "class_day_pattern",
+    "term_window",
+]
+AcademicCalendarAnswerFocus = Literal[
+    "teaching_week",
+    "holiday_duration",
+    "campus_break_window",
+    "course_adjustment",
+    "day_status",
+    "term_window",
+    "official_notice_reference",
+]
 ToolBusinessOutcome = Literal[
     "resolved_current",
     "resolved_historical_reference",
@@ -62,6 +84,7 @@ ToolFailCloseReason = Literal[
     "source_conflict",
     "privacy_policy_restricted",
     "stable_contact_unavailable",
+    "field_not_provided_by_source",
 ]
 ServiceGuideFocus = Literal[
     "overview",
@@ -113,9 +136,28 @@ NoticeSourceFamily = Literal[
 ]
 NoticeTargetSurface = Literal[
     "notice_level_query",
+    "procurement_notice_history",
+    "regulations/*",
+    "regulations/student_rules",
+    "regulations/institutional_rules",
+    "regulations/scoped_rules",
     "campus_services/service_status_candidate",
     "campus_services/special_service_candidate",
     "campus_services/stable_contact_candidate",
+    "publication_surface_candidate",
+    "multimodal_processing_candidate",
+    "unsupported",
+]
+NoticePublicSurfacePolicy = Literal[
+    "card_only",
+    "link_only",
+    "bounded_summary",
+    "fact_extraction_only",
+]
+NoticeBodyAccessPolicy = Literal[
+    "none",
+    "internal_context_only",
+    "downstream_materialization_only",
 ]
 ServiceStatusValue = Literal["open", "closed", "temporarily_closed", "limited_service", "unknown"]
 TransportServiceStatusValue = Literal[
@@ -176,10 +218,16 @@ ALLOWED_AGENT_TOOL_NAMES = (
     "service_guide_lookup",
     "transport_schedule_lookup",
     "contact_directory_lookup",
+    "academic_calendar_lookup",
     "campus_notice_discover",
-    "campus_notice_get",
+    "campus_notice_change_set_lookup",
 )
-ALLOWED_REQUESTED_CAPABILITIES = ("knowledge", "place_lookup", "campus_services", "notice")
+ALLOWED_REQUESTED_CAPABILITIES = (
+    "knowledge",
+    "place_lookup",
+    "campus_services",
+    "notice",
+)
 ALLOWED_SUPERVISOR_STATUSES = (
     "completed",
     "needs_clarification",
@@ -198,6 +246,22 @@ ALLOWED_MEMORY_VISIBILITIES = ("user_visible", "internal_only")
 ALLOWED_PLACE_ENTITY_TYPES = ("building", "service_point", "office", "gate", "stop")
 ALLOWED_TEMPORAL_QUERY_MODES = ("current", "latest", "effective", "as_of", "current_year")
 ALLOWED_VERSION_QUERY_MODES = ("current", "historical", "as_of", "compare")
+ALLOWED_ACADEMIC_CALENDAR_QUERY_KINDS = (
+    "date_week",
+    "named_event_range",
+    "day_status",
+    "class_day_pattern",
+    "term_window",
+)
+ALLOWED_ACADEMIC_CALENDAR_ANSWER_FOCUSES = (
+    "teaching_week",
+    "holiday_duration",
+    "campus_break_window",
+    "course_adjustment",
+    "day_status",
+    "term_window",
+    "official_notice_reference",
+)
 ALLOWED_TOOL_BUSINESS_OUTCOMES = (
     "resolved_current",
     "resolved_historical_reference",
@@ -213,6 +277,7 @@ ALLOWED_TOOL_FAIL_CLOSE_REASONS = (
     "source_conflict",
     "privacy_policy_restricted",
     "stable_contact_unavailable",
+    "field_not_provided_by_source",
 )
 ALLOWED_SERVICE_GUIDE_FOCUSES = (
     "overview",
@@ -269,9 +334,28 @@ ALLOWED_NOTICE_SOURCE_FAMILIES = (
 )
 ALLOWED_NOTICE_TARGET_SURFACES = (
     "notice_level_query",
+    "procurement_notice_history",
+    "regulations/*",
+    "regulations/student_rules",
+    "regulations/institutional_rules",
+    "regulations/scoped_rules",
     "campus_services/service_status_candidate",
     "campus_services/special_service_candidate",
     "campus_services/stable_contact_candidate",
+    "publication_surface_candidate",
+    "multimodal_processing_candidate",
+    "unsupported",
+)
+ALLOWED_NOTICE_PUBLIC_SURFACE_POLICIES = (
+    "card_only",
+    "link_only",
+    "bounded_summary",
+    "fact_extraction_only",
+)
+ALLOWED_NOTICE_BODY_ACCESS_POLICIES = (
+    "none",
+    "internal_context_only",
+    "downstream_materialization_only",
 )
 ALLOWED_SERVICE_STATUS_VALUES = (
     "open",
@@ -355,6 +439,16 @@ def _validate_version_query_mode(mode: str) -> None:
         raise ValueError(f"unsupported version mode: {mode}")
 
 
+def _validate_academic_calendar_query_kind(query_kind: str) -> None:
+    if query_kind not in ALLOWED_ACADEMIC_CALENDAR_QUERY_KINDS:
+        raise ValueError(f"unsupported academic calendar query_kind: {query_kind}")
+
+
+def _validate_academic_calendar_answer_focus(answer_focus: str) -> None:
+    if answer_focus not in ALLOWED_ACADEMIC_CALENDAR_ANSWER_FOCUSES:
+        raise ValueError(f"unsupported academic calendar answer_focus: {answer_focus}")
+
+
 def _validate_tool_business_outcome(outcome: str) -> None:
     if outcome not in ALLOWED_TOOL_BUSINESS_OUTCOMES:
         raise ValueError(f"unsupported tool business outcome: {outcome}")
@@ -413,6 +507,16 @@ def _validate_notice_source_family(source_family: str) -> None:
 def _validate_notice_target_surface(target_surface: str) -> None:
     if target_surface not in ALLOWED_NOTICE_TARGET_SURFACES:
         raise ValueError(f"unsupported notice target surface: {target_surface}")
+
+
+def _validate_notice_public_surface_policy(public_surface: str) -> None:
+    if public_surface not in ALLOWED_NOTICE_PUBLIC_SURFACE_POLICIES:
+        raise ValueError(f"unsupported notice public surface policy: {public_surface}")
+
+
+def _validate_notice_body_access_policy(body_access: str) -> None:
+    if body_access not in ALLOWED_NOTICE_BODY_ACCESS_POLICIES:
+        raise ValueError(f"unsupported notice body access policy: {body_access}")
 
 
 def _validate_service_status_value(status: str) -> None:

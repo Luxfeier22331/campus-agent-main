@@ -74,6 +74,10 @@ class EvalProfileGateSuite(unittest.TestCase):
                             "runtime_seconds": 7,
                             "retry_count": 0,
                             "provider_calls": 0,
+                            "started_at": "2026-05-01T00:00:00+00:00",
+                            "finished_at": "2026-05-01T00:00:07+00:00",
+                            "collector_version": "eval_profile_gate.v1",
+                            "runtime_profile": "public_chat_product_path",
                         },
                         "sanitized_results": [
                             {"case_id": "case-a", "passed": True},
@@ -104,6 +108,41 @@ class EvalProfileGateSuite(unittest.TestCase):
         self.assertEqual(observation.case_dispositions["case-b"], "missing_observation")
         self.assertEqual(observation.version_summary["runtime_version"], "eval_profile_gate.v1")
         self.assertFalse(observation.metrics_missing)
+
+    def test_legacy_profile_artifact_runtime_metrics_are_missing_without_full_summary(
+        self,
+    ) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            artifact_path = Path(tmpdir) / "profile-report.json"
+            artifact_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": "eval_profile_gate.v1",
+                        "profile_id": "public_chat_product_path",
+                        "summary": {
+                            "total": 1,
+                            "failed": 0,
+                            "runtime_seconds": 7,
+                            "retry_count": 0,
+                            "provider_calls": 0,
+                        },
+                        "sanitized_results": [{"case_id": "case-a", "passed": True}],
+                        "version_summary": {
+                            "case_set_version": "public_chat_product_path.v1",
+                            "policy_artifact": "eval_operations_profile_policy.v1",
+                            "runtime_version": "eval_profile_gate.v1",
+                        },
+                    }
+                ),
+                encoding="utf-8",
+            )
+
+            observations = derive_eval_operations_observations_from_artifacts(
+                [artifact_path],
+                gate_mode="release_gate",
+            )
+
+        self.assertTrue(observations["public_chat_product_path"].metrics_missing)
 
     def test_profile_report_preserves_safe_request_correlation_for_runtime_backflow(self) -> None:
         case_set = load_public_chat_product_path_cases()

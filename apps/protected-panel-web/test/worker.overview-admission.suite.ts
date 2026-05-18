@@ -75,6 +75,7 @@ export function registerWorkerOverviewAdmissionSuite() {
 						overview: "ready",
 						requests: "ready",
 						official_web: "ready",
+						authenticated_notices: "ready",
 						jobs: "blocked",
 						operations: "deferred",
 						audit: "ready",

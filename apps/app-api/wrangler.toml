@@ -14,11 +14,11 @@ preview_urls = false
 
 [env.local.vars]
 APP_API_ENVIRONMENT = "development"
-PUBLIC_CHAT_WEB_ORIGIN = "http://127.0.0.1:5173"
+PUBLIC_CHAT_WEB_ORIGIN = "http://127.0.0.1:27011"
 APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"
 APP_API_END_USER_EMAIL_ALLOWLIST = "eval-benchmark@example.edu,help_bot@outlook.com"
 APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"
-SUPERVISOR_API_BASE_URL = "http://127.0.0.1:8081"
+SUPERVISOR_API_BASE_URL = "http://127.0.0.1:27051"
 SUPERVISOR_API_TIMEOUT_MS = "8000"
 
 [env.local.secrets]
@@ -38,14 +38,15 @@ custom_domain = true
 
 [env.staging.vars]
 APP_API_ENVIRONMENT = "staging"
+AUTH_SHELL_ORIGIN = "https://hub-muc-wiki.ayafeed.com"
 PUBLIC_CHAT_WEB_ORIGIN = "https://campus-chat-staging.ayafeed.com"
 APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"
 APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"
 APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"
-SUPERVISOR_API_TIMEOUT_MS = "15000"
+SUPERVISOR_API_TIMEOUT_MS = "30000"
 SENTRY_ENVIRONMENT = "staging"
 AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"
-AXIOM_DATASET = "campus-agent-runtime-dev"
+AXIOM_DATASET = "campus-agent-runtime-staging"
 
 [env.staging.secrets]
 required = [

@@ -17,11 +17,11 @@ interface CollectorCliEnvironment {
 	OFFICIAL_WEB_RUN_INTENT?: string;
 	OFFICIAL_WEB_TRACE_ID?: string;
 	OFFICIAL_WEB_TRIGGER_TYPE?: string;
-	OBJECT_STORE_ACCESS_KEY?: string;
 	OBJECT_STORE_BUCKET_SOURCE?: string;
 	OBJECT_STORE_ENDPOINT?: string;
 	OBJECT_STORE_REGION?: string;
-	OBJECT_STORE_SECRET_KEY?: string;
+	OBJECT_STORE_SOURCE_ACCESS_KEY?: string;
+	OBJECT_STORE_SOURCE_SECRET_KEY?: string;
 }
 
 export interface ResolvedCollectorCrawlMainInput {
@@ -68,9 +68,13 @@ export function resolveCollectorCrawlMainInput(
 			"output-dir": { type: "string" },
 			"trace-id": { type: "string" },
 			"trigger-type": { type: "string" },
+			"source-pack-lineage-path": { type: "string" },
+			"disable-conditional-headers": { type: "boolean" },
 			host: { type: "string", multiple: true },
+			"target-candidate-id": { type: "string", multiple: true },
 			"max-pages-per-host": { type: "string" },
 			"max-total-pages": { type: "string" },
+			"local-artifacts-only": { type: "boolean" },
 		},
 		allowPositionals: false,
 	});
@@ -92,13 +96,10 @@ export function resolveCollectorCrawlMainInput(
 		firstNonEmptyString(values["trigger-type"], env.OFFICIAL_WEB_TRIGGER_TYPE),
 	);
 	const traceId = firstNonEmptyString(values["trace-id"], env.OFFICIAL_WEB_TRACE_ID);
-	const controlPlaneClient =
-		appApiBaseUrl || serviceToken
-			? buildConfiguredControlPlaneClient({
-					appApiBaseUrl,
-					serviceToken,
-				})
-			: undefined;
+	const controlPlaneClient = buildConfiguredControlPlaneClient({
+		appApiBaseUrl,
+		serviceToken,
+	});
 
 	return {
 		options: {
@@ -111,10 +112,14 @@ export function resolveCollectorCrawlMainInput(
 			traceId,
 			outputDir: values["output-dir"],
 			hostFilter: values.host,
+			targetCandidateIds: values["target-candidate-id"],
 			maxPagesPerHost: parseOptionalInt(values["max-pages-per-host"]),
 			maxTotalPages: parseOptionalInt(values["max-total-pages"]),
 			artifactStore: createS3ArtifactStoreFromEnv(env),
+			localArtifactsOnly: values["local-artifacts-only"],
 			controlPlaneClient,
+			sourcePackLineagePath: values["source-pack-lineage-path"],
+			disableConditionalHeaders: values["disable-conditional-headers"],
 		},
 		siteId,
 	};

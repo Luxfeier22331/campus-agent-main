@@ -8,7 +8,6 @@ from dataclasses import asdict
 from typing import Any
 
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
-    DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
     DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
     build_authenticated_notice_attachment_fetch_status_store_from_env,
     build_authenticated_notice_control_plane_status_report,
@@ -16,7 +15,6 @@ from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
     build_reference_only_attachment_explanation_report,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
-    DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
     DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
@@ -25,7 +23,6 @@ from campus_ingestion_core.postgres_runtime import (
     normalize_postgres_connection_url,
 )
 from campus_ingestion_core.registry import (
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _coerce_json_payload,
     _postgres_connection,
@@ -43,9 +40,6 @@ DEFAULT_COLLECTOR_RUN_LEDGER_TABLE = "ingestion_projection.authenticated_notice_
 COLLECTOR_RUN_LEDGER_ENV_KEY = "AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_DATABASE_URL"
 COLLECTOR_RUN_LEDGER_OPERATOR_ENV_KEY = (
     "AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_OPERATOR_DATABASE_URL"
-)
-COLLECTOR_RUN_LEDGER_MANAGEMENT_ENV_KEY = (
-    "AUTHENTICATED_NOTICE_COLLECTOR_RUN_LEDGER_MANAGEMENT_DATABASE_URL"
 )
 
 
@@ -146,9 +140,7 @@ def _collector_run_ledger_database_url(env: dict[str, str]) -> str | None:
         return normalized or None
     operator = (
         env.get(COLLECTOR_RUN_LEDGER_OPERATOR_ENV_KEY)
-        or env.get(COLLECTOR_RUN_LEDGER_MANAGEMENT_ENV_KEY)
         or env.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-        or env.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
         or ""
     ).strip()
     if not operator:
@@ -166,9 +158,7 @@ def _has_source_truth_operator_database_url(env: dict[str, str]) -> bool:
         env.get(key)
         for key in (
             DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
-            DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
             SHARED_POSTGRES_OPERATOR_ENV_KEY,
-            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
         )
     )
 
@@ -178,9 +168,7 @@ def _has_fetch_status_operator_database_url(env: dict[str, str]) -> bool:
         env.get(key)
         for key in (
             DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
-            DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
             SHARED_POSTGRES_OPERATOR_ENV_KEY,
-            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
         )
     )
 

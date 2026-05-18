@@ -5,75 +5,17 @@ import {
 	OFFICIAL_WEB_SOURCE_CHANNEL,
 	type OfficialWebConfigBundle,
 } from "./config-models.ts";
-
-function assertNonEmpty(value: string, fieldName: string): void {
-	if (!value) {
-		throw new Error(`${fieldName} is required`);
-	}
-}
-
-function ensureUnique(values: string[], fieldName: string): void {
-	if (new Set(values).size !== values.length) {
-		throw new Error(`${fieldName} must not contain duplicates`);
-	}
-}
-
-function ensureSameSet(left: string[], right: string[], fieldName: string): void {
-	const leftSet = new Set(left);
-	const rightSet = new Set(right);
-	if (leftSet.size !== rightSet.size) {
-		throw new Error(`${fieldName} set mismatch`);
-	}
-	for (const item of leftSet) {
-		if (!rightSet.has(item)) {
-			throw new Error(`${fieldName} set mismatch`);
-		}
-	}
-}
-
-function validateRegexList(values: string[], fieldName: string): void {
-	for (const value of values) {
-		try {
-			new RegExp(value, "i");
-		} catch (error) {
-			throw new Error(
-				`${fieldName} contains invalid regex ${value}: ${error instanceof Error ? error.message : String(error)}`,
-			);
-		}
-	}
-}
-
-function validateHostName(value: string, fieldName: string): void {
-	assertNonEmpty(value, fieldName);
-	if (value !== value.toLowerCase()) {
-		throw new Error(`${fieldName} must be lowercase`);
-	}
-	if (value.includes("*") || value.includes("/") || value.includes(":")) {
-		throw new Error(`${fieldName} must be a bare host name`);
-	}
-}
-
-function validateSeedUrl(
-	rawUrl: string,
-	expectedHost: string,
-	queryParamAllowlist: string[],
-): void {
-	const parsed = new URL(rawUrl);
-	if (parsed.protocol !== "https:") {
-		throw new Error(`seed ${rawUrl} must use https`);
-	}
-	if (parsed.hostname !== expectedHost) {
-		throw new Error(`seed ${rawUrl} must stay on host ${expectedHost}`);
-	}
-	if (parsed.hash) {
-		throw new Error(`seed ${rawUrl} must not include a fragment`);
-	}
-	for (const name of parsed.searchParams.keys()) {
-		if (!queryParamAllowlist.includes(name)) {
-			throw new Error(`seed ${rawUrl} uses unapproved query parameter ${name}`);
-		}
-	}
-}
+import {
+	assertNonEmpty,
+	ensureNoOverlap,
+	ensureSameSet,
+	ensureUnique,
+	validateHostName,
+	validateRegexList,
+	validateSeedUrl,
+	validateSourceUrl,
+} from "./config-validation-common.ts";
+import { validateOfficialWebConsumerTargets } from "./config-validation-targets.ts";
 
 export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void {
 	assertNonEmpty(bundle.site.schemaVersion, "site.schemaVersion");
@@ -315,6 +257,271 @@ export function validateOfficialWebConfig(bundle: OfficialWebConfigBundle): void
 			throw new Error(
 				`shell-family projection ${declaration.declarationId} must use action=manual_review`,
 			);
+		}
+	}
+
+	const consumerRuleByFamily = validateOfficialWebConsumerTargets({ bundle, hostIndex });
+
+	if (bundle.targetInventory.siteId !== bundle.site.siteId) {
+		throw new Error("targetInventory.siteId must match site.siteId");
+	}
+	assertNonEmpty(bundle.targetInventory.schemaVersion, "targetInventory.schemaVersion");
+	assertNonEmpty(bundle.targetInventory.inventoryVersion, "targetInventory.inventoryVersion");
+	if (bundle.targetInventory.entries.length === 0) {
+		throw new Error("targetInventory.entries must not be empty");
+	}
+	ensureUnique(
+		bundle.targetInventory.entries.map((entry) => entry.inventoryId),
+		"targetInventory.entries[].inventoryId",
+	);
+	const targetSourceMapById = new Map(
+		bundle.targetSourceMap.targets.map((target) => [target.targetId, target]),
+	);
+	for (const entry of bundle.targetInventory.entries) {
+		assertNonEmpty(entry.targetLabel, `targetInventory ${entry.inventoryId} targetLabel`);
+		assertNonEmpty(entry.ownerSurface, `targetInventory ${entry.inventoryId} ownerSurface`);
+		assertNonEmpty(
+			entry.ownerAgentOrRuntime,
+			`targetInventory ${entry.inventoryId} ownerAgentOrRuntime`,
+		);
+		assertNonEmpty(entry.previewStatus, `targetInventory ${entry.inventoryId} previewStatus`);
+		assertNonEmpty(entry.notes, `targetInventory ${entry.inventoryId} notes`);
+		if (entry.requiredFields.length === 0) {
+			throw new Error(`targetInventory ${entry.inventoryId} must define required_fields`);
+		}
+		if (entry.requiredEvidence.length === 0) {
+			throw new Error(`targetInventory ${entry.inventoryId} must define required_evidence`);
+		}
+		if (!entry.inventoryOnly && entry.sourceUrls.length === 0) {
+			throw new Error(`targetInventory ${entry.inventoryId} must define source_urls`);
+		}
+		ensureUnique(entry.sourceHosts, `targetInventory ${entry.inventoryId}.sourceHosts`);
+		ensureUnique(entry.sourceUrls, `targetInventory ${entry.inventoryId}.sourceUrls`);
+		ensureUnique(entry.requiredFields, `targetInventory ${entry.inventoryId}.requiredFields`);
+		ensureUnique(entry.optionalFields, `targetInventory ${entry.inventoryId}.optionalFields`);
+		ensureNoOverlap(
+			entry.requiredFields,
+			entry.optionalFields,
+			`targetInventory ${entry.inventoryId} requiredFields and optionalFields`,
+		);
+		ensureUnique(entry.requiredEvidence, `targetInventory ${entry.inventoryId}.requiredEvidence`);
+		ensureUnique(entry.optionalEvidence, `targetInventory ${entry.inventoryId}.optionalEvidence`);
+		ensureNoOverlap(
+			entry.requiredEvidence,
+			entry.optionalEvidence,
+			`targetInventory ${entry.inventoryId} requiredEvidence and optionalEvidence`,
+		);
+		ensureUnique(entry.releaseBlockers, `targetInventory ${entry.inventoryId}.releaseBlockers`);
+
+		const admissionTarget = targetSourceMapById.get(entry.admissionTargetId);
+		if (!admissionTarget) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} references unknown admission target ${entry.admissionTargetId}`,
+			);
+		}
+		const consumerRule = consumerRuleByFamily.get(entry.consumerFamily);
+		if (!consumerRule) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} references unknown consumerFamily ${entry.consumerFamily}`,
+			);
+		}
+		if (entry.consumerFamily !== admissionTarget.consumerFamily) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} consumerFamily must match admission target`,
+			);
+		}
+		if (entry.ownerSurface !== admissionTarget.ownerSurface) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} ownerSurface must match admission target`,
+			);
+		}
+		if (entry.ownerAgentOrRuntime !== consumerRule.ownerAgentOrRuntime) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} ownerAgentOrRuntime must match consumer denominator`,
+			);
+		}
+		if (entry.selectedWriteTarget !== admissionTarget.selectedWriteTarget) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} selectedWriteTarget must match admission target`,
+			);
+		}
+		if (entry.materializationPolicy !== admissionTarget.materializationPolicy) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} materializationPolicy must match admission target`,
+			);
+		}
+		if (entry.inventoryOnly !== admissionTarget.inventoryOnly) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} inventoryOnly must match admission target`,
+			);
+		}
+		if (entry.inventoryOnly && entry.selectedWriteTarget) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} inventory-only selectedWriteTarget must be empty`,
+			);
+		}
+		for (const sourceHost of entry.sourceHosts) {
+			validateHostName(sourceHost, `targetInventory ${entry.inventoryId}.sourceHosts`);
+			if (!admissionTarget.sourceHosts.includes(sourceHost)) {
+				throw new Error(
+					`targetInventory ${entry.inventoryId} sourceHosts must be admitted by target-source-map`,
+				);
+			}
+			const host = hostIndex.get(sourceHost);
+			if (!host?.enabled) {
+				throw new Error(
+					`targetInventory ${entry.inventoryId} references unavailable host ${sourceHost}`,
+				);
+			}
+		}
+		for (const sourceUrl of entry.sourceUrls) {
+			validateSourceUrl(
+				sourceUrl,
+				entry.sourceHosts,
+				`targetInventory ${entry.inventoryId}.sourceUrls`,
+			);
+		}
+		for (const evidence of entry.requiredEvidence) {
+			if (!admissionTarget.requiredEvidence.includes(evidence)) {
+				throw new Error(
+					`targetInventory ${entry.inventoryId} requiredEvidence must be allowed by admission target`,
+				);
+			}
+		}
+		for (const evidence of entry.optionalEvidence) {
+			if (!admissionTarget.optionalEvidence.includes(evidence)) {
+				throw new Error(
+					`targetInventory ${entry.inventoryId} optionalEvidence must be allowed by admission target`,
+				);
+			}
+		}
+		ensureSameSet(
+			entry.requiredEvidence,
+			admissionTarget.requiredEvidence,
+			`targetInventory ${entry.inventoryId} requiredEvidence must match admission target`,
+		);
+		ensureSameSet(
+			entry.optionalEvidence,
+			admissionTarget.optionalEvidence,
+			`targetInventory ${entry.inventoryId} optionalEvidence must match admission target`,
+		);
+		if (entry.previewStatus === "ready_for_selected_write" && entry.releaseBlockers.length > 0) {
+			throw new Error(
+				`targetInventory ${entry.inventoryId} ready_for_selected_write cannot have releaseBlockers`,
+			);
+		}
+	}
+
+	if (bundle.sourcePackManifest.siteId !== bundle.site.siteId) {
+		throw new Error("sourcePackManifest.siteId must match site.siteId");
+	}
+	assertNonEmpty(bundle.sourcePackManifest.schemaVersion, "sourcePackManifest.schemaVersion");
+	assertNonEmpty(bundle.sourcePackManifest.sourcePackId, "sourcePackManifest.sourcePackId");
+	if (bundle.sourcePackManifest.entries.length === 0) {
+		throw new Error("sourcePackManifest.entries must not be empty");
+	}
+	ensureUnique(
+		bundle.sourcePackManifest.entries.map((entry) => entry.entryId),
+		"sourcePackManifest.entries[].entryId",
+	);
+	const allowedOwnerToTarget = new Map<string, string>([
+		["service_guide_lookup", "campus_services/service_guide"],
+		["contact_directory_lookup", "campus_services/contact_directory"],
+		["academic_calendar_lookup", "calendar/academic_calendar"],
+		["official_web/stable_reference", "official_web/stable_reference"],
+		["future_notice_runtime", "official_web/fresh_news"],
+		["regulations/institutional_rules", "regulations/institutional_rules"],
+		["regulations/student_rules", "regulations/student_rules"],
+		["regulations/scoped_rules", "regulations/scoped_rules"],
+	]);
+	for (const entry of bundle.sourcePackManifest.entries) {
+		assertNonEmpty(entry.url, `sourcePackManifest ${entry.entryId} url`);
+		validateSourceUrl(
+			entry.url,
+			bundle.site.allowedHosts,
+			`sourcePackManifest ${entry.entryId}.url`,
+		);
+		ensureUnique(entry.demandIds, `sourcePackManifest ${entry.entryId}.demandIds`);
+		ensureUnique(entry.ownerSurfaces, `sourcePackManifest ${entry.entryId}.ownerSurfaces`);
+		ensureUnique(entry.releaseTargets, `sourcePackManifest ${entry.entryId}.releaseTargets`);
+		ensureUnique(entry.expectedFacts, `sourcePackManifest ${entry.entryId}.expectedFacts`);
+		ensureUnique(entry.evalQuestions, `sourcePackManifest ${entry.entryId}.evalQuestions`);
+		if (entry.targetWorksetExpansion != null && entry.answerBearing) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} target-workset expansion row must not be answer-bearing`,
+			);
+		}
+		if (entry.answerBearing) {
+			if (entry.demandIds.length === 0) {
+				throw new Error(`sourcePackManifest ${entry.entryId} must define demandIds`);
+			}
+			if (entry.ownerSurfaces.length === 0) {
+				throw new Error(`sourcePackManifest ${entry.entryId} must define ownerSurfaces`);
+			}
+			if (entry.releaseTargets.length === 0) {
+				throw new Error(`sourcePackManifest ${entry.entryId} must define releaseTargets`);
+			}
+			if (entry.expectedFacts.length === 0) {
+				throw new Error(`sourcePackManifest ${entry.entryId} must define expectedFacts`);
+			}
+			if (entry.evalQuestions.length === 0) {
+				throw new Error(`sourcePackManifest ${entry.entryId} must define evalQuestions`);
+			}
+		} else if (entry.targetWorksetExpansion == null && entry.evalQuestions.length > 0) {
+			// Non-answer-bearing rows stay discovery-only; eval questions only belong to answer-bearing rows
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} non-answer-bearing row must not define evalQuestions`,
+			);
+		}
+		if (entry.sourceKind === "dynamic_shell_excluded" && entry.answerBearing) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} dynamic shell page must not be answer-bearing`,
+			);
+		}
+		if (entry.releaseTargets.includes("official_web/fresh_news")) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} attempts to open official_web/fresh_news or official_web/news_archive`,
+			);
+		}
+		if (entry.releaseTargets.includes("official_web/news_archive")) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} attempts to open official_web/fresh_news or official_web/news_archive`,
+			);
+		}
+		if (
+			entry.contentFamily === "public_notice_news" &&
+			entry.answerBearing &&
+			entry.releaseTargets.some(
+				(target) => target === "official_web/fresh_news" || target === "official_web/news_archive",
+			)
+		) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} attempts to open official_web/fresh_news or official_web/news_archive`,
+			);
+		}
+		if (
+			(entry.ownerSurfaces.includes("academic_calendar_lookup") ||
+				entry.releaseTargets.includes("calendar/academic_calendar")) &&
+			entry.contentFamily !== "academic_calendar_reference"
+		) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} academic calendar row must use academic_calendar_reference content_family`,
+			);
+		}
+		if (entry.ownerSurfaces.length !== entry.releaseTargets.length) {
+			throw new Error(
+				`sourcePackManifest ${entry.entryId} multi-owner row must map each owner surface to a compatible release target`,
+			);
+		}
+		for (let index = 0; index < entry.ownerSurfaces.length; index += 1) {
+			const ownerSurface = entry.ownerSurfaces[index];
+			const releaseTarget = entry.releaseTargets[index];
+			const expectedTarget = allowedOwnerToTarget.get(ownerSurface);
+			if (expectedTarget !== releaseTarget) {
+				throw new Error(
+					`sourcePackManifest ${entry.entryId} multi-owner row must map each owner surface to a compatible release target`,
+				);
+			}
 		}
 	}
 

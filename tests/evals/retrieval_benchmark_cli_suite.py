@@ -244,7 +244,7 @@ class RetrievalLiveBenchmarkCliTest(unittest.TestCase):
                             canonical_url="https://www.muc.edu.cn/xxgk1/xxjj.htm",
                             latest_url="https://www.muc.edu.cn/xxgk1/xxjj.htm",
                             source_channel="official_web",
-                            collection="muc_public_pages",
+                            collection="stable_reference",
                             is_current=True,
                             snippet="中央民族大学学校简介。",
                             score=0.91,
@@ -259,7 +259,7 @@ class RetrievalLiveBenchmarkCliTest(unittest.TestCase):
                     {
                         "schema_version": 1,
                         "corpus": "official_web",
-                        "collection": "muc_public_pages",
+                        "collection": "stable_reference",
                         "baseline": {},
                         "cases": [
                             {
@@ -284,10 +284,10 @@ class RetrievalLiveBenchmarkCliTest(unittest.TestCase):
             manifest_path.write_text(
                 json.dumps(
                     {
-                        "manifest_version": "official_web_muc_public_pages_split_manifest_v1",
+                        "manifest_version": "official_web_stable_reference_split_manifest_v1",
                         "corpus": "official_web",
-                        "collection": "muc_public_pages",
-                        "raw_asset_id": "asset:official-web-muc-public-pages-current-truth-20260403",
+                        "collection": "stable_reference",
+                        "raw_asset_id": "asset:official-web-stable-reference-target-inventory-admission-20260514",
                         "documents": [
                             {
                                 "document_id": "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
@@ -324,7 +324,7 @@ class RetrievalLiveBenchmarkCliTest(unittest.TestCase):
                         str(manifest_path),
                         "--force-enable-retrieval",
                         "--qdrant-collection-name",
-                        "muc_public_pages__r20260403_015529",
+                        "official_web_stable_reference__r20260403_015529",
                         "--format",
                         "json",
                     ]
@@ -337,7 +337,7 @@ class RetrievalLiveBenchmarkCliTest(unittest.TestCase):
         self.assertTrue(fake_backend.observed_profiles[0].retrieval_enabled)
         self.assertEqual(
             fake_backend.observed_profiles[0].qdrant_index_binding.alias_name,
-            "muc_public_pages__r20260403_015529",
+            "official_web_stable_reference__r20260403_015529",
         )
         self.assertEqual(fake_backend.requests[0].top_k, 5)
         self.assertEqual(

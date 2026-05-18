@@ -78,12 +78,7 @@ export function buildLocalOfficialWebProjectionDrainRuntime(
 		APP_API_ENVIRONMENT: readOptionalString(sourceEnv, "APP_API_ENVIRONMENT") as
 			| Env["APP_API_ENVIRONMENT"]
 			| undefined,
-		APP_API_OPERATOR_DATABASE_URL:
-			readOptionalString(sourceEnv, "APP_API_OPERATOR_DATABASE_URL") ||
-			readOptionalString(sourceEnv, "APP_API_MANAGEMENT_DATABASE_URL"),
-		APP_API_MANAGEMENT_DATABASE_URL:
-			readOptionalString(sourceEnv, "APP_API_OPERATOR_DATABASE_URL") ||
-			readOptionalString(sourceEnv, "APP_API_MANAGEMENT_DATABASE_URL"),
+		APP_API_OPERATOR_DATABASE_URL: readOptionalString(sourceEnv, "APP_API_OPERATOR_DATABASE_URL"),
 	};
 
 	const handoffUrl = readOptionalString(sourceEnv, "APP_API_OFFICIAL_WEB_HANDOFF_URL");
@@ -110,7 +105,13 @@ export function buildLocalOfficialWebProjectionDrainRuntime(
 export async function drainOfficialWebProjection(
 	runtime: LocalOfficialWebProjectionDrainRuntime,
 	input: OfficialWebProjectionDrainArgs,
-): Promise<{ abandoned: number; failed: number; handoffConfigured: boolean; processed: number }> {
+): Promise<{
+	abandoned: number;
+	failed: number;
+	handoffConfigured: boolean;
+	processed: number;
+	skipped: number;
+}> {
 	const projector = buildOfficialWebProjectionProjector({
 		handoffPublisher: runtime.handoffConfigured
 			? createOfficialWebHandoffPublisher(runtime.env)

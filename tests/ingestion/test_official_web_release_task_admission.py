@@ -1,0 +1,657 @@
+from __future__ import annotations
+
+import unittest
+from datetime import UTC, datetime
+
+from campus_ingestion_core.official_web_release_task_admission import (
+    admit_selected_write_release_tasks_from_review,
+    build_selected_write_release_task_from_candidate,
+    build_stable_reference_release_task_from_gate,
+)
+from campus_ingestion_core.official_web_release_task_store import (
+    InMemoryOfficialWebReleaseTaskStore,
+)
+from campus_ingestion_worker.admit_official_web_release_gate import (
+    admit_official_web_release_gate,
+)
+
+
+class OfficialWebReleaseTaskAdmissionTest(unittest.TestCase):
+    def test_worker_admits_approved_stable_reference_gate_into_task_store(self) -> None:
+        store = InMemoryOfficialWebReleaseTaskStore()
+
+        report = admit_official_web_release_gate(
+            release_gate=_approved_gate(),
+            release_task_store=store,
+        )
+
+        self.assertEqual(report["admitted_count"], 1)
+        task = store.get_task("owrelease_school_intro")
+        self.assertIsNotNone(task)
+        self.assertEqual(task.task_type if task else "", "official_web_stable_reference")
+        self.assertEqual(task.status if task else "", "queued")
+
+    def test_builds_stable_reference_release_task_from_approved_gate(self) -> None:
+        task = build_stable_reference_release_task_from_gate(
+            _approved_gate(),
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+
+        self.assertEqual(task.task_id, "owrelease_school_intro")
+        self.assertEqual(task.task_type, "official_web_stable_reference")
+        self.assertEqual(task.status, "queued")
+        self.assertEqual(task.inventory_id, "muc-school-introduction-reference")
+        self.assertEqual(task.job_id, "owtarget_school_intro")
+        self.assertEqual(task.run_id, "owrun_001")
+        self.assertEqual(task.selected_write_target, "official_web/stable_reference")
+        self.assertFalse(task.publish_alias)
+        self.assertEqual(
+            task.input_ref["sourceObjectKeys"],
+            ["official_web/muc_public/runs/owrun_001/source-truth-bundle.json"],
+        )
+
+    def test_rejects_stable_reference_release_gate_with_snake_case_evidence_contract(
+        self,
+    ) -> None:
+        gate = _approved_gate()
+        evidence = dict(gate["evidenceJson"])
+        evidence["selected_write_target"] = evidence.pop("selectedWriteTarget")
+        gate["evidenceJson"] = evidence
+
+        with self.assertRaisesRegex(ValueError, "stable-reference"):
+            build_stable_reference_release_task_from_gate(gate)
+
+    def test_rejects_stable_reference_release_gate_with_legacy_evidence_container(
+        self,
+    ) -> None:
+        gate = _approved_gate()
+        gate["evidence"] = gate.pop("evidenceJson")
+
+        with self.assertRaisesRegex(ValueError, "evidenceJson"):
+            build_stable_reference_release_task_from_gate(gate)
+
+    def test_rejects_stable_reference_release_gate_without_evidence_json(
+        self,
+    ) -> None:
+        gate = _approved_gate()
+        gate.pop("evidenceJson")
+
+        with self.assertRaisesRegex(ValueError, "evidenceJson"):
+            build_stable_reference_release_task_from_gate(gate)
+
+    def test_rejects_release_input_ref_with_snake_case_source_urls(self) -> None:
+        gate = _approved_gate()
+        evidence = dict(gate["evidenceJson"])
+        source_urls = evidence.pop("sourceUrls")
+        evidence["source_urls"] = source_urls
+        gate["evidenceJson"] = evidence
+
+        with self.assertRaisesRegex(ValueError, "sourceUrls"):
+            build_stable_reference_release_task_from_gate(gate)
+
+    def test_rejects_release_input_ref_with_snake_case_source_object_keys(self) -> None:
+        gate = _approved_gate()
+        evidence = dict(gate["evidenceJson"])
+        evidence["source_object_keys"] = evidence.pop("sourceObjectKeys")
+        gate["evidenceJson"] = evidence
+
+        with self.assertRaisesRegex(ValueError, "sourceObjectKeys"):
+            build_stable_reference_release_task_from_gate(gate)
+
+    def test_rejects_unapproved_or_non_stable_reference_gate(self) -> None:
+        with self.assertRaisesRegex(ValueError, "approved"):
+            build_stable_reference_release_task_from_gate(
+                {
+                    "decision": "rejected",
+                    "evidenceJson": {
+                        "selectedWriteTarget": "official_web/stable_reference",
+                        "sourceObjectKeys": ["official_web/run/source-truth-bundle.json"],
+                    },
+                    "inventoryId": "muc-school-introduction-reference",
+                    "jobId": "owtarget_school_intro",
+                    "releaseId": "owrelease_school_intro",
+                    "runId": "owrun_001",
+                    "status": "rejected",
+                }
+            )
+
+    def test_builds_selected_write_release_task_only_after_machine_field_review(self) -> None:
+        task = build_selected_write_release_task_from_candidate(
+            {
+                "candidate_key": "owcand_contact_ready",
+                "field_status": {
+                    "email": "source_not_provided",
+                    "location": "present",
+                    "office_hours": "source_not_provided",
+                    "organization_name": "present",
+                    "phone": "present",
+                    "source_url": "present",
+                    "source_version_evidence": "present",
+                },
+                "inventory_id": "muc-main-homepage-contact",
+                "matched_evidence": ["phone", "location"],
+                "normalized_canonical_url": "https://www.muc.edu.cn/",
+                "ready_for_selected_write": True,
+                "optional_evidence": ["email", "location", "office_hours"],
+                "optional_fields": ["email", "location", "office_hours"],
+                "required_evidence": ["phone"],
+                "required_fields": [
+                    "organization_name",
+                    "phone",
+                    "source_url",
+                    "source_version_evidence",
+                ],
+                "review_verdict": "pending_review",
+                "selected_write_target": "campus_services/contact_directory",
+                "source_ref": {
+                    "raw_asset_id": "owasset_contact",
+                    "raw_version_id": "owver_contact",
+                    "normalized_canonical_url": "https://www.muc.edu.cn/",
+                },
+                "target_job_id": "owtarget_contact",
+                "typed_candidate_schema_version": "official_web_contact_directory_candidate.v1",
+            },
+            run_id="owrun_contact",
+            source_object_keys=[
+                "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json"
+            ],
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+
+        self.assertEqual(task.task_type, "official_web_selected_write_contact_directory")
+        self.assertEqual(task.inventory_id, "muc-main-homepage-contact")
+        self.assertEqual(task.input_ref["fieldStatus"]["phone"], "present")
+        self.assertEqual(task.input_ref["fieldStatus"]["email"], "source_not_provided")
+        self.assertEqual(
+            task.input_ref["policyVersion"],
+            "official_web_selected_write_release_task_admission.v4",
+        )
+        self.assertEqual(
+            task.input_ref["requiredEvidence"],
+            ["phone"],
+        )
+        self.assertEqual(
+            task.input_ref["optionalEvidence"],
+            ["email", "location", "office_hours"],
+        )
+
+    def test_rejects_selected_write_candidate_with_camel_case_target_field(self) -> None:
+        candidate = _information_disclosure_candidate(source_refs=[])
+        candidate["selectedWriteTarget"] = candidate.pop("selected_write_target")
+
+        with self.assertRaisesRegex(ValueError, "selected_write_target"):
+            build_selected_write_release_task_from_candidate(
+                candidate,
+                run_id="owrun_info_disclosure",
+                source_object_keys=[
+                    "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+                ],
+            )
+
+    def test_rejects_selected_write_candidate_with_camel_case_field_status(self) -> None:
+        candidate = _information_disclosure_candidate(source_refs=[])
+        candidate["fieldStatus"] = candidate.pop("field_status")
+
+        with self.assertRaisesRegex(ValueError, "field_status"):
+            build_selected_write_release_task_from_candidate(
+                candidate,
+                run_id="owrun_info_disclosure",
+                source_object_keys=[
+                    "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+                ],
+            )
+
+    def test_rejects_selected_write_candidate_with_camel_case_source_refs(self) -> None:
+        candidate = _information_disclosure_candidate(
+            source_refs=[
+                {
+                    "raw_asset_id": "owasset_info_procedure",
+                    "raw_version_id": "owver_info_procedure",
+                    "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                }
+            ]
+        )
+        candidate["sourceRefs"] = candidate.pop("source_refs")
+
+        with self.assertRaisesRegex(ValueError, "source_refs"):
+            build_selected_write_release_task_from_candidate(
+                candidate,
+                run_id="owrun_info_disclosure",
+                source_object_keys=[
+                    "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+                ],
+            )
+
+    def test_rejects_selected_write_candidate_with_missing_source_ref(self) -> None:
+        candidate = _information_disclosure_candidate(source_refs=[])
+        candidate.pop("source_ref")
+
+        with self.assertRaisesRegex(ValueError, "source_ref"):
+            build_selected_write_release_task_from_candidate(
+                candidate,
+                run_id="owrun_info_disclosure",
+                source_object_keys=[
+                    "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+                ],
+            )
+
+    def test_rejects_selected_write_candidate_with_camel_case_source_ref_fields(self) -> None:
+        candidate = _information_disclosure_candidate(source_refs=[])
+        source_ref = dict(candidate["source_ref"])
+        source_ref["rawAssetId"] = source_ref.pop("raw_asset_id")
+        candidate["source_ref"] = source_ref
+
+        with self.assertRaisesRegex(ValueError, "source_ref.raw_asset_id"):
+            build_selected_write_release_task_from_candidate(
+                candidate,
+                run_id="owrun_info_disclosure",
+                source_object_keys=[
+                    "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+                ],
+            )
+
+    def test_builds_service_guide_composition_release_task_with_all_source_urls(self) -> None:
+        task = build_selected_write_release_task_from_candidate(
+            {
+                "candidate_key": "owcand_information_disclosure_composed",
+                "field_status": {
+                    "process_steps": "present",
+                    "required_materials": "present",
+                    "service_name": "present",
+                    "service_process": "present",
+                    "service_material": "present",
+                    "source_url": "present",
+                    "source_version_evidence": "present",
+                },
+                "inventory_id": "muc-information-disclosure-application-process",
+                "matched_evidence": ["service_process", "service_material"],
+                "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                "ready_for_selected_write": True,
+                "optional_evidence": ["service_material"],
+                "optional_fields": ["required_materials", "service_material"],
+                "required_evidence": ["service_process"],
+                "required_fields": [
+                    "service_name",
+                    "process_steps",
+                    "source_url",
+                    "source_version_evidence",
+                    "service_process",
+                ],
+                "review_verdict": "pending_review",
+                "selected_write_target": "campus_services/service_guide",
+                "source_ref": {
+                    "raw_asset_id": "owasset_info_procedure",
+                    "raw_version_id": "owver_info_procedure",
+                    "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                },
+                "source_refs": [
+                    {
+                        "raw_asset_id": "owasset_info_procedure",
+                        "raw_version_id": "owver_info_procedure",
+                        "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                    },
+                    {
+                        "raw_asset_id": "owasset_info_material",
+                        "raw_version_id": "owver_info_material",
+                        "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+                    },
+                ],
+                "target_job_id": "owtarget_service_guide",
+                "typed_candidate_schema_version": "official_web_service_guide_candidate.v1",
+            },
+            run_id="owrun_info_disclosure",
+            source_object_keys=[
+                "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+            ],
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+
+        self.assertEqual(task.task_type, "official_web_selected_write_service_guide")
+        self.assertEqual(
+            task.input_ref["sourceUrls"],
+            [
+                "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+            ],
+        )
+        self.assertEqual(
+            task.input_ref["sourceRefs"][1]["raw_asset_id"],
+            "owasset_info_material",
+        )
+
+    def test_selected_write_release_task_identity_changes_when_source_refs_change(self) -> None:
+        old_task = build_selected_write_release_task_from_candidate(
+            _information_disclosure_candidate(
+                source_refs=[
+                    {
+                        "raw_asset_id": "owasset_info_procedure",
+                        "raw_version_id": "owver_info_procedure",
+                        "normalized_canonical_url": ("https://xxgk.muc.edu.cn/info/1007/1113.htm"),
+                    }
+                ]
+            ),
+            run_id="owrun_info_disclosure",
+            source_object_keys=[
+                "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+            ],
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+        new_task = build_selected_write_release_task_from_candidate(
+            _information_disclosure_candidate(
+                source_refs=[
+                    {
+                        "raw_asset_id": "owasset_info_procedure",
+                        "raw_version_id": "owver_info_procedure",
+                        "normalized_canonical_url": ("https://xxgk.muc.edu.cn/info/1007/1113.htm"),
+                    },
+                    {
+                        "raw_asset_id": "owasset_info_material",
+                        "raw_version_id": "owver_info_material",
+                        "normalized_canonical_url": ("https://xxgk.muc.edu.cn/info/1007/1114.htm"),
+                    },
+                ]
+            ),
+            run_id="owrun_info_disclosure",
+            source_object_keys=[
+                "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+            ],
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+
+        self.assertNotEqual(old_task.task_id, new_task.task_id)
+        self.assertEqual(
+            new_task.input_ref["sourceUrls"],
+            [
+                "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+            ],
+        )
+
+    def test_builds_service_guide_release_task_from_supporting_source_urls_when_source_refs_missing(
+        self,
+    ) -> None:
+        task = build_selected_write_release_task_from_candidate(
+            {
+                **_information_disclosure_candidate(source_refs=[]),
+                "typed_candidate": {
+                    "supporting_source_urls": [
+                        "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                        "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+                        "https://xxgk.muc.edu.cn/xxgk/lxfs.htm",
+                    ]
+                },
+            },
+            run_id="owrun_info_disclosure",
+            source_object_keys=[
+                "official_web/muc_public/runs/owrun_info_disclosure/source-truth-bundle.json"
+            ],
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+
+        self.assertEqual(
+            task.input_ref["sourceUrls"],
+            [
+                "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+                "https://xxgk.muc.edu.cn/info/1007/1114.htm",
+                "https://xxgk.muc.edu.cn/xxgk/lxfs.htm",
+            ],
+        )
+
+    def test_builds_academic_calendar_selected_write_release_task(self) -> None:
+        task = build_selected_write_release_task_from_candidate(
+            {
+                "candidate_key": "owcand_academic_calendar_ready",
+                "field_status": {
+                    "academic_year_label": "present",
+                    "term_label": "present",
+                    "date_range": "present",
+                    "calendar_arrangement": "present",
+                    "source_url": "present",
+                    "source_version_evidence": "present",
+                    "holiday_name": "present",
+                    "week_index": "present",
+                    "class_day_pattern": "source_not_provided",
+                },
+                "inventory_id": "muc-public-academic-calendar",
+                "matched_evidence": ["calendar_arrangement"],
+                "normalized_canonical_url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                "ready_for_selected_write": True,
+                "optional_evidence": [],
+                "optional_fields": ["holiday_name", "week_index", "class_day_pattern"],
+                "required_evidence": ["calendar_arrangement"],
+                "required_fields": [
+                    "academic_year_label",
+                    "term_label",
+                    "date_range",
+                    "calendar_arrangement",
+                    "source_url",
+                    "source_version_evidence",
+                ],
+                "review_verdict": "pending_review",
+                "selected_write_target": "calendar/academic_calendar",
+                "source_ref": {
+                    "raw_asset_id": "owasset_calendar",
+                    "raw_version_id": "owver_calendar",
+                    "normalized_canonical_url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                },
+                "target_job_id": "owtarget_academic_calendar",
+                "typed_candidate": {
+                    "academic_year_label": "2025-2026学年",
+                    "term_label": "春季学期",
+                    "date_range": "2026-05-09 至 2026-05-09",
+                    "calendar_arrangement": "2026-05-09 执行周一课表。",
+                    "holiday_name": "",
+                    "week_index": 10,
+                    "class_day_pattern": "执行周一课表",
+                    "records": [
+                        {
+                            "academic_year_label": "2025-2026学年",
+                            "term_label": "春季学期",
+                            "start_date": "2026-05-09",
+                            "end_date": "2026-05-09",
+                            "week_index": 10,
+                            "day_kind": "makeup_class_day",
+                            "class_day_pattern": "执行周一课表",
+                            "is_makeup_class": True,
+                            "holiday_name": "",
+                        }
+                    ],
+                    "source_title": "中央民族大学校历",
+                    "source_url": "https://www.muc.edu.cn/ggfw/mdxl.htm",
+                },
+                "typed_candidate_schema_version": "official_web_academic_calendar_candidate.v1",
+            },
+            run_id="owrun_calendar",
+            source_object_keys=[
+                "official_web/muc_public/runs/owrun_calendar/source-truth-bundle.json"
+            ],
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+
+        self.assertEqual(task.task_type, "official_web_selected_write_academic_calendar")
+        self.assertEqual(task.inventory_id, "muc-public-academic-calendar")
+        self.assertEqual(task.input_ref["fieldStatus"]["calendar_arrangement"], "present")
+        self.assertEqual(task.input_ref["fieldStatus"]["week_index"], "present")
+        self.assertEqual(task.input_ref["requiredEvidence"], ["calendar_arrangement"])
+        self.assertEqual(
+            task.input_ref["optionalFields"],
+            ["holiday_name", "week_index", "class_day_pattern"],
+        )
+
+    def test_admits_ready_selected_write_candidates_from_partial_review(self) -> None:
+        store = InMemoryOfficialWebReleaseTaskStore()
+
+        admitted = admit_selected_write_release_tasks_from_review(
+            release_task_store=store,
+            review_report={
+                "selectedWrite": {
+                    "decision": "partial_dry_run_ready",
+                    "ready_record_count": 1,
+                    "blocked_record_count": 1,
+                },
+                "candidates": [
+                    {
+                        "candidate_key": "owcand_contact_ready",
+                        "field_status": {
+                            "organization_name": "present",
+                            "phone": "present",
+                            "source_url": "present",
+                            "source_version_evidence": "present",
+                        },
+                        "inventory_id": "muc-main-homepage-contact",
+                        "matched_evidence": ["phone"],
+                        "normalized_canonical_url": "https://www.muc.edu.cn/",
+                        "ready_for_selected_write": True,
+                        "required_evidence": ["phone"],
+                        "required_fields": [
+                            "organization_name",
+                            "phone",
+                            "source_url",
+                            "source_version_evidence",
+                        ],
+                        "review_verdict": "pending_review",
+                        "selected_write_target": "campus_services/contact_directory",
+                        "source_ref": {
+                            "raw_asset_id": "owasset_contact",
+                            "raw_version_id": "owver_contact",
+                            "normalized_canonical_url": "https://www.muc.edu.cn/",
+                        },
+                        "target_job_id": "owtarget_contact",
+                        "typed_candidate_schema_version": (
+                            "official_web_contact_directory_candidate.v1"
+                        ),
+                    },
+                    {
+                        "candidate_key": "owcand_contact_blocked",
+                        "field_status": {
+                            "organization_name": "present",
+                            "phone": "missing",
+                            "source_url": "present",
+                            "source_version_evidence": "present",
+                        },
+                        "inventory_id": "muc-no-phone-contact",
+                        "normalized_canonical_url": "https://www.muc.edu.cn/no-phone",
+                        "ready_for_selected_write": False,
+                        "required_fields": [
+                            "organization_name",
+                            "phone",
+                            "source_url",
+                            "source_version_evidence",
+                        ],
+                        "selected_write_target": "campus_services/contact_directory",
+                        "target_job_id": "owtarget_contact_blocked",
+                    },
+                ],
+            },
+            run_id="owrun_contact",
+            source_object_keys=[
+                "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json"
+            ],
+            now=datetime(2026, 5, 2, 8, 0, tzinfo=UTC),
+        )
+
+        self.assertEqual(len(admitted), 1)
+        self.assertEqual(len(store.list_tasks()), 1)
+        self.assertEqual(
+            admitted[0].selected_write_target,
+            "campus_services/contact_directory",
+        )
+        self.assertEqual(admitted[0].inventory_id, "muc-main-homepage-contact")
+
+    def test_rejects_selected_write_release_task_without_field_review(self) -> None:
+        with self.assertRaisesRegex(ValueError, "field_status"):
+            build_selected_write_release_task_from_candidate(
+                {
+                    "candidate_key": "owcand_contact_ready",
+                    "inventory_id": "muc-main-homepage-contact",
+                    "normalized_canonical_url": "https://www.muc.edu.cn/",
+                    "ready_for_selected_write": True,
+                    "selected_write_target": "campus_services/contact_directory",
+                    "source_ref": {
+                        "raw_asset_id": "owasset_contact",
+                        "raw_version_id": "owver_contact",
+                        "normalized_canonical_url": "https://www.muc.edu.cn/",
+                    },
+                    "target_job_id": "owtarget_contact",
+                },
+                run_id="owrun_contact",
+                source_object_keys=[
+                    "official_web/muc_public/runs/owrun_contact/source-truth-bundle.json"
+                ],
+            )
+
+        with self.assertRaisesRegex(ValueError, "stable-reference"):
+            build_stable_reference_release_task_from_gate(
+                {
+                    "decision": "approved",
+                    "evidenceJson": {
+                        "selectedWriteTarget": "campus_services/contact_directory",
+                        "sourceObjectKeys": ["official_web/run/source-truth-bundle.json"],
+                    },
+                    "inventoryId": "muc-contact",
+                    "jobId": "owtarget_contact",
+                    "releaseId": "owrelease_contact",
+                    "runId": "owrun_001",
+                    "status": "approved",
+                }
+            )
+
+
+def _approved_gate() -> dict[str, object]:
+    return {
+        "decision": "approved",
+        "evidenceJson": {
+            "selectedWriteTarget": "official_web/stable_reference",
+            "sourceObjectKeys": ["official_web/muc_public/runs/owrun_001/source-truth-bundle.json"],
+            "sourceUrls": ["https://www.muc.edu.cn/xxgk1/xxjj.htm"],
+        },
+        "inventoryId": "muc-school-introduction-reference",
+        "jobId": "owtarget_school_intro",
+        "publishAlias": False,
+        "releaseId": "owrelease_school_intro",
+        "runId": "owrun_001",
+        "status": "approved",
+    }
+
+
+def _information_disclosure_candidate(*, source_refs: list[dict[str, object]]) -> dict[str, object]:
+    return {
+        "candidate_key": "owcand_information_disclosure_composed",
+        "field_status": {
+            "process_steps": "present",
+            "required_materials": "present",
+            "service_name": "present",
+            "service_process": "present",
+            "service_material": "present",
+            "source_url": "present",
+            "source_version_evidence": "present",
+        },
+        "inventory_id": "muc-information-disclosure-application-process",
+        "matched_evidence": ["service_process", "service_material"],
+        "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+        "ready_for_selected_write": True,
+        "optional_evidence": ["service_material"],
+        "optional_fields": ["required_materials", "service_material"],
+        "required_evidence": ["service_process"],
+        "required_fields": [
+            "service_name",
+            "process_steps",
+            "source_url",
+            "source_version_evidence",
+            "service_process",
+        ],
+        "review_verdict": "pending_review",
+        "selected_write_target": "campus_services/service_guide",
+        "source_ref": {
+            "raw_asset_id": "owasset_info_procedure",
+            "raw_version_id": "owver_info_procedure",
+            "normalized_canonical_url": "https://xxgk.muc.edu.cn/info/1007/1113.htm",
+        },
+        "source_refs": source_refs,
+        "target_job_id": "owtarget_service_guide",
+        "typed_candidate_schema_version": "official_web_service_guide_candidate.v1",
+    }
+
+
+if __name__ == "__main__":
+    unittest.main()

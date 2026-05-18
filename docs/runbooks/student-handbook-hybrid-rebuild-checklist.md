@@ -22,7 +22,7 @@ updated: 2026-04-23
 补充说明：
 
 - live / remote sparse 路径使用 Qdrant cloud inference 执行 `qdrant/bm25`
-- 本地 `:memory:` / mock 路径只保留最小测试 fallback，不代表 live sparse 真相源
+- 本地 `:memory:` / mock 路径只保留最小测试 double，不代表 live sparse 真相源
 
 ## 不在本文负责
 

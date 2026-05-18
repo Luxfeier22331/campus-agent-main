@@ -398,6 +398,35 @@ class CollectedNoticeDownstreamPilotTests(unittest.TestCase):
         self.assertEqual(entry["ocr_priority"], "search_only")
         self.assertFalse(entry["current_eligible"])
 
+    def test_transport_schedule_policy_marks_unresolved_machine_review_without_manual_state(
+        self,
+    ) -> None:
+        unit = _pilot_unit(
+            source_notice_id="355950",
+            title="关于两校区班车安排的通知",
+            published_at="2026-04-20 09:00",
+            multimodal_status="pending",
+            body_text="两校区班车安排见图片。",
+            body_excerpt="两校区班车安排见图片。",
+            search_text="关于两校区班车安排的通知",
+        )
+
+        preview = build_transport_schedule_batch_preview(
+            searchable_notice_preview={"units": [unit]},
+            multimodal_candidate_inventory={
+                "candidates": [{"unit_id": unit["unit_id"], "status": "pending"}]
+            },
+            generated_at="2026-04-29T00:00:00+08:00",
+            transport_baseline_effective_date="2026-03-01",
+        )
+
+        entry = preview.admission_manifest["entries"][0]
+        self.assertEqual(entry["overlay_kind"], "unresolved_machine_review")
+        self.assertEqual(entry["ocr_priority"], "machine_review_required")
+        self.assertIn("machine_review_required", entry["baseline_gate_reason_codes"])
+        self.assertNotEqual(entry["overlay_kind"], "manual_review")
+        self.assertNotEqual(entry["ocr_priority"], "manual_review")
+
     def test_output_files_are_phase_six_pilot_artifacts(self) -> None:
         preview = build_transport_schedule_single_notice_pilot_preview(
             searchable_notice_preview={"units": [_pilot_unit()]},

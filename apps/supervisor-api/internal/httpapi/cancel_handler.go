@@ -44,21 +44,27 @@ func (s *Server) handleCancel(response http.ResponseWriter, request *http.Reques
 	}
 	bridgeCancelStatus := s.propagateBridgeCancel(requestID, strings.TrimSpace(reason))
 	setOutcome(response, "cancel_requested")
-	s.telemetry.Emit(request.Context(), telemetry.Event{
+	if err := s.emitTelemetry(request.Context(), telemetry.Event{
 		Name:               "execution.cancel_requested",
 		RequestID:          result.RequestID,
 		TraceID:            result.TraceID,
 		Outcome:            result.Status,
 		BridgeCancelStatus: bridgeCancelStatus,
-	})
-	s.emitExecutionAudit(request.Context(), executionaudit.Event{
+	}); err != nil {
+		s.writeTelemetryFailure(response, result.RequestID, result.TraceID)
+		return
+	}
+	if err := s.emitExecutionAudit(request.Context(), executionaudit.Event{
 		EventType:          "execution.cancel_requested",
 		HTTPStatus:         http.StatusAccepted,
 		RequestID:          result.RequestID,
 		Retryable:          false,
 		TraceID:            result.TraceID,
 		BridgeCancelStatus: bridgeCancelStatus,
-	})
+	}); err != nil {
+		s.writeExecutionAuditFailure(response, result.RequestID, result.TraceID)
+		return
+	}
 	writeJSON(response, http.StatusAccepted, map[string]any{
 		"request_id":           result.RequestID,
 		"trace_id":             result.TraceID,

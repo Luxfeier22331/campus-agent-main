@@ -46,6 +46,11 @@ export function extractRecoveryBlockCandidates(input: {
 	const seenDomPaths = new Set<string>();
 
 	for (const container of containers) {
+		const directTextBlocks = extractDirectTextRecoveryBlocks($, container);
+		for (const block of directTextBlocks) {
+			candidates.push(block);
+		}
+
 		const selector = isListingLikeRecoveryContainer(container)
 			? "a,div,span,time"
 			: "h1,h2,h3,h4,h5,h6,p,li,dt,dd,div,section,article,span,time,a";
@@ -111,6 +116,71 @@ export function extractRecoveryBlockCandidates(input: {
 	}
 
 	return candidates;
+}
+
+function extractDirectTextRecoveryBlocks(
+	$: HtmlDomApi,
+	container: VisibleContentContainerStats,
+): ExtractedBlockCandidate[] {
+	if (isListingLikeRecoveryContainer(container)) {
+		return [];
+	}
+
+	const parts = splitContainerDirectText($, container.element);
+	return parts.map((text, index) => ({
+		blockRole: "paragraph",
+		headingLevel: null,
+		domPath: `${buildDomPath($, container.element) ?? "container"}::text[${index + 1}]`,
+		parentHeadingPath: [],
+		listLevel: null,
+		tableId: null,
+		tableRowIndex: null,
+		tableColIndex: null,
+		textRaw: text,
+		textNormalized: text,
+		htmlFragment: null,
+		linkTarget: null,
+		linkText: null,
+		tableHtml: null,
+		tableCells: null,
+		isNavigation: false,
+		isBoilerplate: false,
+		isMainContent: true,
+		mainContentScore: 0.88,
+		titleCandidateScore: 0,
+		sectionHint: null,
+		classificationConfidence: 0.82,
+		classificationReason: "visible_content_recovery",
+		parentHeadingHint: null,
+	}));
+}
+
+function splitContainerDirectText($: HtmlDomApi, element: HtmlDomNode): string[] {
+	const parts: string[] = [];
+	let buffer: string[] = [];
+
+	const flush = () => {
+		const text = normalizeText(buffer.join(" "));
+		buffer = [];
+		if (text != null && text.length >= 4) {
+			parts.push(text);
+		}
+	};
+
+	for (const child of $(element).contents().toArray() as HtmlDomNode[]) {
+		const nodeType = String((child as { type?: unknown }).type ?? "");
+		if (nodeType === "text") {
+			buffer.push(String((child as { data?: unknown }).data ?? ""));
+			continue;
+		}
+		if (getDomTagName(child) === "br") {
+			flush();
+			continue;
+		}
+		flush();
+	}
+	flush();
+	return parts;
 }
 
 export function looksLikeDynamicShell(responseBody: string): boolean {

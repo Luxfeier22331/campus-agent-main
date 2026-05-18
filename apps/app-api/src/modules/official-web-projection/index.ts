@@ -11,6 +11,7 @@ export {
 	type OfficialWebRunProjectionSource,
 	type OfficialWebSiteProjectionMaterialization,
 	type OfficialWebSiteProjectionSource,
+	type OfficialWebTargetArtifactVerificationSummaryWrite,
 	toOfficialWebRunProjectionMaterialization,
 	toOfficialWebSiteProjectionMaterialization,
 } from "./service";

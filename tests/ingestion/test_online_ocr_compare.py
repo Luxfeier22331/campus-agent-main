@@ -477,8 +477,9 @@ class OnlineOcrCompareTest(unittest.TestCase):
                 comparison["baseline"]["structure_signals"]["html_tag_count"],
                 comparison["candidate"]["structure_signals"]["html_tag_count"],
             )
-            self.assertEqual(comparison["adjudication"]["winner"], "manual_review")
-            self.assertTrue(comparison["adjudication"]["manual_review_required"])
+            self.assertEqual(comparison["adjudication"]["winner"], "machine_review_required")
+            self.assertTrue(comparison["adjudication"]["machine_review_required"])
+            self.assertNotIn("manual_review_required", comparison["adjudication"])
             self.assertEqual(
                 comparison["adjudication"]["reason_codes"],
                 [

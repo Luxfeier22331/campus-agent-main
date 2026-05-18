@@ -1,0 +1,45 @@
+{
+	"schema_version": "rag-eval-maturity-backlog-v1",
+	"owner": "eval",
+	"posture": "manual_authoring_backlog",
+	"surfaces": {
+		"regulations/student_rules": {
+			"current_qrels_case_count": 52,
+			"current_release_acceptance_case_count": 25,
+			"current_unique_expected_doc_count": 46,
+			"target_qrels_case_count": 52,
+			"target_release_acceptance_case_count": 25,
+			"target_unique_expected_doc_count": 46,
+			"case_types": [
+				"policy_title_exact_match",
+				"article_or_clause_reference",
+				"service_process_question",
+				"similar_policy_hard_negative",
+				"historical_version_or_current_only",
+				"unsupported_policy_no_hit",
+				"citation_backlink_integrity"
+			],
+			"notes": "扩编时必须绑定 split-manifest 文档与版本，不从模型输出直接生成 accepted qrels truth。"
+		},
+		"curriculum/curriculum_plan": {
+			"current_qrels_case_count": 60,
+			"current_release_acceptance_case_count": 30,
+			"current_unique_expected_doc_count": 49,
+			"target_qrels_case_count": 60,
+			"target_release_acceptance_case_count": 30,
+			"target_unique_expected_doc_count": 45,
+			"case_types": [
+				"program_title_exact_match",
+				"program_variant_disambiguation",
+				"strong_base_minzu_experimental_class_negative",
+				"academic_years_and_credit_fact",
+				"semester_course_table",
+				"course_family_query",
+				"program_family_disambiguation",
+				"soft_personalization_negative",
+				"unsupported_course_map_no_hit"
+			],
+			"notes": "扩编时必须绑定 split-manifest 文档、course facts 或明确 fail-close truth，不用软个性化静默消解家族别名。"
+		}
+	}
+}

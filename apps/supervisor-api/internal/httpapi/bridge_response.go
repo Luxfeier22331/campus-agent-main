@@ -4,19 +4,70 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"net/http"
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/bridge"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/executionaudit"
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/lifecycle"
+	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/telemetry"
 )
 
-func (s *Server) emitExecutionAudit(ctx context.Context, event executionaudit.Event) {
-	if s.executionAudit == nil {
-		return
+func (s *Server) emitTelemetry(ctx context.Context, event telemetry.Event) error {
+	if s.telemetry == nil {
+		return nil
 	}
-	s.executionAudit.Emit(ctx, event)
+	if err := s.telemetry.Emit(ctx, event); err != nil {
+		return fmt.Errorf("telemetry delivery failed: %w", err)
+	}
+	return nil
+}
+
+func (s *Server) writeTelemetryFailure(
+	response http.ResponseWriter,
+	requestID string,
+	traceID string,
+) {
+	setOutcome(response, "telemetry_delivery_failed")
+	writeRuntimeFailure(
+		response,
+		http.StatusServiceUnavailable,
+		"telemetry_delivery_failed",
+		"Supervisor telemetry delivery failed.",
+		true,
+		requestID,
+		traceID,
+		"telemetry_delivery_failed",
+	)
+}
+
+func (s *Server) emitExecutionAudit(ctx context.Context, event executionaudit.Event) error {
+	if s.executionAudit == nil {
+		return nil
+	}
+	if err := s.executionAudit.Emit(ctx, event); err != nil {
+		return fmt.Errorf("execution audit delivery failed: %w", err)
+	}
+	return nil
+}
+
+func (s *Server) writeExecutionAuditFailure(
+	response http.ResponseWriter,
+	requestID string,
+	traceID string,
+) {
+	setOutcome(response, "execution_audit_delivery_failed")
+	writeRuntimeFailure(
+		response,
+		http.StatusServiceUnavailable,
+		"execution_audit_delivery_failed",
+		"Supervisor execution audit delivery failed.",
+		true,
+		requestID,
+		traceID,
+		"execution_audit_delivery_failed",
+	)
 }
 
 func (s *Server) bridgeExecutionError(
@@ -80,26 +131,28 @@ func auditEventTypeForBridgeFailure(state lifecycle.State) string {
 	}
 }
 
-func (s *Server) writeBridgeResponse(
-	response http.ResponseWriter,
+type preparedBridgeResponse struct {
+	Body       []byte
+	Outcome    bridgeWriteOutcome
+	StatusCode int
+}
+
+func (s *Server) prepareBridgeResponse(
 	bridgeResponse bridge.ExecuteResponse,
 	executionRequest execution.AnswerExecutionRequest,
 	runState bridgeExecutionRunState,
 	workflowRuns ...*execution.WorkflowRun,
-) bridgeWriteOutcome {
+) preparedBridgeResponse {
 	if !validBridgeResponseEnvelope(bridgeResponse) {
-		return s.writeInvalidBridgeResponse(
-			response,
+		return s.invalidBridgePreparedResponse(
 			"Supervisor Python bridge returned an invalid response envelope.",
 		)
 	}
 	switch bridgeResponse.Kind {
 	case "agent_response":
-		setOutcome(response, "supervisor_response")
 		body, err := decodeJSONObject(bridgeResponse.Body)
 		if err != nil {
-			return s.writeInvalidBridgeResponse(
-				response,
+			return s.invalidBridgePreparedResponse(
 				"Supervisor Python bridge returned an invalid response body.",
 			)
 		}
@@ -112,33 +165,32 @@ func (s *Server) writeBridgeResponse(
 			),
 		)
 		if err != nil {
-			return s.writeInvalidBridgeResponse(
-				response,
+			return s.invalidBridgePreparedResponse(
 				"Supervisor Python bridge returned an invalid agent response.",
 			)
 		}
 		rawSupervisorResponse, err := json.Marshal(supervisorResponse)
 		if err != nil {
-			return s.writeInvalidBridgeResponse(
-				response,
+			return s.invalidBridgePreparedResponse(
 				"Supervisor Python bridge response could not be finalized.",
 			)
 		}
 		s.metrics.RecordBridgeSuccess()
-		writeRawJSON(response, bridgeResponse.StatusCode, rawSupervisorResponse)
-		return bridgeWriteOutcome{
-			State:          lifecycle.StateCompleted,
-			Outcome:        "supervisor_response",
-			StatusCode:     bridgeResponse.StatusCode,
-			CircuitSuccess: true,
+		return preparedBridgeResponse{
+			Body:       rawSupervisorResponse,
+			StatusCode: bridgeResponse.StatusCode,
+			Outcome: bridgeWriteOutcome{
+				State:          lifecycle.StateCompleted,
+				Outcome:        "supervisor_response",
+				StatusCode:     bridgeResponse.StatusCode,
+				CircuitSuccess: true,
+			},
 		}
 	case "supervisor_error":
 		if bridgeErrorCode(bridgeResponse.Body) == "execution_cancelled" {
-			setOutcome(response, "execution_cancelled")
 			body, err := normalizeJSONObjectJSON(bridgeResponse.Body)
 			if err != nil {
-				return s.writeInvalidBridgeResponse(
-					response,
+				return s.invalidBridgePreparedResponse(
 					"Supervisor Python bridge returned an invalid response body.",
 				)
 			}
@@ -146,52 +198,74 @@ func (s *Server) writeBridgeResponse(
 			if statusCode <= 0 {
 				statusCode = statusClientClosedRequest
 			}
-			writeRawJSON(response, statusCode, body)
-			return bridgeWriteOutcome{
-				State:          lifecycle.StateCanceled,
-				Outcome:        "execution_cancelled",
-				StatusCode:     statusCode,
-				CircuitSuccess: true,
+			return preparedBridgeResponse{
+				Body:       body,
+				StatusCode: statusCode,
+				Outcome: bridgeWriteOutcome{
+					State:          lifecycle.StateCanceled,
+					Outcome:        "execution_cancelled",
+					StatusCode:     statusCode,
+					CircuitSuccess: true,
+				},
 			}
 		}
-		setOutcome(response, "supervisor_error")
 		body, err := normalizeJSONObjectJSON(bridgeResponse.Body)
 		if err != nil {
-			return s.writeInvalidBridgeResponse(
-				response,
+			return s.invalidBridgePreparedResponse(
 				"Supervisor Python bridge returned an invalid response body.",
 			)
 		}
-		writeRawJSON(response, bridgeResponse.StatusCode, body)
-		return bridgeWriteOutcome{
-			State:          lifecycle.StateFailed,
-			Outcome:        "supervisor_error",
-			FailureKind:    "supervisor_error",
-			StatusCode:     bridgeResponse.StatusCode,
-			CircuitSuccess: true,
+		return preparedBridgeResponse{
+			Body:       body,
+			StatusCode: bridgeResponse.StatusCode,
+			Outcome: bridgeWriteOutcome{
+				State:          lifecycle.StateFailed,
+				Outcome:        "supervisor_error",
+				FailureKind:    "supervisor_error",
+				StatusCode:     bridgeResponse.StatusCode,
+				CircuitSuccess: true,
+			},
 		}
 	case "bridge_invalid_request":
-		setOutcome(response, "supervisor_bridge_invalid_request")
-		writeError(
-			response,
-			http.StatusBadGateway,
-			"supervisor_bridge_invalid_request",
-			"Supervisor Python bridge rejected the projected request payload.",
-			false,
-		)
-		return bridgeWriteOutcome{
-			State:          lifecycle.StateFailed,
-			Outcome:        "supervisor_bridge_invalid_request",
-			FailureKind:    "invalid_request",
-			StatusCode:     http.StatusBadGateway,
-			CircuitSuccess: true,
+		return preparedBridgeResponse{
+			Body: mustMarshalErrorBody(
+				"supervisor_bridge_invalid_request",
+				"Supervisor Python bridge rejected the projected request payload.",
+				false,
+			),
+			StatusCode: http.StatusBadGateway,
+			Outcome: bridgeWriteOutcome{
+				State:          lifecycle.StateFailed,
+				Outcome:        "supervisor_bridge_invalid_request",
+				FailureKind:    "invalid_request",
+				StatusCode:     http.StatusBadGateway,
+				CircuitSuccess: true,
+			},
 		}
 	default:
-		return s.writeInvalidBridgeResponse(
-			response,
+		return s.invalidBridgePreparedResponse(
 			"Supervisor Python bridge returned an invalid response envelope.",
 		)
 	}
+}
+
+func writePreparedBridgeResponse(response http.ResponseWriter, prepared preparedBridgeResponse) {
+	setOutcome(response, prepared.Outcome.Outcome)
+	writeRawJSON(response, prepared.StatusCode, prepared.Body)
+}
+
+func mustMarshalErrorBody(code string, message string, retryable bool) []byte {
+	body, err := json.Marshal(map[string]any{
+		"error": errorInfo{
+			Code:      code,
+			Message:   message,
+			Retryable: retryable,
+		},
+	})
+	if err != nil {
+		panic(err)
+	}
+	return body
 }
 
 func validBridgeResponseEnvelope(bridgeResponse bridge.ExecuteResponse) bool {
@@ -207,24 +281,23 @@ func validBridgeResponseEnvelope(bridgeResponse bridge.ExecuteResponse) bool {
 	}
 }
 
-func (s *Server) writeInvalidBridgeResponse(
-	response http.ResponseWriter,
+func (s *Server) invalidBridgePreparedResponse(
 	message string,
-) bridgeWriteOutcome {
+) preparedBridgeResponse {
 	s.metrics.RecordBridgeFailure("invalid_response")
-	setOutcome(response, "supervisor_bridge_invalid_response")
-	writeError(
-		response,
-		http.StatusBadGateway,
-		"supervisor_bridge_invalid_response",
-		message,
-		true,
-	)
-	return bridgeWriteOutcome{
-		State:          lifecycle.StateFailed,
-		Outcome:        "supervisor_bridge_invalid_response",
-		FailureKind:    "invalid_response",
-		StatusCode:     http.StatusBadGateway,
-		CircuitFailure: true,
+	return preparedBridgeResponse{
+		Body: mustMarshalErrorBody(
+			"supervisor_bridge_invalid_response",
+			message,
+			true,
+		),
+		StatusCode: http.StatusBadGateway,
+		Outcome: bridgeWriteOutcome{
+			State:          lifecycle.StateFailed,
+			Outcome:        "supervisor_bridge_invalid_response",
+			FailureKind:    "invalid_response",
+			StatusCode:     http.StatusBadGateway,
+			CircuitFailure: true,
+		},
 	}
 }

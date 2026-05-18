@@ -41,6 +41,25 @@ class ProjectWeChatPublicNoticesWorkerCliTest(unittest.TestCase):
 
         rebuild.assert_not_called()
 
+    def test_capture_ledger_database_url_rejects_projection_admission_and_registry_urls(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "WECHAT_OFFICIAL_ACCOUNT_CAPTURE_LEDGER_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            worker._capture_ledger_database_url(
+                {
+                    "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL": (
+                        "postgresql://projection.example/postgres"
+                    ),
+                    "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL": (
+                        "postgresql://admission.example/postgres"
+                    ),
+                    "DOCUMENT_REGISTRY_DATABASE_URL": ("postgresql://registry.example/postgres"),
+                }
+            )
+
     def test_main_projects_explicit_manifest_refs_and_records_admission(self) -> None:
         report = WeChatPublicNoticeProjectionBuildReport(
             projection_entries=(_projection_entry("woa_article_alpha"),),

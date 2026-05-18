@@ -222,6 +222,7 @@ Optional CLI args:
 - `--limit`
 - `--force`
 - `--promote`
+- `--admit-release-tasks`
 - `--declarations-path`
 
 Command override example:
@@ -250,10 +251,81 @@ Behavior:
 - Calls back into `app-api` `POST
   /api/internal/official-web/runs/:runId/ingestion-execution` when the optional
   callback env is configured
+- When `--admit-release-tasks` is set, converts ready selected-write candidate
+  reviews into ingestion-owned release task rows. Without that flag it only
+  reports `releaseTasks.disabledReason=release_task_store_not_configured`.
 - Updates each inbox record with `processingStatus`, `processingAttemptCount`,
   `processedAt`, `lastError`, `executionReportPath`, `projectionOutputDir`, and
   `replayInputDir`
 - `processingStatus` now distinguishes `staged`, `promoted`, and `failed`
+
+### `campus-ingestion-admit-official-web-release-gate`
+
+Admits an approved `official_web/stable_reference` release gate into the
+ingestion-owned release task store.
+
+Required env:
+
+- `OFFICIAL_WEB_RELEASE_TASK_DATABASE_URL` or `CAMPUS_SHARED_POSTGRES_URL`
+
+Required CLI args:
+
+- `--release-gate-path`
+
+Behavior:
+
+- Fails closed unless the gate is approved and targets
+  `official_web/stable_reference`
+- Creates an idempotent queued `official_web_stable_reference` task
+- Does not execute the task and does not call app-api
+
+### `campus-ingestion-run-official-web-release-task`
+
+Claims and executes one queued ingestion-owned `official_web` release task.
+
+Required env:
+
+- `OBJECT_STORE_ENDPOINT`
+- `OBJECT_STORE_ACCESS_KEY`
+- `OBJECT_STORE_SECRET_KEY`
+- `OFFICIAL_WEB_RELEASE_TASK_DATABASE_URL` or `CAMPUS_SHARED_POSTGRES_URL`
+- `OFFICIAL_WEB_RELEASE_TASK_OPERATOR_DATABASE_URL` or operator shared DB env
+- `INGESTION_WORKER_APP_API_BASE_URL`
+- `INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET`
+
+Local dev:
+
+- set explicit `INGESTION_WORKER_APP_API_*` values for the local `app-api`
+  callback; `APP_API_INTERNAL_SHARED_SECRET` is not promoted into worker
+  callback env
+
+Optional CLI args:
+
+- `--worker-id`
+- `--lease-seconds`
+- `--work-dir`
+- `--task-type`
+- `--declarations-path`
+- `--reset-index`
+
+Behavior:
+
+- Claims one queued task via the release task state machine
+- Dispatches stable-reference tasks to `release_official_web_target`
+- Dispatches selected-write tasks to `release_official_web_selected_write`
+- Marks materialized / indexed / published / failed state in the task store
+- Fails closed unless the app-api operator projection callback env is
+  configured
+- Reports redacted operator snapshots to app-api as part of the canonical
+  release-task execution path
+
+Local integration smoke:
+
+```bash
+uv run --all-packages python -m scripts.official_web_release_task_local_smoke \
+  --app-api-base-url http://127.0.0.1:27031 \
+  --app-api-internal-shared-secret "$INGESTION_WORKER_APP_API_INTERNAL_SHARED_SECRET"
+```
 
 ### `campus-ingestion-import-official-web-projection`
 
@@ -329,7 +401,7 @@ Behavior:
 - Inventories historical inbox records against source-bucket
   `source-truth-bundle.json` availability
 - Reuses recoverable local collector outputs instead of introducing worker-local
-  `/tmp` fallback into runtime execution
+  `/tmp` recovery paths into runtime execution
 - Uploads canonical run artifacts under `official_web/{siteId}/runs/{runId}/...`
 - Uploads canonical source assets under
   `official_web/{rawAssetId}/undated/{rawVersionId}/...`
@@ -465,7 +537,8 @@ Behavior:
 - Optional `OCR_MINERU_*` settings enable a second provider only for
   `RAW_INGESTION_ARTIFACT_MODE=source_truth_only` conditional routing. Current
   repo truth is:
-  - typed PDF: `MinerU primary -> Paddle fallback`
+  - typed PDF: MinerU primary; Paddle is only an explicit secondary lane when
+    the typed routing contract requests it
   - `generic_image`: dual-run Paddle + MinerU, refine raw asset type, then
     choose canonical provider
   - refined `simple_table_image`: Paddle primary
@@ -1007,6 +1080,63 @@ signal; it does not open query-serving by default.
 Dry-run / plan mode must not write object store, registry, projection, read
 model, current pointer, or admission lifecycle state.
 
+### Authenticated Notice Ingest Queue
+
+Authenticated notice queue automation uses a run-level parent job and
+consumer-owned child task evidence.
+
+Primary commands:
+
+- `campus-ingestion-enqueue-authenticated-notice-collector-run`
+- `campus-ingestion-consume-authenticated-notice-ingest-queue`
+- `campus-ingestion-smoke-authenticated-notice-ingest-queue-e2e`
+
+The parent queue payload remains `authenticated_notice_ingest_job.v1`; it only
+identifies a verified collector run and object refs. It must not carry body text,
+HTML, OCR payloads, attachment bytes, local paths, projection rows, or read-model
+rows.
+
+The queue consumer emits child task evidence under its operations directory:
+
+- `source_unit_import`
+- `media_candidate_evaluation`
+- `ocr_table_extraction`
+- `multimodal_enrichment`
+- `fact_readiness_evaluation`
+- `target_admission`
+- `downstream_materialization`
+- `cleanup_evaluation`
+- `smoke_assertion`
+
+Child task states are `pending`, `running`, `completed`, `skipped`,
+`failed_retryable`, `failed_terminal`, `manual_review`, and `cancelled`.
+Operator summaries include counts by child task kind, state, processor profile,
+highest severity, and the blocked task reason code.
+
+Processor profile rules:
+
+- `text_notice` consumes body facts first and does not choose multimodal first.
+- `image_schedule_notice` uses OCR/table extraction before generic multimodal.
+- `attachment_owner_text_notice` starts from object-backed owner text.
+- `mixed_notice` handles body/media/attachment facts with explicit escalation.
+
+For schedule/table image facts such as notice `355867`, OCR/table extraction is
+the default first processor. Generic multimodal is only an explicit escalation
+when OCR is low-confidence, extracts no valid rows, lacks route/date context, or
+the media is semantic image content rather than table-shaped OCR content.
+
+Captured-content smoke can enforce this contract:
+
+```bash
+uv run --all-packages \
+  campus-ingestion-smoke-authenticated-notice-ingest-queue-e2e \
+  --run-id muc_internal_portal:notice:20260402T235919838Z \
+  --site-id muc_internal_portal \
+  --source-home-url https://my.muc.edu.cn/page/11 \
+  --sample-id 355867 \
+  --require-child-task-contract
+```
+
 ### `campus-ingestion-admit-schedule-image-ocr-results`
 
 Admits reviewed schedule-image OCR dry-run results into source/derived
@@ -1150,7 +1280,8 @@ Behavior:
   smoke releases to the PG release catalog and typed read-model tables.
 - Verifies that each collection's current pointer resolves to the smoke release.
 - Intended for local `open_structured` runtime smoke and deployment readiness
-  checks. It requires a real PG URL and does not create file fallback fixtures.
+  checks. It requires a real PG URL and does not create file-based projection
+  fixtures.
 
 ### `migrate_student_handbook_source_faithful`
 

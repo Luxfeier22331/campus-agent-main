@@ -10,7 +10,6 @@ from tests.agent.rag_agent_test_support import (
     RagRequestPayload,
     RestrictedDocumentAccessDeniedError,
     _make_evidence,
-    _resolved_scope_diagnostics,
     delegate_to_rag_agent,
     derive_confidence,
     unittest,
@@ -51,18 +50,16 @@ class RagAgentCurriculumStructuredLookupAccessTest(unittest.TestCase):
         )
         self.assertEqual(response.status, "no_answer")
         self.assertIn(target_title, response.answer_text)
-        self.assertEqual(
-            response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="regulations",
-                collection="student_rules",
-                resolved_policy_document_id=target_doc_id,
-                resolved_policy_title=target_title,
-                rewritten_query=retriever_call["query_text"],
-                no_answer_reason="resolved_policy_clause_not_found",
-                semantic_outcome="unsupported_by_evidence",
-            ),
-        )
+        diagnostics = response.result.diagnostics
+        self.assertEqual(diagnostics.resolved_scope_corpus, "regulations")
+        self.assertEqual(diagnostics.resolved_scope_collection, "student_rules")
+        self.assertEqual(diagnostics.resolved_policy_document_id, target_doc_id)
+        self.assertEqual(diagnostics.resolved_policy_title, target_title)
+        self.assertEqual(diagnostics.rewritten_query, retriever_call["query_text"])
+        self.assertEqual(diagnostics.no_answer_reason, "resolved_policy_clause_not_found")
+        self.assertEqual(diagnostics.semantic_outcome, "unsupported_by_evidence")
+        self.assertEqual(diagnostics.retrieval_adequacy_verdict, "insufficient")
+        self.assertTrue(diagnostics.stage_activities)
 
     def test_handbook_resolved_policy_with_unsupported_clause_evidence_fail_closes(self) -> None:
         target_doc_id = "handbook:55f7a1b27590bdc59c099f37d84cfa097356ce15"

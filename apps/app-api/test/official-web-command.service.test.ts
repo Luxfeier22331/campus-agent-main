@@ -341,6 +341,13 @@ describe("official web command service", () => {
 						objectKey: "official_web/www_muc_edu_cn/runs/owrun_01HQ/url-results.jsonl",
 						recordCount: 390,
 					},
+					{
+						artifactType: "dynamic_shell_discovery_audit",
+						contentSha256: "dyn789",
+						objectKey:
+							"official_web/www_muc_edu_cn/runs/owrun_01HQ/dynamic-shell-discovery-audit.jsonl",
+						recordCount: 2,
+					},
 				],
 				finishedAt: "2026-03-29T08:17:32.000Z",
 				pageObservations: [
@@ -363,6 +370,10 @@ describe("official web command service", () => {
 						rawVersionId: "rawv_01",
 						requestedUrl: "https://www.muc.edu.cn/admissions",
 						responseBodyHash: "body-1",
+						targetCandidateId: "owcand_contact",
+						targetDeclarationVersion: "muc_public_target_source_map_v2",
+						targetId: "campus-services-contact-directory",
+						targetJobId: "owtarget_contact",
 					},
 				],
 				summary: {
@@ -392,6 +403,13 @@ describe("official web command service", () => {
 					eventId: "owevt_completed_01HQ",
 					eventType: "official_web.run.completed_with_errors",
 					payload: expect.objectContaining({
+						artifacts: expect.arrayContaining([
+							expect.objectContaining({
+								artifactType: "dynamic_shell_discovery_audit",
+								objectKey:
+									"official_web/www_muc_edu_cn/runs/owrun_01HQ/dynamic-shell-discovery-audit.jsonl",
+							}),
+						]),
 						pageChangeSummary: {
 							changedPages: 0,
 							deletedPages: 0,
@@ -407,6 +425,10 @@ describe("official web command service", () => {
 						changeStatus: "new",
 						normalizedCanonicalUrl: "https://www.muc.edu.cn/admissions",
 						runIntent: "baseline",
+						targetCandidateId: "owcand_contact",
+						targetDeclarationVersion: "muc_public_target_source_map_v2",
+						targetId: "campus-services-contact-directory",
+						targetJobId: "owtarget_contact",
 					}),
 				],
 				run: expect.objectContaining({

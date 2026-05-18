@@ -88,6 +88,7 @@ const env = {
 	APP_API_OPERATOR_EMAIL_ALLOWLIST: "ops@example.com",
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST: "muc.edu.cn",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
 	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
 	SUPERVISOR_API_SHARED_SECRET: "shared-secret",

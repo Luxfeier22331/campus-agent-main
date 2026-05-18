@@ -27,12 +27,7 @@ export function buildLocalCollectionRenameBackfillRuntime(
 		APP_API_ENVIRONMENT: readOptionalString(sourceEnv, "APP_API_ENVIRONMENT") as
 			| Env["APP_API_ENVIRONMENT"]
 			| undefined,
-		APP_API_OPERATOR_DATABASE_URL:
-			readOptionalString(sourceEnv, "APP_API_OPERATOR_DATABASE_URL") ||
-			readOptionalString(sourceEnv, "APP_API_MANAGEMENT_DATABASE_URL"),
-		APP_API_MANAGEMENT_DATABASE_URL:
-			readOptionalString(sourceEnv, "APP_API_OPERATOR_DATABASE_URL") ||
-			readOptionalString(sourceEnv, "APP_API_MANAGEMENT_DATABASE_URL"),
+		APP_API_OPERATOR_DATABASE_URL: readOptionalString(sourceEnv, "APP_API_OPERATOR_DATABASE_URL"),
 	};
 	const operatorClientConfig = buildOperatorDatabaseConfig(baseEnv);
 	const runtimeConnectionString =

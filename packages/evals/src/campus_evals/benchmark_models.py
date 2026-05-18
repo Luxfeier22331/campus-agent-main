@@ -38,6 +38,12 @@ ALLOWED_HYBRID_QUERY_SCOPE_KEYS = (
     "visibility_scope",
 )
 FixtureValidationSeverity = Literal["warn", "error"]
+HybridQueryExpectedStatus = Literal["completed", "needs_clarification", "no_answer"]
+ALLOWED_HYBRID_QUERY_EXPECTED_STATUSES = (
+    "completed",
+    "needs_clarification",
+    "no_answer",
+)
 
 
 @dataclass(frozen=True, slots=True)
@@ -46,6 +52,7 @@ class RetrievalHybridQueryCase:
     category: HybridQueryCategory
     query: str
     scope: dict[str, object] = field(default_factory=dict)
+    expected_status: HybridQueryExpectedStatus = "completed"
     expected_keywords: tuple[str, ...] = field(default_factory=tuple)
     forbidden_doc_ids: tuple[str, ...] = field(default_factory=tuple)
     notes: str = ""
@@ -57,6 +64,8 @@ class RetrievalHybridQueryCase:
             raise ValueError("case_id must not be empty")
         if not self.query.strip():
             raise ValueError("query must not be empty")
+        if self.expected_status not in ALLOWED_HYBRID_QUERY_EXPECTED_STATUSES:
+            raise ValueError(f"unsupported hybrid query expected_status: {self.expected_status}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -89,6 +98,7 @@ class RetrievalQrelsCase:
     query: str
     scope: KnowledgeScope
     request_overrides: dict[str, object] = field(default_factory=dict)
+    supplemental_metric_overrides: dict[str, bool] = field(default_factory=dict)
     expected_sources: tuple[RetrievalQrelsSourceRef, ...] = field(default_factory=tuple)
     forbidden_sources: tuple[RetrievalQrelsSourceRef, ...] = field(default_factory=tuple)
     notes: str = ""
@@ -100,6 +110,15 @@ class RetrievalQrelsCase:
             raise ValueError("case_id must not be empty")
         if not self.query.strip():
             raise ValueError("query must not be empty")
+        invalid_metric_keys = [
+            key
+            for key, value in self.supplemental_metric_overrides.items()
+            if not str(key).strip() or not isinstance(value, bool)
+        ]
+        if invalid_metric_keys:
+            raise ValueError(
+                "supplemental_metric_overrides must map non-empty metric names to bool values"
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -108,6 +127,7 @@ class RetrievalQrelsDataset:
     scope: KnowledgeScope
     baseline: dict[str, object]
     cases: tuple[RetrievalQrelsCase, ...]
+    coverage_scenarios: dict[str, tuple[str, ...]] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)
@@ -173,9 +193,11 @@ def _optional_string(value: object) -> str | None:
 
 __all__ = [
     "ALLOWED_HYBRID_QUERY_CATEGORIES",
+    "ALLOWED_HYBRID_QUERY_EXPECTED_STATUSES",
     "ALLOWED_HYBRID_QUERY_SCOPE_KEYS",
     "FixtureValidationSeverity",
     "HybridQueryCategory",
+    "HybridQueryExpectedStatus",
     "RetrievalBenchmarkRun",
     "RetrievalCaseMetrics",
     "RetrievalHybridQueryCase",

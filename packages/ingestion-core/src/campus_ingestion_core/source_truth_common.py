@@ -363,7 +363,7 @@ def build_position_preserving_table_rows(
     *,
     html: str | None = None,
     table_cells: object = None,
-    fallback_text: str | None = None,
+    pipe_delimited_text: str | None = None,
 ) -> tuple[tuple[str, ...], ...]:
     if isinstance(table_cells, list) and table_cells:
         if all(isinstance(cell, dict) for cell in table_cells):
@@ -382,8 +382,8 @@ def build_position_preserving_table_rows(
             dense_rows = _build_dense_rows_from_cell_records(html_cells)
             if dense_rows:
                 return dense_rows
-    if fallback_text:
-        return _extract_pipe_delimited_rows(fallback_text)
+    if pipe_delimited_text:
+        return _extract_pipe_delimited_rows(pipe_delimited_text)
     return ()
 
 

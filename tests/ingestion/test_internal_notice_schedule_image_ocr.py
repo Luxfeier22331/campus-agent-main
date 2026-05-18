@@ -14,7 +14,6 @@ from campus_ingestion_core.internal_notice_schedule_image_ocr import (
     ScheduleImageOcrAdmissionDecision,
     ScheduleImageOcrAttempt,
     ScheduleImageOcrChildDocument,
-    ScheduleImageOcrEvidence,
     ScheduleImageOcrProviderRequest,
     ScheduleImageOcrProviderResult,
     admit_schedule_image_ocr_child_document,
@@ -26,6 +25,15 @@ from campus_ingestion_core.internal_notice_schedule_image_ocr import (
     summarize_schedule_image_ocr_notice_review,
     write_schedule_image_ocr_child_document_artifacts,
     write_schedule_image_ocr_source_artifacts,
+)
+
+from tests.ingestion.internal_notice_schedule_image_ocr_test_support import (
+    _evidence,
+    _FakeConnectionContextManager,
+    _FakeHttpClient,
+    _FakeOcrProvider,
+    _NoWriteObjectStore,
+    _PagedCursor,
 )
 
 
@@ -177,6 +185,31 @@ class InternalNoticeScheduleImageOcrTest(unittest.TestCase):
                 ),
             ),
         )
+
+    def test_chat_provider_from_env_requires_schedule_specific_credentials(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY is required",
+        ):
+            ChatCompletionsScheduleImageOcrProvider.from_env(
+                {
+                    "PROMPT_RUNTIME_API_KEY": "shared-key",
+                    "PROMPT_RUNTIME_MODEL": "gpt-shared",
+                    "PROMPT_RUNTIME_BASE_URL": "https://shared.example/v1",
+                }
+            )
+
+    def test_chat_provider_from_env_requires_schedule_specific_model(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL is required",
+        ):
+            ChatCompletionsScheduleImageOcrProvider.from_env(
+                {
+                    "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY": "test-key",
+                    "INTERNAL_NOTICE_MULTIMODAL_MODEL": "gpt-other-lane",
+                }
+            )
 
     def test_chat_provider_normalizes_row_cell_objects_with_rowspans(self) -> None:
         response = {
@@ -491,6 +524,23 @@ class InternalNoticeScheduleImageOcrTest(unittest.TestCase):
         )
         self.assertTrue(keys.layout_elements_key.endswith("/source-truth/layout-elements.jsonl"))
         self.assertTrue(keys.ocr_manifest_key.endswith("/source-truth/ocr-manifest.json"))
+
+    def test_source_artifact_keys_reject_missing_provider_or_model(self) -> None:
+        evidence = _evidence()
+
+        with self.assertRaisesRegex(ValueError, "schedule image OCR provider is required"):
+            build_schedule_image_ocr_artifact_keys(
+                evidence=evidence,
+                provider="",
+                model="fixture-table-v1",
+            )
+
+        with self.assertRaisesRegex(ValueError, "schedule image OCR model is required"):
+            build_schedule_image_ocr_artifact_keys(
+                evidence=evidence,
+                provider="fixture-ocr",
+                model="",
+            )
 
     def test_write_source_artifacts_records_attempt_without_using_pg_for_ocr_body(
         self,
@@ -841,7 +891,7 @@ class InternalNoticeScheduleImageOcrTest(unittest.TestCase):
         self.assertEqual(select_params, ("355122", "attachment-1", 1))
         self.assertEqual(attempts, (attempt,))
 
-    def test_attempt_store_builder_uses_schedule_ocr_url_before_shared_fallback(self) -> None:
+    def test_attempt_store_builder_uses_schedule_ocr_url_before_shared_postgres(self) -> None:
         with patch(
             "campus_ingestion_core.internal_notice_schedule_image_ocr."
             "PostgresScheduleImageOcrAttemptStore"
@@ -856,6 +906,19 @@ class InternalNoticeScheduleImageOcrTest(unittest.TestCase):
             )
 
         store_cls.assert_called_once_with(database_url="postgresql://schedule-ocr/db")
+
+    def test_attempt_store_builder_rejects_admission_url_without_ocr_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_schedule_image_ocr_attempt_store_from_env(
+                {
+                    "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_DATABASE_URL": "postgresql://admission/db",
+                }
+            )
 
     def test_notice_review_separates_schedule_tables_from_visual_guide_images(self) -> None:
         table_evidence = _evidence(
@@ -926,129 +989,3 @@ class InternalNoticeScheduleImageOcrTest(unittest.TestCase):
         self.assertIn("write_schedule_child_documents", review.recommended_actions)
         self.assertIn("skip_non_schedule_visuals", review.recommended_actions)
         self.assertEqual(review.images[1].image_role, "non_schedule_visual")
-
-
-def _evidence(
-    *,
-    notice_id: str = "355122",
-    notice_title: str = "关于两校区学生通勤班车增加班次的通知",
-    object_key: str = (
-        "authenticated_notice_portal/attachment-fc9a63ccf50c/2026/sha256/"
-        "fc9a63ccf50c6aed37042b304901584fbf880f4fe54359b061aeaaa39347f6dc/"
-        "capture/table.jpg"
-    ),
-    sha256: str = "fc9a63ccf50c6aed37042b304901584fbf880f4fe54359b061aeaaa39347f6dc",
-    image_use: str = "schedule_table_image",
-) -> ScheduleImageOcrEvidence:
-    return ScheduleImageOcrEvidence(
-        notice_id=notice_id,
-        notice_title=notice_title,
-        release_time="2026-03-18 11:12",
-        organization="丰台校区管理委员会",
-        image_index=1,
-        attachment_ref_id="attachment-1",
-        filename="table.jpg",
-        mime_type="image/jpeg",
-        byte_size=12,
-        sha256=sha256,
-        object_key=object_key,
-        image_use=image_use,
-        reason_codes=("schedule_table_terms_near_image",),
-        context_before="3月20日起，对两校区学生通勤班车增加班次。具体见下表：",
-        context_after="特此通知。",
-    )
-
-
-class _NoWriteObjectStore:
-    def __init__(self, objects: dict[tuple[str, str], bytes]) -> None:
-        self.objects = dict(objects)
-        self.put_calls: list[dict[str, object]] = []
-
-    def get_bytes(self, *, bucket: str, key: str) -> bytes:
-        return self.objects[(bucket, key)]
-
-    def put_bytes(
-        self,
-        *,
-        bucket: str,
-        key: str,
-        data: bytes,
-        content_type: str,
-    ) -> None:
-        self.put_calls.append(
-            {
-                "bucket": bucket,
-                "key": key,
-                "data": data,
-                "content_type": content_type,
-            }
-        )
-
-
-class _FakeOcrProvider:
-    def __init__(self, result: ScheduleImageOcrProviderResult) -> None:
-        self.result = result
-        self.requests: list[object] = []
-
-    def process(self, request: object) -> ScheduleImageOcrProviderResult:
-        self.requests.append(request)
-        return self.result
-
-
-class _FakeHttpClient:
-    def __init__(self, response: dict[str, object]) -> None:
-        self.response = response
-        self.posts: list[dict[str, object]] = []
-
-    def post(self, path: str, **kwargs: object) -> _FakeHttpResponse:
-        self.posts.append({"path": path, **kwargs})
-        return _FakeHttpResponse(self.response)
-
-
-class _FakeHttpResponse:
-    def __init__(self, payload: dict[str, object]) -> None:
-        self.payload = payload
-
-    def raise_for_status(self) -> None:
-        return None
-
-    def json(self) -> dict[str, object]:
-        return self.payload
-
-
-class _FakeConnectionContextManager:
-    def __init__(self, cursor: _PagedCursor) -> None:
-        self.cursor_obj = cursor
-
-    def __enter__(self) -> _FakeConnectionContextManager:
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        return None
-
-    def cursor(self) -> _PagedCursor:
-        return self.cursor_obj
-
-
-class _PagedCursor:
-    def __init__(self, pages: list[list[tuple[object, ...]]]) -> None:
-        self.pages = pages
-        self.execute_calls: list[tuple[str, tuple[object, ...]]] = []
-
-    def __enter__(self) -> _PagedCursor:
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        return None
-
-    def execute(self, query: str, params: tuple[object, ...] = ()) -> None:
-        self.execute_calls.append((" ".join(query.split()), params))
-
-    def fetchall(self) -> list[tuple[object, ...]]:
-        if not self.pages:
-            return []
-        return self.pages.pop(0)
-
-
-if __name__ == "__main__":
-    unittest.main()

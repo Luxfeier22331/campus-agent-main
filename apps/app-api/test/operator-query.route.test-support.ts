@@ -7,6 +7,7 @@ export const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	APP_API_ENVIRONMENT: "test" as const,
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 	PUBLIC_CHAT_WEB_ORIGIN: "https://chat.example.com",
 	SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
 	SUPERVISOR_API_SHARED_SECRET: "shared-secret",

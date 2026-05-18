@@ -7,9 +7,11 @@
 - 当前主路径是 `supervisor-api -> supervisor-agent-worker -> agent -> retrieval-core`
 - 架构目标是 `supervisor-led multi-agent orchestration`，不是继续把 RAG 建模成入口 agent 直接调用的扁平
   tool
-- 当前 accepted merged truth 已具备 `student_rules` 与 `curriculum_plan` 两条受控
-  query-serving surface，以及 `public-chat-web`、`protected-panel-web`、`app-api` 三个
-  Worker app 的前向产品形态；但它仍不是完整产品实现
+- 当前 accepted merged truth 已具备 `regulations/student_rules`、
+  `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
+  `official_web/stable_reference` 四条默认 query-enabled surface，以及
+  `public-chat-web`、`protected-panel-web`、`app-api` 三个 Worker app 的前向产品形态；
+  但它仍不是完整产品实现
 - `apps/` 表示 transport/runtime boundary，`packages/` 表示稳定能力边界
 - runtime 选择尚未 repo-wide 冻结；当前已明确冻结 `apps/app-api = Worker`，以及
   `apps/supervisor-api = Docker-first internal execution service`；这不等于提前冻结
@@ -216,6 +218,13 @@
 
 - 修复问题时，优先恢复正确边界和长期形态，不要默认选择最小改动
 - 如果问题来自错误抽象、错误分层或错误 contract，优先修边界本身，不要在外围堆 patch
+- 遵循第一性原理：先明确目标、不变量、source of truth、失败边界与真实约束，再设计实现；不得在未澄清
+  根因和长期边界前，用经验性补丁、惯性模式或局部便利替代问题本身的正确解
+- 除非用户明确允许，不得新增任何 fallback、兜底、降级、宽松兼容、best-effort、silent
+  recovery、隐式默认成功、缺字段自动补全或“先给一个答案”的逻辑；遇到证据不足、contract
+  不完整、配置缺失或状态不一致时，默认 fail closed，并把缺口暴露为可诊断问题
+- 不得用 fallback/兜底逻辑掩盖 ingestion、retrieval、answer contract、authz、配置或部署链路的真实缺陷；
+  应修复缺陷来源，或把缺失能力记录为明确 backlog，而不是在消费层猜测补齐
 - 不要为了短期通过测试而新增临时兼容层、双路径逻辑、一次性适配层或“以后再删”的过渡代码，除非存在明确外部迁移约束
 - 当实现方案和长期正确方案冲突时，默认选择长期正确方案；若选择兼容层，必须有明确外部依赖理由
 - 不要沿着现有 hack 继续扩建；现有坏边界不是新增坏边界的理由

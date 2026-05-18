@@ -230,15 +230,15 @@ def _extract_curriculum_semester_course_titles(
         if course_titles:
             return tuple(dict.fromkeys(course_titles))
 
-    fallback_titles: list[str] = []
+    derived_titles: list[str] = []
     for statement in statements:
-        fallback_titles.extend(
+        derived_titles.extend(
             _extract_curriculum_semester_course_titles_from_statement(
                 statement,
                 semester_labels=semester_labels,
             )
         )
-    return tuple(dict.fromkeys(fallback_titles))
+    return tuple(dict.fromkeys(derived_titles))
 
 
 __all__ = [

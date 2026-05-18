@@ -23,17 +23,12 @@ class EvalProfileDefinition:
     output_prefix: str
     artifact_kind: ArtifactKind
     official_web_scope: str | None = None
-    deprecated_aliases: tuple[str, ...] = ()
     supports_collect_runtime: bool = False
     supports_case_results_publish: bool = False
     supports_profile_publish: bool = False
     dispatchable: bool = True
     operations_policy_subject: bool = True
     operations_profile_id: str | None = None
-
-    @property
-    def all_ids(self) -> tuple[str, ...]:
-        return (self.profile_id, *self.deprecated_aliases)
 
     @property
     def policy_profile_id(self) -> str:
@@ -67,15 +62,6 @@ _PROFILE_DEFINITIONS = (
         supports_case_results_publish=True,
     ),
     EvalProfileDefinition(
-        "official-web-fresh-news",
-        "official_web",
-        1,
-        "official-web-fresh-news-live-gate-accept",
-        "case_results",
-        official_web_scope="fresh_news",
-        supports_case_results_publish=True,
-    ),
-    EvalProfileDefinition(
         "service-guide-lookup",
         "release_gate",
         1,
@@ -102,7 +88,6 @@ _PROFILE_DEFINITIONS = (
         1,
         "multi-agent-runtime-contract-gate-accept",
         "composite_gate",
-        deprecated_aliases=("multi-agent-product-path",),
     ),
     EvalProfileDefinition(
         "multi-agent-live-smoke",
@@ -181,6 +166,15 @@ _PROFILE_DEFINITIONS = (
         "profile_report",
     ),
     EvalProfileDefinition(
+        "institutional-rules-release-baseline",
+        "composite_gate",
+        1,
+        "institutional-rules-release-baseline-gate-accept",
+        "composite_gate",
+        dispatchable=False,
+        operations_policy_subject=False,
+    ),
+    EvalProfileDefinition(
         "eval-operations-governance",
         "profile_gate",
         1,
@@ -202,11 +196,6 @@ _PROFILE_DEFINITIONS = (
 )
 
 _PROFILE_BY_ID = {definition.profile_id: definition for definition in _PROFILE_DEFINITIONS}
-_ALIAS_TO_PROFILE = {
-    alias: definition.profile_id
-    for definition in _PROFILE_DEFINITIONS
-    for alias in definition.deprecated_aliases
-}
 
 
 def iter_profile_definitions() -> tuple[EvalProfileDefinition, ...]:
@@ -214,7 +203,7 @@ def iter_profile_definitions() -> tuple[EvalProfileDefinition, ...]:
 
 
 def accepted_profile_ids() -> tuple[str, ...]:
-    return tuple(sorted((*_PROFILE_BY_ID, *_ALIAS_TO_PROFILE)))
+    return tuple(sorted(_PROFILE_BY_ID))
 
 
 def dispatchable_profile_ids() -> tuple[str, ...]:
@@ -235,8 +224,6 @@ def resolve_profile_id(profile_id: str) -> str:
     normalized = profile_id.strip().lower()
     if normalized in _PROFILE_BY_ID:
         return normalized
-    if normalized in _ALIAS_TO_PROFILE:
-        return _ALIAS_TO_PROFILE[normalized]
     allowed = ", ".join(accepted_profile_ids())
     raise ValueError(f"unsupported eval profile {profile_id!r}; expected one of {allowed}")
 

@@ -288,7 +288,7 @@ def _classify_block(
     if raw_type in {"aside_text", "vertical_text"}:
         if is_top_band(bbox=bbox, page_height=page_height) and len(text_normalized) <= 16:
             return "paragraph", "body", 0.6, f"provider_label:{raw_type}:needs_repeat_validation"
-        return "paragraph", "body", 0.7, f"provider_label:{raw_type}:body_fallback"
+        return "paragraph", "body", 0.7, f"provider_label:{raw_type}:body"
     if raw_type in {"page_number", "pagenumber"}:
         return "page_number", "page_number", 0.98, f"provider_label:{raw_type}"
     if raw_type == "number":
@@ -296,14 +296,14 @@ def _classify_block(
             text_normalized=text_normalized, bbox=bbox, page_height=page_height
         ):
             return "page_number", "page_number", 0.82, "provider_label:number:page_number_heuristic"
-        return "paragraph", "body", 0.55, "provider_label:number:body_fallback"
+        return "paragraph", "body", 0.55, "provider_label:number:body"
     if raw_type in {"table"}:
         if (
             not table_cells
             and (html is None or "<table" not in html.lower())
             and not text_normalized
         ):
-            return "image", "image", 0.55, "provider_label:table:empty_table_fallback"
+            return "image", "image", 0.55, "provider_label:table:empty_table_image"
         return "table", "table", 0.98, "provider_label:table"
     if raw_type == "header_image":
         return "image", "header_image", 0.95, "provider_label:header_image"
@@ -335,11 +335,11 @@ def _classify_block(
         bbox=bbox,
         page_height=page_height,
     ):
-        return "page_number", "page_number", 0.7, "text_presence:page_number_fallback"
+        return "page_number", "page_number", 0.7, "text_presence:page_number"
     if text_normalized:
         if infer_list_level_hint(text_normalized) is not None:
             return "list_item", "list_item", 0.62, "text_pattern:list_item"
-        return "paragraph", "body", 0.6, "text_presence:body_fallback"
+        return "paragraph", "body", 0.6, "text_presence:body"
     return "unknown", "unknown", 0.2, "no_text_or_structure"
 
 

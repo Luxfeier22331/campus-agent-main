@@ -150,10 +150,10 @@ export function normalizeObservedExplainDepartments(
 
 export function resolveFileReleaseFilename(input: {
 	contentDisposition: string | null;
-	fallbackFilename: string | null;
-	fallbackUrl: string;
+	sourceFilename: string | null;
+	sourceUrl: string;
 }): string {
-	const preferred = normalizeNullableText(input.fallbackFilename);
+	const preferred = normalizeNullableText(input.sourceFilename);
 	if (preferred) {
 		return safeBasename(preferred);
 	}
@@ -161,7 +161,7 @@ export function resolveFileReleaseFilename(input: {
 	if (fromHeader) {
 		return fromHeader;
 	}
-	return safeBasename(input.fallbackUrl);
+	return safeBasename(input.sourceUrl);
 }
 
 export function resolveReleasedFileContentType(input: {
@@ -328,14 +328,14 @@ export function toTimestampLabel(value: string): string {
 
 export function parsePositiveInteger(
 	raw: string | undefined,
-	fallback: number | null,
+	defaultValue: number | null,
 ): number | null {
 	if (!raw?.trim()) {
-		return fallback;
+		return defaultValue;
 	}
 	const parsed = Number(raw);
 	if (!Number.isFinite(parsed) || parsed <= 0) {
-		return fallback;
+		return defaultValue;
 	}
 	return Math.floor(parsed);
 }

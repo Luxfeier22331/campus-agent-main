@@ -237,6 +237,56 @@ export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 			status: "failed",
 		});
 	});
+
+	it("calls verified-run enqueue hook only after successful verified ledger write", async () => {
+		const ledgerWrites: CollectorRunLedgerRecord[] = [];
+		const enqueuedRunIds: string[] = [];
+		const exportManifest = sampleBootstrapManifest();
+
+		const result = await runBootstrapExport({
+			artifactStore: {
+				storageProvider: "object_store",
+				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
+				async putObject({ objectKey, data }) {
+					return {
+						bucket: "campus-rag-source",
+						byteSize: data.byteLength,
+						contentSha256: "a".repeat(64),
+						etag: '"etag"',
+						objectKey,
+						versionId: null,
+					};
+				},
+			},
+			collectBundle: async () => ({
+				bundleRecords: [],
+				exportManifest,
+				stats: {
+					attachmentObjectsUploaded: 0,
+					detailFetched: 0,
+					noticesCollected: 0,
+					pagesFetched: 0,
+				},
+			}),
+			collectionMode: "incremental",
+			collectorRunLedgerStore: {
+				upsertRun: async (record) => {
+					ledgerWrites.push(record);
+				},
+			},
+			exportedAt: "2026-04-04T01:23:45.000Z",
+			siteId: "muc_internal_portal",
+			sourceHomeUrl: "https://portal.example.edu/home",
+			verifiedRunEnqueue: async ({ ledgerRecord }) => {
+				enqueuedRunIds.push(ledgerRecord.runId);
+			},
+			writeLocalArtifacts: false,
+		});
+
+		expect(ledgerWrites.map((record) => record.status)).toEqual(["started", "success"]);
+		expect(enqueuedRunIds).toEqual([result.ledgerRecord.runId]);
+		expect(result.ledgerRecord.verificationStatus).toBe("verified");
+	});
 }
 
 function sampleBootstrapManifest(): BootstrapExportManifest {

@@ -14,16 +14,13 @@ from campus_contracts import (
 )
 from campus_ingestion_core.scope_catalog import assert_known_scope
 
-RetrievalQueryMode = Literal[
-    "current", "historical", "as_of", "compare", "freshness_sensitive", "live_assisted"
-]
+RetrievalQueryMode = Literal["current", "historical", "as_of", "compare", "freshness_sensitive"]
 RetrievalStepType = Literal[
     "indexed_lookup",
     "entity_resolution",
     "historical_version_lookup",
     "compare_pair_lookup",
     "freshness_gate",
-    "live_source_lookup",
     "scope_follow_up",
 ]
 RetrievalExpectedOutput = Literal[
@@ -31,18 +28,46 @@ RetrievalExpectedOutput = Literal[
     "entity_matches",
     "freshness_decision",
     "compare_inputs",
-    "live_candidates",
 ]
 RetrievalStepStatus = Literal["succeeded", "empty", "blocked", "failed"]
 RetrievalFailureKind = Literal[
     "budget_exhausted",
     "unauthorized_scope",
     "unresolved_freshness",
-    "live_lookup_unavailable",
     "no_grounding",
+    "focus_mismatch",
     "executor_error",
     "unsupported_step_type",
     "missing_dependency",
+    "polarity_conflict",
+    "group_support_missing",
+    "procedure_group_answer_role_mismatch",
+    "condition_group_answer_role_mismatch",
+    "release_metadata_drift",
+    "reranker_failed",
+]
+RetrievalCoveragePolicy = Literal[
+    "none",
+    "single_document_focus",
+    "category_member_coverage",
+    "condition_subject_alignment",
+    "procedure_step_completeness",
+    "version_pair_coverage",
+]
+RetrievalSelectionPolicy = Literal[
+    "default",
+    "answer_role_first",
+    "document_identity_first",
+    "one_answer_ready_source_per_member",
+    "focused_clause_first",
+    "official_reference_first",
+]
+RetrievalRerankPolicy = Literal["profile_gated_if_eligible", "disabled"]
+RetrievalReplanPolicy = Literal[
+    "none",
+    "intent_gap_replan",
+    "coverage_gap_replan",
+    "focus_gap_replan",
 ]
 
 ALLOWED_RETRIEVAL_QUERY_MODES = (
@@ -51,7 +76,6 @@ ALLOWED_RETRIEVAL_QUERY_MODES = (
     "as_of",
     "compare",
     "freshness_sensitive",
-    "live_assisted",
 )
 ALLOWED_RETRIEVAL_STEP_TYPES = (
     "indexed_lookup",
@@ -59,7 +83,6 @@ ALLOWED_RETRIEVAL_STEP_TYPES = (
     "historical_version_lookup",
     "compare_pair_lookup",
     "freshness_gate",
-    "live_source_lookup",
     "scope_follow_up",
 )
 ALLOWED_RETRIEVAL_EXPECTED_OUTPUTS = (
@@ -67,18 +90,46 @@ ALLOWED_RETRIEVAL_EXPECTED_OUTPUTS = (
     "entity_matches",
     "freshness_decision",
     "compare_inputs",
-    "live_candidates",
 )
 ALLOWED_RETRIEVAL_STEP_STATUSES = ("succeeded", "empty", "blocked", "failed")
 ALLOWED_RETRIEVAL_FAILURE_KINDS = (
     "budget_exhausted",
     "unauthorized_scope",
     "unresolved_freshness",
-    "live_lookup_unavailable",
     "no_grounding",
+    "focus_mismatch",
     "executor_error",
     "unsupported_step_type",
     "missing_dependency",
+    "polarity_conflict",
+    "group_support_missing",
+    "procedure_group_answer_role_mismatch",
+    "condition_group_answer_role_mismatch",
+    "release_metadata_drift",
+    "reranker_failed",
+)
+ALLOWED_RETRIEVAL_COVERAGE_POLICIES = (
+    "none",
+    "single_document_focus",
+    "category_member_coverage",
+    "condition_subject_alignment",
+    "procedure_step_completeness",
+    "version_pair_coverage",
+)
+ALLOWED_RETRIEVAL_SELECTION_POLICIES = (
+    "default",
+    "answer_role_first",
+    "document_identity_first",
+    "one_answer_ready_source_per_member",
+    "focused_clause_first",
+    "official_reference_first",
+)
+ALLOWED_RETRIEVAL_RERANK_POLICIES = ("profile_gated_if_eligible", "disabled")
+ALLOWED_RETRIEVAL_REPLAN_POLICIES = (
+    "none",
+    "intent_gap_replan",
+    "coverage_gap_replan",
+    "focus_gap_replan",
 )
 
 
@@ -94,7 +145,6 @@ class RetrievalScope:
 @dataclass(frozen=True, slots=True)
 class RetrievalSourceTrustPolicy:
     minimum_tier: SourceTrustTier | str = "T1"
-    allow_live_source_lookup: bool = False
 
     def __post_init__(self) -> None:
         normalized_minimum_tier = (
@@ -110,15 +160,12 @@ class RetrievalSourceTrustPolicy:
 class RetrievalPlanBudget:
     max_steps: int = 1
     max_replans: int = 0
-    max_live_lookups: int = 0
 
     def __post_init__(self) -> None:
         if self.max_steps <= 0:
             raise ValueError("max_steps must be greater than zero")
         if self.max_replans < 0:
             raise ValueError("max_replans must not be negative")
-        if self.max_live_lookups < 0:
-            raise ValueError("max_live_lookups must not be negative")
 
 
 @dataclass(frozen=True, slots=True)
@@ -139,6 +186,10 @@ class RetrievalSelector:
     target_version_ids: tuple[str, ...] = field(default_factory=tuple)
     target_revision_track: str = ""
     preferred_document_ids: tuple[str, ...] = field(default_factory=tuple)
+    focus_detail_labels: tuple[str, ...] = field(default_factory=tuple)
+    focus_article_nos: tuple[str, ...] = field(default_factory=tuple)
+    focus_clause_nos: tuple[str, ...] = field(default_factory=tuple)
+    focus_terms: tuple[str, ...] = field(default_factory=tuple)
     canonical_course_ids: tuple[str, ...] = field(default_factory=tuple)
     canonical_course_family_ids: tuple[str, ...] = field(default_factory=tuple)
     canonical_program_family_ids: tuple[str, ...] = field(default_factory=tuple)
@@ -149,6 +200,10 @@ class RetrievalSelector:
             "target_document_ids",
             "target_version_ids",
             "preferred_document_ids",
+            "focus_detail_labels",
+            "focus_article_nos",
+            "focus_clause_nos",
+            "focus_terms",
             "canonical_course_ids",
             "canonical_course_family_ids",
             "canonical_program_family_ids",
@@ -163,6 +218,45 @@ class RetrievalSelector:
         normalized_revision_track = self.target_revision_track.strip()
         if normalized_revision_track != self.target_revision_track:
             object.__setattr__(self, "target_revision_track", normalized_revision_track)
+
+
+@dataclass(frozen=True, slots=True)
+class RetrievalSemanticHint:
+    intent_kind: str = ""
+    answer_kind: str = ""
+    need_kinds: tuple[str, ...] = field(default_factory=tuple)
+    coverage_policy: RetrievalCoveragePolicy | str = "none"
+    selection_policy: RetrievalSelectionPolicy | str = "default"
+    rerank_policy: RetrievalRerankPolicy | str = "profile_gated_if_eligible"
+    replan_policy: RetrievalReplanPolicy | str = "none"
+    expected_answer_roles: tuple[str, ...] = field(default_factory=tuple)
+    condition_subject: str = ""
+    category_id: str = ""
+    critical_terms: tuple[str, ...] = field(default_factory=tuple)
+
+    def __post_init__(self) -> None:
+        for field_name in (
+            "intent_kind",
+            "answer_kind",
+            "condition_subject",
+            "category_id",
+        ):
+            value = getattr(self, field_name)
+            normalized = value.strip()
+            if normalized != value:
+                object.__setattr__(self, field_name, normalized)
+        for field_name in ("need_kinds", "expected_answer_roles", "critical_terms"):
+            normalized = _normalize_non_empty_string_tuple(getattr(self, field_name))
+            if normalized != getattr(self, field_name):
+                object.__setattr__(self, field_name, normalized)
+        if self.coverage_policy not in ALLOWED_RETRIEVAL_COVERAGE_POLICIES:
+            raise ValueError(f"unsupported retrieval coverage policy: {self.coverage_policy}")
+        if self.selection_policy not in ALLOWED_RETRIEVAL_SELECTION_POLICIES:
+            raise ValueError(f"unsupported retrieval selection policy: {self.selection_policy}")
+        if self.rerank_policy not in ALLOWED_RETRIEVAL_RERANK_POLICIES:
+            raise ValueError(f"unsupported retrieval rerank policy: {self.rerank_policy}")
+        if self.replan_policy not in ALLOWED_RETRIEVAL_REPLAN_POLICIES:
+            raise ValueError(f"unsupported retrieval replan policy: {self.replan_policy}")
 
 
 @dataclass(frozen=True, slots=True)
@@ -184,6 +278,7 @@ class RetrievalStepActivity:
     collection: str
     status: RetrievalStepStatus | str
     query_text: str
+    need_ids: tuple[str, ...] = field(default_factory=tuple)
     target_document_ids: tuple[str, ...] = field(default_factory=tuple)
     target_version_ids: tuple[str, ...] = field(default_factory=tuple)
     top_k: int = 0
@@ -191,6 +286,11 @@ class RetrievalStepActivity:
     candidate_count: int = 0
     reference_count: int = 0
     failure_kind: RetrievalFailureKind | str | None = None
+    reranker_failure_kind: str = ""
+    contract_missing: bool = False
+    contract_issue_reason: str = ""
+    missing_contract_fields: tuple[str, ...] = field(default_factory=tuple)
+    source_index_contract_version: str = ""
 
     def __post_init__(self) -> None:
         if not self.step_id.strip():
@@ -202,6 +302,9 @@ class RetrievalStepActivity:
             raise ValueError(f"unsupported retrieval step status: {self.status}")
         if self.top_k < 0:
             raise ValueError("top_k must not be negative")
+        normalized_need_ids = _normalize_non_empty_string_tuple(self.need_ids)
+        if normalized_need_ids != self.need_ids:
+            object.__setattr__(self, "need_ids", normalized_need_ids)
         if self.latency_ms is not None and self.latency_ms < 0:
             raise ValueError("latency_ms must not be negative")
         if self.candidate_count < 0:
@@ -213,6 +316,15 @@ class RetrievalStepActivity:
             and self.failure_kind not in ALLOWED_RETRIEVAL_FAILURE_KINDS
         ):
             raise ValueError(f"unsupported retrieval failure kind: {self.failure_kind}")
+        normalized_missing_contract_fields = _normalize_non_empty_string_tuple(
+            self.missing_contract_fields
+        )
+        if normalized_missing_contract_fields != self.missing_contract_fields:
+            object.__setattr__(
+                self,
+                "missing_contract_fields",
+                normalized_missing_contract_fields,
+            )
 
 
 @dataclass(frozen=True, slots=True)
@@ -221,6 +333,8 @@ class RetrievalStep:
     step_type: RetrievalStepType | str
     scope: RetrievalScope
     query_text: str
+    need_ids: tuple[str, ...] = field(default_factory=tuple)
+    semantic_hint: RetrievalSemanticHint | None = None
     depends_on_step_ids: tuple[str, ...] = field(default_factory=tuple)
     selector: RetrievalSelector = field(default_factory=RetrievalSelector)
     budget: RetrievalStepBudget = field(default_factory=RetrievalStepBudget)
@@ -239,6 +353,9 @@ class RetrievalStep:
             raise ValueError("query_text must not be empty")
         if normalized_query_text != self.query_text:
             object.__setattr__(self, "query_text", normalized_query_text)
+        normalized_need_ids = _normalize_non_empty_string_tuple(self.need_ids)
+        if normalized_need_ids != self.need_ids:
+            object.__setattr__(self, "need_ids", normalized_need_ids)
         normalized_depends_on_step_ids = tuple(
             step_id.strip()
             for step_id in self.depends_on_step_ids
@@ -324,6 +441,10 @@ class RetrievalExecutionResult:
         return tuple(result.activity for result in self.step_results if result.activity is not None)
 
 
+def _normalize_non_empty_string_tuple(values: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(value.strip() for value in values if isinstance(value, str) and value.strip())
+
+
 @dataclass(frozen=True, slots=True)
 class RetrievalRequest:
     query_text: str
@@ -333,11 +454,16 @@ class RetrievalRequest:
     target_version_ids: tuple[str, ...] = field(default_factory=tuple)
     target_revision_track: str = ""
     preferred_document_ids: tuple[str, ...] = field(default_factory=tuple)
+    focus_detail_labels: tuple[str, ...] = field(default_factory=tuple)
+    focus_article_nos: tuple[str, ...] = field(default_factory=tuple)
+    focus_clause_nos: tuple[str, ...] = field(default_factory=tuple)
+    focus_terms: tuple[str, ...] = field(default_factory=tuple)
     canonical_course_ids: tuple[str, ...] = field(default_factory=tuple)
     canonical_course_family_ids: tuple[str, ...] = field(default_factory=tuple)
     canonical_program_family_ids: tuple[str, ...] = field(default_factory=tuple)
     authorized_filter: AuthorizedRetrievalFilter | None = None
     personalization_hint: PersonalizationHint | None = None
+    semantic_hint: RetrievalSemanticHint | None = None
     top_k: int = 3
     timeout_ms: int | None = None
 
@@ -371,6 +497,32 @@ class RetrievalRequest:
         )
         if normalized_preferred_document_ids != self.preferred_document_ids:
             object.__setattr__(self, "preferred_document_ids", normalized_preferred_document_ids)
+        normalized_focus_detail_labels = tuple(
+            value.strip()
+            for value in self.focus_detail_labels
+            if isinstance(value, str) and value.strip()
+        )
+        if normalized_focus_detail_labels != self.focus_detail_labels:
+            object.__setattr__(self, "focus_detail_labels", normalized_focus_detail_labels)
+        normalized_focus_article_nos = tuple(
+            value.strip()
+            for value in self.focus_article_nos
+            if isinstance(value, str) and value.strip()
+        )
+        if normalized_focus_article_nos != self.focus_article_nos:
+            object.__setattr__(self, "focus_article_nos", normalized_focus_article_nos)
+        normalized_focus_clause_nos = tuple(
+            value.strip()
+            for value in self.focus_clause_nos
+            if isinstance(value, str) and value.strip()
+        )
+        if normalized_focus_clause_nos != self.focus_clause_nos:
+            object.__setattr__(self, "focus_clause_nos", normalized_focus_clause_nos)
+        normalized_focus_terms = tuple(
+            value.strip() for value in self.focus_terms if isinstance(value, str) and value.strip()
+        )
+        if normalized_focus_terms != self.focus_terms:
+            object.__setattr__(self, "focus_terms", normalized_focus_terms)
         normalized_canonical_course_ids = tuple(
             value.strip()
             for value in self.canonical_course_ids

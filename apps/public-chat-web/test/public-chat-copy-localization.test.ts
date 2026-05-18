@@ -1,10 +1,8 @@
 import { describe, expect, it } from "vitest";
 
 import indexHtmlSource from "../index.html?raw";
-import loginPageSource from "../src/login/page.tsx?raw";
 import mainSource from "../src/main.tsx?raw";
 import runtimeSource from "../src/platform/chat/runtime.tsx?raw";
-import authLayoutSource from "../src/platform/vendor-compat/app/auth-layout.tsx?raw";
 import appRouterSource from "../src/routes/app-router.tsx?raw";
 import appSidebarSource from "../vendor/vercel-ai-chatbot/components/chat/app-sidebar.tsx?raw";
 import chatHeaderSource from "../vendor/vercel-ai-chatbot/components/chat/chat-header.tsx?raw";
@@ -75,8 +73,6 @@ describe("public chat copy localization", () => {
 		expect(submitButtonSource).toContain("提交");
 		expect(submitButtonSource).toContain("min-h-11");
 		expect(submitButtonSource).not.toContain("Submit form");
-		expect(authLayoutSource).toContain("min-h-11");
-		expect(loginPageSource).toContain("min-h-10");
 		expect(messageSource).toContain("天气查询已取消");
 		expect(messageSource).toContain("创建文档失败");
 		expect(messageSource).not.toContain("Weather lookup was denied");

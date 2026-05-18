@@ -2,7 +2,6 @@ from __future__ import annotations
 
 import argparse
 import json
-import os
 from collections.abc import Sequence
 from dataclasses import asdict
 
@@ -19,7 +18,7 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--collection", required=True)
     parser.add_argument("--release-id", required=True)
     parser.add_argument("--backup-reason", required=True)
-    parser.add_argument("--operator")
+    parser.add_argument("--operator", required=True)
     return parser
 
 
@@ -32,7 +31,7 @@ def main(argv: Sequence[str] | None = None) -> None:
             collection=args.collection,
             release_id=args.release_id,
             backup_reason=args.backup_reason,
-            operator=(args.operator or os.environ.get("USER") or "unknown").strip() or "unknown",
+            operator=args.operator.strip(),
         )
     )
     print(json.dumps(asdict(manifest), ensure_ascii=False, indent=2))

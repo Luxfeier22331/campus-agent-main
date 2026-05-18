@@ -44,7 +44,7 @@ updated: 2026-04-27
 - conditional:
   - 启用 execution audit 时：`SUPERVISOR_API_EXECUTION_AUDIT_URL`、
     `SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET`
-  - 打开 `campus_services` / `notice` capability 时：`SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET`、
+  - 打开 `campus_services` / `notice` capability 时：`SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`、
     `CAMPUS_SHARED_POSTGRES_URL`；notice 还需要 object-store/read-model 依赖
 
 禁止把 deploy-only secret 写回 repo-tracked `.env.example`。
@@ -61,16 +61,16 @@ docker build -f apps/supervisor-api/Dockerfile -t campus-supervisor-api:local .
 
 ```bash
 COMPOSE_PROJECT_NAME=campus-supervisor-runtime \
-SUPERVISOR_API_HOST_PORT=18080 \
+SUPERVISOR_API_HOST_PORT=27051 \
 docker compose -f infra/local/docker-compose.supervisor-runtime.yml up -d --build
 ```
 
 1. health/readiness checks
 
 ```bash
-curl -sS -i http://127.0.0.1:18080/healthz
-curl -sS -i http://127.0.0.1:18080/readyz
-curl -sS -i http://127.0.0.1:18080/metrics
+curl -sS -i http://127.0.0.1:27051/healthz
+curl -sS -i http://127.0.0.1:27051/readyz
+curl -sS -i http://127.0.0.1:27051/metrics
 ```
 
 1. smoke

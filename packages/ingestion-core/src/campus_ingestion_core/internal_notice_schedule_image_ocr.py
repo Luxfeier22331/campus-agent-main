@@ -13,27 +13,13 @@ from typing import Any, Literal, Protocol
 
 import httpx
 
-from campus_ingestion_core.internal_notice_consumption_admission import (
-    DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_ENV_KEY,
-    DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_ENV_KEY,
-    DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_ENV_KEY,
-)
 from campus_ingestion_core.models import DocumentRegistryRecord
-from campus_ingestion_core.notice_consumption_projection import (
-    DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY,
-    DEFAULT_NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_ENV_KEY,
-    DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY,
-)
 from campus_ingestion_core.postgres_runtime import (
     build_operator_postgres_connection_url,
     normalize_postgres_connection_url,
 )
 from campus_ingestion_core.registry import (
-    DOCUMENT_REGISTRY_ENV_KEY,
-    DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY,
-    DOCUMENT_REGISTRY_OPERATOR_ENV_KEY,
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _coerce_json_payload,
     _ensure_table_schema,
@@ -71,9 +57,6 @@ DEFAULT_SCHEDULE_IMAGE_OCR_BASE_URL = "https://api.openai.com/v1"
 DEFAULT_SCHEDULE_IMAGE_OCR_MAX_OUTPUT_TOKENS = 2200
 DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_ENV_KEY = (
     "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_DATABASE_URL"
-)
-DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_MANAGEMENT_ENV_KEY = (
-    "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_MANAGEMENT_DATABASE_URL"
 )
 DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_OPERATOR_ENV_KEY = (
     "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_OPERATOR_DATABASE_URL"
@@ -455,49 +438,25 @@ class ChatCompletionsScheduleImageOcrProvider:
         env: Mapping[str, str] | None = None,
     ) -> ChatCompletionsScheduleImageOcrProvider:
         source = env if env is not None else os.environ
-        api_key = (
-            source.get("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY")
-            or source.get("INTERNAL_NOTICE_MULTIMODAL_API_KEY")
-            or source.get("PROMPT_RUNTIME_API_KEY")
-            or source.get("LLM_API_KEY")
-            or ""
-        ).strip()
-        model = (
-            source.get("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL")
-            or source.get("INTERNAL_NOTICE_MULTIMODAL_MODEL")
-            or source.get("PROMPT_RUNTIME_MODEL")
-            or ""
-        ).strip()
+        api_key = (source.get("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY") or "").strip()
+        model = (source.get("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL") or "").strip()
         provider = (
             source.get("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_PROVIDER") or "openai-chat-completions"
         ).strip()
         base_url = (
             source.get("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_BASE_URL")
-            or source.get("INTERNAL_NOTICE_MULTIMODAL_BASE_URL")
-            or source.get("PROMPT_RUNTIME_BASE_URL")
-            or source.get("LLM_BASE_URL")
             or DEFAULT_SCHEDULE_IMAGE_OCR_BASE_URL
         ).strip()
         max_output_tokens = int(
             (
                 source.get("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MAX_OUTPUT_TOKENS")
-                or source.get("INTERNAL_NOTICE_MULTIMODAL_MAX_OUTPUT_TOKENS")
-                or source.get("PROMPT_RUNTIME_MAX_OUTPUT_TOKENS")
                 or str(DEFAULT_SCHEDULE_IMAGE_OCR_MAX_OUTPUT_TOKENS)
             ).strip()
         )
         if not api_key:
-            raise ValueError(
-                "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY, "
-                "INTERNAL_NOTICE_MULTIMODAL_API_KEY, PROMPT_RUNTIME_API_KEY, "
-                "or LLM_API_KEY is required for schedule image OCR"
-            )
+            raise ValueError("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY is required")
         if not model:
-            raise ValueError(
-                "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL, "
-                "INTERNAL_NOTICE_MULTIMODAL_MODEL, or PROMPT_RUNTIME_MODEL is required "
-                "for schedule image OCR"
-            )
+            raise ValueError("INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL is required")
         return cls(
             api_key=api_key,
             model=model,
@@ -611,10 +570,7 @@ def build_schedule_image_ocr_attempt_store_from_env(
         if not operator_database_url:
             raise ValueError(
                 f"{DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_MANAGEMENT_ENV_KEY} or "
-                f"{DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or {SHARED_POSTGRES_MANAGEMENT_ENV_KEY} "
+                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} "
                 "is required when prefer_operator=True"
             )
         return PostgresScheduleImageOcrAttemptStore(
@@ -624,9 +580,7 @@ def build_schedule_image_ocr_attempt_store_from_env(
     if not database_url:
         raise ValueError(
             f"{DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_ENV_KEY} or "
-            f"{DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_ENV_KEY} or "
-            f"{DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} "
-            "is required"
+            f"{SHARED_POSTGRES_ENV_KEY} is required"
         )
     return PostgresScheduleImageOcrAttemptStore(database_url=database_url)
 
@@ -1138,15 +1092,7 @@ def _required_text(raw: Mapping[str, Any], key: str) -> str:
 def _schedule_ocr_operator_database_url(source: Mapping[str, str]) -> str:
     return (
         source.get(DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_OPERATOR_ENV_KEY)
-        or source.get(DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_MANAGEMENT_ENV_KEY)
-        or source.get(DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_ENV_KEY)
-        or source.get(DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_ENV_KEY)
-        or source.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_OPERATOR_ENV_KEY)
-        or source.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_ENV_KEY)
-        or source.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY)
-        or source.get(DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY)
         or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-        or source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
         or ""
     ).strip()
 
@@ -1154,10 +1100,7 @@ def _schedule_ocr_operator_database_url(source: Mapping[str, str]) -> str:
 def _schedule_ocr_runtime_database_url(source: Mapping[str, str]) -> str:
     return (
         source.get(DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_ENV_KEY)
-        or source.get(DEFAULT_INTERNAL_NOTICE_CONSUMPTION_ADMISSION_ENV_KEY)
-        or source.get(DEFAULT_NOTICE_CONSUMPTION_PROJECTION_ENV_KEY)
         or source.get(SHARED_POSTGRES_ENV_KEY)
-        or source.get(DOCUMENT_REGISTRY_ENV_KEY)
         or ""
     ).strip()
 
@@ -1743,9 +1686,15 @@ def _capture_base_prefix(object_key: str) -> str:
 
 
 def _model_slug(*, provider: str, model: str) -> str:
+    if not provider.strip():
+        raise ValueError("schedule image OCR provider is required")
+    if not model.strip():
+        raise ValueError("schedule image OCR model is required")
     raw = f"{provider}__{model}"
     slug = re.sub(r"[^a-zA-Z0-9._-]+", "-", raw.strip()).strip("-").lower()
-    return slug or "unknown-provider__unknown-model"
+    if not slug:
+        raise ValueError("schedule image OCR provider/model slug is empty")
+    return slug
 
 
 def _has_schedule_table(result: ScheduleImageOcrProviderResult) -> bool:
@@ -1820,7 +1769,6 @@ def _markdown_table(table: Sequence[Sequence[str]]) -> list[str]:
 
 __all__ = [
     "DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_ENV_KEY",
-    "DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_MANAGEMENT_ENV_KEY",
     "DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_OPERATOR_ENV_KEY",
     "DEFAULT_INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_ATTEMPT_TABLE",
     "DEFAULT_SCHEDULE_IMAGE_OCR_BASE_URL",

@@ -1,6 +1,7 @@
 import { parse, unparse } from "papaparse";
 import { toast } from "sonner";
 import { Artifact } from "@/components/chat/create-artifact";
+import type { ArtifactContentProps } from "@/components/chat/create-artifact";
 import {
   CopyIcon,
   LineChartIcon,
@@ -8,9 +9,10 @@ import {
   SparklesIcon,
   UndoIcon,
 } from "@/components/chat/icons";
-import { SpreadsheetEditor } from "@/components/chat/sheet-editor";
 
 type Metadata = Record<string, never>;
+
+export type SheetArtifactContentProps = ArtifactContentProps<Metadata>;
 
 export const sheetArtifact = new Artifact<"sheet", Metadata>({
   kind: "sheet",
@@ -26,17 +28,7 @@ export const sheetArtifact = new Artifact<"sheet", Metadata>({
       }));
     }
   },
-  content: ({ content, currentVersionIndex, onSaveContent, status }) => {
-    return (
-      <SpreadsheetEditor
-        content={content}
-        currentVersionIndex={currentVersionIndex}
-        isCurrentVersion={true}
-        saveContent={onSaveContent}
-        status={status}
-      />
-    );
-  },
+  content: () => null,
   actions: [
     {
       icon: <UndoIcon size={18} />,

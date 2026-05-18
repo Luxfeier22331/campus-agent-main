@@ -50,7 +50,9 @@ class RetrievalCurriculumQrelsFixtureTest(unittest.TestCase):
         self.assertTrue(referenced_doc_ids)
         self.assertTrue(referenced_doc_ids.issubset(manifest_doc_ids))
 
-    def test_curriculum_qrels_fixture_uses_source_faithful_scope_only(self) -> None:
+    def test_curriculum_qrels_fixture_uses_source_faithful_scope_with_only_explicit_authz_overrides(
+        self,
+    ) -> None:
         dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
 
         self.assertTrue(
@@ -59,7 +61,40 @@ class RetrievalCurriculumQrelsFixtureTest(unittest.TestCase):
                 for case in dataset.cases
             )
         )
-        self.assertTrue(all(case.request_overrides == {} for case in dataset.cases))
+        allowed_request_overrides_by_case = {
+            "curriculum-title-social-practice": {
+                "entitlement_groups": ["campus_members"],
+                "visibility_level": "restricted",
+            }
+        }
+        self.assertEqual(
+            {
+                case.case_id: case.request_overrides
+                for case in dataset.cases
+                if case.request_overrides
+            },
+            allowed_request_overrides_by_case,
+        )
+
+    def test_curriculum_social_practice_qrels_case_uses_campus_member_authorization(
+        self,
+    ) -> None:
+        dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
+        case_by_id = {case.case_id: case for case in dataset.cases}
+
+        social_practice_case = case_by_id["curriculum-title-social-practice"]
+
+        self.assertEqual(
+            social_practice_case.expected_sources[0].doc_id,
+            "curriculum:中央民族大学大学生社会实践环节实施方案",
+        )
+        self.assertEqual(
+            social_practice_case.request_overrides,
+            {
+                "entitlement_groups": ["campus_members"],
+                "visibility_level": "restricted",
+            },
+        )
 
     def test_curriculum_qrels_fixture_contains_disambiguation_and_paraphrase_cases(self) -> None:
         dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
@@ -140,6 +175,50 @@ class RetrievalCurriculumQrelsFixtureTest(unittest.TestCase):
                 "fiscal-course-settings-table",
                 "law-ethnic-class-fourth-semester-courses",
             }.issubset(case_ids)
+        )
+
+    def test_curriculum_maturity_expansion_covers_core_program_families(self) -> None:
+        dataset = load_retrieval_qrels_dataset(CURRICULUM_QRELS_FIXTURE_PATH)
+        release_acceptance = json.loads(
+            (
+                CURRICULUM_QRELS_FIXTURE_PATH.parent / "curriculum_plan_release_acceptance.v1.json"
+            ).read_text(encoding="utf-8")
+        )
+        case_ids = {case.case_id for case in dataset.cases}
+        release_case_ids = {case["case_id"] for case in release_acceptance["cases"]}
+        unique_expected_doc_ids = {
+            source.doc_id for case in dataset.cases for source in case.expected_sources
+        }
+
+        expected_maturity_case_ids = {
+            "curriculum-title-general-chinese-culture",
+            "curriculum-title-general-information-literacy",
+            "curriculum-title-general-national-security",
+            "curriculum-title-general-physical-education",
+            "curriculum-title-accounting-second-degree",
+            "curriculum-title-sports-education",
+            "curriculum-title-russian-central-asian",
+            "curriculum-title-information-computing",
+            "curriculum-title-information-computing-ethnic",
+            "curriculum-title-optical-information",
+            "curriculum-title-public-management",
+            "curriculum-title-law-undergraduate",
+            "curriculum-title-law-second-degree",
+            "curriculum-title-computer-science-ethnic",
+            "curriculum-title-computer-category",
+        }
+
+        self.assertGreaterEqual(len(dataset.cases), 60)
+        self.assertGreaterEqual(len(unique_expected_doc_ids), 45)
+        self.assertGreaterEqual(len(release_acceptance["cases"]), 30)
+        self.assertTrue(expected_maturity_case_ids.issubset(case_ids))
+        self.assertTrue(
+            {
+                "curriculum-title-general-chinese-culture",
+                "curriculum-title-general-information-literacy",
+                "curriculum-title-information-computing",
+                "curriculum-title-public-management",
+            }.issubset(release_case_ids)
         )
 
     def test_curriculum_qrels_fixture_contains_uniquely_grounded_sparse_fixed_phrase_case(

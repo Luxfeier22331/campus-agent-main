@@ -4,6 +4,7 @@ import "testing"
 
 func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("API_AUTH_MODE", "")
+	t.Setenv("SUPERVISOR_API_RUNTIME_PROFILE", "")
 	t.Setenv("API_DEFAULT_ACTOR_ID", "")
 	t.Setenv("API_DEFAULT_ACTOR_ROLES", "")
 	t.Setenv("SUPERVISOR_AGENT_WORKER_BASE_URL", "")
@@ -28,7 +29,6 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_URL", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", "")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", "")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY", "")
 	t.Setenv("SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED", "")
 	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL", "")
 	t.Setenv("SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE", "")
@@ -38,8 +38,6 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	t.Setenv("OBJECT_STORE_ENDPOINT", "")
 	t.Setenv("OBJECT_STORE_DERIVED_ACCESS_KEY", "")
 	t.Setenv("OBJECT_STORE_DERIVED_SECRET_KEY", "")
-	t.Setenv("OBJECT_STORE_ACCESS_KEY", "")
-	t.Setenv("OBJECT_STORE_SECRET_KEY", "")
 	t.Setenv("OBJECT_STORE_REGION", "")
 	t.Setenv("OBJECT_STORE_BUCKET_DERIVED", "")
 	t.Setenv("SUPERVISOR_NOTICE_BODY_LIMIT_BYTES", "")
@@ -68,6 +66,9 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	}
 	if cfg.AuthMode != "bearer" {
 		t.Fatalf("auth mode = %q, want bearer", cfg.AuthMode)
+	}
+	if cfg.RuntimeProfile != "local" {
+		t.Fatalf("runtime profile = %q, want local", cfg.RuntimeProfile)
 	}
 	if cfg.DefaultActorID != "" {
 		t.Fatalf("default actor id = %q, want empty", cfg.DefaultActorID)
@@ -137,17 +138,6 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 	if cfg.ExecutionAuditTimeoutMS != 500 {
 		t.Fatalf("execution audit timeout = %d, want 500", cfg.ExecutionAuditTimeoutMS)
 	}
-	if cfg.ExecutionAuditQueueCapacity != 128 {
-		t.Fatalf("execution audit queue capacity = %d, want 128", cfg.ExecutionAuditQueueCapacity)
-	}
-	if cfg.ExecutionAuditBatchSize != 10 ||
-		cfg.ExecutionAuditFlushMS != 1_000 ||
-		cfg.ExecutionAuditRetryMaxAttempts != 3 ||
-		cfg.ExecutionAuditRetryBaseMS != 100 ||
-		cfg.ExecutionAuditSpoolDir != "" ||
-		cfg.ExecutionAuditSpoolMaxBytes != 10_485_760 {
-		t.Fatalf("unexpected execution audit hardening defaults: %#v", cfg)
-	}
 	if cfg.OTelSampleRatio != 1.0 {
 		t.Fatalf("otel sample ratio = %v, want 1.0", cfg.OTelSampleRatio)
 	}
@@ -186,6 +176,28 @@ func TestFromEnvUsesSupervisorDefaults(t *testing.T) {
 		cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" ||
 		!cfg.PromptStrictStructuredOutputs {
 		t.Fatalf("unexpected prompt config defaults: %#v", cfg)
+	}
+}
+
+func TestFromEnvRejectsNonLocalRuntimeProfileWithoutMetricsToken(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_RUNTIME_PROFILE", "staging")
+	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "")
+
+	if _, err := LoadFromEnv(); err == nil {
+		t.Fatal("expected staging runtime profile without metrics token to fail")
+	}
+}
+
+func TestFromEnvAcceptsStagingRuntimeProfileWithMetricsToken(t *testing.T) {
+	t.Setenv("SUPERVISOR_API_RUNTIME_PROFILE", "staging")
+	t.Setenv("SUPERVISOR_API_METRICS_BEARER_TOKEN", "metrics-token")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+	if cfg.RuntimeProfile != "staging" {
+		t.Fatalf("runtime profile = %q, want staging", cfg.RuntimeProfile)
 	}
 }
 
@@ -240,17 +252,13 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	t.Setenv("SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS", "authorization=Bearer test")
 	t.Setenv("SUPERVISOR_API_OTEL_SERVICE_NAME", "custom-supervisor-api")
 	t.Setenv("SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS", "750")
+	t.Setenv("SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS", "15000")
+	t.Setenv("SUPERVISOR_API_OTEL_METRICS_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_OTEL_EXPORTER_OTLP_METRICS_ENDPOINT", "http://collector:4318/v1/metrics")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_ENABLED", "true")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_URL", "http://app-api:8787/api/internal/execution/audit-events")
+	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_URL", "http://app-api:27031/api/internal/execution/audit-events")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET", "audit-secret")
 	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS", "250")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY", "16")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE", "3")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_FLUSH_MS", "25")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_RETRY_MAX_ATTEMPTS", "5")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS", "10")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR", "/tmp/supervisor-audit-spool")
-	t.Setenv("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES", "2048")
 	t.Setenv("SUPERVISOR_API_OTEL_SAMPLE_RATIO", "0.25")
 	t.Setenv("SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION", "custom-attrs-v1")
 	t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", "campus_services, notice")
@@ -293,17 +301,13 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 		cfg.OTelHeaders != "authorization=Bearer test" ||
 		cfg.OTelServiceName != "custom-supervisor-api" ||
 		cfg.OTelExportTimeoutMS != 750 ||
+		cfg.OTelExportIntervalMS != 15000 ||
+		!cfg.OTelMetricsEnabled ||
+		cfg.OTelMetricsEndpoint != "http://collector:4318/v1/metrics" ||
 		!cfg.ExecutionAuditEnabled ||
-		cfg.ExecutionAuditURL != "http://app-api:8787/api/internal/execution/audit-events" ||
+		cfg.ExecutionAuditURL != "http://app-api:27031/api/internal/execution/audit-events" ||
 		cfg.ExecutionAuditSharedSecret != "audit-secret" ||
 		cfg.ExecutionAuditTimeoutMS != 250 ||
-		cfg.ExecutionAuditQueueCapacity != 16 ||
-		cfg.ExecutionAuditBatchSize != 3 ||
-		cfg.ExecutionAuditFlushMS != 25 ||
-		cfg.ExecutionAuditRetryMaxAttempts != 5 ||
-		cfg.ExecutionAuditRetryBaseMS != 10 ||
-		cfg.ExecutionAuditSpoolDir != "/tmp/supervisor-audit-spool" ||
-		cfg.ExecutionAuditSpoolMaxBytes != 2048 ||
 		cfg.OTelSampleRatio != 0.25 ||
 		cfg.OTelAllowedAttributesVersion != "custom-attrs-v1" ||
 		len(cfg.OpenCapabilities) != 2 ||
@@ -324,6 +328,42 @@ func TestLoadFromEnvAcceptsExplicitHardeningSettings(t *testing.T) {
 	}
 }
 
+func TestLoadFromEnvIgnoresLegacyLLMPromptRuntimeAliases(t *testing.T) {
+	t.Setenv("PROMPT_RUNTIME_API_KEY", "")
+	t.Setenv("PROMPT_RUNTIME_BASE_URL", "")
+	t.Setenv("LLM_API_KEY", "legacy-key")
+	t.Setenv("LLM_BASE_URL", "https://legacy.example/v1")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+
+	if cfg.PromptRuntimeAPIKey != "" {
+		t.Fatalf("prompt runtime api key = %q, want empty", cfg.PromptRuntimeAPIKey)
+	}
+	if cfg.PromptRuntimeBaseURL != "https://api.openai.com/v1" {
+		t.Fatalf(
+			"prompt runtime base url = %q, want official default",
+			cfg.PromptRuntimeBaseURL,
+		)
+	}
+}
+
+func TestLoadFromEnvDoesNotTreatAgentRuntimeProviderAsPromptRuntimeProvider(t *testing.T) {
+	t.Setenv("PROMPT_RUNTIME_PROVIDER", "")
+	t.Setenv("AGENT_RUNTIME_PROVIDER", "agent-os")
+
+	cfg, err := LoadFromEnv()
+	if err != nil {
+		t.Fatalf("LoadFromEnv returned error: %v", err)
+	}
+
+	if cfg.PromptRuntimeProvider != "" {
+		t.Fatalf("prompt runtime provider = %q, want empty", cfg.PromptRuntimeProvider)
+	}
+}
+
 func TestLoadFromEnvRejectsWildcardOpenCapabilities(t *testing.T) {
 	for _, value := range []string{"*", "all", "campus_services,all"} {
 		t.Run(value, func(t *testing.T) {
@@ -338,11 +378,15 @@ func TestLoadFromEnvRejectsWildcardOpenCapabilities(t *testing.T) {
 }
 
 func TestLoadFromEnvRejectsUnknownOpenCapabilities(t *testing.T) {
-	t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", "campus_services,unknown_capability")
+	for _, value := range []string{"campus_services,unknown_capability", "academic_calendar"} {
+		t.Run(value, func(t *testing.T) {
+			t.Setenv("SUPERVISOR_API_OPEN_CAPABILITIES", value)
 
-	_, err := LoadFromEnv()
-	if err == nil {
-		t.Fatal("expected unknown open capability to fail")
+			_, err := LoadFromEnv()
+			if err == nil {
+				t.Fatalf("expected SUPERVISOR_API_OPEN_CAPABILITIES=%q to fail", value)
+			}
+		})
 	}
 }
 
@@ -391,7 +435,7 @@ func TestLoadFromEnvAcceptsNoticeReadModelSettings(t *testing.T) {
 	}
 }
 
-func TestLoadFromEnvFallsBackToSharedPostgresAndGenericObjectStoreKeysForNoticeRuntime(t *testing.T) {
+func TestLoadFromEnvFallsBackToSharedPostgresWithoutTreatingGenericObjectStoreKeysAsNoticeRuntimeTruth(t *testing.T) {
 	t.Setenv("CAMPUS_SHARED_POSTGRES_URL", "postgres://shared.example/db")
 	t.Setenv("OBJECT_STORE_ENDPOINT", "http://minio:9000")
 	t.Setenv("OBJECT_STORE_ACCESS_KEY", "generic-access")
@@ -411,11 +455,11 @@ func TestLoadFromEnvFallsBackToSharedPostgresAndGenericObjectStoreKeysForNoticeR
 	if cfg.WorkflowRunDatabaseURL != "postgresql://shared.example/db" {
 		t.Fatalf("workflow run database url = %q", cfg.WorkflowRunDatabaseURL)
 	}
-	if cfg.NoticeObjectStoreAccessKey != "generic-access" {
-		t.Fatalf("notice object store access key = %q", cfg.NoticeObjectStoreAccessKey)
+	if cfg.NoticeObjectStoreAccessKey != "" {
+		t.Fatalf("notice object store access key = %q, want empty without derived credential pair", cfg.NoticeObjectStoreAccessKey)
 	}
-	if cfg.NoticeObjectStoreSecretKey != "generic-secret" {
-		t.Fatalf("notice object store secret key = %q", cfg.NoticeObjectStoreSecretKey)
+	if cfg.NoticeObjectStoreSecretKey != "" {
+		t.Fatalf("notice object store secret key = %q, want empty without derived credential pair", cfg.NoticeObjectStoreSecretKey)
 	}
 }
 
@@ -446,5 +490,13 @@ func TestLoadFromEnvRejectsInvalidLaneAndOTelSettings(t *testing.T) {
 	_, err = LoadFromEnv()
 	if err == nil {
 		t.Fatal("expected invalid otel sample ratio to fail")
+	}
+
+	t.Setenv("SUPERVISOR_API_OTEL_SAMPLE_RATIO", "")
+	t.Setenv("SUPERVISOR_API_OTEL_METRICS_ENABLED", "true")
+	t.Setenv("SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS", "0")
+	_, err = LoadFromEnv()
+	if err == nil {
+		t.Fatal("expected invalid otel export interval to fail")
 	}
 }

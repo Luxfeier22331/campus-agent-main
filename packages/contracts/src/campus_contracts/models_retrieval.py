@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+from typing import Any
 
 from campus_contracts.models_shared import (
     AllowedCorpus,
@@ -18,6 +19,56 @@ from campus_contracts.models_shared import (
     _validate_source_trust_tier,
     _validate_version_query_mode,
 )
+
+_FORBIDDEN_SAFE_SUMMARY_KEY_TOKENS = (
+    "raw_prompt",
+    "raw_transcript",
+    "provider_raw_response",
+    "raw_response",
+    "raw_payload",
+    "raw_body",
+    "jwt",
+    "cookie",
+    "auth_envelope",
+    "retrieval_backend_dump",
+)
+_FORBIDDEN_SAFE_SUMMARY_VALUE_TOKENS = (
+    "authorization:",
+    "bearer ",
+    "cookie:",
+    "set-cookie:",
+    "access_token=",
+    "refresh_token=",
+    "sessionid=",
+    "session_id=",
+    "sso_tgc=",
+    "token=",
+)
+
+
+def _normalize_safe_summary_key_token(value: str) -> str:
+    return "".join(char for char in value.strip().lower() if char.isalnum())
+
+
+def _reject_raw_safe_summary_keys(value: object, field_name: str) -> None:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            normalized_key = _normalize_safe_summary_key_token(str(key))
+            if any(
+                _normalize_safe_summary_key_token(token) in normalized_key
+                for token in _FORBIDDEN_SAFE_SUMMARY_KEY_TOKENS
+            ):
+                raise ValueError(f"{field_name} contains forbidden raw workflow trace key: {key}")
+            _reject_raw_safe_summary_keys(item, field_name)
+        return
+    if isinstance(value, list | tuple):
+        for item in value:
+            _reject_raw_safe_summary_keys(item, field_name)
+        return
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if any(token in normalized for token in _FORBIDDEN_SAFE_SUMMARY_VALUE_TOKENS):
+            raise ValueError(f"{field_name} contains forbidden raw workflow trace value")
 
 
 @dataclass(frozen=True, slots=True)
@@ -67,6 +118,14 @@ class EvidenceSource:
     content_kind: str = ""
     content_role: str = ""
     detail_label: str = ""
+    semantic_role: str = ""
+    polarity: str = ""
+    action_type: str = ""
+    claim_type: str = ""
+    audience_scope: str = ""
+    article_no: str = ""
+    clause_no: str = ""
+    section_kind: str = ""
     is_answer_bearing: bool = False
     canonical_source_id: str = ""
     canonical_source_title: str = ""
@@ -200,6 +259,121 @@ class SourceTrustSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class RagPlannerInformationNeed:
+    need_id: str
+    question: str
+    target_collection: str
+    query_mode: str
+    expected_evidence_kind: str
+    source_trust_tier: SourceTrustTier | str = field(default="", compare=False)
+
+    def __post_init__(self) -> None:
+        if not self.need_id.strip():
+            raise ValueError("need_id must not be empty")
+        if not self.question.strip():
+            raise ValueError("question must not be empty")
+        if not self.target_collection.strip():
+            raise ValueError("target_collection must not be empty")
+        if not self.query_mode.strip():
+            raise ValueError("query_mode must not be empty")
+        if not self.expected_evidence_kind.strip():
+            raise ValueError("expected_evidence_kind must not be empty")
+        if self.source_trust_tier:
+            _validate_source_trust_tier(self.source_trust_tier)
+
+
+@dataclass(frozen=True, slots=True)
+class RagProjectionContextSummary:
+    projection_id: str
+    source_step_id: str
+    projection_kind: str
+    content_hash: str
+    safety_summary: dict[str, Any] = field(default_factory=dict, compare=False)
+    evidence_use: str = "framing_only"
+
+    def __post_init__(self) -> None:
+        if not self.projection_id.strip():
+            raise ValueError("projection_id must not be empty")
+        if not self.source_step_id.strip():
+            raise ValueError("source_step_id must not be empty")
+        if not self.projection_kind.strip():
+            raise ValueError("projection_kind must not be empty")
+        if not self.content_hash.strip():
+            raise ValueError("content_hash must not be empty")
+        if not self.evidence_use.strip():
+            raise ValueError("evidence_use must not be empty")
+        _reject_raw_safe_summary_keys(self.safety_summary, "safety_summary")
+
+
+@dataclass(frozen=True, slots=True)
+class RagEntityResolutionSummary:
+    resolution_status: str
+    entity_type: str = ""
+    canonical_id: str = ""
+    canonical_title: str = ""
+    target_collection: str = ""
+    resolution_source: str = ""
+    confidence: float = 0.0
+    ambiguity_reason: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.resolution_status.strip():
+            raise ValueError("resolution_status must not be empty")
+        if not self.resolution_source.strip():
+            raise ValueError("resolution_source must not be empty")
+        if self.confidence < 0 or self.confidence > 1:
+            raise ValueError("confidence must be between 0 and 1")
+        if self.resolution_status == "resolved" and not self.canonical_id.strip():
+            raise ValueError("canonical_id must not be empty when entity is resolved")
+
+
+@dataclass(frozen=True, slots=True)
+class RagReplanDecisionSummary:
+    attempted: bool = False
+    replan_count: int = 0
+    trigger_reason: str = ""
+    outcome: str = ""
+    fail_close_reason: str = ""
+
+    def __post_init__(self) -> None:
+        if self.replan_count < 0:
+            raise ValueError("replan_count must not be negative")
+        if self.attempted and not self.trigger_reason.strip():
+            raise ValueError("trigger_reason must not be empty when replan was attempted")
+        if self.attempted and not self.outcome.strip():
+            raise ValueError("outcome must not be empty when replan was attempted")
+
+
+@dataclass(frozen=True, slots=True)
+class ClaimEvidenceGraphEntry:
+    claim_id: str
+    claim_text: str
+    supported: bool = False
+    support_source_doc_ids: tuple[str, ...] = field(default_factory=tuple)
+    support_chunk_ids: tuple[str, ...] = field(default_factory=tuple)
+    support_need_ids: tuple[str, ...] = field(default_factory=tuple)
+    support_version_sides: tuple[str, ...] = field(default_factory=tuple)
+    support_status: str = ""
+    required_source_trust_tier: SourceTrustTier | str = field(default="", compare=False)
+    observed_source_trust_tiers: tuple[SourceTrustTier | str, ...] = field(
+        default_factory=tuple,
+        compare=False,
+    )
+
+    def __post_init__(self) -> None:
+        if not self.claim_id.strip():
+            raise ValueError("claim_id must not be empty")
+        if not self.claim_text.strip():
+            raise ValueError("claim_text must not be empty")
+        if not self.support_status.strip():
+            raise ValueError("support_status must not be empty")
+        if self.required_source_trust_tier:
+            _validate_source_trust_tier(self.required_source_trust_tier)
+        for tier in self.observed_source_trust_tiers:
+            _validate_source_trust_tier(tier)
+
+
+@dataclass(frozen=True, slots=True)
 class RemoteContentSuspicionSummary:
     flagged_source_count: int = 0
     flag_labels: tuple[str, ...] = field(default_factory=tuple)
@@ -219,6 +393,7 @@ class RetrievalStepActivitySummary:
     corpus: AllowedCorpus
     collection: str
     status: str
+    need_ids: tuple[str, ...] = field(default_factory=tuple)
     top_k: int = 0
     latency_ms: int | None = None
     candidate_count: int = 0
@@ -264,6 +439,46 @@ class RetrievalPlanSummary:
 
 
 @dataclass(frozen=True, slots=True)
+class RagStageActivitySummary:
+    request_id: str = ""
+    plan_id: str = ""
+    query_mode: str = ""
+    stage_name: str = ""
+    stage_status: str = ""
+    candidate_count: int = 0
+    supporting_evidence_count: int = 0
+    grounding_verdict: str = ""
+    diagnostic_reason: str = ""
+    presentation_kind: str = ""
+    presentation_path: str = ""
+    latency_ms: int | None = None
+    retrieval_ms: int | None = None
+    prompt_ms: int | None = None
+    adapter_ms: int | None = None
+    diagnostic_ms: int | None = None
+
+    def __post_init__(self) -> None:
+        if not self.stage_name.strip():
+            raise ValueError("stage_name must not be empty")
+        if not self.stage_status.strip():
+            raise ValueError("stage_status must not be empty")
+        if self.candidate_count < 0:
+            raise ValueError("candidate_count must not be negative")
+        if self.supporting_evidence_count < 0:
+            raise ValueError("supporting_evidence_count must not be negative")
+        for field_name in (
+            "latency_ms",
+            "retrieval_ms",
+            "prompt_ms",
+            "adapter_ms",
+            "diagnostic_ms",
+        ):
+            value = getattr(self, field_name)
+            if value is not None and value < 0:
+                raise ValueError(f"{field_name} must not be negative")
+
+
+@dataclass(frozen=True, slots=True)
 class PromptTrace:
     prompt_id: str = ""
     prompt_version: str = ""
@@ -283,6 +498,7 @@ class RagResultDiagnostics:
     rewritten_query: str = ""
     clarification_reason: str = ""
     no_answer_reason: str = ""
+    fail_close_reason: str = ""
     semantic_outcome: str = ""
     retrieval_adequacy_verdict: str = ""
     retrieval_adequacy_reason: str = ""
@@ -316,6 +532,23 @@ class RagResultDiagnostics:
     partial_answer: bool = False
     prompt_runtime_state: str = ""
     prompt_runtime_detail: str = ""
+    answer_presentation_kind: str = ""
+    answer_presentation_path: str = ""
+    answer_diagnostic_reason: str = ""
     retrieval_plan_summary: RetrievalPlanSummary | None = field(default=None, compare=False)
+    stage_activities: tuple[RagStageActivitySummary, ...] = field(default_factory=tuple)
     retrieved_sources: tuple[EvidenceSource, ...] = field(default_factory=tuple)
+    planner_information_needs: tuple[RagPlannerInformationNeed, ...] = field(default_factory=tuple)
+    projection_context_summaries: tuple[RagProjectionContextSummary, ...] = field(
+        default_factory=tuple
+    )
+    entity_resolution_summary: RagEntityResolutionSummary | None = field(
+        default=None,
+        compare=False,
+    )
+    replan_decision_summary: RagReplanDecisionSummary | None = field(
+        default=None,
+        compare=False,
+    )
+    claim_evidence_graph: tuple[ClaimEvidenceGraphEntry, ...] = field(default_factory=tuple)
     prompt_trace: PromptTrace | None = None

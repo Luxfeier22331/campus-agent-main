@@ -93,7 +93,11 @@ func (s *PostgresWorkflowRunStore) Create(
 	if err := validateWorkflowRun(run); err != nil {
 		return WorkflowRun{}, err
 	}
-	handoffChain, steps, contextProjections, err := workflowRunJSON(run)
+	handoffChain, steps, contextProjections, toolCallSummaries, err := workflowRunJSON(run)
+	if err != nil {
+		return WorkflowRun{}, err
+	}
+	agentInvocations, err := workflowRunAgentInvocationsJSON(run)
 	if err != nil {
 		return WorkflowRun{}, err
 	}
@@ -101,8 +105,8 @@ func (s *PostgresWorkflowRunStore) Create(
 		ctx,
 		`insert into runtime.workflow_runs (
 			run_id, request_id, trace_id, plan_id, workflow_mode, branch, state,
-			handoff_chain, steps, context_projections
-		) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb)`,
+			handoff_chain, steps, agent_invocations, context_projections, tool_call_summaries
+		) values ($1,$2,$3,$4,$5,$6,$7,$8::jsonb,$9::jsonb,$10::jsonb,$11::jsonb,$12::jsonb)`,
 		run.RunID,
 		run.RequestID,
 		run.TraceID,
@@ -112,7 +116,9 @@ func (s *PostgresWorkflowRunStore) Create(
 		string(run.State),
 		handoffChain,
 		steps,
+		agentInvocations,
 		contextProjections,
+		toolCallSummaries,
 	)
 	if err != nil {
 		if isUniqueViolation(err) {
@@ -158,6 +164,17 @@ func (s *PostgresWorkflowRunStore) AppendStep(
 	})
 }
 
+func (s *PostgresWorkflowRunStore) AppendAgentInvocation(
+	ctx context.Context,
+	runID string,
+	invocation AgentInvocation,
+) (WorkflowRun, error) {
+	return s.updateLocked(ctx, runID, func(run WorkflowRun) (WorkflowRun, error) {
+		run.AgentInvocations = append(run.AgentInvocations, cloneAgentInvocation(invocation))
+		return run, validateWorkflowRun(run)
+	})
+}
+
 func (s *PostgresWorkflowRunStore) AppendStepOutputProjection(
 	ctx context.Context,
 	runID string,
@@ -168,6 +185,17 @@ func (s *PostgresWorkflowRunStore) AppendStepOutputProjection(
 			run.ContextProjections,
 			CloneStepOutputProjection(projection),
 		)
+		return run, validateWorkflowRun(run)
+	})
+}
+
+func (s *PostgresWorkflowRunStore) AppendToolCallSummary(
+	ctx context.Context,
+	runID string,
+	summary ToolCallSummary,
+) (WorkflowRun, error) {
+	return s.updateLocked(ctx, runID, func(run WorkflowRun) (WorkflowRun, error) {
+		run.ToolCallSummaries = append(run.ToolCallSummaries, cloneToolCallSummary(summary))
 		return run, validateWorkflowRun(run)
 	})
 }
@@ -209,7 +237,11 @@ func (s *PostgresWorkflowRunStore) updateLocked(
 	if err != nil {
 		return WorkflowRun{}, err
 	}
-	handoffChain, steps, contextProjections, err := workflowRunJSON(run)
+	handoffChain, steps, contextProjections, toolCallSummaries, err := workflowRunJSON(run)
+	if err != nil {
+		return WorkflowRun{}, err
+	}
+	agentInvocations, err := workflowRunAgentInvocationsJSON(run)
 	if err != nil {
 		return WorkflowRun{}, err
 	}
@@ -217,7 +249,8 @@ func (s *PostgresWorkflowRunStore) updateLocked(
 		ctx,
 		`update runtime.workflow_runs
 		set workflow_mode = $2, branch = $3, state = $4, handoff_chain = $5::jsonb,
-			steps = $6::jsonb, context_projections = $7::jsonb, updated_at = now()
+			steps = $6::jsonb, agent_invocations = $7::jsonb, context_projections = $8::jsonb,
+			tool_call_summaries = $9::jsonb, updated_at = now()
 		where run_id = $1`,
 		run.RunID,
 		string(run.Mode),
@@ -225,7 +258,9 @@ func (s *PostgresWorkflowRunStore) updateLocked(
 		string(run.State),
 		handoffChain,
 		steps,
+		agentInvocations,
 		contextProjections,
+		toolCallSummaries,
 	); err != nil {
 		return WorkflowRun{}, err
 	}
@@ -235,20 +270,32 @@ func (s *PostgresWorkflowRunStore) updateLocked(
 	return s.Get(ctx, runID)
 }
 
-func workflowRunJSON(run WorkflowRun) (string, string, string, error) {
+func workflowRunJSON(run WorkflowRun) (string, string, string, string, error) {
 	handoffChain, err := json.Marshal(run.HandoffChain)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 	steps, err := json.Marshal(run.Steps)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
 	contextProjections, err := json.Marshal(run.ContextProjections)
 	if err != nil {
-		return "", "", "", err
+		return "", "", "", "", err
 	}
-	return string(handoffChain), string(steps), string(contextProjections), nil
+	toolCallSummaries, err := json.Marshal(run.ToolCallSummaries)
+	if err != nil {
+		return "", "", "", "", err
+	}
+	return string(handoffChain), string(steps), string(contextProjections), string(toolCallSummaries), nil
+}
+
+func workflowRunAgentInvocationsJSON(run WorkflowRun) (string, error) {
+	agentInvocations, err := json.Marshal(run.AgentInvocations)
+	if err != nil {
+		return "", err
+	}
+	return string(agentInvocations), nil
 }
 
 func scanWorkflowRun(row pgx.Row) (WorkflowRun, error) {
@@ -257,7 +304,9 @@ func scanWorkflowRun(row pgx.Row) (WorkflowRun, error) {
 	var state string
 	var handoffChainRaw []byte
 	var stepsRaw []byte
+	var agentInvocationsRaw []byte
 	var contextProjectionsRaw []byte
+	var toolCallSummariesRaw []byte
 	if err := row.Scan(
 		&run.RunID,
 		&run.RequestID,
@@ -268,7 +317,9 @@ func scanWorkflowRun(row pgx.Row) (WorkflowRun, error) {
 		&state,
 		&handoffChainRaw,
 		&stepsRaw,
+		&agentInvocationsRaw,
 		&contextProjectionsRaw,
+		&toolCallSummariesRaw,
 	); err != nil {
 		return WorkflowRun{}, err
 	}
@@ -284,8 +335,18 @@ func scanWorkflowRun(row pgx.Row) (WorkflowRun, error) {
 			return WorkflowRun{}, err
 		}
 	}
+	if len(agentInvocationsRaw) > 0 {
+		if err := json.Unmarshal(agentInvocationsRaw, &run.AgentInvocations); err != nil {
+			return WorkflowRun{}, err
+		}
+	}
 	if len(contextProjectionsRaw) > 0 {
 		if err := json.Unmarshal(contextProjectionsRaw, &run.ContextProjections); err != nil {
+			return WorkflowRun{}, err
+		}
+	}
+	if len(toolCallSummariesRaw) > 0 {
+		if err := json.Unmarshal(toolCallSummariesRaw, &run.ToolCallSummaries); err != nil {
 			return WorkflowRun{}, err
 		}
 	}
@@ -295,8 +356,14 @@ func scanWorkflowRun(row pgx.Row) (WorkflowRun, error) {
 	if run.Steps == nil {
 		run.Steps = []WorkflowStep{}
 	}
+	if run.AgentInvocations == nil {
+		run.AgentInvocations = []AgentInvocation{}
+	}
 	if run.ContextProjections == nil {
 		run.ContextProjections = []StepOutputProjection{}
+	}
+	if run.ToolCallSummaries == nil {
+		run.ToolCallSummaries = []ToolCallSummary{}
 	}
 	return run, validateWorkflowRun(run)
 }
@@ -308,7 +375,7 @@ func isUniqueViolation(err error) bool {
 
 const workflowRunSelectSQL = `select
 	run_id, request_id, trace_id, plan_id, workflow_mode, branch, state,
-	handoff_chain, steps, context_projections
+	handoff_chain, steps, agent_invocations, context_projections, tool_call_summaries
 from runtime.workflow_runs`
 
 const workflowRunSchemaSQL = `
@@ -324,13 +391,21 @@ create table if not exists runtime.workflow_runs (
 	state text not null,
 	handoff_chain jsonb not null default '[]'::jsonb,
 	steps jsonb not null default '[]'::jsonb,
+	agent_invocations jsonb not null default '[]'::jsonb,
 	context_projections jsonb not null default '[]'::jsonb,
+	tool_call_summaries jsonb not null default '[]'::jsonb,
 	created_at timestamptz not null default now(),
 	updated_at timestamptz not null default now()
 );
 
 alter table runtime.workflow_runs
+	add column if not exists agent_invocations jsonb not null default '[]'::jsonb;
+
+alter table runtime.workflow_runs
 	add column if not exists context_projections jsonb not null default '[]'::jsonb;
+
+alter table runtime.workflow_runs
+	add column if not exists tool_call_summaries jsonb not null default '[]'::jsonb;
 
 create index if not exists workflow_runs_request_idx
 	on runtime.workflow_runs (request_id);

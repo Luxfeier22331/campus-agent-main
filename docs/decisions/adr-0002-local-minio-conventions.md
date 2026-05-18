@@ -3,7 +3,7 @@ doc_type: decision
 decision_id: ADR-0002
 status: accepted
 created: 2026-03-22
-updated: 2026-04-03
+updated: 2026-05-02
 ---
 # ADR-0002 本地 MinIO 约束与迁移不变量
 
@@ -124,6 +124,10 @@ Qdrant snapshot backup bundle；不把 chunking 后的全文 chunk dump 当作�
 - `provider-response.jsonl` 不得冒充 raw layer 真相源
 - `title_slug--{docid8}` 负责人工定位；`version_id` 继续留在 registry / metadata
   中，不再强制单独占路径层级
+- `{title_slug}` 是由文档标题归一化得到的人类可读路径段；当前 contract 允许保留
+  CJK 字母数字字符，并用 `--{docid8}` 提供稳定 disambiguation。它不是 ASCII-only
+  operator slug；如需未来改成 ASCII-only，必须作为 object-key migration 单独决策，
+  不能把当前含中文 title 段的 regulation/student-handbook artifact 视为不合规残留。
 
 不变量：
 

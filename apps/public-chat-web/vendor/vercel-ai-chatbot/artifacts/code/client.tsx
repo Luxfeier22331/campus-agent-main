@@ -1,11 +1,10 @@
 import { toast } from "sonner";
-import { CodeEditor } from "@/components/chat/code-editor";
 import {
-  Console,
   type ConsoleOutput,
   type ConsoleOutputContent,
 } from "@/components/chat/console";
 import { Artifact } from "@/components/chat/create-artifact";
+import type { ArtifactContentProps } from "@/components/chat/create-artifact";
 import {
   CopyIcon,
   LogsIcon,
@@ -66,6 +65,8 @@ type Metadata = {
   outputs: ConsoleOutput[];
 };
 
+export type CodeArtifactContentProps = ArtifactContentProps<Metadata>;
+
 export const codeArtifact = new Artifact<"code", Metadata>({
   kind: "code",
   description:
@@ -90,27 +91,7 @@ export const codeArtifact = new Artifact<"code", Metadata>({
       }));
     }
   },
-  content: ({ metadata, setMetadata, ...props }) => {
-    return (
-      <>
-        <div className="relative min-h-[200px]">
-          <CodeEditor {...props} />
-        </div>
-
-        {metadata?.outputs && (
-          <Console
-            consoleOutputs={metadata.outputs}
-            setConsoleOutputs={() => {
-              setMetadata({
-                ...metadata,
-                outputs: [],
-              });
-            }}
-          />
-        )}
-      </>
-    );
-  },
+  content: () => null,
   actions: [
     {
       icon: <PlayIcon size={18} />,

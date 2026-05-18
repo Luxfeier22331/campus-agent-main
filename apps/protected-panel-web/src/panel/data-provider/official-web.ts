@@ -2,20 +2,156 @@ import type { GetListParams, Identifier } from "react-admin";
 
 import { fetchJson } from "../http";
 import {
+	normalizeOfficialWebReleaseTaskRecord,
 	normalizeOfficialWebRunDetailRecord,
 	normalizeOfficialWebRunRecord,
 	normalizeOfficialWebSiteDetailRecord,
 	normalizeOfficialWebSiteRecord,
+	normalizeOfficialWebTargetInventoryRecord,
+	normalizeOfficialWebTargetJobDetailRecord,
+	normalizeOfficialWebTargetJobRecord,
+	type OfficialWebReleaseTaskRecord,
 	type OfficialWebRunRecord,
 	type OfficialWebSiteRecord,
+	type OfficialWebTargetInventoryRecord,
+	type OfficialWebTargetJobRecord,
+	type RawOfficialWebReleaseTaskDetailResponse,
+	type RawOfficialWebReleaseTaskListResponse,
 	type RawOfficialWebRunDetailResponse,
 	type RawOfficialWebRunListResponse,
 	type RawOfficialWebSiteDetailResponse,
 	type RawOfficialWebSiteListResponse,
+	type RawOfficialWebTargetInventoryListResponse,
+	type RawOfficialWebTargetJobDetailResponse,
+	type RawOfficialWebTargetJobListResponse,
 } from "../types";
 import { getSequentialCursorList } from "./cursor";
-import { appendOfficialWebRunFilters } from "./filters";
+import {
+	appendOfficialWebReleaseTaskFilters,
+	appendOfficialWebRunFilters,
+	appendOfficialWebTargetInventoryFilters,
+	appendOfficialWebTargetJobFilters,
+} from "./filters";
 import { encodePathIdentifier } from "./path";
+
+export async function getOfficialWebTargetInventoryList(params: GetListParams): Promise<{
+	data: OfficialWebTargetInventoryRecord[];
+	pageInfo: {
+		hasNextPage: boolean;
+		hasPreviousPage: boolean;
+	};
+}> {
+	return getSequentialCursorList<
+		RawOfficialWebTargetInventoryListResponse,
+		RawOfficialWebTargetInventoryListResponse["entries"][number],
+		OfficialWebTargetInventoryRecord
+	>({
+		buildQuery(query) {
+			appendOfficialWebTargetInventoryFilters(query, params.filter);
+		},
+		cursorFilter: params.filter,
+		normalizeRecord: normalizeOfficialWebTargetInventoryRecord,
+		page: params.pagination?.page,
+		perPage: params.pagination?.perPage,
+		resource: "officialWebTargetInventory",
+		resourceLabel: "official web target inventory",
+		responseItems(payload) {
+			return payload.entries;
+		},
+		signal: params.signal,
+		sourcePath: "/api/official-web/target-inventory",
+	});
+}
+
+export async function getOfficialWebTargetJobList(params: GetListParams): Promise<{
+	data: OfficialWebTargetJobRecord[];
+	pageInfo: {
+		hasNextPage: boolean;
+		hasPreviousPage: boolean;
+	};
+}> {
+	return getSequentialCursorList<
+		RawOfficialWebTargetJobListResponse,
+		RawOfficialWebTargetJobListResponse["jobs"][number],
+		OfficialWebTargetJobRecord
+	>({
+		buildQuery(query) {
+			appendOfficialWebTargetJobFilters(query, params.filter);
+		},
+		cursorFilter: params.filter,
+		normalizeRecord: normalizeOfficialWebTargetJobRecord,
+		page: params.pagination?.page,
+		perPage: params.pagination?.perPage,
+		resource: "officialWebTargetJobs",
+		resourceLabel: "official web target job",
+		responseItems(payload) {
+			return payload.jobs;
+		},
+		signal: params.signal,
+		sourcePath: "/api/official-web/target-jobs",
+	});
+}
+
+export async function getOfficialWebTargetJobDetail(
+	id: Identifier,
+	signal?: AbortSignal,
+): Promise<{ data: OfficialWebTargetJobRecord }> {
+	const payload = await fetchJson<RawOfficialWebTargetJobDetailResponse>(
+		`/api/official-web/target-jobs/${encodePathIdentifier(id)}`,
+		{
+			signal,
+		},
+	);
+
+	return {
+		data: normalizeOfficialWebTargetJobDetailRecord(payload.targetJob),
+	};
+}
+
+export async function getOfficialWebReleaseTaskList(params: GetListParams): Promise<{
+	data: OfficialWebReleaseTaskRecord[];
+	pageInfo: {
+		hasNextPage: boolean;
+		hasPreviousPage: boolean;
+	};
+}> {
+	return getSequentialCursorList<
+		RawOfficialWebReleaseTaskListResponse,
+		RawOfficialWebReleaseTaskListResponse["tasks"][number],
+		OfficialWebReleaseTaskRecord
+	>({
+		buildQuery(query) {
+			appendOfficialWebReleaseTaskFilters(query, params.filter);
+		},
+		cursorFilter: params.filter,
+		normalizeRecord: normalizeOfficialWebReleaseTaskRecord,
+		page: params.pagination?.page,
+		perPage: params.pagination?.perPage,
+		resource: "officialWebReleaseTasks",
+		resourceLabel: "official web release task",
+		responseItems(payload) {
+			return payload.tasks;
+		},
+		signal: params.signal,
+		sourcePath: "/api/official-web/release-tasks",
+	});
+}
+
+export async function getOfficialWebReleaseTaskDetail(
+	id: Identifier,
+	signal?: AbortSignal,
+): Promise<{ data: OfficialWebReleaseTaskRecord }> {
+	const payload = await fetchJson<RawOfficialWebReleaseTaskDetailResponse>(
+		`/api/official-web/release-tasks/${encodePathIdentifier(id)}`,
+		{
+			signal,
+		},
+	);
+
+	return {
+		data: normalizeOfficialWebReleaseTaskRecord(payload.task),
+	};
+}
 
 export async function getOfficialWebRunList(params: GetListParams): Promise<{
 	data: OfficialWebRunRecord[];

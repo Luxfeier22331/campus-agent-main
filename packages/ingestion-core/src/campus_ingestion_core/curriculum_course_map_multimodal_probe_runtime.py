@@ -468,7 +468,7 @@ async def _request_structured_multimodal_payload_async(
     run_index: int,
     map_index: int | None,
 ) -> dict[str, object]:
-    api_key = (source.get("PROMPT_RUNTIME_API_KEY") or source.get("LLM_API_KEY") or "").strip()
+    api_key = (source.get("PROMPT_RUNTIME_API_KEY") or "").strip()
     model_name = (source.get("PROMPT_RUNTIME_MODEL") or "").strip()
     reasoning_effort = (source.get("PROMPT_RUNTIME_REASONING_EFFORT") or "").strip()
     max_output_tokens = (source.get("PROMPT_RUNTIME_MAX_OUTPUT_TOKENS") or "").strip()

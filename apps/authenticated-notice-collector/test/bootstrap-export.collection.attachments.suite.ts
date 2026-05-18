@@ -197,6 +197,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 					};
 				},
 			},
+			defaultInlineVisualCapture: true,
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
@@ -304,7 +305,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 		expect(storedObjects).toEqual([]);
 	});
 
-	it("materializes internal inline image refs into object-backed bundle rows by default", async () => {
+	it("materializes internal inline image refs when visual capture is explicitly enabled", async () => {
 		const storedObjects: Array<{
 			key: string;
 			contentType: string;
@@ -332,6 +333,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 					};
 				},
 			},
+			defaultInlineVisualCapture: true,
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
@@ -427,7 +429,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 		]);
 	});
 
-	it("keeps inline image refs reference-only when default visual capture is disabled", async () => {
+	it("keeps inline image refs reference-only unless visual capture is explicitly enabled", async () => {
 		let downloadCalls = 0;
 		const storedObjects: unknown[] = [];
 		const result = await collectBootstrapBundle({
@@ -538,6 +540,7 @@ export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 					throw new Error("non-visual inline bytes should not be stored by default capture");
 				},
 			},
+			defaultInlineVisualCapture: true,
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => {

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 from collections.abc import Sequence
+from types import SimpleNamespace
 
 from campus_ingestion_core.chunking import (
     TEXTUAL_UNIT_TYPES,
@@ -16,6 +17,7 @@ from campus_ingestion_core.process_candidate_aggregation import (
     build_aggregated_metadata,
     build_institutional_regulation_aggregated_anchor,
     header_ratio,
+    infer_answer_role_from_handbook_semantics,
     normalize_anchor_label,
     normalize_section_path,
     short_textual_group_is_satisfied,
@@ -26,11 +28,28 @@ from campus_ingestion_core.process_shared import (
     _SHORT_TEXTUAL_MAX_MEMBER_COUNT,
     _ChunkCandidate,
 )
+from campus_ingestion_core.regulation_answer_roles import (
+    decide_answer_role as _decide_answer_role,
+)
 
 _NESTED_NUMBERED_LINE_RE = re.compile(
     r"^(?:[0-9]+[.、]|[（(][一二三四五六七八九十百千万〇零两0-9]+[)）])"
 )
 _SHORT_TEXTUAL_MERGE_UNIT_TYPES = frozenset((*TEXTUAL_UNIT_TYPES, "institutional_regulation_block"))
+_SHORT_TEXTUAL_MERGE_ATOMIC_ANSWER_ROLES = frozenset(
+    {
+        "example_evidence",
+        "exception_rule",
+        "exclusion_rule",
+        "procedure_step",
+        "material_requirement",
+        "time_constraint",
+    }
+)
+
+
+def decide_answer_role(*, text: str, prefix_text: str = "", role_hint: str | None = None):
+    return _decide_answer_role(text=text, prefix_text=prefix_text, role_hint=role_hint)
 
 
 def merge_adjacent_short_textual_candidates(
@@ -196,10 +215,80 @@ def short_textual_candidates_are_compatible(
             return False
     elif not short_textual_section_paths_are_compatible(current=current, incoming=incoming):
         return False
+    if answer_ready_intro_merge_conflict(current=current, incoming=incoming):
+        return False
+    if answer_ready_atomic_roles_conflict(current=current, incoming=incoming):
+        return False
     for field_name in ("title", "policy_doc_no"):
         if current.metadata.get(field_name) != incoming.metadata.get(field_name):
             return False
     return True
+
+
+def answer_ready_intro_merge_conflict(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+) -> bool:
+    current_role = candidate_answer_role(current)
+    incoming_role = candidate_answer_role(incoming)
+    if "eligibility_intro" not in {current_role, incoming_role}:
+        return False
+    other_role = incoming_role if current_role == "eligibility_intro" else current_role
+    return other_role in {"supporting_detail", "definition", ""}
+
+
+def answer_ready_atomic_roles_conflict(
+    *,
+    current: _ChunkCandidate,
+    incoming: _ChunkCandidate,
+) -> bool:
+    current_role = candidate_answer_role(current)
+    incoming_role = candidate_answer_role(incoming)
+    return is_short_textual_merge_atomic_answer_role(
+        current_role
+    ) or is_short_textual_merge_atomic_answer_role(incoming_role)
+
+
+def candidate_answer_role(candidate: _ChunkCandidate) -> str:
+    for value in (
+        candidate.metadata.get("answer_role"),
+        candidate.piece.metadata.get("answer_role"),
+    ):
+        role = str(value or "").strip()
+        if role:
+            return role
+    if _candidate_has_semantic_contract(candidate):
+        inferred_semantics = SimpleNamespace(
+            content_role=str(candidate.metadata.get("content_role") or "").strip(),
+            semantic_role=str(candidate.metadata.get("semantic_role") or "").strip(),
+            claim_type=str(candidate.metadata.get("claim_type") or "").strip(),
+            polarity=str(candidate.metadata.get("polarity") or "").strip(),
+        )
+        inferred_role = infer_answer_role_from_handbook_semantics(inferred_semantics)
+        if inferred_role:
+            return inferred_role
+    parsed_role = str(
+        decide_answer_role(
+            text=candidate.piece.text,
+            prefix_text=" ".join(part for part in normalize_section_path(candidate.anchor) if part),
+        ).get("answer_role")
+        or ""
+    ).strip()
+    if is_short_textual_merge_atomic_answer_role(parsed_role):
+        return parsed_role
+    return ""
+
+
+def is_short_textual_merge_atomic_answer_role(answer_role: str) -> bool:
+    return answer_role in _SHORT_TEXTUAL_MERGE_ATOMIC_ANSWER_ROLES
+
+
+def _candidate_has_semantic_contract(candidate: _ChunkCandidate) -> bool:
+    return any(
+        str(candidate.metadata.get(field_name) or "").strip()
+        for field_name in ("content_role", "semantic_role", "claim_type")
+    )
 
 
 def policy_page_label_shape_conflicts(
@@ -313,6 +402,8 @@ def is_absorbable_short_textual_candidate(candidate: _ChunkCandidate) -> bool:
 __all__ = [
     "_NESTED_NUMBERED_LINE_RE",
     "absorb_short_textual_candidates",
+    "answer_ready_atomic_roles_conflict",
+    "candidate_answer_role",
     "candidate_contains_nested_numbered_items",
     "candidate_has_explicit_member_label",
     "institutional_regulation_block_section_paths_are_compatible",

@@ -38,9 +38,9 @@ class EvalCaseGovernanceTest(unittest.TestCase):
         self.assertTrue(
             {
                 "student_rules",
+                "institutional_rules",
                 "curriculum_plan",
                 "official_web/stable_reference",
-                "official_web/fresh_news",
                 "service_status_lookup",
                 "transport_schedule_lookup",
                 "service_guide_lookup",
@@ -52,6 +52,27 @@ class EvalCaseGovernanceTest(unittest.TestCase):
             self.assertTrue(entry.eval_families)
             self.assertEqual(entry.truth_scope, "denominator_expectation")
             self.assertFalse(entry.authors_domain_truth)
+
+    def test_rag_denominator_registry_tracks_only_current_rag_consumption_surfaces(self) -> None:
+        from campus_evals.case_governance import load_denominator_registry
+
+        registry = load_denominator_registry()
+        rag_surfaces = {
+            entry.surface_id
+            for entry in registry.entries
+            if entry.capability_family == "rag-agent" and entry.admission_state == "admitted"
+        }
+
+        self.assertEqual(
+            rag_surfaces,
+            {
+                "student_rules",
+                "institutional_rules",
+                "curriculum_plan",
+                "official_web/stable_reference",
+            },
+        )
+        self.assertNotIn("official_web/fresh_news", rag_surfaces)
 
     def test_denominator_registry_rejects_domain_truth_payload(self) -> None:
         from campus_evals.case_governance import validate_denominator_registry

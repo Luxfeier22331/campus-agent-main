@@ -1,0 +1,222 @@
+{
+	"schema_version": 1,
+	"corpus": "regulations",
+	"collection": "institutional_rules",
+	"policy_objects": [
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学丰台校区就医管理办法-暂行:ff711d1185f9",
+			"title": "中央民族大学丰台校区就医管理办法（暂行）",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学党建经费管理办法:b77c7a48bd4e",
+			"title": "中央民族大学党建经费管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学全面落实研究生导师立德树人职责实施细则:1e01c3039c8d",
+			"title": "中央民族大学全面落实研究生导师立德树人职责实施细则",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学学生公费医疗管理办法:81401d3a02d6",
+			"title": "中央民族大学学生公费医疗管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学学生社团管理办法:7da72ac3d796",
+			"title": "中央民族大学学生社团管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学学费-住宿费收费管理规定:40d4d65809c5",
+			"title": "中央民族大学学费、住宿费收费管理规定",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学学院党政联席会议议事规则:5b5031b8ed6c",
+			"title": "中央民族大学学院党政联席会议议事规则",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学学院党组织会议议事规则:dd45733dd289",
+			"title": "中央民族大学学院党组织会议议事规则",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学强基计划学生本研衔接转段工作办法:eb0066364e4f",
+			"title": "中央民族大学强基计划学生本研衔接转段工作办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学往来款项管理办法:e47ee9942b1d",
+			"title": "中央民族大学往来款项管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学排课管理办法:e593d7a51e16",
+			"title": "中央民族大学排课管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学教学行为规范:ccd8fad3cd06",
+			"title": "中央民族大学教学行为规范",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学教室使用管理规定:9c123d724343",
+			"title": "中央民族大学教室使用管理规定",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科专业建设管理办法:580644ffc701",
+			"title": "中央民族大学本科专业建设管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科在线开放课程教学管理办法:6763b60099dc",
+			"title": "中央民族大学本科在线开放课程教学管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科学生专业奖学金评定办法-修订:0242f426a20c",
+			"title": "中央民族大学本科学生专业奖学金评定办法（修订）",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科学生学籍管理办法:6ad2032144d0",
+			"title": "中央民族大学本科学生学籍管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科教学事故认定与处理办法:9ff43316b979",
+			"title": "中央民族大学本科教学事故认定与处理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科教学督导工作管理办法:bc6287127ff7",
+			"title": "中央民族大学本科教学督导工作管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科教学质量监控管理办法:46658f6eb927",
+			"title": "中央民族大学本科教学质量监控管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科毕业论文-设计-工作管理办法:a7716c82cbe1",
+			"title": "中央民族大学本科毕业论文（设计）工作管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科生专业调整实施办法:eb3f2445780f",
+			"title": "中央民族大学本科生专业调整实施办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科生学业警示管理办法:3c69a0dd5d82",
+			"title": "中央民族大学本科生学业警示管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科生实习管理办法:f2860d036974",
+			"title": "中央民族大学本科生实习管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科生生活物价补贴管理办法:f9170210ec69",
+			"title": "中央民族大学本科生生活物价补贴管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科课程考核管理办法:712ccc15214f",
+			"title": "中央民族大学本科课程考核管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学校外实践教学基地建设管理办法:1b97294a9f97",
+			"title": "中央民族大学校外实践教学基地建设管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学毕业生就业奖励办法:f16e569519f7",
+			"title": "中央民族大学毕业生就业奖励办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学研究生学籍管理办法:d11f18c41059",
+			"title": "中央民族大学研究生学籍管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学落实习惯过紧日子工作细则:0327869e06ea",
+			"title": "中央民族大学落实习惯过紧日子工作细则",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学优秀研究生导师-优秀研究生导师团队评选办法-试行:8c293d7d2b82",
+			"title": "中央民族大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学党建工作考核办法-试行:1ef5452fb4a6",
+			"title": "中央民族大学党建工作考核办法（试行）",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学双学士学位复合型人才培养项目实施管理暂行办法:beafdf10b18e",
+			"title": "中央民族大学双学士学位复合型人才培养项目实施管理暂行办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学学生参加国际外语水平考试暨国际化培养项目奖励暂行办法:c1060315d096",
+			"title": "中央民族大学学生参加国际外语水平考试暨国际化培养项目奖励暂行办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学招募选拔-中国青年志愿者扶贫接力计划研究生支教团-成员规定:079ab1019359",
+			"title": "中央民族大学招募选拔 “中国青年志愿者扶贫接力计划研究生支教团”成员规定",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法-试行:c3329cc7770c",
+			"title": "中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学本科课程临时调-停-课管理办法:384d75f2cd91",
+			"title": "中央民族大学本科课程临时调(停)课管理办法",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学研究生-三助-工作管理办法:49319e7c44d3",
+			"title": "中央民族大学研究生“三助”工作管理办法",
+			"aliases": [
+				"研究生三助工作管理办法",
+				"研究生助教助研助管工作管理办法",
+				"研究生助教助研助管",
+				"助教助研助管"
+			]
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学研究生学位论文评阅办法-试行:d982b544803b",
+			"title": "中央民族大学研究生学位论文评阅办法（试行）",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学研究生涉密学位论文管理办法-试行:e9223e88dd04",
+			"title": "中央民族大学研究生涉密学位论文管理办法（试行）",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学硕博连读研究生招生实施办法-试行:438bbad6c45e",
+			"title": "中央民族大学硕博连读研究生招生实施办法（试行）",
+			"aliases": []
+		},
+		{
+			"document_id": "institutional_regulation:muc:中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法:8f97b86c0e95",
+			"title": "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+			"aliases": []
+		}
+	]
+}

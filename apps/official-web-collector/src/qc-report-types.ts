@@ -30,6 +30,8 @@ export interface CollectorQcOutputReport {
 		failPages: number;
 		familyCounts: Record<OfficialWebPageFamily, number>;
 		issueCounts: Record<string, number>;
+		targetFamilyCounts: Record<string, number>;
+		retentionDecisionCounts: Record<string, number>;
 	};
 }
 
@@ -51,6 +53,8 @@ export interface CollectorQcReport {
 	};
 	familyCounts: Record<OfficialWebPageFamily, number>;
 	issueCounts: Record<string, number>;
+	targetFamilyCounts: Record<string, number>;
+	retentionDecisionCounts: Record<string, number>;
 	outputs: CollectorQcOutputReport[];
 	unexpectedReviewPages: CollectorQcPageFinding[];
 	failPages: CollectorQcPageFinding[];

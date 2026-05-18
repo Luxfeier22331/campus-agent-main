@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import socket
 from collections.abc import Iterable, Sequence
 from pathlib import Path
 
@@ -18,29 +19,45 @@ from scripts.supervisor_runtime_process_smoke import (
 REPO_ROOT = Path(__file__).resolve().parents[4]
 DEFAULT_REPORT_NAME = "multi-agent-live-smoke-gate.json"
 DEFAULT_SCHEMA_VERSION = "multi_agent_live_smoke_gate.v1"
-DEFAULT_PROCESS_SMOKE_PROFILES = (
+DEFAULT_GOVERNED_WORKFLOW_PROCESS_SMOKE_PROFILES = (
     "closed_gate",
     "terminal_fail_close",
     "rag_delegate",
-    "structured_direct_opened",
-    "structured_direct_opened_stream",
-    "service_status_direct_opened",
-    "service_guide_direct_opened",
-    "contact_directory_direct_opened",
-    "notice_discover_direct_opened",
-    "notice_get_direct_opened",
+    "multi_step_notice_knowledge_followthrough",
+    "transport_notice_override_multistep",
+    "selected_notice_knowledge_followthrough_ineligible",
+)
+DEFAULT_SINGLE_SURFACE_SDK_PROCESS_SMOKE_PROFILES = (
+    "transport_schedule_sdk_opened",
+    "transport_schedule_sdk_opened_stream",
+    "service_status_sdk_opened",
+    "service_guide_sdk_opened",
+    "contact_directory_sdk_opened",
+    "notice_discover_sdk_opened",
+    "academic_calendar_sdk_opened",
     "transactional_approval_required",
+)
+DEFAULT_PROCESS_SMOKE_PROFILES = (
+    *DEFAULT_GOVERNED_WORKFLOW_PROCESS_SMOKE_PROFILES,
+    *DEFAULT_SINGLE_SURFACE_SDK_PROCESS_SMOKE_PROFILES,
 )
 PROFILE_WORKFLOW_TRACE_CASE_IDS = {
     "terminal_fail_close": "workflow-product-scope-fail-close",
     "rag_delegate": "workflow-knowledge-delegate",
-    "structured_direct_opened": "workflow-transport-schedule-direct",
-    "structured_direct_opened_stream": "workflow-transport-schedule-direct",
-    "service_status_direct_opened": "workflow-direct-structured-service-status",
-    "service_guide_direct_opened": "workflow-service-guide-direct",
-    "contact_directory_direct_opened": "workflow-contact-directory-direct",
-    "notice_discover_direct_opened": "workflow-notice-discover-direct",
-    "notice_get_direct_opened": "workflow-notice-detail-direct",
+    "multi_step_notice_knowledge_followthrough": (
+        "workflow-notice-knowledge-followthrough-multistep"
+    ),
+    "transport_notice_override_multistep": ("workflow-transport-notice-override-multistep"),
+    "selected_notice_knowledge_followthrough_ineligible": (
+        "workflow-selected-notice-knowledge-followthrough-ineligible"
+    ),
+    "transport_schedule_sdk_opened": "workflow-transport-schedule-sdk",
+    "transport_schedule_sdk_opened_stream": "workflow-transport-schedule-sdk",
+    "service_status_sdk_opened": "workflow-service-status-sdk",
+    "service_guide_sdk_opened": "workflow-service-guide-sdk",
+    "contact_directory_sdk_opened": "workflow-contact-directory-sdk",
+    "notice_discover_sdk_opened": "workflow-notice-discover-sdk",
+    "academic_calendar_sdk_opened": "workflow-academic-calendar-sdk",
     "transactional_approval_required": "workflow-transactional-approval-required",
 }
 
@@ -49,7 +66,7 @@ def run_multi_agent_live_smoke_gate(
     *,
     output_dir: Path,
     timeout_seconds: float = 45.0,
-    profiles: Sequence[str] = DEFAULT_PROCESS_SMOKE_PROFILES,
+    profiles: Sequence[str] = DEFAULT_GOVERNED_WORKFLOW_PROCESS_SMOKE_PROFILES,
 ) -> dict[str, object]:
     output_dir.mkdir(parents=True, exist_ok=True)
     process_output_dir = output_dir / "process-smoke"
@@ -57,20 +74,23 @@ def run_multi_agent_live_smoke_gate(
     report_paths = []
     for profile in profiles:
         profile_output_dir = process_output_dir / profile
+        api_port, worker_port, object_store_port = _reserve_profile_ports()
         plan = build_process_smoke_plan(
             repo_root=REPO_ROOT,
             output_dir=profile_output_dir,
             profile=profile,
+            api_port=api_port,
+            worker_port=worker_port,
+            object_store_port=object_store_port,
         )
         smoke_summary = run_process_smoke(plan, timeout_seconds=timeout_seconds)
         smoke_summaries.append(smoke_summary)
         report_path = profile_output_dir / "process-smoke-summary.json"
-        if not report_path.exists():
-            report_path.parent.mkdir(parents=True, exist_ok=True)
-            report_path.write_text(
-                json.dumps(smoke_summary, ensure_ascii=False, indent=2, default=str) + "\n",
-                encoding="utf-8",
-            )
+        report_path.parent.mkdir(parents=True, exist_ok=True)
+        report_path.write_text(
+            json.dumps(smoke_summary, ensure_ascii=False, indent=2, default=str) + "\n",
+            encoding="utf-8",
+        )
         report_paths.append(report_path)
     smoke_by_profile = {str(summary.get("profile") or ""): summary for summary in smoke_summaries}
     passed_profiles = [
@@ -110,11 +130,12 @@ def run_multi_agent_live_smoke_gate(
                 "supervisor-api /metrics",
                 "supervisor-api /api/v1/answer closed structured gate",
                 "supervisor-api /api/v1/answer RAG delegate",
-                "supervisor-api /api/v1/answer opened structured direct runtime",
-                "supervisor-api /api/v1/answer/stream opened structured direct runtime",
-                "supervisor-api /api/v1/answer opened campus-services direct runtime",
-                "supervisor-api /api/v1/answer opened notice discover direct runtime",
-                "supervisor-api /api/v1/answer opened notice direct runtime",
+                "supervisor-api /api/v1/answer notice context + RAG multi-step workflow",
+                "supervisor-api /api/v1/answer opened SDK structured single handoff",
+                "supervisor-api /api/v1/answer/stream opened SDK structured single handoff",
+                "supervisor-api /api/v1/answer opened campus-services SDK adapter",
+                "supervisor-api /api/v1/answer opened notice discover SDK adapter",
+                "supervisor-api /api/v1/answer opened academic-calendar SDK adapter",
                 "supervisor-api /api/v1/answer terminal approval-required guardrail",
             ],
         },
@@ -190,6 +211,17 @@ def _profile_case_ids_from_reports(report_paths: Sequence[Path]) -> list[tuple[s
     return profile_case_ids
 
 
+def _reserve_profile_ports() -> tuple[int, int, int]:
+    return (_reserve_local_port(), _reserve_local_port(), _reserve_local_port())
+
+
+def _reserve_local_port() -> int:
+    with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+        sock.bind(("127.0.0.1", 0))
+        sock.listen(1)
+        return int(sock.getsockname()[1])
+
+
 def _unique_case_ids(case_ids: Iterable[str]) -> tuple[str, ...]:
     seen: set[str] = set()
     unique = []
@@ -213,7 +245,7 @@ def build_parser() -> argparse.ArgumentParser:
         "--reruns",
         type=int,
         default=1,
-        help="Accepted for shared eval_gate profile compatibility; must be 1.",
+        help="Deterministic gate rerun contract; must be 1.",
     )
     accept_parser.add_argument("--timeout-seconds", type=float, default=45.0)
     accept_parser.add_argument("--verbose", action="store_true")

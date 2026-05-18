@@ -58,11 +58,7 @@ def _validate_resume_probe_config(*, output_path: Path, expected: dict[str, obje
 
 
 def _resolve_base_url(source: dict[str, str]) -> str:
-    return (
-        source.get("PROMPT_RUNTIME_BASE_URL")
-        or source.get("LLM_BASE_URL")
-        or DEFAULT_PROMPT_RUNTIME_BASE_URL
-    ).strip()
+    return (source.get("PROMPT_RUNTIME_BASE_URL") or DEFAULT_PROMPT_RUNTIME_BASE_URL).strip()
 
 
 def _build_progress_state(

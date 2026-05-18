@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"strconv"
 	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/structuredquery"
@@ -51,6 +52,10 @@ func structuredAnswerText(payloadKind string, result map[string]any, status stri
 			if contact != "" {
 				return contact
 			}
+		case structuredquery.ToolAcademicCalendarLookup:
+			if calendarText := academicCalendarAnswerText(result); calendarText != "" {
+				return calendarText
+			}
 		case structuredquery.ToolCampusNoticeDiscover:
 			titles := noticeTitles(result["notice_cards"])
 			if titles != "" {
@@ -58,9 +63,15 @@ func structuredAnswerText(payloadKind string, result map[string]any, status stri
 			}
 		case structuredquery.ToolCampusNoticeGet:
 			title := stringValue(result["title"])
-			body := strings.TrimSpace(stringValue(result["normalized_body"]))
-			if title != "" && body != "" {
-				return title + "\n\n" + body
+			sourceURL := stringValue(result["source_url"])
+			if title != "" && sourceURL != "" {
+				return title + "\n\n官方原文：" + sourceURL
+			}
+			if title != "" {
+				return title
+			}
+			if sourceURL != "" {
+				return "官方原文：" + sourceURL
 			}
 		}
 	}
@@ -91,6 +102,14 @@ func structuredAnswerText(payloadKind string, result map[string]any, status stri
 			return "请明确你要查询的部门或联系对象。"
 		}
 		return "当前还不能稳定确认这项联系方式。"
+	case structuredquery.ToolAcademicCalendarLookup:
+		if stringValue(result["outcome"]) == "not_found" {
+			return "当前没有找到对应的校历安排。"
+		}
+		if stringValue(result["outcome"]) == "clarification_required" {
+			return "请明确你要查询的日期、假期名称或学年。"
+		}
+		return "当前还不能稳定确认这项校历安排。"
 	case structuredquery.ToolCampusNoticeDiscover:
 		if stringValue(result["outcome"]) == "not_found" {
 			return "当前没有找到对应通知。"
@@ -153,22 +172,139 @@ func serviceGuideSectionContents(raw any) string {
 }
 
 func serviceGuideAnswerContents(result map[string]any) string {
-	if sections := serviceGuideSectionContents(result["guide_sections"]); sections != "" {
-		return sections
+	switch stringValue(result["guide_focus"]) {
+	case "procedure":
+		return serviceGuideProcedureGroupContents(result["procedure_groups"])
+	case "required_materials":
+		return serviceGuideMaterialContents(result["required_materials"])
+	case "entry":
+		return serviceGuideEntryContents(result["entry_refs"])
+	case "office_hours":
+		return serviceGuideHoursContents(result["office_hours"])
+	case "contact":
+		return serviceGuideContactContents(result["contact_refs"])
+	case "full_guide":
+		return serviceGuideFullGuideContents(result)
+	default:
+		return ""
+	}
+}
+
+func serviceGuideFullGuideContents(result map[string]any) string {
+	parts := []string{}
+	if procedures := serviceGuideProcedureGroupContents(result["procedure_groups"]); procedures != "" {
+		parts = append(parts, procedures)
 	}
 	if materials := serviceGuideMaterialContents(result["required_materials"]); materials != "" {
-		return materials
+		parts = append(parts, materials)
 	}
 	if entries := serviceGuideEntryContents(result["entry_refs"]); entries != "" {
-		return entries
+		parts = append(parts, entries)
 	}
 	if hours := serviceGuideHoursContents(result["office_hours"]); hours != "" {
-		return hours
+		parts = append(parts, hours)
 	}
 	if contacts := serviceGuideContactContents(result["contact_refs"]); contacts != "" {
-		return contacts
+		parts = append(parts, contacts)
 	}
-	return strings.Join(stringSliceValue(result["eligibility_notes"]), "、")
+	if eligibility := strings.Join(stringSliceValue(result["eligibility_notes"]), "、"); eligibility != "" {
+		parts = append(parts, eligibility)
+	}
+	return strings.Join(parts, "\n")
+}
+
+func serviceGuideProcedureGroupContents(raw any) string {
+	items, ok := raw.([]any)
+	if !ok {
+		return ""
+	}
+	groups := make([]string, 0, len(items))
+	for _, item := range items {
+		group, ok := item.(map[string]any)
+		if !ok {
+			continue
+		}
+		stepsRaw, ok := group["steps"].([]any)
+		if !ok {
+			continue
+		}
+		steps := make([]string, 0, len(stepsRaw))
+		for _, stepItem := range stepsRaw {
+			step, ok := stepItem.(map[string]any)
+			if !ok {
+				continue
+			}
+			content := stringValue(step["content"])
+			if content != "" {
+				steps = append(steps, content)
+			}
+		}
+		if len(steps) == 0 {
+			continue
+		}
+		title := stringValue(group["title"])
+		if title != "" {
+			groups = append(groups, title+"：\n"+strings.Join(steps, "\n"))
+			continue
+		}
+		groups = append(groups, strings.Join(steps, "\n"))
+	}
+	return strings.Join(groups, "\n")
+}
+
+func academicCalendarAnswerText(result map[string]any) string {
+	parts := []string{}
+	resolvedDate := stringValue(result["resolved_date"])
+	academicYearLabel := stringValue(result["academic_year_label"])
+	termLabel := stringValue(result["term_label"])
+	holidayName := stringValue(result["holiday_name"])
+	classDayPattern := stringValue(result["class_day_pattern"])
+	dayKind := stringValue(result["day_kind"])
+	weekIndex := intValue(result["week_index"])
+	isMakeupClass, hasMakeupClass := boolValue(result["is_makeup_class"])
+
+	if resolvedDate != "" && weekIndex > 0 {
+		parts = append(parts, resolvedDate+"是第"+itoa(weekIndex)+"教学周")
+	} else if weekIndex > 0 {
+		parts = append(parts, "当前是第"+itoa(weekIndex)+"教学周")
+	}
+	if holidayName != "" {
+		if resolvedDate != "" {
+			parts = append(parts, resolvedDate+"属于"+holidayName)
+		} else {
+			parts = append(parts, "假期："+holidayName)
+		}
+	}
+	if classDayPattern != "" {
+		parts = append(parts, "执行课表："+classDayPattern)
+	}
+	if hasMakeupClass && isMakeupClass {
+		parts = append(parts, "当天属于补课安排")
+	}
+	if dayKind != "" && dayKind != "teaching_day" {
+		parts = append(parts, "日期类型："+dayKind)
+	}
+	if termLabel != "" {
+		parts = append(parts, termLabel)
+	}
+	if academicYearLabel != "" {
+		parts = append(parts, academicYearLabel)
+	}
+	return joinCalendarParts(parts)
+}
+
+func joinCalendarParts(parts []string) string {
+	filtered := make([]string, 0, len(parts))
+	for _, part := range parts {
+		part = strings.TrimSpace(part)
+		if part != "" {
+			filtered = append(filtered, part)
+		}
+	}
+	if len(filtered) == 0 {
+		return ""
+	}
+	return strings.Join(filtered, "；") + "。"
 }
 
 func serviceGuideMaterialContents(raw any) string {
@@ -389,4 +525,28 @@ func stringValue(value any) string {
 		return ""
 	}
 	return strings.TrimSpace(text)
+}
+
+func intValue(value any) int {
+	switch typed := value.(type) {
+	case int:
+		return typed
+	case int32:
+		return int(typed)
+	case int64:
+		return int(typed)
+	case float64:
+		return int(typed)
+	default:
+		return 0
+	}
+}
+
+func boolValue(value any) (bool, bool) {
+	typed, ok := value.(bool)
+	return typed, ok
+}
+
+func itoa(value int) string {
+	return strconv.Itoa(value)
 }

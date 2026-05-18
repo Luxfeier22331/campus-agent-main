@@ -16,14 +16,12 @@ from campus_ingestion_core.document_reader_assets import (
     build_public_docs_sync_manifest,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
-from campus_ingestion_core.process_loading import load_default_structured_units
 
 _SCHEMA_VERSION = "document_reader_publish_manifest_v1"
 _DEFAULT_DOCUMENT_READER_SCOPES = frozenset(
     {
         ("curriculum", "curriculum_plan"),
         ("regulations", "institutional_rules"),
-        ("regulations", "scoped_rules"),
         ("regulations", "student_rules"),
     }
 )
@@ -187,39 +185,16 @@ def _load_required_reader_inputs(
         )
     except Exception as exc:
         raise ValueError(f"missing canonical reader input for {record.document_id}") from exc
-    if record.canonical_markdown_object_key:
-        try:
-            canonical_markdown_bytes = object_store.get_bytes(
-                bucket=bucket,
-                key=record.canonical_markdown_object_key,
-            )
-            return canonical_markdown_bytes, document_units_bytes
-        except Exception as exc:
-            raise ValueError(f"missing canonical reader input for {record.document_id}") from exc
-    return _build_fallback_canonical_markdown(record, document_units_bytes), document_units_bytes
-
-
-def _build_fallback_canonical_markdown(
-    record: DocumentRegistryRecord,
-    document_units_bytes: bytes,
-) -> bytes:
-    title = record.document_id
+    if not record.canonical_markdown_object_key:
+        raise ValueError(f"missing canonical reader input for {record.document_id}")
     try:
-        units = load_default_structured_units(record, document_units_bytes)
-    except Exception:
-        units = ()
-    for unit in units:
-        candidate = str(unit.metadata.get("title") or "").strip()
-        if candidate:
-            title = candidate
-            break
-    else:
-        for unit in units:
-            candidate = unit.text.strip()
-            if candidate:
-                title = candidate
-                break
-    return f"# {title}\n".encode()
+        canonical_markdown_bytes = object_store.get_bytes(
+            bucket=bucket,
+            key=record.canonical_markdown_object_key,
+        )
+        return canonical_markdown_bytes, document_units_bytes
+    except Exception as exc:
+        raise ValueError(f"missing canonical reader input for {record.document_id}") from exc
 
 
 def _load_optional_course_map_assets(
@@ -236,20 +211,27 @@ def _load_optional_course_map_assets(
     )
     try:
         surface_bytes = object_store.get_bytes(bucket=bucket, key=surface_key)
-    except Exception:
+    except (FileNotFoundError, KeyError):
         return None, None
-
     try:
         surface = load_curriculum_course_map_docs_surface(surface_bytes)
-        image_objects: dict[str, bytes] = {}
-        for block in surface.blocks:
+    except Exception as exc:
+        raise ValueError(
+            f"invalid course-map reader asset for {record.document_id}: {surface_key}"
+        ) from exc
+
+    image_objects: dict[str, bytes] = {}
+    for block in surface.blocks:
+        try:
             image_objects[block.image_object_key] = object_store.get_bytes(
                 bucket=bucket,
                 key=block.image_object_key,
             )
-        return surface_bytes, image_objects
-    except Exception:
-        return None, None
+        except Exception as exc:
+            raise ValueError(
+                f"missing course-map image for {record.document_id}: {block.image_object_key}"
+            ) from exc
+    return surface_bytes, image_objects
 
 
 def _load_reader_title(reader_json: bytes) -> str:

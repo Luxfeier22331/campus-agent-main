@@ -4,6 +4,7 @@ import unittest
 
 from campus_ingestion_core import default_query_scopes, load_runtime_profile
 from campus_ingestion_core.corpus_profiles import (
+    CollectionRuntimeProfile,
     is_official_web_stable_reference_like_collection,
     is_official_web_stable_reference_like_profile,
     load_chunk_profile,
@@ -44,6 +45,35 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.source_parser_version, "mineru-vlm-adapted-v2")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "student_rules")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "student_rules")
+
+    def test_load_student_rules_chunk_profile_uses_handbook_strategy(self) -> None:
+        profile = load_chunk_profile("regulations", "student_rules")
+
+        self.assertEqual(profile.corpus, "regulations")
+        self.assertEqual(profile.collection, "student_rules")
+        self.assertEqual(profile.chunk_profile_version, "student_rules_semantic_v3")
+        self.assertEqual(profile.structured_input, "document_units_jsonl")
+        self.assertEqual(profile.cleaning_policy_version, "student_rules_cleaning_v1")
+        self.assertEqual(profile.runtime_defaults.strategy_name, "student_handbook_structure_v3")
+        self.assertEqual(profile.runtime_defaults.chunk_size, 384)
+        self.assertEqual(profile.runtime_defaults.max_chunk_size, 512)
+        self.assertEqual(profile.runtime_defaults.chunk_overlap, 64)
+        self.assertEqual(profile.runtime_defaults.min_chunk_size, 96)
+
+    def test_load_institutional_rules_runtime_profile_enables_no_hit_guard(self) -> None:
+        profile = load_runtime_profile("regulations", "institutional_rules")
+
+        self.assertEqual(profile.corpus, "regulations")
+        self.assertEqual(profile.collection, "institutional_rules")
+        self.assertEqual(profile.serving_stage, "query_serving")
+        self.assertTrue(profile.retrieval_enabled)
+        self.assertTrue(profile.query_enabled_by_default)
+        self.assertTrue(profile.current_only)
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.no_hit_min_top_score, 0.6)
+        self.assertEqual(profile.no_hit_min_score_gap, 0.1)
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "institutional_rules")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "institutional_rules")
 
     def test_load_curriculum_plan_runtime_profile(self) -> None:
         profile = load_runtime_profile("curriculum", "curriculum_plan")
@@ -163,6 +193,7 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.query_enabled_by_default)
+        self.assertFalse(profile.structured_query_enabled)
         self.assertFalse(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ())
         self.assertEqual(profile.retrieval_top_k, 3)
@@ -172,6 +203,28 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.chunk_profile_version, "service_catalog_semantic_v1")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "service_catalog")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "service_catalog")
+
+    def test_load_service_guide_runtime_profile(self) -> None:
+        profile = load_runtime_profile("campus_services", "service_guide")
+
+        self.assertEqual(profile.corpus, "campus_services")
+        self.assertEqual(profile.collection, "service_guide")
+        self.assertEqual(profile.serving_stage, "structured_query_serving")
+        self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertTrue(profile.structured_query_enabled)
+        self.assertEqual(profile.structured_query_tools, ("service_guide_lookup",))
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ())
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertIsNone(profile.no_hit_min_top_score)
+        self.assertIsNone(profile.no_hit_min_score_gap)
+        self.assertEqual(profile.cleaning_policy_version, "service_guide_projection_v1")
+        self.assertEqual(profile.chunk_profile_version, "service_guide_projection_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "service_guide")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "service_guide")
 
     def test_load_service_catalog_chunk_profile(self) -> None:
         profile = load_chunk_profile("campus_services", "service_catalog")
@@ -183,16 +236,48 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.cleaning_policy_version, "service_catalog_cleaning_v1")
         self.assertEqual(profile.runtime_defaults.strategy_name, "service_catalog_structure_v1")
 
+    def test_load_service_status_runtime_profile(self) -> None:
+        profile = load_runtime_profile("campus_services", "service_status")
+
+        self.assertEqual(profile.corpus, "campus_services")
+        self.assertEqual(profile.collection, "service_status")
+        self.assertEqual(profile.serving_stage, "structured_query_serving")
+        self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertTrue(profile.structured_query_enabled)
+        self.assertEqual(profile.structured_query_tools, ("service_status_lookup",))
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ())
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.cleaning_policy_version, "service_status_projection_v1")
+        self.assertEqual(profile.chunk_profile_version, "service_status_projection_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "service_status")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "service_status")
+
+    def test_load_service_status_chunk_profile(self) -> None:
+        profile = load_chunk_profile("campus_services", "service_status")
+
+        self.assertEqual(profile.corpus, "campus_services")
+        self.assertEqual(profile.collection, "service_status")
+        self.assertEqual(profile.chunk_profile_version, "service_status_projection_v1")
+        self.assertEqual(profile.structured_input, "service_status_projection_json")
+        self.assertEqual(profile.cleaning_policy_version, "service_status_projection_v1")
+        self.assertEqual(profile.runtime_defaults.strategy_name, "service_status_projection_v1")
+
     def test_load_contact_directory_runtime_profile(self) -> None:
         profile = load_runtime_profile("campus_services", "contact_directory")
 
         self.assertEqual(profile.corpus, "campus_services")
         self.assertEqual(profile.collection, "contact_directory")
-        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.serving_stage, "structured_query_serving")
         self.assertEqual(profile.allowed_artifact_modes, ("normalized", "source_truth_only"))
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.query_enabled_by_default)
+        self.assertTrue(profile.structured_query_enabled)
+        self.assertEqual(profile.structured_query_tools, ("contact_directory_lookup",))
         self.assertFalse(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ())
         self.assertEqual(profile.retrieval_top_k, 3)
@@ -218,15 +303,47 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
 
         self.assertEqual(profile.corpus, "campus_services")
         self.assertEqual(profile.collection, "transport_schedule")
-        self.assertEqual(profile.serving_stage, "offline_preparation")
+        self.assertEqual(profile.serving_stage, "structured_query_serving")
         self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
         self.assertFalse(profile.split_manifest_required)
         self.assertFalse(profile.retrieval_enabled)
         self.assertFalse(profile.query_enabled_by_default)
+        self.assertTrue(profile.structured_query_enabled)
+        self.assertEqual(profile.structured_query_tools, ("transport_schedule_lookup",))
         self.assertEqual(profile.cleaning_policy_version, "transport_schedule_projection_v1")
         self.assertEqual(profile.chunk_profile_version, "transport_schedule_projection_v1")
         self.assertEqual(profile.qdrant_index_binding.alias_name, "transport_schedule")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "transport_schedule")
+
+    def test_load_academic_calendar_runtime_profile(self) -> None:
+        profile = load_runtime_profile("calendar", "academic_calendar")
+
+        self.assertEqual(profile.corpus, "calendar")
+        self.assertEqual(profile.collection, "academic_calendar")
+        self.assertEqual(profile.serving_stage, "structured_query_serving")
+        self.assertEqual(profile.allowed_artifact_modes, ("source_truth_only",))
+        self.assertFalse(profile.split_manifest_required)
+        self.assertFalse(profile.retrieval_enabled)
+        self.assertFalse(profile.query_enabled_by_default)
+        self.assertTrue(profile.structured_query_enabled)
+        self.assertEqual(profile.structured_query_tools, ("academic_calendar_lookup",))
+        self.assertFalse(profile.current_only)
+        self.assertEqual(profile.serving_revision_tracks, ())
+        self.assertEqual(profile.retrieval_top_k, 3)
+        self.assertEqual(profile.cleaning_policy_version, "academic_calendar_projection_v1")
+        self.assertEqual(profile.chunk_profile_version, "academic_calendar_projection_v1")
+        self.assertEqual(profile.qdrant_index_binding.alias_name, "academic_calendar")
+        self.assertEqual(profile.qdrant_index_binding.collection_prefix, "academic_calendar")
+
+    def test_load_academic_calendar_chunk_profile(self) -> None:
+        profile = load_chunk_profile("calendar", "academic_calendar")
+
+        self.assertEqual(profile.corpus, "calendar")
+        self.assertEqual(profile.collection, "academic_calendar")
+        self.assertEqual(profile.chunk_profile_version, "academic_calendar_projection_v1")
+        self.assertEqual(profile.structured_input, "academic_calendar_projection_json")
+        self.assertEqual(profile.cleaning_policy_version, "academic_calendar_projection_v1")
+        self.assertEqual(profile.runtime_defaults.strategy_name, "academic_calendar_projection_v1")
 
     def test_load_internal_notice_runtime_profile_uses_mineru_primary_source_ocr(self) -> None:
         profile = load_runtime_profile("campus_notices", "internal_notice")
@@ -236,7 +353,6 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.source_ocr_provider, "mineru_api")
         self.assertEqual(profile.source_ocr_model, "vlm")
         self.assertEqual(profile.source_parser_version, "mineru-vlm-adapted-v2")
-        self.assertTrue(profile.source_ocr_fallback_enabled)
         self.assertEqual(profile.source_ocr_image_routing_strategy, "mineru_primary")
 
     def test_load_official_web_runtime_profile_current_truth_remains_offline_and_not_freshness_ready(
@@ -252,7 +368,6 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.serving_surface, "mixed")
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
-        self.assertFalse(profile.live_search_fallback_allowed)
         self.assertEqual(profile.qdrant_index_binding.alias_name, "muc_public_pages")
         self.assertEqual(profile.qdrant_index_binding.collection_prefix, "muc_public_pages")
 
@@ -269,13 +384,13 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.serving_surface, "stable_reference")
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
-        self.assertFalse(profile.live_search_fallback_allowed)
         self.assertEqual(profile.required_metadata_fields, ())
         self.assertEqual(profile.primary_evidence_page_families, ())
         self.assertIsNone(profile.listing_page_role)
         self.assertFalse(profile.requires_freshness_gate)
         self.assertFalse(profile.requires_explicit_history_intent)
         self.assertFalse(profile.duplicate_collapse_required)
+        self.assertFalse(profile.reranker_enabled_by_default)
         self.assertTrue(profile.current_only)
         self.assertEqual(profile.serving_revision_tracks, ("source-faithful",))
         self.assertEqual(profile.cleaning_policy_version, "official_web_cleaning_v2")
@@ -298,7 +413,6 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.serving_surface, "fresh_news")
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
-        self.assertFalse(profile.live_search_fallback_allowed)
         self.assertEqual(
             profile.required_metadata_fields,
             (
@@ -334,7 +448,6 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         self.assertEqual(profile.serving_surface, "news_archive")
         self.assertFalse(profile.supports_freshness_sensitive_queries)
         self.assertIsNone(profile.freshness_max_age_hours)
-        self.assertFalse(profile.live_search_fallback_allowed)
         self.assertEqual(
             profile.required_metadata_fields,
             (
@@ -365,11 +478,11 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
         fresh_news_profile = load_runtime_profile("official_web", "fresh_news")
         news_archive_profile = load_runtime_profile("official_web", "news_archive")
 
-        self.assertTrue(is_official_web_stable_reference_like_profile(bridge_profile))
+        self.assertFalse(is_official_web_stable_reference_like_profile(bridge_profile))
         self.assertTrue(is_official_web_stable_reference_like_profile(stable_reference_profile))
         self.assertFalse(is_official_web_stable_reference_like_profile(fresh_news_profile))
         self.assertFalse(is_official_web_stable_reference_like_profile(news_archive_profile))
-        self.assertTrue(is_official_web_stable_reference_like_collection("muc_public_pages"))
+        self.assertFalse(is_official_web_stable_reference_like_collection("muc_public_pages"))
         self.assertTrue(is_official_web_stable_reference_like_collection("stable_reference"))
         self.assertFalse(is_official_web_stable_reference_like_collection("fresh_news"))
         self.assertFalse(is_official_web_stable_reference_like_collection("news_archive"))
@@ -477,6 +590,58 @@ class CorpusRuntimeProfileTest(unittest.TestCase):
                 ("regulations", "student_rules"),
             ),
         )
+
+    def test_structured_query_tools_have_explicit_runtime_profile_opening(self) -> None:
+        profiles = {
+            tool: load_runtime_profile(corpus, collection)
+            for tool, corpus, collection in (
+                ("service_status_lookup", "campus_services", "service_status"),
+                ("service_guide_lookup", "campus_services", "service_guide"),
+                ("contact_directory_lookup", "campus_services", "contact_directory"),
+                ("transport_schedule_lookup", "campus_services", "transport_schedule"),
+                ("academic_calendar_lookup", "calendar", "academic_calendar"),
+            )
+        }
+
+        for tool_name, profile in profiles.items():
+            self.assertEqual(profile.serving_stage, "structured_query_serving", tool_name)
+            self.assertTrue(profile.structured_query_enabled, tool_name)
+            self.assertIn(tool_name, profile.structured_query_tools)
+            self.assertFalse(profile.retrieval_enabled, tool_name)
+            self.assertFalse(profile.query_enabled_by_default, tool_name)
+
+    def test_structured_query_serving_profile_rejects_generic_query_opening(self) -> None:
+        base_kwargs = {
+            "corpus": "campus_services",
+            "collection": "service_status",
+            "serving_stage": "structured_query_serving",
+            "allowed_artifact_modes": ("source_truth_only",),
+            "split_manifest_required": False,
+            "cleaning_policy_version": "service_status_projection_v1",
+            "chunk_profile_version": "service_status_projection_v1",
+            "retrieval_enabled": False,
+            "query_enabled_by_default": False,
+            "structured_query_enabled": True,
+            "structured_query_tools": ("service_status_lookup",),
+        }
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "structured_query_serving requires retrieval_enabled=false",
+        ):
+            CollectionRuntimeProfile(**{**base_kwargs, "retrieval_enabled": True})
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "structured_query_serving requires query_enabled_by_default=false",
+        ):
+            CollectionRuntimeProfile(**{**base_kwargs, "query_enabled_by_default": True})
+
+        with self.assertRaisesRegex(
+            ValueError,
+            "structured_query_serving requires structured_query_enabled=true",
+        ):
+            CollectionRuntimeProfile(**{**base_kwargs, "structured_query_enabled": False})
 
 
 if __name__ == "__main__":

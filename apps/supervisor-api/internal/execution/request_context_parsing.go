@@ -435,10 +435,15 @@ func parseSelectedNoticeRef(raw json.RawMessage) (selectedNoticeRef, error) {
 	if err != nil {
 		return selectedNoticeRef{}, fmt.Errorf("context.session.selected_notice_ref.title must be a string")
 	}
+	targetSurface, err := parseOptionalString(rawRef["target_surface"])
+	if err != nil {
+		return selectedNoticeRef{}, fmt.Errorf("context.session.selected_notice_ref.target_surface must be a string")
+	}
 	return selectedNoticeRef{
-		NoticeID:     noticeID,
-		SourceFamily: sourceFamily,
-		Title:        title,
+		NoticeID:      noticeID,
+		SourceFamily:  sourceFamily,
+		Title:         title,
+		TargetSurface: targetSurface,
 	}, nil
 }
 

@@ -148,13 +148,21 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
                 "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
                 "OBJECT_STORE_ACCESS_KEY": "minioadmin",
                 "OBJECT_STORE_SECRET_KEY": "minioadmin",
-                "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL": "postgresql://example.test/management",
+                "CAMPUS_SHARED_POSTGRES_OPERATOR_URL": "postgresql://example.test/operator",
             }
 
-            with patch(
-                "campus_ingestion_core.authenticated_notice_import.build_authenticated_notice_source_truth_inventory_store_from_env",
-                return_value=inventory_store,
-            ) as build_inventory_store:
+            with (
+                patch(
+                    "campus_ingestion_core.authenticated_notice_import.build_authenticated_notice_source_truth_inventory_store_from_env",
+                    return_value=inventory_store,
+                ) as build_inventory_store,
+                patch(
+                    "campus_ingestion_core.authenticated_notice_import._build_consumption_projection_store_from_env_if_configured"
+                ) as build_projection_store,
+                patch(
+                    "campus_ingestion_core.authenticated_notice_import._build_read_model_store_from_env_if_configured"
+                ) as build_read_model_store,
+            ):
                 report = import_authenticated_notice_export(
                     request=AuthenticatedNoticeImportRequest(
                         bundle_path=bundle_path,
@@ -173,6 +181,8 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
 
         self.assertEqual(report["errors"], [])
         build_inventory_store.assert_called_once_with(env, prefer_operator=True)
+        build_projection_store.assert_not_called()
+        build_read_model_store.assert_not_called()
         entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
         self.assertEqual(len(entries), 1)
         self.assertEqual(entries[0].notice_id, "355119")
@@ -319,6 +329,214 @@ class AuthenticatedNoticeImportInventoryTest(unittest.TestCase):
             "https://portal.example.edu/files/application.docx",
         )
         self.assertEqual(attachment_refs[0]["resource_role"], "attachment")
+
+    def test_import_authenticated_notice_bundle_preserves_external_visual_object_key(
+        self,
+    ) -> None:
+        bundle = _sample_notice_bundle()
+        source_url = "https://mmbiz.qpic.cn/mmbiz_png/example/external.png"
+        external_key = (
+            "authenticated_notice_portal/external-visual/mmbiz.qpic.cn/example/external.png"
+        )
+        bundle[0]["notice"]["notice_title"] = "关于校园文化活动报名安排的通知"
+        bundle[0]["notice"]["notice_content"] = (
+            f'<p>请师生关注活动安排。</p><p><img src="{source_url}" alt="活动海报.png"/></p>'
+        )
+        bundle[0]["links"][0]["url"] = source_url
+        bundle[0]["links"][0]["final_url"] = source_url
+        bundle[0]["links"][0]["link_host"] = "mmbiz.qpic.cn"
+        bundle[0]["links"][0]["link_scope"] = "external"
+        bundle[0]["links"][0]["content_kind"] = "inline_image"
+        bundle[0]["links"][0]["content_type"] = "image/png"
+        bundle[0]["links"][0]["link_text"] = "活动海报.png"
+        bundle[0]["notice_attachments"][0]["resource_role"] = "inline_image"
+        bundle[0]["notice_attachments"][0]["anchor_text"] = "活动海报.png"
+        bundle[0]["attachments"][0]["source_url"] = source_url
+        bundle[0]["attachments"][0]["normalized_source_url"] = source_url
+        bundle[0]["attachments"][0]["final_url"] = source_url
+        bundle[0]["attachments"][0]["original_filename"] = "external.png"
+        bundle[0]["attachments"][0]["mime_type"] = "image/png"
+        bundle[0]["attachments"][0]["storage_provider"] = "object_store"
+        bundle[0]["attachments"][0]["bucket"] = "campus-rag-source"
+        bundle[0]["attachments"][0]["object_key"] = external_key
+        bundle[0]["attachments"][0]["origin_host"] = "mmbiz.qpic.cn"
+        bundle[0]["attachments"][0]["origin_scope"] = "external"
+        bundle[0]["attachments"][0]["ingest_status"] = "uploaded"
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            result = import_authenticated_notice_bundle(
+                AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
+                )
+            )
+
+        imported = result.notice_imports[0]
+        attachment_refs = [
+            json.loads(line)
+            for line in imported.source_truth_artifacts["source-truth/attachment-refs.jsonl"]
+            .decode("utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(len(attachment_refs), 1)
+        self.assertEqual(attachment_refs[0]["origin_scope"], "external")
+        self.assertEqual(attachment_refs[0]["storage_provider"], "object_store")
+        self.assertEqual(attachment_refs[0]["ingest_status"], "uploaded")
+        self.assertEqual(attachment_refs[0]["object_key"], external_key)
+
+    def test_import_authenticated_notice_bundle_records_terminal_attachment_fetch_outcome(
+        self,
+    ) -> None:
+        bundle = _sample_notice_bundle()
+        bundle[0]["notice"]["notice_content"] = (
+            '<p>请下载<a href="https://portal.example.edu/files/missing.pdf">附件材料.pdf</a>。</p>'
+        )
+        bundle[0]["links"][0]["url"] = "https://portal.example.edu/files/missing.pdf"
+        bundle[0]["links"][0]["final_url"] = "https://portal.example.edu/files/missing.pdf"
+        bundle[0]["links"][0]["link_text"] = "附件材料.pdf"
+        bundle[0]["links"][0]["status_code"] = 404
+        bundle[0]["links"][0]["downloaded"] = False
+        bundle[0]["links"][0]["file_size"] = None
+        bundle[0]["links"][0]["error_message"] = "downloadAttachment failed: 404"
+        bundle[0]["notice_attachments"][0]["anchor_text"] = "附件材料.pdf"
+        bundle[0]["attachments"][0]["source_url"] = "https://portal.example.edu/files/missing.pdf"
+        bundle[0]["attachments"][0]["normalized_source_url"] = (
+            "https://portal.example.edu/files/missing.pdf"
+        )
+        bundle[0]["attachments"][0]["final_url"] = "https://portal.example.edu/files/missing.pdf"
+        bundle[0]["attachments"][0]["original_filename"] = "missing.pdf"
+        bundle[0]["attachments"][0]["mime_type"] = "application/pdf"
+        bundle[0]["attachments"][0]["byte_size"] = None
+        bundle[0]["attachments"][0]["sha256"] = None
+        bundle[0]["attachments"][0]["storage_provider"] = "reference_only"
+        bundle[0]["attachments"][0]["bucket"] = None
+        bundle[0]["attachments"][0]["object_key"] = None
+        bundle[0]["attachments"][0]["provenance_status"] = "terminal_unavailable"
+        bundle[0]["attachments"][0]["ingest_status"] = "terminal_unavailable"
+        bundle[0]["attachments"][0]["terminal_reason"] = "http_410"
+        bundle[0]["attachments"][0]["last_error"] = None
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            result = import_authenticated_notice_bundle(
+                AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
+                )
+            )
+
+        imported = result.notice_imports[0]
+        attachment_refs = [
+            json.loads(line)
+            for line in imported.source_truth_artifacts["source-truth/attachment-refs.jsonl"]
+            .decode("utf-8")
+            .splitlines()
+            if line.strip()
+        ]
+        self.assertEqual(len(attachment_refs), 1)
+        self.assertEqual(attachment_refs[0]["attachment_capture_policy"], "terminal_unavailable")
+        self.assertEqual(attachment_refs[0]["attachment_capture_state"], "terminal_missing")
+        self.assertFalse(attachment_refs[0]["byte_fetch_required"])
+        self.assertFalse(attachment_refs[0]["required_source_object"])
+        self.assertEqual(attachment_refs[0]["terminal_reason"], "http_410")
+        self.assertEqual(attachment_refs[0]["last_error_class"], "terminal_unavailable")
+
+    def test_import_authenticated_notice_export_preserves_terminal_outcome_in_inventory(
+        self,
+    ) -> None:
+        bundle = _sample_notice_bundle()
+        bundle[0]["notice"]["notice_content"] = (
+            '<p>请下载<a href="https://portal.example.edu/files/missing.pdf">附件材料.pdf</a>。</p>'
+        )
+        bundle[0]["links"][0]["url"] = "https://portal.example.edu/files/missing.pdf"
+        bundle[0]["links"][0]["final_url"] = "https://portal.example.edu/files/missing.pdf"
+        bundle[0]["links"][0]["link_text"] = "附件材料.pdf"
+        bundle[0]["links"][0]["status_code"] = 404
+        bundle[0]["links"][0]["downloaded"] = False
+        bundle[0]["links"][0]["file_size"] = None
+        bundle[0]["links"][0]["error_message"] = "downloadAttachment failed: 404"
+        bundle[0]["notice_attachments"][0]["anchor_text"] = "附件材料.pdf"
+        bundle[0]["attachments"][0]["source_url"] = "https://portal.example.edu/files/missing.pdf"
+        bundle[0]["attachments"][0]["normalized_source_url"] = (
+            "https://portal.example.edu/files/missing.pdf"
+        )
+        bundle[0]["attachments"][0]["final_url"] = "https://portal.example.edu/files/missing.pdf"
+        bundle[0]["attachments"][0]["original_filename"] = "missing.pdf"
+        bundle[0]["attachments"][0]["mime_type"] = "application/pdf"
+        bundle[0]["attachments"][0]["byte_size"] = None
+        bundle[0]["attachments"][0]["sha256"] = None
+        bundle[0]["attachments"][0]["storage_provider"] = "reference_only"
+        bundle[0]["attachments"][0]["bucket"] = None
+        bundle[0]["attachments"][0]["object_key"] = None
+        bundle[0]["attachments"][0]["provenance_status"] = "terminal_unavailable"
+        bundle[0]["attachments"][0]["ingest_status"] = "reference_only"
+        bundle[0]["attachments"][0]["last_error"] = "downloadAttachment failed: 404"
+
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            bundle_path = root / "notices-bundle.json"
+            manifest_path = root / "export-manifest.json"
+            _write_json(bundle_path, bundle)
+            _write_json(manifest_path, _sample_export_manifest())
+
+            object_store = _FakeObjectStore()
+            document_registry = InMemoryDocumentRegistry(
+                backing_path=root / "registry" / "documents.json"
+            )
+            raw_asset_registry = InMemoryRawAssetRegistry(
+                backing_path=root / "registry" / "raw-assets.json"
+            )
+            inventory_store = InMemoryAuthenticatedNoticeSourceTruthInventoryStore()
+
+            report = import_authenticated_notice_export(
+                request=AuthenticatedNoticeImportRequest(
+                    bundle_path=bundle_path,
+                    export_manifest_path=manifest_path,
+                    site_id="muc_internal_portal",
+                    source_home_url="https://portal.example.edu/home",
+                    allow_local_fixture_import=True,
+                    mode="admit_and_materialize",
+                ),
+                env={
+                    "OBJECT_STORE_ENDPOINT": "http://localhost:9000",
+                    "OBJECT_STORE_ACCESS_KEY": "minioadmin",
+                    "OBJECT_STORE_SECRET_KEY": "minioadmin",
+                },
+                object_store=object_store,
+                document_registry=document_registry,
+                raw_asset_registry=raw_asset_registry,
+                source_truth_inventory_store=inventory_store,
+            )
+
+        self.assertEqual(report["errors"], [])
+        entries = inventory_store.list_by_scope("campus_notices", "internal_notice")
+        self.assertEqual(len(entries), 1)
+        entry = entries[0]
+        self.assertEqual(entry.reference_only_count, 0)
+        terminal_outcomes = entry.parent_snapshot["terminal_attachment_outcomes"]
+        self.assertEqual(len(terminal_outcomes), 1)
+        self.assertEqual(terminal_outcomes[0]["attachment_ref_id"], "attachment-0001")
+        self.assertEqual(terminal_outcomes[0]["classification"], "terminal_unavailable")
+        self.assertEqual(terminal_outcomes[0]["terminal_outcome"], "terminal_unavailable")
+        self.assertEqual(terminal_outcomes[0]["terminal_reason"], "http_404")
 
     def test_import_authenticated_notice_bundle_deduplicates_inline_image_fallback_refs(
         self,

@@ -109,6 +109,54 @@ class CheckDockerfileTrackedTest(unittest.TestCase):
             }.issubset(patterns)
         )
 
+    def test_dockerignore_keeps_supervisor_api_contract_fixture_inputs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        patterns = _dockerignore_patterns(repo_root)
+
+        self.assertTrue(
+            {
+                "!tests/",
+                "!tests/fixtures/",
+                "!tests/fixtures/supervisor_execution_contract/",
+                "!tests/fixtures/supervisor_execution_contract/**",
+            }.issubset(patterns)
+        )
+
+    def test_dockerignore_keeps_supervisor_api_runtime_policy_inputs(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        patterns = _dockerignore_patterns(repo_root)
+
+        self.assertTrue(
+            {
+                "!configs/runtime/",
+                "!configs/runtime/agents.v2.json",
+                "!configs/runtime/intent-policy.v1.json",
+                "!configs/runtime/query-serving-scopes.v1.json",
+                "!configs/runtime/tools.v2.json",
+                "!configs/runtime/workflow-artifacts.v1.json",
+                "!tests/fixtures/service_guide_vpn_grouped_procedure_result.json",
+            }.issubset(patterns)
+        )
+
+    def test_dockerignore_excludes_retired_calendar_agent_package(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        patterns = _dockerignore_patterns(repo_root)
+
+        self.assertNotIn("!packages/calendar-agent/", patterns)
+        self.assertNotIn("!packages/calendar-agent/**", patterns)
+
+    def test_supervisor_api_dockerfile_copies_contract_fixtures_before_tests(self) -> None:
+        repo_root = Path(__file__).resolve().parents[1]
+        dockerfile = (repo_root / "apps/supervisor-api/Dockerfile").read_text(encoding="utf-8")
+
+        copy_statement = (
+            "COPY tests/fixtures/supervisor_execution_contract "
+            "/src/tests/fixtures/supervisor_execution_contract"
+        )
+
+        self.assertIn(copy_statement, dockerfile)
+        self.assertLess(dockerfile.index(copy_statement), dockerfile.index("RUN go test ./..."))
+
     @patch("scripts.check_dockerfile_tracked.shutil.which")
     @patch("scripts.check_dockerfile_tracked.subprocess.run")
     def test_main_prefers_local_hadolint_binary(

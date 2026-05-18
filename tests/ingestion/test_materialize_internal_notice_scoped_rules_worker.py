@@ -32,6 +32,8 @@ class MaterializeInternalNoticeScopedRulesWorkerCliTest(unittest.TestCase):
             ),
             raw_asset_id="asset:internal-notice-scoped-rules-materialization",
             raw_version_id="sha256:test-scoped-rules",
+            rag_release_candidate_created_count=2,
+            rag_release_candidate_ids=("candidate-annual", "candidate-seasonal"),
         )
 
         with (
@@ -67,6 +69,11 @@ class MaterializeInternalNoticeScopedRulesWorkerCliTest(unittest.TestCase):
         self.assertEqual(
             payload["raw_asset_id"],
             "asset:internal-notice-scoped-rules-materialization",
+        )
+        self.assertEqual(payload["rag_release_candidate_created_count"], 2)
+        self.assertEqual(
+            payload["rag_release_candidate_ids"],
+            ["candidate-annual", "candidate-seasonal"],
         )
 
 

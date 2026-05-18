@@ -4,6 +4,8 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from campus_contracts import (
+    AcademicCalendarLookupPayload,
+    AcademicCalendarLookupResult,
     ActorContext,
     AuthorizationProjection,
     ContactDirectoryLookupPayload,
@@ -47,6 +49,12 @@ class ContactDirectoryQuery:
     access_context: CampusServicesAccessContext = field(default_factory=CampusServicesAccessContext)
 
 
+@dataclass(frozen=True, slots=True)
+class AcademicCalendarQuery:
+    payload: AcademicCalendarLookupPayload
+    access_context: CampusServicesAccessContext = field(default_factory=CampusServicesAccessContext)
+
+
 class CampusServicesQueryService(Protocol):
     def lookup_service_status(self, query: ServiceStatusQuery) -> ServiceStatusLookupResult: ...
 
@@ -61,3 +69,8 @@ class CampusServicesQueryService(Protocol):
         self,
         query: ContactDirectoryQuery,
     ) -> ContactDirectoryLookupResult: ...
+
+    def lookup_academic_calendar(
+        self,
+        query: AcademicCalendarQuery,
+    ) -> AcademicCalendarLookupResult: ...

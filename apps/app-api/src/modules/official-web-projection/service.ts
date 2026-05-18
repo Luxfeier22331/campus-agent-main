@@ -78,6 +78,18 @@ export interface OfficialWebSiteProjectionMaterialization extends OfficialWebSit
 	projectedAt: string;
 }
 
+export interface OfficialWebTargetArtifactVerificationSummaryWrite {
+	canonicalVerification: boolean;
+	jobId: string;
+	objectVerificationId: string | null;
+	runId: string;
+	sourceHandoffId: string | null;
+	status: string;
+	summary: Record<string, unknown>;
+	summaryId: string;
+	updatedAt: string;
+}
+
 export interface OfficialWebProjectionProjectorStore {
 	getRunProjectionSource(runId: string): Promise<OfficialWebRunProjectionSource | null>;
 	getSiteProjectionSource(siteId: string): Promise<OfficialWebSiteProjectionSource | null>;
@@ -108,6 +120,9 @@ export interface OfficialWebProjectionProjectorStore {
 		status: OfficialWebIngestionExecutionStatus;
 		updatedAt: string;
 	}): Promise<boolean>;
+	upsertTargetArtifactVerificationSummaries?(
+		records: OfficialWebTargetArtifactVerificationSummaryWrite[],
+	): Promise<void>;
 	upsertRunProjection(projection: OfficialWebRunProjectionMaterialization): Promise<void>;
 	upsertSiteProjection(projection: OfficialWebSiteProjectionMaterialization): Promise<void>;
 }
@@ -144,7 +159,7 @@ export interface OfficialWebHandoffPublisher {
 export interface OfficialWebProjectionProjector {
 	drain(input?: {
 		limit?: number;
-	}): Promise<{ abandoned: number; failed: number; processed: number }>;
+	}): Promise<{ abandoned: number; failed: number; processed: number; skipped: number }>;
 }
 
 export interface OfficialWebProjectionProjectorDependencies {
@@ -289,6 +304,7 @@ export function buildOfficialWebProjectionProjector(
 			const events = await dependencies.store.listPendingEvents(limit, now());
 			let processed = 0;
 			let failed = 0;
+			const skipped = 0;
 
 			for (const event of events) {
 				const eventProjectedAt = now().toISOString();
@@ -408,6 +424,7 @@ export function buildOfficialWebProjectionProjector(
 				abandoned,
 				failed,
 				processed,
+				skipped,
 			};
 		},
 	};

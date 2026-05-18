@@ -9,7 +9,11 @@ import {
 	isRepairableStatusCode,
 	loadRobotsState,
 } from "./crawl-discovery.ts";
-import type { CollectorHostCrawlResult, CollectorRequestUserData } from "./crawl-internal-types.ts";
+import type {
+	CollectorHostCrawlResult,
+	CollectorRequestUserData,
+	CollectorSourcePackLineageOverride,
+} from "./crawl-internal-types.ts";
 import {
 	buildKnownPageObservation,
 	buildPageObservationFromCollectedPage,
@@ -35,6 +39,7 @@ import {
 	type OfficialWebHostPolicy,
 	type OfficialWebHostSummaryRecord,
 	type OfficialWebPageObservationRecord,
+	type OfficialWebPageTargetMatch,
 	type OfficialWebUrlResultRecord,
 } from "./official-web-core.ts";
 import { buildCollectedPageArtifacts, type CollectedPageArtifact } from "./page-artifacts.ts";
@@ -47,6 +52,8 @@ export interface CrawlSingleHostInput {
 	plannerPages: OfficialWebPlannerPageCandidate[];
 	maxPagesForHost: number;
 	dynamicShellDiscoverer?: OfficialWebDynamicShellDiscoverer;
+	disableConditionalHeaders?: boolean;
+	sourcePackLineageOverrides?: Record<string, CollectorSourcePackLineageOverride>;
 }
 
 export async function crawlSingleHost(
@@ -95,6 +102,7 @@ export async function crawlSingleHost(
 		robotsState,
 		hostSummary,
 		urlResults,
+		disableConditionalHeaders: input.disableConditionalHeaders,
 	});
 	if (seedRequests.length === 0) {
 		return {
@@ -140,7 +148,8 @@ export async function crawlSingleHost(
 			],
 			async requestHandler(context) {
 				const userData = context.request.userData as CollectorRequestUserData;
-				const knownPage = userData.knownPage;
+				const knownPages = resolveKnownPages(userData);
+				const knownPage = knownPages[0];
 				const finalUrl = context.request.loadedUrl ?? context.response.url ?? context.request.url;
 				const resultHost = new URL(finalUrl).hostname.toLowerCase();
 				const declaredCanonicalUrl = extractDeclaredCanonicalUrl(context);
@@ -196,6 +205,11 @@ export async function crawlSingleHost(
 							discoveryMethod: userData.discoveryMethod,
 							discoveredFromUrl: userData.discoveredFromUrl,
 							fetchedAt: new Date().toISOString(),
+							targetLineages: buildTargetLineages(
+								knownPages,
+								userData.inheritedTargetLineages,
+								input.sourcePackLineageOverrides,
+							),
 							html: context.$,
 						});
 						pages.push(pageArtifact);
@@ -217,6 +231,8 @@ export async function crawlSingleHost(
 							page: pageArtifact,
 							robotsState,
 							depth: Math.min(userData.depth + 1, input.hostPolicy.maxDepth),
+							targetWorksetOnly: true,
+							disableConditionalHeaders: input.disableConditionalHeaders,
 						});
 						const dynamicShellRequests = await buildDynamicShellRequeueRequests({
 							bundle: input.bundle,
@@ -228,13 +244,17 @@ export async function crawlSingleHost(
 							page: pageArtifact,
 							robotsState,
 							depth: Math.min(userData.depth + 1, input.hostPolicy.maxDepth),
+							targetWorksetOnly: true,
+							disableConditionalHeaders: input.disableConditionalHeaders,
 							dynamicShellDiscoverer:
 								input.dynamicShellDiscoverer ?? discoverDynamicShellPromotedUrls,
 						});
 						dynamicShellDiscoveryAudits.push(...dynamicShellRequests.audits);
 						const requeueRequests = [...promotedRequests, ...dynamicShellRequests.requests];
 						if (requeueRequests.length > 0) {
-							await context.crawler.addRequests(requeueRequests, { forefront: true });
+							await context.crawler.addRequests(requeueRequests, {
+								forefront: shouldPrioritizeManualRequeue(knownPage),
+							});
 						}
 					} catch (error) {
 						hostSummary.failures += 1;
@@ -324,6 +344,8 @@ export async function crawlSingleHost(
 					baseUrl: finalUrl,
 					depth: userData.depth + 1,
 					hostSummary,
+					targetWorksetOnly: true,
+					disableConditionalHeaders: input.disableConditionalHeaders,
 				});
 				if (nextRequests.length > 0) {
 					await context.crawler.addRequests(nextRequests);
@@ -374,4 +396,88 @@ export async function crawlSingleHost(
 		dynamicShellDiscoveryAudits,
 		completed: true,
 	};
+}
+
+function buildTargetLineage(
+	knownPage: OfficialWebPlannerPageCandidate | undefined,
+	sourcePackLineageOverrides?: Record<string, CollectorSourcePackLineageOverride>,
+): OfficialWebPageTargetMatch | undefined {
+	if (!knownPage) {
+		return;
+	}
+	const sourcePackLineage = resolveSourcePackLineageOverride(knownPage, sourcePackLineageOverrides);
+
+	return {
+		sourcePackId: sourcePackLineage?.sourcePackId,
+		sourcePackEntryId: sourcePackLineage?.sourcePackEntryId,
+		compositionGroup: sourcePackLineage?.compositionGroup,
+		compositionRole: sourcePackLineage?.compositionRole,
+		targetJobId: knownPage.targetJobId,
+		targetCandidateId: knownPage.targetCandidateId,
+		targetId: knownPage.targetId,
+		targetDeclarationVersion: knownPage.targetDeclarationVersion,
+		consumerFamily: knownPage.consumerFamily as OfficialWebPageTargetMatch["consumerFamily"],
+		retentionPolicy: knownPage.retentionPolicy as OfficialWebPageTargetMatch["retentionPolicy"],
+		materializationPolicy:
+			knownPage.materializationPolicy as OfficialWebPageTargetMatch["materializationPolicy"],
+		selectedWriteTarget: knownPage.selectedWriteTarget,
+		reviewPolicy: knownPage.reviewPolicy,
+		worksetReason: knownPage.worksetReason,
+	};
+}
+
+function buildTargetLineages(
+	knownPages: OfficialWebPlannerPageCandidate[],
+	inheritedTargetLineages: OfficialWebPageTargetMatch[] | undefined,
+	sourcePackLineageOverrides?: Record<string, CollectorSourcePackLineageOverride>,
+): OfficialWebPageTargetMatch[] | undefined {
+	if (knownPages.length === 0) {
+		return inheritedTargetLineages != null && inheritedTargetLineages.length > 0
+			? inheritedTargetLineages
+			: undefined;
+	}
+	const derived = knownPages
+		.map((page) => buildTargetLineage(page, sourcePackLineageOverrides))
+		.filter((item): item is OfficialWebPageTargetMatch => item != null);
+	if (inheritedTargetLineages == null || inheritedTargetLineages.length === 0) {
+		return derived.length > 0 ? derived : undefined;
+	}
+	const merged = new Map<string, OfficialWebPageTargetMatch>();
+	for (const lineage of [...derived, ...inheritedTargetLineages]) {
+		merged.set(
+			`${lineage.targetJobId}:${lineage.targetCandidateId ?? ""}:${lineage.targetId}`,
+			lineage,
+		);
+	}
+	return [...merged.values()];
+}
+
+function resolveSourcePackLineageOverride(
+	knownPage: OfficialWebPlannerPageCandidate,
+	sourcePackLineageOverrides?: Record<string, CollectorSourcePackLineageOverride>,
+): CollectorSourcePackLineageOverride | undefined {
+	if (!sourcePackLineageOverrides) {
+		return;
+	}
+	const candidateId = knownPage.targetCandidateId?.trim();
+	if (!candidateId) {
+		return;
+	}
+	return sourcePackLineageOverrides[candidateId];
+}
+
+function resolveKnownPages(userData: CollectorRequestUserData): OfficialWebPlannerPageCandidate[] {
+	if (Array.isArray(userData.knownPages) && userData.knownPages.length > 0) {
+		return userData.knownPages;
+	}
+	return userData.knownPage ? [userData.knownPage] : [];
+}
+
+function shouldPrioritizeManualRequeue(
+	knownPage: OfficialWebPlannerPageCandidate | undefined,
+): boolean {
+	if (!knownPage) {
+		return true;
+	}
+	return knownPage.worksetReason !== "source_pack_preview_seed";
 }

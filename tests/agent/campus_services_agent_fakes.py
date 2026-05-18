@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from campus_contracts import (
+    AcademicCalendarLookupResult,
+    AcademicCalendarRelatedContext,
     ContactDirectoryContactPoint,
     ContactDirectoryContactRef,
     ContactDirectoryLookupResult,
@@ -16,6 +18,7 @@ from campus_contracts import (
     TransportStopRef,
 )
 from campus_services_agent.query_service import (
+    AcademicCalendarQuery,
     ContactDirectoryQuery,
     ServiceGuideQuery,
     ServiceStatusQuery,
@@ -29,6 +32,7 @@ class FakeCampusServicesQueryService:
         self.last_service_guide_query: ServiceGuideQuery | None = None
         self.last_transport_schedule_query: TransportScheduleQuery | None = None
         self.last_contact_directory_query: ContactDirectoryQuery | None = None
+        self.last_academic_calendar_query: AcademicCalendarQuery | None = None
 
     def lookup_service_status(self, query: ServiceStatusQuery) -> ServiceStatusLookupResult:
         self.last_service_status_query = query
@@ -60,6 +64,7 @@ class FakeCampusServicesQueryService:
             ),
             guide_sections=(
                 ServiceGuideSection(
+                    section_id="service:handbook:check-in:section:procedure",
                     section_type="procedure",
                     title="公寓楼新生办理入住手续流程",
                     content="1. 持通知书到院系注册。\n2. 到指定公寓楼报到。",
@@ -70,6 +75,7 @@ class FakeCampusServicesQueryService:
             queried_time_anchor="2026-04-25T10:30:00+08:00",
             effective_from="2018-09-01T00:00:00+08:00",
             effective_until="2099-12-31T23:59:59+08:00",
+            field_status={"contact": "source_not_provided"},
             matched_service_category="student_housing",
         )
 
@@ -148,6 +154,37 @@ class FakeCampusServicesQueryService:
             ),
             source_refs=("handbook:contact-directory:2026#page=261",),
             queried_time_anchor="2026-04-27T10:30:00+08:00",
+            field_status={"office_hours": "source_not_provided"},
+        )
+
+    def lookup_academic_calendar(
+        self,
+        query: AcademicCalendarQuery,
+    ) -> AcademicCalendarLookupResult:
+        self.last_academic_calendar_query = query
+        return AcademicCalendarLookupResult(
+            query_text=query.payload.query_text,
+            outcome="resolved_current",
+            query_kind=query.payload.query_kind,
+            answer_focus="teaching_week",
+            resolved_date="2026-05-05",
+            academic_year_label="2025-2026学年",
+            term_label="春季学期",
+            week_index=11,
+            day_kind="teaching_day",
+            source_refs=("official_web:academic-calendar-2025-2026",),
+            primary_record_id="calendar:official_web:teaching-week-11",
+            primary_source_refs=("official_web:academic-calendar-2025-2026",),
+            related_calendar_contexts=(
+                AcademicCalendarRelatedContext(
+                    relation="term_context",
+                    event_name="春季学期",
+                    event_type="term_window",
+                    display_start_date="2026-02-23",
+                    display_end_date="2026-07-12",
+                    source_refs=("official_web:academic-calendar-2025-2026",),
+                ),
+            ),
         )
 
 

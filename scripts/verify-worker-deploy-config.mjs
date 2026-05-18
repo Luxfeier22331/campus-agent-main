@@ -71,9 +71,11 @@ async function main() {
 				console.error(`Invalid route assertion: ${assertion}`);
 				process.exit(1);
 			}
-			const matched = routes.some((route) => route?.pattern === expectedPattern);
+			const matched = routes.some(
+				(route) => route?.pattern === expectedPattern && route?.custom_domain === true,
+			);
 			if (!matched) {
-				console.error(`Missing required route pattern ${expectedPattern} in ${configPath}.`);
+				console.error(`Missing required custom domain route ${expectedPattern} in ${configPath}.`);
 				process.exit(1);
 			}
 			continue;

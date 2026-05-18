@@ -3,6 +3,7 @@ import { HttpError } from "react-admin";
 import { translateRuntimeErrorMessage } from "./panel-copy";
 
 interface HttpRequestOptions {
+	json?: unknown;
 	method?: string;
 	signal?: AbortSignal;
 }
@@ -59,11 +60,18 @@ function isCloudflareAccessLoginResponse(response: Response, contentType: string
 }
 
 export async function fetchJson<T>(path: string, options: HttpRequestOptions = {}): Promise<T> {
+	const headers: Record<string, string> = {
+		accept: "application/json",
+	};
+	const body = options.json === undefined ? undefined : JSON.stringify(options.json);
+	if (body !== undefined) {
+		headers["content-type"] = "application/json";
+	}
+
 	const response = await fetch(path, {
+		body,
 		credentials: "same-origin",
-		headers: {
-			accept: "application/json",
-		},
+		headers,
 		method: options.method ?? "GET",
 		redirect: "manual",
 		signal: options.signal,

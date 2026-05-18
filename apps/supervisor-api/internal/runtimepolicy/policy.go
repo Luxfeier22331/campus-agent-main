@@ -78,6 +78,27 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 		return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{policy.PolicyVersion}, frame}
 	}
 
+	if ineligibleReason := selectedNoticeKnowledgeFollowthroughIneligibleReason(
+		request,
+		normalizedGoal,
+		policy,
+	); ineligibleReason != "" {
+		frame.DomainCandidates = []string{"selected_notice_followthrough"}
+		frame.SuggestedNextAction = "out_of_scope"
+		frame.ScopeClass = "in_scope"
+		frame.PolicyReason = ineligibleReason
+		frame.LaunchState = "closed"
+		frame.ScopeReason = ineligibleReason
+		frame.MatchedSignal = contextPreflight.MatchedSignal
+		policyGate = PolicyGate{
+			Decision:      "out_of_scope",
+			Reason:        ineligibleReason,
+			RiskLevel:     "low",
+			MatchedSignal: contextPreflight.MatchedSignal,
+		}
+		return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{policy.PolicyVersion}, frame}
+	}
+
 	switch request.EffectiveCapability {
 	case "place_lookup":
 		frame.DomainCandidates = []string{"out_of_scope"}
@@ -142,6 +163,30 @@ func EvaluateWithPolicy(request Request, policy IntentPolicyArtifact) Decision {
 	}
 
 	return Decision{scopeGate, policyGate, contextPreflight, ToolPolicy{policy.PolicyVersion}, frame}
+}
+
+func selectedNoticeKnowledgeFollowthroughIneligibleReason(
+	request Request,
+	normalizedGoal string,
+	policy IntentPolicyArtifact,
+) string {
+	if request.Context.SelectedNoticeRef.NoticeID == "" {
+		return ""
+	}
+	if request.Context.SelectedNoticeRef.TargetSurface == "" {
+		return ""
+	}
+	if !request.HasRequestedScope ||
+		request.RequestedScope.Corpus != "regulations" ||
+		!containsAny(normalizedGoal, policy.Signals("notice_knowledge_followthrough")) {
+		return ""
+	}
+	switch request.Context.SelectedNoticeRef.TargetSurface {
+	case "regulations/student_rules", "regulations/institutional_rules", "regulations/scoped_rules":
+		return ""
+	default:
+		return "selected_notice_target_surface_ineligible_for_knowledge_followthrough"
+	}
 }
 
 func IntentPolicyUnavailableDecision(request Request) Decision {

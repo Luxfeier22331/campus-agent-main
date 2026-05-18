@@ -30,6 +30,7 @@ from campus_evals.supplemental_http import (
 )
 from campus_shared.provider_config import ProviderConfigResolutionError
 from langchain_core.prompt_values import StringPromptValue
+from pydantic import BaseModel as PydanticBaseModel
 from ragas.llms.base import InstructorBaseRagasLLM
 from ragas.metrics._faithfulness import (
     NLIStatementOutput,
@@ -44,6 +45,7 @@ __all__ = (
     "OpenAICompatibleResponsesLLM",
     "Path",
     "ProviderConfigResolutionError",
+    "PydanticBaseModel",
     "RagasProjection",
     "RagasSettings",
     "StatementFaithfulnessAnswer",

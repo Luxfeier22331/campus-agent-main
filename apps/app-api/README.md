@@ -11,6 +11,7 @@ This directory currently contains two aligned artifacts:
 
 This app is the shared product backend behind:
 
+- `apps/hub-web`
 - `apps/public-chat-web`
 - `apps/protected-panel-web`
 
@@ -107,10 +108,10 @@ Observability data policy:
 - `AXIOM_ENDPOINT` should normally be the base domain of the org edge deployment
   shown in Axiom `Settings -> General -> Edge deployment`, for example
   `<https://us-east-1.aws.edge.axiom.co`>
-- `app-api` uses the edge ingest route for `*.edge.axiom.co` endpoints and the
-  dataset ingest route for the shared `<https://api.axiom.co`> domain
-- `AXIOM_DATASET` should stay service- and environment-scoped, for example
-  `campus-agent-runtime-dev`
+- `app-api` should use the edge ingest route from the selected edge deployment
+  domain; keep Worker-local and Collector-based exports on the same edge domain
+- `AXIOM_DATASET` is environment-scoped for the current rollout, for example
+  `campus-agent-runtime-dev` or `campus-agent-runtime-staging`
 - when `AXIOM_ENDPOINT` points at an edge deployment domain, `AXIOM_TOKEN` must
   be an Axiom API token rather than a PAT
 - panel trace / issue links are app-owned projections, not route-time sink
@@ -147,7 +148,6 @@ Database baseline:
 - runtime now distinguishes `APP_API_DB` for cached/read-mostly access and
   optional `APP_API_DB_FRESH` for auth/fresh read-after-write access
 - migration / schema management uses canonical `APP_API_OPERATOR_DATABASE_URL`
-  with legacy `APP_API_MANAGEMENT_DATABASE_URL` kept as a compatibility alias
 - `apps/app-api` runtime schema code continues to cover `app_auth.*`, `chat.*`,
   `runtime.*`, `operator.*`, `official_web.*`, and `profile.*`
 - `drizzle.app_api_migrations` now owns only `runtime.*`, `operator.*`, and
@@ -189,6 +189,7 @@ Environment:
 - `AUTH_RESET_EMAIL_FROM`
 - `AUTH_RESET_EMAIL_REPLY_TO`
 - `APP_API_SAFETY_IDENTIFIER_HMAC_SECRET`
+- `AUTH_SHELL_ORIGIN`
 - `PUBLIC_CHAT_WEB_ORIGIN`
 - `APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST`
 - `APP_API_END_USER_EMAIL_ALLOWLIST`
@@ -202,7 +203,6 @@ Environment:
 - `APP_API_INTERNAL_SHARED_SECRET`
 - `APP_API_STAGING_SMOKE_AUTH_SECRET`
 - `APP_API_OPERATOR_DATABASE_URL`
-- `APP_API_MANAGEMENT_DATABASE_URL` (legacy alias)
 - `APP_API_DATABASE_SSLMODE`
 - `SENTRY_DSN`
 - `SENTRY_ENVIRONMENT`
@@ -213,14 +213,13 @@ Environment:
 
 Local development:
 
-- `pnpm dev` runs `wrangler dev -e local`
+- `pnpm dev` runs `wrangler dev -e local --ip 127.0.0.1 --port 27031`
 - the local Worker runtime expects the `APP_API_DB` Hyperdrive binding from
   `wrangler.toml` `env.local`
 - put local Wrangler / Drizzle process env in `apps/app-api/.env`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=...`
   - `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=...`
   - `APP_API_OPERATOR_DATABASE_URL=...`
-  - `APP_API_MANAGEMENT_DATABASE_URL=...` (legacy alias)
 - if the root worktree `.env` already has `CAMPUS_SHARED_POSTGRES_URL`, use `uv
   run --all-packages python -m scripts.sync_app_api_local_db_env --repo-root
   <current-worktree-root>` to generate `apps/app-api/.env`; the sync script will
@@ -241,9 +240,11 @@ Deployment minimum gate:
 - `APP_API_DB_FRESH.connectionString` should resolve from a caching-disabled
   Hyperdrive binding in deployed envs so auth-sensitive read-after-write paths
   stay fresh
-- `PUBLIC_CHAT_WEB_ORIGIN` must exactly match the deployed `public-chat-web`
-  origin because Better Auth keeps origin / CSRF checks enabled for proxied
-  `/api/auth/*`
+- `AUTH_SHELL_ORIGIN` must point at the deployed `hub-web` account browser
+  shell
+- `PUBLIC_CHAT_WEB_ORIGIN` remains the deployed public-chat origin and trusted
+  Better Auth origin while chat-local auth URLs are kept as bounded
+  redirects/shims
 - `AUTH_TURNSTILE_SECRET_KEY` must be present or the captcha-gated sign-in /
   sign-up / request-password-reset surface remains not ready
 - `RESEND_API_KEY` and `AUTH_RESET_EMAIL_FROM` must both be present or password
@@ -270,8 +271,9 @@ Deployment minimum gate:
 - `SUPERVISOR_API_ACCESS_CLIENT_ID` and `SUPERVISOR_API_ACCESS_CLIENT_SECRET`
   are optional, and are sent only when the supervisor machine ingress is
   protected by Cloudflare Access service-token authentication
-- password reset callback is frozen to the same-site public auth family and
-  resolves only to `PUBLIC_CHAT_WEB_ORIGIN` `/reset-password`
+- password reset callback is frozen to `AUTH_SHELL_ORIGIN`
+  `/account/reset-password`; the Better Auth token URL remains under the
+  same-site app-api auth endpoint and carries that callback URL.
 
 Local commands:
 
@@ -284,7 +286,9 @@ pnpm db:adopt-shared -- --json
 pnpm db:reconcile-shared-drift -- --json
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' pnpm smoke-identity:provision -- \
   --email help_bot@outlook.com --name "Help Bot"
-pnpm chat:smoke:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
+pnpm chat:e2e:dev -- --prompt "中央民族大学本科学生国家奖学金评审办法"
+pnpm chat:e2e:local-real-provider
+pnpm chat:e2e:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm docs:gated:smoke:staging
 pnpm official-web:drain-projection -- --limit 50
 pnpm collection-rename:audit
@@ -309,7 +313,7 @@ APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
   STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
   pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name \
   "Help Bot"
-pnpm chat:smoke:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
+pnpm chat:e2e:staging -- --prompt "中央民族大学本科学生国家奖学金评审办法"
 pnpm docs:gated:smoke:staging
 pnpm dev
 ```
@@ -326,10 +330,13 @@ Deploy note:
   `/api/operator/official-web/runs` 会一起退化成 `internal_error`
 - `db:bootstrap:staging` 负责补齐 `app_auth.*` / `chat.*` shared-product 面；现有
   staging 若只跑 `db:migrate:staging`，不会自动得到 `chat.messages.structured_parts_json`
-- `chat:smoke:staging` and `docs:gated:smoke:staging` do not require local
+- `chat:e2e:staging` and `docs:gated:smoke:staging` do not require local
   staging DB credentials; they reset the fixed smoke identity through the
   deployed staging internal smoke endpoint protected by
   `APP_API_STAGING_SMOKE_AUTH_SECRET`
+- `chat:e2e:dev` is the local public/chat wrapper. It starts local supervisor
+  runtime, runs `db:bootstrap`, provisions the smoke identity, starts or reuses
+  `public-chat-web dev:live-smoke`, and then runs `chat:e2e -- --profile dev`.
 
 Testing lanes:
 

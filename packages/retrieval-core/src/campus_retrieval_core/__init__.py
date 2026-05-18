@@ -11,6 +11,7 @@ from campus_retrieval_core.models import (
     RetrievalRequest,
     RetrievalScope,
     RetrievalSelector,
+    RetrievalSemanticHint,
     RetrievalSourceTrustPolicy,
     RetrievalStep,
     RetrievalStepActivity,
@@ -19,7 +20,9 @@ from campus_retrieval_core.models import (
     RetrievalStepResult,
 )
 from campus_retrieval_core.service import (
+    build_jsonl_retrieval_observation_sink,
     build_retrieval_backend,
+    build_retrieval_observation_event_sink,
     execute_retrieval_plan,
     retrieve_sources,
 )
@@ -36,6 +39,7 @@ __all__ = [
     "RetrievalRequest",
     "RetrievalScope",
     "RetrievalSelector",
+    "RetrievalSemanticHint",
     "RetrievalSettings",
     "RetrievalSourceTrustPolicy",
     "RetrievalStep",
@@ -43,7 +47,9 @@ __all__ = [
     "RetrievalStepBudget",
     "RetrievalStepFailure",
     "RetrievalStepResult",
+    "build_jsonl_retrieval_observation_sink",
     "build_retrieval_backend",
+    "build_retrieval_observation_event_sink",
     "execute_retrieval_plan",
     "retrieve_sources",
 ]

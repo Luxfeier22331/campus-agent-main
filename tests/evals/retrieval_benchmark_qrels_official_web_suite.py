@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import json
+from pathlib import Path
+
 from tests.evals.retrieval_benchmark_test_support import (
     OFFICIAL_WEB_FRESH_NEWS_MANIFEST_PATH,
     OFFICIAL_WEB_FRESH_NEWS_QRELS_FIXTURE_PATH,
@@ -16,9 +19,106 @@ from tests.evals.retrieval_benchmark_test_support import (
     validate_retrieval_qrels_fixture,
 )
 
+_REPO_ROOT = Path(__file__).resolve().parents[2]
+_OFFICIAL_WEB_TARGET_INVENTORY_PATH = (
+    _REPO_ROOT / "configs" / "sources" / "official_web" / "muc_public" / "target-inventory.json"
+)
+_OFFICIAL_WEB_PROJECTION_ROUTING_PATH = (
+    _REPO_ROOT / "configs" / "sources" / "official_web" / "muc_public" / "projection-routing.json"
+)
+_QUERY_ENABLED_OFFICIAL_WEB_COLLECTIONS = frozenset({"stable_reference"})
+
+
+def _load_json(path: Path) -> dict[str, object]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise AssertionError(f"{path} must contain a JSON object")
+    return payload
+
+
+def _stable_reference_target_inventory_urls() -> frozenset[str]:
+    payload = _load_json(_OFFICIAL_WEB_TARGET_INVENTORY_PATH)
+    entries = payload.get("entries")
+    if not isinstance(entries, list):
+        raise AssertionError("target-inventory entries must be an array")
+    urls: set[str] = set()
+    for entry in entries:
+        if not isinstance(entry, dict):
+            continue
+        if entry.get("consumer_family") != "stable_reference_candidate":
+            continue
+        if entry.get("selected_write_target") != "official_web/stable_reference":
+            continue
+        if bool(entry.get("inventory_only")):
+            continue
+        source_urls = entry.get("source_urls")
+        if not isinstance(source_urls, list):
+            raise AssertionError(
+                f"stable_reference target {entry.get('inventory_id')} has no source_urls"
+            )
+        urls.update(str(url).strip() for url in source_urls if str(url).strip())
+    return frozenset(urls)
+
 
 class RetrievalOfficialWebQrelsFixtureTest(unittest.TestCase):
-    def test_load_official_web_retrieval_qrels_dataset_reads_current_baseline(self) -> None:
+    def test_official_web_projection_routing_does_not_open_query_enabled_surfaces(self) -> None:
+        payload = _load_json(_OFFICIAL_WEB_PROJECTION_ROUTING_PATH)
+        routes = payload.get("routes")
+        if not isinstance(routes, list):
+            self.fail("projection-routing routes must be an array")
+
+        routed_collections = {
+            str(route.get("target_collection"))
+            for route in routes
+            if isinstance(route, dict)
+            and str(route.get("target_corpus")) == "official_web"
+            and str(route.get("target_collection")) in _QUERY_ENABLED_OFFICIAL_WEB_COLLECTIONS
+        }
+
+        self.assertEqual(
+            routed_collections,
+            set(),
+            "projection-routing is legacy title routing and must not independently admit "
+            "official_web query-enabled surfaces; target-inventory/source-pack lineage must drive admission",
+        )
+
+    def test_stable_reference_manifest_is_subset_of_target_inventory_admission(self) -> None:
+        manifest = _load_json(OFFICIAL_WEB_STABLE_REFERENCE_MANIFEST_PATH)
+        documents = manifest.get("documents")
+        if not isinstance(documents, list):
+            self.fail("stable_reference split manifest documents must be an array")
+
+        manifest_urls = {
+            str(document.get("source_uri")).strip()
+            for document in documents
+            if isinstance(document, dict) and str(document.get("status") or "active") == "active"
+        }
+        admitted_urls = _stable_reference_target_inventory_urls()
+
+        self.assertTrue(manifest_urls)
+        self.assertLessEqual(manifest_urls, admitted_urls)
+
+    def test_stable_reference_qrels_only_reference_manifest_documents(self) -> None:
+        manifest = _load_json(OFFICIAL_WEB_STABLE_REFERENCE_MANIFEST_PATH)
+        manifest_doc_ids = {
+            str(document.get("document_id")).strip()
+            for document in manifest.get("documents") or ()
+            if isinstance(document, dict) and str(document.get("status") or "active") == "active"
+        }
+        dataset = load_retrieval_qrels_dataset(OFFICIAL_WEB_STABLE_REFERENCE_QRELS_FIXTURE_PATH)
+        referenced_doc_ids = {
+            source.doc_id
+            for case in dataset.cases
+            for source in (*case.expected_sources, *case.forbidden_sources)
+            if source.doc_id
+        }
+
+        self.assertTrue(manifest_doc_ids)
+        self.assertLessEqual(referenced_doc_ids, manifest_doc_ids)
+
+    def test_load_official_web_retrieval_qrels_dataset_reads_inventory_guard_baseline(
+        self,
+    ) -> None:
         dataset = load_retrieval_qrels_dataset(OFFICIAL_WEB_QRELS_FIXTURE_PATH)
 
         self.assertIsInstance(dataset, RetrievalQrelsDataset)
@@ -29,108 +129,28 @@ class RetrievalOfficialWebQrelsFixtureTest(unittest.TestCase):
         self.assertEqual(dataset.baseline["dense_model"], "Qwen3-Embedding-4B")
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
         self.assertEqual(dataset.baseline["fusion"], "rrf")
+        self.assertEqual(dataset.baseline["scope_posture"], "inventory_qc_only")
         self.assertEqual(
             {case.case_id for case in dataset.cases},
             {
-                "topic-law-interpretation",
-                "cross-host-duplicate-employment-base",
-                "stable-reference-school-profile",
-                "stable-reference-current-leadership",
-                "stable-reference-alumni-association-profile",
-                "stable-reference-foundation-profile",
-                "stable-reference-library-lecture-notice",
-                "no-hit-campus-name-generic",
-                "no-hit-unanchored-life-service",
+                "inventory-only-scholars-page",
+                "inventory-only-current-leadership-page",
+                "inventory-only-lecture-notice-page",
+                "inventory-only-law-interpretation-page",
             },
         )
 
-    def test_official_web_qrels_fixture_locks_expected_sources_to_current_doc_and_version_ids(
+    def test_official_web_muc_public_pages_qrels_fixture_has_no_answer_bearing_truth(
         self,
     ) -> None:
         dataset = load_retrieval_qrels_dataset(OFFICIAL_WEB_QRELS_FIXTURE_PATH)
-        cases = {case.case_id: case for case in dataset.cases}
 
+        self.assertTrue(dataset.cases)
+        self.assertTrue(all(not case.expected_sources for case in dataset.cases))
+        self.assertTrue(all(not case.forbidden_sources for case in dataset.cases))
         self.assertEqual(
-            cases["topic-law-interpretation"].expected_sources,
-            (
-                RetrievalQrelsSourceRef(
-                    doc_id="official_web:muc_public:article_detail:871878763a91199730493efe0cbb0358b884fe58",
-                    version_id="owdocver:fa5f1f590e722118a3800d65e8e95125af62c74a",
-                    grade=2,
-                    rationale="明确主题问法应命中当前 registry truth 中的法治解读文章。",
-                ),
-            ),
-        )
-        self.assertEqual(
-            cases["cross-host-duplicate-employment-base"].expected_sources,
-            (
-                RetrievalQrelsSourceRef(
-                    doc_id="official_web:muc_public:article_detail:ac8ea5921fa808dea152c171d6b0c6c0ba1cc62f",
-                    version_id="owdocver:9be8a3dbe619d97df54d60cbe77d8903698b8fd3",
-                    grade=2,
-                    rationale="news/xxgk 跨 host 同文在 current truth 中应只保留一个逻辑文档。",
-                ),
-            ),
-        )
-        self.assertEqual(
-            cases["stable-reference-school-profile"].expected_sources,
-            (
-                RetrievalQrelsSourceRef(
-                    doc_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
-                    version_id="owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
-                    grade=2,
-                    rationale="学校简介 query 应命中当前稳定介绍页，而不是新闻正文。",
-                ),
-            ),
-        )
-        self.assertEqual(
-            cases["stable-reference-school-profile"].forbidden_sources,
-            (
-                RetrievalQrelsSourceRef(
-                    doc_id="official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
-                    version_id="owdocver:f7ee81c9f937fe14f493a81e4e5b5b815f2995e6",
-                    grade=1,
-                    rationale="标题已明确指向学校简介时，不应再把学校概况作为并列 retrieval truth。",
-                ),
-            ),
-        )
-        self.assertEqual(
-            cases["stable-reference-current-leadership"].expected_sources,
-            (
-                RetrievalQrelsSourceRef(
-                    doc_id="official_web:muc_public:article_detail:43fdab9acbf0e68e67fddba209463e97d0b2fe4e",
-                    version_id="owdocver:14935f44e582597fdebffe3e8f2bcc9921e2fd06",
-                    grade=2,
-                    rationale="现任领导 query 应命中当前 roster/reference 页面。",
-                ),
-            ),
-        )
-        self.assertEqual(
-            cases["stable-reference-current-leadership"].forbidden_sources,
-            (
-                RetrievalQrelsSourceRef(
-                    doc_id="official_web:muc_public:article_detail:df9f5e313546d24c7a384598d1b676d6b005d881",
-                    version_id="owdocver:1970a7c8d052144896ffd12d5785055720c8fa82",
-                    grade=1,
-                    rationale="现任领导 query 不应误召回更泛的干部人事栏目页。",
-                ),
-            ),
-        )
-
-    def test_official_web_qrels_fixture_uses_no_hit_cases_for_low_signal_queries(self) -> None:
-        dataset = load_retrieval_qrels_dataset(OFFICIAL_WEB_QRELS_FIXTURE_PATH)
-
-        no_hit_cases = {
-            case.case_id
-            for case in dataset.cases
-            if not case.expected_sources and not case.forbidden_sources
-        }
-        self.assertEqual(
-            no_hit_cases,
-            {
-                "no-hit-campus-name-generic",
-                "no-hit-unanchored-life-service",
-            },
+            set(dataset.coverage_scenarios),
+            {"mixed_inventory_not_query_enabled"},
         )
 
     def test_validate_official_web_qrels_fixture_against_current_manifest_has_no_issues(
@@ -168,14 +188,9 @@ class RetrievalOfficialWebQrelsFixtureTest(unittest.TestCase):
             {case.case_id for case in dataset.cases},
             {
                 "stable-reference-school-profile",
-                "stable-reference-school-overview",
-                "stable-reference-current-leadership",
-                "stable-reference-alumni-association-profile",
-                "stable-reference-foundation-profile",
-                "stable-reference-undergraduate-education",
-                "stable-reference-graduate-education",
-                "stable-reference-postdoctoral-program",
-                "stable-reference-scholars",
+                "stable-reference-teaching-research-units",
+                "stable-reference-fee-disclosure",
+                "stable-reference-no-hit-fictional-service",
             },
         )
 
@@ -190,45 +205,37 @@ class RetrievalOfficialWebQrelsFixtureTest(unittest.TestCase):
             (
                 RetrievalQrelsSourceRef(
                     doc_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
-                    version_id="owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
+                    version_id="owdocver:239b3237c2259702ed1fe2955afe869303e943f6",
                     grade=2,
-                    rationale="学校简介 query 应命中 stable_reference 的学校简介页面。",
+                    rationale="学校简介 query 应命中 target-inventory/source-pack 准入的学校简介页面。",
                 ),
             ),
         )
         self.assertEqual(
-            cases["stable-reference-school-overview"].forbidden_sources,
+            cases["stable-reference-teaching-research-units"].expected_sources,
             (
                 RetrievalQrelsSourceRef(
-                    doc_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
-                    version_id="owdocver:934d619cea41b7add23484fa2d8c2e79c0c5666e",
-                    grade=1,
-                    rationale="学校概况 query 不应被学校简介页面替代。",
+                    doc_id="official_web:muc_public:directory_page:b8993ee7004c02e028bc5f6bb166e26ac4eb5afc",
+                    version_id="owdocver:043d9feb870de5219c0ff7de6bd065f9adc8b4c0",
+                    grade=2,
+                    rationale="教学和科研单位 query 应命中 target-inventory/source-pack 准入的单位列表页面。",
                 ),
             ),
         )
         self.assertEqual(
-            cases["stable-reference-foundation-profile"].expected_sources,
+            cases["stable-reference-fee-disclosure"].expected_sources,
             (
                 RetrievalQrelsSourceRef(
-                    doc_id="official_web:muc_public:article_detail:3342689d05d43819a48bbcf7564f013f217ffe46",
-                    version_id="owdocver:b804aee18c6ba82af29a8f0dca36ac0e92f550aa",
+                    doc_id="official_web:muc_public:directory_page:9d7917bb1eb39649f02c6285c51280d811790cae",
+                    version_id="owdocver:493b69ab0ae0b4ec0173a18801ef809b4c694f1b",
                     grade=2,
-                    rationale="基金会简介 query 应命中 stable_reference 的基金会页面。",
+                    rationale="收费公示 query 应命中 target-inventory/source-pack 准入的教育收费公示表。",
                 ),
             ),
         )
-        self.assertEqual(
-            cases["stable-reference-scholars"].expected_sources,
-            (
-                RetrievalQrelsSourceRef(
-                    doc_id="official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2",
-                    version_id="owdocver:80a060b7e821f9a3ca8a57d3c674f9045157b981",
-                    grade=2,
-                    rationale="学术名流 query 应命中 stable_reference 的学术名流页面。",
-                ),
-            ),
-        )
+        self.assertNotIn("stable-reference-scholars", cases)
+        self.assertNotIn("stable-reference-school-overview", cases)
+        self.assertNotIn("stable-reference-current-leadership", cases)
 
     def test_validate_official_web_stable_reference_qrels_fixture_against_split_manifest_has_no_issues(
         self,
@@ -264,6 +271,7 @@ class RetrievalOfficialWebQrelsFixtureTest(unittest.TestCase):
         self.assertEqual(dataset.baseline["sparse_model"], "qdrant/bm25")
         self.assertEqual(dataset.baseline["fusion"], "rrf")
         self.assertEqual(len(dataset.cases), 8)
+        self.assertEqual(dataset.baseline["scope_posture"], "offline_seed_validation_only")
 
     def test_validate_official_web_fresh_news_qrels_fixture_against_split_manifest_has_no_issues(
         self,

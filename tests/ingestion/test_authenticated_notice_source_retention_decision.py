@@ -84,6 +84,25 @@ class AuthenticatedNoticeSourceRetentionDecisionTest(unittest.TestCase):
         self.assertEqual(decision.required_source_object_count, 0)
         self.assertEqual(decision.quarantine_attachment_ref_count, 1)
 
+    def test_transient_failed_required_fetch_ref_keeps_retryable_state(self) -> None:
+        decision = build_authenticated_notice_source_retention_decision(
+            notice_capture_route="candidate_service_fact",
+            attachment_refs=(
+                {
+                    "attachment_ref_id": "schedule-table",
+                    "mime_type": "image/png",
+                    "last_error_class": "transient_failed",
+                },
+            ),
+            missing_fact_attachment_ref_ids=("schedule-table",),
+        )
+
+        attachment = decision.attachment_decisions[0]
+        self.assertEqual(attachment.attachment_capture_policy, "fetch_to_quarantine")
+        self.assertEqual(attachment.attachment_capture_state, "transient_failed")
+        self.assertTrue(attachment.byte_fetch_required)
+        self.assertIn("transient_failed", attachment.reason_codes)
+
     def test_candidate_document_owner_without_admission_keeps_owner_like_ref_metadata_only(
         self,
     ) -> None:

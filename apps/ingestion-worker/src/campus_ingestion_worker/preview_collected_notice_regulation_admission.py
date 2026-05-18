@@ -56,7 +56,8 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument(
         "--owner-text-execution-report-path",
-        default="",
+        action="append",
+        default=[],
         help=(
             "Optional Phase 6R.1b execution report. When set, the worker reads "
             "declared owner-text refs from object storage and overlays ready owner text "
@@ -72,14 +73,16 @@ def main(argv: Sequence[str] | None = None) -> None:
     args = build_parser().parse_args(list(argv) if argv is not None else None)
     output_dir = Path(args.output_dir)
     output_dir.mkdir(parents=True, exist_ok=True)
-    owner_text_execution_report_path = _optional_report_path(args.owner_text_execution_report_path)
+    owner_text_execution_report_paths = _optional_report_paths(
+        args.owner_text_execution_report_path
+    )
     preview = build_collected_notice_regulation_admission_preview_from_paths(
         searchable_notice_preview_path=Path(args.searchable_notice_preview_path),
         multimodal_candidate_inventory_path=Path(args.multimodal_candidate_inventory_path),
         queue_consume_trace_path=Path(args.queue_consume_trace_path),
-        owner_text_execution_report_path=owner_text_execution_report_path,
+        owner_text_execution_report_paths=owner_text_execution_report_paths,
         owner_text_object_store=build_runtime_object_store()
-        if owner_text_execution_report_path is not None
+        if owner_text_execution_report_paths
         else None,
     )
     files = write_preview_evidence_files(preview=preview, output_dir=output_dir)
@@ -91,7 +94,14 @@ def main(argv: Sequence[str] | None = None) -> None:
                 "write_enabled": False,
                 "current_promotion_enabled": False,
                 "target": "regulation",
-                "owner_text_execution_report_path": str(owner_text_execution_report_path or ""),
+                "owner_text_execution_report_path": (
+                    str(owner_text_execution_report_paths[0])
+                    if len(owner_text_execution_report_paths) == 1
+                    else ""
+                ),
+                "owner_text_execution_report_paths": [
+                    str(path) for path in owner_text_execution_report_paths
+                ],
                 "output_dir": str(output_dir),
                 "files": {name: str(path) for name, path in files.items()},
                 "entry_count": counts.get("entry_count", 0),
@@ -130,14 +140,17 @@ def build_runtime_object_store() -> S3ObjectStoreWriter:
     return S3ObjectStoreWriter(ObjectStoreSettings.from_env())
 
 
-def _optional_report_path(value: object) -> Path | None:
-    normalized = str(value or "").strip()
-    if not normalized:
-        return None
-    path = Path(normalized)
-    if not path.exists():
-        raise FileNotFoundError(f"owner text execution report does not exist: {path}")
-    return path
+def _optional_report_paths(values: Sequence[object]) -> tuple[Path, ...]:
+    paths: list[Path] = []
+    for value in values:
+        normalized = str(value or "").strip()
+        if not normalized:
+            continue
+        path = Path(normalized)
+        if not path.exists():
+            raise FileNotFoundError(f"owner text execution report does not exist: {path}")
+        paths.append(path)
+    return tuple(dict.fromkeys(paths))
 
 
 __all__ = [

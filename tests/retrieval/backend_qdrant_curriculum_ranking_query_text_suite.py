@@ -65,90 +65,56 @@ class BackendQdrantCurriculumRankingQueryTextTest(unittest.TestCase):
     ) -> None:
         self.assertTrue(
             query_targets_source_title(
-                query_text="中央民族大学博士后",
-                source=EvidenceSource(
-                    doc_id="official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916",
-                    revision_track="source-faithful",
-                    version_id="owdocver:test",
-                    chunk_id="official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916:chunk-0001",
-                    anchor={"segment_ord": 1},
-                    canonical_url="https://www.muc.edu.cn/rcpy/bsh.htm",
-                    latest_url="https://www.muc.edu.cn/rcpy/bsh.htm",
-                    source_channel="official_web",
-                    collection="muc_public_pages",
-                    is_current=True,
-                    snippet="博士后 学校现有6个博士后科研流动站。",
-                    score=0.61,
-                    source_title="博士后",
-                    structural_path=("博士后",),
-                    content_kind="article_body",
-                ),
-            )
-        )
-
-    def test_query_targets_source_title_ignores_parent_heading_for_official_web_reference_doc(
-        self,
-    ) -> None:
-        self.assertFalse(
-            query_targets_source_title(
-                query_text="中央民族大学学校概况",
+                query_text="中央民族大学学校简介",
                 source=EvidenceSource(
                     doc_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
                     revision_track="source-faithful",
-                    version_id="owdocver:test-school-profile",
+                    version_id="owdocver:test",
                     chunk_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487:chunk-0001",
-                    anchor={"segment_ord": 1, "section_path": ["学校概况", "学校简介"]},
+                    anchor={"segment_ord": 1},
                     canonical_url="https://www.muc.edu.cn/xxgk1/xxjj.htm",
                     latest_url="https://www.muc.edu.cn/xxgk1/xxjj.htm",
                     source_channel="official_web",
                     collection="stable_reference",
                     is_current=True,
-                    snippet="标题：学校简介 中央民族大学是党和国家为解决民族问题而创建的一所特色鲜明的高等院校。",
+                    snippet="学校简介 中央民族大学是党和国家为解决民族问题而创建的一所特色鲜明的高等院校。",
                     score=0.61,
                     source_title="学校简介",
-                    structural_path=("学校概况", "学校简介"),
+                    structural_path=("学校简介",),
                     content_kind="article_body",
                 ),
             )
         )
 
-    def test_build_document_support_query_text_uses_fact_hints_for_official_web_reference_pages(
+    def test_query_targets_source_title_rejects_non_admitted_mixed_official_web_page(
         self,
     ) -> None:
-        school_overview_source = EvidenceSource(
-            doc_id="official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
-            revision_track="source-faithful",
-            version_id="owdocver:test-school-overview",
-            chunk_id="official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85:chunk-0001",
-            anchor={"segment_ord": 1},
-            canonical_url="https://www.muc.edu.cn/xxgk1.htm",
-            latest_url="https://www.muc.edu.cn/xxgk1.htm",
-            source_channel="official_web",
-            collection="muc_public_pages",
-            is_current=True,
-            snippet="标题：学校概况 学校现有北京海淀、丰台和海南陵水黎安国际教育创新试验区三个校区。",
-            score=0.6,
-            source_title="学校概况",
-            structural_path=("学校概况",),
-            content_kind="article_body",
+        self.assertFalse(
+            query_targets_source_title(
+                query_text="中央民族大学学术名流",
+                source=EvidenceSource(
+                    doc_id="official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2",
+                    revision_track="source-faithful",
+                    version_id="owdocver:test-scholars",
+                    chunk_id="official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2:chunk-0001",
+                    anchor={"segment_ord": 1},
+                    canonical_url="https://www.muc.edu.cn/xxgk1/xsml.htm",
+                    latest_url="https://www.muc.edu.cn/xxgk1/xsml.htm",
+                    source_channel="official_web",
+                    collection="muc_public_pages",
+                    is_current=True,
+                    snippet="标题：学术名流 吴泽霖先生将社会学与民族学、人类学等学科联系起来。",
+                    score=0.61,
+                    source_title="学术名流",
+                    structural_path=("学术名流", "吴泽霖"),
+                    content_kind="article_body",
+                ),
+            )
         )
-        postdoctoral_source = EvidenceSource(
-            doc_id="official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916",
-            revision_track="source-faithful",
-            version_id="owdocver:test-postdoc",
-            chunk_id="official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916:chunk-0001",
-            anchor={"segment_ord": 1},
-            canonical_url="https://www.muc.edu.cn/rcpy/bsh.htm",
-            latest_url="https://www.muc.edu.cn/rcpy/bsh.htm",
-            source_channel="official_web",
-            collection="muc_public_pages",
-            is_current=True,
-            snippet="标题：博士后 中央民族大学全面推动“双一流”建设和整体发展。",
-            score=0.6,
-            source_title="博士后",
-            structural_path=("博士后",),
-            content_kind="article_body",
-        )
+
+    def test_build_document_support_query_text_ignores_non_admitted_mixed_official_web_pages(
+        self,
+    ) -> None:
         scholar_source = EvidenceSource(
             doc_id="official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2",
             revision_track="source-faithful",
@@ -169,158 +135,100 @@ class BackendQdrantCurriculumRankingQueryTextTest(unittest.TestCase):
 
         self.assertEqual(
             _build_document_support_query_text(
-                query_text="中央民族大学学校概况",
-                source=school_overview_source,
-            ),
-            "学校概况 三个校区 12个学科门类",
-        )
-        self.assertEqual(
-            _build_document_support_query_text(
-                query_text="中央民族大学博士后",
-                source=postdoctoral_source,
-            ),
-            "博士后 博士后科研流动站 合格率",
-        )
-        self.assertEqual(
-            _build_document_support_query_text(
                 query_text="中央民族大学学术名流",
                 source=scholar_source,
             ),
-            "学术名流 历史学 社会学 民族学 人类学 语言学 音乐",
+            "中央民族大学",
         )
 
     def test_build_document_support_query_text_uses_fact_hints_for_stable_reference_pages(
         self,
     ) -> None:
-        school_overview_source = EvidenceSource(
-            doc_id="official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
+        school_profile_source = EvidenceSource(
+            doc_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
             revision_track="source-faithful",
-            version_id="owdocver:test-school-overview-stable-reference",
-            chunk_id="official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85:chunk-0001",
+            version_id="owdocver:test-school-profile-stable-reference",
+            chunk_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487:chunk-0001",
             anchor={"segment_ord": 1},
-            canonical_url="https://www.muc.edu.cn/xxgk1.htm",
-            latest_url="https://www.muc.edu.cn/xxgk1.htm",
+            canonical_url="https://www.muc.edu.cn/xxgk1/xxjj.htm",
+            latest_url="https://www.muc.edu.cn/xxgk1/xxjj.htm",
             source_channel="official_web",
             collection="stable_reference",
             is_current=True,
-            snippet="标题：学校概况 学校现有北京海淀、丰台和海南陵水黎安国际教育创新试验区三个校区。",
+            snippet="标题：学校简介 学校前身是延安民族学院，现为国家“双一流”建设高校。",
             score=0.6,
-            source_title="学校概况",
-            structural_path=("学校概况",),
+            source_title="学校简介",
+            structural_path=("学校简介",),
             content_kind="article_body",
         )
 
         self.assertEqual(
             _build_document_support_query_text(
-                query_text="中央民族大学学校概况",
-                source=school_overview_source,
+                query_text="中央民族大学学校简介",
+                source=school_profile_source,
             ),
-            "学校概况 三个校区 12个学科门类",
+            "学校简介 延安民族学院 双一流",
         )
 
     def test_apply_document_diversity_policy_prefers_fact_rich_chunk_for_stable_reference_queries(
         self,
     ) -> None:
-        profile = _make_runtime_profile(corpus="official_web", collection="muc_public_pages")
-        school_overview_sources = (
+        profile = _make_runtime_profile(
+            corpus="official_web",
+            collection="stable_reference",
+            serving_surface="stable_reference",
+        )
+        school_profile_sources = (
             EvidenceSource(
-                doc_id="official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
+                doc_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
                 revision_track="source-faithful",
-                version_id="owdocver:test-overview-lead",
-                chunk_id="official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85:chunk-0001",
-                anchor={"segment_ord": 1},
-                canonical_url="https://www.muc.edu.cn/xxgk1.htm",
-                latest_url="https://www.muc.edu.cn/xxgk1.htm",
-                source_channel="official_web",
-                collection="muc_public_pages",
-                is_current=True,
-                snippet="标题：学校概况 中央民族大学是党和国家为解决民族问题而创建的一所特色鲜明的高等院校。学校现有三个校区。",
-                score=0.6,
-                source_title="学校概况",
-                structural_path=("学校概况",),
-                content_kind="article_body",
-            ),
-            EvidenceSource(
-                doc_id="official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
-                revision_track="source-faithful",
-                version_id="owdocver:test-overview-facts",
-                chunk_id="official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85:chunk-0004",
+                version_id="owdocver:test-school-profile-late",
+                chunk_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487:chunk-0004",
                 anchor={"segment_ord": 4},
-                canonical_url="https://www.muc.edu.cn/xxgk1.htm",
-                latest_url="https://www.muc.edu.cn/xxgk1.htm",
+                canonical_url="https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                latest_url="https://www.muc.edu.cn/xxgk1/xxjj.htm",
                 source_channel="official_web",
-                collection="muc_public_pages",
+                collection="stable_reference",
                 is_current=True,
-                snippet="标题：学校概况 学校拥有门类综合、特色鲜明的高水平学科专业体系。目前，学校设有1个学部、26个学院，有覆盖12个学科门类的71个本科专业。",
-                score=0.58,
-                source_title="学校概况",
-                structural_path=("学校概况",),
+                snippet="标题：学校简介 学校拥有结构合理的高水平师资队伍。",
+                score=0.6,
+                source_title="学校简介",
+                structural_path=("学校简介",),
                 content_kind="article_body",
             ),
-        )
-        postdoctoral_sources = (
             EvidenceSource(
-                doc_id="official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916",
+                doc_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
                 revision_track="source-faithful",
-                version_id="owdocver:test-postdoc-lead",
-                chunk_id="official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916:chunk-0001",
+                version_id="owdocver:test-school-profile-lead",
+                chunk_id="official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487:chunk-0001",
                 anchor={"segment_ord": 1},
-                canonical_url="https://www.muc.edu.cn/rcpy/bsh.htm",
-                latest_url="https://www.muc.edu.cn/rcpy/bsh.htm",
+                canonical_url="https://www.muc.edu.cn/xxgk1/xxjj.htm",
+                latest_url="https://www.muc.edu.cn/xxgk1/xxjj.htm",
                 source_channel="official_web",
-                collection="muc_public_pages",
+                collection="stable_reference",
                 is_current=True,
-                snippet="标题：博士后 中央民族大学全面推动“双一流”建设和整体发展，创新工作机制，强化服务保障。",
-                score=0.62,
-                source_title="博士后",
-                structural_path=("博士后",),
-                content_kind="article_body",
-            ),
-            EvidenceSource(
-                doc_id="official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916",
-                revision_track="source-faithful",
-                version_id="owdocver:test-postdoc-facts",
-                chunk_id="official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916:chunk-0003",
-                anchor={"segment_ord": 3},
-                canonical_url="https://www.muc.edu.cn/rcpy/bsh.htm",
-                latest_url="https://www.muc.edu.cn/rcpy/bsh.htm",
-                source_channel="official_web",
-                collection="muc_public_pages",
-                is_current=True,
-                snippet="标题：博士后 学校现有6个博士后科研流动站。在全国博管会组织的历次流动站评估中，我校参评的流动站合格率均为100％。",
-                score=0.57,
-                source_title="博士后",
-                structural_path=("博士后",),
+                snippet="标题：学校简介 中央民族大学是党和国家为解决民族问题而创建的一所特色鲜明的高等院校。",
+                score=0.58,
+                source_title="学校简介",
+                structural_path=("学校简介",),
                 content_kind="article_body",
             ),
         )
 
-        school_overview_filtered = _apply_document_diversity_policy(
+        school_profile_filtered = _apply_document_diversity_policy(
             profile=profile,
-            query_text="中央民族大学学校概况",
-            sources=school_overview_sources,
-        )
-        postdoctoral_filtered = _apply_document_diversity_policy(
-            profile=profile,
-            query_text="中央民族大学博士后",
-            sources=postdoctoral_sources,
+            query_text="中央民族大学学校简介",
+            sources=school_profile_sources,
         )
 
         self.assertEqual(
-            tuple(source.chunk_id for source in school_overview_filtered),
+            tuple(source.chunk_id for source in school_profile_filtered),
             (
-                "official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85:chunk-0001",
-                "official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85:chunk-0004",
-            ),
-        )
-        self.assertEqual(
-            tuple(source.chunk_id for source in postdoctoral_filtered),
-            (
-                "official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916:chunk-0003",
+                "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487:chunk-0001",
             ),
         )
 
-    def test_apply_document_diversity_policy_keeps_multiple_scholar_chunks_for_scholar_page(
+    def test_apply_document_diversity_policy_leaves_inventory_only_mixed_pages_unchanged(
         self,
     ) -> None:
         profile = _make_runtime_profile(corpus="official_web", collection="muc_public_pages")

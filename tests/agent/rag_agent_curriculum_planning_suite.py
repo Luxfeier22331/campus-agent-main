@@ -256,6 +256,55 @@ class RagAgentCurriculumPlanningTest(unittest.TestCase):
         )
         self.assertEqual(plan.resolved_document_title, "经济学拔尖人才创新班人才培养方案")
 
+    def test_plan_curriculum_query_treats_course_teaching_plan_title_as_document_lookup(
+        self,
+    ) -> None:
+        query_title = "中央民族大学通识课程中华文化课程教学计划"
+        canonical_title = "中央民族大学通识课程“中华文化”课程教学计划"
+        plan = plan_curriculum_query(query_title)
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.intent_kind, "generic")
+        self.assertEqual(plan.target_document_ids, (f"curriculum:{canonical_title}",))
+        self.assertEqual(plan.retrieval_intent.kind, "curriculum_document_lookup")
+        self.assertEqual(plan.retrieval_intent.expected.answer_kind, "curriculum_document")
+
+    def test_plan_curriculum_query_resolves_short_course_teaching_plan_before_major_plan(
+        self,
+    ) -> None:
+        canonical_title = "中央民族大学通识课程“大学英语”课程教学计划"
+
+        plan = plan_curriculum_query("大学英语课程教学计划一共多少学分")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(plan.target_document_ids, (f"curriculum:{canonical_title}",))
+        self.assertEqual(plan.resolved_document_title, canonical_title)
+        self.assertEqual(plan.retrieval_intent.kind, "curriculum_fact_lookup")
+
+    def test_plan_curriculum_query_resolves_parenthesized_language_track_title(
+        self,
+    ) -> None:
+        plan = plan_curriculum_query("俄语中亚语本科人才培养方案")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(
+            plan.target_document_ids,
+            ("curriculum:俄语（俄语、中亚语）本科人才培养方案",),
+        )
+        self.assertEqual(plan.retrieval_intent.kind, "curriculum_document_lookup")
+
+    def test_plan_curriculum_query_prefers_specific_strong_base_family_over_plain_major(
+        self,
+    ) -> None:
+        plan = plan_curriculum_query("中国少数民族语言文学强基计划本科人才培养方案")
+
+        self.assertEqual(plan.status, "resolved")
+        self.assertEqual(
+            plan.target_document_ids,
+            ("curriculum:中国少数民族语言文学（古文字学方向）强基计划本科人才培养方案",),
+        )
+        self.assertEqual(plan.retrieval_intent.kind, "curriculum_document_lookup")
+
     def test_delegate_to_rag_agent_fail_closes_course_map_queries_without_retrieval(self) -> None:
         retriever_called = False
 
@@ -279,17 +328,40 @@ class RagAgentCurriculumPlanningTest(unittest.TestCase):
         self.assertFalse(retriever_called)
         self.assertIn("课程地图", response.answer_text)
         self.assertIn("不能稳定解析", response.answer_text)
-        self.assertEqual(
-            response.result.diagnostics,
-            _resolved_scope_diagnostics(
-                corpus="curriculum",
-                collection="curriculum_plan",
-                resolved_policy_document_id="curriculum:经济学拔尖人才创新班人才培养方案",
-                no_answer_reason="curriculum_course_map_unsupported",
-                semantic_outcome="unsupported_scope",
-                retrieval_adequacy_verdict="insufficient",
-                retrieval_adequacy_reason="unsupported_query_type",
-                candidate_title_summary=("经济学拔尖人才创新班人才培养方案",),
-                resolution_mode="unsupported",
-            ),
+        diagnostics = response.result.diagnostics
+        expected = _resolved_scope_diagnostics(
+            corpus="curriculum",
+            collection="curriculum_plan",
+            resolved_policy_document_id="curriculum:经济学拔尖人才创新班人才培养方案",
+            no_answer_reason="curriculum_course_map_unsupported",
+            semantic_outcome="unsupported_scope",
+            retrieval_adequacy_verdict="insufficient",
+            retrieval_adequacy_reason="unsupported_query_type",
+            candidate_title_summary=("经济学拔尖人才创新班人才培养方案",),
+            resolution_mode="unsupported",
         )
+        self.assertEqual(diagnostics.resolved_scope_corpus, expected.resolved_scope_corpus)
+        self.assertEqual(
+            diagnostics.resolved_scope_collection,
+            expected.resolved_scope_collection,
+        )
+        self.assertEqual(
+            diagnostics.resolved_policy_document_id,
+            expected.resolved_policy_document_id,
+        )
+        self.assertEqual(diagnostics.no_answer_reason, expected.no_answer_reason)
+        self.assertEqual(diagnostics.semantic_outcome, expected.semantic_outcome)
+        self.assertEqual(
+            diagnostics.retrieval_adequacy_verdict,
+            expected.retrieval_adequacy_verdict,
+        )
+        self.assertEqual(
+            diagnostics.retrieval_adequacy_reason,
+            expected.retrieval_adequacy_reason,
+        )
+        self.assertEqual(
+            diagnostics.candidate_title_summary,
+            expected.candidate_title_summary,
+        )
+        self.assertEqual(diagnostics.resolution_mode, expected.resolution_mode)
+        self.assertTrue(diagnostics.stage_activities)

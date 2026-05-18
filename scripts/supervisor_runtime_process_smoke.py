@@ -3,15 +3,11 @@ from __future__ import annotations
 import argparse
 import json
 import os
-import re
 import subprocess
-import sys
-import time
-from collections.abc import Callable, Sequence
-from dataclasses import dataclass
+from collections.abc import Sequence
 from pathlib import Path
-from urllib.parse import urlparse, urlunparse
 
+from scripts import supervisor_runtime_process_smoke_runtime as _runtime
 from scripts.supervisor_runtime_process_smoke_http import (
     _request_status,
     post_answer_probe,
@@ -19,48 +15,44 @@ from scripts.supervisor_runtime_process_smoke_http import (
     wait_for_json_status,
     wait_for_status,
 )
-from scripts.supervisor_runtime_process_smoke_profiles import profile_answer_expectation
+from scripts.supervisor_runtime_process_smoke_models import ProcessCommandSpec, ProcessSmokePlan
+from scripts.supervisor_runtime_process_smoke_profiles import (
+    MULTI_STEP_WORKFLOW_PROFILES,
+    RAG_RETRIEVAL_PROFILES,
+    RAG_SDK_PROFILES,
+    SDK_STRUCTURED_OPENED_PROFILES,
+    SELECTED_NOTICE_GUARDRAIL_PROFILES,
+    STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
+    TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME,
+    campus_services_sdk_profiles,
+    profile_answer_expectation,
+    profile_requires_object_store,
+)
 
-STRUCTURED_DIRECT_OPENED_TRUSTED_TIME = "2026-04-24T20:30:00+08:00"
-CAMPUS_SERVICES_DIRECT_OPENED_PROFILES = {
-    "structured_direct_opened",
-    "structured_direct_opened_stream",
-    "service_status_direct_opened",
-    "service_guide_direct_opened",
-    "contact_directory_direct_opened",
-}
-NOTICE_DIRECT_OPENED_PROFILES = {
-    "notice_discover_direct_opened",
-    "notice_get_direct_opened",
-}
-MULTI_STEP_WORKFLOW_PROFILES = {
-    "multi_step_notice_knowledge_followthrough",
-}
+DEFAULT_STARTUP_TIMEOUT_SECONDS = 180.0
+
+_RuntimePreparation = _runtime._RuntimePreparation
+_create_temporary_postgres_database = _runtime._create_temporary_postgres_database
+_postgres_url_with_database = _runtime._postgres_url_with_database
+_process_smoke_base_postgres_url = _runtime._process_smoke_base_postgres_url
+_processes_with_env_overlay = _runtime._processes_with_env_overlay
+_sanitize_postgres_database_name = _runtime._sanitize_postgres_database_name
+_seed_notice_read_model_smoke = _runtime._seed_notice_read_model_smoke
+_seed_structured_projection_smoke = _runtime._seed_structured_projection_smoke
+process_spec_to_artifact = _runtime.process_spec_to_artifact
 
 
-@dataclass(frozen=True, slots=True)
-class ProcessCommandSpec:
-    label: str
-    command: tuple[str, ...]
-    cwd: Path
-    env: dict[str, str]
-    log_path: Path
-
-
-@dataclass(frozen=True, slots=True)
-class ProcessSmokePlan:
-    repo_root: Path
-    output_dir: Path
-    profile: str
-    api_base_url: str
-    worker_base_url: str
-    answer_path: str
-    answer_response_kind: str
-    answer_payload: dict[str, object]
-    expected_status: int
-    expected_readyz_statuses: tuple[int, ...]
-    expected_body_tokens: tuple[str, ...]
-    processes: tuple[ProcessCommandSpec, ...]
+def _prepare_process_smoke_runtime(
+    plan: ProcessSmokePlan,
+    *,
+    timeout_seconds: float,
+) -> _RuntimePreparation | None:
+    _runtime._create_temporary_postgres_database = _create_temporary_postgres_database
+    _runtime._postgres_url_with_database = _postgres_url_with_database
+    _runtime._process_smoke_base_postgres_url = _process_smoke_base_postgres_url
+    _runtime._seed_notice_read_model_smoke = _seed_notice_read_model_smoke
+    _runtime._seed_structured_projection_smoke = _seed_structured_projection_smoke
+    return _runtime._prepare_process_smoke_runtime(plan, timeout_seconds=timeout_seconds)
 
 
 def build_process_smoke_plan(
@@ -69,11 +61,11 @@ def build_process_smoke_plan(
     output_dir: Path,
     profile: str = "closed_gate",
     api_host: str = "127.0.0.1",
-    api_port: int = 18080,
+    api_port: int = 27051,
     worker_host: str = "127.0.0.1",
-    worker_port: int = 18081,
+    worker_port: int = 27052,
     object_store_host: str = "127.0.0.1",
-    object_store_port: int = 18082,
+    object_store_port: int = 27061,
 ) -> ProcessSmokePlan:
     api_secret = os.getenv("API_WORKER_SHARED_SECRET", "supervisor-api-local-placeholder")
     bridge_secret = os.getenv(
@@ -81,20 +73,17 @@ def build_process_smoke_plan(
         "supervisor-agent-worker-local-placeholder",
     )
     structured_query_secret = _env_or_default(
-        "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",
+        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
         "supervisor-structured-query-local-placeholder",
     )
     api_base_url = f"http://{api_host}:{api_port}"
     worker_base_url = f"http://{worker_host}:{worker_port}"
     common_env = {
-        "AGENT_RUNTIME_PROVIDER": os.getenv("AGENT_RUNTIME_PROVIDER", "mock-runtime"),
-        "PROMPT_RUNTIME_PROVIDER": os.getenv("PROMPT_RUNTIME_PROVIDER", "mock-runtime"),
-        "PROMPT_RUNTIME_MODEL": os.getenv("PROMPT_RUNTIME_MODEL", "gpt-5.5"),
-        "PROMPT_RUNTIME_API_KEY": os.getenv(
-            "PROMPT_RUNTIME_API_KEY",
-            "process-smoke-prompt-key",
-        ),
-        "PROMPT_STRICT_STRUCTURED_OUTPUTS": os.getenv("PROMPT_STRICT_STRUCTURED_OUTPUTS", "true"),
+        "AGENT_RUNTIME_PROVIDER": "mock-runtime",
+        "PROMPT_RUNTIME_PROVIDER": "mock-runtime",
+        "PROMPT_RUNTIME_MODEL": "gpt-5.5",
+        "PROMPT_RUNTIME_API_KEY": "process-smoke-prompt-key",
+        "PROMPT_STRICT_STRUCTURED_OUTPUTS": "true",
         "SUPERVISOR_AGENT_WORKER_SHARED_SECRET": bridge_secret,
     }
     worker_env = {
@@ -156,7 +145,7 @@ def build_process_smoke_plan(
             log_path=output_dir / "supervisor-api.log",
         ),
     )
-    if _profile_requires_object_store(profile):
+    if profile_requires_object_store(profile):
         processes = (
             processes[0],
             ProcessCommandSpec(
@@ -204,36 +193,49 @@ def _profile_api_env(
     object_store_base_url: str,
     structured_query_secret: str,
 ) -> dict[str, str]:
-    if profile in CAMPUS_SERVICES_DIRECT_OPENED_PROFILES:
+    if profile in campus_services_sdk_profiles():
         return {
             "SUPERVISOR_API_OPEN_CAPABILITIES": "campus_services",
             "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339": (
                 STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
             ),
+            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
-    if profile in NOTICE_DIRECT_OPENED_PROFILES:
+    if profile == "notice_discover_sdk_opened":
         env = {
             "SUPERVISOR_API_OPEN_CAPABILITIES": "notice",
+            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
-        if _profile_requires_object_store(profile):
+        if profile_requires_object_store(profile):
             env.update(
                 {
                     "OBJECT_STORE_ENDPOINT": object_store_base_url,
-                    "OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
-                    "OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
+                    "OBJECT_STORE_DERIVED_ACCESS_KEY": "smoke-access-key",
+                    "OBJECT_STORE_DERIVED_SECRET_KEY": "smoke-secret-key",
                     "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
                 }
             )
         return env
     if profile in MULTI_STEP_WORKFLOW_PROFILES:
-        return {
+        env = {
             "SUPERVISOR_API_MULTI_STEP_WORKFLOW_ENABLED": "true",
             "SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE": "true",
-            "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET": structured_query_secret,
+            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
             "OBJECT_STORE_ENDPOINT": object_store_base_url,
-            "OBJECT_STORE_ACCESS_KEY": "smoke-access-key",
-            "OBJECT_STORE_SECRET_KEY": "smoke-secret-key",
+            "OBJECT_STORE_DERIVED_ACCESS_KEY": "smoke-access-key",
+            "OBJECT_STORE_DERIVED_SECRET_KEY": "smoke-secret-key",
             "OBJECT_STORE_BUCKET_DERIVED": "campus-rag-derived",
+        }
+        if profile == "transport_notice_override_multistep":
+            env["SUPERVISOR_API_OPEN_CAPABILITIES"] = "campus_services"
+            env["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = (
+                TRANSPORT_NOTICE_OVERRIDE_TRUSTED_TIME
+            )
+        return env
+    if profile in SELECTED_NOTICE_GUARDRAIL_PROFILES:
+        return {
+            "SUPERVISOR_API_OPEN_CAPABILITIES": "campus_services",
+            "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         }
     return {}
 
@@ -244,42 +246,26 @@ def _profile_worker_env(
     api_base_url: str,
     structured_query_secret: str,
 ) -> dict[str, str]:
-    if profile not in MULTI_STEP_WORKFLOW_PROFILES:
+    if profile in RAG_SDK_PROFILES:
+        return {
+            "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "true",
+        }
+    if (
+        profile not in MULTI_STEP_WORKFLOW_PROFILES
+        and profile not in SDK_STRUCTURED_OPENED_PROFILES
+    ):
         return {}
     return {
-        "SUPERVISOR_STRUCTURED_QUERY_BASE_URL": api_base_url,
-        "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET": structured_query_secret,
+        "SUPERVISOR_INTERNAL_QUERY_BASE_URL": api_base_url,
+        "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET": structured_query_secret,
         "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS": "1.0",
+        "SUPERVISOR_AGENTS_SDK_RUNTIME_ENABLED": "true",
     }
 
 
 def _env_or_default(key: str, default: str) -> str:
     value = os.getenv(key, "").strip()
     return value or default
-
-
-def _profile_requires_object_store(profile: str) -> bool:
-    return profile in NOTICE_DIRECT_OPENED_PROFILES or profile in MULTI_STEP_WORKFLOW_PROFILES
-
-
-def _profile_requires_structured_projection(profile: str) -> bool:
-    return profile in CAMPUS_SERVICES_DIRECT_OPENED_PROFILES
-
-
-def _profile_requires_notice_read_model(profile: str) -> bool:
-    return profile in NOTICE_DIRECT_OPENED_PROFILES or profile in MULTI_STEP_WORKFLOW_PROFILES
-
-
-def _profile_requires_workflow_run_store(profile: str) -> bool:
-    return profile in MULTI_STEP_WORKFLOW_PROFILES
-
-
-def _profile_requires_temporary_postgres(profile: str) -> bool:
-    return (
-        _profile_requires_structured_projection(profile)
-        or _profile_requires_notice_read_model(profile)
-        or _profile_requires_workflow_run_store(profile)
-    )
 
 
 def _notice_smoke_body() -> str:
@@ -291,15 +277,31 @@ def _notice_smoke_body() -> str:
 
 
 def run_process_smoke(
-    plan: ProcessSmokePlan, *, timeout_seconds: float = 45.0
+    plan: ProcessSmokePlan,
+    *,
+    timeout_seconds: float = 45.0,
+    startup_timeout_seconds: float | None = None,
 ) -> dict[str, object]:
     plan.output_dir.mkdir(parents=True, exist_ok=True)
     started: list[subprocess.Popen[bytes]] = []
     log_files = []
     process_logs = {}
     runtime_preparation: _RuntimePreparation | None = None
+    runtime_preparation_artifact: dict[str, object] = {}
+    startup_timeout = max(
+        timeout_seconds,
+        startup_timeout_seconds
+        if startup_timeout_seconds is not None
+        else DEFAULT_STARTUP_TIMEOUT_SECONDS,
+    )
     try:
-        runtime_preparation = _prepare_process_smoke_runtime(plan, timeout_seconds=timeout_seconds)
+        runtime_preparation = _prepare_process_smoke_runtime(
+            plan,
+            timeout_seconds=startup_timeout,
+        )
+        runtime_preparation_artifact = (
+            runtime_preparation.artifact if runtime_preparation is not None else {}
+        )
         processes = _processes_with_env_overlay(
             plan.processes,
             runtime_preparation.process_env_overlay if runtime_preparation is not None else {},
@@ -322,7 +324,7 @@ def run_process_smoke(
         worker_healthz = wait_for_status(
             f"{plan.worker_base_url}/internal/bridge/healthz",
             expected_statuses={200},
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=startup_timeout,
             headers={
                 "x-supervisor-bridge-auth": process_by_label["supervisor-agent-worker"].env[
                     "SUPERVISOR_AGENT_WORKER_SHARED_SECRET"
@@ -332,12 +334,12 @@ def run_process_smoke(
         api_healthz = wait_for_status(
             f"{plan.api_base_url}/healthz",
             expected_statuses={200},
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=startup_timeout,
         )
         readyz = wait_for_json_status(
             f"{plan.api_base_url}/readyz",
             expected_statuses=set(plan.expected_readyz_statuses),
-            timeout_seconds=timeout_seconds,
+            timeout_seconds=startup_timeout,
         )
         metrics_status = _request_status(f"{plan.api_base_url}/metrics")
         answer_status, answer_body = post_answer_probe(
@@ -352,6 +354,7 @@ def run_process_smoke(
             timeout_seconds=timeout_seconds,
         )
         answer_text = json.dumps(answer_body, ensure_ascii=False)
+        forbidden_body_tokens = _forbidden_body_tokens(plan.profile)
         passed = (
             worker_healthz == 200
             and api_healthz == 200
@@ -359,6 +362,7 @@ def run_process_smoke(
             and metrics_status == 200
             and answer_status == plan.expected_status
             and all(token in answer_text for token in plan.expected_body_tokens)
+            and not any(token in answer_text for token in forbidden_body_tokens)
         )
         summary = {
             "schema_version": "supervisor_runtime_process_smoke.v1",
@@ -368,24 +372,30 @@ def run_process_smoke(
             "worker_base_url": plan.worker_base_url,
             "processes": [process_spec_to_artifact(process) for process in processes],
             "process_logs": process_logs,
-            "runtime_preparation": (
-                runtime_preparation.artifact if runtime_preparation is not None else {}
-            ),
+            "runtime_preparation": (runtime_preparation_artifact),
             "probes": {
                 "worker_healthz_status": worker_healthz,
                 "api_healthz_status": api_healthz,
                 "readyz_status": readyz[0],
+                "readyz_body": readyz[1],
                 "expected_readyz_statuses": plan.expected_readyz_statuses,
                 "metrics_status": metrics_status,
                 "answer_status": answer_status,
                 "expected_answer_status": plan.expected_status,
                 "answer_path": plan.answer_path,
                 "answer_response_kind": plan.answer_response_kind,
+                "startup_timeout_seconds": startup_timeout,
+                "answer_timeout_seconds": timeout_seconds,
                 "expected_body_tokens": plan.expected_body_tokens,
+                "forbidden_body_tokens": forbidden_body_tokens,
             },
             "answer": answer_body,
         }
     except Exception as exc:
+        process_exit_states = {
+            spec.label: (process.poll() if process.poll() is not None else "running")
+            for spec, process in zip(plan.processes, started, strict=False)
+        }
         summary = {
             "schema_version": "supervisor_runtime_process_smoke.v1",
             "profile": plan.profile,
@@ -393,6 +403,8 @@ def run_process_smoke(
             "api_base_url": plan.api_base_url,
             "worker_base_url": plan.worker_base_url,
             "process_logs": process_logs,
+            "runtime_preparation": runtime_preparation_artifact,
+            "process_exit_states": process_exit_states,
             "error": str(exc),
         }
     finally:
@@ -408,309 +420,16 @@ def run_process_smoke(
     return summary
 
 
-@dataclass(frozen=True, slots=True)
-class _RuntimePreparation:
-    process_env_overlay: dict[str, str]
-    artifact: dict[str, object]
-    cleanup: Callable[[], None]
-
-
-def _prepare_process_smoke_runtime(
-    plan: ProcessSmokePlan,
-    *,
-    timeout_seconds: float,
-) -> _RuntimePreparation | None:
-    if not _profile_requires_temporary_postgres(plan.profile):
-        return None
-    base_database_url = _process_smoke_base_postgres_url(plan.repo_root)
-    if not base_database_url:
-        raise RuntimeError(
-            f"{plan.profile} process smoke requires CAMPUS_SHARED_POSTGRES_URL "
-            "in the shell environment or repo root .env"
-        )
-    database_name = _temporary_process_smoke_database_name()
-    management_url = _postgres_url_with_database(base_database_url, "postgres")
-    runtime_database_url = _postgres_url_with_database(base_database_url, database_name)
-    seed_log_path = plan.output_dir / "structured-projection-seed.log"
-    cleanup = _create_temporary_postgres_database(management_url, database_name)
-    env_overlay: dict[str, str] = {}
-    artifacts: list[dict[str, object]] = []
-    try:
-        if _profile_requires_structured_projection(plan.profile):
-            _seed_structured_projection_smoke(
-                repo_root=plan.repo_root,
-                runtime_database_url=runtime_database_url,
-                log_path=seed_log_path,
-                timeout_seconds=timeout_seconds,
-            )
-            env_overlay["CAMPUS_SHARED_POSTGRES_URL"] = runtime_database_url
-            env_overlay["SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339"] = (
-                STRUCTURED_DIRECT_OPENED_TRUSTED_TIME
-            )
-            artifacts.append(
-                {
-                    "kind": "temporary_postgres_structured_projection",
-                    "seed_log_path": str(seed_log_path),
-                    "trusted_time": STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
-                }
-            )
-        if _profile_requires_notice_read_model(plan.profile):
-            notice_seed_log_path = plan.output_dir / "notice-read-model-seed.log"
-            _seed_notice_read_model_smoke(
-                runtime_database_url=runtime_database_url,
-                log_path=notice_seed_log_path,
-            )
-            env_overlay["INTERNAL_NOTICE_READ_MODEL_DATABASE_URL"] = runtime_database_url
-            artifacts.append(
-                {
-                    "kind": "temporary_postgres_notice_read_model",
-                    "seed_log_path": str(notice_seed_log_path),
-                    "notice_id": "notice:smoke:001",
-                }
-            )
-        if _profile_requires_workflow_run_store(plan.profile):
-            env_overlay["SUPERVISOR_API_WORKFLOW_RUN_DATABASE_URL"] = runtime_database_url
-            env_overlay["SUPERVISOR_API_WORKFLOW_RUN_AUTO_MIGRATE"] = "true"
-            artifacts.append(
-                {
-                    "kind": "temporary_postgres_workflow_run_store",
-                    "schema": "runtime.workflow_runs",
-                }
-            )
-    except Exception:
-        cleanup()
-        raise
-    return _RuntimePreparation(
-        process_env_overlay=env_overlay,
-        artifact={
-            "kind": "temporary_postgres_runtime",
-            "database_name": database_name,
-            "seed_artifacts": artifacts,
-        },
-        cleanup=cleanup,
-    )
-
-
-def _process_smoke_base_postgres_url(repo_root: Path) -> str:
-    value = os.getenv("CAMPUS_SHARED_POSTGRES_URL", "").strip()
-    if value:
-        return value
-    return _root_env_value(repo_root, "CAMPUS_SHARED_POSTGRES_URL")
-
-
-def _root_env_value(repo_root: Path, key: str) -> str:
-    env_path = repo_root / ".env"
-    if not env_path.exists():
-        return ""
-    prefix = f"{key}="
-    for raw_line in env_path.read_text(encoding="utf-8").splitlines():
-        line = raw_line.strip()
-        if not line or line.startswith("#") or not line.startswith(prefix):
-            continue
-        value = line[len(prefix) :].strip()
-        if len(value) >= 2 and value[0] == value[-1] and value[0] in {"'", '"'}:
-            return value[1:-1]
-        return value
-    return ""
-
-
-def _temporary_process_smoke_database_name() -> str:
-    suffix = f"{int(time.time() * 1000)}_{os.getpid()}"
-    return _sanitize_postgres_database_name(f"campus_agent_process_smoke_{suffix}")
-
-
-def _sanitize_postgres_database_name(value: str) -> str:
-    normalized = re.sub(r"[^a-zA-Z0-9_]", "_", value).lower().strip("_")
-    if not normalized:
-        normalized = "campus_agent_process_smoke"
-    if not re.match(r"^[a-z_]", normalized):
-        normalized = f"smoke_{normalized}"
-    return normalized[:63]
-
-
-def _postgres_url_with_database(database_url: str, database_name: str) -> str:
-    parsed = urlparse(database_url)
-    if parsed.scheme not in {"postgres", "postgresql"}:
-        raise ValueError("CAMPUS_SHARED_POSTGRES_URL must be a postgres/postgresql URL")
-    return urlunparse(parsed._replace(path=f"/{database_name}"))
-
-
-def _create_temporary_postgres_database(management_url: str, database_name: str):
-    try:
-        import psycopg
-        from psycopg import sql
-    except ImportError as exc:  # pragma: no cover
-        raise RuntimeError("psycopg is required for structured_direct_opened smoke") from exc
-
-    with (
-        psycopg.connect(management_url, autocommit=True) as connection,
-        connection.cursor() as cursor,
-    ):
-        _drop_temporary_postgres_database(cursor, database_name, sql)
-        cursor.execute(sql.SQL("create database {}").format(sql.Identifier(database_name)))
-
-    cleaned = False
-
-    def cleanup() -> None:
-        nonlocal cleaned
-        if cleaned:
-            return
-        cleaned = True
-        try:
-            with (
-                psycopg.connect(management_url, autocommit=True) as connection,
-                connection.cursor() as cursor,
-            ):
-                _drop_temporary_postgres_database(cursor, database_name, sql)
-        except Exception:
-            return
-
-    return cleanup
-
-
-def _drop_temporary_postgres_database(cursor: object, database_name: str, sql: object) -> None:
-    cursor.execute(
-        """
-        select pg_terminate_backend(pid)
-        from pg_stat_activity
-        where datname = %s and pid <> pg_backend_pid()
-        """,
-        (database_name,),
-    )
-    cursor.execute(sql.SQL("drop database if exists {}").format(sql.Identifier(database_name)))
-
-
-def _seed_structured_projection_smoke(
-    *,
-    repo_root: Path,
-    runtime_database_url: str,
-    log_path: Path,
-    timeout_seconds: float,
-) -> None:
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    with log_path.open("ab") as log_file:
-        subprocess.run(
-            (
-                sys.executable,
-                "-m",
-                "campus_ingestion_worker.smoke_structured_projection_postgres",
-                "--release-id",
-                "supervisor-runtime-process-smoke",
-                "--generated-at",
-                STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
-            ),
-            cwd=repo_root,
-            env={**os.environ, "CAMPUS_SHARED_POSTGRES_URL": runtime_database_url},
-            stdout=log_file,
-            stderr=subprocess.STDOUT,
-            check=True,
-            timeout=max(10.0, timeout_seconds),
-        )
-
-
-def _seed_notice_read_model_smoke(
-    *,
-    runtime_database_url: str,
-    log_path: Path,
-) -> None:
-    from campus_ingestion_core.internal_notice_read_model import (
-        InternalNoticeReadModelEntry,
-        PostgresInternalNoticeReadModelStore,
-    )
-
-    log_path.parent.mkdir(parents=True, exist_ok=True)
-    store = PostgresInternalNoticeReadModelStore(runtime_database_url)
-    record = InternalNoticeReadModelEntry(
-        source_family="wechat_public_notice",
-        source_corpus="campus_notices",
-        source_collection="internal_notice",
-        source_notice_id="notice:smoke:001",
-        unit_id="notice_unit:smoke:001:body",
-        primary_role="notice_window",
-        target_surface="notice_level_query",
-        consumption_status="ready",
-        queryable=True,
-        title="烟雾测试通知",
-        visibility_level="public",
-        entitlement_groups=(),
-        policy_projection_version="phase1-authorization-projection-v1",
-        published_at="2026-04-24T20:00:00+08:00",
-        source_url="https://example.invalid/notices/smoke",
-        canonical_url="https://example.invalid/notices/smoke",
-        canonical_document_id="doc:smoke-notice",
-        canonical_markdown_object_key=(
-            "campus_notices/documents/wechat_public_notice/smoke/canonical.md"
-        ),
-        body_excerpt="烟雾测试通知正文摘要。",
-        search_text="烟雾测试通知 通知详情 原文",
-        projection_updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
-        updated_at=STRUCTURED_DIRECT_OPENED_TRUSTED_TIME,
-    )
-    store.upsert_many((record,))
-    log_path.write_text(
-        json.dumps(
-            {
-                "status": "ok",
-                "table": store.table_name,
-                "notice_id": record.source_notice_id,
-                "source_family": record.source_family,
-            },
-            ensure_ascii=False,
-            indent=2,
-        )
-        + "\n",
-        encoding="utf-8",
-    )
-
-
-def _processes_with_env_overlay(
-    processes: tuple[ProcessCommandSpec, ...],
-    env_overlay: dict[str, str],
-    target_labels: tuple[str, ...] = ("supervisor-api",),
-) -> tuple[ProcessCommandSpec, ...]:
-    if not env_overlay:
-        return processes
-    targets = set(target_labels)
-    return tuple(
-        ProcessCommandSpec(
-            label=process.label,
-            command=process.command,
-            cwd=process.cwd,
-            env={**process.env, **env_overlay} if process.label in targets else process.env,
-            log_path=process.log_path,
-        )
-        for process in processes
-    )
-
-
-def process_spec_to_artifact(process: ProcessCommandSpec) -> dict[str, object]:
-    return {
-        "label": process.label,
-        "command": process.command,
-        "cwd": str(process.cwd),
-        "env": {
-            key: _artifact_env_value(key, value)
-            for key, value in sorted(process.env.items(), key=lambda item: item[0])
-        },
-        "log_path": str(process.log_path),
-    }
-
-
-def _artifact_env_value(key: str, value: str) -> str:
-    normalized = key.strip().upper()
-    if any(
-        token in normalized
-        for token in (
-            "SECRET",
-            "TOKEN",
-            "API_KEY",
-            "ACCESS_KEY",
-            "DATABASE_URL",
-            "POSTGRES_URL",
-        )
-    ):
-        return "<redacted>"
-    return value
+def _forbidden_body_tokens(profile: str) -> tuple[str, ...]:
+    if profile in {
+        "rag_delegate",
+        "rag_delegate_sdk_candidate",
+        "rag_delegate_institutional_rules",
+    }:
+        return ("retrieval_failed", '"status": "no_answer"')
+    if profile in RAG_RETRIEVAL_PROFILES:
+        return ("retrieval_failed",)
+    return ()
 
 
 def build_parser() -> argparse.ArgumentParser:
@@ -719,9 +438,20 @@ def build_parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--output-dir", required=True)
     parser.add_argument("--profile", default="closed_gate")
-    parser.add_argument("--api-port", type=int, default=18080)
-    parser.add_argument("--worker-port", type=int, default=18081)
+    parser.add_argument("--api-port", type=int, default=27051)
+    parser.add_argument("--worker-port", type=int, default=27052)
+    parser.add_argument("--object-store-port", type=int, default=27061)
     parser.add_argument("--timeout-seconds", type=float, default=45.0)
+    parser.add_argument(
+        "--startup-timeout-seconds",
+        type=float,
+        default=None,
+        help=(
+            "Maximum time to wait for local processes and /readyz. "
+            "Defaults to at least 180 seconds so cold go run builds do not "
+            "fail the runtime path smoke."
+        ),
+    )
     return parser
 
 
@@ -734,8 +464,13 @@ def main(argv: Sequence[str] | None = None) -> int:
         profile=args.profile,
         api_port=args.api_port,
         worker_port=args.worker_port,
+        object_store_port=args.object_store_port,
     )
-    summary = run_process_smoke(plan, timeout_seconds=args.timeout_seconds)
+    summary = run_process_smoke(
+        plan,
+        timeout_seconds=args.timeout_seconds,
+        startup_timeout_seconds=args.startup_timeout_seconds,
+    )
     print(json.dumps(summary, ensure_ascii=False, default=str))
     return 0 if summary.get("passed") is True else 1
 

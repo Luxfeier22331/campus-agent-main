@@ -1,35 +1,5 @@
 import type { ChatMessage } from "@/lib/types";
-import type { SourceCardPayload, SourceItemPayload } from "./api-types";
 import type { ShellConversationDetail, ShellMessage } from "./types";
-
-function legacySourceCardToSourceItem(card: SourceCardPayload): SourceItemPayload {
-	const sourceKind =
-		card.collectionLabel === "培养方案"
-			? "curriculum"
-			: card.collectionLabel === "学生手册"
-				? "regulation"
-				: "document";
-	return {
-		targetKind: "canonical_reader",
-		sourceKind,
-		title: card.title,
-		snippet: card.snippet,
-		primaryAction: {
-			label: "查看文档",
-			href: card.href,
-			external: false,
-			disabledReason: null,
-		},
-		secondaryActions: [],
-		sectionTitle: card.sectionTitle,
-		collectionLabel: card.collectionLabel,
-		publisherLabel: "",
-		publishedAt: "",
-		versionLabel: card.versionLabel,
-		pageLabel: card.pageLabel,
-		trustLabel: "",
-	};
-}
 
 function mapStructuredPartsToUiParts(message: ShellMessage): ChatMessage["parts"] {
 	const parts: ChatMessage["parts"] = [];
@@ -46,13 +16,6 @@ function mapStructuredPartsToUiParts(message: ShellMessage): ChatMessage["parts"
 			parts.push({
 				data: part.placeCard,
 				type: "data-place-card",
-			});
-		}
-
-		if (part.type === "source_cards") {
-			parts.push({
-				data: part.sourceCards.map(legacySourceCardToSourceItem),
-				type: "data-source-items",
 			});
 		}
 

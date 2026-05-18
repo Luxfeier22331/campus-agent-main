@@ -190,7 +190,7 @@ def rebuild_wechat_public_notice_projection(
     dry_run: bool = False,
 ) -> WeChatPublicNoticeProjectionBuildReport:
     source = dict(env if env is not None else os.environ)
-    runtime_store = projection_store or _build_projection_store_with_fallback(source)
+    runtime_store = projection_store or _build_projection_store(source, dry_run=dry_run)
     runtime_object_store = object_store or _build_source_object_store(source)
     source_bucket = request.source_bucket.strip()
     if not source_bucket and any(not ref.bucket.strip() for ref in request.artifact_refs):
@@ -1129,13 +1129,12 @@ def _load_reference_projection_entries(
     return tuple(entries)
 
 
-def _build_projection_store_with_fallback(
-    env: Mapping[str, str],
+def _build_projection_store(
+    env: Mapping[str, str], *, dry_run: bool
 ) -> NoticeConsumptionProjectionStore:
-    try:
-        return build_notice_consumption_projection_store_from_env(dict(env))
-    except ValueError:
+    if dry_run:
         return InMemoryNoticeConsumptionProjectionStore()
+    return build_notice_consumption_projection_store_from_env(dict(env))
 
 
 def _build_source_object_store(
@@ -1252,7 +1251,7 @@ def _write_wechat_canonical_markdown(
         or entry.source_notice_document_id
         or entry.source_notice_id,
         revision_track="source-faithful",
-        version_id=_canonical_version_token(metadata, fallback=entry.source_notice_id),
+        version_id=_canonical_version_token(metadata, source_notice_id=entry.source_notice_id),
         filename="canonical.md",
         title=title,
         year=_text(metadata.get("publish_day")) or "",
@@ -1326,8 +1325,8 @@ def _build_body_excerpt_from_text(value: str) -> str:
     return value.strip()[:DEFAULT_INTERNAL_NOTICE_BODY_EXCERPT_MAX_CHARS]
 
 
-def _canonical_version_token(metadata: Mapping[str, object], *, fallback: str) -> str:
-    base = _text(metadata.get("metadata_hash")) or fallback
+def _canonical_version_token(metadata: Mapping[str, object], *, source_notice_id: str) -> str:
+    base = _text(metadata.get("metadata_hash")) or source_notice_id
     fingerprint = "\n".join(
         (
             base,

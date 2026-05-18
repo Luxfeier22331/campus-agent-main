@@ -20,7 +20,8 @@ updated: 2026-04-30
 - Confirmed OCR post-run extracted 32 transport schedule rows and emitted
   canonical `notice_media_extraction_closeout_result_manifest.v1`.
 - Applied OCR post-run closeout to the readiness inventory: 2 candidates became
-  `completed`, and 1 low-confidence image stayed non-terminal as `failed`.
+  `completed`, and Phase 7 normalization now preserves the low-confidence image
+  as non-terminal `manual_review`.
 - Added a manual terminal override manifest for the low-confidence image and
   proved `failed_terminal` clears the remaining `target_blocking` gate.
 - Ran quarantine cleanup dry-runs for pending, OCR post-run closeout, and manual

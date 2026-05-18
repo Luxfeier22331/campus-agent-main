@@ -20,6 +20,7 @@ from campus_shared.provider_config import (
 )
 
 from scripts.doctor_env_parse import read_bool_env, read_capability_set
+from scripts.doctor_env_worker_staging_specs import WORKER_STAGING_SURFACE_SPECS
 from scripts.env_sync import parse_env_file
 
 _SURFACE_SPECS = {
@@ -66,15 +67,15 @@ _SURFACE_SPECS = {
                 "DOCUMENT_REGISTRY_DATABASE_URL",
                 "CAMPUS_SHARED_POSTGRES_URL",
             ),
-            "legacy_office_conversion_base_url": ("LEGACY_OFFICE_CONVERSION_BASE_URL",),
-            "legacy_office_conversion_internal_shared_secret": (
-                "LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET",
-            ),
         },
         "optional_settings": {
             "object_store_bucket_source": ("OBJECT_STORE_BUCKET_SOURCE",),
             "object_store_bucket_derived": ("OBJECT_STORE_BUCKET_DERIVED",),
             "ocr_model": ("OCR_MODEL",),
+            "legacy_office_conversion_base_url": ("LEGACY_OFFICE_CONVERSION_BASE_URL",),
+            "legacy_office_conversion_internal_shared_secret": (
+                "LEGACY_OFFICE_CONVERSION_INTERNAL_SHARED_SECRET",
+            ),
             "legacy_office_conversion_timeout_seconds": (
                 "LEGACY_OFFICE_CONVERSION_TIMEOUT_SECONDS",
             ),
@@ -118,21 +119,15 @@ _SURFACE_SPECS = {
         "optional_settings": {
             "projection_operator_database_url": (
                 "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
-                "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
                 "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
-                "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL",
             ),
             "admission_operator_database_url": (
                 "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
-                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_DATABASE_URL",
                 "NOTICE_CONSUMPTION_PROJECTION_OPERATOR_DATABASE_URL",
-                "NOTICE_CONSUMPTION_PROJECTION_MANAGEMENT_DATABASE_URL",
             ),
             "attempt_operator_database_url": (
                 "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL",
-                "INTERNAL_NOTICE_MULTIMODAL_ATTEMPT_MANAGEMENT_DATABASE_URL",
                 "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_OPERATOR_DATABASE_URL",
-                "INTERNAL_NOTICE_CONSUMPTION_ADMISSION_MANAGEMENT_DATABASE_URL",
             ),
             "multimodal_base_url": (
                 "INTERNAL_NOTICE_MULTIMODAL_BASE_URL",
@@ -163,8 +158,8 @@ _SURFACE_SPECS = {
             "embedding_model": ("EMBEDDING_MODEL",),
             "qdrant_url": ("QDRANT_URL",),
             "shared_postgres_url": ("CAMPUS_SHARED_POSTGRES_URL",),
-            "specialist_model": ("AGNO_SPECIALIST_MODEL",),
-            "supervisor_model": ("AGNO_SUPERVISOR_MODEL",),
+            "supervisor_prompt_model": ("SUPERVISOR_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
+            "agent_prompt_model": ("AGENT_PROMPT_MODEL", "PROMPT_RUNTIME_MODEL"),
         },
         "optional_settings": {
             "document_registry_database_url": (
@@ -180,12 +175,12 @@ _SURFACE_SPECS = {
                 ),
                 "optional_keys": (
                     "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH",
-                    "APP_API_MANAGEMENT_DATABASE_URL",
                 ),
             },
             "apps/app-api/.dev.vars": {
                 "required_keys": (
                     "BETTER_AUTH_SECRET",
+                    "AUTH_SHELL_ORIGIN",
                     "PUBLIC_CHAT_WEB_ORIGIN",
                     "SUPERVISOR_API_BASE_URL",
                     "SUPERVISOR_API_SHARED_SECRET",
@@ -263,75 +258,19 @@ _SURFACE_SPECS = {
             "execution_audit_shared_secret": ("SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET",),
             "execution_audit_batch_size": ("SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE",),
             "execution_audit_spool_dir": ("SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR",),
-            "structured_query_base_url": ("SUPERVISOR_STRUCTURED_QUERY_BASE_URL",),
-            "structured_query_shared_secret": ("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",),
+            "internal_query_base_url": ("SUPERVISOR_INTERNAL_QUERY_BASE_URL",),
+            "internal_query_shared_secret": ("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",),
             "structured_query_timeout_ms": ("SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS",),
             "structured_query_timeout_seconds": ("SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",),
             "internal_notice_read_model_database_url": ("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL",),
             "internal_notice_read_model_table": ("INTERNAL_NOTICE_READ_MODEL_TABLE",),
             "notice_object_store_endpoint": ("OBJECT_STORE_ENDPOINT",),
-            "notice_object_store_access_key": (
-                "OBJECT_STORE_DERIVED_ACCESS_KEY",
-                "OBJECT_STORE_ACCESS_KEY",
-            ),
-            "notice_object_store_secret_key": (
-                "OBJECT_STORE_DERIVED_SECRET_KEY",
-                "OBJECT_STORE_SECRET_KEY",
-            ),
+            "notice_object_store_access_key": ("OBJECT_STORE_DERIVED_ACCESS_KEY",),
+            "notice_object_store_secret_key": ("OBJECT_STORE_DERIVED_SECRET_KEY",),
         },
         "files": {},
     },
-    "worker-staging": {
-        "providers": {},
-        "required_settings": {
-            "staging_access_policy_aud": ("STAGING_ACCESS_POLICY_AUD",),
-            "staging_access_team_domain": ("STAGING_ACCESS_TEAM_DOMAIN",),
-            "staging_supervisor_api_base_url": ("STAGING_SUPERVISOR_API_BASE_URL",),
-        },
-        "optional_settings": {
-            "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),
-            "staging_app_api_operator_database_url": (
-                "STAGING_APP_API_OPERATOR_DATABASE_URL",
-                "STAGING_APP_API_MANAGEMENT_DATABASE_URL",
-            ),
-            "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
-        },
-        "files": {},
-    },
-    "worker-staging-app-api": {
-        "providers": {},
-        "required_settings": {
-            "staging_supervisor_api_base_url": ("STAGING_SUPERVISOR_API_BASE_URL",),
-        },
-        "optional_settings": {
-            "staging_app_api_database_sslmode": ("STAGING_APP_API_DATABASE_SSLMODE",),
-            "staging_app_api_operator_database_url": (
-                "STAGING_APP_API_OPERATOR_DATABASE_URL",
-                "STAGING_APP_API_MANAGEMENT_DATABASE_URL",
-            ),
-            "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
-        },
-        "files": {},
-    },
-    "worker-staging-public-chat-web": {
-        "providers": {},
-        "required_settings": {},
-        "optional_settings": {
-            "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
-        },
-        "files": {},
-    },
-    "worker-staging-protected-panel-web": {
-        "providers": {},
-        "required_settings": {
-            "staging_access_policy_aud": ("STAGING_ACCESS_POLICY_AUD",),
-            "staging_access_team_domain": ("STAGING_ACCESS_TEAM_DOMAIN",),
-        },
-        "optional_settings": {
-            "staging_sentry_release": ("STAGING_SENTRY_RELEASE",),
-        },
-        "files": {},
-    },
+    **WORKER_STAGING_SURFACE_SPECS,
 }
 
 
@@ -597,8 +536,8 @@ def _collect_surface_conditions(
     )
     structured_missing: list[str] = []
     if structured_runtime_required:
-        if not _setting_present(optional_settings, "structured_query_shared_secret"):
-            structured_missing.append("SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET")
+        if not _setting_present(optional_settings, "internal_query_shared_secret"):
+            structured_missing.append("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET")
         if not shared_postgres_present:
             structured_missing.append("CAMPUS_SHARED_POSTGRES_URL")
     conditions["structured_runtime_contract"] = {
@@ -629,9 +568,9 @@ def _collect_surface_conditions(
         if not _setting_present(optional_settings, "notice_object_store_endpoint"):
             notice_missing.append("OBJECT_STORE_ENDPOINT")
         if not _setting_present(optional_settings, "notice_object_store_access_key"):
-            notice_missing.append("OBJECT_STORE_DERIVED_ACCESS_KEY or OBJECT_STORE_ACCESS_KEY")
+            notice_missing.append("OBJECT_STORE_DERIVED_ACCESS_KEY")
         if not _setting_present(optional_settings, "notice_object_store_secret_key"):
-            notice_missing.append("OBJECT_STORE_DERIVED_SECRET_KEY or OBJECT_STORE_SECRET_KEY")
+            notice_missing.append("OBJECT_STORE_DERIVED_SECRET_KEY")
     conditions["notice_runtime_contract"] = {
         "required": notice_capability_open,
         "ready": len(notice_missing) == 0,
@@ -639,6 +578,34 @@ def _collect_surface_conditions(
             "notice capability opened but missing " + " / ".join(notice_missing)
             if notice_missing
             else None
+        ),
+    }
+
+    axiom_collector_endpoint = env.get("OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT", "").strip()
+    axiom_endpoint = env.get("AXIOM_ENDPOINT", "").strip()
+    axiom_collector_endpoint_ready = (
+        not axiom_collector_endpoint or axiom_collector_endpoint.startswith(("http://", "https://"))
+    ) and "/" not in axiom_collector_endpoint.removeprefix("https://").removeprefix("http://")
+    axiom_collector_endpoint_matches_worker = (
+        not axiom_collector_endpoint
+        or not axiom_endpoint
+        or axiom_collector_endpoint.rstrip("/") == axiom_endpoint.rstrip("/")
+    )
+    conditions["otel_axiom_collector_endpoint_contract"] = {
+        "required": bool(axiom_collector_endpoint),
+        "ready": axiom_collector_endpoint_ready and axiom_collector_endpoint_matches_worker,
+        "error": (
+            "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT must be a base domain like "
+            "https://us-east-1.aws.edge.axiom.co; do not include /v1/traces, /v1/logs, or /v1/metrics"
+            if axiom_collector_endpoint and not axiom_collector_endpoint_ready
+            else (
+                "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT must match AXIOM_ENDPOINT so Worker and "
+                "Collector export to the same Axiom edge deployment"
+                if axiom_collector_endpoint
+                and axiom_endpoint
+                and not axiom_collector_endpoint_matches_worker
+                else None
+            )
         ),
     }
 
@@ -750,13 +717,14 @@ def _collect_object_store_credentials_status(env: dict[str, str]) -> dict[str, o
     shared_keys = ("OBJECT_STORE_ACCESS_KEY", "OBJECT_STORE_SECRET_KEY")
     source_keys = ("OBJECT_STORE_SOURCE_ACCESS_KEY", "OBJECT_STORE_SOURCE_SECRET_KEY")
     derived_keys = ("OBJECT_STORE_DERIVED_ACCESS_KEY", "OBJECT_STORE_DERIVED_SECRET_KEY")
+    checked_keys = [*shared_keys, *source_keys, *derived_keys]
 
     if all(env.get(key, "").strip() for key in shared_keys):
         return {
             "required": True,
             "present": True,
-            "checked_keys": [*shared_keys, *source_keys, *derived_keys],
-            "resolved_key": "OBJECT_STORE_ACCESS_KEY+OBJECT_STORE_SECRET_KEY",
+            "checked_keys": checked_keys,
+            "resolved_key": "shared:OBJECT_STORE_ACCESS_KEY+OBJECT_STORE_SECRET_KEY",
             "error": None,
         }
 
@@ -766,9 +734,9 @@ def _collect_object_store_credentials_status(env: dict[str, str]) -> dict[str, o
         return {
             "required": True,
             "present": True,
-            "checked_keys": [*shared_keys, *source_keys, *derived_keys],
+            "checked_keys": checked_keys,
             "resolved_key": (
-                "OBJECT_STORE_SOURCE_ACCESS_KEY+OBJECT_STORE_SOURCE_SECRET_KEY;"
+                "bucket_scoped:OBJECT_STORE_SOURCE_ACCESS_KEY+OBJECT_STORE_SOURCE_SECRET_KEY;"
                 "OBJECT_STORE_DERIVED_ACCESS_KEY+OBJECT_STORE_DERIVED_SECRET_KEY"
             ),
             "error": None,
@@ -777,11 +745,11 @@ def _collect_object_store_credentials_status(env: dict[str, str]) -> dict[str, o
     return {
         "required": True,
         "present": False,
-        "checked_keys": [*shared_keys, *source_keys, *derived_keys],
+        "checked_keys": checked_keys,
         "resolved_key": None,
         "error": (
-            "missing object-store credentials; configure shared "
-            "OBJECT_STORE_ACCESS_KEY/OBJECT_STORE_SECRET_KEY or both bucket-scoped "
+            "missing object-store credentials; ingestion requires either shared "
+            "OBJECT_STORE_ACCESS_KEY/OBJECT_STORE_SECRET_KEY credentials or both bucket-scoped "
             "OBJECT_STORE_SOURCE_* and OBJECT_STORE_DERIVED_* credential pairs"
         ),
     }

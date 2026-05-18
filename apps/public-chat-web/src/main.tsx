@@ -22,17 +22,17 @@ if (!rootElement) {
 createRoot(rootElement).render(
 	<StrictMode>
 		<PublicChatAppFrame>
-			<Suspense fallback={<PublicChatBootFallback />}>
+			<Suspense fallback={<PublicChatBootPlaceholder />}>
 				<PublicChatApp />
 			</Suspense>
 		</PublicChatAppFrame>
 	</StrictMode>,
 );
 
-function PublicChatBootFallback() {
+function PublicChatBootPlaceholder() {
 	return (
-		<div className="chat-boot-fallback" role="status">
-			<div aria-hidden="true" className="chat-boot-fallback__spinner" />
+		<div className="chat-boot-placeholder" role="status">
+			<div aria-hidden="true" className="chat-boot-placeholder__spinner" />
 			<span>正在载入校园助理...</span>
 		</div>
 	);

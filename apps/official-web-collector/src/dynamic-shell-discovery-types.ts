@@ -24,8 +24,8 @@ export interface OfficialWebDynamicShellDiscoveryAudit {
 		networkObservationTimeoutMs: number;
 		matchedResponseUrl: string | null;
 		matchedSelector: string | null;
-		usedNetworkIdleFallback: boolean;
-		usedFixedDelayFallback: boolean;
+		usedNetworkIdleWait: boolean;
+		usedFixedDelayWait: boolean;
 	};
 	captures: Array<{
 		url: string;

@@ -5,10 +5,10 @@ service capability 的 owner package。
 
 它负责：
 
-- 接收 `campus-services-agent` 的 typed agent handoff
-- 在 package 内维护 thin tool adapter
-- 将 tool payload 映射为 internal query service packet
-- 调用 execution-side internal query service，并返回 typed `AgentResponse`
+- 维护 `campus-services-agent` 的 repo-owned SDK tool executor
+- 将 admitted structured tool payload 映射为 internal query service packet
+- 调用 execution-side internal query service，并返回 bounded SDK tool result projection
+- 保留 query service interface 与纯 response builder，供测试和 internal helper 使用
 
 它不负责：
 
@@ -16,5 +16,6 @@ service capability 的 owner package。
 - browser-facing API、`app-api` loopback HTTP 或 raw/source bundle scan
 - ingestion/data plane truth owner
 
-当前这个 package 主要冻结 owner boundary、internal query service interface 与 thin adapter
-seam；真正的 projection-backed query implementation 仍可在后续 phase 内继续补齐。
+当前这个 package 主要冻结 owner boundary、internal query service interface、bounded SDK
+executor seam 与纯 response builder；生产 structured execution 不再暴露 direct online
+adapter。

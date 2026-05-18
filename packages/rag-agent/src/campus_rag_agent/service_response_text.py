@@ -31,10 +31,13 @@ def _build_no_answer_response(
         return "当前未检索到足够依据支持回答这个培养方案问题，请补充更具体的培养方案名称、学位要求或课程表名称。"
     if evidence.corpus == "official_web":
         profile = load_runtime_profile(evidence.corpus, evidence.collection)
+        if _is_official_web_freshness_fail_close(evidence):
+            return "当前本地官网页面链路还不支持回答今天/最新/最近这类时效敏感问题，请改问明确的页面标题、机构名称或文章主题。"
         if is_official_web_stable_reference_like_profile(profile):
-            if _is_official_web_freshness_fail_close(evidence):
-                return "当前本地官网页面链路还不支持回答今天/最新/最近这类时效敏感问题，请改问明确的页面标题、机构名称或文章主题。"
             return "当前未检索到足够依据支持回答这个官网页面问题，请确认问题是否落在当前已导入的官网页面范围内，或补充更明确的页面标题、机构名称或文章主题。"
+        return "当前请求落在非默认官网页面库存范围；该范围只保留采集审计证据，不能作为当前官网问答依据。请改问已开放的官网稳定参考页面，或等待对应 source-pack 进入明确的 serving surface。"
+    if evidence.corpus == "regulations" and evidence.collection == "institutional_rules":
+        return "当前未检索到足够依据支持回答这个校级制度问题，请确认它是否属于当前已开放的校级制度范围，或补充更具体的制度名称。"
     if resolved_policy_title:
         return (
             f"在《{resolved_policy_title}》中，当前未检索到足够依据支持回答这个问题；"

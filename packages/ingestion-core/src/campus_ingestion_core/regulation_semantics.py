@@ -1,0 +1,43 @@
+from __future__ import annotations
+
+from campus_shared.regulation_semantic_patterns import (
+    RegulationCategoryDefinition,
+    RegulationDiscoveryConfig,
+    RegulationPolicyObjectDefinition,
+    RegulationSemanticsRegistry,
+    build_category_overview_metadata,
+    compact_semantic_text,
+    infer_negative_semantic_role,
+    infer_regulation_body_content_role,
+    infer_table_fact_type,
+    load_default_regulation_semantics_registry,
+    load_regulation_discovery_config,
+    looks_like_condition_claim_text,
+    looks_like_deadline_constraint_text,
+    looks_like_explicit_applicability_clause,
+    looks_like_requirement_text,
+    normalize_regulation_semantic_text,
+    starts_example_list,
+    starts_procedure_list,
+)
+
+__all__ = [
+    "RegulationCategoryDefinition",
+    "RegulationDiscoveryConfig",
+    "RegulationPolicyObjectDefinition",
+    "RegulationSemanticsRegistry",
+    "build_category_overview_metadata",
+    "compact_semantic_text",
+    "infer_negative_semantic_role",
+    "infer_regulation_body_content_role",
+    "infer_table_fact_type",
+    "load_default_regulation_semantics_registry",
+    "load_regulation_discovery_config",
+    "looks_like_condition_claim_text",
+    "looks_like_deadline_constraint_text",
+    "looks_like_explicit_applicability_clause",
+    "looks_like_requirement_text",
+    "normalize_regulation_semantic_text",
+    "starts_example_list",
+    "starts_procedure_list",
+]

@@ -58,11 +58,12 @@ def _build_source_support_candidates(source: EvidenceSource) -> tuple[SupportCan
     if ensure_remote_content_suspicion_labels(source):
         return ()
     snippets = [
-        source.source_title.strip(),
+        _source_title_or_doc_label(source),
         source.detail_label.strip(),
         *(item.strip() for item in source.structural_path if item.strip()),
         source.snippet.strip(),
     ]
+    snippets.extend(_derive_structured_fact_snippets(source.snippet))
     candidates: list[SupportCandidate] = []
     for snippet in snippets:
         haystack = _normalize_matching_text(snippet)
@@ -88,6 +89,55 @@ def _build_source_support_candidates(source: EvidenceSource) -> tuple[SupportCan
             )
         )
     return tuple(_dedupe_support_candidates(candidates))
+
+
+def _source_title_or_doc_label(source: EvidenceSource) -> str:
+    explicit_title = source.source_title.strip()
+    if explicit_title:
+        return explicit_title
+    if ":" not in source.doc_id:
+        return ""
+    return source.doc_id.split(":", 1)[-1].strip()
+
+
+def _derive_structured_fact_snippets(snippet: str) -> list[str]:
+    snippets: list[str] = []
+    for line in re.split(r"[\r\n]+", snippet):
+        normalized_line = line.strip()
+        if not normalized_line:
+            continue
+        total_credits = _derive_total_credit_fact(normalized_line)
+        if total_credits:
+            snippets.append(total_credits)
+        audience_fact = _derive_audience_fact(normalized_line)
+        if audience_fact:
+            snippets.append(audience_fact)
+    return snippets
+
+
+def _derive_audience_fact(line: str) -> str:
+    match = re.search(
+        r"^([\u4e00-\u9fffA-Za-z0-9（）()]{2,30})"
+        r"(?:为|是).{0,24}"
+        r"(所有本预科学生|所有本科学生|全体本科学生|全校学生)"
+        r"(?:应|需|需要|必须|要|可|可以|均|都)",
+        line,
+    )
+    if match:
+        return f"{match.group(1)}面向{match.group(2)}"
+    return ""
+
+
+def _derive_total_credit_fact(line: str) -> str:
+    if "总学分" not in line:
+        return ""
+    match = re.search(r"(?:^|[|｜])\s*总学分\s*(?:[|｜][^0-9\r\n]*)*([0-9]{2,3})\s*$", line)
+    if match:
+        return f"总学分:{match.group(1)}学分"
+    match = re.search(r"总学分[^0-9]{0,24}([0-9]{2,3})(?:\s*学分)?", line)
+    if match:
+        return f"总学分:{match.group(1)}学分"
+    return ""
 
 
 def _dedupe_support_candidates(

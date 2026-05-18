@@ -50,24 +50,26 @@ export function buildStoredIdempotentRequest(input: {
 	assistantMessageRow: typeof messages.$inferSelect | null;
 	conversation: ChatConversation;
 	executionRow: typeof requestExecution.$inferSelect;
-}): StoredIdempotentRequest | null {
+}): StoredIdempotentRequest {
 	const assistantMessage = input.assistantMessageRow
 		? toChatMessage(input.assistantMessageRow)
 		: null;
 	if (!assistantMessage && input.executionRow.status !== "accepted") {
-		return null;
+		throw new Error("idempotent replay is missing assistant message for finalized request");
+	}
+	const requestFingerprintSha256 = input.executionRow.requestFingerprintSha256;
+	if (!requestFingerprintSha256) {
+		throw new Error("idempotent replay is missing request fingerprint");
 	}
 
 	const result =
 		assistantMessage?.kind === "error"
-			? {
-					kind: "error" as const,
-					message: assistantMessage.text,
-					errorCode: input.executionRow.errorCode ?? "internal_error",
-					retryable: assistantMessage.retryable ?? input.executionRow.status === "error",
+			? buildStoredErrorReplayResult({
+					assistantMessage,
+					errorCode: input.executionRow.errorCode,
 					requestId: input.executionRow.requestId,
 					traceId: input.executionRow.traceId,
-				}
+				})
 			: assistantMessage?.kind === "clarification"
 				? {
 						kind: "clarification" as const,
@@ -90,7 +92,7 @@ export function buildStoredIdempotentRequest(input: {
 						};
 
 	return {
-		requestFingerprintSha256: input.executionRow.requestFingerprintSha256 ?? "",
+		requestFingerprintSha256,
 		response: {
 			answer: {
 				conversation: toConversationResponse(input.conversation),
@@ -100,5 +102,24 @@ export function buildStoredIdempotentRequest(input: {
 			traceId: input.executionRow.traceId,
 		},
 		status: input.executionRow.status as RequestExecutionStatus,
+	};
+}
+
+function buildStoredErrorReplayResult(input: {
+	assistantMessage: ChatMessage;
+	errorCode: string | null;
+	requestId: string;
+	traceId: string;
+}) {
+	if (input.assistantMessage.retryable === null) {
+		throw new Error("idempotent replay error message is missing retryable");
+	}
+	return {
+		kind: "error" as const,
+		message: input.assistantMessage.text,
+		errorCode: input.errorCode ?? "internal_error",
+		retryable: input.assistantMessage.retryable,
+		requestId: input.requestId,
+		traceId: input.traceId,
 	};
 }

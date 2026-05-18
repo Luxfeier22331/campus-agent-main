@@ -64,39 +64,20 @@ export async function createApiContextFromStorageState(
 ): Promise<ApiRequestContextLike & DisposableApiContextLike> {
 	ensureRuntimeDirs(config);
 	seedStoredAuthFromConfig(config);
-	let launchedContext: Awaited<ReturnType<typeof launchContextWithStoredAuth>> | null = null;
-	try {
-		launchedContext = await launchContextWithStoredAuth(config, dependencies.launchBrowser);
-	} catch (error) {
-		if (!isRecoverablePortalBootstrapError(error)) {
-			throw error;
-		}
-		return await (dependencies.createRequestContext ?? defaultCreateRequestContext)({
-			baseURL: config.portalBaseUrl,
-			extraHTTPHeaders: buildPortalApiHeaders(config),
-			...buildProxyOption(config),
-			storageState: readStoredAuthStorageState(config.authStorageStatePath),
-		});
-	}
-
-	const { browserContext, close } = launchedContext;
+	const { browserContext, close } = await launchContextWithStoredAuth(
+		config,
+		dependencies.launchBrowser,
+	);
 	try {
 		const page = await browserContext.newPage();
 		try {
 			// Visiting the portal once often refreshes the host-scoped session cookie
-			// that the notice API expects. The portal route is also known to hang in
-			// headless mode, so we fall back to the stored session when the refresh
-			// attempt times out and let the subsequent API request prove validity.
-			try {
-				await page.goto(config.portalPageUrl, {
-					timeout: PORTAL_BOOTSTRAP_TIMEOUT_MS,
-					waitUntil: "domcontentloaded",
-				});
-			} catch (error) {
-				if (!isRecoverablePortalBootstrapError(error)) {
-					throw error;
-				}
-			}
+			// that the notice API expects. Bootstrap failure is an auth failure and
+			// must surface before any API request is attempted.
+			await page.goto(config.portalPageUrl, {
+				timeout: PORTAL_BOOTSTRAP_TIMEOUT_MS,
+				waitUntil: "domcontentloaded",
+			});
 			const storageState = await browserContext.storageState({
 				path: config.authStorageStatePath,
 			});
@@ -170,9 +151,6 @@ function seedStoredAuthFromConfig(config: CollectorConfig): void {
 }
 
 function resolveSeedCookies(config: CollectorConfig): PortalStorageState["cookies"][number][] {
-	if (config.authCookieHeader) {
-		return parsePortalCookieHeader(config);
-	}
 	const portalHost = new URL(config.portalBaseUrl).hostname;
 	const seededCookies: PortalStorageState["cookies"][number][] = [];
 	const sessionToken = validateCookieToken(
@@ -191,45 +169,6 @@ function resolveSeedCookies(config: CollectorConfig): PortalStorageState["cookie
 		seededCookies.push(buildPortalCookie(".muc.edu.cn", SSO_TGC_COOKIE_NAME, ssoToken));
 	}
 	return seededCookies;
-}
-
-function parsePortalCookieHeader(config: CollectorConfig): PortalStorageState["cookies"][number][] {
-	const cookieHeader = String(config.authCookieHeader ?? "").trim();
-	if (!cookieHeader) {
-		return [];
-	}
-	const portalHost = new URL(config.portalBaseUrl).hostname;
-	const cookiesByName = new Map<string, PortalStorageState["cookies"][number]>();
-	for (const fragment of cookieHeader.split(";")) {
-		const token = fragment.trim();
-		if (!token) {
-			continue;
-		}
-		const separator = token.indexOf("=");
-		if (separator <= 0) {
-			throw new Error(
-				"invalid AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER: expected a Cookie header fragment",
-			);
-		}
-		const name = token.slice(0, separator).trim();
-		const value = token.slice(separator + 1).trim();
-		if (!(name && value)) {
-			throw new Error(
-				"invalid AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER: expected cookie name=value pairs",
-			);
-		}
-		cookiesByName.set(name, {
-			domain: name === SSO_TGC_COOKIE_NAME ? ".muc.edu.cn" : portalHost,
-			expires: -1,
-			httpOnly: true,
-			name,
-			path: "/",
-			sameSite: "Lax",
-			secure: true,
-			value,
-		});
-	}
-	return [...cookiesByName.values()];
 }
 
 function buildPortalCookie(
@@ -355,13 +294,4 @@ function buildPortalApiHeaders(config: CollectorConfig): Record<string, string> 
 
 function buildProxyOption(config: CollectorConfig): { proxy?: { server: string } } {
 	return config.portalProxyServer ? { proxy: { server: config.portalProxyServer } } : {};
-}
-
-function isRecoverablePortalBootstrapError(error: unknown): boolean {
-	const message = error instanceof Error ? error.message : String(error);
-	return (
-		message.includes("net::ERR_TIMED_OUT") ||
-		message.includes("Timeout") ||
-		message.includes("timed out")
-	);
 }

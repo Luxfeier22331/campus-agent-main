@@ -1,4 +1,4 @@
-import { type CheerioCrawlingContext, Sitemap } from "crawlee";
+import type { CheerioCrawlingContext } from "crawlee";
 import type { OfficialWebPlannerPageCandidate } from "./control-plane.ts";
 import type { CollectorRequestUserData, CollectorRobotsState } from "./crawl-internal-types.ts";
 import { buildRobotsUserAgent } from "./crawl-support.ts";
@@ -20,33 +20,16 @@ export async function buildInitialRequests(input: {
 	robotsState: CollectorRobotsState;
 	hostSummary: OfficialWebHostSummaryRecord;
 	urlResults: OfficialWebUrlResultRecord[];
+	disableConditionalHeaders?: boolean;
 }): Promise<Array<{ url: string; uniqueKey: string; userData: CollectorRequestUserData }>> {
 	const candidates: Array<{
 		url: string;
 		discoveryMethod: CollectorRequestUserData["discoveryMethod"];
 		discoveredFromUrl?: string | null;
 		knownPage?: OfficialWebPlannerPageCandidate;
-	}> = input.hostPolicy.seedUrls.map((url) => ({
-		url,
-		discoveryMethod: "seed",
-	}));
+		knownPages?: OfficialWebPlannerPageCandidate[];
+	}> = [];
 
-	const robotsSitemaps = input.robotsState.robots?.getSitemaps() ?? [];
-	if (robotsSitemaps.length > 0) {
-		const discoveredUrls = await loadSitemapUrls(robotsSitemaps);
-		for (const url of discoveredUrls) {
-			candidates.push({ url, discoveryMethod: "robots_sitemap" });
-		}
-	}
-	const configuredOnly = input.hostPolicy.explicitSitemaps.filter(
-		(url) => !robotsSitemaps.includes(url),
-	);
-	if (configuredOnly.length > 0) {
-		const discoveredUrls = await loadSitemapUrls(configuredOnly);
-		for (const url of discoveredUrls) {
-			candidates.push({ url, discoveryMethod: "configured_sitemap" });
-		}
-	}
 	for (const page of input.plannerPages) {
 		candidates.push({
 			url: page.normalizedCanonicalUrl,
@@ -117,15 +100,26 @@ export async function buildInitialRequests(input: {
 			continue;
 		}
 
+		const mergedKnownPages = mergeKnownPages(
+			requests.get(admission.normalizedUrl)?.userData.knownPages,
+			candidate.knownPages ?? (candidate.knownPage ? [candidate.knownPage] : []),
+		);
 		requests.set(admission.normalizedUrl, {
 			url: admission.normalizedUrl,
 			uniqueKey: admission.normalizedUrl,
 			userData: {
 				discoveryMethod: candidate.discoveryMethod,
-				conditionalHeaders: buildConditionalHeaders(candidate.knownPage),
+				conditionalHeaders: buildConditionalHeaders(selectPrimaryKnownPage(mergedKnownPages), {
+					disabled: input.disableConditionalHeaders,
+				}),
 				discoveredFromUrl: candidate.discoveredFromUrl ?? null,
 				depth: 0,
-				...(candidate.knownPage ? { knownPage: candidate.knownPage } : {}),
+				...(mergedKnownPages.length > 0
+					? {
+							knownPage: selectPrimaryKnownPage(mergedKnownPages),
+							knownPages: mergedKnownPages,
+						}
+					: {}),
 			},
 		});
 	}
@@ -142,6 +136,8 @@ export function collectNavigationRequests(input: {
 	baseUrl: string;
 	depth: number;
 	hostSummary: OfficialWebHostSummaryRecord;
+	targetWorksetOnly?: boolean;
+	disableConditionalHeaders?: boolean;
 }): Array<{ url: string; uniqueKey: string; userData: CollectorRequestUserData }> {
 	const requests = new Map<
 		string,
@@ -171,6 +167,11 @@ export function collectNavigationRequests(input: {
 			input.hostSummary.admissionRejected += 1;
 			continue;
 		}
+		const knownPage = input.plannerPageLookup.get(admission.normalizedUrl);
+		if (input.targetWorksetOnly && !knownPage) {
+			input.hostSummary.admissionRejected += 1;
+			continue;
+		}
 		if (
 			input.robotsState.robots != null &&
 			!input.robotsState.robots.isAllowed(
@@ -187,12 +188,13 @@ export function collectNavigationRequests(input: {
 			uniqueKey: admission.normalizedUrl,
 			userData: {
 				discoveryMethod: "navigation",
-				conditionalHeaders: buildConditionalHeaders(
-					input.plannerPageLookup.get(admission.normalizedUrl),
-				),
+				conditionalHeaders: buildConditionalHeaders(knownPage, {
+					disabled: input.disableConditionalHeaders,
+				}),
 				discoveredFromUrl: input.baseUrl,
 				depth: input.depth,
-				knownPage: input.plannerPageLookup.get(admission.normalizedUrl),
+				knownPage,
+				...(knownPage ? { knownPages: [knownPage] } : {}),
 			},
 		});
 	}
@@ -200,13 +202,42 @@ export function collectNavigationRequests(input: {
 	return [...requests.values()];
 }
 
-export function buildConditionalHeaders(page: OfficialWebPlannerPageCandidate | undefined):
+function mergeKnownPages(
+	existing: OfficialWebPlannerPageCandidate[] | undefined,
+	incoming: OfficialWebPlannerPageCandidate[],
+): OfficialWebPlannerPageCandidate[] {
+	const merged = new Map<string, OfficialWebPlannerPageCandidate>();
+	for (const page of existing ?? []) {
+		merged.set(buildKnownPageKey(page), page);
+	}
+	for (const page of incoming) {
+		merged.set(buildKnownPageKey(page), page);
+	}
+	return [...merged.values()].sort((left, right) =>
+		buildKnownPageKey(left).localeCompare(buildKnownPageKey(right)),
+	);
+}
+
+function buildKnownPageKey(page: OfficialWebPlannerPageCandidate): string {
+	return `${page.targetJobId}:${page.targetCandidateId ?? ""}:${page.targetId}`;
+}
+
+function selectPrimaryKnownPage(
+	knownPages: OfficialWebPlannerPageCandidate[],
+): OfficialWebPlannerPageCandidate | undefined {
+	return knownPages[0];
+}
+
+export function buildConditionalHeaders(
+	page: OfficialWebPlannerPageCandidate | undefined,
+	options: { disabled?: boolean } = {},
+):
 	| {
 			ifModifiedSince?: string;
 			ifNoneMatch?: string;
 	  }
 	| undefined {
-	if (!page) {
+	if (!page || options.disabled) {
 		return;
 	}
 	const headers: {
@@ -220,12 +251,4 @@ export function buildConditionalHeaders(page: OfficialWebPlannerPageCandidate | 
 		headers.ifModifiedSince = page.lastModified;
 	}
 	return headers.ifNoneMatch || headers.ifModifiedSince ? headers : undefined;
-}
-
-async function loadSitemapUrls(urls: string[]): Promise<string[]> {
-	if (urls.length === 0) {
-		return [];
-	}
-	const sitemap = await Sitemap.load(urls);
-	return sitemap.urls;
 }

@@ -221,6 +221,22 @@ class AuthenticatedNoticeCloseoutWorkerCliTest(unittest.TestCase):
             self.assertEqual(show_payload["state"], "verified")
             self.assertEqual(show_payload["completed_batch_count"], 2)
 
+            media_gate_audit_path = root / "media-closeout-state-machine-audit.json"
+            media_gate_audit_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": (
+                            "notice_media_closeout_target_admission_state_machine_audit.v1"
+                        ),
+                        "verdict": "passed",
+                        "strict_gate": True,
+                        "finding_count": 0,
+                        "candidate_count": 0,
+                        "attempt_count": 0,
+                    }
+                ),
+                encoding="utf-8",
+            )
             with (
                 patch(
                     "campus_ingestion_worker.promote_authenticated_notice_closeout.load_worker_env"
@@ -231,7 +247,14 @@ class AuthenticatedNoticeCloseoutWorkerCliTest(unittest.TestCase):
                 ),
                 patch("sys.stdout", new_callable=io.StringIO) as stdout,
             ):
-                promote_worker.main(["--run-id", "run-1"])
+                promote_worker.main(
+                    [
+                        "--run-id",
+                        "run-1",
+                        "--media-gate-audit-path",
+                        str(media_gate_audit_path),
+                    ]
+                )
 
             promote_payload = json.loads(stdout.getvalue())
             self.assertEqual(promote_payload["state"], "done")

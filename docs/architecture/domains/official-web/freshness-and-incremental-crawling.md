@@ -60,7 +60,8 @@ updated: 2026-04-14
   `app-api -> ingestion-worker` handoff 驱动。
 - `ETag`、`Last-Modified`、HTTP `304` 是增量抓取的首选协议信号；sitemap `lastmod`、RSS/Atom
   时间戳只用于 discovery 与优先级，不是变化真相。
-- 列表页变化必须驱动 detail 页优先复抓；新闻公告类更新不能只靠全站基线 crawl 兜底。
+- 列表页变化必须驱动 detail 页优先复抓；新闻公告类更新不能只靠全站基线 crawl
+  做覆盖性校验。
 - `hot lane` 的长期第一服务对象是 `fresh_news` serving surface；列表页变化优先服务“新闻 detail
   及时可检索”，而不是只刷新导航页本身。
 - 当前 `docs/reference/official-web-fresh-news-surface-handoff.md` 里那 `8` 条
@@ -92,7 +93,7 @@ registry -> chunk/index`
 
 ### Baseline Lane
 
-`baseline lane` 负责广覆盖、低频兜底。
+`baseline lane` 负责广覆盖、低频覆盖性校验。
 
 它的职责是：
 

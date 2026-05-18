@@ -2,7 +2,7 @@
 doc_type: policy
 status: active
 created: 2026-03-28
-updated: 2026-04-10
+updated: 2026-05-01
 ---
 # Official Web Crawl Policy
 
@@ -43,6 +43,9 @@ admission、robots/sitemap、frontier、重试与节流 policy。
 ## 核心结论
 
 - crawl scope 的真相源是 `site config + host allowlist + seed URLs`，不是“所有导航可达链接”。
+- `site config + host allowlist + seed URLs` 只定义 source capability registry，不定义默认
+  collection target。默认 collector 执行必须拿到 `app-api` target workset admission；没有该准入时，
+  只能通过显式 legacy/debug admission 运行，且该运行不得进入 handoff、selected-write 或 promotion。
 - host 是 crawl policy 的一级边界；robots、rate limit、seed URLs、allow/deny 规则都必须按 host
   配置。
 - sitemap 只是 discovery signal，不是 scope truth。
@@ -58,6 +61,14 @@ admission、robots/sitemap、frontier、重试与节流 policy。
 - host-level policy
 - seed-level policy
 - run-level limits
+- consumer-denominator retention policy
+
+前四层回答 URL 能否进入 crawl frontier；consumer-denominator retention policy 回答 fetched
+page 是否值得 retained 为 source-truth candidate。二者不得合并：允许 crawl 不等于允许进入
+downstream candidate。
+
+执行层还必须额外满足 run admission：`host_filter` 只能缩小已准入的 target workset，不能
+单独把 host allowlist 提升为 collection target。
 
 ### Site-level policy
 
@@ -114,6 +125,9 @@ host-level policy 负责冻结：
 - path 不命中 deny rules
 - robots 允许抓取
 - URL 通过 query parameter policy
+
+即使命中这些条件，页面仍必须经过 consumer-denominator retention gate，才能进入 retained
+source-truth candidate。
 
 ### 拒绝规则
 

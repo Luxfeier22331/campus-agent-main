@@ -54,6 +54,7 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
                 "apps",
                 "packages",
                 "configs",
+                "infra",
             ],
             check=True,
             capture_output=True,
@@ -78,6 +79,7 @@ class CheckMarkdownTrackedTest(unittest.TestCase):
 
         self.assertIn("apps/app-api/README.md", relative_paths)
         self.assertIn("apps/public-docs/README.md", relative_paths)
+        self.assertIn("infra/otel/README.md", relative_paths)
         self.assertNotIn("apps/public-docs/docs/index.md", relative_paths)
         self.assertNotIn(
             "apps/public-docs/docs/curriculum-plan/special-programs/computer-science-ethnic-experimental-program.mdx",
@@ -156,6 +158,6 @@ def _is_tracked_markdown_candidate(path: str) -> bool:
         return True
     if path.startswith("apps/public-docs/docs/"):
         return False
-    if path.startswith(("apps/", "packages/", "configs/")):
+    if path.startswith(("apps/", "packages/", "configs/", "infra/")):
         return path.endswith(".md")
     return False

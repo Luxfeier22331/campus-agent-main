@@ -97,6 +97,7 @@ function resolveRuntimeConnectionString(env: Env, consistency: RuntimeDatabaseCo
 		if (freshConnectionString) {
 			return freshConnectionString;
 		}
+		throw new Error("APP_API_DB_FRESH.connectionString is required for fresh runtime access.");
 	}
 
 	const connectionString = env.APP_API_DB?.connectionString?.trim();
@@ -123,29 +124,19 @@ export function buildRuntimeDatabaseConfig(
 }
 
 function resolveOperatorConnectionString(env: Env): string | undefined {
-	return (
-		env.APP_API_OPERATOR_DATABASE_URL?.trim() ||
-		env.APP_API_MANAGEMENT_DATABASE_URL?.trim() ||
-		undefined
-	);
+	return env.APP_API_OPERATOR_DATABASE_URL?.trim() || undefined;
 }
 
 export function buildOperatorDatabaseConfig(env: Env) {
 	const connectionString = resolveOperatorConnectionString(env);
 	if (!connectionString) {
-		throw new Error(
-			"APP_API_OPERATOR_DATABASE_URL is required. Legacy APP_API_MANAGEMENT_DATABASE_URL is accepted as a compatibility alias.",
-		);
+		throw new Error("APP_API_OPERATOR_DATABASE_URL is required.");
 	}
 
 	return {
 		connectionString: normalizePostgresConnectionStringForExplicitSsl(connectionString),
 		ssl: resolveSslConfig(resolveDatabaseSslMode(env)),
 	};
-}
-
-export function buildManagementDatabaseConfig(env: Env) {
-	return buildOperatorDatabaseConfig(env);
 }
 
 function buildPoolOptions(input: {

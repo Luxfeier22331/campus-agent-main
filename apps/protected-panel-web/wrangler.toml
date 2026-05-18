@@ -15,7 +15,7 @@ service = "app-api"
 [env.local.vars]
 PANEL_PROTECTION_ENVELOPE = "cloudflare-access"
 PANEL_RUNTIME_API_BASE_URL = "https://app-api.internal"
-ACCESS_TEAM_DOMAIN = "http://127.0.0.1:9798"
+ACCESS_TEAM_DOMAIN = "http://127.0.0.1:27062"
 ACCESS_POLICY_AUD = "panel-local-smoke"
 
 [env.local.secrets]

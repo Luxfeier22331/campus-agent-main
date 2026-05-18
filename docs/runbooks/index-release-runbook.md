@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-28
-updated: 2026-04-11
+updated: 2026-05-01
 ---
 # Index Release Runbook
 
@@ -156,6 +156,20 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - no-alias preview 可以不传 acceptance cases，但不能因此视为 serving alias 可发布
 - provider-response replay 不发布 serving alias；query-serving alias publish 只走
   registry-scope release path
+- release acceptance cases 是 alias publish 的硬门槛，只承载 doc-level smoke、关键
+  wrong-document guard 和 backlink/traceability 这类必须在发布前关闭的问题；不要把 full
+  formal benchmark、no-hit 阈值调优或 stale version-id 回归样本直接塞进 publish gate
+- 默认 query-enabled scope 发布 alias 时还必须通过 qrels coverage gate；缺少 declared
+  scenario denominator、required coverage class 或 required scenario 时 fail closed
+- chunk quality gate 使用当前 collection/profile 的 token budget，而不是全局固定阈值；超过
+  budget、缺 traceability metadata、出现 attachment-ref chunk 或 regulation heading-only
+  chunk 都不得发布 query-serving alias
+- Qdrant payload index 必须在 physical collection 创建后、points upsert 前建立；release
+  path 不得等到写入 points 后才补建 filter index
+- `regulations/student_rules` 的 alias publish gate 使用：
+  `packages/evals/fixtures/student_rules_release_acceptance.v1.json`
+- `regulations/student_rules` 的 formal qrels 与调参仍使用：
+  `packages/evals/fixtures/student_handbook_retrieval_qrels.json`
 
 对上游已经是 canonical `document-units` 的派生 collection，先执行 collection-specific
 materialization，再走同一个 release shell。当前实例是 `curriculum/program_semester_facts`：
@@ -244,9 +258,9 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 
 ```bash
 uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
-  --corpus official_web \
-  --collection muc_public_pages \
-  --acceptance-case-path <retrieval-acceptance-cases.json> \
+  --corpus <corpus> \
+  --collection <collection> \
+  --acceptance-case-path <release-acceptance-cases.json> \
   --publish-alias
 ```
 
@@ -267,13 +281,45 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 - serving alias 存在
 - alias 指向新的 physical collection
 - points count 大于 0
+- query-time filter 字段已建 payload index；post-publish audit 会检查
+  `document_id`、`revision_track`、`version_id`、`corpus`、`collection`、entity id、
+  authz / visibility、`status`、`source_channel`、`is_current` 等字段，缺失或 schema 不一致
+  都视为失败
 - payload 含：
   - `index_release_id`
+  - `index_validation_status`
   - `index_release_manifest_key`
   - `index_release_alias`
   - `index_physical_collection_name`
   - `chunk_policy_version`
   - `cleaning_policy_version`
+  - `embedding_provider`
+  - `embedding_model`
+  - `embedding_dimensions`
+  - `sparse_provider`
+  - `sparse_model`
+  - `sparse_tokenizer`
+  - `sparse_language`
+  - `dense_vector_name`
+  - `sparse_vector_name`
+  - `dense_prefetch_limit`
+  - `sparse_prefetch_limit`
+  - `rrf_k`
+  - `rrf_dense_weight`
+  - `rrf_sparse_weight`
+  - `embedding_query_instruction_hash`
+  - `hybrid_query_profile_hash`
+  - `profile_identity_hash`
+  - `quality_gate_status`
+  - `chunk_quality_status`
+  - `qrels_coverage_status`
+  - `release_metadata_consistency_status`
+
+这些字段必须与当前 `runtime-profile.json`、retrieval env 和 release manifest 一致。
+runtime drift guard 会在查询 alias 前抽样 collection metadata / point payload；缺字段、profile
+identity 不一致、quality gate 非 `passed`、或 sampled payload 混入不同 release/profile 时
+query path fail closed。旧 release 如果缺 `profile_identity_hash` 或质量状态字段，需要重新
+走 registry-scope release 后再作为 query-serving alias 使用。
 
 ### Object Storage
 
@@ -281,6 +327,8 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
 
 - `{corpus}/releases/{collection}/{release_id}/index-release.json`
 - `{corpus}/releases/{collection}/{release_id}/validation-summary.json`
+- `{corpus}/releases/{collection}/{release_id}/quality-gate-summary.json`
+- 若执行 query-serving alias publish，还应有 retrieval acceptance summary artifact
 
 说明：
 
@@ -308,6 +356,159 @@ uv run --all-packages python -m campus_evals.retrieval_tuning \
     configs/ingestion/regulations/student_rules/runtime-profile.json \
   --output <tuning-report.json>
 ```
+
+固定检查：
+
+- 发布前确认默认 query-enabled qrels fixture 覆盖完整：
+  `campus_evals.benchmark.validate_default_query_enabled_qrels_coverage()`
+- 发布前需要估算大规模 rebuild / embedding / Qdrant write posture 时，先跑 dry-run
+  release benchmark；该报告只记录规模、token、embedding call/cache 与 Qdrant step 的
+  `not_executed` timing，不发布 alias：
+
+```bash
+uv run --all-packages python -m campus_evals.retrieval_release_benchmark_cli \
+  --chunks <chunks.jsonl> \
+  --corpus <corpus> \
+  --collection <collection> \
+  --scale-multiplier <N> \
+  --output <retrieval-release-benchmark.json>
+```
+
+- 发布前 release path 会自动执行 chunk quality gate 和 qrels coverage gate；operator
+  仍可用同一批 chunk / qrels artifact 做离线复核，但离线复核不能替代 registry-scope
+  release gate
+- 需要离线产出 chunk quality report 时，使用同一套 evaluator：
+
+```bash
+uv run --all-packages python -m campus_evals.retrieval_chunk_quality_cli \
+  --chunks <chunks.jsonl> \
+  --max-tokens <runtime-profile-max-token-budget> \
+  --output <chunk-quality-report.json>
+```
+
+该 CLI 在 report `status=passed` 时返回 `0`；发现 chunk quality issue 时返回 `2`，可直接作为
+operator gate 使用。
+
+- 发布后把 no-hit、low confidence、forbidden hit、authz filtered、version mismatch 与
+  release metadata drift observation 汇总成候选 backlog：
+  `campus_evals.retrieval_monitoring.build_retrieval_monitoring_backlog()`
+
+## Ingestion Run Telemetry Smoke
+
+release-managed worker shell 可以通过 `INGESTION_RUN_TELEMETRY_JSONL_PATH` 写入
+OTel-compatible runtime event JSONL。这个 sink 只记录 run-level summary，不记录
+canonical body、chunk body、OCR raw text、source credential、object-store secret 或 database
+URL。
+
+本地 dry-run smoke：
+
+```bash
+export INGESTION_RUN_TELEMETRY_JSONL_PATH=/tmp/ingestion-runtime-events.jsonl
+
+uv run --all-packages python -m \
+  campus_ingestion_worker.prepare_registry_scope_chunks \
+  --corpus <corpus> \
+  --collection <collection> \
+  --preparation-run-id <prep_id>
+
+uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
+  --corpus <corpus> \
+  --collection <collection> \
+  --preparation-run-id <prep_id> \
+  --no-publish-alias
+```
+
+验收：
+
+- JSONL records 的 `event_name` 是 `ingestion.run.started`、
+  `ingestion.run.completed` 或 `ingestion.run.failed`。
+- attributes 只包含 allowlisted summary，例如 `operation`、`stage`、`run_id`、`corpus`、
+  `collection`、`document_count`、`chunk_count`、`point_count`、
+  `embedding_cache_hit_count`、`embedding_cache_miss_count`、`qdrant_upsert_count`、
+  `validation_status`、`retrieval_acceptance_status`、`post_publish_audit_status`、
+  `failure_kind`、`duration_ms`。
+- `prepare_registry_scope_chunks` 的 event 覆盖 chunking summary。
+- `release_registry_scope` 的 event 覆盖 embedding cache、Qdrant upsert、release
+  audit 与 alias publish summary。
+- `release_index` legacy provider-response replay 只用于 no-alias replay；event 只保留
+  import result counts，不发布 serving alias。
+- sink/exporter 失败时，worker stdout 的 `telemetry.status` 应为 `failed` 且
+  `failure_kind=telemetry_export_failed`；job 必须 fail closed，暴露 telemetry 配置、
+  权限或存储问题。
+
+supervisor-agent-worker 可通过 `SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH` 显式注入
+retrieval observation JSONL sink。该 sink 只写 sanitized retrieval observation，用于
+eval / backlog intake，不反向改变 release manifest、runtime profile 或 serving alias；sink
+写入失败必须让在线 retrieval answer path fail closed。
+
+生产观测接入不应继续依赖 JSONL 文件作为主通道。长期接法是：
+
+1. retrieval-core 继续只接受注入的 `RetrievalObservationSink`，不感知 OTel、vendor SDK、
+   Collector 地址或 exporter 配置。
+2. runtime shell 用 `build_retrieval_observation_event_sink()` 把 observation 包成
+   `retrieval.runtime_observation` 事件。
+3. `supervisor-agent-worker` 或后续 runtime adapter 将该事件转成 OTel-compatible log/event；
+   有当前 request trace context 时附带 trace/span correlation，没有 trace context 时至少保留
+   `request_id`、`plan_id`、`step_id`。
+4. 由 OTel Collector 或等价 telemetry pipeline 负责 batching、retry、memory limiting、
+   attribute filtering、environment/resource attribute enrichment 和 backend export。
+5. metrics 从 event 派生，不由 retrieval-core 直接上报。首批 dashboard/alert 只看：
+   retrieval latency、no-hit rate、fail-closed count by `failure_kind`、release metadata
+   drift、reranker failed、live-assisted branch count。
+
+生产接入验收至少跑三类样本：
+
+- no-hit：确认只有 `query_sha256`，没有 raw query text。
+- release drift：确认 `failure_kind=release_metadata_drift` 可被单独聚合和告警。
+- reranker failed：确认 answer path fail closed，同时 event 带
+  `failure_kind=reranker_failed`。
+
+这些验收只证明 telemetry pipeline 可用，不允许绕过 release gate、qrels gate 或 runtime
+profile gate。
+
+默认 observation 只写 `query_sha256`，不写原始 query text。只有 operator 明确需要把 runtime
+no-hit / low-confidence 样本转成 qrels 候选时，才临时打开：
+
+```bash
+SUPERVISOR_RETRIEVAL_OBSERVATION_INCLUDE_QUERY_TEXT=true
+```
+
+该开关不得作为常驻生产默认值。
+
+indexed lookup backend fail-closed 时，runtime 会在重新抛出错误前写入 failed observation。
+其中 release metadata drift 会使用 `failure_kind=release_metadata_drift`，让 monitoring
+backlog 进入 release metadata repair，而不是被误归为普通 executor error。
+
+如果 runtime 已注入 retrieval observation sink，可以从 JSONL 生成 backlog：
+
+```bash
+uv run --all-packages python -m campus_evals.retrieval_monitoring_cli \
+  --observations <retrieval-runtime-observations.jsonl> \
+  --output <retrieval-monitoring-backlog.json>
+```
+
+二阶段排序或 reranker 必须先进入 deterministic eval branch。使用
+`campus_evals.retrieval_rerank_eval.evaluate_deterministic_rerank_branch()` 对同一
+qrels/run 输出 before/after 指标，再用
+`campus_evals.retrieval_rerank_eval.evaluate_reranker_adoption_gate()`
+校验 quality delta、latency p95、cost per query、forbidden hit 与 regression
+case。
+
+reranker 不是全局默认开关。只有 collection runtime profile 显式设置以下字段，且对应
+deterministic adoption evidence 可追溯时，才允许进入 runtime candidate：
+
+- `reranker_enabled_by_default`
+- `reranker_top_n`
+- `reranker_profile_version`
+- `reranker_adoption_evidence_id`
+
+启用 reranker 的 release payload 必须带同一组 reranker metadata；runtime release drift guard
+会对 opt-in profile 缺失或不一致的 release fail closed。runtime reranker provider
+不可用、超时或 executor 缺失时，retrieval service 必须 fail closed，并在
+observation 中写入 `failure_kind=reranker_failed`。
+
+这些检查只产生 release evidence、tuning recommendation 或 backlog candidate；不得直接改写
+runtime profile、canonical qrels 或 serving alias。
 
 ## 回滚
 

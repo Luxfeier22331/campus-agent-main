@@ -8,10 +8,10 @@ updated: 2026-04-20
 
 ## 目的
 
-本文记录 `official_web/fresh_news` seed set 的稳定评估基线：
+本文记录 `official_web/fresh_news` seed set 的离线评估基线：
 
 - repo-tracked seed denominator 是什么
-- retrieval 与 live gate 的 accepted baseline 是什么
+- retrieval seed validation 的 accepted baseline 是什么
 - 这组 baseline 的适用边界是什么
 - 后续 rerun 何时应更新本文
 
@@ -29,15 +29,13 @@ repo-tracked 基线入口固定为：
   `configs/ingestion/official_web/fresh_news/split-manifest.v1.json`
 - retrieval qrels:
   `packages/evals/fixtures/official_web_fresh_news_retrieval_qrels.json`
-- deterministic live gate: `packages/evals/src/campus_evals/scenarios.py` ->
-  `official_web_fresh_news_release_gate_cases()`
-- live benchmark entry: `uv run --all-packages python -m
-  campus_evals.official_web_live_benchmark ... --official-web-scope fresh_news`
+- deterministic seed cases: `packages/evals/src/campus_evals/scenarios.py` ->
+  `official_web_fresh_news_seed_validation_cases()`，仅作为 offline seed contract 保留
 
 基线分母：
 
 - `8` retrieval qrels cases for the current fresh-news handoff seed set
-- `8` deterministic live-gate cases for exact-title asks only
+- `8` deterministic exact-title seed cases for future news opening work
 
 ## Accepted Baseline Snapshot
 
@@ -54,18 +52,14 @@ accepted baseline 目前固定采用 `2026-04-05` 这一轮 snapshot：
   - `doc_hit_at_1 = 1.0`
   - `doc_recall_at_5 = 1.0`
   - `forbidden_hit_rate = 0.0`
-- deterministic live gate：
-  - `benchmark_type = official_web_fresh_news_live_gate`
-  - `total_cases = 8`
-  - `completed = 8`
-  - `deterministic mean_pass_rate = 1.0`
-  - `gate verdict = pass`
 
 ## 基线解释
 
 - 这组 baseline 只覆盖 handoff seed set 的 exact-title retrieval / answer path，不覆盖“今天
   / 最新 / 最近”这类 freshness-sensitive 问法
 - `fresh_news` 在该基线下仍是 `offline_preparation` 语义，不应被写成默认 query-serving surface
+- `fresh_news` 当前不是 `official_web_live_benchmark` 的 live answer gate scope，也不是
+  eval-release dispatch profile
 - cross-host duplicate 跳过说明 routed import 已具备基础去重能力，但不等于 `news_archive`
   或持续增量采集策略已经闭合
 - 原始首次执行中关于 shared Postgres 饱和、临时 registry 路径等运行面细节，属于历史排障背景，不再保留在 active
@@ -79,7 +73,6 @@ accepted baseline 目前固定采用 `2026-04-05` 这一轮 snapshot：
 - 新一轮 rerun 只在以下情况更新这里：
   - seed set 改变
   - qrels denominator 改变
-  - deterministic live-gate denominator 改变
   - accepted baseline verdict 改变
 - 一次性 `.tmp` artifact、首次执行 workaround 和历史排障证据不再长期挂在本文
 
@@ -89,7 +82,3 @@ accepted baseline 目前固定采用 `2026-04-05` 这一轮 snapshot：
   - `uv run --all-packages python -m campus_evals.retrieval_live_benchmark
     --qrels packages/evals/fixtures/official_web_fresh_news_retrieval_qrels.json
     --qdrant-collection-name <collection> --format json --output <results.json>`
-- deterministic live gate：
-  - `uv run --all-packages python -m campus_evals.official_web_live_benchmark
-    run --official-web-scope fresh_news --qdrant-collection-name <collection>
-    --output-dir <output_dir>`

@@ -2,9 +2,9 @@
 doc_type: phase_umbrella
 phase: "5"
 phase_name: "Golden Dataset And Case Governance"
-status: split
+status: completed
 created: 2026-04-24
-updated: 2026-04-29
+updated: 2026-05-10
 ---
 
 # Phase 5 Umbrella: Golden Dataset And Case Governance
@@ -22,9 +22,10 @@ deterministic answer truth 与 synthetic candidate intake 正式并入 shared ev
   - 冻结 case lifecycle、denominator registry scaffold、workflow trace artifact model、
     candidate intake manifest、review decision 与 drift/admission discipline
 - `Phase 5B: Golden Dataset Expansion And Domain Case Governance`
-  - 等采集 / 消费内容补全后推进
+  - completed for current-corpus query-enabled surfaces
   - 正式扩编 accepted case、retrieval qrels、workflow/status case、deterministic answer truth 与
-    synthetic candidate promotion
+    synthetic candidate promotion，并以 known-gap/no-hit contract 固定缺源行为
+  - 认证态 canonical regulation 缺口已移交 backlog seed，不再作为 eval blocker
 
 ## Locked Inputs
 
@@ -40,12 +41,16 @@ deterministic answer truth 与 synthetic candidate intake 正式并入 shared ev
 - deferred data-dependent plan:
   `./phases/phase-5b-golden-dataset-expansion-and-domain-case-governance/PLAN.md`
 
-## Blocker
+## Residual Backlog
 
-- 采集内容不足只阻塞 `Phase 5B` 的正式 accepted case 扩编。
-- 采集内容不足不阻塞 `Phase 5A` 的 governance scaffold。
+- 当前 eval workstream 无 active blocker。
+- 缺失认证态 canonical regulation 的补采与后续 accepted truth 晋升登记在
+  `.planning/seeds/SEED-005-authenticated-canonical-regulation-gap-collection.md`。
+- 该 backlog 不能用相近文档、notice 引用或 synthetic answer 替代 canonical source；在补采前，
+  相关 query 继续由 known-gap/no-hit contract 约束。
 
 ## Exit Rule
 
-`Phase 5A` 和 `Phase 5B` 都完成后，`eval` 才算正式拥有 shared golden dataset governance。
-在此之前，Phase 5 umbrella 保持 split 状态。
+`Phase 5A` 和当前 corpus 范围内的 `Phase 5B` 均已完成，`eval` 已正式拥有 shared golden
+dataset governance。后续 source 补采是新 backlog/source-domain work，不改变本 workstream
+completed 状态，除非 shared eval governance 或 current-corpus contract 本身漂移。

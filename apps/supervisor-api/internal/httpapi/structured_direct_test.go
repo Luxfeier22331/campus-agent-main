@@ -11,7 +11,8 @@ func TestStructuredAnswerTextUsesServiceGuideRequiredMaterials(t *testing.T) {
 	answerText := structuredAnswerText(
 		structuredquery.ToolServiceGuideLookup,
 		map[string]any{
-			"outcome": "resolved_current",
+			"outcome":     "resolved_current",
+			"guide_focus": "required_materials",
 			"resolved_service": map[string]any{
 				"display_name": "公费医疗报销办理指南",
 			},
@@ -30,11 +31,36 @@ func TestStructuredAnswerTextUsesServiceGuideRequiredMaterials(t *testing.T) {
 	}
 }
 
+func TestStructuredAnswerTextDoesNotUseServiceGuideMaterialsForProcedureFocus(t *testing.T) {
+	answerText := structuredAnswerText(
+		structuredquery.ToolServiceGuideLookup,
+		map[string]any{
+			"outcome":     "resolved_current",
+			"guide_focus": "procedure",
+			"resolved_service": map[string]any{
+				"display_name": "公费医疗报销办理指南",
+			},
+			"required_materials": []any{
+				map[string]any{"name": "急诊证明", "required": true},
+			},
+		},
+		"completed",
+	)
+
+	if strings.Contains(answerText, "急诊证明") {
+		t.Fatalf("answer_text = %q, must not fallback to materials for procedure focus", answerText)
+	}
+	if answerText != "公费医疗报销办理指南" {
+		t.Fatalf("answer_text = %q, want service title only", answerText)
+	}
+}
+
 func TestStructuredAnswerTextUsesServiceGuideContactRefs(t *testing.T) {
 	answerText := structuredAnswerText(
 		structuredquery.ToolServiceGuideLookup,
 		map[string]any{
-			"outcome": "resolved_current",
+			"outcome":     "resolved_current",
+			"guide_focus": "contact",
 			"resolved_service": map[string]any{
 				"display_name": "公费医疗报销办理指南",
 			},
@@ -76,6 +102,61 @@ func TestStructuredAnswerTextUsesContactDirectoryPoints(t *testing.T) {
 	)
 
 	for _, snippet := range []string{"研究生院招生办公室", "010-68930001"} {
+		if !strings.Contains(answerText, snippet) {
+			t.Fatalf("answer_text = %q, want snippet %q", answerText, snippet)
+		}
+	}
+}
+
+func TestStructuredAnswerTextUsesNoticeSourceCardNotBody(t *testing.T) {
+	answerText := structuredAnswerText(
+		structuredquery.ToolCampusNoticeGet,
+		map[string]any{
+			"outcome":         "resolved_current",
+			"title":           "2026年春假安排通知",
+			"source_url":      "https://www.muc.edu.cn/info/2026-spring-break.htm",
+			"normalized_body": "一、放假时间为 4 月 30 日至 5 月 5 日。",
+			"body_excerpt":    "春假安排短摘要。",
+		},
+		"completed",
+	)
+
+	for _, snippet := range []string{"2026年春假安排通知", "https://www.muc.edu.cn/info/2026-spring-break.htm"} {
+		if !strings.Contains(answerText, snippet) {
+			t.Fatalf("answer_text = %q, want snippet %q", answerText, snippet)
+		}
+	}
+	for _, forbidden := range []string{"一、放假时间", "春假安排短摘要"} {
+		if strings.Contains(answerText, forbidden) {
+			t.Fatalf("answer_text = %q, must not contain notice body/excerpt %q", answerText, forbidden)
+		}
+	}
+}
+
+func TestStructuredAnswerTextUsesAcademicCalendarFacts(t *testing.T) {
+	answerText := structuredAnswerText(
+		structuredquery.ToolAcademicCalendarLookup,
+		map[string]any{
+			"outcome":             "resolved_current",
+			"resolved_date":       "2026-05-04",
+			"week_index":          10,
+			"holiday_name":        "劳动节假期",
+			"class_day_pattern":   "执行周一课表",
+			"is_makeup_class":     true,
+			"term_label":          "春季学期",
+			"academic_year_label": "2025-2026学年",
+		},
+		"completed",
+	)
+
+	for _, snippet := range []string{
+		"2026-05-04是第10教学周",
+		"劳动节假期",
+		"执行周一课表",
+		"当天属于补课安排",
+		"春季学期",
+		"2025-2026学年",
+	} {
 		if !strings.Contains(answerText, snippet) {
 			t.Fatalf("answer_text = %q, want snippet %q", answerText, snippet)
 		}

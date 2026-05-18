@@ -4,6 +4,26 @@ from .authenticated_notice_attachment_fetch_status_worker_test_support import *
 
 
 class AuthenticatedNoticeAttachmentFetchStatusWorkerRecordTest(unittest.TestCase):
+    def test_record_builder_classifies_intentional_reference_only_attachment_without_retry(
+        self,
+    ) -> None:
+        bundle = _bundle_with_missing_attachment()
+        attachment = bundle[0]["attachments"][0]
+        attachment["last_error"] = None
+        attachment["created_at"] = "2026-04-04T01:23:45.000Z"
+        attachment["updated_at"] = "2026-04-04T01:23:45.000Z"
+
+        records = record_worker.build_attachment_fetch_status_records_from_bundle_records(
+            bundle_records=bundle,
+            site_id="muc_internal_portal",
+            observed_at="2026-04-04T01:23:45.000Z",
+        )
+
+        self.assertEqual(len(records), 1)
+        self.assertEqual(records[0].fetch_status, "reference_only")
+        self.assertIsNone(records[0].terminal_reason)
+        self.assertIsNone(records[0].next_retry_after)
+
     def test_record_main_builds_records_from_bundle_and_upserts_status_store(self) -> None:
         store = InMemoryAuthenticatedNoticeAttachmentFetchStatusStore()
         with (

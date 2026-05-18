@@ -6,6 +6,7 @@ from campus_contracts import (
     ALLOWED_REQUESTED_CAPABILITIES,
     AgentRequest,
     SupervisorRequest,
+    WorkflowAgentContext,
 )
 from pydantic import ValidationError
 
@@ -33,6 +34,10 @@ from campus_supervisor_agent_worker.generated.supervisor_execution_contract impo
     RESPONSE_CONTRACT,
     RUNTIME_DECISIONS_SCHEMA_VERSION,
     BridgeV6RequestWire,
+)
+from campus_supervisor_agent_worker.openai_agents_workflow_plan import (
+    OpenAIAgentsWorkflowPlanError,
+    compile_openai_agents_workflow_plan,
 )
 
 
@@ -174,6 +179,10 @@ def _parse_runtime_decisions(
         expected_target=target,
         expected_allowed_tools=allowed_tools,
     )
+    _validate_workflow_plan(
+        decisions.get("workflow_plan"),
+        agent_request=agent_request,
+    )
     _assert_agent_request_matches_supervisor_request(agent_request, request)
     return agent_request, routing_frame
 
@@ -284,8 +293,98 @@ def _parse_agent_handoff_request(
             field_prefix="runtime_decisions.handoff.agent_request.actor",
         ),
         context=parse_bridge_context_projection(request.get("context")),
+        workflow_context=parse_workflow_agent_context(request.get("workflow_context")),
         payload=parse_agent_payload_by_kind(payload_kind, payload),
         allowed_tools=allowed_tools,  # type: ignore[arg-type]
+    )
+
+
+def _validate_workflow_plan(raw_plan: object, *, agent_request: AgentRequest) -> None:
+    if raw_plan is None:
+        raise ValueError("runtime_decisions.workflow_plan must be present for delegate handoff")
+    try:
+        compile_openai_agents_workflow_plan(raw_plan, agent_request=agent_request)
+    except OpenAIAgentsWorkflowPlanError as exc:
+        raise ValueError(
+            f"runtime_decisions.workflow_plan {exc.failure_class}: {exc.message}"
+        ) from exc
+
+
+def parse_workflow_agent_context(raw_context: object) -> WorkflowAgentContext:
+    if raw_context is None:
+        return WorkflowAgentContext()
+    context = require_object(
+        raw_context,
+        field_name="runtime_decisions.handoff.agent_request.workflow_context",
+    )
+    raw_projection_refs = context.get("projection_refs", [])
+    if not isinstance(raw_projection_refs, list):
+        raise ValueError(
+            "runtime_decisions.handoff.agent_request.workflow_context.projection_refs must be an array"
+        )
+    projection_refs = []
+    for item in raw_projection_refs:
+        projection_refs.append(
+            require_object(
+                item,
+                field_name=(
+                    "runtime_decisions.handoff.agent_request.workflow_context.projection_refs[]"
+                ),
+            )
+        )
+    return WorkflowAgentContext(
+        schema_version=(
+            parse_optional_string(
+                context.get("schema_version"),
+                field_name=(
+                    "runtime_decisions.handoff.agent_request.workflow_context.schema_version"
+                ),
+            )
+            or "workflow-agent-context-v1"
+        ),
+        visibility=(
+            parse_optional_string(
+                context.get("visibility"),
+                field_name="runtime_decisions.handoff.agent_request.workflow_context.visibility",
+            )
+            or "agent_private"
+        ),
+        workflow_run_ref=require_string(
+            context.get("workflow_run_ref"),
+            field_name="runtime_decisions.handoff.agent_request.workflow_context.workflow_run_ref",
+        ),
+        step_id=require_string(
+            context.get("step_id"),
+            field_name="runtime_decisions.handoff.agent_request.workflow_context.step_id",
+        ),
+        agent_id=require_string(
+            context.get("agent_id"),
+            field_name="runtime_decisions.handoff.agent_request.workflow_context.agent_id",
+        ),
+        target=(
+            parse_optional_string(
+                context.get("target"),
+                field_name="runtime_decisions.handoff.agent_request.workflow_context.target",
+            )
+            or ""
+        ),
+        required_projection_kind=(
+            parse_optional_string(
+                context.get("required_projection_kind"),
+                field_name=(
+                    "runtime_decisions.handoff.agent_request.workflow_context."
+                    "required_projection_kind"
+                ),
+            )
+            or ""
+        ),
+        expected_output_artifacts=parse_string_tuple(
+            context.get("expected_output_artifacts"),
+            field_name=(
+                "runtime_decisions.handoff.agent_request.workflow_context.expected_output_artifacts"
+            ),
+        ),
+        projection_refs=tuple(projection_refs),
     )
 
 

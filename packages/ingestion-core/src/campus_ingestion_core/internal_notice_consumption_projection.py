@@ -17,9 +17,6 @@ from campus_ingestion_core.campusrag_ingestion_support import S3ObjectStoreWrite
 from campus_ingestion_core.internal_notice_consumption_notice_entries import (
     _build_notice_level_entries,
 )
-from campus_ingestion_core.internal_notice_consumption_notice_heuristics import (
-    _looks_like_service_status_override_notice,
-)
 from campus_ingestion_core.internal_notice_consumption_projection_models import (
     InternalNoticeConsumptionProjectionObjectStore,
 )
@@ -236,7 +233,6 @@ def build_internal_notice_consumption_projection_entries(
             report=report,
             inventory_entry=inventory_entry,
             routing_sample=routing_samples_by_notice.get(report.notice_id),
-            fallback_service_detector=_looks_like_service_status_override_notice,
         ):
             continue
         source_record = source_record_by_lineage.get((report.document_id, report.revision_track))
@@ -263,10 +259,11 @@ def rebuild_internal_notice_consumption_projection(
     admission_batch_id: str = "",
     admission_command: str = "",
     admission_created_at: str = "",
+    dry_run: bool = False,
 ) -> tuple[NoticeConsumptionProjectionEntry, ...]:
     source = dict(env if env is not None else os.environ)
     runtime_request = request or InternalNoticeRegulationPromotionRequest()
-    runtime_projection_store = projection_store or _build_projection_store_with_fallback(source)
+    runtime_projection_store = projection_store or _build_projection_store(source, dry_run=dry_run)
     if (
         not runtime_request.notice_ids
         and not runtime_request.document_ids
@@ -638,13 +635,14 @@ def _load_promotion_body(
     )
 
 
-def _build_projection_store_with_fallback(
+def _build_projection_store(
     env: dict[str, str],
+    *,
+    dry_run: bool,
 ) -> NoticeConsumptionProjectionStore:
-    try:
-        return build_notice_consumption_projection_store_from_env(env)
-    except ValueError:
+    if dry_run:
         return InMemoryNoticeConsumptionProjectionStore()
+    return build_notice_consumption_projection_store_from_env(env)
 
 
 def _index_latest_scope_records(

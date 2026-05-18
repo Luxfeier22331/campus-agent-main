@@ -29,6 +29,10 @@ class AnswerQualityCase:
     forbidden_claims: tuple[str, ...]
     requires_source_url: bool
     requires_source_title: bool
+    required_source_titles: tuple[str, ...] = ()
+    required_source_url_fragments: tuple[str, ...] = ()
+    forbidden_source_title_fragments: tuple[str, ...] = ()
+    forbidden_source_url_fragments: tuple[str, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
@@ -153,6 +157,38 @@ def _evaluate_case(
             "source_title_missing",
             "source title missing",
         )
+    for forbidden_fragment in case.forbidden_source_title_fragments:
+        if _contains_fragment(observation.source_titles, forbidden_fragment):
+            return AnswerQualityResult(
+                case.case_id,
+                False,
+                "forbidden_source_title_present",
+                f"forbidden_source_title_fragment={forbidden_fragment}",
+            )
+    for forbidden_fragment in case.forbidden_source_url_fragments:
+        if _contains_fragment(observation.source_urls, forbidden_fragment):
+            return AnswerQualityResult(
+                case.case_id,
+                False,
+                "forbidden_source_url_present",
+                f"forbidden_source_url_fragment={forbidden_fragment}",
+            )
+    for required_title in case.required_source_titles:
+        if not _contains_fragment(observation.source_titles, required_title):
+            return AnswerQualityResult(
+                case.case_id,
+                False,
+                "required_source_title_missing",
+                f"required_source_title={required_title}",
+            )
+    for required_fragment in case.required_source_url_fragments:
+        if not _contains_fragment(observation.source_urls, required_fragment):
+            return AnswerQualityResult(
+                case.case_id,
+                False,
+                "required_source_url_missing",
+                f"required_source_url_fragment={required_fragment}",
+            )
     return AnswerQualityResult(case.case_id, True, "", "ok")
 
 
@@ -179,6 +215,12 @@ def _parse_case(payload: object) -> AnswerQualityCase:
         forbidden_claims=string_tuple(payload.get("forbidden_claims")),
         requires_source_url=bool(payload.get("requires_source_url")),
         requires_source_title=bool(payload.get("requires_source_title")),
+        required_source_titles=string_tuple(payload.get("required_source_titles")),
+        required_source_url_fragments=string_tuple(payload.get("required_source_url_fragments")),
+        forbidden_source_title_fragments=string_tuple(
+            payload.get("forbidden_source_title_fragments")
+        ),
+        forbidden_source_url_fragments=string_tuple(payload.get("forbidden_source_url_fragments")),
     )
 
 
@@ -188,6 +230,11 @@ def _reject_duplicate_case_ids(case_ids: object) -> None:
         if case_id in seen:
             raise ValueError(f"duplicate answer quality case_id: {case_id}")
         seen.add(case_id)
+
+
+def _contains_fragment(values: tuple[str, ...], fragment: str) -> bool:
+    normalized_fragment = fragment.strip()
+    return bool(normalized_fragment) and any(normalized_fragment in value for value in values)
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -220,3 +267,7 @@ def main(argv: list[str] | None = None) -> int:
     elif args.verbose:
         print(f"answer-quality-contract: {'PASS' if report.passed else 'FAIL'}")
     return 0 if report.passed else 1
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

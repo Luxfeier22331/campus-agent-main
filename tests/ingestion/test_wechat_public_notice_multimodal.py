@@ -12,11 +12,13 @@ from campus_ingestion_core.notice_consumption_projection import (
     NoticeConsumptionProjectionEntry,
 )
 from campus_ingestion_core.wechat_public_notice_multimodal import (
+    ChatCompletionsWeChatPublicNoticeMultimodalProvider,
     InMemoryWeChatPublicNoticeMultimodalAttemptStore,
     WeChatPublicNoticeFetchedInlineImage,
     WeChatPublicNoticeMultimodalAttempt,
     WeChatPublicNoticeMultimodalProviderResult,
     build_wechat_public_notice_inline_image_artifact_keys,
+    build_wechat_public_notice_multimodal_attempt_store_from_env,
     load_wechat_public_notice_inline_image_outcome,
     process_wechat_public_notice_pending_multimodal_entries,
 )
@@ -293,6 +295,59 @@ class WeChatPublicNoticeMultimodalProcessingTest(unittest.TestCase):
         )
         self.assertEqual(len(current_scope_attempts), 1)
         self.assertEqual(current_scope_attempts[0].attempt_number, 1)
+
+    def test_attempt_store_builder_rejects_document_registry_url_without_attempt_or_shared_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "WECHAT_PUBLIC_NOTICE_MULTIMODAL_ATTEMPT_DATABASE_URL or CAMPUS_SHARED_POSTGRES_URL",
+        ):
+            build_wechat_public_notice_multimodal_attempt_store_from_env(
+                {"DOCUMENT_REGISTRY_DATABASE_URL": "postgresql://registry.example/postgres"}
+            )
+
+    def test_attempt_store_builder_rejects_document_registry_operator_url_without_attempt_or_shared_operator_url(
+        self,
+    ) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "WECHAT_PUBLIC_NOTICE_MULTIMODAL_ATTEMPT_OPERATOR_DATABASE_URL or "
+            "CAMPUS_SHARED_POSTGRES_OPERATOR_URL",
+        ):
+            build_wechat_public_notice_multimodal_attempt_store_from_env(
+                {
+                    "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL": (
+                        "postgresql://registry-operator.example/postgres"
+                    )
+                },
+                prefer_operator=True,
+            )
+
+    def test_chat_provider_from_env_requires_wechat_specific_credentials(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY is required",
+        ):
+            ChatCompletionsWeChatPublicNoticeMultimodalProvider.from_env(
+                {
+                    "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_API_KEY": "other-lane-key",
+                    "PROMPT_RUNTIME_MODEL": "gpt-shared",
+                    "PROMPT_RUNTIME_BASE_URL": "https://shared.example/v1",
+                }
+            )
+
+    def test_chat_provider_from_env_requires_wechat_specific_model(self) -> None:
+        with self.assertRaisesRegex(
+            ValueError,
+            "WECHAT_PUBLIC_NOTICE_MULTIMODAL_MODEL is required",
+        ):
+            ChatCompletionsWeChatPublicNoticeMultimodalProvider.from_env(
+                {
+                    "WECHAT_PUBLIC_NOTICE_MULTIMODAL_API_KEY": "test-key",
+                    "INTERNAL_NOTICE_SCHEDULE_IMAGE_OCR_MODEL": "gpt-other-lane",
+                }
+            )
 
 
 class _InMemoryProjectionStore:

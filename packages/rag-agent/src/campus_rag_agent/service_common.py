@@ -78,15 +78,6 @@ def _build_empty_evidence(scope, user_goal: str) -> EvidenceBundle:
     )
 
 
-def _with_query_text(evidence: EvidenceBundle, query_text: str) -> EvidenceBundle:
-    return EvidenceBundle(
-        query_text=query_text,
-        corpus=evidence.corpus,
-        collection=evidence.collection,
-        sources=evidence.sources,
-    )
-
-
 def _execute_retrieval_request_with_callable_retriever(
     retriever: Callable[..., object],
     retrieval_request: RetrievalRequest,
@@ -99,11 +90,16 @@ def _execute_retrieval_request_with_callable_retriever(
         target_version_ids=retrieval_request.target_version_ids,
         target_revision_track=retrieval_request.target_revision_track,
         preferred_document_ids=retrieval_request.preferred_document_ids,
+        focus_detail_labels=retrieval_request.focus_detail_labels,
+        focus_article_nos=retrieval_request.focus_article_nos,
+        focus_clause_nos=retrieval_request.focus_clause_nos,
+        focus_terms=retrieval_request.focus_terms,
         canonical_course_ids=retrieval_request.canonical_course_ids,
         canonical_course_family_ids=retrieval_request.canonical_course_family_ids,
         canonical_program_family_ids=retrieval_request.canonical_program_family_ids,
         authorized_filter=retrieval_request.authorized_filter,
         personalization_hint=retrieval_request.personalization_hint,
+        semantic_hint=retrieval_request.semantic_hint,
         top_k=retrieval_request.top_k,
     )
 
@@ -118,7 +114,15 @@ def _is_official_web_freshness_fail_close(evidence: EvidenceBundle) -> bool:
         return False
     profile = load_runtime_profile(evidence.corpus, evidence.collection)
     return (
-        is_official_web_stable_reference_like_profile(profile)
+        _is_official_web_query_enabled_profile(profile)
         and not profile.supports_freshness_sensitive_queries
         and _is_official_web_freshness_sensitive_query(evidence.query_text)
+    )
+
+
+def _is_official_web_query_enabled_profile(profile) -> bool:
+    return (
+        is_official_web_stable_reference_like_profile(profile)
+        and profile.retrieval_enabled
+        and profile.query_enabled_by_default
     )

@@ -65,6 +65,7 @@ class ProcessingPipelineMetadataAndAuthzTest(unittest.TestCase):
         self.assertEqual(chunk.metadata["split_strategy"], "structure_first")
         self.assertEqual(chunk.metadata["chunk_policy_version"], DEFAULT_CHUNK_POLICY_VERSION)
         self.assertEqual(chunk.metadata["cleaning_policy_version"], DEFAULT_CLEANING_POLICY_VERSION)
+        self.assertEqual(chunk.metadata["source_document_ids"], ["handbook:test-001"])
         self.assertEqual(
             chunk.metadata["display_text"],
             "Student handbook library hours are from 08:00 to 22:00.",
@@ -318,6 +319,31 @@ class ProcessingPipelineMetadataAndAuthzTest(unittest.TestCase):
         self.assertEqual(chunk.visibility_scope, "main")
         self.assertEqual(chunk.visibility_level, "restricted")
 
+    def test_chunk_lineage_payload_rejects_missing_source_document_ids(self) -> None:
+        chunk = IndexableChunk(
+            document_id="handbook:test-authz",
+            revision_track="source-faithful",
+            version_id="v1:test-authz",
+            chunk_id="handbook:test-authz:source-faithful:v1:test-authz:chunk-0001",
+            chunk_order=1,
+            corpus="regulations",
+            collection="student_rules",
+            source_uri="https://campus.example/handbook/test-authz",
+            source_chunk_id="legacy-chunk-001",
+            anchor={"page_start": 1, "page_end": 1},
+            text="Campus notice for enrolled students only.",
+            source_channel="pdf_ocr",
+            is_current=True,
+            parser_version="campusrag-import-v1",
+            embedding_model="Qwen3-Embedding-4B",
+            entitlement_groups=("students",),
+            visibility_scope="main",
+            visibility_level="restricted",
+        )
+
+        with self.assertRaisesRegex(ValueError, "source_document_ids"):
+            _chunk_lineage_payload_defaults(chunk=chunk, metadata={})
+
     def test_build_indexable_chunks_from_jsonl_rejects_doc_version_mismatch(self) -> None:
         record = _make_registry_record()
         structured_payload = "\n".join(
@@ -341,7 +367,7 @@ class ProcessingPipelineMetadataAndAuthzTest(unittest.TestCase):
                 ),
             )
 
-    def test_build_indexable_chunks_from_jsonl_falls_back_to_raw_text(self) -> None:
+    def test_build_indexable_chunks_from_jsonl_rejects_missing_clean_text(self) -> None:
         record = _make_registry_record()
         structured_payload = "\n".join(
             [
@@ -349,24 +375,22 @@ class ProcessingPipelineMetadataAndAuthzTest(unittest.TestCase):
                     {
                         "doc_id": "handbook:test-001",
                         "version_id": "v1:test-001",
-                        "raw_text": "Raw text fallback remains indexable.",
+                        "raw_text": "Raw text must not substitute clean_text.",
                         "anchor": {"page_start": 1, "page_end": 1},
                     }
                 )
             ]
         ).encode("utf-8")
 
-        chunks = build_indexable_chunks_from_jsonl(
-            record=record,
-            structured_jsonl_bytes=structured_payload,
-            chunk_profile=ChunkProfile(
-                chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32
-            ),
-            embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
-        )
-
-        self.assertEqual(len(chunks), 1)
-        self.assertEqual(chunks[0].text, "Raw text fallback remains indexable.")
+        with self.assertRaisesRegex(ValueError, "structured unit must contain clean_text"):
+            build_indexable_chunks_from_jsonl(
+                record=record,
+                structured_jsonl_bytes=structured_payload,
+                chunk_profile=ChunkProfile(
+                    chunk_size=128, max_chunk_size=192, chunk_overlap=16, min_chunk_size=32
+                ),
+                embedding_model=build_mock_embedding_model(MockEmbeddingSettings(embed_dim=8)),
+            )
 
     def test_build_indexable_chunks_from_jsonl_rejects_synthetic_document_summary_row(self) -> None:
         record = _make_registry_record()

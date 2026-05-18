@@ -11,7 +11,6 @@
 	"query_enabled_by_default": false,
 	"supports_freshness_sensitive_queries": false,
 	"freshness_max_age_hours": null,
-	"live_search_fallback_allowed": false,
 	"retrieval_top_k": 3,
 	"qdrant_alias_name": "muc_public_pages",
 	"qdrant_collection_prefix": "muc_public_pages",

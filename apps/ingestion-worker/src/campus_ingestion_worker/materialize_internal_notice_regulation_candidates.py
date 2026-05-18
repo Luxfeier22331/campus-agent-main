@@ -22,6 +22,9 @@ from campus_ingestion_core.internal_notice_regulation_materialization import (
 from campus_ingestion_core.internal_notice_regulation_promotion import (
     InternalNoticeRegulationPromotionRequest,
 )
+from campus_ingestion_core.regulation_rag_release_lane import (
+    InMemoryRegulationRagReleaseCandidateStore,
+)
 
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
@@ -128,6 +131,7 @@ def _build_local_snapshot_runtime(
     return {
         "registry": registry,
         "raw_asset_registry": raw_asset_registry,
+        "rag_release_candidate_store": InMemoryRegulationRagReleaseCandidateStore(),
         "source_truth_inventory_store": inventory_store,
         "object_store": object_store,
     }

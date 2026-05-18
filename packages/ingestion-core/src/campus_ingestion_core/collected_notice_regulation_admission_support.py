@@ -4,6 +4,7 @@ import hashlib
 import json
 import re
 from collections.abc import Mapping
+from datetime import datetime
 from pathlib import Path
 from typing import Any
 
@@ -24,6 +25,8 @@ REGULATION_CLASS_SCOPED = "scoped_rules_candidate"
 REGULATION_CLASS_NEEDS_MULTIMODAL = "needs_multimodal"
 REGULATION_CLASS_WRAPPER_ONLY = "wrapper_only_searchable"
 REGULATION_CLASS_DUPLICATE_HOLD = "duplicate_hold"
+REGULATION_CLASS_HISTORICAL_ANNUAL_CYCLE_HOLD = "historical_annual_cycle_rule_hold"
+REGULATION_CLASS_HISTORICAL_TIME_WINDOW_HOLD = "historical_time_window_rule_hold"
 REGULATION_CLASS_MANUAL_REVIEW = "manual_review"
 REGULATION_CLASS_INVALID_CAPTURE = "invalid_capture"
 
@@ -137,30 +140,18 @@ def _target_hints(unit: Mapping[str, Any]) -> list[str]:
     return [str(value).strip() for value in values if str(value).strip()]
 
 
-def _multimodal_not_ready(
-    unit: Mapping[str, Any],
-    multimodal_candidate_inventory: Mapping[str, Any],
-) -> bool:
-    if _owner_text_status(unit) == "ready":
-        return False
-    if _multimodal_policy(unit) in {"pending", "failed"}:
-        return True
-    unit_id = str(unit.get("unit_id") or "")
-    for row in multimodal_candidate_inventory.get("candidates") or ():
-        if not isinstance(row, Mapping):
-            continue
-        if str(row.get("unit_id") or "") != unit_id:
-            continue
-        if str(row.get("status") or "") in {"pending", "failed"}:
-            return True
-    return False
-
-
 def _multimodal_policy(unit: Mapping[str, Any]) -> str:
     if _owner_text_status(unit) == "ready":
         return "completed"
     status = str(unit.get("multimodal_status") or "").strip()
-    if status in {"not_required", "pending", "completed", "failed"}:
+    if status in {
+        "not_required",
+        "pending",
+        "completed",
+        "failed",
+        "manual_review",
+        "failed_retryable",
+    }:
         return status
     return "not_required"
 
@@ -209,6 +200,82 @@ def _target_collection_for_text(unit: Mapping[str, Any]) -> str:
     if any(keyword in text for keyword in _TIME_BOUND_OPERATIONAL_KEYWORDS):
         return SCOPED_TARGET_COLLECTION
     return INSTITUTIONAL_TARGET_COLLECTION
+
+
+def _is_historical_annual_cycle_rule(
+    unit: Mapping[str, Any],
+    *,
+    generated_at: str,
+) -> bool:
+    if _target_collection_for_text(unit) != SCOPED_TARGET_COLLECTION:
+        return False
+    text = _policy_text(unit)
+    if not any(keyword in text for keyword in _ANNUAL_CYCLE_OR_PROGRAM_RULE_KEYWORDS):
+        return False
+    cycle_year = _cycle_year_int(unit)
+    generated_year = _year_from_text(generated_at)
+    return cycle_year is not None and generated_year is not None and cycle_year < generated_year
+
+
+def _is_historical_time_window_rule(
+    unit: Mapping[str, Any],
+    *,
+    generated_at: str,
+) -> bool:
+    if _target_collection_for_text(unit) != SCOPED_TARGET_COLLECTION:
+        return False
+    text = _policy_text(unit)
+    if not any(keyword in text for keyword in _TIME_BOUND_OPERATIONAL_KEYWORDS):
+        return False
+    cycle_year = _cycle_year_int(unit)
+    generated_year = _year_from_text(generated_at)
+    return cycle_year is not None and generated_year is not None and cycle_year < generated_year
+
+
+def _cycle_year(unit: Mapping[str, Any]) -> str | None:
+    cycle_year = _cycle_year_int(unit)
+    return str(cycle_year) if cycle_year is not None else None
+
+
+def _cycle_year_int(unit: Mapping[str, Any]) -> int | None:
+    for value in (
+        *_structured_cycle_year_values(unit),
+        unit.get("title"),
+        _regulation_title(unit),
+        unit.get("published_at"),
+        unit.get("source_notice_release_time"),
+        unit.get("created_at"),
+        unit.get("body_text"),
+        unit.get("body_excerpt"),
+        unit.get("search_text"),
+    ):
+        year = _year_from_text(value)
+        if year is not None:
+            return year
+    return None
+
+
+def _structured_cycle_year_values(unit: Mapping[str, Any]) -> tuple[object, ...]:
+    values: list[object] = [unit.get("cycle_year")]
+    for key in ("role_metadata", "target_hints"):
+        metadata = unit.get(key)
+        if isinstance(metadata, Mapping):
+            values.append(metadata.get("cycle_year"))
+    return tuple(values)
+
+
+def _year_from_text(value: object) -> int | None:
+    text = str(value or "").strip()
+    if not text:
+        return None
+    try:
+        parsed = datetime.fromisoformat(text.replace("Z", "+00:00"))
+    except ValueError:
+        parsed = None
+    if parsed is not None:
+        return parsed.year
+    match = re.search(r"(?:19|20)\d{2}", text)
+    return int(match.group(0)) if match is not None else None
 
 
 def _has_regulation_body_structure(body: str) -> bool:
@@ -415,6 +482,8 @@ def _load_json_object(path: Path) -> dict[str, Any]:
 __all__ = [
     "INSTITUTIONAL_TARGET_COLLECTION",
     "REGULATION_CLASS_DUPLICATE_HOLD",
+    "REGULATION_CLASS_HISTORICAL_ANNUAL_CYCLE_HOLD",
+    "REGULATION_CLASS_HISTORICAL_TIME_WINDOW_HOLD",
     "REGULATION_CLASS_INSTITUTIONAL",
     "REGULATION_CLASS_INVALID_CAPTURE",
     "REGULATION_CLASS_MANUAL_REVIEW",
@@ -425,15 +494,17 @@ __all__ = [
     "SCOPED_TARGET_COLLECTION",
     "_candidate_key",
     "_coerce_recovered_owner_text_payload",
+    "_cycle_year",
     "_has_formal_owner_title",
     "_has_regulation_body_structure",
+    "_is_historical_annual_cycle_rule",
+    "_is_historical_time_window_rule",
     "_issuing_org",
     "_load_json_object",
     "_looks_like_draft_or_operational_scheme",
     "_looks_like_regulation_candidate",
     "_looks_like_wrapper_notice",
     "_mapping_rows",
-    "_multimodal_not_ready",
     "_multimodal_policy",
     "_owner_text_status",
     "_policy_text",

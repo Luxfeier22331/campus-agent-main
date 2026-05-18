@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-03-29
-updated: 2026-04-02
+updated: 2026-05-01
 ---
 # Official Web Collector Smoke And Audit
 
@@ -31,22 +31,22 @@ updated: 2026-04-02
   contract：`docs/data/official-web-source-truth-schema.md`
 - control-plane / app-api 契约：`docs/contracts/app-api-official-web-http.md`
 
-## 0. 双轨执行面
+## 0. 执行面
 
-当前 repo 对 `official_web` 固定采用两条执行面，外加一条单独的 scheduler 判断：
+当前 repo 对 `official_web` 固定采用 target-first 执行面：
 
-- stable regression gate 固定 5-host 回归面，用于 extractor、QC 规则、projection replay
-  的稳定性回归
-- low-budget expansion batch 面向已 allowlisted 但不在 stable gate 里的 host；先用低预算 batch
-  验证 source-truth 和 replay，不直接扩大范围
-- scheduler / hot lane promotion 单独的 control-plane / freshness 决策；不由 stable gate
-  或 expansion batch 自动推出
+- default live seam 是 `app-api target workset -> collector -> object storage ->
+  app-api drain -> ingestion staging`，不写 current read model 或 retrieval alias。
+- package regression gate 继续覆盖 extractor、QC、source-truth、planner 和
+  projection replay 的稳定性。
+- collector 不再提供 broad-crawl / debug bypass 入口；没有 app-api target workset
+  admission 时必须 fail closed。
 
-三者必须明确区分：
+必须明确区分：
 
-- host 已写进 `hosts.json` / `seeds.json` 不等于已经通过 stable regression gate
-- host 已完成一次 expansion batch 不等于已经进入 `scheduler-policy.json`
-- host 已通过 source-truth QC + projection replay 也不等于可以直接进入 `hot lane`
+- host 已写进 `hosts.json` / `seeds.json` 只表示 source capability，不表示 collection target。
+- `--host` 只能缩小 app-api 返回的 target workset，不能单独创建采集范围。
+- consumer-denominator 是 retain/review gate，不再是默认 frontier owner。
 
 ## 前置条件
 
@@ -64,7 +64,7 @@ updated: 2026-04-02
 - `apps/app-api/.dev.vars` `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` 非空
 - `apps/app-api/.env` 已提供
   `CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB` 与
-  `APP_API_OPERATOR_DATABASE_URL`（legacy `APP_API_MANAGEMENT_DATABASE_URL` 仍兼容）
+  `APP_API_OPERATOR_DATABASE_URL`
 - 如果 root worktree `.env` 已配置共享 Supabase Postgres，可先运行 `uv run --all-packages
   python -m scripts.sync_app_api_local_db_env --repo-root
   <current-worktree-root>`
@@ -84,6 +84,39 @@ updated: 2026-04-02
 - `APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN` / `OFFICIAL_WEB_SERVICE_TOKEN` 只保护
   `official-web-collector -> app-api` 这条 live control-plane seam，不参与当前最小
   chat/panel/app-api staging 闭环
+
+## 0.1 Target-First No-Promotion Live Seam
+
+本地/dev 真实 seam 使用一个明确的 target candidate，不从 host allowlist 或 seeds 推导 broad
+frontier：
+
+```bash
+pnpm --dir apps/app-api db:migrate
+
+uv run --all-packages python scripts/official_web_live_seam_no_promotion.py \
+  --site-id muc_public \
+  --host xxgk.muc.edu.cn \
+  --target-id campus-services-service-guide \
+  --target-url https://xxgk.muc.edu.cn/info/1007/1113.htm \
+  --max-pages-per-host 1 \
+  --max-total-pages 1
+```
+
+成功报告会写入：
+
+```text
+var/official-web-live-seam/<local-run-id>/seam-report.json
+```
+
+这份 evidence 必须同时证明：
+
+- target seed、target job id、target candidate id 与 target URL 明确。
+- collector retained source-truth page count 大于 `0`。
+- app-api `target_page_attempts` 至少有一条当前 run 的 attempt。
+- ingestion execution 停在 `staged`，promotion decision 为 `staged`。
+- `import` 与 `error` 都是 `null`。
+- target-family counts / target materialization-policy counts 非空，target-lineage
+  issues 为空。
 
 ## 1. 包级回归
 
@@ -147,33 +180,8 @@ pnpm --dir apps/protected-panel-web test
 - 当前 CLI smoke 主要覆盖 artifact/source-truth 产出
 - planner/control-plane 路径优先由单元测试和集成测试收口，而不是在 CLI 里手工伪造数据库状态
 
-如果要做 live seam 复验，可先启动本地 `app-api`：
-
-```bash
-pnpm --dir apps/app-api dev
-```
-
-`wrangler dev` 会打印实际监听端口。下面示例使用 `<http://127.0.0.1:8790`，但应以终端实际输出为准。>
-
-然后再让 collector 指向本地 control-plane，并至少跑一轮单 host smoke + validator：
-
-```bash
-pnpm --dir apps/official-web-collector crawl -- \
-  --site-id muc_public \
-  --crawl-run-id smoke-20260330-control-plane \
-  --host www.muc.edu.cn \
-  --max-pages-per-host 1 \
-  --max-total-pages 1 \
-  --output-dir /tmp/official-web-control-plane \
-  --app-api-base-url http://127.0.0.1:8790 \
-  --service-token "$OFFICIAL_WEB_SERVICE_TOKEN"
-
-pnpm --dir apps/official-web-collector validate -- --output-dir \
-  /tmp/official-web-control-plane --json
-```
-
-如果这轮 live seam 需要同时确认 operator query surface，可在 collector finalize 后手动 drain 一次
-`app-api` `official_web` projection：
+如果只需要复验 app-api drain，可在 collector finalize 后手动 drain 一次 `official_web`
+projection：
 
 ```bash
 pnpm --dir apps/app-api official-web:drain-projection -- --limit 50
@@ -203,7 +211,7 @@ uv run --all-packages campus-ingestion-official-web-handoff-dev
 然后在另一终端临时覆盖 `app-api` handoff env 再 drain：
 
 ```bash
-APP_API_OFFICIAL_WEB_HANDOFF_URL=http://127.0.0.1:8789/api/official-web/ \
+APP_API_OFFICIAL_WEB_HANDOFF_URL=http://127.0.0.1:27041/api/official-web/ \
 handoffs \
 APP_API_OFFICIAL_WEB_HANDOFF_TOKEN=replace-with-local-official-web- \
 handoff-secret \

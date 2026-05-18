@@ -1,5 +1,4 @@
 import { describe, expect, it } from "vitest";
-import turnstileSource from "../src/platform/auth/turnstile.tsx?raw";
 import appFrameSource from "../src/platform/chat/app-frame.tsx?raw";
 import multimodalInputSource from "../vendor/vercel-ai-chatbot/components/chat/multimodal-input.tsx?raw";
 import sheetEditorSource from "../vendor/vercel-ai-chatbot/components/chat/sheet-editor.tsx?raw";
@@ -31,9 +30,6 @@ describe("public chat theme posture", () => {
 	});
 
 	it("uses fixed light integrations for runtime surfaces that previously followed theme state", () => {
-		expect(turnstileSource).toContain('theme: "light"');
-		expect(turnstileSource).not.toContain('theme: "auto"');
-
 		expect(sheetEditorSource).not.toContain('from "next-themes"');
 		expect(sheetEditorSource).toContain('className="rdg-light"');
 		expect(sheetEditorSource).not.toContain("rdg-dark");

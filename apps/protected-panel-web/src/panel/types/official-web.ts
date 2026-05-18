@@ -99,6 +99,212 @@ export interface OfficialWebRunRecord extends RawOfficialWebRunRecord {
 	pageChanges?: OfficialWebPageChangeRecord[];
 }
 
+export interface RawOfficialWebTargetJobArtifactVerificationSummary {
+	canonicalVerification: boolean;
+	objectVerificationId: string | null;
+	sourceHandoffId: string | null;
+	status: string;
+	updatedAt: string;
+}
+
+export interface RawOfficialWebTargetJobRecord {
+	artifactVerificationSummary: RawOfficialWebTargetJobArtifactVerificationSummary | null;
+	attemptCount: number;
+	candidateCount: number;
+	consumerFamily: string;
+	createdAt: string;
+	declarationVersion: string;
+	id: string;
+	idempotencyKey?: string;
+	inventoryOnly: boolean;
+	latestRunId: string | null;
+	materializationPolicy: string;
+	ownerSurface: string;
+	requiredEvidence: string[];
+	retentionPolicy: string;
+	reviewPolicy: string;
+	selectedWriteTarget: string;
+	siteId: string;
+	sourceHosts: string[];
+	status: string;
+	targetId: string;
+	titleHints: string[];
+	updatedAt: string;
+	urlHints: string[];
+}
+
+export type OfficialWebTargetInventoryReviewState =
+	| "candidate"
+	| "previewed"
+	| "blocked_fields"
+	| "blocked_lineage"
+	| "blocked_source"
+	| "inventory_only"
+	| "ready_for_selected_write"
+	| "excluded";
+
+export type OfficialWebTargetInventoryFieldStatus =
+	| "ambiguous"
+	| "missing"
+	| "not_applicable"
+	| "present"
+	| "source_not_provided";
+
+export interface RawOfficialWebTargetInventoryPreviewEvidence {
+	appApiRunId: string;
+	currentTruthImportWasNull: boolean;
+	ingestionStatus: string;
+	inventoryId: string;
+	promotionDecision: string;
+	rawAssetId: string;
+	rawVersionId: string;
+	sourceObjectKeys: string[];
+	targetAttemptId: string;
+	targetJobId: string;
+}
+
+export interface RawOfficialWebTargetInventoryRecord {
+	admissionTargetId: string;
+	consumerFamily: string;
+	fieldStatus: Record<string, OfficialWebTargetInventoryFieldStatus>;
+	id: string;
+	inventoryId: string;
+	ownerSurface: string;
+	optionalEvidence: string[];
+	optionalFields: string[];
+	previewEvidence: RawOfficialWebTargetInventoryPreviewEvidence | null;
+	releaseBlockers: string[];
+	requiredEvidence: string[];
+	requiredFields: string[];
+	reviewState: OfficialWebTargetInventoryReviewState;
+	selectedWriteTarget: string;
+	sourceUrls: string[];
+	targetLabel: string;
+}
+
+export interface OfficialWebTargetInventoryRecord extends RawOfficialWebTargetInventoryRecord {}
+
+export interface RawOfficialWebTargetInventoryListResponse {
+	entries: RawOfficialWebTargetInventoryRecord[];
+	page: {
+		nextCursor: string | null;
+	};
+	summary: {
+		countsByReviewState: Partial<Record<OfficialWebTargetInventoryReviewState, number>>;
+		inventoryVersion: string;
+		siteId: string;
+	};
+}
+
+export interface RawOfficialWebTargetJobCandidateRecord {
+	candidateId: string;
+	createdAt: string;
+	eligibilityReason: string;
+	normalizedCandidateUrl: string;
+	priorityScore: number;
+	sourceHost: string;
+	status: string;
+	titleHint: string | null;
+	updatedAt: string;
+	urlHint: string | null;
+}
+
+export interface RawOfficialWebTargetPageAttemptRecord {
+	artifactCaptured: boolean;
+	attemptId: string;
+	attemptStatus: string;
+	attemptedAt: string;
+	candidateId: string | null;
+	completedAt: string | null;
+	httpStatus: number | null;
+	normalizedCanonicalUrl: string;
+	runId: string | null;
+}
+
+export interface RawOfficialWebTargetArtifactVerificationDetail
+	extends RawOfficialWebTargetJobArtifactVerificationSummary {
+	runId: string | null;
+	summary: Record<string, unknown>;
+	summaryId: string;
+}
+
+export interface RawOfficialWebTargetJobDetailRecord {
+	artifactVerificationSummaries: RawOfficialWebTargetArtifactVerificationDetail[];
+	attempts: RawOfficialWebTargetPageAttemptRecord[];
+	candidates: RawOfficialWebTargetJobCandidateRecord[];
+	job: RawOfficialWebTargetJobRecord;
+}
+
+export interface OfficialWebTargetJobRecord extends RawOfficialWebTargetJobRecord {
+	artifactVerificationSummaries?: RawOfficialWebTargetArtifactVerificationDetail[];
+	attempts?: RawOfficialWebTargetPageAttemptRecord[];
+	candidates?: RawOfficialWebTargetJobCandidateRecord[];
+	job?: RawOfficialWebTargetJobRecord;
+}
+
+export interface OfficialWebReleaseTaskTimelineEvent {
+	eventId?: string | null;
+	occurredAt: string;
+	payload?: Record<string, unknown>;
+	stage: string;
+	status: string;
+	summary: string;
+}
+
+export interface RawOfficialWebReleaseTaskRecord {
+	attemptCount: number;
+	createdAt: string;
+	freshnessStatus: "fresh" | "stale" | "unknown";
+	id: string;
+	inputSummary: Record<string, unknown>;
+	inventoryId: string;
+	jobId: string;
+	lastErrorCode: string | null;
+	lastErrorMessage: string | null;
+	latestStage: string;
+	lifecycleStatus: string;
+	maxAttempts: number;
+	observedAgeSeconds: number | null;
+	outputSummary: Record<string, unknown>;
+	producerVersion: string;
+	projectedAt: string;
+	redactionVersion: string;
+	runId: string;
+	schemaVersion: string;
+	selectedWriteTarget: string | null;
+	sourceChannel: string;
+	staleAfterSeconds: number;
+	staleReasonCode: string | null;
+	taskId: string;
+	taskType: string;
+	timeline: OfficialWebReleaseTaskTimelineEvent[];
+	updatedAt: string;
+}
+
+export interface OfficialWebReleaseTaskRecord extends RawOfficialWebReleaseTaskRecord {}
+
+export interface RawOfficialWebReleaseTaskListResponse {
+	page: {
+		nextCursor: string | null;
+	};
+	tasks: RawOfficialWebReleaseTaskRecord[];
+}
+
+export interface RawOfficialWebReleaseTaskDetailResponse {
+	task: RawOfficialWebReleaseTaskRecord;
+}
+
+export interface RawOfficialWebTargetJobListResponse {
+	jobs: RawOfficialWebTargetJobRecord[];
+	page: {
+		nextCursor: string | null;
+	};
+}
+
+export interface RawOfficialWebTargetJobDetailResponse {
+	targetJob: RawOfficialWebTargetJobDetailRecord;
+}
+
 export interface RawOfficialWebRunListResponse {
 	page: {
 		nextCursor: string | null;
@@ -189,6 +395,33 @@ export function normalizeOfficialWebRunRecord(
 	};
 }
 
+export function normalizeOfficialWebTargetJobRecord(
+	input: RawOfficialWebTargetJobRecord,
+): OfficialWebTargetJobRecord {
+	return {
+		...input,
+		id: input.id,
+	};
+}
+
+export function normalizeOfficialWebTargetInventoryRecord(
+	input: RawOfficialWebTargetInventoryRecord,
+): OfficialWebTargetInventoryRecord {
+	return {
+		...input,
+		id: input.id || input.inventoryId,
+	};
+}
+
+export function normalizeOfficialWebReleaseTaskRecord(
+	input: RawOfficialWebReleaseTaskRecord,
+): OfficialWebReleaseTaskRecord {
+	return {
+		...input,
+		id: input.id || input.taskId,
+	};
+}
+
 export function normalizeOfficialWebSiteRecord(
 	input: RawOfficialWebSiteRecord,
 ): OfficialWebSiteRecord {
@@ -217,5 +450,17 @@ export function normalizeOfficialWebRunDetailRecord(
 		...normalizeOfficialWebRunRecord(input.run),
 		pageChangeSummary: input.pageChangeSummary,
 		pageChanges: input.pageChanges.map(normalizeOfficialWebPageChangeRecord),
+	};
+}
+
+export function normalizeOfficialWebTargetJobDetailRecord(
+	input: RawOfficialWebTargetJobDetailRecord,
+): OfficialWebTargetJobRecord {
+	return {
+		...normalizeOfficialWebTargetJobRecord(input.job),
+		artifactVerificationSummaries: input.artifactVerificationSummaries,
+		attempts: input.attempts,
+		candidates: input.candidates,
+		job: input.job,
 	};
 }

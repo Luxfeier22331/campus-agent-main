@@ -12,6 +12,54 @@ from campus_evals.answer_quality_contract import (
     run_answer_quality_contract_profile,
 )
 
+from tests.evals.retrieval_benchmark_test_support import (
+    INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH,
+)
+
+INSTITUTIONAL_RULES_ANSWER_CASES_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "evals"
+    / "fixtures"
+    / "institutional_rules_answer_quality_cases.v1.json"
+)
+STUDENT_RULES_ANSWER_CASES_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "evals"
+    / "fixtures"
+    / "student_rules_answer_quality_cases.v1.json"
+)
+CURRICULUM_PLAN_ANSWER_CASES_PATH = (
+    Path(__file__).resolve().parents[2]
+    / "packages"
+    / "evals"
+    / "fixtures"
+    / "curriculum_plan_answer_quality_cases.v1.json"
+)
+
+SELECTED_RE_ADMITTED_SCHOOL_LEVEL_TITLES = frozenset(
+    {
+        "中央民族大学优秀研究生导师、优秀研究生导师团队评选办法（试行）",
+        "中央民族大学党建工作考核办法（试行）",
+        "中央民族大学双学士学位复合型人才培养项目实施管理暂行办法",
+        "中央民族大学学生参加国际外语水平考试暨国际化培养项目奖励暂行办法",
+        "中央民族大学招募选拔 “中国青年志愿者扶贫接力计划研究生支教团”成员规定",
+        "中央民族大学接收校内外优秀应届本科毕业生免试攻读博士研究生工作办法（试行）",
+        "中央民族大学本科课程临时调(停)课管理办法",
+        "中央民族大学研究生“三助”工作管理办法",
+        "中央民族大学研究生学位论文评阅办法（试行）",
+        "中央民族大学研究生涉密学位论文管理办法（试行）",
+        "中央民族大学硕博连读研究生招生实施办法（试行）",
+        "中央民族大学推荐优秀应届本科毕业生免试攻读硕士学位研究生管理办法",
+    }
+)
+EXCLUDED_SCOPED_RULE_TITLES = frozenset(
+    {
+        "中央民族大学2026届推荐应届本科毕业生免试攻读硕士学位研究生实施办法",
+    }
+)
+
 
 class AnswerQualityContractSuite(unittest.TestCase):
     def test_evaluator_checks_required_facts_forbidden_claims_and_source_url(self) -> None:
@@ -69,6 +117,127 @@ class AnswerQualityContractSuite(unittest.TestCase):
         self.assertTrue(report.passed)
         self.assertEqual(payload["profile_id"], "answer_quality_contract")
         self.assertEqual(payload["summary"]["failed"], 0)
+
+    def test_evaluator_enforces_required_and_forbidden_source_identity(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            cases_path = Path(tmpdir) / "cases.json"
+            cases_path.write_text(
+                json.dumps(
+                    {
+                        "schema_version": 1,
+                        "case_family": "answer_quality_contract.v1",
+                        "cases": [
+                            {
+                                "case_id": "institutional-rules-source-identity",
+                                "split": "release_gate",
+                                "surface": "rag_regulation_answer",
+                                "required_facts": ["学生社团"],
+                                "forbidden_claims": [],
+                                "requires_source_url": True,
+                                "requires_source_title": True,
+                                "required_source_titles": ["中央民族大学学生社团管理办法"],
+                                "required_source_url_fragments": [
+                                    "/docs/regulations/institutional_rules/"
+                                ],
+                                "forbidden_source_title_fragments": [
+                                    "历史文化学院2021年硕博连读博士研究生"
+                                ],
+                                "forbidden_source_url_fragments": [
+                                    "/docs/regulations/scoped_rules/",
+                                    "campusrag://promotion/internal_notice_scoped_rules/",
+                                ],
+                            }
+                        ],
+                    },
+                    ensure_ascii=False,
+                ),
+                encoding="utf-8",
+            )
+
+            case_set = load_answer_quality_cases(cases_path)
+
+        scoped_source_report = evaluate_answer_quality_cases(
+            case_set.cases,
+            {
+                "institutional-rules-source-identity": AnswerQualityObservation(
+                    case_id="institutional-rules-source-identity",
+                    answer_text="学生社团应按制度要求接受管理。",
+                    source_urls=(
+                        "campusrag://promotion/internal_notice_scoped_rules/notice:muc_internal_portal:187004",
+                    ),
+                    source_titles=("历史文化学院2021年硕博连读博士研究生 招生实施细则",),
+                )
+            },
+        )
+        missing_institutional_report = evaluate_answer_quality_cases(
+            case_set.cases,
+            {
+                "institutional-rules-source-identity": AnswerQualityObservation(
+                    case_id="institutional-rules-source-identity",
+                    answer_text="学生社团应按制度要求接受管理。",
+                    source_urls=("/docs/regulations/institutional_rules/other",),
+                    source_titles=("其他来源",),
+                )
+            },
+        )
+
+        self.assertEqual(
+            scoped_source_report.results[0].failure_class,
+            "forbidden_source_title_present",
+        )
+        self.assertEqual(
+            missing_institutional_report.results[0].failure_class,
+            "required_source_title_missing",
+        )
+
+    def test_institutional_rules_answer_quality_cases_cover_all_released_titles(
+        self,
+    ) -> None:
+        case_set = load_answer_quality_cases(INSTITUTIONAL_RULES_ANSWER_CASES_PATH)
+        manifest = json.loads(
+            INSTITUTIONAL_RULES_RETRIEVAL_EVAL_MANIFEST_PATH.read_text(encoding="utf-8")
+        )
+        released_titles = {item["title"] for item in manifest["documents"]}
+        covered_titles = {title for case in case_set.cases for title in case.required_source_titles}
+
+        self.assertEqual(len(released_titles), 42)
+        self.assertTrue(SELECTED_RE_ADMITTED_SCHOOL_LEVEL_TITLES.issubset(released_titles))
+        self.assertTrue(EXCLUDED_SCOPED_RULE_TITLES.isdisjoint(released_titles))
+        self.assertTrue(all(case.split == "regression_locked" for case in case_set.cases))
+        self.assertEqual(covered_titles, released_titles)
+        self.assertTrue(
+            all(
+                "/docs/regulations/institutional_rules/" in case.required_source_url_fragments
+                for case in case_set.cases
+            )
+        )
+        self.assertTrue(
+            all(
+                "/docs/regulations/scoped_rules/" in case.forbidden_source_url_fragments
+                for case in case_set.cases
+            )
+        )
+
+    def test_current_corpus_answer_quality_cases_cover_student_rules_and_curriculum(self) -> None:
+        student_cases = load_answer_quality_cases(STUDENT_RULES_ANSWER_CASES_PATH)
+        curriculum_cases = load_answer_quality_cases(CURRICULUM_PLAN_ANSWER_CASES_PATH)
+
+        self.assertGreaterEqual(len(student_cases.cases), 5)
+        self.assertGreaterEqual(len(curriculum_cases.cases), 5)
+        self.assertTrue(
+            all(case.surface == "rag_student_rules_answer" for case in student_cases.cases)
+        )
+        self.assertTrue(
+            all(case.surface == "rag_curriculum_plan_answer" for case in curriculum_cases.cases)
+        )
+        student_titles = {
+            title for case in student_cases.cases for title in case.required_source_titles
+        }
+        curriculum_titles = {
+            title for case in curriculum_cases.cases for title in case.required_source_titles
+        }
+        self.assertIn("中央民族大学本科创新教育实施办法", student_titles)
+        self.assertIn("民族学本科人才培养方案", curriculum_titles)
 
 
 if __name__ == "__main__":

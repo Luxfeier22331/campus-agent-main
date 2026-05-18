@@ -120,6 +120,8 @@ class CollectedNoticeRegulationOwnerTextExecutionTests(unittest.TestCase):
         )
         self.assertEqual(closeout["results"][0]["candidate_id"], attempt["candidate_id"])
         self.assertEqual(closeout["results"][0]["status"], "completed")
+        self.assertEqual(closeout["results"][0]["attempt_id"], attempt["attempt_id"])
+        self.assertEqual(closeout["results"][0]["attempt_number"], 1)
 
         writes = object_store.writes_by_key()
         provider_key = attempt["normalized_output_refs"]["provider_response"]["key"]  # type: ignore[index]

@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-28
-updated: 2026-04-12
+updated: 2026-05-01
 ---
 # Official Web Source-Truth Schema
 
@@ -57,6 +57,16 @@ upstream，而不是让 downstream 永远依赖某个 parser 的原始输出或�
   source-level hints 保留，用于批次审计与 projection 选择，但它们不是 chunk / retrieval contract。
 - page freshness、crawl cadence、lane priority 与 downstream dispatch status 不属于
   source-truth schema；它们属于 control-plane truth。
+- consumer-denominator metadata 是 recovery/admission hint，只说明本页为何被 retained；
+  它不是 current read-model truth，也不是 serving alias truth。
+- target-source-map 是采集准入 contract，不是 page source-truth 本身。它的 runtime
+  model 使用 camelCase 字段：`targetId`、`consumerFamily`、`ownerSurface`、
+  `selectedWriteTarget`、`sourceHosts`、`urlHints`、`titleHints`、
+  `requiredEvidence`、`optionalEvidence`、`retentionPolicy`、`reviewPolicy`、
+  `materializationPolicy`、`inventoryOnly`。
+- repo-tracked `target-source-map.json` 继续使用 snake_case 输入字段；其中
+  `url_hints` / `title_hints` 是 pre-fetch eligibility hints，`retention_policy` /
+  `review_policy` / `materialization_policy` / `inventory_only` 冻结 target 的下游语义。
 
 ## Canonical 形态
 
@@ -225,6 +235,31 @@ source-truth pipeline:
 - `host_policy_version`
 - `crawl_policy_version`
 - `credentials_mode`
+
+### E. Consumer-Denominator Recovery Hints
+
+当 collector 运行在 consumer-denominator recovery 模式时，`page-manifest.json` 可以包含：
+
+- `consumer_denominator_version`
+- `consumer_matches`
+- `consumer_retention_decision`
+- `consumer_rejection_reason`
+
+这些字段只属于 source-level recovery hint：
+
+- `consumer_matches` 记录命中的 downstream candidate family、owner surface、materialization
+  policy、matched evidence、selected write target 与 review policy
+- `matched_evidence` 可以来自该 family 的 required 或 optional evidence；它只说明 retained
+  source-truth 的来源理由，不等同于 selected-write readiness
+- `consumer_retention_decision` 允许 `retain_source_truth`、`discovery_only`、`reject`
+- `consumer_rejection_reason` 只用于 run audit 与 rule tuning
+- 下游是否写 current read model 由 ingestion selected-write/release gate 决定，不由这些字段直接决定
+
+selected-write 机器评审使用独立 field status：
+
+- required 字段/证据缺失记录为 `missing` 并阻塞 release
+- optional 字段/证据缺失记录为 `source_not_provided`，保留为 operator 可见事实，但不阻塞
+  release
 
 `discovery_method` 允许值固定为：
 

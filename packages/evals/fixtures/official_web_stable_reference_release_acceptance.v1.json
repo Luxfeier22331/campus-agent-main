@@ -1,0 +1,50 @@
+{
+	"schema_version": "official_web_stable_reference_release_acceptance_v1",
+	"source_fixture": "official_web_stable_reference_retrieval_qrels.json",
+	"corpus": "official_web",
+	"collection": "stable_reference",
+	"gate_policy": "doc-level publish smoke gate; formal benchmark qrels remain in official_web_stable_reference_retrieval_qrels.json",
+	"cases": [
+		{
+			"case_id": "stable-reference-school-profile",
+			"corpus": "official_web",
+			"collection": "stable_reference",
+			"query": "中央民族大学学校简介",
+			"top_k": 3,
+			"expected_document_ids": [
+				"official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487"
+			],
+			"expected_version_ids": ["owdocver:239b3237c2259702ed1fe2955afe869303e943f6"]
+		},
+		{
+			"case_id": "stable-reference-teaching-research-units",
+			"corpus": "official_web",
+			"collection": "stable_reference",
+			"query": "中央民族大学教学和科研单位有哪些",
+			"top_k": 3,
+			"expected_document_ids": [
+				"official_web:muc_public:directory_page:b8993ee7004c02e028bc5f6bb166e26ac4eb5afc"
+			],
+			"expected_version_ids": ["owdocver:043d9feb870de5219c0ff7de6bd065f9adc8b4c0"]
+		},
+		{
+			"case_id": "stable-reference-fee-disclosure",
+			"corpus": "official_web",
+			"collection": "stable_reference",
+			"query": "中央民族大学大学教育收费公示表",
+			"top_k": 3,
+			"expected_document_ids": [
+				"official_web:muc_public:directory_page:9d7917bb1eb39649f02c6285c51280d811790cae"
+			],
+			"expected_version_ids": ["owdocver:493b69ab0ae0b4ec0173a18801ef809b4c694f1b"]
+		},
+		{
+			"case_id": "stable-reference-no-hit-fictional-service",
+			"corpus": "official_web",
+			"collection": "stable_reference",
+			"query": "中央民族大学火星校区宇宙签证办理处",
+			"top_k": 3,
+			"expected_no_hit": true
+		}
+	]
+}

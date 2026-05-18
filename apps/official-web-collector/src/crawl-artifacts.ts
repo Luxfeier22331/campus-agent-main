@@ -173,15 +173,23 @@ export function buildRunSourceTruthBundle(
 	siteId: string,
 	crawlRunId: string,
 	pages: CollectedPageArtifact[],
+	options: {
+		collectionMode?: "target-workset";
+	} = {},
 ): OfficialWebSourceTruthBundle {
 	return buildOfficialWebSourceTruthBundle({
 		siteId,
 		crawlRunId,
+		collectionMode: options.collectionMode,
 		pages: pages.map((page) => ({
 			rawAssetId: page.rawAssetId,
 			rawVersionId: page.rawVersionId,
 			normalizedCanonicalUrl: page.pageManifest.normalizedCanonicalUrl,
 			pageFamily: page.pageManifest.pageFamily,
+			sourcePackId: page.pageManifest.sourcePackId,
+			sourcePackEntryId: page.pageManifest.sourcePackEntryId,
+			compositionGroup: page.pageManifest.compositionGroup,
+			compositionRole: page.pageManifest.compositionRole,
 			pageManifestObjectKey: findPageFileObjectKey(page, "source-truth/page-manifest.json"),
 			contentBlocksObjectKey: findPageFileObjectKey(page, "source-truth/content-blocks.jsonl"),
 			providerExtractionObjectKey: findPageFileObjectKey(
@@ -195,6 +203,16 @@ export function buildRunSourceTruthBundle(
 			responseHtmlObjectKey: findPageFileObjectKey(page, "capture/response.html"),
 			responseBodyHash: page.pageManifest.responseBodyHash,
 			blockCount: page.contentBlocks.length,
+			consumerMatches: page.pageManifest.consumerMatches ?? [],
+			consumerRetentionDecision: page.pageManifest.consumerRetentionDecision,
+			consumerRejectionReason: page.pageManifest.consumerRejectionReason ?? null,
+			targetJobId: page.pageManifest.targetJobId,
+			targetCandidateId: page.pageManifest.targetCandidateId,
+			targetDeclarationVersion: page.pageManifest.targetDeclarationVersion,
+			targetMatches: page.pageManifest.targetMatches,
+			materializationPolicy: page.pageManifest.materializationPolicy,
+			selectedWriteTarget: page.pageManifest.selectedWriteTarget,
+			reviewPolicy: page.pageManifest.reviewPolicy,
 		})),
 	});
 }

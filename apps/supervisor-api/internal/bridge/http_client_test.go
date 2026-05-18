@@ -23,6 +23,21 @@ func TestHTTPClientExecuteCallsPrivateBridgeEndpoint(t *testing.T) {
 				request.Header.Get("x-supervisor-bridge-auth"),
 			)
 		}
+		if request.Header.Get("traceparent") != "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01" {
+			t.Fatalf("traceparent = %q", request.Header.Get("traceparent"))
+		}
+		if request.Header.Get("baggage") != "release=phase1" {
+			t.Fatalf("baggage = %q", request.Header.Get("baggage"))
+		}
+		if request.Header.Get("x-request-id") != "req-001" {
+			t.Fatalf("x-request-id = %q", request.Header.Get("x-request-id"))
+		}
+		if request.Header.Get("x-trace-id") != "trace-001" {
+			t.Fatalf("x-trace-id = %q", request.Header.Get("x-trace-id"))
+		}
+		if request.Header.Get("authorization") != "" {
+			t.Fatal("authorization header must not be propagated from trace headers")
+		}
 		body, err := io.ReadAll(request.Body)
 		if err != nil {
 			t.Fatalf("read body: %v", err)
@@ -40,6 +55,13 @@ func TestHTTPClientExecuteCallsPrivateBridgeEndpoint(t *testing.T) {
 	client := NewHTTPClient(server.URL, "bridge-secret")
 	response, err := client.Execute(context.Background(), Request{
 		Payload: []byte(`{"user_goal":"hello"}`),
+		TraceHeaders: map[string]string{
+			"authorization": "Bearer secret",
+			"baggage":       "release=phase1",
+			"traceparent":   "00-4bf92f3577b34da6a3ce929d0e0e4736-00f067aa0ba902b7-01",
+			"x-request-id":  "req-001",
+			"x-trace-id":    "trace-001",
+		},
 	})
 	if err != nil {
 		t.Fatalf("execute returned error: %v", err)

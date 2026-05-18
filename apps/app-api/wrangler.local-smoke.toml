@@ -20,11 +20,11 @@ required = [
 
 [vars]
 APP_API_ENVIRONMENT = "development"
-PUBLIC_CHAT_WEB_ORIGIN = "http://127.0.0.1:5173"
+PUBLIC_CHAT_WEB_ORIGIN = "http://127.0.0.1:27011"
 APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST = "muc.edu.cn"
 APP_API_END_USER_EMAIL_ALLOWLIST = "eval-benchmark@example.edu,help_bot@outlook.com"
 APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com"
-SUPERVISOR_API_BASE_URL = "http://127.0.0.1:18080"
+SUPERVISOR_API_BASE_URL = "http://127.0.0.1:27051"
 SUPERVISOR_API_TIMEOUT_MS = "15000"
 
 [[hyperdrive]]
@@ -33,4 +33,5 @@ id = "00000000-0000-0000-0000-000000000000"
 
 [[hyperdrive]]
 binding = "APP_API_DB_FRESH"
+# Local smoke uses the dedicated fresh-read binding explicitly.
 id = "00000000-0000-0000-0000-000000000000"

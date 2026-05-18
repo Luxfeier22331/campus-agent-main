@@ -22,32 +22,6 @@ _FENCED_JSON_PATTERN = re.compile(
     r"```json\s*(?P<body>\{.*?\})\s*```",
     re.DOTALL | re.IGNORECASE,
 )
-_RESULT_ALIASES = {
-    "blocked": "blocked",
-    "complete": "completed",
-    "completed": "completed",
-    "done": "completed",
-    "error": "failed_needs_repair",
-    "failed": "failed_needs_repair",
-    "needs_repair": "failed_needs_repair",
-    "success": "completed",
-}
-_VERIFICATION_STATUS_ALIASES = {
-    "broken": "failed",
-    "error": "failed",
-    "fail": "failed",
-    "failed": "failed",
-    "n/a": "not_applicable",
-    "na": "not_applicable",
-    "not applicable": "not_applicable",
-    "not_applicable": "not_applicable",
-    "ok": "passed",
-    "pass": "passed",
-    "passed": "passed",
-    "skip": "skipped",
-    "skipped": "skipped",
-    "success": "passed",
-}
 
 
 def extract_result_payload(message: str | None) -> dict[str, object] | None:
@@ -178,129 +152,19 @@ def normalize_result_payload(payload: dict[str, object]) -> tuple[dict[str, obje
     notes: list[str] = []
     normalized = {
         "schema_version": payload.get("schema_version"),
-        "result": _normalize_result_value(payload.get("result"), notes),
+        "result": payload.get("result"),
         "summary": payload.get("summary"),
-        "verification": _normalize_verification(payload.get("verification"), notes),
+        "verification": _normalize_verification(payload.get("verification")),
         "blocker": _normalize_blocker(payload.get("blocker")),
         "next_action": payload.get("next_action"),
     }
     return normalized, notes
 
 
-def _normalize_result_value(value: object, notes: list[str]) -> object:
-    if not isinstance(value, str):
+def _normalize_verification(value: object) -> object:
+    if not isinstance(value, dict):
         return value
-    normalized = _RESULT_ALIASES.get(value.strip().lower())
-    if normalized is None:
-        return value
-    if normalized != value:
-        notes.append(f"normalized result {value!r} -> {normalized!r}")
-    return normalized
-
-
-def _normalize_verification(value: object, notes: list[str]) -> object:
-    if isinstance(value, list):
-        notes.append("normalized legacy verification array into canonical verification object")
-        return _normalize_verification_list(value)
-    if isinstance(value, dict):
-        return _normalize_verification_dict(value, notes)
-    return value
-
-
-def _normalize_verification_dict(
-    verification: dict[str, object],
-    notes: list[str],
-) -> dict[str, object]:
-    status_value = verification.get("status")
-    legacy_result = verification.get("result")
-    status = _normalize_verification_status(
-        status_value
-        if isinstance(status_value, str)
-        else legacy_result
-        if isinstance(legacy_result, str)
-        else None
-    )
-    if status_value is None and isinstance(legacy_result, str):
-        notes.append("normalized verification.result into verification.status")
-    elif isinstance(status_value, str) and status != status_value:
-        notes.append(f"normalized verification.status {status_value!r} -> {status!r}")
-
-    commands = _normalize_commands(verification.get("commands"))
-    if commands is None:
-        command = verification.get("command")
-        if isinstance(command, str) and command.strip():
-            commands = [command.strip()]
-            notes.append("normalized verification.command into verification.commands")
-        else:
-            commands = []
-
-    notes_value = verification.get("notes")
-    if isinstance(notes_value, str):
-        normalized_notes = notes_value
-    else:
-        details = verification.get("details")
-        normalized_notes = details if isinstance(details, str) else ""
-        if isinstance(details, str):
-            notes.append("normalized verification.details into verification.notes")
-
-    return {
-        "status": status
-        if status is not None
-        else status_value
-        if status_value is not None
-        else legacy_result,
-        "commands": commands,
-        "notes": normalized_notes,
-    }
-
-
-def _normalize_verification_list(items: list[object]) -> dict[str, object]:
-    commands: list[str] = []
-    note_lines: list[str] = []
-    statuses: list[str] = []
-
-    for item in items:
-        if not isinstance(item, dict):
-            continue
-        command = item.get("command")
-        command_text = command.strip() if isinstance(command, str) and command.strip() else None
-        if command_text:
-            commands.append(command_text)
-
-        raw_status = item.get("status")
-        if not isinstance(raw_status, str):
-            raw_status = item.get("result")
-        status = _normalize_verification_status(raw_status if isinstance(raw_status, str) else None)
-        if status is not None:
-            statuses.append(status)
-
-        details = item.get("details")
-        if not isinstance(details, str):
-            details = item.get("notes")
-        details_text = details.strip() if isinstance(details, str) and details.strip() else None
-
-        if command_text and status and details_text:
-            note_lines.append(f"{command_text} => {status}: {details_text}")
-        elif command_text and status:
-            note_lines.append(f"{command_text} => {status}")
-        elif command_text and details_text:
-            note_lines.append(f"{command_text}: {details_text}")
-        elif details_text:
-            note_lines.append(details_text)
-
-    return {
-        "status": _collapse_verification_statuses(statuses),
-        "commands": commands,
-        "notes": "\n".join(note_lines) if note_lines else "Normalized legacy verification array.",
-    }
-
-
-def _normalize_commands(value: object) -> list[str] | None:
-    if value is None:
-        return None
-    if not isinstance(value, list):
-        return []
-    return [item.strip() for item in value if isinstance(item, str) and item.strip()]
+    return dict(value)
 
 
 def _normalize_blocker(value: object) -> object:
@@ -310,25 +174,6 @@ def _normalize_blocker(value: object) -> object:
         "kind": value.get("kind"),
         "message": value.get("message"),
     }
-
-
-def _normalize_verification_status(value: str | None) -> str | None:
-    if value is None:
-        return None
-    normalized = _VERIFICATION_STATUS_ALIASES.get(value.strip().lower())
-    if normalized is not None:
-        return normalized
-    return value if value in VALID_VERIFICATION_STATUSES else None
-
-
-def _collapse_verification_statuses(statuses: list[str]) -> str:
-    if any(status == "failed" for status in statuses):
-        return "failed"
-    if any(status == "skipped" for status in statuses):
-        return "skipped"
-    if any(status == "passed" for status in statuses):
-        return "passed"
-    return "not_applicable"
 
 
 def validate_result_payload(

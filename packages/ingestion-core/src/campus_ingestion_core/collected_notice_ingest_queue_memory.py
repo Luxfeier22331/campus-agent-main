@@ -10,6 +10,7 @@ from campus_ingestion_core.collected_notice_ingest_queue_store import (
     DEFAULT_NOTICE_INGEST_QUEUE_MAX_ATTEMPTS,
     NoticeIngestQueueNotFoundError,
     NoticeIngestQueueRecord,
+    build_notice_ingest_queue_operator_summary,
     build_notice_ingest_queue_record,
     utc_now_dt,
     zero_status_counts,
@@ -62,15 +63,21 @@ class InMemoryNoticeIngestQueueStore:
         worker_id: str,
         lease_seconds: int = DEFAULT_NOTICE_INGEST_QUEUE_LEASE_SECONDS,
         replay_batch_id: str | None = None,
+        run_id: str | None = None,
         now: datetime | None = None,
     ) -> NoticeIngestQueueRecord | None:
         timestamp = now or utc_now_dt()
         normalized_replay_batch_id = str(replay_batch_id or "").strip()
+        normalized_run_id = str(run_id or "").strip()
         with self._lock:
             candidates = [
                 record
                 for record in self._records_by_job_id.values()
-                if record.status == "queued" or record.is_lease_expired(now=timestamp)
+                if (
+                    record.status == "queued"
+                    or record.is_retry_due(now=timestamp)
+                    or record.is_lease_expired(now=timestamp)
+                )
             ]
             if normalized_replay_batch_id:
                 candidates = [
@@ -78,6 +85,8 @@ class InMemoryNoticeIngestQueueStore:
                     for record in candidates
                     if record.replay_batch_id == normalized_replay_batch_id
                 ]
+            if normalized_run_id:
+                candidates = [record for record in candidates if record.run_id == normalized_run_id]
             if not candidates:
                 return None
             selected = sorted(
@@ -106,6 +115,19 @@ class InMemoryNoticeIngestQueueStore:
             self._records_by_job_id[updated.job_id] = updated
             return updated
 
+    def release(
+        self,
+        job_id: str,
+        *,
+        worker_id: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        with self._lock:
+            record = self._require(job_id)
+            updated = record.release(worker_id=worker_id, now=now)
+            self._records_by_job_id[updated.job_id] = updated
+            return updated
+
     def complete(
         self,
         job_id: str,
@@ -126,6 +148,7 @@ class InMemoryNoticeIngestQueueStore:
         worker_id: str,
         error_code: str,
         error_message: str,
+        retry_after_seconds: int = 0,
         now: datetime | None = None,
     ) -> NoticeIngestQueueRecord:
         with self._lock:
@@ -134,6 +157,7 @@ class InMemoryNoticeIngestQueueStore:
                 worker_id=worker_id,
                 error_code=error_code,
                 error_message=error_message,
+                retry_after_seconds=retry_after_seconds,
                 now=now,
             )
             self._records_by_job_id[updated.job_id] = updated
@@ -177,12 +201,73 @@ class InMemoryNoticeIngestQueueStore:
             self._records_by_job_id[updated.job_id] = updated
             return updated
 
+    def manual_review(
+        self,
+        job_id: str,
+        *,
+        worker_id: str,
+        error_code: str,
+        error_message: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        with self._lock:
+            record = self._require(job_id)
+            updated = record.manual_review(
+                worker_id=worker_id,
+                error_code=error_code,
+                error_message=error_message,
+                now=now,
+            )
+            self._records_by_job_id[updated.job_id] = updated
+            return updated
+
+    def block(
+        self,
+        job_id: str,
+        *,
+        error_code: str,
+        error_message: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        with self._lock:
+            record = self._require(job_id)
+            updated = record.block(
+                error_code=error_code,
+                error_message=error_message,
+                now=now,
+            )
+            self._records_by_job_id[updated.job_id] = updated
+            return updated
+
+    def cancel(
+        self,
+        job_id: str,
+        *,
+        error_code: str,
+        error_message: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        with self._lock:
+            record = self._require(job_id)
+            updated = record.cancel(
+                error_code=error_code,
+                error_message=error_message,
+                now=now,
+            )
+            self._records_by_job_id[updated.job_id] = updated
+            return updated
+
     def list_status_counts(self) -> dict[str, int]:
         counts = zero_status_counts()
         with self._lock:
             for record in self._records_by_job_id.values():
                 counts[record.status] += 1
         return counts
+
+    def operator_summary(self, *, now: datetime | None = None) -> dict[str, object]:
+        with self._lock:
+            records = tuple(self._records_by_job_id.values())
+        return build_notice_ingest_queue_operator_summary(records, now=now)
 
     def _require(self, job_id: str) -> NoticeIngestQueueRecord:
         record = self._records_by_job_id.get(str(job_id))

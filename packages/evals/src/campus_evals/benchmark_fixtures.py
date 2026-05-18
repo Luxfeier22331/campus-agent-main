@@ -99,6 +99,16 @@ def validate_retrieval_qrels_fixture(
 
     issues: list[str] = []
     for case in dataset.cases:
+        if (
+            dataset.scope.corpus == "official_web"
+            and dataset.scope.collection == "muc_public_pages"
+            and (case.expected_sources or case.forbidden_sources)
+        ):
+            issues.append(
+                f"{ambiguity_severity}: case {case.case_id} uses {scope_label} as answer-bearing qrels truth; "
+                "official_web/muc_public_pages is inventory/QC only. Move answer-bearing cases to an explicit "
+                "query-enabled surface such as official_web/stable_reference."
+            )
         family_alias_issue = _find_course_family_alias_qrels_issue(case)
         if family_alias_issue is not None:
             issues.append(f"{ambiguity_severity}: {family_alias_issue}")
@@ -126,13 +136,40 @@ def load_retrieval_qrels_dataset(path: str | Path) -> RetrievalQrelsDataset:
         corpus=str(payload["corpus"]),
         collection=str(payload["collection"]),
     )
-    cases = tuple(_load_case(item, default_scope=scope) for item in payload["cases"])
+    coverage_scenarios = payload.get("coverage_scenarios") or {}
+    cases = tuple(
+        _load_case(
+            item,
+            default_scope=scope,
+            supplemental_metric_overrides=_case_metric_overrides(
+                item,
+                default_scope=scope,
+                coverage_scenarios=coverage_scenarios,
+            ),
+        )
+        for item in payload["cases"]
+    )
     return RetrievalQrelsDataset(
         schema_version=int(payload["schema_version"]),
         scope=scope,
         baseline=dict(payload.get("baseline") or {}),
         cases=cases,
+        coverage_scenarios=_load_coverage_scenarios(coverage_scenarios),
     )
+
+
+def _load_coverage_scenarios(payload: object) -> dict[str, tuple[str, ...]]:
+    if not isinstance(payload, dict):
+        return {}
+    scenarios: dict[str, tuple[str, ...]] = {}
+    for scenario_id, raw_case_ids in payload.items():
+        normalized_scenario_id = str(scenario_id).strip()
+        if not normalized_scenario_id or not isinstance(raw_case_ids, list | tuple):
+            continue
+        case_ids = tuple(str(case_id).strip() for case_id in raw_case_ids if str(case_id).strip())
+        if case_ids:
+            scenarios[normalized_scenario_id] = case_ids
+    return scenarios
 
 
 def resolve_retrieval_fixture_manifest_path(path: str | Path) -> Path:
@@ -316,7 +353,12 @@ def _load_program_family_aliases() -> tuple[tuple[str, ...], ...]:
     return tuple(aliases)
 
 
-def _load_case(payload: dict[str, object], *, default_scope: KnowledgeScope) -> RetrievalQrelsCase:
+def _load_case(
+    payload: dict[str, object],
+    *,
+    default_scope: KnowledgeScope,
+    supplemental_metric_overrides: dict[str, bool] | None = None,
+) -> RetrievalQrelsCase:
     raw_scope = payload.get("scope")
     if isinstance(raw_scope, dict):
         scope = KnowledgeScope(
@@ -331,6 +373,9 @@ def _load_case(payload: dict[str, object], *, default_scope: KnowledgeScope) -> 
         query=str(payload["query"]),
         scope=scope,
         request_overrides=dict(payload.get("request_overrides") or {}),
+        supplemental_metric_overrides=dict(
+            payload.get("supplemental_metric_overrides") or supplemental_metric_overrides or {}
+        ),
         expected_sources=tuple(
             _load_source_ref(item) for item in payload.get("expected_sources") or ()
         ),
@@ -356,10 +401,144 @@ def _load_hybrid_query_case(payload: dict[str, object]) -> RetrievalHybridQueryC
         category=category,
         query=str(payload["query"]),
         scope=scope,
+        expected_status=str(
+            payload.get("expected_status") or _default_hybrid_expected_status(category)
+        ),
         expected_keywords=tuple(str(item) for item in payload.get("expected_keywords") or ()),
         forbidden_doc_ids=tuple(str(item) for item in payload.get("forbidden_doc_ids") or ()),
         notes=str(payload.get("notes") or ""),
     )
+
+
+def _case_metric_overrides(
+    payload: dict[str, object],
+    *,
+    default_scope: KnowledgeScope,
+    coverage_scenarios: object,
+) -> dict[str, bool]:
+    if not isinstance(coverage_scenarios, dict):
+        return {}
+    case_id = str(payload.get("case_id") or "").strip()
+    if not case_id:
+        return {}
+    if _case_is_title_lookup(payload, default_scope=default_scope):
+        return _identity_grounding_metric_overrides()
+    if _case_asks_for_governing_document(payload):
+        return _identity_grounding_metric_overrides()
+    if _case_is_curriculum_document_view(payload, default_scope=default_scope):
+        return {"answer_relevancy": False, "faithfulness": False}
+    if _case_is_curriculum_title_lookup(payload, default_scope=default_scope):
+        return _identity_grounding_metric_overrides()
+    for scenario_id, raw_case_ids in coverage_scenarios.items():
+        if not isinstance(raw_case_ids, list | tuple):
+            continue
+        if case_id not in {str(item).strip() for item in raw_case_ids}:
+            continue
+        if scenario_id in {
+            "policy_title_exact_match",
+            "article_number_exact_match",
+            "institutional_policy_title",
+        }:
+            return _identity_grounding_metric_overrides()
+        if scenario_id == "effective_date":
+            return {"answer_relevancy": False}
+        if scenario_id == "program_title":
+            return _identity_grounding_metric_overrides()
+        if scenario_id == "program_fixed_phrase":
+            return _identity_grounding_metric_overrides()
+    return {}
+
+
+def _case_is_title_lookup(payload: dict[str, object], *, default_scope: KnowledgeScope) -> bool:
+    if default_scope.corpus != "regulations":
+        return False
+    if default_scope.collection not in {"student_rules", "institutional_rules"}:
+        return False
+    query = str(payload.get("query") or "").strip()
+    if not query:
+        return False
+    if any(cue in query for cue in ("怎么", "如何", "多少", "几")):
+        return False
+    return query.endswith(("办法", "规定", "方案", "计划", "章程", "条例"))
+
+
+def _case_asks_for_governing_document(payload: dict[str, object]) -> bool:
+    query = str(payload.get("query") or "").strip()
+    if not query:
+        return False
+    return any(
+        cue in query
+        for cue in (
+            "哪份管理办法",
+            "哪份规定",
+            "哪份办法",
+            "哪份规定执行",
+            "哪份办法执行",
+            "哪个管理办法",
+            "哪个规定",
+            "哪个办法",
+            "哪个规定执行",
+            "哪个办法执行",
+            "按哪份规定",
+            "按哪份办法",
+            "按哪个规定",
+            "按哪个办法",
+            "依据哪份",
+            "依据哪份规定",
+            "依据哪份办法",
+            "依据哪个",
+            "依据哪个规定",
+            "依据哪个办法",
+        )
+    )
+
+
+def _case_is_curriculum_document_view(
+    payload: dict[str, object],
+    *,
+    default_scope: KnowledgeScope,
+) -> bool:
+    if default_scope.corpus != "curriculum" or default_scope.collection != "curriculum_plan":
+        return False
+    query = str(payload.get("query") or "").strip()
+    if not query:
+        return False
+    if not any(
+        cue in query for cue in ("想看", "要看", "我要看", "查看", "看一下", "看下", "看看")
+    ):
+        return False
+    return any(term in query for term in ("培养方案", "教学计划"))
+
+
+def _case_is_curriculum_title_lookup(
+    payload: dict[str, object],
+    *,
+    default_scope: KnowledgeScope,
+) -> bool:
+    if default_scope.corpus != "curriculum" or default_scope.collection != "curriculum_plan":
+        return False
+    query = str(payload.get("query") or "").strip()
+    if not query:
+        return False
+    if any(cue in query for cue in _QRELS_QUERY_ASK_CUES):
+        return False
+    return query.endswith(("培养方案", "教学计划", "实施方案"))
+
+
+def _identity_grounding_metric_overrides() -> dict[str, bool]:
+    return {
+        "answer_relevancy": False,
+        "faithfulness": False,
+        "identity_grounding": True,
+    }
+
+
+def _default_hybrid_expected_status(category: str) -> str:
+    if category == "no_hit":
+        return "no_answer"
+    if category == "needs_clarification":
+        return "needs_clarification"
+    return "completed"
 
 
 def _load_source_ref(payload: dict[str, object]) -> RetrievalQrelsSourceRef:

@@ -17,6 +17,7 @@ export interface Env {
 	APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN?: string;
 	APP_API_WECHAT_OFFICIAL_ACCOUNT_COLLECTOR_TOKEN?: string;
 	BETTER_AUTH_SECRET?: string;
+	AUTH_SHELL_ORIGIN?: string;
 	AUTH_TURNSTILE_SECRET_KEY?: string;
 	RESEND_API_KEY?: string;
 	AUTH_RESET_EMAIL_FROM?: string;
@@ -29,7 +30,6 @@ export interface Env {
 	SUPERVISOR_API_TIMEOUT_MS?: string;
 	SUPERVISOR_API_EVAL_TIMEOUT_MS?: string;
 	APP_API_OPERATOR_DATABASE_URL?: string;
-	APP_API_MANAGEMENT_DATABASE_URL?: string;
 	APP_API_DATABASE_SSLMODE?: DatabaseSslMode;
 	APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST?: string;
 	APP_API_END_USER_EMAIL_ALLOWLIST?: string;
@@ -53,6 +53,7 @@ export interface AppApiConfig {
 	appName: string;
 	environment: AppApiEnvironment;
 	betterAuthSecret: string;
+	authShellOrigin: string;
 	authTurnstileSecretKey: string;
 	resendApiKey: string;
 	authResetEmailFrom: string;
@@ -71,6 +72,20 @@ export interface AppApiConfig {
 	supervisorApiEvalTimeoutMs: number;
 }
 
+export interface AppAuthConfig {
+	appName: string;
+	environment: AppApiEnvironment;
+	betterAuthSecret: string;
+	authShellOrigin: string;
+	authTurnstileSecretKey: string;
+	resendApiKey: string;
+	authResetEmailFrom: string;
+	authResetEmailReplyTo?: string;
+	publicChatOrigin?: string;
+	endUserEmailDomainAllowlist: string[];
+	endUserEmailAllowlist: string[];
+}
+
 const DEFAULT_APP_NAME = "app-api";
 const MISSING_CONFIG_KEYS = [
 	"APP_API_DB.connectionString",
@@ -84,6 +99,14 @@ const MISSING_CONFIG_KEYS = [
 	"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
 	"APP_API_OPERATOR_EMAIL_ALLOWLIST",
 	"APP_API_INTERNAL_SHARED_SECRET",
+] as const;
+const MISSING_AUTH_CONFIG_KEYS = [
+	"BETTER_AUTH_SECRET",
+	"AUTH_TURNSTILE_SECRET_KEY",
+	"RESEND_API_KEY",
+	"AUTH_RESET_EMAIL_FROM",
+	"AUTH_SHELL_ORIGIN",
+	"APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST",
 ] as const;
 
 export function resolveAppName(env: Env): string {
@@ -130,14 +153,14 @@ export function parseCsvList(value?: string): string[] {
 		.filter(Boolean);
 }
 
-export function parsePositiveInteger(value: string | undefined, fallback: number): number {
+export function parsePositiveInteger(value: string | undefined, defaultValue: number): number {
 	if (!value?.trim()) {
-		return fallback;
+		return defaultValue;
 	}
 
 	const parsed = Number.parseInt(value, 10);
 	if (!Number.isFinite(parsed) || parsed < 1) {
-		return fallback;
+		return defaultValue;
 	}
 
 	return parsed;
@@ -183,10 +206,44 @@ export function getMissingRuntimeConfig(env: Env): string[] {
 	return missing;
 }
 
+export function getMissingAuthRuntimeConfig(env: Env): string[] {
+	const missing: string[] = [];
+
+	if (!env.BETTER_AUTH_SECRET?.trim()) {
+		missing.push(MISSING_AUTH_CONFIG_KEYS[0]);
+	}
+	if (!env.AUTH_TURNSTILE_SECRET_KEY?.trim()) {
+		missing.push(MISSING_AUTH_CONFIG_KEYS[1]);
+	}
+	if (!env.RESEND_API_KEY?.trim()) {
+		missing.push(MISSING_AUTH_CONFIG_KEYS[2]);
+	}
+	if (!env.AUTH_RESET_EMAIL_FROM?.trim()) {
+		missing.push(MISSING_AUTH_CONFIG_KEYS[3]);
+	}
+	if (!env.AUTH_SHELL_ORIGIN?.trim()) {
+		missing.push(MISSING_AUTH_CONFIG_KEYS[4]);
+	}
+	if (parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).length === 0) {
+		missing.push(MISSING_AUTH_CONFIG_KEYS[5]);
+	}
+
+	return missing;
+}
+
 export function readPublicChatOrigin(env: Pick<Env, "PUBLIC_CHAT_WEB_ORIGIN">): string {
 	const origin = env.PUBLIC_CHAT_WEB_ORIGIN?.trim();
 	if (!origin) {
 		throw new Error("PUBLIC_CHAT_WEB_ORIGIN is required.");
+	}
+
+	return new URL(origin).origin;
+}
+
+export function readAuthShellOrigin(env: Pick<Env, "AUTH_SHELL_ORIGIN">): string {
+	const origin = env.AUTH_SHELL_ORIGIN?.trim();
+	if (!origin) {
+		throw new Error("AUTH_SHELL_ORIGIN is required.");
 	}
 
 	return new URL(origin).origin;
@@ -200,22 +257,52 @@ function readRequiredTrimmedValue(value: string | null | undefined, key: string)
 	return normalized;
 }
 
+export function readOptionalOrigin(value: string | null | undefined): string | undefined {
+	const normalized = value?.trim();
+	if (!normalized) {
+		return;
+	}
+
+	return new URL(normalized).origin;
+}
+
+export function readAppAuthConfig(env: Env): AppAuthConfig {
+	const missing = getMissingAuthRuntimeConfig(env);
+	if (missing.length > 0) {
+		throw new Error(`Missing auth runtime configuration: ${missing.join(", ")}`);
+	}
+
+	return {
+		appName: resolveAppName(env),
+		environment: resolveEnvironment(env),
+		authShellOrigin: readAuthShellOrigin(env),
+		betterAuthSecret: readRequiredTrimmedValue(env.BETTER_AUTH_SECRET, "BETTER_AUTH_SECRET"),
+		authTurnstileSecretKey: readRequiredTrimmedValue(
+			env.AUTH_TURNSTILE_SECRET_KEY,
+			"AUTH_TURNSTILE_SECRET_KEY",
+		),
+		resendApiKey: readRequiredTrimmedValue(env.RESEND_API_KEY, "RESEND_API_KEY"),
+		authResetEmailFrom: readRequiredTrimmedValue(
+			env.AUTH_RESET_EMAIL_FROM,
+			"AUTH_RESET_EMAIL_FROM",
+		),
+		authResetEmailReplyTo: env.AUTH_RESET_EMAIL_REPLY_TO?.trim() || undefined,
+		publicChatOrigin: readOptionalOrigin(env.PUBLIC_CHAT_WEB_ORIGIN),
+		endUserEmailDomainAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).map(
+			(item) => item.toLowerCase(),
+		),
+		endUserEmailAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_ALLOWLIST).map((item) =>
+			item.toLowerCase(),
+		),
+	};
+}
+
 export function readAppApiConfig(env: Env): AppApiConfig {
 	const missing = getMissingRuntimeConfig(env);
 	if (missing.length > 0) {
 		throw new Error(`Missing runtime configuration: ${missing.join(", ")}`);
 	}
-
-	const betterAuthSecret = readRequiredTrimmedValue(env.BETTER_AUTH_SECRET, "BETTER_AUTH_SECRET");
-	const authTurnstileSecretKey = readRequiredTrimmedValue(
-		env.AUTH_TURNSTILE_SECRET_KEY,
-		"AUTH_TURNSTILE_SECRET_KEY",
-	);
-	const resendApiKey = readRequiredTrimmedValue(env.RESEND_API_KEY, "RESEND_API_KEY");
-	const authResetEmailFrom = readRequiredTrimmedValue(
-		env.AUTH_RESET_EMAIL_FROM,
-		"AUTH_RESET_EMAIL_FROM",
-	);
+	const authConfig = readAppAuthConfig(env);
 	const databaseConnectionString = readRequiredTrimmedValue(
 		env.APP_API_DB?.connectionString,
 		"APP_API_DB.connectionString",
@@ -234,21 +321,12 @@ export function readAppApiConfig(env: Env): AppApiConfig {
 	);
 
 	return {
-		appName: resolveAppName(env),
-		environment: resolveEnvironment(env),
-		betterAuthSecret,
-		authTurnstileSecretKey,
-		resendApiKey,
-		authResetEmailFrom,
-		authResetEmailReplyTo: env.AUTH_RESET_EMAIL_REPLY_TO?.trim() || undefined,
-		publicChatOrigin: readPublicChatOrigin(env),
+		...authConfig,
+		publicChatOrigin: authConfig.publicChatOrigin ?? readPublicChatOrigin(env),
 		databaseConnectionString,
 		databaseSslMode: resolveDatabaseSslMode(env),
 		internalSharedSecret,
-		operatorDatabaseUrl:
-			env.APP_API_OPERATOR_DATABASE_URL?.trim() ||
-			env.APP_API_MANAGEMENT_DATABASE_URL?.trim() ||
-			undefined,
+		operatorDatabaseUrl: env.APP_API_OPERATOR_DATABASE_URL?.trim() || undefined,
 		endUserEmailDomainAllowlist: parseCsvList(env.APP_API_END_USER_EMAIL_DOMAIN_ALLOWLIST).map(
 			(item) => item.toLowerCase(),
 		),

@@ -1,11 +1,15 @@
 from __future__ import annotations
 
 from campus_contracts import (
+    AcademicCalendarLookupPayload,
+    CampusNoticeChangeSetLookupPayload,
     CampusNoticeDiscoverPayload,
     CampusNoticeGetPayload,
     ContactDirectoryEntitySelector,
     ContactDirectoryLookupPayload,
+    PlaceLookupPayload,
     RagRequestPayload,
+    ServiceGuideLookupPayload,
     ServiceStatusLookupPayload,
     TemporalQuery,
     TransportRouteSelector,
@@ -28,8 +32,11 @@ from campus_supervisor_agent_worker.bridge_trace_codecs import (
 AgentPayload = (
     TransportScheduleLookupPayload
     | ServiceStatusLookupPayload
+    | ServiceGuideLookupPayload
     | ContactDirectoryLookupPayload
+    | AcademicCalendarLookupPayload
     | CampusNoticeDiscoverPayload
+    | CampusNoticeChangeSetLookupPayload
     | CampusNoticeGetPayload
     | RagRequestPayload
 )
@@ -40,6 +47,29 @@ def parse_agent_payload_by_kind(payload_kind: str, payload: dict[str, object]) -
         return RagRequestPayload(
             scope=parse_requested_scope(payload.get("scope")),
             version_query=parse_version_query(payload.get("version_query")),
+        )
+    if payload_kind == "place_lookup":
+        return PlaceLookupPayload(
+            query_text=require_string(payload.get("query_text"), field_name="query_text"),
+        )
+    if payload_kind == "academic_calendar_lookup":
+        return AcademicCalendarLookupPayload(
+            query_text=require_string(payload.get("query_text"), field_name="query_text"),
+            temporal_query=parse_temporal_query(payload.get("temporal_query")),
+            academic_year_label=parse_optional_string(
+                payload.get("academic_year_label"),
+                field_name="academic_year_label",
+            )
+            or "",
+            date_hint=parse_optional_string(payload.get("date_hint"), field_name="date_hint") or "",
+            query_kind=require_string(payload.get("query_kind"), field_name="query_kind"),
+            event_query=parse_optional_string(payload.get("event_query"), field_name="event_query")
+            or "",
+            target_date=parse_optional_string(payload.get("target_date"), field_name="target_date")
+            or "",
+            audience=parse_optional_string(payload.get("audience"), field_name="audience") or "",
+            term_label=parse_optional_string(payload.get("term_label"), field_name="term_label")
+            or "",
         )
     if payload_kind == "transport_schedule_lookup":
         route_selector = payload.get("route_selector")
@@ -61,6 +91,18 @@ def parse_agent_payload_by_kind(payload_kind: str, payload: dict[str, object]) -
             )
             or "",
         )
+    if payload_kind == "service_guide_lookup":
+        return ServiceGuideLookupPayload(
+            service_query=require_string(payload.get("service_query"), field_name="service_query"),
+            guide_focus=require_string(payload.get("guide_focus"), field_name="guide_focus"),
+            temporal_query=parse_temporal_query(payload.get("temporal_query")),
+            campus_scope=parse_optional_string(
+                payload.get("campus_scope"), field_name="campus_scope"
+            )
+            or "",
+            audience=require_string(payload.get("audience"), field_name="audience"),
+            result_limit=parse_optional_int(payload.get("result_limit")),
+        )
     if payload_kind == "contact_directory_lookup":
         entity_selector = payload.get("entity_selector")
         return ContactDirectoryLookupPayload(
@@ -72,8 +114,7 @@ def parse_agent_payload_by_kind(payload_kind: str, payload: dict[str, object]) -
                 payload.get("campus_scope"), field_name="campus_scope"
             )
             or "",
-            audience=parse_optional_string(payload.get("audience"), field_name="audience")
-            or "unknown",
+            audience=require_string(payload.get("audience"), field_name="audience"),
             result_limit=parse_optional_int(payload.get("result_limit")),
         )
     if payload_kind == "campus_notice_discover":
@@ -89,6 +130,32 @@ def parse_agent_payload_by_kind(payload_kind: str, payload: dict[str, object]) -
                 field_name="target_surfaces",
             ),
             max_results=parse_optional_int(payload.get("max_results")) or 5,
+        )
+    if payload_kind == "campus_notice_change_set_lookup":
+        return CampusNoticeChangeSetLookupPayload(
+            query_text=require_string(payload.get("query_text"), field_name="query_text"),
+            route_labels=parse_string_tuple(
+                payload.get("route_labels"),
+                field_name="route_labels",
+            ),
+            direction_labels=parse_string_tuple(
+                payload.get("direction_labels"),
+                field_name="direction_labels",
+            ),
+            stop_labels=parse_string_tuple(
+                payload.get("stop_labels"),
+                field_name="stop_labels",
+            ),
+            service_date=parse_optional_string(
+                payload.get("service_date"),
+                field_name="service_date",
+            )
+            or "",
+            query_time_anchor=parse_optional_string(
+                payload.get("query_time_anchor"),
+                field_name="query_time_anchor",
+            )
+            or "",
         )
     if payload_kind == "campus_notice_get":
         return CampusNoticeGetPayload(
@@ -119,40 +186,34 @@ def parse_transport_route_selector(raw_selector: object) -> TransportRouteSelect
         ),
     )
     return TransportRouteSelector(
-        route_id=parse_optional_string(
-            selector.get("route_id"), field_name="route_selector.route_id"
-        )
-        or "",
-        service_family=parse_optional_string(
+        route_id=_normalize_optional_string_field(
+            selector.get("route_id"),
+            field_name="route_selector.route_id",
+        ),
+        service_family=_normalize_optional_string_field(
             selector.get("service_family"),
             field_name="route_selector.service_family",
-        )
-        or "",
-        route_variant_query=parse_optional_string(
+        ),
+        route_variant_query=_normalize_optional_string_field(
             selector.get("route_variant_query"),
             field_name="route_selector.route_variant_query",
-        )
-        or "",
-        origin_campus=parse_optional_string(
+        ),
+        origin_campus=_normalize_optional_string_field(
             selector.get("origin_campus"),
             field_name="route_selector.origin_campus",
-        )
-        or "",
-        destination_campus=parse_optional_string(
+        ),
+        destination_campus=_normalize_optional_string_field(
             selector.get("destination_campus"),
             field_name="route_selector.destination_campus",
-        )
-        or "",
-        origin_stop_query=parse_optional_string(
+        ),
+        origin_stop_query=_normalize_optional_string_field(
             selector.get("origin_stop_query"),
             field_name="route_selector.origin_stop_query",
-        )
-        or "",
-        destination_stop_query=parse_optional_string(
+        ),
+        destination_stop_query=_normalize_optional_string_field(
             selector.get("destination_stop_query"),
             field_name="route_selector.destination_stop_query",
-        )
-        or "",
+        ),
     )
 
 
@@ -172,28 +233,28 @@ def parse_transport_service_time_query(raw_query: object) -> TransportServiceTim
         ),
     )
     return TransportServiceTimeQuery(
-        date_mode=parse_optional_string(
+        date_mode=_normalize_optional_string_field(
             query.get("date_mode"),
             field_name="service_time_query.date_mode",
-        )
-        or "today",
-        service_date=parse_optional_string(
+            default="today",
+        ),
+        service_date=_normalize_optional_string_field(
             query.get("service_date"),
             field_name="service_time_query.service_date",
-        )
-        or "",
-        daypart=parse_optional_string(query.get("daypart"), field_name="service_time_query.daypart")
-        or "all_day",
-        departure_not_before=parse_optional_string(
+        ),
+        daypart=_normalize_optional_string_field(
+            query.get("daypart"),
+            field_name="service_time_query.daypart",
+            default="all_day",
+        ),
+        departure_not_before=_normalize_optional_string_field(
             query.get("departure_not_before"),
             field_name="service_time_query.departure_not_before",
-        )
-        or "",
-        departure_not_after=parse_optional_string(
+        ),
+        departure_not_after=_normalize_optional_string_field(
             query.get("departure_not_after"),
             field_name="service_time_query.departure_not_after",
-        )
-        or "",
+        ),
     )
 
 
@@ -277,15 +338,32 @@ def parse_temporal_query(raw_query: object) -> TemporalQuery:
         supported_fields=("mode", "as_of", "year_hint"),
     )
     return TemporalQuery(
-        mode=parse_optional_string(query.get("mode"), field_name="temporal_query.mode")
-        or "current",
-        as_of=parse_optional_string(query.get("as_of"), field_name="temporal_query.as_of") or "",
-        year_hint=parse_optional_string(
+        mode=_normalize_optional_string_field(
+            query.get("mode"),
+            field_name="temporal_query.mode",
+            default="current",
+        ),
+        as_of=_normalize_optional_string_field(
+            query.get("as_of"),
+            field_name="temporal_query.as_of",
+        ),
+        year_hint=_normalize_optional_string_field(
             query.get("year_hint"),
             field_name="temporal_query.year_hint",
-        )
-        or "",
+        ),
     )
+
+
+def _normalize_optional_string_field(
+    raw_value: object,
+    *,
+    field_name: str,
+    default: str = "",
+) -> str:
+    normalized = parse_optional_string(raw_value, field_name=field_name)
+    if normalized is None:
+        return default
+    return normalized
 
 
 def _assert_supported_fields(

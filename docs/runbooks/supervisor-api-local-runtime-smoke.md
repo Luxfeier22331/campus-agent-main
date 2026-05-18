@@ -126,14 +126,14 @@ infra/local/start-supervisor-runtime.sh
 
 默认公开端口：
 
-- `supervisor-api` -> `http://127.0.0.1:18080`
+- `supervisor-api` -> `http://127.0.0.1:27051`
 
 ## Step 3. Probe Health And Readiness
 
 ```bash
-curl -sS http://127.0.0.1:18080/healthz
-curl -sS http://127.0.0.1:18080/readyz
-curl -sS http://127.0.0.1:18080/metrics
+curl -sS http://127.0.0.1:27051/healthz
+curl -sS http://127.0.0.1:27051/readyz
+curl -sS http://127.0.0.1:27051/metrics
 ```
 
 启动后不要只等待 `/healthz`。`supervisor-api` 可能已经开始监听，但
@@ -235,7 +235,7 @@ curl -sS -i \
 }
 JSON
 ) \
-  http://127.0.0.1:18080/api/v1/answer
+  http://127.0.0.1:27051/api/v1/answer
 ```
 
 最小通过标准：
@@ -257,7 +257,7 @@ JSON
 再次拉取：
 
 ```bash
-curl -sS http://127.0.0.1:18080/metrics
+curl -sS http://127.0.0.1:27051/metrics
 ```
 
 确认至少出现：

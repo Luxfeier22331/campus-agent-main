@@ -200,9 +200,9 @@ func decodeJSONObject(rawBody []byte) (map[string]any, error) {
 	return body, nil
 }
 
-func defaultString(value string, fallback string) string {
+func defaultString(value string, defaultValue string) string {
 	if value == "" {
-		return fallback
+		return defaultValue
 	}
 	return value
 }

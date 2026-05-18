@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-20
-updated: 2026-04-21
+updated: 2026-05-06
 ---
 # Agentic Retrieval Architecture
 
@@ -48,6 +48,7 @@ architecture，不得把它误读成当前已开放产品 truth。
 - 让 retrieval backend 自行决定产品 scope 的自治代理
 - 把 service status、transport schedule、canonical notice reading 这类结构化当前状态问题强行塞进
   retrieval planner
+- 把 `rag-agent` 重新变成所有 campus capability 的默认 fallback 或 hidden mega-agent
 
 ## Why Agentic Retrieval Exists Here
 
@@ -64,10 +65,13 @@ architecture，不得把它误读成当前已开放产品 truth。
 
 同时固定保留一个并列结论：
 
-- `service_status_lookup`、`transport_schedule_lookup`、`campus_notice_discover/ge
-  t` 这类结构化 runtime capability 不属于 agentic retrieval 本身
+- `service_status_lookup`、`transport_schedule_lookup`、`campus_notice_discover`
+  与 internal selected notice resolve（`payload_kind=campus_notice_get`）这类结构化
+  runtime capability 不属于 agentic retrieval 本身
 - 它们应通过 projection-backed internal query service + domain-agent tool adapter
   提供，而不是伪装成 retrieval step
+- `rag-agent` 可以消费这些 domain-agent 产出的 bounded context projection，但不能代持它们的
+  source truth、temporal semantics 或 opening gate
 
 ## Long-Term Execution Shape
 
@@ -83,6 +87,17 @@ grounding validation -> supervisor finalization`
 - supervisor 负责 capability / policy / top-level routing admission
 - `rag-agent` 负责 plan 与 answer 语义
 - `retrieval-core` 负责 retrieval execution，不拥有产品级 scope 决策
+
+当 retrieval 处于 multi-agent workflow 中时，长期片段固定为：
+
+`upstream domain-agent StepOutputProjection -> rag-agent context framing ->
+typed retrieval plan -> retrieval-core executor -> supporting evidence ->
+grounding validation -> supervisor finalization`
+
+允许进入 `rag-agent` 的 upstream context 必须是 bounded projection，例如
+`CanonicalNoticeContext`、`NoticeChangeSet`、`ServiceGuideFacts`、`ScheduleBaseline`
+或 `PlaceContext`。这些 projection 只能作为 retrieval framing / evidence comparison
+input，不得绕过 query-enabled surface、authz filter、freshness gate 或 source-trust gate。
 
 ## Ownership Model
 
@@ -320,6 +335,39 @@ agentic retrieval 不是对当前 gate 的替代，而是必须显式经过这�
 
 这些 execution-side truth 用于 operator observability、quality grading 与 release
 gate， 但不应直接暴露 raw snippets 或 vendor payload。
+
+## Internal Agents SDK Loop
+
+`rag-agent` 可以在 deterministic scope/version/preflight、retrieval plan、retrieval
+execution 与 supporting evidence selection 之后使用官方 OpenAI Agents SDK 作为内部 semantic
+loop runtime。该 SDK loop 只替代或补强 answer synthesis / structured output / internal
+guardrail ergonomics，不拥有 retrieval truth。
+
+固定规则：
+
+- SDK runner 输入只能是 repo-owned `RagSdkRunRequest`、query intent、
+  admitted query slot ids 与 bounded evidence anchors
+- SDK function tool 不能执行新的 backend retrieval、不能改写 selector、不能扩大 scope /
+  authz / version / serving surface；默认只能选择已 admitted query slot
+- bounded semantic replan 若后续打开，必须有显式 budget、reason、trace 和 no-widening gate
+- output guardrail 必须拒绝 forged source id、missing claim support、source-id-only support、
+  uncited list item 与 malformed structured output
+- no evidence、timeout、runtime failure、guardrail failure、malformed output 均
+  fail-closed 为 unsupported/no-answer，不得回落成无观测的第二 primary synthesis path
+- category discovery 例如“有哪些本科生可以申请的奖学金”可以由 RAG 内部 query intent 表达并返回
+  cited list answer；服务/身份流程类问题例如“门户密码忘了怎么办”保持 routing-negative /
+  unsupported-scope eval boundary，不交给 RAG 兜底
+
+SDK loop 的验收口径固定为产品 contract，而不是 provider run success：
+
+- Python SDK suite 必须证明 internal DTO、function tool boundary、guardrail、rollout mode、
+  sanitized trace projection 与 worker runner contract 未漂移
+- public/chat product-path E2E 必须证明 `supervisor-api -> supervisor-agent-worker ->
+  rag-agent SDK loop -> Go finalizer` 返回 canonical `SupervisorResponse`
+- real-provider E2E 只有在本地/部署 Docker runtime 健康时才可作为 acceptance evidence；
+  Docker daemon / WSL backend failure 只能记录为 environment blocker
+- SDK native tracing 上游默认可记录 LLM generation、function tool、handoff 与 guardrail span；
+  本 repo 默认关闭 native trace，只允许 repo-owned sanitized projection 出边界
 
 ## Evaluation Model
 

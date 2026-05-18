@@ -38,6 +38,10 @@ _HTML_ATTR_RE = re.compile(
     r"""([a-zA-Z_:][-a-zA-Z0-9_:.]*)\s*=\s*(?:"([^"]*)"|'([^']*)'|([^\s"'=<>`]+))"""
 )
 _WHITESPACE_RE = re.compile(r"\s+")
+_TERMINAL_UNAVAILABLE_STATUSES = {
+    404: "http_404",
+    410: "http_410",
+}
 
 
 def build_authenticated_notice_notice_document_artifacts(
@@ -156,6 +160,7 @@ def _build_attachment_refs(
 ) -> tuple[dict[str, Any], ...]:
     rows: list[dict[str, Any]] = []
     for index, (attachment, relation) in enumerate(_joined_attachments(bundle_record), start=1):
+        terminal_reason, last_error_class = _terminal_fetch_outcome(attachment)
         rows.append(
             {
                 "schema_version": AUTHENTICATED_NOTICE_ATTACHMENT_REF_SCHEMA,
@@ -185,6 +190,9 @@ def _build_attachment_refs(
                 "byte_size": attachment.get("byte_size"),
                 "storage_provider": _optional_text(attachment.get("storage_provider")),
                 "ingest_status": _optional_text(attachment.get("ingest_status")),
+                "last_http_status": attachment.get("last_http_status"),
+                "terminal_reason": terminal_reason,
+                "last_error_class": last_error_class,
             }
         )
     seen_urls: set[str] = set()
@@ -197,10 +205,12 @@ def _build_attachment_refs(
             if url is not None:
                 seen_urls.update(_inline_image_url_dedup_keys(url))
     notice = _notice_payload(bundle_record)
-    for fallback in _html_inline_image_refs(str(notice.get("notice_content") or "")):
-        fallback_keys = set(_inline_image_url_dedup_keys(fallback["source_url"]))
-        fallback_keys.update(_inline_image_url_dedup_keys(fallback["normalized_source_url"]))
-        if seen_urls & fallback_keys:
+    for inline_image in _html_inline_image_refs(str(notice.get("notice_content") or "")):
+        inline_image_keys = set(_inline_image_url_dedup_keys(inline_image["source_url"]))
+        inline_image_keys.update(
+            _inline_image_url_dedup_keys(inline_image["normalized_source_url"])
+        )
+        if seen_urls & inline_image_keys:
             continue
         rows.append(
             {
@@ -210,25 +220,78 @@ def _build_attachment_refs(
                 "attachment_ref_id": f"attachment-{len(rows) + 1:04d}",
                 "ref_order": len(rows) + 1,
                 "notice_id": notice_id,
-                "relation_source": "notice_html_img_fallback",
+                "relation_source": "notice_html_inline_img",
                 "resource_role": "inline_image",
                 "content_kind": "inline_image",
-                "anchor_text": fallback["anchor_text"],
-                "original_filename": fallback["original_filename"],
-                "source_url": fallback["source_url"],
-                "normalized_source_url": fallback["normalized_source_url"],
-                "final_url": fallback["normalized_source_url"],
+                "anchor_text": inline_image["anchor_text"],
+                "original_filename": inline_image["original_filename"],
+                "source_url": inline_image["source_url"],
+                "normalized_source_url": inline_image["normalized_source_url"],
+                "final_url": inline_image["normalized_source_url"],
                 "origin_scope": "internal",
                 "object_key": None,
                 "content_sha256": None,
-                "mime_type": _mime_type_for_filename(fallback["original_filename"]),
+                "mime_type": _mime_type_for_filename(inline_image["original_filename"]),
                 "byte_size": None,
                 "storage_provider": None,
                 "ingest_status": "reference_only",
+                "terminal_reason": None,
+                "last_error_class": None,
             }
         )
-        seen_urls.update(fallback_keys)
+        seen_urls.update(inline_image_keys)
     return tuple(rows)
+
+
+def _terminal_fetch_outcome(attachment: dict[str, Any]) -> tuple[str | None, str | None]:
+    last_error_class = _optional_text(attachment.get("last_error_class"))
+    terminal_reason = _optional_text(attachment.get("terminal_reason"))
+    if terminal_reason in set(_TERMINAL_UNAVAILABLE_STATUSES.values()):
+        return terminal_reason, "terminal_unavailable"
+    last_error = _optional_text(attachment.get("last_error"))
+    provenance_status = _optional_text(attachment.get("provenance_status"))
+    ingest_status = _optional_text(attachment.get("ingest_status"))
+    for status, terminal_reason in _TERMINAL_UNAVAILABLE_STATUSES.items():
+        if _text_mentions_http_status(last_error or "", status):
+            return terminal_reason, "terminal_unavailable"
+        if last_error == f"terminal_unavailable:{terminal_reason}":
+            return terminal_reason, "terminal_unavailable"
+    if provenance_status == "terminal_unavailable" or ingest_status == "terminal_unavailable":
+        return "portal_file_missing", "terminal_unavailable"
+    if last_error_class == "transient_failed" or _is_retryable_attachment_error(last_error):
+        return None, "transient_failed"
+    return None, None
+
+
+def _is_retryable_attachment_error(value: str | None) -> bool:
+    normalized = (value or "").strip().lower()
+    if not normalized or normalized.startswith("default_inline_visual_capture_skipped:"):
+        return False
+    return any(
+        token in normalized
+        for token in (
+            "timeout",
+            "timed out",
+            "content-length",
+            "econn",
+            "enotfound",
+            "socket",
+            "network",
+            "fetch failed",
+            "failed to fetch",
+        )
+    )
+
+
+def _text_mentions_http_status(value: str, status: int) -> bool:
+    if not value:
+        return False
+    return (
+        f" {status}" in value
+        or f":{status}" in value
+        or f"_{status}" in value
+        or value.strip().endswith(str(status))
+    )
 
 
 def _html_inline_image_refs(html_value: str) -> tuple[dict[str, str], ...]:
@@ -245,7 +308,7 @@ def _html_inline_image_refs(html_value: str) -> tuple[dict[str, str], ...]:
             or _optional_text(attrs.get("alt"))
             or _filename_from_url(source_url)
         )
-        filename = _filename_from_url(source_url, fallback=anchor_text)
+        filename = _filename_from_url(source_url, preferred_text=anchor_text)
         rows.append(
             {
                 "source_url": source_url,
@@ -293,10 +356,10 @@ def _inline_image_url_dedup_keys(value: str) -> tuple[str, ...]:
     return tuple(dict.fromkeys((normalized, scheme_agnostic, path_only)))
 
 
-def _filename_from_url(value: str, fallback: str | None = None) -> str:
+def _filename_from_url(value: str, preferred_text: str | None = None) -> str:
     parsed = urlparse(unescape(value).strip())
     path_name = unquote(str(parsed.path or "").rstrip("/").split("/")[-1])
-    candidate = _optional_text(fallback) or _optional_text(path_name) or "inline-image"
+    candidate = _optional_text(preferred_text) or _optional_text(path_name) or "inline-image"
     return candidate.split("/")[-1].strip() or "inline-image"
 
 

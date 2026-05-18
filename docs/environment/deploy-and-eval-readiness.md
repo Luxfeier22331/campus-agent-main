@@ -65,15 +65,19 @@ Conditional readiness:
   `SUPERVISOR_API_EXECUTION_AUDIT_URL` and
   `SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET`
 - if `SUPERVISOR_API_OPEN_CAPABILITIES` opens `campus_services` or `notice`,
-  doctor requires `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` and
-  `CAMPUS_SHARED_POSTGRES_URL`; notice-open additionally requires notice read-model/object-store
-  runtime dependencies
+  doctor requires `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` and
+  `CAMPUS_SHARED_POSTGRES_URL`; notice-open additionally requires notice
+  read-model/object-store runtime dependencies
 
 Runtime `/readyz` is stricter than liveness:
 
 - `200 ready` means prompt runtime admitted, prompt HTTP pool configured,
   audit writer healthy, and answer admission not currently saturated
 - `503 degraded` means at least one execution runtime component is not ready
+- outside the `local` runtime profile, supervisor-api full `/readyz` requires
+  internal worker auth and must not be used as an unauthenticated public deploy
+  probe; public staging closure should use `app-api /readyz`, which performs the
+  supervisor readiness probe with the configured shared secret
 - `/readyz` is still not a full deploy closure; deploy readiness also depends
   on config truth, smoke, and evidence artifacts
 

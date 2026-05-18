@@ -188,7 +188,7 @@ updated: 2026-04-03
 - 这能保留 request-level debugging 所需的检索能力，同时避免把 `Sentry` 变成高基数 operator data store
 - 也能避免 panel 对 `Sentry` 查询能力形成结构性依赖
 
-## 决策 9：`Axiom` 事件治理固定为 `event_type -> allowlist`，黑名单只做兜底
+## 决策 9：`Axiom` 事件治理固定为 `event_type -> allowlist`，黑名单只做末端保护
 
 结论：
 

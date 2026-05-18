@@ -61,6 +61,120 @@
 			}
 		},
 		{
+			"case_id": "public-chat-academic-calendar-date-week",
+			"user_goal": "2026-05-07 是第几教学周",
+			"split": "release_gate",
+			"expected": {
+				"selected_target": "campus-services-agent",
+				"terminal_outcome": "completed",
+				"response_contract": {
+					"answer_text_present": true,
+					"citations_present": true,
+					"cards_present": false,
+					"source_url_present": true
+				},
+				"operator_backflow": {
+					"quality_candidate_supported": true,
+					"trace_backlink_present": true
+				}
+			}
+		},
+		{
+			"case_id": "public-chat-academic-calendar-named-event",
+			"user_goal": "劳动节放假怎么安排",
+			"split": "release_gate",
+			"expected": {
+				"selected_target": "campus-services-agent",
+				"terminal_outcome": "completed",
+				"response_contract": {
+					"answer_text_present": true,
+					"citations_present": true,
+					"cards_present": false,
+					"source_url_present": true
+				},
+				"operator_backflow": {
+					"quality_candidate_supported": true,
+					"trace_backlink_present": true
+				}
+			}
+		},
+		{
+			"case_id": "public-chat-academic-calendar-spring-break-colloquial",
+			"user_goal": "今年春假是什么时候",
+			"split": "release_gate",
+			"expected": {
+				"selected_target": "campus-services-agent",
+				"terminal_outcome": "completed",
+				"response_contract": {
+					"answer_text_present": true,
+					"citations_present": true,
+					"cards_present": false,
+					"source_url_present": true
+				},
+				"operator_backflow": {
+					"quality_candidate_supported": true,
+					"trace_backlink_present": true
+				}
+			}
+		},
+		{
+			"case_id": "public-chat-academic-calendar-course-suspension",
+			"user_goal": "2026-04-28 上课吗",
+			"split": "release_gate",
+			"expected": {
+				"selected_target": "campus-services-agent",
+				"terminal_outcome": "completed",
+				"response_contract": {
+					"answer_text_present": true,
+					"citations_present": true,
+					"cards_present": false,
+					"source_url_present": true
+				},
+				"operator_backflow": {
+					"quality_candidate_supported": true,
+					"trace_backlink_present": true
+				}
+			}
+		},
+		{
+			"case_id": "public-chat-academic-calendar-notice-rest-day-override",
+			"user_goal": "2026-05-09 上课吗",
+			"split": "release_gate",
+			"expected": {
+				"selected_target": "campus-services-agent",
+				"terminal_outcome": "completed",
+				"response_contract": {
+					"answer_text_present": true,
+					"citations_present": true,
+					"cards_present": false,
+					"source_url_present": true
+				},
+				"operator_backflow": {
+					"quality_candidate_supported": true,
+					"trace_backlink_present": true
+				}
+			}
+		},
+		{
+			"case_id": "public-chat-notice-spring-break-original",
+			"user_goal": "找春假通知原文",
+			"split": "release_gate",
+			"expected": {
+				"selected_target": "notice-agent",
+				"terminal_outcome": "completed",
+				"response_contract": {
+					"answer_text_present": true,
+					"citations_present": false,
+					"cards_present": true,
+					"source_url_present": true
+				},
+				"operator_backflow": {
+					"quality_candidate_supported": true,
+					"trace_backlink_present": true
+				}
+			}
+		},
+		{
 			"case_id": "public-chat-ambiguous-service-clarification",
 			"user_goal": "卡怎么处理",
 			"split": "clarification",

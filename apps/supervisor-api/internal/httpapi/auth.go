@@ -19,7 +19,7 @@ func (s *Server) internalWorkerAuthorized(request *http.Request) bool {
 }
 
 func (s *Server) structuredQueryAuthorized(request *http.Request) bool {
-	secret := strings.TrimSpace(s.config.StructuredQuerySharedSecret)
+	secret := strings.TrimSpace(s.config.InternalQuerySharedSecret)
 	if secret == "" {
 		return false
 	}
@@ -33,10 +33,21 @@ func (s *Server) structuredQueryAuthorized(request *http.Request) bool {
 func (s *Server) metricsAuthorized(request *http.Request) bool {
 	token := strings.TrimSpace(s.config.MetricsBearerToken)
 	if token == "" {
-		return true
+		return s.localRuntimeProfile()
 	}
 	presented := extractBearerToken(request.Header.Get("authorization"))
 	return presented != "" && subtle.ConstantTimeCompare([]byte(presented), []byte(token)) == 1
+}
+
+func (s *Server) readinessAuthorized(request *http.Request) bool {
+	if s.localRuntimeProfile() {
+		return true
+	}
+	return s.internalWorkerAuthorized(request)
+}
+
+func (s *Server) localRuntimeProfile() bool {
+	return strings.TrimSpace(s.config.RuntimeProfile) == "" || strings.TrimSpace(s.config.RuntimeProfile) == "local"
 }
 
 func extractBearerToken(headerValue string) string {

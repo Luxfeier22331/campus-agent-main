@@ -3,7 +3,7 @@ import { timingSafeEqual } from "node:crypto";
 import { sql } from "drizzle-orm";
 import type { Hono } from "hono";
 
-import { type Env, readPublicChatOrigin, resolveEnvironment } from "../../config";
+import { type Env, readAuthShellOrigin, resolveEnvironment } from "../../config";
 import { withRuntimeDatabase } from "../../db/runtime";
 import {
 	AppApiRouteError,
@@ -19,7 +19,10 @@ import {
 	hasTrustedInternalRequest,
 	isEndUserEmailAllowedForAuth,
 } from "../../modules/auth";
+import { assertNoForbiddenAuthenticatedNoticeProcessingFields } from "../../modules/authenticated-notice-processing-command";
+import { assertNoForbiddenAuthenticatedNoticeRunProcessingFields } from "../../modules/authenticated-notice-run-processing-command";
 import type { OfficialWebExecutionStatusService } from "../../modules/official-web-execution";
+import { assertNoForbiddenOfficialWebReleaseTaskProcessingFields } from "../../modules/official-web-release-task-processing-command";
 import { readJsonRequestBody, resolveWaitUntil } from "../request-utils";
 import { internalAuthRequiredResponse, serviceCredentialRequiredResponse } from "../responses";
 import type { AppRequestScope } from "../types";
@@ -151,6 +154,54 @@ export function registerInternalRoutes(input: {
 		);
 	});
 
+	input.app.post("/api/internal/operator/authenticated-notices/processing-snapshots", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		const payload = await readJsonRequestBody(c.req.raw);
+		assertNoForbiddenAuthenticatedNoticeProcessingFields(payload);
+		return jsonResponse(
+			await scope.resolveAuthenticatedNoticeProcessingCommandService().ingestSnapshots({
+				payload,
+			}),
+		);
+	});
+
+	input.app.post(
+		"/api/internal/operator/authenticated-notices/run-processing-snapshots",
+		async (c) => {
+			const scope = input.createRequestScope();
+			if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+				return serviceCredentialRequiredResponse();
+			}
+
+			const payload = await readJsonRequestBody(c.req.raw);
+			assertNoForbiddenAuthenticatedNoticeRunProcessingFields(payload);
+			return jsonResponse(
+				await scope.resolveAuthenticatedNoticeRunProcessingCommandService().ingestSnapshots({
+					payload,
+				}),
+			);
+		},
+	);
+
+	input.app.post("/api/internal/operator/official-web/release-task-snapshots", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		const payload = await readJsonRequestBody(c.req.raw);
+		assertNoForbiddenOfficialWebReleaseTaskProcessingFields(payload);
+		return jsonResponse(
+			await scope.resolveOfficialWebReleaseTaskProcessingCommandService().ingestSnapshots({
+				payload,
+			}),
+		);
+	});
+
 	input.app.post("/api/internal/execution/audit-events", async (c) => {
 		const scope = input.createRequestScope();
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
@@ -230,8 +281,8 @@ export function registerInternalRoutes(input: {
 			});
 		}
 
-		const publicChatOrigin = readPublicChatOrigin(input.env);
-		const signInRequest = new Request(new URL("/api/auth/sign-in/email", publicChatOrigin), {
+		const authShellOrigin = readAuthShellOrigin(input.env);
+		const signInRequest = new Request(new URL("/api/auth/sign-in/email", authShellOrigin), {
 			body: JSON.stringify({
 				email,
 				password,
@@ -239,8 +290,8 @@ export function registerInternalRoutes(input: {
 			}),
 			headers: {
 				"content-type": "application/json",
-				origin: publicChatOrigin,
-				referer: `${publicChatOrigin.replace(/\/$/, "")}/login`,
+				origin: authShellOrigin,
+				referer: `${authShellOrigin.replace(/\/$/, "")}/account/login`,
 			},
 			method: "POST",
 		});

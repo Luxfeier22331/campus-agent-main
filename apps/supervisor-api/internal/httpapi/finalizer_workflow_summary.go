@@ -1,6 +1,7 @@
 package httpapi
 
 import (
+	"sort"
 	"strings"
 
 	"github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
@@ -154,6 +155,7 @@ func stringFields(payload map[string]any, keys ...string) map[string]any {
 func workflowSourceIDs(result map[string]any) []string {
 	ids := []string{}
 	collectWorkflowSourceIDs(result, &ids)
+	sort.Strings(ids)
 	return ids
 }
 
@@ -177,6 +179,10 @@ func collectWorkflowSourceIDs(value any, ids *[]string) {
 	case []any:
 		for _, item := range current {
 			collectWorkflowSourceIDs(item, ids)
+		}
+	case []string:
+		for _, item := range current {
+			appendWorkflowSourceID(ids, item)
 		}
 	}
 }

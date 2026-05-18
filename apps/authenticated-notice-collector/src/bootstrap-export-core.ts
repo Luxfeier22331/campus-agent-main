@@ -52,6 +52,7 @@ import {
 	loadCollectorEnv,
 	resolveCollectorConfig,
 } from "./config";
+import { enqueueVerifiedCollectorRun } from "./ingest-queue-enqueue";
 import { applyNoticeTypeAllowlist, getEnabledNoticeTypes, loadNoticeTypes } from "./notice-types";
 import { createApiContextFromStorageState } from "./portal";
 import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission";
@@ -162,6 +163,7 @@ export interface RunBootstrapExportInput {
 	collectionMode: NoticeCollectionMode;
 	collectorRunLedgerStore?: CollectorRunLedgerStore;
 	exportedAt: string;
+	verifiedRunEnqueue?: (input: { ledgerRecord: CollectorRunLedgerRecord }) => Promise<void>;
 	outputDir?: string;
 	runId?: string;
 	siteId: string;
@@ -685,6 +687,7 @@ export async function runBootstrapExport(
 		await input.collectorRunLedgerStore?.upsertRun(ledgerRecord);
 		terminalLedgerWritten = true;
 		assertVerifiedRunHandoff(ledgerRecord);
+		await input.verifiedRunEnqueue?.({ ledgerRecord });
 		return {
 			ledgerRecord,
 			result,
@@ -773,6 +776,14 @@ export async function main(): Promise<void> {
 					outputDir: config.exportsDir,
 					siteId: config.siteId,
 					sourceHomeUrl: config.sourceHomeUrl,
+					verifiedRunEnqueue: config.ingestQueueEnqueueOnSuccess
+						? ({ ledgerRecord }) =>
+								enqueueVerifiedCollectorRun({
+									ledgerRecord,
+									outputDir: config.ingestQueueEnqueueOutputDir,
+									siteId: config.siteId,
+								})
+						: undefined,
 					writeLocalArtifacts: config.writeLocalExports,
 				});
 				console.log(

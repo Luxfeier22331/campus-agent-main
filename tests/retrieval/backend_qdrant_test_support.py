@@ -17,6 +17,7 @@ from campus_ingestion_core.corpus_profiles import CollectionRuntimeProfile, load
 from campus_ingestion_core.embed import MockEmbeddingSettings, build_mock_embedding_model
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.process import build_indexable_chunks_from_jsonl, index_chunks_to_qdrant
+from campus_ingestion_core.process_indexing import required_payload_index_schemas
 from campus_ingestion_core.scope_catalog import QdrantIndexBinding
 from campus_ingestion_core.sparse import (
     MockSparseEmbeddingSettings,
@@ -77,6 +78,10 @@ def _make_source(
     content_role: str = "",
     detail_label: str = "",
     is_answer_bearing: bool = False,
+    semantic_role: str = "",
+    polarity: str = "",
+    action_type: str = "",
+    claim_type: str = "",
 ) -> EvidenceSource:
     return EvidenceSource(
         doc_id=doc_id,
@@ -97,6 +102,10 @@ def _make_source(
         content_role=content_role,
         detail_label=detail_label,
         is_answer_bearing=is_answer_bearing,
+        semantic_role=semantic_role,
+        polarity=polarity,
+        action_type=action_type,
+        claim_type=claim_type,
     )
 
 
@@ -122,7 +131,6 @@ def _make_runtime_profile(
     serving_surface: str | None = None,
     supports_freshness_sensitive_queries: bool = False,
     freshness_max_age_hours: int | None = None,
-    live_search_fallback_allowed: bool = False,
     retrieval_top_k: int = 8,
     current_only: bool = True,
     serving_revision_tracks: tuple[str, ...] = ("current-effective", "source-faithful"),
@@ -150,7 +158,6 @@ def _make_runtime_profile(
         serving_surface=serving_surface,
         supports_freshness_sensitive_queries=supports_freshness_sensitive_queries,
         freshness_max_age_hours=freshness_max_age_hours,
-        live_search_fallback_allowed=live_search_fallback_allowed,
         retrieval_top_k=retrieval_top_k,
         current_only=current_only,
         serving_revision_tracks=serving_revision_tracks,
@@ -327,6 +334,7 @@ __all__ = (
     "qdrant_models",
     "query_targets_source_title",
     "replace",
+    "required_payload_index_schemas",
     "select_supporting_evidence_sources",
     "unittest",
     "uuid",

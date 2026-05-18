@@ -9,7 +9,6 @@ from dataclasses import asdict
 from pathlib import Path
 
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
-    DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
     DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
     AuthenticatedNoticeAttachmentFetchStatusRecord,
     build_attachment_fetch_status_records_from_bundle_records,
@@ -20,7 +19,6 @@ from campus_ingestion_core.authenticated_notice_import import (
     load_authenticated_notice_bundle_payload,
 )
 from campus_ingestion_core.registry import (
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
 )
 
@@ -71,9 +69,7 @@ def _has_operator_database_url(env: dict[str, str]) -> bool:
         env.get(key)
         for key in (
             DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
-            DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
             SHARED_POSTGRES_OPERATOR_ENV_KEY,
-            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
         )
     )
 

@@ -13,6 +13,8 @@ const OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE =
 	"Protected operator observability queries require a trusted operator identity.";
 const OFFICIAL_WEB_IDENTITY_MESSAGE =
 	"Protected official web queries require a trusted operator identity.";
+const AUTHENTICATED_NOTICE_IDENTITY_MESSAGE =
+	"Protected authenticated notice processing queries require a trusted operator identity.";
 const REQUEST_IDENTITY_MESSAGE = "Protected request queries require a trusted operator identity.";
 
 const STATIC_PROXY_ROUTES = [
@@ -87,6 +89,31 @@ const STATIC_PROXY_ROUTES = [
 		targetPath: "/api/operator/official-web/runs",
 	},
 	{
+		identityMessage: OFFICIAL_WEB_IDENTITY_MESSAGE,
+		path: "/api/official-web/target-jobs",
+		targetPath: "/api/operator/official-web/target-jobs",
+	},
+	{
+		identityMessage: OFFICIAL_WEB_IDENTITY_MESSAGE,
+		path: "/api/official-web/target-inventory",
+		targetPath: "/api/operator/official-web/target-inventory",
+	},
+	{
+		identityMessage: OFFICIAL_WEB_IDENTITY_MESSAGE,
+		path: "/api/official-web/release-tasks",
+		targetPath: "/api/operator/official-web/release-tasks",
+	},
+	{
+		identityMessage: AUTHENTICATED_NOTICE_IDENTITY_MESSAGE,
+		path: "/api/authenticated-notices/processing",
+		targetPath: "/api/operator/authenticated-notices/processing",
+	},
+	{
+		identityMessage: AUTHENTICATED_NOTICE_IDENTITY_MESSAGE,
+		path: "/api/authenticated-notices/run-processing",
+		targetPath: "/api/operator/authenticated-notices/run-processing",
+	},
+	{
 		identityMessage: REQUEST_IDENTITY_MESSAGE,
 		path: "/api/requests",
 		targetPath: "/api/operator/requests",
@@ -110,6 +137,31 @@ const PREFIX_PROXY_ROUTES = [
 		targetPrefix: "/api/operator/official-web/runs/",
 	},
 	{
+		identityMessage: OFFICIAL_WEB_IDENTITY_MESSAGE,
+		prefix: "/api/official-web/target-jobs/",
+		targetPrefix: "/api/operator/official-web/target-jobs/",
+	},
+	{
+		identityMessage: OFFICIAL_WEB_IDENTITY_MESSAGE,
+		prefix: "/api/official-web/target-inventory/",
+		targetPrefix: "/api/operator/official-web/target-inventory/",
+	},
+	{
+		identityMessage: OFFICIAL_WEB_IDENTITY_MESSAGE,
+		prefix: "/api/official-web/release-tasks/",
+		targetPrefix: "/api/operator/official-web/release-tasks/",
+	},
+	{
+		identityMessage: AUTHENTICATED_NOTICE_IDENTITY_MESSAGE,
+		prefix: "/api/authenticated-notices/processing/",
+		targetPrefix: "/api/operator/authenticated-notices/processing/",
+	},
+	{
+		identityMessage: AUTHENTICATED_NOTICE_IDENTITY_MESSAGE,
+		prefix: "/api/authenticated-notices/run-processing/",
+		targetPrefix: "/api/operator/authenticated-notices/run-processing/",
+	},
+	{
 		identityMessage: REQUEST_IDENTITY_MESSAGE,
 		prefix: "/api/requests/",
 		targetPrefix: "/api/operator/requests/",
@@ -126,6 +178,10 @@ function matchProxyRoute(
 	  }
 	| "not_found"
 	| null {
+	if (request.method === "POST") {
+		return null;
+	}
+
 	if (request.method !== "GET") {
 		return null;
 	}
@@ -235,6 +291,7 @@ export const worker = {
 					overview: "ready",
 					requests: "ready",
 					official_web: "ready",
+					authenticated_notices: "ready",
 					jobs: "blocked",
 					operations: "deferred",
 					audit: "ready",

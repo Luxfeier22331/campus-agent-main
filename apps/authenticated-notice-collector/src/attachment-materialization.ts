@@ -1,7 +1,11 @@
 import { createHash } from "node:crypto";
 import path from "node:path";
 
-import { type FetchAttachmentBinaryResult, fetchAttachmentBinary } from "./api";
+import {
+	type FetchAttachmentBinaryResult,
+	fetchAttachmentBinary,
+	isAttachmentDownloadTerminalUnavailableError,
+} from "./api";
 import type { AuthenticatedNoticeArtifactStore } from "./artifact-store";
 import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status";
 import type {
@@ -150,7 +154,7 @@ export async function materializeBundleAttachments(
 			const relation = relationByAttachmentId.get(clonedAttachment.attachment_id);
 			const shouldFetch =
 				Boolean(fetchAdmission) ||
-				(input.defaultInlineVisualCapture !== false &&
+				(input.defaultInlineVisualCapture === true &&
 					isDefaultInlineVisualCaptureCandidate({
 						attachment: clonedAttachment,
 						relation,
@@ -182,6 +186,7 @@ export async function materializeBundleAttachments(
 					noticeId: String(record.notice_id),
 					observedAt: input.observedAt,
 					originHost: materializationCandidate.originHost,
+					requiredAdmission: Boolean(fetchAdmission),
 					requireVisualContent: !fetchAdmission,
 					requestBackoffBaseMs: input.requestBackoffBaseMs,
 					requestMaxRetries: input.requestMaxRetries,
@@ -234,6 +239,7 @@ async function materializeSingleAttachment(input: {
 	noticeId: string;
 	observedAt: string;
 	originHost: string | null;
+	requiredAdmission: boolean;
 	requireVisualContent: boolean;
 	requestBackoffBaseMs: number;
 	requestMaxRetries: number;
@@ -257,6 +263,11 @@ async function materializeSingleAttachment(input: {
 		return {
 			attachment: {
 				...input.attachment,
+				provenance_status: "terminal_unavailable",
+				ingest_status: "terminal_unavailable",
+				terminal_reason: terminalStatus.terminalReason,
+				last_error_class: "terminal_unavailable",
+				last_http_status: terminalStatus.lastHttpStatus,
 				last_error: message,
 				updated_at: input.observedAt,
 			},
@@ -290,7 +301,7 @@ async function materializeSingleAttachment(input: {
 		const initialFilename = resolveAttachmentFilename({
 			attachmentFilename: input.attachment.original_filename,
 			contentDisposition: result.contentDisposition,
-			fallbackUrl: input.attachment.final_url,
+			sourceUrl: input.attachment.final_url,
 		});
 		const extensionContentType =
 			MIME_TYPE_BY_EXTENSION[path.posix.extname(initialFilename).toLowerCase()] ?? null;
@@ -393,10 +404,47 @@ async function materializeSingleAttachment(input: {
 		};
 	} catch (error) {
 		const message = error instanceof Error ? error.message : String(error);
+		if (isAttachmentDownloadTerminalUnavailableError(error)) {
+			const terminalMessage = `terminal_unavailable:${error.terminalReason}`;
+			return {
+				attachment: {
+					...input.attachment,
+					provenance_status: "terminal_unavailable",
+					ingest_status: "terminal_unavailable",
+					terminal_reason: error.terminalReason,
+					last_error_class: "terminal_unavailable",
+					last_http_status: error.lastHttpStatus,
+					last_error: terminalMessage,
+					updated_at: input.observedAt,
+				},
+				uploaded: false,
+				linkPatch: {
+					status_code: error.lastHttpStatus,
+					content_type: null,
+					downloaded: false,
+					download_path: null,
+					file_size: null,
+					fetched_at: input.observedAt,
+					error_message: terminalMessage,
+				},
+			};
+		}
+		if (input.requiredAdmission) {
+			throw new Error(
+				[
+					"attachment_materialization_failed",
+					`notice=${input.noticeId}`,
+					`attachment=${input.attachmentRefId}`,
+					message,
+				].join(":"),
+				{ cause: error },
+			);
+		}
 		return {
 			attachment: {
 				...input.attachment,
 				last_error: message,
+				last_error_class: "transient_failed",
 				updated_at: input.observedAt,
 			},
 			uploaded: false,
@@ -525,12 +573,9 @@ async function fetchExternalVisualBinary(input: {
 function resolveAttachmentFilename(input: {
 	attachmentFilename: string | null;
 	contentDisposition: string | null;
-	fallbackUrl: string | null;
+	sourceUrl: string | null;
 }): string {
-	const attachmentFilename = normalizeAttachmentFilename(
-		input.attachmentFilename,
-		input.fallbackUrl,
-	);
+	const attachmentFilename = normalizeAttachmentFilename(input.attachmentFilename, input.sourceUrl);
 	if (attachmentFilename !== "attachment") {
 		return attachmentFilename;
 	}
@@ -592,9 +637,9 @@ function inferYearLabel(value: string | null): string | null {
 	return match?.[1] ?? null;
 }
 
-function normalizeAttachmentFilename(filename: string | null, fallbackUrl: string | null): string {
-	const fallback = fallbackUrl ? safeBasename(fallbackUrl) : "";
-	const candidate = (filename ?? "").trim() || fallback || "attachment";
+function normalizeAttachmentFilename(filename: string | null, sourceUrl: string | null): string {
+	const sourceBasename = sourceUrl ? safeBasename(sourceUrl) : "";
+	const candidate = (filename ?? "").trim() || sourceBasename || "attachment";
 	return safeBasename(candidate);
 }
 

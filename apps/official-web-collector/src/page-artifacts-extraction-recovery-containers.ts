@@ -140,6 +140,29 @@ export function selectRecoverableContentContainers(
 		isListingLikeRecoveryContainer(item),
 	);
 	if (listingLikeContainers.length > 0) {
+		const dominantContentDescendants = strongContainers.filter(
+			(item) =>
+				!isListingLikeRecoveryContainer(item) &&
+				item.anchorCount === 0 &&
+				item.repeatedCardChildCount === 0 &&
+				listingLikeContainers.some(
+					(container) =>
+						item !== container &&
+						item.textLength >= container.textLength * 0.6 &&
+						($(item.element).parents().toArray() as HtmlDomNode[]).includes(container.element),
+				),
+		);
+		if (dominantContentDescendants.length > 0) {
+			return dominantContentDescendants.filter(
+				(item) =>
+					!dominantContentDescendants.some(
+						(candidate) =>
+							candidate !== item &&
+							candidate.textLength >= item.textLength / 2 &&
+							($(candidate.element).parents().toArray() as HtmlDomNode[]).includes(item.element),
+					),
+			);
+		}
 		return listingLikeContainers.filter(
 			(item) =>
 				!listingLikeContainers.some(

@@ -258,6 +258,17 @@ class InternalNoticeConsumptionProjectionCoreTest(unittest.TestCase):
                 projection_store=projection_store,
             )
 
+    def test_rebuild_projection_requires_explicit_store_when_env_is_unconfigured(self) -> None:
+        registry, inventory_store, object_store = _build_runtime()
+
+        with self.assertRaisesRegex(ValueError, "NOTICE_CONSUMPTION_PROJECTION_DATABASE_URL"):
+            rebuild_internal_notice_consumption_projection(
+                env=_env(),
+                registry=registry,
+                source_truth_inventory_store=inventory_store,
+                object_store=object_store,
+            )
+
     def test_build_entries_keeps_procurement_notices_as_generic_notice_cards(
         self,
     ) -> None:

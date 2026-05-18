@@ -33,13 +33,10 @@ _INITIALIZED_RAW_ASSET_TABLES: set[tuple[str, str]] = set()
 _SCHEMA_BOOTSTRAP_LOCK_KEY = 174901
 SHARED_POSTGRES_ENV_KEY = "CAMPUS_SHARED_POSTGRES_URL"
 SHARED_POSTGRES_OPERATOR_ENV_KEY = "CAMPUS_SHARED_POSTGRES_OPERATOR_URL"
-SHARED_POSTGRES_MANAGEMENT_ENV_KEY = "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL"
 DOCUMENT_REGISTRY_ENV_KEY = "DOCUMENT_REGISTRY_DATABASE_URL"
 DOCUMENT_REGISTRY_OPERATOR_ENV_KEY = "DOCUMENT_REGISTRY_OPERATOR_DATABASE_URL"
-DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY = "DOCUMENT_REGISTRY_MANAGEMENT_DATABASE_URL"
 RAW_ASSET_REGISTRY_ENV_KEY = "RAW_ASSET_REGISTRY_DATABASE_URL"
 RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY = "RAW_ASSET_REGISTRY_OPERATOR_DATABASE_URL"
-RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY = "RAW_ASSET_REGISTRY_MANAGEMENT_DATABASE_URL"
 _IDENTIFIER = "abcdefghijklmnopqrstuvwxyz_0123456789"
 
 
@@ -184,26 +181,18 @@ def _required_document_registry_database_url(source: dict[str, str]) -> str:
 
 
 def _required_raw_asset_registry_database_url(source: dict[str, str]) -> str:
-    database_url = (
-        (source.get(RAW_ASSET_REGISTRY_ENV_KEY) or "").strip()
-        or (source.get(DOCUMENT_REGISTRY_ENV_KEY) or "").strip()
-        or (source.get(SHARED_POSTGRES_ENV_KEY) or "").strip()
-    )
+    database_url = (source.get(RAW_ASSET_REGISTRY_ENV_KEY) or "").strip() or (
+        source.get(SHARED_POSTGRES_ENV_KEY) or ""
+    ).strip()
     if not database_url:
-        raise ValueError(
-            f"{RAW_ASSET_REGISTRY_ENV_KEY} or {DOCUMENT_REGISTRY_ENV_KEY} or "
-            f"{SHARED_POSTGRES_ENV_KEY} is required"
-        )
+        raise ValueError(f"{RAW_ASSET_REGISTRY_ENV_KEY} or {SHARED_POSTGRES_ENV_KEY} is required")
     return validate_persistent_postgres_runtime_url(database_url)
 
 
 def _optional_document_registry_operator_database_url(source: dict[str, str]) -> str:
-    database_url = (
-        (source.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY) or "").strip()
-        or (source.get(DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY) or "").strip()
-        or (source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY) or "").strip()
-        or (source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY) or "").strip()
-    )
+    database_url = (source.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY) or "").strip() or (
+        source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY) or ""
+    ).strip()
     if not database_url:
         return ""
     return validate_operator_postgres_url(database_url)
@@ -214,22 +203,15 @@ def _required_document_registry_operator_database_url(source: dict[str, str]) ->
     if not database_url:
         raise ValueError(
             f"{DOCUMENT_REGISTRY_OPERATOR_ENV_KEY} or "
-            f"{DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY} or "
-            f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or "
-            f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} is required when prefer_operator=True"
+            f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
         )
     return database_url
 
 
 def _optional_raw_asset_registry_operator_database_url(source: dict[str, str]) -> str:
-    database_url = (
-        (source.get(RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY) or "").strip()
-        or (source.get(RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY) or "").strip()
-        or (source.get(DOCUMENT_REGISTRY_OPERATOR_ENV_KEY) or "").strip()
-        or (source.get(DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY) or "").strip()
-        or (source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY) or "").strip()
-        or (source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY) or "").strip()
-    )
+    database_url = (source.get(RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY) or "").strip() or (
+        source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY) or ""
+    ).strip()
     if not database_url:
         return ""
     return validate_operator_postgres_url(database_url)
@@ -240,11 +222,7 @@ def _required_raw_asset_registry_operator_database_url(source: dict[str, str]) -
     if not database_url:
         raise ValueError(
             f"{RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY} or "
-            f"{RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY} or "
-            f"{DOCUMENT_REGISTRY_OPERATOR_ENV_KEY} or "
-            f"{DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY} or "
-            f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or "
-            f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} is required when prefer_operator=True"
+            f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
         )
     return database_url
 
@@ -546,13 +524,10 @@ __all__ = [
     "DEFAULT_RAW_ASSET_REGISTRY_SCAN_PAGE_SIZE",
     "DEFAULT_RAW_ASSET_REGISTRY_TABLE",
     "DOCUMENT_REGISTRY_ENV_KEY",
-    "DOCUMENT_REGISTRY_MANAGEMENT_ENV_KEY",
     "DOCUMENT_REGISTRY_OPERATOR_ENV_KEY",
     "RAW_ASSET_REGISTRY_ENV_KEY",
-    "RAW_ASSET_REGISTRY_MANAGEMENT_ENV_KEY",
     "RAW_ASSET_REGISTRY_OPERATOR_ENV_KEY",
     "SHARED_POSTGRES_ENV_KEY",
-    "SHARED_POSTGRES_MANAGEMENT_ENV_KEY",
     "SHARED_POSTGRES_OPERATOR_ENV_KEY",
     "_INITIALIZED_DOCUMENT_TABLES",
     "_INITIALIZED_RAW_ASSET_TABLES",

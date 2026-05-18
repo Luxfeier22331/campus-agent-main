@@ -413,6 +413,45 @@ class PersistentPostgresRuntimeTest(unittest.TestCase):
         self.assertEqual(created[0].connection_object.commit_count, 0)
         self.assertEqual(created[0].connection_object.rollback_count, 1)
 
+    def test_open_postgres_connection_management_direct_yields_once(self) -> None:
+        runtime = importlib.import_module("campus_ingestion_core.postgres_runtime")
+
+        sentinel = object()
+
+        class _DirectContext:
+            def __enter__(self) -> object:
+                return sentinel
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+        calls: list[tuple[str, bool]] = []
+
+        def _fake_direct(database_url: str, *, autocommit: bool = True) -> _DirectContext:
+            calls.append((database_url, bool(autocommit)))
+            return _DirectContext()
+
+        with (
+            patch.object(
+                runtime,
+                "resolve_postgres_connection",
+                return_value=runtime.ResolvedPostgresConnection(
+                    database_url="postgresql://direct.example/postgres",
+                    connection_mode=runtime.MANAGEMENT_DIRECT_CONNECTION_MODE,
+                ),
+            ),
+            patch.object(runtime, "direct_postgres_connection", side_effect=_fake_direct),
+        ):
+            seen = []
+            with runtime.open_postgres_connection(
+                "postgresql://ignored.example/postgres",
+                autocommit=False,
+            ) as conn:
+                seen.append(conn)
+
+        self.assertEqual(seen, [sentinel])
+        self.assertEqual(calls, [("postgresql://direct.example/postgres", False)])
+
 
 if __name__ == "__main__":
     unittest.main()

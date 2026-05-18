@@ -10,6 +10,7 @@ supervisor_api_staging_cloudflared_pid_file="${supervisor_api_staging_runtime_di
 supervisor_api_staging_cloudflared_log_file="${supervisor_api_staging_log_dir}/cloudflared.log"
 supervisor_api_staging_supervisor_api_log_file="${supervisor_api_staging_log_dir}/supervisor-api.log"
 supervisor_api_staging_supervisor_agent_worker_log_file="${supervisor_api_staging_log_dir}/supervisor-agent-worker.log"
+supervisor_api_staging_otel_collector_log_file="${supervisor_api_staging_log_dir}/otel-collector.log"
 
 supervisor_api_staging_host="${SUPERVISOR_API_STAGING_HOST:-127.0.0.1}"
 supervisor_api_staging_port="${SUPERVISOR_API_STAGING_PORT:-27010}"
@@ -29,10 +30,6 @@ supervisor_api_staging_log_rotate_keep_count=5
 supervisor_api_staging_local_healthz_url="http://${supervisor_api_staging_host}:${supervisor_api_staging_port}/healthz"
 supervisor_api_staging_local_readyz_url="http://${supervisor_api_staging_host}:${supervisor_api_staging_port}/readyz"
 supervisor_api_staging_local_metrics_url="http://${supervisor_api_staging_host}:${supervisor_api_staging_port}/metrics"
-supervisor_api_staging_public_readyz_url=""
-if [[ -n "${supervisor_api_staging_public_base_url}" ]]; then
-  supervisor_api_staging_public_readyz_url="${supervisor_api_staging_public_base_url%/}/readyz"
-fi
 supervisor_api_staging_app_api_readyz_url=""
 if [[ -n "${supervisor_api_staging_app_api_base_url}" ]]; then
   supervisor_api_staging_app_api_readyz_url="${supervisor_api_staging_app_api_base_url%/}/readyz"
@@ -48,6 +45,7 @@ supervisor_api_staging_runtime_globals_declared() {
     "${supervisor_api_staging_cloudflared_log_file}" \
     "${supervisor_api_staging_supervisor_api_log_file}" \
     "${supervisor_api_staging_supervisor_agent_worker_log_file}" \
+    "${supervisor_api_staging_otel_collector_log_file}" \
     "${supervisor_api_staging_host}" \
     "${supervisor_api_staging_port}" \
     "${supervisor_api_staging_compose_file}" \
@@ -65,7 +63,6 @@ supervisor_api_staging_runtime_globals_declared() {
     "${supervisor_api_staging_local_healthz_url}" \
     "${supervisor_api_staging_local_readyz_url}" \
     "${supervisor_api_staging_local_metrics_url}" \
-    "${supervisor_api_staging_public_readyz_url}" \
     "${supervisor_api_staging_app_api_readyz_url}"
 }
 
@@ -147,16 +144,42 @@ const keys = [
   "AUDIT_QUEUE_CAPACITY",
   "APP_API_INTERNAL_SHARED_SECRET",
   "SUPERVISOR_API_MAX_CONCURRENT_ANSWERS",
+  "SUPERVISOR_API_RUNTIME_PROFILE",
   "SUPERVISOR_API_QUEUE_CAPACITY",
   "SUPERVISOR_API_QUEUE_TIMEOUT_MS",
   "SUPERVISOR_API_REQUEST_TIMEOUT_MS",
   "SUPERVISOR_API_SHUTDOWN_GRACE_MS",
   "SUPERVISOR_API_METRICS_BEARER_TOKEN",
+  "SUPERVISOR_API_OTEL_ENABLED",
+  "SUPERVISOR_API_OTEL_METRICS_ENABLED",
+  "SUPERVISOR_API_OTEL_EXPORTER_OTLP_HEADERS",
+  "SUPERVISOR_API_OTEL_SERVICE_NAME",
+  "SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS",
+  "SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS",
+  "SUPERVISOR_AGENT_WORKER_OTEL_ENABLED",
+  "SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME",
+  "SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION",
+  "SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_TIMEOUT_SECONDS",
+  "SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_INTERVAL_SECONDS",
+  "SUPERVISOR_AGENT_WORKER_OTEL_EXPORTER_OTLP_HEADERS",
+  "OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT",
+  "OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT",
+  "OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT",
+  "OTEL_COLLECTOR_MEMORY_LIMIT_MIB",
+  "OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB",
+  "OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE",
+  "OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE",
+  "OTEL_COLLECTOR_SENTRY_OTLP_ENDPOINT",
+  "OTEL_COLLECTOR_SENTRY_AUTH_VALUE",
+  "AXIOM_ENDPOINT",
+  "OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT",
+  "OTEL_COLLECTOR_AXIOM_AUTH_HEADER",
+  "OTEL_COLLECTOR_AXIOM_EVENTS_DATASET",
+  "OTEL_COLLECTOR_AXIOM_METRICS_DATASET",
   "SUPERVISOR_API_EXECUTION_AUDIT_ENABLED",
   "SUPERVISOR_API_EXECUTION_AUDIT_URL",
   "SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET",
   "SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS",
-  "SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY",
   "SUPERVISOR_AGENT_WORKER_THREADS",
   "SUPERVISOR_AGENT_WORKER_BASE_URL",
   "SUPERVISOR_API_SHARED_SECRET",
@@ -165,7 +188,7 @@ const keys = [
   "SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS",
   "SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS",
   "SUPERVISOR_API_BRIDGE_RETRY_BASE_MS",
-  "SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET",
+  "SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET",
   "SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339",
   "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS",
   "SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS",
@@ -225,7 +248,7 @@ const bridgeSharedSecret =
   "";
 const bridgeBaseUrl =
   process.env.SUPERVISOR_AGENT_WORKER_BASE_URL?.trim() ||
-  "http://supervisor-agent-worker:18081";
+  "http://supervisor-agent-worker:27052";
 resolved.set("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", bridgeSharedSecret);
 resolved.set("SUPERVISOR_AGENT_WORKER_BASE_URL", bridgeBaseUrl);
 
@@ -260,7 +283,23 @@ NODE
     fi
   fi
   export SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS="${SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS:-500}"
-  export SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY="${SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY:-128}"
+  export SUPERVISOR_API_OTEL_ENABLED="${SUPERVISOR_API_OTEL_ENABLED:-true}"
+  export SUPERVISOR_API_OTEL_METRICS_ENABLED="${SUPERVISOR_API_OTEL_METRICS_ENABLED:-true}"
+  export SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS="${SUPERVISOR_API_OTEL_EXPORT_TIMEOUT_MS:-1000}"
+  export SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS="${SUPERVISOR_API_OTEL_EXPORT_INTERVAL_MS:-15000}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_ENABLED="${SUPERVISOR_AGENT_WORKER_OTEL_ENABLED:-true}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME="${SUPERVISOR_AGENT_WORKER_OTEL_SERVICE_NAME:-campus-supervisor-agent-worker}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION="${SUPERVISOR_AGENT_WORKER_OTEL_ALLOWED_ATTRIBUTES_VERSION:-supervisor-agent-worker-otel-attrs-v1}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_TIMEOUT_SECONDS="${SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_TIMEOUT_SECONDS:-1}"
+  export SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_INTERVAL_SECONDS="${SUPERVISOR_AGENT_WORKER_OTEL_EXPORT_INTERVAL_SECONDS:-5}"
+  export DEPLOYMENT_ENVIRONMENT="${DEPLOYMENT_ENVIRONMENT:-staging}"
+  export OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT="${OTEL_COLLECTOR_OTLP_GRPC_ENDPOINT:-0.0.0.0:4317}"
+  export OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT="${OTEL_COLLECTOR_OTLP_HTTP_ENDPOINT:-0.0.0.0:4318}"
+  export OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT="${OTEL_COLLECTOR_HEALTH_CHECK_ENDPOINT:-0.0.0.0:13133}"
+  export OTEL_COLLECTOR_MEMORY_LIMIT_MIB="${OTEL_COLLECTOR_MEMORY_LIMIT_MIB:-512}"
+  export OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB="${OTEL_COLLECTOR_MEMORY_SPIKE_LIMIT_MIB:-128}"
+  export OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE="${OTEL_COLLECTOR_TRACE_SAMPLING_PERCENTAGE:-100}"
+  export OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE="${OTEL_COLLECTOR_LOG_SAMPLING_PERCENTAGE:-100}"
 }
 
 supervisor_api_staging_read_pid() {
@@ -322,11 +361,18 @@ supervisor_api_staging_wait_for_http_ok() {
   local url="$1"
   local attempts="${2:-30}"
   local sleep_seconds="${3:-1}"
+  local header_value="${4:-}"
+  local header_kind="${5:-}"
   local attempt
   local status_code
+  local -a curl_args
+
+  curl_args=(-sS -o /dev/null -w "%{http_code}")
+  supervisor_api_staging_append_probe_auth_header curl_args "${header_value}" "${header_kind}"
+  curl_args+=("${url}")
 
   for ((attempt = 1; attempt <= attempts; attempt += 1)); do
-    status_code="$(curl -sS -o /dev/null -w "%{http_code}" "${url}" || true)"
+    status_code="$(curl "${curl_args[@]}" || true)"
     if [[ "${status_code}" == "200" ]]; then
       return 0
     fi
@@ -335,6 +381,32 @@ supervisor_api_staging_wait_for_http_ok() {
 
   echo "Timed out waiting for ${url} to return 200." >&2
   return 1
+}
+
+supervisor_api_staging_append_probe_auth_header() {
+  local -n curl_args_ref="$1"
+  local header_value="${2:-}"
+  local header_kind="${3:-}"
+
+  if [[ -z "${header_value}" ]]; then
+    return 0
+  fi
+
+  case "${header_kind}" in
+    authorization)
+      curl_args_ref+=(-H "authorization: Bearer ${header_value}")
+      ;;
+    x-worker-origin-auth)
+      curl_args_ref+=(-H "x-worker-origin-auth: ${header_value}")
+      ;;
+    "")
+      curl_args_ref+=(-H "authorization: Bearer ${header_value}")
+      ;;
+    *)
+      echo "Unsupported probe auth header kind: ${header_kind}" >&2
+      return 1
+      ;;
+  esac
 }
 
 supervisor_api_staging_rotate_log_file_if_needed() {
@@ -381,6 +453,7 @@ supervisor_api_staging_rotate_logs_if_needed() {
   supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_cloudflared_log_file}"
   supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_supervisor_api_log_file}"
   supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_supervisor_agent_worker_log_file}"
+  supervisor_api_staging_rotate_log_file_if_needed "${supervisor_api_staging_otel_collector_log_file}"
 }
 
 supervisor_api_staging_kill_managed_process() {
@@ -420,6 +493,7 @@ supervisor_api_staging_compose() {
     cd "${supervisor_api_staging_repo_root}" || exit
     COMPOSE_PROJECT_NAME="${supervisor_api_staging_compose_project_name}" \
     SUPERVISOR_API_HOST_PORT="${supervisor_api_staging_port}" \
+    SUPERVISOR_API_RUNTIME_PROFILE=staging \
     API_AUTH_MODE=trusted-worker \
     API_WORKER_SHARED_SECRET="${worker_shared_secret}" \
     SUPERVISOR_AGENT_WORKER_SHARED_SECRET="${bridge_shared_secret}" \
@@ -428,8 +502,19 @@ supervisor_api_staging_compose() {
 }
 
 supervisor_api_staging_capture_compose_logs() {
+  supervisor_api_staging_compose logs --no-color otel-collector >"${supervisor_api_staging_otel_collector_log_file}" 2>&1 || true
   supervisor_api_staging_compose logs --no-color supervisor-api >"${supervisor_api_staging_supervisor_api_log_file}" 2>&1 || true
   supervisor_api_staging_compose logs --no-color supervisor-agent-worker >"${supervisor_api_staging_supervisor_agent_worker_log_file}" 2>&1 || true
+}
+
+supervisor_api_staging_collector_logs_have_export_errors() {
+  local log_file="${supervisor_api_staging_otel_collector_log_file}"
+
+  if [[ ! -f "${log_file}" ]]; then
+    return 1
+  fi
+
+  grep -Eq 'Exporting failed\. Dropping data\.|not retryable error:|Permanent error:' "${log_file}"
 }
 
 supervisor_api_staging_compose_running_services() {
@@ -439,12 +524,17 @@ supervisor_api_staging_compose_running_services() {
 supervisor_api_staging_compose_project_running() {
   local services
   services="$(supervisor_api_staging_compose_running_services 2>/dev/null || true)"
-  [[ "${services}" == *"supervisor-api"* ]] && [[ "${services}" == *"supervisor-agent-worker"* ]]
+  [[ "${services}" == *"otel-collector"* ]] && [[ "${services}" == *"supervisor-api"* ]] && [[ "${services}" == *"supervisor-agent-worker"* ]]
 }
 
 supervisor_api_staging_require_runtime_env() {
   if [[ -z "${SUPERVISOR_API_SHARED_SECRET:-}" ]]; then
     echo "SUPERVISOR_API_SHARED_SECRET is missing. Populate apps/app-api/.dev.vars first." >&2
+    return 1
+  fi
+
+  if [[ -z "${SUPERVISOR_API_METRICS_BEARER_TOKEN:-}" ]]; then
+    echo "SUPERVISOR_API_METRICS_BEARER_TOKEN is required for staging supervisor metrics." >&2
     return 1
   fi
 
@@ -455,6 +545,40 @@ supervisor_api_staging_require_runtime_env() {
 
   if [[ ! -f "${supervisor_api_staging_cloudflared_config_file}" ]]; then
     echo "Missing ${supervisor_api_staging_cloudflared_config_file}. Create the named tunnel config first." >&2
+    return 1
+  fi
+
+  supervisor_api_staging_validate_axiom_collector_endpoint
+}
+
+supervisor_api_staging_validate_axiom_collector_endpoint() {
+  local endpoint="${OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT:-}"
+  local source_endpoint="${AXIOM_ENDPOINT:-}"
+  local normalized_endpoint="${endpoint%/}"
+  local normalized_source_endpoint="${source_endpoint%/}"
+
+  if [[ -z "${endpoint}" ]]; then
+    return 0
+  fi
+
+  if [[ ! "${endpoint}" =~ ^https?://[^/]+/?$ ]]; then
+    cat >&2 <<EOF
+OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT must be the Axiom OTLP base domain, for example
+https://us-east-1.aws.edge.axiom.co
+Do not include signal paths like /v1/traces or /v1/metrics here because the Collector
+otlphttp exporter appends those paths automatically.
+Current value: ${endpoint}
+EOF
+    return 1
+  fi
+
+  if [[ -n "${source_endpoint}" && "${normalized_endpoint}" != "${normalized_source_endpoint}" ]]; then
+    cat >&2 <<EOF
+OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT must match AXIOM_ENDPOINT so Worker and Collector
+export to the same Axiom edge deployment.
+AXIOM_ENDPOINT=${source_endpoint}
+OTEL_COLLECTOR_AXIOM_OTLP_ENDPOINT=${endpoint}
+EOF
     return 1
   fi
 }

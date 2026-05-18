@@ -51,6 +51,49 @@ export function registerSupervisorAdapterResponseSuite(ctx: SupervisorAdapterSui
 			status: 502,
 		});
 	});
+	it("rejects supervisor execution error payloads without retryable truth", async () => {
+		const client = createSupervisorExecutionClient(
+			{
+				SUPERVISOR_API_BASE_URL: "https://supervisor.internal",
+				SUPERVISOR_API_SHARED_SECRET: "shared-secret",
+			},
+			{
+				fetchImplementation: vi.fn().mockResolvedValue(
+					new Response(
+						JSON.stringify({
+							answer_text: "",
+							confidence: "low",
+							error: {
+								code: "execution_failed",
+								message: "Supervisor failed.",
+							},
+							follow_up_question: "",
+							result: null,
+							selected_target: null,
+							status: "error",
+							trace_id: "trace_01HQ",
+						}),
+						{ status: 200 },
+					),
+				),
+			},
+		);
+
+		await expect(
+			client.execute({
+				actor: createActor(),
+				context: createContext(),
+				conversationId: "conv_01HQ",
+				requestId: "req_01HQ",
+				traceId: "trace_01HQ",
+				userGoal: "图书馆开放到几点？",
+			}),
+		).rejects.toMatchObject({
+			code: "supervisor_invalid_response",
+			retryable: true,
+			status: 502,
+		});
+	});
 	it("preserves approval_required without forcing an agent target", async () => {
 		const client = createSupervisorExecutionClient(
 			{

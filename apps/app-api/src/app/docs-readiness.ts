@@ -1,0 +1,95 @@
+import { count, sql } from "drizzle-orm";
+
+import { type Env, readAppAuthConfig } from "../config";
+import { probeRuntimeDatabase, withRuntimeDatabase } from "../db/runtime";
+import { docsCollections } from "../db/schema";
+import { buildBetterAuthConfig, probeAppAuthRuntime } from "../modules/auth";
+
+export interface AppDocsReadinessResult {
+	dependencies: {
+		auth: "ready" | "not_ready";
+		database: "ready" | "not_ready";
+		docsReadModel: "ready" | "not_ready";
+	};
+	failed: Partial<Record<"auth" | "database" | "docsReadModel", string>>;
+}
+
+function formatRuntimeDependencyFailure(error: unknown): string {
+	return error instanceof Error ? error.message : "Unknown dependency probe failure.";
+}
+
+async function probeDocsReadModel(env: Env): Promise<void> {
+	await withRuntimeDatabase(env, async (db) => {
+		const rows = await db
+			.select({ collectionCount: count() })
+			.from(docsCollections)
+			.where(sql`1 = 1`);
+		const collectionCount = rows[0]?.collectionCount ?? 0;
+		if (collectionCount < 1) {
+			throw new Error("docs read-model probe returned no collections");
+		}
+	});
+}
+
+export async function defaultDocsReadinessProbe(env: Env): Promise<AppDocsReadinessResult> {
+	const dependencies: AppDocsReadinessResult["dependencies"] = {
+		auth: "not_ready",
+		database: "not_ready",
+		docsReadModel: "not_ready",
+	};
+	const failed: AppDocsReadinessResult["failed"] = {};
+
+	try {
+		const config = readAppAuthConfig(env);
+		buildBetterAuthConfig({
+			appName: config.appName,
+			authResetEmailFrom: config.authResetEmailFrom,
+			authResetEmailReplyTo: config.authResetEmailReplyTo,
+			authTurnstileSecretKey: config.authTurnstileSecretKey,
+			betterAuthSecret: config.betterAuthSecret,
+			database: {},
+			endUserEmailAllowlist: config.endUserEmailAllowlist,
+			endUserEmailDomainAllowlist: config.endUserEmailDomainAllowlist,
+			environment: config.environment,
+			authShellOrigin: config.authShellOrigin,
+			publicChatOrigin: config.publicChatOrigin,
+			resendApiKey: config.resendApiKey,
+			resendFetch: fetch,
+		});
+	} catch (error) {
+		return {
+			dependencies,
+			failed: {
+				auth: formatRuntimeDependencyFailure(error),
+				database: formatRuntimeDependencyFailure(error),
+				docsReadModel: formatRuntimeDependencyFailure(error),
+			},
+		};
+	}
+
+	try {
+		await probeRuntimeDatabase(env);
+		dependencies.database = "ready";
+	} catch (error) {
+		failed.database = formatRuntimeDependencyFailure(error);
+	}
+
+	try {
+		await probeAppAuthRuntime(env);
+		dependencies.auth = "ready";
+	} catch (error) {
+		failed.auth = formatRuntimeDependencyFailure(error);
+	}
+
+	try {
+		await probeDocsReadModel(env);
+		dependencies.docsReadModel = "ready";
+	} catch (error) {
+		failed.docsReadModel = formatRuntimeDependencyFailure(error);
+	}
+
+	return {
+		dependencies,
+		failed,
+	};
+}

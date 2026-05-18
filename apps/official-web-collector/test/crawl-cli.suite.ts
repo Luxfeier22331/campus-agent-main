@@ -14,8 +14,8 @@ export function registerCrawlCliSuite() {
 				OFFICIAL_WEB_TRACE_ID: "trace_01JQ",
 				OFFICIAL_WEB_TRIGGER_TYPE: "scheduled",
 				OBJECT_STORE_ENDPOINT: "http://localhost:9000",
-				OBJECT_STORE_ACCESS_KEY: "minioadmin",
-				OBJECT_STORE_SECRET_KEY: "minioadmin",
+				OBJECT_STORE_SOURCE_ACCESS_KEY: "minioadmin",
+				OBJECT_STORE_SOURCE_SECRET_KEY: "minioadmin",
 				OBJECT_STORE_BUCKET_SOURCE: "campus-rag-source",
 			},
 		) as {
@@ -45,5 +45,50 @@ export function registerCrawlCliSuite() {
 				OFFICIAL_WEB_APP_API_BASE_URL: "https://app-api.internal",
 			}),
 		).toThrowError(/OFFICIAL_WEB_APP_API_BASE_URL.*OFFICIAL_WEB_SERVICE_TOKEN/);
+	});
+
+	it("requires control-plane config before CLI can construct executable crawl input", () => {
+		const resolveCollectorCrawlMainInput = getResolveCollectorCrawlMainInput();
+
+		expect(() =>
+			resolveCollectorCrawlMainInput(
+				["--site-id", "campus_public", "--host", "www.example.edu"],
+				{},
+			),
+		).toThrowError(/OFFICIAL_WEB_APP_API_BASE_URL.*OFFICIAL_WEB_SERVICE_TOKEN/u);
+	});
+
+	it("marks local artifact-only execution explicitly when requested", () => {
+		const resolveCollectorCrawlMainInput = getResolveCollectorCrawlMainInput();
+		const result = resolveCollectorCrawlMainInput(
+			["--site-id", "campus_public", "--local-artifacts-only"],
+			{
+				OFFICIAL_WEB_APP_API_BASE_URL: "https://app-api.internal",
+				OFFICIAL_WEB_SERVICE_TOKEN: "service-token",
+			},
+		) as {
+			options: {
+				artifactStore?: unknown;
+				localArtifactsOnly?: boolean;
+			};
+		};
+
+		expect(result.options.artifactStore).toBeUndefined();
+		expect(result.options.localArtifactsOnly).toBe(true);
+	});
+
+	it("rejects removed broad crawl CLI flags", () => {
+		const resolveCollectorCrawlMainInput = getResolveCollectorCrawlMainInput();
+		const removedFlag = `--legacy-${"broad"}-crawl`;
+
+		expect(() =>
+			resolveCollectorCrawlMainInput(["--site-id", "campus_public", removedFlag], {}),
+		).toThrowError(/Unknown option/u);
+		expect(() =>
+			resolveCollectorCrawlMainInput(
+				["--site-id", "campus_public", `${removedFlag}-reason`, "debug"],
+				{},
+			),
+		).toThrowError(/Unknown option/u);
 	});
 }

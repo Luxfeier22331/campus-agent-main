@@ -29,6 +29,8 @@ from .grounding_validation_text import (
     _sanitize_answer_text,
 )
 
+_UNCERTAINTY_CUES = ("不能稳定确认", "无法确认", "不能确认", "尚不能确认", "还不能确认")
+
 
 def _extract_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
     claims: list[ExtractedClaim] = []
@@ -61,7 +63,7 @@ def _extract_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
 
 
 def _extract_title_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
-    return tuple(
+    claims = tuple(
         ExtractedClaim(
             claim_type="title_or_entity_identity",
             claim_text=match.group(1).strip(),
@@ -70,6 +72,16 @@ def _extract_title_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
         for match in _QUOTED_TITLE_RE.finditer(answer_text)
         if match.group(1).strip()
     )
+    if any(
+        claim.claim_text.endswith("申请表") or claim.claim_text.endswith("报名表")
+        for claim in claims
+    ):
+        return tuple(
+            claim
+            for claim in claims
+            if not (claim.claim_text.endswith("申请表") or claim.claim_text.endswith("报名表"))
+        )
+    return claims
 
 
 def _extract_time_claims(answer_text: str) -> tuple[ExtractedClaim, ...]:
@@ -117,6 +129,8 @@ def _extract_offering_unit_claims(answer_text: str) -> tuple[ExtractedClaim, ...
     for clause in _CLAUSE_SPLIT_RE.split(sanitized):
         normalized_clause = _normalize_text(clause)
         if not normalized_clause:
+            continue
+        if any(cue in normalized_clause for cue in _UNCERTAINTY_CUES):
             continue
         for match in _OFFERING_UNIT_NAME_RE.finditer(normalized_clause):
             claim_text = _normalize_offering_unit_claim(match.group(1))

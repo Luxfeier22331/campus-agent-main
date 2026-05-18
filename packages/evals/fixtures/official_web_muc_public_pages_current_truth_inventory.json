@@ -6,7 +6,7 @@
 	"physical_collection_name": "muc_public_pages__r20260403_132316",
 	"document_count": 21,
 	"inventory_triage_summary": {
-		"retain_inventory_only": 2,
+		"retain_inventory_only": 13,
 		"current_scope_follow_up_candidate": 0,
 		"future_fresh_news_surface": 8
 	},
@@ -17,8 +17,10 @@
 			"page_family": "article_detail",
 			"serving_intent": "promotable",
 			"page_group": "notice",
-			"answer_gate_status": "release_gate_required",
-			"quality_focus": "notice_fact_compression"
+			"answer_gate_status": "inventory_only",
+			"quality_focus": "notice_fact_compression",
+			"inventory_disposition": "retain_inventory_only",
+			"inventory_rationale": "notice_page_requires_freshness_or_notice_surface_admission_before_serving"
 		},
 		{
 			"doc_id": "official_web:muc_public:article_detail:730b3e6266ad7b47dfc7dc82e83e9ea41090bf53",
@@ -70,8 +72,10 @@
 			"page_family": "article_detail",
 			"serving_intent": "promotable",
 			"page_group": "news_interpretation",
-			"answer_gate_status": "release_gate_required",
-			"quality_focus": "news_interpretation_compression"
+			"answer_gate_status": "inventory_only",
+			"quality_focus": "news_interpretation_compression",
+			"inventory_disposition": "retain_inventory_only",
+			"inventory_rationale": "news_interpretation_page_requires_news_or_archive_surface_admission_before_serving"
 		},
 		{
 			"doc_id": "official_web:muc_public:article_detail:55174a666231a3cdb7fa4739121e1091eec6b0e9",
@@ -123,8 +127,10 @@
 			"page_family": "article_detail",
 			"serving_intent": "promotable",
 			"page_group": "stable_reference_extended",
-			"answer_gate_status": "release_gate_required",
-			"quality_focus": "reference_fact_compression"
+			"answer_gate_status": "inventory_only",
+			"quality_focus": "reference_fact_compression",
+			"inventory_disposition": "retain_inventory_only",
+			"inventory_rationale": "legacy_bootstrap_reference_page_not_in_current_stable_reference_source_pack"
 		},
 		{
 			"doc_id": "official_web:muc_public:article_detail:c754a99f576af8d8e67869524e327781dbb2c916",
@@ -132,8 +138,10 @@
 			"page_family": "article_detail",
 			"serving_intent": "promotable",
 			"page_group": "stable_reference_extended",
-			"answer_gate_status": "release_gate_required",
-			"quality_focus": "reference_fact_compression"
+			"answer_gate_status": "inventory_only",
+			"quality_focus": "reference_fact_compression",
+			"inventory_disposition": "retain_inventory_only",
+			"inventory_rationale": "legacy_bootstrap_reference_page_not_in_current_stable_reference_source_pack"
 		},
 		{
 			"doc_id": "official_web:muc_public:article_detail:ea4073e475d548380e20fedbe3aff2b26963e4cc",
@@ -152,8 +160,10 @@
 			"page_family": "article_detail",
 			"serving_intent": "promotable",
 			"page_group": "stable_reference_extended",
-			"answer_gate_status": "release_gate_required",
-			"quality_focus": "reference_fact_compression"
+			"answer_gate_status": "inventory_only",
+			"quality_focus": "reference_fact_compression",
+			"inventory_disposition": "retain_inventory_only",
+			"inventory_rationale": "legacy_bootstrap_reference_page_not_in_current_stable_reference_source_pack"
 		},
 		{
 			"doc_id": "official_web:muc_public:article_detail:36021906c0348aa73ed1f5467c4cb57954295e85",
@@ -161,8 +171,10 @@
 			"page_family": "article_detail",
 			"serving_intent": "promotable",
 			"page_group": "stable_reference_core",
-			"answer_gate_status": "release_gate_required",
-			"quality_focus": "overview_fact_compression"
+			"answer_gate_status": "inventory_only",
+			"quality_focus": "overview_fact_compression",
+			"inventory_disposition": "retain_inventory_only",
+			"inventory_rationale": "legacy_bootstrap_reference_page_not_in_current_stable_reference_source_pack"
 		},
 		{
 			"doc_id": "official_web:muc_public:article_detail:43fdab9acbf0e68e67fddba209463e97d0b2fe4e",
@@ -170,8 +182,10 @@
 			"page_family": "article_detail",
 			"serving_intent": "promotable",
 			"page_group": "stable_reference_core",
-			"answer_gate_status": "release_gate_required",
-			"quality_focus": "roster_compression"
+			"answer_gate_status": "inventory_only",
+			"quality_focus": "roster_compression",
+			"inventory_disposition": "retain_inventory_only",
+			"inventory_rationale": "legacy_bootstrap_reference_page_not_in_current_stable_reference_source_pack"
 		},
 		{
 			"doc_id": "official_web:muc_public:article_detail:e5f0a4d0916a8a506036f1931a2f5a480e9db3f2",
@@ -179,8 +193,10 @@
 			"page_family": "article_detail",
 			"serving_intent": "promotable",
 			"page_group": "stable_reference_extended",
-			"answer_gate_status": "release_gate_required",
-			"quality_focus": "scholar_entity_compression"
+			"answer_gate_status": "inventory_only",
+			"quality_focus": "brand_history_inventory_only",
+			"inventory_disposition": "retain_inventory_only",
+			"inventory_rationale": "brand_history_biographical_page_not_default_institutional_reference_surface"
 		},
 		{
 			"doc_id": "official_web:muc_public:article_detail:e286aba2b39208a26af21e9dd518afc6faa49487",
@@ -188,8 +204,10 @@
 			"page_family": "article_detail",
 			"serving_intent": "promotable",
 			"page_group": "stable_reference_core",
-			"answer_gate_status": "release_gate_required",
-			"quality_focus": "reference_fact_compression"
+			"answer_gate_status": "inventory_only",
+			"quality_focus": "reference_fact_compression",
+			"inventory_disposition": "retain_inventory_only",
+			"inventory_rationale": "source_page_is_admitted_only_through_official_web_stable_reference_split_manifest"
 		},
 		{
 			"doc_id": "official_web:muc_public:article_detail:3342689d05d43819a48bbcf7564f013f217ffe46",
@@ -197,8 +215,10 @@
 			"page_family": "article_detail",
 			"serving_intent": "promotable",
 			"page_group": "stable_reference_core",
-			"answer_gate_status": "release_gate_required",
-			"quality_focus": "reference_fact_compression"
+			"answer_gate_status": "inventory_only",
+			"quality_focus": "reference_fact_compression",
+			"inventory_disposition": "retain_inventory_only",
+			"inventory_rationale": "legacy_bootstrap_reference_page_not_in_current_stable_reference_source_pack"
 		},
 		{
 			"doc_id": "official_web:muc_public:article_detail:3f735e1c08be05c5426948f7ea737d3d422c6e02",
@@ -206,8 +226,10 @@
 			"page_family": "article_detail",
 			"serving_intent": "promotable",
 			"page_group": "stable_reference_core",
-			"answer_gate_status": "release_gate_required",
-			"quality_focus": "reference_fact_compression"
+			"answer_gate_status": "inventory_only",
+			"quality_focus": "reference_fact_compression",
+			"inventory_disposition": "retain_inventory_only",
+			"inventory_rationale": "legacy_bootstrap_reference_page_not_in_current_stable_reference_source_pack"
 		},
 		{
 			"doc_id": "official_web:muc_public:article_detail:df9f5e313546d24c7a384598d1b676d6b005d881",

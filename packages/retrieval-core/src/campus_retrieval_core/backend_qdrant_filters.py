@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import re
 from collections.abc import Sequence
 
 from campus_contracts import EvidenceSource
@@ -137,10 +138,15 @@ def _build_qdrant_filter(
             )
         )
     if request.target_document_ids:
+        document_ids = list(request.target_document_ids)
         must.append(
             qdrant_models.FieldCondition(
                 key="document_id",
-                match=qdrant_models.MatchAny(any=list(request.target_document_ids)),
+                match=(
+                    qdrant_models.MatchValue(value=document_ids[0])
+                    if len(document_ids) == 1
+                    else qdrant_models.MatchAny(any=document_ids)
+                ),
             )
         )
     if request.target_version_ids:
@@ -148,6 +154,51 @@ def _build_qdrant_filter(
             qdrant_models.FieldCondition(
                 key="version_id",
                 match=qdrant_models.MatchAny(any=list(request.target_version_ids)),
+            )
+        )
+    answer_roles = _primary_answer_roles_for_request(request)
+    if answer_roles:
+        must.append(
+            qdrant_models.FieldCondition(
+                key="answer_role",
+                match=qdrant_models.MatchAny(any=list(answer_roles)),
+            )
+        )
+    condition_subjects = _condition_subjects_for_request(request)
+    if condition_subjects:
+        must.append(
+            qdrant_models.Filter(
+                min_should=qdrant_models.MinShould(
+                    conditions=[
+                        qdrant_models.FieldCondition(
+                            key="condition_subject",
+                            match=qdrant_models.MatchAny(any=list(condition_subjects)),
+                        ),
+                        qdrant_models.FieldCondition(
+                            key="condition_group_subject",
+                            match=qdrant_models.MatchAny(any=list(condition_subjects)),
+                        ),
+                    ],
+                    min_count=1,
+                )
+            )
+        )
+    if request.focus_article_nos:
+        must.append(
+            qdrant_models.FieldCondition(
+                key="article_no",
+                match=qdrant_models.MatchAny(
+                    any=list(_normalize_article_filter_values(request.focus_article_nos))
+                ),
+            )
+        )
+    if request.focus_clause_nos:
+        must.append(
+            qdrant_models.FieldCondition(
+                key="clause_no",
+                match=qdrant_models.MatchAny(
+                    any=list(_normalize_clause_filter_values(request.focus_clause_nos))
+                ),
             )
         )
     if request.canonical_course_ids:
@@ -172,6 +223,97 @@ def _build_qdrant_filter(
             )
         )
     return qdrant_models.Filter(must=must)
+
+
+def _primary_answer_roles_for_request(request: RetrievalRequest) -> tuple[str, ...]:
+    semantic_hint = request.semantic_hint
+    if semantic_hint is None:
+        return ()
+    if semantic_hint.intent_kind not in {"condition_table", "eligibility_judgment"}:
+        return ()
+    if semantic_hint.selection_policy not in {
+        "answer_role_first",
+        "one_answer_ready_source_per_member",
+    }:
+        return ()
+    return tuple(
+        dict.fromkeys(
+            role
+            for role in semantic_hint.expected_answer_roles
+            if role and role != "eligibility_intro"
+        )
+    )
+
+
+def _condition_subjects_for_request(request: RetrievalRequest) -> tuple[str, ...]:
+    semantic_hint = request.semantic_hint
+    if semantic_hint is None:
+        return ()
+    if semantic_hint.intent_kind not in {"condition_table", "eligibility_judgment"}:
+        return ()
+    if semantic_hint.coverage_policy != "condition_subject_alignment":
+        return ()
+    if not semantic_hint.condition_subject:
+        return ()
+    if any(
+        role in {"procedure_step", "material_requirement"}
+        for role in semantic_hint.expected_answer_roles
+    ):
+        return ()
+    return (semantic_hint.condition_subject,)
+
+
+def _normalize_article_filter_values(values: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(_normalize_article_filter_value(value) for value in values if value))
+
+
+def _normalize_article_filter_value(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        return ""
+    if normalized.startswith("第") and normalized.endswith("条"):
+        return normalized
+    number = _normalize_numeric_clause_number(normalized)
+    return f"第{number}条" if number else normalized
+
+
+def _normalize_clause_filter_values(values: tuple[str, ...]) -> tuple[str, ...]:
+    return tuple(dict.fromkeys(_normalize_clause_filter_value(value) for value in values if value))
+
+
+def _normalize_clause_filter_value(value: str) -> str:
+    normalized = value.strip()
+    if not normalized:
+        return ""
+    if normalized.startswith("第") and normalized.endswith(("款", "项")):
+        return normalized
+    if normalized.startswith(("(", "（")) or normalized.endswith("."):
+        return normalized
+    number = _normalize_numeric_clause_number(normalized)
+    return f"第{number}款" if number else normalized
+
+
+def _normalize_numeric_clause_number(value: str) -> str:
+    normalized = value.strip()
+    if re.fullmatch(r"\d+", normalized):
+        return _arabic_to_chinese_number(int(normalized))
+    return normalized
+
+
+def _arabic_to_chinese_number(value: int) -> str:
+    digits = "零一二三四五六七八九"
+    if value <= 0:
+        return str(value)
+    if value < 10:
+        return digits[value]
+    if value == 10:
+        return "十"
+    if value < 20:
+        return f"十{digits[value % 10]}" if value % 10 else "十"
+    if value < 100:
+        tens, ones = divmod(value, 10)
+        return f"{digits[tens]}十{digits[ones] if ones else ''}"
+    return str(value)
 
 
 def _apply_preferred_document_bias(

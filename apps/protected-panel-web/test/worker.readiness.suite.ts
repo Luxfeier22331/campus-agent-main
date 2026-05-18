@@ -209,7 +209,7 @@ export function registerWorkerReadinessSuite() {
 			PANEL_APP_API_SHARED_SECRET: "panel-bridge-secret",
 			PANEL_RUNTIME_API_BASE_URL: "https://app-api.internal",
 			PANEL_PROTECTION_ENVELOPE: "cloudflare-access",
-			ACCESS_TEAM_DOMAIN: "http://127.0.0.1:9798",
+			ACCESS_TEAM_DOMAIN: "http://127.0.0.1:27062",
 			ACCESS_POLICY_AUD: "panel-local-smoke",
 		});
 

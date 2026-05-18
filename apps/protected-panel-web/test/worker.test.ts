@@ -1,6 +1,7 @@
 import "./data-provider.test";
 import "./audit-domain.test";
 import "./cost-domain.test";
+import "./official-web-release-task-ui.test";
 import "./overview-domain.test";
 import "./panel-shell-copy-regression.test";
 import "./quality-domain.test";

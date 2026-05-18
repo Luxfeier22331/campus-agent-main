@@ -1,4 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
+import type { OfficialWebPageTargetMatch } from "official-web-core";
+import { OFFICIAL_WEB_RUN_ARTIFACT_TYPE_BY_NAME } from "official-web-core/artifacts";
 
 import { AppApiRouteError } from "../../http";
 import type {
@@ -22,15 +24,9 @@ const FINALIZEABLE_TERMINAL_STATUSES = new Set<OfficialWebTerminalRunStatus>([
 	"completed_with_errors",
 	"failed",
 ]);
-const ALLOWED_ARTIFACT_TYPES = new Set([
-	"crawl_run_manifest",
-	"host_summary",
-	"url_results",
-	"failures",
-	"source_truth_bundle",
-	"quality_audit",
-	"page_observations",
-]);
+const ALLOWED_ARTIFACT_TYPES: ReadonlySet<string> = new Set(
+	Object.values(OFFICIAL_WEB_RUN_ARTIFACT_TYPE_BY_NAME),
+);
 const ALLOWED_RUN_INTENTS = new Set<OfficialWebRunIntent>(["baseline", "hot", "repair"]);
 const ALLOWED_FETCH_DISPOSITIONS = new Set<OfficialWebFetchDisposition>([
 	"fetched",
@@ -230,6 +226,84 @@ function normalizeNullableInteger(value: unknown, field: string): number | null 
 	return value;
 }
 
+function normalizeTargetMatches(value: unknown, field: string): OfficialWebPageTargetMatch[] {
+	if (value == null) {
+		return [];
+	}
+	if (!Array.isArray(value)) {
+		throw new AppApiRouteError({
+			code: "validation_failed",
+			details: { field },
+			message: `${field} must be an array when provided.`,
+			retryable: false,
+			status: 422,
+		});
+	}
+
+	return value.map((item, index) => {
+		if (!item || typeof item !== "object" || Array.isArray(item)) {
+			throw new AppApiRouteError({
+				code: "validation_failed",
+				details: { field: `${field}[${index}]` },
+				message: "target match must be an object.",
+				retryable: false,
+				status: 422,
+			});
+		}
+
+		const match = item as Record<string, unknown>;
+		const targetJobId = normalizeString(match.targetJobId);
+		const targetId = normalizeString(match.targetId);
+		const targetDeclarationVersion = normalizeString(match.targetDeclarationVersion);
+		const consumerFamily = normalizeString(match.consumerFamily);
+		const retentionPolicy = normalizeString(match.retentionPolicy);
+		const materializationPolicy = normalizeString(match.materializationPolicy);
+		const selectedWriteTarget = normalizeString(match.selectedWriteTarget);
+		const reviewPolicy = normalizeString(match.reviewPolicy);
+		const worksetReason = normalizeString(match.worksetReason);
+		if (
+			!(
+				targetJobId &&
+				targetId &&
+				targetDeclarationVersion &&
+				consumerFamily &&
+				retentionPolicy &&
+				materializationPolicy &&
+				selectedWriteTarget &&
+				reviewPolicy &&
+				worksetReason
+			)
+		) {
+			throw new AppApiRouteError({
+				code: "validation_failed",
+				details: { field: `${field}[${index}]` },
+				message:
+					"targetJobId, targetId, targetDeclarationVersion, consumerFamily, retentionPolicy, materializationPolicy, selectedWriteTarget, reviewPolicy, and worksetReason are required.",
+				retryable: false,
+				status: 422,
+			});
+		}
+
+		return {
+			compositionGroup: normalizeNullableString(match.compositionGroup),
+			compositionRole: normalizeNullableString(match.compositionRole),
+			consumerFamily: consumerFamily as OfficialWebPageTargetMatch["consumerFamily"],
+			materializationPolicy:
+				materializationPolicy as OfficialWebPageTargetMatch["materializationPolicy"],
+			retentionPolicy: retentionPolicy as OfficialWebPageTargetMatch["retentionPolicy"],
+			reviewPolicy,
+			selectedWriteTarget,
+			sourcePackEntryId: normalizeNullableString(match.sourcePackEntryId),
+			sourcePackId: normalizeNullableString(match.sourcePackId),
+			targetCandidateId: normalizeNullableString(match.targetCandidateId),
+			targetDeclarationVersion,
+			targetId,
+			targetJobId,
+			worksetReason,
+		} satisfies OfficialWebPageTargetMatch;
+	});
+}
+
 function normalizePageObservations(value: unknown): NormalizedPageObservation[] {
 	if (value == null) {
 		return [];
@@ -323,6 +397,14 @@ function normalizePageObservations(value: unknown): NormalizedPageObservation[] 
 			rawVersionId: normalizeNullableString(observation.rawVersionId),
 			requestedUrl,
 			responseBodyHash: normalizeNullableString(observation.responseBodyHash),
+			targetCandidateId: normalizeNullableString(observation.targetCandidateId),
+			targetDeclarationVersion: normalizeNullableString(observation.targetDeclarationVersion),
+			targetId: normalizeNullableString(observation.targetId),
+			targetJobId: normalizeNullableString(observation.targetJobId),
+			targetMatches: normalizeTargetMatches(
+				observation.targetMatches ?? observation.target_matches,
+				`pageObservations[${index}].targetMatches`,
+			),
 		} satisfies NormalizedPageObservation;
 	});
 }

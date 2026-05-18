@@ -1,11 +1,81 @@
 from __future__ import annotations
 
 import unittest
+from dataclasses import replace
 
 from .processing_pipeline_test_support import *
 
 
 class ProcessingPipelinePolicyChunkingStructureTest(unittest.TestCase):
+    def test_build_indexable_chunks_splits_regulation_body_against_contextualized_budget(
+        self,
+    ) -> None:
+        base_record = _make_registry_record()
+        record = replace(
+            base_record,
+            document_id="official_web_regulation:context-budget",
+            revision_track="current-effective",
+            version_id="owregver:context-budget",
+            source_uri="https://xxgk.muc.edu.cn/info/1198/6451.htm",
+            content_hash="sha256:context-budget",
+            corpus="regulations",
+            collection="institutional_rules",
+            entitlement_groups=(),
+            visibility_scope=None,
+            visibility_level="public",
+            cleaning_policy_version="institutional_rules_cleaning_v1",
+            source_channel="official_web",
+            is_current=True,
+            import_source="official_web_regulation_source_truth_materialization",
+        )
+        metadata = {
+            "title": "中央民族大学事业发展“十三五”规划",
+            "title_base": "中央民族大学事业发展“十三五”规划",
+            "promotion_class": "formal_regulation",
+            "content_role": "regulation_body",
+            "source_channel": "official_web",
+            "page_family": "article_detail",
+        }
+        body_text = "\n".join(
+            [
+                "1、" + "事业发展目标。" * 8,
+                "2、" + "事业发展任务。" * 8,
+            ]
+        )
+        structured_payload = (
+            json.dumps(
+                _structured_unit_row(
+                    doc_id=record.document_id,
+                    version_id=record.version_id,
+                    chunk_id="official-web-regulation-body-001",
+                    unit_type="regulation_body",
+                    root_unit_id="official-web-regulation-body-001",
+                    clean_text=body_text,
+                    anchor={"section_path": ["第一章 发展基础"]},
+                    metadata=metadata,
+                ),
+                ensure_ascii=False,
+            )
+            + "\n"
+        ).encode("utf-8")
+
+        chunks = build_indexable_chunks_from_jsonl(
+            record=record,
+            structured_jsonl_bytes=structured_payload,
+            chunk_profile=ChunkProfile(
+                chunk_size=50,
+                max_chunk_size=70,
+                chunk_overlap=0,
+                min_chunk_size=8,
+                final_text_aware=True,
+                safety_margin=0,
+            ),
+        )
+
+        self.assertGreater(len(chunks), 1)
+        self.assertTrue(all(int(chunk.metadata["final_token_count"]) <= 70 for chunk in chunks))
+        self.assertTrue(all(chunk.metadata["contextualized_text"] for chunk in chunks))
+
     def test_build_indexable_chunks_merges_first_article_even_when_only_first_has_preface_text(
         self,
     ) -> None:
@@ -344,14 +414,40 @@ class ProcessingPipelinePolicyChunkingStructureTest(unittest.TestCase):
             ),
         )
 
-        self.assertEqual(len(chunks), 2)
-        self.assertNotIn("四、学士学位证书遗失不予补发", chunks[0].metadata["display_text"])
-        self.assertEqual(chunks[1].anchor["provision_label"], "四-六")
-        self.assertEqual(chunks[1].metadata["aggregation_mode"], "adjacent_short_textual_units")
-        self.assertIn("四、学士学位证书遗失不予补发", chunks[1].metadata["display_text"])
-        self.assertIn("五、本规定自2009年3月17日起实施。", chunks[1].metadata["display_text"])
-        self.assertIn("六、本规定由教务处负责解释。", chunks[1].metadata["display_text"])
-        self.assertNotIn("三、学士学位授予程序", chunks[1].text)
+        procedure_chunks = [
+            chunk for chunk in chunks if chunk.metadata.get("answer_role") == "procedure_step"
+        ]
+        exclusion_chunks = [
+            chunk
+            for chunk in chunks
+            if chunk.metadata["display_text"].startswith("四、学士学位证书遗失不予补发")
+        ]
+        closing_chunks = [
+            chunk
+            for chunk in chunks
+            if chunk.metadata.get("aggregation_mode") == "adjacent_short_textual_units"
+            and "五、本规定自2009年3月17日起实施。" in chunk.metadata["display_text"]
+        ]
+        self.assertEqual(len(procedure_chunks), 4)
+        self.assertEqual(len(exclusion_chunks), 1)
+        self.assertEqual(len(closing_chunks), 1)
+        self.assertFalse(
+            any(
+                "四、学士学位证书遗失不予补发" in chunk.metadata["display_text"]
+                for chunk in procedure_chunks
+            )
+        )
+        self.assertEqual(exclusion_chunks[0].anchor["provision_label"], "四")
+        self.assertEqual(exclusion_chunks[0].metadata["provision_label"], "四")
+        self.assertEqual(exclusion_chunks[0].metadata["answer_role"], "exclusion_rule")
+        self.assertEqual(closing_chunks[0].anchor["provision_label"], "五-六")
+        self.assertEqual(closing_chunks[0].metadata["provision_label"], "五-六")
+        self.assertEqual(
+            closing_chunks[0].metadata["aggregation_mode"],
+            "adjacent_short_textual_units",
+        )
+        self.assertIn("六、本规定由教务处负责解释。", closing_chunks[0].metadata["display_text"])
+        self.assertNotIn("三、学士学位授予程序", closing_chunks[0].text)
 
     def test_build_indexable_chunks_marks_time_rule_policy_page_as_answer_bearing(self) -> None:
         record = _make_registry_record()

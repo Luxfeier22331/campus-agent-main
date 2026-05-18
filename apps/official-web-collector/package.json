@@ -7,9 +7,11 @@
 	"scripts": {
 		"crawl": "node --experimental-strip-types src/crawl.ts",
 		"plan": "node --experimental-strip-types src/plan.ts",
+		"plan-source-pack": "node --experimental-strip-types src/source-pack-plan-cli.ts",
+		"validate-source-pack": "node --experimental-strip-types src/validate-source-pack.ts",
 		"validate": "node --experimental-strip-types src/validate.ts",
 		"qc-report": "node --experimental-strip-types src/qc-report.ts",
-		"test": "vitest run",
+		"test": "vitest run --fileParallelism=false",
 		"typecheck": "tsc --noEmit"
 	},
 	"dependencies": {

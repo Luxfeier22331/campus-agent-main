@@ -5,12 +5,19 @@ import {
 	buildOfficialWebCrawlPlan,
 	findOfficialWebHostPolicy,
 	loadOfficialWebConfig,
+	type OfficialWebPageTargetMatch,
 } from "official-web-core";
 import * as collector from "../src/index";
 import * as pageArtifactsModule from "../src/page-artifacts";
+import { buildOfficialWebTargetMatchForTest } from "./test-support";
 
 export {
+	buildOfficialWebPlannerPageForTest,
+	buildOfficialWebTargetMatchForTest,
+	createTargetWorksetControlPlaneForTest,
 	SAMPLE_DYNAMIC_SHELL_PAGE_HTML,
+	SAMPLE_NEWS_ARTICLE_DETAIL_HTML,
+	SAMPLE_NEWS_HOME_PAGE_HTML,
 	SAMPLE_PAGE_HTML,
 	writeTestConfigRoot,
 } from "./test-support";
@@ -71,6 +78,7 @@ export function createCollectedPageArtifactForTest(input: {
 	declaredCanonicalUrl: string | null;
 	responseBody: string;
 	fetchedAt: string;
+	targetLineage?: OfficialWebPageTargetMatch | null;
 }) {
 	const bundle = loadOfficialWebConfig("campus_public", { configRoot: input.configRoot });
 	const plan = buildOfficialWebCrawlPlan("campus_public", {
@@ -99,6 +107,10 @@ export function createCollectedPageArtifactForTest(input: {
 		discoveryMethod: "seed",
 		discoveredFromUrl: null,
 		fetchedAt: input.fetchedAt,
+		targetLineage:
+			input.targetLineage === null
+				? undefined
+				: (input.targetLineage ?? buildOfficialWebTargetMatchForTest()),
 		html: load(input.responseBody),
 	});
 }

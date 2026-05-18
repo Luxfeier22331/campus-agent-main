@@ -132,7 +132,109 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 			},
 		]);
 	});
-	it("keeps the batch running when a single attachment download fails", async () => {
+	it("fails closed when a required attachment download has a transient failure", async () => {
+		await expect(
+			collectBootstrapBundle({
+				attachmentArtifactStore: {
+					storageProvider: "object_store",
+					headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
+					putObject: async () => {
+						throw new Error("unexpected upload");
+					},
+				},
+				attachmentFetchAdmissions: [
+					{
+						attachmentCapturePolicy: "fetch_to_quarantine",
+						attachmentRefId: "attachment-0001",
+						noticeId: "355600",
+					},
+				],
+				createApiContext: async () => ({
+					dispose: async () => undefined,
+					get: async () => ({
+						body: async () => {
+							throw new Error(
+								"You did not provide the number of bytes specified by the Content-Length HTTP header.",
+							);
+						},
+						headers: () => ({
+							"content-disposition": "attachment; filename*=UTF-8''broken.pdf",
+							"content-type": "application/pdf",
+						}),
+						json: async () => ({}),
+						ok: () => true,
+						status: () => 200,
+						statusText: () => "OK",
+					}),
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				}),
+				exportedAt: "2026-04-04T01:23:45.000Z",
+				fetchNoticeDetail: async ({ noticeId }) => ({
+					datas: {
+						notice_info: {
+							home_url: "https://portal.example.edu/home",
+							notice_annext: [
+								{
+									notice_annex_id: "annex-1",
+									notice_annex_name: "broken.pdf",
+								},
+							],
+							notice_content: "<p>正文</p>",
+							notice_id: noticeId,
+							notice_release_time: "2026-04-02 18:49",
+						},
+					},
+					state: true,
+				}),
+				fetchNoticeSelects: async () => ({
+					datas: {
+						org: [],
+						type: [
+							{
+								notice_type_id: 5,
+								notice_type_name: "办公通知",
+							},
+						],
+					},
+					state: true,
+				}),
+				fetchNoticePage: async () => ({
+					datas: {
+						page: {
+							totalCounts: 1,
+						},
+						tables: [
+							{
+								notice_id: 355600,
+								notice_title: "通知 A",
+								notice_type: "5",
+								notice_type_name: "办公通知",
+							},
+						],
+					},
+					state: true,
+				}),
+				noticeTypes: [
+					{
+						type: "5",
+						name: "办公通知",
+						enabled: true,
+						incrementalPages: 1,
+						incrementalPageSize: 1,
+						backfillPages: 1,
+						backfillPageSize: 20,
+					},
+				],
+				requestBackoffBaseMs: 1,
+				requestMaxRetries: 1,
+				siteId: "muc_internal_portal",
+				sourceHomeUrl: "https://portal.example.edu/home",
+			}),
+		).rejects.toThrow("attachment_materialization_failed:notice=355600:attachment=attachment-0001");
+	});
+	it("records first observed 404 attachment downloads as typed terminal unavailable", async () => {
 		const result = await collectBootstrapBundle({
 			attachmentArtifactStore: {
 				storageProvider: "object_store",
@@ -143,27 +245,20 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 			},
 			attachmentFetchAdmissions: [
 				{
-					attachmentCapturePolicy: "fetch_to_quarantine",
+					attachmentCapturePolicy: "fetch_required_for_source_truth",
 					attachmentRefId: "attachment-0001",
-					noticeId: "355600",
+					noticeId: "186978",
 				},
 			],
 			createApiContext: async () => ({
 				dispose: async () => undefined,
 				get: async () => ({
-					body: async () => {
-						throw new Error(
-							"You did not provide the number of bytes specified by the Content-Length HTTP header.",
-						);
-					},
-					headers: () => ({
-						"content-disposition": "attachment; filename*=UTF-8''broken.pdf",
-						"content-type": "application/pdf",
-					}),
+					body: async () => Buffer.from("missing"),
+					headers: () => ({}),
 					json: async () => ({}),
-					ok: () => true,
-					status: () => 200,
-					statusText: () => "OK",
+					ok: () => false,
+					status: () => 404,
+					statusText: () => "Not Found",
 				}),
 				post: async () => {
 					throw new Error("unexpected post");
@@ -176,13 +271,14 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 						home_url: "https://portal.example.edu/home",
 						notice_annext: [
 							{
-								notice_annex_id: "annex-1",
-								notice_annex_name: "broken.pdf",
+								notice_annex_id: "missing",
+								notice_annex_name: "missing.pdf",
 							},
 						],
 						notice_content: "<p>正文</p>",
 						notice_id: noticeId,
-						notice_release_time: "2026-04-02 18:49",
+						notice_release_time: "2021-01-05 19:02",
+						notice_title: "附件缺失通知",
 					},
 				},
 				state: true,
@@ -192,33 +288,20 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 					org: [],
 					type: [
 						{
-							notice_type_id: 5,
-							notice_type_name: "办公通知",
+							notice_type_id: 6,
+							notice_type_name: "教学通知",
 						},
 					],
 				},
 				state: true,
 			}),
-			fetchNoticePage: async () => ({
-				datas: {
-					page: {
-						totalCounts: 1,
-					},
-					tables: [
-						{
-							notice_id: 355600,
-							notice_title: "通知 A",
-							notice_type: "5",
-							notice_type_name: "办公通知",
-						},
-					],
-				},
-				state: true,
-			}),
+			fetchNoticePage: async () => {
+				throw new Error("unexpected page fetch");
+			},
 			noticeTypes: [
 				{
-					type: "5",
-					name: "办公通知",
+					type: "6",
+					name: "教学通知",
 					enabled: true,
 					incrementalPages: 1,
 					incrementalPageSize: 1,
@@ -228,6 +311,13 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 			],
 			requestBackoffBaseMs: 1,
 			requestMaxRetries: 1,
+			selectedNotices: [
+				{
+					noticeId: 186978,
+					noticeType: "6",
+					noticeTypeName: "教学通知",
+				},
+			],
 			siteId: "muc_internal_portal",
 			sourceHomeUrl: "https://portal.example.edu/home",
 		});
@@ -236,10 +326,12 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 		expect(result.bundleRecords[0]?.attachments[0]).toMatchObject({
 			storage_provider: "reference_only",
 			object_key: null,
-			original_filename: "broken.pdf",
-			last_error:
-				"You did not provide the number of bytes specified by the Content-Length HTTP header.",
-			ingest_status: "reference_only",
+			original_filename: "missing.pdf",
+			last_error: "terminal_unavailable:http_404",
+			ingest_status: "terminal_unavailable",
+			provenance_status: "terminal_unavailable",
+			terminal_reason: "http_404",
+			last_http_status: 404,
 		});
 		expect(result.bundleRecords[0]?.links).toEqual([]);
 	});
@@ -351,7 +443,9 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 			object_key: null,
 			original_filename: "missing.pdf",
 			last_error: "terminal_unavailable:http_404",
-			ingest_status: "reference_only",
+			ingest_status: "terminal_unavailable",
+			provenance_status: "terminal_unavailable",
+			terminal_reason: "http_404",
 		});
 	});
 }

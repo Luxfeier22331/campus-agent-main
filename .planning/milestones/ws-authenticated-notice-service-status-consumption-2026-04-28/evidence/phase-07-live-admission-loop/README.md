@@ -74,7 +74,7 @@ Evidence files under `live-355650-facility-trial/`:
 
 ## Runtime Lookup Evidence
 
-Supervisor HTTP seam was run against local `supervisor-api` with `CAMPUS_SHARED_POSTGRES_URL` loaded from the repo `.env` and a temporary local `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET`.
+Supervisor HTTP seam was run against local `supervisor-api` with `CAMPUS_SHARED_POSTGRES_URL` loaded from the repo `.env` and a temporary local `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`.
 
 Request:
 

@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-22
+updated: 2026-05-02
 ---
 # Official Web Serving And News Retrieval Strategy
 
@@ -56,8 +56,11 @@ updated: 2026-04-22
 
 当前已固定的 handoff truth 为：
 
-- 当前 stable-reference-like answer gate 只消费 `release_gate_required`
-- `retain_inventory_only` 只保留在 current truth / regression truth
+- 当前 default stable-reference answer gate 只消费
+  `configs/ingestion/official_web/stable_reference/split-manifest.v1.json`、
+  对应 qrels 与 live gate；不再从 mixed `muc_public_pages` inventory 推导
+- `muc_public_pages` 只保留 current truth / regression truth / audit truth，不是默认
+  query-serving gate
 - 当前 `8` 条新闻页已显式转入 future `fresh_news` handoff，而不是当前 stable-reference gate 的延迟候选
 
 ## 问题定义
@@ -97,7 +100,7 @@ updated: 2026-04-22
 - `regulations/*` 与 `curriculum/*` 继续是与 `official_web/*` 并列的正式语义 corpus，不应再派生出
   `official_web/regulation` 或 `official_web/curriculum` 这类镜像层。
 - `listing_page` 默认不作为新闻主 evidence；它主要承担 discovery、freshness trigger、navigation
-  fallback。
+  hints。
 - `article_detail` 才是新闻问答的默认主 evidence。
 - 同一篇新闻如果在 `news`、`xxgk` 等多个官网 host 上重复发布，serving truth 必须收口为一个逻辑
   document/version；多 URL 差异保留在 provenance/source observations，而不是扩成多份 evidence。
@@ -152,7 +155,9 @@ runtime 消费，而不是并行再开一条 `rag-agent` generic retrieval surfa
   命名隐式决定
 - future public notice runtime 的 query seam 必须继续是 projection-backed：
   - `campus_notice_discover` 读取 notice card / summary projection
-  - `campus_notice_get` 读取 canonical notice body projection
+  - internal selected notice resolve（`payload_kind=campus_notice_get`）只读取
+    selected notice card / bounded context projection 与 display policy，不作为
+    body-serving tool
   - `article_detail` 继续是正文主 owner，`listing_page` 只提供 discovery / recency signal
   - 不得直接把 `fresh_news` collection alias 当成 discover/get 的 runtime query seam
 
@@ -197,6 +202,9 @@ runtime 消费，而不是并行再开一条 `rag-agent` generic retrieval surfa
 
 - 官网页面如果只是对制度或培养体系的公开介绍、摘要说明、招生/培养概览，它仍可留在 `official_web/stable_reference`
 - 官网页面如果承载的是正式规章正文、正式培养方案正文或等价的规范性事实，下游应归入 `regulations/*` 或 `curriculum/*`
+- 官网页面如果主要是品牌历史、校史人物、名人传记或宣传性荣誉展示，默认只保留 source /
+  inventory audit truth，不进入当前 `official_web/stable_reference` 默认回答面；后续如果产品明确要服务校史人物类查询，必须开显式
+  `brand_history` / 校史人物类 surface。
 - 不要因为来源 URL 在官网 host 下，就把所有内容都留在 `official_web/*`
 - 也不要为了“来源来自官网”再复制一套 `official_web/regulation` 或 `official_web/curriculum`
 - 如果后续 direct contact-fact query 被提升为 `contact_directory_lookup` 这类 structured
@@ -291,9 +299,9 @@ runtime 消费，而不是并行再开一条 `rag-agent` generic retrieval surfa
   - 新闻、公告、活动类问答的默认主 evidence
   - 如果需要 query-enable 新闻面，应优先从这类 detail 文档进入
 - `listing_page`
-  - 主要承担 discovery、listing-diff、priority propagation 与 navigation fallback
+  - 主要承担 discovery、listing-diff、priority propagation 与 navigation hints
   - 默认不作为新闻问答主 evidence
-  - 只有在没有 detail、且业务明确接受“导航级证据”时，才允许作为 fallback surface
+  - 只有业务显式接受“导航级证据”时，才允许作为独立 navigation evidence surface
   - 在当前 `muc_public_pages` scope 中，它只应作为 staged audit truth 保留，不应进入 promoted
     current truth
 - `directory_page`
@@ -347,11 +355,13 @@ runtime 消费，而不是并行再开一条 `rag-agent` generic retrieval surfa
 - 明确的部门电话 / 邮箱 / 办公地点 / 联系人联系方式查询
   - 在 `contact_directory_lookup` later-wave admission 完成后，应优先走
     `campus_services/contact_directory` 的 structured runtime seam
-  - admission 完成前，仍可暂留 `stable_reference` / `rag-agent` 兜底，但这不是长期 owner truth
+  - admission 完成前，不应把该能力伪装成 contact directory；只能走已开放的 stable-reference
+    answer contract，或明确返回未开放
 - 明确的办理步骤 / 材料 / 入口 / 适用人群查询
   - 在 `service_process_lookup` later-wave admission 完成后，应优先走
     `campus_services/service_catalog` 的 structured runtime seam
-  - admission 完成前，仍可暂留 `stable_reference` / `rag-agent` 兜底，但这不是长期 owner truth
+  - admission 完成前，不应把该能力伪装成 service process；只能走已开放的 stable-reference
+    answer contract，或明确返回未开放
 - 校园新闻 / 近期活动 / 某学院近况
   - 走 `fresh_news` 对应的 tool/runtime surface
 - “今天 / 最新 / 刚刚 / 最近”
@@ -413,7 +423,7 @@ retrieval/evidence contract。
 
 - 不得省略时间语义
 - 不得把旧报道改写成当前状态断言
-- 若命中的只是 listing/navigation 证据，应明确降级为“导航级线索”，而不是正文事实证据
+- 若命中的只是 listing/navigation 证据，应明确标注为“导航级线索”，而不是正文事实证据
 - admitted live evidence 如果进入最终回答，也必须显式保留时间语义与来源语义
 
 ## Metadata And Runtime Profile Requirements
@@ -443,7 +453,7 @@ runtime policy：
 - `requires_explicit_history_intent`
 - `duplicate_collapse_required`
 - 时间过滤窗口 / stale 阈值
-- 是否允许 live-search fallback
+- 是否允许 live-search expansion
 
 当前 repo 已把这些 shape 固定进 `runtime-profile.json`：
 

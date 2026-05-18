@@ -42,6 +42,17 @@ func TestWorkflowRunProjectsSingleHandoffTrace(t *testing.T) {
 				RuntimeRetryCount: 1,
 			},
 		},
+		AgentInvocations: []AgentInvocation{
+			{
+				InvocationID:   "agent-invocation:rag-agent:1",
+				WorkflowRunRef: "run-001",
+				StepID:         "handoff:rag-agent:rag_request",
+				AgentID:        "rag-agent",
+				Status:         "completed",
+				AllowedTools:   []string{"retrieval.query"},
+				UsedTools:      []string{"retrieval.query"},
+			},
+		},
 	}
 
 	handoffChain := run.HandoffChainMaps()
@@ -61,6 +72,13 @@ func TestWorkflowRunProjectsSingleHandoffTrace(t *testing.T) {
 	}
 	if steps[2]["attempt_count"] != 2 || steps[2]["runtime_retry_count"] != 1 {
 		t.Fatalf("finalization step = %#v, want bridge run state", steps[2])
+	}
+	agentInvocations := run.AgentInvocationMaps()
+	if len(agentInvocations) != 1 {
+		t.Fatalf("agent invocations = %#v, want one projected invocation", agentInvocations)
+	}
+	if agentInvocations[0]["agent_id"] != "rag-agent" {
+		t.Fatalf("agent invocation = %#v, want rag-agent", agentInvocations[0])
 	}
 }
 
@@ -97,8 +115,8 @@ func TestWorkflowRunProjectsMultiStepHandoffChain(t *testing.T) {
 			{
 				Target:       "notice-agent",
 				PayloadKind:  "campus_notice_get",
-				AllowedTools: []string{"campus_notice_get"},
-				SelectedTool: "campus_notice_get",
+				AllowedTools: []string{},
+				SelectedTool: "",
 			},
 		},
 	}

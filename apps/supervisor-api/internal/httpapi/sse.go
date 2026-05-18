@@ -235,22 +235,22 @@ func (s *Server) invalidBridgeStreamPayload(message string) (streamPayload, brid
 
 func errorInfoFromBridgeBody(
 	body map[string]any,
-	fallbackCode string,
-	fallbackMessage string,
-	fallbackRetryable bool,
+	defaultCode string,
+	defaultMessage string,
+	defaultRetryable bool,
 ) *errorInfo {
 	errorBody, _ := body["error"].(map[string]any)
 	code, _ := errorBody["code"].(string)
 	message, _ := errorBody["message"].(string)
 	retryable, ok := errorBody["retryable"].(bool)
 	if strings.TrimSpace(code) == "" {
-		code = fallbackCode
+		code = defaultCode
 	}
 	if strings.TrimSpace(message) == "" {
-		message = fallbackMessage
+		message = defaultMessage
 	}
 	if !ok {
-		retryable = fallbackRetryable
+		retryable = defaultRetryable
 	}
 	return &errorInfo{
 		Code:      strings.TrimSpace(code),

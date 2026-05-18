@@ -2,7 +2,7 @@
 doc_type: data
 status: active
 created: 2026-03-29
-updated: 2026-04-12
+updated: 2026-05-02
 ---
 # App API Official Web Schema
 
@@ -50,6 +50,8 @@ updated: 2026-04-12
 
 - `official_web.*` crawl-run control-plane durable truth
 - `operator.*` panel-facing site/run projections
+- `operator.official_web_release_task_*` ingestion-produced operator-safe
+  release task projections
 
 ## Global Rules
 
@@ -57,6 +59,9 @@ updated: 2026-04-12
 - retained HTML、provider payload、source-truth rows 保存在对象存储，不保存在这些表里
 - site config 仍然是 repo-tracked source config，不迁移进数据库当作真相源
 - ingestion execution 仍然由 `apps/ingestion-worker` 拥有，不在这里复制其内部 job schema
+- release task truth、claim、lease、retry、dead-letter 与 publish 状态机属于
+  `packages/ingestion-core` / `apps/ingestion-worker`；app-api 只接收 redacted operator
+  projection snapshot
 
 ## Schema Code Ownership
 
@@ -234,6 +239,41 @@ updated: 2026-04-12
 - projector 与 ingestion handoff 都必须以 `event_id` 幂等消费
 - outbox payload 只携带 run identity、site identity、terminal status 与 artifact refs
 
+## `official_web.run_admission_decisions`
+
+用途：
+
+- 记录 app-api 对 crawl-run 是否允许继续进入 projection / ingestion / selected-write 的控制面决策
+- 为 pre-target-workset 历史 run cleanup 提供显式 ledger，而不是物理删除 source truth
+
+最小列：
+
+- `decision_id`
+- `run_id`
+- `site_id`
+- `decision`
+- `reason_code`
+- `reason`
+- `decided_by`
+- `decided_at`
+- `evidence_json`
+- `created_at`
+- `updated_at`
+
+最小索引：
+
+- unique `(run_id)`
+- `(site_id, decision, decided_at desc)`
+
+该表只属于历史 schema 演化记录，不再属于当前活跃 runtime contract。
+
+当前代码中：
+
+- `official_web` projection drain 直接基于 `crawl_runs`、`run_outbox` 与 run-level
+  dispatch/execution 状态推进
+- `apps/app-api` 不再维护独立 cleanup admission ledger
+- 历史 migration artifacts 可以保留，但不应再被解释为当前运行时依赖
+
 ## `official_web.page_observations`
 
 用途：
@@ -325,6 +365,129 @@ updated: 2026-04-12
   `page_observations` 的组合为准
 - `plans:resolve` 会基于 `next_eligible_fetch_at`、`cadence_class` 与
   `last_fetch_disposition` 从这里解析动态 workset
+
+## `official_web.target_release_gates`
+
+用途：
+
+- 记录 `official_web/stable_reference` target inventory preview 的 operator approve/reject
+  command ledger
+- 为 operator/panel 提供可审计决策记录；不承担 executor claim、retry、publish 或失败状态机
+
+最小列：
+
+- `release_id`
+- `inventory_id`
+- `job_id`
+- `run_id` nullable
+- `summary_id` nullable
+- `decision`
+- `status`
+- `publish_alias`
+- `decided_by`
+- `decided_at`
+- `notes` nullable
+- `evidence_json`
+- `created_at`
+- `updated_at`
+
+规则：
+
+- `status` 与 `decision` 在 app-api 中只表达 operator ledger 状态：`approved` 或 `rejected`
+- stable-reference target release 默认 `publish_alias = false`
+- app-api 不保存 selected-write admission/task truth；contact/service selected-write
+  release task 属于 ingestion data plane
+- 单 target release import、registry scope chunk preparation、claim/lease、
+  retry/dead-letter 与 publish 进度均由 `packages/ingestion-core` /
+  `apps/ingestion-worker` 的 release task state machine 承担
+- 若物理 schema 中仍存在历史 `execution_json` / `error_json` 列，它们不再是 forward
+  executor contract 的一部分
+
+## `operator.official_web_release_task_projection`
+
+用途：
+
+- panel `Official Web / Release Tasks` 的 canonical read model
+- 展示 ingestion-owned release task state machine 的 redacted operator projection
+- 不承担 task truth、claim、lease、retry、dead-letter 或 publish 状态推进
+
+最小列：
+
+- `task_id`
+- `task_type`
+- `source_channel`
+- `inventory_id`
+- `job_id`
+- `run_id`
+- `selected_write_target` nullable
+- `lifecycle_status`
+- `latest_stage`
+- `attempt_count`
+- `max_attempts`
+- `input_summary_json`
+- `output_summary_json`
+- `timeline_json`
+- `last_error_code` nullable
+- `last_error_message` nullable
+- `created_at`
+- `updated_at`
+- `projected_at`
+- `producer_version`
+- `redaction_version`
+
+最小索引：
+
+- `(inventory_id, projected_at)`
+- `(job_id, projected_at)`
+- `(run_id, projected_at)`
+- `(lifecycle_status, projected_at)`
+- `(selected_write_target, projected_at)`
+
+规则：
+
+- `task_id` 是幂等 upsert key
+- `input_summary_json` 与 `output_summary_json` 只能保存 redacted summary，不保存
+  source object key、bucket、raw HTML、raw body、本地路径、credential 或 stack trace
+- `timeline_json` 是 panel-friendly timeline cache；event 级幂等事实写入
+  `operator.official_web_release_task_event_projection`
+- `lifecycle_status` 第一版按 ingestion release task 状态投影，例如 `queued`、
+  `claimed`、`running`、`materialized`、`indexed`、`published`、`failed_retryable`、
+  `failed_terminal`
+- freshness/staleness 是 query service 从 `projected_at` 派生的 read concern，
+  不是 task truth
+
+## `operator.official_web_release_task_event_projection`
+
+用途：
+
+- 保存 release task operator projection timeline 的 event-level read model
+- 支持按 task/run 展示状态推进轨迹
+
+最小列：
+
+- `event_id`
+- `task_id`
+- `inventory_id`
+- `job_id`
+- `run_id`
+- `stage`
+- `status`
+- `occurred_at`
+- `summary`
+- `payload_json`
+- `projected_at`
+
+最小索引：
+
+- `(task_id, occurred_at)`
+- `(run_id, occurred_at)`
+
+规则：
+
+- `event_id` 是幂等写入 key；producer 未提供时由 app-api 从
+  `task_id/stage/status/occurred_at/index` 生成 deterministic id
+- `payload_json` 只能保存 operator-safe payload summary
+- event projection 不能被 panel 或 app-api 用来反推 executor retry/publish 决策
 
 ## `operator.official_web_run_projection`
 

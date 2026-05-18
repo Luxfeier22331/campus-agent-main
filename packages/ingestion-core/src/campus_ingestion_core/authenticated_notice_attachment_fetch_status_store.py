@@ -8,7 +8,6 @@ from typing import Protocol
 
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status_models import (
     DEFAULT_ATTACHMENT_FETCH_STATUS_ENV_KEY,
-    DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
     DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
     DEFAULT_ATTACHMENT_FETCH_STATUS_TABLE,
     AuthenticatedNoticeAttachmentFetchStatusRecord,
@@ -19,7 +18,6 @@ from campus_ingestion_core.postgres_runtime import (
 )
 from campus_ingestion_core.registry import (
     SHARED_POSTGRES_ENV_KEY,
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
     _coerce_json_payload,
     _ensure_table_schema,
@@ -151,6 +149,7 @@ class PostgresAuthenticatedNoticeAttachmentFetchStatusStore:
                     primary key (site_id, notice_id, attachment_ref_id),
                     check (fetch_status in (
                         'collected_internal',
+                        'reference_only',
                         'terminal_unavailable',
                         'transient_failed'
                     )),
@@ -164,6 +163,7 @@ class PostgresAuthenticatedNoticeAttachmentFetchStatusStore:
                 )
                 """
             )
+            _repair_fetch_status_check(cursor, table_name=self.table_name)
             cursor.execute(
                 f"""
                 create index if not exists idx_{suffix}_terminal
@@ -220,6 +220,69 @@ class PostgresAuthenticatedNoticeAttachmentFetchStatusStore:
         """
 
 
+def _repair_fetch_status_check(cursor, *, table_name: str) -> None:
+    table_sql = _qualified_table_sql(table_name)
+    relation_name = _table_index_suffix(table_name)
+    check_names = _fetch_status_check_constraint_names(cursor, table_name=table_name)
+    if not check_names:
+        check_names = (f"{relation_name}_fetch_status_check",)
+    for constraint_name in check_names:
+        cursor.execute(f'alter table {table_sql} drop constraint if exists "{constraint_name}"')
+    cursor.execute(
+        f"""
+        alter table {table_sql}
+        add constraint "{relation_name}_fetch_status_check"
+        check (fetch_status in (
+            'collected_internal',
+            'reference_only',
+            'terminal_unavailable',
+            'transient_failed'
+        ))
+        """
+    )
+
+
+def _fetch_status_check_constraint_names(cursor, *, table_name: str) -> tuple[str, ...]:
+    schema_name, relation_name = _parse_table_name(table_name)
+    if schema_name is None:
+        cursor.execute(
+            """
+            select con.conname
+            from pg_constraint con
+            join pg_class rel on rel.oid = con.conrelid
+            join pg_namespace nsp on nsp.oid = rel.relnamespace
+            where rel.relname = %s
+              and con.contype = 'c'
+              and pg_get_constraintdef(con.oid) like 'CHECK ((fetch_status = ANY%%'
+            """,
+            (relation_name,),
+        )
+    else:
+        cursor.execute(
+            """
+            select con.conname
+            from pg_constraint con
+            join pg_class rel on rel.oid = con.conrelid
+            join pg_namespace nsp on nsp.oid = rel.relnamespace
+            where nsp.nspname = %s
+              and rel.relname = %s
+              and con.contype = 'c'
+              and pg_get_constraintdef(con.oid) like 'CHECK ((fetch_status = ANY%%'
+            """,
+            (schema_name, relation_name),
+        )
+    return tuple(str(row[0]) for row in cursor.fetchall())
+
+
+def _parse_table_name(table_name: str) -> tuple[str | None, str]:
+    parts = [part.strip() for part in table_name.split(".")]
+    if len(parts) == 1:
+        return None, parts[0]
+    if len(parts) == 2:
+        return parts[0], parts[1]
+    raise ValueError(f"table name must be <table> or <schema>.<table>: {table_name}")
+
+
 def build_authenticated_notice_attachment_fetch_status_store_from_env(
     env: dict[str, str] | None = None,
     *,
@@ -229,17 +292,13 @@ def build_authenticated_notice_attachment_fetch_status_store_from_env(
     if prefer_operator:
         database_url = (
             source.get(DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY)
-            or source.get(DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY)
             or source.get(SHARED_POSTGRES_OPERATOR_ENV_KEY)
-            or source.get(SHARED_POSTGRES_MANAGEMENT_ENV_KEY)
             or ""
         ).strip()
         if not database_url:
             raise ValueError(
                 f"{DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY} or "
-                f"{DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY} or "
-                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} or "
-                f"{SHARED_POSTGRES_MANAGEMENT_ENV_KEY} is required when prefer_operator=True"
+                f"{SHARED_POSTGRES_OPERATOR_ENV_KEY} is required when prefer_operator=True"
             )
         return PostgresAuthenticatedNoticeAttachmentFetchStatusStore(
             build_operator_postgres_connection_url(database_url)

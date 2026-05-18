@@ -24,6 +24,11 @@ from .agent_shared import (
     _render_source_support,
     _replace_academic_years_match,
 )
+from .agent_summary_facets import (
+    general_summary_off_nominal_penalty,
+    general_summary_preferred_term_score,
+    general_summary_query_facets,
+)
 
 _LEADING_ENUM_RE = re.compile(r"^(?:[0-9]{1,2}[.、]\s*|[一二三四五六七八九十百]+[、.]\s*)")
 _ACTION_STATEMENT_HINTS = (
@@ -60,38 +65,211 @@ _TIME_STATEMENT_HINTS = (
     ":",
 )
 _ACADEMIC_YEARS_FACT_RE = re.compile(r"学制[:： ]*(?:\d+|[一二三四五六七八九十两]+)年")
+_HANDBOOK_METADATA_LINE_RE = re.compile(r"^(?:标题|章节|条款)[:：]")
+_HANDBOOK_INLINE_METADATA_SEGMENT_RE = re.compile(
+    r"(?:^|\s*[|｜]\s*)(?:标题|章节|条款)[:：][^|｜\n\r]+"
+)
+_INLINE_ARTICLE_MARKER_RE = re.compile(r"第[一二三四五六七八九十百零0-9]+条")
+_GENERIC_INTRO_STATEMENT_HINTS = (
+    "具备以下基本条件",
+    "需具备以下基本条件",
+    "须具备以下基本条件",
+    "具备以下条件之一",
+    "还须具备以下条件之一",
+    "符合以下条件之一",
+)
+_RANK_EXCEPTION_QUERY_HINTS = (
+    "没前十",
+    "没前10",
+    "没进前十",
+    "没进前10",
+    "不在前十",
+    "不在前10",
+    "前十之外",
+    "前10之外",
+    "前十以外",
+    "前10以外",
+    "超出前十",
+    "超出前10",
+)
 
 
 def _extract_source_statements(source: EvidenceSource) -> tuple[str, ...]:
     title = _normalize_snippet(source.source_title)
+    structural_labels = tuple(
+        _normalize_snippet(item) for item in source.structural_path if item.strip()
+    )
     ignored_lines = {
         title,
-        *(_normalize_snippet(item) for item in source.structural_path if item.strip()),
+        *structural_labels,
     }
     if source.detail_label.strip():
         ignored_lines.add(_normalize_snippet(source.detail_label))
 
     statements: list[str] = []
     for raw_line in re.split(r"[\r\n]+", source.snippet):
-        line = _normalize_snippet(raw_line)
-        if _is_official_web_source(source):
-            line = _normalize_official_web_statement_line(line=line, title=title)
-        if not line or line in ignored_lines or line.startswith("文号："):
-            continue
-        if title and line.startswith(title):
-            continue
-        line = _LEADING_ENUM_RE.sub("", line)
-        line = re.sub(r"^[（(]?[一二三四五六七八九十百]+[)）]\s*", "", line)
-        line = re.sub(r"\s*[:：]\s*$", "", line).strip()
-        line = re.sub(r"(学制[:： ]*)(\d+)年", _replace_academic_years_match, line)
-        if not line or line in ignored_lines or line.startswith("文号："):
-            continue
-        statements.append(line)
+        for line in _candidate_statement_lines(raw_line, source=source, title=title):
+            if not line or line in ignored_lines or line.startswith("文号："):
+                continue
+            if title and line.startswith(title):
+                continue
+            line = _LEADING_ENUM_RE.sub("", line)
+            line = re.sub(r"^[（(]?[一二三四五六七八九十百]+[)）]\s*", "", line)
+            line = re.sub(r"\s*[:：]\s*$", "", line).strip()
+            line = re.sub(r"(学制[:： ]*)(\d+)年", _replace_academic_years_match, line)
+            if not line or line in ignored_lines or line.startswith("文号："):
+                continue
+            statements.append(line)
 
     if statements:
-        return tuple(dict.fromkeys(statements))
+        statements = _prepend_structural_short_fact_labels(
+            statements=statements,
+            structural_labels=structural_labels,
+        )
+        return tuple(dict.fromkeys(_merge_short_fact_label_value_statements(statements)))
     rendered = _render_source_support(source)
     return (rendered,) if rendered else ()
+
+
+def _candidate_statement_lines(
+    raw_line: str,
+    *,
+    source: EvidenceSource,
+    title: str,
+) -> tuple[str, ...]:
+    line = _normalize_snippet(raw_line)
+    if not line:
+        return ()
+    if _looks_like_handbook_metadata_line(line):
+        return ()
+    if _is_official_web_source(source):
+        return _candidate_official_web_statement_lines(line=line, source=source, title=title)
+    stripped = _strip_handbook_inline_metadata(line)
+    if not stripped:
+        return ()
+    return _split_inline_article_segments(stripped)
+
+
+def _candidate_official_web_statement_lines(
+    *,
+    line: str,
+    source: EvidenceSource,
+    title: str,
+) -> tuple[str, ...]:
+    if source.content_kind == "table_unit" and " | " in line:
+        normalized = _normalize_official_web_statement_line(line=line, title=title)
+        return (normalized,) if normalized else ()
+    segments = tuple(
+        _normalize_snippet(segment).strip(" /|｜")
+        for segment in re.split(r"\s*[|｜]\s*", line)
+        if _normalize_snippet(segment).strip(" /|｜")
+    )
+    if len(segments) <= 1:
+        normalized = _normalize_official_web_statement_line(line=line, title=title)
+        return (normalized,) if normalized else ()
+    candidates: list[str] = []
+    for segment in segments:
+        normalized = _normalize_official_web_statement_line(line=segment, title=title)
+        if normalized:
+            candidates.append(normalized)
+    return tuple(candidates)
+
+
+def _looks_like_handbook_metadata_line(line: str) -> bool:
+    normalized = _normalize_snippet(line)
+    if not normalized:
+        return False
+    compact = normalized.replace(" ", "")
+    if _HANDBOOK_METADATA_LINE_RE.match(compact):
+        return True
+    return (
+        "标题：" in compact
+        and "章节：" in compact
+        and "条款：" in compact
+        and not re.search(r"(第一|第二|第三|第[一二三四五六七八九十0-9]+条)", compact)
+    )
+
+
+def _strip_handbook_inline_metadata(line: str) -> str:
+    normalized = _normalize_snippet(line)
+    if not normalized:
+        return ""
+    stripped = _HANDBOOK_INLINE_METADATA_SEGMENT_RE.sub("", normalized).strip(" |｜")
+    return _normalize_snippet(stripped)
+
+
+def _split_inline_article_segments(line: str) -> tuple[str, ...]:
+    normalized = _normalize_snippet(line)
+    if not normalized:
+        return ()
+    markers = tuple(_INLINE_ARTICLE_MARKER_RE.finditer(normalized))
+    if len(markers) < 2:
+        return (normalized,)
+    segments: list[str] = []
+    leading_prefix = normalized[: markers[0].start()].strip()
+    for index, marker in enumerate(markers):
+        end = markers[index + 1].start() if index + 1 < len(markers) else len(normalized)
+        segment = normalized[marker.start() : end].strip()
+        if index == 0 and leading_prefix:
+            segment = f"{leading_prefix} {segment}".strip()
+        if segment:
+            segments.append(segment)
+    return tuple(segments) or (normalized,)
+
+
+def _prepend_structural_short_fact_labels(
+    *,
+    statements: list[str],
+    structural_labels: tuple[str, ...],
+) -> list[str]:
+    if len(statements) != 1:
+        return statements
+    value = _normalize_snippet(statements[0])
+    if not value:
+        return statements
+    for label in reversed(structural_labels):
+        normalized_label = _normalize_short_fact_label(label)
+        if _combine_short_fact_label_with_value(normalized_label, value):
+            return [f"{normalized_label} {value}"]
+    return statements
+
+
+def _normalize_short_fact_label(label: str) -> str:
+    normalized = _normalize_snippet(label).rstrip(":：")
+    normalized = _LEADING_ENUM_RE.sub("", normalized).strip()
+    normalized = re.sub(r"^[（(]?[一二三四五六七八九十百]+[)）]\s*", "", normalized).strip()
+    return normalized.rstrip(":：")
+
+
+def _merge_short_fact_label_value_statements(statements: list[str]) -> list[str]:
+    merged: list[str] = []
+    index = 0
+    while index < len(statements):
+        statement = statements[index]
+        next_statement = statements[index + 1] if index + 1 < len(statements) else ""
+        combined = _combine_short_fact_label_with_value(statement, next_statement)
+        if combined:
+            merged.append(combined)
+            index += 2
+            continue
+        merged.append(statement)
+        index += 1
+    return merged
+
+
+def _combine_short_fact_label_with_value(label: str, value: str) -> str:
+    normalized_label = _normalize_snippet(label).rstrip(":：")
+    normalized_value = _normalize_snippet(value)
+    if not normalized_label or not normalized_value:
+        return ""
+    if normalized_label == "学制" and re.fullmatch(
+        r"(?:\d+|[一二三四五六七八九十两]+)年",
+        normalized_value,
+    ):
+        return f"{normalized_label} {normalized_value}"
+    if normalized_label == "总学分" and re.fullmatch(r"\d{2,3}(?:\s*学分)?", normalized_value):
+        return f"{normalized_label} {normalized_value}"
+    return ""
 
 
 def _score_statement(
@@ -113,6 +291,11 @@ def _score_statement(
         source, statement
     ):
         score += 4
+    if _query_asks_curriculum_total_credits(query_text):
+        if _is_curriculum_total_credit_statement(normalized):
+            score += 10
+        elif "学分" in normalized:
+            score -= 4
     if mode == "procedure":
         score += sum(2 for token in _ACTION_STATEMENT_HINTS if token in normalized)
         if source.content_role == "procedure":
@@ -135,7 +318,44 @@ def _score_statement(
             source=source,
             statement=statement,
         )
+    if _is_generic_intro_statement(statement):
+        score -= 3
+    if _query_asks_rank_exception(query_text):
+        if _statement_mentions_rank_exception(normalized):
+            score += 10
+        elif _statement_mentions_top_ten_requirement(normalized):
+            score += 2
+        elif any(
+            cue in normalized
+            for cue in ("体育竞赛", "学术研究", "论文", "专著", "发明专利", "竞赛")
+        ):
+            score -= 3
+    summary_facets = general_summary_query_facets(query_text)
+    if summary_facets:
+        score += general_summary_preferred_term_score(statement, summary_facets)
+        score += general_summary_off_nominal_penalty(
+            query_text=query_text,
+            text=statement,
+        )
     return score
+
+
+def _query_asks_curriculum_total_credits(query_text: str) -> bool:
+    normalized = _normalize_snippet(query_text)
+    return (
+        "总学分" in normalized
+        or "学分要求" in normalized
+        or ("多少学分" in normalized and any(cue in normalized for cue in ("一共", "共", "总共")))
+    )
+
+
+def _is_curriculum_total_credit_statement(statement: str) -> bool:
+    normalized = _normalize_snippet(statement)
+    if "总学分" in normalized:
+        return True
+    if re.search(r"(?:^|[|｜])\s*合计\s*(?:[|｜]\s*)+[0-9]{1,3}(?:\.\d+)?\s*$", normalized):
+        return True
+    return bool(re.search(r"(?:合计|共计(?:获得)?|总计)\s*[0-9]{1,3}(?:\.\d+)?\s*学分", normalized))
 
 
 def _candidate_source_statements(
@@ -183,6 +403,28 @@ def _rank_source_statements(
     return tuple(statement for _, statement in scored[:statement_limit])
 
 
+def _is_generic_intro_statement(statement: str) -> bool:
+    normalized = _normalize_snippet(statement)
+    if not normalized:
+        return False
+    return any(cue in normalized for cue in _GENERIC_INTRO_STATEMENT_HINTS)
+
+
+def _query_asks_rank_exception(query_text: str) -> bool:
+    normalized = _normalize_snippet(query_text)
+    return any(cue in normalized for cue in _RANK_EXCEPTION_QUERY_HINTS)
+
+
+def _statement_mentions_rank_exception(normalized_statement: str) -> bool:
+    return ("超出前10" in normalized_statement or "超出前十" in normalized_statement) and (
+        "前30" in normalized_statement or "前三十" in normalized_statement
+    )
+
+
+def _statement_mentions_top_ten_requirement(normalized_statement: str) -> bool:
+    return "前10" in normalized_statement or "前十" in normalized_statement
+
+
 __all__ = [
     "_ACADEMIC_YEARS_FACT_RE",
     "_ACTION_STATEMENT_HINTS",
@@ -190,6 +432,7 @@ __all__ = [
     "_TIME_STATEMENT_HINTS",
     "_candidate_source_statements",
     "_extract_source_statements",
+    "_is_generic_intro_statement",
     "_rank_source_statements",
     "_score_source_statements",
     "_score_statement",

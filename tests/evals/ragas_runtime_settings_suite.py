@@ -66,12 +66,12 @@ class RagasSettingsTest(unittest.TestCase):
     def test_from_env_reads_openai_compatible_llm_and_embedding_settings(self) -> None:
         settings = RagasSettings.from_env(
             {
-                "LLM_BASE_URL": "https://llm.example/v1",
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_BASE_URL": "https://llm.example/v1",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EMBEDDING_BASE_URL": "https://embed.example/v1",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_EMBEDDING_BASE_URL": "https://embed.example/v1",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS": "4",
                 "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "75",
                 "SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS": "9",
@@ -79,6 +79,7 @@ class RagasSettingsTest(unittest.TestCase):
                 "RAGAS_REASONING_EFFORT": "none",
                 "RAGAS_TEXT_VERBOSITY": "low",
                 "RAGAS_MAX_OUTPUT_TOKENS": "256",
+                "RAGAS_MAX_WORKERS": "2",
             }
         )
 
@@ -97,14 +98,15 @@ class RagasSettingsTest(unittest.TestCase):
         self.assertEqual(settings.reasoning_effort, "none")
         self.assertEqual(settings.text_verbosity, "low")
         self.assertEqual(settings.max_output_tokens, 256)
+        self.assertEqual(settings.max_workers, 2)
 
     def test_from_env_reads_request_pacing_override(self) -> None:
         settings = RagasSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_REQUEST_MIN_INTERVAL_SECONDS": "12.5",
             }
         )
@@ -114,10 +116,10 @@ class RagasSettingsTest(unittest.TestCase):
     def test_from_env_ignores_legacy_ragas_timeout_knobs(self) -> None:
         settings = RagasSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "RAGAS_REQUEST_TIMEOUT_SECONDS": "180",
                 "RAGAS_REQUEST_MIN_INTERVAL_SECONDS": "30",
             }
@@ -132,19 +134,19 @@ class RagasSettingsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "EVAL_RAGAS_MODEL is required"):
             RagasSettings.from_env(
                 {
-                    "LLM_API_KEY": "llm-key",
-                    "EMBEDDING_API_KEY": "embed-key",
-                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                    "EVAL_LLM_API_KEY": "llm-key",
+                    "EVAL_EMBEDDING_API_KEY": "embed-key",
+                    "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 }
             )
 
     def test_from_env_uses_eval_ragas_model_as_single_model_entrypoint(self) -> None:
         settings = RagasSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
         )
 
@@ -177,27 +179,27 @@ class RagasSettingsTest(unittest.TestCase):
     def test_from_env_reads_eval_llm_transport_with_surface_override(self) -> None:
         default_settings = RagasSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
             }
         )
         shared_override = RagasSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "EVAL_LLM_TRANSPORT": "chat_completions",
             }
         )
         surface_override = RagasSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "EVAL_LLM_TRANSPORT": "responses",
                 "EVAL_RAGAS_LLM_TRANSPORT": "chat_completions",
             }
@@ -211,10 +213,10 @@ class RagasSettingsTest(unittest.TestCase):
         with self.assertRaisesRegex(ValueError, "EVAL_LLM_TRANSPORT must be one of"):
             RagasSettings.from_env(
                 {
-                    "LLM_API_KEY": "llm-key",
+                    "EVAL_LLM_API_KEY": "llm-key",
                     "EVAL_RAGAS_MODEL": "gpt-5.4",
-                    "EMBEDDING_API_KEY": "embed-key",
-                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                    "EVAL_EMBEDDING_API_KEY": "embed-key",
+                    "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                     "EVAL_LLM_TRANSPORT": "legacy_sdk",
                 }
             )
@@ -237,10 +239,10 @@ class RagasSettingsTest(unittest.TestCase):
     ) -> None:
         settings = RagasSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "SUPPLEMENTAL_HTTP_CONNECT_TIMEOUT_SECONDS": "4",
                 "SUPPLEMENTAL_HTTP_READ_TIMEOUT_SECONDS": "30",
                 "SUPPLEMENTAL_HTTP_WRITE_TIMEOUT_SECONDS": "9",
@@ -266,10 +268,10 @@ class RagasSettingsTest(unittest.TestCase):
     def test_from_env_reads_prompt_language_adaptation_settings(self) -> None:
         settings = RagasSettings.from_env(
             {
-                "LLM_API_KEY": "llm-key",
+                "EVAL_LLM_API_KEY": "llm-key",
                 "EVAL_RAGAS_MODEL": "gpt-5.4",
-                "EMBEDDING_API_KEY": "embed-key",
-                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                "EVAL_EMBEDDING_API_KEY": "embed-key",
+                "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 "EVAL_RAGAS_TARGET_LANGUAGE": "chinese",
                 "RAGAS_ADAPT_INSTRUCTION": "true",
             }
@@ -283,12 +285,12 @@ class RagasSettingsTest(unittest.TestCase):
             RagasSettings.from_env(
                 {
                     "EVAL_RAGAS_MODEL": "gpt-5.4",
-                    "EMBEDDING_API_KEY": "embed-key",
-                    "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+                    "EVAL_EMBEDDING_API_KEY": "embed-key",
+                    "EVAL_EMBEDDING_MODEL": "Qwen3-Embedding-4B",
                 }
             )
         self.assertEqual(raised.exception.surface_name, "eval.ragas")
-        self.assertEqual(raised.exception.checked_keys, ("EVAL_LLM_API_KEY", "LLM_API_KEY"))
+        self.assertEqual(raised.exception.checked_keys, ("EVAL_LLM_API_KEY",))
         self.assertIn("eval.ragas", str(raised.exception))
         self.assertIn("EVAL_LLM_API_KEY", str(raised.exception))
 

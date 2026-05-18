@@ -7,3 +7,11 @@ export function buildOfficialWebRunShowPath(runId: Identifier): string {
 export function buildOfficialWebSiteShowPath(siteId: Identifier): string {
 	return `/officialWebSites/${encodeURIComponent(String(siteId))}/show`;
 }
+
+export function buildOfficialWebTargetJobShowPath(jobId: Identifier): string {
+	return `/officialWebTargetJobs/${encodeURIComponent(String(jobId))}/show`;
+}
+
+export function buildOfficialWebReleaseTaskShowPath(taskId: Identifier): string {
+	return `/officialWebReleaseTasks/${encodeURIComponent(String(taskId))}/show`;
+}

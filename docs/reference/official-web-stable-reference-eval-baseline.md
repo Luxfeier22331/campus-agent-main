@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-05
-updated: 2026-04-20
+updated: 2026-05-13
 ---
 # Official Web Stable Reference Eval Baseline
 
@@ -37,40 +37,40 @@ repo-tracked 基线入口固定为：
 
 基线分母：
 
-- `9` retrieval qrels cases for stable reference pages only
-- `11` deterministic live-gate cases:
-  - `9` completed stable reference pages
+- `4` retrieval qrels cases:
+  - `3` positive stable-reference page cases
+  - `1` no-hit case
+- `5` deterministic live-gate cases:
+  - `3` completed stable reference pages
   - `2` fail-close cases for freshness-sensitive / unanchored asks
 
 ## Accepted Baseline Snapshot
 
-accepted baseline 目前固定采用 `2026-04-05` 这一轮 snapshot：
+accepted baseline 目前固定采用 `2026-05-14` 这一轮 repo-tracked denominator：
 
-- validated physical
-  collection：`official_web_stable_reference__r20260404_204033`
+- validated physical collection：待下一次 stable_reference rebuild / publish 产出
 - later published alias：`official_web_stable_reference`
 - retrieval baseline：
-  - `total_cases = 9`
-  - `hit_at_1 = 1.0`
-  - `hit_at_3 = 1.0`
-  - `recall_at_5 = 1.0`
-  - `precision_at_5 = 0.8703703703703703`
-  - `mrr_at_5 = 1.0`
-  - `forbidden_hit_rate = 0.0`
+  - `total_cases = 4`
+  - `positive_cases = 3`
+  - accepted metric snapshot：待下一次 rebuild / live benchmark 后更新
 - deterministic live gate：
   - `benchmark_type = official_web_stable_reference_live_gate`
-  - `total_cases = 11`
-  - `completed = 9`
+  - `total_cases = 5`
+  - `completed = 3`
   - `no_answer = 2`
-  - `deterministic mean_pass_rate = 1.0`
-  - `gate verdict = pass`
+  - accepted metric snapshot：待下一次 rebuild / live benchmark 后更新
 
 ## 基线解释
 
 - `no_answer = 2` 是预期的 fail-close 行为，不应误判为 gate 漏测
 - `precision_at_5 < 1.0` 在这里不构成失败，因为 stable reference 允许多条高相关说明型页面共同进入前五
-- 这组指标的意义是：stable-reference split 已具备稳定 retrieval 排序和 answer-path
-  gate，而不是已经默认开放为 query-serving surface
+- 当前 split 只包含已经通过 target-inventory/source-pack lineage 且有本地 artifact proof 的文档：
+  `学校简介`、`教学和科研单位`、`中央民族大学大学教育收费公示表`
+- `学术名流` 只是一个暴露问题的样本；品牌历史 / 人物介绍、基金会/校友会介绍、旧教育培养说明、
+  新闻解释和讲座预告都不属于默认 institutional reference denominator。它们可以保留在
+  source/inventory audit truth，但不进入当前 `official_web/stable_reference` split、qrels、
+  RAGAS preferred set 或 live gate。
 - 物理 collection 与 alias 路径只要承载同一份 validated document set，本基线可沿用；真正的 rebuild /
   publish 操作仍应看 runbook
 

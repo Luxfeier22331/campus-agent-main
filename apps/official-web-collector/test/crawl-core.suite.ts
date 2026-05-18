@@ -2,6 +2,7 @@ import { expect, it } from "vitest";
 
 import {
 	createCollectedPageArtifactForTest,
+	createTargetWorksetControlPlaneForTest,
 	getCrawlSite,
 	readJsonArtifact,
 	readJsonlArtifact,
@@ -10,6 +11,48 @@ import {
 } from "./crawl-test-support";
 
 export function registerCrawlCoreSuite() {
+	it("fails closed when programmatic crawl lacks target workset admission", async () => {
+		const crawlSite = getCrawlSite();
+		const { configRoot, outputDir } = writeTestConfigRoot();
+		let crawlHostsCalled = false;
+
+		await expect(
+			crawlSite("campus_public", {
+				configRoot,
+				outputDir,
+				crawlRunId: "owrun_missing_admission",
+				crawlHosts: async () => {
+					crawlHostsCalled = true;
+					return {
+						hostSummaries: [],
+						pageObservations: [],
+						urlResults: [],
+						failures: [],
+						pages: [],
+					};
+				},
+			}),
+		).rejects.toThrow(/requires app-api target workset admission/u);
+		expect(crawlHostsCalled).toBe(false);
+	});
+
+	it("does not treat hostFilter as collection admission", async () => {
+		const crawlSite = getCrawlSite();
+		const { configRoot, outputDir } = writeTestConfigRoot();
+
+		await expect(
+			crawlSite("campus_public", {
+				configRoot,
+				outputDir,
+				crawlRunId: "owrun_host_filter_without_admission",
+				hostFilter: ["www.example.edu"],
+				crawlHosts: async () => {
+					throw new Error("crawl should not start without admission");
+				},
+			}),
+		).rejects.toThrow(/hostFilter cannot create target scope/u);
+	});
+
 	it("writes stable local artifacts from host crawl results", async () => {
 		const crawlSite = getCrawlSite();
 		const { configRoot, outputDir } = writeTestConfigRoot();
@@ -17,6 +60,10 @@ export function registerCrawlCoreSuite() {
 			configRoot,
 			outputDir,
 			crawlRunId: "campus_public-TEST",
+			localArtifactsOnly: true,
+			controlPlaneClient: createTargetWorksetControlPlaneForTest({
+				runId: "campus_public-TEST",
+			}),
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{
@@ -105,6 +152,29 @@ export function registerCrawlCoreSuite() {
 		expect(qualityAudit.summary.passPages).toBe(0);
 	});
 
+	it("fails closed when artifact upload store is not configured", async () => {
+		const crawlSite = getCrawlSite();
+		const { configRoot, outputDir } = writeTestConfigRoot();
+
+		await expect(
+			crawlSite("campus_public", {
+				configRoot,
+				outputDir,
+				crawlRunId: "owrun_missing_artifact_store",
+				controlPlaneClient: createTargetWorksetControlPlaneForTest({
+					runId: "owrun_missing_artifact_store",
+				}),
+				crawlHosts: async () => ({
+					hostSummaries: [],
+					pageObservations: [],
+					urlResults: [],
+					failures: [],
+					pages: [],
+				}),
+			}),
+		).rejects.toThrow(/requires artifactStore unless localArtifactsOnly is true/u);
+	});
+
 	it("deduplicates repeated fetched page artifacts before building bundle and quality audit", async () => {
 		const crawlSite = getCrawlSite();
 		const { configRoot, outputDir } = writeTestConfigRoot();
@@ -122,6 +192,10 @@ export function registerCrawlCoreSuite() {
 			configRoot,
 			outputDir,
 			crawlRunId: "owrun_duplicate_fetch",
+			localArtifactsOnly: true,
+			controlPlaneClient: createTargetWorksetControlPlaneForTest({
+				runId: "owrun_duplicate_fetch",
+			}),
 			crawlHosts: async () => ({
 				hostSummaries: [
 					{

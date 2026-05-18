@@ -164,12 +164,13 @@ class RagasSupplementalAdapter:
             result = by_metric_name.get(metric_name)
             if result is None:
                 final_results.append(
-                    _build_not_applicable_result(
+                    _build_failed_result(
                         metric_name=metric_name,
                         case=case,
                         response=response,
                         rationale=f"ragas scorer did not return metric {metric_name}",
-                        metric_applicable=True,
+                        score=None,
+                        metadata={"metric_applicable": True},
                     )
                 )
                 continue
@@ -200,7 +201,7 @@ def build_ragas_scorer(
     run_config = RunConfig(
         timeout=int(settings.request_timeout_seconds),
         max_retries=0,
-        max_workers=1,
+        max_workers=settings.max_workers,
     )
 
     def _score(projection: RagasProjection) -> tuple[SupplementalResult, ...]:

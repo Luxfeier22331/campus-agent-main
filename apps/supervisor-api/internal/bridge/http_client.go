@@ -59,7 +59,7 @@ func (c *HTTPClient) Configured() bool {
 }
 
 func (c *HTTPClient) Execute(ctx context.Context, request Request) (ExecuteResponse, error) {
-	response, err := c.do(ctx, http.MethodPost, answerPath, request.Payload)
+	response, err := c.do(ctx, http.MethodPost, answerPath, request.Payload, request.TraceHeaders)
 	if err != nil {
 		return ExecuteResponse{}, err
 	}
@@ -71,7 +71,7 @@ func (c *HTTPClient) Execute(ctx context.Context, request Request) (ExecuteRespo
 }
 
 func (c *HTTPClient) Readyz(ctx context.Context) (ReadyzResponse, error) {
-	response, err := c.do(ctx, http.MethodGet, readyzPath, nil)
+	response, err := c.do(ctx, http.MethodGet, readyzPath, nil, nil)
 	if err != nil {
 		return ReadyzResponse{}, err
 	}
@@ -86,7 +86,7 @@ func (c *HTTPClient) Cancel(ctx context.Context, request CancelRequest) (CancelR
 	if err != nil {
 		return CancelResponse{}, err
 	}
-	response, err := c.do(ctx, http.MethodPost, cancelPath, body)
+	response, err := c.do(ctx, http.MethodPost, cancelPath, body, nil)
 	if err != nil {
 		return CancelResponse{}, err
 	}
@@ -107,6 +107,7 @@ func (c *HTTPClient) do(
 	method string,
 	path string,
 	body []byte,
+	traceHeaders map[string]string,
 ) (rawResponse, error) {
 	request, err := http.NewRequestWithContext(
 		ctx,
@@ -118,6 +119,14 @@ func (c *HTTPClient) do(
 		return rawResponse{}, err
 	}
 	request.Header.Set("x-supervisor-bridge-auth", c.sharedSecret)
+	for key, value := range traceHeaders {
+		normalizedKey := strings.ToLower(strings.TrimSpace(key))
+		trimmedValue := strings.TrimSpace(value)
+		if trimmedValue == "" || !allowedTraceHeader(normalizedKey) {
+			continue
+		}
+		request.Header.Set(normalizedKey, trimmedValue)
+	}
 	if method == http.MethodPost {
 		request.Header.Set("content-type", "application/json")
 	}
@@ -144,4 +153,13 @@ func (c *HTTPClient) do(
 		Body:       responseBody,
 		Kind:       strings.TrimSpace(response.Header.Get("x-supervisor-bridge-kind")),
 	}, nil
+}
+
+func allowedTraceHeader(key string) bool {
+	switch key {
+	case "traceparent", "baggage", "x-request-id", "x-trace-id":
+		return true
+	default:
+		return false
+	}
 }

@@ -48,7 +48,6 @@ class _SourceTruthSettingsProtocol(Protocol):
     corpus: str
     collection: str
     source_ocr_provider: str
-    source_ocr_fallback_enabled: bool
     source_ocr_image_routing_strategy: str | None
     online_ocr: OnlineOcrSettings
     mineru_online_ocr: OnlineOcrSettings | None

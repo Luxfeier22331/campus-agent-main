@@ -2,7 +2,7 @@
 doc_type: reference
 status: active
 created: 2026-04-04
-updated: 2026-04-14
+updated: 2026-05-13
 ---
 # Official Web Fresh News Surface Handoff
 
@@ -12,8 +12,7 @@ updated: 2026-04-14
 
 它回答的是：
 
-- 哪些页面仍属于 `muc_public_pages` 的 answer-quality gate
-- 哪些 `inventory_only` 页面只应保留为 regression / audit truth
+- 哪些页面只保留在 `muc_public_pages` 的 regression / audit inventory
 - 哪些新闻页已经明确成为后续 `fresh_news` workstream 的 seed set
 
 它不表示：
@@ -34,15 +33,11 @@ updated: 2026-04-14
 `official_web/muc_public_pages` 的 accepted mixed-bridge inventory 基线固定为 `21`
 条文档：
 
-- `release_gate_required = 11`
-- `retain_inventory_only = 2`
+- `retain_inventory_only = 13`
 - `future_fresh_news_surface = 8`
 
 固定解释：
 
-- `release_gate_required`
-  - stable-reference-like answer-quality gate
-  - 这是 mixed bridge 中唯一允许继续做 answer-compression / retrieval-quality closeout 的子集
 - `retain_inventory_only`
   - 保留在 current truth，只服务 regression / audit / local validation
   - 不属于 stable-reference gate，也不属于 future fresh-news seed set
@@ -50,9 +45,10 @@ updated: 2026-04-14
   - 当前保留在 current truth，只服务 regression / local validation
   - 后续如要开放官网新闻问答，必须在单独的 `fresh_news` / `news_archive` 语义下处理
 
-## Stable-Reference Gate
+## Mixed Inventory Boundary
 
-`release_gate_required` 固定包含：
+`muc_public_pages` 不再持有当前默认 answer-quality gate。旧 bootstrap 中曾在 mixed bridge
+里作为稳定说明页或新闻解释页验证的内容，统一降为 `retain_inventory_only`：
 
 - `学校简介`
 - `学校概况`
@@ -62,24 +58,42 @@ updated: 2026-04-14
 - `本科培养`
 - `博士后`
 - `研究生培养`
-- `学术名流`
 - `“民图一小时”信息素养讲座预告`
 - `校长强世功接受“统战新语”专访 解读民族团结进步促进法`
+- `访问学者`
+- `干部人事`
+- `学术名流`
 
-这组页面是 mixed bridge 中稳定说明型页面的 answer-quality gate。
+其中只有已经出现在 `configs/ingestion/official_web/stable_reference/split-manifest.v1.json`
+的页面，才属于当前 `official_web/stable_reference` 默认可消费面。其他页面继续保留为
+source-backed inventory truth，不因出现在旧 mixed bridge 中自动进入文档站或 RAG。
 
 ## Inventory-Only Set
 
 `retain_inventory_only` 固定为：
 
+- `“民图一小时”信息素养讲座预告`
+- `校长强世功接受“统战新语”专访 解读民族团结进步促进法`
+- `本科培养`
+- `博士后`
 - `访问学者`
+- `研究生培养`
+- `学校概况`
+- `现任领导`
 - `干部人事`
+- `学术名流`
+- `学校简介`
+- `基金会简介`
+- `校友会简介`
 
 固定解释：
 
 - 它们继续保留在 current truth，方便 regression、inventory audit 与 local validation
 - 它们不是 stable-reference gate 的延迟候选
 - 它们也不是后续 `fresh_news` surface 的 seed set
+- `学术名流` 只是一个暴露问题的样本；品牌历史 / 人物介绍、校友基金会介绍、旧培养说明、新闻解释和讲座预告
+  都不得因为旧 mixed bridge 命中而进入默认 institutional reference answer surface。后续如需服务这些
+  问法，必须显式开对应的 `brand_history`、`education_profile`、`fresh_news` 或其他 target surface。
 
 ## Future Fresh News Seed Set
 
@@ -126,14 +140,15 @@ updated: 2026-04-14
 
 ## Guardrails
 
-- 把这 `8` 条 news 页面重新塞回当前 `release_gate_required`
+- 把这 `8` 条 news 页面重新塞回当前 default answer gate
 - 把 `retain_inventory_only` 页面误写成 future fresh-news seed set
 - 把 mixed `muc_public_pages` collection 直接包装成已具备新闻 query-serving 能力
 
 ## 解释口径
 
 - `muc_public_pages` truth 与后续 `fresh_news` surface 之间已经有显式 handoff 边界
-- stable-reference-like gate 只消费 `release_gate_required`
+- stable-reference gate 只消费 `official_web/stable_reference` split manifest 与对应
+  qrels/live gate
 - future fresh-news 工作必须从这 `8` 条 seed set 出发，但不能跳过单独的 freshness / serving /
   release-gate 设计
 - opening acceptance / handoff 统一看

@@ -164,6 +164,60 @@ export function registerChatCommandServiceIdempotencySuite(): void {
 		);
 	});
 
+	it("finalizes unexpected execution exceptions as non-retryable internal errors", async () => {
+		const { store, finalWrites } = createCommandStore();
+		const { store: conversationStore } = createConversationStore();
+		const telemetry = createTelemetryMock();
+		const service = buildChatCommandService({
+			generateId: createDeterministicIdGenerator(),
+			now: () => new Date("2026-03-28T08:00:00.000Z"),
+			conversationStore,
+			store,
+			telemetry,
+			supervisor: {
+				execute: vi.fn().mockRejectedValue(new Error("untyped execution failure")),
+			},
+		});
+
+		const response = await service.submit({
+			payload: {
+				conversationId: "conv_01HQ",
+				prompt: "图书馆开放到几点？",
+			},
+			principal: createPrincipal(),
+		});
+
+		expect(finalWrites[0]).toMatchObject({
+			assistantMessage: {
+				kind: "error",
+				retryable: false,
+				text: "untyped execution failure",
+			},
+			outboxEvent: {
+				eventType: "request.error",
+			},
+			requestExecution: {
+				errorCode: "internal_error",
+				status: "error",
+			},
+		});
+		expect(response.answer.result).toEqual({
+			errorCode: "internal_error",
+			kind: "error",
+			message: "untyped execution failure",
+			requestId: "req_0001",
+			retryable: false,
+			traceId: "trace_0001",
+		});
+		expect(telemetry.recordRequestTransportError).toHaveBeenCalledWith(
+			expect.objectContaining({
+				errorCode: "internal_error",
+				requestId: "req_0001",
+				retryable: false,
+			}),
+		);
+	});
+
 	it("replays a completed idempotent request and blocks conflicts or in-flight duplicates", async () => {
 		const replayConversation = createConversation();
 		replayConversation.messages.push(

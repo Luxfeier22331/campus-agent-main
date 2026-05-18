@@ -19,7 +19,8 @@ workflow trace、candidate intake 与 drift/admission 规则。
 ## Locked Inputs
 
 - `Phase 1-4` 已完成，不回滚 runtime / artifact / publish / automation owner boundary。
-- `Phase 5` umbrella 已拆分；数据量不足只阻塞 `Phase 5B`。
+- `Phase 5` umbrella 已拆分；Phase 5B current-corpus closeout 后，认证态 canonical source
+  缺口不再阻塞 eval，后续由 backlog/source-domain work 承接。
 - domain truth owner 继续属于 handbook / curriculum / notice / official-web /
   campus-services 等对应 workstream。
 - eval 只拥有 shared case family、artifact family、candidate intake 与 acceptance governance。

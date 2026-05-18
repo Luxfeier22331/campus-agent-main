@@ -16,9 +16,9 @@ Current responsibilities:
 - fetch real `mp.weixin.qq.com/s/...` article pages discovered through FeedWe
 - persist page fetch metadata, raw article HTML when available, parser
   extraction output, and captured media objects under the article capture prefix
-- materialize source-truth from the real article page, with metadata-only
-  fallback only when the page is a verification wall, non-article page, or fetch
-  failure
+- materialize source-truth from the real article page; verification walls,
+  non-article pages, and fetch failures become explicit metadata-only terminal
+  records
 - report run metadata and artifact refs to `app-api`
 
 It does not write projections, document registry, Qdrant, release aliases,

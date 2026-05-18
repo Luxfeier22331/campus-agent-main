@@ -2,8 +2,12 @@ import { createHash } from "node:crypto";
 
 import {
 	OFFICIAL_WEB_SOURCE_CHANNEL,
+	type OfficialWebConsumerFamily,
+	type OfficialWebConsumerMaterializationPolicy,
+	type OfficialWebConsumerRequiredEvidence,
 	type OfficialWebCredentialsMode,
 	type OfficialWebDiscoveryMethod,
+	type OfficialWebTargetRetentionPolicy,
 } from "./config.ts";
 import type { OfficialWebUrlIdentityBasis } from "./policy.ts";
 
@@ -57,6 +61,35 @@ export interface OfficialWebPageSignalSummary {
 	dynamicShellSignal: boolean;
 }
 
+export interface OfficialWebConsumerMatch {
+	consumerFamily: OfficialWebConsumerFamily;
+	ownerSurface: string;
+	ownerAgentOrRuntime: string;
+	materializationPolicy: OfficialWebConsumerMaterializationPolicy;
+	selectedWriteTarget: string;
+	reviewPolicy: string;
+	matchedEvidence: OfficialWebConsumerRequiredEvidence[];
+	matchedKeywords: string[];
+	matchedPatterns: string[];
+}
+
+export interface OfficialWebPageTargetMatch {
+	sourcePackId?: string | null;
+	sourcePackEntryId?: string | null;
+	compositionGroup?: string | null;
+	compositionRole?: string | null;
+	targetJobId: string;
+	targetCandidateId: string | null;
+	targetId: string;
+	targetDeclarationVersion: string;
+	consumerFamily: OfficialWebConsumerFamily;
+	retentionPolicy: OfficialWebTargetRetentionPolicy;
+	materializationPolicy: OfficialWebConsumerMaterializationPolicy;
+	selectedWriteTarget: string;
+	reviewPolicy: string;
+	worksetReason: string;
+}
+
 export interface OfficialWebPageManifest {
 	schemaVersion: "official_web_page_manifest.v1";
 	sourceChannel: typeof OFFICIAL_WEB_SOURCE_CHANNEL;
@@ -99,6 +132,21 @@ export interface OfficialWebPageManifest {
 	hostPolicyVersion: string;
 	crawlPolicyVersion: string;
 	credentialsMode: OfficialWebCredentialsMode;
+	consumerDenominatorVersion?: string;
+	consumerMatches?: OfficialWebConsumerMatch[];
+	consumerRetentionDecision?: "retain_source_truth" | "discovery_only" | "reject";
+	consumerRejectionReason?: string | null;
+	sourcePackId?: string | null;
+	sourcePackEntryId?: string | null;
+	compositionGroup?: string | null;
+	compositionRole?: string | null;
+	targetJobId?: string;
+	targetCandidateId?: string | null;
+	targetDeclarationVersion?: string;
+	targetMatches?: OfficialWebPageTargetMatch[];
+	materializationPolicy?: OfficialWebConsumerMaterializationPolicy;
+	selectedWriteTarget?: string;
+	reviewPolicy?: string;
 }
 
 export interface OfficialWebContentBlockRow {
@@ -190,6 +238,10 @@ export interface OfficialWebSourceTruthBundlePage {
 	rawVersionId: string;
 	normalizedCanonicalUrl: string;
 	pageFamily: OfficialWebPageFamily;
+	sourcePackId?: string | null;
+	sourcePackEntryId?: string | null;
+	compositionGroup?: string | null;
+	compositionRole?: string | null;
 	pageManifestObjectKey: string;
 	contentBlocksObjectKey: string;
 	providerExtractionObjectKey: string;
@@ -197,6 +249,16 @@ export interface OfficialWebSourceTruthBundlePage {
 	responseHtmlObjectKey: string;
 	responseBodyHash: string;
 	blockCount: number;
+	consumerMatches?: OfficialWebConsumerMatch[];
+	consumerRetentionDecision?: "retain_source_truth" | "discovery_only" | "reject";
+	consumerRejectionReason?: string | null;
+	targetJobId?: string;
+	targetCandidateId?: string | null;
+	targetDeclarationVersion?: string;
+	targetMatches?: OfficialWebPageTargetMatch[];
+	materializationPolicy?: OfficialWebConsumerMaterializationPolicy;
+	selectedWriteTarget?: string;
+	reviewPolicy?: string;
 }
 
 export interface OfficialWebSourceTruthBundle {
@@ -205,6 +267,13 @@ export interface OfficialWebSourceTruthBundle {
 	siteId: string;
 	crawlRunId: string;
 	generatedAt: string;
+	collectionMode?: "target-workset";
+	targetSummary?: {
+		targetJobs: Record<string, number>;
+		consumerFamilies: Record<string, number>;
+		retentionDecisions: Record<string, number>;
+		materializationPolicies: Record<string, number>;
+	};
 	pages: OfficialWebSourceTruthBundlePage[];
 }
 
@@ -319,7 +388,38 @@ export function buildOfficialWebSourceTruthBundle(
 		generatedAt: input.generatedAt ?? new Date().toISOString(),
 		siteId: input.siteId,
 		crawlRunId: input.crawlRunId,
+		collectionMode: input.collectionMode,
+		targetSummary: input.targetSummary ?? buildSourceTruthTargetSummary(input.pages),
 		pages: input.pages,
+	};
+}
+
+function buildSourceTruthTargetSummary(
+	pages: OfficialWebSourceTruthBundlePage[],
+): NonNullable<OfficialWebSourceTruthBundle["targetSummary"]> {
+	const targetJobs: Record<string, number> = {};
+	const consumerFamilies: Record<string, number> = {};
+	const retentionDecisions: Record<string, number> = {};
+	const materializationPolicies: Record<string, number> = {};
+
+	for (const page of pages) {
+		for (const match of page.targetMatches ?? []) {
+			targetJobs[match.targetJobId] = (targetJobs[match.targetJobId] ?? 0) + 1;
+			consumerFamilies[match.consumerFamily] = (consumerFamilies[match.consumerFamily] ?? 0) + 1;
+			materializationPolicies[match.materializationPolicy] =
+				(materializationPolicies[match.materializationPolicy] ?? 0) + 1;
+		}
+		if (page.consumerRetentionDecision) {
+			retentionDecisions[page.consumerRetentionDecision] =
+				(retentionDecisions[page.consumerRetentionDecision] ?? 0) + 1;
+		}
+	}
+
+	return {
+		targetJobs,
+		consumerFamilies,
+		retentionDecisions,
+		materializationPolicies,
 	};
 }
 

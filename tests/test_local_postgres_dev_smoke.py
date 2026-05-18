@@ -25,7 +25,7 @@ class LocalPostgresDevSmokeTest(unittest.TestCase):
                 "\n".join(
                     [
                         "CAMPUS_SHARED_POSTGRES_URL=postgres://remote/runtime",
-                        "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://remote/management",
+                        "CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgres://remote/operator",
                         "OBJECT_STORE_ENDPOINT=http://localhost:9000",
                         "OBJECT_STORE_ACCESS_KEY=minioadmin",
                         "OBJECT_STORE_SECRET_KEY=minioadmin",
@@ -39,7 +39,7 @@ class LocalPostgresDevSmokeTest(unittest.TestCase):
                     [
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=",
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=",
-                        "APP_API_MANAGEMENT_DATABASE_URL=",
+                        "APP_API_OPERATOR_DATABASE_URL=",
                     ]
                 )
                 + "\n",
@@ -87,7 +87,7 @@ class LocalPostgresDevSmokeTest(unittest.TestCase):
                 "\n".join(
                     [
                         "CAMPUS_SHARED_POSTGRES_URL=postgres://remote/runtime",
-                        "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://remote/management",
+                        "CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgres://remote/operator",
                         "OBJECT_STORE_ENDPOINT=http://localhost:9000",
                         "OBJECT_STORE_ACCESS_KEY=minioadmin",
                         "OBJECT_STORE_SECRET_KEY=minioadmin",
@@ -101,7 +101,7 @@ class LocalPostgresDevSmokeTest(unittest.TestCase):
                     [
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=",
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=",
-                        "APP_API_MANAGEMENT_DATABASE_URL=",
+                        "APP_API_OPERATOR_DATABASE_URL=",
                     ]
                 )
                 + "\n",
@@ -353,7 +353,7 @@ class LocalPostgresDevSmokeTest(unittest.TestCase):
                 "\n".join(
                     [
                         "CAMPUS_SHARED_POSTGRES_URL=postgres://remote/runtime",
-                        "CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL=postgres://remote/management",
+                        "CAMPUS_SHARED_POSTGRES_OPERATOR_URL=postgres://remote/operator",
                         "OBJECT_STORE_ENDPOINT=http://localhost:9000",
                         "OBJECT_STORE_ACCESS_KEY=minioadmin",
                         "OBJECT_STORE_SECRET_KEY=minioadmin",
@@ -367,7 +367,7 @@ class LocalPostgresDevSmokeTest(unittest.TestCase):
                     [
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB=",
                         "CLOUDFLARE_HYPERDRIVE_LOCAL_CONNECTION_STRING_APP_API_DB_FRESH=",
-                        "APP_API_MANAGEMENT_DATABASE_URL=",
+                        "APP_API_OPERATOR_DATABASE_URL=",
                     ]
                 )
                 + "\n",

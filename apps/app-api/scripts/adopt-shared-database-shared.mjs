@@ -19,7 +19,7 @@ export const ALTER_TABLE_ADD_COLUMN_RE =
 export const ALTER_TABLE_DROP_COLUMN_RE =
 	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+DROP\s+COLUMN(?: IF EXISTS)? "([^"]+)"/i;
 export const ALTER_TABLE_CONSTRAINT_RE =
-	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ADD\s+CONSTRAINT "([^"]+)"/i;
+	/^ALTER TABLE "([^"]+)"\."([^"]+)"\s+ADD\s+CONSTRAINT\s+"([^"]+)"/i;
 export const CREATE_INDEX_RE = /^CREATE (?:UNIQUE )?INDEX "([^"]+)"\s+ON\s+"([^"]+)"\."([^"]+)"/i;
 export const DROP_INDEX_RE = /^DROP INDEX "([^"]+)"\."([^"]+)";?$/i;
 

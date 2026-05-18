@@ -25,10 +25,10 @@ func defaultMetricNumber(value string) string {
 	return trimmed
 }
 
-func defaultMetricLabel(value string, fallback string) string {
+func defaultMetricLabel(value string, defaultValue string) string {
 	trimmed := strings.TrimSpace(value)
 	if trimmed == "" {
-		return fallback
+		return defaultValue
 	}
 	return trimmed
 }

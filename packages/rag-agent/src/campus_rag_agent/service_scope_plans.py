@@ -38,7 +38,7 @@ def _resolve_request_scope(
         curriculum_course_plan=curriculum_course_plan,
         curriculum_program_family_plan=curriculum_program_family_plan,
     )
-    has_handbook_signal = handbook_plan.status != "pass_through"
+    has_handbook_signal = _has_handbook_scope_signal(handbook_plan)
 
     if has_curriculum_signal and not has_handbook_signal:
         return KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
@@ -96,6 +96,12 @@ def _has_resolved_query_plan(
     ):
         return True
     return curriculum_plan is not None and curriculum_plan.status == "resolved"
+
+
+def _has_handbook_scope_signal(handbook_plan: HandbookQueryPlan) -> bool:
+    if handbook_plan.status != "pass_through":
+        return True
+    return handbook_plan.task_kind != "unsupported_or_no_hit"
 
 
 __all__ = [

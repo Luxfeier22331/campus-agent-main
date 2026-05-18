@@ -1,5 +1,7 @@
 package httpapi
 
+import "github.com/MUC-WIKI/campus-agent/apps/supervisor-api/internal/execution"
+
 func shapeStructuredSupervisorResponse(
 	target string,
 	payloadKind string,
@@ -27,13 +29,40 @@ func shapeStructuredSupervisorResponse(
 	if err != nil {
 		return map[string]any{
 			"selected_target":    target,
-			"status":             "no_answer",
-			"answer_text":        "当前还不能稳定完成该结构化查询。",
+			"status":             "error",
+			"answer_text":        "结构化查询结果未通过 supervisor finalization。",
 			"follow_up_question": "",
 			"confidence":         "low",
 			"result":             result,
-			"error":              nil,
-			"trace_id":           traceID,
+			"error": map[string]any{
+				"code":      "structured_finalization_failed",
+				"message":   "structured supervisor finalization invariant failed",
+				"retryable": false,
+			},
+			"observability": map[string]any{
+				"fail_closed":       true,
+				"fail_close_reason": "structured_finalization_failed",
+				"selected_tool":     payloadKind,
+			},
+			"workflow_trace_summary": workflowTraceSummaryWireMap(buildWorkflowTraceSummaryWire(
+				supervisorFinalizerContext{
+					SelectedTool: payloadKind,
+					RuntimeDecisions: execution.RuntimeDecisionSummary{
+						FailCloseReason: "structured_finalization_failed",
+					},
+					Branch: "direct",
+				},
+				target,
+				"error",
+				map[string]any{
+					"fail_close_reason": "structured_finalization_failed",
+				},
+				map[string]any{
+					"selected_tool":     payloadKind,
+					"fail_close_reason": "structured_finalization_failed",
+				},
+			)),
+			"trace_id": traceID,
 		}
 	}
 	return supervisorResponse

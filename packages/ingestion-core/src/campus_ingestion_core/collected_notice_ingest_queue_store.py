@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from collections import Counter
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, replace
 from datetime import UTC, datetime, timedelta
@@ -36,6 +37,7 @@ class NoticeIngestQueueRecord:
     max_attempts: int = DEFAULT_NOTICE_INGEST_QUEUE_MAX_ATTEMPTS
     leased_by: str | None = None
     lease_expires_at: datetime | None = None
+    next_retry_after: datetime | None = None
     last_error_code: str | None = None
     last_error_message: str | None = None
     created_at: datetime | None = None
@@ -55,6 +57,7 @@ class NoticeIngestQueueRecord:
         object.__setattr__(self, "created_at", created_at)
         object.__setattr__(self, "updated_at", updated_at)
         object.__setattr__(self, "lease_expires_at", _coerce_datetime(self.lease_expires_at))
+        object.__setattr__(self, "next_retry_after", _coerce_datetime(self.next_retry_after))
 
     @property
     def job_id(self) -> str:
@@ -126,6 +129,7 @@ class NoticeIngestQueueRecord:
             status="leased",
             leased_by=normalized_worker_id,
             lease_expires_at=timestamp + timedelta(seconds=_positive_int(lease_seconds)),
+            next_retry_after=None,
             updated_at=timestamp,
         )
 
@@ -144,6 +148,23 @@ class NoticeIngestQueueRecord:
             updated_at=timestamp,
         )
 
+    def release(
+        self,
+        *,
+        worker_id: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        timestamp = _coerce_datetime(now) or utc_now_dt()
+        self.require_lease_owner(worker_id=worker_id, now=timestamp)
+        return replace(
+            self,
+            status="queued",
+            leased_by=None,
+            lease_expires_at=None,
+            next_retry_after=None,
+            updated_at=timestamp,
+        )
+
     def complete(
         self,
         *,
@@ -157,6 +178,7 @@ class NoticeIngestQueueRecord:
             status="succeeded",
             leased_by=None,
             lease_expires_at=None,
+            next_retry_after=None,
             last_error_code=None,
             last_error_message=None,
             updated_at=timestamp,
@@ -168,18 +190,25 @@ class NoticeIngestQueueRecord:
         worker_id: str,
         error_code: str,
         error_message: str,
+        retry_after_seconds: int = 0,
         now: datetime | None = None,
     ) -> NoticeIngestQueueRecord:
         timestamp = _coerce_datetime(now) or utc_now_dt()
         self.require_lease_owner(worker_id=worker_id, now=timestamp)
         next_attempt_count = self.attempt_count + 1
-        status = "dead_letter" if next_attempt_count >= self.max_attempts else "queued"
+        status = "dead_letter" if next_attempt_count >= self.max_attempts else "failed_retryable"
+        next_retry_after = (
+            None
+            if status == "dead_letter"
+            else timestamp + timedelta(seconds=_non_negative_int(retry_after_seconds))
+        )
         return replace(
             self,
             status=status,
             attempt_count=next_attempt_count,
             leased_by=None,
             lease_expires_at=None,
+            next_retry_after=next_retry_after,
             last_error_code=_required_text(error_code, "error_code"),
             last_error_message=str(error_message or ""),
             updated_at=timestamp,
@@ -200,6 +229,7 @@ class NoticeIngestQueueRecord:
             status="failed_terminal",
             leased_by=None,
             lease_expires_at=None,
+            next_retry_after=None,
             last_error_code=_required_text(error_code, "error_code"),
             last_error_message=str(error_message or ""),
             updated_at=timestamp,
@@ -218,10 +248,70 @@ class NoticeIngestQueueRecord:
             status="dead_letter",
             leased_by=None,
             lease_expires_at=None,
+            next_retry_after=None,
             last_error_code=error_code if error_code is not None else self.last_error_code,
             last_error_message=(
                 error_message if error_message is not None else self.last_error_message
             ),
+            updated_at=timestamp,
+        )
+
+    def manual_review(
+        self,
+        *,
+        worker_id: str,
+        error_code: str,
+        error_message: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        timestamp = _coerce_datetime(now) or utc_now_dt()
+        self.require_lease_owner(worker_id=worker_id, now=timestamp)
+        return replace(
+            self,
+            status="manual_review",
+            leased_by=None,
+            lease_expires_at=None,
+            next_retry_after=None,
+            last_error_code=_required_text(error_code, "error_code"),
+            last_error_message=str(error_message or ""),
+            updated_at=timestamp,
+        )
+
+    def block(
+        self,
+        *,
+        error_code: str,
+        error_message: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        timestamp = _coerce_datetime(now) or utc_now_dt()
+        return replace(
+            self,
+            status="blocked",
+            leased_by=None,
+            lease_expires_at=None,
+            next_retry_after=None,
+            last_error_code=_required_text(error_code, "error_code"),
+            last_error_message=str(error_message or ""),
+            updated_at=timestamp,
+        )
+
+    def cancel(
+        self,
+        *,
+        error_code: str,
+        error_message: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord:
+        timestamp = _coerce_datetime(now) or utc_now_dt()
+        return replace(
+            self,
+            status="cancelled",
+            leased_by=None,
+            lease_expires_at=None,
+            next_retry_after=None,
+            last_error_code=_required_text(error_code, "error_code"),
+            last_error_message=str(error_message or ""),
             updated_at=timestamp,
         )
 
@@ -239,6 +329,12 @@ class NoticeIngestQueueRecord:
             self.lease_expires_at is None or self.lease_expires_at <= timestamp
         )
 
+    def is_retry_due(self, *, now: datetime | None = None) -> bool:
+        timestamp = _coerce_datetime(now) or utc_now_dt()
+        return self.status == "failed_retryable" and (
+            self.next_retry_after is None or self.next_retry_after <= timestamp
+        )
+
     def to_persisted_payload(self) -> dict[str, Any]:
         return {
             "job": self.job.to_payload(),
@@ -247,6 +343,7 @@ class NoticeIngestQueueRecord:
             "max_attempts": self.max_attempts,
             "leased_by": self.leased_by,
             "lease_expires_at": _format_datetime(self.lease_expires_at),
+            "next_retry_after": _format_datetime(self.next_retry_after),
             "last_error_code": self.last_error_code,
             "last_error_message": self.last_error_message,
             "created_at": _format_datetime(self.created_at),
@@ -277,6 +374,7 @@ class NoticeIngestQueueStore(Protocol):
         worker_id: str,
         lease_seconds: int = DEFAULT_NOTICE_INGEST_QUEUE_LEASE_SECONDS,
         replay_batch_id: str | None = None,
+        run_id: str | None = None,
         now: datetime | None = None,
     ) -> NoticeIngestQueueRecord | None: ...
 
@@ -286,6 +384,14 @@ class NoticeIngestQueueStore(Protocol):
         *,
         worker_id: str,
         lease_seconds: int = DEFAULT_NOTICE_INGEST_QUEUE_LEASE_SECONDS,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord: ...
+
+    def release(
+        self,
+        job_id: str,
+        *,
+        worker_id: str,
         now: datetime | None = None,
     ) -> NoticeIngestQueueRecord: ...
 
@@ -304,6 +410,7 @@ class NoticeIngestQueueStore(Protocol):
         worker_id: str,
         error_code: str,
         error_message: str,
+        retry_after_seconds: int = 0,
         now: datetime | None = None,
     ) -> NoticeIngestQueueRecord: ...
 
@@ -326,7 +433,37 @@ class NoticeIngestQueueStore(Protocol):
         now: datetime | None = None,
     ) -> NoticeIngestQueueRecord: ...
 
+    def manual_review(
+        self,
+        job_id: str,
+        *,
+        worker_id: str,
+        error_code: str,
+        error_message: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord: ...
+
+    def block(
+        self,
+        job_id: str,
+        *,
+        error_code: str,
+        error_message: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord: ...
+
+    def cancel(
+        self,
+        job_id: str,
+        *,
+        error_code: str,
+        error_message: str,
+        now: datetime | None = None,
+    ) -> NoticeIngestQueueRecord: ...
+
     def list_status_counts(self) -> dict[str, int]: ...
+
+    def operator_summary(self, *, now: datetime | None = None) -> dict[str, Any]: ...
 
 
 def build_notice_ingest_queue_record(
@@ -367,11 +504,70 @@ def notice_ingest_job_from_payload(payload: Mapping[str, Any]) -> NoticeIngestJo
         replay_batch_id=str(payload["replay_batch_id"]),
         priority=int(payload["priority"]),
         idempotency_key=str(payload["idempotency_key"]),
+        schema_version=str(payload["schema_version"]),
+        site_id=str(payload.get("site_id") or ""),
+        source_bucket=str(payload.get("source_bucket") or ""),
+        bundle_object_key=str(payload.get("bundle_object_key") or ""),
+        bundle_content_sha256=str(payload.get("bundle_content_sha256") or ""),
+        bundle_byte_size=payload.get("bundle_byte_size"),
+        manifest_object_key=str(payload.get("manifest_object_key") or ""),
+        manifest_content_sha256=str(payload.get("manifest_content_sha256") or ""),
+        manifest_byte_size=payload.get("manifest_byte_size"),
+        retry_policy=(
+            dict(payload["retry_policy"])
+            if isinstance(payload.get("retry_policy"), Mapping)
+            else None
+        ),
+        provenance=(
+            dict(payload["provenance"]) if isinstance(payload.get("provenance"), Mapping) else None
+        ),
     )
 
 
 def zero_status_counts() -> dict[str, int]:
     return dict.fromkeys(NOTICE_INGEST_QUEUE_STATUSES, 0)
+
+
+def build_notice_ingest_queue_operator_summary(
+    records: Sequence[NoticeIngestQueueRecord],
+    *,
+    now: datetime | None = None,
+) -> dict[str, Any]:
+    timestamp = _coerce_datetime(now) or utc_now_dt()
+    pending_records = [
+        record
+        for record in records
+        if record.status
+        in {
+            "queued",
+            "leased",
+            "failed_retryable",
+            "manual_review",
+            "blocked",
+            "dead_letter",
+        }
+    ]
+    oldest_pending_age_seconds = 0
+    if pending_records:
+        oldest_updated_at = min(record.updated_at for record in pending_records)
+        oldest_pending_age_seconds = max(0, int((timestamp - oldest_updated_at).total_seconds()))
+    return {
+        "oldest_pending_age_seconds": oldest_pending_age_seconds,
+        "retry_due_count": sum(1 for record in records if record.is_retry_due(now=timestamp)),
+        "expired_lease_count": sum(
+            1 for record in records if record.is_lease_expired(now=timestamp)
+        ),
+        "manual_review_reason_counts": _reason_counts(records, "manual_review"),
+        "blocked_reason_counts": _reason_counts(records, "blocked"),
+        "dead_letter_reason_counts": _reason_counts(records, "dead_letter"),
+    }
+
+
+def _reason_counts(records: Sequence[NoticeIngestQueueRecord], status: str) -> dict[str, int]:
+    counts = Counter(
+        str(record.last_error_code or "unknown") for record in records if record.status == status
+    )
+    return dict(sorted(counts.items()))
 
 
 def utc_now_dt() -> datetime:
@@ -413,6 +609,13 @@ def _positive_int(value: int) -> int:
     return normalized
 
 
+def _non_negative_int(value: int) -> int:
+    normalized = int(value)
+    if normalized < 0:
+        raise ValueError("value must be non-negative")
+    return normalized
+
+
 def _required_text(value: object, field_name: str) -> str:
     text = str(value or "").strip()
     if not text:
@@ -428,6 +631,7 @@ __all__ = [
     "NoticeIngestQueueNotFoundError",
     "NoticeIngestQueueRecord",
     "NoticeIngestQueueStore",
+    "build_notice_ingest_queue_operator_summary",
     "build_notice_ingest_queue_record",
     "notice_ingest_job_from_payload",
     "utc_now_dt",

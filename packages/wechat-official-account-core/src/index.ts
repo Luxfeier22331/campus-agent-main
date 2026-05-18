@@ -174,8 +174,8 @@ export function buildWeChatOfficialAccountArticleSourceTruthMaterialFromCaptured
 		throw new Error("article url or provider article id is required");
 	}
 
-	const fallbackTitle = requireText(article.title, "title");
-	const titleRaw = firstText(page.title, fallbackTitle);
+	const articleTitle = requireText(article.title, "title");
+	const titleRaw = firstText(page.title, articleTitle);
 	const titleNormalized = normalizeText(titleRaw);
 	const summaryRaw = firstText(page.summary, resolveArticleSummary(article));
 	const bodyBlocksRaw = page.bodyBlocks.map((item) => item.trim()).filter(Boolean);

@@ -142,7 +142,9 @@ def _build_clarification_question(
             f"按当前记录理解，你最近在咨询{recent_goal}相关事项；请再具体说明你想确认的政策对象。"
         )
     slot_subject = _clarification_slot_subject(user_goal, confirmed_slot_terms)
-    if slot_subject and not clarification_reason:
+    if slot_subject and (
+        not clarification_reason or clarification_reason == "policy_object_missing"
+    ):
         return f"按当前对话上下文理解，你现在想确认{slot_subject}相关事项；请再具体说明你想确认的政策对象。"
     if clarification_reason == "policy_object_missing":
         return "请具体说明你想咨询哪一项评审、评定或测评办法。"
@@ -155,14 +157,18 @@ def _build_clarification_question(
             return f"你想问哪一种？比如：{'、'.join(clarification_candidates)}。"
         return "你想问哪一种项目班？请再说具体一点。"
     if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
+        if clarification_reason == "curriculum_program_family_alias":
+            context_question = _build_curriculum_program_family_alias_question(
+                user_goal=user_goal,
+                confirmed_slot_terms=confirmed_slot_terms,
+                clarification_candidates=clarification_candidates,
+            )
+            if context_question:
+                return context_question
         if clarification_candidates:
             return (
                 "请具体说明你想咨询哪一份培养方案。"
                 f" 当前更相关的候选包括：{'、'.join(clarification_candidates)}。"
-            )
-        if clarification_reason == "curriculum_program_family_alias":
-            return (
-                "请具体说明你想咨询哪一份培养方案；当前问题仍可能对应多个项目班或实验班培养方案。"
             )
         interpretation = interpret_curriculum_query(user_goal)
         if interpretation.program_compact_key:
@@ -182,6 +188,57 @@ def _build_clarification_question(
     if evidence.corpus == "curriculum" and evidence.collection == "curriculum_plan":
         return "请具体说明你想咨询哪一份培养方案、哪一类学位要求，或哪一张课程/教学进程表。"
     return "请具体说明你想咨询学生手册中的哪一项制度、流程或表格。"
+
+
+def _build_curriculum_program_family_alias_question(
+    *,
+    user_goal: str,
+    confirmed_slot_terms: tuple[str, ...],
+    clarification_candidates: tuple[str, ...],
+) -> str:
+    normalized_goal = _normalize_text(user_goal)
+    interpretation = interpret_curriculum_query(normalized_goal)
+    family_terms = tuple(
+        term for term in ("实验班", "基地班", "民族班", "强基计划") if term in normalized_goal
+    )
+    semester = interpretation.semester_labels[0] if interpretation.semester_labels else ""
+    major = _curriculum_major_context(
+        user_goal=normalized_goal,
+        confirmed_slot_terms=confirmed_slot_terms,
+        clarification_candidates=clarification_candidates,
+    )
+    context_parts = tuple(
+        part for part in (major, family_terms[0] if family_terms else "", semester) if part
+    )
+    if context_parts:
+        return (
+            f"你想问{'、'.join(context_parts)}对应的哪一份培养方案？"
+            "请补充具体项目班或培养方案名称。"
+        )
+    if clarification_candidates:
+        return (
+            "请具体说明你想咨询哪一份培养方案。"
+            f" 当前更相关的候选包括：{'、'.join(clarification_candidates)}。"
+        )
+    return "请具体说明你想咨询哪一份培养方案；当前问题仍可能对应多个项目班或实验班培养方案。"
+
+
+def _curriculum_major_context(
+    *,
+    user_goal: str,
+    confirmed_slot_terms: tuple[str, ...],
+    clarification_candidates: tuple[str, ...],
+) -> str:
+    for slot_term in confirmed_slot_terms:
+        normalized = _normalize_text(slot_term)
+        if normalized:
+            return normalized
+    if "历史学" in user_goal:
+        return "历史学"
+    for candidate in clarification_candidates:
+        if "历史学" in candidate:
+            return "历史学"
+    return ""
 
 
 def _clarification_slot_subject(user_goal: str, confirmed_slot_terms: tuple[str, ...]) -> str:

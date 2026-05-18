@@ -1,4 +1,4 @@
-import { index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
+import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 
 import type { RequestDiagnosticsSummary } from "../../modules/request-diagnostics";
 import type { VersionQuery } from "../../modules/version-query";
@@ -11,6 +11,35 @@ interface OfficialWebArtifactProjectionJson {
 	contentSha256: string;
 	objectKey: string;
 	recordCount: number | null;
+}
+
+interface AuthenticatedNoticeTimelineEventJson {
+	eventId?: string | null;
+	stage: string;
+	status: string;
+	occurredAt: string;
+	summary: string;
+	payload?: Record<string, unknown> | null;
+}
+
+interface AuthenticatedNoticeRunJobSummaryJson {
+	attemptCount?: number;
+	jobId: string;
+	lastErrorCode?: string | null;
+	lastErrorMessage?: string | null;
+	queueStatus: string;
+	runId: string;
+	selectedNoticeCount?: number;
+	updatedAt?: string | null;
+}
+
+interface OfficialWebReleaseTaskTimelineEventJson {
+	eventId?: string | null;
+	stage: string;
+	status: string;
+	occurredAt: string;
+	summary: string;
+	payload?: Record<string, unknown> | null;
 }
 
 interface RequestAuditDiagnosticsJson {
@@ -321,5 +350,281 @@ export const officialWebSiteProjection = operator.table(
 		latestRunStatusProjectedAtIndex: index(
 			"operator_official_web_site_projection_status_projected_at_idx",
 		).on(table.latestRunStatus, table.projectedAt),
+	}),
+);
+
+export const officialWebReleaseTaskProjection = operator.table(
+	"official_web_release_task_projection",
+	{
+		taskId: text("task_id").primaryKey(),
+		taskType: text("task_type").notNull(),
+		sourceChannel: text("source_channel").notNull(),
+		inventoryId: text("inventory_id").notNull(),
+		jobId: text("job_id").notNull(),
+		runId: text("run_id").notNull(),
+		selectedWriteTarget: text("selected_write_target"),
+		lifecycleStatus: text("lifecycle_status").notNull(),
+		latestStage: text("latest_stage").notNull(),
+		attemptCount: integer("attempt_count").notNull().default(0),
+		maxAttempts: integer("max_attempts").notNull().default(3),
+		inputSummaryJson: jsonb("input_summary_json")
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		outputSummaryJson: jsonb("output_summary_json")
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		timelineJson: jsonb("timeline_json")
+			.$type<OfficialWebReleaseTaskTimelineEventJson[]>()
+			.notNull()
+			.default([]),
+		lastErrorCode: text("last_error_code"),
+		lastErrorMessage: text("last_error_message"),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+		updatedAt: timestamp("updated_at", { withTimezone: true }).notNull(),
+		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+		producerVersion: text("producer_version").notNull(),
+		redactionVersion: text("redaction_version").notNull(),
+	},
+	(table) => ({
+		inventoryProjectedAtIndex: index("operator_ow_release_task_inventory_projected_idx").on(
+			table.inventoryId,
+			table.projectedAt,
+		),
+		jobProjectedAtIndex: index("operator_ow_release_task_job_projected_idx").on(
+			table.jobId,
+			table.projectedAt,
+		),
+		runProjectedAtIndex: index("operator_ow_release_task_run_projected_idx").on(
+			table.runId,
+			table.projectedAt,
+		),
+		statusProjectedAtIndex: index("operator_ow_release_task_status_projected_idx").on(
+			table.lifecycleStatus,
+			table.projectedAt,
+		),
+		targetProjectedAtIndex: index("operator_ow_release_task_target_projected_idx").on(
+			table.selectedWriteTarget,
+			table.projectedAt,
+		),
+	}),
+);
+
+export const officialWebReleaseTaskEventProjection = operator.table(
+	"official_web_release_task_event_projection",
+	{
+		eventId: text("event_id").primaryKey(),
+		taskId: text("task_id").notNull(),
+		inventoryId: text("inventory_id").notNull(),
+		jobId: text("job_id").notNull(),
+		runId: text("run_id").notNull(),
+		stage: text("stage").notNull(),
+		status: text("status").notNull(),
+		occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+		summary: text("summary").notNull(),
+		payloadJson: jsonb("payload_json").$type<Record<string, unknown>>().notNull().default({}),
+		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		taskOccurredAtIndex: index("operator_ow_release_task_event_task_occurred_idx").on(
+			table.taskId,
+			table.occurredAt,
+		),
+		runOccurredAtIndex: index("operator_ow_release_task_event_run_occurred_idx").on(
+			table.runId,
+			table.occurredAt,
+		),
+	}),
+);
+
+export const authenticatedNoticeProcessingProjection = operator.table(
+	"authenticated_notice_processing_projection",
+	{
+		processingId: text("processing_id").primaryKey(),
+		noticeKey: text("notice_key").notNull(),
+		sourceChannel: text("source_channel").notNull(),
+		sourceSurface: text("source_surface").notNull(),
+		siteId: text("site_id").notNull(),
+		noticeId: text("notice_id").notNull(),
+		title: text("title").notNull(),
+		runId: text("run_id"),
+		jobId: text("job_id"),
+		replayBatchId: text("replay_batch_id"),
+		enqueueSource: text("enqueue_source"),
+		queueStatus: text("queue_status").notNull(),
+		lifecycleStatus: text("lifecycle_status").notNull(),
+		latestStage: text("latest_stage").notNull(),
+		targetSurface: text("target_surface"),
+		candidateKind: text("candidate_kind"),
+		materializationStatus: text("materialization_status"),
+		releaseId: text("release_id"),
+		current: boolean("current").notNull().default(false),
+		toolReady: boolean("tool_ready").notNull().default(false),
+		readModelCountsJson: jsonb("read_model_counts_json")
+			.$type<Record<string, number | string | boolean | null>>()
+			.notNull()
+			.default({}),
+		childTaskSummaryJson: jsonb("child_task_summary_json")
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		timelineJson: jsonb("timeline_json")
+			.$type<AuthenticatedNoticeTimelineEventJson[]>()
+			.notNull()
+			.default([]),
+		downstreamJson: jsonb("downstream_json").$type<Record<string, unknown> | null>(),
+		lastErrorCode: text("last_error_code"),
+		lastErrorMessage: text("last_error_message"),
+		attemptCount: integer("attempt_count").notNull().default(0),
+		lastObservedAt: timestamp("last_observed_at", { withTimezone: true }).notNull(),
+		sourceUpdatedAt: timestamp("source_updated_at", { withTimezone: true }),
+		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+		producerVersion: text("producer_version").notNull(),
+		redactionVersion: text("redaction_version").notNull(),
+	},
+	(table) => ({
+		noticeProjectedAtIndex: index("operator_auth_notice_processing_notice_projected_idx").on(
+			table.noticeId,
+			table.projectedAt,
+		),
+		noticeKeyProjectedAtIndex: index("operator_auth_notice_processing_notice_key_projected_idx").on(
+			table.noticeKey,
+			table.projectedAt,
+		),
+		statusProjectedAtIndex: index("operator_auth_notice_processing_status_projected_idx").on(
+			table.lifecycleStatus,
+			table.projectedAt,
+		),
+		targetProjectedAtIndex: index("operator_auth_notice_processing_target_projected_idx").on(
+			table.targetSurface,
+			table.candidateKind,
+			table.projectedAt,
+		),
+		runProjectedAtIndex: index("operator_auth_notice_processing_run_projected_idx").on(
+			table.runId,
+			table.projectedAt,
+		),
+	}),
+);
+
+export const authenticatedNoticeProcessingEventProjection = operator.table(
+	"authenticated_notice_processing_event_projection",
+	{
+		eventId: text("event_id").primaryKey(),
+		processingId: text("processing_id").notNull(),
+		noticeKey: text("notice_key").notNull(),
+		noticeId: text("notice_id").notNull(),
+		runId: text("run_id"),
+		jobId: text("job_id"),
+		stage: text("stage").notNull(),
+		status: text("status").notNull(),
+		occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+		summary: text("summary").notNull(),
+		payloadJson: jsonb("payload_json").$type<Record<string, unknown>>().notNull().default({}),
+		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		processingOccurredAtIndex: index("operator_auth_notice_event_processing_occurred_idx").on(
+			table.processingId,
+			table.occurredAt,
+		),
+		noticeOccurredAtIndex: index("operator_auth_notice_event_notice_occurred_idx").on(
+			table.noticeId,
+			table.occurredAt,
+		),
+	}),
+);
+
+export const authenticatedNoticeRunProcessingProjection = operator.table(
+	"authenticated_notice_run_processing_projection",
+	{
+		runProcessingId: text("run_processing_id").primaryKey(),
+		runKey: text("run_key").notNull(),
+		sourceChannel: text("source_channel").notNull(),
+		sourceSurface: text("source_surface").notNull(),
+		siteId: text("site_id").notNull(),
+		collectorRunToken: text("collector_run_token").notNull(),
+		runId: text("run_id").notNull(),
+		replayBatchId: text("replay_batch_id"),
+		enqueueSource: text("enqueue_source"),
+		lifecycleStatus: text("lifecycle_status").notNull(),
+		latestStage: text("latest_stage").notNull(),
+		latestQueueStatus: text("latest_queue_status").notNull(),
+		queueJobCount: integer("queue_job_count").notNull().default(0),
+		queueStatusCountsJson: jsonb("queue_status_counts_json")
+			.$type<Record<string, number>>()
+			.notNull()
+			.default({}),
+		attemptCount: integer("attempt_count").notNull().default(0),
+		sourceTruthJson: jsonb("source_truth_json")
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		childTaskSummaryJson: jsonb("child_task_summary_json")
+			.$type<Record<string, unknown>>()
+			.notNull()
+			.default({}),
+		downstreamJson: jsonb("downstream_json").$type<Record<string, unknown>>().notNull().default({}),
+		jobSummariesJson: jsonb("job_summaries_json")
+			.$type<AuthenticatedNoticeRunJobSummaryJson[]>()
+			.notNull()
+			.default([]),
+		timelineJson: jsonb("timeline_json")
+			.$type<AuthenticatedNoticeTimelineEventJson[]>()
+			.notNull()
+			.default([]),
+		lastErrorCode: text("last_error_code"),
+		lastErrorMessage: text("last_error_message"),
+		firstObservedAt: timestamp("first_observed_at", { withTimezone: true }).notNull(),
+		lastObservedAt: timestamp("last_observed_at", { withTimezone: true }).notNull(),
+		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+		producerVersion: text("producer_version").notNull(),
+		redactionVersion: text("redaction_version").notNull(),
+	},
+	(table) => ({
+		collectorRunProjectedAtIndex: index(
+			"operator_auth_notice_run_processing_token_projected_idx",
+		).on(table.collectorRunToken, table.projectedAt),
+		runProjectedAtIndex: index("operator_auth_notice_run_processing_run_projected_idx").on(
+			table.runId,
+			table.projectedAt,
+		),
+		siteStatusProjectedAtIndex: index("operator_auth_notice_run_processing_site_status_idx").on(
+			table.siteId,
+			table.lifecycleStatus,
+			table.projectedAt,
+		),
+		queueStatusProjectedAtIndex: index("operator_auth_notice_run_processing_queue_status_idx").on(
+			table.latestQueueStatus,
+			table.projectedAt,
+		),
+	}),
+);
+
+export const authenticatedNoticeRunProcessingEventProjection = operator.table(
+	"authenticated_notice_run_processing_event_projection",
+	{
+		eventId: text("event_id").primaryKey(),
+		runProcessingId: text("run_processing_id").notNull(),
+		runKey: text("run_key").notNull(),
+		collectorRunToken: text("collector_run_token").notNull(),
+		runId: text("run_id").notNull(),
+		jobId: text("job_id"),
+		stage: text("stage").notNull(),
+		status: text("status").notNull(),
+		occurredAt: timestamp("occurred_at", { withTimezone: true }).notNull(),
+		summary: text("summary").notNull(),
+		payloadJson: jsonb("payload_json").$type<Record<string, unknown>>().notNull().default({}),
+		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		runProcessingOccurredAtIndex: index(
+			"operator_auth_notice_run_event_processing_occurred_idx",
+		).on(table.runProcessingId, table.occurredAt),
+		collectorRunOccurredAtIndex: index("operator_auth_notice_run_event_token_occurred_idx").on(
+			table.collectorRunToken,
+			table.occurredAt,
+		),
 	}),
 );

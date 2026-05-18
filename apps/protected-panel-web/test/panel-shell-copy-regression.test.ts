@@ -37,6 +37,8 @@ describe("protected panel shell chinese copy", () => {
 		expect(layoutSource).not.toContain("DarkModeOutlinedIcon");
 		expect(layoutSource).not.toContain("LightModeOutlinedIcon");
 		expect(layoutSource).toContain("primaryText={PANEL_COPY.menu.requests}");
+		expect(appSource).toContain('name="officialWebTargetInventory"');
+		expect(layoutSource).toContain("primaryText={PANEL_COPY.menu.officialWebTargetInventory}");
 	});
 
 	it("keeps protected panel shell accessible and explicitly themed", () => {

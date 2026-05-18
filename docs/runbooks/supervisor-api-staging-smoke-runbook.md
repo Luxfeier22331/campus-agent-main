@@ -2,7 +2,7 @@
 doc_type: runbook
 status: active
 created: 2026-04-24
-updated: 2026-04-24
+updated: 2026-05-01
 ---
 # Supervisor API Staging Smoke Runbook
 
@@ -113,25 +113,44 @@ curl --noproxy '*' -sS -i https://campus-panel-staging.ayafeed.com/readyz
 同时确认：
 
 ```bash
-curl --noproxy '*' -sS -i https://exec-staging.ayafeed.com/readyz
+curl --noproxy '*' -sS -i https://exec-staging.ayafeed.com/healthz
 ```
+
+`exec-staging /readyz` 是 supervisor-api full runtime probe；staging profile 下它需要
+internal worker auth，不作为 public smoke gate。public smoke 通过
+`campus-api-staging /readyz` 间接验证 app-api 已经能带内部 shared secret 探测
+supervisor runtime readiness。
 
 ## Step 4. Authenticated Chat Smoke
 
-优先使用 repo-owned automation：
+优先使用 repo-owned staging profile automation：
 
 ```bash
-pnpm --dir apps/app-api chat:smoke:staging
+pnpm --dir apps/app-api chat:e2e:staging
 ```
+
+新的 public/chat E2E contract 由 `apps/app-api/scripts/chat-e2e.ts` 定义；
+staging 只是其中一个 profile，不再定义 E2E 本身。
+
+`chat:e2e:staging` 与 `docs:gated:smoke:staging` 都通过
+`apps/app-api/scripts/run-with-staging-smoke-env.mjs` 加载 staging smoke env。
+该 runner 会使用 repo-local `.tmp/staging-smoke.lock` 串行化命令，避免两个
+smoke 同时重建同一个固定 identity 导致 session mint 竞争。不要绕过 runner
+并行执行会重置 `help_bot@outlook.com` 的 staging smoke 脚本。
 
 这条命令会：
 
+1. 先检查 `app-api-staging` 与 `chat-staging` 的 `readyz`
+1. 若 readyz 阻塞，输出结构化 `blocked_by`，且不重置 smoke identity、不发起
+   chat request
 1. 用固定 smoke identity `help_bot@outlook.com` 重建 staging 账号并清理旧聊天数据
 1. 通过部署态 `app-api-staging`
    `POST /api/internal/staging-smoke/auth/session` 铸造真实 staging session cookie
 1. 带着拿到的 session cookie 真实请求
    `https://campus-chat-staging.ayafeed.com/api/chat/requests`
 1. 再检查 `api/me` 与 `api/chat/conversations`，确认会话有效且新会话进入 history
+1. 默认要求 `request.resultKind = "answer"`；如果 supervisor 返回 typed
+   error outcome，脚本会退出非零并在错误里带上 `requestId` 与 `traceId`
 
 它要求当前 shell 有：
 
@@ -152,20 +171,27 @@ pnpm --dir apps/app-api chat:smoke:staging
 
 通过标准：
 
-- `chat:smoke:staging` 返回 `0`
-- 它输出的 `request.resultKind` 是 typed outcome
+- `chat:e2e:staging` 返回 `0`
+- 它输出的 `request.resultKind` 是 `answer`
 - `POST /api/chat/requests` 返回 `200`
 - `api/chat/conversations` 在请求后包含新 `conversationId`
 - 不能出现 transport error、Worker proxy error、upstream unreachable
+
+只有在明确做 transport-only 调试时，才允许临时追加
+`-- --expect-result-kind any`，该模式不作为 staging closeout gate。
+
+如果需要临时调试 execution tunnel，可以显式追加
+`-- --exec-readyz-url https://exec-staging.ayafeed.com/readyz`。该模式只用于
+transport debug；默认 staging closeout 不直接探 supervisor full `/readyz`。
 
 ## Step 5. 记录链路证据
 
 至少记录：
 
 - `infra/local/staging/status-supervisor-api-staging.sh --check`
-- `https://exec-staging.ayafeed.com/readyz`
+- `https://exec-staging.ayafeed.com/healthz`
 - `https://campus-api-staging.ayafeed.com/readyz`
-- `pnpm --dir apps/app-api chat:smoke:staging` 的 JSON 摘要
+- `pnpm --dir apps/app-api chat:e2e:staging` 的 JSON 摘要
 - 当前 execution origin 是否复用了既有 `exec-staging.ayafeed.com`
 
 ## Rollback
@@ -178,6 +204,6 @@ pnpm --dir apps/app-api chat:smoke:staging
 infra/local/staging/stop-supervisor-api-staging.sh
 ```
 
-1. 按 fallback runbook 恢复 legacy dev-backed runtime
-1. 如果 execution upstream URL 曾经改动，再把 `STAGING_SUPERVISOR_API_BASE_URL` 改回旧值并重新 deploy
-   `app-api-staging`
+1. 保持 execution upstream 指向 canonical staging runtime，并修复 canonical runtime 或
+   `app-api-staging` 配置后重新执行 smoke
+1. 不恢复 legacy dev-backed runtime；如果历史 runtime 仍在运行，先停掉再重试 canonical 启动

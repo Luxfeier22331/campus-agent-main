@@ -148,7 +148,7 @@ def _reference_source_type(case: GoldenCase) -> str:
     if case.reference_facts:
         return "reference_facts"
     if case.required_facts:
-        return "required_facts_fallback"
+        return "required_facts_derived"
     return "none"
 
 

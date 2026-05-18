@@ -33,7 +33,7 @@ export type ArtifactToolbarItem = {
   onClick: (context: ArtifactToolbarContext) => void;
 };
 
-type ArtifactContent<M = any> = {
+export type ArtifactContentProps<M = any> = {
   title: string;
   content: string;
   mode: "edit" | "diff";
@@ -57,7 +57,7 @@ type InitializeParameters<M = any> = {
 type ArtifactConfig<T extends string, M = any> = {
   kind: T;
   description: string;
-  content: ComponentType<ArtifactContent<M>>;
+  content: ComponentType<ArtifactContentProps<M>>;
   actions: ArtifactAction<M>[];
   toolbar: ArtifactToolbarItem[];
   initialize?: (parameters: InitializeParameters<M>) => void;
@@ -71,7 +71,7 @@ type ArtifactConfig<T extends string, M = any> = {
 export class Artifact<T extends string, M = any> {
   readonly kind: T;
   readonly description: string;
-  readonly content: ComponentType<ArtifactContent<M>>;
+  readonly content: ComponentType<ArtifactContentProps<M>>;
   readonly actions: ArtifactAction<M>[];
   readonly toolbar: ArtifactToolbarItem[];
   readonly initialize?: (parameters: InitializeParameters) => void;

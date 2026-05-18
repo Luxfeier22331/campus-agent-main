@@ -7,6 +7,8 @@ from urllib.error import HTTPError, URLError
 from urllib.request import Request, urlopen
 
 from campus_contracts import (
+    AcademicCalendarLookupResult,
+    AcademicCalendarRelatedContext,
     ContactDirectoryCandidate,
     ContactDirectoryContactPoint,
     ContactDirectoryContactRef,
@@ -20,6 +22,8 @@ from campus_contracts import (
     ServiceGuideLookupResult,
     ServiceGuideMaterial,
     ServiceGuideOfficeHours,
+    ServiceGuideProcedureGroup,
+    ServiceGuideProcedureStep,
     ServiceGuideSection,
     ServiceGuideServiceRef,
     ServiceStatusLookupResult,
@@ -33,6 +37,7 @@ from campus_contracts import (
 )
 
 from campus_services_agent.query_service import (
+    AcademicCalendarQuery,
     ContactDirectoryQuery,
     ServiceGuideQuery,
     ServiceStatusQuery,
@@ -77,10 +82,7 @@ class CampusServicesHTTPQueryService:
                 access_context=asdict(query.access_context),
             ),
         )
-        return _service_status_result_from_dict(
-            body,
-            fallback_subject_query=query.payload.subject_query,
-        )
+        return _service_status_result_from_dict(body)
 
     def lookup_service_guide(self, query: ServiceGuideQuery) -> ServiceGuideLookupResult:
         body = self._post(
@@ -90,11 +92,7 @@ class CampusServicesHTTPQueryService:
                 access_context=asdict(query.access_context),
             ),
         )
-        return _service_guide_result_from_dict(
-            body,
-            fallback_service_query=query.payload.service_query,
-            fallback_guide_focus=str(query.payload.guide_focus),
-        )
+        return _service_guide_result_from_dict(body)
 
     def lookup_contact_directory(
         self,
@@ -107,11 +105,20 @@ class CampusServicesHTTPQueryService:
                 access_context=asdict(query.access_context),
             ),
         )
-        return _contact_directory_result_from_dict(
-            body,
-            fallback_query_text=query.payload.query_text,
-            fallback_contact_focus=str(query.payload.contact_focus),
+        return _contact_directory_result_from_dict(body)
+
+    def lookup_academic_calendar(
+        self,
+        query: AcademicCalendarQuery,
+    ) -> AcademicCalendarLookupResult:
+        body = self._post(
+            "/internal/query/calendar/academic-calendar",
+            _query_body(
+                payload=asdict(query.payload),
+                access_context=asdict(query.access_context),
+            ),
         )
+        return _academic_calendar_result_from_dict(body)
 
     def lookup_transport_schedule(
         self,
@@ -124,11 +131,7 @@ class CampusServicesHTTPQueryService:
                 access_context=asdict(query.access_context),
             ),
         )
-        return _transport_schedule_result_from_dict(
-            body,
-            fallback_query_text=query.payload.query_text,
-            fallback_intent=str(query.payload.intent),
-        )
+        return _transport_schedule_result_from_dict(body)
 
     def _post(self, path: str, json_body: dict[str, object]) -> dict[str, object]:
         status_code, body = self._transport(
@@ -190,13 +193,13 @@ def _query_body(
     }
 
 
-def _service_status_result_from_dict(
-    body: dict[str, object],
-    *,
-    fallback_subject_query: str,
-) -> ServiceStatusLookupResult:
+def _service_status_result_from_dict(body: dict[str, object]) -> ServiceStatusLookupResult:
     return ServiceStatusLookupResult(
-        subject_query=_string(body.get("subject_query")) or fallback_subject_query,
+        subject_query=_required_string(
+            body,
+            "subject_query",
+            result_name="service status query",
+        ),
         outcome=_string(body.get("outcome")),
         resolved_subject=_string(body.get("resolved_subject")),
         observed_status=_string(body.get("observed_status")),
@@ -211,21 +214,29 @@ def _service_status_result_from_dict(
     )
 
 
-def _service_guide_result_from_dict(
-    body: dict[str, object],
-    *,
-    fallback_service_query: str,
-    fallback_guide_focus: str,
-) -> ServiceGuideLookupResult:
+def _service_guide_result_from_dict(body: dict[str, object]) -> ServiceGuideLookupResult:
     return ServiceGuideLookupResult(
-        service_query=_string(body.get("service_query")) or fallback_service_query,
-        guide_focus=_string(body.get("guide_focus")) or fallback_guide_focus,
+        service_query=_required_string(
+            body,
+            "service_query",
+            result_name="service guide query",
+        ),
+        guide_focus=_required_string(
+            body,
+            "guide_focus",
+            result_name="service guide query",
+        ),
         outcome=_string(body.get("outcome")),
         resolved_service=_service_guide_service_ref(body.get("resolved_service")),
         guide_sections=tuple(
             section
             for item in _list(body.get("guide_sections"))
             if (section := _service_guide_section(item)) is not None
+        ),
+        procedure_groups=tuple(
+            group
+            for item in _list(body.get("procedure_groups"))
+            if (group := _service_guide_procedure_group(item)) is not None
         ),
         required_materials=tuple(
             material
@@ -260,18 +271,25 @@ def _service_guide_result_from_dict(
         clarification_reason=_string(body.get("clarification_reason")),
         fail_close_reason=_string(body.get("fail_close_reason")),
         matched_service_category=_string(body.get("matched_service_category")),
+        selected_section_ids=_string_tuple(body.get("selected_section_ids")),
+        omitted_section_ids=_string_tuple(body.get("omitted_section_ids")),
+        omitted_section_reasons=_string_mapping(body.get("omitted_section_reasons")),
+        field_status=_string_mapping(body.get("field_status")),
     )
 
 
-def _contact_directory_result_from_dict(
-    body: dict[str, object],
-    *,
-    fallback_query_text: str,
-    fallback_contact_focus: str,
-) -> ContactDirectoryLookupResult:
+def _contact_directory_result_from_dict(body: dict[str, object]) -> ContactDirectoryLookupResult:
     return ContactDirectoryLookupResult(
-        query_text=_string(body.get("query_text")) or fallback_query_text,
-        contact_focus=_string(body.get("contact_focus")) or fallback_contact_focus,
+        query_text=_required_string(
+            body,
+            "query_text",
+            result_name="contact directory query",
+        ),
+        contact_focus=_required_string(
+            body,
+            "contact_focus",
+            result_name="contact directory query",
+        ),
         outcome=_string(body.get("outcome")),
         resolved_contact=_contact_directory_contact_ref(body.get("resolved_contact")),
         contact_points=tuple(
@@ -300,18 +318,22 @@ def _contact_directory_result_from_dict(
         effective_until=_string(body.get("effective_until")),
         clarification_reason=_string(body.get("clarification_reason")),
         fail_close_reason=_string(body.get("fail_close_reason")),
+        field_status=_string_mapping(body.get("field_status")),
     )
 
 
-def _transport_schedule_result_from_dict(
-    body: dict[str, object],
-    *,
-    fallback_query_text: str,
-    fallback_intent: str,
-) -> TransportScheduleLookupResult:
+def _transport_schedule_result_from_dict(body: dict[str, object]) -> TransportScheduleLookupResult:
     return TransportScheduleLookupResult(
-        query_text=_string(body.get("query_text")) or fallback_query_text,
-        intent=_string(body.get("intent")) or fallback_intent,
+        query_text=_required_string(
+            body,
+            "query_text",
+            result_name="transport schedule query",
+        ),
+        intent=_required_string(
+            body,
+            "intent",
+            result_name="transport schedule query",
+        ),
         outcome=_string(body.get("outcome")),
         resolved_route=_transport_route_ref(body.get("resolved_route")),
         service_status=_string(body.get("service_status")),
@@ -350,6 +372,71 @@ def _transport_schedule_result_from_dict(
     )
 
 
+def _academic_calendar_result_from_dict(body: dict[str, object]) -> AcademicCalendarLookupResult:
+    return AcademicCalendarLookupResult(
+        query_text=_required_string(
+            body,
+            "query_text",
+            result_name="academic calendar query",
+        ),
+        outcome=_string(body.get("outcome")),
+        answer_focus=_string(body.get("answer_focus")),
+        requested_date=_string(body.get("requested_date")),
+        resolved_date=_string(body.get("resolved_date")),
+        academic_year_label=_string(body.get("academic_year_label")),
+        term_label=_string(body.get("term_label")),
+        week_index=_int_or_none(body.get("week_index")),
+        day_kind=_string(body.get("day_kind")),
+        class_day_pattern=_string(body.get("class_day_pattern")),
+        is_makeup_class=_bool_or_none(body.get("is_makeup_class")),
+        holiday_name=_string(body.get("holiday_name")),
+        source_refs=_string_tuple(body.get("source_refs")),
+        queried_time_anchor=_string(body.get("queried_time_anchor")),
+        effective_from=_string(body.get("effective_from")),
+        effective_until=_string(body.get("effective_until")),
+        fail_close_reason=_string(body.get("fail_close_reason")),
+        query_kind=_string(body.get("query_kind")),
+        event_name=_string(body.get("event_name")),
+        event_type=_string(body.get("event_type")),
+        event_aliases=_string_tuple(body.get("event_aliases")),
+        event_start_date=_string(body.get("event_start_date")),
+        event_end_date_exclusive=_string(body.get("event_end_date_exclusive")),
+        display_start_date=_string(body.get("display_start_date")),
+        display_end_date=_string(body.get("display_end_date")),
+        applies_to=_string_tuple(body.get("applies_to")),
+        source_title=_string(body.get("source_title")),
+        source_url=_string(body.get("source_url")),
+        calendar_record_id=_string(body.get("calendar_record_id")),
+        conflict_refs=_string_tuple(body.get("conflict_refs")),
+        duration_days=_int_or_none(body.get("duration_days")),
+        primary_record_id=_string(body.get("primary_record_id")),
+        primary_source_refs=_string_tuple(body.get("primary_source_refs")),
+        related_calendar_contexts=tuple(
+            context
+            for item in _list(body.get("related_calendar_contexts"))
+            if (context := _academic_calendar_related_context(item)) is not None
+        ),
+    )
+
+
+def _academic_calendar_related_context(value: object) -> AcademicCalendarRelatedContext | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return AcademicCalendarRelatedContext(
+        relation=_string(item.get("relation")),
+        event_name=_string(item.get("event_name")),
+        event_type=_string(item.get("event_type")),
+        display_start_date=_string(item.get("display_start_date")),
+        display_end_date=_string(item.get("display_end_date")),
+        duration_days=_int_or_none(item.get("duration_days")),
+        applies_to=_string_tuple(item.get("applies_to")),
+        source_refs=_string_tuple(item.get("source_refs")),
+        source_title=_string(item.get("source_title")),
+        source_url=_string(item.get("source_url")),
+    )
+
+
 def _service_guide_service_ref(value: object) -> ServiceGuideServiceRef | None:
     item = _dict(value)
     if item is None:
@@ -369,9 +456,41 @@ def _service_guide_section(value: object) -> ServiceGuideSection | None:
     if item is None:
         return None
     return ServiceGuideSection(
+        section_id=_string(item.get("section_id")),
         section_type=_string(item.get("section_type")),
         title=_string(item.get("title")),
         content=_string(item.get("content")),
+        source_refs=_string_tuple(item.get("source_refs")),
+    )
+
+
+def _service_guide_procedure_step(value: object) -> ServiceGuideProcedureStep | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    return ServiceGuideProcedureStep(
+        step_id=_string(item.get("step_id")),
+        content=_string(item.get("content")),
+        source_refs=_string_tuple(item.get("source_refs")),
+    )
+
+
+def _service_guide_procedure_group(value: object) -> ServiceGuideProcedureGroup | None:
+    item = _dict(value)
+    if item is None:
+        return None
+    steps = tuple(
+        step
+        for raw_step in _list(item.get("steps"))
+        if (step := _service_guide_procedure_step(raw_step)) is not None
+    )
+    if not steps:
+        return None
+    return ServiceGuideProcedureGroup(
+        group_id=_string(item.get("group_id")),
+        title=_string(item.get("title")),
+        focus_tags=_string_tuple(item.get("focus_tags")),
+        steps=steps,
         source_refs=_string_tuple(item.get("source_refs")),
     )
 
@@ -613,5 +732,42 @@ def _string(value: object) -> str:
     return value.strip() if isinstance(value, str) else ""
 
 
+def _required_string(
+    body: dict[str, object],
+    field_name: str,
+    *,
+    result_name: str,
+) -> str:
+    value = _string(body.get(field_name))
+    if not value:
+        raise RuntimeError(f"{result_name} result missing required field: {field_name}")
+    return value
+
+
 def _string_tuple(value: object) -> tuple[str, ...]:
     return tuple(_string(item) for item in _list(value) if _string(item))
+
+
+def _int_or_none(value: object) -> int | None:
+    if isinstance(value, int):
+        return value
+    if isinstance(value, float) and value.is_integer():
+        return int(value)
+    return None
+
+
+def _bool_or_none(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    return None
+
+
+def _string_mapping(value: object) -> dict[str, str]:
+    item = _dict(value)
+    if item is None:
+        return {}
+    return {
+        _string(key): _string(raw_value)
+        for key, raw_value in item.items()
+        if _string(key) and _string(raw_value)
+    }

@@ -99,9 +99,6 @@ uv run --package campus-ingestion-worker python -m \
 - offline operator shell 必须显式提供 operator lane
   DSN：`AUTHENTICATED_NOTICE_CLOSEOUT_OPERATOR_DATABASE_URL` 或
   `CAMPUS_SHARED_POSTGRES_OPERATOR_URL`
-- legacy `AUTHENTICATED_NOTICE_CLOSEOUT_MANAGEMENT_DATABASE_URL` /
-  `CAMPUS_SHARED_POSTGRES_MANAGEMENT_URL` 仍作为兼容别名接受，但当前默认语义已经收口为同一条 IPv4
-  session-pooler `:5432` operator lane
 - 目标 collection 是 `campus_notices/internal_notice`
 - collection posture 是 `restricted + offline_preparation`
 

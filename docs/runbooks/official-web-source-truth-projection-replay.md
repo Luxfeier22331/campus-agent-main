@@ -222,22 +222,34 @@ uv run --all-packages python -m campus_ingestion_worker.release_registry_scope \
   --collection muc_public_pages \
   --no-publish-alias
 
-uv run --all-packages python -m campus_evals.retrieval_live_benchmark \
-  --qrels \
-    packages/evals/fixtures/official_web_muc_public_pages_retrieval_qrels.json
-  --output /tmp/official-web-live-retrieval.json \
-  --force-enable-retrieval \
-  --qdrant-collection-name <physical-collection> \
-  --format json
-
-uv run --all-packages python -m campus_evals.official_web_live_benchmark run \
-  --reruns 1 \
-  --qdrant-collection-name <physical-collection> \
-  --output-dir /tmp/official-web-live-gate
+uv run --all-packages python -m unittest \
+  tests.evals.retrieval_benchmark_qrels_official_web_suite \
+  tests.evals.test_official_web_live_benchmark
 ```
 
-1. 如果当前 batch 要继续做首条 `stable_reference` bootstrap 闭环，则改为执行 routed scope import /
-   release：
+`official_web/muc_public_pages` 只做 import / replay / QC / audit inventory，不跑
+answer-bearing live gate。对应的
+`packages/evals/fixtures/official_web_muc_public_pages_retrieval_qrels.json` 只保留
+inventory-not-query-enabled guard cases，不能写 expected / forbidden sources。
+
+1. 如果当前 batch 要继续做 `stable_reference` release 闭环，优先走 app-api release gate /
+   worker executor，而不是手动执行整 scope refresh：
+
+```bash
+# 1) operator 先在 app-api 中批准 previewed inventory row，得到 releaseId
+campus-ingestion-release-official-web-target \
+  --release-id <releaseId> \
+  --work-dir ./var/official-web-target-releases
+```
+
+该 executor 会从 app-api internal route 读取 release gate，只导入匹配该 target
+`jobId + sourceUrl + official_web/stable_reference + release_gate_required` 的文档，并以
+`scope_refresh = None` 调用 projection import，避免为单条 release 清空整个
+`official_web/stable_reference` scope。导入后 executor 会用同一个 `releaseId` 执行
+registry scope chunk preparation，再把通过验证的 preparation 交给 `release_registry_scope`
+索引。默认 `publishAlias = false`，最终状态是 `indexed`。
+
+1. 仅在 bootstrap / repair 需要人工复放老路径时，才执行 routed scope import / release：
 
 ```bash
 uv run --all-packages python -m \
@@ -285,17 +297,19 @@ uv run --all-packages python -m campus_ingestion_worker.scope_alias \
 - 当前 `muc_public_pages` 的 low-value recruitment / procurement / public-notice
   `article_detail` 页面虽然能 replay 出 canonical document，但仍必须留在 staged audit
   truth，不参与 promote / release
-- `stable_reference` bootstrap import 只消费 routed
-  `target_collection=stable_reference` 文档，不允许顺手把 mixed bridge 页一起刷进这次 release
+- `stable_reference` 正常 release 只允许通过 release gate executor 消费单个批准 target；
+  bootstrap/repair 手动 import 才允许消费 routed `target_collection=stable_reference` 文档，且不允许顺手把
+  mixed bridge 页一起刷进这次 release
 - `stable_reference` bootstrap release 在本地验证阶段默认仍先 `--no-publish-alias`；若
   retrieval/live gate 已通过，再用 `campus_ingestion_worker.scope_alias` 单独执行 alias
   publish，避免把“生成 physical collection”和“切 serving alias”混成一步
 - `stable_reference` retrieval/live-gate baseline 现在使用独立的 split
   manifest、retrieval qrels 与 `--official-web-scope stable_reference`
   deterministic live profile，不再复用 mixed `muc_public_pages` live gate
-- `fresh_news` 当前也已有独立的 split manifest、retrieval qrels 与 `--official-web-scope
-  fresh_news` seed live profile；但 runtime truth 仍保持 `offline_preparation`，不得把本地
-  seed 验证写成 query-open 结论
+- `fresh_news` 当前已有独立 split manifest 与 retrieval qrels seed baseline；但它
+  不再作为 `official_web_live_benchmark` 的 live answer gate scope 或 eval-release
+  dispatch profile。
+  runtime truth 仍保持 `offline_preparation`，不得把本地 seed 验证写成 query-open 结论
 
 ## 输出形态
 

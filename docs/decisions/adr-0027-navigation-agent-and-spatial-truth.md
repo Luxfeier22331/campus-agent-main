@@ -140,7 +140,7 @@ identity / memory truth。
 
 - geocode / reverse geocode
 - POI search
-- optional route fallback
+- optional secondary route candidates
 - optional off-campus extension
 
 明确不做：

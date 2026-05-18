@@ -91,20 +91,16 @@ class RagAgentCurriculumResolutionInitialTest(unittest.TestCase):
 
         self.assertEqual(response.status, "needs_clarification")
         self.assertIn("民族实验班", response.follow_up_question)
-        self.assertEqual(response.result.evidence, evidence)
+        self.assertEqual(response.result.evidence.query_text, evidence.query_text)
+        self.assertEqual(response.result.evidence.corpus, evidence.corpus)
+        self.assertEqual(response.result.evidence.collection, evidence.collection)
+        self.assertEqual(response.result.evidence.sources, ())
         self.assertIsNotNone(response.result.diagnostics)
         self.assertEqual(response.result.diagnostics.retrieval_adequacy_verdict, "ambiguous")
         self.assertEqual(
-            response.result.diagnostics.retrieval_adequacy_reason, "multi_candidate_title"
+            response.result.diagnostics.retrieval_adequacy_reason, "curriculum_program_conflict"
         )
-        self.assertEqual(
-            response.result.diagnostics.retrieved_title_summary,
-            (
-                "法学（民族实验班）本科人才培养方案",
-                "信息与计算科学（民族实验班）本科人才培养方案",
-                "计算机科学与技术（民族实验班）本科人才培养方案",
-            ),
-        )
+        self.assertEqual(response.result.diagnostics.retrieved_title_summary, ())
 
     def test_curriculum_semester_course_query_normalizes_alias_and_avoids_cross_doc_contamination(
         self,
@@ -293,6 +289,83 @@ class RagAgentCurriculumResolutionInitialTest(unittest.TestCase):
                 session_program="法学民族实验班",
                 session_semester="第四学期",
             ),
+        )
+
+    def test_curriculum_named_strong_base_query_excludes_other_strong_base_programs(
+        self,
+    ) -> None:
+        evidence = EvidenceBundle(
+            query_text="想看哲学强基方向的培养方案",
+            corpus="curriculum",
+            collection="curriculum_plan",
+            sources=(
+                EvidenceSource(
+                    doc_id="curriculum:哲学（强基计划）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:philosophy-strong-base",
+                    chunk_id="curriculum:哲学（强基计划）本科人才培养方案:chunk-0001",
+                    anchor={"page_start": 1, "page_end": 1},
+                    canonical_url="https://campus.example/curriculum/philosophy-strong-base",
+                    latest_url="https://campus.example/curriculum/philosophy-strong-base",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=True,
+                    snippet=(
+                        "哲学（强基计划）本科人才培养方案 培养具有扎实的哲学专业知识、"
+                        "较强的哲学思维能力和理论研究能力的拔尖人才。"
+                    ),
+                    score=0.95,
+                    source_title="哲学（强基计划）本科人才培养方案",
+                    structural_path=("哲学（强基计划）本科人才培养方案", "培养目标"),
+                    detail_label="培养目标",
+                    content_kind="document_unit",
+                    content_role="body",
+                    is_answer_bearing=True,
+                ),
+                EvidenceSource(
+                    doc_id="curriculum:历史学（强基计划）本科人才培养方案",
+                    revision_track="source-faithful",
+                    version_id="v1:history-strong-base",
+                    chunk_id="curriculum:历史学（强基计划）本科人才培养方案:chunk-0001",
+                    anchor={"page_start": 1, "page_end": 1},
+                    canonical_url="https://campus.example/curriculum/history-strong-base",
+                    latest_url="https://campus.example/curriculum/history-strong-base",
+                    source_channel="pdf_ocr",
+                    collection="curriculum_plan",
+                    is_current=True,
+                    snippet=(
+                        "历史学（强基计划）本科人才培养方案 培养具有深厚的理论修养、"
+                        "扎实的史学功底的历史学研究型拔尖人才。"
+                    ),
+                    score=0.94,
+                    source_title="历史学（强基计划）本科人才培养方案",
+                    structural_path=("历史学（强基计划）本科人才培养方案", "培养目标"),
+                    detail_label="培养目标",
+                    content_kind="document_unit",
+                    content_role="body",
+                    is_answer_bearing=True,
+                ),
+            ),
+        )
+
+        response = delegate_to_rag_agent(
+            AgentRequest(
+                target="rag-agent",
+                user_goal="想看哲学强基方向的培养方案",
+                payload=RagRequestPayload(
+                    scope=KnowledgeScope(corpus="curriculum", collection="curriculum_plan")
+                ),
+            ),
+            retriever=lambda *args, **kwargs: evidence,
+        )
+
+        self.assertEqual(response.status, "completed")
+        self.assertIn("哲学（强基计划）本科人才培养方案", response.answer_text)
+        self.assertNotIn("历史学", response.answer_text)
+        self.assertNotIn("史学功底", response.answer_text)
+        self.assertEqual(
+            tuple(source.doc_id for source in response.result.evidence.sources),
+            ("curriculum:哲学（强基计划）本科人才培养方案",),
         )
 
     def test_curriculum_semester_course_query_without_program_resolution_maps_to_needs_clarification(

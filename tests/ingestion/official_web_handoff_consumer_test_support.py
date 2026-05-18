@@ -12,11 +12,11 @@ from campus_ingestion_core.official_web_projection_shared import (
     OfficialWebProjectionReplayReport,
     OfficialWebProjectionValidationReport,
 )
-from campus_ingestion_worker import (
+from campus_ingestion_worker.official_web_handoff_consumer_models import (
     OfficialWebHandoffConsumeResult,
     OfficialWebHandoffConsumerSettings,
-    consume_handoff_record,
 )
+from campus_ingestion_worker.official_web_handoff_consumer_runtime import consume_handoff_record
 
 
 def _write_json(path: Path, payload: object) -> None:
@@ -104,8 +104,9 @@ def _page_manifest_payload(
     normalized_canonical_url: str,
     page_family: str,
     page_title: str,
+    consumer_matches: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
-    return {
+    payload = {
         "schemaVersion": "official_web_page_manifest.v1",
         "sourceChannel": "official_web",
         "siteId": site_id,
@@ -147,6 +148,16 @@ def _page_manifest_payload(
         "crawlPolicyVersion": "campus_public_crawl_policy_v1",
         "credentialsMode": "public",
     }
+    if consumer_matches is not None:
+        payload.update(
+            {
+                "consumerDenominatorVersion": "test_consumer_denominator_v1",
+                "consumerMatches": consumer_matches,
+                "consumerRetentionDecision": "retain_source_truth",
+                "consumerRejectionReason": None,
+            }
+        )
+    return payload
 
 
 def _bundle_payload(
@@ -156,28 +167,36 @@ def _bundle_payload(
     raw_asset_id: str = "owasset_article_001",
     raw_version_id: str = "owver_article_001",
     normalized_canonical_url: str = "https://www.example.edu/news/1",
+    consumer_matches: list[dict[str, object]] | None = None,
 ) -> dict[str, object]:
+    page_entry: dict[str, object] = {
+        "rawAssetId": raw_asset_id,
+        "rawVersionId": raw_version_id,
+        "normalizedCanonicalUrl": normalized_canonical_url,
+        "pageFamily": "article_detail",
+        "pageManifestObjectKey": f"official_web/{raw_asset_id}/undated/{raw_version_id}/source-truth/page-manifest.json",
+        "contentBlocksObjectKey": f"official_web/{raw_asset_id}/undated/{raw_version_id}/source-truth/content-blocks.jsonl",
+        "providerExtractionObjectKey": f"official_web/{raw_asset_id}/undated/{raw_version_id}/provider/cheerio-basic/page-extraction.json",
+        "discoveredLinksObjectKey": f"official_web/{raw_asset_id}/undated/{raw_version_id}/provider/cheerio-basic/discovered-links.jsonl",
+        "responseHtmlObjectKey": f"official_web/{raw_asset_id}/undated/{raw_version_id}/capture/response.html",
+        "responseBodyHash": f"hash-{raw_asset_id}",
+        "blockCount": 2,
+    }
+    if consumer_matches is not None:
+        page_entry.update(
+            {
+                "consumerMatches": consumer_matches,
+                "consumerRetentionDecision": "retain_source_truth",
+                "consumerRejectionReason": None,
+            }
+        )
     return {
         "schemaVersion": "official_web_source_truth_bundle.v1",
         "sourceChannel": "official_web",
         "siteId": site_id,
         "crawlRunId": run_id,
         "generatedAt": "2026-03-31T09:00:00.000Z",
-        "pages": [
-            {
-                "rawAssetId": raw_asset_id,
-                "rawVersionId": raw_version_id,
-                "normalizedCanonicalUrl": normalized_canonical_url,
-                "pageFamily": "article_detail",
-                "pageManifestObjectKey": f"official_web/{raw_asset_id}/undated/{raw_version_id}/source-truth/page-manifest.json",
-                "contentBlocksObjectKey": f"official_web/{raw_asset_id}/undated/{raw_version_id}/source-truth/content-blocks.jsonl",
-                "providerExtractionObjectKey": f"official_web/{raw_asset_id}/undated/{raw_version_id}/provider/cheerio-basic/page-extraction.json",
-                "discoveredLinksObjectKey": f"official_web/{raw_asset_id}/undated/{raw_version_id}/provider/cheerio-basic/discovered-links.jsonl",
-                "responseHtmlObjectKey": f"official_web/{raw_asset_id}/undated/{raw_version_id}/capture/response.html",
-                "responseBodyHash": f"hash-{raw_asset_id}",
-                "blockCount": 2,
-            }
-        ],
+        "pages": [page_entry],
     }
 
 
@@ -267,6 +286,7 @@ def _standard_bundle_objects(
     site_id: str = "campus_public",
     page_title: str = "新闻详情",
     paragraph_text: str = "中央民族大学召开专题工作会议。",
+    consumer_matches: list[dict[str, object]] | None = None,
 ) -> dict[tuple[str, str], bytes]:
     page = bundle["pages"][0]
     assert isinstance(page, dict)
@@ -291,6 +311,7 @@ def _standard_bundle_objects(
                 normalized_canonical_url=normalized_canonical_url,
                 page_family="article_detail",
                 page_title=page_title,
+                consumer_matches=consumer_matches,
             ),
             ensure_ascii=False,
         ).encode("utf-8"),

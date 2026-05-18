@@ -2,7 +2,7 @@
 doc_type: architecture
 status: active
 created: 2026-04-02
-updated: 2026-04-19
+updated: 2026-05-02
 ---
 # Identity And Authorization Architecture
 
@@ -38,6 +38,8 @@ supporting architecture。
 identity / authz / memory supporting architecture 当前已经明确：
 
 - `apps/app-api` 是唯一 product-layer auth / session / principal owner
+- `apps/hub-web` 只拥有 account browser shell；它不拥有 auth database、session
+  storage、principal mapping 或 authorization truth
 - execution path 只消费 typed actor/context projection
 - retrieval path 只消费 authz projection carrier，不拥有最终 entitlement resolution
 
@@ -148,10 +150,28 @@ identity / authz truth。
 - raw captcha token、provider-specific risk signal 与 challenge state 不进入
   execution path、retrieval path 或 operator read model
 
+## Legacy MediaWiki Identity Compatibility
+
+既有 `muc.wiki` MediaWiki 继续作为 sibling legacy service 运营。
+
+当前 compatibility posture 固定为 `external_link_only`：
+
+- hub 只暴露 external legacy card 到 `https://muc.wiki`
+- `/wiki` 不是 hub internal slug
+- 不迁移 MediaWiki 用户、页面内容或上传媒体
+- 不把 MediaWiki cookie、session、user table 或 password hash 导入 `apps/app-api`
+- 不让 supervisor、agent、retrieval 或 operator panel 读取 MediaWiki identity state
+- 不设置 `.muc.wiki` 共享 auth cookie；new app-set auth cookie scope 保持在 hub/app
+  browser shell 的 origin 语义内，并由 app-api / Better Auth 负责 server-side truth
+
+如果未来要做 legacy login federation，只能通过显式 federation protocol / MediaWiki auth
+extension 进入新的 workstream；不得把本地 MediaWiki session 复用当成捷径。
+
 ## Forbidden Shapes
 
 - 不把 memory 提升成授权来源
 - 不把 raw JWT / raw session 洩漏给 supervisor / agent / retrieval
+- 不把 MediaWiki cookie / session / password hash 提升为 app identity truth
 - 不把 captcha token / challenge state / risk score 提升成 identity 或 authorization
   truth
 - 不把 retrieval payload ACL 字段误读成 canonical authz truth

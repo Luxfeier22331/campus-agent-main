@@ -172,6 +172,51 @@ class RagasScorerFailureTest(unittest.TestCase):
             },
         )
 
+    def test_build_ragas_scorer_marks_nonnumeric_metric_result_as_failed(self) -> None:
+        class FakeMetric:
+            name = "answer_relevancy"
+
+        class FakeEvaluationResult:
+            scores = [{"answer_relevancy": None}]
+
+        settings = RagasSettings.from_env(
+            {
+                "LLM_BASE_URL": "https://llm.example/v1",
+                "LLM_API_KEY": "llm-key",
+                "EVAL_RAGAS_MODEL": "qwen-reasoning",
+                "EMBEDDING_BASE_URL": "https://embed.example/v1",
+                "EMBEDDING_API_KEY": "embed-key",
+                "EMBEDDING_MODEL": "Qwen3-Embedding-4B",
+            }
+        )
+
+        scorer = build_ragas_scorer(
+            settings,
+            evaluate_fn=lambda **kwargs: FakeEvaluationResult(),
+            llm_factory=lambda resolved: {"model": resolved.llm_model},
+            embeddings_factory=lambda resolved: {"model": resolved.embedding_model},
+            metric_factory=lambda llm, embeddings: (FakeMetric(),),
+            metric_names=("answer_relevancy",),
+        )
+
+        results = scorer(
+            RagasProjection(
+                case_id="case-nonnumeric-score",
+                user_input="奖学金怎么申请？",
+                response="需要符合评审条件并提交材料。",
+                retrieved_contexts=("国家奖学金应按评审办法申请。",),
+                reference="国家奖学金应按评审办法申请。",
+            )
+        )
+
+        self.assertEqual(len(results), 1)
+        self.assertEqual(results[0].metric_name, "answer_relevancy")
+        self.assertEqual(results[0].verdict, "failed")
+        self.assertIsNone(results[0].score)
+        self.assertIn("did not return a numeric score", results[0].rationale)
+        self.assertEqual(results[0].metadata["metric_applicable"], True)
+        self.assertEqual(results[0].metadata["score_value_type"], "NoneType")
+
     def test_build_ragas_scorer_redacts_secrets_and_falls_back_to_error_type_for_empty_runtime_messages(
         self,
     ) -> None:

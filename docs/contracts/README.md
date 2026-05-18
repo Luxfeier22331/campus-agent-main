@@ -2,7 +2,7 @@
 doc_type: index
 status: active
 created: 2026-04-12
-updated: 2026-04-27
+updated: 2026-05-01
 ---
 # Contracts
 
@@ -20,6 +20,7 @@ updated: 2026-04-27
 
 ## Operator / Official Web contract
 
+- `app-api-authenticated-notice-processing-http.md`
 - `app-api-operator-observability-http.md`
 - `app-api-official-web-http.md`
 - `app-api-official-web-run-lifecycle.md`

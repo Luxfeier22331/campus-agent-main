@@ -26,7 +26,6 @@ updated: 2026-04-27
 - `handbook`
 - `curriculum`
 - `official-web-stable-reference`
-- `official-web-fresh-news`
 - `service-guide-lookup`
 - `contact-directory-lookup`
 - `campus-services-product-path`
@@ -77,12 +76,9 @@ uv run --all-packages python -m scripts.eval_gate accept \
   --json
 ```
 
-```bash
-uv run --all-packages python -m scripts.eval_gate accept \
-  --profile official-web-fresh-news \
-  --qdrant-collection-name <physical-collection> \
-  --json
-```
+`official-web-fresh-news` is not a release-gate dispatch profile. Its current
+repo truth is offline seed validation only; use the retrieval qrels fixture for
+local seed checks until a separate news/runtime opening workstream admits it.
 
 service guide lookup：
 

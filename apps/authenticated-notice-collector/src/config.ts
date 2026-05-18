@@ -17,7 +17,6 @@ export interface CollectorConfig {
 	attachmentFetchStatusDisabled: boolean;
 	defaultInlineVisualCapture: boolean;
 	authStorageStatePath: string;
-	authCookieHeader: string | null;
 	authJsessionId: string | null;
 	authNginxCookie: string | null;
 	authSsoTgcToken: string | null;
@@ -27,6 +26,8 @@ export interface CollectorConfig {
 	collectorRunLeaseDatabaseUrl: string | null;
 	collectorRunLeaseDisabled: boolean;
 	collectorRunLeaseTtlSeconds: number;
+	ingestQueueEnqueueOnSuccess: boolean;
+	ingestQueueEnqueueOutputDir: string | null;
 	exportsDir: string;
 	historicalBackfillMaxPagesPerType: number | null;
 	noticeTypeAllowlist: string[] | null;
@@ -85,10 +86,9 @@ export function resolveCollectorConfig(
 		),
 		defaultInlineVisualCapture: parseBooleanFlag(
 			source.AUTHENTICATED_NOTICE_DEFAULT_INLINE_VISUAL_CAPTURE,
-			true,
+			false,
 		),
 		authStorageStatePath: path.join(runtimeDir, "auth", "storageState.json"),
-		authCookieHeader: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_AUTH_COOKIE_HEADER),
 		authJsessionId: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_JSESSIONID),
 		authNginxCookie: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_NGINX),
 		authSsoTgcToken: normalizeOptionalSecret(source.AUTHENTICATED_NOTICE_SSO_TGC),
@@ -110,6 +110,13 @@ export function resolveCollectorConfig(
 		collectorRunLeaseTtlSeconds: parsePositiveInteger(
 			source.AUTHENTICATED_NOTICE_COLLECTOR_LEASE_TTL_SECONDS,
 			3600,
+		),
+		ingestQueueEnqueueOnSuccess: parseBooleanFlag(
+			source.AUTHENTICATED_NOTICE_INGEST_QUEUE_ENQUEUE_ON_SUCCESS,
+			false,
+		),
+		ingestQueueEnqueueOutputDir: normalizeOptionalPath(
+			source.AUTHENTICATED_NOTICE_INGEST_QUEUE_ENQUEUE_OUTPUT_DIR,
 		),
 		exportsDir: path.join(runtimeDir, "exports"),
 		historicalBackfillMaxPagesPerType: parseOptionalPositiveInteger(
@@ -172,10 +179,10 @@ export function ensureRuntimeDirs(config: CollectorConfig): void {
 	}
 }
 
-function parsePositiveInteger(raw: string | undefined, fallback: number): number {
+function parsePositiveInteger(raw: string | undefined, defaultValue: number): number {
 	const parsed = Number(raw || "");
 	if (!Number.isFinite(parsed) || parsed <= 0) {
-		return fallback;
+		return defaultValue;
 	}
 	return Math.floor(parsed);
 }
@@ -188,12 +195,12 @@ function parseOptionalPositiveInteger(raw: string | undefined): number | null {
 	return Math.floor(parsed);
 }
 
-function parseBooleanFlag(raw: string | undefined, fallback: boolean): boolean {
+function parseBooleanFlag(raw: string | undefined, defaultValue: boolean): boolean {
 	const normalized = String(raw ?? "")
 		.trim()
 		.toLowerCase();
 	if (!normalized) {
-		return fallback;
+		return defaultValue;
 	}
 	if (["1", "true", "yes", "on"].includes(normalized)) {
 		return true;
@@ -201,7 +208,7 @@ function parseBooleanFlag(raw: string | undefined, fallback: boolean): boolean {
 	if (["0", "false", "no", "off"].includes(normalized)) {
 		return false;
 	}
-	return fallback;
+	return defaultValue;
 }
 
 function parseCollectionMode(raw: string | undefined): NoticeCollectionMode {

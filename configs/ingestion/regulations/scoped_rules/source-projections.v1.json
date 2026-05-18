@@ -15,7 +15,10 @@
 		"regulation_title_normalized",
 		"issuing_org",
 		"effective_date",
-		"revision_signal"
+		"revision_signal",
+		"cycle_year",
+		"applicability_status",
+		"promotion_disposition"
 	],
 	"derived_document_fields": [
 		"projection_name",
@@ -39,6 +42,8 @@
 		"effective_date",
 		"revision_signal",
 		"cycle_year",
+		"applicability_status",
+		"promotion_disposition",
 		"school_unit_name",
 		"campus_site"
 	],

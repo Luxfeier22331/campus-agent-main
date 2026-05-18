@@ -12,6 +12,45 @@ describe("FeedWe capture", () => {
 		expect(normalizeWeChatAccountSlug("中央民族大学学生会")).toBe("中央民族大学学生会");
 	});
 
+	it("fails closed when FeedWe returns invalid JSON for a successful provider response", async () => {
+		const fetchImplementation = vi.fn(
+			async () =>
+				new Response("{", {
+					headers: { "content-type": "application/json" },
+					status: 200,
+				}),
+		);
+		const artifactStore: WeChatOfficialAccountArtifactStore = {
+			async putObject(input) {
+				return {
+					byteSize: input.data.byteLength,
+					contentSha256: "f".repeat(64),
+					objectKey: input.objectKey,
+					recordCount: input.recordCount,
+				};
+			},
+		};
+
+		await expect(
+			captureFeedWeHistory({
+				accountName: "中央民族大学学生会",
+				artifactStore,
+				fetchImplementation,
+				maxArticles: 1,
+				maxPages: 1,
+				provider: {
+					baseUrl: "https://www.feedwe.top",
+					email: "collector@example.com",
+					password: "super-secret-password",
+				},
+				size: 1,
+			}),
+		).rejects.toMatchObject({
+			code: "provider_response_invalid",
+			message: "FeedWe response must be valid JSON.",
+		});
+	});
+
 	it("captures real article HTML and image artifacts before materializing source-truth", async () => {
 		const email = "collector@example.com";
 		const password = "super-secret-password";

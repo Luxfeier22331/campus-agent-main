@@ -18,6 +18,30 @@ from campus_ingestion_worker.official_web_handoff_consumer_models import (
     OfficialWebExecutionStatusReporter,
     OfficialWebHandoffConsumerSettings,
 )
+from campus_ingestion_worker.official_web_handoff_consumer_selected_write import (
+    _build_selected_write_admission_preview,
+    _candidate_admission_action,
+    _candidate_blocked_reason,
+    _candidate_review_verdict,
+    _is_selected_write_candidate,
+    _ready_for_selected_write,
+    _review_verdicts,
+)
+from campus_ingestion_worker.official_web_handoff_consumer_target_review import (
+    _candidate_source_refs,
+    _field_status_for_required_fields,
+    _stable_reference_target_field_review_record,
+    _target_field_review_record,
+    _target_inventory_entries,
+    _target_inventory_entry_for_candidate,
+    _target_inventory_entry_for_document,
+    _target_inventory_optional_evidence,
+    _target_inventory_optional_fields,
+    _target_inventory_required_evidence,
+    _target_inventory_required_fields,
+    _target_inventory_review_fields,
+    _unique_strings,
+)
 
 
 def build_stage_quality_report(
@@ -45,6 +69,14 @@ def build_stage_quality_report(
     document_serving_intent_counts = count_by_value(
         require_text(document.get("serving_intent") or "unknown", "serving_intent")
         for document in replay_documents
+    )
+    target_family_counts = _int_mapping(replay_report.get("target_family_counts"))
+    target_materialization_policy_counts = _int_mapping(
+        replay_report.get("target_materialization_policy_counts")
+    )
+    target_lineage_issues = require_object_list(
+        replay_report.get("target_lineage_issues") or [],
+        "target_lineage_issues",
     )
     manual_review_page_family_counts = count_by_value(
         require_text(page.get("page_family"), "page_family")
@@ -153,6 +185,30 @@ def build_stage_quality_report(
         actual=document_serving_intent_counts,
         expected={"allowed": ["promotable", "audit_only"]},
     )
+    inventory_only_promotable_documents = [
+        require_text(document.get("document_id"), "document_id")
+        for document in replay_documents
+        if require_text(document.get("serving_intent") or "unknown", "serving_intent")
+        == "promotable"
+        and optional_text(document.get("materialization_policy")) == "inventory_only"
+    ]
+    record_check(
+        code="target_lineage_valid",
+        passed=not target_lineage_issues,
+        message="target-workset replay contains pages with missing or invalid target lineage",
+        actual={
+            "issue_count": len(target_lineage_issues),
+            "issues": target_lineage_issues,
+        },
+        expected={"issue_count": 0},
+    )
+    record_check(
+        code="inventory_only_not_promotable",
+        passed=not inventory_only_promotable_documents,
+        message="inventory-only target records must not be promoted to current truth",
+        actual=inventory_only_promotable_documents,
+        expected={"document_ids": []},
+    )
 
     return {
         "passed": len(blocked_checks) == 0,
@@ -171,10 +227,283 @@ def build_stage_quality_report(
         "actualHosts": actual_host_set,
         "documentPageFamilyCounts": document_page_family_counts,
         "documentServingIntentCounts": document_serving_intent_counts,
+        "targetFamilyCounts": target_family_counts,
+        "targetMaterializationPolicyCounts": target_materialization_policy_counts,
+        "targetLineageIssues": target_lineage_issues,
         "manualReviewPageFamilyCounts": manual_review_page_family_counts,
         "checks": checks,
         "blockedChecks": blocked_checks,
     }
+
+
+def build_consumer_candidate_review_report(
+    *,
+    replay_report: dict[str, object],
+    consumer_review_manifest: dict[str, object] | None = None,
+    target_inventory_manifest: dict[str, object] | None = None,
+) -> dict[str, object]:
+    verdicts = _review_verdicts(
+        consumer_review_manifest=consumer_review_manifest,
+        replay_report=replay_report,
+    )
+    target_inventory_entries = _target_inventory_entries(target_inventory_manifest)
+    raw_candidates = require_object_list(
+        replay_report.get("consumer_candidate_pages"),
+        "consumer_candidate_pages",
+    )
+    candidates = [
+        _build_consumer_candidate_review_entry(
+            index=index,
+            candidate=candidate,
+            target_inventory_entry=_target_inventory_entry_for_candidate(
+                candidate=candidate,
+                target_inventory_entries=target_inventory_entries,
+            ),
+            verdicts=verdicts,
+        )
+        for index, candidate in enumerate(raw_candidates, start=1)
+    ]
+    selected_write_candidates = [
+        candidate for candidate in candidates if _is_selected_write_candidate(candidate)
+    ]
+    inventory_only_candidates = [
+        candidate for candidate in candidates if candidate["admission_action"] == "inventory_only"
+    ]
+    release_gate_candidates = [
+        candidate
+        for candidate in candidates
+        if candidate["admission_action"] == "release_gate_required"
+    ]
+    selected_write_ready = [
+        candidate for candidate in candidates if candidate["ready_for_selected_write"]
+    ]
+    selected_write_rejected = [
+        candidate
+        for candidate in selected_write_candidates
+        if candidate["review_verdict"] == "rejected"
+    ]
+    selected_write_pending = [
+        candidate
+        for candidate in selected_write_candidates
+        if not candidate["ready_for_selected_write"]
+        and candidate["review_verdict"] in {"pending_review", "needs_more_evidence"}
+    ]
+    selected_write_blocked = [
+        candidate
+        for candidate in selected_write_candidates
+        if not candidate["ready_for_selected_write"] and candidate["review_verdict"] != "rejected"
+    ]
+    stable_reference_documents = [
+        document
+        for document in require_object_list(replay_report.get("documents"), "documents")
+        if require_text(document.get("target_corpus"), "target_corpus") == "official_web"
+        and require_text(document.get("target_collection"), "target_collection")
+        == "stable_reference"
+    ]
+    stable_reference_target_field_reviews = [
+        review
+        for review in (
+            _stable_reference_target_field_review_record(
+                document=document,
+                run_id=require_text(replay_report.get("crawl_run_id"), "crawl_run_id"),
+                target_inventory_entry=_target_inventory_entry_for_document(
+                    document=document,
+                    target_inventory_entries=target_inventory_entries,
+                ),
+            )
+            for document in stable_reference_documents
+        )
+        if review is not None
+    ]
+    return {
+        "schemaVersion": "official_web_consumer_candidate_review.v1",
+        "status": "pending_review"
+        if candidates or stable_reference_documents
+        else "not_applicable",
+        "counts": {
+            "candidate_count": len(candidates),
+            "selected_write_candidate_count": len(selected_write_candidates),
+            "selected_write_ready_count": len(selected_write_ready),
+            "selected_write_rejected_count": len(selected_write_rejected),
+            "selected_write_pending_count": len(selected_write_pending),
+            "selected_write_blocked_count": len(selected_write_blocked),
+            "inventory_only_count": len(inventory_only_candidates),
+            "release_gate_candidate_count": len(release_gate_candidates),
+            "stable_reference_release_candidate_count": len(stable_reference_documents),
+            "by_consumer_family": count_by_value(
+                str(candidate["consumer_family"]) for candidate in candidates
+            ),
+            "by_materialization_policy": count_by_value(
+                str(candidate["materialization_policy"]) for candidate in candidates
+            ),
+        },
+        "selectedWrite": _build_selected_write_admission_preview(
+            candidate_count=len(selected_write_candidates),
+            ready_count=len(selected_write_ready),
+            rejected_count=len(selected_write_rejected),
+            pending_count=len(selected_write_pending),
+            blocked_count=len(selected_write_blocked),
+            ready_candidates=selected_write_ready,
+        ),
+        "stableReferenceRelease": {
+            "decision": "release_gate_required" if stable_reference_documents else "not_applicable",
+            "candidate_count": len(stable_reference_documents),
+            "serving_alias_update": "not_allowed_in_consumer_denominator_recovery",
+        },
+        "targetFieldReviews": [
+            review
+            for review in (
+                _target_field_review_record(
+                    candidate=candidate,
+                    run_id=require_text(replay_report.get("crawl_run_id"), "crawl_run_id"),
+                )
+                for candidate in candidates
+            )
+            if review is not None
+        ]
+        + stable_reference_target_field_reviews,
+        "candidates": candidates,
+    }
+
+
+def _build_consumer_candidate_review_entry(
+    *,
+    index: int,
+    candidate: dict[str, object],
+    target_inventory_entry: dict[str, object] | None,
+    verdicts: dict[str, dict[str, object]],
+) -> dict[str, object]:
+    consumer_family = require_text(candidate.get("consumer_family"), "consumer_family")
+    materialization_policy = require_text(
+        candidate.get("materialization_policy"),
+        "materialization_policy",
+    )
+    selected_write_target = optional_text(candidate.get("selected_write_target"))
+    matched_evidence = normalize_string_list(candidate.get("matched_evidence"))
+    admission_action = _candidate_admission_action(
+        consumer_family=consumer_family,
+        materialization_policy=materialization_policy,
+    )
+    candidate_key = optional_text(candidate.get("candidate_key")) or (
+        f"legacy:{consumer_family}:{require_text(candidate.get('raw_asset_id'), 'raw_asset_id')}:"
+        f"{require_text(candidate.get('raw_version_id'), 'raw_version_id')}:{index}"
+    )
+    review_verdict = _candidate_review_verdict(
+        admission_action=admission_action,
+        candidate_key=candidate_key,
+        verdicts=verdicts,
+    )
+    quality_gate = (
+        candidate.get("quality_gate") if isinstance(candidate.get("quality_gate"), dict) else {}
+    )
+    typed_candidate = (
+        candidate.get("typed_candidate")
+        if isinstance(candidate.get("typed_candidate"), dict)
+        else {}
+    )
+    typed_candidate_schema_version = optional_text(candidate.get("typed_candidate_schema_version"))
+    required_fields = _target_inventory_required_fields(target_inventory_entry)
+    optional_fields = _target_inventory_optional_fields(target_inventory_entry)
+    required_evidence = _target_inventory_required_evidence(target_inventory_entry)
+    optional_evidence = _target_inventory_optional_evidence(target_inventory_entry)
+    blocking_review_fields = _target_inventory_review_fields(
+        required_fields=required_fields,
+        required_evidence=required_evidence,
+    )
+    optional_review_fields = _target_inventory_review_fields(
+        required_fields=optional_fields,
+        required_evidence=optional_evidence,
+    )
+    review_fields = _unique_strings([*blocking_review_fields, *optional_review_fields])
+    field_status = _field_status_for_required_fields(
+        candidate=candidate,
+        optional_fields=optional_review_fields,
+        required_fields=review_fields,
+        typed_candidate=typed_candidate,
+    )
+    ready_for_selected_write = _ready_for_selected_write(
+        admission_action=admission_action,
+        field_status=field_status,
+        required_fields=blocking_review_fields,
+        review_verdict=review_verdict,
+        quality_gate=quality_gate,
+        typed_candidate=typed_candidate,
+        typed_candidate_schema_version=typed_candidate_schema_version,
+    )
+    effective_admission_action = (
+        "selected_write_ready" if ready_for_selected_write else admission_action
+    )
+    if admission_action == "selected_write_review_required" and review_verdict == "rejected":
+        effective_admission_action = "selected_write_rejected"
+    return {
+        "candidate_key": candidate_key,
+        "consumer_family": consumer_family,
+        "materialization_policy": materialization_policy,
+        "selected_write_target": selected_write_target,
+        "target_candidate_id": optional_text(candidate.get("target_candidate_id")),
+        "target_declaration_version": optional_text(candidate.get("target_declaration_version")),
+        "target_id": optional_text(candidate.get("target_id")),
+        "target_job_id": optional_text(candidate.get("target_job_id")),
+        "target_label": optional_text(target_inventory_entry.get("target_label"))
+        if target_inventory_entry is not None
+        else None,
+        "review_policy": require_text(candidate.get("review_policy"), "review_policy"),
+        "title": require_text(candidate.get("title"), "title"),
+        "normalized_canonical_url": require_text(
+            candidate.get("normalized_canonical_url"),
+            "normalized_canonical_url",
+        ),
+        "matched_evidence": matched_evidence,
+        "source_ref": {
+            "source_channel": "official_web",
+            "raw_asset_id": require_text(candidate.get("raw_asset_id"), "raw_asset_id"),
+            "raw_version_id": require_text(candidate.get("raw_version_id"), "raw_version_id"),
+            "normalized_canonical_url": require_text(
+                candidate.get("normalized_canonical_url"),
+                "normalized_canonical_url",
+            ),
+        },
+        "source_refs": _candidate_source_refs(candidate),
+        "inventory_id": optional_text(target_inventory_entry.get("inventory_id"))
+        if target_inventory_entry is not None
+        else None,
+        "optional_evidence": optional_evidence,
+        "optional_fields": optional_review_fields,
+        "required_evidence": required_evidence,
+        "required_fields": blocking_review_fields,
+        "field_status": field_status,
+        "typed_candidate_schema_version": typed_candidate_schema_version,
+        "typed_candidate": typed_candidate,
+        "quality_gate": quality_gate,
+        "evidence_spans": require_object_list(candidate.get("evidence_spans"), "evidence_spans")
+        if isinstance(candidate.get("evidence_spans"), list)
+        else [],
+        "review_verdict": review_verdict,
+        "admission_action": effective_admission_action,
+        "ready_for_selected_write": ready_for_selected_write,
+        "blocked_reason": None
+        if ready_for_selected_write or review_verdict == "rejected"
+        else _candidate_blocked_reason(
+            admission_action=admission_action,
+            quality_gate=quality_gate,
+            review_verdict=review_verdict,
+            required_fields=blocking_review_fields,
+            field_status=field_status,
+            typed_candidate=typed_candidate,
+            typed_candidate_schema_version=typed_candidate_schema_version,
+        ),
+    }
+
+
+def _int_mapping(value: object) -> dict[str, int]:
+    if not isinstance(value, dict):
+        return {}
+    result: dict[str, int] = {}
+    for key, raw_count in value.items():
+        if not isinstance(key, str) or not key.strip():
+            continue
+        result[key] = coerce_non_negative_int(raw_count)
+    return result
 
 
 def build_promotion_report(

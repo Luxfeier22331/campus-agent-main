@@ -2,6 +2,9 @@ from __future__ import annotations
 
 from collections.abc import Callable, Mapping
 
+from campus_supervisor_agent_worker.agents_sdk_runtime_policy import (
+    agents_sdk_runtime_status,
+)
 from campus_supervisor_agent_worker.bridge_auth import require_bridge_auth
 from campus_supervisor_agent_worker.http_types import HttpResponse
 from campus_supervisor_agent_worker.prompt_stack import PromptRuntimeSettings
@@ -33,7 +36,24 @@ def readyz(
         runtime_status.get("prompt_http_pool")
         or default_prompt_http_pool_status(settings=settings, admitted=runtime_prompt.admitted)
     )
-    degraded = not runtime_prompt.admitted or not bool(prompt_http_pool.get("healthy", True))
+    agents_sdk_runtime = dict(
+        runtime_status.get("agents_sdk_runtime")
+        or default_agents_sdk_runtime_status(settings=settings, admitted=runtime_prompt.admitted)
+    )
+    agents_sdk_runtime_degraded = bool(agents_sdk_runtime.get("enabled")) and not bool(
+        agents_sdk_runtime.get("admitted")
+    )
+    worker_runtime = dict(
+        runtime_status.get("worker_runtime")
+        or {"role": "semantic_worker", "cancel_flag_store": "available"}
+    )
+    runtime_assembly = dict(worker_runtime.get("runtime_assembly") or {})
+    degraded = (
+        not runtime_prompt.admitted
+        or not bool(prompt_http_pool.get("healthy", True))
+        or agents_sdk_runtime_degraded
+        or not bool(runtime_assembly.get("healthy", True))
+    )
     return HttpResponse(
         status_code=503 if degraded else 200,
         json_body={
@@ -53,8 +73,8 @@ def readyz(
                 "admission_reason": runtime_prompt.admission_reason,
             },
             "prompt_http_pool": prompt_http_pool,
-            "worker_runtime": runtime_status.get("worker_runtime")
-            or {"role": "semantic_worker", "cancel_flag_store": "available"},
+            "agents_sdk_runtime": agents_sdk_runtime,
+            "worker_runtime": worker_runtime,
         },
     )
 
@@ -77,7 +97,7 @@ def handle_bridge_readyz(
 
 
 def resolve_prompt_runtime_settings(settings: ApiSettings) -> PromptRuntimeSettings:
-    prompt_runtime_provider = settings.prompt_runtime_provider or settings.runtime_provider
+    prompt_runtime_provider = settings.prompt_runtime_provider
     if not prompt_runtime_provider:
         admission_reason = "provider_not_configured"
     elif not settings.prompt_strict_structured_outputs:
@@ -116,3 +136,17 @@ def default_prompt_http_pool_status(
         "max_keepalive_connections": settings.prompt_runtime_max_keepalive_connections,
         "keepalive_expiry_seconds": settings.prompt_runtime_keepalive_expiry_seconds,
     }
+
+
+def default_agents_sdk_runtime_status(
+    *,
+    settings: ApiSettings,
+    admitted: bool,
+) -> dict[str, object]:
+    return agents_sdk_runtime_status(
+        enabled=settings.agents_sdk_runtime_enabled,
+        prompt_runtime_provider=settings.prompt_runtime_provider,
+        prompt_runtime_admitted=admitted,
+        prompt_runtime_api_key_configured=bool(settings.prompt_runtime_api_key.strip()),
+        agent_model=settings.agent_prompt_model,
+    )

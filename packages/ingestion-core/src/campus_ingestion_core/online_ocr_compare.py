@@ -459,7 +459,7 @@ def _routing_decision_payload(decision) -> dict[str, object]:
         "route_id": decision.route_id,
         "canonical_allowed": decision.canonical_allowed,
         "canonical_provider": decision.canonical_provider,
-        "fallback_provider": decision.fallback_provider,
+        "alternate_provider": decision.alternate_provider,
         "parser_version": decision.parser_version,
         "reason_codes": list(decision.reason_codes),
         "persist_raw_provider_artifact": decision.persist_raw_provider_artifact,

@@ -24,6 +24,24 @@ class AgenticRetrievalPlanEvalTest(unittest.TestCase):
         self.assertIn("agentic-current-policy-freshness-branch", case_ids)
         self.assertIn("agentic-live-branch-fail-close", case_ids)
 
+    def test_fixture_declares_best_practice_coverage_dimensions(self) -> None:
+        case_set = load_agentic_retrieval_plan_cases()
+
+        observed_dimensions = {
+            dimension for case in case_set.cases for dimension in case.coverage_dimensions
+        }
+
+        self.assertTrue(
+            {
+                "structured_planning",
+                "bounded_handoff",
+                "tool_guardrail",
+                "untrusted_content_quarantine",
+                "trace_eval_attribution",
+                "budget_fail_close",
+            }.issubset(observed_dimensions)
+        )
+
     def test_evaluates_plan_freshness_evidence_and_answer_separately(self) -> None:
         case_set = load_agentic_retrieval_plan_cases()
         observations = {
@@ -36,6 +54,9 @@ class AgenticRetrievalPlanEvalTest(unittest.TestCase):
                 fail_close_reason=case.expected.fail_close_reason,
                 supporting_evidence_ids=case.expected.supporting_evidence_ids,
                 final_answer_status=case.expected.final_answer_status,
+                planner_quality=case.expected.planner_quality,
+                replan_reason=case.expected.replan_reason,
+                claim_graph_verdicts=case.expected.claim_graph_verdicts,
             )
             for case in case_set.cases
         }
@@ -67,6 +88,9 @@ class AgenticRetrievalPlanEvalTest(unittest.TestCase):
                     live_branch_outcome=current_case.expected.live_branch_outcome,
                     supporting_evidence_ids=("wrong-evidence",),
                     final_answer_status="completed",
+                    planner_quality="missing_information_need",
+                    replan_reason=current_case.expected.replan_reason,
+                    claim_graph_verdicts=current_case.expected.claim_graph_verdicts,
                 ),
                 live_case.case_id: AgenticRetrievalPlanObservation(
                     case_id=live_case.case_id,
@@ -77,6 +101,9 @@ class AgenticRetrievalPlanEvalTest(unittest.TestCase):
                     fail_close_reason="",
                     supporting_evidence_ids=live_case.expected.supporting_evidence_ids,
                     final_answer_status="completed",
+                    planner_quality=live_case.expected.planner_quality,
+                    replan_reason="scope_widened",
+                    claim_graph_verdicts=("unsupported",),
                 ),
             },
         )
@@ -85,11 +112,21 @@ class AgenticRetrievalPlanEvalTest(unittest.TestCase):
         results = {result.case_id: result for result in report.results}
         self.assertEqual(
             results["agentic-current-policy-freshness-branch"].failure_classes,
-            ("plan_error", "freshness_branch_error", "evidence_error"),
+            (
+                "decomposition_error",
+                "freshness_branch_error",
+                "evidence_error",
+                "planner_quality_error",
+            ),
         )
         self.assertEqual(
             results["agentic-live-branch-fail-close"].failure_classes,
-            ("live_branch_fail_close_error", "final_answer_error"),
+            (
+                "live_branch_fail_close_error",
+                "final_answer_error",
+                "replan_error",
+                "claim_graph_error",
+            ),
         )
 
     def test_report_writes_machine_readable_artifact(self) -> None:
@@ -104,6 +141,9 @@ class AgenticRetrievalPlanEvalTest(unittest.TestCase):
                 fail_close_reason=case.expected.fail_close_reason,
                 supporting_evidence_ids=case.expected.supporting_evidence_ids,
                 final_answer_status=case.expected.final_answer_status,
+                planner_quality=case.expected.planner_quality,
+                replan_reason=case.expected.replan_reason,
+                claim_graph_verdicts=case.expected.claim_graph_verdicts,
             )
             for case in case_set.cases
         }

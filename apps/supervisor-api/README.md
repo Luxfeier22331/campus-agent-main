@@ -29,8 +29,9 @@ Current status:
 - Emits answer-path structured logs with `trace_id`, `status_code`, `outcome`,
   and `duration_ms`, without logging raw `user_goal`.
 - Emits allowlisted execution audit events to `app-api` internal ingest when
-  configured; this is batched, retried, optionally spooled, best-effort, and
-  never blocks answer requests.
+  configured. Execution audit is disabled by default; when explicitly enabled,
+  delivery is synchronous and fail-closed, so sink failures stop answer
+  completion with a stable diagnostic error.
 - Propagates explicit cancel to the Python private bridge through
   `/internal/bridge/execution/cancel`; Python records the cooperative cancel
   signal and the semantic orchestration path checks it around routing, RAG
@@ -139,7 +140,7 @@ Current cancellation boundary:
 - `POST /internal/execution/cancel` accepts `{ "request_id": "..." }` with
   `x-worker-origin-auth` and marks the active Go execution as
   `cancel_requested`.
-- Go `apps/supervisor-api` also sends a best-effort cooperative cancel to the
+- Go `apps/supervisor-api` also sends a cooperative cancel signal to the
   Python bridge. The bridge marks active request ids as `cancel_requested`, and
   default supervisor orchestration stops at deterministic checkpoints. This
   does not guarantee provider / prompt executor mid-flight termination once a
@@ -149,16 +150,17 @@ Current structured query runtime boundary:
 
 - Internal query routes require `x-supervisor-query-auth`.
 - Structured product serving gates for `campus_services` and `notice` are
-  closed by default. `SUPERVISOR_API_OPEN_CAPABILITIES` is the Go-owned allowlist
-  for opening those capabilities after eval / product admission evidence exists.
-  It only accepts
-  `campus_services`, `notice`, or `campus_services,notice`; wildcard values such
-  as `*` or `all` are rejected.
-- `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` enables internal query auth.
+  closed by default. `SUPERVISOR_API_OPEN_CAPABILITIES` is the Go-owned
+  allowlist for opening those capabilities after eval / product admission
+  evidence exists. It only accepts `campus_services`, `notice`, or
+  comma-separated combinations of these values; wildcard values such as `*` or
+  `all` are rejected.
+- `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` enables internal query auth and is
+  injected by the supervisor runtime harness.
 - `CAMPUS_SHARED_POSTGRES_URL` is the single PostgreSQL connection used by
-  `service_status_lookup`, `transport_schedule_lookup`, and
-  `service_guide_lookup` for the release catalog, current pointer, and typed
-  read models.
+  `service_status_lookup`, `transport_schedule_lookup`, `service_guide_lookup`,
+  `contact_directory_lookup`, and `academic_calendar_lookup` for the release
+  catalog, current pointer, and typed read models.
 - Structured projection schema and read-model table names are fixed by the
   `ingestion_projection` contract, not runtime env.
 - `SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339` pins trusted runtime time
@@ -167,21 +169,20 @@ Current structured query runtime boundary:
 - `SUPERVISOR_NOTICE_BODY_LIMIT_BYTES` bounds canonical notice body reads from
   object storage.
 - `INTERNAL_NOTICE_READ_MODEL_DATABASE_URL` configures the notice read-model PG
-  connection; `CAMPUS_SHARED_POSTGRES_URL` is the fallback.
+  connection; if unset, the runtime uses `CAMPUS_SHARED_POSTGRES_URL` as the
+  shared database connection.
 - `INTERNAL_NOTICE_READ_MODEL_TABLE` defaults to
   `ingestion_projection.internal_notice_read_model`.
-- `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_DERIVED_ACCESS_KEY` /
-  `OBJECT_STORE_ACCESS_KEY`, `OBJECT_STORE_DERIVED_SECRET_KEY` /
-  `OBJECT_STORE_SECRET_KEY`, `OBJECT_STORE_REGION`, and
+- `OBJECT_STORE_ENDPOINT`, `OBJECT_STORE_DERIVED_ACCESS_KEY`,
+  `OBJECT_STORE_DERIVED_SECRET_KEY`, `OBJECT_STORE_REGION`, and
   `OBJECT_STORE_BUCKET_DERIVED` configure notice canonical body reads from the
   S3-compatible derived bucket.
 - The runtime is not browser-facing and not an `app-api` product surface. It
   does not open `place_lookup`; navigation / map-backed place lookup remains
   deferred until the map product rollout.
-- Python orchestration can consume this seam only when
-  `SUPERVISOR_STRUCTURED_QUERY_BASE_URL` and
-  `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET` are configured in the
-  `supervisor-api` worker container.
+- Python orchestration can consume this seam only when the supervisor runtime
+  harness injects `SUPERVISOR_INTERNAL_QUERY_BASE_URL` and
+  `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET` into the worker container.
 - The Go direct structured answer path uses the same projection-backed query
   runtime internally after the structured capability opening gate admits the
   request; this applies to both non-stream answer and lifecycle SSE answer
@@ -205,9 +206,14 @@ Current observability boundary:
   is reachable outside a trusted local network; local development leaves it
   empty by default.
 - OTel trace export is disabled by default. When enabled,
-  `SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT` must be configured; telemetry
-  export is fail-open for answer requests and surfaces exported / dropped /
-  failed / sample-ratio / last-error state in `/readyz` and `/metrics`.
+  `SUPERVISOR_API_OTEL_EXPORTER_OTLP_ENDPOINT` must be configured. Configured
+  answer paths fail closed with `telemetry_delivery_failed` when telemetry
+  delivery fails; `/readyz` and `/metrics` expose exported / sampled-dropped /
+  failed / sample-ratio / last-error state for diagnosis.
+- `apps/supervisor-api` is the online trace owner. It extracts inbound
+  `traceparent` / `baggage`, accepts current `app-api` `sentry-trace` as an
+  ingress compatibility source, and propagates only `traceparent`, `baggage`,
+  `x-request-id`, and `x-trace-id` to `supervisor-agent-worker`.
 - Execution audit backflow is disabled by default. When enabled, Go
   `apps/supervisor-api` sends only safe runtime event summaries for admission
   rejection, cancel, bridge failure, and timeout to `app-api`; it never includes
@@ -216,10 +222,9 @@ Current observability boundary:
   labels such as scope gate, policy gate, context preflight, routing next action,
   planning outcome, selected target/tool, terminal outcome, and fail-close
   reason.
-- `/readyz` reports `execution_audit_runtime`, and `/metrics` reports emitted,
-  dropped, failed, retry, spool, queue depth, batch size, enabled, and
-  configured counters/gauges. `/readyz` degrades when execution audit is enabled
-  but missing its ingest URL or shared secret.
+- `/readyz` reports `execution_audit_runtime`, and `/metrics` reports enabled,
+  configured, emitted, and failed counters/gauges. `/readyz` degrades when
+  execution audit is enabled but missing its ingest URL or shared secret.
 
 Requirements:
 
@@ -254,16 +259,9 @@ export SUPERVISOR_API_OTEL_ENABLED=false
 export SUPERVISOR_API_OTEL_SAMPLE_RATIO=1
 export SUPERVISOR_API_OTEL_ALLOWED_ATTRIBUTES_VERSION=supervisor-api-otel-attrs-v1
 export SUPERVISOR_API_EXECUTION_AUDIT_ENABLED=false
-export SUPERVISOR_API_EXECUTION_AUDIT_URL=http://127.0.0.1:8787/api/internal/execution/audit-events
+export SUPERVISOR_API_EXECUTION_AUDIT_URL=http://127.0.0.1:27031/api/internal/execution/audit-events
 export SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET=app-api-internal-secret
 export SUPERVISOR_API_EXECUTION_AUDIT_TIMEOUT_MS=500
-export SUPERVISOR_API_EXECUTION_AUDIT_QUEUE_CAPACITY=128
-export SUPERVISOR_API_EXECUTION_AUDIT_BATCH_SIZE=10
-export SUPERVISOR_API_EXECUTION_AUDIT_FLUSH_MS=1000
-export SUPERVISOR_API_EXECUTION_AUDIT_RETRY_MAX_ATTEMPTS=3
-export SUPERVISOR_API_EXECUTION_AUDIT_RETRY_BASE_MS=100
-export SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_DIR=
-export SUPERVISOR_API_EXECUTION_AUDIT_SPOOL_MAX_BYTES=10485760
 export SUPERVISOR_API_REQUEST_TIMEOUT_MS=45000
 export SUPERVISOR_API_BRIDGE_BREAKER_FAILURE_THRESHOLD=5
 export SUPERVISOR_API_BRIDGE_BREAKER_OPEN_MS=10000
@@ -271,12 +269,11 @@ export SUPERVISOR_API_BRIDGE_RETRY_MAX_ATTEMPTS=2
 export SUPERVISOR_API_BRIDGE_RETRY_BASE_MS=50
 export SUPERVISOR_API_INTENT_POLICY_PATH=
 export SUPERVISOR_API_QUERY_SERVING_SCOPES_PATH=
-export SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:18081
+export SUPERVISOR_AGENT_WORKER_BASE_URL=http://127.0.0.1:27052
 export SUPERVISOR_AGENT_WORKER_SHARED_SECRET=bridge-secret
 export SUPERVISOR_AGENT_WORKER_TIMEOUT_MS=35000
 export SUPERVISOR_AGENT_WORKER_CANCEL_TIMEOUT_MS=500
 export SUPERVISOR_AGENT_WORKER_RESPONSE_LIMIT_BYTES=1048576
-export SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret
 export CAMPUS_SHARED_POSTGRES_URL=
 export SUPERVISOR_STRUCTURED_QUERY_TRUSTED_TIME_RFC3339=
 export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_MS=1000
@@ -323,7 +320,7 @@ not use Docker or Wrangler.
 Docker smoke:
 
 ```bash
-docker run --rm -p 18080:8000 campus-supervisor-api:local
+docker run --rm -p 27051:8000 campus-supervisor-api:local
 ```
 
 `docker run` 单容器只验证 `supervisor-api` 自身监听和 `/healthz` 路径；它不会覆盖
@@ -344,9 +341,9 @@ Smoke artifacts default to:
 Expected behavior:
 
 ```bash
-curl http://127.0.0.1:18080/healthz
-curl -i http://127.0.0.1:18080/readyz
-curl http://127.0.0.1:18080/metrics
+curl http://127.0.0.1:27051/healthz
+curl -i http://127.0.0.1:27051/readyz
+curl http://127.0.0.1:27051/metrics
 curl -i -H 'content-type: application/json' \
   -H 'x-worker-origin-auth: worker-secret' \
   -d @<(cat <<'JSON'
@@ -368,7 +365,7 @@ curl -i -H 'content-type: application/json' \
 }
 JSON
 ) \
-  http://127.0.0.1:18080/api/v1/answer
+  http://127.0.0.1:27051/api/v1/answer
 ```
 
 Detailed local smoke / cutover / runback steps:

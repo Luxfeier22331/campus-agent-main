@@ -14,13 +14,13 @@ from campus_supervisor_agent_worker.settings import ApiSettings
 @dataclass(frozen=True, slots=True)
 class BridgeServerSettings:
     host: str = "127.0.0.1"
-    port: int = 18081
+    port: int = 27052
 
     @classmethod
     def from_env(cls) -> BridgeServerSettings:
         return cls(
             host=os.getenv("SUPERVISOR_AGENT_WORKER_HOST", "127.0.0.1"),
-            port=int(os.getenv("SUPERVISOR_AGENT_WORKER_PORT", "18081")),
+            port=int(os.getenv("SUPERVISOR_AGENT_WORKER_PORT", "27052")),
         )
 
 

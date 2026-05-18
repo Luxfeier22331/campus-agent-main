@@ -81,7 +81,7 @@ def audit_authenticated_notice_source_attachment_keys(
             content_sha256 = str(row.get("content_sha256") or "").strip()
             original_filename = _normalize_attachment_filename(
                 original_filename=row.get("original_filename"),
-                fallback_key=object_key,
+                source_object_key=object_key,
             )
             canonical_key = (
                 _build_canonical_attachment_capture_key(
@@ -168,9 +168,9 @@ def _is_legacy_attachment_object_key(value: str) -> bool:
     return bool(LEGACY_ATTACHMENT_OBJECT_KEY_RE.fullmatch(str(value or "").strip()))
 
 
-def _normalize_attachment_filename(*, original_filename: object, fallback_key: str) -> str:
+def _normalize_attachment_filename(*, original_filename: object, source_object_key: str) -> str:
     value = str(original_filename or "").strip()
-    candidate = Path(value).name if value else Path(str(fallback_key)).name
+    candidate = Path(value).name if value else Path(str(source_object_key)).name
     candidate = candidate.strip().replace("/", "_")
     return candidate or "attachment"
 

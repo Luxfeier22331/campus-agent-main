@@ -1,5 +1,5 @@
 import { expect, it } from "vitest";
-
+import { classifyPageFamily } from "../src/page-artifacts-page-family";
 import {
 	buildContentSiteArtifactsForTest,
 	buildPageArtifactsForTest,
@@ -143,6 +143,28 @@ export function registerPageArtifactsDirectoryShellSuite() {
 		expect(pageArtifacts.pageManifest.pageFamily).toBe("structural_shell_page");
 	});
 
+	it("retains source-truth image references without promoting image-only pages to text content", () => {
+		const pageArtifacts = buildContentSiteArtifactsForTest({
+			crawlRunId: "owrun_test_012c_media",
+			requestedUrl: "https://www.example.edu/overview/dean.htm",
+			finalUrl: "https://www.example.edu/overview/dean.htm",
+			responseBody: SAMPLE_IMAGE_STRUCTURAL_SHELL_PAGE_HTML,
+			fetchedAt: "2026-03-29T09:02:00.000Z",
+		});
+
+		const mediaBlocks = pageArtifacts.contentBlocks.filter(
+			(item) =>
+				item.blockRole === "metadata" &&
+				item.linkTarget === "https://www.example.edu/images/dean-message.png",
+		);
+
+		expect(mediaBlocks).toHaveLength(1);
+		expect(mediaBlocks[0]?.isMainContent).toBe(false);
+		expect(mediaBlocks[0]?.htmlFragment).toContain("<img");
+		expect(pageArtifacts.pageManifest.mainContentBlockCount).toBe(0);
+		expect(pageArtifacts.pageManifest.pageFamily).toBe("structural_shell_page");
+	});
+
 	it("classifies repeated-navigation zero-text shells as structural shell pages", () => {
 		const pageArtifacts = buildContentSiteArtifactsForTest({
 			crawlRunId: "owrun_test_012d",
@@ -253,5 +275,52 @@ export function registerPageArtifactsDirectoryShellSuite() {
 		expect(pageArtifacts.providerExtraction.pageSignals.mainHeadingCount).toBeGreaterThanOrEqual(3);
 		expect(pageArtifacts.providerExtraction.pageSignals.mainLinkCount).toBe(0);
 		expect(pageArtifacts.pageManifest.pageFamily).toBe("directory_page");
+	});
+
+	it("keeps long-form information disclosure regulations as article_detail even when contact fields appear in body text", () => {
+		const classification = classifyPageFamily({
+			hostPolicy: {
+				host: "xxgk.muc.edu.cn",
+				publicKind: "content_site",
+				hostGroup: "university_support",
+				ownerLabel: "Information disclosure",
+				rolloutOrder: 1,
+				enabled: true,
+				seedUrls: ["https://xxgk.muc.edu.cn/"],
+				allowedPathPrefixes: ["/"],
+				deniedPathPatterns: [],
+				queryParamAllowlist: [],
+				maxDepth: 1,
+				maxPagesPerRun: 1,
+				maxConcurrency: 1,
+				minDelayMs: 0,
+				respectRobots: true,
+				explicitSitemaps: [],
+				dynamicShellDiscovery: null,
+			},
+			finalUrl: "https://xxgk.muc.edu.cn/info/1005/1107.htm",
+			pageTitleNormalized: "中央民族大学信息公开实施细则",
+			pageSignals: {
+				mainContentBlockCount: 3,
+				mainHeadingCount: 1,
+				mainParagraphCount: 2,
+				mainListItemCount: 0,
+				mainLinkCount: 0,
+				shortMainLinkCount: 0,
+				mainTableCount: 0,
+				listingTableCount: 0,
+				galleryTableCount: 0,
+				contactLikeMainBlockCount: 2,
+				dateLikeMainBlockCount: 0,
+				repeatedNonMainBlockCount: 2,
+				mainContentCharacterCount: 4242,
+				zeroMainContent: false,
+				structuralShellSignal: false,
+				dynamicShellSignal: false,
+			},
+		});
+
+		expect(classification.pageFamily).toBe("article_detail");
+		expect(classification.reason).toBe("paragraph_dominant_main_content");
 	});
 }

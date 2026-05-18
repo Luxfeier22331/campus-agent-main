@@ -5,10 +5,11 @@ capability 的 owner package。
 
 它负责：
 
-- 接收 `notice-agent` 的 typed agent handoff
-- 在 package 内维护 notice discovery / get 的 thin tool adapter
-- 将 tool payload 映射为 execution-side internal query service packet
-- 调用 notice query service，并返回 typed `AgentResponse`
+- 维护 `notice-agent` 的 repo-owned SDK tool executors
+- 将 admitted structured tool payload 映射为 execution-side internal query service packet
+- 调用 notice query service，并返回 bounded SDK tool result projection
+- 保留 `campus_notice_get` internal selected-notice resolve seam，
+  不将其暴露为 provider/SDK tool
 
 它不负责：
 
@@ -16,16 +17,16 @@ capability 的 owner package。
 - browser-facing API、`app-api` loopback HTTP 或 query-time raw notice/source scan
 - source-truth / normalized-truth ingestion owner
 
-当前这个 package 主要冻结 owner boundary、internal query service interface 与 thin adapter
-seam；internal notice 的 projected read-model 查询 runtime 已迁到 `apps/supervisor-api`。
+当前这个 package 主要冻结 owner boundary、internal query service interface、
+bounded SDK executor seam 与 `campus_notice_get` internal runtime；internal
+notice 的 projected read-model 查询 runtime 已迁到 `apps/supervisor-api`。
 
 当前已实现：
 
 - `NoticeHTTPQueryService`：调用 Go `apps/supervisor-api` internal query routes：
   `/internal/query/notices/discover` 与 `/internal/query/notices/get`
-- `delegate_to_notice_agent(...)`：必须显式注入 query service；默认不再从 Python
-  env 构造 PG/S3 read-model runtime
-- `tool_adapter`：负责 notice discover/get result 到 `AgentResponse` 的薄映射
+- `sdk_tool_executor`：负责 admitted structured notice tools 的 bounded SDK result projection
+- `notice_get_runtime`：负责 internal selected notice resolve，不暴露为 structured tool
 
 Go `apps/supervisor-api` 现在负责：
 

@@ -59,6 +59,12 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/docs/readyz",
+		callerClass: "browser-surface",
+		admission: "docs control-plane readiness probe",
+	},
+	{
+		method: "GET",
 		path: "/api/docs/collections/:corpus/:collection/documents/:documentSlug",
 		callerClass: "browser-surface",
 		admission: "docs surface read admission",
@@ -125,6 +131,42 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "GET",
+		path: "/api/operator/authenticated-notices/processing",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/authenticated-notices/processing/:noticeId",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/authenticated-notices/run-processing",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/authenticated-notices/run-processing/:id",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/official-web/release-tasks",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/official-web/release-tasks/:id",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
 		path: "/api/operator/cost/summary",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
@@ -156,6 +198,42 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "GET",
 		path: "/api/operator/official-web/runs/:runId",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/official-web/target-jobs",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/official-web/target-jobs/:jobId",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/official-web/target-inventory",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/official-web/target-inventory/:inventoryId",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "GET",
+		path: "/api/operator/official-web/target-release-gates/:releaseId",
+		callerClass: "operator-via-panel",
+		admission: "panel internal bridge plus admitted operator principal",
+	},
+	{
+		method: "POST",
+		path: "/api/operator/official-web/target-inventory/:inventoryId/release-gates",
 		callerClass: "operator-via-panel",
 		admission: "panel internal bridge plus admitted operator principal",
 	},
@@ -306,6 +384,24 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	{
 		method: "POST",
 		path: "/api/internal/execution/audit-events",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/operator/authenticated-notices/processing-snapshots",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/operator/authenticated-notices/run-processing-snapshots",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
+		path: "/api/internal/operator/official-web/release-task-snapshots",
 		callerClass: "machine-internal",
 		admission: "x-app-internal-auth",
 	},

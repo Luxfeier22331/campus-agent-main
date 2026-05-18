@@ -29,6 +29,7 @@ function readTomlBlock(source: string, startMarker: string, endMarker: string): 
 const env = {
 	APP_API_NAME: "campus-agent-app-api",
 	BETTER_AUTH_SECRET: "dev-secret-dev-secret-dev-secret",
+	AUTH_SHELL_ORIGIN: "https://hub.muc.wiki",
 	AUTH_TURNSTILE_SECRET_KEY: "turnstile_secret_key",
 	RESEND_API_KEY: "resend_test_key",
 	AUTH_RESET_EMAIL_FROM: "Campus Agent <auth@example.com>",
@@ -84,10 +85,11 @@ function createRuntimeReadinessResult() {
 	return {
 		dependencies: {
 			auth: "ready",
+			authShellOrigin: "configured",
 			database: "ready",
 			officialWebHandoff: "not_configured",
 			operatorBridge: "configured",
-			publicChatOrigin: "configured",
+			publicChatCompatibilityOrigin: "configured",
 			supervisorApi: "ready",
 		},
 		failed: {},
@@ -113,6 +115,17 @@ function createRuntimeReadinessResult() {
 	};
 }
 
+function createDocsReadinessResult() {
+	return {
+		dependencies: {
+			auth: "ready" as const,
+			database: "ready" as const,
+			docsReadModel: "ready" as const,
+		},
+		failed: {},
+	};
+}
+
 describe("app-api worker foundation", () => {
 	it("declares the staging custom domain, hyperdrive binding, and deploy gate", () => {
 		const stagingVarsBlock = readTomlBlock(
@@ -131,6 +144,7 @@ describe("app-api worker foundation", () => {
 		expect(wranglerConfig).toContain("[[env.staging.hyperdrive]]");
 		expect(wranglerConfig).toContain("[env.staging.vars]");
 		expect(wranglerConfig).toContain('APP_API_ENVIRONMENT = "staging"');
+		expect(stagingVarsBlock).toContain('AUTH_SHELL_ORIGIN = "https://hub-muc-wiki.ayafeed.com"');
 		expect(stagingVarsBlock).toContain(
 			'PUBLIC_CHAT_WEB_ORIGIN = "https://campus-chat-staging.ayafeed.com"',
 		);
@@ -140,11 +154,11 @@ describe("app-api worker foundation", () => {
 			'APP_API_OPERATOR_EMAIL_ALLOWLIST = "ops@example.com,help_bot@outlook.com"',
 		);
 		expect(stagingVarsBlock).toContain('APP_API_END_USER_EMAIL_ALLOWLIST = "help_bot@outlook.com"');
-		expect(stagingVarsBlock).toContain('SUPERVISOR_API_TIMEOUT_MS = "15000"');
+		expect(stagingVarsBlock).toContain('SUPERVISOR_API_TIMEOUT_MS = "30000"');
 		expect(stagingVarsBlock).toContain('SENTRY_ENVIRONMENT = "staging"');
 		expect(stagingVarsBlock).not.toContain("SENTRY_RELEASE = ");
 		expect(stagingVarsBlock).toContain('AXIOM_ENDPOINT = "https://us-east-1.aws.edge.axiom.co"');
-		expect(stagingVarsBlock).toContain('AXIOM_DATASET = "campus-agent-runtime-dev"');
+		expect(stagingVarsBlock).toContain('AXIOM_DATASET = "campus-agent-runtime-staging"');
 		expect(packageManifest.scripts?.dev).toContain("WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1");
 		expect(packageManifest.scripts?.deploy).not.toContain("XDG_CONFIG_HOME=./.wrangler-home");
 		expect(packageManifest.scripts?.deploy).toContain("run-wrangler-command.mjs");
@@ -159,6 +173,10 @@ describe("app-api worker foundation", () => {
 		expect(deployStagingSource).toContain("buildWranglerCommandEnv");
 		expect(deployStagingSource).toContain("loadRepoEnvFile");
 		expect(deployStagingSource).toContain("resolveStagingSentryRelease");
+		expect(packageManifest.scripts?.["chat:e2e:staging"]).toContain(
+			"chat-e2e.ts --profile staging",
+		);
+		expect(packageManifest.scripts?.["chat:smoke:staging"]).toBeUndefined();
 		expect(packageManifest.scripts?.["deploy:staging"]).not.toContain(
 			"XDG_CONFIG_HOME=./.wrangler-home",
 		);
@@ -183,11 +201,11 @@ describe("app-api worker foundation", () => {
 		expect(runWithStagingDbEnvSource).toContain("loadRepoEnvFile");
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
-		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_MANAGEMENT_DATABASE_URL");
+		expect(runWithStagingDbEnvSource).toContain("https://hub-muc-wiki.ayafeed.com");
 		expect(runWithStagingDbEnvSource).toContain("https://campus-chat-staging.ayafeed.com");
 		expect(stagingPreflightSource).toContain("STAGING_SUPERVISOR_API_BASE_URL");
 		expect(stagingPreflightSource).toContain('new URL("/healthz", baseUrl)');
-		expect(stagingPreflightSource).toContain('new URL("/readyz", baseUrl)');
+		expect(stagingPreflightSource).not.toContain('new URL("/readyz", baseUrl)');
 		expect(stagingPreflightSource).toContain("db:bootstrap:staging");
 	});
 
@@ -228,7 +246,7 @@ describe("app-api worker foundation", () => {
 
 	it("points the local smoke supervisor upstream at the docker-first supervisor-api port", () => {
 		expect(localSmokeWranglerConfig).toContain(
-			'SUPERVISOR_API_BASE_URL = "http://127.0.0.1:18080"',
+			'SUPERVISOR_API_BASE_URL = "http://127.0.0.1:27051"',
 		);
 		expect(localSmokeWranglerConfig).not.toContain("127.0.0.1:8081");
 	});
@@ -254,6 +272,7 @@ describe("app-api worker foundation", () => {
 
 	it("serves healthz and readyz from the worker shell", async () => {
 		const runtime = createWorkerRuntime(env, {
+			docsReadinessProbe: vi.fn().mockResolvedValue(createDocsReadinessResult()),
 			runtimeReadinessProbe: vi.fn().mockResolvedValue(createRuntimeReadinessResult()),
 		});
 		const health = await runtime.fetch(
@@ -276,10 +295,11 @@ describe("app-api worker foundation", () => {
 			status: "ready",
 			dependencies: {
 				auth: "ready",
+				authShellOrigin: "configured",
 				database: "ready",
 				officialWebHandoff: "not_configured",
 				operatorBridge: "configured",
-				publicChatOrigin: "configured",
+				publicChatCompatibilityOrigin: "configured",
 				supervisorApi: "ready",
 			},
 			preflight: {
@@ -300,6 +320,41 @@ describe("app-api worker foundation", () => {
 					},
 					blockers: {},
 				},
+			},
+		});
+	});
+
+	it("serves docs control-plane readiness separately from product runtime readiness", async () => {
+		const runtime = createWorkerRuntime(env, {
+			docsReadinessProbe: vi.fn().mockResolvedValue(createDocsReadinessResult()),
+			runtimeReadinessProbe: vi.fn().mockResolvedValue({
+				dependencies: {
+					auth: "ready",
+					authShellOrigin: "configured",
+					database: "ready",
+					officialWebHandoff: "not_configured",
+					operatorBridge: "configured",
+					publicChatCompatibilityOrigin: "configured",
+					supervisorApi: "not_ready",
+				},
+				failed: {
+					supervisorApi: "supervisor /readyz returned 503",
+				},
+			}),
+		});
+
+		const response = await runtime.fetch(
+			new Request("https://app-api.internal/api/docs/readyz"),
+			createExecutionContext(),
+		);
+
+		expect(response.status).toBe(200);
+		await expect(response.json()).resolves.toEqual({
+			status: "ready",
+			dependencies: {
+				auth: "ready",
+				database: "ready",
+				docsReadModel: "ready",
 			},
 		});
 	});
@@ -351,10 +406,11 @@ describe("app-api worker foundation", () => {
 			runtimeReadinessProbe: vi.fn().mockResolvedValue({
 				dependencies: {
 					auth: "not_ready",
+					authShellOrigin: "configured",
 					database: "ready",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
-					publicChatOrigin: "configured",
+					publicChatCompatibilityOrigin: "configured",
 					supervisorApi: "not_ready",
 				},
 				failed: {
@@ -392,10 +448,11 @@ describe("app-api worker foundation", () => {
 			runtimeReadinessProbe: vi.fn().mockResolvedValue({
 				dependencies: {
 					auth: "ready",
+					authShellOrigin: "configured",
 					database: "ready",
 					officialWebHandoff: "not_configured",
 					operatorBridge: "configured",
-					publicChatOrigin: "configured",
+					publicChatCompatibilityOrigin: "configured",
 					supervisorApi: "ready",
 				},
 				failed: {},
@@ -548,7 +605,7 @@ describe("app-api worker foundation", () => {
 		expect(requestProjector.drain).not.toHaveBeenCalled();
 	});
 
-	it("falls back to a local async drain when executionCtx.waitUntil is unavailable", async () => {
+	it("fails closed when request projection drain cannot be scheduled through waitUntil", async () => {
 		const requestProjector = {
 			drain: vi.fn().mockResolvedValue({ failed: 0, processed: 0 }),
 			drainRequest: vi.fn().mockResolvedValue({ failed: 0, processed: 1 }),
@@ -592,9 +649,9 @@ describe("app-api worker foundation", () => {
 			}),
 		);
 
-		expect(response.status).toBe(200);
+		expect(response.status).toBe(503);
 		await Promise.resolve();
-		expect(requestProjector.drainRequest).toHaveBeenCalledWith("req_fallback_01HQ");
+		expect(requestProjector.drainRequest).not.toHaveBeenCalled();
 		expect(requestProjector.drain).not.toHaveBeenCalled();
 	});
 });

@@ -9,7 +9,10 @@ AUTH_RESET_EMAIL_FROM=Campus Agent <auth@example.com>
 AUTH_RESET_EMAIL_REPLY_TO=
 # Generate a different high-entropy secret for anonymous safety identifier derivation.
 APP_API_SAFETY_IDENTIFIER_HMAC_SECRET=replace-with-safety-identifier-secret
-# Must match the deployed origin of `apps/public-chat-web`.
+# Browser account shell origin. This is required.
+AUTH_SHELL_ORIGIN=https://hub.example.com
+# Must match the deployed origin of `apps/public-chat-web` for chat browser
+# origin and bounded chat-to-account redirects/shims.
 PUBLIC_CHAT_WEB_ORIGIN=https://chat.example.com
 # Comma-separated campus email domain suffixes allowed for end-user sign-up/sign-in.
 # Matches exact domains and subdomains, case-insensitively.
@@ -51,7 +54,7 @@ APP_API_OPERATOR_ISSUE_LINK_TEMPLATE=
 # Copy the base domain of your Axiom org edge deployment, for example:
 # https://us-east-1.aws.edge.axiom.co or https://eu-central-1.aws.edge.axiom.co
 AXIOM_ENDPOINT=https://us-east-1.aws.edge.axiom.co
-AXIOM_DATASET=campus-agent-app-api-dev
+AXIOM_DATASET=campus-agent-runtime-dev
 # Use an Axiom API token for ingest. PATs do not work with edge deployment endpoints.
 AXIOM_TOKEN=
 

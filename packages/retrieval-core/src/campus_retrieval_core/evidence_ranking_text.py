@@ -97,8 +97,17 @@ def source_title_candidates(source: EvidenceSource) -> tuple[str, ...]:
 
     candidates: list[str] = []
     for candidate in base_candidates:
+        if _is_curriculum_source(source):
+            normalized_candidate = normalize_text(candidate)
+            if normalized_candidate and looks_like_title(normalized_candidate):
+                candidates.append(normalized_candidate)
+            continue
         candidates.extend(title_variants(candidate))
     return tuple(dict.fromkeys(candidates))
+
+
+def _is_curriculum_source(source: EvidenceSource) -> bool:
+    return source.collection == "curriculum_plan" or source.doc_id.startswith("curriculum:")
 
 
 def should_include_structural_root_as_title_candidate(

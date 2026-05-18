@@ -4,6 +4,9 @@ from campus_ingestion_core.chunking import (
     CURRICULUM_V1_CHUNK_POLICY_VERSION,
     CURRICULUM_V2_CHUNK_POLICY_VERSION,
     ChunkProfile,
+    SemanticChunkPiece,
+    assemble_chunk_text,
+    build_chunk_text_context,
     build_curriculum_chunk_profile,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
@@ -13,7 +16,11 @@ from campus_ingestion_core.process_candidate_merging import (
     merge_adjacent_short_textual_candidates,
 )
 from campus_ingestion_core.process_loading import build_collection_lane_chunk_profile
-from campus_ingestion_core.process_shared import _ChunkCandidate
+from campus_ingestion_core.process_shared import StructuredUnit, _ChunkCandidate, _ChunkMember
+from campus_ingestion_core.regulation_evidence_contract import (
+    build_category_overview_contract_metadata,
+)
+from campus_ingestion_core.regulation_semantics import build_category_overview_metadata
 
 
 def postprocess_default_chunk_candidates(
@@ -26,6 +33,133 @@ def postprocess_default_chunk_candidates(
     return merge_adjacent_short_textual_candidates(
         chunk_candidates=chunk_candidates,
         chunk_profile=runtime_profile,
+    )
+
+
+def postprocess_student_rules_chunk_candidates(
+    chunk_candidates: tuple[_ChunkCandidate, ...],
+    record: DocumentRegistryRecord,
+    runtime_profile: ChunkProfile,
+    use_collection_unit_profiles: bool,
+) -> tuple[_ChunkCandidate, ...]:
+    del use_collection_unit_profiles
+    candidates = merge_adjacent_short_textual_candidates(
+        chunk_candidates=chunk_candidates,
+        chunk_profile=runtime_profile,
+    )
+    overviews = build_regulation_category_overview_candidates(
+        record=record,
+        chunk_candidates=candidates,
+        chunk_profile=runtime_profile,
+    )
+    if not overviews:
+        return candidates
+    return (*overviews, *candidates)
+
+
+def build_regulation_category_overview_candidates(
+    *,
+    record: DocumentRegistryRecord,
+    chunk_candidates: tuple[_ChunkCandidate, ...],
+    chunk_profile: ChunkProfile,
+) -> tuple[_ChunkCandidate, ...]:
+    del chunk_candidates
+    overviews = build_category_overview_metadata(
+        collection=record.collection,
+        document_id=record.document_id,
+    )
+    if not overviews:
+        return ()
+    return tuple(
+        _build_regulation_category_overview_candidate_from_metadata(
+            record=record,
+            chunk_profile=chunk_profile,
+            overview=overview,
+        )
+        for overview in overviews
+    )
+
+
+def build_student_rules_category_overview_candidates(
+    *,
+    record: DocumentRegistryRecord,
+    chunk_candidates: tuple[_ChunkCandidate, ...],
+    chunk_profile: ChunkProfile,
+) -> tuple[_ChunkCandidate, ...]:
+    return build_regulation_category_overview_candidates(
+        record=record,
+        chunk_candidates=chunk_candidates,
+        chunk_profile=chunk_profile,
+    )
+
+
+def build_student_rules_category_overview_candidate(
+    *,
+    record: DocumentRegistryRecord,
+    chunk_candidates: tuple[_ChunkCandidate, ...],
+    chunk_profile: ChunkProfile,
+) -> _ChunkCandidate | None:
+    overviews = build_regulation_category_overview_candidates(
+        record=record,
+        chunk_candidates=chunk_candidates,
+        chunk_profile=chunk_profile,
+    )
+    return overviews[0] if overviews else None
+
+
+def _build_regulation_category_overview_candidate_from_metadata(
+    *,
+    record: DocumentRegistryRecord,
+    chunk_profile: ChunkProfile,
+    overview: dict[str, object],
+) -> _ChunkCandidate:
+    display_text = str(overview["display_text"])
+    anchor = dict(overview["anchor"])
+    metadata = dict(overview["metadata"])
+    category_id = str(metadata["category_id"])
+    parent_unit_id = f"{record.document_id}:category-overview:{category_id}"
+    metadata.update(
+        build_category_overview_contract_metadata(
+            category_id=category_id,
+            parent_unit_id=parent_unit_id,
+        )
+    )
+    piece = SemanticChunkPiece(
+        unit_type="category_overview",
+        root_unit_id=parent_unit_id,
+        text=display_text,
+        split_reason="registry_category_overview",
+        boundary_rule="regulation_policy_category_registry",
+        anchor=anchor,
+        metadata=metadata,
+    )
+    unit = StructuredUnit(
+        unit_index=-1,
+        document_id=record.document_id,
+        version_id=record.version_id,
+        text=display_text,
+        source_chunk_id=None,
+        anchor=anchor,
+        visibility_level="public",
+        unit_type="category_overview",
+        root_unit_id=piece.root_unit_id,
+        metadata=metadata,
+    )
+    chunk_assembly = assemble_chunk_text(
+        display_text=display_text,
+        context_plan=build_chunk_text_context(anchor=anchor, metadata=metadata),
+        chunk_profile=chunk_profile,
+    )
+    return _ChunkCandidate(
+        unit_type=piece.unit_type,
+        root_unit_id=piece.root_unit_id,
+        source_chunk_id=None,
+        visibility_level="public",
+        anchor=anchor,
+        metadata=metadata,
+        piece=piece,
+        chunk_assembly=chunk_assembly,
+        members=(_ChunkMember(unit=unit, piece=piece),),
     )
 
 
@@ -125,10 +259,18 @@ def postprocess_institutional_regulation_chunk_candidates(
     if not chunk_candidates:
         return ()
     if not use_collection_unit_profiles:
-        return merge_adjacent_short_textual_candidates(
+        candidates = merge_adjacent_short_textual_candidates(
             chunk_candidates=chunk_candidates,
             chunk_profile=runtime_profile,
         )
+        overviews = build_regulation_category_overview_candidates(
+            record=record,
+            chunk_candidates=candidates,
+            chunk_profile=runtime_profile,
+        )
+        if not overviews:
+            return candidates
+        return (*overviews, *candidates)
     merged: list[_ChunkCandidate] = []
     current_lane: str | None = None
     current_group: list[_ChunkCandidate] = []
@@ -164,7 +306,15 @@ def postprocess_institutional_regulation_chunk_candidates(
                 ),
             )
         )
-    return tuple(merged)
+    candidates = tuple(merged)
+    overviews = build_regulation_category_overview_candidates(
+        record=record,
+        chunk_candidates=candidates,
+        chunk_profile=runtime_profile,
+    )
+    if not overviews:
+        return candidates
+    return (*overviews, *candidates)
 
 
 def postprocess_scoped_rule_chunk_candidates(
@@ -218,9 +368,13 @@ def postprocess_scoped_rule_chunk_candidates(
 
 
 __all__ = [
+    "build_regulation_category_overview_candidates",
+    "build_student_rules_category_overview_candidate",
+    "build_student_rules_category_overview_candidates",
     "postprocess_curriculum_chunk_candidates",
     "postprocess_default_chunk_candidates",
     "postprocess_institutional_regulation_chunk_candidates",
     "postprocess_internal_notice_chunk_candidates",
     "postprocess_scoped_rule_chunk_candidates",
+    "postprocess_student_rules_chunk_candidates",
 ]

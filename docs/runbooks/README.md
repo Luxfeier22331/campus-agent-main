@@ -29,6 +29,7 @@ updated: 2026-04-27
 - `supervisor-api-staging-operations.md`
 - `supervisor-api-staging-smoke-runbook.md`
 - `supervisor-api-server-handoff.md`
+- `runtime-otel-collector-pipeline.md`
 - `worker-observability-smoke-runbook.md`
 - `templates/public-chat-staging-smoke-artifact-template.md`
 - `templates/worker-observability-smoke-artifact-template.md`
@@ -44,6 +45,7 @@ updated: 2026-04-27
 ## Authenticated Notice / Internal Notice
 
 - `ingestion-worker-on-demand-batch-runbook.md`
+- `authenticated-notice-processing-operator-panel-runbook.md`
 - `authenticated-notice-file-release-auth-window-runbook.md`
 - `authenticated-notice-bootstrap-smoke-runbook.md`
 - `authenticated-notice-source-truth-replay-runbook.md`

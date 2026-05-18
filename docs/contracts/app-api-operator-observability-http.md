@@ -1335,7 +1335,7 @@ list endpoints 额外支持：
 - 只接受 allowlist execution event type；不接受 raw prompt、raw answer、raw
   transcript、auth material、retrieval payload 或 provider raw response
 - ingest 写入 app-owned outbox 后会调度 request-scoped projection drain，让 panel
-  尽快看到 curated audit timeline；cron drain 仍是兜底
+  尽快看到 curated audit timeline；cron drain 只承担周期性一致性检查
 - panel 仍只读取投影后的 audit endpoint，不直接读取 outbox 或 telemetry sink
 
 ### `POST /api/internal/operator/quality/grades`

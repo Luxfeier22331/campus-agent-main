@@ -59,6 +59,8 @@ type LifecycleSnapshot struct {
 type TelemetrySnapshot struct {
 	Enabled            bool
 	ExporterConfigured bool
+	MetricsEnabled     bool
+	MetricsConfigured  bool
 	ExportedCount      uint64
 	DroppedCount       uint64
 	FailedCount        uint64
@@ -67,19 +69,11 @@ type TelemetrySnapshot struct {
 }
 
 type ExecutionAuditSnapshot struct {
-	Enabled           bool
-	Configured        bool
-	QueueDepth        int
-	BatchSize         int
-	EmittedCount      uint64
-	DroppedCount      uint64
-	FailedCount       uint64
-	RetriedCount      uint64
-	SpooledCount      uint64
-	SpoolDrainedCount uint64
-	SpoolDroppedCount uint64
-	SpoolEnabled      bool
-	LastError         string
+	Enabled      bool
+	Configured   bool
+	EmittedCount uint64
+	FailedCount  uint64
+	LastError    string
 }
 
 type BridgeRuntimeSnapshot struct {

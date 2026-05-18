@@ -614,6 +614,12 @@ class _BucketAwareS3Client:
         self._factory = factory
         self._clients: dict[tuple[str, str], Any] = {}
 
+    def head_bucket(self, **kwargs: Any) -> Any:
+        return self._client_for_bucket(str(kwargs["Bucket"])).head_bucket(**kwargs)
+
+    def create_bucket(self, **kwargs: Any) -> Any:
+        return self._client_for_bucket(str(kwargs["Bucket"])).create_bucket(**kwargs)
+
     def get_object(self, **kwargs: Any) -> Any:
         return self._client_for_bucket(str(kwargs["Bucket"])).get_object(**kwargs)
 

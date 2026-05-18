@@ -12,6 +12,14 @@ export class OfficialWebControlPlaneTransportError extends Error {
 	}
 }
 
+interface ControlPlaneErrorEnvelope {
+	error?: {
+		code?: string;
+		message?: string;
+		retryable?: boolean;
+	};
+}
+
 export async function requestJson<T>(input: {
 	baseUrl?: string | null;
 	serviceToken?: string | null;
@@ -52,17 +60,59 @@ export async function requestJson<T>(input: {
 		});
 	}
 
-	const parsed = (await response.json().catch(() => null)) as {
-		error?: { code?: string; message?: string; retryable?: boolean };
-	} | null;
+	const parsed = await parseJsonResponse(response);
 	if (response.status !== 200) {
+		const errorEnvelope = parseControlPlaneErrorEnvelope(parsed, response.status);
 		throw new OfficialWebControlPlaneTransportError({
-			code: parsed?.error?.code ?? "app_api_error",
-			message: parsed?.error?.message ?? "Official-web control plane request failed.",
-			retryable: parsed?.error?.retryable ?? response.status >= 500,
+			code: errorEnvelope.code,
+			message: errorEnvelope.message,
+			retryable: errorEnvelope.retryable,
 			status: response.status,
 		});
 	}
 
 	return parsed as T;
+}
+
+async function parseJsonResponse(response: Response): Promise<ControlPlaneErrorEnvelope> {
+	try {
+		return (await response.json()) as ControlPlaneErrorEnvelope;
+	} catch (error) {
+		throw new OfficialWebControlPlaneTransportError({
+			code: "app_api_invalid_json",
+			message:
+				error instanceof Error
+					? `Official-web control plane returned invalid JSON: ${error.message}`
+					: "Official-web control plane returned invalid JSON.",
+			retryable: response.status >= 500,
+			status: response.status,
+		});
+	}
+}
+
+function parseControlPlaneErrorEnvelope(
+	parsed: ControlPlaneErrorEnvelope,
+	status: number,
+): { code: string; message: string; retryable: boolean } {
+	const error = parsed?.error;
+	if (
+		!error ||
+		typeof error.code !== "string" ||
+		error.code.trim() === "" ||
+		typeof error.message !== "string" ||
+		error.message.trim() === "" ||
+		typeof error.retryable !== "boolean"
+	) {
+		throw new OfficialWebControlPlaneTransportError({
+			code: "app_api_invalid_error_envelope",
+			message: "Official-web control plane returned an invalid error envelope.",
+			retryable: false,
+			status,
+		});
+	}
+	return {
+		code: error.code,
+		message: error.message,
+		retryable: error.retryable,
+	};
 }

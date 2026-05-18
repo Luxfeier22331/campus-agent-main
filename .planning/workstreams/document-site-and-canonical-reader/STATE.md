@@ -1,24 +1,30 @@
 ---
 workstream: document-site-and-canonical-reader
 created: 2026-04-21
-updated: 2026-04-28
+updated: 2026-05-05
 ---
 
 # Project State
 
 ## Current Position
 
-**Status:** Implemented Local
-**Current Phase:** 7
-**Current Phase Name:** Type-aware Chat Source Surfaces And Notice Jump Contract
-**Current Plan:** `.planning/workstreams/document-site-and-canonical-reader/phases/phase-7-type-aware-chat-source-surfaces-and-notice-jump-contract/PLAN.md`
+**Status:** Completed
+**Current Phase:** Phase 1-7 completed
+**Current Phase Name:** Workstream Closeout
+**Current Plan:** none
 **Total Phases:** 7
 **Total Plans in Phase:** 1
-**Progress:** 7/7 phases implemented locally
-**Last Activity:** 2026-04-28
-**Last Activity Description:** 完成 Phase 7 本地实现：`app-api` chat source projection 从 docs-only `source_cards` 升级为类型化 `source_items`，`public-chat-web` donor message renderer 改为紧凑来源列表，并覆盖 canonical reader、公开通知原始 URL、notice reader 与 restricted notice 的安全展示和动作文案；app-api/public-chat 验证与仓库级 `web:lint` 均已通过。
+**Progress:** 7/7 phases completed
+**Last Activity:** 2026-05-05
+**Last Activity Description:** 收口 workstream completed 状态；Phase 7 已把 `app-api`
+chat source projection 从 docs-only `source_cards` 升级为类型化 `source_items`，
+`public-chat-web` donor message renderer 改为紧凑来源列表，并覆盖 canonical reader、
+公开通知原始 URL、notice reader 与 restricted notice 的安全展示和动作文案；2026-05-05
+fresh closeout 的 app-api / public-chat 定向测试、app-api typecheck 与 docs lint 通过，
+真实 staging chat E2E 和 repo-wide web lint 的当前阻塞已记录并移交到对应入口/其他
+workstream。
 
-## Current Slice
+## Completed Slice
 
 - completed `Phase 1` artifacts:
   - context: `.planning/workstreams/document-site-and-canonical-reader/phases/phase-1-document-site-architecture-and-contract-freeze/CONTEXT.md`
@@ -215,7 +221,7 @@ updated: 2026-04-28
     regulation 同步入口；当前对象存储没有显式 public 的 notice-derived
     regulation，因此不会生成 `campus-regulations` 公开目录
 
-- 当前仍未闭环的实现真相：
+- 当前运行操作真相：
   - `docs.*` read model 已有 manifest import CLI：
     `pnpm --filter app-api docs:import-read-model -- <manifest-path>`
   - `app-api` 已有 public docs sync manifest export CLI：
@@ -260,10 +266,34 @@ updated: 2026-04-28
 
 ## Blockers
 
-- No Phase 7 implementation blocker.
-- No repo-wide `web:lint` blocker remains for this workstream.
+- No active implementation blocker.
+- No workstream-owned `source_items` / docs reader blocker remains.
+- Current repo-wide `web:lint` is blocked by unrelated active worktree changes outside this
+  workstream; do not reopen this workstream for those failures.
+- Current staging public-chat E2E is blocked before chat request submission by
+  `exec-staging` readiness (`supervisor_exec_not_ready` / HTTP 503), not by the
+  document-site browser source contract.
 
 ## Verification
+
+### Fresh Closeout Verification (2026-05-05)
+
+- Passed: `pnpm --filter app-api exec vitest run -c vitest.node.config.mts test/chat-command.service.test.ts test/chat-structured-parts.test.ts`
+  - `2` test files, `36` tests passed.
+- Passed: `pnpm --filter public-chat-web exec vitest run test/platform-chat-message-parts.test.ts test/platform-chat-mappers.test.ts test/vendor-chat-message.test.ts`
+  - `3` test files, `12` tests passed.
+- Passed: `pnpm --filter app-api typecheck`
+- Passed: `pnpm docs:lint`
+  - `247` tracked markdown files, `0` errors.
+- Blocked outside this workstream: `pnpm --filter public-chat-web typecheck`
+  - Fails on `packages/official-web-core/src/*` TS5097 `.ts` extension imports.
+- Blocked outside this workstream: `pnpm web:lint`
+  - Fails on unrelated official-web / registry / fixture formatting and
+    non-null assertion diagnostics already present in the active worktree.
+- Blocked outside this workstream: `pnpm --filter app-api chat:e2e:staging`
+  - Result: `blocked_by=supervisor_exec_not_ready`, `chat_request_attempted=false`.
+  - `exec-staging /readyz` returned `503`; bridge runtime was degraded with
+    `Supervisor Python bridge readiness timed out.`
 
 - `uv run --all-packages python -m campus_ingestion_worker.publish_document_reader_assets --manifest-path var/docs-read-model-manifest.json --manifest-object-key manifests/public-docs-reader-assets.json`
 - `pnpm --filter app-api db:migrate`
@@ -349,6 +379,15 @@ updated: 2026-04-28
 
 ## Session Continuity
 
-**Stopped At:** Phase 7 已本地实现，并通过 app-api/public-chat 验证与仓库级 `web:lint`。
-后续若继续推进本 workstream，应优先做真实 public-chat source item live smoke，或在 notice source serving 正式进入 public chat 后补充端到端来源跳转验收。
+**Stopped At:** Workstream completed on 2026-05-05.
+
+**Handoff:** 后续真实 public-chat source-item 产品入口漂移验证，归对应
+public-chat 产品入口验收线承接；notice source serving 正式进入 public chat 后再补
+端到端来源跳转验收。
+
+**Reopen Rule:** 只有在 docs control-plane / published reader asset contract 漂移、
+gated reader delivery 失效、chat `source_items` 重新暴露 raw retrieval / private
+notice locator、source jump 在真实 public-chat 入口失败，或 notice source serving
+正式打开且需要补充端到端来源跳转验收时恢复。
+
 **Resume File:** .planning/workstreams/document-site-and-canonical-reader/ROADMAP.md

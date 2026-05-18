@@ -13,6 +13,7 @@ from campus_contracts import (
 from campus_retrieval_core.backend_qdrant import RestrictedDocumentAccessDeniedError
 from campus_retrieval_core.models import (
     RetrievalRequest,
+    RetrievalSemanticHint,
 )
 from campus_retrieval_core.service import (
     build_retrieval_backend,
@@ -180,6 +181,37 @@ class RetrievalServiceBackendAndRequestProjectionTest(unittest.TestCase):
         request = backend.retrieve.call_args.args[0]
         self.assertIsInstance(request, RetrievalRequest)
         self.assertEqual(request.authorized_filter, authorized_filter)
+
+    def test_retrieve_sources_passes_semantic_hint_through_request(self) -> None:
+        backend = Mock()
+        backend.retrieve.return_value = EvidenceBundle(
+            query_text="专业奖学金标准",
+            corpus="regulations",
+            collection="student_rules",
+        )
+        semantic_hint = RetrievalSemanticHint(
+            intent_kind="eligibility_judgment",
+            answer_kind="condition_table",
+            need_kinds=("eligibility_judgment",),
+            coverage_policy="condition_subject_alignment",
+            selection_policy="answer_role_first",
+            rerank_policy="disabled",
+            replan_policy="intent_gap_replan",
+            expected_answer_roles=("table_fact", "eligibility_condition"),
+            condition_subject="amount_or_quota",
+        )
+
+        retrieve_sources(
+            "专业奖学金标准",
+            corpus="regulations",
+            collection="student_rules",
+            semantic_hint=semantic_hint,
+            backend=backend,
+        )
+
+        request = backend.retrieve.call_args.args[0]
+        self.assertIsInstance(request, RetrievalRequest)
+        self.assertIs(request.semantic_hint, semantic_hint)
 
     def test_retrieve_sources_propagates_restricted_access_denied(self) -> None:
         backend = Mock()

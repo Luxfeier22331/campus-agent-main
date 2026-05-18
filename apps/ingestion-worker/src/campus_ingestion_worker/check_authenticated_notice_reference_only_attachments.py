@@ -8,19 +8,16 @@ from dataclasses import asdict
 from typing import Any
 
 from campus_ingestion_core.authenticated_notice_attachment_fetch_status import (
-    DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
     DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
     build_authenticated_notice_attachment_fetch_status_store_from_env,
     build_reference_only_attachment_explanation_report,
 )
 from campus_ingestion_core.authenticated_notice_source_truth_inventory import (
-    DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
     DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
     build_authenticated_notice_source_truth_inventory_store_from_env,
 )
 from campus_ingestion_core.local_rebuild import S3ObjectStoreAdmin
 from campus_ingestion_core.registry import (
-    SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
     SHARED_POSTGRES_OPERATOR_ENV_KEY,
 )
 from campus_ingestion_core.settings import DEFAULT_BUCKET_SOURCE, ObjectStoreSettings
@@ -117,9 +114,7 @@ def _has_source_truth_operator_database_url(env: dict[str, str]) -> bool:
         env.get(key)
         for key in (
             DEFAULT_SOURCE_TRUTH_INVENTORY_OPERATOR_ENV_KEY,
-            DEFAULT_SOURCE_TRUTH_INVENTORY_MANAGEMENT_ENV_KEY,
             SHARED_POSTGRES_OPERATOR_ENV_KEY,
-            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
         )
     )
 
@@ -129,9 +124,7 @@ def _has_fetch_status_operator_database_url(env: dict[str, str]) -> bool:
         env.get(key)
         for key in (
             DEFAULT_ATTACHMENT_FETCH_STATUS_OPERATOR_ENV_KEY,
-            DEFAULT_ATTACHMENT_FETCH_STATUS_MANAGEMENT_ENV_KEY,
             SHARED_POSTGRES_OPERATOR_ENV_KEY,
-            SHARED_POSTGRES_MANAGEMENT_ENV_KEY,
         )
     )
 

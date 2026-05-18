@@ -14,6 +14,7 @@ _MARKDOWN_TRACKED_PATHS = (
     "apps",
     "packages",
     "configs",
+    "infra",
 )
 
 
@@ -44,7 +45,7 @@ def _is_tracked_markdown_candidate(path: str) -> bool:
         return True
     if path.startswith("apps/public-docs/docs/"):
         return False
-    if path.startswith(("apps/", "packages/", "configs/")):
+    if path.startswith(("apps/", "packages/", "configs/", "infra/")):
         return path.endswith(".md")
     return False
 

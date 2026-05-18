@@ -98,6 +98,14 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                     "target": "campus-services-agent",
                     "payload_kind": "transport_schedule_lookup",
                 },
+                agent_invocations=(
+                    {
+                        "invocation_id": "agent-invocation:1",
+                        "workflow_run_ref": "workflow:req-1",
+                        "agent_id": "campus-services-agent",
+                        "status": "completed",
+                    },
+                ),
                 selected_target="campus-services-agent",
                 selected_tools=("transport_schedule_lookup",),
                 tool_argument_summary={"payload_kind": "transport_schedule_lookup"},
@@ -115,6 +123,10 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
         )
         self.assertEqual(
             payload["workflow_trace_summary"]["handoff"]["target"],
+            "campus-services-agent",
+        )
+        self.assertEqual(
+            payload["workflow_trace_summary"]["agent_invocations"][0]["agent_id"],
             "campus-services-agent",
         )
 
@@ -188,6 +200,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                         corpus="regulations",
                         collection="student_rules",
                         status="succeeded",
+                        need_ids=("need:policy-condition",),
                         top_k=3,
                         latency_ms=12,
                         candidate_count=2,
@@ -212,6 +225,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                         "corpus": "regulations",
                         "collection": "student_rules",
                         "status": "succeeded",
+                        "need_ids": ("need:policy-condition",),
                         "top_k": 3,
                         "latency_ms": 12,
                         "candidate_count": 2,
@@ -220,6 +234,54 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
                     },
                 ),
             },
+        )
+
+    def test_rag_stage_activity_summary_serializes_stage_attribution_fields(self) -> None:
+        diagnostics = RagResultDiagnostics(
+            stage_activities=(
+                RagStageActivitySummary(
+                    request_id="req-stage",
+                    plan_id="regulations:student_rules:current",
+                    query_mode="current",
+                    stage_name="retrieval",
+                    stage_status="completed",
+                    candidate_count=2,
+                    supporting_evidence_count=0,
+                    grounding_verdict="",
+                    diagnostic_reason="",
+                    presentation_kind="document_identity",
+                    presentation_path="",
+                    latency_ms=12,
+                    retrieval_ms=12,
+                    prompt_ms=0,
+                    adapter_ms=0,
+                    diagnostic_ms=0,
+                ),
+            ),
+        )
+
+        self.assertEqual(
+            asdict(diagnostics)["stage_activities"],
+            (
+                {
+                    "request_id": "req-stage",
+                    "plan_id": "regulations:student_rules:current",
+                    "query_mode": "current",
+                    "stage_name": "retrieval",
+                    "stage_status": "completed",
+                    "candidate_count": 2,
+                    "supporting_evidence_count": 0,
+                    "grounding_verdict": "",
+                    "diagnostic_reason": "",
+                    "presentation_kind": "document_identity",
+                    "presentation_path": "",
+                    "latency_ms": 12,
+                    "retrieval_ms": 12,
+                    "prompt_ms": 0,
+                    "adapter_ms": 0,
+                    "diagnostic_ms": 0,
+                },
+            ),
         )
 
     def test_agent_request_requires_explicit_payload(self) -> None:
@@ -653,6 +715,7 @@ class ContractModelsRuntimeAndToolsSuite(unittest.TestCase):
             payload["result"]["diagnostics"]["no_answer_reason"],
             "resolved_policy_clause_not_found",
         )
+        self.assertEqual(payload["result"]["diagnostics"]["fail_close_reason"], "")
         self.assertEqual(
             payload["result"]["diagnostics"]["semantic_outcome"],
             "unsupported_by_evidence",

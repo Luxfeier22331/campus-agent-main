@@ -23,6 +23,18 @@ func InferCapabilityFromGoal(userGoal string, policy IntentPolicyArtifact) strin
 	if normalized == "" {
 		return "knowledge"
 	}
+	if isDirectoryLookupGuideQuery(normalized) {
+		return "campus_services"
+	}
+	if containsAny(normalized, policy.Signals("structured_notice")) {
+		return "notice"
+	}
+	if isAcademicCalendarGuideQuery(normalized) {
+		return "campus_services"
+	}
+	if isAcademicCalendarFactQuery(normalized, policy) {
+		return "campus_services"
+	}
 	if containsAny(normalized, policy.Signals("structured_service_guide_subject")) &&
 		containsAny(normalized, policy.Signals("structured_service_guide_action")) {
 		return "campus_services"
@@ -53,10 +65,18 @@ func InferCapabilityFromGoal(userGoal string, policy IntentPolicyArtifact) strin
 		containsAny(normalized, policy.Signals("structured_service_subject")) {
 		return "campus_services"
 	}
-	if containsAny(normalized, policy.Signals("structured_notice")) {
-		return "notice"
-	}
 	return "knowledge"
+}
+
+func isAcademicCalendarFactQuery(normalizedGoal string, policy IntentPolicyArtifact) bool {
+	return matchAcademicCalendarCandidate(normalizedGoal, policy) != ""
+}
+
+func IsAcademicCalendarFactQueryForPlanning(
+	normalizedGoal string,
+	policy IntentPolicyArtifact,
+) bool {
+	return isAcademicCalendarFactQuery(normalizedGoal, policy)
 }
 
 func effectiveCapability(
@@ -65,10 +85,11 @@ func effectiveCapability(
 ) string {
 	if request.HasRequestedScope ||
 		(request.VersionQueryMode != "" && request.VersionQueryMode != "current") {
-		if strings.TrimSpace(request.RequestedCapability) == "" {
+		normalizedRequestedCapability := strings.TrimSpace(request.RequestedCapability)
+		if normalizedRequestedCapability == "" {
 			return "knowledge"
 		}
-		return request.RequestedCapability
+		return normalizedRequestedCapability
 	}
 	if request.RequestedCapability != "" && request.RequestedCapability != "knowledge" {
 		return request.RequestedCapability

@@ -22,6 +22,8 @@ class ScopeAliasReport:
     action: str
     previous_physical_collection_name: str | None
     current_physical_collection_name: str | None
+    action_reason: str = ""
+    expected_current_physical_collection_name: str | None = None
 
 
 def set_scope_release_alias(
@@ -29,6 +31,8 @@ def set_scope_release_alias(
     corpus: str,
     collection: str,
     physical_collection_name: str | None,
+    expected_current_physical_collection_name: str | None = None,
+    action_reason: str = "",
     env: dict[str, str] | None = None,
     qdrant_client: QdrantClient | None = None,
 ) -> ScopeAliasReport:
@@ -40,6 +44,15 @@ def set_scope_release_alias(
         qdrant_client=client,
         alias_name=binding.alias_name,
     )
+    if (
+        expected_current_physical_collection_name
+        and previous_physical_collection_name != expected_current_physical_collection_name
+    ):
+        raise ValueError(
+            "alias target mismatch for "
+            f"{corpus}/{collection}: expected {expected_current_physical_collection_name}, "
+            f"got {previous_physical_collection_name or '<none>'}"
+        )
     if physical_collection_name is None:
         current_physical_collection_name = None
         action = "unpublish"
@@ -66,6 +79,8 @@ def set_scope_release_alias(
         action=action,
         previous_physical_collection_name=previous_physical_collection_name,
         current_physical_collection_name=current_physical_collection_name,
+        action_reason=action_reason,
+        expected_current_physical_collection_name=expected_current_physical_collection_name,
     )
 
 

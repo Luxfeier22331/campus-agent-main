@@ -176,7 +176,7 @@ RetrievalStep
 - `service_status_lookup`
 - `transport_schedule_lookup`
 - `campus_notice_discover`
-- `campus_notice_get`
+- internal selected notice resolve with `payload_kind=campus_notice_get`
 - general web browse
 - provider black-box web tool
 - 未经 repo 文档 admission 的 remote capability

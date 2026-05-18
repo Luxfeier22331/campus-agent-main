@@ -197,7 +197,7 @@ pnpm --dir apps/protected-panel-web dev:live-smoke
 Then enter through:
 
 ```text
-http://127.0.0.1:9798/login?redirect=http://127.0.0.1:5174/observability/overview
+http://127.0.0.1:27062/login?redirect=http://127.0.0.1:27021/observability/overview
 ```
 
 The local Access smoke server issues a signed `CF_Authorization` cookie and

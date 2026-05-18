@@ -59,6 +59,30 @@ export interface FetchAttachmentBinaryResult {
 	statusCode: number;
 }
 
+export type AttachmentTerminalReason = "http_404" | "http_410" | "portal_file_missing";
+
+export class AttachmentDownloadTerminalUnavailableError extends Error {
+	readonly lastHttpStatus: number;
+	readonly terminalReason: AttachmentTerminalReason;
+
+	constructor(input: {
+		lastHttpStatus: number;
+		message: string;
+		terminalReason: AttachmentTerminalReason;
+	}) {
+		super(input.message);
+		this.name = "AttachmentDownloadTerminalUnavailableError";
+		this.lastHttpStatus = input.lastHttpStatus;
+		this.terminalReason = input.terminalReason;
+	}
+}
+
+export function isAttachmentDownloadTerminalUnavailableError(
+	error: unknown,
+): error is AttachmentDownloadTerminalUnavailableError {
+	return error instanceof AttachmentDownloadTerminalUnavailableError;
+}
+
 export interface FetchFileReleasePageInput {
 	apiContext: ApiRequestContextLike;
 	currentPage: number;
@@ -264,6 +288,9 @@ export async function fetchAttachmentBinary(
 			if (lastError.message.startsWith("auth-expired:")) {
 				throw lastError;
 			}
+			if (isAttachmentDownloadTerminalUnavailableError(lastError)) {
+				throw lastError;
+			}
 			if (attempt >= input.requestMaxRetries) {
 				throw lastError;
 			}
@@ -451,10 +478,30 @@ function buildRequestError(status: number, statusText: string, operation: string
 	if (status === 401 || status === 403) {
 		return new Error(`auth-expired: ${operation} failed: ${status} ${statusText}`);
 	}
+	if (operation === "downloadAttachment") {
+		const terminalReason = terminalReasonForHttpStatus(status);
+		if (terminalReason) {
+			return new AttachmentDownloadTerminalUnavailableError({
+				lastHttpStatus: status,
+				message: `${operation} failed: ${status} ${statusText}`,
+				terminalReason,
+			});
+		}
+	}
 	if (status === 429 || status >= 500) {
 		return new Error(`retryable: ${operation} failed: ${status} ${statusText}`);
 	}
 	return new Error(`${operation} failed: ${status} ${statusText}`);
+}
+
+function terminalReasonForHttpStatus(status: number): AttachmentTerminalReason | null {
+	if (status === 404) {
+		return "http_404";
+	}
+	if (status === 410) {
+		return "http_410";
+	}
+	return null;
 }
 
 function backoffDelayMs(baseMs: number, attempt: number): number {

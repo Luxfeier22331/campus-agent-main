@@ -102,7 +102,7 @@ uv run --all-packages campus-supervisor-agent-worker-dev
 
 ```bash
 SUPERVISOR_AGENT_WORKER_HOST=127.0.0.1
-SUPERVISOR_AGENT_WORKER_PORT=18081
+SUPERVISOR_AGENT_WORKER_PORT=27052
 SUPERVISOR_AGENT_WORKER_THREADS=8
 ```
 
@@ -141,8 +141,6 @@ export PROMPT_RUNTIME_MAX_CONNECTIONS=32
 export PROMPT_RUNTIME_MAX_KEEPALIVE_CONNECTIONS=16
 export PROMPT_RUNTIME_KEEPALIVE_EXPIRY_SECONDS=30
 export SUPERVISOR_AGENT_WORKER_THREADS=8
-export SUPERVISOR_STRUCTURED_QUERY_BASE_URL=http://supervisor-api:8000
-export SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET=query-secret
 export SUPERVISOR_STRUCTURED_QUERY_TIMEOUT_SECONDS=1
 ```
 
@@ -158,7 +156,29 @@ Python bridge 不再拥有本地 supervisor audit JSONL writer，也不在 publi
 签名中暴露 `audit_sink`。execution audit 由 Go `apps/supervisor-api` 的 allowlisted
 audit writer 负责回流到 `app-api` internal ingest。
 
-`SUPERVISOR_STRUCTURED_QUERY_BASE_URL` / `SUPERVISOR_STRUCTURED_QUERY_SHARED_SECRET`
-只用于 Python worker 调用 Go `supervisor-api` 的 internal
-`/internal/query/campus-services/*` seam。未配置时，`campus-services-agent`
-继续保持 internal query service unavailable，不会打开产品 serving gate。
+`SUPERVISOR_INTERNAL_QUERY_BASE_URL` / `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`
+是 supervisor runtime harness 注入的内部 wiring，只用于 Python worker 调用同一
+supervisor runtime 内 Go `supervisor-api` 的 internal
+`/internal/query/campus-services/*` seam。普通 repo `.env` 不需要手写这两个值；
+未由 harness 注入时，`campus-services-agent` 继续保持 internal query service
+unavailable，不会打开产品 serving gate。
+
+## Retrieval Observation Env
+
+```bash
+export SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH=/tmp/retrieval-observations.jsonl
+export SUPERVISOR_RETRIEVAL_RUNTIME_EVENT_JSONL_PATH=/tmp/retrieval-runtime-events.jsonl
+export SUPERVISOR_RETRIEVAL_OBSERVATION_INCLUDE_QUERY_TEXT=false
+```
+
+`SUPERVISOR_RETRIEVAL_OBSERVATION_JSONL_PATH` 写入 `retrieval-core` 产生的原始
+observation，用于本地调试和 eval backlog。只有显式设置
+`SUPERVISOR_RETRIEVAL_OBSERVATION_INCLUDE_QUERY_TEXT=true` 时才会包含 raw query text；
+生产 sink 不应开启该 debug 开关。
+
+`SUPERVISOR_RETRIEVAL_RUNTIME_EVENT_JSONL_PATH` 写入 worker-owned sanitized
+`retrieval.runtime_observation` runtime event。该路径只保留 allowlisted attributes：
+request/plan/step correlation、scope、query hash、counts、latency、terminal state、
+release drift 与 reranker degraded flags；不会写入 raw query、raw snippet、document
+body、auth material 或 source credentials。后续 Collector / sink pipeline 可以消费该
+event JSONL 或等价 runtime emitter，并映射为 OTel-compatible log/event/span。

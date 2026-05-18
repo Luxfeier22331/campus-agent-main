@@ -49,6 +49,8 @@ export async function buildCollectorQcReport(
 	const failPages: CollectorQcPageFinding[] = [];
 	const familyCounts = createEmptyFamilyCounts();
 	const issueCounts: Record<string, number> = {};
+	const targetFamilyCounts: Record<string, number> = {};
+	const retentionDecisionCounts: Record<string, number> = {};
 	let bundlePages = 0;
 	let validationErrors = 0;
 	let validationWarnings = 0;
@@ -88,6 +90,8 @@ export async function buildCollectorQcReport(
 				failPages: audit.summary.failPages,
 				familyCounts: audit.summary.familyCounts,
 				issueCounts: audit.summary.issueCounts,
+				targetFamilyCounts: audit.summary.targetFamilyCounts ?? {},
+				retentionDecisionCounts: audit.summary.retentionDecisionCounts ?? {},
 			},
 		});
 
@@ -104,6 +108,12 @@ export async function buildCollectorQcReport(
 
 		for (const [code, count] of Object.entries(audit.summary.issueCounts)) {
 			issueCounts[code] = (issueCounts[code] ?? 0) + count;
+		}
+		for (const [family, count] of Object.entries(audit.summary.targetFamilyCounts ?? {})) {
+			targetFamilyCounts[family] = (targetFamilyCounts[family] ?? 0) + count;
+		}
+		for (const [decision, count] of Object.entries(audit.summary.retentionDecisionCounts ?? {})) {
+			retentionDecisionCounts[decision] = (retentionDecisionCounts[decision] ?? 0) + count;
 		}
 
 		for (const page of audit.pages) {
@@ -163,6 +173,8 @@ export async function buildCollectorQcReport(
 		},
 		familyCounts,
 		issueCounts,
+		targetFamilyCounts,
+		retentionDecisionCounts,
 		outputs,
 		unexpectedReviewPages,
 		failPages,

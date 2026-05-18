@@ -98,9 +98,16 @@ updated: 2026-04-23
 - 当前 query-enabled scope 是 `regulations/student_rules`、
   `regulations/institutional_rules`、`curriculum/curriculum_plan` 与
   `official_web/stable_reference`
-- `regulations/scoped_rules` 当前已具备 retrieval-ready serving alias，但
-  `query_enabled_by_default=false`，不属于默认 query-enabled scope
-- `campus_services/*` 当前仍是 `offline_preparation`
+- `regulations/scoped_rules` 当前只作为院级/专项 regulation canonical/chunk-only
+  non-serving holding collection；不属于默认 query-enabled scope，也不得进入当前
+  document-site read-model 或 RAG release candidate
+- `campus_services/service_status`、`campus_services/service_guide`、
+  `campus_services/contact_directory`、`campus_services/transport_schedule` 与
+  `calendar/academic_calendar` 当前是 `structured_query_serving`：它们只允许通过
+  admitted structured tools 消费 current projection/read model，不进入 generic
+  retrieval 默认 query scope
+- `campus_services/service_catalog` 当前仍是 `offline_preparation`；later-wave
+  `service_process_lookup` 未开放前，它不承担 structured product serving
 - 当前 `official_web/muc_public_pages` 也是 `offline_preparation` 的 mixed
   bridge，不应误读成长期最终 serving scope
 
@@ -312,6 +319,10 @@ updated: 2026-04-23
 - live evidence 不是 general web fallback
 - live evidence 是否能成为 answer-bearing evidence，受 source-trust 与 freshness policy
   约束
+- live evidence 必须显式标注 `retrieval_mode=live_assisted`、`as_of` 与
+  `canonical_index_truth=false`
+- live evidence 不写入 canonical index；它只能作为当前 retrieval execution 的临时 evidence
+  和 observation / eval candidate 输入
 
 ### Execution Metadata
 
@@ -323,6 +334,39 @@ updated: 2026-04-23
 
 - execution metadata 用于 observability、audit 与 grading
 - execution metadata 不应直接暴露 raw vendor payload
+- runtime observation 默认包含 query mode、retrieval mode、scope、latency、
+  failure kind 与 sanitized query hash；raw query text 只允许 operator debug 显式打开
+
+### Retrieval Observation Sink
+
+定义：
+
+- retrieval execution 将 sanitized runtime observation 发出的注入式回调边界
+
+说明：
+
+- sink 是显式 runtime contract；配置 sink 后，sink 失败必须让 answer path fail closed
+  并暴露稳定诊断原因
+- JSONL sink 是 local/debug 通道
+- durable event sink 使用 `retrieval.runtime_observation` 事件名，交给 runtime adapter 接入
+  OTel-compatible logs/events 或 operator observation storage
+- sink 不得反向修改 release manifest、runtime profile、canonical qrels、serving alias 或
+  answer evidence
+
+### OTel Bridge
+
+定义：
+
+- runtime adapter 将 `retrieval.runtime_observation` 转成 OpenTelemetry-compatible
+  logs/events/metrics/traces 的集成层
+
+说明：
+
+- OTel bridge 属于 runtime shell / deployment integration，不属于 retrieval-core
+- trace/span correlation 可用时应保留；不可用时至少保留 `request_id`
+- metrics 应从 observation 派生，例如 latency histogram、fail-closed count、release drift
+  count、reranker degraded count 与 live-assisted count
+- Collector/exporter/backend 选择不得成为 contracts 或 retrieval-core 类型
 
 ### Serving Alias
 

@@ -6,6 +6,7 @@
 		"node": ">=24 <25"
 	},
 	"scripts": {
+		"official-web:live-seam:no-promotion": "uv run --all-packages python -m scripts.official_web_live_seam_no_promotion",
 		"web:build:affected": "TURBO_SCM_BASE=origin/develop turbo run build --affected",
 		"web:build": "turbo run build",
 		"web:check:affected": "TURBO_SCM_BASE=origin/develop turbo run typecheck test build --affected",

@@ -35,6 +35,7 @@ _EXPECTED_TOP_LEVEL_FIELDS = {
     "summary",
     "triggerType",
 }
+_RAW_VERSION_REQUIRED_CHANGE_STATUSES = frozenset({"new", "changed"})
 
 
 @dataclass(frozen=True, slots=True)
@@ -81,13 +82,13 @@ class OfficialWebHandoffReceiverSettings:
 @dataclass(frozen=True, slots=True)
 class OfficialWebHandoffServerSettings:
     host: str = "127.0.0.1"
-    port: int = 8789
+    port: int = 27041
 
     @classmethod
     def from_env(cls) -> OfficialWebHandoffServerSettings:
         return cls(
             host=os.getenv("INGESTION_WORKER_HTTP_HOST", "127.0.0.1"),
-            port=int(os.getenv("INGESTION_WORKER_HTTP_PORT", "8789")),
+            port=int(os.getenv("INGESTION_WORKER_HTTP_PORT", "27041")),
         )
 
 
@@ -303,6 +304,12 @@ def _require_non_empty_text(value: object, field_name: str) -> str:
     return value.strip()
 
 
+def _require_optional_text(value: object, field_name: str) -> str | None:
+    if value is None:
+        return None
+    return _require_non_empty_text(value, field_name)
+
+
 def _require_string_list(value: object, field_name: str) -> list[str]:
     if not isinstance(value, list) or not value:
         raise ValueError(f"{field_name} must be a non-empty array of strings.")
@@ -360,15 +367,22 @@ def _require_page_changes(value: object) -> list[dict[str, object]]:
     for item in value:
         if not isinstance(item, dict):
             raise ValueError("pageChanges[] must be an object.")
-        _require_non_empty_text(item.get("changeStatus"), "pageChanges[].changeStatus")
+        change_status = _require_non_empty_text(
+            item.get("changeStatus"),
+            "pageChanges[].changeStatus",
+        )
         _require_non_empty_text(
             item.get("normalizedCanonicalUrl"),
             "pageChanges[].normalizedCanonicalUrl",
         )
         _require_non_empty_text(item.get("observedAt"), "pageChanges[].observedAt")
         _require_non_empty_text(item.get("pageFamily"), "pageChanges[].pageFamily")
-        _require_non_empty_text(item.get("rawAssetId"), "pageChanges[].rawAssetId")
-        _require_non_empty_text(item.get("rawVersionId"), "pageChanges[].rawVersionId")
+        if change_status in _RAW_VERSION_REQUIRED_CHANGE_STATUSES:
+            _require_non_empty_text(item.get("rawAssetId"), "pageChanges[].rawAssetId")
+            _require_non_empty_text(item.get("rawVersionId"), "pageChanges[].rawVersionId")
+        else:
+            _require_optional_text(item.get("rawAssetId"), "pageChanges[].rawAssetId")
+            _require_optional_text(item.get("rawVersionId"), "pageChanges[].rawVersionId")
         page_changes.append(item)
     return page_changes
 

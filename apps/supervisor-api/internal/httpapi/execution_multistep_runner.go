@@ -62,6 +62,16 @@ func (s *Server) runMultiStepBridgeExecution(
 	}
 
 	runID := "workflow:" + executionRequest.RequestID
+	var workflowRun execution.WorkflowRun
+	completeWorkflowRun := func(state execution.WorkflowState) {
+		if s.workflowRuns == nil {
+			return
+		}
+		updated, completeErr := s.workflowRuns.Complete(requestCtx, runID, state)
+		if completeErr == nil {
+			workflowRun = updated
+		}
+	}
 	createdRun, err := s.workflowRuns.Create(requestCtx, execution.WorkflowRun{
 		RunID:     runID,
 		RequestID: executionRequest.RequestID,
@@ -81,15 +91,17 @@ func (s *Server) runMultiStepBridgeExecution(
 			Outcome:    "supervisor_multistep_workflow_unavailable",
 		})
 	}
-	workflowRun := createdRun
+	workflowRun = createdRun
 
-	s.telemetry.Emit(requestCtx, runtimeTelemetryEvent(telemetry.Event{
+	if err := s.emitTelemetry(requestCtx, runtimeTelemetryEvent(telemetry.Event{
 		Name:                string(mode) + ".accepted",
 		RequestID:           executionRequest.RequestID,
 		TraceID:             executionRequest.TraceID,
 		Lane:                executionRequest.Lane,
 		RequestedCapability: executionRequest.RequestedCapability,
-	}, executionRequest))
+	}, executionRequest)); err != nil {
+		return terminalResult(*telemetryDeliveryTerminal())
+	}
 	s.lifecycle.Transition(executionRequest.RequestID, lifecycle.StateQueued)
 	if emitProgress != nil {
 		emitProgress(executionRunnerEvent{
@@ -164,6 +176,7 @@ func (s *Server) runMultiStepBridgeExecution(
 	totalRunState := bridgeExecutionRunState{}
 	var finalBridgeResponse bridge.ExecuteResponse
 	workflowContextProjections := []execution.StepOutputProjection{}
+	lastAgentInvocationID := ""
 	for index, handoff := range executionRequest.PlannedHandoffs {
 		selectedTool := runtimeSelectedTool(handoff)
 		var appendErr error
@@ -185,6 +198,7 @@ func (s *Server) runMultiStepBridgeExecution(
 		}
 		if handoff.RequiredProjectionKind != "" &&
 			!workflowHasRequiredProjection(workflowContextProjections, handoff.RequiredProjectionKind) {
+			completeWorkflowRun(execution.WorkflowStateFailed)
 			return terminalResult(executionTerminal{
 				State:      lifecycle.StateFailed,
 				Code:       "supervisor_multistep_projection_unavailable",
@@ -200,6 +214,7 @@ func (s *Server) runMultiStepBridgeExecution(
 			workflowContextProjections...,
 		)
 		if err != nil {
+			completeWorkflowRun(execution.WorkflowStateFailed)
 			return terminalResult(executionTerminal{
 				State:      lifecycle.StateFailed,
 				Code:       "supervisor_multistep_invalid_plan",
@@ -214,14 +229,25 @@ func (s *Server) runMultiStepBridgeExecution(
 			time.Duration(s.config.BridgeTimeoutMS)*time.Millisecond,
 		)
 		bridgeStartedAt := time.Now()
-		bridgeResponse, bridgeRunState, err := s.executeBridgeWithRetry(
+		bridgeResponse, bridgeRunState, terminal, err := s.executeBridgeWithRetry(
 			bridgeCtx,
 			requestCtx,
 			executionRequest,
 			emitProgress,
-			bridge.Request{Payload: stepPayload},
+			bridge.Request{
+				Payload: stepPayload,
+				TraceHeaders: telemetry.InjectBridgeTraceHeaders(
+					requestCtx,
+					executionRequest.RequestID,
+					executionRequest.TraceID,
+				),
+			},
 		)
 		bridgeCancel()
+		if terminal != nil {
+			completeWorkflowRun(execution.WorkflowStateFailed)
+			return terminalResult(*terminal)
+		}
 		bridgeDuration := time.Since(bridgeStartedAt)
 		totalBridgeDuration += bridgeDuration
 		totalRunState.AttemptCount += bridgeRunState.AttemptCount
@@ -237,6 +263,7 @@ func (s *Server) runMultiStepBridgeExecution(
 				s.bridgeBreaker.RecordFailure()
 				s.metrics.RecordBridgeFailure(failureKind)
 			}
+			completeWorkflowRun(workflowRunStateForLifecycleState(state))
 			return terminalResult(executionTerminal{
 				State:       state,
 				Code:        code,
@@ -248,32 +275,86 @@ func (s *Server) runMultiStepBridgeExecution(
 			})
 		}
 		resultStatus := workflowStepStatus(bridgeResponse)
-		if resultStatus == "completed" {
-			if projection, ok := workflowProjectionFromBridgeResponse(
-				handoff,
-				"handoff:"+handoff.Target+":"+handoff.PayloadKind,
-				bridgeResponse,
-			); ok {
-				workflowContextProjections = append(workflowContextProjections, projection)
-				workflowRun, appendErr = s.workflowRuns.AppendStepOutputProjection(
-					requestCtx,
-					runID,
-					projection,
-				)
-				if appendErr != nil {
-					return terminalResult(executionTerminal{
-						State:      lifecycle.StateFailed,
-						Code:       "supervisor_multistep_workflow_unavailable",
-						Message:    "Supervisor multi-step workflow run state could not be updated.",
-						StatusCode: http.StatusServiceUnavailable,
-						Retryable:  true,
-						Outcome:    "supervisor_multistep_workflow_unavailable",
-					})
-				}
+		bridgeBody, _ := decodeJSONObject(bridgeResponse.Body)
+		bridgeResult, _ := bridgeBody["result"].(map[string]any)
+		bridgeAgentObservability, _ := bridgeBody["agent_observability"].(map[string]any)
+		stepID := "handoff:" + handoff.Target + ":" + handoff.PayloadKind
+		stepProjections := workflowProjectionsFromBridgeResponse(
+			handoff,
+			stepID,
+			bridgeResponse,
+		)
+		if resultStatus == "error" {
+			workflowRun, _ = s.workflowRuns.AppendStep(requestCtx, runID, execution.WorkflowStep{
+				StepID:          stepID,
+				SpanKind:        "handoff",
+				ParentStepID:    workflowRunParentStepID(index, executionRequest.PlannedHandoffs),
+				Target:          handoff.Target,
+				ToolName:        selectedTool,
+				Outcome:         resultStatus,
+				ResultStatus:    resultStatus,
+				RetryCount:      bridgeRunState.RetryCount,
+				FailCloseReason: workflowFailCloseReason(bridgeResult, bridgeAgentObservability),
+			})
+			workflowRun, _ = s.workflowRuns.Complete(
+				requestCtx,
+				runID,
+				workflowStateForStatus(resultStatus),
+			)
+			finalBridgeResponse = bridgeResponse
+			return executionRunResult{
+				BridgeResponse: finalBridgeResponse,
+				BridgeDuration: totalBridgeDuration,
+				BridgeRunState: totalRunState,
+				QueueWait:      queueWaitDuration,
+				RequestContext: requestCtx,
+				WorkflowRun:    &workflowRun,
+				complete:       complete,
+			}
+		}
+		if artifactErr := validateWorkflowStepArtifacts(handoff, stepProjections); artifactErr != nil {
+			workflowRun, _ = s.workflowRuns.AppendStep(requestCtx, runID, execution.WorkflowStep{
+				StepID:          stepID,
+				SpanKind:        "handoff",
+				ParentStepID:    workflowRunParentStepID(index, executionRequest.PlannedHandoffs),
+				Target:          handoff.Target,
+				ToolName:        selectedTool,
+				Outcome:         "failed",
+				ResultStatus:    resultStatus,
+				RetryCount:      bridgeRunState.RetryCount,
+				FailCloseReason: "artifact_incomplete",
+			})
+			completeWorkflowRun(execution.WorkflowStateFailed)
+			return terminalResult(executionTerminal{
+				State:      lifecycle.StateFailed,
+				Code:       "supervisor_multistep_artifact_incomplete",
+				Message:    artifactErr.Error(),
+				StatusCode: http.StatusBadGateway,
+				Retryable:  false,
+				Outcome:    "supervisor_multistep_artifact_incomplete",
+			})
+		}
+		for _, projection := range stepProjections {
+			workflowContextProjections = append(workflowContextProjections, projection)
+			workflowRun, appendErr = s.workflowRuns.AppendStepOutputProjection(
+				requestCtx,
+				runID,
+				projection,
+			)
+			if appendErr != nil {
+				completeWorkflowRun(execution.WorkflowStateFailed)
+				return terminalResult(executionTerminal{
+					State:      lifecycle.StateFailed,
+					Code:       "supervisor_multistep_workflow_unavailable",
+					Message:    "Supervisor multi-step workflow run state could not be updated.",
+					StatusCode: http.StatusServiceUnavailable,
+					Retryable:  true,
+					Outcome:    "supervisor_multistep_workflow_unavailable",
+				})
 			}
 		}
 		workflowRun, _ = s.workflowRuns.AppendStep(requestCtx, runID, execution.WorkflowStep{
-			StepID:       "handoff:" + handoff.Target + ":" + handoff.PayloadKind,
+			StepID:       stepID,
 			SpanKind:     "handoff",
 			ParentStepID: workflowRunParentStepID(index, executionRequest.PlannedHandoffs),
 			Target:       handoff.Target,
@@ -282,9 +363,63 @@ func (s *Server) runMultiStepBridgeExecution(
 			ResultStatus: resultStatus,
 			RetryCount:   bridgeRunState.RetryCount,
 		})
+		invocationID := "agent-invocation:" + handoff.Target + ":" + handoff.PayloadKind
+		parentInvocationID := ""
+		if index > 0 {
+			parentInvocationID = lastAgentInvocationID
+		}
+		workflowRun, _ = s.workflowRuns.AppendAgentInvocation(requestCtx, runID, execution.AgentInvocation{
+			InvocationID:       invocationID,
+			ParentInvocationID: parentInvocationID,
+			WorkflowRunRef:     runID,
+			StepID:             stepID,
+			AgentID:            handoff.Target,
+			Status:             resultStatus,
+			AllowedTools:       append([]string{}, handoff.AllowedTools...),
+			UsedTools:          workflowSelectedTools(nil, selectedTool),
+			ProjectionIDs:      workflowInputProjectionIDsForHandoff(handoff, workflowContextProjections),
+		})
+		if selectedTool != "" {
+			toolArgumentSummary := workflowHandoffPayloadSummary(&handoff)
+			toolArgumentSummary["payload_kind"] = handoff.PayloadKind
+			toolArgumentSummary["selected_tool"] = selectedTool
+			toolSummary := execution.ToolCallSummary{
+				ToolCallID:        runID + ":" + stepID,
+				WorkflowRunRef:    runID,
+				StepID:            stepID,
+				LifecycleState:    workflowToolLifecycleState(resultStatus),
+				ResultProjection:  "bounded_summary",
+				RawResultIncluded: false,
+				ToolName:          selectedTool,
+				Target:            handoff.Target,
+				ResultStatus:      resultStatus,
+				ArgumentSummary:   safeWorkflowMap(toolArgumentSummary),
+				SourceIDs: workflowSummarySourceIDs(
+					bridgeResult,
+					bridgeAgentObservability,
+				),
+				SafeDetails:                workflowSafeDetails(bridgeAgentObservability),
+				ProviderToolCallProjection: workflowProviderToolCallProjection(bridgeAgentObservability),
+			}
+			if businessOutcome := workflowBusinessOutcome(bridgeResult, bridgeAgentObservability); businessOutcome != "" {
+				toolSummary.BusinessOutcome = businessOutcome
+			}
+			if failCloseReason := workflowFailCloseReason(bridgeResult, bridgeAgentObservability); failCloseReason != "" {
+				toolSummary.FailCloseReason = failCloseReason
+			}
+			if accessDecision := stringValue(bridgeAgentObservability["access_decision"]); accessDecision != "" {
+				toolSummary.AccessDecision = accessDecision
+			}
+			workflowRun, _ = s.workflowRuns.AppendToolCallSummary(requestCtx, runID, toolSummary)
+		}
+		lastAgentInvocationID = invocationID
 		finalBridgeResponse = bridgeResponse
 		if resultStatus != "completed" {
-			workflowRun, _ = s.workflowRuns.Complete(requestCtx, runID, execution.WorkflowStateFailed)
+			workflowRun, _ = s.workflowRuns.Complete(
+				requestCtx,
+				runID,
+				workflowStateForStatus(resultStatus),
+			)
 			return executionRunResult{
 				BridgeResponse: finalBridgeResponse,
 				BridgeDuration: totalBridgeDuration,
@@ -318,91 +453,5 @@ func (s *Server) runMultiStepBridgeExecution(
 		RequestContext: requestCtx,
 		WorkflowRun:    &workflowRun,
 		complete:       complete,
-	}
-}
-
-func runtimeSelectedTool(handoff execution.RuntimeHandoff) string {
-	if len(handoff.AllowedTools) == 1 {
-		return handoff.AllowedTools[0]
-	}
-	if handoff.Target == "rag-agent" {
-		return "retrieval.query"
-	}
-	return ""
-}
-
-func workflowStepStatus(response bridge.ExecuteResponse) string {
-	if response.Kind != "agent_response" {
-		return "error"
-	}
-	body, err := decodeJSONObject(response.Body)
-	if err != nil {
-		return "error"
-	}
-	status, _ := body["status"].(string)
-	if status == "" {
-		return "error"
-	}
-	return status
-}
-
-func workflowRunParentStepID(index int, handoffs []execution.RuntimeHandoff) string {
-	if index <= 0 || index > len(handoffs)-1 {
-		return "runtime_policy"
-	}
-	previous := handoffs[index-1]
-	return "handoff:" + previous.Target + ":" + previous.PayloadKind
-}
-
-func workflowProjectionFromBridgeResponse(
-	handoff execution.RuntimeHandoff,
-	sourceStepID string,
-	response bridge.ExecuteResponse,
-) (execution.StepOutputProjection, bool) {
-	if handoff.Target != "notice-agent" || runtimeSelectedTool(handoff) != "campus_notice_get" {
-		return execution.StepOutputProjection{}, false
-	}
-	if response.Kind != "agent_response" {
-		return execution.StepOutputProjection{}, false
-	}
-	body, err := decodeJSONObject(response.Body)
-	if err != nil {
-		return execution.StepOutputProjection{}, false
-	}
-	if status, _ := body["status"].(string); status != "completed" {
-		return execution.StepOutputProjection{}, false
-	}
-	result, _ := body["result"].(map[string]any)
-	noticeBody := firstWorkflowString(result, "normalized_body", "body_text", "body")
-	if noticeBody == "" {
-		noticeBody, _ = body["answer_text"].(string)
-	}
-	return execution.NewNoticeContextProjection(
-		sourceStepID,
-		firstWorkflowString(result, "title"),
-		noticeBody,
-		firstWorkflowString(result, "source_url", "canonical_url"),
-	)
-}
-
-func firstWorkflowString(record map[string]any, keys ...string) string {
-	for _, key := range keys {
-		if value, _ := record[key].(string); value != "" {
-			return value
-		}
-	}
-	return ""
-}
-
-func workflowHasRequiredProjection(
-	projections []execution.StepOutputProjection,
-	requiredProjectionKind string,
-) bool {
-	switch requiredProjectionKind {
-	case string(execution.ProjectionKindNoticeContext):
-		_, ok := execution.FirstProjectionOfKind(projections, execution.ProjectionKindNoticeContext)
-		return ok
-	default:
-		return false
 	}
 }
