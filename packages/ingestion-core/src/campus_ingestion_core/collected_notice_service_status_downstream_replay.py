@@ -11,6 +11,7 @@ from campus_ingestion_core.campusrag_ingestion_reporting import utc_now
 from campus_ingestion_core.collected_notice_fact_readiness import (
     TARGET_ADMISSION_NEEDS_MULTIMODAL,
     build_service_status_fact_readiness,
+    fact_readiness_entry_fields,
 )
 from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_core.notice_consumption_projection import (
@@ -391,9 +392,7 @@ def _admission_entry(decision: _ServiceStatusDecision) -> dict[str, Any]:
         "target_surface": NOTICE_TARGET_SURFACE_SERVICE_STATUS_CANDIDATE if admitted else None,
         "target_hints": unit.get("target_hints") or {},
         "multimodal_policy": _multimodal_policy(unit),
-        "fact_readiness_state": decision.fact_readiness["fact_readiness_state"],
-        "target_admission_state": decision.fact_readiness["target_admission_state"],
-        "fact_readiness": decision.fact_readiness,
+        **fact_readiness_entry_fields(decision.fact_readiness),
         "reason_codes": decision.reason_codes,
         "preconditions": [
             "searchable_unit_present",

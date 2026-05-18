@@ -25,7 +25,9 @@ func matchServiceGuideRecords(
 			normalizeSearchText(record.CampusScope) != campusScope {
 			continue
 		}
-		if audience != "" && audience != "unknown" && !stringSliceContainsNormalized(record.Audience, audience) {
+		if audience != "" && audience != "unknown" && len(record.Audience) > 0 &&
+			!stringSliceContainsNormalized(record.Audience, "unknown") &&
+			!stringSliceContainsNormalized(record.Audience, audience) {
 			continue
 		}
 		score := scoreServiceGuideRecord(query, record)
@@ -44,7 +46,7 @@ func matchServiceGuideRecords(
 
 func scoreServiceGuideRecord(query string, record serviceGuideRecord) int {
 	queryVariants := serviceGuideQueryVariants(query)
-	candidates := append([]string{record.ServiceID, record.DisplayName}, record.Aliases...)
+	candidates := serviceGuideRecordSearchTexts(record)
 	best := 0
 	for _, candidate := range candidates {
 		normalized := normalizeSearchText(candidate)
@@ -60,6 +62,8 @@ func scoreServiceGuideRecord(query string, record serviceGuideRecord) int {
 				score = len([]rune(normalized))
 			case strings.Contains(normalized, queryVariant):
 				score = len([]rune(queryVariant))
+			default:
+				score = sharedSearchTextScore(queryVariant, normalized)
 			}
 			if score > best {
 				best = score
@@ -67,6 +71,28 @@ func scoreServiceGuideRecord(query string, record serviceGuideRecord) int {
 		}
 	}
 	return best
+}
+
+func serviceGuideRecordSearchTexts(record serviceGuideRecord) []string {
+	values := []string{record.ServiceID, record.DisplayName}
+	values = append(values, record.Aliases...)
+	for _, section := range record.GuideSections {
+		values = append(values, section.Title, section.Content)
+	}
+	for _, material := range record.Materials {
+		values = append(values, material.Name, material.Note)
+	}
+	for _, entry := range record.EntryRefs {
+		values = append(values, entry.Label, entry.LocationRef)
+	}
+	for _, hours := range record.OfficeHours {
+		values = append(values, hours.Label, hours.DayPattern, hours.TimeRange, hours.EffectiveNote)
+	}
+	for _, contact := range record.ContactRefs {
+		values = append(values, contact.Label, contact.Department, contact.Phone, contact.Email, contact.LocationRef)
+	}
+	values = append(values, record.EligibilityNotes...)
+	return values
 }
 
 func serviceGuideQueryVariants(query string) []string {
@@ -80,11 +106,31 @@ func serviceGuideQueryVariants(query string) []string {
 		"在哪里",
 		"在哪儿",
 		"哪里",
+		"链接是什么",
+		"链接",
+		"网址是什么",
+		"地址是什么",
+		"申请表在哪里下载",
+		"在哪里下载",
+		"在哪下载",
+		"下载地址",
+		"下载链接",
 		"需要什么",
 		"需要哪些",
+		"电话是多少",
+		"联系电话",
+		"电话",
+		"忘记密码",
+		"修改密码",
+		"重置密码",
+		"丢了",
 		"怎么办",
 		"怎么",
 		"如何",
+		"，",
+		"。",
+		"？",
+		"?",
 	} {
 		canonical = strings.ReplaceAll(canonical, phrase, "")
 	}

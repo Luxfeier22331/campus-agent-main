@@ -101,8 +101,14 @@ def _page_bundle_entry(
     raw_version_id: str,
     normalized_canonical_url: str,
     page_family: str,
+    consumer_matches: list[dict[str, object]] | None = None,
+    target_matches: list[dict[str, object]] | None = None,
+    source_pack_id: str | None = None,
+    source_pack_entry_id: str | None = None,
+    composition_group: str | None = None,
+    composition_role: str | None = None,
 ) -> dict[str, object]:
-    return {
+    entry = {
         "rawAssetId": raw_asset_id,
         "rawVersionId": raw_version_id,
         "normalizedCanonicalUrl": normalized_canonical_url,
@@ -115,6 +121,34 @@ def _page_bundle_entry(
         "responseBodyHash": f"hash-{raw_asset_id}",
         "blockCount": 3,
     }
+    if consumer_matches is not None:
+        entry["consumerMatches"] = consumer_matches
+        entry["consumerRetentionDecision"] = "retain_source_truth"
+    if target_matches is not None:
+        entry["targetMatches"] = target_matches
+        entry["targetJobId"] = target_matches[0]["targetJobId"] if target_matches else None
+        entry["targetCandidateId"] = (
+            target_matches[0]["targetCandidateId"] if target_matches else None
+        )
+        entry["targetDeclarationVersion"] = (
+            target_matches[0]["targetDeclarationVersion"] if target_matches else None
+        )
+        entry["materializationPolicy"] = (
+            target_matches[0]["materializationPolicy"] if target_matches else None
+        )
+        entry["selectedWriteTarget"] = (
+            target_matches[0]["selectedWriteTarget"] if target_matches else ""
+        )
+        entry["reviewPolicy"] = target_matches[0]["reviewPolicy"] if target_matches else None
+    if source_pack_id is not None:
+        entry["sourcePackId"] = source_pack_id
+    if source_pack_entry_id is not None:
+        entry["sourcePackEntryId"] = source_pack_entry_id
+    if composition_group is not None:
+        entry["compositionGroup"] = composition_group
+    if composition_role is not None:
+        entry["compositionRole"] = composition_role
+    return entry
 
 
 def _write_output_page(
@@ -130,6 +164,12 @@ def _write_output_page(
     blocks: list[dict[str, object]],
     published_at: str | None = None,
     last_modified: str | None = None,
+    consumer_matches: list[dict[str, object]] | None = None,
+    target_matches: list[dict[str, object]] | None = None,
+    source_pack_id: str | None = None,
+    source_pack_entry_id: str | None = None,
+    composition_group: str | None = None,
+    composition_role: str | None = None,
 ) -> None:
     base_dir = output_dir / "source-assets" / raw_asset_id / raw_version_id
     _write_json(
@@ -176,9 +216,81 @@ def _write_output_page(
             "hostPolicyVersion": "campus_public_hosts_v1",
             "crawlPolicyVersion": "campus_public_crawl_policy_v1",
             "credentialsMode": "public",
+            **(
+                {
+                    "consumerDenominatorVersion": "test_consumer_denominator_v1",
+                    "consumerMatches": consumer_matches,
+                    "consumerRetentionDecision": "retain_source_truth",
+                    "consumerRejectionReason": None,
+                }
+                if consumer_matches is not None
+                else {}
+            ),
+            **(
+                {
+                    "targetJobId": target_matches[0]["targetJobId"] if target_matches else None,
+                    "targetCandidateId": (
+                        target_matches[0]["targetCandidateId"] if target_matches else None
+                    ),
+                    "targetDeclarationVersion": (
+                        target_matches[0]["targetDeclarationVersion"] if target_matches else None
+                    ),
+                    "targetMatches": target_matches,
+                    "materializationPolicy": (
+                        target_matches[0]["materializationPolicy"] if target_matches else None
+                    ),
+                    "selectedWriteTarget": (
+                        target_matches[0]["selectedWriteTarget"] if target_matches else ""
+                    ),
+                    "reviewPolicy": target_matches[0]["reviewPolicy"] if target_matches else None,
+                }
+                if target_matches is not None
+                else {}
+            ),
+            **(
+                {
+                    "sourcePackId": source_pack_id,
+                    "sourcePackEntryId": source_pack_entry_id,
+                    "compositionGroup": composition_group,
+                    "compositionRole": composition_role,
+                }
+                if source_pack_id is not None
+                else {}
+            ),
         },
     )
     _write_jsonl(base_dir / "source-truth" / "content-blocks.jsonl", blocks)
+
+
+def _target_match(
+    *,
+    consumer_family: str,
+    materialization_policy: str,
+    selected_write_target: str,
+    target_id: str,
+    target_job_id: str = "owtargetjob_test",
+    target_candidate_id: str | None = "owtargetcandidate_test",
+    target_declaration_version: str = "muc_public_target_source_map_v2",
+    target_label: str | None = None,
+    retention_policy: str = "retain_source_truth",
+    review_policy: str = "selected_write_requires_review",
+    workset_reason: str = "target_source_map_match",
+) -> dict[str, object]:
+    payload = {
+        "targetJobId": target_job_id,
+        "targetCandidateId": target_candidate_id,
+        "targetId": target_id,
+        "targetDeclarationVersion": target_declaration_version,
+        "consumerFamily": consumer_family,
+        "retentionPolicy": retention_policy,
+        "materializationPolicy": materialization_policy,
+        "selectedWriteTarget": selected_write_target,
+        "reviewPolicy": review_policy,
+        "worksetReason": workset_reason,
+    }
+    if target_label is not None:
+        payload["targetLabel"] = target_label
+    return payload
 
 
 def _block(
@@ -194,6 +306,9 @@ def _block(
     is_main_content: bool = True,
     is_navigation: bool = False,
     is_boilerplate: bool = False,
+    html_fragment: str | None = None,
+    link_target: str | None = None,
+    dom_path: str | None = None,
 ) -> dict[str, object]:
     return {
         "schemaVersion": "official_web_content_block.v1",
@@ -204,7 +319,7 @@ def _block(
         "blockOrder": block_order,
         "blockRole": block_role,
         "headingLevel": 1 if block_role in {"title", "heading"} else None,
-        "domPath": None,
+        "domPath": dom_path,
         "parentHeadingPath": parent_heading_path or [],
         "listLevel": None,
         "tableId": None,
@@ -212,8 +327,8 @@ def _block(
         "tableColIndex": None,
         "textRaw": text,
         "textNormalized": text,
-        "htmlFragment": None,
-        "linkTarget": None,
+        "htmlFragment": html_fragment,
+        "linkTarget": link_target,
         "linkText": None,
         "tableHtml": None,
         "tableCells": None,

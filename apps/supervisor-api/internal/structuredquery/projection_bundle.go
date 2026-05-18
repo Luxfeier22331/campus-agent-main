@@ -57,6 +57,17 @@ func (r *Runtime) loadContactDirectoryBundle(ctx context.Context) (projectionBun
 	)
 }
 
+func (r *Runtime) loadAcademicCalendarBundle(ctx context.Context) (projectionBundle, error) {
+	if r.academicCalendarReadModelStore == nil {
+		return projectionBundle{}, errors.New("academic calendar read model store is not configured")
+	}
+	return loadProjectionBundleFromStore(
+		ctx,
+		r.academicCalendarReadModelStore,
+		&r.academicCalendarBundleCache,
+	)
+}
+
 func loadProjectionBundleFromStore(
 	ctx context.Context,
 	store projectionReleaseStore,

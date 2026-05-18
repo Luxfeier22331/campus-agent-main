@@ -545,9 +545,24 @@ def _resolve_attachment_records(
     records: list[DocumentRegistryRecord] = []
     for document_id in document_ids:
         record = _resolve_registry_record(registry=registry, document_id=document_id)
+        if record is None:
+            record = _resolve_schedule_ocr_child_record(
+                registry=registry,
+                document_id=document_id,
+            )
         if record is not None:
             records.append(record)
     return tuple(records)
+
+
+def _resolve_schedule_ocr_child_record(
+    *,
+    registry: DocumentRegistry,
+    document_id: str,
+) -> DocumentRegistryRecord | None:
+    if not document_id.startswith("notice_attachment:") or document_id.endswith(":schedule-ocr"):
+        return None
+    return _resolve_registry_record(registry=registry, document_id=f"{document_id}:schedule-ocr")
 
 
 def _resolve_registry_record(

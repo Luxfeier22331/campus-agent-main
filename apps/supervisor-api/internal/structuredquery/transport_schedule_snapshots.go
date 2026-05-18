@@ -54,14 +54,7 @@ func selectTransportScheduleSnapshot(
 				}, true
 			}
 		}
-		if len(snapshots) == 0 {
-			return transportSnapshotSelection{}, false
-		}
-		return transportSnapshotSelection{
-			record:                    snapshots[0],
-			outcome:                   "resolved_historical_reference",
-			historicalDowngradeReason: "current_year_miss",
-		}, true
+		return transportSnapshotSelection{}, false
 	default:
 		return transportSnapshotSelection{}, false
 	}

@@ -16,18 +16,17 @@ type serviceStatusRequest struct {
 }
 
 type serviceStatusResult struct {
-	SubjectQuery              string   `json:"subject_query"`
-	Outcome                   string   `json:"outcome"`
-	ResolvedSubject           string   `json:"resolved_subject,omitempty"`
-	ObservedStatus            string   `json:"observed_status,omitempty"`
-	StatusNote                string   `json:"status_note,omitempty"`
-	QueriedTimeAnchor         string   `json:"queried_time_anchor,omitempty"`
-	EffectiveFrom             string   `json:"effective_from,omitempty"`
-	EffectiveUntil            string   `json:"effective_until,omitempty"`
-	OverrideSourceRefs        []string `json:"override_source_refs,omitempty"`
-	RelatedNoticeRefs         []string `json:"related_notice_refs,omitempty"`
-	HistoricalDowngradeReason string   `json:"historical_downgrade_reason,omitempty"`
-	FailCloseReason           string   `json:"fail_close_reason,omitempty"`
+	SubjectQuery       string   `json:"subject_query"`
+	Outcome            string   `json:"outcome"`
+	ResolvedSubject    string   `json:"resolved_subject,omitempty"`
+	ObservedStatus     string   `json:"observed_status,omitempty"`
+	StatusNote         string   `json:"status_note,omitempty"`
+	QueriedTimeAnchor  string   `json:"queried_time_anchor,omitempty"`
+	EffectiveFrom      string   `json:"effective_from,omitempty"`
+	EffectiveUntil     string   `json:"effective_until,omitempty"`
+	OverrideSourceRefs []string `json:"override_source_refs,omitempty"`
+	RelatedNoticeRefs  []string `json:"related_notice_refs,omitempty"`
+	FailCloseReason    string   `json:"fail_close_reason,omitempty"`
 }
 
 type serviceStatusRecord struct {
@@ -100,12 +99,7 @@ func (r *Runtime) LookupServiceStatus(ctx context.Context, rawBody []byte) Respo
 	}
 	matchResult := matchServiceStatusRecord(bundle.ServiceStatusRecords, request, queryTime)
 	if matchResult.err != nil {
-		return failClosedServiceStatusWithHistoricalReason(
-			request.SubjectQuery,
-			timeAnchor,
-			matchResult.err.Error(),
-			matchResult.historicalDowngradeReason,
-		)
+		return failClosedServiceStatus(request.SubjectQuery, timeAnchor, matchResult.err.Error())
 	}
 	if matchResult.ambiguous {
 		body := serviceStatusResult{
@@ -140,33 +134,22 @@ func (r *Runtime) LookupServiceStatus(ctx context.Context, rawBody []byte) Respo
 }
 
 func failClosedServiceStatus(subjectQuery string, timeAnchor string, reason string) Response {
-	return failClosedServiceStatusWithHistoricalReason(subjectQuery, timeAnchor, reason, "")
-}
-
-func failClosedServiceStatusWithHistoricalReason(
-	subjectQuery string,
-	timeAnchor string,
-	reason string,
-	historicalDowngradeReason string,
-) Response {
 	body := serviceStatusResult{
-		SubjectQuery:              subjectQuery,
-		Outcome:                   "temporarily_unverifiable",
-		ObservedStatus:            "unknown",
-		QueriedTimeAnchor:         timeAnchor,
-		FailCloseReason:           reason,
-		HistoricalDowngradeReason: historicalDowngradeReason,
+		SubjectQuery:      subjectQuery,
+		Outcome:           "temporarily_unverifiable",
+		ObservedStatus:    "unknown",
+		QueriedTimeAnchor: timeAnchor,
+		FailCloseReason:   reason,
 	}
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 }
 
 type serviceStatusMatchResult struct {
-	record                    serviceStatusRecord
-	recordStatus              serviceStatusRecordStatus
-	ok                        bool
-	ambiguous                 bool
-	err                       error
-	historicalDowngradeReason string
+	record       serviceStatusRecord
+	recordStatus serviceStatusRecordStatus
+	ok           bool
+	ambiguous    bool
+	err          error
 }
 
 func matchServiceStatusRecord(
@@ -202,10 +185,7 @@ func matchServiceStatusRecord(
 	}
 	if len(matches) == 0 {
 		if everMatched {
-			return serviceStatusMatchResult{
-				err:                       errors.New("current_state_unverifiable"),
-				historicalDowngradeReason: "current_effective_miss",
-			}
+			return serviceStatusMatchResult{err: errors.New("current_state_unverifiable")}
 		}
 		return serviceStatusMatchResult{ok: false}
 	}

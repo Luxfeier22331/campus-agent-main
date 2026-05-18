@@ -19,10 +19,9 @@ SOURCE_UNIT_STATES = frozenset(
 
 MEDIA_STATES = frozenset(
     (
-        "not_required",
-        "ocr_pending",
-        "ocr_ready",
-        "ocr_low_confidence",
+        "pending",
+        "completed",
+        "skipped",
         "manual_review",
         "failed_retryable",
         "failed_terminal",
@@ -37,6 +36,7 @@ FACT_READINESS_STATES = frozenset(
         "ready_from_mixed_sources",
         "partial",
         "missing",
+        "not_applicable",
         "blocked_by_required_media",
         "review_required",
     )
@@ -85,6 +85,40 @@ def validate_fact_state_payload(payload: Mapping[str, Any]) -> None:
         )
         if not isinstance(media_state.get("target_blocking"), bool):
             raise ValueError(f"media_states[{index}].target_blocking must be a boolean")
+    for index, media_state in enumerate(payload.get("blocking_media") or ()):
+        if not isinstance(media_state, Mapping):
+            raise ValueError(f"blocking_media[{index}] must be an object")
+        if media_state.get("target_blocking") is not True:
+            raise ValueError(f"blocking_media[{index}].target_blocking must be true")
+        _require_value(
+            media_state,
+            "media_state",
+            {"pending", "manual_review", "failed_retryable"},
+            prefix=f"blocking_media[{index}]",
+        )
+    _validate_state_combinations(payload)
+
+
+def _validate_state_combinations(payload: Mapping[str, Any]) -> None:
+    target_admission_state = str(payload.get("target_admission_state") or "")
+    fact_readiness_state = str(payload.get("fact_readiness_state") or "")
+    blocking_media = tuple(payload.get("blocking_media") or ())
+    if target_admission_state == "needs_multimodal":
+        if fact_readiness_state != "blocked_by_required_media":
+            raise ValueError("needs_multimodal requires blocked_by_required_media")
+        if not blocking_media:
+            raise ValueError("needs_multimodal requires blocking_media")
+    if target_admission_state == "stage_ready" and blocking_media:
+        raise ValueError("stage_ready must not include blocking_media")
+    if fact_readiness_state == "blocked_by_required_media" and not blocking_media:
+        raise ValueError("blocked_by_required_media requires blocking_media")
+    if fact_readiness_state in {
+        "ready_from_text",
+        "ready_from_owner_text",
+        "ready_from_ocr",
+        "not_applicable",
+    } and payload.get("missing_fact_groups"):
+        raise ValueError(f"{fact_readiness_state} must not include missing_fact_groups")
 
 
 def _require_text(

@@ -85,6 +85,14 @@ func (r *Runtime) lookupContactDirectory(
 	}
 	body := contactDirectoryResultFromRecord(request, record, timeAnchor)
 	if !contactDirectoryFocusSatisfied(body) {
+		if contactDirectoryFocusNotProvidedBySource(record, request.ContactFocus) {
+			return failClosedContactDirectoryForRecord(
+				request,
+				record,
+				timeAnchor,
+				"field_not_provided_by_source",
+			)
+		}
 		return failClosedContactDirectory(request, timeAnchor, "stable_contact_unavailable")
 	}
 	if len(body.SourceRefs) == 0 {

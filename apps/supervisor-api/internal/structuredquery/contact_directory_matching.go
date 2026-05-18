@@ -27,7 +27,8 @@ func matchContactDirectoryRecords(
 			!stringSliceContainsNormalized(record.Audience, audience) {
 			continue
 		}
-		score := scoreContactDirectoryRecord(queryVariants, record)
+		score := scoreContactDirectoryRecord(queryVariants, record) +
+			scoreContactDirectoryEntitySelector(record, request.EntitySelector)
 		if score <= 0 {
 			continue
 		}
@@ -181,6 +182,8 @@ func scoreContactDirectoryRecord(queryVariants []string, record contactDirectory
 				score = len([]rune(normalized))
 			case strings.Contains(normalized, queryVariant):
 				score = len([]rune(queryVariant))
+			default:
+				score = sharedSearchTextScore(queryVariant, normalized)
 			}
 			if score > best {
 				best = score
@@ -237,6 +240,97 @@ func matchesContactDirectoryEntitySelector(
 		return false
 	}
 	return true
+}
+
+func scoreContactDirectoryEntitySelector(
+	record contactDirectoryRecord,
+	selector *contactDirectoryEntitySelector,
+) int {
+	if selector == nil {
+		return 0
+	}
+	score := 0
+	score += scoreContactDirectorySelectorField(
+		selector.DepartmentQuery,
+		[]string{record.Department, record.DisplayName},
+		record.Aliases,
+	)
+	score += scoreContactDirectorySelectorField(
+		selector.OfficeQuery,
+		[]string{record.Department, record.DisplayName},
+		record.Aliases,
+	)
+	score += scoreContactDirectorySelectorField(
+		selector.ServiceQuery,
+		[]string{record.Department, record.DisplayName},
+		record.Aliases,
+	)
+	score += scoreContactDirectorySelectorField(
+		selector.PersonQuery,
+		[]string{record.DisplayName, record.Department},
+		record.Aliases,
+	)
+	score += scoreContactDirectorySelectorField(
+		selector.RoleQuery,
+		[]string{record.DisplayName, record.Department, record.ContactGroup},
+		record.Aliases,
+	)
+	score += scoreContactDirectorySelectorField(
+		selector.PurposeQuery,
+		[]string{record.ContactGroup, record.Department, record.DisplayName},
+		record.Aliases,
+	)
+	score += scoreContactDirectorySelectorField(
+		selector.ContactGroupQuery,
+		[]string{record.ContactGroup, record.Department, record.DisplayName},
+		record.Aliases,
+	)
+	score += scoreContactDirectorySelectorField(
+		selector.LocationQuery,
+		contactDirectoryLocationTexts(record),
+		nil,
+	)
+	return score
+}
+
+func scoreContactDirectorySelectorField(
+	query string,
+	primaryValues []string,
+	secondaryValues []string,
+) int {
+	normalizedQuery := normalizeSearchText(query)
+	if normalizedQuery == "" {
+		return 0
+	}
+	best := 0
+	for _, value := range primaryValues {
+		best = max(best, scoreContactDirectorySelectorValue(normalizedQuery, value, 500))
+	}
+	for _, value := range secondaryValues {
+		best = max(best, scoreContactDirectorySelectorValue(normalizedQuery, value, 250))
+	}
+	return best
+}
+
+func scoreContactDirectorySelectorValue(
+	normalizedQuery string,
+	value string,
+	exactBase int,
+) int {
+	normalizedValue := normalizeSearchText(value)
+	if normalizedValue == "" {
+		return 0
+	}
+	switch {
+	case normalizedQuery == normalizedValue:
+		return exactBase + len([]rune(normalizedValue))
+	case strings.Contains(normalizedQuery, normalizedValue):
+		return exactBase/2 + len([]rune(normalizedValue))
+	case strings.Contains(normalizedValue, normalizedQuery):
+		return exactBase/4 + len([]rune(normalizedQuery))
+	default:
+		return sharedSearchTextScore(normalizedQuery, normalizedValue)
+	}
 }
 
 func contactDirectoryFieldMatch(query string, candidates []string) bool {

@@ -17,6 +17,7 @@ type contactDirectoryResult struct {
 	EffectiveUntil      string                         `json:"effective_until,omitempty"`
 	ClarificationReason string                         `json:"clarification_reason,omitempty"`
 	FailCloseReason     string                         `json:"fail_close_reason,omitempty"`
+	FieldStatus         map[string]string              `json:"field_status,omitempty"`
 }
 
 type contactDirectoryContactRef struct {
@@ -91,6 +92,7 @@ type contactDirectoryRecord struct {
 	OfficeHours      []any                               `json:"office_hours"`
 	SourceRefs       []string                            `json:"source_refs"`
 	ExtractionStatus string                              `json:"extraction_status"`
+	FieldStatus      map[string]string                   `json:"field_status"`
 }
 
 type contactDirectoryPhoneRecord struct {
