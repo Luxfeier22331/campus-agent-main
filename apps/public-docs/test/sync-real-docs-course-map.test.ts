@@ -410,11 +410,11 @@ describe("course-map rendering and artifact sync", () => {
 		};
 		const objects = new Map<string, string | Uint8Array>([
 			[
-				"curriculum/documents/curriculum_plan/computer/source-faithful/2022/reader-assets/course-maps.json",
+				"curriculum/documents/curriculum_plan/computer/source-faithful/2022/docs-surfaces/course-maps.json",
 				JSON.stringify(surface),
 			],
 			[
-				"curriculum/documents/curriculum_plan/computer/source-faithful/2022/reader-assets/course-maps/map-01.png",
+				"curriculum/documents/curriculum_plan/computer/source-faithful/2022/docs-surfaces/course-maps/map-01.png",
 				new Uint8Array([137, 80, 78, 71]),
 			],
 		]);
@@ -502,7 +502,7 @@ describe("course-map rendering and artifact sync", () => {
 					displayStageLabels: ["一年级下学期"],
 					extractionNotes: ["建议核对原图"],
 					imagePath:
-						"curriculum/documents/curriculum_plan/mixed/source-faithful/2022/reader-assets/course-maps/map-02.png",
+						"curriculum/documents/curriculum_plan/mixed/source-faithful/2022/docs-surfaces/course-maps/map-02.png",
 					nodes: [
 						{
 							nodeId: "node-2",
@@ -517,15 +517,15 @@ describe("course-map rendering and artifact sync", () => {
 		};
 		const objects = new Map<string, string | Uint8Array>([
 			[
-				"curriculum/documents/curriculum_plan/mixed/source-faithful/2022/reader-assets/course-maps.json",
+				"curriculum/documents/curriculum_plan/mixed/source-faithful/2022/docs-surfaces/course-maps.json",
 				JSON.stringify(surface),
 			],
 			[
-				"curriculum/documents/curriculum_plan/mixed/source-faithful/2022/reader-assets/course-maps/map-01.png",
+				"curriculum/documents/curriculum_plan/mixed/source-faithful/2022/docs-surfaces/course-maps/map-01.png",
 				new Uint8Array([1, 2, 3]),
 			],
 			[
-				"curriculum/documents/curriculum_plan/mixed/source-faithful/2022/reader-assets/course-maps/map-02.png",
+				"curriculum/documents/curriculum_plan/mixed/source-faithful/2022/docs-surfaces/course-maps/map-02.png",
 				new Uint8Array([4, 5, 6]),
 			],
 		]);

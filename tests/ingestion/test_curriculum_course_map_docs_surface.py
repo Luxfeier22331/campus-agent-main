@@ -49,14 +49,14 @@ class _RecordingObjectStore:
 
 
 class CurriculumCourseMapDocsSurfaceTest(unittest.TestCase):
-    def test_build_surface_object_key_uses_reader_assets_sibling(self) -> None:
+    def test_build_surface_object_key_uses_docs_surfaces_sibling(self) -> None:
         key = build_curriculum_course_map_docs_surface_object_key(
             "curriculum/documents/curriculum_plan/example/current-effective/2022/document-units.jsonl"
         )
 
         self.assertEqual(
             key,
-            "curriculum/documents/curriculum_plan/example/current-effective/2022/reader-assets/course-maps.json",
+            "curriculum/documents/curriculum_plan/example/current-effective/2022/docs-surfaces/course-maps.json",
         )
 
     def test_build_surface_artifact_publishes_ready_partial_and_failed_blocks(self) -> None:
@@ -495,7 +495,7 @@ class CurriculumCourseMapDocsSurfaceTest(unittest.TestCase):
     def test_purge_scope_keeps_other_reader_assets(self) -> None:
         surface_key = (
             "curriculum/documents/curriculum_plan/example/current-effective/2022/"
-            "reader-assets/course-maps.json"
+            "docs-surfaces/course-maps.json"
         )
         store = _RecordingObjectStore()
 
@@ -511,8 +511,7 @@ class CurriculumCourseMapDocsSurfaceTest(unittest.TestCase):
                 ("campus-rag-derived", surface_key),
                 (
                     "campus-rag-derived",
-                    "curriculum/documents/curriculum_plan/example/current-effective/2022/"
-                    "reader-assets/course-maps/",
+                    "curriculum/documents/curriculum_plan/example/current-effective/2022/docs-surfaces/course-maps/",
                 ),
             ],
         )

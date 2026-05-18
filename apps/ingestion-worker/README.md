@@ -109,6 +109,48 @@ uv run --package campus-ingestion-worker campus-ingestion-prune-reports \
   --keep-failed
 ```
 
+### Authenticated Notice Source Attachment Cleanup
+
+`campus-ingestion-audit-authenticated-notice-source-attachment-keys` audits
+`campus-rag-source` authenticated-notice attachment objects against canonical
+`source-truth/attachment-refs.jsonl`.
+
+`campus-ingestion-cleanup-authenticated-notice-source-attachment-keys` can delete
+only explicit candidate inventories. Destructive cleanup requires `--yes`;
+dry-run should be run first.
+
+Runbook:
+
+- `docs/runbooks/authenticated-notice-source-bucket-attachment-cleanup-runbook.md`
+
+### Object Store Hygiene And Serving Seed
+
+`campus-ingestion-audit-source-bucket-hygiene` and
+`campus-ingestion-audit-derived-bucket-hygiene` audit source / derived bucket
+root prefixes against the accepted object-key contract. They are read-only.
+
+`campus-ingestion-cleanup-derived-bucket-unexpected-keys` deletes only exact
+`unexpected-keys.jsonl` rows emitted by the derived bucket audit. The inventory
+must include bucket, root prefix, reason and object key; destructive execution
+requires `--yes`.
+
+`campus-ingestion-audit-authenticated-notice-source-run-retention` classifies
+`authenticated_notice_portal/runs/` evidence by DB / repo references.
+`campus-ingestion-cleanup-authenticated-notice-source-runs` deletes only exact
+delete-candidate source run object inventories and verifies post-delete absence.
+
+`campus-ingestion-export-serving-seed`,
+`campus-ingestion-verify-serving-seed`, and
+`campus-ingestion-restore-serving-seed` define the object-store seed handoff for
+published document reader assets. The seed package is a manifest plus S3 object
+references/checksums; large reader assets remain in object storage, not Git.
+
+Runbooks:
+
+- `docs/runbooks/document-reader-publish-and-docs-deploy-runbook.md`
+- `docs/runbooks/authenticated-notice-source-bucket-attachment-cleanup-runbook.md`
+- `docs/runbooks/index-release-runbook.md`
+
 ### Unified Operator Shell
 
 Operator scripts now use a unified shell:

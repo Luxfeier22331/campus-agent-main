@@ -10,6 +10,19 @@ import {
 	type DocsReadModelManifestInput,
 } from "../src/modules/docs/read-model-manifest";
 
+export function resolvePublicDocsSyncManifestOutputPath(
+	argv: string[],
+	env: NodeJS.ProcessEnv,
+): string | undefined {
+	const positional = argv.filter((token) => token !== "--");
+	if (positional.length > 1) {
+		throw new Error(
+			`expected at most one public docs sync manifest path, got ${positional.length}.`,
+		);
+	}
+	return positional[0] || env.PUBLIC_DOCS_SYNC_MANIFEST_PATH?.trim() || undefined;
+}
+
 function buildEnv(source: NodeJS.ProcessEnv): Env {
 	return {
 		APP_API_DATABASE_SSLMODE: source.APP_API_DATABASE_SSLMODE as Env["APP_API_DATABASE_SSLMODE"],
@@ -100,7 +113,7 @@ async function main(): Promise<void> {
 		const plan = buildDocsReadModelImportPlan(await loadReadModelManifest(client));
 		const manifest = buildPublicDocsSyncManifestFromReadModel(plan, new Date().toISOString());
 		const payload = `${JSON.stringify(manifest, undefined, 2)}\n`;
-		const outputPath = process.argv[2] || process.env.PUBLIC_DOCS_SYNC_MANIFEST_PATH;
+		const outputPath = resolvePublicDocsSyncManifestOutputPath(process.argv.slice(2), process.env);
 		if (outputPath) {
 			writeFileSync(outputPath, payload, "utf8");
 		} else {

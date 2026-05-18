@@ -14,9 +14,12 @@ updated: 2026-04-27
 
 - `staging-worker-deploy-runbook.md`
 - `document-reader-publish-and-docs-deploy-runbook.md`
+  - 包含 serving seed export / verify / restore，以及旧
+    `manifests/public-docs-reader-assets.json` root 的受控迁移清理。
 - `forward-worker-surface-smoke-runbook.md`
 - `develop-main-release-runbook.md`
 - `index-release-runbook.md`
+  - 包含 Qdrant backup retention audit；对象存储 snapshot bundle 不能按时间或体积直接删。
 
 ## Collaboration / Workstream Claims
 
@@ -49,7 +52,11 @@ updated: 2026-04-27
 - `authenticated-notice-file-release-auth-window-runbook.md`
 - `authenticated-notice-bootstrap-smoke-runbook.md`
 - `authenticated-notice-source-truth-replay-runbook.md`
-- `authenticated-notice-async-staged-closeout-runbook.md`
+- `authenticated-notice-source-bucket-attachment-cleanup-runbook.md`
+  - 包含 source attachment cleanup 与 `authenticated_notice_portal/runs/` source run
+    retention audit。
+- `authenticated-notice-async-staged-closeout-runbook.md`：包含 closeout operations
+  evidence retention 的 audit / dry-run / delete 流程。
 - `internal-notice-policy-regulation-promotion-runbook.md`
 - `internal-notice-regulation-target-quality-acceptance-runbook.md`
 

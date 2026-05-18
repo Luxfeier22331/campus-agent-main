@@ -192,6 +192,20 @@ function readManifest(path: string): DocsReadModelManifestInput {
 	return JSON.parse(readFileSync(path, "utf8")) as DocsReadModelManifestInput;
 }
 
+export function resolveDocsReadModelManifestPath(argv: string[], env: NodeJS.ProcessEnv): string {
+	const positional = argv.filter((token) => token !== "--");
+	if (positional.length > 1) {
+		throw new Error(
+			`expected exactly one docs read-model manifest path, got ${positional.length}.`,
+		);
+	}
+	const manifestPath = positional[0] || env.DOCS_READ_MODEL_MANIFEST_PATH?.trim();
+	if (!manifestPath) {
+		throw new Error("DOCS_READ_MODEL_MANIFEST_PATH or manifest path argument is required.");
+	}
+	return manifestPath;
+}
+
 function buildEnv(source: NodeJS.ProcessEnv): Env {
 	return {
 		APP_API_DATABASE_SSLMODE: source.APP_API_DATABASE_SSLMODE as Env["APP_API_DATABASE_SSLMODE"],
@@ -201,10 +215,7 @@ function buildEnv(source: NodeJS.ProcessEnv): Env {
 }
 
 async function main(): Promise<void> {
-	const manifestPath = process.argv[2] || process.env.DOCS_READ_MODEL_MANIFEST_PATH;
-	if (!manifestPath) {
-		throw new Error("DOCS_READ_MODEL_MANIFEST_PATH or argv[2] is required.");
-	}
+	const manifestPath = resolveDocsReadModelManifestPath(process.argv.slice(2), process.env);
 	const plan = buildDocsReadModelImportPlan(readManifest(manifestPath));
 	const client = new Client(buildOperatorDatabaseConfig(buildEnv(process.env)) as ClientConfig);
 	await client.connect();

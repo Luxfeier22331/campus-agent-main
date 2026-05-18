@@ -161,7 +161,12 @@ class S3ObjectStoreAdmin:
             continuation_token = response.get("NextContinuationToken")
 
     def get_bytes(self, *, bucket: str, key: str) -> bytes:
-        response = self._client.get_object(Bucket=bucket, Key=key)
+        try:
+            response = self._client.get_object(Bucket=bucket, Key=key)
+        except Exception as exc:
+            if _is_missing_object_error(exc):
+                raise FileNotFoundError(key) from exc
+            raise
         return response["Body"].read()
 
     def put_bytes(
@@ -176,6 +181,7 @@ class S3ObjectStoreAdmin:
             Bucket=bucket,
             Key=key,
             Body=data,
+            ContentLength=len(data),
             ContentType=content_type,
         )
 
@@ -242,6 +248,19 @@ def _matches_path_segment_suffix(key: str, suffix: str | None) -> bool:
     if suffix is None:
         return True
     return any(segment.endswith(suffix) for segment in key.split("/"))
+
+
+def _is_missing_object_error(exc: Exception) -> bool:
+    if isinstance(exc, KeyError):
+        return True
+    response = getattr(exc, "response", None)
+    if not isinstance(response, dict):
+        return False
+    error = response.get("Error")
+    if not isinstance(error, dict):
+        return False
+    code = str(error.get("Code") or "").strip()
+    return code in {"404", "NoSuchKey", "NotFound"}
 
 
 def _build_rebuild_trace_recorder(source: dict[str, str]) -> _RebuildTraceRecorder | None:

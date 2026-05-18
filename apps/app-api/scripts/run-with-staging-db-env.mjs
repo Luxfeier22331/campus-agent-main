@@ -7,8 +7,16 @@ import { loadRepoEnvFile } from "../../../scripts/load-repo-env.mjs";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appDir = resolve(scriptDir, "..");
+const repoRoot = resolve(scriptDir, "../../..");
 
 loadRepoEnvFile(import.meta.url, "../../..");
+try {
+	process.loadEnvFile(resolve(repoRoot, ".env.staging.local"));
+} catch (error) {
+	if (!(error instanceof Error && "code" in error) || error.code !== "ENOENT") {
+		throw error;
+	}
+}
 
 function fail(message) {
 	console.error(message);

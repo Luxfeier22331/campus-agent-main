@@ -2,7 +2,10 @@
 
 import { describe, expect, it } from "vitest";
 
-import { importDocsReadModelPlan } from "../scripts/import-docs-read-model";
+import {
+	importDocsReadModelPlan,
+	resolveDocsReadModelManifestPath,
+} from "../scripts/import-docs-read-model";
 import type { DocsReadModelImportPlan } from "../src/modules/docs/read-model-manifest";
 
 class FakeQueryable {
@@ -59,6 +62,18 @@ describe("docs read model import plan", () => {
 		);
 
 		expect(client.calls.at(-1)?.sql).toBe("rollback");
+	});
+
+	it("ignores pnpm argument separator when resolving manifest path", () => {
+		expect(resolveDocsReadModelManifestPath(["--", "../../var/docs.json"], {})).toBe(
+			"../../var/docs.json",
+		);
+	});
+
+	it("fails closed on multiple manifest path arguments", () => {
+		expect(() => resolveDocsReadModelManifestPath(["a.json", "b.json"], {})).toThrow(
+			"expected exactly one docs read-model manifest path",
+		);
 	});
 });
 

@@ -59,7 +59,7 @@ class DocumentReaderAssetsTest(unittest.TestCase):
                             "chunk_id": "unit-001",
                             "root_unit_id": "curriculum-root-001",
                             "unit_type": "heading",
-                            "text": "第一学期",
+                            "clean_text": "第一学期",
                             "anchor": {
                                 "section_path": ["课程设置", "第一学期"],
                                 "page_start": 1,
@@ -76,7 +76,7 @@ class DocumentReaderAssetsTest(unittest.TestCase):
                             "chunk_id": "unit-002",
                             "root_unit_id": "semester-1-course-list",
                             "unit_type": "paragraph",
-                            "text": "第一学期开设思想政治理论、大学英语、体育。",
+                            "clean_text": "第一学期开设思想政治理论、大学英语、体育。",
                             "anchor": {
                                 "section_path": ["课程设置", "第一学期"],
                                 "page_start": 1,
@@ -92,7 +92,7 @@ class DocumentReaderAssetsTest(unittest.TestCase):
                             "chunk_id": "unit-003",
                             "root_unit_id": "semester-2-course-list",
                             "unit_type": "paragraph",
-                            "text": "第二学期开设法理学、宪法学。",
+                            "clean_text": "第二学期开设法理学、宪法学。",
                             "anchor": {
                                 "section_path": ["课程设置", "第二学期"],
                                 "page_start": 2,

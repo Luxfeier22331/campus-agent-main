@@ -137,6 +137,71 @@ uv run --package campus-ingestion-worker python -m \
   `promotions/promotion-0001/progress.json`
 - promoter 的 copy 进度按 promotion batch 落盘；重启后会跳过 `done` batch，只重试未完成 batch
 
+## Operations Evidence Retention
+
+`campus_notices/operations/authenticated-notice-closeout/{run_id}/` 是
+operation / staging evidence，不是 source truth，也不是 final document truth。它可以清理，
+但不能手工按 prefix 裸删；必须先生成可复现审计，再按审计候选执行 dry-run 和显式删除。
+
+保留分类：
+
+- `protected_documented_evidence`：`docs/`、`.planning/`、`packages/`、`apps/` 或
+  `tests/` 中仍显式引用的 run。
+- `protected_db_done_run`：closeout DB 中 `state=done` 且 promotion 已完成的 run。
+- `protected_registry_referenced_run`：document registry 仍引用 operations prefix
+  的 run。
+- `review_db_non_promoted_run`：closeout DB 中仍存在但未 promotion 的 run，例如
+  `verified`、`verifying`。这类 run 需要 operator 明确 retirement，不进入对象裸删
+  候选。
+
+删除候选分类：
+
+- `delete_candidate_unreferenced_legacy_run`：不被 DB、document registry 或 repo 文档引用的
+  历史 run。
+- `delete_candidate_debug_probe_run`：不被 DB、document registry 或 repo 文档引用，且 run id
+  明确带 `debug`、`probe`、`smoke`、`eval-` 或 `local-` 语义的临时 run。
+
+只读审计：
+
+```bash
+CMD=campus_ingestion_worker.audit_authenticated_notice_closeout_operations_retention
+python -m "$CMD" \
+  --output-dir \
+    var/derived-bucket-cleanup/authenticated-notice-closeout-$(date +%Y%m%dT%H%M%S%z)
+```
+
+审计输出至少包含：
+
+- `summary.json`
+- `run-inventory.jsonl`
+- `protected-runs.jsonl`
+- `review-required-runs.jsonl`
+- `delete-candidate-runs.jsonl`
+- `delete-candidate-objects.jsonl`
+- `top-objects.jsonl`
+
+删除前必须先 dry-run：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.cleanup_authenticated_notice_closeout_operations \
+  --candidate-objects-path \
+    var/derived-bucket-cleanup/<audit-run>/delete-candidate-objects.jsonl \
+  --output-dir var/derived-bucket-cleanup/<delete-run> \
+  --dry-run
+```
+
+执行删除必须显式传入 `--yes`：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.cleanup_authenticated_notice_closeout_operations \
+  --candidate-objects-path \
+    var/derived-bucket-cleanup/<audit-run>/delete-candidate-objects.jsonl \
+  --output-dir var/derived-bucket-cleanup/<delete-run> \
+  --yes
+```
+
 ## 数据库布局
 
 closeout staging schema 固定为：

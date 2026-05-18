@@ -17,6 +17,7 @@ ALLOWED_SOURCE_BUCKET_ROOT_PREFIXES = (
     "authenticated_notice_portal",
     "official_web",
     DEFAULT_RAW_SOURCE_CHANNEL,
+    "wechat_official_account",
 )
 
 

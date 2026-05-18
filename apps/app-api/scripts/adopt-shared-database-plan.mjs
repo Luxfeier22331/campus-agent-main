@@ -13,6 +13,7 @@ import {
 	CREATE_TABLE_RE,
 	compareIndexSpec,
 	DROP_INDEX_RE,
+	normalizePostgresIdentifier,
 	qualifyTable,
 } from "./adopt-shared-database-shared.mjs";
 
@@ -160,7 +161,8 @@ function targetExists(inventory, target) {
 		return !table.columns.has(target.column);
 	}
 	if (target.kind === "constraint") {
-		return table.constraints.has(target.constraint);
+		const normalizedConstraint = normalizePostgresIdentifier(target.constraint);
+		return table.constraints.has(target.constraint) || table.constraints.has(normalizedConstraint);
 	}
 	if (target.kind === "index") {
 		return table.indexes.has(target.index);

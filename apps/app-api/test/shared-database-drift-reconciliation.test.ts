@@ -237,4 +237,36 @@ describe("shared database drift reconciliation", () => {
 			]),
 		);
 	});
+
+	it("repairs journal hash drift when schema already matches current repo truth", () => {
+		const staleHashRows = migrationContext.migrations.map((migration, index) => ({
+			createdAt: migration.folderMillis,
+			hash:
+				index >= migrationContext.migrations.length - 6
+					? `${String(index).padStart(64, "0")}`
+					: migration.hash,
+		}));
+		const inventory = makeInventory({
+			journalRows: staleHashRows,
+			schemas: [...new Set([...latestSpecs.values()].map((spec) => spec.schema))],
+			tables: buildAllExpectedTables(),
+		});
+
+		const plan = buildSharedDatabaseDriftReconcilePlan({
+			extraTableRowCounts: new Map(),
+			inventory,
+			migrationContext,
+		});
+
+		expect(plan.blockedReasons).toEqual([]);
+		expect(plan.pendingMigrationTags).toEqual(
+			migrationContext.migrations.slice(-6).map((migration) => migration.tag),
+		);
+		expect(
+			plan.operations.filter((operation) => operation.kind === "delete_journal_row"),
+		).toHaveLength(6);
+		expect(
+			plan.operations.filter((operation) => operation.kind === "insert_journal_row"),
+		).toHaveLength(6);
+	});
 });

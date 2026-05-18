@@ -27,6 +27,17 @@ class FakeObjectStore:
 
 
 class DocumentReaderPublisherTest(unittest.TestCase):
+    def test_default_reader_manifest_object_key_uses_public_docs_release_prefix(self) -> None:
+        publisher = __import__(
+            "campus_ingestion_worker.publish_document_reader_assets",
+            fromlist=["DEFAULT_MANIFEST_OBJECT_KEY"],
+        )
+
+        self.assertEqual(
+            publisher.DEFAULT_MANIFEST_OBJECT_KEY,
+            "public_docs/releases/reader_assets/current/public-docs-reader-assets.json",
+        )
+
     def test_publish_document_reader_assets_writes_assets_and_read_model_manifest(self) -> None:
         public_record = _make_record(
             document_id="curriculum:law-ethnic-class-program",

@@ -199,6 +199,7 @@ describe("app-api worker foundation", () => {
 			"WRANGLER_DISABLE_EXPERIMENTAL_WARNING=1",
 		);
 		expect(runWithStagingDbEnvSource).toContain("loadRepoEnvFile");
+		expect(runWithStagingDbEnvSource).toContain(".env.staging.local");
 		expect(runWithStagingDbEnvSource).toContain("STAGING_APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("APP_API_OPERATOR_DATABASE_URL");
 		expect(runWithStagingDbEnvSource).toContain("https://hub-muc-wiki.ayafeed.com");

@@ -141,6 +141,30 @@ pnpm web:test:integration
 pnpm web:build
 ```
 
+## Seed Data Handoff
+
+文档站 seed 数据不通过重新运行采集器交付。当前交付口径是：
+
+```text
+canonical artifacts / reader assets in object storage
+-> docs-read-model manifest
+-> app-api docs read model
+-> public-docs sync manifest
+-> public-docs build
+```
+
+接手者需要拿到：
+
+- `var/docs-read-model-manifest.json`
+- `var/public-docs-sync-manifest.json` 或对应环境后缀文件
+- sync manifest 指向的对象存储 reader assets
+- 对应环境的 app-api operator database 与对象存储读取配置
+
+完整发布、导入、构建和验收步骤见
+[document-reader-publish-and-docs-deploy-runbook](./docs/runbooks/document-reader-publish-and-docs-deploy-runbook.md)。
+不要提交 repo-root `var/`、`apps/public-docs/docs/docs/` 或
+`apps/public-docs/doc_build/` 中的本地生成产物。
+
 其中 `pnpm lint` 是仓库级 live-surface lint gate：默认覆盖 tracked 的源码、tests、repo-owned
 config、active docs、prompt markdown、repo dotfile config（`.editorconfig`、tracked
 `.gitignore` / `.gitattributes`）、tracked `.env.example`、tracked

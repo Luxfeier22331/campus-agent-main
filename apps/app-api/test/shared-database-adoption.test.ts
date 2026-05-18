@@ -495,4 +495,46 @@ DROP COLUMN "actor_groups_json";`),
 			plan.statements.some((item) => item.statement.includes('DROP COLUMN "actor_campus_scope"')),
 		).toBe(false);
 	});
+
+	it("recognizes Postgres-truncated long constraint names as existing constraints", () => {
+		const tableNames = [
+			"official_web.target_jobs",
+			"official_web.target_job_candidates",
+			"official_web.target_artifact_verification_summaries",
+			"official_web.target_page_attempts",
+			"official_web.target_release_gates",
+			"official_web.crawl_runs",
+		];
+		const inventory = makeInventory({
+			schemas: ["official_web"],
+			tables: tableNames.map((qualifiedName) => {
+				const table = buildTableFromExpected(qualifiedName);
+				return {
+					...table,
+					constraints: table.constraints.map((constraint) =>
+						constraint ===
+						"target_release_gates_summary_id_target_artifact_verification_summaries_summary_id_fk"
+							? "target_release_gates_summary_id_target_artifact_verification_su"
+							: constraint,
+					),
+				};
+			}),
+		});
+
+		const plan = buildAdoptionPlan({
+			inventory,
+			migrationContext,
+		});
+
+		expect(
+			plan.statements.some(
+				(item) =>
+					item.target.existsKey ===
+					"official_web.target_release_gates#target_release_gates_summary_id_target_artifact_verification_summaries_summary_id_fk",
+			),
+		).toBe(false);
+		expect(plan.mismatches).not.toContain(
+			"official_web.target_release_gates missing constraint target_release_gates_summary_id_target_artifact_verification_summaries_summary_id_fk",
+		);
+	});
 });

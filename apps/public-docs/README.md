@@ -6,6 +6,10 @@
 
 ```bash
 pnpm --filter public-docs sync:real-docs
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
+  pnpm --filter public-docs build:published-reader-assets
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
+  pnpm --filter public-docs smoke:published-reader-build
 pnpm --filter public-docs dev
 pnpm --filter public-docs dev:live-smoke
 pnpm --filter public-docs dev:real-docs
@@ -15,9 +19,16 @@ pnpm --filter public-docs build:real-docs
 
 说明：
 
+- `build:published-reader-assets` 是正式 seed / release 消费路径。它读取
+  `PUBLIC_DOCS_SYNC_MANIFEST_PATH` 指向的 manifest，从对象存储同步公开与受限 reader
+  assets，并生成可部署的 `doc_build`。
+- 接手 seed 数据时，不重新运行采集器，也不扫描对象存储决定文档范围；范围必须来自
+  `app-api` 导出的 public-docs sync manifest。
 - `sync:real-docs` 用于同步当前公开文档产物，生成本地 docs shell 的公开阅读样本。
 - `docs/student-handbook/`、`docs/curriculum-plan/`、`docs/campus-regulations/`、`docs/public/course-maps/`
   与 `src/generated/` 是本地同步产物，必须保持 ignored，不作为 repo source truth 手工提交。
+- `docs/docs/` 与 `doc_build/` 也是 published reader 构建产物，必须保持 ignored，不作为
+  repo source truth 手工提交。
 - `dev:real-docs` / `build:real-docs` 是真实文档预览与验收入口；普通 `dev` / `build`
   只补齐可构建的空 collection scaffold，不隐式访问对象存储，用于文档站壳本身的快速开发与 CI
   构建。

@@ -128,6 +128,40 @@ class SourceBucketHygieneTest(unittest.TestCase):
             [{"root_prefix": "debug", "object_key": "debug/zero-byte/test/zero.jsonl"}],
         )
 
+    def test_audit_accepts_wechat_official_account_source_channel(self) -> None:
+        hygiene = _load_hygiene_module()
+        with TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir) / "audit"
+            object_store = _FakeSourceBucketObjectStore()
+            object_store.put_bytes(
+                bucket="campus-rag-source",
+                key=(
+                    "wechat_official_account/muc-news/2026/sha256/test/"
+                    "source-truth/wechat-public-notices.jsonl"
+                ),
+                data=b"{}\n",
+                content_type="application/x-ndjson",
+            )
+
+            summary = hygiene.audit_source_bucket_hygiene(
+                request=hygiene.SourceBucketHygieneAuditRequest(output_dir=output_dir),
+                env=_object_store_env(),
+                object_store=object_store,
+            )
+
+            unexpected_keys = [
+                json.loads(line)
+                for line in (output_dir / "unexpected-keys.jsonl")
+                .read_text(encoding="utf-8")
+                .splitlines()
+                if line.strip()
+            ]
+
+        self.assertIn("wechat_official_account", summary["allowed_root_prefixes"])
+        self.assertEqual(summary["unexpected_root_prefix_count"], 0)
+        self.assertEqual(summary["unexpected_key_count"], 0)
+        self.assertEqual(unexpected_keys, [])
+
     def test_cleanup_deletes_unexpected_prefix_objects_and_writes_evidence(self) -> None:
         hygiene = _load_hygiene_module()
         with TemporaryDirectory() as temp_dir:

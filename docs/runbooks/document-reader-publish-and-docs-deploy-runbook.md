@@ -34,19 +34,139 @@ Worker-first 静态交付：
   unsupported scope。`campus_notices/internal_notice` 是 notice source/card scope，
   不是文档站 document scope。
 
+## Seed 数据交付口径
+
+文档站 seed 数据交付的是已经发布的 reader/read-model artifact，不是采集任务本身。
+接手者不需要重新运行官方站、通知站或手册采集器，也不应接收 raw collector output 作为
+document-site seed truth。
+
+交付包必须包含：
+
+- 代码修订：用于生成与消费 seed artifact 的 repo commit 或 release branch。
+- docs read-model manifest：`var/docs-read-model-manifest.json`，供 `app-api`
+  导入 `docs.*` read model。
+- public-docs sync manifest：`var/public-docs-sync-manifest.json` 或环境后缀文件，
+  供 `public-docs` 构建静态 reader assets。
+- 对象存储 reader assets：sync manifest 中 `sourceObjects` 指向的对象，以及当前
+  reader manifest object，例如 `public_docs/releases/reader_assets/current/public-docs-reader-assets.json`。
+- 环境配置说明：对象存储 endpoint、region、bucket、access key/secret，以及需要导入
+  read model 时使用的 `APP_API_OPERATOR_DATABASE_URL` 或
+  `STAGING_APP_API_OPERATOR_DATABASE_URL`。
+- 验收摘要：文档数、公开/受限数量、reader asset 数、search unit 数、manifest
+  digest 或文件 checksum。
+
+### Seed 文件用法
+
+`var/docs-read-model-manifest.json`
+
+- 由 `campus_ingestion_worker.publish_document_reader_assets` 生成。
+- 由 `apps/app-api` 的 `docs:import-read-model*` 消费。
+- 用途是一次性导入 `docs.*` read model，包括 collection、document、version、
+  reader asset descriptor 与 search unit。
+- 它不是 `public-docs` 的直接输入，也不是浏览器 runtime asset。
+- 它不提交进 git；作为 release/seed artifact 传递。
+
+`var/public-docs-sync-manifest.json`
+
+- 由 `apps/app-api` 的 `docs:export-public-sync-manifest` 生成。
+- 由 `apps/public-docs` 的 `build:published-reader-assets`、
+  `smoke:published-reader-build`、rolling publish 与 deploy pipeline 消费。
+- 用途是声明本次文档站要同步哪些 reader assets，以及每个文档走
+  `public_static_asset` 还是 `gated_asset`。
+- 它是文档站构建输入，不是 source truth，也不提交进 git。
+
+`var/public-docs-sync-manifest.staging.json`
+
+- 用法与 `var/public-docs-sync-manifest.json` 相同。
+- 仅用于 staging app-api read model 导出的那一份 manifest。
+- 本地构建 staging seed 时通过 `PUBLIC_DOCS_SYNC_MANIFEST_PATH` 显式指定。
+
+`public_docs/releases/reader_assets/current/public-docs-reader-assets.json`
+
+- 由 reader publisher 上传到对象存储。
+- 用途是给后续发布、审计和对象存储 current manifest 读取使用。
+- 它不替代本地 `docs-read-model-manifest.json`；接手者导入 DB 时仍使用
+  docs read-model manifest。
+- 它位于 derived bucket 的 `public_docs/releases/reader_assets/current/`，不是旧的顶层
+  `manifests/` root；旧 root 只允许作为迁移前遗留对象，不再作为新发布目标。
+
+sync manifest 中的 `sourceObjects`
+
+- 指向对象存储里的 `reader.json`、`outline.json`、`meta.json`、
+  `asset-manifest.json` 以及补充资产。
+- 由 `public-docs` build/smoke/deploy 同步到 `doc_build/_docs/...` 或
+  `doc_build/_gated-docs/...`。
+- 不应下载后手工改写，也不应作为新的 repo source truth 提交。
+
+`apps/public-docs/doc_build/`
+
+- 是 `public-docs` 构建输出。
+- 可作为静态预览或部署产物交付。
+- 不用于 app-api read model 导入，不作为 seed source truth，也不提交进 git。
+
+本轮 seed baseline 的验收计数为：
+
+- 总文档：175
+- `curriculum/curriculum_plan`：70
+- `regulations/student_rules`：46
+- `regulations/institutional_rules`：59
+- public：133
+- gated：42
+- reader assets：829
+- search units：913
+
+禁止把以下内容当作 seed handoff：
+
+- `apps/public-docs/docs/docs/`、`apps/public-docs/doc_build/` 或 repo-root
+  `var/` 中的本地生成产物提交进 git。
+- 缺少对象存储 reader assets 的单独 manifest。
+- 需要接手者重新采集源站才能得到正文的说明。
+- 从对象存储扫描推导公开文档子集的脚本或手工步骤。
+
+如果接手者只需要静态站点预览，可以单独传递一次构建后的
+`apps/public-docs/doc_build/` artifact；这只适用于静态验收，不替代
+`docs-read-model-manifest.json`、public-docs sync manifest 与对象存储 reader assets
+组成的可重复 seed 交付包。
+
 ## 本地发布顺序
 
 ### 1. 发布 reader assets 与 read-model manifest
+
+如果对象存储中存在历史课程地图 `reader-assets/course-maps.json` 输入产物，先执行一次性
+surface 迁移。该命令把历史 reader 路径下的课程地图 surface 转换到
+`docs-surfaces/course-maps.json`，避免发布 reader supplement 时覆盖后续发布所需的
+source surface：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.migrate_curriculum_course_map_docs_surfaces
+```
+
+如果 registry 当前指向的 `regulations/institutional_rules` 记录缺少
+`canonical.md`，但已存在通过 canonical materialization 产出的
+`document-units.jsonl`，先执行显式 backfill。该步骤只修复缺失的 canonical
+artifact，不覆盖已有 canonical，不在 reader publish 阶段临时合成正文：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.backfill_missing_canonical_markdown_from_document_units
+```
 
 ```bash
 uv run --all-packages python -m \
   campus_ingestion_worker.publish_document_reader_assets \
   --manifest-path var/docs-read-model-manifest.json \
-  --manifest-object-key manifests/public-docs-reader-assets.json
+  --manifest-object-key public_docs/releases/reader_assets/current/public-docs-reader-assets.json
 ```
 
 可用 `--dry-run` 验证读取 canonical artifacts 与生成 manifest，不写入 reader
 assets，也不会上传 manifest object。
+
+如果省略 `--manifest-object-key`，publisher 默认写入：
+
+```text
+public_docs/releases/reader_assets/current/public-docs-reader-assets.json
+```
 
 默认 first-launch scope 是：
 
@@ -58,7 +178,9 @@ assets，也不会上传 manifest object。
 - `curriculum/curriculum_plan`
 - `regulations/student_rules`
 - `regulations/institutional_rules`
-- `regulations/scoped_rules`
+
+`regulations/scoped_rules` 当前是院级/专项 regulation holding collection，不进入当前
+document-site read-model、public docs sync manifest 或默认 RAG consumption。
 
 如需显式限制范围：
 
@@ -68,7 +190,7 @@ uv run --all-packages python -m \
   --scope regulations/student_rules \
   --scope curriculum/curriculum_plan \
   --manifest-path var/docs-read-model-manifest.json \
-  --manifest-object-key manifests/public-docs-reader-assets.json
+  --manifest-object-key public_docs/releases/reader_assets/current/public-docs-reader-assets.json
 ```
 
 如需发布 notice-derived regulation target，必须显式选择 target scope，例如：
@@ -77,35 +199,34 @@ uv run --all-packages python -m \
 uv run --all-packages python -m \
   campus_ingestion_worker.publish_document_reader_assets \
   --scope regulations/institutional_rules \
-  --scope regulations/scoped_rules \
   --manifest-path var/docs-read-model-manifest.json \
-  --manifest-object-key manifests/public-docs-reader-assets.json
+  --manifest-object-key public_docs/releases/reader_assets/current/public-docs-reader-assets.json
 ```
 
 ### 2. 迁移并导入 app-api docs read model
 
 ```bash
 pnpm --filter app-api db:migrate
-pnpm --filter app-api docs:import-read-model -- var/docs-read-model-manifest.json
+pnpm --filter app-api docs:import-read-model ../../var/docs-read-model-manifest.json
 ```
 
 staging 使用：
 
 ```bash
 pnpm --filter app-api db:migrate:staging
-pnpm --filter app-api docs:import-read-model:staging -- var/docs-read-model-manifest.json
+pnpm --filter app-api docs:import-read-model:staging ../../var/docs-read-model-manifest.json
 ```
 
 ### 3. 从 app-api read model 导出 public docs sync manifest
 
 ```bash
-pnpm --filter app-api docs:export-public-sync-manifest -- var/public-docs-sync-manifest.json
+pnpm --filter app-api docs:export-public-sync-manifest ../../var/public-docs-sync-manifest.json
 ```
 
 staging 使用：
 
 ```bash
-pnpm --filter app-api docs:export-public-sync-manifest:staging -- var/public-docs-sync-manifest.json
+pnpm --filter app-api docs:export-public-sync-manifest:staging ../../var/public-docs-sync-manifest.json
 ```
 
 该 manifest 也是 staging gated docs smoke 的默认目标来源：
@@ -178,7 +299,7 @@ pnpm --filter public-docs publish:rolling -- \
 底层 scheduled deploy pipeline 仍可直接调用，主要用于本地调试：
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
   pnpm --filter public-docs deploy:published-reader-scheduled -- \
   --env prod
 ```
@@ -186,7 +307,7 @@ PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
 手动强制执行一轮检查与按需发布：
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
   pnpm --filter public-docs deploy:published-reader-scheduled -- \
   --env prod \
   --force \
@@ -197,7 +318,7 @@ PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
 只看将要执行的命令、不执行 build/smoke/deploy：
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
   pnpm --filter public-docs deploy:published-reader-scheduled -- \
   --env prod \
   --force \
@@ -209,7 +330,7 @@ PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
 manifest-only dry-run 仍可直接调用：
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
   pnpm --filter public-docs check:published-reader-manifest -- \
   --env prod \
   --ledger .planning/runtime/public-docs-publish/prod-ledger.json
@@ -230,7 +351,7 @@ ledger。
 staging 使用：
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
   pnpm --filter public-docs deploy:published-reader-scheduled -- \
   --env staging
 ```
@@ -263,7 +384,7 @@ cat > var/public-docs-deploy-hook-payload.json <<'JSON'
 }
 JSON
 
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
   pnpm --filter public-docs nudge:published-reader-deploy-hook -- \
   --env prod \
   --payload-path var/public-docs-deploy-hook-payload.json \
@@ -306,7 +427,7 @@ pnpm --filter public-docs acceptance:published-reader-production -- \
 ### 5. 手动构建和 build-output smoke
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
   pnpm --filter public-docs build:published-reader-assets
 ```
 
@@ -322,14 +443,137 @@ PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
 构建后可单独验证 build output 是否包含 manifest 声明的 reader assets：
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
   pnpm --filter public-docs smoke:published-reader-build
+```
+
+### 5.1 接收 seed artifact 后的最小消费顺序
+
+接手者拿到 seed handoff 后，先确认对象存储配置能读取 manifest 中声明的
+`sourceObjects`。不要在本步骤重新运行采集器。
+
+导入本地 app-api docs read model：
+
+```bash
+pnpm --filter app-api db:migrate
+pnpm --filter app-api docs:import-read-model ../../var/docs-read-model-manifest.json
+pnpm --filter app-api docs:export-public-sync-manifest ../../var/public-docs-sync-manifest.json
+```
+
+导入 staging app-api docs read model：
+
+```bash
+pnpm --filter app-api db:migrate:staging
+pnpm --filter app-api docs:import-read-model:staging ../../var/docs-read-model-manifest.json
+pnpm --filter app-api docs:export-public-sync-manifest:staging ../../var/public-docs-sync-manifest.staging.json
+```
+
+构建并校验 public-docs：
+
+```bash
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
+  pnpm --filter public-docs build:published-reader-assets
+
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
+  pnpm --filter public-docs smoke:published-reader-build
+```
+
+staging manifest 使用：
+
+```bash
+export PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.staging.json
+pnpm --filter public-docs build:published-reader-assets
+pnpm --filter public-docs smoke:published-reader-build
+```
+
+也可以单命令传入：
+
+```bash
+PUBLIC_DOCS_SYNC_MANIFEST_PATH="$PUBLIC_DOCS_SYNC_MANIFEST_PATH" \
+  pnpm --filter public-docs build:published-reader-assets
+
+PUBLIC_DOCS_SYNC_MANIFEST_PATH="$PUBLIC_DOCS_SYNC_MANIFEST_PATH" \
+  pnpm --filter public-docs smoke:published-reader-build
+```
+
+### 5.2 serving seed manifest
+
+长期 handoff 不把对象存储大内容提交进 Git。Git 只保存脚本、runbook、manifest
+schema 与 checksum 证据；实际 reader assets 继续留在 S3-compatible object storage。
+
+导出 serving seed manifest：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.export_serving_seed \
+  --output-path var/serving-seed-manifest.json
+```
+
+该命令默认读取 current reader manifest：
+
+```text
+public_docs/releases/reader_assets/current/public-docs-reader-assets.json
+```
+
+它会把 docs reader manifest 与其中所有 `sourceObjects` 写入
+`campus_serving_seed_manifest_v1`，每个对象包含：
+
+- bucket
+- key
+- role
+- sizeBytes
+- sha256
+- contentType
+
+校验 seed manifest：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.verify_serving_seed \
+  --manifest-path var/serving-seed-manifest.json
+```
+
+恢复 seed manifest 中声明的对象：
+
+```bash
+uv run --all-packages python -m \
+  campus_ingestion_worker.restore_serving_seed \
+  --manifest-path var/serving-seed-manifest.json
+```
+
+`verify` 与 `restore` 都按 manifest 的 size / sha256 fail closed；缺对象、大小不一致或
+hash 不一致都不得继续。
+
+迁移完成后，旧 derived bucket root
+`manifests/public-docs-reader-assets.json` 不再是合法发布目标。清理它必须先重新发布并校验
+`public_docs/releases/reader_assets/current/public-docs-reader-assets.json`，再用
+derived bucket hygiene audit 产出的 `unexpected-keys.jsonl` 执行：
+
+```bash
+uv run --all-packages \
+  campus-ingestion-cleanup-derived-bucket-unexpected-keys \
+  --candidate-inventory-path <audit-output>/unexpected-keys.jsonl \
+  --output-dir <cleanup-output> \
+  --yes
+```
+
+该 cleanup 命令不接受缺 bucket / reason / object_key 的旧 inventory；需要重新跑 audit
+取得完整删除凭证。
+
+消费后核对当前本地 build output：
+
+```bash
+find apps/public-docs/doc_build/_docs -name reader.json | wc -l
+find apps/public-docs/doc_build/_gated-docs -name reader.json | wc -l
+find apps/public-docs/doc_build/_docs apps/public-docs/doc_build/_gated-docs \
+  -name asset-manifest.json | wc -l
+find apps/public-docs/doc_build/docs -name '*.html' | wc -l
 ```
 
 ### 6. 手动部署 staging
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
   pnpm --filter public-docs deploy:staging
 ```
 
@@ -363,7 +607,7 @@ build / smoke / verify / deploy command 失败会追加 final `failed` ledger �
 并且没有更新的 `deployed` 记录 supersede 该失败记录，可以显式 retry：
 
 ```bash
-PUBLIC_DOCS_SYNC_MANIFEST_PATH=var/public-docs-sync-manifest.json \
+PUBLIC_DOCS_SYNC_MANIFEST_PATH=../../var/public-docs-sync-manifest.json \
   pnpm --filter public-docs retry:published-reader-release -- \
   --env prod \
   --record-id <failed-ledger-record-id> \

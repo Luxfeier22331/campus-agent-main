@@ -54,6 +54,9 @@ from campus_ingestion_core.online_ocr_evidence import extract_online_ocr_text
 from campus_ingestion_core.raw_ingestion_online_ocr import OnlineOcrProviderResult
 from campus_ingestion_core.settings import ObjectStoreSettings
 from campus_ingestion_core.split_manifest import SplitManifest, SplitManifestDocument
+from campus_ingestion_core.split_manifest_canonical_markdown import (
+    build_split_document_canonical_markdown,
+)
 
 SPLIT_MANIFEST_LAYOUT_ELEMENTS_SCHEMA_VERSION = "split_manifest_layout_elements_v1"
 _CURRICULUM_STRUCTURAL_HEADING_RE = re.compile(
@@ -370,6 +373,10 @@ def _build_split_manifest_document_input(
         source_uri=source_uri,
     )
     document_units_bytes = _serialize_rows(split_rows)
+    canonical_markdown_bytes = build_split_document_canonical_markdown(
+        manifest_document=manifest_document,
+        split_rows=split_rows,
+    )
     metadata = load_metadata_from_bytes(document_units_bytes)
     metadata["title"] = manifest_document.title
     apply_authorization_projection_metadata(
@@ -383,7 +390,7 @@ def _build_split_manifest_document_input(
         source_label=f"{raw_asset_record.object_key}#{manifest_document.document_id}",
         document_units_bytes=document_units_bytes,
         provider_response_bytes=None,
-        canonical_markdown_bytes=None,
+        canonical_markdown_bytes=canonical_markdown_bytes,
         metadata=metadata,
         import_source="raw_online_ocr",
         revision_track="source-faithful",

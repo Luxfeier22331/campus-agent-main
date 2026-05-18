@@ -28,6 +28,7 @@ It owns:
 - `operator.request_projection` list/detail APIs
 - `operator.official_web_*` site/run/detail APIs
 - explicit `app-api -> supervisor-api` execution calls
+- `docs.*` read model import/export for the document reader surface
 
 It does not own:
 
@@ -294,6 +295,8 @@ pnpm official-web:drain-projection -- --limit 50
 pnpm collection-rename:audit
 pnpm collection-rename:apply -- --write-report .tmp/collection-rename-apply.json
 pnpm collection-rename:replay -- --report .tmp/collection-rename-apply.json
+pnpm docs:import-read-model ../../var/docs-read-model-manifest.json
+pnpm docs:export-public-sync-manifest ../../var/public-docs-sync-manifest.json
 pnpm projection:drain
 pnpm test
 pnpm test:all
@@ -309,6 +312,10 @@ STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
   db:migrate:staging
 STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
   db:reconcile-shared-drift:staging
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
+  docs:import-read-model:staging ../../var/docs-read-model-manifest.json
+STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> pnpm \
+  docs:export-public-sync-manifest:staging ../../var/public-docs-sync-manifest.staging.json
 APP_API_SMOKE_IDENTITY_PASSWORD='<secret>' \
   STAGING_APP_API_OPERATOR_DATABASE_URL=postgresql://<staging-operator-url> \
   pnpm smoke-identity:provision:staging -- --email help_bot@outlook.com --name \
@@ -321,6 +328,9 @@ pnpm dev
 Deploy note:
 
 - `pnpm deploy:staging` 只发布 Worker，不会替你迁移 shared Postgres
+- docs seed handoff 的 app-api 入口是 `docs:import-read-model*` 与
+  `docs:export-public-sync-manifest*`。它们消费已发布的 reader/read-model artifact，
+  不运行采集器，也不扫描对象存储决定文档范围。
 - 在任何 staging `official_web` / operator surface smoke 之前，先执行
   `STAGING_APP_API_OPERATOR_DATABASE_URL=... pnpm db:bootstrap:staging`
   `STAGING_APP_API_OPERATOR_DATABASE_URL=... pnpm db:migrate:staging`

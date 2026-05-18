@@ -150,16 +150,14 @@ function collectOrphanedJournalRows(inventory, migrationContext) {
 		.sort((left, right) => left.createdAt - right.createdAt);
 }
 
-function collectPendingMigrationTags(inventory, migrationContext) {
+function collectPendingMigrations(inventory, migrationContext) {
 	if (inventory.journalRows.length === 0) {
 		return [];
 	}
 
 	const appliedHashes = new Set(inventory.journalRows.map((row) => row.hash));
 
-	return migrationContext.migrations
-		.filter((migration) => !appliedHashes.has(migration.hash))
-		.map((migration) => migration.tag);
+	return migrationContext.migrations.filter((migration) => !appliedHashes.has(migration.hash));
 }
 
 function buildDropTableOperation(qualifiedName, rowCount) {
@@ -190,6 +188,16 @@ function buildDeleteJournalRowOperation(hash) {
 	};
 }
 
+function buildInsertJournalRowOperation(migration) {
+	return {
+		createdAt: migration.folderMillis,
+		hash: migration.hash,
+		kind: "insert_journal_row",
+		statement: `insert into ${quoteIdentifier(APP_API_MIGRATIONS_SCHEMA)}.${quoteIdentifier(APP_API_MIGRATIONS_TABLE)} ("hash", "created_at") values ($1, $2)`,
+		tag: migration.tag,
+	};
+}
+
 function readAllowedExtraColumns(qualifiedName) {
 	return RECONCILABLE_EXTRA_COLUMNS.get(qualifiedName) ?? new Set();
 }
@@ -205,7 +213,8 @@ export function buildSharedDatabaseDriftReconcilePlan({
 	const extraTables = collectExtraTables(inventory, expectedTables);
 	const missingTables = collectMissingTables(inventory, expectedTables);
 	const orphanedJournalRows = collectOrphanedJournalRows(inventory, migrationContext);
-	const pendingMigrationTags = collectPendingMigrationTags(inventory, migrationContext);
+	const pendingMigrations = collectPendingMigrations(inventory, migrationContext);
+	const pendingMigrationTags = pendingMigrations.map((migration) => migration.tag);
 	const blockedReasons = [];
 	const operations = [];
 
@@ -249,7 +258,12 @@ export function buildSharedDatabaseDriftReconcilePlan({
 		);
 	}
 
-	if (pendingMigrationTags.length > 0) {
+	const hasSchemaDrift =
+		extraColumns.length > 0 ||
+		extraTables.length > 0 ||
+		missingColumns.length > 0 ||
+		missingTables.length > 0;
+	if (pendingMigrationTags.length > 0 && hasSchemaDrift) {
 		blockedReasons.push(`Pending repo migrations not applied: ${pendingMigrationTags.join(", ")}`);
 	}
 
@@ -269,6 +283,12 @@ export function buildSharedDatabaseDriftReconcilePlan({
 
 	for (const row of orphanedJournalRows) {
 		operations.push(buildDeleteJournalRowOperation(row.hash));
+	}
+
+	if (pendingMigrationTags.length > 0 && !hasSchemaDrift) {
+		for (const migration of pendingMigrations) {
+			operations.push(buildInsertJournalRowOperation(migration));
+		}
 	}
 
 	const nonEmptyDriftTables = operations
@@ -383,6 +403,10 @@ async function applySharedDatabaseDriftReconcilePlan(client, plan) {
 				await client.query(operation.statement, [operation.hash]);
 				continue;
 			}
+			if (operation.kind === "insert_journal_row") {
+				await client.query(operation.statement, [operation.hash, operation.createdAt]);
+				continue;
+			}
 
 			await client.query(operation.statement);
 		}
@@ -408,6 +432,14 @@ function formatPlan(plan) {
 					return {
 						hash: operation.hash,
 						kind: operation.kind,
+					};
+				}
+
+				if (operation.kind === "insert_journal_row") {
+					return {
+						hash: operation.hash,
+						kind: operation.kind,
+						tag: operation.tag,
 					};
 				}
 

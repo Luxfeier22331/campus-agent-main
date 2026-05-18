@@ -11,6 +11,7 @@ export const APP_API_KNOWN_SCHEMAS = [
 	"runtime",
 	"wechat_official_account",
 ];
+export const POSTGRES_IDENTIFIER_MAX_BYTES = 63;
 
 export const CREATE_SCHEMA_RE = /^CREATE SCHEMA IF NOT EXISTS "([^"]+)";?$/i;
 export const CREATE_TABLE_RE = /^CREATE TABLE "([^"]+)"\."([^"]+)" \(/i;
@@ -34,6 +35,22 @@ export function quoteIdentifier(identifier) {
 
 export function qualifyTable(schema, table) {
 	return `${schema}.${table}`;
+}
+
+export function normalizePostgresIdentifier(identifier) {
+	let output = "";
+	let bytes = 0;
+
+	for (const char of identifier) {
+		const charBytes = Buffer.byteLength(char, "utf8");
+		if (bytes + charBytes > POSTGRES_IDENTIFIER_MAX_BYTES) {
+			break;
+		}
+		output += char;
+		bytes += charBytes;
+	}
+
+	return output;
 }
 
 export function normalizeColumnSpec(columnSpec) {

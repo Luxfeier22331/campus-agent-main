@@ -2,7 +2,6 @@ export const DOCS_READ_MODEL_MANIFEST_SCHEMA_VERSION = "document_reader_publish_
 export const DOCS_READ_MODEL_ALLOWED_SCOPES = [
 	"curriculum/curriculum_plan",
 	"regulations/institutional_rules",
-	"regulations/scoped_rules",
 	"regulations/student_rules",
 ] as const;
 

@@ -3,7 +3,6 @@ from __future__ import annotations
 import hashlib
 import json
 import os
-import re
 import sys
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -11,13 +10,17 @@ from datetime import datetime
 from pathlib import Path
 from typing import Any, Protocol, TextIO
 
+from campus_ingestion_core.authenticated_notice_attachment_object_keys import (
+    LEGACY_ATTACHMENT_OBJECT_KEY_RE,
+    is_canonical_attachment_object_key,
+    is_legacy_attachment_object_key,
+)
 from campus_ingestion_core.collected_notice_media_lifecycle import (
     is_media_lifecycle_cleanup_blocking,
 )
 from campus_ingestion_core.object_store import S3ObjectStoreClientFactory
 from campus_ingestion_core.settings import ObjectStoreSettings
 
-LEGACY_ATTACHMENT_OBJECT_KEY_RE = re.compile(r"^[0-9a-f]{2}/[0-9a-f]{64}/[^/]+$")
 MEDIA_EXTRACTION_CLEANUP_TERMINAL_STATUSES = frozenset({"completed", "skipped", "failed_terminal"})
 
 
@@ -78,6 +81,21 @@ class AuthenticatedNoticeQuarantineAttachmentCleanupRequest:
                 "media_closeout_audit_path",
                 Path(self.media_closeout_audit_path),
             )
+
+
+@dataclass(frozen=True, slots=True)
+class AuthenticatedNoticeCanonicalUnreferencedAttachmentCleanupRequest:
+    candidate_inventory_path: Path
+    output_dir: Path
+    dry_run: bool = False
+
+    def __post_init__(self) -> None:
+        object.__setattr__(
+            self,
+            "candidate_inventory_path",
+            Path(self.candidate_inventory_path),
+        )
+        object.__setattr__(self, "output_dir", Path(self.output_dir))
 
 
 def cleanup_authenticated_notice_source_attachment_keys(
@@ -283,6 +301,100 @@ def cleanup_authenticated_notice_quarantine_attachment_keys(
     return summary
 
 
+def cleanup_authenticated_notice_canonical_unreferenced_attachment_keys(
+    *,
+    request: AuthenticatedNoticeCanonicalUnreferencedAttachmentCleanupRequest,
+    env: dict[str, str] | None = None,
+    object_store: AuthenticatedNoticeAttachmentKeyCleanupObjectStore | None = None,
+    stderr: TextIO | None = None,
+) -> dict[str, Any]:
+    source = env if env is not None else dict(os.environ)
+    settings = ObjectStoreSettings.from_env(source)
+    runtime_object_store = object_store or AuthenticatedNoticeAttachmentKeyCleanupS3ObjectStore(
+        settings
+    )
+    log_output = stderr if stderr is not None else sys.stderr
+    candidates, inventory_row_count = _load_canonical_unreferenced_cleanup_candidates(
+        request.candidate_inventory_path,
+        default_bucket=settings.bucket_source,
+    )
+
+    output_dir = request.output_dir
+    output_dir.mkdir(parents=True, exist_ok=True)
+    deleted_path = output_dir / "deleted-canonical-unreferenced-attachment-objects.jsonl"
+    already_absent_path = (
+        output_dir / "already-absent-canonical-unreferenced-attachment-objects.jsonl"
+    )
+    dry_run_path = output_dir / "dry-run-canonical-unreferenced-attachment-objects.jsonl"
+    summary_path = output_dir / "canonical-unreferenced-attachment-cleanup-summary.json"
+
+    deleted_rows: list[dict[str, Any]] = []
+    already_absent_rows: list[dict[str, Any]] = []
+    dry_run_rows: list[dict[str, Any]] = []
+    total = len(candidates)
+    for completed, candidate in enumerate(candidates, start=1):
+        bucket = _normalize_optional_text(candidate.get("bucket")) or settings.bucket_source
+        object_key = _required_text(candidate.get("object_key"), label="object_key")
+        if request.dry_run:
+            result = {
+                **candidate,
+                "bucket": bucket,
+                "status": "dry_run",
+            }
+        else:
+            result = _cleanup_canonical_unreferenced_attachment(
+                bucket=bucket,
+                candidate=candidate,
+                object_key=object_key,
+                object_store=runtime_object_store,
+            )
+        if result["status"] == "deleted":
+            deleted_rows.append(result)
+        elif result["status"] == "already_absent":
+            already_absent_rows.append(result)
+        elif result["status"] == "dry_run":
+            dry_run_rows.append(result)
+        else:  # pragma: no cover
+            raise ValueError(f"unsupported canonical attachment cleanup status: {result['status']}")
+        if completed == total or completed % 100 == 0:
+            print(
+                (
+                    "[authenticated-notice-canonical-unreferenced-attachment-cleanup] "
+                    f"completed={completed}/{total} deleted={len(deleted_rows)} "
+                    f"already_absent={len(already_absent_rows)}"
+                ),
+                file=log_output,
+            )
+
+    deleted_rows_sorted = sorted(deleted_rows, key=lambda row: str(row["object_key"]))
+    already_absent_rows_sorted = sorted(
+        already_absent_rows,
+        key=lambda row: str(row["object_key"]),
+    )
+    dry_run_rows_sorted = sorted(dry_run_rows, key=lambda row: str(row["object_key"]))
+    _write_jsonl(deleted_path, deleted_rows_sorted)
+    _write_jsonl(already_absent_path, already_absent_rows_sorted)
+    _write_jsonl(dry_run_path, dry_run_rows_sorted)
+    summary = {
+        "candidate_inventory_path": str(request.candidate_inventory_path),
+        "output_dir": str(output_dir),
+        "dry_run": request.dry_run,
+        "inventory_row_count": inventory_row_count,
+        "candidate_count": len(candidates),
+        "deleted_count": len(deleted_rows_sorted),
+        "already_absent_count": len(already_absent_rows_sorted),
+        "dry_run_count": len(dry_run_rows_sorted),
+        "deleted_inventory_path": str(deleted_path),
+        "already_absent_inventory_path": str(already_absent_path),
+        "dry_run_inventory_path": str(dry_run_path),
+    }
+    summary_path.write_text(
+        json.dumps(summary, ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    return summary
+
+
 def _load_candidates(path: Path) -> tuple[tuple[str, ...], int]:
     rows = _load_jsonl_rows(path)
     inventory_row_count = len(rows)
@@ -293,13 +405,50 @@ def _load_candidates(path: Path) -> tuple[tuple[str, ...], int]:
             row.get("legacy_object_key"),
             label="legacy_object_key",
         )
-        if not _is_legacy_attachment_object_key(legacy_object_key):
+        if not is_legacy_attachment_object_key(legacy_object_key):
             raise ValueError(f"{legacy_object_key} must be a legacy attachment object key")
         if legacy_object_key in seen:
             continue
         seen.add(legacy_object_key)
         candidates.append(legacy_object_key)
     return tuple(sorted(candidates)), inventory_row_count
+
+
+def _load_canonical_unreferenced_cleanup_candidates(
+    path: Path,
+    *,
+    default_bucket: str,
+) -> tuple[tuple[dict[str, Any], ...], int]:
+    rows = _load_jsonl_rows(path)
+    candidates: list[dict[str, Any]] = []
+    seen: set[tuple[str, str]] = set()
+    for row in rows:
+        object_key = _required_text(row.get("object_key"), label="object_key")
+        if not is_canonical_attachment_object_key(object_key):
+            raise ValueError(f"{object_key} must be a canonical attachment object key")
+        cleanup_reason = _required_text(row.get("cleanup_reason"), label="cleanup_reason")
+        if cleanup_reason != "unreferenced_attachment_object":
+            raise ValueError(
+                "canonical unreferenced cleanup only accepts "
+                "cleanup_reason=unreferenced_attachment_object; quarantine candidates must use "
+                "the media-closeout-gated quarantine cleanup path"
+            )
+        if _normalize_optional_text(row.get("classification")) == "keep":
+            raise ValueError(f"{object_key} cannot be a keep row")
+        if _strict_optional_bool(row.get("required_source_object")) is True:
+            raise ValueError(f"{object_key} cannot be required source object")
+        if _normalize_optional_text(row.get("keep_reason")) is not None:
+            raise ValueError(f"{object_key} cannot carry keep_reason")
+        bucket = _normalize_optional_text(row.get("bucket")) or default_bucket
+        dedupe_key = (bucket, object_key)
+        if dedupe_key in seen:
+            continue
+        seen.add(dedupe_key)
+        candidates.append({**row, "bucket": bucket, "object_key": object_key})
+    return (
+        tuple(sorted(candidates, key=lambda item: str(item["object_key"]))),
+        len(rows),
+    )
 
 
 def _load_quarantine_cleanup_candidates(
@@ -496,6 +645,41 @@ def _cleanup_quarantine_candidate(
     raise ValueError(f"{object_key} still exists after delete")
 
 
+def _cleanup_canonical_unreferenced_attachment(
+    *,
+    bucket: str,
+    candidate: dict[str, Any],
+    object_key: str,
+    object_store: AuthenticatedNoticeAttachmentKeyCleanupObjectStore,
+) -> dict[str, Any]:
+    try:
+        metadata = object_store.head_object(bucket=bucket, key=object_key)
+    except Exception as exc:
+        if _is_missing_object_error(exc):
+            return {
+                **candidate,
+                "bucket": bucket,
+                "status": "already_absent",
+            }
+        raise
+    byte_size = _coerce_content_length(metadata, label=object_key)
+    etag = _normalize_optional_text(_read_head_field(metadata, "ETag", "etag"))
+    object_store.delete_object(bucket=bucket, key=object_key)
+    try:
+        object_store.head_object(bucket=bucket, key=object_key)
+    except Exception as exc:
+        if _is_missing_object_error(exc):
+            return {
+                **candidate,
+                "bucket": bucket,
+                "byte_size": byte_size,
+                "etag": etag,
+                "status": "deleted",
+            }
+        raise
+    raise ValueError(f"{object_key} still exists after delete")
+
+
 def _load_jsonl_rows(path: Path) -> tuple[dict[str, Any], ...]:
     text = path.read_text(encoding="utf-8").strip()
     if not text:
@@ -557,8 +741,10 @@ def _normalize_optional_text(value: object) -> str | None:
     return normalized or None
 
 
-def _is_legacy_attachment_object_key(value: str) -> bool:
-    return bool(LEGACY_ATTACHMENT_OBJECT_KEY_RE.fullmatch(str(value or "").strip()))
+def _strict_optional_bool(value: object) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    return None
 
 
 def _read_head_field(metadata: dict[str, Any], *names: str) -> object | None:
@@ -603,7 +789,9 @@ __all__ = [
     "MEDIA_EXTRACTION_CLEANUP_TERMINAL_STATUSES",
     "AuthenticatedNoticeAttachmentKeyCleanupRequest",
     "AuthenticatedNoticeAttachmentKeyCleanupS3ObjectStore",
+    "AuthenticatedNoticeCanonicalUnreferencedAttachmentCleanupRequest",
     "AuthenticatedNoticeQuarantineAttachmentCleanupRequest",
+    "cleanup_authenticated_notice_canonical_unreferenced_attachment_keys",
     "cleanup_authenticated_notice_quarantine_attachment_keys",
     "cleanup_authenticated_notice_source_attachment_keys",
 ]

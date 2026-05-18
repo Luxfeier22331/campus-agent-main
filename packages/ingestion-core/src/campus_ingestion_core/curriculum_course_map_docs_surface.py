@@ -56,13 +56,18 @@ from campus_ingestion_core.readable_text_normalization import normalize_readable
 
 CURRICULUM_COURSE_MAP_DOCS_SURFACE_FILENAME = "course-maps.json"
 CURRICULUM_COURSE_MAP_DOCS_IMAGE_DIRECTORY = "course-maps"
+CURRICULUM_COURSE_MAP_DOCS_SURFACE_DIRECTORY = "docs-surfaces"
 
 
 def build_curriculum_course_map_docs_surface_object_key(document_units_key: str) -> str:
     path = PurePosixPath(document_units_key)
     if path.name != DOCUMENT_UNITS_FILENAME:
         raise ValueError("document_units_key must point to document-units.jsonl")
-    return str(path.parent / "reader-assets" / CURRICULUM_COURSE_MAP_DOCS_SURFACE_FILENAME)
+    return str(
+        path.parent
+        / CURRICULUM_COURSE_MAP_DOCS_SURFACE_DIRECTORY
+        / CURRICULUM_COURSE_MAP_DOCS_SURFACE_FILENAME
+    )
 
 
 def build_curriculum_course_map_docs_image_object_key(

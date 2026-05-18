@@ -43,6 +43,46 @@ updated: 2026-05-01
 - source truth 和 per-document `document-units.jsonl` 已存在
 - chunk / cleaning policy 已固定
 
+## Qdrant Backup Retention Audit
+
+对象存储中的 `{corpus}/backups/{collection}/.../backup-manifest.json` 不能按时间或体积直接删除。
+先生成 bucket-wide retention inventory：
+
+```bash
+uv run --all-packages \
+  campus-ingestion-audit-qdrant-backup-retention \
+  --corpus regulations \
+  --collection student_rules \
+  --output-dir var/qdrant-backup-retention/regulations-student-rules
+```
+
+如需保护迁移基线：
+
+```bash
+uv run --all-packages \
+  campus-ingestion-audit-qdrant-backup-retention \
+  --corpus curriculum \
+  --collection curriculum_plan \
+  --protected-physical-collection-name <physical_collection_name> \
+  --output-dir var/qdrant-backup-retention/curriculum-plan
+```
+
+输出：
+
+- `summary.json`
+- `backup-retention-inventory.jsonl`
+
+inventory role：
+
+- `current`：当前 serving alias 指向的 release。
+- `previous`：最新 release manifest 的 previous physical collection。
+- `migration_baseline`：operator 显式保护的迁移基线。
+- `archive_candidate`：可进入 GC eligibility 判断的历史 release。
+- `orphan_backup_manifest`：有 backup manifest 但找不到 release manifest；不得直接删除，需要先确认是否为迁移/恢复证据。
+
+删除 physical collection 仍必须走 `campus-ingestion-qdrant-gc-check` /
+`campus-ingestion-qdrant-gc-delete`，不能直接根据本 audit 删除对象存储 backup。
+
 建议先检查：
 
 ```bash

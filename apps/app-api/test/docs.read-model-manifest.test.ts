@@ -54,6 +54,52 @@ describe("docs read model manifest", () => {
 		).toThrow("unsupported docs read model scope: campus_notices/internal_notice");
 	});
 
+	it("rejects scoped rules because they are not in the current docs consumption surface", () => {
+		expect(() =>
+			buildDocsReadModelImportPlan({
+				collections: [
+					{
+						collection: "scoped_rules",
+						corpus: "regulations",
+						description: "Scoped rules are a non-serving holding collection.",
+						displayName: "专项规章",
+						updatedAt: "2026-05-18T08:00:00.000Z",
+					},
+				],
+				documentVersions: [
+					{
+						deliveryMode: "gated_asset",
+						docId: "regulation:scoped:college-rule",
+						entitlementGroups: ["campus_members"],
+						isCurrent: true,
+						label: "现行版",
+						updatedAt: "2026-05-18T08:00:00.000Z",
+						versionId: "sha256:scoped-rule",
+						versionSlug: "2026-current",
+						visibilityLevel: "restricted",
+					},
+				],
+				documents: [
+					{
+						canonicalUrl: "/docs/regulations/scoped_rules/college-rule",
+						collection: "scoped_rules",
+						corpus: "regulations",
+						currentVersionId: "sha256:scoped-rule",
+						currentVersionSlug: "2026-current",
+						docId: "regulation:scoped:college-rule",
+						documentSlug: "college-rule",
+						title: "某学院专项实施细则",
+						updatedAt: "2026-05-18T08:00:00.000Z",
+					},
+				],
+				generatedAt: "2026-05-18T08:00:00.000Z",
+				readerAssets: [],
+				schemaVersion: "document_reader_publish_manifest_v1",
+				searchUnits: [],
+			}),
+		).toThrow("unsupported docs read model scope: regulations/scoped_rules");
+	});
+
 	it("builds a deterministic import plan and exports only public static assets", () => {
 		const plan = buildDocsReadModelImportPlan({
 			collections: [

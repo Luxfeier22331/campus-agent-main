@@ -5,6 +5,7 @@ import {
 	compareIndexSpec,
 	hasPlannedTarget,
 	normalizeInventoryIndexSpec,
+	normalizePostgresIdentifier,
 	parseIndexDefinition,
 	qualifyTable,
 } from "./adopt-shared-database-shared.mjs";
@@ -155,9 +156,11 @@ export function validateInventoryAgainstExpectedTables(
 			}
 		}
 		for (const constraint of expectedTable.constraints) {
+			const normalizedConstraint = normalizePostgresIdentifier(constraint);
 			if (
 				!(
 					actualTable.constraints.has(constraint) ||
+					actualTable.constraints.has(normalizedConstraint) ||
 					hasPlannedTarget(plannedTargetKeys, `${qualifiedName}#${constraint}`, qualifiedName)
 				)
 			) {

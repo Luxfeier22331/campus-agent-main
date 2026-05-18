@@ -488,7 +488,7 @@ function buildCurriculumCourseMapDocsSurfaceObjectKey(documentUnitsKey: string):
 	if (!documentUnitsKey.endsWith("/document-units.jsonl")) {
 		throw new Error("document_units_key must point to document-units.jsonl");
 	}
-	return `${documentUnitsKey.slice(0, -"document-units.jsonl".length)}reader-assets/course-maps.json`;
+	return `${documentUnitsKey.slice(0, -"document-units.jsonl".length)}docs-surfaces/course-maps.json`;
 }
 
 function resolveCourseMapImageReference(block: CourseMapBlock): string {
@@ -508,10 +508,10 @@ function buildCourseMapImageObjectKey(input: {
 	}
 	const normalizedPath = normalizedReference.replace(/^\/+/, "");
 	if (normalizedPath.includes("..")) {
-		throw new Error(`course-map imagePath escapes reader-assets directory: ${normalizedPath}`);
+		throw new Error(`course-map imagePath escapes docs-surfaces directory: ${normalizedPath}`);
 	}
-	const readerAssetsPrefix = input.surfaceKey.slice(0, -"course-maps.json".length);
-	return `${readerAssetsPrefix}${normalizedPath}`;
+	const surfacePrefix = input.surfaceKey.slice(0, -"course-maps.json".length);
+	return `${surfacePrefix}${normalizedPath}`;
 }
 
 function loadCurriculumCourseMapDocsSurface(payload: Uint8Array): CourseMapSurface {

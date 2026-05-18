@@ -19,6 +19,9 @@ from campus_ingestion_core.models import DocumentRegistryRecord
 from campus_ingestion_worker.env_bootstrap import load_worker_env
 
 DEFAULT_SCOPES = ("regulations/student_rules", "curriculum/curriculum_plan")
+DEFAULT_MANIFEST_OBJECT_KEY = (
+    "public_docs/releases/reader_assets/current/public-docs-reader-assets.json"
+)
 DOCUMENT_SITE_ALLOWED_SCOPES = frozenset(
     {
         ("curriculum", "curriculum_plan"),
@@ -50,7 +53,7 @@ def build_parser() -> argparse.ArgumentParser:
         help="Scope in <corpus>/<collection> form. Defaults to public docs first-launch scopes.",
     )
     parser.add_argument("--manifest-path")
-    parser.add_argument("--manifest-object-key")
+    parser.add_argument("--manifest-object-key", default=DEFAULT_MANIFEST_OBJECT_KEY)
     parser.add_argument("--dry-run", action="store_true")
     return parser
 

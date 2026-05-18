@@ -34,9 +34,24 @@ def _object_store_env() -> dict[str, str]:
 class _FakeDerivedBucketObjectStore:
     def __init__(self, keys: tuple[str, ...]) -> None:
         self.keys = keys
+        self.deleted: list[str] = []
 
     def list_keys(self, *, bucket: str, prefix: str) -> tuple[str, ...]:
+        del bucket
         return tuple(sorted(key for key in self.keys if key.startswith(prefix)))
+
+    def head_object(self, *, bucket: str, key: str) -> dict[str, object]:
+        del bucket
+        if key not in self.keys:
+            raise KeyError(key)
+        return {"ContentLength": len(key), "ETag": '"etag"'}
+
+    def delete_object(self, *, bucket: str, key: str) -> None:
+        del bucket
+        if key not in self.keys:
+            raise KeyError(key)
+        self.deleted.append(key)
+        self.keys = tuple(existing for existing in self.keys if existing != key)
 
 
 class DerivedBucketHygieneTest(unittest.TestCase):
@@ -99,12 +114,14 @@ class DerivedBucketHygieneTest(unittest.TestCase):
             unexpected_keys,
             [
                 {
+                    "bucket": "campus-rag-derived",
                     "root_prefix": "curriculum",
                     "family": "archive",
                     "reason": "unexpected_family",
                     "object_key": "curriculum/archive/curriculum_plan/example.json",
                 },
                 {
+                    "bucket": "campus-rag-derived",
                     "root_prefix": "scratch",
                     "family": "tmp.json",
                     "reason": "unexpected_root_prefix",
@@ -136,6 +153,73 @@ class DerivedBucketHygieneTest(unittest.TestCase):
         self.assertEqual(payload["unexpected_root_prefix_count"], 1)
         self.assertEqual(payload["unexpected_family_count"], 2)
         self.assertEqual(payload["unexpected_key_count"], 3)
+
+    def test_cleanup_consumes_audited_unexpected_key_inventory(self) -> None:
+        hygiene = _load_hygiene_module()
+        with TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+            candidate_path = output_dir / "unexpected-keys.jsonl"
+            candidate_path.write_text(
+                json.dumps(
+                    {
+                        "bucket": "campus-rag-derived",
+                        "root_prefix": "manifests",
+                        "family": "public-docs-reader-assets.json",
+                        "reason": "unexpected_root_prefix",
+                        "object_key": "manifests/public-docs-reader-assets.json",
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+            object_store = _FakeDerivedBucketObjectStore(
+                keys=("manifests/public-docs-reader-assets.json",)
+            )
+
+            summary = hygiene.cleanup_derived_bucket_unexpected_keys(
+                request=hygiene.DerivedBucketUnexpectedKeyCleanupRequest(
+                    candidate_inventory_path=candidate_path,
+                    output_dir=output_dir / "delete",
+                    dry_run=False,
+                ),
+                env=_object_store_env(),
+                object_store=object_store,
+            )
+
+        self.assertEqual(summary["deleted_count"], 1)
+        self.assertEqual(summary["already_absent_count"], 0)
+        self.assertEqual(object_store.deleted, ["manifests/public-docs-reader-assets.json"])
+
+    def test_cleanup_rejects_rows_without_bucket(self) -> None:
+        hygiene = _load_hygiene_module()
+        with TemporaryDirectory() as temp_dir:
+            output_dir = Path(temp_dir)
+            candidate_path = output_dir / "unexpected-keys.jsonl"
+            candidate_path.write_text(
+                json.dumps(
+                    {
+                        "root_prefix": "manifests",
+                        "family": "public-docs-reader-assets.json",
+                        "reason": "unexpected_root_prefix",
+                        "object_key": "manifests/public-docs-reader-assets.json",
+                    },
+                    ensure_ascii=False,
+                )
+                + "\n",
+                encoding="utf-8",
+            )
+
+            with self.assertRaisesRegex(ValueError, "bucket is required"):
+                hygiene.cleanup_derived_bucket_unexpected_keys(
+                    request=hygiene.DerivedBucketUnexpectedKeyCleanupRequest(
+                        candidate_inventory_path=candidate_path,
+                        output_dir=output_dir / "delete",
+                        dry_run=True,
+                    ),
+                    env=_object_store_env(),
+                    object_store=_FakeDerivedBucketObjectStore(keys=()),
+                )
 
 
 if __name__ == "__main__":
