@@ -44,17 +44,21 @@ interface CourseMapBlock {
 	parentHeadingHint: string;
 	displayStageLabels: string[];
 	extractionNotes: string[];
-	imageObjectKey: string;
+	imagePath?: string;
+	imageObjectKey?: string;
 	nodes: CourseMapNode[];
 	edges: CourseMapEdge[];
 }
 
 interface CourseMapSurface {
-	generatedAt: string;
-	documentTitle: string;
-	documentId: string;
-	rawAssetId: string;
-	rawVersionId: string;
+	docId?: string;
+	schemaVersion?: string;
+	versionId?: string;
+	documentId?: string;
+	documentTitle?: string;
+	generatedAt?: string;
+	rawAssetId?: string;
+	rawVersionId?: string;
 	blocks: CourseMapBlock[];
 }
 
@@ -118,17 +122,26 @@ export async function syncCurriculumCourseMapArtifacts(input: {
 		}
 		const dataModuleName = `${doc.slug}.data.ts`;
 		const imageDir = resolve(publicRoot, doc.slug);
-		const dataPayload = buildCourseMapDataPayload({ surface, publicSlug: doc.slug });
+		const dataPayload = buildCourseMapDataPayload({
+			documentTitle: doc.title,
+			publicSlug: doc.slug,
+			surface,
+		});
 		const imagePayloads: Array<{ fileName: string; imageBytes: Uint8Array }> = [];
 		for (const block of surface.blocks) {
-			const imageBytes = await input.client.readOptionalBytesObject({ key: block.imageObjectKey });
+			const imageReference = resolveCourseMapImageReference(block);
+			const imageObjectKey = buildCourseMapImageObjectKey({
+				imageReference,
+				surfaceKey,
+			});
+			const imageBytes = await input.client.readOptionalBytesObject({ key: imageObjectKey });
 			if (!imageBytes) {
 				throw new Error(
-					`missing published course-map image object for ${doc.slug}: ${block.imageObjectKey}`,
+					`missing published course-map image object for ${doc.slug}: ${imageObjectKey}`,
 				);
 			}
 			imagePayloads.push({
-				fileName: basename(block.imageObjectKey),
+				fileName: basename(imageObjectKey),
 				imageBytes,
 			});
 		}
@@ -208,19 +221,21 @@ export function buildCourseMapDataModule(
 }
 
 export function buildCourseMapDataPayload(input: {
+	documentTitle?: string;
 	surface: CourseMapSurface;
 	publicSlug: string;
 }): Record<string, unknown> {
+	const documentTitle = input.documentTitle ?? input.surface.documentTitle ?? "";
 	return {
-		generatedAt: input.surface.generatedAt,
-		documentTitle: input.surface.documentTitle,
-		documentId: input.surface.documentId,
-		rawAssetId: input.surface.rawAssetId,
-		rawVersionId: input.surface.rawVersionId,
+		documentId: input.surface.docId || input.surface.documentId || "",
+		documentTitle,
+		generatedAt: input.surface.generatedAt ?? "",
+		rawAssetId: input.surface.rawAssetId ?? "",
+		rawVersionId: input.surface.versionId || input.surface.rawVersionId || "",
 		blocks: input.surface.blocks.map((block) =>
 			buildCourseMapBlockPayload({
 				block,
-				documentTitle: input.surface.documentTitle,
+				documentTitle,
 				publicSlug: input.publicSlug,
 			}),
 		),
@@ -291,6 +306,7 @@ function buildCourseMapBlockPayload(input: {
 	documentTitle: string;
 	publicSlug: string;
 }): NormalizedCourseMapBlockPayload {
+	const imageReference = resolveCourseMapImageReference(input.block);
 	const normalizedNodes = buildNormalizedCourseMapNodes(input.block.nodes);
 	const normalizedEdges = buildNormalizedCourseMapEdges({
 		edges: input.block.edges,
@@ -333,7 +349,7 @@ function buildCourseMapBlockPayload(input: {
 		parentHeadingHint: input.block.parentHeadingHint,
 		displayStageLabels,
 		extractionNotes: Array.from(new Set(extractionNotes.filter(Boolean))),
-		imageSrc: `/course-maps/${input.publicSlug}/${basename(input.block.imageObjectKey)}`,
+		imageSrc: `/course-maps/${input.publicSlug}/${basename(imageReference)}`,
 		nodes: normalizedNodes.map((node) => ({
 			...node,
 			incoming_count: incomingCounts.get(node.node_id) ?? 0,
@@ -475,15 +491,41 @@ function buildCurriculumCourseMapDocsSurfaceObjectKey(documentUnitsKey: string):
 	return `${documentUnitsKey.slice(0, -"document-units.jsonl".length)}reader-assets/course-maps.json`;
 }
 
+function resolveCourseMapImageReference(block: CourseMapBlock): string {
+	return String(block.imagePath || block.imageObjectKey || "").trim();
+}
+
+function buildCourseMapImageObjectKey(input: {
+	imageReference: string;
+	surfaceKey: string;
+}): string {
+	const normalizedReference = input.imageReference.trim();
+	if (!normalizedReference) {
+		throw new Error(`course-map block is missing imagePath/imageObjectKey: ${input.surfaceKey}`);
+	}
+	if (/^(?:curriculum|regulations)\//.test(normalizedReference)) {
+		return normalizedReference;
+	}
+	const normalizedPath = normalizedReference.replace(/^\/+/, "");
+	if (normalizedPath.includes("..")) {
+		throw new Error(`course-map imagePath escapes reader-assets directory: ${normalizedPath}`);
+	}
+	const readerAssetsPrefix = input.surfaceKey.slice(0, -"course-maps.json".length);
+	return `${readerAssetsPrefix}${normalizedPath}`;
+}
+
 function loadCurriculumCourseMapDocsSurface(payload: Uint8Array): CourseMapSurface {
 	const raw = JSON.parse(new TextDecoder().decode(payload)) as Record<string, unknown>;
 	const blocks = Array.isArray(raw.blocks) ? raw.blocks : [];
 	return {
-		generatedAt: String(raw.generatedAt ?? "").trim(),
+		docId: String(raw.docId ?? raw.documentId ?? "").trim(),
+		schemaVersion: String(raw.schemaVersion ?? "").trim(),
+		versionId: String(raw.versionId ?? raw.rawVersionId ?? "").trim(),
+		documentId: String(raw.documentId ?? raw.docId ?? "").trim(),
 		documentTitle: String(raw.documentTitle ?? "").trim(),
-		documentId: String(raw.documentId ?? "").trim(),
+		generatedAt: String(raw.generatedAt ?? "").trim(),
 		rawAssetId: String(raw.rawAssetId ?? "").trim(),
-		rawVersionId: String(raw.rawVersionId ?? "").trim(),
+		rawVersionId: String(raw.rawVersionId ?? raw.versionId ?? "").trim(),
 		blocks: blocks.map(coerceCourseMapBlock),
 	};
 }
@@ -501,7 +543,8 @@ function coerceCourseMapBlock(value: unknown): CourseMapBlock {
 		parentHeadingHint: String(record.parentHeadingHint ?? "").trim(),
 		displayStageLabels: arrayOfStrings(record.displayStageLabels),
 		extractionNotes: arrayOfStrings(record.extractionNotes),
-		imageObjectKey: String(record.imageObjectKey ?? "").trim(),
+		imagePath: String(record.imagePath ?? record.imageObjectKey ?? "").trim(),
+		imageObjectKey: String(record.imageObjectKey ?? "").trim() || undefined,
 		nodes: Array.isArray(record.nodes) ? record.nodes.map(coerceCourseMapNode) : [],
 		edges: Array.isArray(record.edges) ? record.edges.map(coerceCourseMapEdge) : [],
 	};
@@ -510,17 +553,22 @@ function coerceCourseMapBlock(value: unknown): CourseMapBlock {
 function coerceCourseMapNode(value: unknown): CourseMapNode {
 	const record = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 	return {
-		node_label: String(record.node_label ?? "").trim(),
-		stage_label: String(record.stage_label ?? "").trim(),
-		category_label: String(record.category_label ?? "").trim(),
+		node_id: String(record.node_id ?? record.nodeId ?? "").trim(),
+		node_label: String(record.node_label ?? record.nodeLabel ?? "").trim(),
+		stage_id: String(record.stage_id ?? record.stageId ?? "").trim(),
+		stage_label: String(record.stage_label ?? record.stageLabel ?? "").trim(),
+		category_label: String(record.category_label ?? record.categoryLabel ?? "").trim(),
 	};
 }
 
 function coerceCourseMapEdge(value: unknown): CourseMapEdge {
 	const record = value && typeof value === "object" ? (value as Record<string, unknown>) : {};
 	return {
-		source_label: String(record.source_label ?? "").trim(),
-		target_label: String(record.target_label ?? "").trim(),
+		edge_id: String(record.edge_id ?? record.edgeId ?? "").trim(),
+		source_node_id: String(record.source_node_id ?? record.sourceNodeId ?? "").trim(),
+		source_label: String(record.source_label ?? record.sourceLabel ?? "").trim(),
+		target_node_id: String(record.target_node_id ?? record.targetNodeId ?? "").trim(),
+		target_label: String(record.target_label ?? record.targetLabel ?? "").trim(),
 	};
 }
 

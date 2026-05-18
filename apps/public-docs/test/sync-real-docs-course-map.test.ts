@@ -380,11 +380,9 @@ describe("course-map rendering and artifact sync", () => {
 		temporaryDirectories.push(root);
 		const docsRoot = join(root, "apps/public-docs/docs");
 		const surface = {
-			generatedAt: "2026-04-22T00:00:00+00:00",
-			documentTitle: "计算机类本科人才培养方案",
-			documentId: "curriculum:computer-science",
-			rawAssetId: "asset:test",
-			rawVersionId: "sha256:test",
+			docId: "curriculum:computer-science",
+			schemaVersion: "curriculum_course_maps_reader_v1",
+			versionId: "ver:computer-science",
 			blocks: [
 				{
 					blockId: "page-0001-row-1-map-01",
@@ -397,9 +395,15 @@ describe("course-map rendering and artifact sync", () => {
 					parentHeadingHint: "六、课程地图",
 					displayStageLabels: ["一年级上学期"],
 					extractionNotes: [],
-					imageObjectKey:
-						"curriculum/documents/curriculum_plan/computer/source-faithful/2022/reader-assets/course-maps/map-01.png",
-					nodes: [{ node_label: "程序设计基础", stage_label: "一年级上学期" }],
+					imagePath: "course-maps/map-01.png",
+					nodes: [
+						{
+							nodeId: "node-programming",
+							nodeLabel: "程序设计基础",
+							stageId: "stage-1",
+							stageLabel: "一年级上学期",
+						},
+					],
 					edges: [],
 				},
 			],
@@ -453,5 +457,99 @@ describe("course-map rendering and artifact sync", () => {
 		expect(embeds.get("computer-science")?.dataImportPath).toBe(
 			"../src/generated/course-maps/computer-science.data",
 		);
+	});
+
+	it("syncs mixed published course-map image references from both relative paths and absolute object keys", async () => {
+		const root = mkdtempSync(join(tmpdir(), "public-docs-course-map-mixed-"));
+		temporaryDirectories.push(root);
+		const docsRoot = join(root, "apps/public-docs/docs");
+		const surface = {
+			docId: "curriculum:mixed-course-map",
+			schemaVersion: "curriculum_course_maps_reader_v1",
+			versionId: "ver:mixed-course-map",
+			blocks: [
+				{
+					blockId: "page-0001-row-1-map-01",
+					title: "课程地图一",
+					status: "ready",
+					titleConfidence: "visible",
+					pageNumber: 1,
+					rowId: "page-0001-block-0001",
+					mapIndex: 1,
+					parentHeadingHint: "六、课程地图",
+					displayStageLabels: ["一年级上学期"],
+					extractionNotes: [],
+					imagePath: "course-maps/map-01.png",
+					nodes: [
+						{
+							nodeId: "node-1",
+							nodeLabel: "程序设计基础",
+							stageId: "stage-1",
+							stageLabel: "一年级上学期",
+						},
+					],
+					edges: [],
+				},
+				{
+					blockId: "page-0002-row-1-map-01",
+					title: "课程地图二",
+					status: "partial",
+					titleConfidence: "visible",
+					pageNumber: 2,
+					rowId: "page-0002-block-0001",
+					mapIndex: 2,
+					parentHeadingHint: "六、课程地图",
+					displayStageLabels: ["一年级下学期"],
+					extractionNotes: ["建议核对原图"],
+					imagePath:
+						"curriculum/documents/curriculum_plan/mixed/source-faithful/2022/reader-assets/course-maps/map-02.png",
+					nodes: [
+						{
+							nodeId: "node-2",
+							nodeLabel: "数据结构",
+							stageId: "stage-2",
+							stageLabel: "一年级下学期",
+						},
+					],
+					edges: [],
+				},
+			],
+		};
+		const objects = new Map<string, string | Uint8Array>([
+			[
+				"curriculum/documents/curriculum_plan/mixed/source-faithful/2022/reader-assets/course-maps.json",
+				JSON.stringify(surface),
+			],
+			[
+				"curriculum/documents/curriculum_plan/mixed/source-faithful/2022/reader-assets/course-maps/map-01.png",
+				new Uint8Array([1, 2, 3]),
+			],
+			[
+				"curriculum/documents/curriculum_plan/mixed/source-faithful/2022/reader-assets/course-maps/map-02.png",
+				new Uint8Array([4, 5, 6]),
+			],
+		]);
+
+		await syncCurriculumCourseMapArtifacts({
+			client: new FakeObjectStore(objects),
+			curriculumDocs: [
+				{
+					key: "curriculum/documents/curriculum_plan/mixed/source-faithful/2022/document-units.jsonl",
+					slug: "mixed-course-map",
+					title: "混合课程地图示例",
+				},
+			],
+			docsRoot,
+		});
+
+		expect(
+			readdirSync(join(root, "apps/public-docs/docs/public/course-maps/mixed-course-map")).sort(),
+		).toEqual(["map-01.png", "map-02.png"]);
+		expect(
+			readFileSync(
+				join(root, "apps/public-docs/src/generated/course-maps/mixed-course-map.data.ts"),
+				"utf-8",
+			),
+		).toContain('imageSrc: "/course-maps/mixed-course-map/map-02.png"');
 	});
 });

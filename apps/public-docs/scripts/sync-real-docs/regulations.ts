@@ -1,5 +1,10 @@
 import { existsSync, rmSync } from "node:fs";
 import { resolve } from "node:path";
+import {
+	buildRegulationConsumptionByDocumentId,
+	type RegulationNavGroup,
+	resolveRegulationGroupMeta,
+} from "../regulation-consumption";
 import { normalizeReadableText } from "./readable-text";
 import {
 	buildDocumentMetaPanelBlock,
@@ -17,7 +22,7 @@ import type { ObjectStoreClient } from "./storage";
 
 const PUBLIC_REGULATION_COLLECTIONS = new Map<string, string>([
 	["institutional_rules", "学校规章"],
-	["scoped_rules", "专项规则"],
+	["student_rules", "学生规章"],
 ]);
 const REGULATION_ROUTE_PREFIX = "campus-regulation";
 const MARKDOWN_HEADING_RE = /^\s*#+\s*(?<text>.+?)\s*$/;
@@ -41,6 +46,9 @@ export function buildPublicRegulationIndex(): string {
 		"",
 		"认证内网来源、带有受限 entitlement 的制度文档不会进入当前公开文档站。",
 		"",
+		"- [学生规章](./student/)",
+		"- [校园服务制度](./public-service/)",
+		"- [教职工与校级治理](./staff-governance/)",
 	].join("\n");
 }
 
@@ -48,7 +56,10 @@ export async function discoverPublicRegulationDocs(
 	client: ObjectStoreClient,
 ): Promise<PublicRegulationDoc[]> {
 	const docs: PublicRegulationDoc[] = [];
+	const docsByDocumentId = new Map<string, PublicRegulationDoc>();
 	const seenSlugs = new Set<string>();
+	const consumptionByDocumentId = buildRegulationConsumptionByDocumentId();
+	const discoveredDocumentIds = new Set<string>();
 	for (const [collection, collectionLabel] of PUBLIC_REGULATION_COLLECTIONS) {
 		const prefix = `regulations/documents/${collection}/`;
 		for (const key of await client.listObjectKeys({ prefix })) {
@@ -60,6 +71,21 @@ export async function discoverPublicRegulationDocs(
 				continue;
 			}
 			const docId = resolveRegulationDocId(jsonlText, key);
+			const consumption = consumptionByDocumentId.get(docId);
+			if (!consumption) {
+				continue;
+			}
+			const existingDoc = docsByDocumentId.get(docId);
+			if (existingDoc) {
+				throw new Error(
+					[
+						`duplicate canonical public regulation documents for ${docId}`,
+						`first=${existingDoc.key}`,
+						`second=${key}`,
+					].join(": "),
+				);
+			}
+			discoveredDocumentIds.add(docId);
 			const title = resolveRegulationDocTitle(jsonlText, key);
 			let slug = buildPublicRegulationDocSlug({ collection, docId, title });
 			if (seenSlugs.has(slug)) {
@@ -69,13 +95,43 @@ export async function discoverPublicRegulationDocs(
 				throw new Error(`duplicate public regulation slug discovered: ${slug}`);
 			}
 			seenSlugs.add(slug);
-			docs.push({ collection, collectionLabel, key, slug, title });
+			const doc = {
+				audienceSegment: consumption.audience_segment,
+				collection,
+				collectionLabel,
+				docsNavGroup: consumption.docs_nav_group,
+				documentId: docId,
+				key,
+				slug,
+				title,
+			};
+			docsByDocumentId.set(docId, doc);
+			docs.push(doc);
 		}
 	}
+	assertPublicRegulationConsumptionCoverage(discoveredDocumentIds);
 	return docs.sort(
 		(left, right) =>
-			left.collectionLabel.localeCompare(right.collectionLabel, "zh-CN") ||
+			left.docsNavGroup.localeCompare(right.docsNavGroup, "zh-CN") ||
 			left.title.localeCompare(right.title, "zh-CN"),
+	);
+}
+
+function assertPublicRegulationConsumptionCoverage(
+	discoveredDocumentIds: ReadonlySet<string>,
+): void {
+	const missing = [...buildRegulationConsumptionByDocumentId().values()].filter(
+		(entry) => !discoveredDocumentIds.has(entry.document_id),
+	);
+	if (missing.length === 0) {
+		return;
+	}
+	const examples = missing
+		.slice(0, 8)
+		.map((entry) => `${entry.title} <${entry.document_id}>`)
+		.join("; ");
+	throw new Error(
+		`public regulation consumption manifest has ${missing.length} canonical document gaps: ${examples}`,
 	);
 }
 
@@ -93,12 +149,12 @@ export function buildPublicRegulationMarkdown(input: {
 			layout: "reference",
 			measure: "wide",
 		}),
-		`collectionLabel: ${jsonString(input.doc.collectionLabel)}`,
+		`collectionLabel: ${jsonString(resolvePublicRegulationCollectionLabel(input.doc))}`,
 		"---",
 		"",
 		buildDocumentMetaPanelBlock(
 			buildDocumentReaderMetadataFromJsonl({
-				collectionLabel: input.doc.collectionLabel,
+				collectionLabel: resolvePublicRegulationCollectionLabel(input.doc),
 				jsonlText: input.jsonlText,
 				objectKey: input.doc.key,
 			}),
@@ -150,23 +206,114 @@ export async function syncPublicRegulationDocs(input: {
 		}
 		return [];
 	}
-	writeText(
-		resolve(targetDir, "_meta.json"),
-		formatJsonContent(["index", ...regulationDocs.map((doc) => doc.slug)]),
-	);
+	const groups = buildGroupedRegulationDocs(regulationDocs);
+	writeText(resolve(targetDir, "_meta.json"), formatJsonContent(buildRegulationRootMeta(groups)));
 	writeText(resolve(targetDir, "index.md"), buildPublicRegulationIndex());
-	for (const doc of regulationDocs) {
-		const jsonlText = await input.client.readTextObject({ key: doc.key });
+	for (const group of groups) {
+		const groupDir = resolve(targetDir, group.slug);
 		writeText(
-			resolve(targetDir, `${doc.slug}.md`),
-			buildPublicRegulationMarkdown({ doc, jsonlText }),
+			resolve(groupDir, "_meta.json"),
+			formatJsonContent(group.docs.map((doc) => doc.slug)),
+		);
+		writeText(resolve(groupDir, "index.md"), buildRegulationGroupIndex(group));
+		for (const doc of group.docs) {
+			const jsonlText = await input.client.readTextObject({ key: doc.key });
+			writeText(
+				resolve(groupDir, `${doc.slug}.md`),
+				buildPublicRegulationMarkdown({ doc, jsonlText }),
+			);
+		}
+		removeStaleGeneratedFiles(
+			groupDir,
+			new Set(["_meta.json", "index.md", ...group.docs.map((doc) => `${doc.slug}.md`)]),
 		);
 	}
 	removeStaleGeneratedFiles(
 		targetDir,
-		new Set(["_meta.json", "index.md", ...regulationDocs.map((doc) => `${doc.slug}.md`)]),
+		new Set(["_meta.json", "index.md", ...groups.map((group) => group.slug)]),
 	);
 	return regulationDocs;
+}
+
+function buildGroupedRegulationDocs(regulationDocs: PublicRegulationDoc[]): Array<{
+	displayName: string;
+	docs: PublicRegulationDoc[];
+	groupId: RegulationNavGroup;
+	slug: string;
+}> {
+	const grouped = new Map<RegulationNavGroup, PublicRegulationDoc[]>();
+	for (const doc of regulationDocs) {
+		grouped.set(doc.docsNavGroup, [...(grouped.get(doc.docsNavGroup) ?? []), doc]);
+	}
+	return (["student", "public_service", "staff_governance"] as const)
+		.map((groupId) => {
+			const meta = resolveRegulationGroupMeta(groupId);
+			return {
+				displayName: meta.displayName,
+				docs: (grouped.get(groupId) ?? []).sort((left, right) =>
+					left.title.localeCompare(right.title, "zh-CN"),
+				),
+				groupId,
+				slug: meta.slug,
+			};
+		})
+		.filter((group) => group.docs.length > 0);
+}
+
+function buildRegulationRootMeta(
+	groups: Array<{ displayName: string; slug: string }>,
+): Array<
+	| string
+	| { label: string; name: string; type: "file" }
+	| { collapsed: boolean; label: string; name: string; type: "dir" }
+> {
+	return [
+		{ type: "file", name: "index", label: "校内规章" },
+		...groups.map((group) => ({
+			type: "dir" as const,
+			name: group.slug,
+			label: group.displayName,
+			collapsed: true,
+		})),
+	];
+}
+
+function buildRegulationGroupIndex(input: {
+	displayName: string;
+	docs: PublicRegulationDoc[];
+	slug: string;
+}): string {
+	return [
+		"---",
+		`title: ${jsonString(input.displayName)}`,
+		"footer: false",
+		...buildReaderFrontmatterLines({
+			kind: "collectionLanding",
+			layout: "landing",
+			measure: "standard",
+			outlinePolicy: "none",
+		}),
+		"outline: false",
+		"---",
+		"",
+		`# ${input.displayName}`,
+		"",
+		`当前公开发布 ${input.docs.length} 篇文档。`,
+		"",
+		...input.docs.map((doc) => `- [${doc.title}](./${doc.slug})`),
+		"",
+	].join("\n");
+}
+
+function resolvePublicRegulationCollectionLabel(
+	doc: Pick<PublicRegulationDoc, "collectionLabel"> & {
+		docsNavGroup?: RegulationNavGroup;
+	},
+): string {
+	if (doc.docsNavGroup) {
+		return resolveRegulationGroupMeta(doc.docsNavGroup).displayName;
+	}
+	return doc.collectionLabel;
 }
 
 function isExplicitPublicRegulationDoc(jsonlText: string): boolean {
@@ -175,7 +322,8 @@ function isExplicitPublicRegulationDoc(jsonlText: string): boolean {
 		return false;
 	}
 	for (const row of rows) {
-		if (normalizeText(row.visibility_level) !== "public") {
+		const visibilityLevel = normalizeText(row.visibility_level);
+		if (visibilityLevel && visibilityLevel !== "public") {
 			return false;
 		}
 		const entitlementGroups = row.entitlement_groups;

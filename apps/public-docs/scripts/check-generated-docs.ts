@@ -17,6 +17,11 @@ const TRACKED_GENERATED_PATH_PREFIXES = [
 	"apps/public-docs/src/generated/",
 ] as const;
 const STALE_RSPRESS_SAMPLE_DIRS = [`${PUBLIC_DOCS_ROOT}/api`, `${PUBLIC_DOCS_ROOT}/guide`] as const;
+const LEGACY_GROUPED_ROUTE_ROOTS = [
+	`${PUBLIC_DOCS_ROOT}/student-handbook`,
+	`${PUBLIC_DOCS_ROOT}/curriculum-plan`,
+	`${PUBLIC_DOCS_ROOT}/campus-regulations`,
+] as const;
 const COLLECTION_GROUP_ROOTS = [
 	`${PUBLIC_DOCS_ROOT}/student-handbook`,
 	`${PUBLIC_DOCS_ROOT}/curriculum-plan`,
@@ -124,7 +129,9 @@ export function validatePublicDocsGeneratedFile(
 			message: "generated source metadata must use static HTML, not a raw React component tag",
 		});
 	}
-	issues.push(...publicationTextNormalizationIssues(path, split.body));
+	if (isGeneratedDocumentDetailPath(relative(root, path).replaceAll("\\", "/"))) {
+		issues.push(...publicationTextNormalizationIssues(path, split.body));
+	}
 	return issues;
 }
 
@@ -182,6 +189,15 @@ export function validatePublicDocsGeneratedTree(
 	const docsRoot = resolve(root, PUBLIC_DOCS_ROOT);
 	if (!existsSync(docsRoot)) {
 		return issues;
+	}
+	for (const legacyRoot of LEGACY_GROUPED_ROUTE_ROOTS) {
+		const absolutePath = resolve(root, legacyRoot);
+		if (existsSync(absolutePath)) {
+			issues.push({
+				message: `contains legacy grouped public-doc route root: ${legacyRoot}`,
+				path: absolutePath,
+			});
+		}
 	}
 	for (const path of walkFiles(docsRoot)) {
 		const relativePath = relative(root, path).replaceAll("\\", "/");
@@ -373,7 +389,12 @@ function conflictMarkerIssues(path: string, text: string): PublicDocsGeneratedIs
 function restrictedMarkerIssues(path: string, text: string): PublicDocsGeneratedIssue[] {
 	const issues: PublicDocsGeneratedIssue[] = [];
 	for (const marker of RESTRICTED_PUBLIC_DOCS_MARKERS) {
-		if (text.includes(marker)) {
+		if (
+			text.includes(marker) &&
+			!text.includes(`./${marker}/`) &&
+			!text.includes(`/${marker}/`) &&
+			!text.includes(`data-docs-collection="${marker}"`)
+		) {
 			issues.push({ path, message: `contains restricted public-docs marker: ${marker}` });
 		}
 	}

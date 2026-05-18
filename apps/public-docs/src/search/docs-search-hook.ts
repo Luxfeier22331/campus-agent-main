@@ -6,15 +6,20 @@ import {
 	type ScopedDocsApiSearchResponse,
 } from "./docs-api-search-core";
 import {
-	buildLocalSearchFallbackResults,
-	type LocalSearchFallbackSuggestion,
+	buildStaticSearchSuggestions,
 	type SearchIndexPage,
-} from "./local-search-fallback-core";
+	type StaticSearchSuggestion,
+} from "./static-search-suggestions";
 
 interface DefaultSearchGroup {
 	group: string;
 	renderType: "default";
-	result: LocalSearchFallbackSuggestion[];
+	result: StaticSearchSuggestion[];
+}
+
+interface DocsApiSearchOutcome {
+	results: StaticSearchSuggestion[];
+	status: "failed" | "succeeded";
 }
 
 let pagesPromise: Promise<SearchIndexPage[]> | null = null;
@@ -75,39 +80,43 @@ async function getSearchIndexPages(): Promise<SearchIndexPage[]> {
 async function searchDocsApi(
 	query: string,
 	pages: SearchIndexPage[],
-): Promise<LocalSearchFallbackSuggestion[]> {
+): Promise<DocsApiSearchOutcome> {
 	const scopes = collectDocsSearchScopes(pages);
+	if (scopes.length === 0) {
+		return { results: [], status: "succeeded" };
+	}
 	const responses = (
 		await Promise.all(
 			scopes.map(async (scope): Promise<ScopedDocsApiSearchResponse | null> => {
 				const params = new URLSearchParams({ limit: "5", q: query, versionMode: "current" });
 				const url = `/api/docs/collections/${encodeURIComponent(scope.corpus)}/${encodeURIComponent(scope.collection)}/search?${params}`;
-				try {
-					const response = await fetch(url, { headers: { accept: "application/json" } });
-					if (!response.ok) {
-						return null;
-					}
-					return {
-						scope,
-						response: (await response.json()) as DocsApiSearchResponse,
-					};
-				} catch {
-					return null;
+				const response = await fetch(url, { headers: { accept: "application/json" } });
+				if (!response.ok) {
+					throw new Error(`docs search API request failed for ${scope.corpus}/${scope.collection}`);
 				}
+				return {
+					scope,
+					response: (await response.json()) as DocsApiSearchResponse,
+				};
 			}),
 		)
 	).filter((response): response is ScopedDocsApiSearchResponse => Boolean(response));
-	return mapDocsApiResultsToSuggestions(query, responses);
+	return { results: mapDocsApiResultsToSuggestions(query, responses), status: "succeeded" };
 }
 
 export async function onSearch(query: string, matchedResult: DefaultSearchGroup[]): Promise<void> {
 	const pages = await getSearchIndexPages();
-	const docsApiResults = await searchDocsApi(query, pages);
-	if (docsApiResults.length > 0) {
+	let docsApiOutcome: DocsApiSearchOutcome;
+	try {
+		docsApiOutcome = await searchDocsApi(query, pages);
+	} catch {
+		return;
+	}
+	if (docsApiOutcome.results.length > 0) {
 		matchedResult.unshift({
 			group: "文档命中",
 			renderType: "default",
-			result: docsApiResults,
+			result: docsApiOutcome.results,
 		});
 		return;
 	}
@@ -116,19 +125,19 @@ export async function onSearch(query: string, matchedResult: DefaultSearchGroup[
 		return;
 	}
 
-	const fallbackResults = buildLocalSearchFallbackResults(query, pages);
-	if (fallbackResults.length === 0) {
+	const staticSuggestions = buildStaticSearchSuggestions(query, pages);
+	if (staticSuggestions.length === 0) {
 		return;
 	}
 
 	if (matchedResult[0]) {
-		matchedResult[0].result = fallbackResults;
+		matchedResult[0].result = staticSuggestions;
 		return;
 	}
 
 	matchedResult.push({
 		group: "Campus Agent 文档站",
 		renderType: "default",
-		result: fallbackResults,
+		result: staticSuggestions,
 	});
 }

@@ -1,13 +1,9 @@
 import { useEffect } from "react";
 import { buildVersionReaderHref, parseReaderLocationState } from "../reader/reader-state-core";
-
-interface DocsVersionsResponse {
-	versions: Array<{
-		isCurrent: boolean;
-		label: string;
-		versionSlug: string;
-	}>;
-}
+import {
+	type DocsVersionsResponse,
+	fetchDocsVersionControlPayload,
+} from "../reader/reader-version-controls";
 
 const META_SELECTOR = '.document-meta-panel[data-docs-reader-meta="true"]';
 const VERSION_CONTROL_ATTRIBUTE = "data-docs-version-control";
@@ -42,15 +38,18 @@ async function enhanceVersionControls(): Promise<void> {
 		return;
 	}
 
-	const response = await fetch(
-		`/api/docs/collections/${encodeURIComponent(docsCorpus)}/${encodeURIComponent(docsCollection)}/documents/${encodeURIComponent(docsDocumentSlug)}/versions`,
-		{ headers: { accept: "application/json" } },
-	).catch(() => null);
-	if (!response?.ok) {
+	let payload: DocsVersionsResponse;
+	try {
+		payload = await fetchDocsVersionControlPayload({
+			collection: docsCollection,
+			corpus: docsCorpus,
+			documentSlug: docsDocumentSlug,
+		});
+	} catch (error) {
+		renderVersionControlError(panel, error);
 		return;
 	}
-	const payload = (await response.json().catch(() => null)) as DocsVersionsResponse | null;
-	if (!payload || payload.versions.length <= 1) {
+	if (payload.versions.length <= 1) {
 		return;
 	}
 
@@ -86,6 +85,16 @@ async function enhanceVersionControls(): Promise<void> {
 
 	const details = panel.querySelector(".document-meta-details");
 	panel.insertBefore(nav, details);
+}
+
+function renderVersionControlError(panel: HTMLElement, error: unknown): void {
+	const message = error instanceof Error ? error.message : "Docs versions endpoint failed.";
+	const status = document.createElement("p");
+	status.className = "docs-version-switcher-error";
+	status.setAttribute("role", "status");
+	status.textContent = `版本信息暂不可用：${message}`;
+	const details = panel.querySelector(".document-meta-details");
+	panel.insertBefore(status, details);
 }
 
 export default function ReaderStateEnhancer(): null {
