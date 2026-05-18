@@ -395,11 +395,11 @@ def _load_ocr_items(
     }
     items: list[dict[str, Any]] = []
     for manifest_path in sorted(Path(ocr_output_dir).glob("**/manifest.json")):
-        evidence = _evidence_from_payload(_read_json_object(manifest_path))
+        evidence = _evidence_from_payload(_load_json_object(manifest_path))
         if (evidence.notice_id, evidence.image_index) not in expected:
             continue
         result = _provider_result_from_payload(
-            _read_json_object(manifest_path.parent / "ocr-result.json")
+            _load_json_object(manifest_path.parent / "ocr-result.json")
         )
         items.append({"evidence": evidence, "result": result})
     return tuple(items)
@@ -766,10 +766,6 @@ def _mapping_rows(value: object) -> tuple[Mapping[str, Any], ...]:
 
 
 def _load_json_object(path: Path) -> dict[str, Any]:
-    return _read_json_object(Path(path))
-
-
-def _read_json_object(path: Path) -> dict[str, Any]:
     payload = json.loads(Path(path).read_text(encoding="utf-8"))
     if not isinstance(payload, dict):
         raise ValueError(f"expected JSON object: {path}")

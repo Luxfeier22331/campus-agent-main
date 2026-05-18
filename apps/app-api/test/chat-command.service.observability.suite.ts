@@ -159,7 +159,8 @@ export function registerChatCommandServiceObservabilitySuite(): void {
 			store: approvalStore.store,
 			supervisor: {
 				execute: vi.fn().mockResolvedValue({
-					answerText: "不能代你预约、提交、打电话或发邮件；如需继续，请先进入对应官方入口完成人工确认。",
+					answerText:
+						"不能代你预约、提交、打电话或发邮件；如需继续，请先进入对应官方入口完成人工确认。",
 					error: null,
 					followUpQuestion: "",
 					result: {
@@ -783,7 +784,6 @@ export function registerChatCommandServiceObservabilitySuite(): void {
 				status: "approval_required",
 			}),
 		);
-
 		expect(rejected.answer.result).toEqual({
 			errorCode: "request_rejected",
 			kind: "error",

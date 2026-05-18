@@ -9,9 +9,6 @@
 		"apps/authenticated-notice-collector/src/file-release-export-core.ts": {
 			"max_lines": 836
 		},
-		"apps/authenticated-notice-collector/test/file-release-export.test.ts": {
-			"max_lines": 825
-		},
 		"apps/ingestion-worker/src/campus_ingestion_worker/build_transport_schedule_projection.py": {
 			"max_lines": 878
 		},

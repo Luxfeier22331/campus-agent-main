@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import unittest
 from dataclasses import replace
 from unittest.mock import Mock, patch
@@ -7,7 +8,6 @@ from unittest.mock import Mock, patch
 from campus_contracts import EvidenceBundle
 from campus_ingestion_core.corpus_profiles import load_runtime_profile
 from campus_ingestion_core.index_release import resolve_alias_target
-from campus_ingestion_core.index_release_acceptance import evaluate_release_chunk_quality
 from campus_ingestion_core.registry_scope_release import publish_scope_release
 from campus_ingestion_core.sparse import build_mock_sparse_embedding_model
 from campus_retrieval_core.settings import RetrievalSettings
@@ -26,10 +26,26 @@ from tests.ingestion.registry_scope_release_acceptance_quality_suite import (
     RegistryScopeReleaseAcceptanceQualitySuite,
 )
 
+CASE_MODULES = (
+    "tests.ingestion.test_registry_scope_release_acceptance_wiring",
+    "tests.ingestion.cases_registry_scope_release_acceptance_chunk_quality",
+)
+
+
+def load_tests(
+    loader: unittest.TestLoader, tests: unittest.TestSuite, pattern: str | None
+) -> unittest.TestSuite:
+    suite = unittest.TestSuite()
+    for module_name in CASE_MODULES:
+        if module_name == __name__:
+            suite.addTests(loader.loadTestsFromTestCase(RegistryScopeReleaseAcceptanceWiringTest))
+            continue
+        suite.addTests(loader.loadTestsFromModule(importlib.import_module(module_name)))
+    return suite
+
 
 class RegistryScopeReleaseAcceptanceWiringTest(
-    RegistryScopeReleaseAcceptanceQualitySuite,
-    unittest.TestCase,
+    RegistryScopeReleaseAcceptanceQualitySuite, unittest.TestCase
 ):
     def test_publish_scope_release_requires_case_path_for_default_query_enabled_alias_publish(
         self,
@@ -733,103 +749,3 @@ class RegistryScopeReleaseAcceptanceWiringTest(
             quality_summary["qrels_coverage_issues"],
             ["regulations/student_rules: missing qrels scenario no_hit"],
         )
-
-    def test_evaluate_release_chunk_quality_reports_traceability_and_budget_issues(self) -> None:
-        record = _make_record()
-        report = evaluate_release_chunk_quality(
-            chunks=(
-                replace(
-                    _make_chunk(record=record),
-                    metadata={
-                        "unit_type": "section_text",
-                        "final_token_count": 4097,
-                        "chunk_policy_version": "student_rules_semantic_v3",
-                    },
-                ),
-            ),
-            max_token_count=2048,
-        )
-
-        self.assertEqual(report.status, "failed")
-        self.assertEqual(report.chunk_quality_status, "failed")
-        self.assertIn("student_rules:handbook:chunk-0001", report.summary["issues_by_chunk_id"])
-        self.assertIn(
-            "missing_root_unit_id",
-            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-0001"],
-        )
-        self.assertIn(
-            "token_count_exceeds_budget",
-            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-0001"],
-        )
-
-    def test_evaluate_release_chunk_quality_rejects_semantic_non_evidence_chunks(self) -> None:
-        record = _make_record()
-        report = evaluate_release_chunk_quality(
-            chunks=(
-                replace(
-                    _make_chunk(record=record),
-                    chunk_id="student_rules:handbook:chunk-attachment-ref",
-                    metadata={
-                        "unit_type": "attachment_ref",
-                        "root_unit_id": "student_rules:handbook:root-attachment",
-                        "final_token_count": 8,
-                        "chunk_policy_version": "student_rules_semantic_v3",
-                    },
-                ),
-                replace(
-                    _make_chunk(record=record),
-                    chunk_id="student_rules:handbook:chunk-heading-only",
-                    text="总则",
-                    anchor={"section_path": ["总则"]},
-                    metadata={
-                        "unit_type": "section_text",
-                        "root_unit_id": "student_rules:handbook:root-heading",
-                        "final_token_count": 2,
-                        "chunk_policy_version": "student_rules_semantic_v3",
-                    },
-                ),
-            ),
-            max_token_count=512,
-        )
-
-        self.assertEqual(report.status, "failed")
-        self.assertIn(
-            "attachment_ref_not_query_serving_chunk",
-            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-attachment-ref"],
-        )
-        self.assertIn(
-            "heading_only_chunk",
-            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-heading-only"],
-        )
-
-    def test_evaluate_release_chunk_quality_rejects_context_only_chunk_text(self) -> None:
-        record = _make_record()
-        report = evaluate_release_chunk_quality(
-            chunks=(
-                replace(
-                    _make_chunk(record=record),
-                    chunk_id="student_rules:handbook:chunk-context-only",
-                    text="第一章 总则",
-                    metadata={
-                        "unit_type": "section_text",
-                        "root_unit_id": "student_rules:handbook:root-context-only",
-                        "display_text": "学生应当按学校规定办理注册手续。",
-                        "contextualized_text": True,
-                        "header_token_count": 4,
-                        "final_token_count": 8,
-                        "chunk_policy_version": "student_rules_semantic_v3",
-                    },
-                ),
-            ),
-            max_token_count=512,
-        )
-
-        self.assertEqual(report.status, "failed")
-        self.assertIn(
-            "display_text_not_in_chunk_text",
-            report.summary["issues_by_chunk_id"]["student_rules:handbook:chunk-context-only"],
-        )
-
-
-if __name__ == "__main__":
-    unittest.main()

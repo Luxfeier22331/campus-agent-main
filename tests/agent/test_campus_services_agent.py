@@ -11,6 +11,7 @@ CASE_MODULES = (
     "tests.agent.cases_test_campus_services_agent_part01",
     "tests.agent.cases_test_campus_services_agent_part02",
     "tests.agent.cases_test_campus_services_agent_part03",
+    "tests.agent.cases_test_campus_services_agent_part04",
 )
 
 

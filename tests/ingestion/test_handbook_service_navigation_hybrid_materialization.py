@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import importlib
 import json
 import unittest
 from unittest.mock import patch
@@ -16,6 +17,25 @@ from campus_ingestion_core.handbook_service_navigation_hybrid_materialization im
     is_handbook_service_navigation_projection,
 )
 from campus_ingestion_core.models import RawAssetRecord
+
+CASE_MODULES = (
+    "tests.ingestion.test_handbook_service_navigation_hybrid_materialization",
+    "tests.ingestion.cases_handbook_service_navigation_hybrid_materialization_tail",
+)
+
+
+def load_tests(
+    loader: unittest.TestLoader, tests: unittest.TestSuite, pattern: str | None
+) -> unittest.TestSuite:
+    suite = unittest.TestSuite()
+    for module_name in CASE_MODULES:
+        if module_name == __name__:
+            suite.addTests(
+                loader.loadTestsFromTestCase(HandbookServiceNavigationHybridMaterializationTest)
+            )
+            continue
+        suite.addTests(loader.loadTestsFromModule(importlib.import_module(module_name)))
+    return suite
 
 
 class _FakeReader:
@@ -666,199 +686,3 @@ class HandbookServiceNavigationHybridMaterializationTest(unittest.TestCase):
                 visibility_level="public",
                 import_source="raw_online_ocr",
             )
-
-    def test_build_hybrid_document_fails_closed_when_graph_page_mapping_drifts_from_declared_selector(
-        self,
-    ) -> None:
-        reader = _FakeReader(b"%PDF-fake%")
-        raw_asset_record = RawAssetRecord(
-            raw_asset_id="asset:student-handbook-pdf",
-            raw_version_id="sha256:test-raw-version",
-            corpus="regulations",
-            collection="student_rules",
-            raw_source_uri="s3://source/student-handbook.pdf",
-            content_hash="test-raw-version",
-            source_filename="学生手册_2018.pdf",
-            object_key="official_pdf/student-handbook/2018/sha256/test-raw-version/capture/student-handbook.pdf",
-            ingestion_timestamp="2026-04-20T00:00:00+00:00",
-            import_source="raw_online_ocr",
-        )
-        flow_graph = ServiceNavigationFlowGraph(
-            document_title="中央民族大学学生公寓管理工作流程",
-            page_findings=(
-                ServiceNavigationPageFinding(
-                    source_page=253,
-                    page_heading="学生公寓入住流程",
-                    flows=(
-                        ServiceNavigationFlow(
-                            flow_heading="新生入住办理流程",
-                            audience_scope="本科生新生",
-                            steps=(
-                                ServiceNavigationStep(
-                                    step_id="step-1",
-                                    step_text="学生到学院完成报到登记",
-                                    next_step_ids=(),
-                                ),
-                            ),
-                            manual_review_notes=(),
-                        ),
-                    ),
-                ),
-                ServiceNavigationPageFinding(
-                    source_page=254,
-                    page_heading="学生公寓退宿流程",
-                    flows=(),
-                ),
-                ServiceNavigationPageFinding(
-                    source_page=255,
-                    page_heading="学生公寓调整流程",
-                    flows=(),
-                ),
-                ServiceNavigationPageFinding(
-                    source_page=256,
-                    page_heading="学生公寓补充说明",
-                    flows=(),
-                ),
-            ),
-            global_manual_review_required=False,
-        )
-
-        with (
-            patch(
-                "campus_ingestion_core.handbook_service_navigation_hybrid_materialization._render_declared_pdf_pages_to_pngs",
-                return_value=(
-                    (252, b"page-252"),
-                    (253, b"page-253"),
-                    (254, b"page-254"),
-                    (255, b"page-255"),
-                ),
-            ),
-            patch(
-                "campus_ingestion_core.handbook_service_navigation_hybrid_materialization._extract_service_navigation_flow_graph",
-                return_value=flow_graph,
-            ),
-            self.assertRaisesRegex(ValueError, "page mapping mismatch"),
-        ):
-            build_handbook_service_navigation_hybrid_document(
-                source={},
-                reader=reader,
-                source_bucket="campus-rag-source",
-                raw_asset_record=raw_asset_record,
-                source_document_id="handbook:source-001",
-                source_uri="campus-agent://regulations/student_rules/docs/handbook:source-001",
-                source_handbook_section="中央民族大学公寓及公费医疗管理规定",
-                target_document_id="campus_services:service_catalog:test-001",
-                target_title="中央民族大学学生公寓管理工作流程",
-                projection_name="handbook_navigation_service_catalog",
-                derived_from="source_truth",
-                parent_document_id="handbook:source-001",
-                attachment_kind="navigation_like",
-                attachment_role="service_navigation_document",
-                provider_response_key="provider-response-key",
-                layout_elements_key="layout-elements-key",
-                source_page_start=252,
-                source_page_end=255,
-                entitlement_groups=(),
-                visibility_scope=None,
-                visibility_level="public",
-                import_source="raw_online_ocr",
-            )
-
-    def test_build_hybrid_document_fails_closed_when_graph_contains_dangling_edges(self) -> None:
-        reader = _FakeReader(b"%PDF-fake%")
-        raw_asset_record = RawAssetRecord(
-            raw_asset_id="asset:student-handbook-pdf",
-            raw_version_id="sha256:test-raw-version",
-            corpus="regulations",
-            collection="student_rules",
-            raw_source_uri="s3://source/student-handbook.pdf",
-            content_hash="test-raw-version",
-            source_filename="学生手册_2018.pdf",
-            object_key="official_pdf/student-handbook/2018/sha256/test-raw-version/capture/student-handbook.pdf",
-            ingestion_timestamp="2026-04-20T00:00:00+00:00",
-            import_source="raw_online_ocr",
-        )
-        flow_graph = ServiceNavigationFlowGraph(
-            document_title="中央民族大学学生公寓管理工作流程",
-            page_findings=(
-                ServiceNavigationPageFinding(
-                    source_page=252,
-                    page_heading="学生公寓办理总览",
-                    flows=(
-                        ServiceNavigationFlow(
-                            flow_heading="新生入住办理流程",
-                            audience_scope="本科生新生",
-                            steps=(
-                                ServiceNavigationStep(
-                                    step_id="step-1",
-                                    step_text="学生到学院完成报到登记",
-                                    next_step_ids=("step-9",),
-                                ),
-                            ),
-                            manual_review_notes=(),
-                        ),
-                    ),
-                ),
-                ServiceNavigationPageFinding(
-                    source_page=253,
-                    page_heading="学生公寓入住流程",
-                    flows=(),
-                ),
-                ServiceNavigationPageFinding(
-                    source_page=254,
-                    page_heading="学生公寓退宿流程",
-                    flows=(),
-                ),
-                ServiceNavigationPageFinding(
-                    source_page=255,
-                    page_heading="学生公寓调整流程",
-                    flows=(),
-                ),
-            ),
-            global_manual_review_required=False,
-        )
-
-        with (
-            patch(
-                "campus_ingestion_core.handbook_service_navigation_hybrid_materialization._render_declared_pdf_pages_to_pngs",
-                return_value=(
-                    (252, b"page-252"),
-                    (253, b"page-253"),
-                    (254, b"page-254"),
-                    (255, b"page-255"),
-                ),
-            ),
-            patch(
-                "campus_ingestion_core.handbook_service_navigation_hybrid_materialization._extract_service_navigation_flow_graph",
-                return_value=flow_graph,
-            ),
-            self.assertRaisesRegex(ValueError, "dangling next_step_ids"),
-        ):
-            build_handbook_service_navigation_hybrid_document(
-                source={},
-                reader=reader,
-                source_bucket="campus-rag-source",
-                raw_asset_record=raw_asset_record,
-                source_document_id="handbook:source-001",
-                source_uri="campus-agent://regulations/student_rules/docs/handbook:source-001",
-                source_handbook_section="中央民族大学公寓及公费医疗管理规定",
-                target_document_id="campus_services:service_catalog:test-001",
-                target_title="中央民族大学学生公寓管理工作流程",
-                projection_name="handbook_navigation_service_catalog",
-                derived_from="source_truth",
-                parent_document_id="handbook:source-001",
-                attachment_kind="navigation_like",
-                attachment_role="service_navigation_document",
-                provider_response_key="provider-response-key",
-                layout_elements_key="layout-elements-key",
-                source_page_start=252,
-                source_page_end=255,
-                entitlement_groups=(),
-                visibility_scope=None,
-                visibility_level="public",
-                import_source="raw_online_ocr",
-            )
-
-
-if __name__ == "__main__":
-    unittest.main()

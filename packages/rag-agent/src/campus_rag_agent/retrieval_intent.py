@@ -1,15 +1,22 @@
 from __future__ import annotations
 
-import unicodedata
 from dataclasses import dataclass, field
 from typing import Literal
 
 from campus_contracts import KnowledgeScope
-from campus_ingestion_core.curriculum_program_semester_facts_projection import (
-    build_curriculum_program_semester_fact_document_id,
-)
-from campus_retrieval_core.curriculum_query_resolution import interpret_curriculum_query
 from campus_shared.regulation_semantic_registry import REGULATION_CONDITION_SUBJECT_DEFINITIONS
+
+from .retrieval_intent_classifiers import (
+    _curriculum_semester_fact_target_document_ids,
+    _institutional_specific_policy_intent_kind,
+    _looks_like_curriculum_fact_query,
+    _specific_policy_intent_kind,
+)
+from .retrieval_intent_validation import (
+    _normalize_and_validate_literal,
+    _normalize_str_field,
+    _normalize_tuple_field,
+)
 
 RetrievalIntentKind = Literal[
     "policy_list",
@@ -343,6 +350,105 @@ def retrieval_intent_for_general_fact_scope(
     )
 
 
+def _specific_policy_expectation(plan) -> RetrievalIntentExpectation:
+    kind = _specific_policy_intent_kind(plan)
+    if kind == "procedure_steps":
+        return RetrievalIntentExpectation(
+            answer_kind="procedure_steps",
+            evidence_roles=_condition_subject_expected_roles(
+                plan.query_condition_subject,
+                default_roles=("procedure_step", "procedure"),
+            ),
+            coverage_policy="procedure_step_completeness",
+            selection_policy="answer_role_first",
+            replan_policy="intent_gap_replan",
+        )
+    if kind == "eligibility_judgment":
+        return RetrievalIntentExpectation(
+            answer_kind="eligibility_judgment",
+            evidence_roles=_condition_subject_expected_roles(
+                plan.query_condition_subject,
+                default_roles=("judgment_clause", "eligibility", "requirement"),
+            ),
+            coverage_policy="condition_subject_alignment",
+            selection_policy="answer_role_first",
+            replan_policy="intent_gap_replan",
+        )
+    if kind == "condition_table":
+        if plan.category_member_document_ids and not plan.target_document_ids:
+            return RetrievalIntentExpectation(
+                answer_kind="condition_table",
+                evidence_roles=_condition_subject_expected_roles(
+                    plan.query_condition_subject,
+                    default_roles=("eligibility", "requirement", "condition"),
+                ),
+                coverage_policy="category_member_coverage",
+                selection_policy="one_answer_ready_source_per_member",
+                replan_policy="coverage_gap_replan",
+            )
+        return RetrievalIntentExpectation(
+            answer_kind="condition_table",
+            evidence_roles=_condition_subject_expected_roles(
+                plan.query_condition_subject,
+                default_roles=(
+                    "eligibility_condition",
+                    "exception_rule",
+                    "exclusion_rule",
+                    "material_requirement",
+                    "time_constraint",
+                    "table_fact",
+                    "supporting_detail",
+                    "eligibility",
+                    "requirement",
+                    "condition",
+                ),
+            ),
+            coverage_policy="condition_subject_alignment",
+            selection_policy="answer_role_first",
+            replan_policy="intent_gap_replan",
+        )
+    if kind == "policy_object_lookup":
+        return RetrievalIntentExpectation(
+            answer_kind="policy_object",
+            evidence_roles=("document_identity",),
+            coverage_policy="single_document_focus",
+            selection_policy="document_identity_first",
+            replan_policy="focus_gap_replan",
+        )
+    return RetrievalIntentExpectation(
+        answer_kind="specific_clause",
+        evidence_roles=(
+            "primary_content",
+            "procedure_step",
+            "eligibility_condition",
+            "exception_rule",
+            "exclusion_rule",
+            "material_requirement",
+            "time_constraint",
+            "supporting_detail",
+            "eligibility",
+            "requirement",
+        ),
+        coverage_policy="single_document_focus",
+        selection_policy="focused_clause_first",
+        replan_policy="focus_gap_replan",
+    )
+
+
+def _condition_subject_expected_roles(
+    condition_subject: str,
+    *,
+    default_roles: tuple[str, ...],
+) -> tuple[str, ...]:
+    normalized_subject = condition_subject.strip()
+    if not normalized_subject:
+        return default_roles
+    definition = REGULATION_CONDITION_SUBJECT_DEFINITIONS.get(normalized_subject)
+    if definition is None or not definition.expected_answer_roles:
+        return default_roles
+    return definition.expected_answer_roles
+
+
 def retrieval_intent_for_handbook_plan(plan) -> RetrievalIntent:
     target = RetrievalIntentTarget(
         corpus="regulations",
@@ -625,322 +731,6 @@ def retrieval_intent_for_curriculum_program_family_plan(plan) -> RetrievalIntent
         ),
         critical_terms=("family_membership",),
     )
-
-
-def _specific_policy_intent_kind(plan) -> str:
-    query = f"{plan.rewritten_query_text} {plan.focused_query_text}"
-    if _looks_like_policy_object_identity_query(plan):
-        return "policy_object_lookup"
-    if plan.focus_article_nos or plan.focus_clause_nos or plan.focus_detail_labels:
-        return "specific_clause_lookup"
-    if _looks_like_fixed_condition_table_query(query):
-        return "condition_table"
-    if plan.query_condition_subject in {
-        "discipline_relief_condition",
-        "discipline_relief_exclusion",
-    }:
-        return "condition_table"
-    if _looks_like_judgment_query(query):
-        return "eligibility_judgment"
-    if plan.query_condition_subject in _CONDITION_TABLE_DOMINANT_SUBJECTS:
-        return "condition_table"
-    if _looks_like_discipline_relief_operation_query(query):
-        return "procedure_steps"
-    if plan.query_condition_subject == "application_procedure":
-        return "procedure_steps"
-    if plan.query_action_type and _looks_like_procedure_query(query):
-        return "procedure_steps"
-    if _looks_like_condition_query(query):
-        return "condition_table"
-    if plan.query_action_type:
-        return "procedure_steps"
-    if _looks_like_procedure_query(query):
-        return "procedure_steps"
-    return "policy_object_lookup"
-
-
-def _looks_like_policy_object_identity_query(plan) -> bool:
-    normalized_query = _compact_text(getattr(plan, "rewritten_query_text", ""))
-    normalized_title = _compact_text(
-        getattr(plan, "resolved_policy_title", "")
-        or " ".join(getattr(plan, "target_document_titles", ()) or ())
-    )
-    if normalized_title and normalized_query == normalized_title:
-        return True
-    return _looks_like_governing_document_query(normalized_query)
-
-
-def _looks_like_governing_document_query(compact_query: str) -> bool:
-    return any(
-        cue in compact_query
-        for cue in (
-            "按哪个规定",
-            "按哪个办法",
-            "依据哪个规定",
-            "依据哪个办法",
-            "执行哪个规定",
-            "执行哪个办法",
-            "哪个规定执行",
-            "哪个办法执行",
-        )
-    )
-
-
-_CONDITION_TABLE_DOMINANT_SUBJECTS = frozenset(
-    {
-        "amount_or_quota",
-        "attendance_absence_threshold",
-        "deadline",
-        "discipline_relief_condition",
-        "discipline_relief_exclusion",
-        "dormitory_or_accommodation",
-        "material_requirement",
-        "paper_or_publication",
-        "rank_threshold",
-    }
-)
-
-
-def _specific_policy_expectation(plan) -> RetrievalIntentExpectation:
-    kind = _specific_policy_intent_kind(plan)
-    if kind == "procedure_steps":
-        return RetrievalIntentExpectation(
-            answer_kind="procedure_steps",
-            evidence_roles=_condition_subject_expected_roles(
-                plan.query_condition_subject,
-                default_roles=("procedure_step", "procedure"),
-            ),
-            coverage_policy="procedure_step_completeness",
-            selection_policy="answer_role_first",
-            replan_policy="intent_gap_replan",
-        )
-    if kind == "eligibility_judgment":
-        return RetrievalIntentExpectation(
-            answer_kind="eligibility_judgment",
-            evidence_roles=_condition_subject_expected_roles(
-                plan.query_condition_subject,
-                default_roles=("judgment_clause", "eligibility", "requirement"),
-            ),
-            coverage_policy="condition_subject_alignment",
-            selection_policy="answer_role_first",
-            replan_policy="intent_gap_replan",
-        )
-    if kind == "condition_table":
-        if plan.category_member_document_ids and not plan.target_document_ids:
-            return RetrievalIntentExpectation(
-                answer_kind="condition_table",
-                evidence_roles=_condition_subject_expected_roles(
-                    plan.query_condition_subject,
-                    default_roles=("eligibility", "requirement", "condition"),
-                ),
-                coverage_policy="category_member_coverage",
-                selection_policy="one_answer_ready_source_per_member",
-                replan_policy="coverage_gap_replan",
-            )
-        return RetrievalIntentExpectation(
-            answer_kind="condition_table",
-            evidence_roles=_condition_subject_expected_roles(
-                plan.query_condition_subject,
-                default_roles=(
-                    "eligibility_condition",
-                    "exception_rule",
-                    "exclusion_rule",
-                    "material_requirement",
-                    "time_constraint",
-                    "table_fact",
-                    "supporting_detail",
-                    "eligibility",
-                    "requirement",
-                    "condition",
-                ),
-            ),
-            coverage_policy="condition_subject_alignment",
-            selection_policy="answer_role_first",
-            replan_policy="intent_gap_replan",
-        )
-    if kind == "policy_object_lookup":
-        return RetrievalIntentExpectation(
-            answer_kind="policy_object",
-            evidence_roles=("document_identity",),
-            coverage_policy="single_document_focus",
-            selection_policy="document_identity_first",
-            replan_policy="focus_gap_replan",
-        )
-    return RetrievalIntentExpectation(
-        answer_kind="specific_clause",
-        evidence_roles=(
-            "primary_content",
-            "procedure_step",
-            "eligibility_condition",
-            "exception_rule",
-            "exclusion_rule",
-            "material_requirement",
-            "time_constraint",
-            "supporting_detail",
-            "eligibility",
-            "requirement",
-        ),
-        coverage_policy="single_document_focus",
-        selection_policy="focused_clause_first",
-        replan_policy="focus_gap_replan",
-    )
-
-
-def _institutional_specific_policy_intent_kind(plan) -> str:
-    if plan.target_document_titles and not plan.target_document_ids:
-        return "policy_object_lookup"
-    if plan.target_document_titles and _institutional_title_only_query(plan):
-        return "policy_object_lookup"
-    if plan.focus_article_nos or plan.focus_clause_nos or plan.focus_detail_labels:
-        return "specific_clause_lookup"
-    kind = _specific_policy_intent_kind(plan)
-    if kind == "specific_clause_lookup":
-        return "policy_object_lookup"
-    return kind
-
-
-def _institutional_title_only_query(plan) -> bool:
-    normalized_queries = {
-        _compact_text(value)
-        for value in (
-            getattr(plan, "normalized_query", ""),
-            getattr(plan, "focused_query_text", ""),
-        )
-        if _compact_text(value)
-    }
-    for title in plan.target_document_titles:
-        normalized_title = _compact_text(title)
-        if normalized_title and normalized_title in normalized_queries:
-            return True
-    return False
-
-
-def _looks_like_procedure_query(query_text: str) -> bool:
-    return any(
-        token in query_text
-        for token in ("流程", "步骤", "怎么办", "办理", "申请", "挂失", "补办", "申诉")
-    )
-
-
-def _looks_like_judgment_query(query_text: str) -> bool:
-    return any(
-        token in query_text
-        for token in (
-            "能不能",
-            "能拿",
-            "能得",
-            "能评",
-            "能否",
-            "不看",
-            "可以吗",
-            "可不可以",
-            "还能",
-            "是否可以",
-            "算不算",
-            "适用于",
-        )
-    )
-
-
-def _looks_like_condition_query(query_text: str) -> bool:
-    return any(token in query_text for token in ("条件", "要求", "资格", "参评", "评选"))
-
-
-def _looks_like_fixed_condition_table_query(query_text: str) -> bool:
-    compact_query = _compact_text(query_text)
-    return any(
-        token in compact_query
-        for token in (
-            "电器使用管理",
-            "宿舍电器管理",
-            "加强学生宿舍电器使用管理",
-        )
-    )
-
-
-def _looks_like_discipline_relief_operation_query(query_text: str) -> bool:
-    if not any(
-        token in query_text for token in ("处分怎么消", "消处分", "处分怎么解除", "怎么解除处分")
-    ):
-        return False
-    return not any(token in query_text for token in ("多久", "多长时间", "什么时候", "何时"))
-
-
-def _looks_like_curriculum_fact_query(query_text: str) -> bool:
-    return any(
-        token in query_text
-        for token in (
-            "总学分",
-            "学制",
-            "几年",
-            "授予学位",
-            "学位授予",
-            "多少学分",
-        )
-    )
-
-
-def _curriculum_semester_fact_target_document_ids(plan) -> tuple[str, ...]:
-    if getattr(plan, "status", "") != "resolved":
-        return ()
-    if getattr(plan, "intent_kind", "") != "course_list":
-        return ()
-    if len(getattr(plan, "target_document_ids", ()) or ()) != 1:
-        return ()
-    interpretation = interpret_curriculum_query(getattr(plan, "rewritten_query_text", ""))
-    if interpretation.intent_kind != "course_list" or len(interpretation.semester_labels) != 1:
-        return ()
-    return (
-        build_curriculum_program_semester_fact_document_id(
-            plan.target_document_ids[0],
-            interpretation.semester_labels[0],
-        ),
-    )
-
-
-def _condition_subject_expected_roles(
-    condition_subject: str,
-    *,
-    default_roles: tuple[str, ...],
-) -> tuple[str, ...]:
-    normalized_subject = condition_subject.strip()
-    if not normalized_subject:
-        return default_roles
-    definition = REGULATION_CONDITION_SUBJECT_DEFINITIONS.get(normalized_subject)
-    if definition is None or not definition.expected_answer_roles:
-        return default_roles
-    return definition.expected_answer_roles
-
-
-def _compact_text(value: str) -> str:
-    return "".join(unicodedata.normalize("NFKC", str(value or "")).split()).lower()
-
-
-def _normalize_and_validate_literal(
-    instance: object,
-    *,
-    field_name: str,
-    allowed: tuple[str, ...],
-    label: str,
-) -> None:
-    _normalize_str_field(instance, field_name)
-    value = getattr(instance, field_name)
-    if value not in allowed:
-        raise ValueError(f"unsupported {label}: {value}")
-
-
-def _normalize_str_field(instance: object, field_name: str) -> None:
-    value = getattr(instance, field_name)
-    normalized = value.strip() if isinstance(value, str) else value
-    if normalized != value:
-        object.__setattr__(instance, field_name, normalized)
-
-
-def _normalize_tuple_field(instance: object, field_name: str) -> None:
-    value = getattr(instance, field_name)
-    normalized = tuple(item.strip() for item in value if isinstance(item, str) and item.strip())
-    if normalized != value:
-        object.__setattr__(instance, field_name, normalized)
 
 
 __all__ = [

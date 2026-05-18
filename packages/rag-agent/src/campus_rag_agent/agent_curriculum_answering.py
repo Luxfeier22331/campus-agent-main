@@ -239,7 +239,12 @@ def _compose_curriculum_course_settings_answer(
 ) -> str:
     categories = _extract_curriculum_course_setting_categories(selected_rows)
     facts = _extract_curriculum_course_setting_facts(selected_rows)
-    if not categories and not facts:
+    course_titles = (
+        ()
+        if categories or facts
+        else _extract_curriculum_course_setting_course_titles(selected_rows)
+    )
+    if not categories and not facts and not course_titles:
         return ""
     title_prefix = f"《{lead_title}》" if lead_title else "该培养方案"
     fragments: list[str] = []
@@ -248,6 +253,8 @@ def _compose_curriculum_course_settings_answer(
     else:
         fragments.append(f"{title_prefix}课程设置和修读建议")
     fragments.extend(facts)
+    if course_titles:
+        fragments.append(f"涉及课程包括：{'、'.join(course_titles)}")
     fragments.append("依据课程设置和修读建议")
     return "；".join(fragments) + "。"
 
@@ -292,6 +299,27 @@ def _extract_curriculum_course_setting_facts(
     return tuple(facts[:6])
 
 
+def _extract_curriculum_course_setting_course_titles(
+    selected_rows: tuple[tuple[EvidenceSource, tuple[str, ...]], ...],
+) -> tuple[str, ...]:
+    course_titles: list[str] = []
+    seen: set[str] = set()
+    for source, statements in selected_rows:
+        if source.collection != "curriculum_plan" or source.content_role != "table_fact":
+            continue
+        for raw_line in statements or tuple(re.split(r"[\r\n]+", source.snippet)):
+            line = _normalize_snippet(raw_line)
+            if not _is_curriculum_course_row(source, line):
+                continue
+            title = _course_title_from_course_setting_row(line)
+            key = _normalize_snippet(title).lower()
+            if not key or key in seen:
+                continue
+            seen.add(key)
+            course_titles.append(title)
+    return tuple(course_titles[:6])
+
+
 def _course_setting_facts_from_source(
     source: EvidenceSource,
     statements: tuple[str, ...],
@@ -303,9 +331,6 @@ def _course_setting_facts_from_source(
     for raw_line in candidate_lines:
         line = _normalize_snippet(raw_line)
         if _is_curriculum_course_row(source, line):
-            fact = _normalize_course_setting_fact(line)
-            if fact:
-                facts.append(fact)
             continue
         if not _is_curriculum_course_setting_fact_line(
             source=source,
@@ -315,6 +340,22 @@ def _course_setting_facts_from_source(
             continue
         facts.append(_normalize_course_setting_fact(line))
     return tuple(facts)
+
+
+def _course_title_from_course_setting_row(line: str) -> str:
+    cells = _split_curriculum_table_cells(line)
+    if len(cells) < 2:
+        return ""
+    if cells[0] in _CURRICULUM_EMPTY_TABLE_CATEGORY_CELLS:
+        return ""
+    if cells[0].isdigit() or re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.\\-]*", cells[0]):
+        return cells[1]
+    if len(cells) >= 3 and (
+        cells[1] in _CURRICULUM_EMPTY_TABLE_CATEGORY_CELLS
+        or re.fullmatch(r"[0-9A-Za-z][0-9A-Za-z.\\-]*", cells[1])
+    ):
+        return cells[2]
+    return cells[1]
 
 
 def _is_curriculum_course_setting_fact_line(
