@@ -153,7 +153,7 @@ func (t ToolSpec) Validate() error {
 			return fmt.Errorf("%s function_schema.strict must be true when available", t.Name)
 		}
 		if t.Surface != "structured_handoff" &&
-			!(t.Surface == "agent_internal" && t.RuntimePosture == "sdk_internal_admitted") {
+			(t.Surface != "agent_internal" || t.RuntimePosture != "sdk_internal_admitted") {
 			return fmt.Errorf(
 				"%s function_schema can only be available for structured_handoff or sdk_internal_admitted agent_internal tools",
 				t.Name,

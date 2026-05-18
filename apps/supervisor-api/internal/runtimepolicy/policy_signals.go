@@ -190,7 +190,7 @@ func matchStructuredServiceGuideCandidate(
 }
 
 func isDirectoryLookupGuideQuery(normalizedGoal string) bool {
-	if !(strings.Contains(normalizedGoal, "办公电话") || strings.Contains(normalizedGoal, "通讯录")) {
+	if !strings.Contains(normalizedGoal, "办公电话") && !strings.Contains(normalizedGoal, "通讯录") {
 		return false
 	}
 	return strings.Contains(normalizedGoal, "怎么查") ||

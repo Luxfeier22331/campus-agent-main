@@ -17,11 +17,13 @@ import (
 func TestEmitterDisabledNoops(t *testing.T) {
 	emitter := NewEmitter(context.Background(), config.Config{}, nil)
 
-	emitter.Emit(context.Background(), Event{
+	if err := emitter.Emit(context.Background(), Event{
 		Name:      "answer.accepted",
 		RequestID: "req-001",
 		TraceID:   "trace-001",
-	})
+	}); err != nil {
+		t.Fatalf("Emit returned error: %v", err)
+	}
 
 	status := emitter.Status()
 	if status.Enabled {
@@ -109,10 +111,12 @@ func TestEmitterSpanUsesSupervisorAPINamespace(t *testing.T) {
 		tracer:      provider.Tracer("test"),
 	}
 
-	emitter.Emit(context.Background(), Event{
+	if err := emitter.Emit(context.Background(), Event{
 		Name:     "answer.accepted",
 		Duration: 15 * time.Millisecond,
-	})
+	}); err != nil {
+		t.Fatalf("Emit returned error: %v", err)
+	}
 
 	spans := recorder.Ended()
 	if len(spans) != 1 {
@@ -138,7 +142,9 @@ func TestEmitterPreservesIncomingTraceParent(t *testing.T) {
 		},
 	)
 
-	emitter.Emit(ctx, Event{Name: "agent.bridge.started"})
+	if err := emitter.Emit(ctx, Event{Name: "agent.bridge.started"}); err != nil {
+		t.Fatalf("Emit returned error: %v", err)
+	}
 
 	spans := recorder.Ended()
 	if len(spans) != 1 {
@@ -161,10 +167,12 @@ func TestEmitterSamplesOutEvents(t *testing.T) {
 		tracer:      provider.Tracer("test"),
 	}
 
-	emitter.Emit(context.Background(), Event{
+	if err := emitter.Emit(context.Background(), Event{
 		Name:      "answer.accepted",
 		RequestID: "req-sampled-out",
-	})
+	}); err != nil {
+		t.Fatalf("Emit returned error: %v", err)
+	}
 
 	if len(recorder.Ended()) != 0 {
 		t.Fatalf("ended spans = %d, want 0", len(recorder.Ended()))
@@ -184,7 +192,7 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		tracer:      provider.Tracer("test"),
 	}
 
-	emitter.Emit(context.Background(), Event{
+	if err := emitter.Emit(context.Background(), Event{
 		BridgeDuration:        25 * time.Millisecond,
 		ContextPreflightState: "not_follow_up",
 		Decision:              "admitted_immediate",
@@ -205,7 +213,9 @@ func TestEmitterUsesAllowlistedAttributesOnly(t *testing.T) {
 		FailCloseReason:       "product_scope_boundary",
 		StatusCode:            504,
 		TraceID:               "trace-attrs",
-	})
+	}); err != nil {
+		t.Fatalf("Emit returned error: %v", err)
+	}
 
 	spans := recorder.Ended()
 	if len(spans) != 1 {

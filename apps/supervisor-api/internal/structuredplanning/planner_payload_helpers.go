@@ -645,7 +645,7 @@ func isBroadServiceGuideQuery(normalizedGoal string) bool {
 }
 
 func isStaffCampusCardLossGuideQuery(normalizedGoal string) bool {
-	if !(strings.Contains(normalizedGoal, "教职工") || strings.Contains(normalizedGoal, "教工卡")) {
+	if !strings.Contains(normalizedGoal, "教职工") && !strings.Contains(normalizedGoal, "教工卡") {
 		return false
 	}
 	return strings.Contains(normalizedGoal, "校园卡") &&
@@ -687,7 +687,7 @@ func containsAny(value string, signals []string) bool {
 }
 
 func runtimepolicyDirectoryLookupGuideQuery(normalizedGoal string) bool {
-	if !(strings.Contains(normalizedGoal, "办公电话") || strings.Contains(normalizedGoal, "通讯录")) {
+	if !strings.Contains(normalizedGoal, "办公电话") && !strings.Contains(normalizedGoal, "通讯录") {
 		return false
 	}
 	return strings.Contains(normalizedGoal, "怎么查") ||
