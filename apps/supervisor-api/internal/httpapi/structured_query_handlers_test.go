@@ -197,11 +197,35 @@ func TestStructuredQueryServiceGuideUsesConfiguredProjectionBundle(t *testing.T)
 						"source_refs":["handbook:student_rules:pages:252-255#page=253"]
 					}
 				],
+				"procedure_groups":[
+					{
+						"group_id":"service:handbook:check-in:procedure_group:check_in",
+						"title":"入住流程",
+						"focus_tags":["procedure","入住","宿舍"],
+						"order":1,
+						"steps":[
+							{
+								"step_id":"service:handbook:check-in:procedure_group:check_in:step:1",
+								"content":"持通知书到院系注册。",
+								"order":1,
+								"source_refs":["handbook:student_rules:pages:252-255#page=253"]
+							},
+							{
+								"step_id":"service:handbook:check-in:procedure_group:check_in:step:2",
+								"content":"到指定公寓楼报到。",
+								"order":2,
+								"source_refs":["handbook:student_rules:pages:252-255#page=253"]
+							}
+						],
+						"source_refs":["handbook:student_rules:pages:252-255#page=253"]
+					}
+				],
 				"materials":[],
 				"entry_refs":[],
 				"office_hours":[],
 				"contact_refs":[],
 				"eligibility_notes":["新生"],
+				"field_status":{"service_process":"present"},
 				"extraction_status":"ready"
 			}
 		],
