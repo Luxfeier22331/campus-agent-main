@@ -28,24 +28,24 @@ type transportServiceTimeQuery struct {
 }
 
 type transportScheduleResult struct {
-	QueryText                 string                        `json:"query_text"`
-	Intent                    string                        `json:"intent"`
-	Outcome                   string                        `json:"outcome"`
-	ResolvedRoute             *transportRouteRef            `json:"resolved_route,omitempty"`
-	QueriedTimeAnchor         string                        `json:"queried_time_anchor,omitempty"`
-	RequestedServiceDate      string                        `json:"requested_service_date,omitempty"`
-	ServiceStatus             string                        `json:"service_status,omitempty"`
-	SelectedDeparture         *scheduledDeparture           `json:"selected_departure,omitempty"`
-	DepartureOptions          []scheduledDeparture          `json:"departure_options,omitempty"`
-	ServiceWindow             *transportServiceWindow       `json:"service_window,omitempty"`
-	ScheduleSnapshot          *transportScheduleSnapshotRef `json:"schedule_snapshot,omitempty"`
-	TimetableEntries          []scheduledDeparture          `json:"timetable_entries,omitempty"`
-	CandidateRoutes           []transportRouteCandidate     `json:"candidate_routes,omitempty"`
-	ClarificationReason       string                        `json:"clarification_reason,omitempty"`
-	StopRefs                  []transportStopRef            `json:"stop_refs,omitempty"`
-	RelatedNoticeRefs         []string                      `json:"related_notice_refs,omitempty"`
-	OperationalNotices        []transportOperationalNotice  `json:"operational_notices,omitempty"`
-	FailCloseReason           string                        `json:"fail_close_reason,omitempty"`
+	QueryText            string                        `json:"query_text"`
+	Intent               string                        `json:"intent"`
+	Outcome              string                        `json:"outcome"`
+	ResolvedRoute        *transportRouteRef            `json:"resolved_route,omitempty"`
+	QueriedTimeAnchor    string                        `json:"queried_time_anchor,omitempty"`
+	RequestedServiceDate string                        `json:"requested_service_date,omitempty"`
+	ServiceStatus        string                        `json:"service_status,omitempty"`
+	SelectedDeparture    *scheduledDeparture           `json:"selected_departure,omitempty"`
+	DepartureOptions     []scheduledDeparture          `json:"departure_options,omitempty"`
+	ServiceWindow        *transportServiceWindow       `json:"service_window,omitempty"`
+	ScheduleSnapshot     *transportScheduleSnapshotRef `json:"schedule_snapshot,omitempty"`
+	TimetableEntries     []scheduledDeparture          `json:"timetable_entries,omitempty"`
+	CandidateRoutes      []transportRouteCandidate     `json:"candidate_routes,omitempty"`
+	ClarificationReason  string                        `json:"clarification_reason,omitempty"`
+	StopRefs             []transportStopRef            `json:"stop_refs,omitempty"`
+	RelatedNoticeRefs    []string                      `json:"related_notice_refs,omitempty"`
+	OperationalNotices   []transportOperationalNotice  `json:"operational_notices,omitempty"`
+	FailCloseReason      string                        `json:"fail_close_reason,omitempty"`
 }
 
 type transportRouteRef struct {

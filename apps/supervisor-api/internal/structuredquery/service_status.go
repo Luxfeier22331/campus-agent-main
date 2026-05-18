@@ -16,17 +16,17 @@ type serviceStatusRequest struct {
 }
 
 type serviceStatusResult struct {
-	SubjectQuery              string   `json:"subject_query"`
-	Outcome                   string   `json:"outcome"`
-	ResolvedSubject           string   `json:"resolved_subject,omitempty"`
-	ObservedStatus            string   `json:"observed_status,omitempty"`
-	StatusNote                string   `json:"status_note,omitempty"`
-	QueriedTimeAnchor         string   `json:"queried_time_anchor,omitempty"`
-	EffectiveFrom             string   `json:"effective_from,omitempty"`
-	EffectiveUntil            string   `json:"effective_until,omitempty"`
-	OverrideSourceRefs        []string `json:"override_source_refs,omitempty"`
-	RelatedNoticeRefs         []string `json:"related_notice_refs,omitempty"`
-	FailCloseReason           string   `json:"fail_close_reason,omitempty"`
+	SubjectQuery       string   `json:"subject_query"`
+	Outcome            string   `json:"outcome"`
+	ResolvedSubject    string   `json:"resolved_subject,omitempty"`
+	ObservedStatus     string   `json:"observed_status,omitempty"`
+	StatusNote         string   `json:"status_note,omitempty"`
+	QueriedTimeAnchor  string   `json:"queried_time_anchor,omitempty"`
+	EffectiveFrom      string   `json:"effective_from,omitempty"`
+	EffectiveUntil     string   `json:"effective_until,omitempty"`
+	OverrideSourceRefs []string `json:"override_source_refs,omitempty"`
+	RelatedNoticeRefs  []string `json:"related_notice_refs,omitempty"`
+	FailCloseReason    string   `json:"fail_close_reason,omitempty"`
 }
 
 type serviceStatusRecord struct {
@@ -145,11 +145,11 @@ func failClosedServiceStatus(subjectQuery string, timeAnchor string, reason stri
 }
 
 type serviceStatusMatchResult struct {
-	record                    serviceStatusRecord
-	recordStatus              serviceStatusRecordStatus
-	ok                        bool
-	ambiguous                 bool
-	err                       error
+	record       serviceStatusRecord
+	recordStatus serviceStatusRecordStatus
+	ok           bool
+	ambiguous    bool
+	err          error
 }
 
 func matchServiceStatusRecord(

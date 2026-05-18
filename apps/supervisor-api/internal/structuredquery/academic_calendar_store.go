@@ -23,8 +23,8 @@ type AcademicCalendarPostgresOptions struct {
 }
 
 type PostgresAcademicCalendarReadModelStore struct {
-	pool      *pgxpool.Pool
-	tableSQL  string
+	pool       *pgxpool.Pool
+	tableSQL   string
 	currentSQL string
 }
 
@@ -46,8 +46,8 @@ func NewPostgresAcademicCalendarReadModelStore(
 		return nil
 	}
 	return &PostgresAcademicCalendarReadModelStore{
-		pool:      pool,
-		tableSQL:  `"ingestion_projection"."academic_calendar_read_model"`,
+		pool:       pool,
+		tableSQL:   `"ingestion_projection"."academic_calendar_read_model"`,
 		currentSQL: `"ingestion_projection"."structured_projection_current"`,
 	}
 }
