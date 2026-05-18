@@ -123,10 +123,7 @@ export function resolveWaitUntil(
 	try {
 		return context?.executionCtx?.waitUntil.bind(context.executionCtx);
 	} catch (error) {
-		if (
-			error instanceof Error &&
-			error.message === "This context has no ExecutionContext"
-		) {
+		if (error instanceof Error && error.message === "This context has no ExecutionContext") {
 			return;
 		}
 		throw error;

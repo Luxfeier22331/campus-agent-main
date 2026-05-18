@@ -26,10 +26,7 @@ function getRecord(value: unknown): Record<string, unknown> | null {
 		: null;
 }
 
-function getString(
-	record: Record<string, unknown>,
-	snakeKey: string,
-): string | null {
+function getString(record: Record<string, unknown>, snakeKey: string): string | null {
 	const value = record[snakeKey];
 	return typeof value === "string" && value.trim() ? value : null;
 }
@@ -152,9 +149,7 @@ export function mapSupervisorLifecycleEvent(input: {
 		throw new SupervisorLifecycleContractError("lifecycle event missing occurred_at");
 	}
 	const status =
-		input.event === "execution.queued"
-			? "queued"
-			: (getString(record, "status") ?? "running");
+		input.event === "execution.queued" ? "queued" : (getString(record, "status") ?? "running");
 
 	return {
 		data: {

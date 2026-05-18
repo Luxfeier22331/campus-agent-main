@@ -135,106 +135,104 @@ export function registerBootstrapExportCollectionAttachmentFailureSuite(): void 
 	it("fails closed when a required attachment download has a transient failure", async () => {
 		await expect(
 			collectBootstrapBundle({
-			attachmentArtifactStore: {
-				storageProvider: "object_store",
-				headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
-				putObject: async () => {
-					throw new Error("unexpected upload");
-				},
-			},
-			attachmentFetchAdmissions: [
-				{
-					attachmentCapturePolicy: "fetch_to_quarantine",
-					attachmentRefId: "attachment-0001",
-					noticeId: "355600",
-				},
-			],
-			createApiContext: async () => ({
-				dispose: async () => undefined,
-				get: async () => ({
-					body: async () => {
-						throw new Error(
-							"You did not provide the number of bytes specified by the Content-Length HTTP header.",
-						);
+				attachmentArtifactStore: {
+					storageProvider: "object_store",
+					headObject: async ({ objectKey }) => fakeArtifactHead(objectKey),
+					putObject: async () => {
+						throw new Error("unexpected upload");
 					},
-					headers: () => ({
-						"content-disposition": "attachment; filename*=UTF-8''broken.pdf",
-						"content-type": "application/pdf",
-					}),
-					json: async () => ({}),
-					ok: () => true,
-					status: () => 200,
-					statusText: () => "OK",
-				}),
-				post: async () => {
-					throw new Error("unexpected post");
 				},
-			}),
-			exportedAt: "2026-04-04T01:23:45.000Z",
-			fetchNoticeDetail: async ({ noticeId }) => ({
-				datas: {
-					notice_info: {
-						home_url: "https://portal.example.edu/home",
-						notice_annext: [
+				attachmentFetchAdmissions: [
+					{
+						attachmentCapturePolicy: "fetch_to_quarantine",
+						attachmentRefId: "attachment-0001",
+						noticeId: "355600",
+					},
+				],
+				createApiContext: async () => ({
+					dispose: async () => undefined,
+					get: async () => ({
+						body: async () => {
+							throw new Error(
+								"You did not provide the number of bytes specified by the Content-Length HTTP header.",
+							);
+						},
+						headers: () => ({
+							"content-disposition": "attachment; filename*=UTF-8''broken.pdf",
+							"content-type": "application/pdf",
+						}),
+						json: async () => ({}),
+						ok: () => true,
+						status: () => 200,
+						statusText: () => "OK",
+					}),
+					post: async () => {
+						throw new Error("unexpected post");
+					},
+				}),
+				exportedAt: "2026-04-04T01:23:45.000Z",
+				fetchNoticeDetail: async ({ noticeId }) => ({
+					datas: {
+						notice_info: {
+							home_url: "https://portal.example.edu/home",
+							notice_annext: [
+								{
+									notice_annex_id: "annex-1",
+									notice_annex_name: "broken.pdf",
+								},
+							],
+							notice_content: "<p>正文</p>",
+							notice_id: noticeId,
+							notice_release_time: "2026-04-02 18:49",
+						},
+					},
+					state: true,
+				}),
+				fetchNoticeSelects: async () => ({
+					datas: {
+						org: [],
+						type: [
 							{
-								notice_annex_id: "annex-1",
-								notice_annex_name: "broken.pdf",
+								notice_type_id: 5,
+								notice_type_name: "办公通知",
 							},
 						],
-						notice_content: "<p>正文</p>",
-						notice_id: noticeId,
-						notice_release_time: "2026-04-02 18:49",
 					},
-				},
-				state: true,
-			}),
-			fetchNoticeSelects: async () => ({
-				datas: {
-					org: [],
-					type: [
-						{
-							notice_type_id: 5,
-							notice_type_name: "办公通知",
+					state: true,
+				}),
+				fetchNoticePage: async () => ({
+					datas: {
+						page: {
+							totalCounts: 1,
 						},
-					],
-				},
-				state: true,
-			}),
-			fetchNoticePage: async () => ({
-				datas: {
-					page: {
-						totalCounts: 1,
+						tables: [
+							{
+								notice_id: 355600,
+								notice_title: "通知 A",
+								notice_type: "5",
+								notice_type_name: "办公通知",
+							},
+						],
 					},
-					tables: [
-						{
-							notice_id: 355600,
-							notice_title: "通知 A",
-							notice_type: "5",
-							notice_type_name: "办公通知",
-						},
-					],
-				},
-				state: true,
+					state: true,
+				}),
+				noticeTypes: [
+					{
+						type: "5",
+						name: "办公通知",
+						enabled: true,
+						incrementalPages: 1,
+						incrementalPageSize: 1,
+						backfillPages: 1,
+						backfillPageSize: 20,
+					},
+				],
+				requestBackoffBaseMs: 1,
+				requestMaxRetries: 1,
+				siteId: "muc_internal_portal",
+				sourceHomeUrl: "https://portal.example.edu/home",
 			}),
-			noticeTypes: [
-				{
-					type: "5",
-					name: "办公通知",
-					enabled: true,
-					incrementalPages: 1,
-					incrementalPageSize: 1,
-					backfillPages: 1,
-					backfillPageSize: 20,
-				},
-			],
-			requestBackoffBaseMs: 1,
-			requestMaxRetries: 1,
-			siteId: "muc_internal_portal",
-			sourceHomeUrl: "https://portal.example.edu/home",
-			}),
-		).rejects.toThrow(
-			"attachment_materialization_failed:notice=355600:attachment=attachment-0001",
-		);
+		).rejects.toThrow("attachment_materialization_failed:notice=355600:attachment=attachment-0001");
 	});
 	it("records first observed 404 attachment downloads as typed terminal unavailable", async () => {
 		const result = await collectBootstrapBundle({

@@ -16,7 +16,9 @@ function loadFixture(name: string): Record<string, unknown> {
 describe("supervisor execution canonical response fixtures", () => {
 	it("parses canonical terminal state fixtures", () => {
 		expect(
-			parseSupervisorExecutionResponsePayload(loadFixture("response_completed_delegate.valid.json")),
+			parseSupervisorExecutionResponsePayload(
+				loadFixture("response_completed_delegate.valid.json"),
+			),
 		).toMatchObject({
 			selectedTarget: "rag-agent",
 			status: "completed",

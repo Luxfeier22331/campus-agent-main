@@ -154,10 +154,7 @@ function normalizeRecordString(
 	return normalizeNullableString(record[snakeCaseKey]);
 }
 
-function recordValue(
-	record: Record<string, unknown>,
-	snakeCaseKey: string,
-): unknown {
+function recordValue(record: Record<string, unknown>, snakeCaseKey: string): unknown {
 	return record[snakeCaseKey];
 }
 
@@ -274,43 +271,22 @@ function parseExecutionObservability(value: unknown): SupervisorExecutionObserva
 		estimatedCostMicrousd: normalizeNullableNumber(record.estimated_cost_microusd),
 		failClosed: normalizeNullableBoolean(record.fail_closed),
 		inputTokens: normalizeNullableNumber(record.input_tokens),
-			intentAmbiguityReason: normalizeRecordString(
-				record,
-				"intent_ambiguity_reason",
-			),
-			intentAmbiguitySignal: normalizeRecordString(
-				record,
-				"intent_ambiguity_signal",
-			),
-			intentCapability: normalizeRecordString(record, "intent_capability"),
-			intentClassifierVersion: normalizeRecordString(
-				record,
-				"intent_classifier_version",
-			),
-			intentContextReferenceType: normalizeRecordString(
-				record,
-				"intent_context_reference_type",
-			),
-			intentContextResolutionState: normalizeRecordString(
-				record,
-				"intent_context_resolution_state",
-			),
-			intentLaunchState: normalizeRecordString(record, "intent_launch_state"),
-			intentMissingSlots: normalizeStringArrayRecord(record, "intent_missing_slots"),
-			intentNextAction: normalizeRecordString(record, "intent_next_action"),
-			intentPolicyReason: normalizeRecordString(record, "intent_policy_reason"),
-			intentResolvedSlots: normalizeStringRecord(record, "intent_resolved_slots"),
-			intentRoutingConfidence: normalizeRecordString(
-				record,
-				"intent_routing_confidence",
-			),
-			intentSchemaVersion: normalizeRecordString(
-				record,
-				"intent_schema_version",
-			),
-			intentScopeClass: normalizeRecordString(record, "intent_scope_class"),
-			intentScopeReason: normalizeRecordString(record, "intent_scope_reason"),
-			intentTaskKind: normalizeRecordString(record, "intent_task_kind"),
+		intentAmbiguityReason: normalizeRecordString(record, "intent_ambiguity_reason"),
+		intentAmbiguitySignal: normalizeRecordString(record, "intent_ambiguity_signal"),
+		intentCapability: normalizeRecordString(record, "intent_capability"),
+		intentClassifierVersion: normalizeRecordString(record, "intent_classifier_version"),
+		intentContextReferenceType: normalizeRecordString(record, "intent_context_reference_type"),
+		intentContextResolutionState: normalizeRecordString(record, "intent_context_resolution_state"),
+		intentLaunchState: normalizeRecordString(record, "intent_launch_state"),
+		intentMissingSlots: normalizeStringArrayRecord(record, "intent_missing_slots"),
+		intentNextAction: normalizeRecordString(record, "intent_next_action"),
+		intentPolicyReason: normalizeRecordString(record, "intent_policy_reason"),
+		intentResolvedSlots: normalizeStringRecord(record, "intent_resolved_slots"),
+		intentRoutingConfidence: normalizeRecordString(record, "intent_routing_confidence"),
+		intentSchemaVersion: normalizeRecordString(record, "intent_schema_version"),
+		intentScopeClass: normalizeRecordString(record, "intent_scope_class"),
+		intentScopeReason: normalizeRecordString(record, "intent_scope_reason"),
+		intentTaskKind: normalizeRecordString(record, "intent_task_kind"),
 		modelName: normalizeNullableString(record.model_name),
 		modelProvider: normalizeNullableString(record.model_provider),
 		outputTokens: normalizeNullableNumber(record.output_tokens),
@@ -379,37 +355,26 @@ function parseWorkflowTraceSummary(value: unknown): SupervisorExecutionWorkflowT
 			})
 		: [];
 	const parsed: SupervisorExecutionWorkflowTraceSummary = {
-			contextResolution: normalizeWorkflowRecord(
-				recordValue(record, "context_resolution"),
-			),
-			directVsDelegateBranch: normalizeRecordString(
-				record,
-				"direct_vs_delegate_branch",
-			),
-			failCloseReason: normalizeRecordString(record, "fail_close_reason"),
-			guardrailOutcomes: normalizeWorkflowRecord(
-				recordValue(record, "guardrail_outcomes"),
-			),
+		contextResolution: normalizeWorkflowRecord(recordValue(record, "context_resolution")),
+		directVsDelegateBranch: normalizeRecordString(record, "direct_vs_delegate_branch"),
+		failCloseReason: normalizeRecordString(record, "fail_close_reason"),
+		guardrailOutcomes: normalizeWorkflowRecord(recordValue(record, "guardrail_outcomes")),
 		handoff: normalizeWorkflowRecord(record.handoff),
 		handoffChain,
 		contextProjections,
-			planningOutcome: normalizeRecordString(record, "planning_outcome"),
-			policyArtifactVersions: normalizeWorkflowRecord(
-				recordValue(record, "policy_artifact_versions"),
-			),
-			routingFrame: normalizeWorkflowRecord(recordValue(record, "routing_frame")),
-			runtimeVersions: normalizeWorkflowRecord(
-				recordValue(record, "runtime_versions"),
-			),
-			selectedTarget: normalizeRecordString(record, "selected_target"),
-			selectedTools,
-			toolArgumentSummary: normalizeWorkflowRecord(
-				recordValue(record, "tool_argument_summary"),
-			),
-			traceSteps,
-			toolCallSummaries,
-			workflowMode: normalizeRecordString(record, "workflow_mode"),
-		};
+		planningOutcome: normalizeRecordString(record, "planning_outcome"),
+		policyArtifactVersions: normalizeWorkflowRecord(
+			recordValue(record, "policy_artifact_versions"),
+		),
+		routingFrame: normalizeWorkflowRecord(recordValue(record, "routing_frame")),
+		runtimeVersions: normalizeWorkflowRecord(recordValue(record, "runtime_versions")),
+		selectedTarget: normalizeRecordString(record, "selected_target"),
+		selectedTools,
+		toolArgumentSummary: normalizeWorkflowRecord(recordValue(record, "tool_argument_summary")),
+		traceSteps,
+		toolCallSummaries,
+		workflowMode: normalizeRecordString(record, "workflow_mode"),
+	};
 
 	if (
 		!(parsed.directVsDelegateBranch || parsed.planningOutcome || parsed.selectedTarget) &&

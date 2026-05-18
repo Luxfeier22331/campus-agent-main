@@ -418,7 +418,9 @@ function resolveLocalArtifactOnlyUploadResult(options: CrawlSiteOptions): {
 	if (options.localArtifactsOnly === true) {
 		return { uploadedArtifacts: [], artifactUploadCount: 0 };
 	}
-	throw new Error("official-web collector requires artifactStore unless localArtifactsOnly is true");
+	throw new Error(
+		"official-web collector requires artifactStore unless localArtifactsOnly is true",
+	);
 }
 
 function assertCollectorRunAdmission(input: {

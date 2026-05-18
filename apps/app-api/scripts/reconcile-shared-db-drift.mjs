@@ -44,7 +44,9 @@ function normalizePostgresConnectionStringForExplicitSsl(connectionString) {
 function readRequiredOperatorDatabaseUrl(env = process.env) {
 	const value = env.APP_API_OPERATOR_DATABASE_URL?.trim();
 	if (!value) {
-		throw new Error("APP_API_OPERATOR_DATABASE_URL is required for shared-db drift reconciliation.");
+		throw new Error(
+			"APP_API_OPERATOR_DATABASE_URL is required for shared-db drift reconciliation.",
+		);
 	}
 	return normalizePostgresConnectionStringForExplicitSsl(value);
 }

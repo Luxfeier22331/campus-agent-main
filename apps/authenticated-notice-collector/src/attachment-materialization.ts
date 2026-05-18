@@ -575,10 +575,7 @@ function resolveAttachmentFilename(input: {
 	contentDisposition: string | null;
 	sourceUrl: string | null;
 }): string {
-	const attachmentFilename = normalizeAttachmentFilename(
-		input.attachmentFilename,
-		input.sourceUrl,
-	);
+	const attachmentFilename = normalizeAttachmentFilename(input.attachmentFilename, input.sourceUrl);
 	if (attachmentFilename !== "attachment") {
 		return attachmentFilename;
 	}

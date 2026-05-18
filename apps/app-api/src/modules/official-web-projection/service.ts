@@ -304,7 +304,7 @@ export function buildOfficialWebProjectionProjector(
 			const events = await dependencies.store.listPendingEvents(limit, now());
 			let processed = 0;
 			let failed = 0;
-			let skipped = 0;
+			const skipped = 0;
 
 			for (const event of events) {
 				const eventProjectedAt = now().toISOString();

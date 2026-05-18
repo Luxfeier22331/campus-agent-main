@@ -99,10 +99,7 @@ export function buildLocalOfficialWebSmokeSeedRuntime(
 				| undefined,
 			APP_API_INTERNAL_SHARED_SECRET: internalSharedSecret,
 			APP_API_OFFICIAL_WEB_COLLECTOR_TOKEN: collectorToken,
-			APP_API_OPERATOR_DATABASE_URL: readOptionalString(
-				sourceEnv,
-				"APP_API_OPERATOR_DATABASE_URL",
-			),
+			APP_API_OPERATOR_DATABASE_URL: readOptionalString(sourceEnv, "APP_API_OPERATOR_DATABASE_URL"),
 			APP_API_OPERATOR_EMAIL_ALLOWLIST: operatorAllowlist,
 		},
 		operatorEmail,

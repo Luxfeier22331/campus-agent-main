@@ -421,8 +421,6 @@ def _covered_general_summary_facets_for_rows(
     return frozenset(covered)
 
 
-
-
 __all__ = [
     "_answer_source_sort_key",
     "_filter_statements_for_query_critical_terms",

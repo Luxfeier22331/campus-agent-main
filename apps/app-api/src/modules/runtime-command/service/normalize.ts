@@ -1,5 +1,5 @@
 import { createHash, createHmac, randomUUID } from "node:crypto";
-
+import { AppApiRouteError } from "../../../http";
 import type { ResolvedAppPrincipal } from "../../auth";
 import type { RequestedScope, SupervisorExecutionResponse } from "../../integration";
 import {
@@ -7,7 +7,6 @@ import {
 	type VersionQuery,
 	VersionQueryValidationError,
 } from "../../version-query";
-import { AppApiRouteError } from "../../../http";
 import { resolveRequestedCapabilityForSurface } from "./capability-policy";
 import { createPreAcceptError } from "./errors";
 import { isRecord, normalizeOptionalString } from "./normalize-record-utils";

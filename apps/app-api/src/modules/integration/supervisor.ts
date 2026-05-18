@@ -7,10 +7,7 @@ import {
 
 import { toSupervisorRequestBody } from "./supervisor-payload";
 import { parseSupervisorExecutionResponsePayload } from "./supervisor-response";
-import {
-	createSupervisorRequestHeaders,
-	SupervisorTransportError,
-} from "./supervisor-transport";
+import { createSupervisorRequestHeaders, SupervisorTransportError } from "./supervisor-transport";
 import type {
 	SupervisorExecutionClient,
 	SupervisorExecutionInput,

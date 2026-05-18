@@ -461,5 +461,4 @@ def _condition_row_context_label(source: EvidenceSource) -> str:
     return title or detail_label
 
 
-
 __all__ = ["_compose_condition_table_answer"]

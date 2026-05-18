@@ -98,12 +98,7 @@
 			"fixture": "official_web_stable_reference_retrieval_qrels.json",
 			"min_case_count": 4,
 			"required_classes": ["positive", "no_hit", "version_locked"],
-			"required_scenarios": [
-				"school_profile",
-				"organization_units",
-				"fee_reference",
-				"no_hit"
-			],
+			"required_scenarios": ["school_profile", "organization_units", "fee_reference", "no_hit"],
 			"scenario_denominator_classes": {
 				"school_profile": ["long_form_semantic_answer", "citation_backlink"],
 				"organization_units": ["table_or_structured_fact", "citation_backlink"],

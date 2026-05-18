@@ -2,7 +2,7 @@
 
 import { describe, expect, it } from "vitest";
 
-import { messages, requestExecution } from "../src/db/schema";
+import type { messages, requestExecution } from "../src/db/schema";
 import type { ChatConversation } from "../src/modules/chat";
 import { buildStoredIdempotentRequest } from "../src/modules/runtime-command/store-conversation";
 

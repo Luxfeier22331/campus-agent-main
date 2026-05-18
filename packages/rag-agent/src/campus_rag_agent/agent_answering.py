@@ -8,8 +8,8 @@ from campus_ingestion_core.corpus_profiles import is_official_web_stable_referen
 
 from .agent_answer_shape import AnswerShape
 from .agent_answer_text_cleanup import finalize_answer_text
-from .agent_answering_generic import _compose_generic_answer
 from .agent_answering_conditions import _compose_condition_table_answer
+from .agent_answering_generic import _compose_generic_answer
 from .agent_answering_judgment import compose_judgment_clause_answer
 from .agent_answering_procedure import _compose_procedure_answer
 from .agent_answering_support import _render_supporting_contexts
@@ -33,8 +33,6 @@ class DirectAnswerResult:
     presentation: AnswerPresentationDraft | None = None
     presentation_path: str = ""
     diagnostic_reason: str = ""
-
-
 
 
 def _compose_direct_answer(
