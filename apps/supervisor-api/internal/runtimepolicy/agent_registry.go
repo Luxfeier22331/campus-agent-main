@@ -21,15 +21,15 @@ var (
 )
 
 type AgentSpec struct {
-	ID                           string   `json:"id"`
-	Capability                   string   `json:"capability"`
-	OwnerPackage                 string   `json:"owner_package"`
-	RuntimeAdapter               string   `json:"runtime_adapter"`
-	Active                       bool     `json:"active"`
-	OpeningGate                  string   `json:"opening_gate"`
+	ID                            string   `json:"id"`
+	Capability                    string   `json:"capability"`
+	OwnerPackage                  string   `json:"owner_package"`
+	RuntimeAdapter                string   `json:"runtime_adapter"`
+	Active                        bool     `json:"active"`
+	OpeningGate                   string   `json:"opening_gate"`
 	AllowedStructuredHandoffTools []string `json:"allowed_structured_handoff_tools"`
-	ContextProjectionKinds       []string `json:"context_projection_kinds"`
-	Description                  string   `json:"description"`
+	ContextProjectionKinds        []string `json:"context_projection_kinds"`
+	Description                   string   `json:"description"`
 }
 
 type AgentSpecRegistry struct {

@@ -36,6 +36,39 @@ func plannerGoldenCasesPart02() []plannerGoldenCase {
 			wantPayload: map[string]any{"subject_query": "静园10号楼女浴室现在开放吗"},
 		},
 		{
+			name: "service status clinic office hours",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校医院办公时间",
+			},
+			wantTarget:  "campus-services-agent",
+			wantKind:    "service_status_lookup",
+			wantTool:    "service_status_lookup",
+			wantPayload: map[string]any{"subject_query": "校医院办公时间"},
+		},
+		{
+			name: "service status public medical office hours",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "公费医疗办公时间",
+			},
+			wantTarget:  "campus-services-agent",
+			wantKind:    "service_status_lookup",
+			wantTool:    "service_status_lookup",
+			wantPayload: map[string]any{"subject_query": "公费医疗办公时间"},
+		},
+		{
+			name: "service status campus card open question",
+			request: Request{
+				EffectiveCapability: "campus_services",
+				UserGoal:            "校园卡服务开放吗",
+			},
+			wantTarget:  "campus-services-agent",
+			wantKind:    "service_status_lookup",
+			wantTool:    "service_status_lookup",
+			wantPayload: map[string]any{"subject_query": "校园卡服务开放吗"},
+		},
+		{
 			name: "service status transport boarding point change",
 			request: Request{
 				EffectiveCapability: "campus_services",

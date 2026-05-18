@@ -72,6 +72,13 @@
 				{
 					"case_id": "synthetic-knowledge-open-010",
 					"user_goal": "校历春假安排",
+					"intent_case": {
+						"expected_allowed_tools": ["academic_calendar_lookup"],
+						"expected_capability": "campus_services",
+						"expected_scope_reason": "structured_runtime_candidate_signal",
+						"expected_target": "campus-services-agent",
+						"expected_task_kind": "campus_services_lookup"
+					},
 					"axis": { "query_style": "short" }
 				},
 				{

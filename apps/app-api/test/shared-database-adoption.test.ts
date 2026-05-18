@@ -109,6 +109,20 @@ ADD CONSTRAINT "run_artifacts_run_id_crawl_runs_run_id_fk" FOREIGN KEY (
 			kind: "constraint",
 		});
 		expect(
+			parseMigrationStatement(`ALTER TABLE "official_web"."target_release_gates"
+ADD CONSTRAINT
+"target_release_gates_summary_id_target_artifact_verification_summaries_summary_id_fk"
+FOREIGN KEY (
+    "summary_id"
+) REFERENCES "official_web"."target_artifact_verification_summaries" (
+    "summary_id"
+) ON DELETE SET NULL ON UPDATE NO ACTION;`),
+		).toMatchObject({
+			existsKey:
+				"official_web.target_release_gates#target_release_gates_summary_id_target_artifact_verification_summaries_summary_id_fk",
+			kind: "constraint",
+		});
+		expect(
 			parseMigrationStatement(
 				'CREATE UNIQUE INDEX "runtime_request_execution_actor_idempotency_idx" ON "runtime"."request_execution" USING btree ("actor_user_id","idempotency_key");',
 			),

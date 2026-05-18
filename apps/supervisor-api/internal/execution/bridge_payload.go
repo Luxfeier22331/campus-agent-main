@@ -87,15 +87,15 @@ func workflowContextForHandoff(
 		projectionRefs = append(projectionRefs, projection.SummaryMap())
 	}
 	return map[string]any{
-		"schema_version":           "workflow-agent-context-v1",
-		"visibility":               "agent_private",
-		"workflow_run_ref":         "workflow:" + strings.TrimSpace(requestID),
-		"step_id":                  "handoff:" + handoff.Target + ":" + handoff.PayloadKind,
-		"agent_id":                 handoff.Target,
-		"target":                   handoff.Target,
-		"required_projection_kind": requiredProjectionKind,
+		"schema_version":            "workflow-agent-context-v1",
+		"visibility":                "agent_private",
+		"workflow_run_ref":          "workflow:" + strings.TrimSpace(requestID),
+		"step_id":                   "handoff:" + handoff.Target + ":" + handoff.PayloadKind,
+		"agent_id":                  handoff.Target,
+		"target":                    handoff.Target,
+		"required_projection_kind":  requiredProjectionKind,
 		"expected_output_artifacts": append([]string{}, handoff.ExpectedArtifacts...),
-		"projection_refs":          projectionRefs,
+		"projection_refs":           projectionRefs,
 	}, nil
 }
 

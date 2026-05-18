@@ -120,8 +120,8 @@ func MultiStepCapabilityPreplan(planID string, capabilityPlan CapabilityPlan) *W
 		SemanticRetryPolicy: SemanticRetryPolicy{
 			MaxReplans: capabilityPlan.Budget.MaxReplans,
 		},
-		capabilityPlan: &capabilityPlan,
-		handoffs:       []Handoff{},
+		capabilityPlan:    &capabilityPlan,
+		handoffs:          []Handoff{},
 		expectedArtifacts: map[string][]string{},
 	}
 }

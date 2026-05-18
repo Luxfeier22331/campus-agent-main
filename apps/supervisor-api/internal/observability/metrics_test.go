@@ -39,11 +39,11 @@ func TestMetricsPrometheusIncludesCountersAndDurations(t *testing.T) {
 			},
 		},
 		Telemetry: TelemetrySnapshot{
-			DroppedCount:     3,
-			ExportedCount:    5,
-			FailedCount:      2,
-			SampleRatio:      "0.25",
-			MetricsEnabled:   true,
+			DroppedCount:      3,
+			ExportedCount:     5,
+			FailedCount:       2,
+			SampleRatio:       "0.25",
+			MetricsEnabled:    true,
 			MetricsConfigured: true,
 		},
 		ExecutionAudit: ExecutionAuditSnapshot{

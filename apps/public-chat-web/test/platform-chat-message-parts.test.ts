@@ -234,7 +234,7 @@ describe("platform chat message parts", () => {
 					},
 				],
 				text: "学生应遵守学校管理规定。",
-			}).parts,
+			} as unknown as Parameters<typeof mapShellMessageToChatMessage>[0]).parts,
 		).toEqual([
 			{
 				text: "学生应遵守学校管理规定。",

@@ -3,16 +3,16 @@ package structuredplanning
 const CapabilityPlanSchemaVersion = "capability-plan-internal-v1"
 
 type CapabilityPlan struct {
-	SchemaVersion    string
-	Capability       string
-	UserGoalSummary  string
+	SchemaVersion     string
+	Capability        string
+	UserGoalSummary   string
 	RequiredArtifacts []string
 	OptionalArtifacts []string
-	Constraints      CapabilityConstraints
-	AnswerPolicy     CapabilityAnswerPolicy
-	GroundingPolicy  CapabilityGroundingPolicy
-	Budget           CapabilityBudget
-	FailClose        CapabilityFailClose
+	Constraints       CapabilityConstraints
+	AnswerPolicy      CapabilityAnswerPolicy
+	GroundingPolicy   CapabilityGroundingPolicy
+	Budget            CapabilityBudget
+	FailClose         CapabilityFailClose
 }
 
 type CapabilityConstraints struct {
@@ -44,12 +44,12 @@ type CapabilityTransportQueryConstraint struct {
 }
 
 type CapabilityAnswerPolicy struct {
-	FinalAnswerOwner            string
+	FinalAnswerOwner             string
 	RequiresArtifactBackedAnswer bool
 }
 
 type CapabilityGroundingPolicy struct {
-	Required         bool
+	Required          bool
 	RequiredArtifacts []string
 }
 
@@ -65,9 +65,9 @@ type CapabilityFailClose struct {
 
 func selectedNoticeKnowledgeFollowthroughCapabilityPlan(request Request) CapabilityPlan {
 	return CapabilityPlan{
-		SchemaVersion:    CapabilityPlanSchemaVersion,
-		Capability:       request.EffectiveCapability,
-		UserGoalSummary:  request.UserGoal,
+		SchemaVersion:   CapabilityPlanSchemaVersion,
+		Capability:      request.EffectiveCapability,
+		UserGoalSummary: request.UserGoal,
 		RequiredArtifacts: []string{
 			"notice_context",
 			"evidence_bundle",
@@ -80,9 +80,9 @@ func selectedNoticeKnowledgeFollowthroughCapabilityPlan(request Request) Capabil
 				Collection: request.RequestedScope.Collection,
 			},
 			SelectedNotice: &CapabilitySelectedNoticeConstraint{
-				Required:     true,
-				NoticeID:     request.SelectedNoticeRef.NoticeID,
-				SourceFamily: request.SelectedNoticeRef.SourceFamily,
+				Required:      true,
+				NoticeID:      request.SelectedNoticeRef.NoticeID,
+				SourceFamily:  request.SelectedNoticeRef.SourceFamily,
 				TargetSurface: request.SelectedNoticeRef.TargetSurface,
 				AllowedTargetSurfaces: []string{
 					"regulations/student_rules",
@@ -92,11 +92,11 @@ func selectedNoticeKnowledgeFollowthroughCapabilityPlan(request Request) Capabil
 			},
 		},
 		AnswerPolicy: CapabilityAnswerPolicy{
-			FinalAnswerOwner:            "supervisor-api-finalizer",
+			FinalAnswerOwner:             "supervisor-api-finalizer",
 			RequiresArtifactBackedAnswer: true,
 		},
 		GroundingPolicy: CapabilityGroundingPolicy{
-			Required:         true,
+			Required:          true,
 			RequiredArtifacts: []string{"evidence_bundle", "grounding_verdict"},
 		},
 		Budget: CapabilityBudget{

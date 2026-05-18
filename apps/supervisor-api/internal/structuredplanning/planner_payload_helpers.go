@@ -413,6 +413,38 @@ func isServiceGuideLookup(
 		containsAny(normalizedGoal, policy.Signals("structured_service_guide_action"))
 }
 
+func shouldPreferServiceStatusLookup(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) bool {
+	if !containsAny(normalizedGoal, policy.Signals("structured_service_status")) {
+		return false
+	}
+	if !isServiceGuideLookup(normalizedGoal, policy) {
+		return true
+	}
+	return !isServiceGuideOfficeHoursForProcedure(normalizedGoal, policy)
+}
+
+func isServiceGuideOfficeHoursForProcedure(
+	normalizedGoal string,
+	policy runtimepolicy.IntentPolicyArtifact,
+) bool {
+	return classifyServiceGuideFocus(normalizedGoal, policy) == "office_hours" &&
+		containsAny(normalizedGoal, policy.Signals("structured_service_guide_action")) &&
+		containsAny(normalizedGoal, []string{
+			"申请",
+			"办理",
+			"补办",
+			"补卡",
+			"挂失",
+			"报销",
+			"入住",
+			"退宿",
+			"离校",
+		})
+}
+
 func isContactDirectoryLookup(
 	normalizedGoal string,
 	policy runtimepolicy.IntentPolicyArtifact,

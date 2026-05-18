@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn, spawnSync } from "node:child_process";
 import { dirname, resolve } from "node:path";
 import process from "node:process";
-import { fileURLToPath } from "node:url";
+import { fileURLToPath, pathToFileURL } from "node:url";
 
 const scriptDir = dirname(fileURLToPath(import.meta.url));
 const appApiDir = resolve(scriptDir, "..");
@@ -336,7 +336,12 @@ async function main(argv: string[]): Promise<void> {
 	}
 }
 
-void main(process.argv.slice(2)).catch(async (error: unknown) => {
-	console.error(error instanceof Error ? error.message : String(error));
-	process.exit(1);
-});
+const isMainModule =
+	typeof process.argv[1] === "string" && import.meta.url === pathToFileURL(process.argv[1]).href;
+
+if (isMainModule) {
+	void main(process.argv.slice(2)).catch(async (error: unknown) => {
+		console.error(error instanceof Error ? error.message : String(error));
+		process.exit(1);
+	});
+}

@@ -145,29 +145,45 @@ def _campus_services_allowed_tools(goal: str) -> tuple[str, ...]:
 
 def _campus_knowledge_cases() -> tuple[IntentCase, ...]:
     goals = (
-        "奖学金怎么申请？",
-        "国家奖学金评审条件是什么？",
-        "助学金申请流程是什么？",
-        "法学民族实验班培养方案里大二下有什么课",
-        "计算机专业毕业要求有哪些？",
-        "通识课学分要求是多少？",
-        "转专业需要满足什么条件？",
-        "学籍异动流程是什么？",
-        "校历里春假怎么安排？",
-        "习近平新时代中国特色社会主义思想概论有哪些专业要上",
-        "马原一般什么时候开课？",
-        "民概课程学分是多少？",
-        "推免资格怎么认定？",
-        "处分申诉流程是什么？",
-        "学生证补办需要什么材料？",
-        "毕业论文流程怎么安排？",
-        "课程重修规则是什么？",
-        "选课退课时间怎么规定？",
-        "学院培养计划在哪里看？",
-        "library hours",
+        ("奖学金怎么申请？", None),
+        ("国家奖学金评审条件是什么？", None),
+        ("助学金申请流程是什么？", None),
+        ("法学民族实验班培养方案里大二下有什么课", None),
+        ("计算机专业毕业要求有哪些？", None),
+        ("通识课学分要求是多少？", None),
+        ("转专业需要满足什么条件？", None),
+        ("学籍异动流程是什么？", None),
+        (
+            "校历里春假怎么安排？",
+            IntentCase(
+                case_id="intent-knowledge-009",
+                user_goal="校历里春假怎么安排？",
+                requested_capability="knowledge",
+                expected_capability="campus_services",
+                expected_task_kind="campus_services_lookup",
+                expected_launch_state="open",
+                expected_next_action="delegate",
+                expected_scope_class="in_scope",
+                expected_scope_reason="structured_runtime_candidate_signal",
+                expected_target="campus-services-agent",
+                expected_allowed_tools=("academic_calendar_lookup",),
+            ),
+        ),
+        ("习近平新时代中国特色社会主义思想概论有哪些专业要上", None),
+        ("马原一般什么时候开课？", None),
+        ("民概课程学分是多少？", None),
+        ("推免资格怎么认定？", None),
+        ("处分申诉流程是什么？", None),
+        ("学生证补办需要什么材料？", None),
+        ("毕业论文流程怎么安排？", None),
+        ("课程重修规则是什么？", None),
+        ("选课退课时间怎么规定？", None),
+        ("学院培养计划在哪里看？", None),
+        ("library hours", None),
     )
     return tuple(
-        IntentCase(
+        explicit_case
+        or IntentCase(
             case_id=f"intent-knowledge-{index:03d}",
             user_goal=goal,
             requested_capability="knowledge",
@@ -178,7 +194,7 @@ def _campus_knowledge_cases() -> tuple[IntentCase, ...]:
             expected_scope_class="in_scope",
             expected_target="rag-agent",
         )
-        for index, goal in enumerate(goals, start=1)
+        for index, (goal, explicit_case) in enumerate(goals, start=1)
     )
 
 

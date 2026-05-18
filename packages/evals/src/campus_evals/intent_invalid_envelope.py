@@ -20,7 +20,7 @@ def _invalid_envelope_cases() -> tuple[IntentCase, ...]:
             expected_next_action="",
             expected_scope_class="",
             expected_target="none",
-            expected_error_code="invalid_supervisor_request",
+            expected_error_code="disallowed_knowledge_scope",
             critical=True,
         ),
         IntentCase(

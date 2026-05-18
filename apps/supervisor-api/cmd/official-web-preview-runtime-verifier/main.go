@@ -49,11 +49,11 @@ type previewReport struct {
 }
 
 type previewResult struct {
-	SelectedWriteID string                 `json:"selected_write_id"`
-	Collection      string                 `json:"collection"`
-	InventoryID     string                 `json:"inventory_id"`
-	Bundle          map[string]any         `json:"bundle"`
-	FullBundle      map[string]any         `json:"full_bundle"`
+	SelectedWriteID string         `json:"selected_write_id"`
+	Collection      string         `json:"collection"`
+	InventoryID     string         `json:"inventory_id"`
+	Bundle          map[string]any `json:"bundle"`
+	FullBundle      map[string]any `json:"full_bundle"`
 }
 
 type outputPayload struct {

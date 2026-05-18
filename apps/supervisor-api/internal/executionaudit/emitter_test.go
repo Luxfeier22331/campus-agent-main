@@ -60,10 +60,10 @@ func TestEmitterEmitFailsWhenDeliveryFails(t *testing.T) {
 	defer auditServer.Close()
 
 	emitter := NewEmitter(context.Background(), config.Config{
-		ExecutionAuditEnabled:       true,
-		ExecutionAuditSharedSecret:  "audit-secret",
-		ExecutionAuditTimeoutMS:     500,
-		ExecutionAuditURL:           auditServer.URL,
+		ExecutionAuditEnabled:      true,
+		ExecutionAuditSharedSecret: "audit-secret",
+		ExecutionAuditTimeoutMS:    500,
+		ExecutionAuditURL:          auditServer.URL,
 	}, nil)
 
 	err := emitter.Emit(context.Background(), Event{
@@ -173,10 +173,10 @@ func TestEmitterPostsSafeExecutionAuditEvent(t *testing.T) {
 	defer auditServer.Close()
 
 	emitter := NewEmitter(context.Background(), config.Config{
-		ExecutionAuditEnabled:       true,
-		ExecutionAuditSharedSecret:  "audit-secret",
-		ExecutionAuditTimeoutMS:     500,
-		ExecutionAuditURL:           auditServer.URL,
+		ExecutionAuditEnabled:      true,
+		ExecutionAuditSharedSecret: "audit-secret",
+		ExecutionAuditTimeoutMS:    500,
+		ExecutionAuditURL:          auditServer.URL,
 	}, slog.New(slog.NewTextHandler(io.Discard, nil)))
 
 	if err := emitter.Emit(context.Background(), Event{

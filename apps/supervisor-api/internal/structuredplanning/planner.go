@@ -90,6 +90,14 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup"),
 			})
 		}
+		if shouldPreferServiceStatusLookup(normalizedGoal, policy) {
+			return SingleHandoffPlan(Handoff{
+				Target:       "campus-services-agent",
+				PayloadKind:  "service_status_lookup",
+				Payload:      serviceStatusPayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
+				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_status_lookup"),
+			})
+		}
 		if containsAny(normalizedGoal, policy.Signals("structured_transport")) {
 			return SingleHandoffPlan(Handoff{
 				Target:       "campus-services-agent",
@@ -106,14 +114,6 @@ func PlanWithPolicy(request Request, policy runtimepolicy.IntentPolicyArtifact) 
 				PayloadKind:  "service_guide_lookup",
 				Payload:      serviceGuidePayloadWithFocus(request.UserGoal, normalizedGoal, request.VersionQuery, policy, serviceGuideFocus),
 				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_guide_lookup"),
-			})
-		}
-		if containsAny(normalizedGoal, policy.Signals("structured_service_status")) {
-			return SingleHandoffPlan(Handoff{
-				Target:       "campus-services-agent",
-				PayloadKind:  "service_status_lookup",
-				Payload:      serviceStatusPayload(request.UserGoal, normalizedGoal, request.VersionQuery, policy),
-				AllowedTools: runtimepolicy.AllowedToolsForPayloadKind("campus-services-agent", "service_status_lookup"),
 			})
 		}
 		if isServiceGuideLookup(normalizedGoal, policy) {

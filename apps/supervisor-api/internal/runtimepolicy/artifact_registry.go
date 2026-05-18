@@ -20,9 +20,9 @@ var supportedArtifactProjectionStatuses = map[string]struct{}{
 }
 
 var supportedArtifactVisibilities = map[string]struct{}{
-	"agent_private":          {},
-	"operator_safe_summary":  {},
-	"finalizer_input":        {},
+	"agent_private":         {},
+	"operator_safe_summary": {},
+	"finalizer_input":       {},
 }
 
 var supportedBindingOpeningGates = map[string]struct{}{
@@ -36,12 +36,12 @@ var supportedRequiredInputPrefixes = []string{
 }
 
 type WorkflowArtifactRegistry struct {
-	SchemaVersion         string             `json:"schema_version"`
-	RegistryVersion       string             `json:"registry_version"`
-	VisibilityValues      []string           `json:"visibility_values"`
-	SupportStatusValues   []string           `json:"support_status_values"`
-	ForbiddenRawKeyTokens []string           `json:"forbidden_raw_key_tokens"`
-	Artifacts             []WorkflowArtifact `json:"artifacts"`
+	SchemaVersion         string                      `json:"schema_version"`
+	RegistryVersion       string                      `json:"registry_version"`
+	VisibilityValues      []string                    `json:"visibility_values"`
+	SupportStatusValues   []string                    `json:"support_status_values"`
+	ForbiddenRawKeyTokens []string                    `json:"forbidden_raw_key_tokens"`
+	Artifacts             []WorkflowArtifact          `json:"artifacts"`
 	Bindings              []WorkflowCapabilityBinding `json:"bindings"`
 }
 
