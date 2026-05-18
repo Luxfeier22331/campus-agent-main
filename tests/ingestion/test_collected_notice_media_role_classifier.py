@@ -73,7 +73,7 @@ class CollectedNoticeMediaRoleClassifierTests(unittest.TestCase):
 
         self.assertEqual(len(roles), 1)
         self.assertEqual(roles[0]["media_role"], MEDIA_ROLE_SUPPLEMENTAL_LOCATION_VISUAL)
-        self.assertEqual(roles[0]["media_state"], "ocr_pending")
+        self.assertEqual(roles[0]["media_state"], "pending")
         self.assertFalse(roles[0]["target_blocking"])
 
     def test_classifies_schedule_notice_without_text_rows_as_schedule_table_carrier(
@@ -106,6 +106,49 @@ class CollectedNoticeMediaRoleClassifierTests(unittest.TestCase):
 
         self.assertEqual(roles[0]["media_role"], MEDIA_ROLE_SCHEDULE_TABLE_CARRIER)
         self.assertTrue(roles[0]["target_blocking"])
+
+    def test_low_confidence_status_maps_to_manual_review_lifecycle(self) -> None:
+        unit = _unit(
+            source_notice_id="355867",
+            title="关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
+            body_text="具体班次见图片。",
+        )
+
+        roles = classify_notice_media_roles(
+            unit=unit,
+            multimodal_candidate_inventory={
+                "candidates": [
+                    {
+                        "unit_id": unit["unit_id"],
+                        "status": "manual_review",
+                        "media_kind": "image",
+                        "processing_family": "schedule_image_ocr",
+                    }
+                ]
+            },
+            target="transport_schedule",
+            text_fact_complete=False,
+        )
+
+        self.assertEqual(roles[0]["media_state"], "manual_review")
+        self.assertTrue(roles[0]["target_blocking"])
+
+    def test_attachment_refs_do_not_create_implicit_media_candidates(self) -> None:
+        unit = _unit(
+            source_notice_id="355867",
+            title="关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知",
+            body_text="具体班次见图片。",
+            attachment_filename="班车安排.png",
+        )
+
+        roles = classify_notice_media_roles(
+            unit=unit,
+            multimodal_candidate_inventory={"candidates": []},
+            target="transport_schedule",
+            text_fact_complete=False,
+        )
+
+        self.assertEqual(roles, [])
 
 
 if __name__ == "__main__":

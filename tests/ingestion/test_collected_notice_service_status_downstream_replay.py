@@ -90,6 +90,15 @@ class CollectedNoticeServiceStatusDownstreamReplayTests(unittest.TestCase):
             entry["reason_codes"],
             ["service_status_current_window_admitted", "body_facts_complete"],
         )
+        self.assertEqual(
+            entry["required_fact_groups"],
+            ["subject", "observed_status", "effective_window"],
+        )
+        self.assertEqual(
+            entry["ready_fact_groups"],
+            ["subject", "observed_status", "effective_window"],
+        )
+        self.assertEqual(entry["missing_fact_groups"], [])
 
         self.assertEqual(preview.replay_dry_run["service_status_record_count"], 1)
         record = preview.replay_dry_run["service_status_records"][0]

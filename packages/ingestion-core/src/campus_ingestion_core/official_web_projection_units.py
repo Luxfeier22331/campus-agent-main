@@ -3,6 +3,7 @@ from __future__ import annotations
 import hashlib
 from pathlib import Path
 
+from campus_ingestion_core.chunking_tables import serialize_table_unit_text
 from campus_ingestion_core.official_web_projection_content import (
     _build_semantic_content_hash,
     _classify_article_line,
@@ -35,6 +36,11 @@ from campus_ingestion_core.official_web_projection_shared import (
     _read_json,
     _read_jsonl,
     _slugify_text,
+)
+from campus_ingestion_core.official_web_projection_table_units import (
+    _build_official_web_table_metadata,
+    _build_official_web_table_semantics,
+    _resolve_official_web_table_context,
 )
 
 _ARTICLE_SECTION_MAX_PARAGRAPHS_PER_UNIT = 3
@@ -235,6 +241,30 @@ def _build_projection_units(
         if block_role in {"table", "table_row", "table_cell"}:
             flush_buffer()
             current_section_path = list(section_path)
+            table_cells = block.get("tableCells")
+            table_context = _resolve_official_web_table_context(
+                title=title,
+                section_path=section_path,
+            )
+            table_semantics = _build_official_web_table_semantics(
+                table_cells=table_cells,
+                table_context=table_context,
+                title=title,
+                normalized_canonical_url=str(manifest["normalizedCanonicalUrl"]),
+                row_id=str(block.get("rowId") or ""),
+            )
+            table_metadata = _build_official_web_table_metadata(
+                table_semantics=table_semantics,
+                table_context=table_context,
+            )
+            clean_text = serialize_table_unit_text(
+                caption_lines=tuple(
+                    str(item) for item in table_metadata.get("caption_lines") or []
+                ),
+                header_line=str(table_metadata.get("table_header_line") or ""),
+                row_lines=tuple(str(item) for item in table_metadata.get("table_row_lines") or []),
+                note_lines=tuple(str(item) for item in table_metadata.get("note_lines") or []),
+            )
             unit_index = len(units) + 1
             units.append(
                 _build_structured_unit_row(
@@ -243,7 +273,7 @@ def _build_projection_units(
                     chunk_id=f"{document_id}:unit-{unit_index:04d}",
                     root_unit_id=f"{document_id}:root-{unit_index:04d}",
                     unit_type="table_unit",
-                    clean_text=text,
+                    clean_text=clean_text,
                     source_pdf=f"official_web:{manifest['siteId']}",
                     source_url=str(manifest["normalizedCanonicalUrl"]),
                     anchor={
@@ -253,6 +283,7 @@ def _build_projection_units(
                         "page_family": manifest["pageFamily"],
                         "section_path": list(section_path),
                         "row_ids": [str(block.get("rowId") or "")],
+                        "table_context": table_context,
                     },
                     metadata=_build_projection_unit_metadata(
                         declaration=declaration,
@@ -265,8 +296,9 @@ def _build_projection_units(
                             title=title,
                         ),
                         is_answer_bearing=True,
+                        extra_metadata=table_metadata,
                     ),
-                    table_cells=block.get("tableCells"),
+                    table_cells=[list(row) for row in table_semantics.matrix],
                 )
             )
             continue
@@ -681,6 +713,7 @@ def _build_projection_unit_metadata(
     semantic_content_hash: str,
     content_role: str | None = None,
     is_answer_bearing: bool | None = None,
+    extra_metadata: dict[str, object] | None = None,
 ) -> dict[str, object]:
     serving_intent = _resolve_document_serving_intent(
         page_family=declaration.page_family,
@@ -724,4 +757,6 @@ def _build_projection_unit_metadata(
     )
     if promotion_block_reason is not None:
         metadata["promotion_block_reason"] = promotion_block_reason
+    if extra_metadata:
+        metadata.update(extra_metadata)
     return metadata

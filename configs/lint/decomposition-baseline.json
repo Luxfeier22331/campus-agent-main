@@ -34,9 +34,6 @@
 		"apps/supervisor-api/internal/structuredquery/notice_test.go": {
 			"max_lines": 808
 		},
-		"apps/supervisor-api/internal/structuredquery/runtime_fixtures_test.go": {
-			"max_lines": 866
-		},
 		"apps/supervisor-api/internal/structuredquery/runtime_test.go": {
 			"max_lines": 893
 		},

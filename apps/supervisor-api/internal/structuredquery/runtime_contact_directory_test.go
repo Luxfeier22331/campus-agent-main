@@ -37,6 +37,194 @@ func TestLookupContactDirectoryResolvesPhone(t *testing.T) {
 	}
 }
 
+func TestLookupContactDirectoryMatchesTargetAliasWithQuestionSuffix(t *testing.T) {
+	runtime := newRuntimeWithContactDirectoryReadModel(
+		t,
+		`{
+			"schema_version":"campus_services_contact_directory_projection.v1",
+			"contact_records":[
+				{
+					"contact_id":"contact:official-web:information-disclosure",
+					"display_name":"联系方式",
+					"aliases":["联系方式","中央民族大学信息公开联系方式"],
+					"contact_group":"official_web",
+					"department":"联系方式",
+					"phones":[
+						{
+							"phone_id":"contact:official-web:information-disclosure:phone:1",
+							"label":"电话号码",
+							"number":"010-68932551",
+							"source_refs":["official_web:muc-information-disclosure-contact:owver"]
+						}
+					],
+					"source_refs":["official_web:muc-information-disclosure-contact:owver"],
+					"extraction_status":"ready"
+				}
+			],
+			"conflict_records":[],
+			"manual_review_sources":[]
+		}`,
+		"2026-05-02T12:50:00+08:00",
+	)
+
+	response := runtime.LookupContactDirectory(context.Background(), []byte(`{
+		"query_text":"信息公开联系电话是多少",
+		"contact_focus":"phone",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(contactDirectoryResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if len(result.ContactPoints) != 1 || result.ContactPoints[0].Value != "010-68932551" {
+		t.Fatalf("contact_points = %#v", result.ContactPoints)
+	}
+}
+
+func TestLookupContactDirectoryPrefersExactDepartmentOverLongAlias(t *testing.T) {
+	runtime := newRuntimeWithContactDirectoryReadModel(
+		t,
+		`{
+			"schema_version":"campus_services_contact_directory_projection.v1",
+			"contact_records":[
+				{
+					"contact_id":"contact:official-web:muc-homepage",
+					"display_name":"中央民族大学",
+					"aliases":["中央民族大学","中央民族大学主页页脚联系方式"],
+					"contact_group":"official_web",
+					"department":"中央民族大学",
+					"phones":[
+						{
+							"phone_id":"contact:official-web:muc-homepage:phone:1",
+							"label":"电话号码",
+							"number":"010-68932442",
+							"source_refs":["official_web:muc-main-homepage-contact:owver"]
+						}
+					],
+					"location_refs":[
+						{
+							"label":"办公地点",
+							"location_ref":"海淀校区：北京市海淀区中关村南大街27号",
+							"address_text":"海淀校区：北京市海淀区中关村南大街27号",
+							"source_refs":["official_web:muc-main-homepage-contact:owver"]
+						}
+					],
+					"source_refs":["official_web:muc-main-homepage-contact:owver"],
+					"extraction_status":"ready"
+				},
+				{
+					"contact_id":"contact:official-web:information-disclosure",
+					"display_name":"联系方式",
+					"aliases":["联系方式","中央民族大学信息公开联系方式"],
+					"contact_group":"official_web",
+					"department":"联系方式",
+					"phones":[
+						{
+							"phone_id":"contact:official-web:information-disclosure:phone:1",
+							"label":"电话号码",
+							"number":"010-68932551",
+							"source_refs":["official_web:muc-information-disclosure-contact:owver"]
+						}
+					],
+					"source_refs":["official_web:muc-information-disclosure-contact:owver"],
+					"extraction_status":"ready"
+				}
+			],
+			"conflict_records":[],
+			"manual_review_sources":[]
+		}`,
+		"2026-05-02T12:50:00+08:00",
+	)
+
+	response := runtime.LookupContactDirectory(context.Background(), []byte(`{
+		"query_text":"中央民族大学电话地址",
+		"contact_focus":"phone",
+		"entity_selector":{"department_query":"中央民族大学"},
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(contactDirectoryResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current; candidates = %#v", result.Outcome, result.CandidateContacts)
+	}
+	if result.ResolvedContact == nil || result.ResolvedContact.DisplayName != "中央民族大学" {
+		t.Fatalf("resolved_contact = %#v", result.ResolvedContact)
+	}
+	if len(result.ContactPoints) != 1 || result.ContactPoints[0].Value != "010-68932442" {
+		t.Fatalf("contact_points = %#v", result.ContactPoints)
+	}
+}
+
+func TestLookupContactDirectoryResolvesEntitySelectorAgainstMergedHomepageContact(t *testing.T) {
+	runtime := newRuntimeWithContactDirectoryReadModel(
+		t,
+		`{
+			"schema_version":"campus_services_contact_directory_projection.v1",
+			"contact_records":[
+				{
+					"contact_id":"contact:official-web:muc-homepage",
+					"display_name":"中央民族大学",
+					"aliases":["中央民族大学"],
+					"contact_group":"official_web",
+					"department":"中央民族大学",
+					"location_refs":[
+						{
+							"label":"办公地点",
+							"location_ref":"北京市海淀区中关村南大街27号",
+							"address_text":"北京市海淀区中关村南大街27号",
+							"source_refs":["official_web:muc-main-homepage-contact:owver"]
+						}
+					],
+					"source_refs":["official_web:muc-main-homepage-contact:owver"],
+					"extraction_status":"ready"
+				},
+				{
+					"contact_id":"contact:official-web:it-service",
+					"display_name":"中央民族大学信息化服务联系方式",
+					"aliases":["信息化办","信息化服务联系方式"],
+					"contact_group":"official_web",
+					"department":"信息化建设管理处",
+					"location_refs":[
+						{
+							"label":"办公地点",
+							"location_ref":"北京市海淀区中关村南大街27号",
+							"address_text":"北京市海淀区中关村南大街27号",
+							"source_refs":["official_web:muc-it-service-contacts:owver"]
+						}
+					],
+					"source_refs":["official_web:muc-it-service-contacts:owver"],
+					"extraction_status":"ready"
+				}
+			],
+			"conflict_records":[],
+			"manual_review_sources":[]
+		}`,
+		"2026-05-02T00:00:01+08:00",
+	)
+
+	response := runtime.LookupContactDirectory(context.Background(), []byte(`{
+		"query_text":"信息化办办公地点在哪里",
+		"contact_focus":"location",
+		"entity_selector":{"department_query":"信息化办"},
+		"temporal_query":{"mode":"current"},
+		"audience":"unknown"
+	}`))
+
+	result := response.Body.(contactDirectoryResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current; candidates = %#v", result.Outcome, result.CandidateContacts)
+	}
+	if result.ResolvedContact == nil || result.ResolvedContact.DisplayName != "中央民族大学信息化服务联系方式" {
+		t.Fatalf("resolved_contact = %#v", result.ResolvedContact)
+	}
+	if len(result.LocationRefs) != 1 || result.LocationRefs[0].LocationRef != "北京市海淀区中关村南大街27号" {
+		t.Fatalf("location_refs = %#v", result.LocationRefs)
+	}
+}
+
 func TestLookupContactDirectoryMatchesContactPointAndHoursLabels(t *testing.T) {
 	runtime := newRuntimeWithContactDirectoryReadModel(
 		t,
@@ -163,6 +351,45 @@ func TestLookupContactDirectoryClarifiesAmbiguousEntity(t *testing.T) {
 	}
 }
 
+func TestLookupContactDirectoryFailsClosedWhenContactPointLacksSourceRefs(t *testing.T) {
+	runtime := newRuntimeWithContactDirectoryReadModel(
+		t,
+		`{
+			"schema_version":"campus_services_contact_directory_projection.v1",
+			"contact_records":[
+				{
+					"contact_id":"contact:campus-card",
+					"display_name":"校园卡管理中心",
+					"aliases":["校园卡"],
+					"phones":[
+						{"phone_id":"phone:card","label":"咨询","number":"010-68933381","source_refs":[]}
+					],
+					"source_refs":["official_web:muc-card-contact"],
+					"extraction_status":"ready"
+				}
+			],
+			"contact_conflict_records":[],
+			"contact_manual_review_sources":[]
+		}`,
+		"2026-04-27T10:30:00+08:00",
+	)
+
+	response := runtime.LookupContactDirectory(context.Background(), []byte(`{
+		"query_text":"校园卡管理中心电话",
+		"contact_focus":"phone",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(contactDirectoryResult)
+	if result.Outcome != "temporarily_unverifiable" {
+		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
+	}
+	if result.FailCloseReason != "stable_contact_unavailable" {
+		t.Fatalf("fail_close_reason = %q", result.FailCloseReason)
+	}
+}
+
 func TestLookupContactDirectoryFailsClosedForManualReviewSource(t *testing.T) {
 	runtime := newRuntimeWithContactDirectoryReadModel(
 		t,
@@ -215,10 +442,34 @@ func TestLookupContactDirectoryFailsClosedForManualReviewSource(t *testing.T) {
 	}
 }
 
-func TestLookupContactDirectoryFailsClosedWhenFocusNotBacked(t *testing.T) {
+func TestLookupContactDirectoryFailsClosedWhenFocusWasNotProvidedBySource(t *testing.T) {
 	runtime := newRuntimeWithContactDirectoryReadModel(
 		t,
-		contactDirectoryProjectionFixture(),
+		`{
+			"schema_version":"campus_services_contact_directory_projection.v1",
+			"contact_records":[
+				{
+					"contact_id":"contact:grad-admission-office",
+					"display_name":"研究生院招生办公室",
+					"aliases":["研究生招生办","招生办公室"],
+					"contact_group":"招生咨询",
+					"department":"研究生院",
+					"phones":[
+						{
+							"phone_id":"phone:grad-admission-office:01068930001",
+							"label":"招生咨询",
+							"number":"010-68930001",
+							"source_refs":["handbook:contact-directory:2026#page=261"]
+						}
+					],
+					"field_status":{"office_hours":"source_not_provided"},
+					"source_refs":["handbook:contact-directory:2026#page=261"],
+					"extraction_status":"ready"
+				}
+			],
+			"contact_conflict_records":[],
+			"contact_manual_review_sources":[]
+		}`,
 		"2026-04-27T10:30:00+08:00",
 	)
 
@@ -233,8 +484,11 @@ func TestLookupContactDirectoryFailsClosedWhenFocusNotBacked(t *testing.T) {
 	if result.Outcome != "temporarily_unverifiable" {
 		t.Fatalf("outcome = %q, want temporarily_unverifiable", result.Outcome)
 	}
-	if result.FailCloseReason != "stable_contact_unavailable" {
-		t.Fatalf("fail_close_reason = %q, want stable_contact_unavailable", result.FailCloseReason)
+	if result.FailCloseReason != "field_not_provided_by_source" {
+		t.Fatalf("fail_close_reason = %q, want field_not_provided_by_source", result.FailCloseReason)
+	}
+	if result.FieldStatus["office_hours"] != "source_not_provided" {
+		t.Fatalf("field_status = %#v", result.FieldStatus)
 	}
 }
 
@@ -263,6 +517,71 @@ func TestLookupContactDirectoryReadsPostgresReadModelWithoutProjectionPath(t *te
 	}
 }
 
+func TestLookupContactDirectoryLoadsOnlyCurrentPointerRelease(t *testing.T) {
+	store := &fakeContactDirectoryReadModelStore{
+		bundle:    mustProjectionBundle(t, contactDirectoryProjectionFixture()),
+		releaseID: "contact-directory-current-release",
+	}
+	runtime := NewRuntime(Options{
+		ContactDirectoryReadModelStore: store,
+		TrustedTimeRFC3339:             "2026-04-27T10:30:00+08:00",
+	})
+
+	response := runtime.LookupContactDirectory(context.Background(), []byte(`{
+		"query_text":"研究生院招生办公室电话是多少",
+		"contact_focus":"phone",
+		"temporal_query":{"mode":"current"},
+		"audience":"student"
+	}`))
+
+	result := response.Body.(contactDirectoryResult)
+	if result.Outcome != "resolved_current" {
+		t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+	}
+	if len(store.loadedReleaseIDs) != 1 || store.loadedReleaseIDs[0] != "contact-directory-current-release" {
+		t.Fatalf("loadedReleaseIDs = %#v, want current pointer release only", store.loadedReleaseIDs)
+	}
+}
+
+func TestLookupContactDirectoryResolvesServiceLabelPhones(t *testing.T) {
+	runtime := newRuntimeWithContactDirectoryReadModel(
+		t,
+		contactDirectoryProjectionFixture(),
+		"2026-05-04T10:30:00+08:00",
+	)
+
+	tests := []struct {
+		name      string
+		query     string
+		wantValue string
+	}{
+		{name: "network service", query: "网络服务电话是多少", wantValue: "010-68932559"},
+		{name: "campus card service", query: "一卡通服务电话是多少", wantValue: "010-68933381"},
+		{name: "multimedia classroom service", query: "多媒体教室服务电话是多少", wantValue: "010-68932625"},
+		{name: "dorm management center", query: "学生公寓管理服务中心电话是多少", wantValue: "010-68931234"},
+		{name: "conference center", query: "会务服务中心电话是多少", wantValue: "010-68935678"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			response := runtime.LookupContactDirectory(context.Background(), []byte(`{
+				"query_text":"`+tt.query+`",
+				"contact_focus":"phone",
+				"temporal_query":{"mode":"current"},
+				"audience":"student"
+			}`))
+
+			result := response.Body.(contactDirectoryResult)
+			if result.Outcome != "resolved_current" {
+				t.Fatalf("outcome = %q, want resolved_current", result.Outcome)
+			}
+			if len(result.ContactPoints) == 0 || result.ContactPoints[0].Value != tt.wantValue {
+				t.Fatalf("contact_points = %#v, want %s", result.ContactPoints, tt.wantValue)
+			}
+		})
+	}
+}
+
 func newRuntimeWithContactDirectoryReadModel(
 	t *testing.T,
 	payload string,
@@ -281,6 +600,7 @@ type fakeContactDirectoryReadModelStore struct {
 	releaseID          string
 	bundle             projectionBundle
 	loadCount          int
+	loadedReleaseIDs   []string
 	projectionReady    bool
 	projectionReadySet bool
 	projectionReadyErr error
@@ -309,8 +629,9 @@ func (s *fakeContactDirectoryReadModelStore) ProjectionReady(context.Context) (b
 
 func (s *fakeContactDirectoryReadModelStore) LoadBundleForRelease(
 	_ context.Context,
-	_ string,
+	releaseID string,
 ) (projectionBundle, error) {
 	s.loadCount++
+	s.loadedReleaseIDs = append(s.loadedReleaseIDs, releaseID)
 	return s.bundle, nil
 }

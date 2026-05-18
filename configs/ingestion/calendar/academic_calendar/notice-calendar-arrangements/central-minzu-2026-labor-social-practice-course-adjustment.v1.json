@@ -1,0 +1,119 @@
+{
+	"schemaVersion": "authenticated_notice_calendar_arrangement.v1",
+	"projectionName": "central-minzu-2026-labor-social-practice-course-adjustment",
+	"documentData": {
+		"title": "2026年运动会、春季社会实践周、劳动节假期课程与调休安排",
+		"extractionStatus": "ready",
+		"manualReviewRequired": false,
+		"sourceRefs": [
+			"https://my.muc.edu.cn/#/print?type=5&notice_id=355589&show_type=1",
+			"https://my.muc.edu.cn/#/print?type=6&notice_id=355682&show_type=1"
+		],
+		"sourceDocuments": [
+			{
+				"noticeId": "355589",
+				"title": "关于发布“五一”劳动节假期放假安排的通知",
+				"releaseTime": "2026-04-15 08:50",
+				"sourceRefs": ["https://my.muc.edu.cn/#/print?type=5&notice_id=355589&show_type=1"]
+			},
+			{
+				"noticeId": "355682",
+				"title": "关于运动会、春季社会实践周、劳动节假期本（预）科、 研究生课程调整的通知",
+				"releaseTime": "2026-04-16 17:27",
+				"sourceRefs": ["https://my.muc.edu.cn/#/print?type=6&notice_id=355682&show_type=1"]
+			}
+		],
+		"records": [
+			{
+				"academicYearLabel": "2025-2026学年",
+				"termLabel": "春季学期",
+				"recordFamily": "workday_makeup",
+				"startDate": "2026-04-25",
+				"endDate": "2026-04-25",
+				"weekIndex": 8,
+				"dayKind": "workday_makeup",
+				"classDayPattern": "执行2026-05-05教学计划",
+				"isMakeupClass": true,
+				"holidayName": "",
+				"eventName": "五一劳动节假期调休上课安排",
+				"eventType": "workday_makeup",
+				"eventAliases": ["五一调休", "劳动节调休", "4月25日调休上课"],
+				"eventAliasTypes": {},
+				"eventStartDate": "2026-04-25",
+				"eventEndDateExclusive": "2026-04-26",
+				"displayStartDate": "2026-04-25",
+				"displayEndDate": "2026-04-25",
+				"appliesTo": ["all"],
+				"sourceNoticeIds": ["355589", "355682"],
+				"sourceTitle": "关于发布“五一”劳动节假期放假安排的通知；关于运动会、春季社会实践周、劳动节假期本（预）科、 研究生课程调整的通知",
+				"sourceUrl": "https://my.muc.edu.cn/#/print?type=5&notice_id=355589&show_type=1",
+				"sourceRefs": [
+					"https://my.muc.edu.cn/#/print?type=5&notice_id=355589&show_type=1",
+					"https://my.muc.edu.cn/#/print?type=6&notice_id=355682&show_type=1"
+				]
+			},
+			{
+				"academicYearLabel": "2025-2026学年",
+				"termLabel": "春季学期",
+				"recordFamily": "course_suspension",
+				"startDate": "2026-04-27",
+				"endDate": "2026-05-05",
+				"weekIndex": 9,
+				"dayKind": "course_suspension",
+				"classDayPattern": "",
+				"isMakeupClass": false,
+				"holidayName": "",
+				"eventName": "运动会、春季社会实践周、劳动节假期课程调整",
+				"eventType": "course_suspension",
+				"eventAliases": ["春假", "春季社会实践周", "运动会、春季社会实践周、劳动节假期"],
+				"eventAliasTypes": {
+					"春假": "colloquial"
+				},
+				"eventStartDate": "2026-04-27",
+				"eventEndDateExclusive": "2026-05-06",
+				"displayStartDate": "2026-04-27",
+				"displayEndDate": "2026-05-05",
+				"appliesTo": ["undergraduate", "preparatory", "graduate"],
+				"sourceNoticeIds": ["355682"],
+				"precedenceReason": "notice_specific_course_arrangement_overrides_baseline_teaching_week",
+				"conflictRefs": [
+					"calendar:official_web:baseline-2026-04-27_2026-05-03",
+					"calendar:official_web:baseline-2026-05-04_2026-05-10"
+				],
+				"sourceTitle": "关于运动会、春季社会实践周、劳动节假期本（预）科、 研究生课程调整的通知",
+				"sourceUrl": "https://my.muc.edu.cn/#/print?type=6&notice_id=355682&show_type=1",
+				"sourceRefs": ["https://my.muc.edu.cn/#/print?type=6&notice_id=355682&show_type=1"]
+			},
+			{
+				"academicYearLabel": "2025-2026学年",
+				"termLabel": "春季学期",
+				"recordFamily": "normal_rest_day",
+				"startDate": "2026-05-09",
+				"endDate": "2026-05-09",
+				"weekIndex": 10,
+				"dayKind": "normal_rest_day",
+				"classDayPattern": "",
+				"isMakeupClass": false,
+				"holidayName": "",
+				"eventName": "五一劳动节假期正常公休安排",
+				"eventType": "normal_rest_day",
+				"eventAliases": ["正常公休", "5月9日正常公休"],
+				"eventAliasTypes": {},
+				"eventStartDate": "2026-05-09",
+				"eventEndDateExclusive": "2026-05-10",
+				"displayStartDate": "2026-05-09",
+				"displayEndDate": "2026-05-09",
+				"appliesTo": ["all"],
+				"sourceNoticeIds": ["355589", "355682"],
+				"precedenceReason": "later_official_notice_overrides_baseline",
+				"conflictRefs": ["calendar:official_web:baseline-2026-05-09"],
+				"sourceTitle": "关于发布“五一”劳动节假期放假安排的通知；关于运动会、春季社会实践周、劳动节假期本（预）科、 研究生课程调整的通知",
+				"sourceUrl": "https://my.muc.edu.cn/#/print?type=5&notice_id=355589&show_type=1",
+				"sourceRefs": [
+					"https://my.muc.edu.cn/#/print?type=5&notice_id=355589&show_type=1",
+					"https://my.muc.edu.cn/#/print?type=6&notice_id=355682&show_type=1"
+				]
+			}
+		]
+	}
+}

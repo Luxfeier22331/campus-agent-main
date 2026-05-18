@@ -20,6 +20,15 @@ from campus_evals.contact_directory_projection_eval import (
 )
 from campus_evals.intent_models import IntentCase, IntentEvalReport
 from campus_evals.intent_runner import report_to_dict, run_intent_cases
+from campus_evals.official_web_selected_write_preview_runtime_verifier import (
+    BUNDLE_SCOPE_FULL_IMPACT,
+    BUNDLE_SCOPE_TASK_SCOPE,
+    OfficialWebSelectedWritePreviewRuntimeVerificationReport,
+    run_selected_write_preview_runtime_verification,
+)
+from campus_evals.official_web_selected_write_tool_readiness_audit import (
+    audit_selected_write_preview_report,
+)
 
 REPO_ROOT = Path(__file__).resolve().parents[4]
 SUPERVISOR_API_DIR = REPO_ROOT / "apps" / "supervisor-api"
@@ -100,6 +109,10 @@ class ContactDirectoryLookupReleaseGateReport:
 
 
 IntentRunner = Callable[[tuple[IntentCase, ...]], IntentEvalReport]
+SelectedWritePreviewRuntimeRunner = Callable[
+    ...,
+    OfficialWebSelectedWritePreviewRuntimeVerificationReport,
+]
 
 
 class CommandRunner(Protocol):
@@ -211,6 +224,8 @@ def run_contact_directory_lookup_release_gate(
     output_dir: Path,
     command_runner: CommandRunner | None = None,
     intent_runner: IntentRunner | None = None,
+    selected_write_preview_report_path: Path | None = None,
+    selected_write_preview_runtime_runner: SelectedWritePreviewRuntimeRunner | None = None,
 ) -> ContactDirectoryLookupReleaseGateReport:
     output_dir.mkdir(parents=True, exist_ok=True)
     projection_dir = output_dir / "projection"
@@ -241,6 +256,32 @@ def run_contact_directory_lookup_release_gate(
             command_runner=resolved_command_runner,
             cwd=REPO_ROOT,
         ),
+    ) + (
+        (
+            _run_selected_write_preview_tool_readiness_check(
+                output_dir=output_dir / "selected-write-preview-tool-readiness",
+                report_path=selected_write_preview_report_path,
+                collection="contact_directory",
+            ),
+            _run_selected_write_preview_runtime_verification_check(
+                output_dir=output_dir / "selected-write-preview-runtime-verification",
+                report_path=selected_write_preview_report_path,
+                bundle_scope=BUNDLE_SCOPE_TASK_SCOPE,
+                check_id="selected_write_preview_runtime_verification_task_scope",
+                runtime_runner=selected_write_preview_runtime_runner
+                or _run_selected_write_preview_runtime_verification,
+            ),
+            _run_selected_write_preview_runtime_verification_check(
+                output_dir=output_dir / "selected-write-preview-runtime-verification-full-impact",
+                report_path=selected_write_preview_report_path,
+                bundle_scope=BUNDLE_SCOPE_FULL_IMPACT,
+                check_id="selected_write_preview_runtime_verification_full_impact",
+                runtime_runner=selected_write_preview_runtime_runner
+                or _run_selected_write_preview_runtime_verification,
+            ),
+        )
+        if selected_write_preview_report_path is not None
+        else ()
     )
     report = ContactDirectoryLookupReleaseGateReport(
         passed=all(check.passed for check in checks),
@@ -361,6 +402,67 @@ def _run_command(command: tuple[str, ...], *, cwd: Path | None = None) -> Comman
     )
 
 
+def _run_selected_write_preview_tool_readiness_check(
+    *,
+    output_dir: Path,
+    report_path: Path,
+    collection: str,
+) -> ReleaseGateCheck:
+    audit = audit_selected_write_preview_report(
+        report_path=report_path,
+        output_dir=output_dir,
+    )
+    relevant = [item for item in audit.record_results if item.collection == collection]
+    failed = [item for item in relevant if not item.passed]
+    return ReleaseGateCheck(
+        check_id="selected_write_preview_tool_readiness",
+        passed=bool(relevant) and not failed,
+        summary={
+            "report_path": str(report_path),
+            "audit_output_path": str(audit.output_path),
+            "collection": collection,
+            "record_count": len(relevant),
+            "failed_record_ids": [item.selected_write_id for item in failed],
+        },
+    )
+
+
+def _run_selected_write_preview_runtime_verification_check(
+    *,
+    output_dir: Path,
+    report_path: Path,
+    bundle_scope: str,
+    check_id: str,
+    runtime_runner: SelectedWritePreviewRuntimeRunner,
+) -> ReleaseGateCheck:
+    report = runtime_runner(
+        report_path=report_path,
+        output_dir=output_dir,
+        bundle_scope=bundle_scope,
+    )
+    summary = dict(report.summary)
+    summary["report_path"] = str(report_path)
+    summary["runtime_output_path"] = str(report.output_path)
+    return ReleaseGateCheck(
+        check_id=check_id,
+        passed=report.passed,
+        summary=summary,
+    )
+
+
+def _run_selected_write_preview_runtime_verification(
+    *,
+    report_path: Path,
+    output_dir: Path,
+    bundle_scope: str,
+) -> OfficialWebSelectedWritePreviewRuntimeVerificationReport:
+    return run_selected_write_preview_runtime_verification(
+        report_path=report_path,
+        output_dir=output_dir,
+        bundle_scope=bundle_scope,
+    )
+
+
 def _report_payload(report: ContactDirectoryLookupReleaseGateReport) -> dict[str, object]:
     checks = tuple(asdict(check) for check in report.checks)
     failed = sum(1 for check in report.checks if not check.passed)
@@ -393,7 +495,11 @@ def build_parser() -> argparse.ArgumentParser:
         "--reruns",
         type=int,
         default=1,
-        help="Accepted for shared eval_gate profile compatibility; must be 1.",
+        help="Deterministic gate rerun contract; must be 1.",
+    )
+    accept_parser.add_argument(
+        "--selected-write-preview-report",
+        help="Optional real selected-write preview report path for answer-facing tool-readiness audit.",
     )
     accept_parser.add_argument("--verbose", action="store_true")
     accept_parser.add_argument("--log-jsonl")
@@ -408,7 +514,12 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise ValueError(
             "contact_directory_lookup release gate is deterministic and requires reruns=1"
         )
-    report = run_contact_directory_lookup_release_gate(output_dir=Path(args.output_dir))
+    report = run_contact_directory_lookup_release_gate(
+        output_dir=Path(args.output_dir),
+        selected_write_preview_report_path=(
+            Path(args.selected_write_preview_report) if args.selected_write_preview_report else None
+        ),
+    )
     if args.verbose:
         print(
             "contact_directory_lookup release gate: "
@@ -425,6 +536,7 @@ __all__ = [
     "CommandResult",
     "ContactDirectoryLookupReleaseGateReport",
     "ReleaseGateCheck",
+    "SelectedWritePreviewRuntimeRunner",
     "contact_directory_lookup_intent_gate_cases",
     "main",
     "run_contact_directory_lookup_release_gate",

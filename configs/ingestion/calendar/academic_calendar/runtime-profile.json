@@ -1,0 +1,18 @@
+{
+	"corpus": "calendar",
+	"collection": "academic_calendar",
+	"serving_stage": "structured_query_serving",
+	"allowed_artifact_modes": ["source_truth_only"],
+	"split_manifest_required": false,
+	"cleaning_policy_version": "academic_calendar_projection_v1",
+	"chunk_profile_version": "academic_calendar_projection_v1",
+	"retrieval_enabled": false,
+	"query_enabled_by_default": false,
+	"structured_query_enabled": true,
+	"structured_query_tools": ["academic_calendar_lookup"],
+	"retrieval_top_k": 3,
+	"qdrant_alias_name": "academic_calendar",
+	"qdrant_collection_prefix": "academic_calendar",
+	"qdrant_dense_vector_name": "dense",
+	"qdrant_sparse_vector_name": "sparse"
+}

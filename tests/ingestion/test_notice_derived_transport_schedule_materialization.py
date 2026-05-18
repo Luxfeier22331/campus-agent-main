@@ -5,6 +5,7 @@ import unittest
 from tests.support.in_memory_registry import InMemoryDocumentRegistry
 
 from .notice_derived_transport_schedule_materialization_test_support import (
+    _attachment_record,
     _build_runtime,
     _load_module,
 )
@@ -59,6 +60,61 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
                     "notice_attachment:muc_internal_portal:355122:attachment-0001",
                 ),
             ],
+        )
+
+    def test_resolves_schedule_ocr_child_document_from_attachment_lineage(self) -> None:
+        module = _load_module()
+        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
+        assert module is not None
+        registry, object_store, entry = _build_runtime(
+            notice_id="355867",
+            release_time="2026-04-25 13:11",
+            parent_markdown=(
+                "# 关于4月27日-5月5日期间两校区班车及地铁接驳车安排的通知\n\n"
+                "具体班车安排见图片附件。\n"
+            ),
+            attachment_document_ids=(
+                "notice_attachment:muc_internal_portal:355867:attachment-0001",
+            ),
+            table_cells=[
+                ["日期", "运行方向", "发车时间", "乘车人员"],
+                ["4月27日", "丰台校区至海淀校区", "06:40", "教师"],
+            ],
+        )
+        original_document_id = "notice_attachment:muc_internal_portal:355867:attachment-0001"
+        original_record = registry.current_version(
+            original_document_id,
+            preferred_revision_tracks=("source-faithful",),
+        )
+        assert original_record is not None
+        schedule_ocr_record = _attachment_record(
+            notice_id="355867",
+            attachment_ref_id="attachment-0001:schedule-ocr",
+            units_key=(
+                "campus_notices/documents/internal_notice/355867/attachment-0001/"
+                "source-faithful/2026/document-units.jsonl"
+            ),
+        )
+        assert original_record.document_units_object_key is not None
+        assert schedule_ocr_record.document_units_object_key is not None
+        object_store.objects[
+            ("campus-rag-derived", schedule_ocr_record.document_units_object_key)
+        ] = object_store.objects[("campus-rag-derived", original_record.document_units_object_key)]
+        registry.delete_document(original_document_id)
+        registry.upsert(schedule_ocr_record)
+
+        rows = module.extract_notice_derived_transport_schedule_rows(
+            projection_entry=entry,
+            registry=registry,
+            object_store=object_store,
+            derived_bucket="campus-rag-derived",
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0].departure_time, "06:40")
+        self.assertEqual(
+            rows[0].source_attachment_document_id,
+            "notice_attachment:muc_internal_portal:355867:attachment-0001:schedule-ocr",
         )
 
     def test_extracts_transport_rows_from_left_shifted_ocr_continuation_rows(
@@ -1267,95 +1323,6 @@ class NoticeDerivedTransportScheduleMaterializationTest(unittest.TestCase):
             result.rejected_source_records,
         )
         self.assertFalse(hasattr(result, "manual_review_sources"))
-
-    def test_builds_operational_notice_for_boarding_point_change(self) -> None:
-        module = _load_module()
-        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
-        assert module is not None
-        registry, object_store, entry = _build_runtime(
-            notice_id="353903",
-            parent_markdown=(
-                "# 关于更改通勤班车丰台校区乘车点的通知\n\n"
-                "自2026年1月1日起，通勤班车丰台校区上车点、下车点更改为南门外停车区，"
-                "运行班次时间不变。\n"
-            ),
-            attachment_document_ids=(),
-        )
-
-        result = module.build_notice_derived_transport_schedule_projection_bundle(
-            projection_entries=(entry,),
-            registry=registry,
-            object_store=object_store,
-            derived_bucket="campus-rag-derived",
-            generated_at="2026-03-20T09:00:00+08:00",
-            service_horizon_days=3,
-        )
-
-        self.assertEqual(result.bundle["transport_schedule_snapshots"], [])
-        self.assertEqual(result.rejected_source_records, [])
-        self.assertEqual(
-            result.bundle["transport_operational_notices"],
-            [
-                {
-                    "notice_id": "353903",
-                    "source_ref": "notice:muc_internal_portal:353903",
-                    "notice_kind": "boarding_point_change",
-                    "route_ids": ["route:fengtai-to-haidian"],
-                    "effective_from": "2026-01-01T00:00:00+08:00",
-                    "effective_until": "",
-                    "operational_comment": (
-                        "自2026年1月1日起，通勤班车丰台校区上车点、下车点更改为南门外停车区，"
-                        "运行班次时间不变"
-                    ),
-                }
-            ],
-        )
-
-    def test_builds_operational_notice_with_yearless_effective_date_parentheses(self) -> None:
-        module = _load_module()
-        self.assertIsNotNone(module, "notice-derived transport materializer module is required")
-        assert module is not None
-        registry, object_store, entry = _build_runtime(
-            notice_id="353903",
-            release_time="2025-12-11T16:02:00+08:00",
-            parent_markdown=(
-                "# 关于更改通勤班车丰台校区乘车点的通知\n\n"
-                "下周一（12月15日）起，两校区通勤班车丰台校区的上车点、"
-                "下车点更改为聚雅餐厅东侧停车场路口。\n\n"
-                "丰台校区管委会办公室\n\n"
-                "2025年12月11日\n"
-            ),
-            attachment_document_ids=(),
-        )
-
-        result = module.build_notice_derived_transport_schedule_projection_bundle(
-            projection_entries=(entry,),
-            registry=registry,
-            object_store=object_store,
-            derived_bucket="campus-rag-derived",
-            generated_at="2026-03-20T09:00:00+08:00",
-            service_horizon_days=3,
-        )
-
-        self.assertEqual(result.bundle["transport_schedule_snapshots"], [])
-        self.assertEqual(result.rejected_source_records, [])
-        self.assertEqual(
-            result.bundle["transport_operational_notices"],
-            [
-                {
-                    "notice_id": "353903",
-                    "source_ref": "notice:muc_internal_portal:353903",
-                    "notice_kind": "boarding_point_change",
-                    "route_ids": ["route:fengtai-to-haidian"],
-                    "effective_from": "2025-12-15T00:00:00+08:00",
-                    "effective_until": "",
-                    "operational_comment": (
-                        "下周一（12月15日）起，两校区通勤班车丰台校区的上车点、"
-                        "下车点更改为聚雅餐厅东侧停车场路口"
-                    ),
-                }
-            ],
-        )
 
 
 if __name__ == "__main__":

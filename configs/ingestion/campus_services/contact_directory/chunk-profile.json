@@ -14,6 +14,6 @@
 	"notes": [
 		"Chunk handbook-derived and future structured contact directories from document_units.jsonl.",
 		"Keep contact facts grouped tightly so one chunk can usually represent one office or one short phone block.",
-		"Use a conservative generic semantic budget until contact_directory graduates from offline_preparation."
+		"Use a conservative generic semantic budget for release-managed contact artifacts; structured serving reads typed projections, not these chunks."
 	]
 }

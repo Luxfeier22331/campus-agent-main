@@ -1,28 +1,38 @@
 package structuredquery
 
-import "strings"
+import (
+	"fmt"
+	"strings"
+)
 
 func serviceGuideResultFromRecord(
 	request serviceGuideRequest,
 	record serviceGuideRecord,
 	timeAnchor string,
 ) serviceGuideResult {
-	sections := filterServiceGuideSections(record.GuideSections, request.GuideFocus)
+	sections := focusedProcedureSections(record, request)
+	selectedSectionIDs := serviceGuideSelectedSectionIDs(record, request)
+	omittedSectionIDs, omittedSectionReasons := serviceGuideOmittedSections(record, selectedSectionIDs)
 	result := serviceGuideResult{
 		ServiceQuery:           request.ServiceQuery,
 		GuideFocus:             request.GuideFocus,
 		Outcome:                "resolved_current",
 		ResolvedService:        serviceGuideRefFromRecord(record),
 		GuideSections:          sections,
+		ProcedureGroups:        serviceGuideProcedureGroups(record, request),
 		QueriedTimeAnchor:      timeAnchor,
 		EffectiveFrom:          record.EffectiveFrom,
 		EffectiveUntil:         record.EffectiveUntil,
 		MatchedServiceCategory: record.Category,
+		SelectedSectionIDs:     selectedSectionIDs,
+		OmittedSectionIDs:      omittedSectionIDs,
+		OmittedSectionReasons:  omittedSectionReasons,
+		FieldStatus:            normalizedFieldStatus(record.FieldStatus),
 	}
 	if request.GuideFocus == "required_materials" || request.GuideFocus == "full_guide" {
 		result.RequiredMaterials = serviceGuideMaterials(record.Materials)
 	}
-	if request.GuideFocus == "entry" || request.GuideFocus == "full_guide" {
+	if request.GuideFocus == "entry" || request.GuideFocus == "procedure" || request.GuideFocus == "full_guide" {
 		result.EntryRefs = serviceGuideEntryRefs(record.EntryRefs)
 	}
 	if request.GuideFocus == "office_hours" || request.GuideFocus == "full_guide" {
@@ -41,6 +51,9 @@ func serviceGuideResultFromRecord(
 func serviceGuideFocusBackedByRecord(record serviceGuideRecord, focus string) bool {
 	switch focus {
 	case "overview", "procedure":
+		if focus == "procedure" {
+			return len(record.ProcedureGroups) > 0
+		}
 		return serviceGuideHasSection(record.GuideSections, focus)
 	case "required_materials":
 		return len(record.Materials) > 0 || serviceGuideHasSection(record.GuideSections, focus)
@@ -64,6 +77,102 @@ func serviceGuideFocusBackedByRecord(record serviceGuideRecord, focus string) bo
 	}
 }
 
+func serviceGuideFocusNotProvidedBySource(record serviceGuideRecord, focus string) bool {
+	if focus == "procedure" && len(record.ProcedureGroups) == 0 {
+		return true
+	}
+	for _, fieldName := range serviceGuideFocusFieldNames(focus) {
+		if strings.TrimSpace(record.FieldStatus[fieldName]) == "source_not_provided" {
+			return true
+		}
+	}
+	return false
+}
+
+func serviceGuideMissingRequestedField(record serviceGuideRecord, request serviceGuideRequest) string {
+	for _, fieldName := range serviceGuideRequestedFieldNames(request) {
+		if strings.TrimSpace(record.FieldStatus[fieldName]) == "source_not_provided" {
+			return fieldName
+		}
+	}
+	if request.GuideFocus == "entry" && serviceGuideEntryRequiresURL(request.ServiceQuery) && !serviceGuideHasEntryURL(record) {
+		return "service_entry"
+	}
+	return ""
+}
+
+func serviceGuideRequestedFieldNames(request serviceGuideRequest) []string {
+	query := normalizeSearchText(request.ServiceQuery)
+	switch request.GuideFocus {
+	case "office_hours":
+		return []string{"office_hours"}
+	case "contact":
+		fields := []string{}
+		if strings.Contains(query, "电话") || strings.Contains(query, "热线") {
+			fields = append(fields, "phone")
+		}
+		if strings.Contains(query, "邮箱") || strings.Contains(query, "邮件") || strings.Contains(query, "email") {
+			fields = append(fields, "email")
+		}
+		if strings.Contains(query, "地点") ||
+			strings.Contains(query, "地址") ||
+			strings.Contains(query, "位置") ||
+			strings.Contains(query, "在哪") {
+			fields = append(fields, "location")
+		}
+		if strings.Contains(query, "时间") || strings.Contains(query, "办公") {
+			fields = append(fields, "office_hours")
+		}
+		return fields
+	case "entry":
+		if serviceGuideEntryRequiresURL(query) {
+			return []string{"service_entry"}
+		}
+		return nil
+	default:
+		return nil
+	}
+}
+
+func serviceGuideEntryRequiresURL(query string) bool {
+	normalized := normalizeSearchText(query)
+	return strings.Contains(normalized, "链接") ||
+		strings.Contains(normalized, "网址") ||
+		strings.Contains(normalized, "网站") ||
+		strings.Contains(normalized, "url") ||
+		strings.Contains(normalized, "登录")
+}
+
+func serviceGuideHasEntryURL(record serviceGuideRecord) bool {
+	for _, entry := range record.EntryRefs {
+		if strings.TrimSpace(entry.URL) != "" {
+			return true
+		}
+	}
+	return false
+}
+
+func serviceGuideFocusFieldNames(focus string) []string {
+	switch focus {
+	case "overview":
+		return []string{"overview"}
+	case "procedure":
+		return []string{"procedure", "process_steps", "service_process"}
+	case "required_materials":
+		return []string{"required_materials", "service_material", "materials"}
+	case "entry":
+		return []string{"entry", "service_entry"}
+	case "office_hours":
+		return []string{"office_hours"}
+	case "contact":
+		return []string{"contact", "phone", "email", "location"}
+	case "eligibility":
+		return []string{"eligibility"}
+	default:
+		return nil
+	}
+}
+
 func serviceGuideHasSection(records []serviceGuideSectionRecord, sectionType string) bool {
 	for _, record := range records {
 		if record.SectionType == sectionType {
@@ -83,6 +192,7 @@ func filterServiceGuideSections(
 			continue
 		}
 		sections = append(sections, serviceGuideSection{
+			SectionID:   record.SectionID,
 			SectionType: record.SectionType,
 			Title:       record.Title,
 			Content:     record.Content,
@@ -90,6 +200,195 @@ func filterServiceGuideSections(
 		})
 	}
 	return sections
+}
+
+func focusedProcedureSections(
+	record serviceGuideRecord,
+	request serviceGuideRequest,
+) []serviceGuideSection {
+	if request.GuideFocus != "procedure" {
+		return filterServiceGuideSections(record.GuideSections, request.GuideFocus)
+	}
+	selected, _ := selectProcedureGroups(record.ProcedureGroups, request.ServiceQuery)
+	if len(selected) == 0 {
+		return nil
+	}
+	sections := make([]serviceGuideSection, 0, len(selected))
+	for _, group := range selected {
+		stepLines := make([]string, 0, len(group.Steps))
+		for index, step := range group.Steps {
+			stepLines = append(stepLines, fmt.Sprintf("%d. %s", index+1, step.Content))
+		}
+		sections = append(sections, serviceGuideSection{
+			SectionID:   group.GroupID,
+			SectionType: "procedure",
+			Title:       group.Title,
+			Content:     strings.Join(stepLines, "\n"),
+			SourceRefs:  append([]string(nil), group.SourceRefs...),
+		})
+	}
+	return sections
+}
+
+func serviceGuideProcedureGroups(
+	record serviceGuideRecord,
+	request serviceGuideRequest,
+) []serviceGuideProcedureGroup {
+	if request.GuideFocus != "procedure" {
+		return nil
+	}
+	selected, _ := selectProcedureGroups(record.ProcedureGroups, request.ServiceQuery)
+	if len(selected) == 0 {
+		return nil
+	}
+	result := make([]serviceGuideProcedureGroup, 0, len(selected))
+	for _, group := range selected {
+		steps := make([]serviceGuideProcedureStep, 0, len(group.Steps))
+		for _, step := range group.Steps {
+			steps = append(steps, serviceGuideProcedureStep{
+				StepID:     step.StepID,
+				Content:    step.Content,
+				SourceRefs: append([]string(nil), step.SourceRefs...),
+			})
+		}
+		result = append(result, serviceGuideProcedureGroup{
+			GroupID:    group.GroupID,
+			Title:      group.Title,
+			FocusTags:  append([]string(nil), group.FocusTags...),
+			Steps:      steps,
+			SourceRefs: append([]string(nil), group.SourceRefs...),
+		})
+	}
+	return result
+}
+
+func selectProcedureGroups(
+	records []serviceGuideProcedureGroupRecord,
+	query string,
+) ([]serviceGuideProcedureGroupRecord, bool) {
+	if len(records) == 0 {
+		return nil, false
+	}
+	normalizedQuery := normalizeSearchText(query)
+	bestScore := 0
+	selected := []serviceGuideProcedureGroupRecord{}
+	for _, group := range records {
+		score := serviceGuideProcedureGroupScore(group, normalizedQuery)
+		if score <= 0 {
+			continue
+		}
+		if score > bestScore {
+			bestScore = score
+			selected = []serviceGuideProcedureGroupRecord{group}
+			continue
+		}
+		if score == bestScore {
+			selected = append(selected, group)
+		}
+	}
+	if len(selected) > 0 {
+		return selected, true
+	}
+	return nil, false
+}
+
+func serviceGuideProcedureGroupScore(
+	group serviceGuideProcedureGroupRecord,
+	normalizedQuery string,
+) int {
+	if normalizedQuery == "" {
+		return 0
+	}
+	score := 0
+	for _, tag := range group.FocusTags {
+		normalizedTag := normalizeSearchText(tag)
+		if normalizedTag != "" &&
+			strings.Contains(normalizedQuery, normalizedTag) &&
+			serviceGuideProcedureTagCarriesSpecificFocus(normalizedTag) {
+			score += 100
+		}
+	}
+	if strings.Contains(normalizedQuery, "客户端") &&
+		(stringSliceContainsNormalized(group.FocusTags, "客户端") ||
+			stringSliceContainsNormalized(group.FocusTags, "client") ||
+			stringSliceContainsNormalized(group.FocusTags, "install")) {
+		score += 300
+	}
+	if strings.Contains(normalizedQuery, "安装") &&
+		(stringSliceContainsNormalized(group.FocusTags, "install") ||
+			strings.Contains(normalizeSearchText(group.Title), "安装")) {
+		score += 300
+	}
+	if strings.Contains(normalizedQuery, "下载") &&
+		(stringSliceContainsNormalized(group.FocusTags, "install") ||
+			strings.Contains(normalizeSearchText(group.Title), "安装")) {
+		score += 200
+	}
+	normalizedTitle := normalizeSearchText(group.Title)
+	if normalizedTitle != "" && strings.Contains(normalizedQuery, normalizedTitle) {
+		score += 80
+	}
+	for _, step := range group.Steps {
+		score += serviceGuideProcedureStepScore(normalizedQuery, normalizeSearchText(step.Content))
+	}
+	return score
+}
+
+func serviceGuideProcedureTagCarriesSpecificFocus(tag string) bool {
+	switch tag {
+	case "procedure", "entry", "vpn", "identity", "passwordreset", "login":
+		return false
+	default:
+		return true
+	}
+}
+
+func serviceGuideProcedureStepScore(normalizedQuery string, normalizedStepContent string) int {
+	if normalizedQuery == "" || normalizedStepContent == "" {
+		return 0
+	}
+	score := sharedSearchTextScore(normalizedQuery, normalizedStepContent)
+	if score < 4 {
+		return 0
+	}
+	return score
+}
+
+func serviceGuideSelectedSectionIDs(record serviceGuideRecord, request serviceGuideRequest) []string {
+	if request.GuideFocus == "procedure" && len(record.ProcedureGroups) > 0 {
+		selectedGroups, _ := selectProcedureGroups(record.ProcedureGroups, request.ServiceQuery)
+		ids := make([]string, 0, len(selectedGroups))
+		for _, group := range selectedGroups {
+			ids = append(ids, group.GroupID)
+		}
+		return ids
+	}
+	sections := filterServiceGuideSections(record.GuideSections, request.GuideFocus)
+	ids := make([]string, 0, len(sections))
+	for _, section := range sections {
+		ids = append(ids, section.SectionID)
+	}
+	return ids
+}
+
+func serviceGuideOmittedSections(
+	record serviceGuideRecord,
+	selectedSectionIDs []string,
+) ([]string, map[string]string) {
+	selected := map[string]struct{}{}
+	for _, sectionID := range selectedSectionIDs {
+		selected[sectionID] = struct{}{}
+	}
+	omitted := []string{}
+	reasons := map[string]string{}
+	for _, group := range record.ProcedureGroups {
+		if _, ok := selected[group.GroupID]; ok {
+			continue
+		}
+		omitted = append(omitted, group.GroupID)
+		reasons[group.GroupID] = "focus_mismatch"
+	}
+	return omitted, reasons
 }
 
 func serviceGuideRefFromRecord(record serviceGuideRecord) *serviceGuideServiceRef {
@@ -240,4 +539,47 @@ func failClosedServiceGuide(
 		FailCloseReason:   reason,
 	}
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+}
+
+func failClosedServiceGuideForRecord(
+	request serviceGuideRequest,
+	record serviceGuideRecord,
+	timeAnchor string,
+	reason string,
+) Response {
+	fieldStatus := normalizedFieldStatus(record.FieldStatus)
+	if request.GuideFocus == "entry" && serviceGuideEntryRequiresURL(request.ServiceQuery) && !serviceGuideHasEntryURL(record) {
+		if fieldStatus == nil {
+			fieldStatus = map[string]string{}
+		}
+		fieldStatus["service_entry"] = "source_not_provided"
+	}
+	body := serviceGuideResult{
+		ServiceQuery:      request.ServiceQuery,
+		GuideFocus:        request.GuideFocus,
+		Outcome:           "temporarily_unverifiable",
+		QueriedTimeAnchor: timeAnchor,
+		FailCloseReason:   reason,
+		FieldStatus:       fieldStatus,
+	}
+	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+}
+
+func normalizedFieldStatus(value map[string]string) map[string]string {
+	if len(value) == 0 {
+		return nil
+	}
+	normalized := map[string]string{}
+	for key, item := range value {
+		key = strings.TrimSpace(key)
+		item = strings.TrimSpace(item)
+		if key == "" || item == "" {
+			continue
+		}
+		normalized[key] = item
+	}
+	if len(normalized) == 0 {
+		return nil
+	}
+	return normalized
 }

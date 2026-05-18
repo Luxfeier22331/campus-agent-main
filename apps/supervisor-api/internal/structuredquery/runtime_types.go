@@ -7,7 +7,9 @@ const (
 	ToolServiceGuideLookup      = "service_guide_lookup"
 	ToolTransportScheduleLookup = "transport_schedule_lookup"
 	ToolContactDirectoryLookup  = "contact_directory_lookup"
+	ToolAcademicCalendarLookup  = "academic_calendar_lookup"
 	ToolCampusNoticeDiscover    = "campus_notice_discover"
+	ToolCampusNoticeChangeSet   = "campus_notice_change_set_lookup"
 	ToolCampusNoticeGet         = "campus_notice_get"
 
 	defaultStructuredRuntimeHealthTimeout = 250 * time.Millisecond
@@ -18,6 +20,7 @@ type Options struct {
 	TransportScheduleReadModelStore TransportScheduleReadModelStore
 	ServiceGuideReadModelStore      ServiceGuideReadModelStore
 	ContactDirectoryReadModelStore  ContactDirectoryReadModelStore
+	AcademicCalendarReadModelStore  AcademicCalendarReadModelStore
 	StructuredProjectionDatabaseURL string
 	TrustedTimeRFC3339              string
 	NoticeReadModelStore            NoticeReadModelStore
@@ -41,6 +44,8 @@ type Runtime struct {
 	serviceGuideBundleCache         projectionBundleCache
 	contactDirectoryReadModelStore  ContactDirectoryReadModelStore
 	contactDirectoryBundleCache     projectionBundleCache
+	academicCalendarReadModelStore  AcademicCalendarReadModelStore
+	academicCalendarBundleCache     projectionBundleCache
 	trustedTime                     time.Time
 	noticeReadModelStore            NoticeReadModelStore
 	noticeBodyStore                 NoticeBodyStore
@@ -54,12 +59,15 @@ type Status struct {
 	ServiceStatusReadModelHealthy        bool   `json:"service_status_read_model_healthy"`
 	ServiceGuideProjectionReady          bool   `json:"service_guide_projection_ready"`
 	ContactDirectoryProjectionReady      bool   `json:"contact_directory_projection_ready"`
+	AcademicCalendarProjectionReady      bool   `json:"academic_calendar_projection_ready"`
 	TransportScheduleReadModelConfigured bool   `json:"transport_schedule_read_model_configured"`
 	TransportScheduleReadModelHealthy    bool   `json:"transport_schedule_read_model_healthy"`
 	ServiceGuideReadModelConfigured      bool   `json:"service_guide_read_model_configured"`
 	ServiceGuideReadModelHealthy         bool   `json:"service_guide_read_model_healthy"`
 	ContactDirectoryReadModelConfigured  bool   `json:"contact_directory_read_model_configured"`
 	ContactDirectoryReadModelHealthy     bool   `json:"contact_directory_read_model_healthy"`
+	AcademicCalendarReadModelConfigured  bool   `json:"academic_calendar_read_model_configured"`
+	AcademicCalendarReadModelHealthy     bool   `json:"academic_calendar_read_model_healthy"`
 	TransportScheduleImplemented         bool   `json:"transport_schedule_implemented"`
 	NoticeReadModelConfigured            bool   `json:"notice_read_model_configured"`
 	NoticeBodyStoreConfigured            bool   `json:"notice_body_store_configured"`
@@ -95,6 +103,7 @@ type projectionBundle struct {
 	ContactDirectoryRecords      []contactDirectoryRecord           `json:"contact_records"`
 	ContactDirectoryConflicts    []contactDirectoryConflictRecord   `json:"contact_conflict_records"`
 	ContactDirectoryManualReview []contactDirectoryManualReviewInfo `json:"contact_manual_review_sources"`
+	AcademicCalendarRecords      []academicCalendarRecord           `json:"academic_calendar_records"`
 	TransportScheduleSnapshots   []transportScheduleSnapshotRecord  `json:"transport_schedule_snapshots"`
 	TransportRoutes              []transportRouteRecord             `json:"transport_routes"`
 	ScheduledDepartures          []scheduledDepartureRecord         `json:"scheduled_departures"`

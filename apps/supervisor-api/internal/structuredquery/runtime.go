@@ -39,6 +39,14 @@ func NewRuntime(options Options) *Runtime {
 			},
 		)
 	}
+	academicCalendarReadModelStore := options.AcademicCalendarReadModelStore
+	if academicCalendarReadModelStore == nil {
+		academicCalendarReadModelStore = NewPostgresAcademicCalendarReadModelStore(
+			AcademicCalendarPostgresOptions{
+				DatabaseURL: structuredProjectionDatabaseURL,
+			},
+		)
+	}
 	noticeReadModelStore := options.NoticeReadModelStore
 	if noticeReadModelStore == nil {
 		noticeReadModelStore = NewPostgresNoticeReadModelStore(NoticePostgresOptions{
@@ -62,6 +70,7 @@ func NewRuntime(options Options) *Runtime {
 		transportScheduleReadModelStore: transportScheduleReadModelStore,
 		serviceGuideReadModelStore:      serviceGuideReadModelStore,
 		contactDirectoryReadModelStore:  contactDirectoryReadModelStore,
+		academicCalendarReadModelStore:  academicCalendarReadModelStore,
 		noticeReadModelStore:            noticeReadModelStore,
 		noticeBodyStore:                 noticeBodyStore,
 	}
@@ -85,6 +94,9 @@ func (r *Runtime) Close() {
 		closer.Close()
 	}
 	if closer, ok := r.contactDirectoryReadModelStore.(interface{ Close() }); ok {
+		closer.Close()
+	}
+	if closer, ok := r.academicCalendarReadModelStore.(interface{ Close() }); ok {
 		closer.Close()
 	}
 	if closer, ok := r.noticeReadModelStore.(interface{ Close() }); ok {

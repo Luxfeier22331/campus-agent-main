@@ -8,6 +8,7 @@ func contactDirectoryResultFromRecord(
 	timeAnchor string,
 ) contactDirectoryResult {
 	contactPoints := contactDirectoryContactPoints(record)
+	contactPoints = filterContactPointsForQuery(request.QueryText, request.ContactFocus, contactPoints)
 	locationRefs := contactDirectoryLocationRefs(record)
 	officeHours := contactDirectoryOfficeHoursRows(record)
 	filteredPoints, filteredLocations, filteredHours := contactDirectoryFocusFilteredData(
@@ -40,6 +41,7 @@ func contactDirectoryResultFromRecord(
 			filteredLocations,
 			filteredHours,
 		),
+		FieldStatus: normalizedFieldStatus(record.FieldStatus),
 	}
 	return result
 }
@@ -73,6 +75,32 @@ func contactDirectoryFocusSatisfied(result contactDirectoryResult) bool {
 	return false
 }
 
+func contactDirectoryFocusNotProvidedBySource(record contactDirectoryRecord, focus string) bool {
+	for _, fieldName := range contactDirectoryFocusFieldNames(focus) {
+		if strings.TrimSpace(record.FieldStatus[fieldName]) == "source_not_provided" {
+			return true
+		}
+	}
+	return false
+}
+
+func contactDirectoryFocusFieldNames(focus string) []string {
+	switch focus {
+	case "phone":
+		return []string{"phone"}
+	case "email":
+		return []string{"email"}
+	case "location":
+		return []string{"location"}
+	case "office_hours":
+		return []string{"office_hours"}
+	case "contact_person":
+		return []string{"contact_person"}
+	default:
+		return nil
+	}
+}
+
 func filterContactPointsByChannel(
 	points []contactDirectoryContactPoint,
 	channel string,
@@ -87,6 +115,34 @@ func filterContactPointsByChannel(
 	return filtered
 }
 
+func filterContactPointsForQuery(
+	query string,
+	focus string,
+	points []contactDirectoryContactPoint,
+) []contactDirectoryContactPoint {
+	if focus != "phone" && focus != "email" {
+		return points
+	}
+	normalizedQuery := normalizeSearchText(query)
+	if normalizedQuery == "" {
+		return points
+	}
+	matched := []contactDirectoryContactPoint{}
+	for _, point := range points {
+		label := normalizeSearchText(point.Label)
+		if label == "" {
+			continue
+		}
+		if strings.Contains(normalizedQuery, label) || strings.Contains(label, normalizedQuery) {
+			matched = append(matched, point)
+		}
+	}
+	if len(matched) > 0 {
+		return matched
+	}
+	return points
+}
+
 func contactDirectoryContactPoints(record contactDirectoryRecord) []contactDirectoryContactPoint {
 	points := []contactDirectoryContactPoint{}
 	for _, point := range record.ContactPoints {
@@ -96,7 +152,7 @@ func contactDirectoryContactPoints(record contactDirectoryRecord) []contactDirec
 		}
 		sourceRefs := normalizedStringSlice(point.SourceRefs)
 		if len(sourceRefs) == 0 {
-			sourceRefs = append([]string(nil), record.SourceRefs...)
+			continue
 		}
 		points = append(points, contactDirectoryContactPoint{
 			ChannelType:       normalizeContactChannel(point.ChannelType, value),
@@ -115,12 +171,16 @@ func contactDirectoryContactPoints(record contactDirectoryRecord) []contactDirec
 		if number == "" {
 			continue
 		}
+		sourceRefs := normalizedStringSlice(phone.SourceRefs)
+		if len(sourceRefs) == 0 {
+			continue
+		}
 		points = append(points, contactDirectoryContactPoint{
 			ChannelType:     "phone",
 			Label:           contactDefaultString(strings.TrimSpace(phone.Label), strings.TrimSpace(record.DisplayName)),
 			Value:           number,
 			NormalizedValue: normalizeContactValue(number),
-			SourceRefs:      normalizeSourceRefs(phone.SourceRefs, record.SourceRefs),
+			SourceRefs:      sourceRefs,
 		})
 	}
 	for _, email := range record.Emails {
@@ -128,12 +188,16 @@ func contactDirectoryContactPoints(record contactDirectoryRecord) []contactDirec
 		if address == "" {
 			continue
 		}
+		sourceRefs := normalizedStringSlice(email.SourceRefs)
+		if len(sourceRefs) == 0 {
+			continue
+		}
 		points = append(points, contactDirectoryContactPoint{
 			ChannelType:     "email",
 			Label:           contactDefaultString(strings.TrimSpace(email.Label), strings.TrimSpace(record.DisplayName)),
 			Value:           address,
 			NormalizedValue: strings.ToLower(address),
-			SourceRefs:      normalizeSourceRefs(email.SourceRefs, record.SourceRefs),
+			SourceRefs:      sourceRefs,
 		})
 	}
 	return dedupeContactPoints(points)
@@ -150,11 +214,15 @@ func contactDirectoryLocationRefs(record contactDirectoryRecord) []contactDirect
 			continue
 		}
 		locationRef := contactDefaultString(strings.TrimSpace(entry.LocationRef), label)
+		sourceRefs := normalizedStringSlice(entry.SourceRefs)
+		if len(sourceRefs) == 0 {
+			continue
+		}
 		items = append(items, contactDirectoryLocationRef{
 			Label:       label,
 			LocationRef: locationRef,
 			AddressText: strings.TrimSpace(entry.AddressText),
-			SourceRefs:  normalizeSourceRefs(entry.SourceRefs, record.SourceRefs),
+			SourceRefs:  sourceRefs,
 		})
 	}
 	return dedupeLocationRefs(items)
@@ -168,13 +236,17 @@ func contactDirectoryOfficeHoursRows(record contactDirectoryRecord) []contactDir
 			continue
 		}
 		hoursID := contactDefaultString(strings.TrimSpace(entry.HoursID), label)
+		sourceRefs := normalizedStringSlice(entry.SourceRefs)
+		if len(sourceRefs) == 0 {
+			continue
+		}
 		items = append(items, contactDirectoryOfficeHours{
 			HoursID:       hoursID,
 			Label:         label,
 			DayPattern:    strings.TrimSpace(entry.DayPattern),
 			TimeRange:     strings.TrimSpace(entry.TimeRange),
 			EffectiveNote: strings.TrimSpace(entry.EffectiveNote),
-			SourceRefs:    normalizeSourceRefs(entry.SourceRefs, record.SourceRefs),
+			SourceRefs:    sourceRefs,
 		})
 	}
 	return items
@@ -192,7 +264,7 @@ func contactDirectoryLocationEntries(record contactDirectoryRecord) []contactDir
 			entries = append(entries, contactDirectoryLocationEntry{
 				Label:       text,
 				LocationRef: text,
-				SourceRefs:  append([]string(nil), record.SourceRefs...),
+				SourceRefs:  nil,
 			})
 		case map[string]any:
 			entries = append(entries, contactDirectoryLocationEntry{
@@ -242,14 +314,6 @@ func normalizeContactValue(value string) string {
 	return replacer.Replace(value)
 }
 
-func normalizeSourceRefs(sourceRefs []string, fallback []string) []string {
-	normalized := normalizedStringSlice(sourceRefs)
-	if len(normalized) > 0 {
-		return normalized
-	}
-	return normalizedStringSlice(fallback)
-}
-
 func normalizedStringSlice(values []string) []string {
 	seen := map[string]struct{}{}
 	normalized := []string{}
@@ -289,9 +353,9 @@ func anyStringSliceValue(raw any) []string {
 	return values
 }
 
-func contactDefaultString(value string, fallback string) string {
+func contactDefaultString(value string, defaultValue string) string {
 	if strings.TrimSpace(value) == "" {
-		return fallback
+		return defaultValue
 	}
 	return value
 }
@@ -384,6 +448,23 @@ func failClosedContactDirectory(
 		Outcome:           "temporarily_unverifiable",
 		QueriedTimeAnchor: timeAnchor,
 		FailCloseReason:   reason,
+	}
+	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
+}
+
+func failClosedContactDirectoryForRecord(
+	request contactDirectoryRequest,
+	record contactDirectoryRecord,
+	timeAnchor string,
+	reason string,
+) Response {
+	body := contactDirectoryResult{
+		QueryText:         request.QueryText,
+		ContactFocus:      request.ContactFocus,
+		Outcome:           "temporarily_unverifiable",
+		QueriedTimeAnchor: timeAnchor,
+		FailCloseReason:   reason,
+		FieldStatus:       normalizedFieldStatus(record.FieldStatus),
 	}
 	return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 }

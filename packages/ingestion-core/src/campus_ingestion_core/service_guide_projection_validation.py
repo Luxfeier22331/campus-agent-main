@@ -78,6 +78,22 @@ def validate_service_guide_projection_bundle(
             if not _string_list(section.get("source_refs")):
                 issues.append(_issue(f"{section_path}.source_refs", "source_refs is required"))
 
+        for group_index, group in enumerate(_list_of_dicts(record.get("procedure_groups"))):
+            group_path = f"{path}.procedure_groups[{group_index}]"
+            _validate_required_text(group, "group_id", group_path, issues)
+            _validate_required_text(group, "title", group_path, issues)
+            if not _string_list(group.get("source_refs")):
+                issues.append(_issue(f"{group_path}.source_refs", "source_refs is required"))
+            steps = _list_of_dicts(group.get("steps"))
+            if not steps:
+                issues.append(_issue(f"{group_path}.steps", "steps is required"))
+            for step_index, step in enumerate(steps):
+                step_path = f"{group_path}.steps[{step_index}]"
+                _validate_required_text(step, "step_id", step_path, issues)
+                _validate_required_text(step, "content", step_path, issues)
+                if not _string_list(step.get("source_refs")):
+                    issues.append(_issue(f"{step_path}.source_refs", "source_refs is required"))
+
         _validate_source_linked_rows(
             record,
             field_name="materials",

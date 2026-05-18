@@ -155,11 +155,11 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--derived-bucket")
     parser.add_argument(
         "--publish-mode",
-        default=_PUBLISH_MODE_PROMOTE,
+        default=_PUBLISH_MODE_PREVIEW,
         choices=sorted(_PUBLISH_MODES),
         help=(
             "preview writes local artifacts only; stage writes versioned artifact/read model "
-            "without current; promote updates current. Defaults to promote for compatibility."
+            "without current; promote updates current. Defaults to preview."
         ),
     )
     parser.add_argument("--consumer-admission-manifest-path")
@@ -186,7 +186,7 @@ def build_transport_schedule_projection_release_from_inventory(
     source_object_store: _SourceObjectStore | None = None,
     source_bucket: str | None = None,
     structured_projection_publisher: _StructuredProjectionPublisher | None = None,
-    publish_mode: str = _PUBLISH_MODE_PROMOTE,
+    publish_mode: str = _PUBLISH_MODE_PREVIEW,
 ):
     normalized_publish_mode = _normalize_publish_mode(publish_mode)
     parents = _load_source_truth_parents(
@@ -257,7 +257,7 @@ def build_transport_schedule_projection_release_from_consumption_projection(
     object_store: _TransportProjectionObjectStore,
     derived_bucket: str,
     structured_projection_publisher: _StructuredProjectionPublisher | None = None,
-    publish_mode: str = _PUBLISH_MODE_PROMOTE,
+    publish_mode: str = _PUBLISH_MODE_PREVIEW,
     admitted_at: str = "",
     selected_notice_ids: Sequence[str] = (),
     transport_preview_gate_report: Mapping[str, Any] | None = None,

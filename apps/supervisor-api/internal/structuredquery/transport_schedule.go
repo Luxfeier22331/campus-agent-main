@@ -81,9 +81,8 @@ type transportOperationalNoticeRecord struct {
 }
 
 type transportSnapshotSelection struct {
-	record                    transportScheduleSnapshotRecord
-	outcome                   string
-	historicalDowngradeReason string
+	record  transportScheduleSnapshotRecord
+	outcome string
 }
 
 type transportRouteSelection struct {
@@ -250,12 +249,11 @@ func (r *Runtime) lookupTransportSchedule(
 			)
 		}
 		body := transportScheduleResult{
-			QueryText:                 request.QueryText,
-			Intent:                    request.Intent,
-			Outcome:                   snapshot.outcome,
-			QueriedTimeAnchor:         anchor.Format(time.RFC3339),
-			ScheduleSnapshot:          transportScheduleSnapshotRefFromRecord(snapshot.record),
-			HistoricalDowngradeReason: snapshot.historicalDowngradeReason,
+			QueryText:         request.QueryText,
+			Intent:            request.Intent,
+			Outcome:           snapshot.outcome,
+			QueriedTimeAnchor: anchor.Format(time.RFC3339),
+			ScheduleSnapshot:  transportScheduleSnapshotRefFromRecord(snapshot.record),
 		}
 		return Response{StatusCode: 200, Outcome: body.Outcome, Body: body}
 	}
@@ -324,7 +322,6 @@ func (r *Runtime) lookupTransportSchedule(
 			routeSelection.record,
 			serviceDateText,
 		),
-		HistoricalDowngradeReason: snapshot.historicalDowngradeReason,
 	}
 	base.RelatedNoticeRefs = transportOperationalNoticeRefs(base.OperationalNotices)
 
