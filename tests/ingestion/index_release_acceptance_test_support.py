@@ -137,6 +137,9 @@ class _FakeRemoteQdrantClient:
         self.limit = kwargs.get("limit")
         return _FakeQdrantQueryResponse()
 
+    def scroll(self, **_kwargs: object) -> tuple[list[qdrant_models.Record], None]:
+        return ([], None)
+
 
 class _FakeCurriculumTitleMissQdrantClient:
     def __init__(self) -> None:

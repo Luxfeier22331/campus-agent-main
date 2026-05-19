@@ -58,7 +58,10 @@ def build_collection_semantic_metadata(
         "time_constraint",
     }:
         semantic_metadata.update(
-            _answer_role_semantic_metadata(_shared_text(release_metadata.get("answer_role")))
+            _answer_role_semantic_metadata(
+                _shared_text(release_metadata.get("answer_role")),
+                source_content_role=semantics.content_role,
+            )
         )
     return {
         **semantic_metadata,
@@ -219,7 +222,11 @@ def infer_answer_role_from_handbook_semantics(semantics) -> str:
     return ""
 
 
-def _answer_role_semantic_metadata(answer_role: str) -> dict[str, object]:
+def _answer_role_semantic_metadata(
+    answer_role: str,
+    *,
+    source_content_role: str = "",
+) -> dict[str, object]:
     if answer_role == "material_requirement":
         return {
             "content_role": "requirement",
@@ -236,7 +243,7 @@ def _answer_role_semantic_metadata(answer_role: str) -> dict[str, object]:
         }
     if answer_role == "time_constraint":
         return {
-            "content_role": "deadline",
+            "content_role": "time_rule" if source_content_role == "time_rule" else "deadline",
             "semantic_role": "time_constraint",
             "claim_type": "time_constraint",
             "polarity": "positive",

@@ -429,6 +429,9 @@ def validate_answer_ready_evidence_metadata(
         answer_role=answer_role,
         condition_subject=condition_subject,
         condition_group_subject=explicit_condition_group_subject,
+        condition_group_subject_provenance=_text(
+            metadata.get("condition_group_subject_provenance")
+        ),
         table_fact_type=_text(metadata.get("table_fact_type")),
         intro_target_roles=tuple(
             _text(item) for item in (metadata.get("intro_target_roles") or ()) if _text(item)
@@ -674,6 +677,7 @@ def _expected_condition_group_subject(
     answer_role: str,
     condition_subject: str,
     condition_group_subject: str,
+    condition_group_subject_provenance: str,
     table_fact_type: str,
     intro_target_roles: tuple[str, ...] = (),
 ) -> str:
@@ -681,6 +685,7 @@ def _expected_condition_group_subject(
         text=text,
         answer_role=answer_role,
         explicit_condition_group_subject=condition_group_subject,
+        explicit_condition_group_subject_provenance=condition_group_subject_provenance,
         inherited_condition_subject=condition_subject,
         intro_target_roles=intro_target_roles,
         table_fact_type=table_fact_type,

@@ -146,7 +146,7 @@ class RegistryScopeReleaseAuditAnswerReadyProvenanceSuite:
         self.assertEqual(audit.status, "failed")
         self.assertIn(
             (
-                "sample_1_answer_ready_runtime_fallback_provenance:"
+                "sample_1_answer_ready_runtime_disallowed_provenance:"
                 "condition_subject_provenance=fallback:condition_subject"
             ),
             audit.summary["issues"],

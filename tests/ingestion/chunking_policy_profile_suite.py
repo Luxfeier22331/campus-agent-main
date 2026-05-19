@@ -74,6 +74,12 @@ class ChunkingPolicyProfileTest(_ChunkingPolicyTestCase):
             "Qwen3-Embedding-4B",
         )
 
+    def test_mock_embedding_model_uses_explicit_mock_token_counter(self) -> None:
+        counter = build_token_counter("mock-embedding-8d")
+
+        self.assertEqual(counter.name, "mock:mock-embedding-8d")
+        self.assertGreater(counter.count("冬季作息时间为23:00熄灯。"), 0)
+
     def test_tiktoken_counter_fails_closed_when_dependency_is_missing(self) -> None:
         with (
             mock.patch.dict(sys.modules, {"tiktoken": None}),

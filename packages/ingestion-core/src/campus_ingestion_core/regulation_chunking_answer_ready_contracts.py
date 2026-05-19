@@ -58,6 +58,7 @@ def _group_contract_metadata(
         result["action_type"] = action_type
     if group_anchor is not None:
         result["condition_group_subject"] = group_anchor.group_subject
+        result["condition_group_subject_provenance"] = "chunker:answer_ready_group_anchor"
         result["condition_group_key"] = group_anchor.group_key
     return result
 
@@ -89,6 +90,7 @@ def _intro_contract_metadata(
         if introduced_subject:
             metadata["introduced_condition_subject"] = introduced_subject
             metadata["condition_group_subject"] = introduced_subject
+            metadata["condition_group_subject_provenance"] = "chunker:answer_ready_group_anchor"
     action_type = _action_type_for_segment(
         text=prefix_text,
         context_text=prefix_text,
@@ -99,6 +101,10 @@ def _intro_contract_metadata(
         metadata["action_type"] = action_type
     if group_anchor is not None:
         metadata.setdefault("condition_group_subject", group_anchor.group_subject)
+        metadata.setdefault(
+            "condition_group_subject_provenance",
+            "chunker:answer_ready_group_anchor",
+        )
         introduced_subject = str(metadata.get("introduced_condition_subject") or "").strip()
         if introduced_subject and introduced_subject != group_anchor.group_subject:
             metadata["introduced_condition_group_key"] = introduced_subject
@@ -133,6 +139,7 @@ def _atomic_group_contract_metadata(
     if group_anchor is None:
         return {"action_type": action_type} if action_type else {}
     result = {"condition_group_subject": group_anchor.group_subject}
+    result["condition_group_subject_provenance"] = "chunker:answer_ready_group_anchor"
     if action_type:
         result["action_type"] = action_type
     if group_anchor.group_key:

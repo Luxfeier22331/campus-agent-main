@@ -77,8 +77,11 @@ class HuggingFaceTokenCounter:
 
 
 def build_token_counter(model_name: str) -> TokenCounter:
-    if model_name:
-        return TiktokenTokenCounter(model_name=model_name)
+    normalized_model_name = normalize_embedding_model_name(model_name)
+    if normalized_model_name.startswith("mock-embedding"):
+        return RegexApproxTokenCounter(name=f"mock:{normalized_model_name}")
+    if normalized_model_name:
+        return TiktokenTokenCounter(model_name=normalized_model_name)
     return RegexApproxTokenCounter()
 
 

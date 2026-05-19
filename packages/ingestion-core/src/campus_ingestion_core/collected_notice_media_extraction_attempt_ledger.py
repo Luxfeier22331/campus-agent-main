@@ -120,6 +120,8 @@ def _attempt_row(
 
 def _attempt_status(attempt: Mapping[str, Any]) -> str:
     raw = attempt.get("status", attempt.get("state"))
+    if not _text(raw):
+        return "pending"
     return normalize_media_lifecycle_status(raw)
 
 

@@ -490,6 +490,7 @@ def _inline_example_tail_segments(
         extra_metadata["action_type"] = action_type
     if group_anchor is not None:
         extra_metadata["condition_group_subject"] = group_anchor.group_subject
+        extra_metadata["condition_group_subject_provenance"] = "chunker:answer_ready_group_anchor"
         extra_metadata["condition_group_key"] = group_anchor.group_key
     return (
         _build_answer_ready_segment(
@@ -560,6 +561,7 @@ def _single_clause_mixed_procedure_segments(
     extra_metadata: dict[str, object] = {}
     if group_anchor is not None:
         extra_metadata["condition_group_subject"] = group_anchor.group_subject
+        extra_metadata["condition_group_subject_provenance"] = "chunker:answer_ready_group_anchor"
         extra_metadata["condition_group_key"] = group_anchor.group_key
     if action_type:
         extra_metadata["action_type"] = action_type

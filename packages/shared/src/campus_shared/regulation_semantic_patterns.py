@@ -299,10 +299,10 @@ def infer_regulation_body_content_role(
     compact_heading_scope = compact_semantic_text(" ".join((detail_label, section_leaf)))
     if _is_scope_rule_text(compact_text):
         return "scope_rule"
-    if _is_deadline_rule_scope(compact_scope, compact_text, registry=active):
-        return "deadline"
     if _is_time_rule_scope(text=text, compact_scope=compact_scope, registry=active):
         return "time_rule"
+    if _is_deadline_rule_scope(compact_scope, compact_text, registry=active):
+        return "deadline"
     if _is_eligibility_rule_scope(
         section_leaf=section_leaf,
         compact_heading_scope=compact_heading_scope,
@@ -354,7 +354,7 @@ def _is_deadline_rule_scope(
     *,
     registry: RegulationSemanticsRegistry,
 ) -> bool:
-    if any(keyword in compact_scope for keyword in registry.deadline_keywords):
+    if any(keyword in compact_text for keyword in registry.deadline_keywords):
         return True
     return looks_like_deadline_constraint_text(compact_text, registry=registry)
 

@@ -52,6 +52,11 @@ class RegistryScopeReleaseAuditAnswerReadyContractSuite:
                         "policy_projection_version": qdrant_models.PayloadSchemaType.KEYWORD,
                         "status": qdrant_models.PayloadSchemaType.KEYWORD,
                         "source_channel": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "answer_role": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "condition_subject": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "condition_group_subject": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "article_no": qdrant_models.PayloadSchemaType.KEYWORD,
+                        "clause_no": qdrant_models.PayloadSchemaType.KEYWORD,
                         "is_current": qdrant_models.PayloadSchemaType.BOOL,
                     },
                 )

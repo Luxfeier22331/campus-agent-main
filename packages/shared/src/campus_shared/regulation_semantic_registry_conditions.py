@@ -54,8 +54,6 @@ def resolve_regulation_condition_subject(
             value=explicit_intro_subject,
             provenance="metadata:introduced_condition_subject",
         )
-    explicit_group_subject = canonical_regulation_condition_subject(condition_group_subject.strip())
-
     target_roles = {item.strip() for item in intro_target_roles if item.strip()}
     compact = _compact(text)
     resolved_action_type = (
@@ -145,6 +143,9 @@ def resolve_regulation_condition_subject(
             provenance="action_type:lift_discipline+answer_role:positive_condition",
         )
     if answer_role == "exclusion_rule":
+        explicit_group_subject = canonical_regulation_condition_subject(
+            condition_group_subject.strip()
+        )
         exclusion_assignment = _resolve_keyword_rule(compact, REGULATION_EXCLUSION_SUBJECT_RULES)
         if exclusion_assignment.value:
             return exclusion_assignment
@@ -207,29 +208,8 @@ def resolve_regulation_condition_subject(
         )
     if answer_role in {"eligibility_condition", "exception_rule"}:
         return RegulationSemanticAssignment(
-            value=(
-                explicit_group_subject
-                if explicit_group_subject
-                and answer_role != "example_evidence"
-                and _condition_subject_supports_answer_role(explicit_group_subject, answer_role)
-                else "generic_condition"
-            ),
-            provenance=(
-                "metadata:condition_group_subject"
-                if explicit_group_subject
-                and answer_role != "example_evidence"
-                and _condition_subject_supports_answer_role(explicit_group_subject, answer_role)
-                else "answer_role:generic_condition"
-            ),
-        )
-    if (
-        explicit_group_subject
-        and answer_role != "example_evidence"
-        and _condition_subject_supports_answer_role(explicit_group_subject, answer_role)
-    ):
-        return RegulationSemanticAssignment(
-            value=explicit_group_subject,
-            provenance="metadata:condition_group_subject",
+            value="generic_condition",
+            provenance="answer_role:generic_condition",
         )
     return RegulationSemanticAssignment(value="", provenance="")
 
@@ -262,6 +242,7 @@ def resolve_regulation_condition_group_subject(
     text: str,
     answer_role: str = "",
     explicit_condition_group_subject: str = "",
+    explicit_condition_group_subject_provenance: str = "",
     inherited_condition_subject: str = "",
     intro_target_roles: Sequence[str] = (),
     table_fact_type: str = "",
@@ -273,13 +254,6 @@ def resolve_regulation_condition_group_subject(
     explicit_group_subject = canonical_regulation_condition_subject(
         explicit_condition_group_subject.strip()
     )
-    if explicit_group_subject and _condition_subject_supports_answer_role(
-        explicit_group_subject, answer_role
-    ):
-        return RegulationSemanticAssignment(
-            value=explicit_group_subject,
-            provenance="metadata:condition_group_subject",
-        )
     if answer_role and answer_role not in REGULATION_GROUPED_ANSWER_ROLES | {
         "material_requirement"
     }:
@@ -289,7 +263,7 @@ def resolve_regulation_condition_group_subject(
             intro_target_roles=intro_target_roles,
             inherited_condition_subject=inherited_condition_subject,
         )
-    return resolve_regulation_condition_subject(
+    resolved_subject = resolve_regulation_condition_subject(
         text=text,
         answer_role=answer_role,
         explicit_condition_subject=inherited_condition_subject,
@@ -302,6 +276,31 @@ def resolve_regulation_condition_group_subject(
         context_text=context_text,
         document_title=document_title,
     )
+    if (
+        explicit_group_subject
+        and _is_trusted_condition_group_subject_provenance(
+            explicit_condition_group_subject_provenance
+        )
+        and _condition_subject_supports_answer_role(explicit_group_subject, answer_role)
+    ):
+        return RegulationSemanticAssignment(
+            value=explicit_group_subject,
+            provenance=explicit_condition_group_subject_provenance,
+        )
+    if (
+        explicit_group_subject
+        and explicit_group_subject == resolved_subject.value
+        and _condition_subject_supports_answer_role(explicit_group_subject, answer_role)
+    ):
+        return RegulationSemanticAssignment(
+            value=explicit_group_subject,
+            provenance="metadata:condition_group_subject",
+        )
+    return resolved_subject
+
+
+def _is_trusted_condition_group_subject_provenance(value: str) -> bool:
+    return value.strip() in {"chunker:answer_ready_group_anchor"}
 
 
 def build_regulation_condition_group_id(

@@ -56,7 +56,7 @@ class InternalNoticeConsumptionSchemaArtifactsTest(unittest.TestCase):
             "'pending'",
             "'completed'",
             "'skipped'",
-            "'manual_review'",
+            "'machine_review_required'",
             "'failed_retryable'",
             "'failed_terminal'",
         ):

@@ -6,7 +6,10 @@ from campus_shared.regulation_semantic_registry import (
     resolve_regulation_answer_role,
 )
 
-from campus_ingestion_core.regulation_semantics import compact_semantic_text
+from campus_ingestion_core.regulation_semantics import (
+    compact_semantic_text,
+    infer_regulation_body_content_role,
+)
 from campus_ingestion_core.regulation_semantics import (
     infer_table_fact_type as infer_table_fact_type_from_registry,
 )
@@ -64,7 +67,7 @@ def build_answer_role_metadata(
     if decision["answer_role"] == "time_constraint":
         return {
             **decision,
-            "content_role": "deadline",
+            "content_role": _time_constraint_content_role(text),
             "semantic_role": "time_constraint",
             "claim_type": "time_constraint",
             "is_answer_bearing": True,
@@ -244,6 +247,17 @@ def starts_procedure_list(text: str) -> bool:
 
 def compact_for_role(value: str) -> str:
     return compact_semantic_text(value)
+
+
+def _time_constraint_content_role(text: str) -> str:
+    inferred = infer_regulation_body_content_role(
+        detail_label="",
+        section_leaf="",
+        text=text,
+    )
+    if inferred == "time_rule":
+        return inferred
+    return "deadline"
 
 
 def _role(answer_role: str, confidence: str, reason: str) -> dict[str, object]:

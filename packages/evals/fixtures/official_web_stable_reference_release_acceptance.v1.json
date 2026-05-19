@@ -39,6 +39,16 @@
 			"expected_version_ids": ["owdocver:493b69ab0ae0b4ec0173a18801ef809b4c694f1b"]
 		},
 		{
+			"case_id": "stable-reference-foundation-profile",
+			"corpus": "official_web",
+			"collection": "stable_reference",
+			"query": "中央民族大学基金会简介",
+			"top_k": 3,
+			"expected_document_ids": [
+				"official_web:muc_public:article_detail:3342689d05d43819a48bbcf7564f013f217ffe46"
+			]
+		},
+		{
 			"case_id": "stable-reference-no-hit-fictional-service",
 			"corpus": "official_web",
 			"collection": "stable_reference",
