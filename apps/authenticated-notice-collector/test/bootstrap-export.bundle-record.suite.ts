@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { buildBundleRecord } from "../src/bootstrap-export";
+import { buildBundleRecord } from "../src/bootstrap-export.js";
 
 export function registerBootstrapExportBundleRecordSuite() {
 	it("builds importer-compatible bundle records from list and detail payloads", () => {

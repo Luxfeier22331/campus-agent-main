@@ -10,7 +10,7 @@ import {
 	fetchFileReleaseTypes,
 	fetchNoticePage,
 	fetchNoticeSelects,
-} from "../src/api";
+} from "../src/api.js";
 
 describe("authenticated notice collector api", () => {
 	it("posts notice page requests and retries retryable failures", async () => {

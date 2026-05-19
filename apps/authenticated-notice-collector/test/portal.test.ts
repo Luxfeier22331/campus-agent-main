@@ -3,8 +3,8 @@ import os from "node:os";
 import path from "node:path";
 
 import { afterEach, describe, expect, it } from "vitest";
-import type { CollectorConfig } from "../src/config";
-import { createApiContextFromStorageState } from "../src/portal";
+import type { CollectorConfig } from "../src/config.js";
+import { createApiContextFromStorageState } from "../src/portal.js";
 
 describe("authenticated notice collector portal bootstrap", () => {
 	const tempDirs: string[] = [];

@@ -2,12 +2,12 @@ import {
 	createPostgresCollectorRunLeaseStore,
 	type DisposableCollectorRunLeaseStore,
 	withCollectorRunLease,
-} from "./collector-run-lease";
+} from "./collector-run-lease.js";
 import {
 	createPostgresCollectorRunLedgerStore,
 	type DisposableCollectorRunLedgerStore,
-} from "./collector-run-ledger";
-import type { CollectorConfig } from "./config";
+} from "./collector-run-ledger.js";
+import type { CollectorConfig } from "./config.js";
 
 export function sanitizeObjectKeySegment(value: string): string {
 	const normalized = value.trim().replace(/[^0-9A-Za-z_.=-]+/g, "_");

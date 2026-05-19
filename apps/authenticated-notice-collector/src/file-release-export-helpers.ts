@@ -7,7 +7,7 @@ import type {
 	FileReleaseExplainDepartmentListResponse,
 	FileReleaseExportManifest,
 	FileReleaseTypeListResponse,
-} from "./types";
+} from "./types.js";
 export const AUTHENTICATED_NOTICE_SOURCE_CHANNEL = "authenticated_notice_portal";
 export const FILE_RELEASE_EXPORT_SCHEMA_VERSION = "authenticated_notice_file_release_export_v1";
 const YEAR_RE = /(?<!\d)((?:19|20)\d{2})(?!\d)/;

@@ -3,7 +3,7 @@ import type {
 	NoticeRunAdmissionPageBudget,
 	NoticeRunAdmissionReport,
 	NoticeTypeConfig,
-} from "./types";
+} from "./types.js";
 
 export interface NoticeRunAdmissionInput {
 	backfillMaxPagesPerType?: number | null;

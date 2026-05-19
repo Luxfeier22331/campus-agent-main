@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { buildVerifiedRunEnqueueCommand } from "../src/ingest-queue-enqueue";
+import { buildVerifiedRunEnqueueCommand } from "../src/ingest-queue-enqueue.js";
 
 describe("authenticated notice collector ingest queue enqueue", () => {
 	it("builds the repo-owned worker enqueue command from verified run facts", () => {

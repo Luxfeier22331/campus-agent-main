@@ -1,21 +1,21 @@
-export * from "./visual-ref-audit-core";
+export * from "./visual-ref-audit-core.js";
 
 import path from "node:path";
 
-import { parseSelectedNoticeSpecs } from "./bootstrap-export-core";
-import { toTimestampLabel } from "./bootstrap-export-helpers";
+import { parseSelectedNoticeSpecs } from "./bootstrap-export-core.js";
+import { toTimestampLabel } from "./bootstrap-export-helpers.js";
 import {
 	type CollectorConfig,
 	ensureRuntimeDirs,
 	loadCollectorEnv,
 	resolveCollectorConfig,
-} from "./config";
-import { applyNoticeTypeAllowlist, loadNoticeTypes } from "./notice-types";
-import { formatSafeErrorMessage } from "./safe-error";
+} from "./config.js";
+import { applyNoticeTypeAllowlist, loadNoticeTypes } from "./notice-types.js";
+import { formatSafeErrorMessage } from "./safe-error.js";
 import {
 	collectVisualReferenceAudit,
 	writeVisualReferenceAuditReport,
-} from "./visual-ref-audit-core";
+} from "./visual-ref-audit-core.js";
 
 const DEFAULT_AUDIT_MAX_NOTICES = 50;
 

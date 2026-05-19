@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-import type { CollectorRunLedgerRecord } from "./collector-run-ledger";
+import type { CollectorRunLedgerRecord } from "./collector-run-ledger.js";
 
 export interface VerifiedRunEnqueueInput {
 	ledgerRecord: CollectorRunLedgerRecord;

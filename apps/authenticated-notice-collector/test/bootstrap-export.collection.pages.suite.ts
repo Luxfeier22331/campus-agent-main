@@ -1,7 +1,7 @@
 import { expect, it } from "vitest";
 
-import { collectBootstrapBundle } from "../src/bootstrap-export";
-import type { NoticeTypeConfig } from "../src/types";
+import { collectBootstrapBundle } from "../src/bootstrap-export.js";
+import type { NoticeTypeConfig } from "../src/types.js";
 
 export function registerBootstrapExportCollectionPagesSuite(): void {
 	it("collects list/detail pages into a deduplicated bootstrap bundle and disposes the api context", async () => {

@@ -11,13 +11,13 @@ import {
 	fetchFileReleasePage,
 	fetchFileReleaseTypes,
 	isAttachmentDownloadTerminalUnavailableError,
-} from "./api";
+} from "./api.js";
 import {
 	type AuthenticatedNoticeArtifactStore,
 	createAuthenticatedNoticeArtifactStoreFromEnv,
 	type StoredArtifactRef,
-} from "./artifact-store";
-import { buildCollectorRunLeaseKey } from "./collector-run-lease";
+} from "./artifact-store.js";
+import { buildCollectorRunLeaseKey } from "./collector-run-lease.js";
 import {
 	buildCollectorFileReleaseRunLedgerRecord,
 	buildCollectorRunFailedLedgerRecord,
@@ -25,8 +25,8 @@ import {
 	buildCollectorRunStartedLedgerRecord,
 	type CollectorRunLedgerRecord,
 	type CollectorRunLedgerStore,
-} from "./collector-run-ledger";
-import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config";
+} from "./collector-run-ledger.js";
+import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config.js";
 import {
 	AUTHENTICATED_NOTICE_SOURCE_CHANNEL,
 	buildExportManifest,
@@ -49,15 +49,15 @@ import {
 	resolveReleasedFileContentType,
 	safeBasename,
 	toTimestampLabel,
-} from "./file-release-export-helpers";
+} from "./file-release-export-helpers.js";
 import {
 	buildCollectorRunLeaseStoreForMain,
 	buildCollectorRunLedgerStoreForMain,
 	runWithOptionalCollectorLease,
 	sanitizeObjectKeySegment,
-} from "./file-release-export-runtime";
-import { createApiContextFromStorageState } from "./portal";
-import { formatSafeErrorMessage } from "./safe-error";
+} from "./file-release-export-runtime.js";
+import { createApiContextFromStorageState } from "./portal.js";
+import { formatSafeErrorMessage } from "./safe-error.js";
 import type {
 	ApiRequestContextLike,
 	BundleFileReleaseRecord,
@@ -69,7 +69,7 @@ import type {
 	FileReleaseListItem,
 	FileReleasePageResponse,
 	FileReleaseTypeListResponse,
-} from "./types";
+} from "./types.js";
 
 export interface CollectFileReleaseBundleInput {
 	attachmentArtifactStore?: AuthenticatedNoticeArtifactStore;

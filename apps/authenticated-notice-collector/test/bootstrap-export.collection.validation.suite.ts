@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { collectBootstrapBundle } from "../src/bootstrap-export";
+import { collectBootstrapBundle } from "../src/bootstrap-export.js";
 
 export function registerBootstrapExportCollectionValidationSuite(): void {
 	it("rejects selected collection mode before creating an api context when notice ids are missing", async () => {

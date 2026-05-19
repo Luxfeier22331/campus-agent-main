@@ -1,6 +1,6 @@
 import fs from "node:fs";
 
-import type { NoticeTypeConfig, NoticeTypePolicySnapshot } from "./types";
+import type { NoticeTypeConfig, NoticeTypePolicySnapshot } from "./types.js";
 
 export function loadNoticeTypes(noticeTypesPath: string): NoticeTypeConfig[] {
 	const raw = fs.readFileSync(noticeTypesPath, "utf-8");

@@ -1,13 +1,13 @@
-import { fetchFileReleasePage, fetchNoticePage } from "./api";
-import { loadCollectorEnv, resolveCollectorConfig } from "./config";
-import { createApiContextFromStorageState } from "./portal";
-import { formatSafeErrorMessage } from "./safe-error";
+import { fetchFileReleasePage, fetchNoticePage } from "./api.js";
+import { loadCollectorEnv, resolveCollectorConfig } from "./config.js";
+import { createApiContextFromStorageState } from "./portal.js";
+import { formatSafeErrorMessage } from "./safe-error.js";
 import type {
 	ApiRequestContextLike,
 	DisposableApiContextLike,
 	FileReleasePageResponse,
 	NoticeListResponse,
-} from "./types";
+} from "./types.js";
 
 export interface AuthCheckNoticeSummary {
 	sampleCount: number;

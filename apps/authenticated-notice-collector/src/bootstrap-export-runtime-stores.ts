@@ -1,16 +1,16 @@
 import {
 	createPostgresAttachmentFetchStatusStore,
 	type DisposableAttachmentFetchStatusStore,
-} from "./attachment-fetch-status";
+} from "./attachment-fetch-status.js";
 import {
 	createPostgresCollectorRunLeaseStore,
 	type DisposableCollectorRunLeaseStore,
-} from "./collector-run-lease";
+} from "./collector-run-lease.js";
 import {
 	createPostgresCollectorRunLedgerStore,
 	type DisposableCollectorRunLedgerStore,
-} from "./collector-run-ledger";
-import type { CollectorConfig } from "./config";
+} from "./collector-run-ledger.js";
+import type { CollectorConfig } from "./config.js";
 
 export function buildAttachmentFetchStatusStoreForMain(
 	config: CollectorConfig,

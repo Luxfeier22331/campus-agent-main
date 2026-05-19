@@ -4,7 +4,7 @@ import {
 	createInMemoryCollectorRunLeaseStore,
 	resolveCollectorRunLeaseTableReference,
 	withCollectorRunLease,
-} from "../src/collector-run-lease";
+} from "../src/collector-run-lease.js";
 
 describe("authenticated notice collector run lease", () => {
 	it("keeps raw schema and quoted table SQL separate for postgres lease DDL", () => {

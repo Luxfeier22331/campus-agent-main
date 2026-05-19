@@ -4,7 +4,7 @@ import {
 	buildFileReleaseRecord,
 	collectFileReleaseBundle,
 	resolveFileReleaseExportFiltersFromEnv,
-} from "../src/file-release-export";
+} from "../src/file-release-export.js";
 
 describe("authenticated notice collector file release export", () => {
 	it("builds file release bundle records from page, detail, and resolved download payloads", () => {

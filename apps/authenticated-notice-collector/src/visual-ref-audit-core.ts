@@ -1,17 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
 
-import { fetchNoticeDetail, fetchNoticePage } from "./api";
-import type { SelectedNoticeSpec } from "./bootstrap-export-core";
-import { normalizeNullableText, normalizeOptionalNoticeId } from "./bootstrap-export-helpers";
-import { resolveCollectorConfig } from "./config";
+import { fetchNoticeDetail, fetchNoticePage } from "./api.js";
+import type { SelectedNoticeSpec } from "./bootstrap-export-core.js";
+import { normalizeNullableText, normalizeOptionalNoticeId } from "./bootstrap-export-helpers.js";
+import { resolveCollectorConfig } from "./config.js";
 import {
 	collectHtmlVisualReferenceCandidates,
 	type HtmlVisualReferencePattern,
-} from "./html-visual-references";
-import { getEnabledNoticeTypes } from "./notice-types";
-import { createApiContextFromStorageState } from "./portal";
-import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission";
+} from "./html-visual-references.js";
+import { getEnabledNoticeTypes } from "./notice-types.js";
+import { createApiContextFromStorageState } from "./portal.js";
+import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission.js";
 import type {
 	ApiRequestContextLike,
 	DisposableApiContextLike,
@@ -19,7 +19,7 @@ import type {
 	NoticeDetailResponse,
 	NoticeListResponse,
 	NoticeTypeConfig,
-} from "./types";
+} from "./types.js";
 
 const VISUAL_REFERENCE_PATTERNS: HtmlVisualReferencePattern[] = [
 	"img_lazy_attr",

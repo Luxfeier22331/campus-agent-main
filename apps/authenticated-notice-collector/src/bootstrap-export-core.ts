@@ -1,17 +1,17 @@
 import fs from "node:fs";
 import path from "node:path";
-import { fetchNoticeDetail, fetchNoticePage, fetchNoticeSelects } from "./api";
+import { fetchNoticeDetail, fetchNoticePage, fetchNoticeSelects } from "./api.js";
 import {
 	type AuthenticatedNoticeArtifactStore,
 	createAuthenticatedNoticeArtifactStoreFromEnv,
 	type StoredArtifactRef,
-} from "./artifact-store";
-import { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions";
-import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status";
+} from "./artifact-store.js";
+import { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions.js";
+import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status.js";
 import {
 	type AttachmentFetchAdmission,
 	materializeBundleAttachments,
-} from "./attachment-materialization";
+} from "./attachment-materialization.js";
 import {
 	buildCategories,
 	buildExportManifest,
@@ -27,17 +27,17 @@ import {
 	normalizeRequiredNoticeId,
 	normalizeRequiredText,
 	toTimestampLabel,
-} from "./bootstrap-export-helpers";
+} from "./bootstrap-export-helpers.js";
 import {
 	buildAttachmentFetchStatusStoreForMain,
 	buildCollectorRunLeaseStoreForMain,
 	buildCollectorRunLedgerStoreForMain,
-} from "./bootstrap-export-runtime-stores";
+} from "./bootstrap-export-runtime-stores.js";
 import {
 	buildCollectorRunLeaseKey,
 	type DisposableCollectorRunLeaseStore,
 	withCollectorRunLease,
-} from "./collector-run-lease";
+} from "./collector-run-lease.js";
 import {
 	buildCollectorRunFailedLedgerRecord,
 	buildCollectorRunId,
@@ -45,18 +45,18 @@ import {
 	buildCollectorRunStartedLedgerRecord,
 	type CollectorRunLedgerRecord,
 	type CollectorRunLedgerStore,
-} from "./collector-run-ledger";
+} from "./collector-run-ledger.js";
 import {
 	type CollectorConfig,
 	ensureRuntimeDirs,
 	loadCollectorEnv,
 	resolveCollectorConfig,
-} from "./config";
-import { enqueueVerifiedCollectorRun } from "./ingest-queue-enqueue";
-import { applyNoticeTypeAllowlist, getEnabledNoticeTypes, loadNoticeTypes } from "./notice-types";
-import { createApiContextFromStorageState } from "./portal";
-import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission";
-import { formatSafeErrorMessage } from "./safe-error";
+} from "./config.js";
+import { enqueueVerifiedCollectorRun } from "./ingest-queue-enqueue.js";
+import * as noticeTypeConfig from "./notice-types.js";
+import { createApiContextFromStorageState } from "./portal.js";
+import { assertNoticeRunAdmissionAccepted, buildNoticeRunAdmission } from "./run-admission.js";
+import { formatSafeErrorMessage } from "./safe-error.js";
 import type {
 	ApiRequestContextLike,
 	BootstrapExportManifest,
@@ -69,7 +69,7 @@ import type {
 	NoticeListResponse,
 	NoticeSelectsResponse,
 	NoticeTypeConfig,
-} from "./types";
+} from "./types.js";
 
 export interface CollectBootstrapBundleInput {
 	attachmentArtifactStore?: AuthenticatedNoticeArtifactStore;
@@ -123,7 +123,7 @@ export interface CollectBootstrapBundleResult {
 	};
 }
 
-export { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions";
+export { parseAttachmentFetchAdmissionsFromManifest } from "./attachment-fetch-admissions.js";
 
 export interface WriteBootstrapArtifactsInput {
 	bundleRecords: BundleNoticeRecord[];
@@ -280,7 +280,7 @@ export async function collectBootstrapBundle(
 		selectedNotices.length === 0 &&
 		collectionMode === "backfill" &&
 		(input.maxNotices ?? null) === null;
-	const enabledNoticeTypes = getEnabledNoticeTypes(input.noticeTypes);
+	const enabledNoticeTypes = noticeTypeConfig.getEnabledNoticeTypes(input.noticeTypes);
 	const createApiContext =
 		input.createApiContext ??
 		(() => createApiContextFromStorageState(resolveCollectorConfig(process.env)));
@@ -725,8 +725,8 @@ export async function main(): Promise<void> {
 	loadCollectorEnv();
 	const config = resolveCollectorConfig(process.env);
 	ensureRuntimeDirs(config);
-	const noticeTypes = applyNoticeTypeAllowlist(
-		loadNoticeTypes(config.noticeTypesPath),
+	const noticeTypes = noticeTypeConfig.applyNoticeTypeAllowlist(
+		noticeTypeConfig.loadNoticeTypes(config.noticeTypesPath),
 		config.noticeTypeAllowlist,
 	);
 	const exportedAt = new Date().toISOString();

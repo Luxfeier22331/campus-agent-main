@@ -2,8 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { chromium } from "playwright";
 
-import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config";
-import { formatSafeErrorMessage } from "./safe-error";
+import { ensureRuntimeDirs, loadCollectorEnv, resolveCollectorConfig } from "./config.js";
+import { formatSafeErrorMessage } from "./safe-error.js";
 
 interface LoggerLike {
 	log(message: string): void;

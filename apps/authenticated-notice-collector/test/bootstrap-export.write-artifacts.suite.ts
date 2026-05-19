@@ -9,9 +9,9 @@ import {
 	runBootstrapExport,
 	uploadBootstrapArtifacts,
 	writeBootstrapArtifacts,
-} from "../src/bootstrap-export";
-import type { CollectorRunLedgerRecord } from "../src/collector-run-ledger";
-import type { BootstrapExportManifest } from "../src/types";
+} from "../src/bootstrap-export.js";
+import type { CollectorRunLedgerRecord } from "../src/collector-run-ledger.js";
+import type { BootstrapExportManifest } from "../src/types.js";
 
 export function registerBootstrapExportWriteArtifactsSuite(tempDirs: string[]) {
 	it("writes notices bundle and export manifest under the configured exports directory", () => {

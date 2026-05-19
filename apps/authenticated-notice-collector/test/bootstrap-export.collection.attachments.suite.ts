@@ -3,9 +3,9 @@ import { afterEach, expect, it, vi } from "vitest";
 import {
 	collectBootstrapBundle,
 	parseAttachmentFetchAdmissionsFromManifest,
-} from "../src/bootstrap-export";
-import { registerBootstrapExportCollectionAttachmentFailureSuite } from "./bootstrap-export.collection.attachment-failures.suite";
-import { registerBootstrapExportCollectionInlineVisualsSuite } from "./bootstrap-export.collection.inline-visuals.suite";
+} from "../src/bootstrap-export.js";
+import { registerBootstrapExportCollectionAttachmentFailureSuite } from "./bootstrap-export.collection.attachment-failures.suite.js";
+import { registerBootstrapExportCollectionInlineVisualsSuite } from "./bootstrap-export.collection.inline-visuals.suite.js";
 
 export function registerBootstrapExportCollectionAttachmentsSuite(): void {
 	afterEach(() => {

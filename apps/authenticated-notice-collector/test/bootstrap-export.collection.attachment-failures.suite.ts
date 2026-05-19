@@ -1,6 +1,6 @@
 import { expect, it } from "vitest";
 
-import { collectBootstrapBundle } from "../src/bootstrap-export";
+import { collectBootstrapBundle } from "../src/bootstrap-export.js";
 
 export function registerBootstrapExportCollectionAttachmentFailureSuite(): void {
 	it("prefers detail attachment names and infers MIME when download headers are mojibake and generic", async () => {

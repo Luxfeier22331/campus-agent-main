@@ -1,19 +1,19 @@
 import { Pool } from "pg";
 
-import type { StoredArtifactRef } from "./artifact-store";
-import type { AttachmentFetchAdmission } from "./attachment-materialization";
+import type { StoredArtifactRef } from "./artifact-store.js";
+import type { AttachmentFetchAdmission } from "./attachment-materialization.js";
 import {
 	aggregateAttachmentFacts,
 	aggregateReleasedFileFacts,
 	aggregateRequiredNoticeAttachmentFacts,
-} from "./collector-run-ledger-facts";
+} from "./collector-run-ledger-facts.js";
 import type {
 	BootstrapExportManifest,
 	BundleFileReleaseRecord,
 	BundleNoticeRecord,
 	FileReleaseExportManifest,
 	NoticeCollectionMode,
-} from "./types";
+} from "./types.js";
 
 export interface CollectorRunLedgerRecord {
 	runId: string;

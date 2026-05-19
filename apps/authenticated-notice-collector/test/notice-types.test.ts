@@ -8,7 +8,7 @@ import {
 	applyNoticeTypeAllowlist,
 	getEnabledNoticeTypes,
 	loadNoticeTypes,
-} from "../src/notice-types";
+} from "../src/notice-types.js";
 
 const REPO_NOTICE_TYPES_PATH = path.join(process.cwd(), "config", "notice-types.json");
 const OBSERVED_PORTAL_NOTICE_TYPES = [

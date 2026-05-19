@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { saveAuthStorageState } from "../src/auth-save";
+import { saveAuthStorageState } from "../src/auth-save.js";
 
 describe("authenticated notice collector auth save", () => {
 	it("opens the portal page and persists storage state after confirmation", async () => {

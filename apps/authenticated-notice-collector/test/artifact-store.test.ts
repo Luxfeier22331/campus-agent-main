@@ -5,7 +5,7 @@ import { describe, expect, it } from "vitest";
 import {
 	createAuthenticatedNoticeArtifactStore,
 	createAuthenticatedNoticeArtifactStoreFromEnv,
-} from "../src/artifact-store";
+} from "../src/artifact-store.js";
 
 describe("authenticated-notice artifact store env", () => {
 	it("returns undefined when object-store env is absent", () => {

@@ -2,10 +2,10 @@ import fs from "node:fs";
 
 import { afterEach, describe } from "vitest";
 
-import { registerBootstrapExportBundleRecordSuite } from "./bootstrap-export.bundle-record.suite";
-import { registerBootstrapExportCollectionSuite } from "./bootstrap-export.collection.suite";
-import { registerBootstrapExportWriteArtifactsSuite } from "./bootstrap-export.write-artifacts.suite";
-import { registerCollectorRunLedgerSuite } from "./collector-run-ledger.suite";
+import { registerBootstrapExportBundleRecordSuite } from "./bootstrap-export.bundle-record.suite.js";
+import { registerBootstrapExportCollectionSuite } from "./bootstrap-export.collection.suite.js";
+import { registerBootstrapExportWriteArtifactsSuite } from "./bootstrap-export.write-artifacts.suite.js";
+import { registerCollectorRunLedgerSuite } from "./collector-run-ledger.suite.js";
 
 describe("authenticated notice collector bootstrap export", () => {
 	const tempDirs: string[] = [];

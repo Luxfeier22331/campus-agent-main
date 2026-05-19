@@ -5,15 +5,15 @@ import {
 	type FetchAttachmentBinaryResult,
 	fetchAttachmentBinary,
 	isAttachmentDownloadTerminalUnavailableError,
-} from "./api";
-import type { AuthenticatedNoticeArtifactStore } from "./artifact-store";
-import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status";
+} from "./api.js";
+import type { AuthenticatedNoticeArtifactStore } from "./artifact-store.js";
+import type { AuthenticatedNoticeAttachmentFetchStatusStore } from "./attachment-fetch-status.js";
 import type {
 	ApiRequestContextLike,
 	BundleAttachmentObservation,
 	BundleLinkObservation,
 	BundleNoticeRecord,
-} from "./types";
+} from "./types.js";
 
 const YEAR_RE = /(?<!\d)((?:19|20)\d{2})(?!\d)/;
 const MIME_TYPE_BY_EXTENSION: Record<string, string> = {

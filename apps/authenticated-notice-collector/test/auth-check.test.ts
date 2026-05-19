@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { checkAuth } from "../src/auth-check";
+import { checkAuth } from "../src/auth-check.js";
 
 describe("authenticated notice collector auth check", () => {
 	it("returns per-surface readiness summaries and disposes the request context", async () => {

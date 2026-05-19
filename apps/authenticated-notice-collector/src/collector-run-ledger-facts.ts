@@ -1,5 +1,5 @@
-import type { AttachmentFetchAdmission } from "./attachment-materialization";
-import type { BundleFileReleaseRecord, BundleNoticeRecord } from "./types";
+import type { AttachmentFetchAdmission } from "./attachment-materialization.js";
+import type { BundleFileReleaseRecord, BundleNoticeRecord } from "./types.js";
 
 export function aggregateAttachmentFacts(bundleRecords: BundleNoticeRecord[]): {
 	attachmentReferenceOnly: number;

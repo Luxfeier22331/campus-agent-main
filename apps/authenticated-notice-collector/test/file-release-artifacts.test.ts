@@ -9,7 +9,7 @@ import {
 	buildFileReleaseRecord,
 	uploadFileReleaseArtifacts,
 	writeFileReleaseArtifacts,
-} from "../src/file-release-export";
+} from "../src/file-release-export.js";
 
 describe("authenticated notice collector file release artifacts", () => {
 	const tempDirs: string[] = [];

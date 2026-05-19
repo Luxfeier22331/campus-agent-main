@@ -1,8 +1,8 @@
-export * from "./file-release-export-core";
-export { resolveFileReleaseExportFiltersFromEnv } from "./file-release-export-helpers";
+export * from "./file-release-export-core.js";
+export { resolveFileReleaseExportFiltersFromEnv } from "./file-release-export-helpers.js";
 
-import { main } from "./file-release-export-core";
-import { formatSafeErrorMessage } from "./safe-error";
+import { main } from "./file-release-export-core.js";
+import { formatSafeErrorMessage } from "./safe-error.js";
 
 if (import.meta.url === `file://${process.argv[1]}`) {
 	main().catch((error) => {

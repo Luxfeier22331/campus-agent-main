@@ -1,6 +1,6 @@
 import { spawn } from "node:child_process";
 
-import { formatSafeErrorMessage } from "./safe-error";
+import { formatSafeErrorMessage } from "./safe-error.js";
 
 export type CollectorEntrypointMode =
 	| "auth-check"

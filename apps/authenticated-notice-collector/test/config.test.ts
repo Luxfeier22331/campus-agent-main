@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { applyCollectorNoProxyEnv, resolveCollectorConfig } from "../src/config";
+import { applyCollectorNoProxyEnv, resolveCollectorConfig } from "../src/config.js";
 
 describe("authenticated notice collector config", () => {
 	it("uses repo-local runtime defaults and authenticated portal semantics", () => {

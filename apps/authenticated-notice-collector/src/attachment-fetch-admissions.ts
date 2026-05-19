@@ -1,5 +1,5 @@
-import type { AttachmentFetchAdmission } from "./attachment-materialization";
-import { normalizeNullableText } from "./bootstrap-export-helpers";
+import type { AttachmentFetchAdmission } from "./attachment-materialization.js";
+import { normalizeNullableText } from "./bootstrap-export-helpers.js";
 
 export function parseAttachmentFetchAdmissionsFromManifest(
 	manifest: unknown,

@@ -9,8 +9,8 @@ import {
 	request,
 } from "playwright";
 
-import { type CollectorConfig, ensureRuntimeDirs, resolveCollectorConfig } from "./config";
-import type { ApiRequestContextLike, DisposableApiContextLike } from "./types";
+import { type CollectorConfig, ensureRuntimeDirs, resolveCollectorConfig } from "./config.js";
+import type { ApiRequestContextLike, DisposableApiContextLike } from "./types.js";
 
 type PortalStorageState = Awaited<ReturnType<BrowserContext["storageState"]>>;
 const PORTAL_BOOTSTRAP_TIMEOUT_MS = 12_000;

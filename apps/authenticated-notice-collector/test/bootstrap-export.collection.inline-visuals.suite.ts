@@ -1,6 +1,6 @@
 import { expect, it, vi } from "vitest";
 
-import { collectBootstrapBundle } from "../src/bootstrap-export";
+import { collectBootstrapBundle } from "../src/bootstrap-export.js";
 
 export function registerBootstrapExportCollectionInlineVisualsSuite(): void {
 	it("materializes responsive inline image refs into object-backed bundle rows", async () => {

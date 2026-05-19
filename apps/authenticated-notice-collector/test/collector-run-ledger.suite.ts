@@ -8,13 +8,13 @@ import {
 	buildCollectorRunStartedLedgerRecord,
 	createInMemoryCollectorRunLedgerStore,
 	resolveCollectorRunLedgerTableReference,
-} from "../src/collector-run-ledger";
+} from "../src/collector-run-ledger.js";
 import type {
 	BootstrapExportManifest,
 	BundleFileReleaseRecord,
 	BundleNoticeRecord,
 	FileReleaseExportManifest,
-} from "../src/types";
+} from "../src/types.js";
 
 export function registerCollectorRunLedgerSuite() {
 	it("builds a source-channel run ledger record from exported bundle facts", async () => {

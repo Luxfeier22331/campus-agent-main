@@ -10,7 +10,7 @@ import type {
 	NoticeDetailResponse,
 	NoticeListResponse,
 	NoticeSelectsResponse,
-} from "./types";
+} from "./types.js";
 
 export interface FetchNoticePageInput {
 	apiContext: ApiRequestContextLike;

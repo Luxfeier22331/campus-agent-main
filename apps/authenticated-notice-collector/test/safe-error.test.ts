@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatSafeErrorMessage } from "../src/safe-error";
+import { formatSafeErrorMessage } from "../src/safe-error.js";
 
 describe("authenticated notice collector safe errors", () => {
 	it("redacts portal cookies from Playwright call logs", () => {

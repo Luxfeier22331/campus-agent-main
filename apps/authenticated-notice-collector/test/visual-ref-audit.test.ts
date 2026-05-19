@@ -4,12 +4,12 @@ import path from "node:path";
 
 import { expect, it } from "vitest";
 
-import { collectHtmlVisualReferenceCandidates } from "../src/html-visual-references";
+import { collectHtmlVisualReferenceCandidates } from "../src/html-visual-references.js";
 import {
 	buildVisualReferenceAuditReport,
 	collectVisualReferenceAudit,
 	writeVisualReferenceAuditReport,
-} from "../src/visual-ref-audit-core";
+} from "../src/visual-ref-audit-core.js";
 
 it("classifies visual reference patterns from notice html", () => {
 	const candidates = collectHtmlVisualReferenceCandidates(

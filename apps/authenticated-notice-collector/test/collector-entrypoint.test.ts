@@ -4,7 +4,7 @@ import {
 	buildCollectorModeCommand,
 	type CollectorEntrypointMode,
 	resolveCollectorMode,
-} from "../src/collector-entrypoint";
+} from "../src/collector-entrypoint.js";
 
 describe("authenticated notice collector entrypoint", () => {
 	it("defaults to auth-check when no collector mode is configured", () => {

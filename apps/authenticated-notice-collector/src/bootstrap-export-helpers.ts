@@ -1,7 +1,7 @@
 import path from "node:path";
 
-import { collectHtmlVisualReferenceCandidates } from "./html-visual-references";
-import { buildNoticeTypePolicySnapshot } from "./notice-types";
+import { collectHtmlVisualReferenceCandidates } from "./html-visual-references.js";
+import { buildNoticeTypePolicySnapshot } from "./notice-types.js";
 import type {
 	BootstrapExportManifest,
 	BundleAttachmentObservation,
@@ -17,7 +17,7 @@ import type {
 	NoticeRunAdmissionReport,
 	NoticeSelectsResponse,
 	NoticeTypeConfig,
-} from "./types";
+} from "./types.js";
 export const AUTHENTICATED_NOTICE_SOURCE_CHANNEL = "authenticated_notice_portal";
 export const EXPORT_SCHEMA_VERSION = "authenticated_notice_collector_export_v2";
 const HTML_ANCHOR_RE = /<a\b[^>]*href\s*=\s*(["'])(.*?)\1[^>]*>(.*?)<\/a>/gis;

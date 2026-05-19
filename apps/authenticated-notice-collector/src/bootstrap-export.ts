@@ -1,7 +1,7 @@
-export * from "./bootstrap-export-core";
+export * from "./bootstrap-export-core.js";
 
-import { main } from "./bootstrap-export-core";
-import { formatSafeErrorMessage } from "./safe-error";
+import { main } from "./bootstrap-export-core.js";
+import { formatSafeErrorMessage } from "./safe-error.js";
 
 if (import.meta.url === `file://${process.argv[1]}`) {
 	main().catch((error) => {
