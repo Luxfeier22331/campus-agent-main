@@ -128,6 +128,7 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
                     internal_query_base_url=f"http://127.0.0.1:{query_server.server_port}",
                     internal_query_shared_secret="query-secret",
                     structured_query_timeout_seconds=0.75,
+                    agents_sdk_runtime_enabled=False,
                 )
             )
             response = app.handle(
@@ -219,6 +220,7 @@ class SupervisorApiBridgeServicesTest(SupervisorApiBridgeBaseTest):
                     internal_query_base_url=f"http://127.0.0.1:{query_server.server_port}",
                     internal_query_shared_secret="query-secret",
                     structured_query_timeout_seconds=0.75,
+                    agents_sdk_runtime_enabled=False,
                 )
             )
             response = app.handle(

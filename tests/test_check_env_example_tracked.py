@@ -26,6 +26,7 @@ class CheckEnvExampleTrackedTest(unittest.TestCase):
                 "--others",
                 "--exclude-standard",
                 "*.env.example",
+                "*.local.example",
                 "*.dev.vars.example",
             ],
             check=True,

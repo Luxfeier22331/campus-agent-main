@@ -17,7 +17,7 @@ _BINARY_SUFFIXES = {
 }
 _DOCKER_NAMES = (".hadolint.yaml",)
 _EDITORCONFIG_NAMES = (".editorconfig", ".gitattributes", ".gitignore")
-_ENV_SUFFIXES = (".env.example", ".dev.vars.example")
+_ENV_SUFFIXES = (".env.example", ".local.example", ".dev.vars.example")
 _EXCLUDED_GENERATED_FILES: dict[str, str] = {}
 _HANDWRITTEN_DECOMPOSITION_SUFFIXES = {
     ".cjs",
