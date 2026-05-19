@@ -223,6 +223,38 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
         self.assertIn("query_base_url_not_configured", runtime_assembly["failure_detail"])
         app.close()
 
+    def test_bridge_readyz_degrades_when_enabled_agents_sdk_runtime_is_misconfigured(
+        self,
+    ) -> None:
+        app = create_bridge_app(
+            settings=ApiSettings(
+                bridge_shared_secret="bridge-secret",
+                runtime_provider="openai-responses",
+                supervisor_prompt_model="gpt-supervisor",
+                agent_prompt_model="gpt-agent",
+                prompt_runtime_provider="",
+                prompt_runtime_api_key="",
+                prompt_runtime_base_url="https://api.openai.com/v1",
+                agents_sdk_runtime_enabled=True,
+                internal_query_base_url="https://supervisor-api.internal",
+                internal_query_shared_secret="structured-secret",
+            )
+        )
+
+        ready = app.handle(
+            "GET",
+            "/internal/bridge/readyz",
+            headers={"x-supervisor-bridge-auth": "bridge-secret"},
+        )
+
+        self.assertEqual(ready.status_code, 503)
+        self.assertEqual(ready.json_body["status"], "degraded")
+        runtime_assembly = ready.json_body["worker_runtime"]["runtime_assembly"]
+        self.assertFalse(runtime_assembly["healthy"])
+        self.assertEqual(runtime_assembly["failure_class"], "AgentRuntimeBuildError")
+        self.assertIn("provider_not_configured", runtime_assembly["failure_detail"])
+        app.close()
+
     def test_api_settings_from_env_enables_agents_sdk_runtime_by_default(self) -> None:
         with patch.dict(os.environ, {}, clear=True):
             settings = ApiSettings.from_env()
@@ -302,6 +334,7 @@ class SupervisorApiSettingsAndHealthTest(unittest.TestCase):
                     rag_prompt_executor=None,
                     campus_services_query_service=None,
                     notice_query_service=None,
+                    rag_openai_runtime=object(),
                 )
 
                 response = delegates["rag-agent"](

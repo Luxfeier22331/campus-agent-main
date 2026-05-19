@@ -22,7 +22,11 @@ from campus_supervisor_agent_worker.tool_spec_registry import (
 )
 
 ToolResult = Mapping[str, object] | AgentResponse | str
+StructuredToolResult = object
 ToolHandler = Callable[[OpenAIAgentsToolInvocation, "ToolExecutionContext"], ToolResult]
+StructuredToolHandler = Callable[
+    [OpenAIAgentsToolInvocation, "ToolExecutionContext"], StructuredToolResult
+]
 InternalFunctionHandler = Callable[["ToolExecutionContext"], AgentResponse]
 
 
@@ -41,6 +45,7 @@ class ToolExecutionContext:
 class ToolExecutionRegistry:
     tool_registry: ToolSpecRegistry
     sdk_handlers: dict[str, ToolHandler]
+    structured_handlers: dict[str, StructuredToolHandler]
     internal_function_handlers: dict[str, InternalFunctionHandler]
 
     def execute(
@@ -57,6 +62,24 @@ class ToolExecutionRegistry:
         handler = self.sdk_handlers.get(tool.name)
         if handler is None:
             raise ToolExecutionError(f"tool has no registered sdk handler: {tool.name}")
+        return handler(invocation, context)
+
+    def execute_structured(
+        self,
+        invocation: OpenAIAgentsToolInvocation,
+        *,
+        context: ToolExecutionContext,
+    ) -> StructuredToolResult:
+        tool = self._required_tool(invocation.name)
+        if tool.runtime_posture != "sdk_adapter_admitted":
+            raise ToolExecutionError(
+                f"tool is not registered for preplanned structured execution: {tool.name}"
+            )
+        handler = self.structured_handlers.get(tool.name)
+        if handler is None:
+            raise ToolExecutionError(
+                f"tool has no registered preplanned structured handler: {tool.name}"
+            )
         return handler(invocation, context)
 
     def execute_internal_function(
@@ -106,6 +129,27 @@ class ToolExecutionSession:
                 f"tool runtime_posture is not SDK-executable: {tool.name} ({tool.runtime_posture})"
             )
         return self.execution_registry.execute(invocation, context=context)
+
+    def execute_preplanned_structured_tool(
+        self,
+        invocation: OpenAIAgentsToolInvocation,
+        *,
+        context: ToolExecutionContext,
+    ) -> StructuredToolResult:
+        if context.admission is not None:
+            self._validate_context_admits_sdk_tool(invocation.name, context=context)
+        elif context.agent_request is not None:
+            self._validate_agent_request_admits_sdk_tool(
+                invocation.name,
+                agent_request=context.agent_request,
+            )
+        tool = self._required_tool(invocation.name)
+        if tool.runtime_posture != "sdk_adapter_admitted":
+            raise ToolExecutionError(
+                "tool runtime_posture is not preplanned structured-executable: "
+                f"{tool.name} ({tool.runtime_posture})"
+            )
+        return self.execution_registry.execute_structured(invocation, context=context)
 
     def execute_internal_function(
         self,
@@ -240,6 +284,7 @@ def build_default_tool_execution_registry(
 ) -> ToolExecutionRegistry:
     resolved_tool_registry = tool_registry or default_tool_spec_registry()
     sdk_handlers: dict[str, ToolHandler] = {}
+    structured_handlers: dict[str, StructuredToolHandler] = {}
     internal_function_handlers: dict[str, InternalFunctionHandler] = {}
 
     def _require_agent_request(context: ToolExecutionContext) -> AgentRequest:
@@ -257,6 +302,31 @@ def build_default_tool_execution_registry(
             f"query_service_unavailable: structured tool requires an internal query service: {tool_name}"
         )
 
+    def _campus_services_query_access_context(context: ToolExecutionContext):
+        from campus_services_agent.query_service import CampusServicesAccessContext
+
+        request = _require_agent_request(context)
+        return CampusServicesAccessContext(
+            actor=request.actor,
+            authorization=request.context.authorization,
+        )
+
+    def _notice_query_access_context(context: ToolExecutionContext):
+        from campus_notice_agent.query_service import NoticeAccessContext
+
+        request = _require_agent_request(context)
+        return NoticeAccessContext(
+            actor=request.actor,
+            authorization=request.context.authorization,
+        )
+
+    from campus_services_agent.query_service import (
+        AcademicCalendarQuery,
+        ContactDirectoryQuery,
+        ServiceGuideQuery,
+        ServiceStatusQuery,
+        TransportScheduleQuery,
+    )
     from campus_services_agent.sdk_tool_executor import execute_campus_services_sdk_tool
 
     for tool_name in (
@@ -277,8 +347,79 @@ def build_default_tool_execution_registry(
                 else _raise_tool_execution_error(_missing_query_service(_tool_name))
             )
         )
+    structured_handlers["service_status_lookup"] = (
+        lambda invocation, context, _service=campus_services_query_service: (
+            _service.lookup_service_status(
+                ServiceStatusQuery(
+                    payload=_require_payload(context, "service_status_lookup"),
+                    access_context=_campus_services_query_access_context(context),
+                )
+            )
+            if _service is not None
+            else _raise_structured_tool_execution_error(
+                _missing_query_service("service_status_lookup")
+            )
+        )
+    )
+    structured_handlers["service_guide_lookup"] = (
+        lambda invocation, context, _service=campus_services_query_service: (
+            _service.lookup_service_guide(
+                ServiceGuideQuery(
+                    payload=_require_payload(context, "service_guide_lookup"),
+                    access_context=_campus_services_query_access_context(context),
+                )
+            )
+            if _service is not None
+            else _raise_structured_tool_execution_error(
+                _missing_query_service("service_guide_lookup")
+            )
+        )
+    )
+    structured_handlers["transport_schedule_lookup"] = (
+        lambda invocation, context, _service=campus_services_query_service: (
+            _service.lookup_transport_schedule(
+                TransportScheduleQuery(
+                    payload=_require_payload(context, "transport_schedule_lookup"),
+                    access_context=_campus_services_query_access_context(context),
+                )
+            )
+            if _service is not None
+            else _raise_structured_tool_execution_error(
+                _missing_query_service("transport_schedule_lookup")
+            )
+        )
+    )
+    structured_handlers["contact_directory_lookup"] = (
+        lambda invocation, context, _service=campus_services_query_service: (
+            _service.lookup_contact_directory(
+                ContactDirectoryQuery(
+                    payload=_require_payload(context, "contact_directory_lookup"),
+                    access_context=_campus_services_query_access_context(context),
+                )
+            )
+            if _service is not None
+            else _raise_structured_tool_execution_error(
+                _missing_query_service("contact_directory_lookup")
+            )
+        )
+    )
+    structured_handlers["academic_calendar_lookup"] = (
+        lambda invocation, context, _service=campus_services_query_service: (
+            _service.lookup_academic_calendar(
+                AcademicCalendarQuery(
+                    payload=_require_payload(context, "academic_calendar_lookup"),
+                    access_context=_campus_services_query_access_context(context),
+                )
+            )
+            if _service is not None
+            else _raise_structured_tool_execution_error(
+                _missing_query_service("academic_calendar_lookup")
+            )
+        )
+    )
 
     from campus_notice_agent.notice_get_runtime import run_notice_get_internal_request
+    from campus_notice_agent.query_service import NoticeChangeSetLookupQuery, NoticeDiscoverQuery
     from campus_notice_agent.sdk_tool_executor import execute_notice_sdk_tool
 
     for tool_name in (
@@ -296,6 +437,34 @@ def build_default_tool_execution_registry(
                 else _raise_tool_execution_error(_missing_query_service(_tool_name))
             )
         )
+    structured_handlers["campus_notice_discover"] = (
+        lambda invocation, context, _service=notice_query_service: (
+            _service.discover_notice(
+                NoticeDiscoverQuery(
+                    payload=_require_payload(context, "campus_notice_discover"),
+                    access_context=_notice_query_access_context(context),
+                )
+            )
+            if _service is not None
+            else _raise_structured_tool_execution_error(
+                _missing_query_service("campus_notice_discover")
+            )
+        )
+    )
+    structured_handlers["campus_notice_change_set_lookup"] = (
+        lambda invocation, context, _service=notice_query_service: (
+            _service.lookup_notice_change_set(
+                NoticeChangeSetLookupQuery(
+                    payload=_require_payload(context, "campus_notice_change_set_lookup"),
+                    access_context=_notice_query_access_context(context),
+                )
+            )
+            if _service is not None
+            else _raise_structured_tool_execution_error(
+                _missing_query_service("campus_notice_change_set_lookup")
+            )
+        )
+    )
     internal_function_handlers["campus_notice_get"] = (
         lambda context, _service=notice_query_service: run_notice_get_internal_request(
             _require_agent_request(context),
@@ -321,11 +490,13 @@ def build_default_tool_execution_registry(
     _validate_registry_bindings(
         resolved_tool_registry,
         sdk_handlers=sdk_handlers,
+        structured_handlers=structured_handlers,
         internal_function_handlers=internal_function_handlers,
     )
     return ToolExecutionRegistry(
         tool_registry=resolved_tool_registry,
         sdk_handlers=sdk_handlers,
+        structured_handlers=structured_handlers,
         internal_function_handlers=internal_function_handlers,
     )
 
@@ -334,10 +505,27 @@ def _raise_tool_execution_error(error: ToolExecutionError) -> ToolResult:
     raise error
 
 
+def _raise_structured_tool_execution_error(error: ToolExecutionError) -> StructuredToolResult:
+    raise error
+
+
+def _require_payload(context: ToolExecutionContext, tool_name: str):
+    request = context.agent_request
+    if request is None:
+        raise ToolExecutionError("agent_request is required for this tool")
+    admission = context.admission
+    if admission is not None and admission.tool.name != tool_name:
+        raise ToolExecutionError(
+            f"agent_request payload is not admitted for current structured tool: {tool_name}"
+        )
+    return request.payload
+
+
 def _validate_registry_bindings(
     tool_registry: ToolSpecRegistry,
     *,
     sdk_handlers: dict[str, ToolHandler],
+    structured_handlers: dict[str, StructuredToolHandler],
     internal_function_handlers: dict[str, InternalFunctionHandler],
 ) -> None:
     for tool in tool_registry.tools:
@@ -348,6 +536,17 @@ def _validate_registry_bindings(
         if tool.runtime_posture in {"sdk_adapter_admitted", "sdk_internal_admitted"}:
             if tool.name not in sdk_handlers:
                 raise ToolExecutionError(f"sdk tool is missing handler: {tool.name}")
+            if (
+                tool.runtime_posture == "sdk_adapter_admitted"
+                and tool.name not in structured_handlers
+            ):
+                raise ToolExecutionError(
+                    f"preplanned structured tool is missing handler: {tool.name}"
+                )
+            if tool.runtime_posture != "sdk_adapter_admitted" and tool.name in structured_handlers:
+                raise ToolExecutionError(
+                    f"non-structured sdk tool must not be registered as preplanned: {tool.name}"
+                )
             continue
         if tool.runtime_posture == "internal_function":
             if tool.name not in internal_function_handlers:

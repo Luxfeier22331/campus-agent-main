@@ -25,6 +25,7 @@ class SupervisorApiPromptStackTest(unittest.TestCase):
         app = create_bridge_app(
             settings=ApiSettings(
                 runtime_provider="openai-responses",
+                prompt_runtime_provider="openai-responses",
                 supervisor_prompt_model="gpt-5.2",
                 agent_prompt_model="gpt-5.2-mini",
             )
@@ -46,6 +47,7 @@ class SupervisorApiPromptStackTest(unittest.TestCase):
         app = create_bridge_app(
             settings=ApiSettings(
                 runtime_provider="openai-responses",
+                prompt_runtime_provider="openai-responses",
                 supervisor_prompt_model="",
                 agent_prompt_model="gpt-5.2-mini",
                 prompt_runtime_api_key="test-key",

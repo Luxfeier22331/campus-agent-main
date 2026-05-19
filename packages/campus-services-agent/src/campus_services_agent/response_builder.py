@@ -383,6 +383,7 @@ def _service_guide_text(result: ServiceGuideLookupResult) -> str:
         if hours_line:
             parts.append(hours_line)
     else:
+        parts.extend(_all_service_guide_sections(result))
         parts.extend(_service_guide_procedure_parts(result))
         materials_line = _service_guide_materials_line(result)
         if materials_line:
@@ -403,6 +404,18 @@ def _service_guide_text(result: ServiceGuideLookupResult) -> str:
         if display_source_refs:
             parts.append("来源：" + "、".join(display_source_refs))
     return "\n".join(part for part in dict.fromkeys(parts) if part)
+
+
+def _all_service_guide_sections(result: ServiceGuideLookupResult) -> list[str]:
+    return [
+        (
+            f"{section.title}：{section.content}"
+            if section.title and section.title != section.content
+            else section.content
+        )
+        for section in result.guide_sections
+        if section.content
+    ]
 
 
 def _service_guide_procedure_parts(result: ServiceGuideLookupResult) -> list[str]:

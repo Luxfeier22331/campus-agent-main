@@ -1,8 +1,26 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
 
-from campus_contracts import AgentRequest, AgentResponse
+from campus_contracts import (
+    AcademicCalendarLookupResult,
+    AgentObservability,
+    AgentRequest,
+    AgentResponse,
+    CampusNoticeChangeSetLookupResult,
+    CampusNoticeDiscoverResult,
+    ContactDirectoryLookupResult,
+    ServiceGuideLookupResult,
+    ServiceStatusLookupResult,
+    TransportScheduleLookupResult,
+)
+from campus_services_agent.academic_calendar_adapter import academic_calendar_response
+from campus_services_agent.response_builder import (
+    contact_directory_response,
+    service_guide_response,
+    service_status_response,
+    transport_schedule_response,
+)
 
 from campus_supervisor_agent_worker.agents_sdk_instruction_profiles import (
     instruction_profile_for_request,
@@ -74,6 +92,8 @@ class AdmittedAgentExecutor:
             admission=admission or self._validated_admission(agent_request),
         )
         if plan.mode == "sdk_agent_execution":
+            return self._run_preplanned_structured_tool(agent_request, plan=plan)
+        if plan.mode == "sdk_model_execution":
             return self._run_structured_native_runtime(agent_request, plan=plan)
         if plan.mode == "internal_function":
             return self._run_internal_function(agent_request, plan=plan)
@@ -148,6 +168,47 @@ class AdmittedAgentExecutor:
             failure_class="request_not_admitted",
             message="domain-agent request is outside the Go-admitted execution boundary",
         )
+
+    def _run_preplanned_structured_tool(
+        self,
+        agent_request: AgentRequest,
+        *,
+        plan: AdmittedAgentExecutionPlan,
+    ) -> AgentResponse:
+        workflow_context_error = self._workflow_context_error_response(agent_request, plan=plan)
+        if workflow_context_error is not None:
+            return workflow_context_error
+        if plan.admission is None:
+            return runtime_error_response(
+                agent_request,
+                "request_not_admitted",
+                "structured runtime execution is missing ToolSpec admission",
+                bridge_reason="request_not_admitted",
+                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
+            )
+        selected_tool = _single_admitted_tool(agent_request, admission=plan.admission)
+        try:
+            raw_result = self._tool_execution_session.execute_preplanned_structured_tool(
+                _invocation_from_agent_payload(selected_tool, agent_request.payload),
+                context=ToolExecutionContext(
+                    agent_request=agent_request,
+                    admission=plan.admission,
+                ),
+            )
+            return _agent_response_from_preplanned_result(
+                agent_request,
+                selected_tool=selected_tool,
+                raw_result=raw_result,
+            )
+        except Exception as exc:
+            return runtime_error_response(
+                agent_request,
+                "internal_query_service_failed",
+                str(exc) or "preplanned structured tool execution failed",
+                retryable=False,
+                runtime_posture=self._runtime_posture_for_request(agent_request, plan=plan),
+                tool_execution_count=1,
+            )
 
     def _run_structured_native_runtime(
         self,
@@ -364,6 +425,331 @@ class AdmittedAgentExecutor:
             return ""
         tool = self._tool_registry.tool_by_name(tool_name)
         return tool.runtime_posture if tool is not None else ""
+
+
+def _single_admitted_tool(
+    agent_request: AgentRequest,
+    *,
+    admission: ToolSpecAdmission,
+) -> str:
+    if len(admission.expected_allowed_tools) != 1:
+        raise ValueError("preplanned structured execution requires exactly one admitted tool")
+    selected_tool = admission.expected_allowed_tools[0]
+    if agent_request.allowed_tools != (selected_tool,):
+        raise ValueError("AgentRequest.allowed_tools must match the admitted structured tool")
+    return selected_tool
+
+
+def _invocation_from_agent_payload(tool_name: str, payload: object) -> OpenAIAgentsToolInvocation:
+    return OpenAIAgentsToolInvocation(
+        name=tool_name,
+        arguments=asdict(payload),
+        call_id=f"go-preplanned:{tool_name}",
+    )
+
+
+def _agent_response_from_preplanned_result(
+    agent_request: AgentRequest,
+    *,
+    selected_tool: str,
+    raw_result: object,
+) -> AgentResponse:
+    if isinstance(raw_result, AgentResponse):
+        return raw_result
+    if isinstance(raw_result, ServiceStatusLookupResult):
+        return _attach_preplanned_projection(
+            service_status_response(raw_result),
+            selected_tool=selected_tool,
+            agent_request=agent_request,
+            result=raw_result,
+        )
+    if isinstance(raw_result, ServiceGuideLookupResult):
+        return _attach_preplanned_projection(
+            service_guide_response(raw_result),
+            selected_tool=selected_tool,
+            agent_request=agent_request,
+            result=raw_result,
+        )
+    if isinstance(raw_result, TransportScheduleLookupResult):
+        return _attach_preplanned_projection(
+            transport_schedule_response(raw_result),
+            selected_tool=selected_tool,
+            agent_request=agent_request,
+            result=raw_result,
+        )
+    if isinstance(raw_result, ContactDirectoryLookupResult):
+        return _attach_preplanned_projection(
+            contact_directory_response(raw_result),
+            selected_tool=selected_tool,
+            agent_request=agent_request,
+            result=raw_result,
+        )
+    if isinstance(raw_result, AcademicCalendarLookupResult):
+        return _attach_preplanned_projection(
+            academic_calendar_response(raw_result),
+            selected_tool=selected_tool,
+            agent_request=agent_request,
+            result=raw_result,
+        )
+    if isinstance(raw_result, CampusNoticeDiscoverResult):
+        return _notice_discover_response(raw_result, agent_request=agent_request)
+    if isinstance(raw_result, CampusNoticeChangeSetLookupResult):
+        return _notice_change_set_response(raw_result, agent_request=agent_request)
+    raise TypeError(
+        f"unsupported preplanned structured result type: {raw_result.__class__.__name__}"
+    )
+
+
+def _attach_preplanned_projection(
+    response: AgentResponse,
+    *,
+    selected_tool: str,
+    agent_request: AgentRequest,
+    result: object,
+) -> AgentResponse:
+    observability = response.agent_observability
+    if observability is None:
+        return response
+    safe_details = dict(observability.safe_details)
+    safe_details["preplanned_structured_execution"] = _preplanned_execution_projection(
+        selected_tool=selected_tool,
+        agent_request=agent_request,
+        result=result,
+    )
+    return AgentResponse(
+        target=response.target,
+        status=response.status,
+        answer_text=response.answer_text,
+        follow_up_question=response.follow_up_question,
+        confidence=response.confidence,
+        result=response.result,
+        error=response.error,
+        agent_observability=AgentObservability(
+            selected_tool=observability.selected_tool or selected_tool,
+            tool_attempted=observability.tool_attempted,
+            tool_outcome=observability.tool_outcome,
+            failure_class=observability.failure_class,
+            fail_close_reason=observability.fail_close_reason,
+            clarification_reason=observability.clarification_reason,
+            source_ref_count=observability.source_ref_count,
+            result_outcome=observability.result_outcome,
+            access_decision=observability.access_decision,
+            safe_details=safe_details,
+        ),
+    )
+
+
+def _preplanned_execution_projection(
+    *,
+    selected_tool: str,
+    agent_request: AgentRequest,
+    result: object,
+) -> dict[str, object]:
+    return {
+        "schema_version": "preplanned-structured-execution-v1",
+        "selected_tool": selected_tool,
+        "payload_kind": selected_tool,
+        "execution_owner": "go_workflow_plan_python_typed_query_adapter",
+        "workflow_run_ref": agent_request.workflow_context.workflow_run_ref,
+        "step_id": agent_request.workflow_context.step_id,
+        "agent_id": agent_request.workflow_context.agent_id,
+        "result_type": result.__class__.__name__,
+    }
+
+
+def _notice_discover_response(
+    result: CampusNoticeDiscoverResult,
+    *,
+    agent_request: AgentRequest,
+) -> AgentResponse:
+    if result.outcome in {"resolved_current", "resolved_historical_reference"}:
+        titles = [card.title for card in result.notice_cards[:5]]
+        answer_text = "找到相关通知：\n" + "\n".join(f"- {title}" for title in titles)
+        return AgentResponse(
+            target="notice-agent",
+            status="completed",
+            answer_text=answer_text,
+            confidence="high" if result.outcome == "resolved_current" else "medium",
+            result=result,
+            agent_observability=_notice_result_observability(
+                "campus_notice_discover",
+                result,
+                agent_request=agent_request,
+            ),
+        )
+    if result.outcome == "clarification_required":
+        follow_up = "请明确你要查询的通知范围或时间。"
+        return AgentResponse(
+            target="notice-agent",
+            status="needs_clarification",
+            answer_text=follow_up,
+            follow_up_question=follow_up,
+            confidence="medium",
+            result=result,
+            agent_observability=_notice_result_observability(
+                "campus_notice_discover",
+                result,
+                agent_request=agent_request,
+            ),
+        )
+    if result.outcome == "temporarily_unverifiable":
+        return AgentResponse(
+            target="notice-agent",
+            status="no_answer",
+            answer_text="当前还不能稳定确认相关通知。",
+            confidence="low",
+            result=result,
+            agent_observability=_notice_result_observability(
+                "campus_notice_discover",
+                result,
+                agent_request=agent_request,
+            ),
+        )
+    return AgentResponse(
+        target="notice-agent",
+        status="no_answer",
+        answer_text="当前没有找到相关通知。",
+        confidence="low",
+        result=result,
+        agent_observability=_notice_result_observability(
+            "campus_notice_discover",
+            result,
+            agent_request=agent_request,
+        ),
+    )
+
+
+def _notice_change_set_response(
+    result: CampusNoticeChangeSetLookupResult,
+    *,
+    agent_request: AgentRequest,
+) -> AgentResponse:
+    if result.outcome == "resolved_current" and result.change_set is not None:
+        facts = [fact.change_text for fact in result.change_set.facts if fact.change_text]
+        answer_text = "；".join(facts) if facts else "已找到相关通知变更。"
+        return AgentResponse(
+            target="notice-agent",
+            status="completed",
+            answer_text=answer_text,
+            confidence="high",
+            result=result,
+            agent_observability=_notice_result_observability(
+                "campus_notice_change_set_lookup",
+                result,
+                agent_request=agent_request,
+            ),
+        )
+    if result.outcome == "temporarily_unverifiable":
+        return AgentResponse(
+            target="notice-agent",
+            status="no_answer",
+            answer_text="当前还不能稳定确认通知变更。",
+            confidence="low",
+            result=result,
+            agent_observability=_notice_result_observability(
+                "campus_notice_change_set_lookup",
+                result,
+                agent_request=agent_request,
+            ),
+        )
+    return AgentResponse(
+        target="notice-agent",
+        status="no_answer",
+        answer_text="当前没有找到对应通知变更。",
+        confidence="low",
+        result=result,
+        agent_observability=_notice_result_observability(
+            "campus_notice_change_set_lookup",
+            result,
+            agent_request=agent_request,
+        ),
+    )
+
+
+def _notice_result_observability(
+    selected_tool: str,
+    result: object,
+    *,
+    agent_request: AgentRequest,
+) -> AgentObservability:
+    outcome = str(getattr(result, "outcome", "") or "")
+    failure_class = _notice_failure_class_for_outcome(outcome)
+    source_ref_count = _notice_source_ref_count(result)
+    safe_details: dict[str, object] = {
+        "result_type": result.__class__.__name__,
+        "agent_execution_projection": {
+            "schema_version": "agent-execution-projection-v1",
+            "projection_owner": "notice-agent",
+            "selected_tool": selected_tool,
+            "payload_kind": selected_tool,
+            "tool_selection_reason": "typed_payload_allowed_tool",
+        },
+        "result_guardrail": {
+            "schema_version": "agent-result-guardrail-v1",
+            "outcome": _notice_result_guardrail_outcome(outcome, source_ref_count),
+            "source_ref_count": source_ref_count,
+            "access_decision": "allowed",
+            **({"failure_class": failure_class} if failure_class else {}),
+        },
+    }
+    safe_details["preplanned_structured_execution"] = _preplanned_execution_projection(
+        selected_tool=selected_tool,
+        agent_request=agent_request,
+        result=result,
+    )
+    return AgentObservability(
+        selected_tool=selected_tool,
+        tool_attempted=True,
+        tool_outcome=outcome,
+        failure_class=failure_class,
+        fail_close_reason=str(getattr(result, "fail_close_reason", "") or ""),
+        source_ref_count=source_ref_count,
+        result_outcome=outcome,
+        access_decision="allowed",
+        safe_details=safe_details,
+    )
+
+
+def _notice_result_guardrail_outcome(outcome: str, source_ref_count: int) -> str:
+    if outcome in {"resolved_current", "resolved_historical_reference"}:
+        return "source_backed" if source_ref_count > 0 else "source_gap"
+    if outcome == "clarification_required":
+        return "clarification"
+    if outcome == "temporarily_unverifiable":
+        return "fail_close"
+    if outcome == "not_found":
+        return "not_found"
+    return "unclassified"
+
+
+def _notice_failure_class_for_outcome(outcome: str) -> str:
+    if outcome == "temporarily_unverifiable":
+        return "fail_close"
+    if outcome == "clarification_required":
+        return "clarification"
+    if outcome == "not_found":
+        return "not_found"
+    return ""
+
+
+def _notice_source_ref_count(result: object) -> int:
+    refs: set[str] = set()
+    for key in ("source_url", "canonical_url"):
+        value = str(getattr(result, key, "") or "").strip()
+        if value:
+            refs.add(value)
+    notice_cards = getattr(result, "notice_cards", ()) or ()
+    for card in notice_cards:
+        for key in ("source_url", "canonical_url"):
+            value = str(getattr(card, key, "") or "").strip()
+            if value:
+                refs.add(value)
+    change_set = getattr(result, "change_set", None)
+    for ref in getattr(change_set, "source_refs", ()) or ():
+        value = str(getattr(ref, "source_url", "") or "").strip()
+        if value:
+            refs.add(value)
+    return len(refs)
 
 
 __all__ = [

@@ -89,7 +89,7 @@ class AdmittedAgentExecutionSuite(unittest.TestCase):
         self.assertEqual(plan.failure_class, "request_not_admitted")
         self.assertIn("allowed_tools", plan.message)
 
-    def test_execute_fails_closed_when_sdk_runtime_instance_is_missing(
+    def test_execute_preplanned_structured_handoff_does_not_require_sdk_runtime(
         self,
     ) -> None:
         query_service = FakeCampusServicesQueryService()
@@ -132,19 +132,15 @@ class AdmittedAgentExecutionSuite(unittest.TestCase):
         )
 
         self.assertEqual(response.target, "campus-services-agent")
-        self.assertEqual(response.status, "error")
-        self.assertIsNotNone(response.error)
-        assert response.error is not None
-        self.assertEqual(response.error.code, "agents_sdk_runtime_failed")
+        self.assertEqual(response.status, "completed")
+        self.assertIsNone(response.error)
         self.assertIsNotNone(response.agent_observability)
         assert response.agent_observability is not None
-        self.assertEqual(response.agent_observability.failure_class, "runtime_unavailable")
-        self.assertEqual(response.agent_observability.fail_close_reason, "runtime_unavailable")
         self.assertEqual(
             response.agent_observability.selected_tool,
             "service_guide_lookup",
         )
-        self.assertIsNone(query_service.last_service_guide_query)
+        self.assertIsNotNone(query_service.last_service_guide_query)
 
     def test_execute_uses_provided_admission_without_revalidating_request(self) -> None:
         query_service = FakeCampusServicesQueryService()
@@ -202,23 +198,22 @@ class AdmittedAgentExecutionSuite(unittest.TestCase):
         admission = base_registry.validate_allowed_tools_for_request(request)
         response = executor.execute(request, admission=admission)
 
-        self.assertEqual(response.status, "error")
-        assert response.error is not None
-        self.assertEqual(response.error.code, "agents_sdk_runtime_failed")
+        self.assertEqual(response.status, "completed")
+        self.assertIsNone(response.error)
         self.assertEqual(registry.validate_calls, 0)
 
-    def test_execute_marks_unknown_sdk_runtime_exception_non_retryable(self) -> None:
+    def test_execute_marks_preplanned_query_service_exception_non_retryable(self) -> None:
         class _FailingRuntime:
-            def run_structured_tool(self, *args, **kwargs):
-                del args, kwargs
-                raise RuntimeError("provider contract drift")
+            def lookup_service_guide(self, query):
+                del query
+                raise RuntimeError("query backend contract drift")
 
         registry = default_tool_spec_registry()
         executor = AdmittedAgentExecutor(
             settings=ApiSettings(agents_sdk_runtime_enabled=True),
-            runtime=_FailingRuntime(),
+            runtime=None,
             tool_execution_session=build_default_tool_execution_session(
-                campus_services_query_service=FakeCampusServicesQueryService(),
+                campus_services_query_service=_FailingRuntime(),
                 notice_query_service=_FakeNoticeQueryService(),
                 tool_registry=registry,
             ),
@@ -257,7 +252,9 @@ class AdmittedAgentExecutionSuite(unittest.TestCase):
         self.assertFalse(response.error.retryable)
         self.assertIsNotNone(response.agent_observability)
         assert response.agent_observability is not None
-        self.assertEqual(response.agent_observability.failure_class, "sdk_runner_failed")
+        self.assertEqual(
+            response.agent_observability.failure_class, "internal_query_service_failed"
+        )
 
 
 def _executor() -> AdmittedAgentExecutor:

@@ -290,7 +290,7 @@ class RagasSettingsTest(unittest.TestCase):
                 }
             )
         self.assertEqual(raised.exception.surface_name, "eval.ragas")
-        self.assertEqual(raised.exception.checked_keys, ("EVAL_LLM_API_KEY",))
+        self.assertEqual(raised.exception.checked_keys, ("EVAL_LLM_API_KEY", "LLM_API_KEY"))
         self.assertIn("eval.ragas", str(raised.exception))
         self.assertIn("EVAL_LLM_API_KEY", str(raised.exception))
 

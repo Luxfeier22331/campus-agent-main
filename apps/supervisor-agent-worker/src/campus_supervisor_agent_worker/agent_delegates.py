@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import httpx
+from campus_contracts import AgentObservability, AgentResponse, ErrorInfo, RagResultPayload
 from campus_navigation_agent import delegate_to_navigation_agent
 from campus_notice_agent import NoticeHTTPQueryService
 from campus_rag_agent.service import delegate_to_rag_agent
@@ -79,16 +80,18 @@ def bind_agent_handler(
         campus_services_query_service=campus_services_query_service,
         notice_query_service=notice_query_service,
     )
+    openai_agents_runtime = _build_openai_agents_runtime(settings)
+    rag_openai_runtime = _build_rag_openai_runtime(
+        settings,
+        tool_execution_session=tool_execution_session,
+    )
     agent_delegates = _build_agent_delegates(
         settings=settings,
         rag_prompt_executor=rag_prompt_executor,
         campus_services_query_service=campus_services_query_service,
         notice_query_service=notice_query_service,
-        openai_agents_runtime=_build_openai_agents_runtime(settings),
-        rag_openai_runtime=_build_rag_openai_runtime(
-            settings,
-            tool_execution_session=tool_execution_session,
-        ),
+        openai_agents_runtime=openai_agents_runtime,
+        rag_openai_runtime=rag_openai_runtime,
         tool_execution_session=tool_execution_session,
     )
 
@@ -155,14 +158,18 @@ def _build_agent_delegates(
         retrieval_runtime_otlp_sink,
     )
     agent_delegates: dict[str, AgentDelegate | AdmissionAwareAgentDelegate] = {
-        "rag-agent": lambda agent_request: delegate_to_rag_agent(
-            agent_request,
-            prompt_executor=rag_prompt_executor,
-            retrieval_observation_sink=retrieval_observation_sink,
-            include_retrieval_observation_query_text=(
-                settings.retrieval_observation_include_query_text
-            ),
-            rag_sdk_runner=rag_openai_runtime,
+        "rag-agent": lambda agent_request: (
+            delegate_to_rag_agent(
+                agent_request,
+                prompt_executor=rag_prompt_executor,
+                retrieval_observation_sink=retrieval_observation_sink,
+                include_retrieval_observation_query_text=(
+                    settings.retrieval_observation_include_query_text
+                ),
+                rag_sdk_runner=rag_openai_runtime,
+            )
+            if rag_openai_runtime is not None
+            else _rag_runtime_unavailable_response(agent_request)
         ),
         "navigation-agent": delegate_to_navigation_agent,
         "campus-services-agent": AdmissionAwareAgentDelegate(
@@ -290,3 +297,43 @@ def _build_rag_openai_runtime(
 
 def _resolve_rag_agents_sdk_model_name(settings: ApiSettings) -> str:
     return (settings.agent_prompt_model or settings.prompt_runtime_model).strip()
+
+
+def _rag_runtime_unavailable_response(agent_request) -> AgentResponse:
+    result = None
+    payload = getattr(agent_request, "payload", None)
+    scope = getattr(payload, "scope", None)
+    if scope is not None:
+        from campus_contracts import EvidenceBundle
+
+        result = RagResultPayload(
+            evidence=EvidenceBundle(
+                query_text=agent_request.user_goal,
+                corpus=scope.corpus,
+                collection=scope.collection,
+                sources=(),
+            )
+        )
+    return AgentResponse(
+        target="rag-agent",
+        status="error",
+        confidence="low",
+        result=result,
+        error=ErrorInfo(
+            code="rag_sdk_runtime_unavailable",
+            message="explicit rag_sdk_runner is required for query-enabled RAG synthesis",
+            retryable=False,
+        ),
+        agent_observability=AgentObservability(
+            failure_class="rag_sdk_runtime_unavailable",
+            fail_close_reason="rag_sdk_runtime_unavailable",
+            result_outcome="rag_sdk_runtime_unavailable",
+            access_decision="not_evaluated",
+            safe_details={
+                "rag_sdk_runtime_error": {
+                    "schema_version": "rag-sdk-runtime-error-v1",
+                    "failure_class": "rag_sdk_runtime_unavailable",
+                }
+            },
+        ),
+    )

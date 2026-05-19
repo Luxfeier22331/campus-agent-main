@@ -46,36 +46,6 @@ class RagAgentsSdkDelegateTest(unittest.TestCase):
         kwargs = delegate.call_args.kwargs
         self.assertIs(kwargs["rag_sdk_runner"], runner)
 
-    def test_worker_passes_nullable_rag_runner_when_runtime_is_unavailable(self) -> None:
-        delegates = _build_agent_delegates(
-            settings=ApiSettings(
-                prompt_runtime_provider="",
-                prompt_runtime_api_key="",
-                agent_prompt_model="",
-                agents_sdk_runtime_enabled=True,
-            ),
-            rag_prompt_executor=None,
-            campus_services_query_service=None,
-            notice_query_service=None,
-            openai_agents_runtime=None,
-            rag_openai_runtime=None,
-        )
-
-        with patch(
-            "campus_supervisor_agent_worker.agent_delegates.delegate_to_rag_agent",
-            return_value=AgentResponse(
-                target="rag-agent",
-                status="completed",
-                answer_text="ok",
-                confidence="medium",
-            ),
-        ) as delegate:
-            response = delegates["rag-agent"](_request())
-
-        self.assertEqual(response.status, "completed")
-        kwargs = delegate.call_args.kwargs
-        self.assertIsNone(kwargs["rag_sdk_runner"])
-
     def test_misconfigured_runtime_builder_raises_explicit_error(self) -> None:
         with self.assertRaisesRegex(AgentRuntimeBuildError, "rag_openai_runtime"):
             _build_rag_openai_runtime(

@@ -219,7 +219,41 @@ def _bridge_request_payload(
                         },
                     },
                     "allowed_tools": [],
+                    "workflow_context": {
+                        "schema_version": "workflow-agent-context-v1",
+                        "visibility": "agent_private",
+                        "workflow_run_ref": f"workflow:{request_id}",
+                        "step_id": "handoff:rag-agent:rag_request",
+                        "agent_id": "rag-agent",
+                        "target": "rag-agent",
+                        "required_projection_kind": "",
+                        "expected_output_artifacts": [
+                            "evidence_bundle",
+                            "grounding_verdict",
+                        ],
+                        "projection_refs": [],
+                    },
                 },
+            },
+            "workflow_plan": {
+                "schema_version": "workflow-plan-v1",
+                "plan_id": "plan:single_handoff:rag-agent:rag_request",
+                "workflow_mode": "single_handoff",
+                "allowed_agents": ["rag-agent"],
+                "steps": [
+                    {
+                        "step_id": "handoff:rag-agent:rag_request",
+                        "step_kind": "handoff",
+                        "target": "rag-agent",
+                        "payload_kind": "rag_request",
+                        "allowed_tools": [],
+                        "selected_tool": "",
+                    }
+                ],
+                "edges": [],
+                "terminal_policy": {"fail_close_on_invalid_plan": True},
+                "resume_policy": {"resume_supported": False},
+                "semantic_retry_policy": {"max_replans": 0},
             },
         },
     }
