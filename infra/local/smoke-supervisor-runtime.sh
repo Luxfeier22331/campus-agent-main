@@ -217,6 +217,7 @@ configure_common_env() {
   export API_AUTH_MODE="${API_AUTH_MODE:-trusted-worker}"
   export API_WORKER_SHARED_SECRET="${API_WORKER_SHARED_SECRET:-supervisor-api-local-placeholder}"
   export SUPERVISOR_AGENT_WORKER_SHARED_SECRET="${SUPERVISOR_AGENT_WORKER_SHARED_SECRET:-supervisor-agent-worker-local-placeholder}"
+  export SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET="${SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET:-supervisor-internal-query-local-placeholder}"
   export AGENT_RUNTIME_PROVIDER="${AGENT_RUNTIME_PROVIDER:-mock-runtime}"
   export PROMPT_RUNTIME_PROVIDER="${PROMPT_RUNTIME_PROVIDER:-mock-runtime}"
   export PROMPT_RUNTIME_MODEL="${PROMPT_RUNTIME_MODEL:-supervisor-runtime-smoke-model}"

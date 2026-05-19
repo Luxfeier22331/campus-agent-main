@@ -150,6 +150,10 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
         self.assertIn("INTERNAL_NOTICE_READ_MODEL_DATABASE_URL", compose)
         self.assertIn("OBJECT_STORE_ENDPOINT", compose)
         self.assertIn('"SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET"', script)
+        self.assertIn(
+            '"supervisor-internal-query-local-placeholder"',
+            script,
+        )
         self.assertNotIn(f'"{service_status_url_key}"', script)
         self.assertNotIn(f'"{transport_url_key}"', script)
         self.assertNotIn(f'"{service_guide_url_key}"', script)
@@ -179,6 +183,10 @@ class SupervisorApiLocalRuntimeTest(unittest.TestCase):
             with self.subTest(key=key):
                 self.assertEqual(compose.count(f"      {key}"), 2)
         self.assertIn('PROMPT_RUNTIME_PROVIDER="${PROMPT_RUNTIME_PROVIDER:-mock-runtime}"', script)
+        self.assertIn(
+            'SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET="${SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET:-supervisor-internal-query-local-placeholder}"',
+            script,
+        )
 
     def test_supervisor_agent_worker_docker_installs_agent_workspace_dependencies(self) -> None:
         dockerfile_path = ROOT / "apps/supervisor-agent-worker/Dockerfile"

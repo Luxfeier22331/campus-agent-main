@@ -156,12 +156,16 @@ const bridgeSharedSecret =
   process.env.SUPERVISOR_AGENT_WORKER_LOCAL_SHARED_SECRET?.trim() ||
   process.env.SUPERVISOR_API_SHARED_SECRET?.trim() ||
   "supervisor-agent-worker-local-placeholder";
+const internalQuerySharedSecret =
+  process.env.SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET?.trim() ||
+  "supervisor-internal-query-local-placeholder";
 const bridgeBaseUrl =
   process.env.SUPERVISOR_AGENT_WORKER_BASE_URL?.trim() ||
   "http://supervisor-agent-worker:27052";
 
 resolved.set("API_WORKER_SHARED_SECRET", workerSharedSecret);
 resolved.set("SUPERVISOR_AGENT_WORKER_SHARED_SECRET", bridgeSharedSecret);
+resolved.set("SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET", internalQuerySharedSecret);
 resolved.set("SUPERVISOR_AGENT_WORKER_BASE_URL", bridgeBaseUrl);
 
 for (const [key, value] of resolved.entries()) {

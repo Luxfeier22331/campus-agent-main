@@ -40,12 +40,13 @@ updated: 2026-04-27
   - `API_WORKER_SHARED_SECRET`
   - `SUPERVISOR_AGENT_WORKER_SHARED_SECRET`
   - `SUPERVISOR_AGENT_WORKER_BASE_URL`（compose 内可固定为 service DNS）
+  - `SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`
   - `SUPERVISOR_PROMPT_MODEL` / `AGENT_PROMPT_MODEL`（或 `PROMPT_RUNTIME_MODEL`）
 - conditional:
   - 启用 execution audit 时：`SUPERVISOR_API_EXECUTION_AUDIT_URL`、
     `SUPERVISOR_API_EXECUTION_AUDIT_SHARED_SECRET`
-  - 打开 `campus_services` / `notice` capability 时：`SUPERVISOR_INTERNAL_QUERY_SHARED_SECRET`、
-    `CAMPUS_SHARED_POSTGRES_URL`；notice 还需要 object-store/read-model 依赖
+  - 打开 `campus_services` / `notice` capability 时：`CAMPUS_SHARED_POSTGRES_URL`；
+    notice 还需要 object-store/read-model 依赖
 
 禁止把 deploy-only secret 写回 repo-tracked `.env.example`。
 
