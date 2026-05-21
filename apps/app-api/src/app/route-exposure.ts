@@ -419,6 +419,12 @@ export const APP_API_ROUTE_EXPOSURE_INVENTORY = [
 	},
 	{
 		method: "POST",
+		path: "/api/internal/operator/evals/diagnostic-badcases",
+		callerClass: "machine-internal",
+		admission: "x-app-internal-auth",
+	},
+	{
+		method: "POST",
 		path: "/api/internal/official-web/runs/:runId/ingestion-execution",
 		callerClass: "machine-internal",
 		admission: "x-app-internal-auth",

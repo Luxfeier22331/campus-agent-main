@@ -235,3 +235,68 @@ Eval coverage snapshot 不是 chat request ingress。它由 `packages/evals` 在
 - 该 publish seam 只写 operator projection，不改变 deterministic gate verdict，也不把 RAGAS
   diagnostic 升级为 release blocker
 - panel 只通过 `GET /api/operator/evals/coverage` 读取已发布 projection
+
+## Eval Diagnostic Badcase Projection Publish
+
+Eval diagnostic badcase projection 不是 chat request ingress，也不是 release acceptance
+artifact。它把 RAGAS diagnostic combined report 中的 low-score case 投影为
+operator-safe review candidate：
+
+- `POST /api/internal/operator/evals/diagnostic-badcases`
+- admission：`x-app-internal-auth`
+- request body：`eval_diagnostic_badcases.v1`
+- success response：
+
+```json
+{
+  "accepted": 1,
+  "snapshotId": "eval_diagnostic_badcases:20260521T090000Z"
+}
+```
+
+最小 payload 形状：
+
+```json
+{
+  "schemaVersion": "eval_diagnostic_badcases.v1",
+  "evalRunId": "ragas_diagnostic_combined",
+  "snapshotId": "eval_diagnostic_badcases:20260521T090000Z",
+  "generatedAt": "2026-05-21T09:00:00.000Z",
+  "sourceGitHead": "git-main",
+  "sourceReportSchema": "ragas-diagnostic-combined-report.v1",
+  "badcases": [
+    {
+      "badcaseId": "ragas_diagnostic:student-scholarship-condition:faithfulness",
+      "caseId": "student-scholarship-condition",
+      "surfaceKey": "regulations/student_rules",
+      "metricName": "faithfulness",
+      "score": 0.31,
+      "threshold": 0.8,
+      "failureStage": "evidence_selection",
+      "causeClass": "evidence_selection_failed",
+      "metricFailureReason": "evidence_selection",
+      "queryPreview": "奖学金要满足什么条件",
+      "expectedDocIds": ["doc:scholarship"],
+      "retrievedContextIds": ["chunk:wrong", "chunk:scholarship"],
+      "retrievedDocIds": ["doc:wrong", "doc:scholarship"],
+      "supportingDocIds": ["doc:wrong"],
+      "supportingChunkIds": ["chunk:wrong"],
+      "answerShape": "eligibility_judgment",
+      "presentationKind": "condition_table"
+    }
+  ]
+}
+```
+
+规则：
+
+- app-api 必须拒绝 local artifact path、bucket / object key、raw prompt、raw answer、
+  transcript、auth material、cookie 或 token 等字段
+- `failureStage` 固定允许 `retrieval`、`evidence_selection`、`synthesis` 与
+  `diagnostic`
+- RAGAS diagnostic badcase 不携带 runtime `requestId` / `traceId`，app-api 不得为它生成或
+  猜测 request correlation
+- 该 publish seam 只写 `operator.eval_diagnostic_badcase_projection`，不改变 deterministic
+  gate verdict，不生成 benchmark artifact，不创建 fix task
+- panel 只通过 `GET /api/operator/quality/eval-candidates` 读取已发布 projection；
+  返回的 `intake.source` 固定为 `ragas_diagnostic`

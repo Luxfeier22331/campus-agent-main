@@ -4,12 +4,14 @@ import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
 	evalCoverageSnapshot,
+	evalDiagnosticBadcaseProjection,
 	projectionOutbox,
 	qualityGradeProjection,
 	requestObservabilityFact,
 	traceBacklinkProjection,
 } from "../../db/schema";
 import type { EvalCoverageProjectionWrite } from "../operator-eval-coverage";
+import type { EvalDiagnosticBadcaseProjectionWrite } from "../operator-eval-diagnostic-badcases";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
@@ -70,6 +72,10 @@ export interface OperatorObservabilityCommandStore {
 	getRequestObservabilitySeed(requestId: string): Promise<StoredRequestObservabilitySeed | null>;
 	enqueueExecutionAuditEvents(input: { events: ExecutionAuditEventWrite[] }): Promise<void>;
 	upsertEvalCoverageSnapshot(input: { snapshot: EvalCoverageProjectionWrite }): Promise<void>;
+	upsertEvalDiagnosticBadcases(input: {
+		badcases: EvalDiagnosticBadcaseProjectionWrite[];
+		snapshotId: string;
+	}): Promise<void>;
 	upsertQualityGrades(input: { grades: QualityGradeProjectionWrite[] }): Promise<void>;
 	upsertTraceBacklinks(input: { backlinks: TraceBacklinkProjectionWrite[] }): Promise<void>;
 }
@@ -158,6 +164,45 @@ export function createPgOperatorObservabilityCommandStore(
 					},
 					target: evalCoverageSnapshot.snapshotId,
 				});
+		},
+
+		async upsertEvalDiagnosticBadcases(input) {
+			const db = await getDb();
+			await db.transaction(async (tx) => {
+				await tx
+					.delete(evalDiagnosticBadcaseProjection)
+					.where(eq(evalDiagnosticBadcaseProjection.snapshotId, input.snapshotId));
+				if (input.badcases.length === 0) {
+					return;
+				}
+				for (const badcase of input.badcases) {
+					await tx.insert(evalDiagnosticBadcaseProjection).values({
+						answerShape: badcase.answerShape,
+						badcaseId: badcase.badcaseId,
+						caseId: badcase.caseId,
+						causeClass: badcase.causeClass,
+						evalRunId: badcase.evalRunId,
+						expectedDocIdsJson: badcase.expectedDocIds,
+						failureStage: badcase.failureStage,
+						generatedAt: new Date(badcase.generatedAt),
+						metricFailureReason: badcase.metricFailureReason,
+						metricName: badcase.metricName,
+						presentationKind: badcase.presentationKind,
+						projectedAt: new Date(badcase.projectedAt),
+						queryPreview: badcase.queryPreview,
+						retrievedContextIdsJson: badcase.retrievedContextIds,
+						retrievedDocIdsJson: badcase.retrievedDocIds,
+						scoreMilli: badcase.scoreMilli,
+						snapshotId: badcase.snapshotId,
+						sourceGitHead: badcase.sourceGitHead,
+						sourceReportSchema: badcase.sourceReportSchema,
+						supportingChunkIdsJson: badcase.supportingChunkIds,
+						supportingDocIdsJson: badcase.supportingDocIds,
+						surfaceKey: badcase.surfaceKey,
+						thresholdMilli: badcase.thresholdMilli,
+					});
+				}
+			});
 		},
 
 		async upsertQualityGrades(input) {

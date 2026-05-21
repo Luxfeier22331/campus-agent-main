@@ -72,6 +72,8 @@ export function formatQualityBadcaseDetectedBy(value: string) {
 			return "运行时监测";
 		case "sampled_grading":
 			return "采样评分";
+		case "ragas_diagnostic":
+			return "RAGAS diagnostic";
 		default:
 			return value;
 	}
@@ -83,6 +85,29 @@ export function formatQualityBadcaseCauseClass(value: string) {
 			return "引用缺失";
 		case "empty_recall":
 			return "空召回";
+		case "answer_relevancy_low":
+			return "答案相关性低";
+		case "diagnostic_attention":
+			return "诊断关注";
+		case "evidence_selection_failed":
+			return "证据选择失败";
+		case "retrieval_quality_low":
+			return "召回质量低";
+		case "synthesis_grounding_failed":
+			return "生成接地失败";
+		default:
+			return value;
+	}
+}
+
+export function formatQualityEvalCandidateSource(value: string) {
+	switch (value) {
+		case "negative_feedback":
+			return "负反馈";
+		case "operator_badcase":
+			return "Badcase";
+		case "ragas_diagnostic":
+			return "RAGAS diagnostic";
 		default:
 			return value;
 	}

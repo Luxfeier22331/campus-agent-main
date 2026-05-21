@@ -110,8 +110,8 @@ Evaluation helpers for campus-agent v2.
   `pending_review` manifest，不会直接接收 golden truth；review / dedupe / expected truth
   修订完成后，才允许人工迁入 observed regression fixture
 - `campus_evals.eval_admission quality-candidates` 只把 app-api operator quality
-  eval-candidates export 包装成 `pending_review` manifest，支持 `operator_badcase` 与
-  `negative_feedback`，不会直接接收 golden truth
+  eval-candidates export 包装成 `pending_review` manifest，支持 `operator_badcase`、
+  `negative_feedback` 与 `ragas_diagnostic`，不会直接接收 golden truth
 - `campus_evals.observed_regression_review apply` 负责把 pending review manifest 与
   repo-owned review decision 合并，输出 reviewed manifest 与 accepted observed regression
   fixture；`accept` 必须提供 reviewer / reason / target suite / correlation 和重写后的
@@ -315,6 +315,45 @@ curl -fsS \
 - forbidden fields 包括 local artifact path、auth/header/cookie/token、raw prompt、
   raw answer 与 transcript；这些字段必须留在 eval evidence artifact，不得进入
   operator projection
+
+eval diagnostic badcases projection：
+
+- `campus_evals.eval_diagnostic_badcases` 负责把
+  `ragas-diagnostic-combined-report.v1` 中低于阈值的 case-level metric 结果投影成
+  `eval_diagnostic_badcases.v1`
+- 该 projection 是 operator-safe 的 diagnostic candidate intake：它会记录
+  `caseId`、`surfaceKey`、`metricName`、`score`、`threshold`、`failureStage`、
+  expected / retrieved / supporting doc ids 与 answer shape 摘要，但不保存 raw answer、
+  raw prompt、transcript、local path、bucket / object key 或 auth material
+- 每个低分 metric 必须带 `failure_attribution.primary_stage` 和
+  `failure_attribution.metric_failures.<metric>`；缺少定位阶段时直接 fail closed
+- RAGAS diagnostic badcase 没有运行时 `requestId` / `traceId`，不能伪造 request
+  correlation；panel 只能把它展示为 offline diagnostic review candidate
+- 生成本地 projection：
+
+```bash
+uv run --all-packages python -m campus_evals.eval_diagnostic_badcases \
+  --input <ragas-diagnostic.combined.json> \
+  --generated-at "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+  --source-git-head "$(git rev-parse HEAD)" \
+  --output .tmp/evals/eval-diagnostic-badcases.json
+```
+
+- 发布到 app-api operator projection：
+
+```bash
+curl -fsS \
+  -H "content-type: application/json" \
+  -H "x-app-internal-auth: $APP_API_INTERNAL_SHARED_SECRET" \
+  --data-binary @.tmp/evals/eval-diagnostic-badcases.json \
+  "$APP_API_BASE_URL/api/internal/operator/evals/diagnostic-badcases"
+```
+
+- `app-api` 写入 `operator.eval_diagnostic_badcase_projection`；
+  `protected-panel-web` 通过 `GET /api/operator/quality/eval-candidates` 读取，
+  `intake.source` 固定为 `ragas_diagnostic`
+- 该链路只把“发现问题 -> 定位阶段 -> 回归样本候选”暴露给 review；它不改变
+  deterministic gate verdict，不创建 fix task，也不把 candidate 直接晋升为 golden truth
 
 ## Orchestration / Workflow Trace Eval Gap
 

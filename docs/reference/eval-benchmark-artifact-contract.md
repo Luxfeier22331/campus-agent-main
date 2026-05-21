@@ -214,10 +214,13 @@ operator quality candidate export 可以进入 eval-owned review manifest，但�
 固定规则：
 
 - `GET /api/operator/quality/eval-candidates` 输出的是 pending candidate，不是 golden truth
-- `packages/evals` 只能先把 operator badcase / negative feedback candidate 包成
-  `pending_review` manifest
+- `packages/evals` 只能先把 operator badcase / negative feedback / RAGAS diagnostic
+  candidate 包成 `pending_review` manifest
 - negative feedback manifest 不保存 raw transcript、raw auth material、provider raw response、raw
   prompt 或 retrieval payload
+- RAGAS diagnostic manifest 不保存 raw answer、raw prompt、transcript、local
+  artifact path、bucket / object key、auth material、provider raw response 或运行时
+  request correlation；它只能保存 eval case id、metric、failure stage 和 doc id 摘要
 - accepted case 必须重新写成 eval-owned case model；不得把 app-api candidate JSON 原样提升为
   benchmark artifact truth
 - `campus_evals.observed_regression_review apply` 是 observed regression review/admission
@@ -227,6 +230,53 @@ operator quality candidate export 可以进入 eval-owned review manifest，但�
   `source_surface`、`observed_failure_class`、`reviewer`、`reason` 与 `target_suite`
 - `duplicate` decision 必须记录 `duplicate_of`；`rejected`、`deprecated` 与
   `needs_info` 只留在 reviewed manifest，不进入 accepted fixture
+- `ragas_diagnostic` candidate 是 supplemental diagnostic review source，不是 release
+  blocker；只有 review owner 接受并重写成 eval-owned regression case 后，才允许进入
+  observed regression fixture
+
+### Eval Diagnostic Badcases Projection
+
+`eval_diagnostic_badcases.v1` 是 RAGAS diagnostic low-score case 的 operator projection
+artifact，不是 canonical golden truth，也不是 release acceptance artifact。它由
+`campus_evals.eval_diagnostic_badcases` 从
+`ragas-diagnostic-combined-report.v1` 显式生成。
+
+稳定字段：
+
+- `schemaVersion = eval_diagnostic_badcases.v1`
+- `evalRunId`
+- `snapshotId`
+- `generatedAt`
+- `sourceGitHead`
+- `sourceReportSchema = ragas-diagnostic-combined-report.v1`
+- `badcases[].badcaseId`
+- `badcases[].caseId`
+- `badcases[].surfaceKey`
+- `badcases[].metricName`
+- `badcases[].score`
+- `badcases[].threshold`
+- `badcases[].failureStage`
+- `badcases[].causeClass`
+- `badcases[].metricFailureReason`
+- `badcases[].queryPreview`
+- `badcases[].expectedDocIds`
+- `badcases[].retrievedContextIds`
+- `badcases[].retrievedDocIds`
+- `badcases[].supportingDocIds`
+- `badcases[].supportingChunkIds`
+- `badcases[].answerShape`
+- `badcases[].presentationKind`
+
+固定规则：
+
+- 每个低分 metric 必须有显式 failure attribution；`failureStage` 只允许
+  `retrieval`、`evidence_selection`、`synthesis` 与 `diagnostic`
+- projection 不得包含 local path、bucket/object key、raw prompt、raw answer、transcript、
+  auth material、cookie、JWT、bearer token、provider raw response 或 token-bearing URL
+- projection 不得伪造 `requestId` / `traceId`；RAGAS diagnostic case 进入
+  `GET /api/operator/quality/eval-candidates` 时仍保持 runtime correlation 为空
+- 该 artifact 只服务 badcase / eval candidate review 展示；它不改变 deterministic gate
+  verdict，不创建 fix task，不直接写入 golden dataset
 
 ### Eval Coverage Snapshot
 

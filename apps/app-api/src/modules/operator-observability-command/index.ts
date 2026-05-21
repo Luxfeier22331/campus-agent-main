@@ -1,3 +1,4 @@
+export type { EvalDiagnosticBadcaseProjectionWrite } from "../operator-eval-diagnostic-badcases";
 export {
 	buildOperatorObservabilityCommandService,
 	type OperatorExecutionAuditEventsPayload,

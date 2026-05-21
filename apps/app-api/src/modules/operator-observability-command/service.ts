@@ -4,6 +4,10 @@ import {
 	type EvalCoverageSnapshot,
 	normalizeEvalCoverageSnapshot,
 } from "../operator-eval-coverage";
+import {
+	type EvalDiagnosticBadcaseProjectionWrite,
+	normalizeEvalDiagnosticBadcasesProjection,
+} from "../operator-eval-diagnostic-badcases";
 import type {
 	ExecutionAuditEventWrite,
 	OperatorObservabilityCommandStore,
@@ -89,6 +93,9 @@ export interface OperatorTraceBacklinksPayload {
 
 export interface OperatorObservabilityCommandService {
 	ingestEvalCoverageSnapshot(input: {
+		payload: unknown;
+	}): Promise<{ accepted: number; snapshotId: string }>;
+	ingestEvalDiagnosticBadcases(input: {
 		payload: unknown;
 	}): Promise<{ accepted: number; snapshotId: string }>;
 	ingestExecutionAuditEvents(input: {
@@ -384,6 +391,43 @@ export function buildOperatorObservabilityCommandService(
 				},
 			});
 			return { accepted: 1, snapshotId: snapshot.snapshotId };
+		},
+
+		async ingestEvalDiagnosticBadcases(input) {
+			const projection = normalizeEvalDiagnosticBadcasesProjection(input.payload);
+			const projectedAt = now().toISOString();
+			const badcases: EvalDiagnosticBadcaseProjectionWrite[] = projection.badcases.map(
+				(badcase) => ({
+					answerShape: badcase.answerShape,
+					badcaseId: badcase.badcaseId,
+					caseId: badcase.caseId,
+					causeClass: badcase.causeClass,
+					evalRunId: projection.evalRunId,
+					expectedDocIds: badcase.expectedDocIds,
+					failureStage: badcase.failureStage,
+					generatedAt: projection.generatedAt,
+					metricFailureReason: badcase.metricFailureReason,
+					metricName: badcase.metricName,
+					presentationKind: badcase.presentationKind,
+					projectedAt,
+					queryPreview: badcase.queryPreview,
+					retrievedContextIds: badcase.retrievedContextIds,
+					retrievedDocIds: badcase.retrievedDocIds,
+					scoreMilli: Math.round(badcase.score * 1000),
+					snapshotId: projection.snapshotId,
+					sourceGitHead: projection.sourceGitHead,
+					sourceReportSchema: projection.sourceReportSchema,
+					supportingChunkIds: badcase.supportingChunkIds,
+					supportingDocIds: badcase.supportingDocIds,
+					surfaceKey: badcase.surfaceKey,
+					thresholdMilli: Math.round(badcase.threshold * 1000),
+				}),
+			);
+			await dependencies.store.upsertEvalDiagnosticBadcases({
+				badcases,
+				snapshotId: projection.snapshotId,
+			});
+			return { accepted: badcases.length, snapshotId: projection.snapshotId };
 		},
 
 		async ingestExecutionAuditEvents(input) {

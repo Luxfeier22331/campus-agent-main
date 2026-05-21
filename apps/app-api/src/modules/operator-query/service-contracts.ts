@@ -63,6 +63,9 @@ export interface OperatorQueryStore {
 	listQualityFeedbackEvalCandidates(
 		filters: NormalizedOperatorQualityBadcaseListFilters,
 	): Promise<OperatorQualityEvalCandidateListResult>;
+	listEvalDiagnosticCandidates(
+		filters: NormalizedOperatorQualityBadcaseListFilters,
+	): Promise<OperatorQualityEvalCandidateListResult>;
 	listAudit(filters: NormalizedOperatorAuditListFilters): Promise<OperatorAuditListResult>;
 	list(filters: NormalizedOperatorRequestListFilters): Promise<OperatorQueryListResult>;
 }

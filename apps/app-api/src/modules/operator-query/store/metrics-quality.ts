@@ -42,6 +42,10 @@ const FEEDBACK_ELIGIBLE_STATUSES = new Set(["completed", "needs_clarification", 
 const NEGATIVE_FEEDBACK_DETECTED_BY = "negative_feedback";
 
 type QualityEvalCandidate = OperatorQualityEvalCandidateListResult["candidates"][number];
+type RuntimeQualityEvalCandidate = QualityEvalCandidate & {
+	requestId: string;
+	traceId: string;
+};
 type SuggestedReviewLabel = NonNullable<QualityEvalCandidate["review"]>["suggestedLabels"][number];
 
 function isFeedbackEligibleAnswer(row: Pick<RequestObservabilityFactRow, "status">): boolean {
@@ -684,7 +688,7 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 			]);
 			const candidates = latestFeedbackByRequestId(feedbackRows)
 				.filter((feedback) => feedback.vote === "unhelpful")
-				.map((feedback): QualityEvalCandidate | null => {
+				.map((feedback): RuntimeQualityEvalCandidate | null => {
 					const requestRow = requestRowsById.get(feedback.requestId);
 					if (!requestRow) {
 						return null;
@@ -740,7 +744,7 @@ export function createQualityMetricHandlers(runtime: OperatorQueryRuntime) {
 						traceId: requestRow.traceId,
 					};
 				})
-				.filter((candidate): candidate is QualityEvalCandidate => candidate !== null)
+				.filter((candidate): candidate is RuntimeQualityEvalCandidate => candidate !== null)
 				.sort((left, right) => {
 					const byTime = Date.parse(right.intake.createdAt) - Date.parse(left.intake.createdAt);
 					if (byTime !== 0) {

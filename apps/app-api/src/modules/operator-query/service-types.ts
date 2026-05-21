@@ -532,8 +532,8 @@ export interface OperatorQualityBadcaseListResult {
 export interface OperatorQualityEvalCandidateListResult {
 	candidates: Array<{
 		candidateId: string;
-		requestId: string;
-		traceId: string;
+		requestId: string | null;
+		traceId: string | null;
 		surface: string;
 		selectedTarget: string | null;
 		causeClass: string;
@@ -563,6 +563,20 @@ export interface OperatorQualityEvalCandidateListResult {
 			reasonCodes: string[];
 			updatedAt: string;
 		};
+		diagnostic?: {
+			answerShape: string | null;
+			caseId: string;
+			expectedDocIds: string[];
+			failureStage: "retrieval" | "evidence_selection" | "synthesis" | "diagnostic";
+			metricFailureReason: string;
+			metricName: string;
+			presentationKind: string | null;
+			retrievedContextIds: string[];
+			retrievedDocIds: string[];
+			score: number;
+			supportingDocIds: string[];
+			threshold: number;
+		};
 		links: {
 			traceLink: string | null;
 			issueLink: string | null;
@@ -583,7 +597,7 @@ export interface OperatorQualityEvalCandidateListResult {
 			>;
 		};
 		intake: {
-			source: "operator_badcase" | "negative_feedback";
+			source: "operator_badcase" | "negative_feedback" | "ragas_diagnostic";
 			status: "pending_review";
 			suggestedEvalFamily: "citation" | "grounding" | "intent" | "policy" | "unknown";
 			createdAt: string;

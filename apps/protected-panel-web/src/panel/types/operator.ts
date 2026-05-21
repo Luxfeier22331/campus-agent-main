@@ -301,6 +301,20 @@ export interface RawOperatorQualityEvalCandidateRecord {
 		updatedAt: string;
 		vote: "unhelpful";
 	};
+	diagnostic?: {
+		answerShape: string | null;
+		caseId: string;
+		expectedDocIds: string[];
+		failureStage: "retrieval" | "evidence_selection" | "synthesis" | "diagnostic";
+		metricFailureReason: string;
+		metricName: string;
+		presentationKind: string | null;
+		retrievedContextIds: string[];
+		retrievedDocIds: string[];
+		score: number;
+		supportingDocIds: string[];
+		threshold: number;
+	};
 	grade: {
 		graderVersion: string;
 		result: string;
@@ -308,7 +322,7 @@ export interface RawOperatorQualityEvalCandidateRecord {
 	} | null;
 	intake: {
 		createdAt: string;
-		source: "operator_badcase" | "negative_feedback";
+		source: "operator_badcase" | "negative_feedback" | "ragas_diagnostic";
 		status: "pending_review";
 		suggestedEvalFamily: "citation" | "grounding" | "intent" | "policy" | "unknown";
 	};
@@ -327,11 +341,11 @@ export interface RawOperatorQualityEvalCandidateRecord {
 			| "answer_style_issue"
 		>;
 	};
-	requestId: string;
+	requestId: string | null;
 	selectedTarget: string | null;
 	summary: string;
 	surface: string;
-	traceId: string;
+	traceId: string | null;
 }
 
 export interface OperatorQualityEvalCandidateRecord extends RawOperatorQualityEvalCandidateRecord {

@@ -118,6 +118,59 @@ class EvalAdmissionTest(unittest.TestCase):
         )
         self.assertNotIn("rawTranscript", json.dumps(manifest))
 
+    def test_build_quality_candidate_review_manifest_wraps_ragas_diagnostic_candidates(
+        self,
+    ) -> None:
+        manifest = build_quality_feedback_candidate_review_manifest(
+            [
+                {
+                    "candidateId": (
+                        "eval_candidate:ragas_diagnostic:student-scholarship-condition:faithfulness"
+                    ),
+                    "causeClass": "evidence_selection_failed",
+                    "diagnostic": {
+                        "caseId": "student-scholarship-condition",
+                        "expectedDocIds": ["doc:scholarship"],
+                        "failureStage": "evidence_selection",
+                        "metricFailureReason": "evidence_selection",
+                        "metricName": "faithfulness",
+                        "retrievedContextIds": ["chunk:wrong", "chunk:scholarship"],
+                        "score": 0.31,
+                        "supportingDocIds": ["doc:wrong"],
+                        "threshold": 0.8,
+                    },
+                    "grade": {
+                        "graderVersion": "ragas-diagnostic-combined-report.v1",
+                        "result": "fail",
+                        "score": 0.31,
+                    },
+                    "intake": {
+                        "createdAt": "2026-05-21T09:00:00.000Z",
+                        "source": "ragas_diagnostic",
+                        "status": "pending_review",
+                        "suggestedEvalFamily": "grounding",
+                    },
+                    "requestId": None,
+                    "selectedTarget": None,
+                    "summary": "RAGAS faithfulness=0.31 below 0.80 at evidence_selection.",
+                    "surface": "regulations/student_rules",
+                    "traceId": None,
+                }
+            ],
+            generated_at="2026-05-21T10:00:00.000Z",
+            target_suite="ragas_regression",
+        )
+
+        source = manifest["candidates"][0]["source"]
+        self.assertEqual(source["source_type"], "ragas_diagnostic")
+        self.assertEqual(source["diagnostic_case_id"], "student-scholarship-condition")
+        self.assertEqual(source["metric_name"], "faithfulness")
+        self.assertEqual(source["failure_stage"], "evidence_selection")
+        self.assertEqual(source["score"], 0.31)
+        self.assertEqual(source["threshold"], 0.8)
+        self.assertNotIn("source_request_id", source)
+        self.assertNotIn("trace_id", source)
+
     def test_build_intent_candidate_review_manifest_requires_observed_source_metadata(
         self,
     ) -> None:

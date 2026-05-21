@@ -1,6 +1,6 @@
 import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
-
 import type { EvalCoverageSnapshot } from "../../modules/operator-eval-coverage";
+import type { EvalDiagnosticFailureStage } from "../../modules/operator-eval-diagnostic-badcases";
 import type { RequestDiagnosticsSummary } from "../../modules/request-diagnostics";
 import type { VersionQuery } from "../../modules/version-query";
 
@@ -241,6 +241,46 @@ export const evalCoverageSnapshot = operator.table(
 	},
 	(table) => ({
 		generatedAtIndex: index("operator_eval_coverage_snapshot_generated_at_idx").on(
+			table.generatedAt,
+		),
+	}),
+);
+
+export const evalDiagnosticBadcaseProjection = operator.table(
+	"eval_diagnostic_badcase_projection",
+	{
+		badcaseId: text("badcase_id").primaryKey(),
+		snapshotId: text("snapshot_id").notNull(),
+		evalRunId: text("eval_run_id").notNull(),
+		sourceReportSchema: text("source_report_schema").notNull(),
+		sourceGitHead: text("source_git_head").notNull(),
+		generatedAt: timestamp("generated_at", { withTimezone: true }).notNull(),
+		surfaceKey: text("surface_key").notNull(),
+		caseId: text("case_id").notNull(),
+		metricName: text("metric_name").notNull(),
+		scoreMilli: integer("score_milli").notNull(),
+		thresholdMilli: integer("threshold_milli").notNull(),
+		failureStage: text("failure_stage").$type<EvalDiagnosticFailureStage>().notNull(),
+		causeClass: text("cause_class").notNull(),
+		metricFailureReason: text("metric_failure_reason").notNull(),
+		queryPreview: text("query_preview").notNull(),
+		expectedDocIdsJson: jsonb("expected_doc_ids_json").$type<string[]>().notNull(),
+		retrievedContextIdsJson: jsonb("retrieved_context_ids_json").$type<string[]>().notNull(),
+		retrievedDocIdsJson: jsonb("retrieved_doc_ids_json").$type<string[]>().notNull(),
+		supportingDocIdsJson: jsonb("supporting_doc_ids_json").$type<string[]>().notNull(),
+		supportingChunkIdsJson: jsonb("supporting_chunk_ids_json").$type<string[]>().notNull(),
+		answerShape: text("answer_shape"),
+		presentationKind: text("presentation_kind"),
+		projectedAt: timestamp("projected_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		causeGeneratedAtIndex: index("operator_eval_diag_badcase_cause_generated_at_idx").on(
+			table.causeClass,
+			table.generatedAt,
+		),
+		generatedAtIndex: index("operator_eval_diag_badcase_generated_at_idx").on(table.generatedAt),
+		surfaceGeneratedAtIndex: index("operator_eval_diag_badcase_surface_generated_at_idx").on(
+			table.surfaceKey,
 			table.generatedAt,
 		),
 	}),

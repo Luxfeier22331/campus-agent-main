@@ -566,8 +566,18 @@ def _base_combined_case(item: Mapping[str, object]) -> dict[str, object]:
         "expected_doc_ids",
         "forbidden_doc_ids",
         "answer_text",
+        "answer_shape",
+        "presentation_kind",
+        "diagnostic_reason",
+        "retrieval_intent_kind",
+        "retrieval_answer_kind",
         "retrieved_context_count",
         "retrieved_context_ids",
+        "raw_retrieved_doc_ids",
+        "raw_retrieved_chunk_ids",
+        "selected_support_doc_ids",
+        "selected_support_chunk_ids",
+        "failure_attribution",
     )
     combined = {key: item[key] for key in base_keys if key in item}
     combined["status"] = "completed"

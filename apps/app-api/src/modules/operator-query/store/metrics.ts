@@ -1,3 +1,4 @@
+import { createEvalDiagnosticCandidateHandlers } from "./eval-diagnostic-candidates";
 import { createIntentMetricHandlers } from "./metrics-intent";
 import { createOverviewMetricHandlers } from "./metrics-overview";
 import { createQualityMetricHandlers } from "./metrics-quality";
@@ -8,6 +9,7 @@ export function createMetricStoreHandlers(runtime: OperatorQueryRuntime) {
 	return {
 		...createOverviewMetricHandlers(runtime),
 		...createQualityMetricHandlers(runtime),
+		...createEvalDiagnosticCandidateHandlers(runtime),
 		...createIntentMetricHandlers(runtime),
 		...createSafetyCostMetricHandlers(runtime),
 	};

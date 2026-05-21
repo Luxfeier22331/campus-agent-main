@@ -77,16 +77,17 @@ function emptyQualityEvalCandidates(): OperatorQualityEvalCandidateListResult {
 }
 
 function mergeQualityEvalCandidates(
-	left: OperatorQualityEvalCandidateListResult,
-	right: OperatorQualityEvalCandidateListResult,
+	first: OperatorQualityEvalCandidateListResult,
+	second: OperatorQualityEvalCandidateListResult,
+	third: OperatorQualityEvalCandidateListResult,
 	limit: number,
 ): OperatorQualityEvalCandidateListResult {
 	return {
-		candidates: [...left.candidates, ...right.candidates]
+		candidates: [...first.candidates, ...second.candidates, ...third.candidates]
 			.sort((a, b) => Date.parse(b.intake.createdAt) - Date.parse(a.intake.createdAt))
 			.slice(0, limit),
 		page: {
-			nextCursor: left.page.nextCursor ?? right.page.nextCursor,
+			nextCursor: first.page.nextCursor ?? second.page.nextCursor ?? third.page.nextCursor,
 		},
 	};
 }
@@ -258,27 +259,47 @@ export function buildOperatorQueryService(
 			ensureOperatorPrincipal(input.principal);
 			const filters = normalizeQualityBadcaseListFilters(input.filters);
 			const includeBadcases =
-				filters.detectedBy !== "negative_feedback" && filters.status !== "pending_review";
+				filters.detectedBy !== "negative_feedback" &&
+				filters.detectedBy !== "ragas_diagnostic" &&
+				filters.status !== "pending_review";
 			const includeFeedback =
 				(!filters.detectedBy || filters.detectedBy === "negative_feedback") &&
 				(!filters.status || filters.status === "pending_review");
+			const includeRagasDiagnostic =
+				(!filters.detectedBy || filters.detectedBy === "ragas_diagnostic") &&
+				(!filters.status || filters.status === "pending_review");
 
-			if (includeBadcases && !includeFeedback) {
+			if (includeBadcases && !includeFeedback && !includeRagasDiagnostic) {
 				const badcases = await dependencies.store.listQualityBadcases(filters);
 				return toQualityEvalCandidates(badcases);
 			}
-			if (!includeBadcases && includeFeedback) {
+			if (!includeBadcases && includeFeedback && !includeRagasDiagnostic) {
 				return dependencies.store.listQualityFeedbackEvalCandidates(filters);
 			}
-			if (!(includeBadcases || includeFeedback)) {
+			if (!(includeBadcases || includeFeedback) && includeRagasDiagnostic) {
+				return dependencies.store.listEvalDiagnosticCandidates(filters);
+			}
+			if (!(includeBadcases || includeFeedback || includeRagasDiagnostic)) {
 				return emptyQualityEvalCandidates();
 			}
 
-			const [badcases, feedbackCandidates] = await Promise.all([
-				dependencies.store.listQualityBadcases(filters).then(toQualityEvalCandidates),
-				dependencies.store.listQualityFeedbackEvalCandidates(filters),
+			const [badcases, feedbackCandidates, ragasDiagnosticCandidates] = await Promise.all([
+				includeBadcases
+					? dependencies.store.listQualityBadcases(filters).then(toQualityEvalCandidates)
+					: Promise.resolve(emptyQualityEvalCandidates()),
+				includeFeedback
+					? dependencies.store.listQualityFeedbackEvalCandidates(filters)
+					: Promise.resolve(emptyQualityEvalCandidates()),
+				includeRagasDiagnostic
+					? dependencies.store.listEvalDiagnosticCandidates(filters)
+					: Promise.resolve(emptyQualityEvalCandidates()),
 			]);
-			return mergeQualityEvalCandidates(badcases, feedbackCandidates, filters.limit);
+			return mergeQualityEvalCandidates(
+				badcases,
+				feedbackCandidates,
+				ragasDiagnosticCandidates,
+				filters.limit,
+			);
 		},
 	};
 }

@@ -34,6 +34,7 @@ import {
 	formatQualityBadcaseCauseClass,
 	formatQualityBadcaseDetectedBy,
 	formatQualityBadcaseStatus,
+	formatQualityEvalCandidateSource,
 } from "../quality-domain";
 import { SafeExternalLink } from "../safe-external-link";
 import {
@@ -603,9 +604,7 @@ export function QualityEvalCandidateSection(props: {
 										<Typography variant="body2">{candidate.summary}</Typography>
 									</TableCell>
 									<TableCell>{formatQualityBadcaseCauseClass(candidate.causeClass)}</TableCell>
-									<TableCell>
-										{candidate.intake.source === "negative_feedback" ? "负反馈" : "Badcase"}
-									</TableCell>
+									<TableCell>{formatQualityEvalCandidateSource(candidate.intake.source)}</TableCell>
 									<TableCell>
 										{candidate.review && candidate.review.suggestedLabels.length > 0
 											? candidate.review.suggestedLabels.join(", ")
@@ -615,14 +614,18 @@ export function QualityEvalCandidateSection(props: {
 									<TableCell>{formatSurfaceLabel(candidate.surface)}</TableCell>
 									<TableCell>{formatSelectedTargetLabel(candidate.selectedTarget)}</TableCell>
 									<TableCell>
-										<Button
-											component={RouterLink}
-											size="small"
-											to={buildRequestShowPath(candidate.requestId)}
-											variant="outlined"
-										>
-											{candidate.requestId}
-										</Button>
+										{candidate.requestId ? (
+											<Button
+												component={RouterLink}
+												size="small"
+												to={buildRequestShowPath(candidate.requestId)}
+												variant="outlined"
+											>
+												{candidate.requestId}
+											</Button>
+										) : (
+											candidate.diagnostic?.caseId
+										)}
 									</TableCell>
 								</TableRow>
 							))}

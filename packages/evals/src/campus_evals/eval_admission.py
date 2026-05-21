@@ -50,17 +50,12 @@ def build_quality_feedback_candidate_review_manifest(
             else _required_string(intake.get("createdAt"), "intake.createdAt")
         )
 
-        source = {
-            "source_type": source_type,
-            "source_request_id": _required_string(candidate.get("requestId"), "requestId"),
-            "trace_id": _required_string(candidate.get("traceId"), "traceId"),
-            "sampled_at": sampled_at,
-            "source_surface": _required_string(candidate.get("surface"), "surface"),
-            "observed_failure_class": _required_string(candidate.get("causeClass"), "causeClass"),
-            "suggested_eval_family": _required_string(
-                intake.get("suggestedEvalFamily"), "intake.suggestedEvalFamily"
-            ),
-        }
+        source = _quality_candidate_source(
+            candidate,
+            intake=intake,
+            sampled_at=sampled_at,
+            source_type=source_type,
+        )
         if feedback is not None:
             source["feedback_id"] = _required_string(
                 feedback.get("feedbackId"), "feedback.feedbackId"
@@ -113,6 +108,57 @@ def build_quality_feedback_candidate_review_manifest(
         "target_suite": normalized_target_suite,
         "generated_at": _required_string(generated_at, "generated_at"),
         "candidates": manifest_candidates,
+    }
+
+
+def _quality_candidate_source(
+    candidate: Mapping[str, object],
+    *,
+    intake: Mapping[str, object],
+    sampled_at: str,
+    source_type: str,
+) -> dict[str, object]:
+    common = {
+        "source_type": source_type,
+        "sampled_at": sampled_at,
+        "source_surface": _required_string(candidate.get("surface"), "surface"),
+        "observed_failure_class": _required_string(candidate.get("causeClass"), "causeClass"),
+        "suggested_eval_family": _required_string(
+            intake.get("suggestedEvalFamily"), "intake.suggestedEvalFamily"
+        ),
+    }
+    if source_type == "ragas_diagnostic":
+        diagnostic = _mapping_field(candidate.get("diagnostic"), "diagnostic")
+        return {
+            **common,
+            "diagnostic_case_id": _required_string(diagnostic.get("caseId"), "diagnostic.caseId"),
+            "metric_name": _required_string(diagnostic.get("metricName"), "diagnostic.metricName"),
+            "failure_stage": _required_string(
+                diagnostic.get("failureStage"), "diagnostic.failureStage"
+            ),
+            "metric_failure_reason": _required_string(
+                diagnostic.get("metricFailureReason"),
+                "diagnostic.metricFailureReason",
+            ),
+            "score": _required_number(diagnostic.get("score"), "diagnostic.score"),
+            "threshold": _required_number(diagnostic.get("threshold"), "diagnostic.threshold"),
+            "expected_doc_ids": _string_list_field(
+                diagnostic.get("expectedDocIds"),
+                "diagnostic.expectedDocIds",
+            ),
+            "retrieved_context_ids": _string_list_field(
+                diagnostic.get("retrievedContextIds"),
+                "diagnostic.retrievedContextIds",
+            ),
+            "supporting_doc_ids": _string_list_field(
+                diagnostic.get("supportingDocIds"),
+                "diagnostic.supportingDocIds",
+            ),
+        }
+    return {
+        **common,
+        "source_request_id": _required_string(candidate.get("requestId"), "requestId"),
+        "trace_id": _required_string(candidate.get("traceId"), "traceId"),
     }
 
 
@@ -296,6 +342,12 @@ def _required_string(value: object, field_name: str) -> str:
     if not normalized:
         raise ValueError(f"{field_name} is required")
     return normalized
+
+
+def _required_number(value: object, field_name: str) -> float:
+    if not isinstance(value, int | float):
+        raise ValueError(f"{field_name} is required")
+    return float(value)
 
 
 def _optional_string(value: object) -> str | None:

@@ -185,6 +185,7 @@ function createCommandStore() {
 		enqueueExecutionAuditEvents: vi.fn(),
 		getRequestObservabilitySeed: vi.fn(),
 		upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
+		upsertEvalDiagnosticBadcases: vi.fn(),
 		upsertQualityGrades: vi.fn(),
 		upsertTraceBacklinks: vi.fn(),
 	};

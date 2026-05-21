@@ -215,6 +215,19 @@ export function registerInternalRoutes(input: {
 		);
 	});
 
+	input.app.post("/api/internal/operator/evals/diagnostic-badcases", async (c) => {
+		const scope = input.createRequestScope();
+		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {
+			return serviceCredentialRequiredResponse();
+		}
+
+		return jsonResponse(
+			await scope.resolveOperatorObservabilityCommandService().ingestEvalDiagnosticBadcases({
+				payload: await readJsonRequestBody(c.req.raw),
+			}),
+		);
+	});
+
 	input.app.post("/api/internal/execution/audit-events", async (c) => {
 		const scope = input.createRequestScope();
 		if (!hasMatchingInternalSecret(c.req.raw, input.env)) {

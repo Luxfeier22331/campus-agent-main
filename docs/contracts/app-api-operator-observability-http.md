@@ -153,6 +153,8 @@ list endpoints 额外支持：
 ### Eval Coverage
 
 - `GET /api/operator/evals/coverage`
+- `POST /api/internal/operator/evals/coverage-snapshots`
+- `POST /api/internal/operator/evals/diagnostic-badcases`
 
 ### Audit
 
@@ -898,8 +900,8 @@ list endpoints 额外支持：
 
 ### `GET /api/operator/quality/eval-candidates`
 
-查询参数与 `quality/badcases` 相同，并允许用 `detectedBy=negative_feedback`
-只看用户负反馈候选：
+查询参数与 `quality/badcases` 相同，并允许用 `detectedBy=negative_feedback` 只看用户负反馈候选，
+或用 `detectedBy=ragas_diagnostic` 只看 RAGAS diagnostic low-score 候选：
 
 - `limit`
 - `cursor`
@@ -985,6 +987,45 @@ list endpoints 额外支持：
         "suggestedEvalFamily": "intent",
         "createdAt": "2026-04-03T00:12:00.000Z"
       }
+    },
+    {
+      "candidateId": "eval_candidate:ragas_diagnostic:student-scholarship-condition:faithfulness",
+      "requestId": null,
+      "traceId": null,
+      "surface": "regulations/student_rules",
+      "selectedTarget": null,
+      "causeClass": "evidence_selection_failed",
+      "summary": "RAGAS faithfulness=0.31 below 0.80 at evidence_selection.",
+      "grade": {
+        "result": "fail",
+        "score": 0.31,
+        "graderVersion": "ragas-diagnostic-combined-report.v1"
+      },
+      "links": {
+        "traceLink": null,
+        "issueLink": null,
+        "issueFingerprint": null
+      },
+      "diagnostic": {
+        "caseId": "student-scholarship-condition",
+        "metricName": "faithfulness",
+        "score": 0.31,
+        "threshold": 0.8,
+        "failureStage": "evidence_selection",
+        "metricFailureReason": "evidence_selection",
+        "expectedDocIds": ["doc:scholarship"],
+        "retrievedContextIds": ["chunk:wrong", "chunk:scholarship"],
+        "retrievedDocIds": ["doc:wrong", "doc:scholarship"],
+        "supportingDocIds": ["doc:wrong"],
+        "answerShape": "eligibility_judgment",
+        "presentationKind": "condition_table"
+      },
+      "intake": {
+        "source": "ragas_diagnostic",
+        "status": "pending_review",
+        "suggestedEvalFamily": "grounding",
+        "createdAt": "2026-05-21T09:00:00.000Z"
+      }
     }
   ],
   "page": {
@@ -998,8 +1039,9 @@ list endpoints 额外支持：
 - 这是 app-api-owned badcase-to-eval intake export seam，不是 eval golden set
   admission API
 - `candidateId` 对 badcase 稳定派生自 `badcaseId`；对 negative feedback 稳定派生自
-  `feedbackId`，便于后续 eval tooling 做幂等 intake
-- `intake.source` 当前允许 `operator_badcase` 或 `negative_feedback`
+  `feedbackId`；对 RAGAS diagnostic 稳定派生自 `badcaseId`，便于后续 eval tooling 做幂等 intake
+- `intake.source` 当前允许 `operator_badcase`、`negative_feedback` 或
+  `ragas_diagnostic`
 - `suggestedEvalFamily` 只表达 app-api 基于 `causeClass` 的初始归类；eval review / golden set
   admission 仍由 eval layer 决定
 - `suggestedEvalFamily` 当前取值为 `citation`、`grounding`、`intent`、`policy` 或 `unknown`
@@ -1009,6 +1051,12 @@ list endpoints 额外支持：
 - negative feedback candidate 只返回 request/message correlation、intent summary、
   citation/source posture、reason codes 与 trace backlink；不得返回 raw transcript、
   raw auth material、provider raw response、raw prompt 或 retrieval payload
+- RAGAS diagnostic candidate 不携带 runtime request / trace correlation；`requestId`、
+  `traceId`、`selectedTarget` 和 `links.*` 固定允许为 `null`，panel 不得把它渲染成运行时
+  request 链接
+- RAGAS diagnostic candidate 只返回 case / metric / failure stage / doc id 摘要；
+  不得返回 raw answer、raw prompt、transcript、local artifact path、bucket / object key、
+  auth material 或 provider raw response
 - `packages/evals` 的 eval admission manifest 只能把这些 candidate 包装成
   `pending_review`，不能直接把它们写成 golden truth
 - endpoint 不写入 eval truth，不生成 benchmark artifact，不创建 fix task
@@ -1380,6 +1428,8 @@ list endpoints 额外支持：
 - `POST /api/internal/operator/quality/grades`
 - `POST /api/internal/operator/trace-backlinks`
 - `POST /api/internal/execution/audit-events`
+- `POST /api/internal/operator/evals/coverage-snapshots`
+- `POST /api/internal/operator/evals/diagnostic-badcases`
 
 适用前提：
 
@@ -1390,6 +1440,89 @@ list endpoints 额外支持：
 - 对于 app-api 自己掌握的 request lifecycle，runtime 内置 recorder 可以直接写入同一
   `operator.trace_backlink_projection`；internal endpoint 仍保留给 external sink
   reconciliation worker / grader worker
+
+### `POST /api/internal/operator/evals/coverage-snapshots`
+
+请求体：
+
+```json
+{
+  "schemaVersion": "eval_coverage_snapshot.v1",
+  "snapshotId": "eval_coverage:20260521T090000Z",
+  "generatedAt": "2026-05-21T09:00:00.000Z",
+  "sourceGitHead": "git-main",
+  "sourceReportSchema": "eval_coverage_snapshot.v1",
+  "denominatorSurfaces": [
+    "regulations/student_rules",
+    "regulations/institutional_rules",
+    "curriculum/curriculum_plan",
+    "official_web/stable_reference"
+  ],
+  "surfaces": [],
+  "excludedSurfaces": []
+}
+```
+
+规则：
+
+- payload 语义由 `docs/reference/eval-benchmark-artifact-contract.md` 的
+  `eval_coverage_snapshot.v1` 冻结
+- ingest 只写 `operator.eval_coverage_snapshot`，panel 只通过
+  `GET /api/operator/evals/coverage` 读取 latest projection
+- 不接受 local artifact path、object store key、raw prompt、raw answer、transcript、
+  auth material、cookie 或 token
+- RAGAS diagnostic 只能影响 coverage snapshot 的 diagnostic attention 展示，不替代
+  deterministic release gate
+
+### `POST /api/internal/operator/evals/diagnostic-badcases`
+
+请求体：
+
+```json
+{
+  "schemaVersion": "eval_diagnostic_badcases.v1",
+  "evalRunId": "ragas_diagnostic_combined",
+  "snapshotId": "eval_diagnostic_badcases:20260521T090000Z",
+  "generatedAt": "2026-05-21T09:00:00.000Z",
+  "sourceGitHead": "git-main",
+  "sourceReportSchema": "ragas-diagnostic-combined-report.v1",
+  "badcases": [
+    {
+      "badcaseId": "ragas_diagnostic:student-scholarship-condition:faithfulness",
+      "caseId": "student-scholarship-condition",
+      "surfaceKey": "regulations/student_rules",
+      "metricName": "faithfulness",
+      "score": 0.31,
+      "threshold": 0.8,
+      "failureStage": "evidence_selection",
+      "causeClass": "evidence_selection_failed",
+      "metricFailureReason": "evidence_selection",
+      "queryPreview": "奖学金要满足什么条件",
+      "expectedDocIds": ["doc:scholarship"],
+      "retrievedContextIds": ["chunk:wrong", "chunk:scholarship"],
+      "retrievedDocIds": ["doc:wrong", "doc:scholarship"],
+      "supportingDocIds": ["doc:wrong"],
+      "supportingChunkIds": ["chunk:wrong"],
+      "answerShape": "eligibility_judgment",
+      "presentationKind": "condition_table"
+    }
+  ]
+}
+```
+
+规则：
+
+- payload schema 固定为 `eval_diagnostic_badcases.v1`，source report schema 固定来自
+  `ragas-diagnostic-combined-report.v1`
+- `failureStage` 只允许 `retrieval`、`evidence_selection`、`synthesis` 与
+  `diagnostic`
+- ingest 只写 `operator.eval_diagnostic_badcase_projection`；query path 会把这些行并入
+  `GET /api/operator/quality/eval-candidates`
+- 这些 candidate 没有 runtime `requestId` / `traceId`，app-api 不为它们生成或猜测
+  request correlation
+- 不接受 local artifact path、bucket / object key、raw prompt、raw answer、transcript、
+  auth material、cookie、token 或 provider raw response
+- 该 endpoint 不改变 deterministic gate verdict，不生成 benchmark artifact，不创建 fix task
 
 ### `POST /api/internal/execution/audit-events`
 
