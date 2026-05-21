@@ -289,6 +289,9 @@ eval coverage operator snapshot：
   `.planning` 或对象存储目录
 - RAGAS combined diagnostic schema 固定为 `ragas-diagnostic-combined-report.v1`；它只进入
   `ragasDiagnostic`，影响 panel 的 diagnostic attention 展示，不替代 deterministic readiness
+- low-score metric 必须有显式 stage attribution；snapshot 会保留
+  `metrics`、`lowScoreCases[].failureStage` 与 `stageDistribution`，缺阶段归因时 fail
+  closed
 - 生成本地快照：
 
 ```bash
@@ -327,6 +330,8 @@ eval diagnostic badcases projection：
   raw prompt、transcript、local path、bucket / object key 或 auth material
 - 每个低分 metric 必须带 `failure_attribution.primary_stage` 和
   `failure_attribution.metric_failures.<metric>`；缺少定位阶段时直接 fail closed
+- failure stage 固定允许 `retrieval`、`rerank`、`selection`、`evidence_selection`、
+  `synthesis`、`grounding` 与 `diagnostic`
 - RAGAS diagnostic badcase 没有运行时 `requestId` / `traceId`，不能伪造 request
   correlation；panel 只能把它展示为 offline diagnostic review candidate
 - 生成本地 projection：

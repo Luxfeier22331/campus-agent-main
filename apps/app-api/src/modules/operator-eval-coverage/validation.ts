@@ -4,6 +4,7 @@ import {
 	EVAL_COVERAGE_SNAPSHOT_SCHEMA_VERSION,
 	type EvalCoverageGateSnapshot,
 	type EvalCoverageRagasDiagnostic,
+	type EvalCoverageRagasDiagnosticFailureStage,
 	type EvalCoverageSnapshot,
 	type EvalCoverageSurfaceKey,
 	type EvalCoverageSurfaceSnapshot,
@@ -30,6 +31,15 @@ const RAGAS_STATUSES = new Set([
 const GATE_STATUSES = new Set(["failed", "passed"]);
 const MATURITY_STATUSES = new Set(["gap", "ready"]);
 const READINESS_STATUSES = new Set(["blocked", "diagnostic_attention", "ready"]);
+const RAGAS_FAILURE_STAGES = new Set([
+	"retrieval",
+	"rerank",
+	"selection",
+	"evidence_selection",
+	"synthesis",
+	"grounding",
+	"diagnostic",
+]);
 
 function validationError(field: string, message: string): AppApiRouteError {
 	return new AppApiRouteError({
@@ -81,6 +91,17 @@ function requiredStringArray(value: unknown, field: string): string[] {
 	return requiredArray(value, field).map((item, index) =>
 		requiredString(item, `${field}[${index}]`),
 	);
+}
+
+function requiredRagasFailureStage(
+	value: unknown,
+	field: string,
+): EvalCoverageRagasDiagnosticFailureStage {
+	const normalized = requiredString(value, field);
+	if (!RAGAS_FAILURE_STAGES.has(normalized)) {
+		throw validationError(field, `${field} is unsupported.`);
+	}
+	return normalized as EvalCoverageRagasDiagnosticFailureStage;
 }
 
 function requiredIsoTimestamp(value: unknown, field: string): string {
@@ -139,6 +160,10 @@ function normalizeRagasDiagnostic(value: unknown, field: string): EvalCoverageRa
 				const lowScore = ensureObject(caseItem, `${field}.lowScoreCases[${index}]`);
 				return {
 					caseId: requiredString(lowScore.caseId, `${field}.lowScoreCases[${index}].caseId`),
+					failureStage: requiredRagasFailureStage(
+						lowScore.failureStage,
+						`${field}.lowScoreCases[${index}].failureStage`,
+					),
 					metricName: requiredString(
 						lowScore.metricName,
 						`${field}.lowScoreCases[${index}].metricName`,
@@ -157,6 +182,21 @@ function normalizeRagasDiagnostic(value: unknown, field: string): EvalCoverageRa
 				name: requiredString(metric.name, `${field}.metrics[${index}].name`),
 			};
 		}),
+		stageDistribution: requiredArray(item.stageDistribution, `${field}.stageDistribution`).map(
+			(stageItem, index) => {
+				const stage = ensureObject(stageItem, `${field}.stageDistribution[${index}]`);
+				return {
+					caseCount: requiredNonNegativeInteger(
+						stage.caseCount,
+						`${field}.stageDistribution[${index}].caseCount`,
+					),
+					stage: requiredRagasFailureStage(
+						stage.stage,
+						`${field}.stageDistribution[${index}].stage`,
+					),
+				};
+			},
+		),
 		status: status as EvalCoverageRagasDiagnostic["status"],
 	};
 }

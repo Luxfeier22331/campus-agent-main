@@ -112,6 +112,7 @@ describe("operator eval coverage store", () => {
 						failedCaseCount: 0,
 						lowScoreCases: [],
 						metrics: [],
+						stageDistribution: [],
 						status: "artifact_missing",
 					},
 					readiness: {

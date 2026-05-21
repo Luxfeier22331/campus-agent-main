@@ -295,17 +295,33 @@ export const PANEL_COPY = {
 		},
 		columns: {
 			answerQuality: "Answer quality",
+			caseId: "Case ID",
+			expectedDocs: "Expected docs",
+			failureStage: "Failure stage",
+			goldenQrels: "Golden qrels",
 			knownGap: "Known gap",
 			lastGate: "Last gate",
+			metric: "Metric",
 			qrels: "Qrels",
 			ragasDiagnostic: "RAGAS diagnostic",
+			ragasLowScore: "Low-score",
+			ragasStages: "Stage attribution",
 			readiness: "Gate status",
 			releaseAcceptance: "Release acceptance",
+			score: "Score",
 			surface: "Surface",
 		},
+		fields: {
+			metricSummary: "RAGAS 指标摘要",
+			noStageFailures: "无阶段失败",
+		},
 		sections: {
+			diagnostic: "RAGAS 诊断闭环",
+			diagnosticDescription:
+				"低分样本只作为诊断与 eval candidate review 输入，不改变 deterministic release gate。",
 			excluded: "排除面",
 			excludedDescription: "排除面不计入当前 RAG consumption denominator；这里仅展示明确排除原因。",
+			noLowScore: "当前 surface 没有低分 RAGAS diagnostic case。",
 			noExcluded: "当前快照没有排除面。",
 			surfaceMatrix: "覆盖矩阵",
 			surfaceMatrixDescription:

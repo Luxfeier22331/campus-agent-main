@@ -56,6 +56,7 @@ const evalCoverageSnapshot = {
 				lowScoreCases: [
 					{
 						caseId: "student-case",
+						failureStage: "evidence_selection",
 						metricName: "answer_relevancy",
 						score: 0.7,
 					},
@@ -69,6 +70,7 @@ const evalCoverageSnapshot = {
 						name: "answer_relevancy",
 					},
 				],
+				stageDistribution: [{ caseCount: 1, stage: "evidence_selection" }],
 				status: "diagnostic_attention",
 			},
 			readiness: {

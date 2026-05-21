@@ -76,6 +76,10 @@ class EvalCoverageSnapshotSuite(unittest.TestCase):
                             "case_id": "student-case",
                             "status": "completed",
                             "scores": {"answer_relevancy": 0.7, "context_precision": 1.0},
+                            "failure_attribution": {
+                                "primary_stage": "evidence_selection",
+                                "metric_failures": {"answer_relevancy": "evidence_selection"},
+                            },
                         },
                         {
                             "surface_key": "curriculum/curriculum_plan",
@@ -118,6 +122,21 @@ class EvalCoverageSnapshotSuite(unittest.TestCase):
         self.assertEqual(
             by_surface["regulations/student_rules"]["ragasDiagnostic"]["metrics"][0]["name"],
             "answer_relevancy",
+        )
+        self.assertEqual(
+            by_surface["regulations/student_rules"]["ragasDiagnostic"]["lowScoreCases"],
+            [
+                {
+                    "caseId": "student-case",
+                    "failureStage": "evidence_selection",
+                    "metricName": "answer_relevancy",
+                    "score": 0.7,
+                }
+            ],
+        )
+        self.assertEqual(
+            by_surface["regulations/student_rules"]["ragasDiagnostic"]["stageDistribution"],
+            [{"caseCount": 1, "stage": "evidence_selection"}],
         )
         self.assertEqual(
             by_surface["regulations/institutional_rules"]["ragasDiagnostic"]["status"],
@@ -215,6 +234,65 @@ class EvalCoverageSnapshotSuite(unittest.TestCase):
         self.assertEqual(exit_code, 0)
         self.assertEqual(payload["schemaVersion"], EVAL_COVERAGE_SNAPSHOT_SCHEMA_VERSION)
         self.assertEqual(len(payload["surfaces"]), 4)
+
+    def test_snapshot_fails_closed_when_low_score_case_has_no_stage_attribution(self) -> None:
+        with TemporaryDirectory() as temp_dir:
+            root = Path(temp_dir)
+            gate = _write_json(
+                root / "gate.json",
+                {
+                    "schema_version": 1,
+                    "gate_report": {"overall_verdict": "pass"},
+                    "deterministic": {
+                        "run_count": 1,
+                        "run_pass_counts": [1],
+                        "run_failed_counts": [0],
+                    },
+                },
+            )
+            manifest = _write_json(
+                root / "gate-artifacts.json",
+                {
+                    "schema_version": "eval-coverage-gate-artifacts.v1",
+                    "artifacts": [
+                        _gate_artifact(surface, profile, f"{profile}-gate", gate)
+                        for surface, profile in (
+                            ("regulations/student_rules", "handbook"),
+                            (
+                                "regulations/institutional_rules",
+                                "institutional-rules-release-baseline",
+                            ),
+                            ("curriculum/curriculum_plan", "curriculum"),
+                            ("official_web/stable_reference", "official-web-stable-reference"),
+                        )
+                    ],
+                },
+            )
+            ragas = _write_json(
+                root / "ragas-diagnostic.combined.json",
+                {
+                    "schema_version": "ragas-diagnostic-combined-report.v1",
+                    "report_id": "ragas_diagnostic_combined",
+                    "summary": {"low_score_threshold": 0.8},
+                    "cases": [
+                        {
+                            "surface_key": "regulations/student_rules",
+                            "case_id": "student-case",
+                            "status": "completed",
+                            "scores": {"answer_relevancy": 0.7},
+                        }
+                    ],
+                },
+            )
+
+            with self.assertRaisesRegex(
+                ValueError, "failure_attribution.metric_failures.answer_relevancy is required"
+            ):
+                build_eval_coverage_snapshot(
+                    gate_artifacts_path=manifest,
+                    ragas_diagnostic_path=ragas,
+                    source_git_head="git-main",
+                )
 
 
 def _gate_artifact(surface_key: str, profile_id: str, artifact_id: str, path: Path) -> dict:

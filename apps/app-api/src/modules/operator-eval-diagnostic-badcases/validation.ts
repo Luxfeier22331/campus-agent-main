@@ -8,8 +8,11 @@ import {
 
 const ALLOWED_FAILURE_STAGES = new Set([
 	"retrieval",
+	"rerank",
+	"selection",
 	"evidence_selection",
 	"synthesis",
+	"grounding",
 	"diagnostic",
 ]);
 const FORBIDDEN_KEY_TOKENS = new Set([

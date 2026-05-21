@@ -28,6 +28,38 @@ uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix --wr
 | `curriculum/curriculum_plan` | `curriculum` | `case_results` | 60 | 49 | 30 | 5 | 0 | 0 | `baseline_ready` |
 | `official_web/stable_reference` | `official-web-stable-reference` | `case_results` | 4 | 3 | 5 | 0 | 0 | 0 | `baseline_ready` |
 
+## Operator Readiness Matrix
+
+| Surface | Deterministic coverage | Maturity | Release baseline gate | Operator projection fields |
+| ------- | ---------------------- | -------- | --------------------- | -------------------------- |
+| `regulations/student_rules` | `ready` | `baseline_ready` | `no` | qrels, expected docs, release acceptance, answer-quality, known-gap, last gate, RAGAS diagnostic |
+| `regulations/institutional_rules` | `ready` | `baseline_ready` | `yes` | qrels, expected docs, release acceptance, answer-quality, known-gap, last gate, RAGAS diagnostic |
+| `curriculum/curriculum_plan` | `ready` | `baseline_ready` | `no` | qrels, expected docs, release acceptance, answer-quality, known-gap, last gate, RAGAS diagnostic |
+| `official_web/stable_reference` | `ready` | `baseline_ready` | `no` | qrels, expected docs, release acceptance, answer-quality, known-gap, last gate, RAGAS diagnostic |
+
+## RAGAS Diagnostic Matrix
+
+| Surface | Diagnostic role | Snapshot fields | Gate effect |
+| ------- | --------------- | --------------- | ----------- |
+| `regulations/student_rules` | supplemental low-score review | `metrics`, `lowScoreCases`, `stageDistribution` | `diagnostic_attention` only; never deterministic block |
+| `regulations/institutional_rules` | supplemental low-score review | `metrics`, `lowScoreCases`, `stageDistribution` | `diagnostic_attention` only; never deterministic block |
+| `curriculum/curriculum_plan` | supplemental low-score review | `metrics`, `lowScoreCases`, `stageDistribution` | `diagnostic_attention` only; never deterministic block |
+| `official_web/stable_reference` | supplemental low-score review | `metrics`, `lowScoreCases`, `stageDistribution` | `diagnostic_attention` only; never deterministic block |
+
+## Answer Quality Coverage Notes
+
+- `regulations/student_rules`: 5 answer-quality cases; thin deterministic answer-quality contract coverage.
+- `regulations/institutional_rules`: 42 answer-quality cases; strong deterministic answer contract coverage.
+- `curriculum/curriculum_plan`: 5 answer-quality cases; thin deterministic answer-quality contract coverage.
+- `official_web/stable_reference`: 0 answer-quality cases; no deterministic answer-quality contract cases.
+
+## Known Boundaries
+
+- RAGAS diagnostics are supplemental and non-blocking; they do not author golden truth.
+- `official_web/stable_reference` is stable reference coverage, not generic official-web QA.
+- `official_web/fresh_news` remains excluded from the current RAG denominator.
+- Thin answer-quality coverage is reported explicitly; consumers must not infer stronger deterministic answer coverage from qrels alone.
+
 ## Surface Details
 
 ### `regulations/student_rules`

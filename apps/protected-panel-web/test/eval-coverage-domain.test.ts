@@ -2,10 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
 	buildEvalCoverageSummary,
+	buildRagasDiagnosticStageEntries,
+	causeClassForRagasDiagnosticFailureStage,
 	formatEvalCoverageDiagnosticStatus,
 	formatEvalCoverageReadinessStatus,
+	formatRagasDiagnosticMetricSummary,
 } from "../src/panel/pages/eval-coverage-domain";
-import type { OperatorEvalCoverageRecord } from "../src/panel/types";
+import type {
+	OperatorEvalCoverageRagasDiagnosticFailureStage,
+	OperatorEvalCoverageRecord,
+} from "../src/panel/types";
 
 const record = {
 	denominatorSurfaces: [
@@ -57,11 +63,21 @@ const record = {
 				lowScoreCases: [
 					{
 						caseId: "student-case",
+						failureStage: "evidence_selection",
 						metricName: "answer_relevancy",
 						score: 0.7,
 					},
 				],
-				metrics: [],
+				metrics: [
+					{
+						count: 1,
+						max: 0.7,
+						mean: 0.7,
+						min: 0.7,
+						name: "answer_relevancy",
+					},
+				],
+				stageDistribution: [{ caseCount: 1, stage: "evidence_selection" }],
 				status: "diagnostic_attention",
 			},
 			readiness: {
@@ -98,5 +114,36 @@ describe("eval coverage domain helpers", () => {
 		expect(formatEvalCoverageDiagnosticStatus("diagnostic_attention")).toBe("诊断关注");
 		expect(formatEvalCoverageDiagnosticStatus("missing_for_surface")).toBe("该面缺失");
 		expect(formatEvalCoverageDiagnosticStatus("present")).toBe("已覆盖");
+	});
+
+	it("formats RAGAS metric summaries and stage attribution entries", () => {
+		const diagnostic = record.surfaces[0].ragasDiagnostic;
+
+		expect(formatRagasDiagnosticMetricSummary(diagnostic.metrics)).toBe(
+			"answer_relevancy min 0.700 / mean 0.700",
+		);
+		expect(buildRagasDiagnosticStageEntries(diagnostic)).toEqual([
+			{
+				count: 1,
+				label: "证据选择",
+				stage: "evidence_selection",
+			},
+		]);
+	});
+
+	it("maps every RAGAS diagnostic failure stage to an explicit badcase cause class", () => {
+		const expected = new Map<OperatorEvalCoverageRagasDiagnosticFailureStage, string>([
+			["retrieval", "retrieval_quality_low"],
+			["rerank", "retrieval_quality_low"],
+			["selection", "evidence_selection_failed"],
+			["evidence_selection", "evidence_selection_failed"],
+			["synthesis", "synthesis_grounding_failed"],
+			["grounding", "synthesis_grounding_failed"],
+			["diagnostic", "diagnostic_attention"],
+		]);
+
+		for (const [stage, causeClass] of expected.entries()) {
+			expect(causeClassForRagasDiagnosticFailureStage(stage)).toBe(causeClass);
+		}
 	});
 });

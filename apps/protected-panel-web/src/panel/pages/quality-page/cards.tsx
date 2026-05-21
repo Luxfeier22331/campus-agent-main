@@ -45,38 +45,14 @@ import {
 	QUALITY_WINDOW_OPTIONS,
 	type QualityFilterState,
 } from "./constants";
+import { EvalCandidateDiagnosticSummary } from "./eval-candidate-diagnostic-summary";
 import {
 	formatGradeScore,
 	formatQualityWindowLabel,
 	formatTrendBucketLabel,
 	type QualitySummaryCard,
 } from "./formatters";
-
-function SummaryCard(props: { detail: string; label: string; value: string }) {
-	return (
-		<Card
-			sx={{
-				backgroundColor: "background.paper",
-				borderRadius: 2,
-			}}
-			variant="outlined"
-		>
-			<CardContent>
-				<Stack spacing={1}>
-					<Typography color="text.secondary" variant="body2">
-						{props.label}
-					</Typography>
-					<Typography sx={{ fontWeight: 700 }} variant="h5">
-						{props.value}
-					</Typography>
-					<Typography color="text.secondary" variant="body2">
-						{props.detail}
-					</Typography>
-				</Stack>
-			</CardContent>
-		</Card>
-	);
-}
+import { SummaryCard } from "./summary-card";
 
 function SectionCard(props: { children: ReactNode; description?: string; title: string }) {
 	return (
@@ -602,6 +578,7 @@ export function QualityEvalCandidateSection(props: {
 									<TableCell>{candidate.candidateId}</TableCell>
 									<TableCell sx={{ maxWidth: 320 }}>
 										<Typography variant="body2">{candidate.summary}</Typography>
+										<EvalCandidateDiagnosticSummary candidate={candidate} />
 									</TableCell>
 									<TableCell>{formatQualityBadcaseCauseClass(candidate.causeClass)}</TableCell>
 									<TableCell>{formatQualityEvalCandidateSource(candidate.intake.source)}</TableCell>

@@ -1,6 +1,7 @@
 import {
 	Alert,
 	Box,
+	Button,
 	Card,
 	CardContent,
 	Chip,
@@ -15,6 +16,7 @@ import {
 import { useQuery } from "@tanstack/react-query";
 import { type ReactNode, useMemo } from "react";
 import { Title, useAuthenticated, useDataProvider } from "react-admin";
+import { Link as RouterLink } from "react-router-dom";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
 import { formatPanelTimestamp, PANEL_COPY, translateRuntimeErrorMessage } from "../panel-copy";
@@ -22,9 +24,13 @@ import { PanelPage } from "../panel-page";
 import type { OperatorEvalCoverageRecord, OperatorEvalCoverageSurfaceRecord } from "../types";
 import {
 	buildEvalCoverageSummary,
+	buildRagasDiagnosticStageEntries,
+	causeClassForRagasDiagnosticFailureStage,
 	formatEvalCoverageDiagnosticStatus,
 	formatEvalCoverageReadinessStatus,
 	formatEvalCoverageSurfaceLabel,
+	formatRagasDiagnosticMetricSummary,
+	formatRagasDiagnosticStageLabel,
 } from "./eval-coverage-domain";
 
 function formatCount(value: number) {
@@ -107,6 +113,19 @@ function statusChipColor(status: string) {
 	return "default" as const;
 }
 
+function buildQualityEvalCandidateFilterPath(surfaceKey: string, causeClass?: string) {
+	const query = new URLSearchParams({
+		detectedBy: "ragas_diagnostic",
+		status: "pending_review",
+		surface: surfaceKey,
+		window: "30d",
+	});
+	if (causeClass) {
+		query.set("causeClass", causeClass);
+	}
+	return `/observability/quality?${query.toString()}`;
+}
+
 function EvalCoverageSurfaceRows(props: { surfaces: OperatorEvalCoverageSurfaceRecord[] }) {
 	return (
 		<Box sx={{ overflowX: "auto" }}>
@@ -115,10 +134,14 @@ function EvalCoverageSurfaceRows(props: { surfaces: OperatorEvalCoverageSurfaceR
 					<TableRow>
 						<TableCell>{PANEL_COPY.evalCoveragePage.columns.surface}</TableCell>
 						<TableCell>{PANEL_COPY.evalCoveragePage.columns.qrels}</TableCell>
+						<TableCell>{PANEL_COPY.evalCoveragePage.columns.expectedDocs}</TableCell>
 						<TableCell>{PANEL_COPY.evalCoveragePage.columns.releaseAcceptance}</TableCell>
 						<TableCell>{PANEL_COPY.evalCoveragePage.columns.answerQuality}</TableCell>
+						<TableCell>{PANEL_COPY.evalCoveragePage.columns.goldenQrels}</TableCell>
 						<TableCell>{PANEL_COPY.evalCoveragePage.columns.knownGap}</TableCell>
 						<TableCell>{PANEL_COPY.evalCoveragePage.columns.ragasDiagnostic}</TableCell>
+						<TableCell>{PANEL_COPY.evalCoveragePage.columns.ragasLowScore}</TableCell>
+						<TableCell>{PANEL_COPY.evalCoveragePage.columns.ragasStages}</TableCell>
 						<TableCell>{PANEL_COPY.evalCoveragePage.columns.lastGate}</TableCell>
 						<TableCell>{PANEL_COPY.evalCoveragePage.columns.readiness}</TableCell>
 					</TableRow>
@@ -137,8 +160,10 @@ function EvalCoverageSurfaceRows(props: { surfaces: OperatorEvalCoverageSurfaceR
 								</Stack>
 							</TableCell>
 							<TableCell>{formatCount(surface.qrelsCaseCount)}</TableCell>
+							<TableCell>{formatCount(surface.uniqueExpectedDocCount)}</TableCell>
 							<TableCell>{formatCount(surface.releaseAcceptanceCaseCount)}</TableCell>
 							<TableCell>{formatCount(surface.answerQualityCaseCount)}</TableCell>
+							<TableCell>{formatCount(surface.goldenQrelsCaseCount)}</TableCell>
 							<TableCell>{formatCount(surface.knownGapCaseCount)}</TableCell>
 							<TableCell>
 								<Stack spacing={0.5}>
@@ -150,6 +175,46 @@ function EvalCoverageSurfaceRows(props: { surfaces: OperatorEvalCoverageSurfaceR
 									<Typography color="text.secondary" variant="caption">
 										{`${surface.ragasDiagnostic.completedCaseCount}/${surface.ragasDiagnostic.caseCount} cases`}
 									</Typography>
+									<Typography color="text.secondary" variant="caption">
+										{formatRagasDiagnosticMetricSummary(surface.ragasDiagnostic.metrics)}
+									</Typography>
+								</Stack>
+							</TableCell>
+							<TableCell>
+								{surface.ragasDiagnostic.lowScoreCases.length > 0 ? (
+									<Button
+										component={RouterLink}
+										size="small"
+										to={buildQualityEvalCandidateFilterPath(surface.surfaceKey)}
+										variant="outlined"
+									>
+										{formatCount(surface.ragasDiagnostic.lowScoreCases.length)}
+									</Button>
+								) : (
+									"0"
+								)}
+							</TableCell>
+							<TableCell>
+								<Stack direction="row" flexWrap="wrap" gap={0.75}>
+									{buildRagasDiagnosticStageEntries(surface.ragasDiagnostic).length > 0 ? (
+										buildRagasDiagnosticStageEntries(surface.ragasDiagnostic).map((entry) => (
+											<Chip
+												component={RouterLink}
+												key={entry.stage}
+												label={`${entry.label} ${entry.count}`}
+												size="small"
+												to={buildQualityEvalCandidateFilterPath(
+													surface.surfaceKey,
+													causeClassForRagasDiagnosticFailureStage(entry.stage),
+												)}
+												variant="outlined"
+											/>
+										))
+									) : (
+										<Typography color="text.secondary" variant="caption">
+											{PANEL_COPY.none}
+										</Typography>
+									)}
 								</Stack>
 							</TableCell>
 							<TableCell>
@@ -183,6 +248,92 @@ function EvalCoverageSurfaceRows(props: { surfaces: OperatorEvalCoverageSurfaceR
 				</TableBody>
 			</Table>
 		</Box>
+	);
+}
+
+function EvalCoverageDiagnosticDetails(props: { surfaces: OperatorEvalCoverageSurfaceRecord[] }) {
+	return (
+		<Stack spacing={2}>
+			{props.surfaces.map((surface) => (
+				<Card key={surface.surfaceKey} sx={{ borderRadius: 2 }} variant="outlined">
+					<CardContent>
+						<Stack spacing={1.5}>
+							<Stack spacing={0.25}>
+								<Typography sx={{ fontWeight: 700 }} variant="subtitle1">
+									{formatEvalCoverageSurfaceLabel(surface.surfaceKey)}
+								</Typography>
+								<Typography color="text.secondary" variant="caption">
+									{surface.surfaceKey}
+								</Typography>
+							</Stack>
+							<Stack direction="row" flexWrap="wrap" gap={1}>
+								<Chip label={`Qrels ${surface.qrelsCaseCount}`} size="small" />
+								<Chip label={`Expected docs ${surface.uniqueExpectedDocCount}`} size="small" />
+								<Chip
+									label={`Release acceptance ${surface.releaseAcceptanceCaseCount}`}
+									size="small"
+								/>
+								<Chip label={`Answer quality ${surface.answerQualityCaseCount}`} size="small" />
+								<Chip label={`Golden qrels ${surface.goldenQrelsCaseCount}`} size="small" />
+								<Chip label={`Known gap ${surface.knownGapCaseCount}`} size="small" />
+							</Stack>
+							<Typography color="text.secondary" variant="body2">
+								{`${PANEL_COPY.evalCoveragePage.fields.metricSummary}: ${formatRagasDiagnosticMetricSummary(
+									surface.ragasDiagnostic.metrics,
+								)}`}
+							</Typography>
+							<Stack direction="row" flexWrap="wrap" gap={1}>
+								{buildRagasDiagnosticStageEntries(surface.ragasDiagnostic).length > 0 ? (
+									buildRagasDiagnosticStageEntries(surface.ragasDiagnostic).map((entry) => (
+										<Chip
+											component={RouterLink}
+											key={entry.stage}
+											label={`${entry.label} ${entry.count}`}
+											size="small"
+											to={buildQualityEvalCandidateFilterPath(
+												surface.surfaceKey,
+												causeClassForRagasDiagnosticFailureStage(entry.stage),
+											)}
+											variant="outlined"
+										/>
+									))
+								) : (
+									<Chip label={PANEL_COPY.evalCoveragePage.fields.noStageFailures} size="small" />
+								)}
+							</Stack>
+							{surface.ragasDiagnostic.lowScoreCases.length > 0 ? (
+								<Box sx={{ overflowX: "auto" }}>
+									<Table size="small">
+										<TableHead>
+											<TableRow>
+												<TableCell>{PANEL_COPY.evalCoveragePage.columns.caseId}</TableCell>
+												<TableCell>{PANEL_COPY.evalCoveragePage.columns.metric}</TableCell>
+												<TableCell>{PANEL_COPY.evalCoveragePage.columns.score}</TableCell>
+												<TableCell>{PANEL_COPY.evalCoveragePage.columns.failureStage}</TableCell>
+											</TableRow>
+										</TableHead>
+										<TableBody>
+											{surface.ragasDiagnostic.lowScoreCases.map((item) => (
+												<TableRow key={`${item.caseId}:${item.metricName}`}>
+													<TableCell>{item.caseId}</TableCell>
+													<TableCell>{item.metricName}</TableCell>
+													<TableCell>{item.score.toFixed(3)}</TableCell>
+													<TableCell>
+														{formatRagasDiagnosticStageLabel(item.failureStage)}
+													</TableCell>
+												</TableRow>
+											))}
+										</TableBody>
+									</Table>
+								</Box>
+							) : (
+								<Alert severity="info">{PANEL_COPY.evalCoveragePage.sections.noLowScore}</Alert>
+							)}
+						</Stack>
+					</CardContent>
+				</Card>
+			))}
+		</Stack>
 	);
 }
 
@@ -243,6 +394,13 @@ function EvalCoverageContent(props: { record: OperatorEvalCoverageRecord }) {
 				title={PANEL_COPY.evalCoveragePage.sections.surfaceMatrix}
 			>
 				<EvalCoverageSurfaceRows surfaces={props.record.surfaces} />
+			</SectionCard>
+
+			<SectionCard
+				description={PANEL_COPY.evalCoveragePage.sections.diagnosticDescription}
+				title={PANEL_COPY.evalCoveragePage.sections.diagnostic}
+			>
+				<EvalCoverageDiagnosticDetails surfaces={props.record.surfaces} />
 			</SectionCard>
 
 			<SectionCard

@@ -33,6 +33,10 @@ export const QUALITY_SURFACE_OPTIONS: Array<{ label: string; value: string | nul
 	{ label: PANEL_COPY.overviewPage.filters.allSurfaces, value: null },
 	{ label: formatSurfaceLabel("public_chat_web"), value: "public_chat_web" },
 	{ label: formatSurfaceLabel("protected_panel_web"), value: "protected_panel_web" },
+	{ label: "学生规章", value: "regulations/student_rules" },
+	{ label: "校级制度", value: "regulations/institutional_rules" },
+	{ label: "培养方案", value: "curriculum/curriculum_plan" },
+	{ label: "稳定官网参考", value: "official_web/stable_reference" },
 ];
 
 export const QUALITY_TARGET_OPTIONS: Array<{ label: string; value: string | null }> = [

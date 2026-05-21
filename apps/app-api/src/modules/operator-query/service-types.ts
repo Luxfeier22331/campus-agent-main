@@ -567,7 +567,14 @@ export interface OperatorQualityEvalCandidateListResult {
 			answerShape: string | null;
 			caseId: string;
 			expectedDocIds: string[];
-			failureStage: "retrieval" | "evidence_selection" | "synthesis" | "diagnostic";
+			failureStage:
+				| "retrieval"
+				| "rerank"
+				| "selection"
+				| "evidence_selection"
+				| "synthesis"
+				| "grounding"
+				| "diagnostic";
 			metricFailureReason: string;
 			metricName: string;
 			presentationKind: string | null;

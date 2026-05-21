@@ -1514,8 +1514,8 @@ list endpoints 额外支持：
 
 - payload schema 固定为 `eval_diagnostic_badcases.v1`，source report schema 固定来自
   `ragas-diagnostic-combined-report.v1`
-- `failureStage` 只允许 `retrieval`、`evidence_selection`、`synthesis` 与
-  `diagnostic`
+- `failureStage` 只允许 `retrieval`、`rerank`、`selection`、
+  `evidence_selection`、`synthesis`、`grounding` 与 `diagnostic`
 - ingest 只写 `operator.eval_diagnostic_badcase_projection`；query path 会把这些行并入
   `GET /api/operator/quality/eval-candidates`
 - 这些 candidate 没有 runtime `requestId` / `traceId`，app-api 不为它们生成或猜测

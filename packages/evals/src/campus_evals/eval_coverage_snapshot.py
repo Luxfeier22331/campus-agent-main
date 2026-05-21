@@ -19,6 +19,15 @@ from campus_evals.rag_eval_coverage import (
 EVAL_COVERAGE_SNAPSHOT_SCHEMA_VERSION = "eval_coverage_snapshot.v1"
 EVAL_COVERAGE_GATE_ARTIFACTS_SCHEMA_VERSION = "eval-coverage-gate-artifacts.v1"
 RAGAS_DIAGNOSTIC_COMBINED_REPORT_SCHEMA_VERSION = "ragas-diagnostic-combined-report.v1"
+RAGAS_DIAGNOSTIC_FAILURE_STAGES = (
+    "retrieval",
+    "rerank",
+    "selection",
+    "evidence_selection",
+    "synthesis",
+    "grounding",
+    "diagnostic",
+)
 
 _ALLOWED_GATE_ARTIFACT_KINDS = frozenset(
     {
@@ -121,6 +130,7 @@ def _surface_snapshot(
         "failedCaseCount": 0,
         "lowScoreCases": [],
         "metrics": [],
+        "stageDistribution": [],
         "status": "artifact_missing" if not ragas_provided else "missing_for_surface",
     }
     deterministic_blockers = [
@@ -267,6 +277,7 @@ def _load_ragas_diagnostic_by_surface(path: Path) -> dict[str, dict[str, Any]]:
 def _summarize_ragas_cases(items: list[dict[str, Any]]) -> dict[str, Any]:
     metrics: dict[str, list[float]] = defaultdict(list)
     low_score_cases: list[dict[str, Any]] = []
+    stage_counts: dict[str, int] = defaultdict(int)
     failed = 0
     for item in items:
         if item.get("status") != "completed":
@@ -279,9 +290,15 @@ def _summarize_ragas_cases(items: list[dict[str, Any]]) -> dict[str, Any]:
                 value = float(score)
                 metrics[str(metric_name)].append(value)
                 if value < 0.8:
+                    failure_stage = _required_ragas_metric_failure_stage(
+                        item,
+                        metric_name=str(metric_name),
+                    )
+                    stage_counts[failure_stage] += 1
                     low_score_cases.append(
                         {
                             "caseId": str(item.get("case_id") or ""),
+                            "failureStage": failure_stage,
                             "metricName": str(metric_name),
                             "score": value,
                         }
@@ -302,8 +319,36 @@ def _summarize_ragas_cases(items: list[dict[str, Any]]) -> dict[str, Any]:
             }
             for metric_name, values in sorted(metrics.items())
         ],
+        "stageDistribution": [
+            {"caseCount": count, "stage": stage}
+            for stage, count in sorted(
+                stage_counts.items(),
+                key=lambda item: (RAGAS_DIAGNOSTIC_FAILURE_STAGES.index(item[0]), item[0]),
+            )
+        ],
         "status": status,
     }
+
+
+def _required_ragas_metric_failure_stage(item: dict[str, Any], *, metric_name: str) -> str:
+    case_id = str(item.get("case_id") or "")
+    field_prefix = f"RAGAS diagnostic case {case_id or '<missing case_id>'}"
+    attribution = item.get("failure_attribution")
+    metric_failures = (
+        attribution.get("metric_failures")
+        if isinstance(attribution, dict) and isinstance(attribution.get("metric_failures"), dict)
+        else None
+    )
+    if metric_failures is None or not isinstance(metric_failures.get(metric_name), str):
+        raise ValueError(
+            f"{field_prefix}.failure_attribution.metric_failures.{metric_name} is required"
+        )
+    stage = str(metric_failures[metric_name]).strip()
+    if stage not in RAGAS_DIAGNOSTIC_FAILURE_STAGES:
+        raise ValueError(
+            f"{field_prefix}.failure_attribution.metric_failures.{metric_name} is unsupported"
+        )
+    return stage
 
 
 def _load_json_object(path: Path) -> dict[str, Any]:
@@ -335,6 +380,7 @@ __all__ = [
     "EVAL_COVERAGE_GATE_ARTIFACTS_SCHEMA_VERSION",
     "EVAL_COVERAGE_SNAPSHOT_SCHEMA_VERSION",
     "RAGAS_DIAGNOSTIC_COMBINED_REPORT_SCHEMA_VERSION",
+    "RAGAS_DIAGNOSTIC_FAILURE_STAGES",
     "build_eval_coverage_snapshot",
     "main",
 ]

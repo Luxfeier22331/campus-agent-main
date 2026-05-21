@@ -315,7 +315,15 @@ def _supporting_doc_ids(projection: RagasProjection) -> set[str]:
 def _primary_failure_stage(metric_failures: Mapping[str, str]) -> str:
     if not metric_failures:
         return "passed"
-    for stage in ("retrieval", "evidence_selection", "synthesis", "diagnostic"):
+    for stage in (
+        "retrieval",
+        "rerank",
+        "selection",
+        "evidence_selection",
+        "synthesis",
+        "grounding",
+        "diagnostic",
+    ):
         if stage in metric_failures.values():
             return stage
     return "diagnostic"
@@ -325,8 +333,11 @@ def _summarize_failure_attribution(results: list[dict[str, object]]) -> dict[str
     summary = {
         "passed": 0,
         "retrieval": 0,
+        "rerank": 0,
+        "selection": 0,
         "evidence_selection": 0,
         "synthesis": 0,
+        "grounding": 0,
         "diagnostic": 0,
         "failed": 0,
     }

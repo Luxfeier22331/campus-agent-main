@@ -1,4 +1,13 @@
-import type { OperatorEvalCoverageRecord } from "../types";
+import type {
+	OperatorEvalCoverageRagasDiagnosticFailureStage,
+	OperatorEvalCoverageRecord,
+	RawOperatorEvalCoverageRagasDiagnostic,
+	RawOperatorEvalCoverageRagasDiagnosticMetric,
+} from "../types";
+
+function rejectUnsupportedRagasFailureStage(stage: never): never {
+	throw new Error(`Unsupported RAGAS diagnostic failure stage: ${String(stage)}`);
+}
 
 export function buildEvalCoverageSummary(record: OperatorEvalCoverageRecord) {
 	const summary = {
@@ -58,6 +67,70 @@ export function formatEvalCoverageDiagnosticStatus(status: string) {
 		default:
 			return status;
 	}
+}
+
+export function formatRagasDiagnosticStageLabel(
+	stage: OperatorEvalCoverageRagasDiagnosticFailureStage,
+) {
+	switch (stage) {
+		case "retrieval":
+			return "召回";
+		case "rerank":
+			return "重排";
+		case "selection":
+			return "选择";
+		case "evidence_selection":
+			return "证据选择";
+		case "synthesis":
+			return "生成";
+		case "grounding":
+			return "接地";
+		case "diagnostic":
+			return "诊断";
+		default:
+			return rejectUnsupportedRagasFailureStage(stage);
+	}
+}
+
+export function causeClassForRagasDiagnosticFailureStage(
+	stage: OperatorEvalCoverageRagasDiagnosticFailureStage,
+) {
+	switch (stage) {
+		case "retrieval":
+		case "rerank":
+			return "retrieval_quality_low";
+		case "selection":
+		case "evidence_selection":
+			return "evidence_selection_failed";
+		case "synthesis":
+		case "grounding":
+			return "synthesis_grounding_failed";
+		case "diagnostic":
+			return "diagnostic_attention";
+		default:
+			return rejectUnsupportedRagasFailureStage(stage);
+	}
+}
+
+export function formatRagasDiagnosticMetricSummary(
+	metrics: RawOperatorEvalCoverageRagasDiagnosticMetric[],
+) {
+	if (metrics.length === 0) {
+		return "none";
+	}
+	return metrics
+		.map((metric) => `${metric.name} min ${metric.min.toFixed(3)} / mean ${metric.mean.toFixed(3)}`)
+		.join("; ");
+}
+
+export function buildRagasDiagnosticStageEntries(
+	diagnostic: RawOperatorEvalCoverageRagasDiagnostic,
+) {
+	return diagnostic.stageDistribution.map((item) => ({
+		count: item.caseCount,
+		label: formatRagasDiagnosticStageLabel(item.stage),
+		stage: item.stage,
+	}));
 }
 
 export function formatEvalCoverageSurfaceLabel(surfaceKey: string) {

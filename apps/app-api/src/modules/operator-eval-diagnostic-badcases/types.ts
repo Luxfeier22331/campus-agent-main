@@ -2,8 +2,11 @@ export const EVAL_DIAGNOSTIC_BADCASES_SCHEMA_VERSION = "eval_diagnostic_badcases
 
 export type EvalDiagnosticFailureStage =
 	| "retrieval"
+	| "rerank"
+	| "selection"
 	| "evidence_selection"
 	| "synthesis"
+	| "grounding"
 	| "diagnostic";
 
 export interface EvalDiagnosticBadcasePayloadItem {

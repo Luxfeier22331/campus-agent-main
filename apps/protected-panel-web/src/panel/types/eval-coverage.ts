@@ -6,16 +6,30 @@ export interface RawOperatorEvalCoverageRagasDiagnosticMetric {
 	name: string;
 }
 
+export type OperatorEvalCoverageRagasDiagnosticFailureStage =
+	| "retrieval"
+	| "rerank"
+	| "selection"
+	| "evidence_selection"
+	| "synthesis"
+	| "grounding"
+	| "diagnostic";
+
 export interface RawOperatorEvalCoverageRagasDiagnostic {
 	caseCount: number;
 	completedCaseCount: number;
 	failedCaseCount: number;
 	lowScoreCases: Array<{
 		caseId: string;
+		failureStage: OperatorEvalCoverageRagasDiagnosticFailureStage;
 		metricName: string;
 		score: number;
 	}>;
 	metrics: RawOperatorEvalCoverageRagasDiagnosticMetric[];
+	stageDistribution: Array<{
+		caseCount: number;
+		stage: OperatorEvalCoverageRagasDiagnosticFailureStage;
+	}>;
 	status: "artifact_missing" | "diagnostic_attention" | "missing_for_surface" | "present";
 }
 

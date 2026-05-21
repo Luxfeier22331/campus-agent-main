@@ -11,7 +11,15 @@ from campus_evals.models import reject_forbidden_workflow_trace_keys
 EVAL_DIAGNOSTIC_BADCASES_SCHEMA_VERSION = "eval_diagnostic_badcases.v1"
 RAGAS_DIAGNOSTIC_COMBINED_REPORT_SCHEMA_VERSION = "ragas-diagnostic-combined-report.v1"
 
-_ALLOWED_FAILURE_STAGES = ("retrieval", "evidence_selection", "synthesis", "diagnostic")
+_ALLOWED_FAILURE_STAGES = (
+    "retrieval",
+    "rerank",
+    "selection",
+    "evidence_selection",
+    "synthesis",
+    "grounding",
+    "diagnostic",
+)
 _LOCAL_ARTIFACT_KEY_TOKENS = (
     "artifactpath",
     "bucket",
@@ -223,8 +231,12 @@ def _failure_for_metric(
 def _cause_class_for(*, metric_name: str, failure_stage: str) -> str:
     if failure_stage == "retrieval":
         return "retrieval_quality_low"
-    if failure_stage == "evidence_selection":
+    if failure_stage in {"evidence_selection", "selection"}:
         return "evidence_selection_failed"
+    if failure_stage == "rerank":
+        return "retrieval_quality_low"
+    if failure_stage == "grounding":
+        return "synthesis_grounding_failed"
     if metric_name == "answer_relevancy":
         return "answer_relevancy_low"
     if failure_stage == "synthesis" and metric_name in {"faithfulness", "identity_grounding"}:

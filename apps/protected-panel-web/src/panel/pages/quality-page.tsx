@@ -2,6 +2,7 @@ import { Alert, Stack } from "@mui/material";
 import { useQueries, useQuery } from "@tanstack/react-query";
 import { startTransition, useDeferredValue, useEffect, useMemo, useRef, useState } from "react";
 import { Title, useAuthenticated, useDataProvider } from "react-admin";
+import { useSearchParams } from "react-router-dom";
 
 import type { ProtectedPanelDataProvider } from "../data-provider";
 import { PANEL_COPY } from "../panel-copy";
@@ -29,6 +30,7 @@ import {
 export function QualityPage() {
 	useAuthenticated();
 	const dataProvider = useDataProvider<ProtectedPanelDataProvider>();
+	const [searchParams] = useSearchParams();
 	const [selectedBadcase, setSelectedBadcase] = useState<OperatorQualityBadcaseRecord | null>(null);
 	const badcasePageLockRef = useRef(false);
 	const evalCandidatePageLockRef = useRef(false);
@@ -36,15 +38,15 @@ export function QualityPage() {
 	const [evalCandidatePageTransitionPending, setEvalCandidatePageTransitionPending] =
 		useState(false);
 	const [filters, setFilters] = useState<QualityFilterState>({
-		badcaseCauseClass: "",
-		badcaseDetectedBy: "",
-		badcaseStatus: "",
+		badcaseCauseClass: searchParams.get("causeClass") ?? "",
+		badcaseDetectedBy: searchParams.get("detectedBy") ?? "",
+		badcaseStatus: searchParams.get("status") ?? "",
 		evalPage: 1,
 		page: 1,
 		perPage: 10,
 		selectedTarget: null,
-		surface: null,
-		window: "24h",
+		surface: searchParams.get("surface"),
+		window: (searchParams.get("window") as QualityFilterState["window"] | null) ?? "24h",
 	});
 
 	const deferredWindow = useDeferredValue(filters.window);

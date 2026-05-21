@@ -17,16 +17,30 @@ export interface EvalCoverageRagasDiagnosticMetric {
 	name: string;
 }
 
+export type EvalCoverageRagasDiagnosticFailureStage =
+	| "retrieval"
+	| "rerank"
+	| "selection"
+	| "evidence_selection"
+	| "synthesis"
+	| "grounding"
+	| "diagnostic";
+
 export interface EvalCoverageRagasDiagnostic {
 	caseCount: number;
 	completedCaseCount: number;
 	failedCaseCount: number;
 	lowScoreCases: Array<{
 		caseId: string;
+		failureStage: EvalCoverageRagasDiagnosticFailureStage;
 		metricName: string;
 		score: number;
 	}>;
 	metrics: EvalCoverageRagasDiagnosticMetric[];
+	stageDistribution: Array<{
+		caseCount: number;
+		stage: EvalCoverageRagasDiagnosticFailureStage;
+	}>;
 	status: "artifact_missing" | "diagnostic_attention" | "missing_for_surface" | "present";
 }
 

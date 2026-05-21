@@ -42,16 +42,32 @@ const snapshot = {
 			profileId: "handbook",
 			qrelsCaseCount: 52,
 			ragasDiagnostic: {
-				caseCount: 0,
-				completedCaseCount: 0,
+				caseCount: 1,
+				completedCaseCount: 1,
 				failedCaseCount: 0,
-				lowScoreCases: [],
-				metrics: [],
-				status: "artifact_missing",
+				lowScoreCases: [
+					{
+						caseId: "student-scholarship-condition",
+						failureStage: "evidence_selection",
+						metricName: "faithfulness",
+						score: 0.31,
+					},
+				],
+				metrics: [
+					{
+						count: 1,
+						max: 0.31,
+						mean: 0.31,
+						min: 0.31,
+						name: "faithfulness",
+					},
+				],
+				stageDistribution: [{ caseCount: 1, stage: "evidence_selection" }],
+				status: "diagnostic_attention",
 			},
 			readiness: {
 				reasons: [],
-				status: "ready",
+				status: "diagnostic_attention",
 			},
 			releaseAcceptanceCaseCount: 25,
 			surfaceKey: "regulations/student_rules",
@@ -85,6 +101,7 @@ const snapshot = {
 				failedCaseCount: 0,
 				lowScoreCases: [],
 				metrics: [],
+				stageDistribution: [],
 				status: "artifact_missing",
 			},
 			readiness: {
@@ -123,6 +140,7 @@ const snapshot = {
 				failedCaseCount: 0,
 				lowScoreCases: [],
 				metrics: [],
+				stageDistribution: [],
 				status: "artifact_missing",
 			},
 			readiness: {
@@ -161,6 +179,7 @@ const snapshot = {
 				failedCaseCount: 0,
 				lowScoreCases: [],
 				metrics: [],
+				stageDistribution: [],
 				status: "artifact_missing",
 			},
 			readiness: {
@@ -242,6 +261,39 @@ describe("operator eval coverage service", () => {
 				payload: {
 					...snapshot,
 					denominatorSurfaces: ["regulations/student_rules", "curriculum/curriculum_plan"],
+				},
+			}),
+		).rejects.toMatchObject({
+			code: "validation_failed",
+			status: 422,
+		});
+		expect(store.upsertEvalCoverageSnapshot).not.toHaveBeenCalled();
+	});
+
+	it("rejects low-score RAGAS cases without explicit failure stage", async () => {
+		const store = createCommandStore();
+		const service = buildOperatorObservabilityCommandService({ store });
+
+		await expect(
+			service.ingestEvalCoverageSnapshot({
+				payload: {
+					...snapshot,
+					surfaces: [
+						{
+							...snapshot.surfaces[0],
+							ragasDiagnostic: {
+								...snapshot.surfaces[0].ragasDiagnostic,
+								lowScoreCases: [
+									{
+										caseId: "student-scholarship-condition",
+										metricName: "faithfulness",
+										score: 0.31,
+									},
+								],
+							},
+						},
+						...snapshot.surfaces.slice(1),
+					],
 				},
 			}),
 		).rejects.toMatchObject({

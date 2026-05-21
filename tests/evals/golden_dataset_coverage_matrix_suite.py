@@ -39,6 +39,18 @@ class GoldenDatasetCoverageMatrixSuite(unittest.TestCase):
         )
         self.assertIn("Answer quality cases | 0", rendered)
         self.assertIn("Known-gap cases | 4", rendered)
+        self.assertIn("## Operator Readiness Matrix", rendered)
+        self.assertIn("## RAGAS Diagnostic Matrix", rendered)
+        self.assertIn("## Answer Quality Coverage Notes", rendered)
+        self.assertIn("## Known Boundaries", rendered)
+        self.assertIn(
+            "`official_web/stable_reference` is stable reference coverage, not generic official-web QA.",
+            rendered,
+        )
+        self.assertIn(
+            "RAGAS diagnostics are supplemental and non-blocking; they do not author golden truth.",
+            rendered,
+        )
 
     def test_tracked_matrix_matches_generated_content(self) -> None:
         check_golden_dataset_coverage_matrix(Path("docs/reference/golden-dataset-case-matrix.md"))

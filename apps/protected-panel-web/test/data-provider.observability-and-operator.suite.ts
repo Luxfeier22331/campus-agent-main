@@ -693,11 +693,13 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 							lowScoreCases: [
 								{
 									caseId: "student-case",
+									failureStage: "evidence_selection",
 									metricName: "answer_relevancy",
 									score: 0.7,
 								},
 							],
 							metrics: [],
+							stageDistribution: [{ caseCount: 1, stage: "evidence_selection" }],
 							status: "diagnostic_attention",
 						},
 						readiness: {

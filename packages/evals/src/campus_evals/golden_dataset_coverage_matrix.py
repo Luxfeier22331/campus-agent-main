@@ -57,6 +57,43 @@ def render_golden_dataset_coverage_matrix(
     lines.extend(
         [
             "",
+            "## Operator Readiness Matrix",
+            "",
+            "| Surface | Deterministic coverage | Maturity | Release baseline gate | Operator projection fields |",
+            "| ------- | ---------------------- | -------- | --------------------- | -------------------------- |",
+        ]
+    )
+    for surface in report.surfaces:
+        lines.append(_operator_readiness_row(surface))
+    lines.extend(
+        [
+            "",
+            "## RAGAS Diagnostic Matrix",
+            "",
+            "| Surface | Diagnostic role | Snapshot fields | Gate effect |",
+            "| ------- | --------------- | --------------- | ----------- |",
+        ]
+    )
+    for surface in report.surfaces:
+        lines.append(_ragas_diagnostic_row(surface))
+    lines.extend(
+        [
+            "",
+            "## Answer Quality Coverage Notes",
+            "",
+        ]
+    )
+    lines.extend(_answer_quality_notes(report.surfaces))
+    lines.extend(
+        [
+            "",
+            "## Known Boundaries",
+            "",
+            "- RAGAS diagnostics are supplemental and non-blocking; they do not author golden truth.",
+            "- `official_web/stable_reference` is stable reference coverage, not generic official-web QA.",
+            "- `official_web/fresh_news` remains excluded from the current RAG denominator.",
+            "- Thin answer-quality coverage is reported explicitly; consumers must not infer stronger deterministic answer coverage from qrels alone.",
+            "",
             "## Surface Details",
             "",
         ]
@@ -162,6 +199,45 @@ def _surface_summary_row(surface: RagEvalSurfaceCoverage) -> str:
         f"{surface.answer_quality_case_count} | {surface.golden_qrels_case_count} | "
         f"{surface.known_gap_case_count} | `{surface.maturity_status}` |"
     )
+
+
+def _operator_readiness_row(surface: RagEvalSurfaceCoverage) -> str:
+    deterministic = "ready" if not surface.gaps else "gap: " + ", ".join(surface.gaps)
+    maturity = (
+        surface.maturity_status if not surface.maturity_gaps else ", ".join(surface.maturity_gaps)
+    )
+    baseline_gate = "yes" if surface.has_release_baseline_gate else "no"
+    fields = (
+        "qrels, expected docs, release acceptance, answer-quality, "
+        "known-gap, last gate, RAGAS diagnostic"
+    )
+    return (
+        f"| `{surface.surface_key}` | `{deterministic}` | `{maturity}` | "
+        f"`{baseline_gate}` | {fields} |"
+    )
+
+
+def _ragas_diagnostic_row(surface: RagEvalSurfaceCoverage) -> str:
+    return (
+        f"| `{surface.surface_key}` | supplemental low-score review | "
+        "`metrics`, `lowScoreCases`, `stageDistribution` | "
+        "`diagnostic_attention` only; never deterministic block |"
+    )
+
+
+def _answer_quality_notes(surfaces: tuple[RagEvalSurfaceCoverage, ...]) -> list[str]:
+    lines: list[str] = []
+    for surface in surfaces:
+        if surface.answer_quality_case_count >= surface.unique_expected_doc_count:
+            posture = "strong deterministic answer contract coverage"
+        elif surface.answer_quality_case_count == 0:
+            posture = "no deterministic answer-quality contract cases"
+        else:
+            posture = "thin deterministic answer-quality contract coverage"
+        lines.append(
+            f"- `{surface.surface_key}`: {surface.answer_quality_case_count} answer-quality cases; {posture}."
+        )
+    return lines
 
 
 def _surface_detail_lines(surface: RagEvalSurfaceCoverage) -> list[str]:

@@ -292,8 +292,8 @@ operator-safe review candidate：
 
 - app-api 必须拒绝 local artifact path、bucket / object key、raw prompt、raw answer、
   transcript、auth material、cookie 或 token 等字段
-- `failureStage` 固定允许 `retrieval`、`evidence_selection`、`synthesis` 与
-  `diagnostic`
+- `failureStage` 固定允许 `retrieval`、`rerank`、`selection`、
+  `evidence_selection`、`synthesis`、`grounding` 与 `diagnostic`
 - RAGAS diagnostic badcase 不携带 runtime `requestId` / `traceId`，app-api 不得为它生成或
   猜测 request correlation
 - 该 publish seam 只写 `operator.eval_diagnostic_badcase_projection`，不改变 deterministic

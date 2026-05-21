@@ -270,7 +270,8 @@ artifact，不是 canonical golden truth，也不是 release acceptance artifact
 固定规则：
 
 - 每个低分 metric 必须有显式 failure attribution；`failureStage` 只允许
-  `retrieval`、`evidence_selection`、`synthesis` 与 `diagnostic`
+  `retrieval`、`rerank`、`selection`、`evidence_selection`、`synthesis`、
+  `grounding` 与 `diagnostic`
 - projection 不得包含 local path、bucket/object key、raw prompt、raw answer、transcript、
   auth material、cookie、JWT、bearer token、provider raw response 或 token-bearing URL
 - projection 不得伪造 `requestId` / `traceId`；RAGAS diagnostic case 进入
@@ -302,6 +303,9 @@ artifact，不是 canonical golden truth，也不是 release acceptance artifact
 - `surfaces[].coverageGaps`
 - `surfaces[].maturityGaps`
 - `surfaces[].ragasDiagnostic`
+- `surfaces[].ragasDiagnostic.metrics`
+- `surfaces[].ragasDiagnostic.lowScoreCases[].failureStage`
+- `surfaces[].ragasDiagnostic.stageDistribution`
 - `surfaces[].lastGate`
 - `surfaces[].readiness`
 - `excludedSurfaces`
@@ -317,6 +321,8 @@ artifact，不是 canonical golden truth，也不是 release acceptance artifact
   `.tmp`、`.planning`、对象存储或任意目录
 - RAGAS combined input 必须使用 `ragas-diagnostic-combined-report.v1`，并只进入
   `ragasDiagnostic`
+- RAGAS low-score metric 必须带显式 `failure_attribution.metric_failures.<metric>`；
+  snapshot 不允许生成 unknown/default stage
 - `readiness.status` 的 deterministic blocker 只来自 coverage/maturity gap 与 last gate
   failure/missing；RAGAS 低分只能把 ready surface 标为 `diagnostic_attention`
 - snapshot 不得包含 local path、bucket/object key、raw prompt、raw answer、transcript、auth
