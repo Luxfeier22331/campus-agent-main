@@ -186,6 +186,37 @@ export function registerWorkerOperatorDomainsSuitePart01() {
 								);
 							}
 
+							if (pathname === "/api/operator/evals/coverage") {
+								return new Response(
+									JSON.stringify({
+										denominatorSurfaces: [
+											"regulations/student_rules",
+											"regulations/institutional_rules",
+											"curriculum/curriculum_plan",
+											"official_web/stable_reference",
+										],
+										excludedSurfaces: [
+											{
+												reason: "excluded from current RAG consumption denominator",
+												surfaceKey: "official_web/fresh_news",
+											},
+										],
+										generatedAt: "2026-05-21T09:00:00.000Z",
+										schemaVersion: "eval_coverage_snapshot.v1",
+										snapshotId: "eval_coverage:2026-05-21T090000Z",
+										sourceGitHead: "git-main",
+										sourceReportSchema: "rag-eval-coverage-report.v1",
+										surfaces: [],
+									}),
+									{
+										headers: {
+											"content-type": "application/json; charset=utf-8",
+										},
+										status: 200,
+									},
+								);
+							}
+
 							if (pathname === "/api/operator/audit/aevt_01HQ") {
 								return new Response(
 									JSON.stringify({
@@ -318,6 +349,19 @@ export function registerWorkerOperatorDomainsSuitePart01() {
 					},
 				});
 
+				const evalCoverageResponse = await worker.fetch(
+					new Request("https://panel.example.com/api/operator/evals/coverage", {
+						headers: {
+							"cf-access-jwt-assertion": token,
+						},
+					}),
+					workerEnv,
+				);
+				expect(evalCoverageResponse.status).toBe(200);
+				await expect(evalCoverageResponse.json()).resolves.toMatchObject({
+					snapshotId: "eval_coverage:2026-05-21T090000Z",
+				});
+
 				const auditDetailResponse = await worker.fetch(
 					new Request("https://panel.example.com/api/operator/audit/aevt_01HQ", {
 						headers: {
@@ -339,9 +383,11 @@ export function registerWorkerOperatorDomainsSuitePart01() {
 					"https://app-api.internal/api/operator/audit?limit=10&requestId=req_01HQ&eventType=request.completed",
 					"https://app-api.internal/api/operator/quality/eval-candidates?status=open&causeClass=intent_classifier_mismatch",
 					"https://app-api.internal/api/operator/intent/summary?window=24h&surface=public_chat_web",
+					"https://app-api.internal/api/operator/evals/coverage",
 					"https://app-api.internal/api/operator/audit/aevt_01HQ",
 				]);
 				expect(forwardedOperatorEmails).toEqual([
+					"ops@example.com",
 					"ops@example.com",
 					"ops@example.com",
 					"ops@example.com",

@@ -7,6 +7,7 @@ import { buildOperatorTraceBacklinkRecorder } from "../src/modules/operator-obse
 describe("operator trace backlink recorder", () => {
 	it("projects configured trace and issue deep links through the app-owned command seam", async () => {
 		const commandService = {
+			ingestEvalCoverageSnapshot: vi.fn(),
 			ingestExecutionAuditEvents: vi.fn(),
 			ingestGrades: vi.fn(),
 			ingestTraceBacklinks: vi.fn().mockResolvedValue({ accepted: 1 }),
@@ -45,6 +46,7 @@ describe("operator trace backlink recorder", () => {
 
 	it("records a safe error fingerprint without requiring a sink query link", async () => {
 		const commandService = {
+			ingestEvalCoverageSnapshot: vi.fn(),
 			ingestExecutionAuditEvents: vi.fn(),
 			ingestGrades: vi.fn(),
 			ingestTraceBacklinks: vi.fn().mockResolvedValue({ accepted: 1 }),
@@ -80,6 +82,7 @@ describe("operator trace backlink recorder", () => {
 	it("fails open on invalid templates or command write failures", async () => {
 		const logger = { warn: vi.fn() };
 		const commandService = {
+			ingestEvalCoverageSnapshot: vi.fn(),
 			ingestExecutionAuditEvents: vi.fn(),
 			ingestGrades: vi.fn(),
 			ingestTraceBacklinks: vi.fn().mockRejectedValue(new Error("database unavailable")),

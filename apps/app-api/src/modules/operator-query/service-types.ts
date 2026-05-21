@@ -1,4 +1,5 @@
 import type { SupervisorExecutionWorkflowTraceSummary } from "../integration/supervisor-types";
+import type { EvalCoverageSnapshot } from "../operator-eval-coverage";
 import type {
 	RequestClaimSupportSummary,
 	RequestDiagnosticsSummary,
@@ -111,6 +112,8 @@ export interface OperatorQueryListResult {
 		nextCursor: string | null;
 	};
 }
+
+export type OperatorEvalCoverageResult = EvalCoverageSnapshot;
 
 export type OperatorOverviewWindow = "15m" | "1h" | "24h" | "7d" | "30d";
 

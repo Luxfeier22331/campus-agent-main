@@ -20,6 +20,7 @@ describe("operator observability command service", () => {
 				surface: "public_chat_web",
 				traceId: "trace_01HQ",
 			}),
+			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
 			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
 			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
 		};
@@ -116,6 +117,7 @@ describe("operator observability command service", () => {
 				surface: "public_chat_web",
 				traceId: "trace_intent_01",
 			}),
+			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
 			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
 			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
 		};
@@ -185,6 +187,7 @@ describe("operator observability command service", () => {
 				surface: "public_chat_web",
 				traceId: "trace_01HQ",
 			}),
+			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
 			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
 			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
 		};
@@ -258,6 +261,7 @@ describe("operator observability command service", () => {
 				surface: "public_chat_web",
 				traceId: "trace_01HQ",
 			}),
+			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
 			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
 			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
 		};
@@ -302,6 +306,7 @@ describe("operator observability command service", () => {
 				surface: "public_chat_web",
 				traceId: "trace_01HQ",
 			}),
+			upsertEvalCoverageSnapshot: vi.fn().mockResolvedValue(undefined),
 			upsertQualityGrades: vi.fn().mockResolvedValue(undefined),
 			upsertTraceBacklinks: vi.fn().mockResolvedValue(undefined),
 		};

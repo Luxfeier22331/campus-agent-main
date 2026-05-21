@@ -228,6 +228,50 @@ operator quality candidate export 可以进入 eval-owned review manifest，但�
 - `duplicate` decision 必须记录 `duplicate_of`；`rejected`、`deprecated` 与
   `needs_info` 只留在 reviewed manifest，不进入 accepted fixture
 
+### Eval Coverage Snapshot
+
+`eval_coverage_snapshot.v1` 是给 app-api operator projection 消费的 coverage snapshot，
+不是 canonical golden truth。它由 repo-owned eval coverage builder 汇总 current denominator
+和显式 gate artifact manifest 后生成。
+
+稳定字段：
+
+- `schemaVersion = eval_coverage_snapshot.v1`
+- `snapshotId`
+- `generatedAt`
+- `sourceGitHead`
+- `sourceReportSchema`
+- `denominatorSurfaces`
+- `surfaces[].surfaceKey`
+- `surfaces[].qrelsCaseCount`
+- `surfaces[].uniqueExpectedDocCount`
+- `surfaces[].releaseAcceptanceCaseCount`
+- `surfaces[].answerQualityCaseCount`
+- `surfaces[].goldenQrelsCaseCount`
+- `surfaces[].knownGapCaseCount`
+- `surfaces[].coverageGaps`
+- `surfaces[].maturityGaps`
+- `surfaces[].ragasDiagnostic`
+- `surfaces[].lastGate`
+- `surfaces[].readiness`
+- `excludedSurfaces`
+
+固定规则：
+
+- `denominatorSurfaces` 必须等于当前 RAG consumption denominator：
+  `regulations/student_rules`、`regulations/institutional_rules`、
+  `curriculum/curriculum_plan`、`official_web/stable_reference`
+- `official_web/fresh_news` 等非当前 RAG denominator surface 只能出现在
+  `excludedSurfaces`
+- gate artifact 输入必须通过 `eval-coverage-gate-artifacts.v1` manifest 显式列出；builder 不扫描
+  `.tmp`、`.planning`、对象存储或任意目录
+- RAGAS combined input 必须使用 `ragas-diagnostic-combined-report.v1`，并只进入
+  `ragasDiagnostic`
+- `readiness.status` 的 deterministic blocker 只来自 coverage/maturity gap 与 last gate
+  failure/missing；RAGAS 低分只能把 ready surface 标为 `diagnostic_attention`
+- snapshot 不得包含 local path、bucket/object key、raw prompt、raw answer、transcript、auth
+  material、cookie、JWT、bearer token 或 token-bearing URL
+
 ### Acceptance Summary
 
 `final-summary.json` 至少固定：

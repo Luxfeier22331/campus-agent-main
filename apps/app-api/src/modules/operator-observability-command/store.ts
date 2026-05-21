@@ -3,11 +3,13 @@ import { eq } from "drizzle-orm";
 import type { Env } from "../../config";
 import { type createRuntimeDatabase, createRuntimeDbGetter } from "../../db/runtime";
 import {
+	evalCoverageSnapshot,
 	projectionOutbox,
 	qualityGradeProjection,
 	requestObservabilityFact,
 	traceBacklinkProjection,
 } from "../../db/schema";
+import type { EvalCoverageProjectionWrite } from "../operator-eval-coverage";
 
 type RuntimeDbGetter = () => ReturnType<typeof createRuntimeDatabase>;
 
@@ -67,6 +69,7 @@ export interface ExecutionAuditEventWrite {
 export interface OperatorObservabilityCommandStore {
 	getRequestObservabilitySeed(requestId: string): Promise<StoredRequestObservabilitySeed | null>;
 	enqueueExecutionAuditEvents(input: { events: ExecutionAuditEventWrite[] }): Promise<void>;
+	upsertEvalCoverageSnapshot(input: { snapshot: EvalCoverageProjectionWrite }): Promise<void>;
 	upsertQualityGrades(input: { grades: QualityGradeProjectionWrite[] }): Promise<void>;
 	upsertTraceBacklinks(input: { backlinks: TraceBacklinkProjectionWrite[] }): Promise<void>;
 }
@@ -132,6 +135,29 @@ export function createPgOperatorObservabilityCommandStore(
 				.limit(1);
 
 			return rows[0] ? toStoredRequestObservabilitySeed(rows[0]) : null;
+		},
+
+		async upsertEvalCoverageSnapshot(input) {
+			const db = await getDb();
+			await db
+				.insert(evalCoverageSnapshot)
+				.values({
+					createdAt: new Date(),
+					generatedAt: new Date(input.snapshot.generatedAt),
+					payloadJson: input.snapshot.payload,
+					schemaVersion: input.snapshot.schemaVersion,
+					snapshotId: input.snapshot.snapshotId,
+					sourceGitHead: input.snapshot.sourceGitHead,
+				})
+				.onConflictDoUpdate({
+					set: {
+						generatedAt: new Date(input.snapshot.generatedAt),
+						payloadJson: input.snapshot.payload,
+						schemaVersion: input.snapshot.schemaVersion,
+						sourceGitHead: input.snapshot.sourceGitHead,
+					},
+					target: evalCoverageSnapshot.snapshotId,
+				});
 		},
 
 		async upsertQualityGrades(input) {

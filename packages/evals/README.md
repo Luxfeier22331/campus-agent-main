@@ -276,6 +276,46 @@ Evaluation helpers for campus-agent v2.
   registry、tool-family fixture coverage 与 profile fixture smoke；新增 profile 时必须同步这些
   surface。
 
+eval coverage operator snapshot：
+
+- `campus_evals.eval_coverage_snapshot` 负责把 current RAG denominator 的 qrels coverage、
+  release acceptance、answer-quality、known-gap、last gate artifact 与 RAGAS
+  diagnostic 汇总成 operator-safe snapshot
+- snapshot schema 固定为 `eval_coverage_snapshot.v1`，当前 denominator 顺序固定为：
+  `regulations/student_rules`、`regulations/institutional_rules`、
+  `curriculum/curriculum_plan`、`official_web/stable_reference`
+- gate artifact manifest schema 固定为 `eval-coverage-gate-artifacts.v1`；manifest 必须显式列出
+  每个 current denominator surface 的 accepted gate artifact，不扫描 `.tmp`、
+  `.planning` 或对象存储目录
+- RAGAS combined diagnostic schema 固定为 `ragas-diagnostic-combined-report.v1`；它只进入
+  `ragasDiagnostic`，影响 panel 的 diagnostic attention 展示，不替代 deterministic readiness
+- 生成本地快照：
+
+```bash
+uv run --all-packages python -m campus_evals.eval_coverage_snapshot \
+  --gate-artifacts <gate-artifacts.json> \
+  --ragas-diagnostic <ragas-diagnostic.combined.json> \
+  --source-git-head "$(git rev-parse HEAD)" \
+  --output .tmp/evals/eval-coverage-snapshot.json
+```
+
+- 发布到 app-api operator projection：
+
+```bash
+curl -fsS \
+  -H "content-type: application/json" \
+  -H "x-app-internal-auth: $APP_API_INTERNAL_SHARED_SECRET" \
+  --data-binary @.tmp/evals/eval-coverage-snapshot.json \
+  "$APP_API_BASE_URL/api/internal/operator/evals/coverage-snapshots"
+```
+
+- `app-api` 会校验 schema、current denominator、surface 顺序和 forbidden raw/local
+  fields，写入 `operator.eval_coverage_snapshot`；`protected-panel-web` 只读
+  `GET /api/operator/evals/coverage`
+- forbidden fields 包括 local artifact path、auth/header/cookie/token、raw prompt、
+  raw answer 与 transcript；这些字段必须留在 eval evidence artifact，不得进入
+  operator projection
+
 ## Orchestration / Workflow Trace Eval Gap
 
 当前 eval 已经覆盖 retrieval qrels、intent gate、observability publish、formal
@@ -314,6 +354,7 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
 
 - `docs/reference/student-handbook-eval-metrics.md`
 - `docs/reference/curriculum-plan-eval-metrics.md`
+- `docs/reference/golden-dataset-case-matrix.md`
 - `docs/runbooks/student-handbook-hybrid-rebuild-checklist.md`
 - `docs/runbooks/curriculum-plan-hybrid-rebuild-checklist.md`
 
@@ -341,6 +382,10 @@ transcript、provider raw response、auth material 或未经裁剪的 restricted
 - `uv run --all-packages python -m scripts.eval_gate accept --profile
   institutional-rules-release-baseline --observations-path
   <institutional-answer-observations.json> --json`
+- `uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix
+  --check docs/reference/golden-dataset-case-matrix.md`
+- `uv run --all-packages python -m campus_evals.golden_dataset_coverage_matrix
+  --write docs/reference/golden-dataset-case-matrix.md`
 - `uv run --all-packages python -m scripts.eval_gate audit --json`
 - `uv run --all-packages python -m unittest
   tests.evals.public_chat_product_path_eval_suite

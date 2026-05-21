@@ -170,6 +170,20 @@ export function buildOperatorQueryService(
 			return event;
 		},
 
+		async getEvalCoverage(input) {
+			ensureOperatorPrincipal(input.principal);
+			const snapshot = await dependencies.store.getEvalCoverage();
+			if (!snapshot) {
+				throw new AppApiRouteError({
+					code: "eval_coverage_snapshot_not_found",
+					message: "Eval coverage snapshot not found.",
+					retryable: false,
+					status: 404,
+				});
+			}
+			return snapshot;
+		},
+
 		async getOverview(input) {
 			ensureOperatorPrincipal(input.principal);
 			return dependencies.store.getOverview(normalizeOverviewFilters(input.filters));

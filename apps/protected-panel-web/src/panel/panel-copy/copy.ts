@@ -23,6 +23,7 @@ export const PANEL_COPY = {
 	menu: {
 		overview: "总览",
 		quality: "质量",
+		evalCoverage: "评测覆盖",
 		safety: "安全与授权",
 		cost: "成本",
 		intent: "意图治理",
@@ -276,6 +277,43 @@ export const PANEL_COPY = {
 		states: {
 			badcaseLoadFailed: "badcase 队列读取失败。",
 			loadFailed: "质量域读取失败。",
+		},
+	},
+	evalCoveragePage: {
+		title: "评测覆盖",
+		subtitle: "按当前 RAG denominator 查看 qrels、发布验收、答案质量、已知缺口与诊断评测状态。",
+		generatedAt: "生成时间",
+		sourceGitHead: "Git Head",
+		cards: {
+			answerQualityCases: "答案质量用例",
+			knownGapDetail: "已知缺口",
+			qrelsCases: "Qrels 用例",
+			qrelsDetail: "当前 denominator 的检索相关性用例总数",
+			releaseAcceptanceCases: "发布验收用例",
+			releaseAcceptanceDetail: "进入 release acceptance 的确定性用例",
+			surfaceCount: "消费面",
+		},
+		columns: {
+			answerQuality: "Answer quality",
+			knownGap: "Known gap",
+			lastGate: "Last gate",
+			qrels: "Qrels",
+			ragasDiagnostic: "RAGAS diagnostic",
+			readiness: "Gate status",
+			releaseAcceptance: "Release acceptance",
+			surface: "Surface",
+		},
+		sections: {
+			excluded: "排除面",
+			excludedDescription: "排除面不计入当前 RAG consumption denominator；这里仅展示明确排除原因。",
+			noExcluded: "当前快照没有排除面。",
+			surfaceMatrix: "覆盖矩阵",
+			surfaceMatrixDescription:
+				"该矩阵只消费 app-api 发布的 operator-safe eval coverage projection，不读取本地评测 artifact。",
+		},
+		states: {
+			loadFailed: "评测覆盖读取失败。",
+			loading: "正在读取评测覆盖快照…",
 		},
 	},
 	safetyPage: {

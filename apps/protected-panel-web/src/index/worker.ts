@@ -75,6 +75,11 @@ const STATIC_PROXY_ROUTES = [
 	},
 	{
 		identityMessage: OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE,
+		path: "/api/operator/evals/coverage",
+		targetPath: "/api/operator/evals/coverage",
+	},
+	{
+		identityMessage: OPERATOR_OBSERVABILITY_IDENTITY_MESSAGE,
 		path: "/api/operator/audit",
 		targetPath: "/api/operator/audit",
 	},

@@ -71,6 +71,7 @@ export function createOperatorQueryServiceMock(
 	return {
 		getById: vi.fn(),
 		getAuditById: vi.fn(),
+		getEvalCoverage: vi.fn(),
 		getObservabilityById: vi.fn(),
 		getOverview: vi.fn(),
 		getIntentSummary: vi.fn(),

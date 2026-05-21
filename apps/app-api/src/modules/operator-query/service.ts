@@ -13,6 +13,7 @@ export type {
 	OperatorCostSummaryResult,
 	OperatorCostTimeseriesResult,
 	OperatorDistributionBucket,
+	OperatorEvalCoverageResult,
 	OperatorIntentObservabilitySummary,
 	OperatorIntentSummaryResult,
 	OperatorIntentTimeseriesResult,

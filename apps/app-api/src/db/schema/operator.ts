@@ -1,5 +1,6 @@
 import { boolean, index, integer, jsonb, pgSchema, text, timestamp } from "drizzle-orm/pg-core";
 
+import type { EvalCoverageSnapshot } from "../../modules/operator-eval-coverage";
 import type { RequestDiagnosticsSummary } from "../../modules/request-diagnostics";
 import type { VersionQuery } from "../../modules/version-query";
 
@@ -224,6 +225,23 @@ export const qualityBadcaseProjection = operator.table(
 		requestOpenedAtIndex: index("operator_quality_badcase_projection_request_opened_at_idx").on(
 			table.requestId,
 			table.openedAt,
+		),
+	}),
+);
+
+export const evalCoverageSnapshot = operator.table(
+	"eval_coverage_snapshot",
+	{
+		snapshotId: text("snapshot_id").primaryKey(),
+		schemaVersion: text("schema_version").notNull(),
+		generatedAt: timestamp("generated_at", { withTimezone: true }).notNull(),
+		sourceGitHead: text("source_git_head").notNull(),
+		payloadJson: jsonb("payload_json").$type<EvalCoverageSnapshot>().notNull(),
+		createdAt: timestamp("created_at", { withTimezone: true }).notNull(),
+	},
+	(table) => ({
+		generatedAtIndex: index("operator_eval_coverage_snapshot_generated_at_idx").on(
+			table.generatedAt,
 		),
 	}),
 );

@@ -7,6 +7,7 @@ import type {
 	OperatorAuditListFilterInput,
 	OperatorCostSummaryRecord,
 	OperatorCostTimeseriesRecord,
+	OperatorEvalCoverageRecord,
 	OperatorIntentSummaryRecord,
 	OperatorIntentTimeseriesRecord,
 	OperatorOverviewRecord,
@@ -76,6 +77,9 @@ export interface ProtectedPanelDataProvider extends DataProvider {
 	getOperatorCostTimeseries(
 		input?: OperatorTimeseriesFilterInput & { signal?: AbortSignal },
 	): Promise<{ data: OperatorCostTimeseriesRecord }>;
+	getOperatorEvalCoverage(input?: { signal?: AbortSignal }): Promise<{
+		data: OperatorEvalCoverageRecord;
+	}>;
 	listOperatorAudit(input?: OperatorAuditListFilterInput & { signal?: AbortSignal }): Promise<{
 		data: OperatorAuditEventRecord[];
 		pageInfo: {

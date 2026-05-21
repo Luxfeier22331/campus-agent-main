@@ -150,6 +150,10 @@ list endpoints 额外支持：
 - `GET /api/operator/cost/summary`
 - `GET /api/operator/cost/timeseries`
 
+### Eval Coverage
+
+- `GET /api/operator/evals/coverage`
+
 ### Audit
 
 - `GET /api/operator/audit`
@@ -209,6 +213,93 @@ list endpoints 额外支持：
 
 - `count` 是命中数
 - `eligibleCount` 是该指标合法分母；不适用时允许为 `null`
+
+## Eval Coverage Endpoint
+
+### `GET /api/operator/evals/coverage`
+
+返回当前发布到 app-api operator projection 的 eval coverage snapshot。
+
+响应：
+
+```json
+{
+  "schemaVersion": "eval_coverage_snapshot.v1",
+  "snapshotId": "eval_coverage:20260521T090000Z",
+  "generatedAt": "2026-05-21T09:00:00.000Z",
+  "sourceGitHead": "git-main",
+  "sourceReportSchema": "rag-eval-coverage-report.v1",
+  "denominatorSurfaces": [
+    "regulations/student_rules",
+    "regulations/institutional_rules",
+    "curriculum/curriculum_plan",
+    "official_web/stable_reference"
+  ],
+  "surfaces": [
+    {
+      "surfaceKey": "regulations/student_rules",
+      "profileId": "handbook",
+      "profileArtifactKind": "release_acceptance",
+      "qrelsCaseCount": 52,
+      "uniqueExpectedDocCount": 28,
+      "releaseAcceptanceCaseCount": 25,
+      "answerQualityCaseCount": 18,
+      "goldenQrelsCaseCount": 52,
+      "knownGapCaseCount": 4,
+      "maturityStatus": "ready",
+      "coverageGaps": [],
+      "maturityGaps": [],
+      "ragasDiagnostic": {
+        "status": "diagnostic_attention",
+        "caseCount": 2,
+        "completedCaseCount": 2,
+        "failedCaseCount": 0,
+        "lowScoreCases": [
+          {
+            "caseId": "student-case",
+            "metricName": "answer_relevancy",
+            "score": 0.7
+          }
+        ],
+        "metrics": []
+      },
+      "lastGate": {
+        "artifactId": "student-rules-release-gate",
+        "artifactKind": "formal_final_summary",
+        "profileId": "handbook",
+        "surfaceKey": "regulations/student_rules",
+        "status": "passed",
+        "caseCount": 25,
+        "passedCount": 25,
+        "failedCount": 0,
+        "gitHead": "git-main",
+        "reasons": []
+      },
+      "readiness": {
+        "status": "diagnostic_attention",
+        "reasons": []
+      }
+    }
+  ],
+  "excludedSurfaces": [
+    {
+      "surfaceKey": "official_web/fresh_news",
+      "reason": "excluded from current RAG consumption denominator"
+    }
+  ]
+}
+```
+
+规则：
+
+- 该 endpoint 只读 `operator.eval_coverage_snapshot` 的最新 projection
+- 如果尚未发布快照，返回 `404 eval_coverage_snapshot_not_found`
+- deterministic readiness 由 qrels coverage、maturity gaps 与 last gate 决定
+- `ragasDiagnostic` 是 supplemental diagnostic，不替代 deterministic release gate
+- snapshot 不得包含 local artifact path、object store key、raw prompt、raw answer、transcript、
+  auth material、cookie 或 token
+- 该 endpoint 不读取 `.tmp`、`.planning`、eval artifact 目录或对象存储；这些来源只能先通过
+  internal publish seam 写入 projection
 
 ## Overview Endpoint
 

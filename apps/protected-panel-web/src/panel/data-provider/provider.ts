@@ -43,6 +43,7 @@ import {
 	getOperatorAuditEvent,
 	getOperatorCostSummary,
 	getOperatorCostTimeseries,
+	getOperatorEvalCoverage,
 	getOperatorIntentSummary,
 	getOperatorIntentTimeseries,
 	getOperatorOverview,
@@ -282,6 +283,9 @@ export const protectedPanelDataProvider: ProtectedPanelDataProvider = {
 	},
 	async getOperatorCostTimeseries(input) {
 		return getOperatorCostTimeseries(input);
+	},
+	async getOperatorEvalCoverage(input) {
+		return getOperatorEvalCoverage(input);
 	},
 	async listOperatorAudit(input) {
 		return listOperatorAudit(input);

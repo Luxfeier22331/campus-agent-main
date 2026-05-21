@@ -643,6 +643,103 @@ export function registerDataProviderObservabilityAndOperatorSuite() {
 		);
 	});
 
+	it("loads eval coverage from the operator-safe projection seam", async () => {
+		const fetchSpy = vi.spyOn(globalThis, "fetch").mockResolvedValue(
+			createJsonResponse({
+				denominatorSurfaces: [
+					"regulations/student_rules",
+					"regulations/institutional_rules",
+					"curriculum/curriculum_plan",
+					"official_web/stable_reference",
+				],
+				excludedSurfaces: [
+					{
+						reason: "excluded from current RAG consumption denominator",
+						surfaceKey: "official_web/fresh_news",
+					},
+				],
+				generatedAt: "2026-05-21T09:00:00.000Z",
+				schemaVersion: "eval_coverage_snapshot.v1",
+				snapshotId: "eval_coverage:2026-05-21T090000Z",
+				sourceGitHead: "git-main",
+				sourceReportSchema: "rag-eval-coverage-report.v1",
+				surfaces: [
+					{
+						answerQualityCaseCount: 18,
+						coverageGaps: [],
+						goldenQrelsCaseCount: 52,
+						knownGapCaseCount: 4,
+						lastGate: {
+							artifactId: "student-rules-release-gate",
+							artifactKind: "formal_final_summary",
+							caseCount: 25,
+							failedCount: 0,
+							gitHead: "git-main",
+							passedCount: 25,
+							profileId: "handbook",
+							reasons: [],
+							status: "passed",
+							surfaceKey: "regulations/student_rules",
+						},
+						maturityGaps: [],
+						maturityStatus: "ready",
+						profileArtifactKind: "release_acceptance",
+						profileId: "handbook",
+						qrelsCaseCount: 52,
+						ragasDiagnostic: {
+							caseCount: 2,
+							completedCaseCount: 2,
+							failedCaseCount: 0,
+							lowScoreCases: [
+								{
+									caseId: "student-case",
+									metricName: "answer_relevancy",
+									score: 0.7,
+								},
+							],
+							metrics: [],
+							status: "diagnostic_attention",
+						},
+						readiness: {
+							reasons: [],
+							status: "diagnostic_attention",
+						},
+						releaseAcceptanceCaseCount: 25,
+						surfaceKey: "regulations/student_rules",
+						uniqueExpectedDocCount: 28,
+					},
+				],
+			}),
+		);
+
+		await expect(protectedPanelDataProvider.getOperatorEvalCoverage()).resolves.toMatchObject({
+			data: {
+				id: "eval_coverage:2026-05-21T090000Z",
+				surfaces: [
+					{
+						ragasDiagnostic: {
+							status: "diagnostic_attention",
+						},
+						readiness: {
+							status: "diagnostic_attention",
+						},
+						surfaceKey: "regulations/student_rules",
+					},
+				],
+			},
+		});
+
+		expect(fetchSpy).toHaveBeenCalledWith(
+			"/api/operator/evals/coverage",
+			expect.objectContaining({
+				headers: {
+					accept: "application/json",
+				},
+				method: "GET",
+			}),
+		);
+	});
+
 	it("fails closed on invalid operator timeseries window and granularity combinations", async () => {
 		const fetchSpy = vi.spyOn(globalThis, "fetch");
 

@@ -1,6 +1,7 @@
 import AccountCircleOutlinedIcon from "@mui/icons-material/AccountCircleOutlined";
 import AdminPanelSettingsOutlinedIcon from "@mui/icons-material/AdminPanelSettingsOutlined";
 import DashboardOutlinedIcon from "@mui/icons-material/DashboardOutlined";
+import FactCheckOutlinedIcon from "@mui/icons-material/FactCheckOutlined";
 import FindInPageOutlinedIcon from "@mui/icons-material/FindInPageOutlined";
 import HistoryOutlinedIcon from "@mui/icons-material/HistoryOutlined";
 import Inventory2OutlinedIcon from "@mui/icons-material/Inventory2Outlined";
@@ -164,6 +165,11 @@ function ProtectedPanelMenu() {
 				leftIcon={<QueryStatsOutlinedIcon />}
 				primaryText={PANEL_COPY.menu.quality}
 				to="/observability/quality"
+			/>
+			<RaMenu.Item
+				leftIcon={<FactCheckOutlinedIcon />}
+				primaryText={PANEL_COPY.menu.evalCoverage}
+				to="/observability/eval-coverage"
 			/>
 			<RaMenu.Item
 				leftIcon={<QueryStatsOutlinedIcon />}

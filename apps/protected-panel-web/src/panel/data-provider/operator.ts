@@ -6,6 +6,7 @@ import {
 	normalizeOperatorAuditEventRecord,
 	normalizeOperatorCostSummaryRecord,
 	normalizeOperatorCostTimeseriesRecord,
+	normalizeOperatorEvalCoverageRecord,
 	normalizeOperatorIntentSummaryRecord,
 	normalizeOperatorIntentTimeseriesRecord,
 	normalizeOperatorOverviewRecord,
@@ -21,6 +22,7 @@ import {
 	type OperatorAuditListFilterInput,
 	type OperatorCostSummaryRecord,
 	type OperatorCostTimeseriesRecord,
+	type OperatorEvalCoverageRecord,
 	type OperatorIntentSummaryRecord,
 	type OperatorIntentTimeseriesRecord,
 	type OperatorOverviewRecord,
@@ -37,6 +39,7 @@ import {
 	type RawOperatorAuditListResponse,
 	type RawOperatorCostSummaryRecord,
 	type RawOperatorCostTimeseriesRecord,
+	type RawOperatorEvalCoverageRecord,
 	type RawOperatorIntentSummaryRecord,
 	type RawOperatorIntentTimeseriesRecord,
 	type RawOperatorOverviewRecord,
@@ -307,6 +310,18 @@ export async function getOperatorCostTimeseries(
 
 	return {
 		data: normalizeOperatorCostTimeseriesRecord(payload),
+	};
+}
+
+export async function getOperatorEvalCoverage(input?: {
+	signal?: AbortSignal;
+}): Promise<{ data: OperatorEvalCoverageRecord }> {
+	const payload = await fetchJson<RawOperatorEvalCoverageRecord>("/api/operator/evals/coverage", {
+		signal: input?.signal,
+	});
+
+	return {
+		data: normalizeOperatorEvalCoverageRecord(payload),
 	};
 }
 

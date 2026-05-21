@@ -1,4 +1,9 @@
 import { AppApiRouteError } from "../../http";
+import {
+	EVAL_COVERAGE_SNAPSHOT_SCHEMA_VERSION,
+	type EvalCoverageSnapshot,
+	normalizeEvalCoverageSnapshot,
+} from "../operator-eval-coverage";
 import type {
 	ExecutionAuditEventWrite,
 	OperatorObservabilityCommandStore,
@@ -83,6 +88,9 @@ export interface OperatorTraceBacklinksPayload {
 }
 
 export interface OperatorObservabilityCommandService {
+	ingestEvalCoverageSnapshot(input: {
+		payload: unknown;
+	}): Promise<{ accepted: number; snapshotId: string }>;
 	ingestExecutionAuditEvents(input: {
 		payload: OperatorExecutionAuditEventsPayload;
 	}): Promise<{ accepted: number }>;
@@ -364,6 +372,20 @@ export function buildOperatorObservabilityCommandService(
 	const now = dependencies.now ?? (() => new Date());
 
 	return {
+		async ingestEvalCoverageSnapshot(input) {
+			const snapshot: EvalCoverageSnapshot = normalizeEvalCoverageSnapshot(input.payload);
+			await dependencies.store.upsertEvalCoverageSnapshot({
+				snapshot: {
+					generatedAt: snapshot.generatedAt,
+					payload: snapshot,
+					schemaVersion: EVAL_COVERAGE_SNAPSHOT_SCHEMA_VERSION,
+					snapshotId: snapshot.snapshotId,
+					sourceGitHead: snapshot.sourceGitHead,
+				},
+			});
+			return { accepted: 1, snapshotId: snapshot.snapshotId };
+		},
+
 		async ingestExecutionAuditEvents(input) {
 			const events = ensureArray<OperatorExecutionAuditEventPayloadItem>(
 				input.payload.events,

@@ -10,6 +10,7 @@ import type {
 	OperatorAuditListResult,
 	OperatorCostSummaryResult,
 	OperatorCostTimeseriesResult,
+	OperatorEvalCoverageResult,
 	OperatorIntentSummaryResult,
 	OperatorIntentTimeseriesResult,
 	OperatorOverviewFilters,
@@ -31,6 +32,7 @@ import type {
 export interface OperatorQueryStore {
 	getById(requestId: string): Promise<RequestProjectionRecord | null>;
 	getAuditById(auditEventId: string): Promise<OperatorAuditEventDetail | null>;
+	getEvalCoverage(): Promise<OperatorEvalCoverageResult | null>;
 	getObservabilityById(requestId: string): Promise<OperatorRequestObservabilityRecord | null>;
 	getOverview(filters: NormalizedOperatorOverviewFilters): Promise<OperatorOverviewResult>;
 	getQualitySummary(
@@ -78,6 +80,7 @@ export interface OperatorQueryService {
 		principal: ResolvedAppPrincipal;
 		auditEventId: string;
 	}): Promise<OperatorAuditEventDetail>;
+	getEvalCoverage(input: { principal: ResolvedAppPrincipal }): Promise<OperatorEvalCoverageResult>;
 	getOverview(input: {
 		principal: ResolvedAppPrincipal;
 		filters: OperatorOverviewFilters;

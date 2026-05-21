@@ -28,6 +28,7 @@ import { AccessRequiredPage } from "./pages/access-required-page";
 import { AuditPage } from "./pages/audit-page";
 import { CostPage } from "./pages/cost-page";
 import { DelayedDomainPage } from "./pages/delayed-domain-page";
+import { EvalCoveragePage } from "./pages/eval-coverage-page";
 import { IntentPage } from "./pages/intent-page";
 import { OverviewPage } from "./pages/overview-page";
 import { QualityPage } from "./pages/quality-page";
@@ -120,6 +121,7 @@ export function ProtectedPanelAdminApp() {
 			<CustomRoutes>
 				<Route element={<OverviewPage />} path="/observability/overview" />
 				<Route element={<QualityPage />} path="/observability/quality" />
+				<Route element={<EvalCoveragePage />} path="/observability/eval-coverage" />
 				<Route element={<IntentPage />} path="/observability/intent" />
 				<Route element={<SafetyPage />} path="/observability/safety" />
 				<Route element={<CostPage />} path="/observability/cost" />

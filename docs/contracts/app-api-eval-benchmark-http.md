@@ -207,3 +207,31 @@ response body：
   deterministic trace observation
 - 它不替代 accepted benchmark artifact contract；artifact 布局与 accept/publish 入口见
   `docs/reference/eval-benchmark-artifact-contract.md`
+
+## Eval Coverage Projection Publish
+
+Eval coverage snapshot 不是 chat request ingress。它由 `packages/evals` 在本地或 CI
+汇总 current denominator 后，经 operator observability internal seam 发布到 app-api：
+
+- `POST /api/internal/operator/evals/coverage-snapshots`
+- admission：`x-app-internal-auth`
+- request body：`eval_coverage_snapshot.v1`
+- success response：
+
+```json
+{
+  "accepted": 1,
+  "snapshotId": "eval_coverage:20260521T090000Z"
+}
+```
+
+规则：
+
+- app-api 必须校验 current denominator surface 顺序：
+  `regulations/student_rules`、`regulations/institutional_rules`、
+  `curriculum/curriculum_plan`、`official_web/stable_reference`
+- app-api 必须拒绝 local artifact path、raw prompt、raw answer、transcript、auth material、
+  cookie 或 token 等字段
+- 该 publish seam 只写 operator projection，不改变 deterministic gate verdict，也不把 RAGAS
+  diagnostic 升级为 release blocker
+- panel 只通过 `GET /api/operator/evals/coverage` 读取已发布 projection
