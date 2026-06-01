@@ -23,14 +23,20 @@ updated: 2026-05-07
 `app-api -> supervisor-api -> supervisor-agent-worker private bridge ->
 agent -> retrieval-core -> evidence -> supervisor response`
 
-已打开但仍保持 `typed_handoff_only` 的 deterministic structured capability 是这条语义链路的
-例外分支：
+当前 execution runtime 已统一成三种受治理路径：
+
+- `direct_runtime`
+- `single_handoff`
+- `gated multi_step`
+
+其中，已打开但仍保持 `typed_handoff_only` 的 deterministic structured capability 是
+`direct_runtime` 分支：
 
 `app-api -> supervisor-api -> Go structured runtime -> supervisor-style response`
 
-已进入 `runtime_posture=sdk_adapter_admitted` 的 structured tool 不再被公开 answer
-入口的 Go direct-runtime 抢走；它们走 Go-owned `single_handoff` plan，再由 Python
-domain-agent adapter / Agents SDK shell 调用 repo-owned structured query backend。
+已进入 `runtime_posture=sdk_adapter_admitted` 的 structured tool 不再被公开 answer 入口的
+Go direct-runtime 抢走；它们走 Go-owned `single_handoff` plan，再由 Python worker 的
+OpenAI Agents SDK native runtime 调用 repo-owned structured query backend。
 
 长期目标态在同一 governance boundary 内扩展为：
 
@@ -304,6 +310,8 @@ agent 是稳定能力边界，不等于某个底层框架对象。
 
 - `rag-agent`
 - `navigation-agent`
+- `campus-services-agent`
+- `notice-agent`
 
 后续如引入新的稳定 capability family，必须满足：
 
@@ -321,7 +329,6 @@ agent 是稳定能力边界，不等于某个底层框架对象。
 - 当前已完成首轮 current-truth/runtime label convergence：
   - `rag-agent`
   - `navigation-agent`
-- 当前额外冻结的 forward family label 为：
   - `campus-services-agent`
   - `notice-agent`
 - 当长期新增稳定 capability family 时，前向 family label 默认采用 `<domain>-agent`

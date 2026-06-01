@@ -17,6 +17,12 @@ policy、reference、runbook，以及已归档的历史 plan。
   - 当前 accepted merged truth
 - [architecture/target-architecture.md](./architecture/target-architecture.md)
   - 长期目标架构与不可退回约束
+- [architecture/system/capability-routing-and-admission-architecture.md](./architecture/system/capability-routing-and-admission-architecture.md)
+  - capability routing、surface admission 与 structured/runtime opening owner
+- [architecture/system/execution-and-agents-architecture.md](./architecture/system/execution-and-agents-architecture.md)
+  - supervisor runtime、agent family、handoff 与 workflow ownership
+- [architecture/system/agentic-retrieval-architecture.md](./architecture/system/agentic-retrieval-architecture.md)
+  - retrieval-side agentic planning、evidence contract 与 retrieval/runtime split
 - [../.planning/PROJECT.md](../.planning/PROJECT.md)
   - 当前项目级 active lane 与 pending work
 - [../.planning/WORKSTREAMS.md](../.planning/WORKSTREAMS.md)
@@ -54,8 +60,16 @@ policy、reference、runbook，以及已归档的历史 plan。
 - 需要回答“产品是什么、当前系统真相是什么、长期要收口到哪里”，先读 `architecture/`
 - 需要回答“顶层 capability routing、surface allowlist 与 admission/routing 分层如何设计”，读
   `architecture/system/capability-routing-and-admission-architecture.md`
+- 需要回答“supervisor、structured runtime、agent handoff 与 SDK-native execution 如何分层”，读
+  `architecture/system/execution-and-agents-architecture.md`
+- 需要回答“retrieval planner、bounded evidence、RAG side agent runtime 如何分层”，读
+  `architecture/system/agentic-retrieval-architecture.md`
 - 需要回答“为什么接受这条边界”，读 `decisions/`
 - 需要回答“接口、schema、指标或术语长什么样”，读 `contracts/`、`data/`、`reference/`
+- 需要回答“source-channel 的 canonical data truth 是什么”，优先从 `data/` 进入，例如
+  `data/official-web-source-truth-schema.md`、
+  `data/authenticated-notice-source-truth-schema.md`、
+  `data/wechat-official-account-source-truth-schema.md`
 - 需要回答“如何部署、恢复、验收或操作”，读 `runbooks/`、`environment/`、`policies/`
 - 需要按领域聚合同一主题下的多类材料，读 `domains/`
 - 需要查看历史方案、completed closeout 或 supersession 关系，读 `plans/`

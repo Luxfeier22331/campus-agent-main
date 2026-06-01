@@ -84,14 +84,16 @@ truth 为基础，持续承接高频校园问答、校园服务发现与后续�
 
 这表示当前 rollout 的公开重心仍在 knowledge path，而不是长期入口必须始终 `RAG-first`。
 
-当前已进入公开查询面的重点仍以：
+当前已进入公开查询面的重点固定为：
 
-- `student_rules`
-- `curriculum_plan`
+- `regulations/student_rules`
+- `regulations/institutional_rules`
+- `curriculum/curriculum_plan`
+- `official_web/stable_reference`
 
-为主。
+同时，当前公开能力重心仍然是 institution knowledge question answering，而不是把所有长期能力面都提前开放给终端用户。
 
-同时，已冻结的前向扩展方向是：
+已冻结的前向扩展方向是：
 
 - 先补 `place_lookup` / `place_finding`
 - 后做 `route_planning` / `wayfinding`
@@ -108,6 +110,8 @@ truth 为基础，持续承接高频校园问答、校园服务发现与后续�
   账号壳与跨 surface 导航，但不改变 query-serving truth 或 capability opening truth
 - 既有 `muc.wiki` MediaWiki 继续作为 sibling legacy service 运营；hub 只提供外部链接卡片，
   不替代、代理、镜像或迁移 MediaWiki 页面内容、上传媒体或账号
+- `authenticated_notice_portal`、`wechat_official_account` 与 structured runtime source/data
+  lane 是长期能力输入与 control-plane truth 的一部分；除非显式开放，它们不自动上升为当前公开产品承诺
 
 ## 长期产品形态
 
