@@ -241,6 +241,24 @@ artifact，不是 canonical golden truth，也不是 release acceptance artifact
 `campus_evals.eval_diagnostic_badcases` 从
 `ragas-diagnostic-combined-report.v1` 显式生成。
 
+RAGAS diagnostic run manifest 固定支持两种 case selection：
+
+- `preferred`：repo-owned preferred diagnostic cases，用于快速诊断和迭代
+- `full-denominator`：遍历当前 RAG consumption denominator 的 qrels fixture，并只运行
+  answer-ready case
+
+`full-denominator` manifest 必须保留 `excluded_cases`，记录 authz denied、no-hit、
+unsupported empty result，以及没有 clause/chunk/version expected source 的 doc-level
+article-number case。排除必须有显式 reason；不得通过调高 sample limit 假装 full run，也不得静默
+跳过 deterministic-only case。
+
+full-denominator RAGAS 允许按单 metric 生成 per-metric report 后再组合。组合器只消费
+`ragas-diagnostic.<single-metric>.json`，不得把 `ragas-diagnostic.all.json`、`current`、
+`combined` 或 `summary` 作为输入。单 metric report 中，明确不适用于该 metric 的 case 必须以
+`diagnostic_reason=metric_not_applicable` 和 `metric_applicability` 显式呈现，并且不触发
+retrieval/scorer。低分 metric 必须携带对应
+`failure_attribution.metric_failures.<metric>`，否则组合阶段 fail closed。
+
 稳定字段：
 
 - `schemaVersion = eval_diagnostic_badcases.v1`
@@ -319,6 +337,11 @@ artifact，不是 canonical golden truth，也不是 release acceptance artifact
   `excludedSurfaces`
 - gate artifact 输入必须通过 `eval-coverage-gate-artifacts.v1` manifest 显式列出；builder 不扫描
   `.tmp`、`.planning`、对象存储或任意目录
+- `eval-coverage-gate-artifacts.v1` manifest 由
+  `campus_evals.eval_coverage_gate_artifacts` 生成；每个 artifact 必须显式声明
+  `surface_key`、`profile_id`、`artifact_kind`、`artifact_id` 与 `path`
+- `artifact_kind` 只允许 `profile_report`、`formal_final_summary`、
+  `formal_gate_report`、`composite_gate_report` 与 `release_acceptance_result`
 - RAGAS combined input 必须使用 `ragas-diagnostic-combined-report.v1`，并只进入
   `ragasDiagnostic`
 - RAGAS low-score metric 必须带显式 `failure_attribution.metric_failures.<metric>`；

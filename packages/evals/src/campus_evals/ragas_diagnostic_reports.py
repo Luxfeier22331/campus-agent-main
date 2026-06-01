@@ -28,15 +28,29 @@ def combine_ragas_diagnostic_reports(
                 merged_cases_by_key[case_key] = _base_combined_case(source_case)
                 case_order.append(case_key)
             target_case = merged_cases_by_key[case_key]
+            _promote_diagnostic_fields(target_case, source_case=source_case)
             target_scores = target_case.setdefault("scores", {})
             if not isinstance(target_scores, dict):
                 raise ValueError("combined case scores must be a mapping")
             source_scores = source_case.get("scores")
             if isinstance(source_scores, dict):
                 for metric_name, score in source_scores.items():
-                    target_scores[str(metric_name)] = (
-                        float(score) if isinstance(score, int | float) else None
-                    )
+                    normalized_metric_name = str(metric_name)
+                    normalized_score = float(score) if isinstance(score, int | float) else None
+                    target_scores[normalized_metric_name] = normalized_score
+                    if normalized_score is not None and normalized_score < low_score_threshold:
+                        _merge_low_score_failure_attribution(
+                            target_case,
+                            source_case=source_case,
+                            metric_name=normalized_metric_name,
+                        )
+            source_applicability = source_case.get("metric_applicability")
+            if isinstance(source_applicability, dict):
+                target_applicability = target_case.setdefault("metric_applicability", {})
+                if not isinstance(target_applicability, dict):
+                    raise ValueError("combined case metric_applicability must be a mapping")
+                for metric_name, applicable in source_applicability.items():
+                    target_applicability[str(metric_name)] = bool(applicable)
             source_metric_failures = _case_metric_failures_for_report(
                 source_case,
                 metric_names=tuple(report_metric_names),
@@ -199,6 +213,7 @@ def metric_report_filename(metric_names: tuple[str, ...]) -> str:
 
 def load_existing_metric_reports(output_dir: Path) -> list[dict[str, object]]:
     skipped_names = {
+        "ragas-diagnostic.all.json",
         "ragas-diagnostic.current.json",
         "ragas-diagnostic.combined.json",
         "ragas-diagnostic.summary.json",
@@ -245,6 +260,7 @@ def _case_result_payload(
         "duration_ms": duration_ms,
         "performance_breakdown": dict(performance_breakdown),
         "failure_attribution": dict(failure_attribution),
+        "metric_applicability": dict(projection.metadata.get("metric_applicability") or {}),
         "scores": dict(scores),
     }
 
@@ -408,6 +424,8 @@ def _case_metric_failures_for_report(
         ]
     failures: list[dict[str, object]] = []
     for metric_name in metric_names:
+        if _case_metric_is_applicable(source_case, metric_name=metric_name) is False:
+            continue
         score = scores.get(metric_name)
         if isinstance(score, int | float):
             continue
@@ -419,6 +437,49 @@ def _case_metric_failures_for_report(
             }
         )
     return failures
+
+
+def _case_metric_is_applicable(
+    case: Mapping[str, object],
+    *,
+    metric_name: str,
+) -> bool:
+    applicability = case.get("metric_applicability")
+    if not isinstance(applicability, dict):
+        return True
+    return bool(applicability.get(metric_name, True))
+
+
+def _merge_low_score_failure_attribution(
+    target_case: dict[str, object],
+    *,
+    source_case: Mapping[str, object],
+    metric_name: str,
+) -> None:
+    source_attribution = source_case.get("failure_attribution")
+    if not isinstance(source_attribution, Mapping):
+        raise ValueError(f"low-score metric {metric_name} requires failure_attribution")
+    source_failures = source_attribution.get("metric_failures")
+    if not isinstance(source_failures, Mapping):
+        raise ValueError(
+            f"low-score metric {metric_name} requires failure_attribution.metric_failures"
+        )
+    failure_stage = source_failures.get(metric_name)
+    if not isinstance(failure_stage, str) or not failure_stage.strip():
+        raise ValueError(
+            f"low-score metric {metric_name} requires failure_attribution.metric_failures"
+        )
+    target_attribution = target_case.setdefault(
+        "failure_attribution",
+        {"primary_stage": "passed", "metric_failures": {}},
+    )
+    if not isinstance(target_attribution, dict):
+        raise ValueError("combined case failure_attribution must be a mapping")
+    target_failures = target_attribution.setdefault("metric_failures", {})
+    if not isinstance(target_failures, dict):
+        raise ValueError("combined case failure_attribution.metric_failures must be a mapping")
+    target_failures[metric_name] = failure_stage.strip()
+    target_attribution["primary_stage"] = _primary_failure_stage(target_failures)
 
 
 def _metric_unavailable_message(
@@ -589,11 +650,50 @@ def _base_combined_case(item: Mapping[str, object]) -> dict[str, object]:
         "selected_support_doc_ids",
         "selected_support_chunk_ids",
         "failure_attribution",
+        "metric_applicability",
     )
     combined = {key: item[key] for key in base_keys if key in item}
     combined["status"] = "completed"
     combined["scores"] = {}
     return combined
+
+
+def _promote_diagnostic_fields(
+    target_case: dict[str, object],
+    *,
+    source_case: Mapping[str, object],
+) -> None:
+    if not _source_case_has_diagnostic_payload(source_case):
+        return
+    for key in (
+        "answer_text",
+        "answer_shape",
+        "presentation_kind",
+        "diagnostic_reason",
+        "retrieval_intent_kind",
+        "retrieval_answer_kind",
+        "retrieved_context_count",
+        "retrieved_context_ids",
+        "raw_retrieved_doc_ids",
+        "raw_retrieved_chunk_ids",
+        "selected_support_doc_ids",
+        "selected_support_chunk_ids",
+    ):
+        if key in source_case:
+            target_case[key] = source_case[key]
+
+
+def _source_case_has_diagnostic_payload(source_case: Mapping[str, object]) -> bool:
+    retrieved_context_ids = source_case.get("retrieved_context_ids")
+    if isinstance(retrieved_context_ids, list) and retrieved_context_ids:
+        return True
+    raw_retrieved_doc_ids = source_case.get("raw_retrieved_doc_ids")
+    if isinstance(raw_retrieved_doc_ids, list) and raw_retrieved_doc_ids:
+        return True
+    selected_support_doc_ids = source_case.get("selected_support_doc_ids")
+    if isinstance(selected_support_doc_ids, list) and selected_support_doc_ids:
+        return True
+    return bool(str(source_case.get("answer_text") or "").strip())
 
 
 __all__ = [
